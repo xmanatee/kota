@@ -1,4 +1,4 @@
-# Knowledge Extension
+# Knowledge Module
 
 This directory owns the `knowledge` management tool — a structured, file-based reference data layer backed by markdown files with YAML front matter.
 
@@ -8,7 +8,7 @@ This directory owns the `knowledge` management tool — a structured, file-based
 
 ## Files
 
-- `index.ts` — `KotaExtension` definition; registers the tool and skill.
+- `index.ts` — `KotaModule` definition; registers the tool and skill.
 - `knowledge.ts` — `knowledgeTool` schema and `runKnowledge` runner.
 - `knowledge-schema.ts` — shared type definitions and schema helpers for knowledge entries.
 

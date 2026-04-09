@@ -2,10 +2,10 @@ import type { ChannelDef } from "./channel.js";
 import type { KotaConfig } from "./config.js";
 import { registerDynamicStateProvider } from "./dynamic-state.js";
 import type { EventBus } from "./event-bus.js";
-import { getExtensionLogStore } from "./extension-log.js";
-import { ExtensionStorage } from "./extension-storage.js";
-import type { CreateSessionOptions, ExtensionContext, ExtensionEventProxy, ExtensionSession, ExtensionSummary, RouteRegistration } from "./extension-types.js";
-import { getProviderRegistry } from "./extensions/providers/index.js";
+import { getModuleLogStore } from "./module-log.js";
+import { ModuleStorage } from "./module-storage.js";
+import type { CreateSessionOptions, ModuleContext, ModuleEventProxy, ModuleSession, ModuleSummary, RouteRegistration } from "./module-types.js";
+import { getProviderRegistry } from "./modules/providers/index.js";
 import { resolveLogFormatter } from "./log-format.js";
 import { getSecretStore } from "./secrets.js";
 import { registerCustomGroup } from "./tool-groups.js";
@@ -14,36 +14,36 @@ import { getRegisteredTools } from "./tools/index.js";
 import type { ToolResult } from "./tools/tool-result.js";
 import type { RegisteredWorkflowDefinitionInput } from "./workflow/types.js";
 
-export interface ExtensionContextParams {
+export interface ModuleContextParams {
   cwd: string;
   verbose: boolean;
   config: KotaConfig;
-  extensionStorages: Map<string, ExtensionStorage>;
+  moduleStorages: Map<string, ModuleStorage>;
   getBus: () => EventBus | null;
   getRoutes: () => RouteRegistration[];
   getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
   getContributedChannels: () => ChannelDef[];
-  getExtensionSummaries: () => ExtensionSummary[];
-  sessionFactory: ((opts: CreateSessionOptions) => ExtensionSession) | null;
+  getModuleSummaries: () => ModuleSummary[];
+  sessionFactory: ((opts: CreateSessionOptions) => ModuleSession) | null;
   callTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
 }
 
 function getOrCreateStorage(
-  extensionName: string,
+  moduleName: string,
   cwd: string,
-  extensionStorages: Map<string, ExtensionStorage>,
-): ExtensionStorage {
-  let storage = extensionStorages.get(extensionName);
+  moduleStorages: Map<string, ModuleStorage>,
+): ModuleStorage {
+  let storage = moduleStorages.get(moduleName);
   if (!storage) {
-    storage = new ExtensionStorage(cwd, extensionName);
-    extensionStorages.set(extensionName, storage);
+    storage = new ModuleStorage(cwd, moduleName);
+    moduleStorages.set(moduleName, storage);
   }
   return storage;
 }
 
 function createEventProxy(
   getBus: () => EventBus | null,
-): ExtensionEventProxy {
+): ModuleEventProxy {
   return {
     emit: (event: string, payload: Record<string, unknown>) => {
       getBus()?.emit(event, payload);
@@ -56,29 +56,29 @@ function createEventProxy(
   };
 }
 
-export function createExtensionContext(params: ExtensionContextParams, extensionName?: string): ExtensionContext {
-  const { cwd, verbose, config, extensionStorages, getBus, getRoutes, getContributedWorkflows, getContributedChannels, getExtensionSummaries, sessionFactory, callTool } = params;
-  const storage = extensionName
-    ? getOrCreateStorage(extensionName, cwd, extensionStorages)
-    : new ExtensionStorage(cwd, "_default");
-  const prefix = extensionName ? `[extension:${extensionName}]` : "[extension]";
+export function createModuleContext(params: ModuleContextParams, moduleName?: string): ModuleContext {
+  const { cwd, verbose, config, moduleStorages, getBus, getRoutes, getContributedWorkflows, getContributedChannels, getModuleSummaries, sessionFactory, callTool } = params;
+  const storage = moduleName
+    ? getOrCreateStorage(moduleName, cwd, moduleStorages)
+    : new ModuleStorage(cwd, "_default");
+  const prefix = moduleName ? `[module:${moduleName}]` : "[module]";
   const formatLine = resolveLogFormatter(config.log?.format);
   const log = {
     info: (msg: string, data?: unknown) => {
       console.error(formatLine("info", prefix, msg, data));
-      getExtensionLogStore()?.append(extensionName ?? "_default", "info", msg, data);
+      getModuleLogStore()?.append(moduleName ?? "_default", "info", msg, data);
     },
     warn: (msg: string, data?: unknown) => {
       console.error(formatLine("warn", prefix, msg, data));
-      getExtensionLogStore()?.append(extensionName ?? "_default", "warn", msg, data);
+      getModuleLogStore()?.append(moduleName ?? "_default", "warn", msg, data);
     },
     error: (msg: string, data?: unknown) => {
       console.error(formatLine("error", prefix, msg, data));
-      getExtensionLogStore()?.append(extensionName ?? "_default", "error", msg, data);
+      getModuleLogStore()?.append(moduleName ?? "_default", "error", msg, data);
     },
     debug: (msg: string, data?: unknown) => {
       if (verbose) console.error(formatLine("debug", prefix, msg, data));
-      getExtensionLogStore()?.append(extensionName ?? "_default", "debug", msg, data);
+      getModuleLogStore()?.append(moduleName ?? "_default", "debug", msg, data);
     },
   };
   return {
@@ -92,10 +92,10 @@ export function createExtensionContext(params: ExtensionContextParams, extension
     getRoutes,
     getContributedWorkflows,
     getContributedChannels,
-    getExtensionSummaries,
-    getExtensionConfig: <T = Record<string, unknown>>(): T | undefined => {
-      if (!extensionName) return undefined;
-      return config.extensions?.[extensionName] as T | undefined;
+    getModuleSummaries,
+    getModuleConfig: <T = Record<string, unknown>>(): T | undefined => {
+      if (!moduleName) return undefined;
+      return config.modules?.[moduleName] as T | undefined;
     },
     log,
     getSecret: (key: string): string | null => {
@@ -106,7 +106,7 @@ export function createExtensionContext(params: ExtensionContextParams, extension
       return getRegisteredTools().map((t) => t.name);
     },
     events: createEventProxy(getBus),
-    createSession: (opts?: CreateSessionOptions): ExtensionSession => {
+    createSession: (opts?: CreateSessionOptions): ModuleSession => {
       if (!sessionFactory) {
         throw new Error("Session factory not available. createSession() can only be used during agent sessions, not CLI commands.");
       }
@@ -118,11 +118,11 @@ export function createExtensionContext(params: ExtensionContextParams, extension
         log.warn(`Cannot register provider for "${type}" — registry not initialized`);
         return;
       }
-      if (!extensionName) {
-        log.warn(`Cannot register provider without an extension name`);
+      if (!moduleName) {
+        log.warn(`Cannot register provider without a module name`);
         return;
       }
-      reg.register(type, extensionName, provider);
+      reg.register(type, moduleName, provider);
       log.info(`Registered as provider for "${type}"`);
     },
     getProvider: <T>(type: string): T | null => {
@@ -131,7 +131,7 @@ export function createExtensionContext(params: ExtensionContextParams, extension
     },
     callTool,
     registerMiddleware: (name, fn, priority) => {
-      getToolMiddleware().add(name, fn, { priority, owner: extensionName });
+      getToolMiddleware().add(name, fn, { priority, owner: moduleName });
     },
     registerDynamicStateProvider: (name, fn) => {
       registerDynamicStateProvider(name, fn);

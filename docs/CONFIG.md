@@ -3,7 +3,7 @@
 ## First-time setup
 
 Run `kota init` in a new directory to scaffold the required project structure:
-- `kota.config.ts` — project config with commented-out extension blocks
+- `kota.config.ts` — project config with commented-out module blocks
 - `data/inbox/` — quick captures and rough ideas
 - `data/tasks/` — normalized task queue subdirectories (`ready/`, `doing/`, `backlog/`, `blocked/`, `done/`, `dropped/`)
 - `docs/` — documentation directory
@@ -20,7 +20,7 @@ Run `kota init` in a new directory to scaffold the required project structure:
 | Daemon | Daemon process is running and API is reachable |
 | Config: global | `~/.kota/config.json` is valid JSON |
 | Config: project | `.kota/config.json` is valid JSON |
-| Extensions | All configured extensions load without error |
+| Modules | All configured modules load without error |
 | Providers | Provider configuration is present |
 | Provider connectivity | A live 1-token completion reaches the configured model provider |
 | Workflows | Built-in workflow definitions are valid |
@@ -77,18 +77,18 @@ Run `kota config schema` to print the absolute path to the schema file. Pass `--
 |-------|--------|---------|-------------|
 | `log.format` | `"text"` \| `"json"` | `"text"` | Log output format. |
 
-`"text"` emits human-readable lines (`[extension:foo] INFO: message`).
+`"text"` emits human-readable lines (`[module:foo] INFO: message`).
 `"json"` emits newline-delimited JSON objects suitable for Datadog, Loki, ELK, etc.:
 
 ```json
-{"ts":"2026-01-01T00:00:00.000Z","level":"info","msg":"step completed","extension":"my-ext","data":{}}
+{"ts":"2026-01-01T00:00:00.000Z","level":"info","msg":"step completed","module":"my-ext","data":{}}
 ```
 
 **Environment variable**: `LOG_FORMAT=json` sets the format at the process level and takes effect when `log.format` is not set in config. Config wins over the env var when both are present.
 
 ## Daemon log format
 
-The `log.format` setting above controls agent session and extension log output. The daemon's own operational logs (startup, workflow start/finish, errors) use a separate mechanism:
+The `log.format` setting above controls agent session and module log output. The daemon's own operational logs (startup, workflow start/finish, errors) use a separate mechanism:
 
 - `kota daemon start --log-format json` — emit NDJSON to stderr for the current daemon process.
 - `KOTA_DAEMON_LOG_FORMAT=json kota daemon start` — equivalent env var form.
@@ -103,8 +103,8 @@ See `src/config.ts` (`KotaConfig` type) for the full list of supported fields an
 
 - `model`, `editorModel`, `maxTokens` — model selection
 - `guardrails` — risk policy and tool call enforcement
-- `extensions` — per-extension config blocks (see below)
-- `foreignExtensions` — out-of-process KEMP extensions (see `docs/FOREIGN-EXTENSIONS.md`)
+- `modules` — per-module config blocks (see below)
+- `foreignModules` — out-of-process KEMP modules (see `docs/FOREIGN-MODULES.md`)
 - `daemon.shutdownGracePeriodMs` — graceful shutdown window
 - `serve.noAuth` — disable bearer-token auth for `kota serve` (dev only)
 - `serve.showCost` — show per-turn cost line in terminal output (default: `true`; set to `false` to suppress, or pass `--no-cost` CLI flag)
@@ -213,7 +213,7 @@ Control how many workflows may execute simultaneously.
 
 Both values must be positive integers. Zero or negative values produce a config warning at startup and fall back to the defaults.
 
-The built-in autonomous workflows are unaffected — each workflow runs independently and the default of 1 already serializes agent dispatch correctly.
+The autonomy workflows are unaffected — each workflow runs independently and the default of 1 already serializes agent dispatch correctly.
 
 Active limits are shown in `kota workflow status` under `Concurrency: agent=N, code=N` when the daemon is running.
 
@@ -239,7 +239,7 @@ Suppresses non-critical channel notifications (Telegram, Slack, webhook) during 
 |-------|----------|-------------|
 | `start` | Yes | Quiet period start in local time, `"HH:MM"` (24-hour). |
 | `end` | Yes | Quiet period end in local time, `"HH:MM"` (24-hour). Windows crossing midnight (e.g. `22:00`–`08:00`) are supported. |
-| `allowCritical` | No | When `true` (default), `workflow.failure.alert` and `extension.crash.alert` bypass quiet hours and are delivered immediately. |
+| `allowCritical` | No | When `true` (default), `workflow.failure.alert` and `module.crash.alert` bypass quiet hours and are delivered immediately. |
 
 **Events held during quiet hours:** `workflow.attention.digest`, `workflow.budget.exceeded`, `workflow.budget.warning`.
 
@@ -247,34 +247,34 @@ Suppresses non-critical channel notifications (Telegram, Slack, webhook) during 
 
 Times use the daemon's local timezone. When no `quietHours` config is set, behavior is identical to today.
 
-## Extensions
+## Modules
 
-### Installing user-defined extensions
+### Installing user-defined modules
 
-All user extensions live under `.kota/extensions/<name>/`. There is one canonical way
-to add an extension — place it in this directory. Three packaging variants are supported:
+All user modules live under `.kota/modules/<name>/`. There is one canonical way
+to add a module — place it in this directory. Three packaging variants are supported:
 
-| Variant | What to put in `.kota/extensions/<name>/` |
+| Variant | What to put in `.kota/modules/<name>/` |
 |---------|------------------------------------------|
-| Single-file code | `index.js` or `index.mjs` — direct ESM export of `KotaExtension` |
+| Single-file code | `index.js` or `index.mjs` — direct ESM export of `KotaModule` |
 | Packaged (compiled TS) | `package.json` with `"main"` pointing to the compiled entry |
 | JSON manifest | `manifest.json` — declarative tool definitions without code |
 
 Install from npm, GitHub, or a URL with the CLI:
 
 ```sh
-kota extension install kota-weather        # from npm
-kota extension install github:user/repo    # from GitHub
-kota extension install https://example.com/ext.mjs  # from URL
+kota module install kota-weather        # from npm
+kota module install github:user/repo    # from GitHub
+kota module install https://example.com/ext.mjs  # from URL
 ```
 
-Installed extensions land in `.kota/extensions/<name>/` automatically.
+Installed modules land in `.kota/modules/<name>/` automatically.
 
-Foreign (out-of-process) extensions that communicate via the KEMP subprocess protocol
-are declared in `foreignExtensions` in `.kota/config.json`. See `docs/FOREIGN-EXTENSIONS.md`.
+Foreign (out-of-process) modules that communicate via the KEMP subprocess protocol
+are declared in `foreignModules` in `.kota/config.json`. See `docs/FOREIGN-MODULES.md`.
 
-Extension config lives under the `extensions` key in your config file.
-Notification extensions (Telegram, Slack, webhook) are documented in `docs/NOTIFICATIONS.md`.
+Module config lives under the `modules` key in your config file.
+Notification modules (Telegram, Slack, webhook) are documented in `docs/NOTIFICATIONS.md`.
 
 ### GitHub
 
@@ -289,7 +289,7 @@ classified as dangerous and require operator approval in autonomous mode.
 
 ```json
 {
-  "extensions": {
+  "modules": {
     "github": {
       "token": "$GITHUB_TOKEN",
       "repo": "owner/repo"
@@ -309,14 +309,14 @@ classified as dangerous and require operator approval in autonomous mode.
 | `taskProvider.doneLabel` | No | Label added when a task is completed. Default: `"kota-done"`. Issue is also closed. |
 | `taskProvider.priorityLabels` | No | Maps KOTA priority values (`"high"`, `"medium"`, `"low"`) to GitHub label names. |
 
-When `taskProvider.enabled` is `true`, the GitHub extension registers as a `TaskProvider`. Issues
+When `taskProvider.enabled` is `true`, the GitHub module registers as a `TaskProvider`. Issues
 matching the label filter are fetched at startup and cached in memory. Claiming a task adds the
 `inProgressLabel`; completing a task closes the issue and adds the `doneLabel`. The GitHub token
 must have `issues:write` scope for mutations.
 
 ```json
 {
-  "extensions": {
+  "modules": {
     "github": {
       "token": "$GITHUB_TOKEN",
       "repo": "owner/repo",
@@ -330,7 +330,7 @@ must have `issues:write` scope for mutations.
 }
 ```
 
-If `token` is missing or the env var is unset, the extension loads but contributes no tools (warning logged).
+If `token` is missing or the env var is unset, the module loads but contributes no tools (warning logged).
 
 ### GitHub Webhook
 
@@ -341,7 +341,7 @@ See `docs/GITHUB-WEBHOOK.md` for setup instructions and the full event payload r
 
 ```json
 {
-  "extensions": {
+  "modules": {
     "github-webhook": {
       "secret": "$GITHUB_WEBHOOK_SECRET",
       "events": ["push", "pull_request", "check_run"]
@@ -359,7 +359,7 @@ If `secret` is missing or the env var is unset, the route is not registered (war
 
 ### Filesystem
 
-Built-in extension — always loaded. Provides `file_read`, `file_write`, `file_edit`, `multi_edit`, `find_replace`, `glob`, `grep`, `file_watch`, and `files_overview` tools.
+Built-in module — always loaded. Provides `file_read`, `file_write`, `file_edit`, `multi_edit`, `find_replace`, `glob`, `grep`, `file_watch`, and `files_overview` tools.
 
 Read-only tools (`file_read`, `glob`, `grep`, `files_overview`) are classified safe in guardrails. Write tools (`file_write`, `file_edit`, `multi_edit`, `find_replace`) are moderate risk. `file_watch` runs background watchers and is moderate risk.
 
@@ -367,7 +367,7 @@ No config file keys are required.
 
 ### Web Access
 
-Built-in extension — always loaded. Provides `web_fetch`, `web_search`, and `http_request` tools.
+Built-in module — always loaded. Provides `web_fetch`, `web_search`, and `http_request` tools.
 
 `web_search` uses DuckDuckGo by default. Set `BRAVE_SEARCH_API_KEY` in the environment to use the Brave Search API instead (higher quality results, rate-limited by plan).
 

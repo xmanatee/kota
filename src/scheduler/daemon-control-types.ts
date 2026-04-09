@@ -1,4 +1,4 @@
-import type { PendingApproval } from "../extensions/approval-queue/queue.js";
+import type { PendingApproval } from "../modules/approval-queue/queue.js";
 import type { ConversationData, ConversationRecord } from "../memory/history-utils.js";
 import type { ToolCallSummaryEntry, WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState } from "../workflow/run-types.js";
 import type { WorkflowAgentBackoffState } from "../workflow/types.js";
@@ -164,7 +164,7 @@ export type ComponentStatus = "ok" | "error";
 
 export type HealthStatus = {
   scheduler: ComponentStatus;
-  extensions: ComponentStatus;
+  modules: ComponentStatus;
 };
 
 export type DaemonControlHandle = {

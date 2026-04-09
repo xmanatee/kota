@@ -41,14 +41,14 @@ that agents and users should be able to find and update over time.
 
 ### Working Memory
 
-**Scope**: Session. **Lifetime**: Session (optional persist via extension storage).
+**Scope**: Session. **Lifetime**: Session (optional persist via module storage).
 
 In-memory key-value scratchpad rendered into the agent's system prompt under
 `<working-memory>`. Use `setEntry`/`getEntry` to hold current context during a
 session. Cleared when the session closes unless the entry is marked persistent.
 
 - Limit: 20 entries, 500 chars each, 4000 chars total.
-- Persistent entries survive restart via per-extension storage.
+- Persistent entries survive restart via per-module storage.
 
 ### Run Artifacts
 
@@ -90,11 +90,11 @@ sessions.
 
 The core stores (memory, knowledge, history, task) can be swapped for
 alternative backends using the provider registry in `src/providers.ts`.
-Extensions register custom backends via `registerProvider(type, provider)`.
+Modules register custom backends via `registerProvider(type, provider)`.
 
-## Extension Storage
+## Module Storage
 
-Extensions get isolated file-based storage through `ExtensionContext.storage`
-(under `.kota/extensions/<name>/`). This is for private extension data, not shared
+Modules get isolated file-based storage through `ModuleContext.storage`
+(under `.kota/modules/<name>/`). This is for private module data, not shared
 agent state. Prefer the shared stores above when data should be visible across
-extensions or sessions.
+modules or sessions.

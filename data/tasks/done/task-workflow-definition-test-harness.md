@@ -4,7 +4,7 @@ title: Add a lightweight test harness for workflow definitions
 status: done
 priority: p2
 area: dx
-summary: Extension authors and operators have no structured way to unit-test their workflow definitions. They must run a full daemon to verify step logic, trigger conditions, and predicate evaluation. A test harness that simulates step execution without a real agent would close this gap.
+summary: Module authors and operators have no structured way to unit-test their workflow definitions. They must run a full daemon to verify step logic, trigger conditions, and predicate evaluation. A test harness that simulates step execution without a real agent would close this gap.
 created_at: 2026-04-01T01:53:23Z
 updated_at: 2026-04-01T01:53:23Z
 ---
@@ -12,18 +12,18 @@ updated_at: 2026-04-01T01:53:23Z
 ## Problem
 
 KOTA has a `kota workflow dry-run` command that previews step execution order and
-evaluates `when` predicates, but it does not execute step logic. Extension authors
+evaluates `when` predicates, but it does not execute step logic. Module authors
 who write `code` steps or complex predicate functions have no way to verify their
 logic in a unit test without spinning up a daemon, triggering a real run, and
 reading the run output.
 
-There is no public API in `kota/extension` for testing workflow behavior. Extension
+There is no public API in `kota/module` for testing workflow behavior. Module
 authors end up either skipping tests entirely or writing brittle integration tests
 that spawn real processes.
 
 ## Desired Outcome
 
-A `WorkflowTestHarness` exported from `kota/extension` (or a `kota/testing`
+A `WorkflowTestHarness` exported from `kota/module` (or a `kota/testing`
 sub-path) that lets authors write vitest or jest tests like:
 
 ```ts
@@ -57,7 +57,7 @@ The harness:
 - Agent steps must be mockable via `stepMocks`; a missing mock for an agent step
   should throw a clear error (not silently skip).
 - The harness exports should not expose internal KOTA types not already in the
-  public extension API.
+  public module API.
 - Keep the implementation in a `src/workflow-testing/` directory or similar;
   build it into a `kota/testing` dist entry.
 - Parallel group execution in the harness should run serially (for determinism),

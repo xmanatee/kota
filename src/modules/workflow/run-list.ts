@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import type { ExtensionContext } from "../../extension-types.js";
+import type { ModuleContext } from "../../module-types.js";
 import { DaemonControlClient } from "../../server/daemon-client.js";
 import { WorkflowRunStore } from "../../workflow/run-store.js";
 import type { HistoryStats } from "../../workflow-history.js";
@@ -9,7 +9,7 @@ import { formatDate, formatDuration, listRuns, statusIcon } from "./utils.js";
 
 export function registerRunListCommands(
   wfCmd: Command,
-  ctx: ExtensionContext,
+  ctx: ModuleContext,
 ): void {
   wfCmd
     .command("list")

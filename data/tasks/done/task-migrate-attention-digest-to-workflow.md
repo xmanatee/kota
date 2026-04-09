@@ -30,7 +30,7 @@ schedule.
 
 ## Desired Outcome
 
-The attention digest becomes a built-in workflow (`src/workflows/attention-digest/`):
+The attention digest becomes a built-in workflow (`src/modules/autonomy/workflows/attention-digest/`):
 - Triggered on a schedule or after N workflow completions (not a raw daemon subscription)
 - Runs as a `code` step that calls the existing digest logic
 - Its runs appear in `kota workflow list` and `.kota/runs/`
@@ -50,7 +50,7 @@ The attention digest becomes a built-in workflow (`src/workflows/attention-diges
 
 ## Done When
 
-- A `src/workflows/attention-digest/workflow.ts` exists with a schedule or
+- A `src/modules/autonomy/workflows/attention-digest/workflow.ts` exists with a schedule or
   event-based trigger and a code step that runs the digest logic.
 - `subscribeAttentionDigest` is removed from `daemon-subscriptions.ts`.
 - `src/workflow/attention-digest.ts` is updated or reorganized as needed.

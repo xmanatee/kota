@@ -3,8 +3,8 @@ import type {
   WorkflowPredicate,
   WorkflowRunMetadata,
   WorkflowRunWarning,
-} from "../workflow/run-types.js";
-import { loadRunsInWindow } from "../workflow-history.js";
+} from "../../workflow/run-types.js";
+import { loadRunsInWindow } from "../../workflow-history.js";
 
 export function runCheck(command: string, cwd: string, timeoutMs = 120_000): string {
   const result = spawnSync(command, { shell: true, cwd, timeout: timeoutMs, encoding: "utf-8" });

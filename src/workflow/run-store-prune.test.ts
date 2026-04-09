@@ -25,7 +25,7 @@ function writeRun(
   const metadata = {
     id,
     workflow,
-    definitionPath: `src/workflows/${workflow}/workflow.ts`,
+    definitionPath: `src/modules/test/workflows/${workflow}/workflow.ts`,
     trigger: { event: "runtime.idle", payload: {} },
     startedAt: new Date(startedAtMs).toISOString(),
     status: "success",
@@ -173,9 +173,8 @@ describe("WorkflowRunStore.pruneRuns", () => {
 const minimalWorkflow: WorkflowDefinition = {
   name: "builder",
   description: "test",
-  tags: [],
   enabled: true,
-  definitionPath: "src/workflows/builder/workflow.ts",
+  definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
   triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
   steps: [],
 };

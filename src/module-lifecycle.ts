@@ -1,106 +1,106 @@
 import { resetDynamicStateProviders } from "./dynamic-state.js";
-import type { ExtensionStorage } from "./extension-storage.js";
+import type { ModuleStorage } from "./module-storage.js";
 import type { ChannelDef } from "./channel.js";
-import type { KotaExtension } from "./extension-types.js";
-import { getProviderRegistry } from "./extensions/providers/index.js";
+import type { KotaModule } from "./module-types.js";
+import { getProviderRegistry } from "./modules/providers/index.js";
 import { getToolMiddleware } from "./tool-middleware.js";
-import { deregisterExtensionTools } from "./tools/index.js";
+import { deregisterModuleTools } from "./tools/index.js";
 import type { RegisteredWorkflowDefinitionInput } from "./workflow/types.js";
 import type { AgentDef, SkillDef } from "./agent-types.js";
 
 export interface LifecycleState {
-  extensions: KotaExtension[];
-  extensionStorages: Map<string, ExtensionStorage>;
-  extensionToolCounts: Map<string, number>;
-  extensionRegistry: Map<string, KotaExtension>;
-  extensionWorkflowDefs: Map<string, readonly RegisteredWorkflowDefinitionInput[]>;
-  extensionChannelDefs: Map<string, readonly ChannelDef[]>;
-  extensionSkillDefs: Map<string, readonly SkillDef[]>;
-  extensionAgentDefs: Map<string, readonly AgentDef[]>;
+  modules: KotaModule[];
+  moduleStorages: Map<string, ModuleStorage>;
+  moduleToolCounts: Map<string, number>;
+  moduleRegistry: Map<string, KotaModule>;
+  moduleWorkflowDefs: Map<string, readonly RegisteredWorkflowDefinitionInput[]>;
+  moduleChannelDefs: Map<string, readonly ChannelDef[]>;
+  moduleSkillDefs: Map<string, readonly SkillDef[]>;
+  moduleAgentDefs: Map<string, readonly AgentDef[]>;
   verbose: boolean;
 }
 
-export function getExtensionDependents(extensionName: string, extensions: KotaExtension[]): string[] {
-  return extensions
-    .filter((e) => e.dependencies?.includes(extensionName))
+export function getModuleDependents(moduleName: string, modules: KotaModule[]): string[] {
+  return modules
+    .filter((e) => e.dependencies?.includes(moduleName))
     .map((e) => e.name);
 }
 
-export async function unloadExtension(extensionName: string, state: LifecycleState): Promise<boolean> {
-  const idx = state.extensions.findIndex((e) => e.name === extensionName);
+export async function unloadModule(moduleName: string, state: LifecycleState): Promise<boolean> {
+  const idx = state.modules.findIndex((e) => e.name === moduleName);
   if (idx < 0) return false;
 
-  const dependents = getExtensionDependents(extensionName, state.extensions);
+  const dependents = getModuleDependents(moduleName, state.modules);
   if (dependents.length > 0) {
     throw new Error(
-      `Cannot unload "${extensionName}": depended on by ${dependents.map((d) => `"${d}"`).join(", ")}`,
+      `Cannot unload "${moduleName}": depended on by ${dependents.map((d) => `"${d}"`).join(", ")}`,
     );
   }
 
-  const ext = state.extensions[idx];
+  const ext = state.modules[idx];
 
   if (ext.onUnload) {
     try {
       await ext.onUnload();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[kota] Extension "${extensionName}" unload error: ${msg}`);
+      console.error(`[kota] Module "${moduleName}" unload error: ${msg}`);
     }
   }
 
-  deregisterExtensionTools(extensionName);
-  getToolMiddleware().removeByOwner(extensionName);
-  state.extensionStorages.delete(extensionName);
-  state.extensionToolCounts.delete(extensionName);
-  state.extensionWorkflowDefs.delete(extensionName);
-  state.extensionChannelDefs.delete(extensionName);
-  state.extensionSkillDefs.delete(extensionName);
-  state.extensionAgentDefs.delete(extensionName);
-  state.extensions.splice(idx, 1);
+  deregisterModuleTools(moduleName);
+  getToolMiddleware().removeByOwner(moduleName);
+  state.moduleStorages.delete(moduleName);
+  state.moduleToolCounts.delete(moduleName);
+  state.moduleWorkflowDefs.delete(moduleName);
+  state.moduleChannelDefs.delete(moduleName);
+  state.moduleSkillDefs.delete(moduleName);
+  state.moduleAgentDefs.delete(moduleName);
+  state.modules.splice(idx, 1);
 
-  if (state.verbose) console.error(`[kota] Extension "${extensionName}" unloaded`);
+  if (state.verbose) console.error(`[kota] Module "${moduleName}" unloaded`);
   return true;
 }
 
-export async function reloadExtension(
-  extensionName: string,
+export async function reloadModule(
+  moduleName: string,
   state: LifecycleState,
-  loadFn: (ext: KotaExtension) => Promise<void>,
+  loadFn: (ext: KotaModule) => Promise<void>,
 ): Promise<boolean> {
-  const ext = state.extensionRegistry.get(extensionName);
+  const ext = state.moduleRegistry.get(moduleName);
   if (!ext) return false;
 
-  if (state.extensions.some((e) => e.name === extensionName)) {
-    await unloadExtension(extensionName, state);
+  if (state.modules.some((e) => e.name === moduleName)) {
+    await unloadModule(moduleName, state);
   }
 
   await loadFn(ext);
 
-  if (state.verbose) console.error(`[kota] Extension "${extensionName}" reloaded`);
+  if (state.verbose) console.error(`[kota] Module "${moduleName}" reloaded`);
   return true;
 }
 
-export async function unloadAllExtensions(state: LifecycleState): Promise<void> {
-  for (const ext of [...state.extensions].reverse()) {
+export async function unloadAllModules(state: LifecycleState): Promise<void> {
+  for (const ext of [...state.modules].reverse()) {
     if (ext.onUnload) {
       try {
         await ext.onUnload();
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[kota] Extension "${ext.name}" unload error: ${msg}`);
+        console.error(`[kota] Module "${ext.name}" unload error: ${msg}`);
       }
     }
   }
 
-  for (const ext of [...state.extensions]) deregisterExtensionTools(ext.name);
-  state.extensions.splice(0);
-  state.extensionRegistry.clear();
-  state.extensionStorages.clear();
-  state.extensionToolCounts.clear();
-  state.extensionWorkflowDefs.clear();
-  state.extensionChannelDefs.clear();
-  state.extensionSkillDefs.clear();
-  state.extensionAgentDefs.clear();
+  for (const ext of [...state.modules]) deregisterModuleTools(ext.name);
+  state.modules.splice(0);
+  state.moduleRegistry.clear();
+  state.moduleStorages.clear();
+  state.moduleToolCounts.clear();
+  state.moduleWorkflowDefs.clear();
+  state.moduleChannelDefs.clear();
+  state.moduleSkillDefs.clear();
+  state.moduleAgentDefs.clear();
 
   const reg = getProviderRegistry();
   if (reg) reg.clear();

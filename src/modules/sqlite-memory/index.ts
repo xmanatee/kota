@@ -1,5 +1,5 @@
 /**
- * SQLite memory extension — registers an alternative SQLite-backed memory
+ * SQLite memory module — registers an alternative SQLite-backed memory
  * provider.
  *
  * When active, all memory operations (save/search/list/update/delete) go through
@@ -9,22 +9,22 @@
  * Data is stored in `.kota/memory.db`.
  */
 
-import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
+import type { ModuleContext, KotaModule } from "../../module-types.js";
 import { SQLiteMemoryProvider } from "../../memory/sqlite-memory.js";
 
-const sqliteMemoryModule: KotaExtension = {
+const sqliteMemoryModule: KotaModule = {
 	name: "sqlite-memory",
 	version: "1.0.0",
 	description: "SQLite-backed memory provider — SQL-powered search, no size limits",
 	dependencies: ["memory"],
 
-	onLoad: (ctx: ExtensionContext) => {
+	onLoad: (ctx: ModuleContext) => {
 		const provider = new SQLiteMemoryProvider(ctx.storage.getDir());
 		ctx.registerProvider("memory", provider);
 		ctx.log.info("SQLite memory provider registered");
 	},
 
-	skills: [{ name: "sqlite-memory", promptPath: "src/extensions/skills/sqlite-memory.md" }],
+	skills: [{ name: "sqlite-memory", promptPath: "src/modules/skills/sqlite-memory.md" }],
 };
 
 export default sqliteMemoryModule;

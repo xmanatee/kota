@@ -10,11 +10,11 @@ This script implements the KEMP stdio transport:
 
 Usage in .kota/config.json:
 {
-  "foreignExtensions": [
+  "foreignModules": [
     {
       "transport": "stdio",
       "command": "python3",
-      "args": ["examples/extensions/kota-demo.py"]
+      "args": ["examples/modules/kota-demo.py"]
     }
   ]
 }
@@ -28,11 +28,11 @@ import datetime
 MANIFEST = {
     "name": "kota-demo-python",
     "version": "1.0.0",
-    "description": "Demo Python extension for KOTA — provides two simple tools.",
+    "description": "Demo Python module for KOTA — provides two simple tools.",
     "tools": [
         {
             "name": "python_greet",
-            "description": "Returns a greeting message from the Python extension.",
+            "description": "Returns a greeting message from the Python module.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -93,7 +93,7 @@ def handle_invoke(msg: dict) -> dict:
 
 
 def main():
-    log("info", "Python demo extension starting")
+    log("info", "Python demo module starting")
 
     for raw_line in sys.stdin:
         line = raw_line.strip()

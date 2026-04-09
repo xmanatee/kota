@@ -11,8 +11,8 @@ import { createServer, type Server } from "node:http";
 import type { KotaConfig } from "../config.js";
 import { loadConfig } from "../config.js";
 import { initEventBus, resetEventBus } from "../event-bus.js";
-import { initExtensionLogStore } from "../extension-log.js";
-import type { ExtensionSummary, RouteRegistration } from "../extension-types.js";
+import { initModuleLogStore } from "../module-log.js";
+import type { ModuleSummary, RouteRegistration } from "../module-types.js";
 import { AgentSession, type LoopOptions } from "../loop.js";
 import { getScheduler, initScheduler, resetScheduler } from "../scheduler/scheduler.js";
 import type { Transport } from "../transport.js";
@@ -32,10 +32,10 @@ export type ServerOptions = {
    * Has no effect when noAuth is true.
    */
   authToken?: string;
-  /** Routes registered by extensions (e.g., vercel-adapter). */
-  extensionRoutes?: RouteRegistration[];
-  /** Returns current extension summaries for /api/extensions. */
-  getExtensionSummaries?: () => ExtensionSummary[];
+  /** Routes registered by modules (e.g., vercel-adapter). */
+  moduleRoutes?: RouteRegistration[];
+  /** Returns current module summaries for /api/modules. */
+  getModuleSummaries?: () => ModuleSummary[];
 };
 
 export function startServer(options: ServerOptions = {}): Server {
@@ -57,7 +57,7 @@ export function startServer(options: ServerOptions = {}): Server {
   } else {
     initScheduler(process.cwd());
   }
-  initExtensionLogStore(process.cwd());
+  initModuleLogStore(process.cwd());
   const scheduler = getScheduler();
 
   const hub = new NotificationHub();
@@ -92,10 +92,10 @@ export function startServer(options: ServerOptions = {}): Server {
     scheduler,
     hub,
     bus,
-    extensionRoutes: options.extensionRoutes ?? [],
+    moduleRoutes: options.moduleRoutes ?? [],
     makeAgent,
     daemonClient,
-    getExtensionSummaries: options.getExtensionSummaries,
+    getModuleSummaries: options.getModuleSummaries,
     authToken,
     config,
   });

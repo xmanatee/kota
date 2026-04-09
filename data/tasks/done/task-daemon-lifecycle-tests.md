@@ -18,7 +18,7 @@ and project directory references. Errors in any of these fields produce a
 daemon service that silently fails to start or restart.
 
 No automated tests verify this output. Manual QA on each platform is the only
-current check, and regressions from future refactors in the daemon extension
+current check, and regressions from future refactors in the daemon module
 or config system would go undetected until a user reports a broken install.
 
 ## Desired Outcome
@@ -46,8 +46,8 @@ Tests write generated files to a temp directory; they do not invoke
 - Platform-specific test paths (launchd vs. systemd) should either use
   platform detection to skip inapplicable tests or mock the platform selector
   so both paths run on any OS.
-- Tests should live alongside the daemon extension implementation
-  (`src/extensions/daemon/`).
+- Tests should live alongside the daemon module implementation
+  (`src/modules/daemon/`).
 - No new production flags or test-only conditionals in production code.
 
 ## Done When

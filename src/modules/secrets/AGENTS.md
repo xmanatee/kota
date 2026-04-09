@@ -1,6 +1,6 @@
-# Secrets Extension
+# Secrets Module
 
-This directory owns the `secrets` built-in extension — secure credential management with output masking.
+This directory owns the `secrets` repo module — secure credential management with output masking.
 
 - Registers `kota secrets set/get/list/remove` CLI commands.
 - Registers the `get_secret` agent tool (injects secrets into env, returns placeholder to LLM — never exposes values to the model).
@@ -8,4 +8,4 @@ This directory owns the `secrets` built-in extension — secure credential manag
 
 ## Files
 
-- `index.ts` — `KotaExtension` definition; CLI commands and `get_secret` tool.
+- `index.ts` — `KotaModule` definition; CLI commands and `get_secret` tool.

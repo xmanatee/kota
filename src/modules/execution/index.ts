@@ -1,5 +1,5 @@
 /**
- * Execution extension — shell commands, background processes, code REPL,
+ * Execution module — shell commands, background processes, code REPL,
  * computer use, and screenshot tools.
  *
  * Tools:
@@ -13,7 +13,7 @@
  * execute arbitrary code. computer_use controls the GUI. screenshot is read-only.
  */
 
-import type { KotaExtension, ToolDef } from "../../extension-types.js";
+import type { KotaModule, ToolDef } from "../../module-types.js";
 import { codeExecTool, runCodeExec } from "./code-exec.js";
 import { computerUseTool, runComputerUse } from "./computer-use.js";
 import { processTool, runProcess } from "./process.js";
@@ -57,7 +57,7 @@ const tools: ToolDef[] = [
   },
 ];
 
-const executionModule: KotaExtension = {
+const executionModule: KotaModule = {
   name: "execution",
   version: "1.0.0",
   description:

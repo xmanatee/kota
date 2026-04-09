@@ -1,19 +1,19 @@
 /**
- * Tool Cache extension — registers caching middleware for deterministic read
+ * Tool Cache module — registers caching middleware for deterministic read
  * tools.
  *
  * Caches results of idempotent tools (file_read, grep, glob, etc.) and
  * invalidates the cache when mutating tools (file_write, shell, etc.) run.
- * Session-scoped — cache resets when the extension unloads.
+ * Session-scoped — cache resets when the module unloads.
  */
 
-import type { KotaExtension } from "../../extension-types.js";
+import type { KotaModule } from "../../module-types.js";
 import { createCacheMiddleware, getToolCache, resetToolCache } from "./cache.js";
 
 const MIDDLEWARE_NAME = "tool-result-cache";
 const PRIORITY = 10; // Run early — before logging/audit middleware
 
-const toolCacheModule: KotaExtension = {
+const toolCacheModule: KotaModule = {
 	name: "tool-cache",
 	version: "1.0.0",
 	description: "Caches deterministic read tool results, invalidates on mutations",
@@ -29,7 +29,7 @@ const toolCacheModule: KotaExtension = {
 		resetToolCache();
 	},
 
-	skills: [{ name: "tool-cache", promptPath: "src/extensions/skills/tool-cache.md" }],
+	skills: [{ name: "tool-cache", promptPath: "src/modules/skills/tool-cache.md" }],
 };
 
 export default toolCacheModule;

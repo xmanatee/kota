@@ -4,23 +4,23 @@ title: Add kota agent and kota skill CLI commands for operator visibility
 status: done
 priority: p3
 area: cli
-summary: Operators have no CLI way to list registered agents or available skills. As extensions contribute more agents and skills, operators need a direct way to inspect what's loaded without reading source files.
+summary: Operators have no CLI way to list registered agents or available skills. As modules contribute more agents and skills, operators need a direct way to inspect what's loaded without reading source files.
 created_at: 2026-03-30T15:14:28Z
 updated_at: 2026-03-30T17:10:57Z
 ---
 
 ## Problem
 
-`BUILTIN_AGENTS` defines explorer, builder, and improver. Extensions can contribute
-additional agents via `KotaExtension.agents`. Skills are contributed similarly via
-`KotaExtension.skills`. But there is no CLI to list either.
+`BUILTIN_AGENTS` defines explorer, builder, and improver. Modules can contribute
+additional agents via `KotaModule.agents`. Skills are contributed similarly via
+`KotaModule.skills`. But there is no CLI to list either.
 
 Operators who want to know which agents are registered, what their roles are, or
-which skills are available must read source files or extension definitions. This gap
-grows as the extension set expands and contributed agents/skills become more common.
+which skills are available must read source files or module definitions. This gap
+grows as the module set expands and contributed agents/skills become more common.
 
 The pattern is already established by `kota memory list`, `kota knowledge list`, and
-the planned `kota workflow definitions` and `kota extension list` commands.
+the planned `kota workflow definitions` and `kota module list` commands.
 
 ## Desired Outcome
 
@@ -28,7 +28,7 @@ the planned `kota workflow definitions` and `kota extension list` commands.
   role summary, model, and write scope.
 - `kota agent inspect <name>` — shows full detail for one agent: role, model defaults,
   tool policy, skill list, write scope.
-- `kota skill list` — lists all registered skills with name and source (which extension
+- `kota skill list` — lists all registered skills with name and source (which module
   contributed it).
 - Both commands support `--json` for scripting.
 
@@ -45,6 +45,6 @@ the planned `kota workflow definitions` and `kota extension list` commands.
 
 - `kota agent list` shows all registered agents with name, role, and model.
 - `kota agent inspect <name>` shows full agent detail.
-- `kota skill list` shows all registered skills with name and contributing extension.
+- `kota skill list` shows all registered skills with name and contributing module.
 - `--json` flag works for all commands.
 - Commands are registered in `cli.ts` and appear in `kota --help`.

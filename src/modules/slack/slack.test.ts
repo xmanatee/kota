@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "../../event-bus.js";
-import { ExtensionStorage } from "../../extension-storage.js";
-import type { ExtensionContext } from "../../extension-types.js";
+import { ModuleStorage } from "../../module-storage.js";
+import type { ModuleContext } from "../../module-types.js";
 import slackModule from "./index.js";
 
 const mockFetch = vi.fn();
@@ -9,19 +9,19 @@ vi.stubGlobal("fetch", mockFetch);
 
 const FAKE_WEBHOOK = "https://hooks.slack.com/services/T000/B000/xxxx";
 
-function makeStubCtx(bus?: EventBus, slackConfig?: unknown): ExtensionContext {
+function makeStubCtx(bus?: EventBus, slackConfig?: unknown): ModuleContext {
   const b = bus ?? new EventBus();
   return {
     cwd: "/tmp/test",
     verbose: false,
-    config: {} as ExtensionContext["config"],
-    storage: new ExtensionStorage("/tmp/test", "slack"),
+    config: {} as ModuleContext["config"],
+    storage: new ModuleStorage("/tmp/test", "slack"),
     registerGroup: () => {},
     getRoutes: () => [],
     getContributedWorkflows: () => [],
     getContributedChannels: () => [],
-    getExtensionSummaries: () => [],
-    getExtensionConfig: () => slackConfig as never,
+    getModuleSummaries: () => [],
+    getModuleConfig: () => slackConfig as never,
     log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
     getSecret: () => null,
     listTools: () => [],

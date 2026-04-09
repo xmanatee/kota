@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
 import { resolve } from "node:path";
 import type { Command } from "commander";
-import type { ExtensionContext } from "../../extension-types.js";
+import type { ModuleContext } from "../../module-types.js";
 import { getWorkflowDefinitions } from "./definitions-source.js";
 
 function runGit(args: string, cwd: string): string {
@@ -26,7 +26,7 @@ function getGitRoot(cwd: string): string | null {
 
 export function registerDefinitionLogCommand(
   wfCmd: Command,
-  ctx: ExtensionContext,
+  ctx: ModuleContext,
 ): void {
   wfCmd
     .command("definition-log <workflow-name>")

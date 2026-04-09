@@ -1,27 +1,27 @@
 /**
- * Tests for KEMP foreign extension subprocess recovery:
+ * Tests for KEMP foreign module subprocess recovery:
  * - crash restart with successful recovery
- * - max restarts exhausted → extension.failed emitted
- * - ping timeout → restart triggered → extension.failed after exhaustion
+ * - max restarts exhausted → module.failed emitted
+ * - ping timeout → restart triggered → module.failed after exhaustion
  */
 
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { StdioForeignExtensionConfig } from "./foreign-extension.js";
-import { loadForeignExtensions } from "./foreign-extension-loader.js";
+import type { StdioForeignModuleConfig } from "./foreign-module.js";
+import { loadForeignModules } from "./foreign-module-loader.js";
 
 const PROJECT_CWD = process.cwd();
 
-// Mock the event bus so we can observe extension.failed emissions
+// Mock the event bus so we can observe module.failed emissions
 const tryEmitMock = vi.hoisted(() => vi.fn());
 vi.mock("./event-bus.js", () => ({ tryEmit: tryEmitMock }));
 
 beforeEach(() => { tryEmitMock.mockClear(); });
 afterEach(() => { vi.restoreAllMocks(); });
 
-type ResilienceConfig = Omit<StdioForeignExtensionConfig, "transport" | "command" | "args">;
+type ResilienceConfig = Omit<StdioForeignModuleConfig, "transport" | "command" | "args">;
 
 /**
  * Module that uses a counter file to vary behavior by spawn count.
@@ -42,7 +42,7 @@ function countingModule(
     noPing?: boolean;
     extName?: string;
   } = {},
-): StdioForeignExtensionConfig {
+): StdioForeignModuleConfig {
   const { crashAfterManifest = 0, failRestarts = false, crashOnInvoke = false, noPing = false, extName = "test-ext" } = opts;
   const script = `
 const fs = require('fs');
@@ -105,16 +105,16 @@ function fastConfig(extra: ResilienceConfig = {}): ResilienceConfig {
   return { restartBackoffBaseMs: 50, ...extra };
 }
 
-describe("KEMP resilient extension — crash restart", () => {
+describe("KEMP resilient module — crash restart", () => {
   it("subprocess crash triggers restart; tool works after recovery", async () => {
     const countFile = tempFile();
     // spawn 1 crashes on invoke; spawn 2+ works normally
-    const config: StdioForeignExtensionConfig = {
+    const config: StdioForeignModuleConfig = {
       ...countingModule(countFile, { crashAfterManifest: 1, crashOnInvoke: true, extName: "resilient" }),
       ...fastConfig({ maxRestarts: 2 }),
     };
 
-    const [ext] = await loadForeignExtensions([config], PROJECT_CWD);
+    const [ext] = await loadForeignModules([config], PROJECT_CWD);
     expect(ext).toBeDefined();
 
     const tool = (ext.tools as { tool: { name: string }; runner: (i: Record<string, unknown>) => Promise<{ content: string; is_error?: boolean }> }[])
@@ -136,24 +136,24 @@ describe("KEMP resilient extension — crash restart", () => {
   }, 10_000);
 });
 
-describe("KEMP resilient extension — max restarts exhausted", () => {
-  it("emits extension.failed after all restart attempts fail", async () => {
+describe("KEMP resilient module — max restarts exhausted", () => {
+  it("emits module.failed after all restart attempts fail", async () => {
     const countFile = tempFile();
     // spawn 1: init/manifest OK, then crashes → watchDeath fires
     // spawn 2+: exit before manifest → createRawExtension fails
-    const config: StdioForeignExtensionConfig = {
+    const config: StdioForeignModuleConfig = {
       ...countingModule(countFile, { crashAfterManifest: 1, failRestarts: true, extName: "exhaust-ext" }),
       ...fastConfig({ maxRestarts: 2 }),
     };
 
-    const [ext] = await loadForeignExtensions([config], PROJECT_CWD);
+    const [ext] = await loadForeignModules([config], PROJECT_CWD);
     expect(ext).toBeDefined();
 
     // Give time for initial crash → doRestart → all attempts fail
     // backoffs: 50ms + 100ms = 150ms + processing time
     await new Promise((r) => setTimeout(r, 1500));
 
-    expect(tryEmitMock).toHaveBeenCalledWith("extension.failed", expect.objectContaining({
+    expect(tryEmitMock).toHaveBeenCalledWith("module.failed", expect.objectContaining({
       name: "exhaust-ext",
       reason: expect.any(String),
     }));
@@ -162,15 +162,15 @@ describe("KEMP resilient extension — max restarts exhausted", () => {
   }, 10_000);
 });
 
-describe("KEMP resilient extension — health state tracking", () => {
+describe("KEMP resilient module — health state tracking", () => {
   it("starts with ok status and zero restarts", async () => {
     const countFile = tempFile();
-    const config: StdioForeignExtensionConfig = {
+    const config: StdioForeignModuleConfig = {
       ...countingModule(countFile, { extName: "health-ext" }),
       ...fastConfig({ maxRestarts: 2 }),
     };
 
-    const [ext] = await loadForeignExtensions([config], PROJECT_CWD);
+    const [ext] = await loadForeignModules([config], PROJECT_CWD);
     expect(ext).toBeDefined();
     expect(ext.getHealth).toBeDefined();
 
@@ -185,12 +185,12 @@ describe("KEMP resilient extension — health state tracking", () => {
   it("increments restartCount and sets lastRestartAt after a crash-restart cycle", async () => {
     const countFile = tempFile();
     // spawn 1 crashes after manifest; spawn 2+ works normally
-    const config: StdioForeignExtensionConfig = {
+    const config: StdioForeignModuleConfig = {
       ...countingModule(countFile, { crashAfterManifest: 1, crashOnInvoke: true, extName: "health-restart-ext" }),
       ...fastConfig({ maxRestarts: 2 }),
     };
 
-    const [ext] = await loadForeignExtensions([config], PROJECT_CWD);
+    const [ext] = await loadForeignModules([config], PROJECT_CWD);
     expect(ext).toBeDefined();
 
     // Trigger the crash via first invoke
@@ -213,12 +213,12 @@ describe("KEMP resilient extension — health state tracking", () => {
   it("sets status to dead when all restarts exhausted", async () => {
     const countFile = tempFile();
     // spawn 1 crashes; all restart attempts also fail
-    const config: StdioForeignExtensionConfig = {
+    const config: StdioForeignModuleConfig = {
       ...countingModule(countFile, { crashAfterManifest: 1, failRestarts: true, extName: "health-dead-ext" }),
       ...fastConfig({ maxRestarts: 2 }),
     };
 
-    const [ext] = await loadForeignExtensions([config], PROJECT_CWD);
+    const [ext] = await loadForeignModules([config], PROJECT_CWD);
     expect(ext).toBeDefined();
 
     // Wait for all restarts to exhaust (backoffs: 50ms + 100ms = 150ms + processing)
@@ -232,12 +232,12 @@ describe("KEMP resilient extension — health state tracking", () => {
   }, 10_000);
 });
 
-describe("KEMP resilient extension — ping timeout", () => {
-  it("hung subprocess detected via ping timeout triggers restart and extension.failed after exhaustion", async () => {
+describe("KEMP resilient module — ping timeout", () => {
+  it("hung subprocess detected via ping timeout triggers restart and module.failed after exhaustion", async () => {
     const countFile = tempFile();
     // spawn 1: init/manifest OK but never responds to ping
     // spawn 2+: exit before manifest → createRawExtension fails → restarts exhausted
-    const config: StdioForeignExtensionConfig = {
+    const config: StdioForeignModuleConfig = {
       ...countingModule(countFile, { noPing: true, failRestarts: true, extName: "no-ping-ext" }),
       ...fastConfig({
         maxRestarts: 1,
@@ -246,13 +246,13 @@ describe("KEMP resilient extension — ping timeout", () => {
       }),
     };
 
-    const [ext] = await loadForeignExtensions([config], PROJECT_CWD);
+    const [ext] = await loadForeignModules([config], PROJECT_CWD);
     expect(ext).toBeDefined();
 
     // Wait: pingIntervalMs(200) + pingTimeoutMs(150) + backoff(50) + processing
     await new Promise((r) => setTimeout(r, 2000));
 
-    expect(tryEmitMock).toHaveBeenCalledWith("extension.failed", expect.objectContaining({
+    expect(tryEmitMock).toHaveBeenCalledWith("module.failed", expect.objectContaining({
       name: "no-ping-ext",
       reason: expect.stringContaining("ping"),
     }));

@@ -1,26 +1,25 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { Command } from "commander";
-import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
-import { generateExtensionScaffold, generatePythonScaffold } from "./scaffolds.js";
+import type { ModuleContext, KotaModule } from "../../module-types.js";
+import { generateModuleScaffold, generatePythonScaffold } from "./scaffolds.js";
 
-function buildExtensionCommand(ctx: ExtensionContext): Command {
-  const extCmd = new Command("extension")
-    .alias("ext")
-    .description("Inspect loaded extensions and their contributions");
+function buildModuleCommand(ctx: ModuleContext): Command {
+  const moduleCommand = new Command("module")
+    .description("Inspect loaded modules and their contributions");
 
-  extCmd
+  moduleCommand
     .command("list")
-    .description("List all loaded extensions with contribution counts")
+    .description("List all loaded modules with contribution counts")
     .option("--json", "Output as JSON")
     .action((opts: { json?: boolean }) => {
-      const summaries = ctx.getExtensionSummaries();
+      const summaries = ctx.getModuleSummaries();
       if (opts.json) {
         console.log(JSON.stringify(summaries, null, 2));
         return;
       }
       if (summaries.length === 0) {
-        console.log("No extensions loaded.");
+        console.log("No modules loaded.");
         return;
       }
       const nameWidth = Math.max(...summaries.map((s) => s.name.length), 4);
@@ -41,54 +40,54 @@ function buildExtensionCommand(ctx: ExtensionContext): Command {
           `${s.name.padEnd(nameWidth)}  ${ver}  ${tools}  ${wf}  ${cmd}  ${ch}  ${sk}  ${ag}  ${desc}`,
         );
       }
-      console.log(`\n${summaries.length} extension(s) loaded.`);
+      console.log(`\n${summaries.length} module(s) loaded.`);
     });
 
-  extCmd
+  moduleCommand
     .command("inspect <name>")
-    .description("Show full detail for one extension")
+    .description("Show full detail for one module")
     .option("--json", "Output as JSON")
     .action((name: string, opts: { json?: boolean }) => {
-      const summaries = ctx.getExtensionSummaries();
-      const ext = summaries.find((s) => s.name === name);
-      if (!ext) {
+      const summaries = ctx.getModuleSummaries();
+      const moduleSummary = summaries.find((s) => s.name === name);
+      if (!moduleSummary) {
         const names = summaries.map((s) => s.name).join(", ");
-        console.error(`Extension "${name}" not found. Loaded: ${names || "(none)"}`);
+        console.error(`Module "${name}" not found. Loaded: ${names || "(none)"}`);
         process.exit(1);
       }
       if (opts.json) {
-        console.log(JSON.stringify(ext, null, 2));
+        console.log(JSON.stringify(moduleSummary, null, 2));
         return;
       }
-      console.log(`Extension: ${ext.name}`);
-      if (ext.version) console.log(`Version:   ${ext.version}`);
-      if (ext.description) console.log(`Description: ${ext.description}`);
-      if (ext.dependencies.length > 0) {
-        console.log(`Depends on: ${ext.dependencies.join(", ")}`);
+      console.log(`Module: ${moduleSummary.name}`);
+      if (moduleSummary.version) console.log(`Version:   ${moduleSummary.version}`);
+      if (moduleSummary.description) console.log(`Description: ${moduleSummary.description}`);
+      if (moduleSummary.dependencies.length > 0) {
+        console.log(`Depends on: ${moduleSummary.dependencies.join(", ")}`);
       }
-      if (ext.health) {
-        const h = ext.health;
+      if (moduleSummary.health) {
+        const h = moduleSummary.health;
         const restartPart = h.restartCount === 0 ? `(${h.restartCount} restarts)` : `(${h.restartCount} restarts, last: ${h.lastRestartAt ?? "unknown"})`;
         console.log(`Health:    ${h.status}  ${restartPart}`);
       }
-      if (ext.commandError) {
-        console.log(`Command summary error: ${ext.commandError}`);
+      if (moduleSummary.commandError) {
+        console.log(`Command summary error: ${moduleSummary.commandError}`);
       }
-      if (ext.routeError) {
-        console.log(`Route summary error: ${ext.routeError}`);
+      if (moduleSummary.routeError) {
+        console.log(`Route summary error: ${moduleSummary.routeError}`);
       }
-      printSection("Tools", ext.toolNames);
-      printSection("Workflows", ext.workflowNames);
-      printSection("Commands", ext.commandNames);
-      printSection("Routes", ext.routeSummaries);
-      printSection("Channels", ext.channelNames);
-      printSection("Skills", ext.skillNames);
-      printSection("Agents", ext.agentNames);
+      printSection("Tools", moduleSummary.toolNames);
+      printSection("Workflows", moduleSummary.workflowNames);
+      printSection("Commands", moduleSummary.commandNames);
+      printSection("Routes", moduleSummary.routeSummaries);
+      printSection("Channels", moduleSummary.channelNames);
+      printSection("Skills", moduleSummary.skillNames);
+      printSection("Agents", moduleSummary.agentNames);
     });
 
-  extCmd
+  moduleCommand
     .command("new <name>")
-    .description("Scaffold a new extension starter in a new directory")
+    .description("Scaffold a new module starter in a new directory")
     .option("--dir <path>", "Target directory (default: ./<name>)")
     .option("--language <lang>", "Scaffold language: typescript (default) or python")
     .action((name: string, opts: { dir?: string; language?: string }) => {
@@ -108,16 +107,16 @@ function buildExtensionCommand(ctx: ExtensionContext): Command {
 
       if (language === "python") {
         generatePythonScaffold(name, safeName, targetDir);
-        console.log(`Python extension scaffold created at: ${targetDir}`);
+        console.log(`Python module scaffold created at: ${targetDir}`);
         console.log("");
         console.log("Next steps:");
         console.log(`  cd ${targetDir}`);
         console.log("  python main.py       # smoke-test: pipe a handcrafted init message");
         console.log("");
-        console.log("See README.md for how to register this extension in .kota/config.json");
+        console.log("See README.md for how to register this module in .kota/config.json");
       } else {
-        generateExtensionScaffold(name, safeName, targetDir);
-        console.log(`Extension scaffold created at: ${targetDir}`);
+        generateModuleScaffold(name, safeName, targetDir);
+        console.log(`Module scaffold created at: ${targetDir}`);
         console.log("");
         console.log("Next steps:");
         console.log(`  cd ${targetDir}`);
@@ -125,11 +124,11 @@ function buildExtensionCommand(ctx: ExtensionContext): Command {
         console.log("  pnpm run typecheck   # verify types");
         console.log("  pnpm build           # compile to dist/");
         console.log("");
-        console.log(`To use without building, copy dist/index.js to .kota/extensions/${safeName}/index.js`);
+        console.log(`To use without building, copy dist/index.js to .kota/modules/${safeName}/index.js`);
       }
     });
 
-  return extCmd;
+  return moduleCommand;
 }
 
 function printSection(label: string, items: string[]): void {
@@ -138,12 +137,12 @@ function printSection(label: string, items: string[]): void {
   for (const item of items) console.log(`  • ${item}`);
 }
 
-const extensionManagerModule: KotaExtension = {
-  name: "extension-manager",
+const moduleManagerModule: KotaModule = {
+  name: "module-manager",
   version: "1.0.0",
-  description: "Inspect and scaffold KOTA extensions",
+  description: "Inspect and scaffold KOTA modules",
 
-  commands: (ctx: ExtensionContext) => [buildExtensionCommand(ctx)],
+  commands: (ctx: ModuleContext) => [buildModuleCommand(ctx)],
 };
 
-export default extensionManagerModule;
+export default moduleManagerModule;

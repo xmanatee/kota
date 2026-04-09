@@ -28,7 +28,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
       pid: 9999,
       running: true,
     })),
-    getHealthStatus: vi.fn(() => ({ scheduler: "ok" as const, extensions: "ok" as const })),
+    getHealthStatus: vi.fn(() => ({ scheduler: "ok" as const, modules: "ok" as const })),
     getWorkflowLiveStatus: vi.fn(() => ({ ...defaultWorkflowStatus })),
     pauseWorkflowDispatch: vi.fn(() => ({ already: false })),
     resumeWorkflowDispatch: vi.fn(() => ({ already: false })),
@@ -1136,7 +1136,7 @@ describe("DaemonControlServer", () => {
       expect(body).toMatchObject({
         status: "ok",
         version: "0.1.0",
-        components: { scheduler: "ok", extensions: "ok" },
+        components: { scheduler: "ok", modules: "ok" },
       });
       expect(typeof body.uptimeMs).toBe("number");
     });
@@ -1148,7 +1148,7 @@ describe("DaemonControlServer", () => {
 
     it("returns 503 with degraded status when scheduler reports error", async () => {
       handle = makeHandle({
-        getHealthStatus: vi.fn(() => ({ scheduler: "error" as const, extensions: "ok" as const })),
+        getHealthStatus: vi.fn(() => ({ scheduler: "error" as const, modules: "ok" as const })),
       });
       await server.stop();
       server = new DaemonControlServer(handle, TEST_TOKEN);
@@ -1159,13 +1159,13 @@ describe("DaemonControlServer", () => {
       const body = await res.json();
       expect(body).toMatchObject({
         status: "degraded",
-        components: { scheduler: "error", extensions: "ok" },
+        components: { scheduler: "error", modules: "ok" },
       });
     });
 
-    it("returns 503 with degraded status when extensions report error", async () => {
+    it("returns 503 with degraded status when modules report error", async () => {
       handle = makeHandle({
-        getHealthStatus: vi.fn(() => ({ scheduler: "ok" as const, extensions: "error" as const })),
+        getHealthStatus: vi.fn(() => ({ scheduler: "ok" as const, modules: "error" as const })),
       });
       await server.stop();
       server = new DaemonControlServer(handle, TEST_TOKEN);

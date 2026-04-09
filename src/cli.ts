@@ -13,10 +13,10 @@ import {
 import { registerCompletionCommands } from "./completion-cli.js";
 import { expandAlias, loadConfig } from "./config.js";
 import { setSkipConfirmations } from "./confirm.js";
-import { discoverExtensions } from "./extension-discovery.js";
-import { ExtensionLoader } from "./extension-loader.js";
-import { discoverBuiltinExtensions } from "./extensions/index.js";
-import { parseModelString } from "./extensions/model-clients/factory.js";
+import { discoverModules } from "./module-discovery.js";
+import { ModuleLoader } from "./module-loader.js";
+import { discoverProjectModules } from "./modules/index.js";
+import { parseModelString } from "./modules/model-clients/factory.js";
 import { registerInitCommand } from "./init-cli.js";
 import { runAgentLoop } from "./loop.js";
 import { getHistory } from "./memory/history.js";
@@ -213,10 +213,10 @@ async function main() {
   if (wasPiped) return;
 
   const config = loadConfig();
-  const loader = new ExtensionLoader(config, false, { commandsOnly: true });
-  const builtinExtensions = await discoverBuiltinExtensions();
-  const extensions = await discoverExtensions(undefined, false);
-  await loader.loadAll([...builtinExtensions, ...extensions]);
+  const loader = new ModuleLoader(config, false, { commandsOnly: true });
+  const projectModules = await discoverProjectModules();
+  const modules = await discoverModules(undefined, false);
+  await loader.loadAll([...projectModules, ...modules]);
   for (const cmd of loader.getCommands()) {
     program.addCommand(cmd);
   }

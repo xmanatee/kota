@@ -41,8 +41,8 @@ It must not parse `.kota/` files directly or reimplement runtime logic.
 - Token-based auth must be used for daemon connections (`X-Kota-Token` header).
 - The client should be a thin wrapper over the existing daemon API with no
   server-side additions required beyond what already exists.
-- Treat this as a standalone app, not an extension — mobile clients are not
-  extension contributors.
+- Treat this as a standalone app, not an module — mobile clients are not
+  module contributors.
 
 ## Done When
 

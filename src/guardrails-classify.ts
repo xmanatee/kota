@@ -5,7 +5,7 @@
  * input. Consumed by guardrails.ts for policy resolution.
  */
 
-import { getCoreRegistrations, getExtensionToolRisk } from "./tools/index.js";
+import { getCoreRegistrations, getModuleToolRisk } from "./tools/index.js";
 
 export type RiskLevel = "safe" | "moderate" | "dangerous";
 
@@ -104,8 +104,8 @@ export function classifyRisk(
     return { risk: "safe", reason: "read-only tool" };
   }
 
-  // Extension-registered tools with explicit risk metadata
-  const extRisk = getExtensionToolRisk(name);
+  // Module-registered tools with explicit risk metadata
+  const extRisk = getModuleToolRisk(name);
   if (extRisk === "safe") {
     return { risk: "safe", reason: "read-only tool" };
   }
@@ -164,7 +164,7 @@ export function classifyRisk(
     return { risk: "moderate", reason: `${name} modifies state` };
   }
 
-  // Unknown tools (MCP, extension-registered) default to moderate.
+  // Unknown tools (MCP, module-registered) default to moderate.
   return { risk: "moderate", reason: "unclassified tool" };
 }
 
@@ -241,7 +241,7 @@ export function getToolMcpAnnotations(toolName: string): McpToolAnnotations | un
     annotations.destructiveHint = false;
     hasAnnotation = true;
   } else {
-    const extRisk = getExtensionToolRisk(toolName);
+    const extRisk = getModuleToolRisk(toolName);
     if (extRisk === "safe") {
       annotations.readOnlyHint = true;
       hasAnnotation = true;

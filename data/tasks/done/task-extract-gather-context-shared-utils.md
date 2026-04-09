@@ -11,7 +11,7 @@ updated_at: 2026-03-20T05:50:00Z
 
 ## Problem
 
-`src/workflows/explorer/gather-context.ts`, `builder/gather-context.ts`, and `improver/gather-context.ts` each define identical `RunSummary` type, `summarizeRun` function, `loadRecentCommits` function, and the `runtimeState` aggregation block. Any change to these (e.g. adding a new field to `RunSummary`) must be applied in three places.
+`src/modules/autonomy/workflows/explorer/gather-context.ts`, `builder/gather-context.ts`, and `improver/gather-context.ts` each define identical `RunSummary` type, `summarizeRun` function, `loadRecentCommits` function, and the `runtimeState` aggregation block. Any change to these (e.g. adding a new field to `RunSummary`) must be applied in three places.
 
 `src/workflows/shared.ts` already exists and holds other shared workflow utilities, making it the natural home for these.
 

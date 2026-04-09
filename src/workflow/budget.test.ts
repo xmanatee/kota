@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAgentSDK } from "../agent-sdk/index.js";
 import { EventBus } from "../event-bus.js";
-import { callTelegramApi } from "../extensions/telegram/client.js";
+import { callTelegramApi } from "../modules/telegram/client.js";
 import { WorkflowRunStore } from "./run-store.js";
 import { WorkflowRuntime } from "./runtime.js";
 import { registerWorkflowDefinition } from "./validation.js";
@@ -19,7 +19,7 @@ vi.mock("../agent-sdk/index.js", async () => {
   return { ...actual, executeWithAgentSDK: vi.fn() };
 });
 
-vi.mock("../extensions/telegram/client.js", () => ({
+vi.mock("../modules/telegram/client.js", () => ({
   callTelegramApi: vi.fn(),
 }));
 
@@ -205,7 +205,7 @@ describe("BudgetGuard soft-limit warning", () => {
         registerWorkflowDefinition("test/builder.ts", {
           name: "builder",
           triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
-          steps: [{ id: "build", type: "agent", promptPath: "src/workflows/builder/prompt.md" }],
+          steps: [{ id: "build", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md" }],
         }),
       ],
     });
@@ -251,7 +251,7 @@ describe("BudgetGuard soft-limit warning", () => {
         registerWorkflowDefinition("test/builder.ts", {
           name: "builder",
           triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
-          steps: [{ id: "build", type: "agent", promptPath: "src/workflows/builder/prompt.md" }],
+          steps: [{ id: "build", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md" }],
         }),
       ],
     });
@@ -293,7 +293,7 @@ describe("BudgetGuard soft-limit warning", () => {
         registerWorkflowDefinition("test/builder.ts", {
           name: "builder",
           triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
-          steps: [{ id: "build", type: "agent", promptPath: "src/workflows/builder/prompt.md" }],
+          steps: [{ id: "build", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md" }],
         }),
       ],
     });
@@ -334,7 +334,7 @@ describe("BudgetGuard soft-limit warning", () => {
         registerWorkflowDefinition("test/builder.ts", {
           name: "builder",
           triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
-          steps: [{ id: "build", type: "agent", promptPath: "src/workflows/builder/prompt.md" }],
+          steps: [{ id: "build", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md" }],
         }),
       ],
     });
@@ -410,7 +410,7 @@ describe("WorkflowRuntime budget enforcement", () => {
             {
               id: "build",
               type: "agent",
-              promptPath: "src/workflows/builder/prompt.md",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
             },
           ],
         }),
@@ -461,7 +461,7 @@ describe("WorkflowRuntime budget enforcement", () => {
             {
               id: "build",
               type: "agent",
-              promptPath: "src/workflows/builder/prompt.md",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
             },
           ],
         }),
@@ -624,7 +624,7 @@ describe("WorkflowRuntime budget enforcement", () => {
           dailyBudgetUsd: 5.0,
           triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
           steps: [
-            { id: "build", type: "agent", promptPath: "src/workflows/builder/prompt.md" },
+            { id: "build", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md" },
           ],
         }),
         registerWorkflowDefinition("test/explorer.ts", {
@@ -671,7 +671,7 @@ describe("WorkflowRuntime budget enforcement", () => {
             {
               id: "build",
               type: "agent",
-              promptPath: "src/workflows/builder/prompt.md",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
             },
           ],
         }),

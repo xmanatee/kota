@@ -1,4 +1,4 @@
-# Notebook Extension
+# Notebook Module
 
 This directory owns the `notebook` capability pack — Jupyter notebook creation and cell editing.
 
@@ -8,7 +8,7 @@ This directory owns the `notebook` capability pack — Jupyter notebook creation
 
 ## Files
 
-- `index.ts` — `KotaExtension` definition; assembles the `notebook` tool with `moderate` risk and `code` group metadata.
+- `index.ts` — `KotaModule` definition; assembles the `notebook` tool with `moderate` risk and `code` group metadata.
 - `notebook.ts` — `notebookTool` schema and `runNotebook` runner.
 - `notebook.test.ts` — unit tests for notebook creation and cell operations.
 

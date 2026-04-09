@@ -80,14 +80,14 @@ function isStrategicPriority(priority: string | null): boolean {
   return priority === "p0" || priority === "p1" || priority === "p2";
 }
 
-export function listRootLevelBuiltInExtensionFiles(projectDir: string): string[] {
-  const dir = join(projectDir, "src", "extensions");
+export function listRootLevelBuiltInModuleFiles(projectDir: string): string[] {
+  const dir = join(projectDir, "src", "modules");
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((fileName) => fileName.endsWith(".ts"))
     .filter((fileName) => !fileName.endsWith(".test.ts"))
     .filter((fileName) => !["index.ts", "notify-retry.ts"].includes(fileName))
-    .map((fileName) => join("src", "extensions", fileName))
+    .map((fileName) => join("src", "modules", fileName))
     .sort();
 }
 
@@ -110,7 +110,7 @@ export function listRootLevelCliArchitectureDebt(projectDir: string): string[] {
 
 export function listVisibleArchitectureDebt(projectDir: string): string[] {
   return [
-    ...listRootLevelBuiltInExtensionFiles(projectDir),
+    ...listRootLevelBuiltInModuleFiles(projectDir),
     ...listRootLevelCliArchitectureDebt(projectDir),
   ];
 }
@@ -349,7 +349,7 @@ export function assertArchitectureReadyCoverage(projectDir: string): string {
     return "architecture-ready-coverage-ok";
   }
   throw new Error(
-    "data/tasks/ready must keep at least one p1/p2 architecture task while visible extension-first debt remains: " +
+    "data/tasks/ready must keep at least one p1/p2 architecture task while visible module-first debt remains: " +
       remainingArchitectureDebt.join(", "),
   );
 }

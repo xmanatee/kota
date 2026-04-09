@@ -15,7 +15,7 @@ updated_at: 2026-04-02T00:00:00Z
 agent SDK, which aborts the step when spend exceeds the limit. However:
 
 1. No bus event is emitted when a step is aborted by the ceiling, so notification
-   extensions and operators have no automated signal that a cost ceiling was hit.
+   modules and operators have no automated signal that a cost ceiling was hit.
 2. `maxBudgetUsd` is not documented in `docs/WORKFLOWS.md`, so operators discovering the
    type definition have no guidance on expected behavior.
 
@@ -24,7 +24,7 @@ agent SDK, which aborts the step when spend exceeds the limit. However:
 - A `workflow.cost.ceiling.exceeded` event is added to `BusEvents` and emitted by
   `step-executor-agent.ts` when the agent SDK returns a budget-exceeded result.
 - `docs/WORKFLOWS.md` documents `maxBudgetUsd` on agent steps with an example.
-- Telegram and webhook extensions pick up the new event (verify generic subscription
+- Telegram and webhook modules pick up the new event (verify generic subscription
   covers it, or add explicit wiring).
 
 ## Constraints

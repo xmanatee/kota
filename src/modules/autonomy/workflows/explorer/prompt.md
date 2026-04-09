@@ -7,14 +7,14 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
 - Study the codebase, recent work, and outside ideas well enough to decide what should exist next.
 - Create or refine concise, outcome-focused tasks.
 - Keep the queue relevant, mixed, and non-duplicative.
-- Treat the minimal-core, extension-first architecture as a live goal.
+- Treat the minimal-core, module-first architecture as a live goal.
 
 ## Guidance
 
 - Do not implement product code or edit workflow/process surfaces here.
 - Because this workflow runs only when the local queue is empty, actively look for worthwhile next work instead of preserving a thin queue.
 - Prefer substantive tasks over filler.
-- While visible extension or core-shape debt remains, keep at least one real `p1`/`p2` architecture task in `ready/`.
+- While visible module or core-shape debt remains, keep at least one real `p1`/`p2` architecture task in `ready/`.
 - Do not let the open queue collapse into only `p3` work unless the repo is genuinely in maintenance mode.
 - Before creating a task, check for overlap in open work and verify the surface does not already exist.
 - Use outside research when it improves the roadmap, but keep it targeted.

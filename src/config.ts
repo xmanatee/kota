@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { type QuietHoursConfig, validateQuietHours } from "./extensions/notifications/notification-gate.js";
-import type { ForeignExtensionConfig } from "./foreign-extension.js";
+import { type QuietHoursConfig, validateQuietHours } from "./modules/notifications/notification-gate.js";
+import type { ForeignModuleConfig } from "./foreign-module.js";
 import { type GuardrailsConfig, sanitizeGuardrailsConfig } from "./guardrails.js";
 import type { ModelTiers } from "./model/model-router.js";
 import { type DispatchWindow, validateDispatchWindow } from "./workflow/dispatch-window.js";
@@ -40,15 +40,15 @@ export type KotaConfig = {
   /** Guardrails — risk classification and policy enforcement for tool calls. */
   guardrails?: GuardrailsConfig;
 
-  /** Per-extension configuration. Keys are extension names, values are extension-specific settings. */
-  extensions?: Record<string, Record<string, unknown>>;
+  /** Per-module configuration. Keys are module names, values are module-specific settings. */
+  modules?: Record<string, Record<string, unknown>>;
 
   /**
-   * Foreign-language (out-of-process) extensions.
+   * Foreign-language (out-of-process) modules.
    * Each entry declares a subprocess to spawn and communicate with via KEMP.
-   * See `docs/FOREIGN-EXTENSIONS.md` for the protocol specification.
+   * See `docs/FOREIGN-MODULES.md` for the protocol specification.
    */
-  foreignExtensions?: ForeignExtensionConfig[];
+  foreignModules?: ForeignModuleConfig[];
 
   /** Provider overrides. Keys are service types (e.g. "memory", "knowledge"), values are provider names. */
   providers?: Record<string, string>;
@@ -64,7 +64,7 @@ export type KotaConfig = {
   modelTiers?: ModelTiers;
 
   /**
-   * Per-agent model overrides. Keys are agent names (built-in or extension-contributed);
+   * Per-agent model overrides. Keys are agent names (project or module-contributed);
    * values are model IDs. Takes effect at agent resolve time; invalid model strings are
    * passed through without validation, same as the top-level `model` field.
    */
@@ -154,16 +154,16 @@ export type KotaConfig = {
     quietHours?: QuietHoursConfig;
   };
 
-  /** Foreign extension health monitoring settings. */
-  extensionMonitoring?: {
+  /** Foreign module health monitoring settings. */
+  moduleMonitoring?: {
     /**
      * Number of restarts within `crashAlertWindowMs` that triggers an
-     * `extension.crash.alert` notification. Default: 3.
+     * `module.crash.alert` notification. Default: 3.
      */
     crashAlertThreshold?: number;
     /**
-     * Rolling window in milliseconds for counting extension restarts.
-     * Also serves as the alert cooldown — at most one alert per extension per window.
+     * Rolling window in milliseconds for counting module restarts.
+     * Also serves as the alert cooldown — at most one alert per module per window.
      * Default: 600000 (10 minutes).
      */
     crashAlertWindowMs?: number;
@@ -271,14 +271,14 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (parsed) out.guardrails = parsed;
   }
 
-  if (typeof raw.extensions === "object" && raw.extensions !== null && !Array.isArray(raw.extensions)) {
-    const extensions: Record<string, Record<string, unknown>> = {};
-    for (const [name, val] of Object.entries(raw.extensions)) {
+  if (typeof raw.modules === "object" && raw.modules !== null && !Array.isArray(raw.modules)) {
+    const modules: Record<string, Record<string, unknown>> = {};
+    for (const [name, val] of Object.entries(raw.modules)) {
       if (typeof val === "object" && val !== null && !Array.isArray(val)) {
-        extensions[name] = val as Record<string, unknown>;
+        modules[name] = val as Record<string, unknown>;
       }
     }
-    if (Object.keys(extensions).length > 0) out.extensions = extensions;
+    if (Object.keys(modules).length > 0) out.modules = modules;
   }
 
   if (typeof raw.providers === "object" && raw.providers !== null && !Array.isArray(raw.providers)) {
@@ -428,9 +428,9 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (Object.keys(m).length > 0) out.mcp = m;
   }
 
-  if (Array.isArray(raw.foreignExtensions)) {
-    const fexts: ForeignExtensionConfig[] = [];
-    for (const entry of raw.foreignExtensions) {
+  if (Array.isArray(raw.foreignModules)) {
+    const fexts: ForeignModuleConfig[] = [];
+    for (const entry of raw.foreignModules) {
       if (typeof entry !== "object" || entry === null) continue;
       const src = entry as Record<string, unknown>;
       if (src.transport === "http") {
@@ -440,7 +440,7 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
       }
       if (src.transport !== "stdio") continue;
       if (typeof src.command !== "string" || !src.command) continue;
-      const fext: ForeignExtensionConfig = { transport: "stdio", command: src.command };
+      const fext: ForeignModuleConfig = { transport: "stdio", command: src.command };
       if (Array.isArray(src.args)) {
         fext.args = src.args.filter((a): a is string => typeof a === "string");
       }
@@ -454,7 +454,7 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
       if (typeof src.cwd === "string" && src.cwd) fext.cwd = src.cwd;
       fexts.push(fext);
     }
-    if (fexts.length > 0) out.foreignExtensions = fexts;
+    if (fexts.length > 0) out.foreignModules = fexts;
   }
 
   return out;
@@ -480,8 +480,8 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
         policies: { ...(base?.policies), ...over.policies },
         toolOverrides: over.toolOverrides ?? base?.toolOverrides,
       };
-    } else if (key === "extensions" && typeof val === "object") {
-      merged.extensions = { ...a.extensions, ...(val as Record<string, Record<string, unknown>>) };
+    } else if (key === "modules" && typeof val === "object") {
+      merged.modules = { ...a.modules, ...(val as Record<string, Record<string, unknown>>) };
     } else if (key === "providers" && typeof val === "object") {
       merged.providers = { ...a.providers, ...(val as Record<string, string>) };
     } else if (key === "modelProvider" && typeof val === "object") {
@@ -497,9 +497,9 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
     } else if (key === "autoEnable" && Array.isArray(val)) {
       // Project autoEnable replaces global (not merges) — project knows best
       merged.autoEnable = val as string[];
-    } else if (key === "foreignExtensions" && Array.isArray(val)) {
-      // Project foreign extensions append to global
-      merged.foreignExtensions = [...(a.foreignExtensions ?? []), ...(val as ForeignExtensionConfig[])];
+    } else if (key === "foreignModules" && Array.isArray(val)) {
+      // Project foreign modules append to global
+      merged.foreignModules = [...(a.foreignModules ?? []), ...(val as ForeignModuleConfig[])];
     } else if (key === "budget" && typeof val === "object") {
       merged.budget = { ...a.budget, ...(val as KotaConfig["budget"]) };
     } else if (key === "notifications" && typeof val === "object") {

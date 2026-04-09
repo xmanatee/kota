@@ -17,7 +17,7 @@ export type WorkingMemoryEntry = {
 	key: string;
 	value: string;
 	updatedAt: number;
-	/** If true, entry survives session restarts via extension storage. */
+	/** If true, entry survives session restarts via module storage. */
 	persistent?: boolean;
 };
 

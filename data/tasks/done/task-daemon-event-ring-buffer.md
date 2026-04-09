@@ -16,7 +16,7 @@ The daemon event bus (`src/event-bus.ts`) fires typed events — workflow lifecy
 This means:
 - The web UI misses events that fired during a page reload.
 - Operators connecting to `GET /events` after a burst of activity see no history.
-- Notification extensions cannot replay recent events to a newly registered subscriber.
+- Notification modules cannot replay recent events to a newly registered subscriber.
 
 ## Desired Outcome
 

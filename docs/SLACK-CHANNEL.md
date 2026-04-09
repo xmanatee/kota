@@ -1,8 +1,8 @@
 # Slack Channel
 
-The `slack-channel` extension adds a bidirectional Slack bot to KOTA using [Socket Mode](https://api.slack.com/apis/connections/socket). Operators can send messages to the KOTA bot and receive responses. Pending approval requests are posted as interactive messages with Approve/Reject buttons.
+The `slack-channel` module adds a bidirectional Slack bot to KOTA using [Socket Mode](https://api.slack.com/apis/connections/socket). Operators can send messages to the KOTA bot and receive responses. Pending approval requests are posted as interactive messages with Approve/Reject buttons.
 
-This is separate from the existing `slack` extension, which is a one-way Incoming Webhook notification channel.
+This is separate from the existing `slack` module, which is a one-way Incoming Webhook notification channel.
 
 ## Creating a Slack App
 
@@ -47,7 +47,7 @@ Add the following to your `kota.config` (`.kota/config.json`):
 
 ```json
 {
-  "extensions": {
+  "modules": {
     "slackChannel": {
       "botToken": "xoxb-...",
       "appToken": "xapp-...",
@@ -71,13 +71,13 @@ To find a channel's ID, open the channel in Slack, click the channel name, and c
 - **Approvals**: When a workflow action requires approval, a message with Approve/Reject buttons is posted to `notifyChannel`. Clicking a button resolves the approval immediately.
 - **Reset session**: No `/clear` command is currently exposed; restart the daemon to clear sessions.
 
-## Enabling the Extension
+## Enabling the Module
 
-The `slack-channel` extension must be registered in your config's `extensions` section. It is opt-in and does not affect the existing `slack` Incoming Webhook extension.
+The `slack-channel` module must be registered in your config's `modules` section. It is opt-in and does not affect the existing `slack` Incoming Webhook module.
 
 ```json
 {
-  "extensions": {
+  "modules": {
     "slack": { "webhookUrl": "https://hooks.slack.com/..." },
     "slackChannel": { "botToken": "xoxb-...", "appToken": "xapp-..." }
   }

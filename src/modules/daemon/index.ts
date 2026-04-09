@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { Command } from "commander";
-import type { KotaExtension } from "../../extension-types.js";
+import type { KotaModule } from "../../module-types.js";
 import { readOptionalJsonFile } from "../../json-file.js";
 import type { LogFormat } from "../../log-format.js";
 import { Daemon, RESTART_EXIT_CODE } from "../../scheduler/daemon.js";
@@ -207,7 +207,7 @@ export function removeServiceFile(path: string): string | null {
   return null;
 }
 
-const daemonModule: KotaExtension = {
+const daemonModule: KotaModule = {
   name: "daemon",
   version: "1.0.0",
   description: "Long-running KOTA process with scheduler and code-defined workflows",
@@ -362,7 +362,7 @@ const daemonModule: KotaExtension = {
 
     cmd
       .command("reload")
-      .description("Reload daemon config and re-register extension workflow contributions without restart")
+      .description("Reload daemon config and re-register module workflow contributions without restart")
       .action(async () => {
         const client = DaemonControlClient.fromStateDir();
         if (!client) {

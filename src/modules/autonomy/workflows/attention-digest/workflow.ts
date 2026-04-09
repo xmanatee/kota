@@ -1,18 +1,30 @@
 import { join } from "node:path";
-import { runAttentionDigestStep } from "../../workflow/attention-digest.js";
-import type { WorkflowDefinitionInput } from "../../workflow/types.js";
+import { runAttentionDigestStep } from "./step.js";
+import type { WorkflowDefinitionInput } from "../../../../workflow/types.js";
 
 const attentionDigestWorkflow: WorkflowDefinitionInput = {
   name: "attention-digest",
   description:
     "Periodically check for attention-worthy system conditions and send a Telegram digest when any are found.",
-  tags: ["observer"],
   triggers: [
+    {
+      event: "workflow.build.committed",
+    },
     {
       event: "workflow.completed",
       filter: {
-        workflowTags: "attention-source",
+        workflow: ["builder", "explorer", "inbox-sorter"],
+        status: ["failed", "interrupted"],
       },
+    },
+    {
+      event: "workflow.cost.anomaly",
+    },
+    {
+      event: "workflow.budget.exceeded",
+    },
+    {
+      event: "runtime.recovered",
     },
   ],
   steps: [

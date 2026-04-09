@@ -35,11 +35,11 @@ function makeProvider(entries: Memory[]): MemoryProvider {
   };
 }
 
-vi.mock("../extensions/providers/index.js", () => ({
+vi.mock("../modules/providers/index.js", () => ({
   getMemoryProvider: vi.fn(),
 }));
 
-import { getMemoryProvider } from "../extensions/providers/index.js";
+import { getMemoryProvider } from "../modules/providers/index.js";
 
 describe("memory-routes", () => {
   describe("handleListMemory", () => {

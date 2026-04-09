@@ -3,14 +3,14 @@ import { validateDefinitions } from "./validate.js";
 
 const VALID_DEF = {
   name: "test-workflow",
-  definitionPath: "src/workflows/test/workflow.ts",
+  definitionPath: "src/modules/test/workflows/test/workflow.ts",
   triggers: [{ event: "runtime.idle" }],
   steps: [{ type: "emit" as const, id: "done", event: "test.done" }],
 };
 
 const INVALID_DEF = {
   name: "",
-  definitionPath: "src/workflows/bad/workflow.ts",
+  definitionPath: "src/modules/test/workflows/bad/workflow.ts",
   triggers: [{ event: "runtime.idle" }],
   steps: [{ type: "emit" as const, id: "done", event: "test.done" }],
 };

@@ -3,14 +3,14 @@ import { join } from "node:path";
 import type { Command } from "commander";
 import { REPO_INBOX_DIR, REPO_TASKS_DIR, REPO_TASK_STATES } from "./repo-tasks.js";
 
-const KOTA_CONFIG_TEMPLATE = `import type { KotaConfig } from "kota/extension";
+const KOTA_CONFIG_TEMPLATE = `import type { KotaConfig } from "kota/module";
 
 const config: KotaConfig = {
   // Model selection (default: claude-sonnet-4-6)
   // model: "claude-sonnet-4-6",
 
-  // Extensions — uncomment and configure the ones you need.
-  extensions: {
+  // Modules — uncomment and configure the ones you need.
+  modules: {
     // Telegram notifications (requires TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID env vars)
     // "telegram": {
     //   botToken: process.env.TELEGRAM_BOT_TOKEN,
@@ -187,7 +187,7 @@ export function registerInitCommand(program: Command): void {
 
       console.log();
       console.log("Project scaffolded. Next steps:");
-      console.log("  1. Review kota.config.ts and uncomment any extensions you need.");
+      console.log("  1. Review kota.config.ts and uncomment any modules you need.");
       console.log("  2. Run `kota doctor` to verify your setup.");
       console.log("  3. See docs/ for reference documentation.");
     });

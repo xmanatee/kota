@@ -96,10 +96,10 @@ describe("DaemonLogger — json format", () => {
 
   it("error level is reflected in JSON", () => {
     const logger = new DaemonLogger("json");
-    logger.error("fatal", { extension: "my-ext" });
+    logger.error("fatal", { module: "my-ext" });
     const parsed = parseFirst();
     expect(parsed.level).toBe("error");
-    expect(parsed.extension).toBe("my-ext");
+    expect(parsed.module).toBe("my-ext");
   });
 
   it("omits undefined contextual fields", () => {

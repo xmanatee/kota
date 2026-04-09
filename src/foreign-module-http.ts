@@ -9,7 +9,7 @@
  * transport — only the framing mechanism differs.
  */
 
-import type { HttpForeignExtensionConfig, KempInbound, KempOutbound, KempTransport } from "./foreign-extension.js";
+import type { HttpForeignModuleConfig, KempInbound, KempOutbound, KempTransport } from "./foreign-module.js";
 
 function resolveToken(bearerToken: string | { env: string } | undefined): string | undefined {
   if (bearerToken === undefined) return undefined;
@@ -23,7 +23,7 @@ export class HttpTransport implements KempTransport {
   private waiters: Array<(msg: KempInbound | null) => void> = [];
   private label: string;
 
-  constructor(private config: HttpForeignExtensionConfig) {
+  constructor(private config: HttpForeignModuleConfig) {
     this.label = `[foreign:http:${config.url}]`;
   }
 

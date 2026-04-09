@@ -28,7 +28,7 @@ export type WorkflowQueuedRun = {
   notBeforeMs: number;
 };
 
-export type WorkflowAutonomousRecoveryState = {
+export type WorkflowRecoveryState = {
   sourceRunId: string;
   sourceWorkflow: string;
   worktreeFingerprint: string;
@@ -43,7 +43,7 @@ export type WorkflowRuntimeState = {
   totalCostUsd?: number;
   definitionsLoadedAt?: string;
   agentBackoff?: WorkflowAgentBackoffState;
-  autonomousRecovery?: WorkflowAutonomousRecoveryState;
+  recovery?: WorkflowRecoveryState;
   pendingRuns: WorkflowQueuedRun[];
   workflows: Record<
     string,
@@ -163,7 +163,6 @@ export type WorkflowRunWarning = {
 export type WorkflowRunMetadata = {
   id: string;
   workflow: string;
-  workflowTags?: string[];
   definitionPath: string;
   trigger: WorkflowRunTrigger;
   triggeredByRunId?: string;

@@ -1,9 +1,9 @@
 /**
- * Public extension API — types needed to author a KOTA extension.
+ * Public module API — types needed to author a KOTA module.
  *
- * Import from "kota/extension" in your extension's source:
+ * Import from "kota/module" in your module's source:
  *
- *   import type { KotaExtension, ToolDef } from "kota/extension";
+ *   import type { KotaModule, ToolDef } from "kota/module";
  *
  * These types are stable; internal KOTA types are not part of this contract.
  */
@@ -12,12 +12,12 @@ export type { AgentDef, SkillDef } from "./agent-types.js";
 export type { ChannelAdapter, ChannelDef, ChannelStartContext } from "./channel.js";
 export type {
   CreateSessionOptions,
-  ExtensionContext,
-  ExtensionEventProxy,
-  ExtensionLogger,
-  ExtensionSession,
-  KotaExtension,
+  ModuleContext,
+  ModuleEventProxy,
+  ModuleLogger,
+  ModuleSession,
+  KotaModule,
   RouteRegistration,
   ToolDef,
-} from "./extension-types.js";
+} from "./module-types.js";
 export type { ToolResult } from "./tools/tool-result.js";

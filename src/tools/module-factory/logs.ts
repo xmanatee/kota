@@ -1,43 +1,43 @@
 /**
- * Extension Factory — log query handler.
+ * Module Factory — log query handler.
  */
 
-import type { LogLevel } from "../../extension-log.js";
-import { getExtensionLogStore } from "../../extension-log.js";
+import type { LogLevel } from "../../module-log.js";
+import { getModuleLogStore } from "../../module-log.js";
 import type { ToolResult } from "../index.js";
 
 export function handleLogs(input: Record<string, unknown>): ToolResult {
-	const store = getExtensionLogStore();
+	const store = getModuleLogStore();
 	if (!store) {
-		return { content: "Extension log store not initialized", is_error: true };
+		return { content: "Module log store not initialized", is_error: true };
 	}
 
-	const extensionName = input.name as string | undefined;
+	const moduleName = input.name as string | undefined;
 	const level = input.level as LogLevel | undefined;
 	const keyword = input.keyword as string | undefined;
 	const limit = (input.limit as number) ?? 30;
 
-	if (!extensionName) {
-		const extensions = store.extensions();
-		if (extensions.length === 0) {
-			return { content: "No extension logs found." };
+	if (!moduleName) {
+		const modules = store.modules();
+		if (modules.length === 0) {
+			return { content: "No module logs found." };
 		}
-		const lines = extensions.map((ext) => {
+		const lines = modules.map((ext) => {
 			const recent = store.tail(ext, 1);
 			const last = recent[0];
 			const lastMsg = last
 				? ` — last: [${last.level}] ${last.msg.slice(0, 80)}`
 				: "";
-			const count = store.query({ extension: ext, limit: 10000 }).length;
+			const count = store.query({ module: ext, limit: 10000 }).length;
 			return `- ${ext}: ${count} entries${lastMsg}`;
 		});
 		return {
-			content: `Extensions with logs (${extensions.length}):\n${lines.join("\n")}`,
+			content: `Modules with logs (${modules.length}):\n${lines.join("\n")}`,
 		};
 	}
 
 	const entries = store.query({
-		extension: extensionName,
+		module: moduleName,
 		level,
 		keyword,
 		limit,
@@ -50,7 +50,7 @@ export function handleLogs(input: Record<string, unknown>): ToolResult {
 			.filter(Boolean)
 			.join(", ");
 		return {
-			content: `No log entries for "${extensionName}"${filters ? ` (filters: ${filters})` : ""}.`,
+			content: `No log entries for "${moduleName}"${filters ? ` (filters: ${filters})` : ""}.`,
 		};
 	}
 
@@ -63,6 +63,6 @@ export function handleLogs(input: Record<string, unknown>): ToolResult {
 	});
 
 	return {
-		content: `Logs for "${extensionName}" (${entries.length} entries, newest last):\n${lines.join("\n")}`,
+		content: `Logs for "${moduleName}" (${entries.length} entries, newest last):\n${lines.join("\n")}`,
 	};
 }

@@ -1,17 +1,17 @@
 /**
- * History extension — conversation recall across sessions.
+ * History module — conversation recall across sessions.
  *
  * Registers the `conversation_recall` tool in the `management` group.
  * Enables the agent to search and read past conversations.
  */
 
-import type { KotaExtension } from "../../extension-types.js";
+import type { KotaModule } from "../../module-types.js";
 import {
 	conversationRecallTool,
 	runConversationRecall,
 } from "./conversation-recall.js";
 
-const historyModule: KotaExtension = {
+const historyModule: KotaModule = {
 	name: "history",
 	version: "1.0.0",
 	description:
@@ -25,7 +25,7 @@ const historyModule: KotaExtension = {
 			group: "management",
 		},
 	],
-	skills: [{ name: "history", promptPath: "src/extensions/skills/history.md" }],
+	skills: [{ name: "history", promptPath: "src/modules/skills/history.md" }],
 };
 
 export default historyModule;

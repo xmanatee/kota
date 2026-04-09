@@ -42,7 +42,7 @@ Each tool definition includes explicit "when NOT to use" guidance. The agent ove
 
 **grep used instead of glob (prevented):**
 - Before: agent runs `grep "" --files-with-matches "**/*.ts"` just to list TypeScript files
-- After: "Do NOT use to find files by name or extension only (use glob)" → agent uses glob directly
+- After: "Do NOT use to find files by name or module only (use glob)" → agent uses glob directly
 
 ## References
 

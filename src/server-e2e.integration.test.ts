@@ -37,14 +37,14 @@ vi.mock("./loop.js", () => {
   return { AgentSession: MockAgentSession };
 });
 
-import { ExtensionLoader } from "./extension-loader.js";
-import { discoverBuiltinExtensions } from "./extensions/index.js";
+import { ModuleLoader } from "./module-loader.js";
+import { discoverProjectModules } from "./modules/index.js";
 import { startServer } from "./server/server.js";
 
 let server: Server;
 let baseUrl: string;
 const TEST_AUTH_TOKEN = "test-e2e-auth-token-abc123";
-const builtinExtensions = await discoverBuiltinExtensions();
+const projectModules = await discoverProjectModules();
 
 /** Collect session IDs created during tests for cleanup. */
 const createdSessionIds: string[] = [];
@@ -116,10 +116,10 @@ async function createSession(): Promise<string> {
 beforeAll(async () => {
   const origLog = console.log;
   console.log = () => {};
-  const loader = new ExtensionLoader({} as any, false, { commandsOnly: true });
-  await loader.loadAll(builtinExtensions);
-  const extensionRoutes = loader.getRoutes();
-  server = startServer({ port: 0, config: {} as any, extensionRoutes, authToken: TEST_AUTH_TOKEN });
+  const loader = new ModuleLoader({} as any, false, { commandsOnly: true });
+  await loader.loadAll(projectModules);
+  const moduleRoutes = loader.getRoutes();
+  server = startServer({ port: 0, config: {} as any, moduleRoutes, authToken: TEST_AUTH_TOKEN });
   const port = await waitForPort(server);
   console.log = origLog;
   baseUrl = `http://localhost:${port}`;

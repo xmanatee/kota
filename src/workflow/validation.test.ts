@@ -2,9 +2,18 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { discoverBuiltinWorkflowDefinitions } from "./discovery.js";
+import autonomyModule from "../modules/autonomy/index.js";
+import type { RegisteredWorkflowDefinitionInput } from "./types.js";
 import { registerWorkflowDefinition, validateWorkflowDefinitions, WorkflowDefinitionError } from "./validation.js";
 import { VALID_MODEL_IDS } from "./validation-steps.js";
+
+async function loadAutonomyWorkflowDefinitions(): Promise<RegisteredWorkflowDefinitionInput[]> {
+  const workflows = autonomyModule.workflows;
+  if (!workflows || typeof workflows !== "function") {
+    throw new Error("autonomy module must expose workflows as a contribution factory");
+  }
+  return [...await workflows({} as never)] as RegisteredWorkflowDefinitionInput[];
+}
 
 describe("workflow validation", () => {
   let projectDir: string;
@@ -14,7 +23,10 @@ describe("workflow validation", () => {
       tmpdir(),
       `kota-workflow-validation-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(join(projectDir, "src", "workflows", "builder"), { recursive: true });
+    mkdirSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder"),
+      { recursive: true },
+    );
   });
 
   afterEach(() => {
@@ -23,7 +35,7 @@ describe("workflow validation", () => {
 
   it("validates a discovered workflow set", () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -36,7 +48,7 @@ describe("workflow validation", () => {
             {
               id: "build",
               type: "agent",
-              promptPath: "src/workflows/builder/prompt.md",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
             },
           ],
         }),
@@ -116,7 +128,7 @@ describe("workflow validation", () => {
 
   it("accepts repair checks with severity and code validators", () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -130,7 +142,7 @@ describe("workflow validation", () => {
               {
                 id: "build",
                 type: "agent",
-                promptPath: "src/workflows/builder/prompt.md",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
                 repairLoop: {
                   maxRepairAttempts: 2,
                   checks: [
@@ -181,7 +193,7 @@ describe("workflow validation", () => {
 
   it("preserves timeoutMs on agent steps", () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -194,7 +206,7 @@ describe("workflow validation", () => {
             {
               id: "build",
               type: "agent",
-              promptPath: "src/workflows/builder/prompt.md",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
               timeoutMs: 45 * 60 * 1000,
             },
           ],
@@ -220,19 +232,19 @@ describe("workflow validation", () => {
               {
                 id: "build",
                 type: "agent",
-                promptPath: "src/workflows/builder/missing.md",
+                promptPath: "src/modules/autonomy/workflows/builder/missing.md",
               },
             ],
           }),
         ],
         projectDir,
       ),
-    ).toThrow('promptPath does not exist: src/workflows/builder/missing.md');
+    ).toThrow('promptPath does not exist: src/modules/autonomy/workflows/builder/missing.md');
   });
 
   it("rejects duplicate workflow names", () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -246,7 +258,7 @@ describe("workflow validation", () => {
               {
                 id: "build",
                 type: "agent",
-                promptPath: "src/workflows/builder/prompt.md",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
               },
             ],
           }),
@@ -269,7 +281,7 @@ describe("workflow validation", () => {
 
   it("requires restart steps to declare prior verification steps", () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -283,7 +295,7 @@ describe("workflow validation", () => {
               {
                 id: "build",
                 type: "agent",
-                promptPath: "src/workflows/builder/prompt.md",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
               },
               {
                 id: "request-restart",
@@ -301,7 +313,7 @@ describe("workflow validation", () => {
 
   it("requires restart verification steps to be prior tool or code steps", () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -315,7 +327,7 @@ describe("workflow validation", () => {
               {
                 id: "build",
                 type: "agent",
-                promptPath: "src/workflows/builder/prompt.md",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
               },
               {
                 id: "request-restart",
@@ -365,7 +377,7 @@ describe("workflow validation", () => {
 
   it("rejects unknown model IDs in agent steps", () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -379,7 +391,7 @@ describe("workflow validation", () => {
               {
                 id: "build",
                 type: "agent",
-                promptPath: "src/workflows/builder/prompt.md",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
                 model: "gpt-4-turbo",
               },
             ],
@@ -392,7 +404,7 @@ describe("workflow validation", () => {
 
   it("accepts known model IDs in agent steps", () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -407,7 +419,7 @@ describe("workflow validation", () => {
                 {
                   id: "build",
                   type: "agent",
-                  promptPath: "src/workflows/builder/prompt.md",
+                  promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
                   model,
                 },
               ],
@@ -421,7 +433,7 @@ describe("workflow validation", () => {
 
   it("accepts agent steps without a model field", () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -435,7 +447,7 @@ describe("workflow validation", () => {
               {
                 id: "build",
                 type: "agent",
-                promptPath: "src/workflows/builder/prompt.md",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
               },
             ],
           }),
@@ -445,9 +457,9 @@ describe("workflow validation", () => {
     ).not.toThrow();
   });
 
-  it("exposes the expected built-in workflows without pinning the full set", async () => {
+  it("exposes the expected autonomy workflows without pinning the full set", async () => {
     const definitions = validateWorkflowDefinitions(
-      await discoverBuiltinWorkflowDefinitions(),
+      await loadAutonomyWorkflowDefinitions(),
       process.cwd(),
     );
 
@@ -461,9 +473,9 @@ describe("workflow validation", () => {
     ]));
   });
 
-  it("keeps the built-in autonomy workflows uncapped by daily budgets", async () => {
+  it("keeps the autonomy workflows uncapped by daily budgets", async () => {
     const definitions = validateWorkflowDefinitions(
-      await discoverBuiltinWorkflowDefinitions(),
+      await loadAutonomyWorkflowDefinitions(),
       process.cwd(),
     );
 
@@ -535,27 +547,6 @@ describe("workflow validation", () => {
     ).toThrow(/infinite loop/);
   });
 
-  it("rejects a workflow.completed trigger whose workflowTags filter includes its own tag", () => {
-    expect(() =>
-      validateWorkflowDefinitions(
-        [
-          registerWorkflowDefinition("test/notifier.ts", {
-            name: "notifier",
-            tags: ["delivery"],
-            triggers: [
-              {
-                event: "workflow.completed",
-                filter: { workflowTags: "delivery" },
-              },
-            ],
-            steps: [{ id: "notify", type: "emit", event: "notifier.done" }],
-          }),
-        ],
-        projectDir,
-      ),
-    ).toThrow(/infinite loop/);
-  });
-
   it("accepts a workflow.completed trigger with a workflow filter that excludes itself", () => {
     expect(() =>
       validateWorkflowDefinitions(
@@ -566,27 +557,6 @@ describe("workflow validation", () => {
               {
                 event: "workflow.completed",
                 filter: { workflow: ["explorer", "builder"] },
-              },
-            ],
-            steps: [{ id: "notify", type: "emit", event: "notifier.done" }],
-          }),
-        ],
-        projectDir,
-      ),
-    ).not.toThrow();
-  });
-
-  it("accepts a workflow.completed trigger whose workflowTags filter does not match itself", () => {
-    expect(() =>
-      validateWorkflowDefinitions(
-        [
-          registerWorkflowDefinition("test/notifier.ts", {
-            name: "notifier",
-            tags: ["governance"],
-            triggers: [
-              {
-                event: "workflow.completed",
-                filter: { workflowTags: "delivery" },
               },
             ],
             steps: [{ id: "notify", type: "emit", event: "notifier.done" }],

@@ -1,23 +1,23 @@
 /**
- * Skills extension — owns the `kota skill` CLI surface.
+ * Skills module — owns the `kota skill` CLI surface.
  *
- * Skills are contributed by other extensions via `KotaExtension.skills`.
- * This extension registers the operator CLI for inspecting them.
+ * Skills are contributed by other modules via `KotaModule.skills`.
+ * This module registers the operator CLI for inspecting them.
  */
 
 import { Command } from "commander";
 import type { SkillDef } from "../../agent-types.js";
-import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
+import type { ModuleContext, KotaModule } from "../../module-types.js";
 
-function buildSkillCommand(ctx: ExtensionContext): Command {
+function buildSkillCommand(ctx: ModuleContext): Command {
   const skillCmd = new Command("skill").description("Inspect registered skills");
 
   skillCmd
     .command("list")
-    .description("List all registered skills with source extension")
+    .description("List all registered skills with source module")
     .option("--json", "Output as JSON")
     .action((opts: { json?: boolean }) => {
-      const summaries = ctx.getExtensionSummaries();
+      const summaries = ctx.getModuleSummaries();
       type SkillEntry = SkillDef & { source: string };
       const skills: SkillEntry[] = [];
       for (const summary of summaries) {
@@ -46,11 +46,11 @@ function buildSkillCommand(ctx: ExtensionContext): Command {
   return skillCmd;
 }
 
-const skillsModule: KotaExtension = {
+const skillsModule: KotaModule = {
   name: "skills",
   version: "1.0.0",
   description: "Operator CLI for inspecting registered skills",
-  commands: (ctx: ExtensionContext) => [buildSkillCommand(ctx)],
+  commands: (ctx: ModuleContext) => [buildSkillCommand(ctx)],
 };
 
 export default skillsModule;

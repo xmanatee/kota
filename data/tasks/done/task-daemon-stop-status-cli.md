@@ -38,7 +38,7 @@ Three new subcommands under `kota daemon`:
 
 ## Constraints
 
-- Subcommands live in the daemon extension (`src/extensions/daemon.ts`) alongside the
+- Subcommands live in the daemon module (`src/modules/daemon.ts`) alongside the
   existing `daemon` start command.
 - Use `DaemonControlClient` for the status call; check whether a stop endpoint or
   signal mechanism exists before adding one.

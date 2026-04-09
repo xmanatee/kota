@@ -199,7 +199,7 @@ export class DaemonControlServer {
       const health = this.handle.getHealthStatus();
       const state = this.handle.getDaemonLiveState();
       const uptimeMs = Date.now() - new Date(state.startedAt).getTime();
-      const degraded = health.scheduler === "error" || health.extensions === "error";
+      const degraded = health.scheduler === "error" || health.modules === "error";
       jsonResponse(res, degraded ? 503 : 200, {
         status: degraded ? "degraded" : "ok",
         version: "0.1.0",

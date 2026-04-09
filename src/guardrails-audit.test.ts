@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Assessment } from "./guardrails.js";
-import { AuditStore, getAuditStore, initAuditStore, resetAuditStore } from "./extensions/guardrails-audit/store.js";
+import { AuditStore, getAuditStore, initAuditStore, resetAuditStore } from "./modules/guardrails-audit/store.js";
 
 function makeTmpDir(): string {
 	return mkdtempSync(join(tmpdir(), "audit-test-"));

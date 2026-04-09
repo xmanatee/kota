@@ -1,7 +1,7 @@
 ---
 id: task-per-agent-model-override
 title: Allow per-agent model override in kota config
-summary: Add agentModels config field to override the model for named built-in and extension agents.
+summary: Add agentModels config field to override the model for named built-in and module agents.
 status: done
 priority: p3
 area: runtime
@@ -18,7 +18,7 @@ The config already supports `model` (global default) and `modelTiers` (tier mapp
 ## Desired Outcome
 
 - `kota.config.json` (or `.kota/config.json`) accepts an `agentModels` map: `{ [agentName: string]: string }`
-- When a built-in or extension-contributed agent is loaded, its `model` field is overridden by the config value if present
+- When a built-in or module-contributed agent is loaded, its `model` field is overridden by the config value if present
 - Config parsing in `src/config.ts` validates the `agentModels` field and merges it across config layers
 - `kota agent inspect <name>` reflects the resolved model (including any override)
 - `kota agent list` output shows the effective model per agent
@@ -26,7 +26,7 @@ The config already supports `model` (global default) and `modelTiers` (tier mapp
 ## Constraints
 
 - No change to `AgentDef.model` type — override happens at resolve time, not definition time
-- Config-level override applies after extension registration, so extension-contributed agents are also overridable
+- Config-level override applies after module registration, so module-contributed agents are also overridable
 - Invalid model strings are passed through without validation (same as the top-level `model` field)
 - Default behavior (no config entry → use definition model) unchanged
 

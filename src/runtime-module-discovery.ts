@@ -5,7 +5,7 @@ const ENTRY_EXTENSIONS = [".ts", ".js", ".mjs"] as const;
 
 function entryCandidates(baseUrl: URL, entryBaseName: string): URL[] {
   return ENTRY_EXTENSIONS.map(
-    (extension) => new URL(`${entryBaseName}${extension}`, baseUrl),
+    (module) => new URL(`${entryBaseName}${module}`, baseUrl),
   );
 }
 
@@ -34,4 +34,13 @@ export async function importModuleEntry<T>(
   if (!entryUrl) return null;
   const imported = await import(pathToFileURL(fileURLToPath(entryUrl)).href);
   return (imported.default ?? imported) as T;
+}
+
+export async function importModuleExports<T>(
+  baseUrl: URL,
+  entryBaseName: string,
+): Promise<T | null> {
+  const entryUrl = resolveModuleEntryUrl(baseUrl, entryBaseName);
+  if (!entryUrl) return null;
+  return (await import(pathToFileURL(fileURLToPath(entryUrl)).href)) as T;
 }

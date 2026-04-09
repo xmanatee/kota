@@ -3,8 +3,8 @@ import { EventEmitter } from "node:events";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import { EventBus } from "../../event-bus.js";
-import { ExtensionStorage } from "../../extension-storage.js";
-import type { ExtensionContext } from "../../extension-types.js";
+import { ModuleStorage } from "../../module-storage.js";
+import type { ModuleContext } from "../../module-types.js";
 import githubWebhookModule from "./index.js";
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
@@ -13,18 +13,18 @@ function makeStubCtx(
   bus: EventBus,
   config?: unknown,
   logWarn = vi.fn(),
-): ExtensionContext {
+): ModuleContext {
   return {
     cwd: "/tmp/test",
     verbose: false,
-    config: {} as ExtensionContext["config"],
-    storage: new ExtensionStorage("/tmp/test", "github-webhook"),
+    config: {} as ModuleContext["config"],
+    storage: new ModuleStorage("/tmp/test", "github-webhook"),
     registerGroup: () => {},
     getRoutes: () => [],
     getContributedWorkflows: () => [],
     getContributedChannels: () => [],
-    getExtensionSummaries: () => [],
-    getExtensionConfig: () => config as never,
+    getModuleSummaries: () => [],
+    getModuleConfig: () => config as never,
     log: { info: () => {}, warn: logWarn, error: () => {}, debug: () => {} },
     getSecret: () => null,
     listTools: () => [],
@@ -90,7 +90,7 @@ const PUSH_BODY = JSON.stringify({
 
 async function invokeHandler(
   module: typeof githubWebhookModule,
-  ctx: ExtensionContext,
+  ctx: ModuleContext,
   body: string,
   headers: Record<string, string>,
 ): Promise<FakeResponse> {

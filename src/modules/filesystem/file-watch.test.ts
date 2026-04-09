@@ -110,10 +110,10 @@ describe("WatcherManager", () => {
 		}
 	});
 
-	it("starts with extension filter", async () => {
-		const id = await mgr.start(tmpDir, { extensions: [".ts", ".json"] });
+	it("starts with module filter", async () => {
+		const id = await mgr.start(tmpDir, { modules: [".ts", ".json"] });
 		const list = mgr.list();
-		expect(list[0].extensions).toEqual([".ts", ".json"]);
+		expect(list[0].modules).toEqual([".ts", ".json"]);
 		mgr.stop(id);
 	});
 
@@ -186,8 +186,8 @@ describe("WatcherManager event emission", () => {
 		expect(changes.some((c) => c.path.includes("existing.txt"))).toBe(true);
 	});
 
-	it("filters by extension", async () => {
-		await mgr.start(tmpDir, { extensions: [".ts"] });
+	it("filters by module", async () => {
+		await mgr.start(tmpDir, { modules: [".ts"] });
 
 		// Write a .txt file — should not trigger event
 		await writeFile(join(tmpDir, "skip.txt"), "not watched");
@@ -368,11 +368,11 @@ describe("runFileWatch tool", () => {
 		expect(result.is_error).toBe(true);
 	});
 
-	it("shows extension filter in start response", async () => {
+	it("shows module filter in start response", async () => {
 		const result = await runFileWatch({
 			action: "start",
 			path: tmpDir,
-			extensions: [".ts", ".json"],
+			modules: [".ts", ".json"],
 		});
 		expect(result.content).toContain(".ts");
 		expect(result.content).toContain(".json");

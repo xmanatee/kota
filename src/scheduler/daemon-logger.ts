@@ -17,7 +17,7 @@ export type DaemonLogFields = {
   workflow?: string;
   runId?: string;
   event?: string;
-  extension?: string;
+  module?: string;
   [key: string]: unknown;
 };
 

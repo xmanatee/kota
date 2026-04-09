@@ -2,8 +2,8 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { runFileEdit } from "./extensions/filesystem/file-edit.js";
-import { runFileRead } from "./extensions/filesystem/file-read.js";
+import { runFileEdit } from "./modules/filesystem/file-edit.js";
+import { runFileRead } from "./modules/filesystem/file-read.js";
 import { recordRead } from "./file-tracker.js";
 
 /**

@@ -1,5 +1,5 @@
 /**
- * Web access extension — HTTP fetch, web search, and raw HTTP request tools.
+ * Web access module — HTTP fetch, web search, and raw HTTP request tools.
  *
  * Tools:
  *   web_fetch    — fetch a URL and return content as clean Markdown
@@ -12,7 +12,7 @@
  * and is further classified by the guardrails layer at call time.
  */
 
-import type { KotaExtension, ToolDef } from "../../extension-types.js";
+import type { KotaModule, ToolDef } from "../../module-types.js";
 import { httpRequestTool, runHttpRequest } from "./http-request.js";
 import { runWebFetch, webFetchTool } from "./web-fetch.js";
 import { runWebSearch, webSearchTool } from "./web-search.js";
@@ -41,7 +41,7 @@ const tools: ToolDef[] = [
   },
 ];
 
-const webAccessModule: KotaExtension = {
+const webAccessModule: KotaModule = {
   name: "web-access",
   version: "1.0.0",
   description: "Web access tools: web_fetch, web_search, and http_request",

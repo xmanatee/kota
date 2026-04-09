@@ -1,5 +1,5 @@
 /**
- * Config extension — owns the `kota config` CLI surface.
+ * Config module — owns the `kota config` CLI surface.
  *
  * Registers subcommands: validate, get, set, schema.
  */
@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import { loadConfig, updateProjectConfig } from "../../config.js";
 import { KNOWN_CONFIG_KEYS } from "../../config-warnings.js";
-import type { KotaExtension } from "../../extension-types.js";
+import type { KotaModule } from "../../module-types.js";
 
 function readRawKeys(path: string): string[] | null {
   if (!existsSync(path)) return null;
@@ -145,7 +145,7 @@ export function buildConfigCommand(): Command {
   return cmd;
 }
 
-const configModule: KotaExtension = {
+const configModule: KotaModule = {
   name: "config",
   version: "1.0.0",
   description: "Config CLI surface — kota config get/set/validate/schema",

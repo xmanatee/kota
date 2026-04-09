@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { ExtensionLoader } from "./extension-loader.js";
-import filesystemModule from "./extensions/filesystem/index.js";
+import { ModuleLoader } from "./module-loader.js";
+import filesystemModule from "./modules/filesystem/index.js";
 import { getToolTelemetry, resetToolTelemetry, ToolTelemetry } from "./tool-telemetry.js";
 import { clearCustomTools } from "./tools/index.js";
 
@@ -156,7 +156,7 @@ describe("ToolTelemetry", () => {
 
 describe("Integration: telemetry populated via executeToolCalls", () => {
   beforeAll(async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.loadAll([filesystemModule]);
   });
 

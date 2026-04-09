@@ -2,7 +2,7 @@
  * Abstract LLM client interface and model client registry.
  *
  * The interface and registry live in core. Implementations (Anthropic, OpenAI,
- * etc.) live in the model-clients extension and register via
+ * etc.) live in the model-clients module and register via
  * `registerModelClientFactory` at module load time.
  */
 
@@ -64,19 +64,19 @@ export type ModelClientFactoryFn = (opts: ProviderFactoryOptions) => ResolvedPro
 
 let _factory: ModelClientFactoryFn | null = null;
 
-/** Register the model client factory (called by the model-clients extension at load time). */
+/** Register the model client factory (called by the model-clients module at load time). */
 export function registerModelClientFactory(fn: ModelClientFactoryFn): void {
 	_factory = fn;
 }
 
 /**
  * Create a ModelClient from provider options.
- * Delegates to the factory registered by the model-clients extension.
+ * Delegates to the factory registered by the model-clients module.
  */
 export function createModelClient(opts: ProviderFactoryOptions): ResolvedProvider {
 	if (!_factory) {
 		throw new Error(
-			"No model client factory registered. Ensure the model-clients extension is loaded.",
+			"No model client factory registered. Ensure the model-clients module is loaded.",
 		);
 	}
 	return _factory(opts);

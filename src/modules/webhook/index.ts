@@ -1,18 +1,18 @@
 /**
- * Webhook extension — routes notification events to configured HTTP endpoints.
+ * Webhook module — routes notification events to configured HTTP endpoints.
  *
- * Subscribes to the same bus events as the Telegram extension and POSTs a JSON
+ * Subscribes to the same bus events as the Telegram module and POSTs a JSON
  * payload to each configured URL. No channels, tools, commands, or workflows.
  *
  * Config (kota.config under the "webhook" key):
  *   { urls: string[], events?: string[], retries?: number, retryDelayMs?: number }
  *
  * If `events` is omitted, all notification events are active.
- * If `urls` is empty or the extension is not configured, the extension is a no-op.
+ * If `urls` is empty or the module is not configured, the module is a no-op.
  * `retries` defaults to 3; `retryDelayMs` defaults to 1000.
  */
 
-import type { KotaExtension } from "../../extension-types.js";
+import type { KotaModule } from "../../module-types.js";
 import { postWithRetry } from "../notify-retry.js";
 
 const NOTIFICATION_EVENTS = [
@@ -38,13 +38,13 @@ type WebhookConfig = {
 
 let unsubs: (() => void)[] = [];
 
-const webhookModule: KotaExtension = {
+const webhookModule: KotaModule = {
   name: "webhook",
   version: "1.0.0",
   description: "HTTP webhook notification channel for KOTA workflow events",
 
   onLoad: (ctx) => {
-    const config = ctx.getExtensionConfig<WebhookConfig>();
+    const config = ctx.getModuleConfig<WebhookConfig>();
     if (!config?.urls?.length) return;
 
     const urls = config.urls;
@@ -63,7 +63,7 @@ const webhookModule: KotaExtension = {
       unsubs.push(ctx.events.subscribe(event, (payload) => forward(event, payload as Record<string, unknown>)));
     }
 
-    // approval.requested is always forwarded when the extension is configured,
+    // approval.requested is always forwarded when the module is configured,
     // independent of the events filter (mirrors Slack and Telegram behavior).
     unsubs.push(
       ctx.events.subscribe("approval.requested", (payload) =>

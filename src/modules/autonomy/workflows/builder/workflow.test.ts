@@ -1,13 +1,13 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { WorkflowTestHarness } from "../../workflow-testing/index.js";
+import { WorkflowTestHarness } from "../../../../workflow-testing/index.js";
 import builderWorkflow from "./workflow.js";
 
 const promptPath = fileURLToPath(new URL("./prompt.md", import.meta.url));
 const promptContent = readFileSync(promptPath, "utf-8");
 
-vi.mock("../../repo-worktree.js", () => ({
+vi.mock("../../../../repo-worktree.js", () => ({
   assertRepoWorktreeClean: vi.fn(),
   getRepoWorktreeStatus: vi.fn(() => ({
     available: true,
@@ -17,13 +17,13 @@ vi.mock("../../repo-worktree.js", () => ({
   getRepoHeadSha: vi.fn(() => "abc1234"),
 }));
 
-vi.mock("../../repo-tasks.js", () => ({
+vi.mock("../../../../repo-tasks.js", () => ({
   getRepoTaskQueueSnapshot: vi.fn(),
   isRepoTaskQueueSnapshot: vi.fn(() => true),
   REPO_TASK_STATES: ["backlog", "ready", "doing", "blocked", "done", "dropped"],
 }));
 
-vi.mock("../commit.js", () => ({
+vi.mock("../../commit.js", () => ({
   commitWorkflowChanges: vi.fn(),
 }));
 
@@ -86,7 +86,7 @@ describe("builder workflow", () => {
   });
 
   it("skips build and commit when actionableCount is 0", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeEmptySnapshot());
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
@@ -112,10 +112,10 @@ describe("builder workflow", () => {
   });
 
   it("runs build and commit when actionableCount is greater than 0", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(2, 1));
 
-    const { commitWorkflowChanges } = await import("../commit.js");
+    const { commitWorkflowChanges } = await import("../../commit.js");
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
@@ -139,7 +139,7 @@ describe("builder workflow", () => {
   });
 
   it("skips commit and write-run-summary when build fails", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
@@ -159,10 +159,10 @@ describe("builder workflow", () => {
   });
 
   it("emits workflow.build.committed after a successful commit with run-summary payload", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
-    const { commitWorkflowChanges } = await import("../commit.js");
+    const { commitWorkflowChanges } = await import("../../commit.js");
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
 
     const { writeBuilderRunSummary } = await import("./run-summary.js");
@@ -204,10 +204,10 @@ describe("builder workflow", () => {
   });
 
   it("fails when builder agent committed directly (intermediate commit detected)", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
-    const { getRepoHeadSha } = await import("../../repo-worktree.js");
+    const { getRepoHeadSha } = await import("../../../../repo-worktree.js");
     // Snapshot captured "abc1234" at start; agent then committed, changing HEAD
     vi.mocked(getRepoHeadSha).mockReturnValue("def5678");
 
@@ -237,7 +237,7 @@ describe("builder workflow", () => {
   });
 
   it("includes inspect-ready-queue snapshot in step output", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
     const snapshot = makeSnapshot(3, 0);
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(snapshot);
 
@@ -256,13 +256,13 @@ describe("builder workflow", () => {
   });
 
   it("create-task-branch runs after successful build check, create-pr skipped when branchPerTask=false", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
-    const { getRepoHeadSha } = await import("../../repo-worktree.js");
+    const { getRepoHeadSha } = await import("../../../../repo-worktree.js");
     vi.mocked(getRepoHeadSha).mockReturnValue("abc1234");
 
-    const { commitWorkflowChanges } = await import("../commit.js");
+    const { commitWorkflowChanges } = await import("../../commit.js");
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
 
     const { createTaskBranch } = await import("./branch-per-task.js");
@@ -287,13 +287,13 @@ describe("builder workflow", () => {
   });
 
   it("create-pr runs and returns PR URL when branchPerTask=true", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
-    const { getRepoHeadSha } = await import("../../repo-worktree.js");
+    const { getRepoHeadSha } = await import("../../../../repo-worktree.js");
     vi.mocked(getRepoHeadSha).mockReturnValue("abc1234");
 
-    const { commitWorkflowChanges } = await import("../commit.js");
+    const { commitWorkflowChanges } = await import("../../commit.js");
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
 
     const { createTaskBranch, createPullRequest } = await import("./branch-per-task.js");
@@ -324,13 +324,13 @@ describe("builder workflow", () => {
   });
 
   it("create-pr failure propagates as run failure", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
-    const { getRepoHeadSha } = await import("../../repo-worktree.js");
+    const { getRepoHeadSha } = await import("../../../../repo-worktree.js");
     vi.mocked(getRepoHeadSha).mockReturnValue("abc1234");
 
-    const { commitWorkflowChanges } = await import("../commit.js");
+    const { commitWorkflowChanges } = await import("../../commit.js");
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
 
     const { createTaskBranch, createPullRequest } = await import("./branch-per-task.js");
@@ -357,7 +357,7 @@ describe("builder workflow", () => {
   });
 
   it("create-task-branch and create-pr are skipped when build is skipped", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeEmptySnapshot());
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
@@ -374,13 +374,13 @@ describe("builder workflow", () => {
   });
 
   it("cleanup-merged-branches runs after create-pr when branchPerTask=true and returns cleaned branches", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
-    const { getRepoHeadSha } = await import("../../repo-worktree.js");
+    const { getRepoHeadSha } = await import("../../../../repo-worktree.js");
     vi.mocked(getRepoHeadSha).mockReturnValue("abc1234");
 
-    const { commitWorkflowChanges } = await import("../commit.js");
+    const { commitWorkflowChanges } = await import("../../commit.js");
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
 
     const { createTaskBranch, createPullRequest, cleanupMergedBranches } = await import(
@@ -414,13 +414,13 @@ describe("builder workflow", () => {
   });
 
   it("cleanup-merged-branches is skipped when branchPerTask=false", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
-    const { getRepoHeadSha } = await import("../../repo-worktree.js");
+    const { getRepoHeadSha } = await import("../../../../repo-worktree.js");
     vi.mocked(getRepoHeadSha).mockReturnValue("abc1234");
 
-    const { commitWorkflowChanges } = await import("../commit.js");
+    const { commitWorkflowChanges } = await import("../../commit.js");
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
 
     const { createTaskBranch } = await import("./branch-per-task.js");
@@ -443,13 +443,13 @@ describe("builder workflow", () => {
   });
 
   it("cleanup-merged-branches failure with warnings does not fail the run", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
-    const { getRepoHeadSha } = await import("../../repo-worktree.js");
+    const { getRepoHeadSha } = await import("../../../../repo-worktree.js");
     vi.mocked(getRepoHeadSha).mockReturnValue("abc1234");
 
-    const { commitWorkflowChanges } = await import("../commit.js");
+    const { commitWorkflowChanges } = await import("../../commit.js");
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
 
     const { createTaskBranch, createPullRequest, cleanupMergedBranches } = await import(

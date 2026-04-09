@@ -75,7 +75,7 @@ describe("parseSource", () => {
     expect(result.name).toBe("my-tool");
   });
 
-  it("handles URL without file extension", () => {
+  it("handles URL without file module", () => {
     const result = parseSource("https://example.com/api/tool");
     expect(result.type).toBe("url");
     expect(result.name).toBe("tool");
@@ -153,9 +153,9 @@ describe("removeTool", () => {
     expect(removeTool("nonexistent", tmpDir)).toBe(false);
   });
 
-  it("removes tool and its extension directory from manifest", () => {
-    // Create an extension directory
-    const extDir = join(tmpDir, ".kota", "extensions", "weather");
+  it("removes tool and its module directory from manifest", () => {
+    // Create a module directory
+    const extDir = join(tmpDir, ".kota", "modules", "weather");
     mkdirSync(extDir, { recursive: true });
     writeFileSync(join(extDir, "index.mjs"), "export default {}");
 
@@ -166,7 +166,7 @@ describe("removeTool", () => {
           source: "url",
           uri: "https://example.com/weather.mjs",
           version: "latest",
-          files: ["extensions/weather"],
+          files: ["modules/weather"],
           installedAt: "2026-03-15T00:00:00.000Z",
         },
       },
@@ -175,7 +175,7 @@ describe("removeTool", () => {
     const removed = removeTool("weather", tmpDir);
     expect(removed).toBe(true);
 
-    // Extension directory should be deleted
+    // Module directory should be deleted
     expect(existsSync(extDir)).toBe(false);
 
     // Manifest should be updated
@@ -190,7 +190,7 @@ describe("removeTool", () => {
           source: "url",
           uri: "https://example.com/ghost.mjs",
           version: "latest",
-          files: ["extensions/ghost"],
+          files: ["modules/ghost"],
           installedAt: "2026-03-15T00:00:00.000Z",
         },
       },
@@ -410,9 +410,9 @@ describe("installTool URL error paths", () => {
     expect(result.source).toBe("url");
   });
 
-  it("rejects when extension directory already has index.mjs", async () => {
-    // Pre-create the extension directory with index.mjs
-    const extDir = join(tmpDir, ".kota", "extensions", "tool");
+  it("rejects when module directory already has index.mjs", async () => {
+    // Pre-create the module directory with index.mjs
+    const extDir = join(tmpDir, ".kota", "modules", "tool");
     mkdirSync(extDir, { recursive: true });
     writeFileSync(join(extDir, "index.mjs"), "existing");
 
@@ -421,7 +421,7 @@ describe("installTool URL error paths", () => {
     );
 
     await expect(installTool("https://example.com/tool.mjs", tmpDir)).rejects.toThrow(
-      /already exists in extensions/,
+      /already exists in modules/,
     );
   });
 
@@ -435,8 +435,8 @@ describe("installTool URL error paths", () => {
 
     await expect(installTool("https://example.com/bad.mjs", tmpDir)).rejects.toThrow();
 
-    // Extension directory should not have been created with a file
-    expect(existsSync(join(tmpDir, ".kota", "extensions", "bad", "index.mjs"))).toBe(false);
+    // Module directory should not have been created with a file
+    expect(existsSync(join(tmpDir, ".kota", "modules", "bad", "index.mjs"))).toBe(false);
   });
 
   it("does not update manifest on install failure", async () => {
@@ -469,7 +469,7 @@ describe("updateTool error paths", () => {
 
   it("preserves manifest entry when reinstall fails", async () => {
     // Set up an existing URL-based tool
-    const extDir = join(tmpDir, ".kota", "extensions", "weather");
+    const extDir = join(tmpDir, ".kota", "modules", "weather");
     mkdirSync(extDir, { recursive: true });
     writeFileSync(join(extDir, "index.mjs"), "export default {}");
 
@@ -479,7 +479,7 @@ describe("updateTool error paths", () => {
           source: "url",
           uri: "https://example.com/weather.mjs",
           version: "latest",
-          files: ["extensions/weather"],
+          files: ["modules/weather"],
           installedAt: "2026-03-15T00:00:00.000Z",
         },
       },
@@ -497,7 +497,7 @@ describe("updateTool error paths", () => {
   });
 
   it("preserves original files on disk when reinstall fails", async () => {
-    const extDir = join(tmpDir, ".kota", "extensions", "myutil");
+    const extDir = join(tmpDir, ".kota", "modules", "myutil");
     mkdirSync(extDir, { recursive: true });
     writeFileSync(join(extDir, "index.mjs"), "export const x = 1;");
 
@@ -507,7 +507,7 @@ describe("updateTool error paths", () => {
           source: "url",
           uri: "https://example.com/myutil.mjs",
           version: "latest",
-          files: ["extensions/myutil"],
+          files: ["modules/myutil"],
           installedAt: "2026-03-15T00:00:00.000Z",
         },
       },
@@ -517,13 +517,13 @@ describe("updateTool error paths", () => {
 
     await expect(updateTool("myutil", tmpDir)).rejects.toThrow();
 
-    // Extension directory should still exist on disk
+    // Module directory should still exist on disk
     expect(existsSync(extDir)).toBe(true);
     expect(readFileSync(join(extDir, "index.mjs"), "utf-8")).toBe("export const x = 1;");
   });
 
   it("succeeds and updates manifest on successful reinstall", async () => {
-    const extDir = join(tmpDir, ".kota", "extensions", "mytool");
+    const extDir = join(tmpDir, ".kota", "modules", "mytool");
     mkdirSync(extDir, { recursive: true });
     writeFileSync(join(extDir, "index.mjs"), "export default { v: 1 };");
 
@@ -533,13 +533,13 @@ describe("updateTool error paths", () => {
           source: "url",
           uri: "https://example.com/mytool.mjs",
           version: "latest",
-          files: ["extensions/mytool"],
+          files: ["modules/mytool"],
           installedAt: "2026-03-15T00:00:00.000Z",
         },
       },
     }, tmpDir);
 
-    // Remove existing extension dir so installUrl doesn't complain about duplicate
+    // Remove existing module dir so installUrl doesn't complain about duplicate
     rmSync(extDir, { recursive: true, force: true });
 
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
@@ -555,8 +555,8 @@ describe("updateTool error paths", () => {
     // Manifest should be updated with new entry
     const manifest = loadManifest(tmpDir);
     expect(manifest.tools.mytool).toBeDefined();
-    // New extension directory should exist
-    expect(existsSync(join(tmpDir, ".kota", "extensions", "mytool"))).toBe(true);
+    // New module directory should exist
+    expect(existsSync(join(tmpDir, ".kota", "modules", "mytool"))).toBe(true);
   });
 });
 
@@ -641,7 +641,7 @@ describe("updateTool backup lifecycle", () => {
   });
 
   it("removes .kota-update-bak dirs after successful update", async () => {
-    const extDir = join(tmpDir, ".kota", "extensions", "tool");
+    const extDir = join(tmpDir, ".kota", "modules", "tool");
     mkdirSync(extDir, { recursive: true });
     writeFileSync(join(extDir, "index.mjs"), "export default { v: 1 };");
 
@@ -651,7 +651,7 @@ describe("updateTool backup lifecycle", () => {
           source: "url",
           uri: "https://example.com/tool.mjs",
           version: "latest",
-          files: ["extensions/tool"],
+          files: ["modules/tool"],
           installedAt: "2026-03-15T00:00:00.000Z",
         },
       },
@@ -667,14 +667,14 @@ describe("updateTool backup lifecycle", () => {
     await updateTool("tool", tmpDir);
 
     // Backup directory must not persist
-    expect(existsSync(join(tmpDir, ".kota", "extensions", "tool.kota-update-bak"))).toBe(false);
-    // New extension directory should exist
+    expect(existsSync(join(tmpDir, ".kota", "modules", "tool.kota-update-bak"))).toBe(false);
+    // New module directory should exist
     expect(existsSync(extDir)).toBe(true);
   });
 
   it("restores manifest when backup rename fails mid-loop", async () => {
-    const extDirA = join(tmpDir, ".kota", "extensions", "a");
-    const extDirB = join(tmpDir, ".kota", "extensions", "b");
+    const extDirA = join(tmpDir, ".kota", "modules", "a");
+    const extDirB = join(tmpDir, ".kota", "modules", "b");
     mkdirSync(extDirA, { recursive: true });
     mkdirSync(extDirB, { recursive: true });
     writeFileSync(join(extDirA, "index.mjs"), "export const a = 1;");
@@ -686,14 +686,14 @@ describe("updateTool backup lifecycle", () => {
           source: "url",
           uri: "https://example.com/multi.mjs",
           version: "latest",
-          files: ["extensions/a", "extensions/b"],
+          files: ["modules/a", "modules/b"],
           installedAt: "2026-03-15T00:00:00.000Z",
         },
       },
     }, tmpDir);
 
     // Make the second rename fail by placing a file at the backup target for b
-    const backupPath = join(tmpDir, ".kota", "extensions", "b.kota-update-bak");
+    const backupPath = join(tmpDir, ".kota", "modules", "b.kota-update-bak");
     mkdirSync(backupPath, { recursive: true });
     writeFileSync(join(backupPath, "blocker"), "x");
 
@@ -706,7 +706,7 @@ describe("updateTool backup lifecycle", () => {
   });
 
   it("does not leave backup dirs when install fails", async () => {
-    const extDir = join(tmpDir, ".kota", "extensions", "fail");
+    const extDir = join(tmpDir, ".kota", "modules", "fail");
     mkdirSync(extDir, { recursive: true });
     writeFileSync(join(extDir, "index.mjs"), "export default {}");
 
@@ -716,7 +716,7 @@ describe("updateTool backup lifecycle", () => {
           source: "url",
           uri: "https://example.com/fail.mjs",
           version: "latest",
-          files: ["extensions/fail"],
+          files: ["modules/fail"],
           installedAt: "2026-03-15T00:00:00.000Z",
         },
       },
@@ -727,8 +727,8 @@ describe("updateTool backup lifecycle", () => {
     await expect(updateTool("fail", tmpDir)).rejects.toThrow(/connection reset/);
 
     // Backup dir should be cleaned up (restored to original path)
-    expect(existsSync(join(tmpDir, ".kota", "extensions", "fail.kota-update-bak"))).toBe(false);
-    // Original extension dir restored
+    expect(existsSync(join(tmpDir, ".kota", "modules", "fail.kota-update-bak"))).toBe(false);
+    // Original module dir restored
     expect(existsSync(extDir)).toBe(true);
   });
 });

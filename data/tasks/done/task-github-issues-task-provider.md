@@ -3,7 +3,7 @@ id: task-github-issues-task-provider
 title: Add GitHub Issues task provider so teams can use their issue tracker as KOTA's task source
 status: done
 priority: p2
-area: extensions
+area: modules
 summary: Add a TaskProvider implementation backed by GitHub Issues so teams can use their existing issue tracker as KOTA's task source without maintaining a parallel task queue.
 created_at: 2026-04-02T01:18:54Z
 updated_at: 2026-04-08T19:43:33Z
@@ -17,20 +17,20 @@ maintain a duplicate task queue in `tasks/` or manually mirror issues into task 
 before the builder can pick them up. This creates friction and makes it easy for the
 two sources to drift out of sync.
 
-The GitHub extension already has an authenticated REST API client and understands the
+The GitHub module already has an authenticated REST API client and understands the
 repo context. A thin task provider layer on top of that client would let teams wire
 KOTA directly to their GitHub backlog with no parallel queue maintenance.
 
 ## Desired Outcome
 
-- The GitHub extension optionally contributes a `TaskProvider` when
-  `config.extensions.github.taskProvider` is enabled.
+- The GitHub module optionally contributes a `TaskProvider` when
+  `config.modules.github.taskProvider` is enabled.
 - **Claim**: adds an `in-progress` label to the issue (or a label configured by the operator).
 - **Complete**: closes the issue or adds a completion label (`kota-done` by default).
 - **List**: returns open, unclaimed issues matching the configured label filter (e.g. `kota-task`).
 - Priority and area are derived from issue labels via a configurable mapping
   (e.g. `p2`, `area:cli` labels map to KOTA fields).
-- Configured entirely via `config.extensions.github`:
+- Configured entirely via `config.modules.github`:
   ```json
   {
     "taskProvider": {
@@ -46,7 +46,7 @@ KOTA directly to their GitHub backlog with no parallel queue maintenance.
 
 ## Constraints
 
-- Uses the existing GitHub REST API client in the GitHub extension — no new npm deps.
+- Uses the existing GitHub REST API client in the GitHub module — no new npm deps.
 - GitHub is the authoritative source; no local task file creation or mirroring.
 - Two-way sync (push local tasks to GitHub) is out of scope.
 - Provider registers via the `ProviderRegistry` the same way the file-based provider does.

@@ -3,8 +3,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { KotaConfig } from "../config.js";
 import type { EventBus } from "../event-bus.js";
-import { loadExtensionMetadata } from "../extension-metadata.js";
-import { getApprovalQueue } from "../extensions/approval-queue/queue.js";
+import { loadModuleMetadata } from "../module-metadata.js";
+import { getApprovalQueue } from "../modules/approval-queue/queue.js";
 import { getHistory } from "../memory/history.js";
 import { getRepoInboxDir, getRepoTasksDir } from "../repo-tasks.js";
 import type { WorkflowRunStore } from "../workflow/run-store.js";
@@ -61,7 +61,7 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
   return {
     getHealthStatus: () => ({
       scheduler: "ok" as const,
-      extensions: "ok" as const,
+      modules: "ok" as const,
     }),
     getDaemonLiveState: () => ({ ...ctx.getState(), running: ctx.isRunning() }),
     getWorkflowLiveStatus: () => {
@@ -99,7 +99,7 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
     abortActiveRun: (runId: string) => workflows.abortActiveRun(runId),
     reloadWorkflowDefinitions: () => workflows.reloadWorkflowDefinitions(),
     reloadConfig: async () => {
-      const loader = await loadExtensionMetadata(
+      const loader = await loadModuleMetadata(
         config.config ?? {},
         projectDir,
         config.verbose ?? false,
@@ -108,11 +108,11 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       const { count } = workflows.reloadWorkflowDefinitions();
       log(`Config reloaded: ${count} workflow definition(s) active`);
       const userExtensions = loader
-        .getExtensionSummaries()
+        .getModuleSummaries()
         .map((summary) => summary.name)
         .filter((name) => name !== "workflow");
       if (userExtensions.length > 0) {
-        log(`  Extensions: ${userExtensions.join(", ")}`);
+        log(`  Modules: ${userExtensions.join(", ")}`);
       }
       return { workflows: count };
     },

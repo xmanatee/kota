@@ -1,5 +1,5 @@
 /**
- * Slack Web API client and transport for the slack-channel extension.
+ * Slack Web API client and transport for the slack-channel module.
  *
  * Uses Node built-in fetch for HTTP and the native WebSocket class for
  * Socket Mode. No external dependencies beyond the KOTA core.

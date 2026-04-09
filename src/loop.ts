@@ -2,7 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { KotaConfig } from "./config.js";
 import type { Context } from "./context.js";
 import type { CostTracker } from "./cost.js";
-import type { ExtensionLoader } from "./extension-loader.js";
+import type { ModuleLoader } from "./module-loader.js";
 import type { GuardrailsConfig } from "./guardrails.js";
 import { initAgentSession } from "./loop-constructor.js";
 import { type AgentLoopState, runClose, saveToHistoryImpl } from "./loop-init.js";
@@ -59,7 +59,7 @@ export class AgentSession {
   private thinkingConfig?: Anthropic.Messages.ThinkingConfigParam;
   private verifyTracker!: VerifyTracker;
   private mcpManager: McpManager | null = null;
-  private extensionLoader!: ExtensionLoader;
+  private moduleLoader!: ModuleLoader;
   private transport!: Transport;
   private sigintHandler!: () => void;
   private closed = false;

@@ -26,10 +26,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// --- Extension routing ---
+// --- Module routing ---
 
 describe("lintFile routing", () => {
-  it("returns ok for unknown extensions without calling any linter", () => {
+  it("returns ok for unknown modules without calling any linter", () => {
     const result = lintFile("/tmp/readme.md");
     expect(result).toEqual({ ok: true });
     expect(mockReadFile).not.toHaveBeenCalled();
@@ -86,7 +86,7 @@ describe("lintFile routing", () => {
     );
   });
 
-  it("handles case-insensitive extensions", () => {
+  it("handles case-insensitive modules", () => {
     mockReadFile.mockReturnValue("{}");
     const result = lintFile("/tmp/test.JSON");
     expect(result.ok).toBe(true);

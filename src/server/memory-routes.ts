@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { getMemoryProvider } from "../extensions/providers/index.js";
+import { getMemoryProvider } from "../modules/providers/index.js";
 import type { Memory } from "../memory/store.js";
 import { jsonResponse, readBody } from "./session-pool.js";
 

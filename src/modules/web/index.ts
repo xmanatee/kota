@@ -1,15 +1,15 @@
 /**
- * Web extension — HTTP API server with SSE streaming and embedded web UI.
+ * Web module — HTTP API server with SSE streaming and embedded web UI.
  *
- * Extracts the serve CLI command from cli.ts into a KotaExtension,
- * continuing the extension-first architecture plan. The actual server logic
- * lives in src/server.ts; this extension wires it into the CLI as
+ * Extracts the serve CLI command from cli.ts into a KotaModule,
+ * continuing the module-first architecture plan. The actual server logic
+ * lives in src/server.ts; this module wires it into the CLI as
  * `kota serve`.
  */
 
 import { Command } from "commander";
 import { warnUnknownConfigKeys } from "../../config-warnings.js";
-import type { KotaExtension } from "../../extension-types.js";
+import type { KotaModule } from "../../module-types.js";
 import { startServer } from "../../server/server.js";
 
 function parseIntOption(value: string, name: string): number {
@@ -21,7 +21,7 @@ function parseIntOption(value: string, name: string): number {
   return n;
 }
 
-const webModule: KotaExtension = {
+const webModule: KotaModule = {
   name: "web",
   version: "1.0.0",
   description: "HTTP API server with SSE streaming and embedded web UI",
@@ -51,8 +51,8 @@ const webModule: KotaExtension = {
 
         warnUnknownConfigKeys(process.cwd(), (msg) => console.warn(msg));
 
-        // Collect routes from all loaded extensions via ExtensionContext
-        const extensionRoutes = ctx.getRoutes();
+        // Collect routes from all loaded modules via ModuleContext
+        const moduleRoutes = ctx.getRoutes();
 
         startServer({
           port,
@@ -60,8 +60,8 @@ const webModule: KotaExtension = {
           verbose: opts.verbose || ctx.config.verbose,
           config: ctx.config,
           noAuth: opts.auth === false,
-          extensionRoutes,
-          getExtensionSummaries: () => ctx.getExtensionSummaries(),
+          moduleRoutes,
+          getModuleSummaries: () => ctx.getModuleSummaries(),
         });
       });
 

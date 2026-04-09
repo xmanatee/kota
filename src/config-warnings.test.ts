@@ -83,7 +83,7 @@ describe("KNOWN_CONFIG_KEYS", () => {
     const expected = [
       "model", "editorModel", "maxTokens", "architect", "thinking", "thinkingBudget",
       "verbose", "skipConfirmations", "autoEnable", "user", "aliases", "reflection",
-      "guardrails", "extensions", "foreignExtensions", "providers", "modelProvider",
+      "guardrails", "modules", "foreignModules", "providers", "modelProvider",
       "modelTiers", "agentModels", "webhooks", "approvalTtlMs", "dailyBudgetUsd",
       "runsGc", "serve", "log", "daemon", "notifications", "scheduler", "workflow",
     ];

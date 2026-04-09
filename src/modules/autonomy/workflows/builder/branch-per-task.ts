@@ -1,9 +1,9 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadConfig } from "../../config.js";
-import { REPO_TASKS_DIR } from "../../repo-tasks.js";
-import type { WorkflowStepContext } from "../../workflow/run-types.js";
+import { loadConfig } from "../../../../config.js";
+import { REPO_TASKS_DIR } from "../../../../repo-tasks.js";
+import type { WorkflowStepContext } from "../../../../workflow/run-types.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 
 export type CleanupResult = {
@@ -56,7 +56,7 @@ function getCurrentBranch(projectDir: string): string {
 export function createTaskBranch(ctx: WorkflowStepContext): BranchStepResult {
   const { projectDir } = ctx;
   const config = loadConfig(projectDir);
-  const builderConfig = config.extensions?.builder;
+  const builderConfig = config.modules?.builder;
 
   if (!builderConfig?.branchPerTask) {
     return { branchPerTask: false, branch: null, baseBranch: null, taskId: null };

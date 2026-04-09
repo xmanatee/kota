@@ -1,25 +1,25 @@
 /**
- * Extension Factory Tool — router and public API.
+ * Module Factory Tool — router and public API.
  *
  * Implementation split into: definition, state, actions, logs.
  */
 
 import type { ToolResult } from "../index.js";
 import { handleCreate, handleInfo, handleList, handleRemove } from "./actions.js";
-import { extensionFactoryTool } from "./definition.js";
+import { moduleFactoryTool } from "./definition.js";
 import { handleLogs } from "./logs.js";
 
 // Public API
-export { extensionFactoryTool } from "./definition.js";
+export { moduleFactoryTool } from "./definition.js";
 export {
-	getLoadedManifestExtensionCount,
-	markExtensionLoaded,
-	resetExtensionFactory,
+	getLoadedManifestModuleCount,
+	markModuleLoaded,
+	resetModuleFactory,
 } from "./state.js";
 
 // ─── Runner ──────────────────────────────────────────────────────────
 
-export async function runExtensionFactory(
+export async function runModuleFactory(
 	input: Record<string, unknown>,
 ): Promise<ToolResult> {
 	const action = input.action as string;
@@ -43,8 +43,8 @@ export async function runExtensionFactory(
 }
 
 export const registration = {
-	tool: extensionFactoryTool,
-	runner: runExtensionFactory,
+	tool: moduleFactoryTool,
+	runner: runModuleFactory,
 	risk: "moderate" as const,
 	kind: "action" as const,
 };

@@ -1,10 +1,10 @@
 ---
-id: task-extract-model-client-extension
-title: Extract model client implementations into a dedicated extension
+id: task-extract-model-client-module
+title: Extract model client implementations into a dedicated module
 status: done
 priority: p2
 area: architecture
-summary: Model client implementations (openai, anthropic, etc.) and related adapters are scattered across src/ core files. Extracting them into an extension would reduce core scope and allow model providers to be swapped/extended without touching core.
+summary: Model client implementations (openai, anthropic, etc.) and related adapters are scattered across src/ core files. Extracting them into an module would reduce core scope and allow model providers to be swapped/extended without touching core.
 created_at: 2026-04-09T06:35:00Z
 updated_at: 2026-04-09T08:18:00Z
 ---
@@ -13,12 +13,12 @@ updated_at: 2026-04-09T08:18:00Z
 
 KOTA's agent loop depends on a pluggable `ModelClient` interface but all implementations
 (OpenAI, Anthropic, etc.) live in core files (`openai-model-client.ts`, adapter code, etc.).
-Model providers are implementation detail that could live in an extension while the core loop
+Model providers are implementation detail that could live in an module while the core loop
 only depends on the interface.
 
 ## Desired Outcome
 
-A new `src/extensions/model-clients/` extension that:
+A new `src/modules/model-clients/` module that:
 
 - Owns all `ModelClient` implementations (OpenAI, Anthropic, etc.)
 - Registers available model clients in a registry
@@ -36,7 +36,7 @@ model string. Configuration via `config.models` determines which clients are loa
 
 ## Done When
 
-- `src/extensions/model-clients/` exists with all implementations.
+- `src/modules/model-clients/` exists with all implementations.
 - Core model client files are removed.
 - Loop imports only the interface and uses the registry.
 - All existing model providers work unchanged.

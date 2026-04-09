@@ -425,7 +425,7 @@ describe("GitHubTaskProvider", () => {
   });
 });
 
-describe("GitHubTaskProvider — onLoad integration in github extension", () => {
+describe("GitHubTaskProvider — onLoad integration in github module", () => {
   it("provider is registered when taskProvider.enabled is true", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -446,7 +446,7 @@ describe("GitHubTaskProvider — onLoad integration in github extension", () => 
       getRoutes: vi.fn(() => []),
       getContributedWorkflows: vi.fn(() => []),
       getContributedChannels: vi.fn(() => []),
-      getExtensionConfig: vi.fn(() => ({
+      getModuleConfig: vi.fn(() => ({
         token: "ghp_test",
         repo: "owner/repo",
         taskProvider: { enabled: true, labelFilter: "kota-task" },
@@ -460,7 +460,7 @@ describe("GitHubTaskProvider — onLoad integration in github extension", () => 
       getProvider: vi.fn(() => null),
       callTool: vi.fn(),
       registerMiddleware: vi.fn(),
-      getExtensionSummaries: vi.fn(() => []),
+      getModuleSummaries: vi.fn(() => []),
     };
 
     if (typeof githubModule.onLoad === "function") {
@@ -476,7 +476,7 @@ describe("GitHubTaskProvider — onLoad integration in github extension", () => 
     const { default: githubModule } = await import("./index.js");
 
     const ctx = {
-      getExtensionConfig: vi.fn(() => ({ token: "ghp_test", repo: "owner/repo" })),
+      getModuleConfig: vi.fn(() => ({ token: "ghp_test", repo: "owner/repo" })),
       log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
       registerProvider: vi.fn(),
     };

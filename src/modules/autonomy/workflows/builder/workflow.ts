@@ -1,13 +1,13 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { AgentDef } from "../../agent-types.js";
-import type { RepoTaskQueueSnapshot } from "../../repo-tasks.js";
-import { getRepoTaskQueueSnapshot } from "../../repo-tasks.js";
-import { assertRepoWorktreeClean, getRepoHeadSha } from "../../repo-worktree.js";
-import type { WorkflowDefinitionInput } from "../../workflow/types.js";
-import { typedCodeStep } from "../../workflow/types.js";
-import { commitWorkflowChanges } from "../commit.js";
-import { runCheck, stepCommitted, stepSucceeded } from "../shared.js";
+import type { AgentDef } from "../../../../agent-types.js";
+import type { RepoTaskQueueSnapshot } from "../../../../repo-tasks.js";
+import { getRepoTaskQueueSnapshot } from "../../../../repo-tasks.js";
+import { assertRepoWorktreeClean, getRepoHeadSha } from "../../../../repo-worktree.js";
+import type { WorkflowDefinitionInput } from "../../../../workflow/types.js";
+import { typedCodeStep } from "../../../../workflow/types.js";
+import { commitWorkflowChanges } from "../../commit.js";
+import { runCheck, stepCommitted, stepSucceeded } from "../../shared.js";
 import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
 import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
 import type { BuilderRunSummary } from "./run-summary.js";
@@ -16,7 +16,7 @@ import { writeBuilderRunSummary } from "./run-summary.js";
 export const agent: AgentDef = {
   name: "builder",
   role: "Ship one cohesive improvement per run by implementing tasks from the ready queue.",
-  promptPath: "src/workflows/builder/prompt.md",
+  promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
   model: "claude-sonnet-4-6",
   tools: { permissionMode: "bypassPermissions" },
   settingSources: ["project"],
@@ -34,14 +34,9 @@ const inspectReadyQueue = typedCodeStep<RepoTaskQueueSnapshot>({
 const builderWorkflow: WorkflowDefinitionInput = {
   name: "builder",
   description: "Build KOTA by shipping one cohesive improvement per workflow run.",
-  tags: ["autonomous", "delivery", "attention-source"],
   triggers: [
     {
-      event: "workflow.completed",
-      filter: {
-        workflowTags: "queue-source",
-        status: "success",
-      },
+      event: "autonomy.queue.available",
     },
   ],
   steps: [
@@ -134,7 +129,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
                 `node -e "const {execFileSync}=require('child_process'),{readFileSync}=require('fs'),path=require('path');` +
                   `const st=execFileSync('git',['diff','--cached','--name-status'],{cwd:process.cwd(),encoding:'utf8'});` +
                   `const nf=st.split('\\n').filter(l=>l.startsWith('A\\t')).map(l=>l.slice(2).trim())` +
-                  `.filter(f=>f.startsWith('src/')&&f.endsWith('.ts')&&!f.includes('.test.')&&!f.includes('src/extensions/')&&!f.endsWith('/index.ts')&&!f.endsWith('/testing-api.ts'));` +
+                  `.filter(f=>f.startsWith('src/')&&f.endsWith('.ts')&&!f.includes('.test.')&&!f.includes('src/modules/')&&!f.endsWith('/index.ts')&&!f.endsWith('/testing-api.ts'));` +
                   `if(!nf.length){console.log('OK: no new public src/ modules to check');process.exit(0);}` +
                   `const md=readFileSync('src/AGENTS.md','utf8');` +
                   `const ms=nf.filter(f=>!md.includes('\`'+path.basename(f,'.ts')+'.ts\`'));` +

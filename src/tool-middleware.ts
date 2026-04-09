@@ -62,7 +62,7 @@ export class ToolMiddlewareRegistry {
 		return true;
 	}
 
-	/** Remove all middleware registered by a specific owner (extension). */
+	/** Remove all middleware registered by a specific owner (module). */
 	removeByOwner(owner: string): number {
 		const before = this.entries.length;
 		this.entries = this.entries.filter((e) => e.owner !== owner);

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "../../event-bus.js";
-import { ExtensionStorage } from "../../extension-storage.js";
-import type { ExtensionContext } from "../../extension-types.js";
-import { resolveExtensionChannels } from "../../extension-types.js";
+import { ModuleStorage } from "../../module-storage.js";
+import type { ModuleContext } from "../../module-types.js";
+import { resolveModuleChannels } from "../../module-types.js";
 import { callTelegramApi } from "./client.js";
 import telegramModule from "./index.js";
 
@@ -12,19 +12,19 @@ vi.mock("./client.js", () => ({
 
 const mockedCallTelegramApi = vi.mocked(callTelegramApi);
 
-function makeStubCtx(bus?: EventBus): ExtensionContext {
+function makeStubCtx(bus?: EventBus): ModuleContext {
   const b = bus ?? new EventBus();
   return {
     cwd: "/tmp/test",
     verbose: false,
-    config: {} as ExtensionContext["config"],
-    storage: new ExtensionStorage("/tmp/test", "telegram"),
+    config: {} as ModuleContext["config"],
+    storage: new ModuleStorage("/tmp/test", "telegram"),
     registerGroup: () => {},
     getRoutes: () => [],
     getContributedWorkflows: () => [],
     getContributedChannels: () => [],
-  getExtensionSummaries: () => [],
-    getExtensionConfig: () => undefined,
+  getModuleSummaries: () => [],
+    getModuleConfig: () => undefined,
     log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
     getSecret: () => null,
     listTools: () => [],
@@ -91,7 +91,7 @@ describe("telegramModule", () => {
     delete process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.TELEGRAM_ALERT_CHAT_ID;
     try {
-      const [channel] = await resolveExtensionChannels(telegramModule, makeStubCtx());
+      const [channel] = await resolveModuleChannels(telegramModule, makeStubCtx());
       const adapter = channel.create({
         projectDir: "/tmp",
         log: () => {},
@@ -220,7 +220,7 @@ describe("telegramModule notifications via onLoad", () => {
   it("sends Telegram commit message when workflow.build.committed fires and event is opt-in enabled", async () => {
     const bus = new EventBus();
     const ctx = makeStubCtx(bus);
-    ctx.getExtensionConfig = () => ({ events: ["workflow.build.committed"] } as never);
+    ctx.getModuleConfig = () => ({ events: ["workflow.build.committed"] } as never);
     telegramModule.onLoad!(ctx);
     bus.emit("workflow.build.committed", {
       runId: "run-abc",

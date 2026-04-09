@@ -281,9 +281,9 @@ Has an outcome.
     expect(hasStrategicReadyCoverageGap(projectDir)).toBe(false);
   });
 
-  it("reports an architecture-ready coverage gap while root-level built-in extension files remain", () => {
-    mkdirSync(join(projectDir, "src", "extensions"), { recursive: true });
-    writeFileSync(join(projectDir, "src", "extensions", "daemon.ts"), "export default {};\n");
+  it("reports an architecture-ready coverage gap while root-level project module files remain", () => {
+    mkdirSync(join(projectDir, "src", "modules"), { recursive: true });
+    writeFileSync(join(projectDir, "src", "modules", "daemon.ts"), "export default {};\n");
     writeTask(projectDir, "ready", "task-ops", { area: "runtime" });
     execSync("git add data src && git commit -m init", {
       cwd: projectDir,
@@ -297,8 +297,8 @@ Has an outcome.
   });
 
   it("accepts architecture-ready coverage when a ready p2 architecture task exists", () => {
-    mkdirSync(join(projectDir, "src", "extensions"), { recursive: true });
-    writeFileSync(join(projectDir, "src", "extensions", "daemon.ts"), "export default {};\n");
+    mkdirSync(join(projectDir, "src", "modules"), { recursive: true });
+    writeFileSync(join(projectDir, "src", "modules", "daemon.ts"), "export default {};\n");
     writeTask(projectDir, "ready", "task-architecture", { area: "architecture", priority: "p2" });
     execSync("git add data src && git commit -m init", {
       cwd: projectDir,

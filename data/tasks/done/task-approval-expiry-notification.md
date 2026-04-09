@@ -30,7 +30,7 @@ When an approval step auto-resolves due to timeout, the daemon emits a notificat
 - Is delivered via all configured notification channels (same path as `workflow.failure.alert`).
 
 A new event type (e.g., `workflow.approval.expired`) on the event bus carries this payload.
-Notification extensions subscribe to it using the same pattern as existing alert events.
+Notification modules subscribe to it using the same pattern as existing alert events.
 The event is emitted from the approval step executor immediately when `defaultResolution` fires,
 before the run outcome is recorded.
 
@@ -47,6 +47,6 @@ before the run outcome is recorded.
 ## Done When
 
 - `workflow.approval.expired` event is emitted when an approval step auto-resolves.
-- Notification extensions receive and deliver the event to configured channels.
+- Notification modules receive and deliver the event to configured channels.
 - A unit test covers: event emitted on timeout resolution, not emitted on manual resolution.
 - `docs/DAEMON-API.md` or `docs/WORKFLOWS.md` documents the new event type and payload.

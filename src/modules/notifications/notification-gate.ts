@@ -3,13 +3,13 @@
  * releases them as a single batched digest when the window ends.
  *
  * Implemented by patching bus.emit so the gate applies to all emitters without
- * requiring changes to channel extensions (Telegram, Slack, webhook).
+ * requiring changes to channel modules (Telegram, Slack, webhook).
  *
  * Gated events (held during quiet hours):
  *   workflow.attention.digest, workflow.budget.exceeded, workflow.budget.warning
  *
  * Critical events (always delivered when allowCritical is true or unset):
- *   workflow.failure.alert, extension.crash.alert
+ *   workflow.failure.alert, module.crash.alert
  */
 
 import type { EventBus } from "../../event-bus.js";
@@ -21,7 +21,7 @@ export type QuietHoursConfig = {
   end: string;
   /**
    * When true (default), critical events bypass quiet hours.
-   * Critical: workflow.failure.alert, extension.crash.alert.
+   * Critical: workflow.failure.alert, module.crash.alert.
    */
   allowCritical?: boolean;
 };
@@ -105,7 +105,7 @@ type EmitFn = (event: string, payload: Record<string, unknown>) => void;
  * releases them as a single batched digest when the window ends.
  *
  * Patches bus.emit so the gate applies to all emitters without changes to
- * channel extensions.
+ * channel modules.
  */
 export class NotificationGate {
   private buffer: HeldEvent[] = [];

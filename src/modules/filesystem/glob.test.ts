@@ -113,7 +113,7 @@ describe("runGlob", () => {
     expect(result.content).not.toContain("Showing");
   });
 
-  it("finds files with different extensions", async () => {
+  it("finds files with different modules", async () => {
     const result = await runGlob({ pattern: "**/*.js", path: dir });
     expect(result.content).toContain("other.js");
     expect(result.content).not.toContain(".ts");
@@ -121,7 +121,7 @@ describe("runGlob", () => {
 
   it("uses current directory as default path without crashing", async () => {
     const result = await runGlob({
-      pattern: "*.nonexistent-extension-xyz",
+      pattern: "*.nonexistent-module-xyz",
     });
     expect(result.content).toBe("No files matched.");
   });

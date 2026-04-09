@@ -50,7 +50,7 @@ full expression evaluation is out of scope.
 - `waitFor: "completed"` must respect the step-level `timeoutMs` to avoid infinite blocking.
 - Follow the existing step type pattern in `src/workflow/types.ts` and `src/workflow/step-executor.ts`.
 - Validate the referenced workflow name at definition load time; warn (not error) if the
-  workflow is not yet registered (it may be contributed by an extension loaded later).
+  workflow is not yet registered (it may be contributed by an module loaded later).
 - Keep the implementation in the workflow executor layer; do not modify core agent session logic.
 
 ## Done When

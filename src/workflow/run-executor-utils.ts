@@ -219,13 +219,6 @@ export function workflowUsesAgent(definition: WorkflowDefinition): boolean {
   return definition.steps.some((step) => step.type === "agent");
 }
 
-export function workflowHasTag(
-  definition: Pick<WorkflowDefinition, "tags">,
-  tag: string,
-): boolean {
-  return definition.tags.includes(tag);
-}
-
 export function enqueueMatchingWorkflows(
   envelope: BusEnvelope,
   definitions: readonly WorkflowDefinition[],

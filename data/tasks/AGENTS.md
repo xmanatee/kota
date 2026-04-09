@@ -17,7 +17,7 @@ truth for outstanding work after an idea has been sorted out of `data/inbox/`.
 - One task per file.
 - **All task files must be named `task-<slug>.md`** (e.g. `task-split-daemon-ts.md`).
 - Required frontmatter keys: `id`, `title`, `status`, `priority`, `area`, `summary`, `created_at`, `updated_at`.
-  - `id` must equal the filename without the `.md` extension (e.g. file `task-foo-bar.md` → `id: task-foo-bar`).
+  - `id` must equal the filename without the `.md` module (e.g. file `task-foo-bar.md` → `id: task-foo-bar`).
   - `priority` must be one of `p0`, `p1`, `p2`, or `p3`. Use these definitions:
     - `p0` — Production incident, blocking defect, or system broken; address immediately.
     - `p1` — Critical capability or reliability gap; should be next in queue.
@@ -48,16 +48,16 @@ truth for outstanding work after an idea has been sorted out of `data/inbox/`.
   tasks that close that gap over more p3 polish.
 - Keep at least one live task aimed at shrinking or clarifying the core when
   capability code is obviously pooling in large shared buckets instead of clear
-  extension boundaries.
+  module boundaries.
 - While that architecture gap is still obvious, keep the front of `ready/`
-  pointed at extension-first/core-shrinking work rather than letting secondary
+  pointed at module-first/core-shrinking work rather than letting secondary
   client or polish tasks outrank it at the same priority.
 - Do not let the actionable queue degrade into only `p3` work by default. If
   `ready/`, `doing/`, and `backlog/` together contain only `p3` tasks, create
   or promote at least one real `p1`/`p2` next bet instead of accepting
   maintenance mode prematurely.
 - If the repository still visibly reads flatter than the target
-  extension-owned shape, or shared capability policy is still pooling in core,
+  module-owned shape, or shared capability policy is still pooling in core,
   `ready/` should keep at least one p1/p2 architecture task aimed at shrinking
   that remaining debt. Do not let `ready/` become only side-work while that
   gap is still obvious.

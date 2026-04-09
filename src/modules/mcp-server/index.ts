@@ -1,5 +1,5 @@
 /**
- * MCP Server extension — expose KOTA tools via the Model Context Protocol.
+ * MCP Server module — expose KOTA tools via the Model Context Protocol.
  *
  * Registers:
  * - `kota mcp-server` CLI command (starts stdio MCP server)
@@ -9,14 +9,14 @@
  */
 
 import { Command } from "commander";
-import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
+import type { ModuleContext, KotaModule } from "../../module-types.js";
 
-const mcpServerModule: KotaExtension = {
+const mcpServerModule: KotaModule = {
 	name: "mcp-server",
 	version: "1.0.0",
 	description: "Expose KOTA tools via the Model Context Protocol (stdio)",
 
-	commands: (_ctx: ExtensionContext) => {
+	commands: (_ctx: ModuleContext) => {
 		const cmd = new Command("mcp-server")
 			.description("Start an MCP server exposing KOTA tools over stdio")
 			.option(
@@ -27,19 +27,19 @@ const mcpServerModule: KotaExtension = {
 			.action(async (opts) => {
 				const { McpServer } = await import("../../mcp/server.js");
 				const { loadConfig } = await import("../../config.js");
-				const { ExtensionLoader } = await import("../../extension-loader.js");
-				const { discoverBuiltinExtensions } = await import("../index.js");
-				const { discoverExtensions } = await import(
-					"../../extension-discovery.js"
+				const { ModuleLoader } = await import("../../module-loader.js");
+				const { discoverProjectModules } = await import("../index.js");
+				const { discoverModules } = await import(
+					"../../module-discovery.js"
 				);
 
 				const config = loadConfig(process.cwd());
 
 				// Load modules to register their tools (commandsOnly=false)
-				const loader = new ExtensionLoader(config, false);
-				const builtinExtensions = await discoverBuiltinExtensions();
-				const extensions = await discoverExtensions(process.cwd());
-				await loader.loadAll([...builtinExtensions, ...extensions]);
+				const loader = new ModuleLoader(config, false);
+				const projectModules = await discoverProjectModules();
+				const modules = await discoverModules(process.cwd());
+				await loader.loadAll([...projectModules, ...modules]);
 
 				const toolFilter = opts.tools
 					? (opts.tools as string).split(",").map((s: string) => s.trim())

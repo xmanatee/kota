@@ -1,5 +1,5 @@
 /**
- * Tool Retry extension — registers retry middleware for transient tool
+ * Tool Retry module — registers retry middleware for transient tool
  * failures.
  *
  * Auto-retries network tools (web_fetch, web_search, http_request) on
@@ -7,13 +7,13 @@
  * timeout with doubled timeout_ms. Session-scoped stats reset on unload.
  */
 
-import type { KotaExtension } from "../../extension-types.js";
+import type { KotaModule } from "../../module-types.js";
 import { createRetryMiddleware, resetRetryStats } from "./tool-retry.js";
 
 const MIDDLEWARE_NAME = "tool-retry";
 const PRIORITY = 20; // After cache (10), before custom middleware (100+)
 
-const toolRetryModule: KotaExtension = {
+const toolRetryModule: KotaModule = {
 	name: "tool-retry",
 	version: "1.0.0",
 	description: "Retries transient tool failures with exponential backoff",
@@ -28,7 +28,7 @@ const toolRetryModule: KotaExtension = {
 		resetRetryStats();
 	},
 
-	skills: [{ name: "tool-retry", promptPath: "src/extensions/skills/tool-retry.md" }],
+	skills: [{ name: "tool-retry", promptPath: "src/modules/skills/tool-retry.md" }],
 };
 
 export default toolRetryModule;

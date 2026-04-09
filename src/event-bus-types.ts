@@ -10,9 +10,12 @@ export type BusEvents = {
     runId?: string;
     requires?: string[];
   };
+  "autonomy.queue.available": {
+    workflow: string;
+    runId: string;
+  };
   "workflow.started": {
     workflow: string;
-    workflowTags: string[];
     runId: string;
     triggerEvent: string;
     definitionPath: string;
@@ -21,7 +24,6 @@ export type BusEvents = {
   };
   "workflow.completed": {
     workflow: string;
-    workflowTags: string[];
     runId: string;
     status: "success" | "failed" | "interrupted" | "completed-with-warnings";
     triggerEvent: string;
@@ -206,16 +208,16 @@ export type BusEvents = {
   "session.unregistered": {
     id: string;
   };
-  "extension.failed": {
+  "module.failed": {
     name: string;
     reason: string;
   };
-  "extension.restarted": {
+  "module.restarted": {
     name: string;
     reason: string;
     totalRestarts: number;
   };
-  "extension.crash.alert": {
+  "module.crash.alert": {
     name: string;
     restartCount: number;
     windowMs: number;

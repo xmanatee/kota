@@ -11,7 +11,7 @@ updated_at: 2026-04-01T04:03:40Z
 
 ## Problem
 
-`kota doctor` checks daemon connectivity, config validity, extension health, provider availability, workflow definitions, and disk state. When it finds issues it prints a human-readable report but takes no corrective action. After a daemon crash or unexpected shutdown, operators must manually clean up stale lock files, verify the runtime directory, or re-initialize missing artifacts — steps that `doctor` already knows how to detect.
+`kota doctor` checks daemon connectivity, config validity, module health, provider availability, workflow definitions, and disk state. When it finds issues it prints a human-readable report but takes no corrective action. After a daemon crash or unexpected shutdown, operators must manually clean up stale lock files, verify the runtime directory, or re-initialize missing artifacts — steps that `doctor` already knows how to detect.
 
 ## Desired Outcome
 

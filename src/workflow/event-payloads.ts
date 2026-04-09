@@ -37,11 +37,9 @@ export function buildStepCompletedPayload(
 export function buildWorkflowCompletedPayload(
   metadata: WorkflowRunMetadata,
   status: WorkflowRunStatus,
-  workflowTags: string[] = metadata.workflowTags ?? [],
 ): BusEvents["workflow.completed"] {
   return {
     workflow: metadata.workflow,
-    workflowTags,
     runId: metadata.id,
     status,
     triggerEvent: metadata.trigger.event,

@@ -1,10 +1,10 @@
 ---
-id: task-extract-init-cli-extension
-title: Move init-cli.ts into a dedicated init extension
+id: task-extract-init-cli-module
+title: Move init-cli.ts into a dedicated init module
 status: ready
 priority: p2
 area: architecture
-summary: src/init-cli.ts (174 lines) implements kota init and is imported directly by src/cli.ts. Moving it into a src/extensions/init/ extension continues the operator CLI surface migration.
+summary: src/init-cli.ts (174 lines) implements kota init and is imported directly by src/cli.ts. Moving it into a src/modules/init/ module continues the operator CLI surface migration.
 created_at: 2026-04-09T10:47:41Z
 updated_at: 2026-04-09T12:30:00Z
 ---
@@ -13,22 +13,22 @@ updated_at: 2026-04-09T12:30:00Z
 
 `src/init-cli.ts` registers the `kota init` command, which scaffolds a new KOTA project
 with config, task directories, docs stubs, and `.kota/`. It is imported directly by
-`src/cli.ts`. Like other operator CLI surfaces, it belongs in an extension.
+`src/cli.ts`. Like other operator CLI surfaces, it belongs in an module.
 
 ## Desired Outcome
 
-A new `src/extensions/init/` extension that:
+A new `src/modules/init/` module that:
 
 - Owns `init-cli.ts` logic (`runInit`, `registerInitCommand`)
-- Contributes `kota init` through the normal extension `commands` surface
-- Is automatically discovered from its extension directory without a central registry edit
+- Contributes `kota init` through the normal module `commands` surface
+- Is automatically discovered from its module directory without a central registry edit
 
 `src/init-cli.ts` is removed. `src/cli.ts` no longer imports from it.
 
 ## Constraints
 
 - No change to command name, flags, or scaffolded output.
-- `src/AGENTS.md` Key Modules entry removed; `src/extensions/AGENTS.md` updated.
+- `src/AGENTS.md` Key Modules entry removed; `src/modules/AGENTS.md` updated.
 
 ## Done When
 

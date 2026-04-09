@@ -1,7 +1,7 @@
 /**
- * Shared HTTP POST helper with exponential-backoff retry for notification extensions.
+ * Shared HTTP POST helper with exponential-backoff retry for notification modules.
  *
- * Used by the webhook and Slack extensions. Retries on non-2xx responses and
+ * Used by the webhook and Slack modules. Retries on non-2xx responses and
  * network errors; logs a warning after all attempts are exhausted.
  *
  * Retries are async (setTimeout-based) and do not block the bus event handler.

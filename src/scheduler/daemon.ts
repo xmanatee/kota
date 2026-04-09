@@ -5,8 +5,8 @@ import type { ChannelAdapter, ChannelDef } from "../channel.js";
 import type { KotaConfig } from "../config.js";
 import { warnInvalidConcurrencyConfig, warnUnknownConfigKeys } from "../config-warnings.js";
 import { type EventBus, initEventBus } from "../event-bus.js";
-import { initExtensionLogStore } from "../extension-log.js";
-import { NotificationGate } from "../extensions/notifications/notification-gate.js";
+import { initModuleLogStore } from "../module-log.js";
+import { NotificationGate } from "../modules/notifications/notification-gate.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
 import type { LogFormat } from "../log-format.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
@@ -91,7 +91,7 @@ export class Daemon {
     this.runStore = new WorkflowRunStore(this.projectDir);
     initTaskStore(this.projectDir);
     initScheduler(this.projectDir);
-    initExtensionLogStore(this.projectDir);
+    initModuleLogStore(this.projectDir);
 
     this.workflows = new WorkflowRuntime({
       bus: this.bus,
@@ -178,7 +178,7 @@ export class Daemon {
       pollIntervalMs: pollMs,
       approvalTtlMs: this.config.config?.approvalTtlMs,
       alertCooldownMs: this.config.config?.notifications?.alertCooldownMs,
-      extensionCrashAlertOpts: this.config.config?.extensionMonitoring,
+      moduleCrashAlertOpts: this.config.config?.moduleMonitoring,
       getWorkflowNotify: (name) => this.workflows.getDefinitions().find((d) => d.name === name)?.notify,
       onDueItems: (items) => this.handleDueItems(items),
       onWorkflowCompleted: (payload) => {

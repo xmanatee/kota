@@ -1,7 +1,7 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
-import type { ExtensionContext } from "../../extension-types.js";
+import type { ModuleContext } from "../../module-types.js";
 import { readOptionalJsonFile } from "../../json-file.js";
 import { DaemonControlClient } from "../../server/daemon-client.js";
 import { getEligibleAtMs } from "../../workflow/run-executor-utils.js";
@@ -13,7 +13,7 @@ import { getWorkflowDefinitions } from "./definitions-source.js";
 
 export function registerTriggerCommands(
   wfCmd: Command,
-  ctx: ExtensionContext,
+  ctx: ModuleContext,
 ): void {
   wfCmd
     .command("trigger <name>")

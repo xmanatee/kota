@@ -1,7 +1,7 @@
-# Agents Extension
+# Agents Module
 
-This extension owns the `kota agent` CLI surface.
+This module owns the `kota agent` CLI surface.
 
-- `index.ts` — `kota agent list` and `kota agent inspect` commands. It reflects agent definitions contributed by the currently loaded extensions.
+- `index.ts` — `kota agent list` and `kota agent inspect` commands. It reflects agent definitions contributed by the currently loaded modules.
 
-Keep this extension read-only and reflective. It should inspect the loaded extension set, not maintain an independent agent registry.
+Keep this module read-only and reflective. It should inspect the loaded module set, not maintain a parallel agent catalog.

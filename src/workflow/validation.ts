@@ -120,14 +120,6 @@ export function validateWorkflowDefinitions(
       `<workflow-${definitionIndex}>`,
     );
     const name = expectName(definition.name, "name", definitionPath);
-    const tags = expectOptionalStringArray(definition.tags, "tags", definitionPath) ?? [];
-    const uniqueTags = [...new Set(tags)];
-    if (uniqueTags.length !== tags.length) {
-      throw new WorkflowDefinitionError(
-        `workflow "${name}" has duplicate tags`,
-        definitionPath,
-      );
-    }
     if (seenWorkflowNames.has(name)) {
       throw new WorkflowDefinitionError(
         `duplicate workflow name "${name}"`,
@@ -266,7 +258,7 @@ export function validateWorkflowDefinitions(
       }
     }
 
-    // Warn about trigger steps that reference unknown workflows (may be loaded later by extensions).
+    // Warn about trigger steps that reference unknown workflows (may be loaded later by modules).
     // Also warn when a trigger step fires a child with an outputSchema but won't wait for the output.
     const knownWorkflowNames = new Set(definitions.map((d) => d.name));
     const definitionsByName = new Map(definitions.map((d) => [d.name, d]));
@@ -275,7 +267,7 @@ export function validateWorkflowDefinitions(
         const triggerStep = step as WorkflowTriggerStep;
         if (!knownWorkflowNames.has(triggerStep.workflow)) {
           console.warn(
-            `[workflow "${name}"] trigger step "${step.id}" references unknown workflow "${triggerStep.workflow}" — it may be registered by an extension loaded later`,
+            `[workflow "${name}"] trigger step "${step.id}" references unknown workflow "${triggerStep.workflow}" — it may be registered by a module loaded later`,
           );
         } else if (triggerStep.waitFor === "queued") {
           const childDef = definitionsByName.get(triggerStep.workflow);
@@ -290,7 +282,6 @@ export function validateWorkflowDefinitions(
 
     return {
       name,
-      tags: uniqueTags,
       description: expectOptionalString(
         definition.description,
         "description",
@@ -395,7 +386,6 @@ export function validateWorkflowDefinitions(
             ].some((status) =>
               matchesFilter(trigger.filter, {
                 workflow: name,
-                workflowTags: uniqueTags,
                 status,
                 triggerEvent: "manual",
                 durationMs: 0,

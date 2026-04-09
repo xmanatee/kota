@@ -22,7 +22,7 @@ Builder failure information lives only in `.kota/runs/<id>/metadata.json`. When 
 
 ## Constraints
 
-- Implement in `src/workflows/builder/check-task-outcome.ts` or as a new helper it calls.
+- Implement in `src/modules/autonomy/workflows/builder/check-task-outcome.ts` or as a new helper it calls.
 - Keep the appended text short — one bullet per attempt, not a transcript.
 - Do not move the task between states; that logic already exists and should remain unchanged.
 - Handle the case where the task has been moved by the builder to `done/` (no annotation needed).

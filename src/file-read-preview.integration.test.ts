@@ -8,7 +8,7 @@ import { existsSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { runFileRead } from "./extensions/filesystem/file-read.js";
+import { runFileRead } from "./modules/filesystem/file-read.js";
 
 function tmpFile(name: string, content: string): string {
   const p = join(tmpdir(), `kota-test-${Date.now()}-${name}`);

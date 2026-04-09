@@ -10,7 +10,7 @@ function makeContext(
     projectDir: "/project",
     workflow: {
       name: "parent",
-      definitionPath: "src/workflows/parent/workflow.ts",
+      definitionPath: "src/modules/test/workflows/parent/workflow.ts",
       runId: "run-1",
       runDir: ".kota/runs/run-1",
       runDirPath: "/project/.kota/runs/run-1",

@@ -40,7 +40,7 @@ describe("nameSimilarity", () => {
     expect(exact).toBeGreaterThan(swapped);
   });
 
-  it("scores same extension higher than different extension", () => {
+  it("scores same module higher than different module", () => {
     const sameExt = nameSimilarity("utils.ts", "utils.tsx");
     const diffExt = nameSimilarity("utils.ts", "utils.py");
     expect(sameExt).toBeGreaterThan(diffExt);

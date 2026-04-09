@@ -23,10 +23,10 @@ export const fileWatchTool: Anthropic.Tool = {
 				type: "boolean",
 				description: "Watch subdirectories (default: true, for 'start')",
 			},
-			extensions: {
+			modules: {
 				type: "array",
 				items: { type: "string" },
-				description: 'Filter by file extensions, e.g. [".ts", ".json"] (for \'start\')',
+				description: 'Filter by file modules, e.g. [".ts", ".json"] (for \'start\')',
 			},
 			id: {
 				type: "string",
@@ -52,10 +52,10 @@ export async function runFileWatch(
 			try {
 				const id = await mgr.start(watchPath, {
 					recursive: (input.recursive as boolean) ?? true,
-					extensions: input.extensions as string[] | undefined,
+					modules: input.modules as string[] | undefined,
 				});
-				const extLabel = input.extensions
-					? ` [${(input.extensions as string[]).join(", ")}]`
+				const extLabel = input.modules
+					? ` [${(input.modules as string[]).join(", ")}]`
 					: "";
 				return {
 					content: `Watcher ${id} started: ${watchPath}${extLabel}. Events emit as "file.changed" on the event bus.`,
@@ -80,7 +80,7 @@ export async function runFileWatch(
 			if (watchers.length === 0)
 				return { content: "No active watchers." };
 			const lines = watchers.map((w) => {
-				const ext = w.extensions ? ` [${w.extensions.join(", ")}]` : "";
+				const ext = w.modules ? ` [${w.modules.join(", ")}]` : "";
 				return `${w.id}: ${w.path}${ext} (${w.changeCount} changes since ${w.createdAt})`;
 			});
 			return {

@@ -2,15 +2,15 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { Context } from "./context.js";
 import type { CostTracker } from "./cost.js";
 import { getEventBus, tryEmit } from "./event-bus.js";
-import { discoverExtensions } from "./extension-discovery.js";
-import type { ExtensionLoader } from "./extension-loader.js";
-import { discoverBuiltinExtensions } from "./extensions/index.js";
-import { cleanupSessions } from "./extensions/execution/code-exec.js";
-import { cleanupProcesses } from "./extensions/execution/process.js";
-import { resetProviderRegistry } from "./extensions/providers/index.js";
+import { discoverModules } from "./module-discovery.js";
+import type { ModuleLoader } from "./module-loader.js";
+import { discoverProjectModules } from "./modules/index.js";
+import { cleanupSessions } from "./modules/execution/code-exec.js";
+import { cleanupProcesses } from "./modules/execution/process.js";
+import { resetProviderRegistry } from "./modules/providers/index.js";
 import { resetChangeTracker } from "./file-changes.js";
 import type { GuardrailsConfig } from "./guardrails.js";
-import { listManifestExtensions } from "./manifest/index.js";
+import { listManifestModules } from "./manifest/index.js";
 import { McpManager } from "./mcp/manager.js";
 import { getHistory } from "./memory/history.js";
 import type { ModelClient } from "./model/model-client.js";
@@ -21,7 +21,7 @@ import { resetToolTelemetry } from "./tool-telemetry.js";
 import { resetAgentStatusProviders } from "./tools/agent-status.js";
 import { loadSavedTools, resetCustomTools } from "./tools/custom-tool.js";
 import { setDelegateConfig } from "./tools/delegate.js";
-import { markExtensionLoaded, resetExtensionFactory } from "./tools/extension-factory/index.js";
+import { markModuleLoaded, resetModuleFactory } from "./tools/module-factory/index.js";
 import type { Transport } from "./transport.js";
 import type { VerifyTracker } from "./verify-tracker.js";
 
@@ -55,12 +55,12 @@ export interface AgentLoopState {
   projectContext: string;
   instructionContext: string;
   modelTiers: ModelTiers | undefined;
-  extensionLoader: ExtensionLoader;
+  moduleLoader: ModuleLoader;
   closed: boolean;
   sigintHandler: () => void;
 }
 
-export async function runInitExtensions(state: AgentLoopState): Promise<void> {
+export async function runInitModules(state: AgentLoopState): Promise<void> {
   const config = McpManager.loadConfig();
   if (config) {
     state.mcpManager = new McpManager();
@@ -86,12 +86,12 @@ export async function runInitExtensions(state: AgentLoopState): Promise<void> {
     }
   }
 
-  const builtinExtensions = await discoverBuiltinExtensions();
-  const extensions = await discoverExtensions(undefined, state.verbose);
-  for (const { name } of listManifestExtensions()) markExtensionLoaded(name);
-  await state.extensionLoader.loadAll([...builtinExtensions, ...extensions]);
+  const projectModules = await discoverProjectModules();
+  const modules = await discoverModules(undefined, state.verbose);
+  for (const { name } of listManifestModules()) markModuleLoaded(name);
+  await state.moduleLoader.loadAll([...projectModules, ...modules]);
 
-  const skillsPrompt = state.extensionLoader.getSkillsPrompt();
+  const skillsPrompt = state.moduleLoader.getSkillsPrompt();
   if (skillsPrompt) {
     state.context.appendSystemPrompt(skillsPrompt);
   }
@@ -102,7 +102,7 @@ export async function runInitExtensions(state: AgentLoopState): Promise<void> {
   }
 
   const bus = getEventBus();
-  if (bus) state.extensionLoader.setBus(bus);
+  if (bus) state.moduleLoader.setBus(bus);
 
   state.initialized = true;
   if (state.stateMachine.canTransition("ready")) {
@@ -135,13 +135,13 @@ export function runClose(state: AgentLoopState, errored: boolean): void {
   cleanupProcesses();
   cleanupSessions();
   resetCustomTools();
-  resetExtensionFactory();
+  resetModuleFactory();
   resetChangeTracker();
   resetGroups();
   resetProviderRegistry();
   resetToolTelemetry();
   resetAgentStatusProviders();
-  state.extensionLoader.unloadAll().catch(() => {});
+  state.moduleLoader.unloadAll().catch(() => {});
   state.mcpManager?.close().catch(() => {});
   if (state.sessionStartTime > 0) {
     tryEmit("session.end", {

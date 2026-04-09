@@ -126,7 +126,7 @@ export const CLIENT_STATUS_OVERVIEW_JS = `
     healthRow.appendChild(healthVal);
     frag.appendChild(healthRow);
 
-    // Extension health from _cachedExtensions
+    // Module health from _cachedExtensions
     var extOk = 0, extDegraded = 0;
     var exts = _cachedExtensions || [];
     for (var ei = 0; ei < exts.length; ei++) {
@@ -138,7 +138,7 @@ export const CLIENT_STATUS_OVERVIEW_JS = `
     extRow.className = "overview-row";
     var extLabel = document.createElement("span");
     extLabel.className = "overview-label";
-    extLabel.textContent = "Extensions";
+    extLabel.textContent = "Modules";
     var extVal = document.createElement("span");
     if (exts.length === 0) {
       extVal.className = "overview-value";

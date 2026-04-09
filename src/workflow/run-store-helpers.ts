@@ -1,6 +1,6 @@
 import { JsonFileError } from "../json-file.js";
 import type {
-  WorkflowAutonomousRecoveryState,
+  WorkflowRecoveryState,
   WorkflowQueuedRun,
   WorkflowRunMetadata,
   WorkflowRunStatus,
@@ -18,7 +18,6 @@ export const STATE_FILE = "workflow-state.json";
 export type WorkflowSnapshot = {
   name: string;
   description?: string;
-  tags?: string[];
   enabled: boolean;
   definitionPath: string;
   triggers: WorkflowDefinition["triggers"];
@@ -76,9 +75,9 @@ function isQueuedRun(value: unknown): value is WorkflowQueuedRun {
   );
 }
 
-function isWorkflowAutonomousRecoveryState(
+function isWorkflowRecoveryState(
   value: unknown,
-): value is WorkflowAutonomousRecoveryState {
+): value is WorkflowRecoveryState {
   return (
     isPlainObject(value) &&
     typeof value.sourceRunId === "string" &&
@@ -134,13 +133,13 @@ export function assertWorkflowRuntimeState(
     );
   }
   if (
-    value.autonomousRecovery !== undefined &&
-    !isWorkflowAutonomousRecoveryState(value.autonomousRecovery)
+    value.recovery !== undefined &&
+    !isWorkflowRecoveryState(value.recovery)
   ) {
     throw new JsonFileError(
       path,
       "parse",
-      "workflow state has invalid autonomousRecovery",
+      "workflow state has invalid recovery",
     );
   }
   for (const [workflowName, entry] of Object.entries(value.workflows)) {
@@ -310,7 +309,6 @@ export function buildWorkflowSnapshot(workflow: WorkflowDefinition): WorkflowSna
   return {
     name: workflow.name,
     description: workflow.description,
-    ...(workflow.tags.length > 0 ? { tags: workflow.tags } : {}),
     enabled: workflow.enabled,
     definitionPath: workflow.definitionPath,
     triggers: workflow.triggers,

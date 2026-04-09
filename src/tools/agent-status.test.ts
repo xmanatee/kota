@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { initProviderRegistry, resetProviderRegistry } from "../extensions/providers/index.js";
+import { initProviderRegistry, resetProviderRegistry } from "../modules/providers/index.js";
 import { clearCustomGroups, enableGroup, registerCustomGroup, resetGroups } from "../tool-groups.js";
 import {
 	resetAgentStatusProviders,
 	runAgentStatus,
 	setConfigProvider,
-	setExtensionInfoProvider,
+	setModuleInfoProvider,
 } from "./agent-status.js";
 
 describe("agent_status", () => {
@@ -33,9 +33,9 @@ describe("agent_status", () => {
 			const result = await runAgentStatus({ query: "tools" });
 			expect(result.content).toContain("## Tools");
 			expect(result.content).toContain("Core tools");
-			// shell is now in the execution extension, not in core
+			// shell is now in the execution module, not in core
 			expect(result.content).not.toContain("shell");
-			// file_read is now in the filesystem extension, not in core
+			// file_read is now in the filesystem module, not in core
 			expect(result.content).not.toContain("file_read");
 			expect(result.content).toContain("delegate");
 		});
@@ -53,14 +53,14 @@ describe("agent_status", () => {
 		});
 
 		it("filters tools by name", async () => {
-			// grep, shell, and git are now in extensions; use a core tool like "delegate"
+			// grep, shell, and git are now in modules; use a core tool like "delegate"
 			const result = await runAgentStatus({ query: "tools", filter: "delegate" });
 			expect(result.content).toContain("delegate");
 			expect(result.content).not.toContain("ask_user");
 		});
 
 		it("filters tools by description", async () => {
-			// file_read and shell are now in extensions; filter by "delegate" instead
+			// file_read and shell are now in modules; filter by "delegate" instead
 			const result = await runAgentStatus({ query: "tools", filter: "delegate" });
 			expect(result.content).toContain("## Tools");
 			expect(result.content).toContain("delegate");
@@ -72,40 +72,40 @@ describe("agent_status", () => {
 		});
 	});
 
-	describe("extensions query", () => {
+	describe("modules query", () => {
 		it("shows message when no provider set", async () => {
-			const result = await runAgentStatus({ query: "extensions" });
-			expect(result.content).toContain("extension info not available");
+			const result = await runAgentStatus({ query: "modules" });
+			expect(result.content).toContain("module info not available");
 		});
 
-		it("lists loaded extensions when provider is set", async () => {
-			setExtensionInfoProvider(() => [
+		it("lists loaded modules when provider is set", async () => {
+			setModuleInfoProvider(() => [
 				{ name: "memory", toolCount: 2 },
 				{ name: "scheduler", toolCount: 1 },
 				{ name: "history", toolCount: 0 },
 			]);
-			const result = await runAgentStatus({ query: "extensions" });
-			expect(result.content).toContain("3 extension(s) loaded");
+			const result = await runAgentStatus({ query: "modules" });
+			expect(result.content).toContain("3 module(s) loaded");
 			expect(result.content).toContain("memory (2 tools)");
 			expect(result.content).toContain("scheduler (1 tools)");
 			expect(result.content).toContain("- history");
 			expect(result.content).not.toContain("history (0 tools)");
 		});
 
-		it("filters extensions by name", async () => {
-			setExtensionInfoProvider(() => [
+		it("filters modules by name", async () => {
+			setModuleInfoProvider(() => [
 				{ name: "memory", toolCount: 2 },
 				{ name: "scheduler", toolCount: 1 },
 			]);
-			const result = await runAgentStatus({ query: "extensions", filter: "mem" });
+			const result = await runAgentStatus({ query: "modules", filter: "mem" });
 			expect(result.content).toContain("memory");
 			expect(result.content).not.toContain("scheduler");
 		});
 
-		it("shows empty message when no extensions loaded", async () => {
-			setExtensionInfoProvider(() => []);
-			const result = await runAgentStatus({ query: "extensions" });
-			expect(result.content).toContain("no extensions loaded");
+		it("shows empty message when no modules loaded", async () => {
+			setModuleInfoProvider(() => []);
+			const result = await runAgentStatus({ query: "modules" });
+			expect(result.content).toContain("no modules loaded");
 		});
 	});
 
@@ -216,13 +216,13 @@ describe("agent_status", () => {
 
 	describe("all query", () => {
 		it("includes all sections", async () => {
-			setExtensionInfoProvider(() => [{ name: "test-mod", toolCount: 1 }]);
+			setModuleInfoProvider(() => [{ name: "test-mod", toolCount: 1 }]);
 			setConfigProvider(() => ({ model: "test" }));
 			initProviderRegistry();
 
 			const result = await runAgentStatus({ query: "all" });
 			expect(result.content).toContain("## Tools");
-			expect(result.content).toContain("## Extensions");
+			expect(result.content).toContain("## Modules");
 			expect(result.content).toContain("## Providers");
 			expect(result.content).toContain("## Tool Groups");
 			expect(result.content).toContain("## Config");
@@ -250,13 +250,13 @@ describe("agent_status", () => {
 	});
 
 	describe("resetAgentStatusProviders", () => {
-		it("clears extension and config providers", async () => {
-			setExtensionInfoProvider(() => [{ name: "test", toolCount: 0 }]);
+		it("clears module and config providers", async () => {
+			setModuleInfoProvider(() => [{ name: "test", toolCount: 0 }]);
 			setConfigProvider(() => ({ model: "test" }));
 			resetAgentStatusProviders();
 
-			const extensions = await runAgentStatus({ query: "extensions" });
-			expect(extensions.content).toContain("extension info not available");
+			const modules = await runAgentStatus({ query: "modules" });
+			expect(modules.content).toContain("module info not available");
 
 			const config = await runAgentStatus({ query: "config" });
 			expect(config.content).toContain("config not available");

@@ -1,15 +1,15 @@
-import type { AgentDef } from "../../agent-types.js";
-import { getRepoTaskQueueSnapshot } from "../../repo-tasks.js";
-import { assertRepoWorktreeClean } from "../../repo-worktree.js";
-import type { WorkflowDefinitionInput } from "../../workflow/types.js";
-import { typedCodeStep } from "../../workflow/types.js";
-import { commitWorkflowChanges } from "../commit.js";
-import { runCheck, stepSucceeded } from "../shared.js";
+import type { AgentDef } from "../../../../agent-types.js";
+import { getRepoTaskQueueSnapshot } from "../../../../repo-tasks.js";
+import { assertRepoWorktreeClean } from "../../../../repo-worktree.js";
+import type { WorkflowDefinitionInput } from "../../../../workflow/types.js";
+import { typedCodeStep } from "../../../../workflow/types.js";
+import { commitWorkflowChanges } from "../../commit.js";
+import { runCheck, stepSucceeded } from "../../shared.js";
 
 export const agent: AgentDef = {
   name: "inbox-sorter",
   role: "Turn quick inbox captures into the right durable project artifacts.",
-  promptPath: "src/workflows/inbox-sorter/prompt.md",
+  promptPath: "src/modules/autonomy/workflows/inbox-sorter/prompt.md",
   model: "claude-sonnet-4-6",
   tools: { permissionMode: "bypassPermissions" },
   settingSources: ["project"],
@@ -37,7 +37,6 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
   name: "inbox-sorter",
   description:
     "Process quick inbox captures into normalized tasks, docs, or other durable project artifacts.",
-  tags: ["autonomous", "queue-source"],
   triggers: [
     {
       event: "runtime.idle",
@@ -73,6 +72,16 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
       type: "code",
       when: stepSucceeded("sort-inbox"),
       run: ({ projectDir, workflow }) => commitWorkflowChanges(projectDir, workflow.runDirPath),
+    },
+    {
+      id: "emit-queue-available",
+      type: "emit",
+      when: stepSucceeded("sort-inbox"),
+      event: "autonomy.queue.available",
+      payload: (ctx) => ({
+        workflow: ctx.workflow.name,
+        runId: ctx.workflow.runId,
+      }),
     },
   ],
 };

@@ -26,8 +26,8 @@ Operators who prefer the terminal or who script against `kota` have no way to fo
 
 ```
 root: builder/2026-04-01T10-00-00Z (success, 4m12s)
-  └─ my-extension/notifier/2026-04-01T10-04-15Z (success, 8s)
-       └─ my-extension/pr-checker/2026-04-01T10-04-24Z (failed, 1m02s)  ← current
+  └─ my-module/notifier/2026-04-01T10-04-15Z (success, 8s)
+       └─ my-module/pr-checker/2026-04-01T10-04-24Z (failed, 1m02s)  ← current
 ```
 
 Without `--chain`, behavior is unchanged.

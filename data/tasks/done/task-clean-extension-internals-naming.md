@@ -1,38 +1,38 @@
 ---
-id: task-clean-extension-internals-naming
-title: Clean up remaining module-era naming in extension internals
+id: task-clean-module-internals-naming
+title: Clean up remaining module-era naming in module internals
 status: done
 priority: p3
 area: refactor
-summary: The module→extension migration is mostly complete in public APIs, but several internals still use module-era names (modules, mod, moduleRoutes, MODULE_NAME_RE, BUILTIN_MODULE_NAMES). Clean these up to finish the terminology migration and keep the codebase consistent.
+summary: The module→module migration is mostly complete in public APIs, but several internals still use module-era names (modules, mod, moduleRoutes, MODULE_NAME_RE, BUILTIN_MODULE_NAMES). Clean these up to finish the terminology migration and keep the codebase consistent.
 created_at: 2026-03-28T01:35:31Z
 updated_at: 2026-03-30T00:00:00Z
 ---
 
 ## Problem
 
-The public extension API (`extension_factory`, `getExtensionConfig`,
-`config.extensions`, `src/extensions/`) now consistently uses extension
+The public module API (`extension_factory`, `getModuleConfig`,
+`config.modules`, `src/modules/`) now consistently uses module
 terminology. However, several internals still carry module-era names:
 
 - `src/manifest/validation.ts`: `MODULE_NAME_RE`, `BUILTIN_MODULE_NAMES`,
   error messages referencing "module"
-- `src/extension-discovery.ts`: local variable `modules`, parameter `mod`
-- `src/extension-loader.ts`: parameter name `mod`, comment "load modules"
+- `src/module-discovery.ts`: local variable `modules`, parameter `mod`
+- `src/module-loader.ts`: parameter name `mod`, comment "load modules"
 - `src/server/server.ts` and `server-routes.ts`: parameter `moduleRoutes`,
   comment "Routes registered by modules"
-- `src/extensions/web.ts`: variable `moduleRoutes`, comment "Collect routes
+- `src/modules/web.ts`: variable `moduleRoutes`, comment "Collect routes
   from all loaded modules"
 
 This is explicitly flagged in the root `AGENTS.md` Architecture section:
-"Some extension internals, diagnostics, and manifest-era helpers still carry
+"Some module internals, diagnostics, and manifest-era helpers still carry
 module-era naming and should be cleaned up instead of treated as a permanent
 second vocabulary."
 
 ## Desired Outcome
 
-All internal names in the files above are updated to use extension terminology:
-`modules` → `extensions`, `mod` → `ext`, `moduleRoutes` → `extensionRoutes`,
+All internal names in the files above are updated to use module terminology:
+`modules` → `modules`, `mod` → `ext`, `moduleRoutes` → `moduleRoutes`,
 `MODULE_NAME_RE` → `EXTENSION_NAME_RE`, `BUILTIN_MODULE_NAMES` →
 `BUILTIN_EXTENSION_NAMES`. Comments updated to match.
 

@@ -1,4 +1,4 @@
-# Git Extension
+# Git Module
 
 This directory owns the `git` capability pack — version control operations with safety guardrails.
 
@@ -8,7 +8,7 @@ This directory owns the `git` capability pack — version control operations wit
 
 ## Files
 
-- `index.ts` — `KotaExtension` definition; assembles the `git` tool with `moderate` risk metadata.
+- `index.ts` — `KotaModule` definition; assembles the `git` tool with `moderate` risk metadata.
 - `git.ts` — `gitTool` schema, `runGit` runner, and `runGit` exported helper used by other modules.
 - `git.test.ts` — unit tests for the git tool.
 

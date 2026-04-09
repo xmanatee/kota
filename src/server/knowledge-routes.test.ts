@@ -42,11 +42,11 @@ function makeProvider(entries: KnowledgeEntry[]): KnowledgeProvider {
   };
 }
 
-vi.mock("../extensions/providers/index.js", () => ({
+vi.mock("../modules/providers/index.js", () => ({
   getKnowledgeProvider: vi.fn(),
 }));
 
-import { getKnowledgeProvider } from "../extensions/providers/index.js";
+import { getKnowledgeProvider } from "../modules/providers/index.js";
 
 describe("knowledge-routes", () => {
   describe("handleListKnowledge", () => {

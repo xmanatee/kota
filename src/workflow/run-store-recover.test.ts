@@ -25,7 +25,7 @@ function writeRunMetadata(
   const metadata = {
     id,
     workflow,
-    definitionPath: `src/workflows/${workflow}/workflow.ts`,
+    definitionPath: `src/modules/test/workflows/${workflow}/workflow.ts`,
     trigger: { event: "runtime.idle", payload: {} },
     startedAt: new Date(Date.now() - 60_000).toISOString(),
     status,
@@ -132,8 +132,7 @@ describe("WorkflowRunStore.recoverInterruptedRuns", () => {
   it("creates new runs only under .kota/runs", () => {
     const workflow: WorkflowDefinition = {
       name: "builder",
-      tags: [],
-      definitionPath: "src/workflows/builder/workflow.ts",
+      definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
       description: "test",
       enabled: true,
       triggers: [{ event: "runtime.idle", cooldownMs: 0 }],

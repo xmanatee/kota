@@ -1,7 +1,7 @@
 /**
  * KOTA External Module Protocol (KEMP)
  *
- * A transport-agnostic JSON message protocol for loading extensions implemented
+ * A transport-agnostic JSON message protocol for loading modules implemented
  * in languages other than TypeScript. The protocol is the same regardless of
  * whether the transport is stdio, a Unix socket, or HTTP.
  *
@@ -39,7 +39,7 @@ export type KempInit = {
   type: "init";
   /** Working directory of the KOTA process. */
   cwd: string;
-  /** Config section for this extension from KOTA's config file. */
+  /** Config section for this module from KOTA's config file. */
   config?: Record<string, unknown>;
 };
 
@@ -53,7 +53,7 @@ export type KempInvoke = {
   input: Record<string, unknown>;
 };
 
-/** Sent when KOTA is shutting down or reloading this extension. */
+/** Sent when KOTA is shutting down or reloading this module. */
 export type KempShutdown = {
   id: string;
   type: "shutdown";
@@ -146,7 +146,7 @@ export type KempTransport = {
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 /** Stdio transport — spawns a subprocess and communicates over stdin/stdout. */
-export type StdioForeignExtensionConfig = {
+export type StdioForeignModuleConfig = {
   transport: "stdio";
   /** Executable to run (e.g. "python3", "/usr/bin/ruby"). */
   command: string;
@@ -182,7 +182,7 @@ export type StdioForeignExtensionConfig = {
 };
 
 /** HTTP transport — connects to an already-running HTTP server that speaks KEMP. */
-export type HttpForeignExtensionConfig = {
+export type HttpForeignModuleConfig = {
   transport: "http";
   /** Base URL of the KEMP HTTP server (e.g. "http://localhost:8765"). */
   url: string;
@@ -194,5 +194,5 @@ export type HttpForeignExtensionConfig = {
   bearerToken?: string | { env: string };
 };
 
-/** Configuration for a single foreign-language extension entry. */
-export type ForeignExtensionConfig = StdioForeignExtensionConfig | HttpForeignExtensionConfig;
+/** Configuration for a single foreign-language module entry. */
+export type ForeignModuleConfig = StdioForeignModuleConfig | HttpForeignModuleConfig;

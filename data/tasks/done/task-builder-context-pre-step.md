@@ -22,7 +22,7 @@ The builder agent currently starts with only the preflight snapshot (validated t
 
 ## Constraints
 
-- Follow the same pattern as `src/workflows/explorer/gather-context.ts` and `src/workflows/improver/gather-context.ts`.
+- Follow the same pattern as `src/modules/autonomy/workflows/explorer/gather-context.ts` and `src/modules/autonomy/workflows/improver/gather-context.ts`.
 - Keep the snapshot small — metadata only, no full event logs.
 - The `build` step's `when` predicate must continue to gate on `validCount > 0` from preflight, not on gather-context output.
 - Do not break the preflight → build data flow; both outputs should be accessible.

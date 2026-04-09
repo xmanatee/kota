@@ -1,17 +1,17 @@
 import type { KotaConfig } from "./config.js";
-import { discoverExtensions } from "./extension-discovery.js";
-import { ExtensionLoader } from "./extension-loader.js";
-import { discoverBuiltinExtensions } from "./extensions/index.js";
+import { discoverModules } from "./module-discovery.js";
+import { ModuleLoader } from "./module-loader.js";
+import { discoverProjectModules } from "./modules/index.js";
 
-export async function loadExtensionMetadata(
+export async function loadModuleMetadata(
   config: KotaConfig,
   projectDir = process.cwd(),
   verbose = false,
-): Promise<ExtensionLoader> {
-  const loader = new ExtensionLoader(config, verbose, { commandsOnly: true });
+): Promise<ModuleLoader> {
+  const loader = new ModuleLoader(config, verbose, { commandsOnly: true });
   loader.setCwd(projectDir);
-  const builtinExtensions = await discoverBuiltinExtensions();
-  const userExtensions = await discoverExtensions(projectDir, verbose);
-  await loader.loadAll([...builtinExtensions, ...userExtensions]);
+  const projectModules = await discoverProjectModules();
+  const userModules = await discoverModules(projectDir, verbose);
+  await loader.loadAll([...projectModules, ...userModules]);
   return loader;
 }

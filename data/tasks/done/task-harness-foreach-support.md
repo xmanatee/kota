@@ -26,7 +26,7 @@ be written today without spawning a full daemon.
 - Evaluates the outer `when` predicate (skip if false).
 - Resolves `items` (supports function or static array, using the step context).
 - Iterates over each item, binding it to the `as` variable in context (via `stepOutputs` or
-  context extension) and executing the inner `steps` array for each iteration.
+  context module) and executing the inner `steps` array for each iteration.
 - Collects per-item results; respects `continueOnFailure`.
 - Records a foreach step result with `{ items: itemCount, results: [...] }` output.
 - Respects `maxConcurrency` in the same opt-in manner as the `parallel` flag: serial by

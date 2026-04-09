@@ -1,7 +1,7 @@
 /**
  * Channel — optional interactive surfaces that map external I/O to sessions.
  *
- * A channel is an extension surface for external users. CLI, autonomous
+ * A channel is a module surface for external users. CLI, autonomous
  * workflow execution, and single-shot agent runs do NOT need a channel.
  * Channels are for persistent multi-user surfaces: web server, Telegram, etc.
  *
@@ -18,7 +18,7 @@
  *
  * ## Channel Contributions
  *
- * Extensions contribute channels via `KotaExtension.channels`. The daemon
+ * Modules contribute channels via `KotaModule.channels`. The daemon
  * collects contributed channels at startup and manages their lifecycle.
  * Each `ChannelDef` is a named descriptor plus a factory. The factory receives
  * a `ChannelStartContext` from the daemon and returns a `ChannelAdapter`, or
@@ -80,9 +80,9 @@ export type ChannelStartContext = {
 };
 
 /**
- * ChannelDef — descriptor for a channel contributed by an extension.
+ * ChannelDef — descriptor for a channel contributed by a module.
  *
- * Extensions declare channels in `KotaExtension.channels`. The daemon
+ * Modules declare channels in `KotaModule.channels`. The daemon
  * collects them at startup, calls `create()` for each one, and manages
  * their lifecycle alongside workflows and stores.
  */

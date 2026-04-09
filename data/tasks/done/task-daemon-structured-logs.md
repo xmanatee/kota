@@ -19,9 +19,9 @@ The agent loop already has a `LOG_FORMAT` env var mechanism in `src/log-format.t
 
 - A `--log-format json` flag (or `KOTA_DAEMON_LOG_FORMAT=json` env var) switches daemon log output to newline-delimited JSON.
 - Each log line becomes: `{ "ts": "<ISO8601>", "level": "info|warn|error", "msg": "...", ...fields }`.
-- Key contextual fields are included where available: `workflow`, `runId`, `extension`, `event`.
+- Key contextual fields are included where available: `workflow`, `runId`, `module`, `event`.
 - Plain text format remains the default (no breaking change for existing setups).
-- Daemon startup, extension load, workflow start/finish, and error events are all covered.
+- Daemon startup, module load, workflow start/finish, and error events are all covered.
 
 ## Constraints
 

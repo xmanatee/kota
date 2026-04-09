@@ -18,7 +18,7 @@ Failing areas:
 - `src/repl-session.test.ts` — timeout/interrupt handling tests; Python SIGINT test
 - `src/mcp/client.test.ts` — race condition on second callTool after server crash
 - `src/init.test.ts` — git context tests (likely affected by running inside a worktree or dirty repo state)
-- `src/workflows/builder/gather-context.test.ts` — test timeout at 5000ms; tests that create real git commits
+- `src/modules/autonomy/workflows/builder/gather-context.test.ts` — test timeout at 5000ms; tests that create real git commits
 - `src/memory/sqlite-memory.test.ts`, `src/tools/code-exec.test.ts`, `src/e2e.test.ts`, and others
 
 ## Desired Outcome

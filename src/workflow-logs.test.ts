@@ -158,7 +158,7 @@ describe("followRunLogs", () => {
     return {
       id: RUN_ID,
       workflow: "builder",
-      definitionPath: "src/workflows/builder/workflow.ts",
+      definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
       trigger: { event: "manual", payload: {} },
       startedAt: new Date().toISOString(),
       status,

@@ -8,8 +8,8 @@ vi.mock("node:fs", () => ({
   readFileSync: vi.fn(),
 }));
 
-vi.mock("../../config.js", () => ({
-  loadConfig: vi.fn(() => ({ extensions: { builder: { branchPerTask: true } } })),
+vi.mock("../../../../config.js", () => ({
+  loadConfig: vi.fn(() => ({ modules: { builder: { branchPerTask: true } } })),
 }));
 
 function makeCtx(overrides: Partial<{ branch: string | null; branchPerTask: boolean }> = {}) {

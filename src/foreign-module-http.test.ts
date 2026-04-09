@@ -7,8 +7,8 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
-import type { KempInbound, KempOutbound } from "./foreign-extension.js";
-import { HttpTransport } from "./foreign-extension-http.js";
+import type { KempInbound, KempOutbound } from "./foreign-module.js";
+import { HttpTransport } from "./foreign-module-http.js";
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {

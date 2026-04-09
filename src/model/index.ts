@@ -2,7 +2,7 @@
  * Model subsystem — LLM client abstraction, adaptive model routing,
  * streaming, and mock client for testing.
  *
- * Implementations (Anthropic, OpenAI) live in src/extensions/model-clients/.
+ * Implementations (Anthropic, OpenAI) live in src/modules/model-clients/.
  */
 
 export {

@@ -72,7 +72,7 @@ describe("runInit", () => {
     expect(existsSync(join(tmpDir, ".kota"))).toBe(true);
   });
 
-  it("kota.config.ts contains extension comment blocks", () => {
+  it("kota.config.ts contains module comment blocks", () => {
     runInit(tmpDir, false);
     const content = readFileSync(join(tmpDir, "kota.config.ts"), "utf-8");
     expect(content).toContain("telegram");

@@ -5,9 +5,9 @@
 import { getCoreRegistrations } from "../tools/index.js";
 import type { ValidationError } from "./types.js";
 
-const EXTENSION_NAME_RE = /^[a-z][a-z0-9_-]{1,48}[a-z0-9]$/;
+const MODULE_NAME_RE = /^[a-z][a-z0-9_-]{1,48}[a-z0-9]$/;
 
-const BUILTIN_EXTENSION_NAMES = new Set([
+const RESERVED_MODULE_NAMES = new Set([
 	"working-memory",
 	"secrets",
 	"memory",
@@ -20,20 +20,20 @@ const BUILTIN_EXTENSION_NAMES = new Set([
 	"registry",
 ]);
 
-// Lazy to avoid circular dependency (tools/extension-factory.ts → here → tools/index.ts → tools/extension-factory.ts).
-let _builtinToolNames: Set<string> | null = null;
-function getBuiltinToolNames(): Set<string> {
-	if (!_builtinToolNames) {
-		_builtinToolNames = new Set([
+// Lazy to avoid circular dependency (tools/module-factory.ts → here → tools/index.ts → tools/module-factory.ts).
+let _reservedToolNames: Set<string> | null = null;
+function getReservedToolNames(): Set<string> {
+	if (!_reservedToolNames) {
+		_reservedToolNames = new Set([
 			...getCoreRegistrations().map((r) => r.tool.name),
-			// Execution extension tools (always loaded as built-in)
+			// Execution module tools (always loaded with the project module set)
 			"shell", "process", "code_exec", "computer_use", "screenshot",
-			// Filesystem extension tools (always loaded as built-in)
+			// Filesystem module tools (always loaded with the project module set)
 			"file_read", "file_write", "file_edit", "multi_edit", "find_replace",
 			"glob", "grep", "file_watch", "files_overview",
-			// Web access extension tools (always loaded as built-in)
+			// Web access module tools (always loaded with the project module set)
 			"web_fetch", "web_search", "http_request",
-			// Other built-in extension tools
+			// Other repo module tools
 			"enable_tools",
 			"memory",
 			"schedule",
@@ -42,7 +42,7 @@ function getBuiltinToolNames(): Set<string> {
 			"conversation_recall",
 		]);
 	}
-	return _builtinToolNames;
+	return _reservedToolNames;
 }
 
 const TOOL_NAME_RE = /^[a-z][a-z0-9_]{1,48}[a-z0-9]$/;
@@ -57,16 +57,16 @@ export function validateManifest(manifest: unknown): ValidationError[] {
 	// Name
 	if (typeof m.name !== "string" || !m.name) {
 		errors.push({ field: "name", message: "name is required (string)" });
-	} else if (!EXTENSION_NAME_RE.test(m.name)) {
+	} else if (!MODULE_NAME_RE.test(m.name)) {
 		errors.push({
 			field: "name",
 			message:
 				"name must be 3-50 chars, lowercase letters/digits/hyphens/underscores",
 		});
-	} else if (BUILTIN_EXTENSION_NAMES.has(m.name)) {
+	} else if (RESERVED_MODULE_NAMES.has(m.name)) {
 		errors.push({
 			field: "name",
-			message: `"${m.name}" conflicts with a built-in extension`,
+			message: `"${m.name}" conflicts with a project module`,
 		});
 	}
 
@@ -117,10 +117,10 @@ function validateTools(tools: unknown, errors: ValidationError[]): void {
 				field: `${prefix}.name`,
 				message: "tool name must be snake_case, 3-50 chars",
 			});
-		} else if (getBuiltinToolNames().has(t.name as string)) {
+		} else if (getReservedToolNames().has(t.name as string)) {
 			errors.push({
 				field: `${prefix}.name`,
-				message: `"${t.name}" conflicts with a built-in tool`,
+				message: `"${t.name}" conflicts with a project tool`,
 			});
 		} else if (seen.has(t.name as string)) {
 			errors.push({

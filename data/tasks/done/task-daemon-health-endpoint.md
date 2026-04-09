@@ -17,7 +17,7 @@ updated_at: 2026-03-31T14:51:00Z
 
 A new `GET /health` route on `DaemonControlServer` that:
 - Returns HTTP 200 with a small JSON body when the daemon is running and its core subsystems are operational.
-- Returns HTTP 503 if a critical subsystem (scheduler, extension loader) has failed to initialize.
+- Returns HTTP 503 if a critical subsystem (scheduler, module loader) has failed to initialize.
 - Response shape:
 
 ```json
@@ -27,7 +27,7 @@ A new `GET /health` route on `DaemonControlServer` that:
   "uptimeMs": 12345,
   "components": {
     "scheduler": "ok" | "error",
-    "extensions": "ok" | "error"
+    "modules": "ok" | "error"
   }
 }
 ```
@@ -39,7 +39,7 @@ A new `GET /health` route on `DaemonControlServer` that:
 
 - Keep the handler lean: no database queries, no heavy enumeration.
 - `uptimeMs` is time since daemon start (use `process.hrtime` or `Date.now()` delta from startup).
-- Extension status is "ok" if all extensions loaded without error; "error" + "degraded" overall if any failed.
+- Module status is "ok" if all modules loaded without error; "error" + "degraded" overall if any failed.
 - The route must not be gated behind any existing auth middleware that other routes use.
 
 ## Done When

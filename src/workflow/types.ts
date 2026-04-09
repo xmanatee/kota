@@ -36,8 +36,6 @@ export type WorkflowFilterValue =
   | WorkflowFilterScalar
   | readonly WorkflowFilterScalar[];
 
-export type WorkflowTag = string;
-
 export type WorkflowTriggerInput = {
   event?: keyof BusEvents | string;
   filter?: Record<string, WorkflowFilterValue>;
@@ -127,13 +125,13 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
   type: "agent";
   /**
    * Optional logical agent label. Use this for model overrides and telemetry.
-   * Execution does not resolve workflow steps through a global agent registry.
+   * Execution does not resolve workflow steps through a global agent catalog.
    */
   agentName?: string;
   /**
    * Path to the prompt markdown file (relative to project root).
    * Required. Workflow steps are self-contained and do not inherit prompt paths
-   * from a separate agent registry.
+   * from a separate agent catalog.
    */
   promptPath?: string;
   model?: string;
@@ -332,8 +330,6 @@ export type WorkflowNotifyConfig = {
 export type WorkflowDefinitionInput = {
   name: string;
   description?: string;
-  /** Generic classification tags used for routing, discovery, and policy. */
-  tags?: WorkflowTag[];
   enabled?: boolean;
   runTimeoutMs?: number;
   /** Maximum spend (USD) per UTC calendar day before new runs are skipped. */
@@ -355,7 +351,7 @@ export type WorkflowDefinitionInput = {
   /**
    * Named concurrency group for this workflow. Workflows in the same named group
    * run at most one at a time. Omit to use type-based defaults: agent-step
-   * workflows use the built-in "agent" group (agentConcurrency cap), code-only
+   * workflows use the default "agent" group (agentConcurrency cap), code-only
    * workflows use the "code" group (codeConcurrency cap).
    */
   concurrencyGroup?: string;
@@ -494,7 +490,6 @@ export type WorkflowStep =
 export type WorkflowDefinition = {
   name: string;
   description?: string;
-  tags: WorkflowTag[];
   enabled: boolean;
   runTimeoutMs?: number;
   /** Maximum spend (USD) per UTC calendar day before new runs are skipped. */

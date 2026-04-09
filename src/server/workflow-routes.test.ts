@@ -46,7 +46,7 @@ function writeRunMetadata(
   const metadata = {
     id,
     workflow,
-    definitionPath: `src/workflows/${workflow}/workflow.ts`,
+    definitionPath: `src/modules/test/workflows/${workflow}/workflow.ts`,
     trigger: { event: "runtime.idle", payload: {} },
     startedAt: new Date(1700000000000).toISOString(),
     status,

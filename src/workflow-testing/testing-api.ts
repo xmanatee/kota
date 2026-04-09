@@ -25,8 +25,8 @@
  */
 
 
-export type { ExtensionHarnessOptions } from "../extension-testing/index.js";
-export { ExtensionTestHarness } from "../extension-testing/index.js";
+export type { ModuleHarnessOptions } from "../module-testing/index.js";
+export { ModuleTestHarness } from "../module-testing/index.js";
 export type {
   HarnessOptions,
   HarnessRunResult,

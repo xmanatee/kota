@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { codeExecTool } from "./extensions/execution/code-exec.js";
-import { grepTool } from "./extensions/filesystem/grep.js";
-import { httpRequestTool } from "./extensions/web-access/http-request.js";
-import { webFetchTool } from "./extensions/web-access/web-fetch.js";
+import { codeExecTool } from "./modules/execution/code-exec.js";
+import { grepTool } from "./modules/filesystem/grep.js";
+import { httpRequestTool } from "./modules/web-access/http-request.js";
+import { webFetchTool } from "./modules/web-access/web-fetch.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { CORE_TOOL_NAMES, TOOL_GROUPS } from "./tool-groups.js";
 import { getAllTools } from "./tools/index.js";
@@ -189,9 +189,9 @@ describe("SYSTEM_PROMPT", () => {
     expect(dataSection).toContain("code_exec");
     expect(dataSection).toContain("notebook");
     expect(dataSection).toContain("matplotlib");
-    // code_exec is now in the execution extension (not core registry), verify it exists directly
+    // code_exec is now in the execution module (not core registry), verify it exists directly
     expect(codeExecTool.name).toBe("code_exec");
-    // notebook is now in the notebook extension (not core registry)
+    // notebook is now in the notebook module (not core registry)
   });
 
   it("data analysis references seaborn alongside matplotlib", () => {
@@ -351,7 +351,7 @@ describe("SYSTEM_PROMPT", () => {
   });
 
   it("grep tool schema has modes and options referenced in prompt", () => {
-    // grep is now in the filesystem extension; import its schema directly
+    // grep is now in the filesystem module; import its schema directly
     const props = grepTool.input_schema.properties as Record<string, unknown>;
     expect(props).toHaveProperty("files_only");
     expect(props).toHaveProperty("count_only");
@@ -359,7 +359,7 @@ describe("SYSTEM_PROMPT", () => {
   });
 
   it("web_fetch and http_request tools have save_to parameter", () => {
-    // These tools are in the web-access extension; import schemas directly
+    // These tools are in the web-access module; import schemas directly
     const fetchProps = webFetchTool.input_schema.properties as Record<string, unknown>;
     const httpProps = httpRequestTool.input_schema.properties as Record<string, unknown>;
     expect(fetchProps).toHaveProperty("save_to");
@@ -367,7 +367,7 @@ describe("SYSTEM_PROMPT", () => {
   });
 
   it("code_exec tool supports Python and Node.js languages", () => {
-    // code_exec is now in the execution extension (not core registry); import directly
+    // code_exec is now in the execution module (not core registry); import directly
     const props = codeExecTool.input_schema.properties as Record<string, unknown>;
     expect(props).toHaveProperty("language");
     const lang = props.language as { enum?: string[] };

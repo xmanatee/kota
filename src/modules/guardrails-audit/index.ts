@@ -1,5 +1,5 @@
 /**
- * Guardrails-audit extension — owns the guardrail audit trail.
+ * Guardrails-audit module — owns the guardrail audit trail.
  *
  * Initializes the audit store, subscribes to `guardrail.assessed` events from
  * tool-runner, and writes entries to `.kota/audit.jsonl`. Also provides the
@@ -7,12 +7,12 @@
  */
 
 import { Command } from "commander";
-import type { KotaExtension } from "../../extension-types.js";
+import type { KotaModule } from "../../module-types.js";
 import type { Policy, RiskLevel } from "../../guardrails.js";
 import { registerAuditCommands } from "./cli.js";
 import { initAuditStore, resetAuditStore } from "./store.js";
 
-const guardrailsAuditModule: KotaExtension = {
+const guardrailsAuditModule: KotaModule = {
 	name: "guardrails-audit",
 	version: "1.0.0",
 	description: "Guardrail audit trail — logs all tool assessments to .kota/audit.jsonl",

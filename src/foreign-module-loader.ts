@@ -1,26 +1,26 @@
 /**
- * Foreign extension loader — wraps out-of-process extensions as KotaExtension.
+ * Foreign module loader — wraps out-of-process modules as KotaModule.
  *
- * Each configured foreign extension is started, handed the init/manifest
- * handshake, then presented to the rest of KOTA as a normal KotaExtension
+ * Each configured foreign module is started, handed the init/manifest
+ * handshake, then presented to the rest of KOTA as a normal KotaModule
  * with tool runners that proxy invocations over the transport.
  *
- * Stdio extensions support automatic restart via `maxRestarts` (default: 3)
+ * Stdio modules support automatic restart via `maxRestarts` (default: 3)
  * and optional periodic health-check pings.
  */
 
 import { resolve } from "node:path";
 import { tryEmit } from "./event-bus.js";
-import type { ExtensionHealth, KotaExtension, ToolDef } from "./extension-types.js";
+import type { ModuleHealth, KotaModule, ToolDef } from "./module-types.js";
 import type {
-  ForeignExtensionConfig,
+  ForeignModuleConfig,
   KempInbound,
   KempManifest,
   KempTransport,
-  StdioForeignExtensionConfig,
-} from "./foreign-extension.js";
-import { HttpTransport } from "./foreign-extension-http.js";
-import { StdioTransport } from "./foreign-extension-stdio.js";
+  StdioForeignModuleConfig,
+} from "./foreign-module.js";
+import { HttpTransport } from "./foreign-module-http.js";
+import { StdioTransport } from "./foreign-module-stdio.js";
 import type { ToolResult } from "./tools/tool-result.js";
 
 // How long to wait for the manifest after sending init.
@@ -43,7 +43,7 @@ type RawExtension = {
   name: string;
   version?: string;
   description?: string;
-  session: ForeignExtensionSession;
+  session: ForeignModuleSession;
   toolDefs: KempManifest["tools"];
 };
 
@@ -51,7 +51,7 @@ type RawExtension = {
  * Wraps a KempTransport in request/response semantics, dispatching inbound
  * messages by correlation id and logging inbound log messages.
  */
-class ForeignExtensionSession {
+class ForeignModuleSession {
   private pending = new Map<string, PendingInvoke>();
   private receiveLoop: Promise<void>;
   private closed = false;
@@ -133,17 +133,17 @@ function newId(): string {
 }
 
 /** Complete the KEMP handshake on a transport and return a raw session + tool defs. */
-async function createRawExtension(
+async function createRawModule(
   transport: KempTransport,
   label: string,
   projectCwd: string,
-  extensionConfig?: Record<string, unknown>,
+  moduleConfig?: Record<string, unknown>,
 ): Promise<RawExtension> {
   const initId = newId();
-  const session = new ForeignExtensionSession(transport, label);
+  const session = new ForeignModuleSession(transport, label);
   const manifestMsg = await session.request(
     initId,
-    { id: initId, type: "init", cwd: projectCwd, config: extensionConfig },
+    { id: initId, type: "init", cwd: projectCwd, config: moduleConfig },
     MANIFEST_TIMEOUT_MS,
   );
   if (manifestMsg.type !== "manifest") {
@@ -162,7 +162,7 @@ async function createRawExtension(
 /** Build ToolDef runners that delegate to the mutable `getSession` reference. */
 function buildToolDefs(
   toolDefs: KempManifest["tools"],
-  getSession: () => ForeignExtensionSession,
+  getSession: () => ForeignModuleSession,
 ): ToolDef[] {
   return toolDefs.map((def) => ({
     tool: {
@@ -190,33 +190,33 @@ function buildToolDefs(
 }
 
 /**
- * Create a stdio extension with automatic restart on crash and optional ping
+ * Create a stdio module with automatic restart on crash and optional ping
  * health checks. Tool runners close over a mutable session reference that is
  * swapped on each successful restart.
  */
-async function startResilientStdioExtension(
-  config: StdioForeignExtensionConfig,
+async function startResilientStdioModule(
+  config: StdioForeignModuleConfig,
   projectCwd: string,
-  extensionConfig?: Record<string, unknown>,
-): Promise<KotaExtension> {
+  moduleConfig?: Record<string, unknown>,
+): Promise<KotaModule> {
   const maxRestarts = config.maxRestarts ?? DEFAULT_MAX_RESTARTS;
   const pingTimeoutMs = config.pingTimeoutMs ?? DEFAULT_PING_TIMEOUT_MS;
   const pingIntervalMs = config.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS;
   const backoffBase = config.restartBackoffBaseMs ?? DEFAULT_BACKOFF_BASE_MS;
   const resolvedCwd = resolve(projectCwd);
 
-  const raw = await createRawExtension(
+  const raw = await createRawModule(
     new StdioTransport(config, resolvedCwd),
     config.command,
     resolvedCwd,
-    extensionConfig,
+    moduleConfig,
   );
   let session = raw.session;
   let restarts = 0;
   let restarting = false;
   let stopped = false;
   let pingTimer: ReturnType<typeof setInterval> | null = null;
-  let healthStatus: ExtensionHealth["status"] = "ok";
+  let healthStatus: ModuleHealth["status"] = "ok";
   let totalRestarts = 0;
   let lastRestartAt: string | undefined;
 
@@ -240,18 +240,18 @@ async function startResilientStdioExtension(
       restarts++;
       totalRestarts++;
       lastRestartAt = new Date().toISOString();
-      tryEmit("extension.restarted", { name: raw.name, reason, totalRestarts });
+      tryEmit("module.restarted", { name: raw.name, reason, totalRestarts });
       const backoffMs = backoffBase * 2 ** (restarts - 1);
       process.stderr.write(`[foreign:${config.command}] Restart ${restarts}/${maxRestarts} in ${backoffMs}ms (${reason}).\n`);
       await new Promise<void>((r) => setTimeout(r, backoffMs));
       if (stopped) { restarting = false; return; }
 
       try {
-        const fresh = await createRawExtension(
+        const fresh = await createRawModule(
           new StdioTransport(config, resolvedCwd),
           config.command,
           resolvedCwd,
-          extensionConfig,
+          moduleConfig,
         );
         session = fresh.session;
         restarts = 0;
@@ -267,9 +267,9 @@ async function startResilientStdioExtension(
       }
     }
 
-    process.stderr.write(`[foreign:${config.command}] All ${maxRestarts} restart(s) exhausted. Extension failed.\n`);
+    process.stderr.write(`[foreign:${config.command}] All ${maxRestarts} restart(s) exhausted. Module failed.\n`);
     healthStatus = "dead";
-    tryEmit("extension.failed", { name: raw.name, reason });
+    tryEmit("module.failed", { name: raw.name, reason });
     restarting = false;
   }
 
@@ -306,7 +306,7 @@ async function startResilientStdioExtension(
     version: raw.version,
     description: raw.description,
     tools,
-    getHealth: (): ExtensionHealth => ({
+    getHealth: (): ModuleHealth => ({
       status: healthStatus,
       restartCount: totalRestarts,
       lastRestartAt,
@@ -320,18 +320,18 @@ async function startResilientStdioExtension(
 }
 
 /**
- * Start a foreign extension subprocess, complete the handshake, and return
- * a KotaExtension that proxies tool invocations to the subprocess.
+ * Start a foreign module subprocess, complete the handshake, and return
+ * a KotaModule that proxies tool invocations to the subprocess.
  */
-async function startForeignExtension(
-  config: ForeignExtensionConfig,
+async function startForeignModule(
+  config: ForeignModuleConfig,
   projectCwd: string,
-  extensionConfig?: Record<string, unknown>,
-): Promise<KotaExtension> {
+  moduleConfig?: Record<string, unknown>,
+): Promise<KotaModule> {
   const resolvedCwd = resolve(projectCwd);
 
   if (config.transport === "stdio" && (config.maxRestarts ?? DEFAULT_MAX_RESTARTS) > 0) {
-    return startResilientStdioExtension(config, resolvedCwd, extensionConfig);
+    return startResilientStdioModule(config, resolvedCwd, moduleConfig);
   }
 
   const transport: KempTransport =
@@ -340,7 +340,7 @@ async function startForeignExtension(
       : new StdioTransport(config, resolvedCwd);
   const label = config.transport === "http" ? config.url : config.command;
 
-  const raw = await createRawExtension(transport, label, resolvedCwd, extensionConfig);
+  const raw = await createRawModule(transport, label, resolvedCwd, moduleConfig);
   const tools = buildToolDefs(raw.toolDefs, () => raw.session);
 
   return {
@@ -353,24 +353,24 @@ async function startForeignExtension(
 }
 
 /**
- * Load all configured foreign extensions and return them as KotaExtensions.
- * Failures for individual extensions are logged and skipped.
+ * Load all configured foreign modules and return them as KotaModule values.
+ * Failures for individual modules are logged and skipped.
  */
-export async function loadForeignExtensions(
-  configs: ForeignExtensionConfig[],
+export async function loadForeignModules(
+  configs: ForeignModuleConfig[],
   projectCwd: string,
-  extensionConfigs?: Record<string, Record<string, unknown>>,
-): Promise<KotaExtension[]> {
-  const results: KotaExtension[] = [];
+  moduleConfigs?: Record<string, Record<string, unknown>>,
+): Promise<KotaModule[]> {
+  const results: KotaModule[] = [];
   for (const config of configs) {
     const label = config.transport === "http" ? config.url : config.command;
     try {
-      const extConfig = extensionConfigs?.[label];
-      const ext = await startForeignExtension(config, resolve(projectCwd), extConfig);
-      results.push(ext);
+      const moduleConfig = moduleConfigs?.[label];
+      const module = await startForeignModule(config, resolve(projectCwd), moduleConfig);
+      results.push(module);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[kota] Foreign extension "${label}" failed to start: ${msg}`);
+      console.error(`[kota] Foreign module "${label}" failed to start: ${msg}`);
     }
   }
   return results;

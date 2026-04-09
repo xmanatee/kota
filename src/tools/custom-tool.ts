@@ -19,7 +19,7 @@ import {
 
 // Avoid circular dependency: index.ts imports from us, so we accept
 // registerTool/deregisterTool via injection instead of importing them.
-type RegisterFn = (tool: Anthropic.Tool, runner: (input: Record<string, unknown>) => Promise<ToolResult>, extensionName?: string) => void;
+type RegisterFn = (tool: Anthropic.Tool, runner: (input: Record<string, unknown>) => Promise<ToolResult>, moduleName?: string) => void;
 type DeregisterFn = (name: string) => boolean;
 
 let _register: RegisterFn;
@@ -45,7 +45,7 @@ export const customToolTool: Anthropic.Tool = {
   name: "custom_tool",
   description:
     "Create, list, or remove custom tools that run Python or Node.js code. " +
-    "Custom tools appear in the tool list and can be called like any built-in tool. " +
+    "Custom tools appear in the tool list and can be called like any project tool. " +
     "Use for reusable API wrappers, data processors, validators, or domain-specific utilities.",
   input_schema: {
     type: "object" as const,
@@ -57,7 +57,7 @@ export const customToolTool: Anthropic.Tool = {
       },
       name: {
         type: "string",
-        description: "Tool name (snake_case, 3-50 chars, no conflicts with built-in tools). Required for create/remove.",
+        description: "Tool name (snake_case, 3-50 chars, no conflicts with project tools). Required for create/remove.",
       },
       description: {
         type: "string",
@@ -139,7 +139,10 @@ export function loadSavedTools(): number {
       _register(toolDef, buildRunner(def));
       customDefs.set(def.name, def);
       loaded++;
-    } catch { /* skip invalid tool files */ }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[kota] Invalid custom tool file "${file}" skipped: ${msg}`);
+    }
   }
   return loaded;
 }

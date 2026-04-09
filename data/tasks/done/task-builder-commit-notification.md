@@ -1,6 +1,6 @@
 ---
 id: task-builder-commit-notification
-title: Emit a bus event when builder successfully commits so channel extensions can notify the operator
+title: Emit a bus event when builder successfully commits so channel modules can notify the operator
 status: done
 priority: p3
 area: runtime
@@ -11,7 +11,7 @@ updated_at: 2026-04-02T07:51:00Z
 
 ## Problem
 
-After a successful builder commit, no bus event is emitted. Channel extensions
+After a successful builder commit, no bus event is emitted. Channel modules
 (Telegram, Slack, webhook) subscribe to bus events to send operator notifications,
 but there is nothing for them to subscribe to when builder ships something. The
 attention digest (`workflow.attention.digest`) only fires every 10 builder runs and
@@ -37,7 +37,7 @@ bus event is emitted with:
 }
 ```
 
-Telegram and Slack extensions subscribe to this event and send a compact message:
+Telegram and Slack modules subscribe to this event and send a compact message:
 
 ```
 ✅ Builder committed: Add foo bar support
@@ -48,9 +48,9 @@ Task: task-foo-bar · $0.42 · 8m
 
 - The event is emitted only when the commit step succeeds (`stepCommitted("commit")`).
   Skipped builds (no actionable tasks) do not emit the event.
-- The Telegram and Slack extensions subscribe via `ExtensionEventProxy.subscribe()` in
+- The Telegram and Slack modules subscribe via `ModuleEventProxy.subscribe()` in
   `onLoad`, following the same pattern as `workflow.failure.alert`.
-- The event is opt-in per-extension: add `build.committed` to the event filter list
+- The event is opt-in per-module: add `build.committed` to the event filter list
   alongside the other notification events (default: off, to avoid noise for operators
   who run builder frequently).
 - `BusEvents` in `event-bus-types.ts` must include the new event type.
@@ -59,8 +59,8 @@ Task: task-foo-bar · $0.42 · 8m
 ## Done When
 
 - Builder emits `workflow.build.committed` after a successful commit step.
-- Telegram extension subscribes and sends a commit summary message when the event fires.
-- Slack extension subscribes and sends an equivalent Block Kit message.
+- Telegram module subscribes and sends a commit summary message when the event fires.
+- Slack module subscribes and sends an equivalent Block Kit message.
 - The event is listed in `BusEvents` with full type.
 - `docs/WORKFLOWS.md` documents the event and its payload.
 - Unit test verifies the event is emitted with the correct payload shape.

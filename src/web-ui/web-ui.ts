@@ -104,8 +104,8 @@ ${WEB_UI_CSS}
       <div id="audit-list"></div>
     </div>
     <div class="sidebar-section">
-      <h3>Extensions</h3>
-      <div id="extensions-list"></div>
+      <h3>Modules</h3>
+      <div id="modules-list"></div>
     </div>
     <div class="sidebar-section">
       <h3>Config</h3>

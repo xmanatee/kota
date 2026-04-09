@@ -7,7 +7,7 @@ export const grepTool: Anthropic.Tool = {
   description:
     "Search file contents using regex patterns. Returns matching lines with file paths and line numbers. " +
     "Use files_only for file lists, count_only for match counts — both reduce output size. " +
-    "Do NOT use to find files by name or extension only (use glob).",
+    "Do NOT use to find files by name or module only (use glob).",
   input_schema: {
     type: "object" as const,
     properties: {

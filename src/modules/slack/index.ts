@@ -1,7 +1,7 @@
 /**
- * Slack extension — routes KOTA notification events to a Slack Incoming Webhook.
+ * Slack module — routes KOTA notification events to a Slack Incoming Webhook.
  *
- * Subscribes to the same bus events as the Telegram and webhook extensions and
+ * Subscribes to the same bus events as the Telegram and webhook modules and
  * POSTs Block Kit messages to a configured Slack Incoming Webhook URL.
  * No OAuth app or bot token required — only a webhook URL.
  *
@@ -9,11 +9,11 @@
  *   { webhookUrl: string, events?: string[], retries?: number, retryDelayMs?: number }
  *
  * If `events` is omitted, all notification events are active.
- * `approval.requested` is always forwarded when the extension is configured.
+ * `approval.requested` is always forwarded when the module is configured.
  * `retries` defaults to 3; `retryDelayMs` defaults to 1000.
  */
 
-import type { KotaExtension } from "../../extension-types.js";
+import type { KotaModule } from "../../module-types.js";
 import { postWithRetry } from "../notify-retry.js";
 
 const NOTIFICATION_EVENTS = [
@@ -24,7 +24,7 @@ const NOTIFICATION_EVENTS = [
   "workflow.cost.limit.reached",
   "workflow.cost.anomaly",
   "workflow.approval.expired",
-  "extension.crash.alert",
+  "module.crash.alert",
 ] as const;
 
 /** Events that are off by default; subscribed only when explicitly listed in config `events`. */
@@ -169,13 +169,13 @@ function buildBlocks(event: string, payload: Record<string, unknown>): Block[] {
         ),
       ];
     }
-    case "extension.crash.alert": {
+    case "module.crash.alert": {
       const name = payload.name as string | undefined;
       const restartCount = payload.restartCount as number | undefined;
       const windowMs = payload.windowMs as number | undefined;
       const durationMin = windowMs !== undefined ? Math.round(windowMs / 60_000) : undefined;
       return [
-        header(`Extension Crash Loop: ${name ?? "unknown"}`),
+        header(`Module Crash Loop: ${name ?? "unknown"}`),
         divider,
         section(
           [
@@ -218,16 +218,16 @@ function buildBlocks(event: string, payload: Record<string, unknown>): Block[] {
 
 let unsubs: (() => void)[] = [];
 
-const slackModule: KotaExtension = {
+const slackModule: KotaModule = {
   name: "slack",
   version: "1.0.0",
   description: "Slack Incoming Webhook notification channel for KOTA workflow events",
 
   onLoad: (ctx) => {
-    const config = ctx.getExtensionConfig<SlackConfig>();
+    const config = ctx.getModuleConfig<SlackConfig>();
     if (!config?.webhookUrl) {
       if (config && !config.webhookUrl) {
-        ctx.log.warn("Slack extension: webhookUrl is required but missing — extension inactive");
+        ctx.log.warn("Slack module: webhookUrl is required but missing — module inactive");
       }
       return;
     }
@@ -248,7 +248,7 @@ const slackModule: KotaExtension = {
       if (enabledEvents.has(event)) subscribe(event);
     }
 
-    // approval.requested is always subscribed when the extension is configured,
+    // approval.requested is always subscribed when the module is configured,
     // independent of the events filter (same as Telegram).
     subscribe("approval.requested");
 

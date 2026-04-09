@@ -1,9 +1,9 @@
 /**
- * Remote tool registry — install, remove, and manage KOTA extensions
+ * Remote tool registry — install, remove, and manage KOTA modules
  * from external sources (npm packages, URLs, GitHub repos).
  *
- * Installed extensions are tracked in `.kota/tools.json` and discovered by
- * discoverExtensions() via `.kota/extensions/<name>/`.
+ * Installed modules are tracked in `.kota/tools.json` and discovered by
+ * discoverModules() via `.kota/modules/<name>/`.
  *
  * Per-source-type install mechanics live in registry-installers.ts.
  * Source parsing (parseSource, ParsedSource, InstallResult) lives in registry-source.ts.

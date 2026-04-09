@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ExtensionStorage } from "../../extension-storage.js";
-import type { ExtensionContext } from "../../extension-types.js";
+import { ModuleStorage } from "../../module-storage.js";
+import type { ModuleContext } from "../../module-types.js";
 import vercelAdapterModule from "./index.js";
 
 describe("vercel-adapter module", () => {
@@ -20,17 +20,17 @@ describe("vercel-adapter module", () => {
   });
 
   it("registers POST /api/chat/vercel route", () => {
-    const ctx: ExtensionContext = {
+    const ctx: ModuleContext = {
       cwd: "/tmp",
       verbose: false,
       config: { model: "test-model" } as import("../../config.js").KotaConfig,
-      storage: new ExtensionStorage("/tmp", "vercel-adapter"),
+      storage: new ModuleStorage("/tmp", "vercel-adapter"),
       registerGroup: () => {},
       getRoutes: () => [],
       getContributedWorkflows: () => [],
   getContributedChannels: () => [],
-  getExtensionSummaries: () => [],
-      getExtensionConfig: () => undefined,
+  getModuleSummaries: () => [],
+      getModuleConfig: () => undefined,
       log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
       getSecret: () => null,
       listTools: () => [],

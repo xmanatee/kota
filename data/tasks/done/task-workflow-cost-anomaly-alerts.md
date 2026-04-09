@@ -17,7 +17,7 @@ Operators discover cost spikes only after the fact by reviewing `kota workflow s
 
 ## Desired Outcome
 
-After each workflow run completes, the runtime computes the run's cost relative to the rolling average (e.g., last 10 completed runs) for the same workflow. If the cost exceeds a configurable multiple (default: 3×) of that baseline, it emits a `workflow.cost.anomaly` bus event. Telegram, webhook, and other notification extensions subscribe to this event and alert the operator.
+After each workflow run completes, the runtime computes the run's cost relative to the rolling average (e.g., last 10 completed runs) for the same workflow. If the cost exceeds a configurable multiple (default: 3×) of that baseline, it emits a `workflow.cost.anomaly` bus event. Telegram, webhook, and other notification modules subscribe to this event and alert the operator.
 
 The anomaly threshold is configurable per-workflow in the workflow definition or daemon config:
 
@@ -30,13 +30,13 @@ The anomaly threshold is configurable per-workflow in the workflow definition or
 - Baseline is computed from completed non-failed runs only; failed runs are excluded to avoid skewing the average down.
 - Require at least 3 historical runs before anomaly detection fires; skip silently on first few runs.
 - Do not introduce a new persistence layer; use `WorkflowRunStore` to retrieve historical run metadata.
-- Keep detection logic inside the workflow runtime layer, not in notification extensions.
+- Keep detection logic inside the workflow runtime layer, not in notification modules.
 - The new `workflow.cost.anomaly` event type must be added to `BusEvents` in `src/event-bus-types.ts`.
 
 ## Done When
 
 - `workflow.cost.anomaly` is defined in `BusEvents`.
 - The runtime emits it after a run where cost exceeds `costAnomalyThreshold × baseline`.
-- Telegram and webhook extensions subscribe to and forward the event.
+- Telegram and webhook modules subscribe to and forward the event.
 - At least one unit test verifies the anomaly threshold logic.
 - The threshold is documented in `docs/DAEMON-API.md` or a workflow config reference.

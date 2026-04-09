@@ -23,7 +23,7 @@ describe("extractPaths", () => {
     expect(extractPaths("the bug is in lib/core.js")).toContain("lib/core.js");
   });
 
-  it("extracts standalone filenames with code extensions", () => {
+  it("extracts standalone filenames with code modules", () => {
     expect(extractPaths("update package.json")).toContain("package.json");
     expect(extractPaths("check README.md")).toContain("README.md");
     expect(extractPaths("fix tsconfig.json")).toContain("tsconfig.json");

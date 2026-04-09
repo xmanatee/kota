@@ -1,4 +1,4 @@
-# Execution Extension
+# Execution Module
 
 This directory owns the execution capability pack: shell commands, background
 processes, code REPL, computer use, and screenshot tools.

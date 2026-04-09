@@ -17,7 +17,7 @@ export const RESERVED_NAMES = new Set([
   "shell", "file_read", "file_write", "file_edit", "multi_edit", "find_replace",
   "grep", "glob", "todo", "repo_map", "delegate", "web_fetch", "web_search",
   "ask_user", "http_request", "process", "code_exec", "notebook", "files_overview",
-  "enable_tools", "custom_tool", "extension_factory", "memory", "schedule", "get_secret",
+  "enable_tools", "custom_tool", "module_factory", "memory", "schedule", "get_secret",
 ]);
 
 export function validateName(name: string): string | null {
@@ -26,7 +26,7 @@ export function validateName(name: string): string | null {
     return `Error: name must be snake_case, 3-50 chars (lowercase letters, digits, underscores). Got: "${name}"`;
   }
   if (RESERVED_NAMES.has(name)) {
-    return `Error: "${name}" conflicts with a built-in tool name`;
+    return `Error: "${name}" conflicts with a project tool name`;
   }
   return null;
 }

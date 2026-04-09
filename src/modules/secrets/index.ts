@@ -1,19 +1,19 @@
 /**
- * Secrets extension — secure credential management with output masking.
+ * Secrets module — secure credential management with output masking.
  *
  * Registers:
  * - `kota secrets set/get/list/remove` CLI commands
  * - `get_secret` agent tool (injects into env, returns placeholder to LLM)
  *
- * The agent tool uses ExtensionContext.getSecret() via closure — demonstrating
- * the self-contained extension pattern where tool runners access services
+ * The agent tool uses ModuleContext.getSecret() via closure — demonstrating
+ * the self-contained module pattern where tool runners access services
  * through the context rather than importing core singletons.
  */
 
 import { createInterface } from "node:readline";
 import type Anthropic from "@anthropic-ai/sdk";
 import { Command } from "commander";
-import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
+import type { ModuleContext, KotaModule } from "../../module-types.js";
 import { getSecretStore, initSecretStore, type SecretScope } from "../../secrets.js";
 import type { ToolResult } from "../../tools/index.js";
 
@@ -37,7 +37,7 @@ const getSecretTool: Anthropic.Tool = {
 };
 
 /** Build the get_secret tool runner with context-injected secret access. */
-function makeGetSecretRunner(ctx: ExtensionContext) {
+function makeGetSecretRunner(ctx: ModuleContext) {
   return async (input: Record<string, unknown>): Promise<ToolResult> => {
     const name = input.name as string;
     if (!name || typeof name !== "string") {
@@ -86,7 +86,7 @@ function parseScope(opts: { global?: boolean; project?: boolean }): SecretScope 
   return "project";
 }
 
-const secretsModule: KotaExtension = {
+const secretsModule: KotaModule = {
   name: "secrets",
   version: "1.0.0",
   description: "Secure credential management with output masking",
@@ -179,7 +179,7 @@ const secretsModule: KotaExtension = {
     return [cmd];
   },
 
-  skills: [{ name: "secrets", promptPath: "src/extensions/skills/secrets.md" }],
+  skills: [{ name: "secrets", promptPath: "src/modules/skills/secrets.md" }],
 
   onLoad: (ctx) => {
     initSecretStore(ctx.cwd);

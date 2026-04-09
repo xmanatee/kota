@@ -1,7 +1,7 @@
 # Notification Channels
 
-KOTA emits workflow notification events on its internal event bus. Built-in
-extensions (Telegram, webhook, Slack) subscribe to these events and forward
+KOTA emits workflow notification events on its internal event bus. Shipped
+modules (Telegram, webhook, Slack) subscribe to these events and forward
 alerts to external services.
 
 ## Notification Events
@@ -17,7 +17,7 @@ alerts to external services.
 | `workflow.build.committed` | Builder workflow successfully commits a task change | Yes |
 | `workflow.approval.expired` | An approval step auto-resolved (approved or denied) due to `timeoutMs` firing | No |
 
-Opt-in events are not forwarded by default. Add them to the extension's `events` config array to enable them (see per-extension sections below).
+Opt-in events are not forwarded by default. Add them to the module's `events` config array to enable them (see per-module sections below).
 
 Each event payload includes a human-readable `text` field plus structured fields
 (e.g. `workflow`, `runId`, `status`).
@@ -37,7 +37,7 @@ This event fires when `timeoutMs` is set on the approval step and the timeout el
 
 ## Telegram
 
-Configure the Telegram extension by setting two environment variables:
+Configure the Telegram module by setting two environment variables:
 
 ```sh
 export TELEGRAM_BOT_TOKEN=<your-bot-token>
@@ -48,7 +48,7 @@ When both are set, all notification events are forwarded to that chat.
 
 ## Webhook
 
-The built-in `webhook` extension POSTs a JSON payload to one or more HTTP
+The project `webhook` module POSTs a JSON payload to one or more HTTP
 endpoints on each notification event. It also forwards `approval.requested` so
 operators routing KOTA alerts to PagerDuty, OpsGenie, or a custom receiver
 receive approval notifications. It is useful for Slack incoming webhooks,
@@ -58,7 +58,7 @@ Configure it in your KOTA config under the `webhook` key:
 
 ```json
 {
-  "extensions": {
+  "modules": {
     "webhook": {
       "urls": [
         "https://hooks.slack.com/services/T000/B000/xxxx",
@@ -74,7 +74,7 @@ To forward only a subset of the notification events, add an `events` array.
 
 ```json
 {
-  "extensions": {
+  "modules": {
     "webhook": {
       "urls": ["https://hooks.example.com/kota"],
       "events": ["workflow.failure.alert", "workflow.cost.limit.reached"]
@@ -107,7 +107,7 @@ are configurable:
 
 ```json
 {
-  "extensions": {
+  "modules": {
     "webhook": {
       "urls": ["https://hooks.example.com/kota"],
       "retries": 5,
@@ -119,7 +119,7 @@ are configurable:
 
 ## Slack
 
-The built-in `slack` extension sends Block Kit formatted messages to a Slack
+The project `slack` module sends Block Kit formatted messages to a Slack
 Incoming Webhook on each notification event. It also forwards `approval.requested`
 so operators can act on approvals from Slack.
 
@@ -130,7 +130,7 @@ Configure it in your KOTA config under the `slack` key:
 
 ```json
 {
-  "extensions": {
+  "modules": {
     "slack": {
       "webhookUrl": "https://hooks.slack.com/services/T000/B000/xxxx"
     }
@@ -143,7 +143,7 @@ To forward only a subset of the notification events, add an `events` array.
 
 ```json
 {
-  "extensions": {
+  "modules": {
     "slack": {
       "webhookUrl": "https://hooks.slack.com/services/T000/B000/xxxx",
       "events": ["workflow.failure.alert", "workflow.cost.limit.reached"]
@@ -155,7 +155,7 @@ To forward only a subset of the notification events, add an `events` array.
 Messages use Block Kit and include at minimum: an event type header, workflow
 name, run ID, and relevant detail (error summary, cost figures, approval
 command). Failed POSTs are retried with the same exponential-backoff policy as
-the webhook extension (3 retries by default). Configurable via `retries` and
+the webhook module (3 retries by default). Configurable via `retries` and
 `retryDelayMs` in the `slack` config block.
 
 ## Alert Cooldown
@@ -180,7 +180,7 @@ resets on daemon restart. Default: `0` (no cooldown — every failure fires).
 
 ## Adding a custom notification consumer
 
-Subscribe to notification events in an extension's `onLoad` via `ctx.events.subscribe`:
+Subscribe to notification events in a module's `onLoad` via `ctx.events.subscribe`:
 
 ```ts
 const unsub = ctx.events.subscribe("workflow.failure.alert", (payload) => {

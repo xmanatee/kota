@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { type ApprovalQueue, getApprovalQueue } from "../extensions/approval-queue/queue.js";
+import { type ApprovalQueue, getApprovalQueue } from "../modules/approval-queue/queue.js";
 import type { DaemonControlClient } from "./daemon-client.js";
 import { jsonResponse, readBody } from "./session-pool.js";
 

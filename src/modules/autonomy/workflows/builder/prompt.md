@@ -7,7 +7,7 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
 - Own one task from `data/tasks/`.
 - Resume `data/tasks/doing/` first when it exists. Otherwise pull the best task from `data/tasks/ready/`.
 - Treat the task as a contract, not a script. Own the technical plan yourself.
-- Prefer extension-owned capability boundaries over growing shared core buckets.
+- Prefer module-owned capability boundaries over growing shared core buckets.
 - Keep the task state, touched docs, and local instructions honest.
 
 ## Guidance

@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { WorkflowStepContext, WorkflowStepResult } from "../../workflow/run-types.js";
+import type { WorkflowStepContext, WorkflowStepResult } from "../../../../workflow/run-types.js";
 import { writeBuilderRunSummary } from "./run-summary.js";
 import builderWorkflow from "./workflow.js";
 
@@ -44,7 +44,7 @@ function makeContext(
     projectDir,
     workflow: {
       name: "builder",
-      definitionPath: "src/workflows/builder/workflow.ts",
+      definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
       runId: "2026-01-01T00-00-00-000Z-builder-test",
       runDir: ".kota/runs/test",
       runDirPath: runDirPath,

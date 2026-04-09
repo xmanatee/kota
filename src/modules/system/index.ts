@@ -1,5 +1,5 @@
 /**
- * System extension — host OS interaction tools.
+ * System module — host OS interaction tools.
  *
  * Tools:
  *   clipboard    — read from and write to the system clipboard
@@ -12,7 +12,7 @@
  * registry.
  */
 
-import type { KotaExtension, ToolDef } from "../../extension-types.js";
+import type { KotaModule, ToolDef } from "../../module-types.js";
 import { clipboardTool, runClipboard } from "./clipboard.js";
 import { envInfoTool, runEnvInfo } from "./env-info.js";
 import { notifyTool, runNotify } from "./notify.js";
@@ -56,7 +56,7 @@ const tools: ToolDef[] = [
   },
 ];
 
-const systemModule: KotaExtension = {
+const systemModule: KotaModule = {
   name: "system",
   version: "1.0.0",
   description:

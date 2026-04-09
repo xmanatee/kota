@@ -5,9 +5,8 @@ import { buildDryRunPlan, formatDryRunPlan } from "./dry-run.js";
 function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
   return {
     name: "test-workflow",
-    tags: [],
     enabled: true,
-    definitionPath: "src/workflows/test/workflow.ts",
+    definitionPath: "src/modules/test/workflows/test/workflow.ts",
     triggers: [{ event: "manual", cooldownMs: 0 }],
     steps: [],
     ...overrides,
@@ -21,7 +20,7 @@ describe("buildDryRunPlan", () => {
     });
     const plan = await buildDryRunPlan(def);
     expect(plan.name).toBe("test-workflow");
-    expect(plan.definitionPath).toBe("src/workflows/test/workflow.ts");
+    expect(plan.definitionPath).toBe("src/modules/test/workflows/test/workflow.ts");
     expect(plan.steps).toHaveLength(1);
     expect(plan.steps[0].id).toBe("my-step");
     expect(plan.steps[0].whenResult).toBe("no-condition");
@@ -102,7 +101,7 @@ describe("buildDryRunPlan", () => {
         {
           id: "build",
           type: "agent",
-          promptPath: "src/workflows/builder/prompt.md",
+          promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
           model: "claude-opus-4-6",
           permissionMode: "default",
           settingSources: ["project"],
@@ -167,7 +166,7 @@ describe("formatDryRunPlan", () => {
     const plan = await buildDryRunPlan(def);
     const output = formatDryRunPlan(plan);
     expect(output).toContain("test-workflow");
-    expect(output).toContain("src/workflows/test/workflow.ts");
+    expect(output).toContain("src/modules/test/workflows/test/workflow.ts");
     expect(output).toContain("Steps (1)");
     expect(output).toContain("step-one");
   });

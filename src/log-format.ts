@@ -1,5 +1,5 @@
 /**
- * Log formatter — resolves once at init time, used by the extension log API.
+ * Log formatter — resolves once at init time, used by the module log API.
  *
  * Supported formats:
  *   text — human-readable prefix+message lines (default)
@@ -38,8 +38,8 @@ function jsonFormatter(
     level,
     msg,
   };
-  const match = /^\[extension:(.+)\]$/.exec(prefix);
-  if (match) entry.extension = match[1];
+  const match = /^\[module:(.+)\]$/.exec(prefix);
+  if (match) entry.module = match[1];
   if (data !== undefined) entry.data = data;
   return JSON.stringify(entry);
 }

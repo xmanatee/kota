@@ -14,7 +14,7 @@ import {
   TOOL_GROUPS,
 } from "./tool-groups.js";
 
-// Built-in groups registered by extensions and core tools at runtime.
+// Built-in groups registered by modules and core tools at runtime.
 // These are re-registered here so group machinery tests work in isolation.
 function registerBuiltinGroups(): void {
   registerCustomGroup("web", ["web_search", "web_fetch", "http_request"]);

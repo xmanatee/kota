@@ -18,7 +18,7 @@ There is no way to say "only notify me about failures for this workflow" or "sup
 all notifications from this workflow" without disabling the channel for everything.
 
 The `workflow.failure.alert` and `workflow.cost.anomaly` events carry the workflow
-name in their payload, but notification extensions have no routing logic that reads it.
+name in their payload, but notification modules have no routing logic that reads it.
 
 ## Desired Outcome
 
@@ -38,7 +38,7 @@ should emit for that workflow:
 
 The daemon checks this config when constructing the notification payload and skips
 the event bus emission (or filters out the event) if the matching flag is false.
-Extensions do not need to change — suppression happens before they see the event.
+Modules do not need to change — suppression happens before they see the event.
 
 ## Constraints
 
@@ -48,7 +48,7 @@ Extensions do not need to change — suppression happens before they see the eve
 - Only notification-class events are affected (`workflow.failure.alert`,
   `workflow.cost.anomaly`, `workflow.build.committed`). Core bus events used by the
   scheduler or trigger system are not suppressed.
-- No changes to channel extension interfaces.
+- No changes to channel module interfaces.
 
 ## Done When
 

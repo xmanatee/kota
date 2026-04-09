@@ -1,5 +1,5 @@
 /**
- * Telegram extension — makes KOTA accessible via Telegram messaging.
+ * Telegram module — makes KOTA accessible via Telegram messaging.
  *
  * Contributes:
  * - `kota telegram` CLI command (interactive bot)
@@ -15,7 +15,7 @@
 
 import { Command } from "commander";
 import type { ChannelDef } from "../../channel.js";
-import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
+import type { ModuleContext, KotaModule } from "../../module-types.js";
 import { TelegramBot } from "./bot.js";
 import { callTelegramApi } from "./client.js";
 import { startTelegramStatusPoll } from "./status-poll.js";
@@ -24,7 +24,7 @@ async function sendTelegramMessage(
   token: string,
   chatId: string,
   text: string,
-  log: ExtensionContext["log"],
+  log: ModuleContext["log"],
 ): Promise<void> {
   void callTelegramApi(token, "sendMessage", {
     chat_id: chatId,
@@ -69,7 +69,7 @@ const telegramStatusChannel: ChannelDef = {
 
 let notificationUnsubs: (() => void)[] = [];
 
-const telegramModule: KotaExtension = {
+const telegramModule: KotaModule = {
   name: "telegram",
   version: "1.0.0",
   description: "Telegram bot frontend for KOTA",
@@ -77,7 +77,7 @@ const telegramModule: KotaExtension = {
   channels: [telegramStatusChannel],
 
   onLoad: (ctx) => {
-    const telegramConfig = ctx.getExtensionConfig<TelegramConfig>();
+    const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
     const optInEvents = new Set(telegramConfig?.events ?? []);
 
     notificationUnsubs = [
@@ -116,7 +116,7 @@ const telegramModule: KotaExtension = {
         if (!creds) return;
         void sendTelegramMessage(creds.token, creds.chatId, payload.text as string, ctx.log);
       }),
-      ctx.events.subscribe("extension.crash.alert", (payload) => {
+      ctx.events.subscribe("module.crash.alert", (payload) => {
         const creds = getCredentials();
         if (!creds) return;
         void sendTelegramMessage(creds.token, creds.chatId, payload.text as string, ctx.log);

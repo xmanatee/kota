@@ -1,8 +1,8 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ExtensionLoader } from "./extension-loader.js";
-import filesystemModule from "./extensions/filesystem/index.js";
+import { ModuleLoader } from "./module-loader.js";
+import filesystemModule from "./modules/filesystem/index.js";
 import { executeToolCalls } from "./tool-runner.js";
 import { clearCustomTools } from "./tools/index.js";
 
@@ -15,7 +15,7 @@ import { clearCustomTools } from "./tools/index.js";
 const TEST_DIR = join(process.cwd(), ".test-grep-pipeline");
 
 beforeAll(async () => {
-  const loader = new ExtensionLoader({});
+  const loader = new ModuleLoader({});
   await loader.loadAll([filesystemModule]);
   mkdirSync(TEST_DIR, { recursive: true });
   // Create enough files to produce a multi-line result

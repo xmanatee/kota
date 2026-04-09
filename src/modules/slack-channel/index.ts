@@ -1,12 +1,12 @@
 /**
- * Slack channel extension — bidirectional Slack bot for KOTA using Socket Mode.
+ * Slack channel module — bidirectional Slack bot for KOTA using Socket Mode.
  *
  * Contributes a `slack-channel` ChannelDef that:
  * - Accepts DM messages from operators and routes them to per-user AgentSessions.
  * - Posts interactive Block Kit Approve/Reject messages when approval.requested fires.
  * - Handles button clicks to resolve pending approvals without leaving Slack.
  *
- * Separate from the existing `slack` notification extension (one-way webhook).
+ * Separate from the existing `slack` notification module (one-way webhook).
  *
  * Config (kota.config under the "slackChannel" key):
  *   {
@@ -17,7 +17,7 @@
  */
 
 import type { ChannelDef } from "../../channel.js";
-import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
+import type { ModuleContext, KotaModule } from "../../module-types.js";
 import { SlackBot } from "./bot.js";
 
 type SlackChannelConfig = {
@@ -29,8 +29,8 @@ type SlackChannelConfig = {
   notifyChannel?: string;
 };
 
-function getConfig(ctx: ExtensionContext): SlackChannelConfig | null {
-  const config = ctx.getExtensionConfig<SlackChannelConfig>();
+function getConfig(ctx: ModuleContext): SlackChannelConfig | null {
+  const config = ctx.getModuleConfig<SlackChannelConfig>();
   if (!config?.botToken || !config?.appToken) return null;
   return config;
 }
@@ -59,7 +59,7 @@ const slackChannelDef: ChannelDef = {
   },
 };
 
-const slackChannelModule: KotaExtension = {
+const slackChannelModule: KotaModule = {
   name: "slack-channel",
   version: "1.0.0",
   description: "Bidirectional Slack bot channel for KOTA (Socket Mode)",
@@ -70,7 +70,7 @@ const slackChannelModule: KotaExtension = {
     const config = getConfig(ctx);
     if (!config) {
       ctx.log.warn(
-        "slack-channel extension: botToken and appToken are required — extension inactive",
+        "slack-channel module: botToken and appToken are required — module inactive",
       );
       return;
     }

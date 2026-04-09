@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApprovalQueue, resetApprovalQueue } from "../extensions/approval-queue/queue.js";
+import { ApprovalQueue, resetApprovalQueue } from "../modules/approval-queue/queue.js";
 import { registration } from "./approval.js";
 
 vi.mock("../event-bus.js", () => ({
@@ -12,8 +12,8 @@ vi.mock("../event-bus.js", () => ({
 
 // Mock getApprovalQueue to return our test queue
 let testQueue: ApprovalQueue;
-vi.mock("../extensions/approval-queue/queue.js", async (importOriginal) => {
-	const mod = await importOriginal<typeof import("../extensions/approval-queue/queue.js")>();
+vi.mock("../modules/approval-queue/queue.js", async (importOriginal) => {
+	const mod = await importOriginal<typeof import("../modules/approval-queue/queue.js")>();
 	return {
 		...mod,
 		getApprovalQueue: () => testQueue,
@@ -85,7 +85,7 @@ describe("approval tool", () => {
 		});
 
 		it("approves and executes a pending item", async () => {
-			// Use "todo" (core tool) instead of "glob" (filesystem extension)
+			// Use "todo" (core tool) instead of "glob" (filesystem module)
 			const item = testQueue.enqueue("todo", { action: "list" }, "dangerous", "test reason");
 			const result = await runner({ action: "approve", id: item.id });
 			expect(result.content).toContain("Approved and executed todo");

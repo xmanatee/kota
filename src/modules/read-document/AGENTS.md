@@ -1,4 +1,4 @@
-# Read Document Extension
+# Read Document Module
 
 This directory owns the `read_document` capability pack — extracts plain text from document files using available system tools.
 
@@ -8,7 +8,7 @@ This directory owns the `read_document` capability pack — extracts plain text 
 
 ## Files
 
-- `index.ts` — `KotaExtension` definition; assembles the `read_document` tool.
+- `index.ts` — `KotaModule` definition; assembles the `read_document` tool.
 - `read-document.ts` — `readDocumentTool` schema and `runReadDocument` runner.
 - `read-document.ts.test.ts` — unit tests for document extraction.
 - `read-document-extractors.ts` — format-specific extractor helpers (PDF, DOCX, ODT, etc.).

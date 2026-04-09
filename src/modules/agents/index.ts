@@ -1,20 +1,20 @@
 /**
- * Agents extension — owns the `kota agent` inspection surface.
+ * Agents module — owns the `kota agent` inspection surface.
  *
- * Agent definitions are contributed by loaded extensions. This module does not
- * maintain a separate registry; it reflects whatever the current extension set
+ * Agent definitions are contributed by loaded modules. This module does not
+ * maintain a separate registry; it reflects whatever the current module set
  * provides.
  */
 
 import { Command } from "commander";
 import type { AgentDef } from "../../agent-types.js";
-import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
+import type { ModuleContext, KotaModule } from "../../module-types.js";
 
-function buildAgentEntries(ctx: ExtensionContext): Array<AgentDef & { source: string }> {
+function buildAgentEntries(ctx: ModuleContext): Array<AgentDef & { source: string }> {
   const agentModels = ctx.config.agentModels ?? {};
   const entries: Array<AgentDef & { source: string }> = [];
 
-  for (const summary of ctx.getExtensionSummaries()) {
+  for (const summary of ctx.getModuleSummaries()) {
     for (const agent of summary.agents) {
       if (entries.some((entry) => entry.name === agent.name)) continue;
       entries.push({
@@ -28,7 +28,7 @@ function buildAgentEntries(ctx: ExtensionContext): Array<AgentDef & { source: st
   return entries;
 }
 
-function buildAgentCommand(ctx: ExtensionContext): Command {
+function buildAgentCommand(ctx: ModuleContext): Command {
   const agentCmd = new Command("agent").description("Inspect available agents");
 
   agentCmd
@@ -96,11 +96,11 @@ function buildAgentCommand(ctx: ExtensionContext): Command {
   return agentCmd;
 }
 
-const agentsModule: KotaExtension = {
+const agentsModule: KotaModule = {
   name: "agents",
   version: "1.0.0",
   description: "Inspect available agents",
-  commands: (ctx: ExtensionContext) => [buildAgentCommand(ctx)],
+  commands: (ctx: ModuleContext) => [buildAgentCommand(ctx)],
 };
 
 export default agentsModule;

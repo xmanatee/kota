@@ -1,11 +1,11 @@
 /**
- * GitHub webhook extension — receives GitHub webhook deliveries and emits typed bus events.
+ * GitHub webhook module — receives GitHub webhook deliveries and emits typed bus events.
  *
  * Registers `POST /api/webhooks/github` and validates each delivery's HMAC-SHA256
  * signature before emitting a `github.<event>` bus event. Workflows can trigger on
  * these events via `event: "github.push"`, `event: "github.pull_request"`, etc.
  *
- * Config (under extensions.github-webhook):
+ * Config (under modules.github-webhook):
  *   secret:  Webhook secret or "$ENV_VAR" reference. Required.
  *   events:  Event types to accept. Default: ["push", "pull_request", "check_run"].
  *
@@ -16,10 +16,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type {
-  ExtensionContext,
-  KotaExtension,
+  ModuleContext,
+  KotaModule,
   RouteRegistration,
-} from "../../extension-types.js";
+} from "../../module-types.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -122,7 +122,7 @@ function normalizePayload(
 function makeWebhookHandler(
   secret: string,
   enabledEvents: Set<string>,
-  ctx: ExtensionContext,
+  ctx: ModuleContext,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
     const signature = req.headers["x-hub-signature-256"];
@@ -174,16 +174,16 @@ function makeWebhookHandler(
   };
 }
 
-// ─── Extension ───────────────────────────────────────────────────────────────
+// ─── Module ───────────────────────────────────────────────────────────────
 
-const githubWebhookModule: KotaExtension = {
+const githubWebhookModule: KotaModule = {
   name: "github-webhook",
   version: "1.0.0",
   description:
     "GitHub webhook receiver — validates HMAC signatures and emits typed github.* bus events",
 
-  routes: (ctx: ExtensionContext): RouteRegistration[] => {
-    const config = ctx.getExtensionConfig<GitHubWebhookConfig>();
+  routes: (ctx: ModuleContext): RouteRegistration[] => {
+    const config = ctx.getModuleConfig<GitHubWebhookConfig>();
     if (!config?.secret) {
       ctx.log.warn("github-webhook: no secret configured — webhook route not registered");
       return [];

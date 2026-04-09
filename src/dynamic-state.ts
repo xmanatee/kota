@@ -1,7 +1,7 @@
 /**
- * Dynamic State Registry — per-turn system-prompt contributions from extensions.
+ * Dynamic State Registry — per-turn system-prompt contributions from modules.
  *
- * Extensions register a synchronous string provider via ctx.registerDynamicStateProvider().
+ * Modules register a synchronous string provider via ctx.registerDynamicStateProvider().
  * Each agent turn, loop-send.ts calls collectDynamicState() to gather all contributions
  * and append them to the dynamic system-prompt block.
  *

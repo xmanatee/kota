@@ -36,7 +36,7 @@ only receive non-urgent alerts during waking hours.
   ```
 - During quiet hours, low-urgency events (`workflow.attention.digest`,
   `workflow.budget.exceeded`) are held in an in-memory buffer rather than dispatched
-  to channel extensions.
+  to channel modules.
 - When the quiet window ends, held notifications are released as a single batched
   digest message (one message per channel, not one per held event).
 - `workflow.failure.alert` is treated as critical and always delivered immediately
@@ -46,7 +46,7 @@ only receive non-urgent alerts during waking hours.
 ## Constraints
 
 - Implemented in the event bus subscription layer or a dedicated notification gate
-  — **not** duplicated inside each channel extension.
+  — **not** duplicated inside each channel module.
 - Hold buffer is in-memory only; notifications held at most until the window next
   opens (lost on daemon restart — acceptable, operator alerted at next opening).
 - Timezone: daemon's local timezone (same approach as `scheduler.dispatchWindow`).

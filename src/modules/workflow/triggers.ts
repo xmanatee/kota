@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import type { ExtensionContext } from "../../extension-types.js";
+import type { ModuleContext } from "../../module-types.js";
 import type { WorkflowDefinitionTriggerSummary } from "../../scheduler/daemon-control-types.js";
 import { DaemonControlClient } from "../../server/daemon-client.js";
 import type { RegisteredWorkflowDefinitionInput } from "../../workflow/types.js";
@@ -42,7 +42,7 @@ function collectFromDefinitions(
 
 export function registerTriggersCommand(
   wfCmd: Command,
-  ctx: ExtensionContext,
+  ctx: ModuleContext,
 ): void {
   wfCmd
     .command("triggers")

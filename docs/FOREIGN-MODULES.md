@@ -1,13 +1,13 @@
-# Foreign-Language Extensions (KEMP Transport)
+# Foreign-Language Modules (KEMP Transport)
 
-KOTA extensions are normally in-process TypeScript modules discovered from
-`.kota/extensions/<name>/`. Foreign extensions are a transport variant for
-the same extension protocol: they run as subprocesses (in any language) and
+KOTA modules are normally in-process TypeScript modules discovered from
+`.kota/modules/<name>/`. Foreign modules are a transport variant for
+the same module protocol: they run as subprocesses (in any language) and
 communicate with KOTA over a simple JSON message protocol.
 
-Use foreign extensions when you need to write an extension in a language other
+Use foreign modules when you need to write a module in a language other
 than TypeScript, or when the capability must run in a separate process. For
-everything else, use the standard `.kota/extensions/` directory.
+everything else, use the standard `.kota/modules/` directory.
 
 ## Protocol Overview
 
@@ -49,7 +49,7 @@ Sent once after the transport connects.
 | `id`     | string | Correlation id — echo it in the manifest response. |
 | `type`   | string | `"init"` |
 | `cwd`    | string | KOTA project working directory. |
-| `config` | object | Optional per-extension config from KOTA's config file. |
+| `config` | object | Optional per-module config from KOTA's config file. |
 
 #### `manifest` (Module → KOTA)
 
@@ -103,7 +103,7 @@ Response to `invoke`.
 
 #### `shutdown` (KOTA → Module)
 
-Sent when KOTA is stopping or reloading the extension.
+Sent when KOTA is stopping or reloading the module.
 
 ```json
 {"id":"3","type":"shutdown"}
@@ -152,7 +152,7 @@ Sent when the module encounters a protocol or runtime error.
 Informational message forwarded to KOTA's stderr. No `id` needed.
 
 ```json
-{"type":"log","level":"info","message":"Extension ready"}
+{"type":"log","level":"info","message":"Module ready"}
 ```
 
 Levels: `"debug"`, `"info"`, `"warn"`, `"error"`.
@@ -193,7 +193,7 @@ Use this transport to connect KOTA to an already-running service (a Python
 FastAPI server, a Go binary, a remote tool host) without spawning a subprocess.
 The server must handle concurrent requests if KOTA sends overlapping invocations.
 
-A working Node.js example server lives at `examples/extensions/kota-demo-http.js`.
+A working Node.js example server lives at `examples/modules/kota-demo-http.js`.
 
 ---
 
@@ -202,7 +202,7 @@ A working Node.js example server lives at `examples/extensions/kota-demo-http.js
 ## Subprocess Recovery (stdio only)
 
 KOTA automatically restarts crashed or hung stdio subprocesses. Recovery is
-controlled by optional config fields on each stdio extension entry:
+controlled by optional config fields on each stdio module entry:
 
 | Field | Default | Description |
 |---|---|---|
@@ -218,34 +218,34 @@ When a subprocess exits unexpectedly, KOTA:
 3. Attempts to respawn up to `maxRestarts` times with exponential backoff
    (`backoffBase × 2^(attempt-1)` ms).
 4. Resets the restart counter after a successful restart.
-5. Emits bus event `extension.failed` when all attempts are exhausted.
+5. Emits bus event `module.failed` when all attempts are exhausted.
 
 In-flight tool invocations during a restart return an error result immediately
 (they do not hang).
 
 Health state (status: `ok` / `restarting` / `dead`, restart count, and last
-restart timestamp) is tracked per extension and visible in two places:
+restart timestamp) is tracked per module and visible in two places:
 
-- **CLI**: `kota extension inspect <name>` prints a Health section when health
+- **CLI**: `kota module inspect <name>` prints a Health section when health
   data is present.
-- **API**: `GET /api/extensions` includes a `health` field on each entry.
+- **API**: `GET /api/modules` includes a `health` field on each entry.
 
-In-process extensions that fail during `onLoad` also appear in `GET /api/extensions`
+In-process modules that fail during `onLoad` also appear in `GET /api/modules`
 with `status: "failed"` and an `error` field containing the truncated error message.
-The web UI extensions panel renders these with a red health badge and the error message
+The web UI modules panel renders these with a red health badge and the error message
 as the contribution summary.
 
 ---
 
 ## Configuration
 
-Add `foreignExtensions` to your `.kota/config.json`:
+Add `foreignModules` to your `.kota/config.json`:
 
 **stdio transport:**
 
 ```json
 {
-  "foreignExtensions": [
+  "foreignModules": [
     {
       "transport": "stdio",
       "command": "python3",
@@ -272,7 +272,7 @@ Add `foreignExtensions` to your `.kota/config.json`:
 
 ```json
 {
-  "foreignExtensions": [
+  "foreignModules": [
     {
       "transport": "http",
       "url": "http://localhost:8765",
@@ -288,12 +288,12 @@ Add `foreignExtensions` to your `.kota/config.json`:
 | `url`         | yes      | Base URL of the running KEMP HTTP server. |
 | `bearerToken` | no       | Bearer token sent as `Authorization: Bearer <token>` on every request. Supply a string literal or `{ "env": "ENV_VAR_NAME" }` to read from an environment variable. Omit to send no Authorization header. |
 
-Per-extension config can be passed in `config.extensions`, keyed by the
-extension's `url` (for HTTP) or `command` path (for stdio):
+Per-module config can be passed in `config.modules`, keyed by the
+module's `url` (for HTTP) or `command` path (for stdio):
 
 ```json
 {
-  "extensions": {
+  "modules": {
     "http://localhost:8765": {"api_key": "..."}
   }
 }
@@ -306,23 +306,23 @@ passes it as the `config` field in the `init` message.
 
 ## Scaffold
 
-Use `kota extension new` to generate a ready-to-run Python starter:
+Use `kota module new` to generate a ready-to-run Python starter:
 
 ```sh
-kota extension new myext --language python
+kota module new myext --language python
 ```
 
 This creates a directory `myext/` containing:
 - `main.py` — full KEMP message loop with a sample `hello_world` tool
 - `requirements.txt` — empty (stdlib only)
 - `README.md` — usage and smoke-test instructions
-- `.kota-config-snippet.json` — copy-pasteable `foreignExtensions` config fragment
+- `.kota-config-snippet.json` — copy-pasteable `foreignModules` config fragment
 
-For a TypeScript in-process extension, omit `--language` (default).
+For a TypeScript in-process module, omit `--language` (default).
 
 ---
 
-## Writing an Extension
+## Writing an Module
 
 Minimal Python example:
 
@@ -353,7 +353,7 @@ Rules:
 - Exit after receiving `shutdown`.
 - Log to stderr or via `log` messages — never to stdout outside of protocol messages.
 
-A full working example lives at `examples/extensions/kota-demo.py`.
+A full working example lives at `examples/modules/kota-demo.py`.
 
 ---
 
@@ -361,11 +361,11 @@ A full working example lives at `examples/extensions/kota-demo.py`.
 
 The TypeScript side of the protocol is in:
 
-- `src/foreign-extension.ts` — KEMP message types and `ForeignExtensionConfig`.
-- `src/foreign-extension-stdio.ts` — `StdioTransport` implementation.
-- `src/foreign-extension-http.ts` — `HttpTransport` implementation.
-- `src/foreign-extension-loader.ts` — handshake, wrapping as `KotaExtension`.
+- `src/foreign-module.ts` — KEMP message types and `ForeignModuleConfig`.
+- `src/foreign-module-stdio.ts` — `StdioTransport` implementation.
+- `src/foreign-module-http.ts` — `HttpTransport` implementation.
+- `src/foreign-module-loader.ts` — handshake, wrapping as `KotaModule`.
 
-From the rest of KOTA's perspective, a foreign extension is a normal
-`KotaExtension` — its tools are registered and invoked the same way as any
-built-in or TypeScript extension.
+From the rest of KOTA's perspective, a foreign module is a normal
+`KotaModule` — its tools are registered and invoked the same way as any
+project or TypeScript module.

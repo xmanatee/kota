@@ -34,7 +34,7 @@ export function suggestAlternatives(missingPath: string, max = 5): string[] {
     return [];
   }
 
-  // If no exact match, try fuzzy: same extension, score by name similarity
+  // If no exact match, try fuzzy: same module, score by name similarity
   const ext = getExtension(name);
   if (!ext) return [];
 
@@ -56,7 +56,7 @@ export function suggestAlternatives(missingPath: string, max = 5): string[] {
   }
 }
 
-/** Extract file extension including the dot. Returns "" if none. */
+/** Extract file module including the dot. Returns "" if none. */
 function getExtension(filename: string): string {
   const dot = filename.lastIndexOf(".");
   return dot > 0 ? filename.slice(dot) : "";

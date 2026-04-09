@@ -4,7 +4,7 @@ title: Track and expose per-step cost in workflow run metadata and step events
 status: done
 priority: p2
 area: runtime
-summary: Workflow runs record total cost but not per-step cost. Adding costUsd to WorkflowStepResult and the workflow.step.completed bus event lets operators and extensions see exactly which steps are expensive, enabling targeted optimization and finer-grained anomaly detection.
+summary: Workflow runs record total cost but not per-step cost. Adding costUsd to WorkflowStepResult and the workflow.step.completed bus event lets operators and modules see exactly which steps are expensive, enabling targeted optimization and finer-grained anomaly detection.
 created_at: 2026-04-02T08:57:28Z
 updated_at: 2026-04-02T08:57:28Z
 ---
@@ -13,7 +13,7 @@ updated_at: 2026-04-02T08:57:28Z
 
 `WorkflowRunMetadata.totalCostUsd` accumulates cost across all steps but `WorkflowStepResult` has no `costUsd` field. Similarly, the `workflow.step.completed` bus event carries no cost information.
 
-Operators and extensions that want to understand which step in a multi-step workflow is the expensive one have no data path to that answer without reading raw run artifacts and correlating token counts manually. The cost anomaly detector operates at run granularity; it cannot flag a single expensive step within an otherwise normal run.
+Operators and modules that want to understand which step in a multi-step workflow is the expensive one have no data path to that answer without reading raw run artifacts and correlating token counts manually. The cost anomaly detector operates at run granularity; it cannot flag a single expensive step within an otherwise normal run.
 
 ## Desired Outcome
 

@@ -19,9 +19,8 @@ import type { WorkflowAgentStep, WorkflowDefinition } from "./types.js";
 function makeDefinition(name = "test-workflow"): WorkflowDefinition {
   return {
     name,
-    tags: [],
     enabled: true,
-    definitionPath: "src/workflows/test/workflow.ts",
+    definitionPath: "src/modules/test/workflows/test/workflow.ts",
     triggers: [],
     steps: [],
   };
@@ -32,7 +31,7 @@ function makeMetadata(runId = "run-001"): WorkflowRunMetadata {
     id: runId,
     workflow: "test-workflow",
     runDir: ".kota/runs/run-001",
-    definitionPath: "src/workflows/test/workflow.ts",
+    definitionPath: "src/modules/test/workflows/test/workflow.ts",
     trigger: { event: "runtime.idle", payload: {} },
     startedAt: new Date().toISOString(),
     status: "running",

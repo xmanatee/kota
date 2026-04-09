@@ -1,6 +1,6 @@
-# System Extension
+# System Module
 
-This directory contains the system capability pack — a built-in extension that owns host OS interaction tools.
+This directory contains the system capability pack — a repo module that owns host OS interaction tools.
 
 - This is the canonical home for clipboard, image-viewing, environment-discovery, and SQLite tools. Do not add these to `src/tools/`.
 - Tools, helpers, and tests are co-located here, following the pattern established by `web-access/` and `filesystem/`.
@@ -9,7 +9,7 @@ This directory contains the system capability pack — a built-in extension that
 
 ## Key Modules
 
-- `index.ts` — Extension definition; assembles all tools into the `systemModule` export.
+- `index.ts` — Module definition; assembles all tools into the `systemModule` export.
 - `clipboard.ts` — `clipboardTool` schema, `readClipboard`/`writeClipboard` helpers, and `runClipboard` runner; macOS (pbpaste/pbcopy) and Linux (xclip) support.
 - `view-image.ts` — `viewImageTool` schema and `runViewImage` runner; reads PNG/JPEG/GIF/WebP and returns base64 for visual analysis; downsizes images above 1568px using sips (macOS) or ImageMagick (Linux).
 - `env-info.ts` — `envInfoTool` schema and `runEnvInfo` runner; delegates to `env-probes.ts` query functions.

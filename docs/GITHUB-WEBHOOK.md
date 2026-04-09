@@ -1,12 +1,12 @@
 # GitHub Webhook Trigger
 
-The `github-webhook` built-in extension receives GitHub webhook deliveries, validates their
+The `github-webhook` repo module receives GitHub webhook deliveries, validates their
 HMAC-SHA256 signatures, and emits typed bus events that KOTA workflows can trigger on.
 
 ## How It Works
 
 1. GitHub POSTs a webhook delivery to `POST /api/webhooks/github` on your KOTA server.
-2. The extension verifies the `X-Hub-Signature-256` header against the configured secret.
+2. The module verifies the `X-Hub-Signature-256` header against the configured secret.
 3. If valid, it emits a `github.<event>` bus event with a normalized payload.
 4. Any workflow with a matching `event:` trigger fires.
 
@@ -16,7 +16,7 @@ Add to your `.kota/config.json`:
 
 ```json
 {
-  "extensions": {
+  "modules": {
     "github-webhook": {
       "secret": "$GITHUB_WEBHOOK_SECRET",
       "events": ["push", "pull_request", "check_run"]
@@ -44,10 +44,10 @@ POST /api/webhooks/github
 ```
 
 The server must be publicly reachable from GitHub. The webhook endpoint bypasses KOTA's
-bearer-token auth check automatically — GitHub does not need a KOTA auth token. The extension
+bearer-token auth check automatically — GitHub does not need a KOTA auth token. The module
 performs its own authentication via HMAC-SHA256 signature validation.
 
-> **Note**: The endpoint is only registered when the extension is configured with a non-empty
+> **Note**: The endpoint is only registered when the module is configured with a non-empty
 > secret. If `secret` is missing or the env var is unset, the route is not registered and the
 > server will return 404.
 

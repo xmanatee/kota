@@ -42,7 +42,7 @@ kota daemon pid
 ```
 
 - `stop` sends SIGTERM and waits up to `--timeout` seconds for a clean exit.
-- `reload` hot-reloads config and re-registers extension workflow contributions.
+- `reload` hot-reloads config and re-registers module workflow contributions.
 - `pid` prints the daemon's PID (exits non-zero if not running).
 
 ## Installing as an OS Service

@@ -13,7 +13,7 @@ adding a parallel surface.
 - `agent` = a named worker with a role, model defaults, skill set, tool scope,
   and write boundaries.
 - `daemon` = the long-lived runtime host. When running, it owns workflows,
-  channels, sessions, stores, extension runtime state, and the control API.
+  channels, sessions, stores, module runtime state, and the control API.
 - `session` = a stateful execution context for an agent. Interactive chats and
   autonomous agent steps both run in sessions.
 - `workflow` = a deterministic trigger plus ordered steps. Hooks, cron jobs,
@@ -24,7 +24,7 @@ adding a parallel surface.
 - `channel` = a daemon-owned interaction surface that maps external input/output
   to sessions. Channels are not the same thing as clients: a client may inspect
   or control the daemon without being the transport that owns a conversation.
-- `extension` = the only package and integration unit. An extension can
+- `module` = the only package and integration unit. A module can
   contribute tools, skills, agents, workflows, channels, and internal services.
 - `store` = a typed persistence unit in the runtime state subsystem. Store types
   are: history (conversation records), memory (agent notes), knowledge
@@ -40,15 +40,15 @@ adding a parallel surface.
 - Add automation: add a `workflow`.
 - Add an operator or user-facing app: add a `client`.
 - Add an external interaction transport: add a `channel`.
-- Add or ship an integration: add an `extension`.
+- Add or ship an integration: add an `module`.
 
 ## Core Boundary
 
 The core should stay small. It should mainly own:
 
 - the agent/session loop
-- tool and extension protocols
-- extension loading and lifecycle
+- tool and module protocols
+- module loading and lifecycle
 - workflow runtime and validation
 - daemon control API and session/channel hosting
 - guardrails and store/provider contracts
@@ -56,50 +56,51 @@ The core should stay small. It should mainly own:
 General-purpose capabilities should not accumulate in the core by default.
 Browser use, shell/process access, filesystem actions, HTTP/web access,
 notifications, memory backends, MCP integration, and operator surfaces should
-prefer extension-owned capability packs unless a shared runtime primitive truly
+prefer module-owned capability packs unless a shared runtime primitive truly
 has to stay in core.
 
 ## Direction
 
-- Public naming should use `extension`, but naming cleanup is not proof that
+- Public naming should use `module`, but naming cleanup is not proof that
   the architectural migration is complete.
-- Extension discovery is now unified: all user extensions are discovered from
-  `.kota/extensions/<name>/`. The separate `.kota/plugins` and `.kota/packages`
-  discovery paths have been removed. Each extension directory supports
+- Module discovery is now unified: all user modules are discovered from
+  `.kota/modules/<name>/`. The separate `.kota/plugins` and `.kota/packages`
+  discovery paths have been removed. Each module directory supports
   manifest-based (`manifest.json`), single-file code (`index.js`/`index.mjs`),
-  and packaged (`package.json` with `main`) variants. Foreign (KEMP) extensions
-  remain config-declared via `foreignExtensions` in `.kota/config.json` as the
-  explicit transport variant for out-of-process extensions.
-- Built-in capability packs now mostly live under `src/extensions/<name>/`, and
-  tool-group membership is now declared by each extension via the `group` field
+  and packaged (`package.json` with `main`) variants. Foreign (KEMP) modules
+  remain config-declared via `foreignModules` in `.kota/config.json` as the
+  explicit transport variant for out-of-process modules.
+- Shipped capability packs now mostly live under `src/modules/<name>/`, and
+  tool-group membership is now declared by each module via the `group` field
   on `ToolDef`. `src/tool-groups.ts` owns only the activation machinery
   (`enableGroup`, `filterTools`, `registerCustomGroup`, `deregisterToolsFromGroups`,
   `CORE_TOOL_NAMES`) and the prompt auto-detection logic (`detectToolGroups`);
-  `TOOL_GROUPS` starts empty and is populated at runtime by extensions and core
+  `TOOL_GROUPS` starts empty and is populated at runtime by modules and core
   tool init — it no longer hardcodes which tools belong to which group.
 - The operator CLI migration is also mostly complete, but not fully done:
   `src/cli.ts` still directly wires a small number of root-level CLI surfaces
   (`completion-cli.ts`, `webhook-cli.ts`, `init-cli.ts`). Treat these as
-  remaining architecture debt until the root CLI is only assembling extension
+  remaining architecture debt until the root CLI is only assembling module
   contributions plus the truly core interactive loop/history path.
-- `SkillDef` and `AgentDef` now exist, and built-in workflows invoke named
+- `SkillDef` and `AgentDef` now exist, and autonomy workflows invoke named
   agents. Skills are the one real reusable guidance path; `promptSection` has
   been removed.
 - Workflows are the documented public automation surface, and workflow triggers
   now cover event, cron, interval, and idle work. Manifest-era `eventHandlers`
   and `scripts` have been removed. The `events` direct-subscription field has
-  been removed from `KotaExtension`; automation uses contributed workflows.
+  been removed from `KotaModule`; automation uses contributed workflows.
 - Workflow routing should stay definition-driven. A workflow that needs to
   participate in queue shaping, delivery, governance, recovery, or digest
-  observation should declare tags in its own definition. Other workflows should
-  react to those tags or to generic events, not to a hardcoded list of built-in
-  workflow names.
-- Workflows are extension contributions, not a separate registry surface.
-  User extensions contribute workflows from their normal extension entry points.
-  Built-in workflows live in `src/workflows/<name>/workflow.ts` and are
-  discovered by the built-in workflow extension at runtime. If a built-in
-  workflow needs a named agent, export that agent from the same `workflow.ts`
-  file so the workflow directory stays the source of truth.
+  observation should declare that intent in its own definition. Other workflows
+  should react to that declared intent or to generic events, not to a
+  hardcoded workflow-name list.
+- Workflows are module contributions, not a separate registry surface.
+  User modules contribute workflows from their normal module entry points.
+  The autonomy workflows live under
+  `src/modules/autonomy/workflows/<name>/workflow.ts` and are discovered by
+  the autonomy module at runtime. If a workflow needs a named agent, export
+  that agent from the same `workflow.ts` file so the workflow directory stays
+  the source of truth.
 - History, memory, working memory, knowledge, and run artifacts are now
   documented as stores in one runtime state subsystem (`docs/STORES.md`).
   They remain separate implementations sharing a provider registry, but the
@@ -123,29 +124,29 @@ has to stay in core.
   starting its own disk-backed scheduler when the daemon is detected, and uses
   standalone mode (own scheduler and session pool) only when no daemon is
   running. See `docs/DAEMON-API.md`.
-- `KotaExtension` now has a `channels` field following the same pattern as
+- `KotaModule` now has a `channels` field following the same pattern as
   `workflows`, `tools`, and `agents`. A `ChannelDef` type in `src/channel.ts`
   captures the channel protocol: name, description, and a factory that receives
   a `ChannelStartContext` (projectDir, log, getWorkflowStatus) and returns a
   `ChannelAdapter`. The daemon collects contributed channels at startup, calls
   each factory, and manages lifecycle (start on daemon start, stop on shutdown).
-  The Telegram status poll is contributed via the Telegram extension rather than
-  hardcoded in daemon-subscriptions. A second extension can now add a channel
+  The Telegram status poll is contributed via the Telegram module rather than
+  hardcoded in daemon-subscriptions. A second module can now add a channel
   (Slack, email, web chat) by declaring a `ChannelDef` without touching daemon
   internals.
 - Notification callers (`BudgetGuard`, `AttentionDigest`, `subscribeWorkflowFailureAlert`)
   emit typed bus events (`workflow.failure.alert`, `workflow.budget.exceeded`,
   `workflow.budget.warning`, `workflow.attention.digest`, `workflow.cost.limit.reached`) rather than calling
-  Telegram directly. Extensions subscribe via `ExtensionEventProxy.subscribe()` in
+  Telegram directly. Modules subscribe via `ModuleEventProxy.subscribe()` in
   their `onLoad` hook and unsubscribe in `onUnload`. A second notification consumer
   (Slack, email, webhook) can now subscribe to these events without touching the
   workflow runtime.
-- Extensions can register per-turn system-prompt state contributors via
+- Modules can register per-turn system-prompt state contributors via
   `ctx.registerDynamicStateProvider(name, fn)` in `onLoad`. The core turn loop
   (`loop-send.ts`) calls `collectDynamicState()` each turn instead of importing from
-  specific extension modules. This is the correct pattern for any extension that
+  specific module modules. This is the correct pattern for any module that
   needs to inject state into the agent's context window without creating a direct
-  core-to-extension import. The working-memory extension uses this to surface the
+  core-to-module import. The working-memory module uses this to surface the
   session scratchpad.
 
 ## Protocol Boundaries
@@ -154,7 +155,7 @@ has to stay in core.
 - `skill` protocol: scoped guidance entry point plus optional assets.
 - `agent` protocol: role, defaults, skill list, tool policy, and ownership
   scope.
-- `daemon` protocol: lifecycle, ownership of runtime state, extension loading,
+- `daemon` protocol: lifecycle, ownership of runtime state, module loading,
   and control-plane hosting.
 - `client` protocol: daemon discovery, capability-scoped control calls, and
   event subscription.
@@ -162,14 +163,14 @@ has to stay in core.
   semantics.
 - `channel` protocol: session routing, inbound/outbound transport, and operator
   identity.
-- `extension` protocol: contribution bundle for the concepts above.
-- `foreign extension` protocol: KEMP (KOTA External Module Protocol) — a
-  transport-agnostic newline-delimited JSON message protocol for extensions
+- `module` protocol: contribution bundle for the concepts above.
+- `foreign module` protocol: KEMP (KOTA External Module Protocol) — a
+  transport-agnostic newline-delimited JSON message protocol for modules
   implemented outside the in-process TypeScript runtime. The protocol covers
   capability declaration (`manifest`), tool invocation (`invoke`/`result`), and
   lifecycle (`init`, `shutdown`). The stdio transport spawns a subprocess; the
-  protocol is the same over any stream. A foreign extension is wrapped as a
-  normal `KotaExtension` at load time. See `docs/FOREIGN-EXTENSIONS.md`.
+  protocol is the same over any stream. A foreign module is wrapped as a
+  normal `KotaModule` at load time. See `docs/FOREIGN-MODULES.md`.
 
 ## Context Gathering
 
@@ -202,9 +203,9 @@ own message routing for sessions.
 
 `ChannelSession`, `ChannelAdapter`, and `ChannelDef` are defined in
 `src/channel.ts`. `ChannelAdapter` is the runtime interface (`start`/`stop`);
-`ChannelDef` is the extension contribution descriptor (name, description, and
+`ChannelDef` is the module contribution descriptor (name, description, and
 a `create(ctx: ChannelStartContext)` factory). New channels should use these
-types and be contributed via `KotaExtension.channels`.
+types and be contributed via `KotaModule.channels`.
 
 ## Migration Principles
 
@@ -212,7 +213,7 @@ types and be contributed via `KotaExtension.channels`.
 - Remove duplicate public surfaces instead of keeping aliases.
 - Keep repo instructions scoped to the repo root; do not inherit parent-tree
   instructions by default.
-- Make built-in autonomy use the same `agent`, `workflow`, and `extension`
+- Make autonomy use the same `agent`, `workflow`, and `module`
   model as everything else.
 - Do not add a second public automation engine beside workflows.
 - Keep workflow-provided context thin. If an agent can discover something
@@ -221,10 +222,10 @@ types and be contributed via `KotaExtension.channels`.
 - Prefer one daemon control protocol over platform-specific side channels.
 - Keep native UI wrappers thin. The macOS app should be a client of the daemon,
   not a second runtime host.
-- Prefer extension-owned capability packs over growing shared buckets like
+- Prefer module-owned capability packs over growing shared buckets like
   `src/tools/`, `src/server/`, or other generic core directories. If a new
   capability could plausibly be swapped, configured, or removed as a unit, it
-  likely belongs behind an extension boundary.
+  likely belongs behind a module boundary.
 
 ## External Anchors
 

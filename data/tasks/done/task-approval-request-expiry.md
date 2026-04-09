@@ -22,7 +22,7 @@ resources and prevent subsequent queued work from running.
 A `timeoutMs` field on approval requests (set at the workflow step level or globally in
 daemon config as a default). When a pending request ages past its TTL:
 - It is auto-rejected with `reason: "expired"` and a `resolvedAt` timestamp.
-- An `approval.expired` event is emitted on the bus so notification extensions can
+- An `approval.expired` event is emitted on the bus so notification modules can
   surface it to the operator.
 - The workflow receives the rejection and follows the normal rejection path (fail or
   retry, depending on step config).
@@ -34,7 +34,7 @@ daemon config as a default). When a pending request ages past its TTL:
   schema fields required beyond `timeoutMs` on the request and `reason` on the resolution.
 - Daemon enforces TTL via a periodic sweep (e.g. the existing scheduler tick), not a
   per-request timer, to keep implementation simple and restartable.
-- `approval.expired` must be a named event in `BusEvents` so notification extensions
+- `approval.expired` must be a named event in `BusEvents` so notification modules
   can subscribe without hard-coding strings.
 - No new store required; augment the existing approval record.
 

@@ -1,8 +1,8 @@
 import type { ServerResponse } from "node:http";
-import type { ExtensionHealth, ExtensionSummary } from "../extension-types.js";
+import type { ModuleHealth, ModuleSummary } from "../module-types.js";
 import { jsonResponse } from "./session-pool.js";
 
-export type ExtensionStatusEntry = {
+export type ModuleStatusEntry = {
   name: string;
   version?: string;
   description?: string;
@@ -12,20 +12,20 @@ export type ExtensionStatusEntry = {
   workflowCount: number;
   skillCount: number;
   channelCount: number;
-  health?: ExtensionHealth;
+  health?: ModuleHealth;
   /** Error message when status is "failed"; truncated to 500 chars. */
   error?: string;
 };
 
-export type ExtensionsResponse = {
-  extensions: ExtensionStatusEntry[];
+export type ModulesResponse = {
+  modules: ModuleStatusEntry[];
 };
 
-export function handleListExtensions(
+export function handleListModules(
   res: ServerResponse,
-  summaries: ExtensionSummary[],
+  summaries: ModuleSummary[],
 ): void {
-  const extensions: ExtensionStatusEntry[] = summaries.map((s) => {
+  const modules: ModuleStatusEntry[] = summaries.map((s) => {
     if (s.loadError !== undefined) {
       return {
         name: s.name,
@@ -53,5 +53,5 @@ export function handleListExtensions(
       health: s.health,
     };
   });
-  jsonResponse(res, 200, { extensions } satisfies ExtensionsResponse);
+  jsonResponse(res, 200, { modules } satisfies ModulesResponse);
 }

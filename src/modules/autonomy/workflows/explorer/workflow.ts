@@ -1,21 +1,22 @@
-import type { AgentDef } from "../../agent-types.js";
-import { getRepoTaskQueueSnapshot } from "../../repo-tasks.js";
-import { assertRepoWorktreeClean } from "../../repo-worktree.js";
+import type { AgentDef } from "../../../../agent-types.js";
+import { getRepoTaskQueueSnapshot } from "../../../../repo-tasks.js";
+import { assertRepoWorktreeClean } from "../../../../repo-worktree.js";
 import {
   assertArchitectureReadyCoverage,
-} from "../../task-queue-validation.js";
-import type { WorkflowDefinitionInput } from "../../workflow/types.js";
-import { typedCodeStep } from "../../workflow/types.js";
-import { commitWorkflowChanges } from "../commit.js";
+} from "../../../../task-queue-validation.js";
+import type { WorkflowDefinitionInput } from "../../../../workflow/types.js";
+import { typedCodeStep } from "../../../../workflow/types.js";
+import { commitWorkflowChanges } from "../../commit.js";
 import {
   runCheck,
+  stepCommitted,
   stepSucceeded,
-} from "../shared.js";
+} from "../../shared.js";
 
 export const agent: AgentDef = {
   name: "explorer",
   role: "Find strong external ideas and promising new directions when the local queue is empty.",
-  promptPath: "src/workflows/explorer/prompt.md",
+  promptPath: "src/modules/autonomy/workflows/explorer/prompt.md",
   model: "claude-sonnet-4-6",
   tools: { permissionMode: "bypassPermissions" },
   settingSources: ["project"],
@@ -68,7 +69,6 @@ const explorerWorkflow: WorkflowDefinitionInput = {
   name: "explorer",
   description:
     "Search broadly for external ideas and promising improvements when the local queue is empty.",
-  tags: ["autonomous", "queue-source", "external-discovery"],
   triggers: [
     {
       event: "runtime.idle",
@@ -109,6 +109,16 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       type: "code",
       when: stepSucceeded("explore"),
       run: ({ projectDir, workflow }) => commitWorkflowChanges(projectDir, workflow.runDirPath),
+    },
+    {
+      id: "emit-queue-updated",
+      type: "emit",
+      when: stepCommitted("commit"),
+      event: "autonomy.queue.available",
+      payload: (ctx) => ({
+        workflow: ctx.workflow.name,
+        runId: ctx.workflow.runId,
+      }),
     },
   ],
 };

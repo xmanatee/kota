@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import type { ExtensionContext } from "../../extension-types.js";
+import type { ModuleContext } from "../../module-types.js";
 import type { RegisteredWorkflowDefinitionInput } from "../../workflow/types.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "../../workflow/validation.js";
 import { getWorkflowDefinitions } from "./definitions-source.js";
@@ -31,7 +31,7 @@ export function validateDefinitions(
 
 export function registerValidateCommand(
   wfCmd: Command,
-  ctx: ExtensionContext,
+  ctx: ModuleContext,
 ): void {
   wfCmd
     .command("validate")

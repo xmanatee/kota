@@ -30,9 +30,9 @@ describe("registerTool × filterTools (cross-module)", () => {
     expect(names).toContain("calendar_check");
     // Core tools also present
     expect(names).toContain("delegate");
-    // shell is now in the execution extension, not in core
+    // shell is now in the execution module, not in core
     expect(names).not.toContain("shell");
-    // file_read is now in the filesystem extension, not in core
+    // file_read is now in the filesystem module, not in core
     expect(names).not.toContain("file_read");
   });
 
@@ -44,7 +44,7 @@ describe("registerTool × filterTools (cross-module)", () => {
     const filtered = filterTools(getAllTools());
     const names = filtered.map((t) => t.name);
     expect(names).toContain("email_send");
-    // sqlite is now in the system extension (not core); it only appears after extension loads
+    // sqlite is now in the system module (not core); it only appears after module loads
   });
 
   it("custom tools survive filterTools with 'all' groups enabled", () => {
@@ -55,7 +55,7 @@ describe("registerTool × filterTools (cross-module)", () => {
     const filtered = filterTools(getAllTools());
     const names = filtered.map((t) => t.name);
     expect(names).toContain("smart_home");
-    // sqlite is now in the system extension (not core); it only appears after extension loads
+    // sqlite is now in the system module (not core); it only appears after module loads
   });
 
   it("cleared custom tools disappear from filterTools", () => {

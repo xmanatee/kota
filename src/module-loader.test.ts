@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "./event-bus.js";
-import { ExtensionLoader } from "./extension-loader.js";
-import type { KotaExtension } from "./extension-types.js";
+import { ModuleLoader } from "./module-loader.js";
+import type { KotaModule } from "./module-types.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./tool-groups.js";
 import { clearCustomTools, executeTool, getAllTools } from "./tools/index.js";
 
@@ -19,7 +19,7 @@ function makeTool(name: string) {
   };
 }
 
-describe("ExtensionLoader", () => {
+describe("ModuleLoader", () => {
   beforeEach(() => {
     clearCustomTools();
     clearCustomGroups();
@@ -33,15 +33,15 @@ describe("ExtensionLoader", () => {
   });
 
   it("loads a module with tools", async () => {
-    const loader = new ExtensionLoader({});
-    const mod: KotaExtension = {
+    const loader = new ModuleLoader({});
+    const mod: KotaModule = {
       name: "test-mod",
       tools: [makeTool("test_tool")],
     };
 
     await loader.load(mod);
-    expect(loader.getLoadedExtensions()).toEqual(["test-mod"]);
-    expect(loader.getExtensionCount()).toBe(1);
+    expect(loader.getLoadedModules()).toEqual(["test-mod"]);
+    expect(loader.getModuleCount()).toBe(1);
     expect(loader.getToolCount()).toBe(1);
 
     const result = await executeTool("test_tool", {});
@@ -49,8 +49,8 @@ describe("ExtensionLoader", () => {
   });
 
   it("registers tools into groups via group field", async () => {
-    const loader = new ExtensionLoader({});
-    const mod: KotaExtension = {
+    const loader = new ModuleLoader({});
+    const mod: KotaModule = {
       name: "grouped-mod",
       tools: [{ ...makeTool("grouped_tool"), group: "test_group" }],
     };
@@ -69,8 +69,8 @@ describe("ExtensionLoader", () => {
 
   it("warns when a tool has no risk annotation", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const loader = new ExtensionLoader({});
-    const mod: KotaExtension = {
+    const loader = new ModuleLoader({});
+    const mod: KotaModule = {
       name: "unannotated-mod",
       tools: [makeTool("unannotated_tool")],
     };
@@ -90,8 +90,8 @@ describe("ExtensionLoader", () => {
 
   it("does not warn when a tool has a risk annotation", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const loader = new ExtensionLoader({});
-    const mod: KotaExtension = {
+    const loader = new ModuleLoader({});
+    const mod: KotaModule = {
       name: "annotated-mod",
       tools: [{ ...makeTool("annotated_tool"), risk: "safe", kind: "discovery" }],
     };
@@ -105,33 +105,33 @@ describe("ExtensionLoader", () => {
   });
 
   it("rejects duplicate module names", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({ name: "dup" });
     await expect(loader.load({ name: "dup" })).rejects.toThrow(
-      'Duplicate extension name: "dup"',
+      'Duplicate module name: "dup"',
     );
   });
 
   it("rejects modules with missing dependencies", async () => {
-    const loader = new ExtensionLoader({});
-    const mod: KotaExtension = {
+    const loader = new ModuleLoader({});
+    const mod: KotaModule = {
       name: "dependent",
       dependencies: ["missing-dep"],
     };
     await expect(loader.load(mod)).rejects.toThrow(
-      'Extension "dependent" requires "missing-dep" which is not loaded',
+      'Module "dependent" requires "missing-dep" which is not loaded',
     );
   });
 
   it("loads dependencies before dependents via loadAll", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     const loadOrder: string[] = [];
 
-    const dep: KotaExtension = {
+    const dep: KotaModule = {
       name: "base",
       onLoad: () => { loadOrder.push("base"); },
     };
-    const dependent: KotaExtension = {
+    const dependent: KotaModule = {
       name: "ext",
       dependencies: ["base"],
       onLoad: () => { loadOrder.push("ext"); },
@@ -140,12 +140,12 @@ describe("ExtensionLoader", () => {
     // Intentionally pass in wrong order
     await loader.loadAll([dependent, dep]);
     expect(loadOrder).toEqual(["base", "ext"]);
-    expect(loader.getLoadedExtensions()).toEqual(["base", "ext"]);
+    expect(loader.getLoadedModules()).toEqual(["base", "ext"]);
   });
 
-  it("calls onLoad with ExtensionContext including getRoutes", async () => {
+  it("calls onLoad with ModuleContext including getRoutes", async () => {
     const onLoad = vi.fn();
-    const loader = new ExtensionLoader({ model: "test-model" }, true);
+    const loader = new ModuleLoader({ model: "test-model" }, true);
     await loader.load({ name: "ctx-test", onLoad });
 
     expect(onLoad).toHaveBeenCalledOnce();
@@ -159,7 +159,7 @@ describe("ExtensionLoader", () => {
 
   it("getRoutes in context returns routes from all loaded modules", async () => {
     const handler = vi.fn();
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
 
     await loader.load({
       name: "route-provider",
@@ -182,8 +182,8 @@ describe("ExtensionLoader", () => {
     expect(discoveredRoutes[0].path).toBe("/api/test");
   });
 
-  it("collects workflow definitions from extensions and exposes via getContributedWorkflows", async () => {
-    const loader = new ExtensionLoader({});
+  it("collects workflow definitions from modules and exposes via getContributedWorkflows", async () => {
+    const loader = new ModuleLoader({});
 
     await loader.load({
       name: "workflow-provider",
@@ -199,11 +199,11 @@ describe("ExtensionLoader", () => {
     const workflows = loader.getContributedWorkflows();
     expect(workflows).toHaveLength(1);
     expect(workflows[0].name).toBe("workflow-provider/my-job");
-    expect(workflows[0].definitionPath).toBe("extensions/workflow-provider");
+    expect(workflows[0].definitionPath).toBe("modules/workflow-provider");
   });
 
-  it("collects channel definitions from extensions and exposes via getContributedChannels", async () => {
-    const loader = new ExtensionLoader({});
+  it("collects channel definitions from modules and exposes via getContributedChannels", async () => {
+    const loader = new ModuleLoader({});
     const mockCreate = () => null;
 
     await loader.load({
@@ -217,7 +217,7 @@ describe("ExtensionLoader", () => {
   });
 
   it("exposes contributed workflows via ctx.getContributedWorkflows()", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
 
     await loader.load({
       name: "wf-ext",
@@ -244,7 +244,7 @@ describe("ExtensionLoader", () => {
 
   it("calls onUnload in reverse order during unloadAll", async () => {
     const unloadOrder: string[] = [];
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
 
     await loader.loadAll([
       { name: "first", onUnload: () => { unloadOrder.push("first"); } },
@@ -254,11 +254,11 @@ describe("ExtensionLoader", () => {
 
     await loader.unloadAll();
     expect(unloadOrder).toEqual(["third", "second", "first"]);
-    expect(loader.getExtensionCount()).toBe(0);
+    expect(loader.getModuleCount()).toBe(0);
   });
 
   it("cleans up tools on unloadAll", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({
       name: "cleanup-mod",
       tools: [makeTool("cleanup_tool")],
@@ -274,7 +274,7 @@ describe("ExtensionLoader", () => {
 
   it("collects CLI commands from modules", async () => {
     const { Command } = await import("commander");
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
 
     await loader.load({
       name: "cmd-mod",
@@ -290,7 +290,7 @@ describe("ExtensionLoader", () => {
 
   it("collects HTTP routes from modules", async () => {
     const handler = vi.fn();
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
 
     await loader.load({
       name: "route-mod",
@@ -306,7 +306,7 @@ describe("ExtensionLoader", () => {
   });
 
   it("handles module load errors gracefully in loadAll", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await loader.loadAll([
@@ -318,15 +318,15 @@ describe("ExtensionLoader", () => {
     ]);
 
     // Bad module failed, good module loaded
-    expect(loader.getLoadedExtensions()).toEqual(["good-mod"]);
+    expect(loader.getLoadedModules()).toEqual(["good-mod"]);
     expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Extension "bad-mod" failed to load: boom'),
+      expect.stringContaining('Module "bad-mod" failed to load: boom'),
     );
     errSpy.mockRestore();
   });
 
-  it("records load failures in getExtensionSummaries", async () => {
-    const loader = new ExtensionLoader({});
+  it("records load failures in getModuleSummaries", async () => {
+    const loader = new ModuleLoader({});
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await loader.loadAll([
@@ -337,7 +337,7 @@ describe("ExtensionLoader", () => {
       { name: "good-mod" },
     ]);
 
-    const summaries = loader.getExtensionSummaries();
+    const summaries = loader.getModuleSummaries();
     const goodSummary = summaries.find((s) => s.name === "good-mod");
     const badSummary = summaries.find((s) => s.name === "bad-mod");
 
@@ -353,7 +353,7 @@ describe("ExtensionLoader", () => {
 
   it("commandsOnly mode skips tool registration and onLoad", async () => {
     const onLoad = vi.fn();
-    const loader = new ExtensionLoader({}, false, { commandsOnly: true });
+    const loader = new ModuleLoader({}, false, { commandsOnly: true });
     const { Command } = await import("commander");
 
     await loader.load({
@@ -364,7 +364,7 @@ describe("ExtensionLoader", () => {
     });
 
     // Module is loaded (tracked)
-    expect(loader.getLoadedExtensions()).toEqual(["cmd-only-mod"]);
+    expect(loader.getLoadedModules()).toEqual(["cmd-only-mod"]);
     // But tools are NOT registered
     expect(loader.getToolCount()).toBe(0);
     const result = await executeTool("should_not_register", {});
@@ -379,7 +379,7 @@ describe("ExtensionLoader", () => {
   });
 
   it("handles onUnload errors gracefully", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await loader.load({
@@ -389,27 +389,27 @@ describe("ExtensionLoader", () => {
 
     await loader.unloadAll();
     expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Extension "bad-unload" unload error: cleanup failed'),
+      expect.stringContaining('Module "bad-unload" unload error: cleanup failed'),
     );
     errSpy.mockRestore();
   });
 
   it("unloads a single module and deregisters its tools", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({
       name: "mod-a",
       tools: [makeTool("tool_a")],
     });
     await loader.load({ name: "mod-b", tools: [makeTool("tool_b")] });
 
-    expect(loader.getLoadedExtensions()).toEqual(["mod-a", "mod-b"]);
+    expect(loader.getLoadedModules()).toEqual(["mod-a", "mod-b"]);
 
     // tool_a works before unload
     const r1 = await executeTool("tool_a", {});
     expect(r1.content).toBe("result from tool_a");
 
     await loader.unload("mod-a");
-    expect(loader.getLoadedExtensions()).toEqual(["mod-b"]);
+    expect(loader.getLoadedModules()).toEqual(["mod-b"]);
 
     // tool_a gone, tool_b still works
     const r2 = await executeTool("tool_a", {});
@@ -419,7 +419,7 @@ describe("ExtensionLoader", () => {
   });
 
   it("removes grouped tools from TOOL_GROUPS on unload", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({
       name: "grouped-unload-mod",
       tools: [{ ...makeTool("grouped_unload_tool"), group: "test_unload_group" }],
@@ -432,7 +432,7 @@ describe("ExtensionLoader", () => {
   });
 
   it("removes grouped tools from TOOL_GROUPS on unloadAll", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({
       name: "grouped-unload-all-mod",
       tools: [{ ...makeTool("grouped_unload_all_tool"), group: "test_unload_all_group" }],
@@ -445,12 +445,12 @@ describe("ExtensionLoader", () => {
   });
 
   it("unload returns false for unknown module", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     expect(await loader.unload("nonexistent")).toBe(false);
   });
 
   it("unload rejects when dependents exist", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({ name: "base" });
     await loader.load({ name: "child", dependencies: ["base"] });
 
@@ -461,7 +461,7 @@ describe("ExtensionLoader", () => {
 
   it("unload calls onUnload", async () => {
     const unloadCalled = vi.fn();
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
 
     await loader.load({
       name: "evt-mod",
@@ -474,7 +474,7 @@ describe("ExtensionLoader", () => {
 
   it("reloads a module — re-registers tools and calls onLoad again", async () => {
     const onLoad = vi.fn();
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
 
     await loader.load({
       name: "reload-mod",
@@ -489,7 +489,7 @@ describe("ExtensionLoader", () => {
     const reloaded = await loader.reload("reload-mod");
     expect(reloaded).toBe(true);
     expect(onLoad).toHaveBeenCalledTimes(2);
-    expect(loader.getLoadedExtensions()).toEqual(["reload-mod"]);
+    expect(loader.getLoadedModules()).toEqual(["reload-mod"]);
 
     // Tool still works after reload
     const r2 = await executeTool("reload_tool", {});
@@ -497,12 +497,12 @@ describe("ExtensionLoader", () => {
   });
 
   it("reload returns false for unknown module", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     expect(await loader.reload("nonexistent")).toBe(false);
   });
 
   it("getDependents returns correct dependents", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({ name: "core" });
     await loader.load({ name: "ext-a", dependencies: ["core"] });
     await loader.load({ name: "ext-b", dependencies: ["core"] });
@@ -528,11 +528,11 @@ describe("scheduler module integration", () => {
   });
 
   it("registers the schedule tool via module protocol", async () => {
-    const { default: schedulerModule } = await import("./extensions/scheduler/index.js");
-    const loader = new ExtensionLoader({});
+    const { default: schedulerModule } = await import("./modules/scheduler/index.js");
+    const loader = new ModuleLoader({});
 
     await loader.load(schedulerModule);
-    expect(loader.getLoadedExtensions()).toEqual(["scheduler"]);
+    expect(loader.getLoadedModules()).toEqual(["scheduler"]);
     expect(loader.getToolCount()).toBe(1);
 
     // Schedule tool should be in the management group
@@ -544,8 +544,8 @@ describe("scheduler module integration", () => {
   });
 
   it("schedule tool is hidden until management group is enabled", async () => {
-    const { default: schedulerModule } = await import("./extensions/scheduler/index.js");
-    const loader = new ExtensionLoader({});
+    const { default: schedulerModule } = await import("./modules/scheduler/index.js");
+    const loader = new ModuleLoader({});
     await loader.load(schedulerModule);
 
     const before = filterTools(getAllTools());
@@ -571,11 +571,11 @@ describe("memory module integration", () => {
   });
 
   it("registers the memory tool via module protocol", async () => {
-    const { default: memoryModule } = await import("./extensions/memory/index.js");
-    const loader = new ExtensionLoader({});
+    const { default: memoryModule } = await import("./modules/memory/index.js");
+    const loader = new ModuleLoader({});
 
     await loader.load(memoryModule);
-    expect(loader.getLoadedExtensions()).toEqual(["memory"]);
+    expect(loader.getLoadedModules()).toEqual(["memory"]);
     expect(loader.getToolCount()).toBe(1);
 
     // Memory tool should be in the management group
@@ -587,8 +587,8 @@ describe("memory module integration", () => {
   });
 
   it("memory tool is hidden until management group is enabled", async () => {
-    const { default: memoryModule } = await import("./extensions/memory/index.js");
-    const loader = new ExtensionLoader({});
+    const { default: memoryModule } = await import("./modules/memory/index.js");
+    const loader = new ModuleLoader({});
     await loader.load(memoryModule);
 
     const before = filterTools(getAllTools());
@@ -614,7 +614,7 @@ describe("getRoutes reentrancy guard", () => {
   });
 
   it("returns empty array instead of infinite recursion when routes() calls ctx.getRoutes()", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     const handler = vi.fn();
 
     // Module A provides a route normally
@@ -643,7 +643,7 @@ describe("getRoutes reentrancy guard", () => {
   });
 
   it("allows getRoutes() after a previous call completes", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     const handler = vi.fn();
 
     await loader.load({
@@ -661,7 +661,7 @@ describe("getRoutes reentrancy guard", () => {
   });
 
   it("resets guard even if routes() throws", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const handler = vi.fn();
 
@@ -703,20 +703,20 @@ describe("Module SDK — storage, config, skills", () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("provides scoped storage via ExtensionContext", async () => {
+  it("provides scoped storage via ModuleContext", async () => {
     const onLoad = vi.fn();
-    const loader = new ExtensionLoader({}, false);
+    const loader = new ModuleLoader({}, false);
     await loader.load({ name: "storage-mod", onLoad });
 
     const ctx = onLoad.mock.calls[0][0];
     expect(ctx.storage).toBeDefined();
-    expect(ctx.storage.getDir()).toContain(".kota/extensions/storage-mod");
+    expect(ctx.storage.getDir()).toContain(".kota/modules/storage-mod");
   });
 
   it("each module gets its own isolated storage", async () => {
     const onLoadA = vi.fn();
     const onLoadB = vi.fn();
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({ name: "mod-a", onLoad: onLoadA });
     await loader.load({ name: "mod-b", onLoad: onLoadB });
 
@@ -727,33 +727,33 @@ describe("Module SDK — storage, config, skills", () => {
     expect(storageB.getDir()).toContain("mod-b");
   });
 
-  it("getExtensionConfig returns the extension's config section", async () => {
+  it("getModuleConfig returns the module's config section", async () => {
     const onLoad = vi.fn();
-    const loader = new ExtensionLoader({
-      extensions: {
+    const loader = new ModuleLoader({
+      modules: {
         "my-mod": { apiKey: "secret", retries: 3 },
       },
     });
     await loader.load({ name: "my-mod", onLoad });
 
     const ctx = onLoad.mock.calls[0][0];
-    const config = ctx.getExtensionConfig();
+    const config = ctx.getModuleConfig();
     expect(config).toEqual({ apiKey: "secret", retries: 3 });
   });
 
-  it("getExtensionConfig returns undefined when no config exists", async () => {
+  it("getModuleConfig returns undefined when no config exists", async () => {
     const onLoad = vi.fn();
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({ name: "no-config", onLoad });
 
     const ctx = onLoad.mock.calls[0][0];
-    expect(ctx.getExtensionConfig()).toBeUndefined();
+    expect(ctx.getModuleConfig()).toBeUndefined();
   });
 
   it("collects skill content from modules", async () => {
     const skillPath = join(tmpDir, "helper.md");
     writeFileSync(skillPath, "Use the helper tool for quick lookups.");
-    const loader = new ExtensionLoader({}, false);
+    const loader = new ModuleLoader({}, false);
     loader.setCwd(tmpDir);
     await loader.load({
       name: "helper-mod",
@@ -761,14 +761,14 @@ describe("Module SDK — storage, config, skills", () => {
     });
 
     const prompt = loader.getSkillsPrompt();
-    expect(prompt).toContain("## Extension Capabilities");
+    expect(prompt).toContain("## Module Capabilities");
     expect(prompt).toContain("### helper");
     expect(prompt).toContain("Use the helper tool for quick lookups.");
   });
 
   it("handles missing skill file gracefully", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({
       name: "broken-mod",
       skills: [{ name: "missing", promptPath: "nonexistent/skill.md" }],
@@ -776,7 +776,7 @@ describe("Module SDK — storage, config, skills", () => {
 
     expect(loader.getSkillsPrompt()).toBe("");
     expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Extension "broken-mod" skill "missing" failed to load'),
+      expect.stringContaining('Module "broken-mod" skill "missing" failed to load'),
     );
     errSpy.mockRestore();
   });
@@ -786,7 +786,7 @@ describe("Module SDK — storage, config, skills", () => {
     const skillB = join(tmpDir, "skill-b.md");
     writeFileSync(skillA, "Section A content.");
     writeFileSync(skillB, "Section B content.");
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     loader.setCwd(tmpDir);
     await loader.load({
       name: "mod-a",
@@ -805,33 +805,33 @@ describe("Module SDK — storage, config, skills", () => {
     expect(prompt).toContain("Section B content.");
   });
 
-  it("getExtensionStorage returns storage for loaded module", async () => {
-    const loader = new ExtensionLoader({});
+  it("getModuleStorage returns storage for loaded module", async () => {
+    const loader = new ModuleLoader({});
     await loader.load({ name: "stored-mod" });
 
-    const storage = loader.getExtensionStorage("stored-mod");
+    const storage = loader.getModuleStorage("stored-mod");
     expect(storage).toBeDefined();
     expect(storage!.getDir()).toContain("stored-mod");
   });
 
-  it("getExtensionStorage returns undefined for unknown module", () => {
-    const loader = new ExtensionLoader({});
-    expect(loader.getExtensionStorage("unknown")).toBeUndefined();
+  it("getModuleStorage returns undefined for unknown module", () => {
+    const loader = new ModuleLoader({});
+    expect(loader.getModuleStorage("unknown")).toBeUndefined();
   });
 
   it("cleans up storage references on unloadAll", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({ name: "cleanup-storage" });
-    expect(loader.getExtensionStorage("cleanup-storage")).toBeDefined();
+    expect(loader.getModuleStorage("cleanup-storage")).toBeDefined();
 
     await loader.unloadAll();
-    expect(loader.getExtensionStorage("cleanup-storage")).toBeUndefined();
+    expect(loader.getModuleStorage("cleanup-storage")).toBeUndefined();
   });
 
   it("commandsOnly mode skips skill loading", async () => {
     const skillPath = join(tmpDir, "skill.md");
     writeFileSync(skillPath, "Should not appear.");
-    const loader = new ExtensionLoader({}, false, { commandsOnly: true });
+    const loader = new ModuleLoader({}, false, { commandsOnly: true });
     loader.setCwd(tmpDir);
     await loader.load({
       name: "skip-mod",
@@ -856,7 +856,7 @@ describe("ctx.callTool — direct tool invocation", () => {
   });
 
   it("invokes a registered tool and returns its result", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({
       name: "tool-provider",
       tools: [makeTool("helper_tool")],
@@ -874,7 +874,7 @@ describe("ctx.callTool — direct tool invocation", () => {
   });
 
   it("returns error for unknown tool", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     let capturedCtx: any;
     await loader.load({
       name: "caller",
@@ -887,7 +887,7 @@ describe("ctx.callTool — direct tool invocation", () => {
   });
 
   it("returns error when tool runner throws", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({
       name: "throwing-mod",
       tools: [{
@@ -912,7 +912,7 @@ describe("ctx.callTool — direct tool invocation", () => {
   });
 
   it("enforces recursion depth limit", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     let capturedCtx: any;
 
     await loader.load({
@@ -936,7 +936,7 @@ describe("ctx.callTool — direct tool invocation", () => {
   });
 
   it("resets depth counter after successful call", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({
       name: "tool-mod",
       tools: [makeTool("simple_tool")],
@@ -958,7 +958,7 @@ describe("ctx.callTool — direct tool invocation", () => {
   });
 
   it("passes input to the tool runner", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({
       name: "echo-mod",
       tools: [{
@@ -982,7 +982,7 @@ describe("ctx.callTool — direct tool invocation", () => {
   });
 
   it("allows chained tool calls within depth limit", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
 
     // Tool A calls Tool B, which returns a result
     await loader.load({
@@ -1022,7 +1022,7 @@ describe("ctx.callTool — direct tool invocation", () => {
 
   it("callTool works from event handlers via captured context", async () => {
     const bus = new EventBus();
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     let eventResult: any;
 
     await loader.load({

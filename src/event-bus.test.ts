@@ -57,7 +57,7 @@ describe("EventBus", () => {
       workflow: "builder",
       runId: "r1",
       triggerEvent: "runtime.idle",
-      definitionPath: "src/workflows/builder/workflow.ts",
+      definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
       runDir: ".kota/runs/r1",
       startedAt: "2026-01-01T00:00:00Z",
     });
@@ -65,7 +65,7 @@ describe("EventBus", () => {
       workflow: "improver",
       runId: "r2",
       triggerEvent: "workflow.completed",
-      definitionPath: "src/workflows/improver/workflow.ts",
+      definitionPath: "src/modules/autonomy/workflows/improver/workflow.ts",
       runDir: ".kota/runs/r2",
       startedAt: "2026-01-01T00:00:01Z",
     });
@@ -74,7 +74,7 @@ describe("EventBus", () => {
       workflow: "builder",
       runId: "r1",
       triggerEvent: "runtime.idle",
-      definitionPath: "src/workflows/builder/workflow.ts",
+      definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
       runDir: ".kota/runs/r1",
       startedAt: "2026-01-01T00:00:00Z",
     });
@@ -100,7 +100,7 @@ describe("EventBus", () => {
       status: "success",
       triggerEvent: "runtime.idle",
       durationMs: 50,
-      definitionPath: "src/workflows/builder/workflow.ts",
+      definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
       runDir: ".kota/runs/r1",
     });
     expect(envelopes).toHaveLength(2);
@@ -116,7 +116,7 @@ describe("EventBus", () => {
         status: "success",
         triggerEvent: "runtime.idle",
         durationMs: 50,
-        definitionPath: "src/workflows/builder/workflow.ts",
+        definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
         runDir: ".kota/runs/r1",
       },
     });

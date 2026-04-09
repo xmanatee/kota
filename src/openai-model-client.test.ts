@@ -7,7 +7,7 @@ import {
 	systemToText,
 	toOpenAIMessages,
 	toOpenAITools,
-} from "./extensions/model-clients/openai/index.js";
+} from "./modules/model-clients/openai/index.js";
 import type { ModelClient } from "./model/model-client.js";
 
 // --- Translation function tests ---

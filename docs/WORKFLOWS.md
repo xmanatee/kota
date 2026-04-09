@@ -63,38 +63,39 @@ not overlap, regardless of their step types:
 
 ```typescript
 const myWorkflow: WorkflowDefinitionInput = {
-  name: "my-extension/heavy-job",
-  concurrencyGroup: "my-extension/heavy",
+  name: "my-module/heavy-job",
+  concurrencyGroup: "my-module/heavy",
   // ...
 };
 ```
 
 ## Common Patterns
 
-### Workflow Tags
+### Explicit Handoffs
 
-Use workflow-level `tags` for routing and policy. Tags let workflows react to
-capabilities or roles without hardcoding a built-in name list elsewhere.
-
-```typescript
-const queueSourceWorkflow: WorkflowDefinitionInput = {
-  name: "my-extension/triage",
-  tags: ["queue-source"],
-  // ...
-};
-```
-
-Then another workflow can react to that generic role:
+Prefer explicit bus events over workflow-name inventories or secondary routing
+metadata.
 
 ```typescript
-triggers: [
-  { event: "workflow.completed", filter: { workflowTags: "queue-source", status: "success" } },
+steps: [
+  {
+    id: "publish-queue",
+    type: "emit",
+    event: "autonomy.queue.available",
+  },
 ]
 ```
 
-Use tags for things like queue sources, delivery workflows, recovery handlers,
-or observer feeds. Keep routing intent in workflow definitions themselves
-instead of spreading workflow-name assumptions through prompts or runtime logic.
+Then another workflow can react directly to that handoff:
+
+```typescript
+triggers: [
+  { event: "autonomy.queue.available" },
+]
+```
+
+Use `workflow.completed` only when the consumer genuinely cares about generic
+run completion rather than a more specific domain event.
 
 ## Agent Step Contract
 
@@ -111,7 +112,7 @@ surfaces and tools.
 If a step output truly must be passed forward, mark that step with
 `exposeOutputToAgent: true`. Keep this rare.
 
-Built-in autonomy workflows should default to no `dailyBudgetUsd`. Use
+Shipped autonomy workflows should default to no `dailyBudgetUsd`. Use
 preflight checks, backoff, repair loops, and better queue shaping before adding
 hard spend caps to the autonomy workflows themselves.
 
@@ -124,7 +125,7 @@ error message and follows the normal failure path (`workflow.failure.alert` emit
 
 ```typescript
 const myWorkflow: WorkflowDefinitionInput = {
-  name: "my-extension/bounded-job",
+  name: "my-module/bounded-job",
   costLimitUsd: 0.50,   // fail if a single run spends more than $0.50
   // ...
 };
@@ -139,14 +140,14 @@ The global `dailyBudgetUsd` and the per-run `costLimitUsd` are independent. Omit
 completes, the runtime computes the run's cost against the rolling average of the
 last 10 non-failed runs for that workflow. If the run cost exceeds
 `costAnomalyThreshold × baseline`, a `workflow.cost.anomaly` bus event fires.
-Telegram and webhook extensions forward this alert automatically.
+Telegram and webhook modules forward this alert automatically.
 
 Detection is skipped if fewer than 3 historical runs are available (not enough
 baseline), or if the workflow has no `costAnomalyThreshold` set (opt-in only).
 
 ```typescript
 const myWorkflow: WorkflowDefinitionInput = {
-  name: "my-extension/long-job",
+  name: "my-module/long-job",
   costAnomalyThreshold: 3.0,  // alert if a run costs > 3× the historical average
   // ...
 };
@@ -162,7 +163,7 @@ without disabling the channel globally.
 
 ```typescript
 const myWorkflow: WorkflowDefinitionInput = {
-  name: "my-extension/housekeeping",
+  name: "my-module/housekeeping",
   notify: {
     onFailure: false,      // suppress workflow.failure.alert (default: true — emit)
     onCostAnomaly: false,  // suppress workflow.cost.anomaly (default: true — emit)
@@ -180,8 +181,8 @@ All flags default to current behavior so existing workflows require no changes:
 | `onCostAnomaly` | `true`  | `workflow.cost.anomaly`       |
 | `onSuccess`     | `false` | `workflow.build.committed`    |
 
-Suppression happens at the event bus emission layer — extensions (Telegram, Slack,
-webhook) never see suppressed events. No changes to channel extension config are needed.
+Suppression happens at the event bus emission layer — modules (Telegram, Slack,
+webhook) never see suppressed events. No changes to channel module config are needed.
 
 Only notification-class events are affected. Core bus events used by the scheduler or
 trigger system (`workflow.completed`, `workflow.started`, etc.) are never suppressed.
@@ -196,7 +197,7 @@ Both fields accept a JSON Schema object. The supported subset is: `type`, `prope
 
 ```typescript
 const myWorkflow: WorkflowDefinitionInput = {
-  name: "my-extension/deploy",
+  name: "my-module/deploy",
   inputSchema: {
     type: "object",
     required: ["env"],
@@ -234,7 +235,7 @@ See [`workflow.maxStepOutputBytes` in CONFIG.md](CONFIG.md#maxstepoutputbytes) f
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `agentName` | `string` | — | Name of a contributed `AgentDef`. Provides `model` and other defaults when the named agent exists in the loaded extension set. |
+| `agentName` | `string` | — | Name of a contributed `AgentDef`. Provides `model` and other defaults when the named agent exists in the loaded module set. |
 | `promptPath` | `string` | — | Path to the prompt markdown file (relative to project root). Required when `agentName` is not set. |
 | `model` | `string` | config default | Model to use for this step. Overrides `agentName` model default. |
 | `maxTurns` | `number` | unlimited | Maximum agent turns before the step is interrupted. |
@@ -253,7 +254,7 @@ steps: [
   {
     id: "analyze",
     type: "agent",
-    promptPath: "src/workflows/my-workflow/prompt.md",
+    promptPath: "src/modules/my-module/workflows/my-workflow/prompt.md",
     model: "claude-opus-4-6",
     thinkingEnabled: true,
     thinkingBudget: 15000,
@@ -262,7 +263,7 @@ steps: [
   {
     id: "decide",
     type: "agent",
-    promptPath: "src/workflows/my-workflow/decide.md",
+    promptPath: "src/modules/my-module/workflows/my-workflow/decide.md",
     outputFormat: "json",
     outputSchema: {
       type: "object",
@@ -297,7 +298,7 @@ React to a workflow completion:
 
 ```typescript
 triggers: [
-  { event: "workflow.completed", filter: { workflowTags: "delivery", status: "success" } },
+  { event: "workflow.completed", filter: { workflow: "builder", status: "success" } },
 ]
 ```
 
@@ -306,8 +307,7 @@ Any event on the internal bus can be a trigger. The bus emits `workflow.started`
 See `src/event-bus.ts` for the full list.
 
 Validation rejects any `workflow.completed` trigger whose filter could match the
-workflow's own completion payload. That includes both name-based filters and
-tag-based filters.
+workflow's own completion payload.
 
 ### File-watch trigger
 
@@ -380,18 +380,18 @@ triggers: [
 ]
 ```
 
-## Contributing Workflows from Extensions
+## Contributing Workflows from Modules
 
-Extensions declare automation via `workflows` on `KotaExtension`. The runtime
-registers and executes them alongside built-in workflows — same trigger model,
+Modules declare automation via `workflows` on `KotaModule`. The runtime
+registers and executes them alongside other contributed workflows — same trigger model,
 same observability, same run history.
 
 ```typescript
-const myExtension: KotaExtension = {
-  name: "my-extension",
+const myExtension: KotaModule = {
+  name: "my-module",
   workflows: [
     {
-      name: "my-extension/nightly-cleanup",
+      name: "my-module/nightly-cleanup",
       description: "Remove stale artifacts every night",
       triggers: [{ schedule: "0 2 * * *" }],
       steps: [
@@ -413,7 +413,7 @@ steps: [
   {
     id: "run-cleanup",
     type: "trigger",
-    workflow: "my-extension/nightly-cleanup",
+    workflow: "my-module/nightly-cleanup",
     waitFor: "completed",   // block until the triggered run finishes
     payload: {
       source: "{{trigger.payload.runId}}",   // interpolation supported
@@ -448,12 +448,12 @@ steps: [
       {
         id: "analyze-frontend",
         type: "agent",
-        promptPath: "src/workflows/my-workflow/prompt-frontend.md",
+        promptPath: "src/modules/my-module/workflows/my-workflow/prompt-frontend.md",
       },
       {
         id: "analyze-backend",
         type: "agent",
-        promptPath: "src/workflows/my-workflow/prompt-backend.md",
+        promptPath: "src/modules/my-module/workflows/my-workflow/prompt-backend.md",
       },
       {
         id: "check-config",
@@ -490,7 +490,7 @@ steps: [
       {
         id: "weekday-step",
         type: "agent",
-        promptPath: "src/workflows/my-workflow/weekday-prompt.md",
+        promptPath: "src/modules/my-module/workflows/my-workflow/weekday-prompt.md",
       },
     ],
     ifFalse: [
@@ -683,18 +683,18 @@ type HarnessStepResult = {
 };
 ```
 
-## Testing Extension Definitions
+## Testing Module Definitions
 
-The same `kota/testing` sub-path also exports `ExtensionTestHarness` — a lightweight
-in-process harness for testing `KotaExtension` definitions without a running daemon,
+The same `kota/testing` sub-path also exports `ModuleTestHarness` — a lightweight
+in-process harness for testing `KotaModule` definitions without a running daemon,
 real config, or network.
 
 ```ts
-import { ExtensionTestHarness } from "kota/testing";
+import { ModuleTestHarness } from "kota/testing";
 import myExtension from "./index.js";
 
 test("registers the expected tool and it works", async () => {
-  const harness = await ExtensionTestHarness.create(myExtension);
+  const harness = await ModuleTestHarness.create(myExtension);
 
   const tool = harness.getTool("my_tool");
   expect(tool).toBeDefined();
@@ -708,26 +708,26 @@ test("registers the expected tool and it works", async () => {
 
 ### How it works
 
-The harness accepts one or more `KotaExtension` objects. On `load()` (or `create()`):
+The harness accepts one or more `KotaModule` objects. On `load()` (or `create()`):
 
-1. Tools are resolved — static arrays are used directly; factory functions receive a mock `ExtensionContext`.
-2. Routes are collected by calling `ext.routes(ctx)` when present.
+1. Tools are resolved — static arrays are used directly; factory functions receive a mock `ModuleContext`.
+2. Routes are collected by calling `module.routes(ctx)` when present.
 3. `onLoad` is called with the mock context.
 
-On `teardown()`, `onUnload` is called on each extension in reverse load order.
+On `teardown()`, `onUnload` is called on each module in reverse load order.
 
 | Method | Description |
 |--------|-------------|
-| `ExtensionTestHarness.create(ext, opts?)` | Static factory: constructs and loads. |
+| `ModuleTestHarness.create(module, opts?)` | Static factory: constructs and loads. |
 | `harness.load()` | Explicitly load (if not using `create()`). |
-| `harness.teardown()` | Call `onUnload` on all extensions in reverse order. |
+| `harness.teardown()` | Call `onUnload` on all modules in reverse order. |
 | `harness.getTool(name)` | Return the `ToolDef` for the named tool, or `undefined`. |
 | `harness.callTool(name, input)` | Invoke the tool runner and return the result. |
-| `harness.getRoutes()` | Return HTTP routes contributed by the extension(s). |
+| `harness.getRoutes()` | Return HTTP routes contributed by the module(s). |
 | `harness.getDynamicState()` | Call all `registerDynamicStateProvider` functions and return concatenated output. |
 | `harness.emitEvent(event, payload)` | Fire `ctx.events.subscribe` handlers registered for the event. |
 
-### ExtensionHarnessOptions
+### ModuleHarnessOptions
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -736,7 +736,7 @@ On `teardown()`, `onUnload` is called on each extension in reverse load order.
 | `secrets` | `Record<string, string>` | Named secrets returned by `ctx.getSecret()`. |
 
 The mock context stubs `createSession` (throws), `registerMiddleware` (no-op),
-and `getExtensionSummaries` (returns `[]`). Extensions that rely on these
+and `getModuleSummaries` (returns `[]`). Modules that rely on these
 in their core paths will need additional test setup outside the harness.
 
 ## Operator Commands
@@ -874,7 +874,7 @@ definition errors before they reach the daemon.
 ## Operator Notifications
 
 The following bus events are emitted during workflow execution and can be forwarded
-to operators via the Telegram and Slack extensions.
+to operators via the Telegram and Slack modules.
 
 ### Builder commit notification (`workflow.build.committed`)
 
@@ -890,9 +890,9 @@ After the builder workflow successfully commits a task change, it emits:
 }
 ```
 
-This event is **opt-in** per extension (off by default) to avoid noise when builder runs
+This event is **opt-in** per module (off by default) to avoid noise when builder runs
 frequently. To enable it, add `workflow.build.committed` to the `events` list in the
-extension config:
+module config:
 
 ```json
 // kota.config — under the "slack" key

@@ -24,7 +24,7 @@ const MAX_MEMORIES = 3;
 const MAX_CONVERSATIONS = 3;
 const MIN_MESSAGE_LENGTH = 20;
 
-/** Common code/config file extensions for standalone filename detection. */
+/** Common code/config file modules for standalone filename detection. */
 const CODE_EXTS =
   "ts|tsx|js|jsx|mjs|cjs|py|rs|go|java|c|cpp|h|hpp|css|scss|html|json|yaml|yml|toml|md|txt|sh|sql|graphql|proto|env|lock|cfg|xml";
 
@@ -34,7 +34,7 @@ const PATH_PATTERNS = [
   /(?:^|[\s`"'(])(\.{1,2}\/[\w./-]+)/gm,
   // Paths under common source directories
   /(?:^|[\s`"'(])((?:src|lib|test|tests|app|config|scripts|docs|public|assets|hooks|api|routes|services|models|types)\/[\w./-]+)/gim,
-  // Standalone filenames with code extensions (dynamic — uses CODE_EXTS)
+  // Standalone filenames with code modules (dynamic — uses CODE_EXTS)
   new RegExp(
     `(?:^|[\\s\`"'(])([\\w][\\w.-]*\\.(?:${CODE_EXTS}))\\b`,
     "gm",

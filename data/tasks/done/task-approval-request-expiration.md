@@ -24,7 +24,7 @@ Approval requests have an optional `timeoutMs` field. When the deadline passes w
 - Default behavior when `timeoutMs` is omitted must be the current behavior (no timeout) to avoid breaking existing workflows.
 - Auto-deny is the safe default for the `defaultResolution` field; auto-approve requires explicit opt-in.
 - Timeout resolution should be implemented inside the approval store or daemon, not as a workflow step retry — the step should receive the resolved value normally.
-- The `workflow.approval.timeout` event should be subscribable by notification extensions (Telegram, Slack) using the existing event bus pattern.
+- The `workflow.approval.timeout` event should be subscribable by notification modules (Telegram, Slack) using the existing event bus pattern.
 
 ## Done When
 

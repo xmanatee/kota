@@ -3,7 +3,7 @@ id: task-mcp-tool-annotations
 title: Add MCP tool annotations to expose risk and behavior hints to MCP clients
 status: done
 priority: p3
-area: extensions
+area: modules
 summary: The 2025-03-26 MCP spec added tool annotations (readOnlyHint, destructiveHint, openWorldHint, idempotentHint). Populating these from KOTA's guardrail risk classification lets MCP clients make smarter tool selection decisions without requiring extra prompting.
 created_at: 2026-04-02T13:57:40Z
 updated_at: 2026-04-08T17:27:34Z
@@ -41,7 +41,7 @@ or descriptions heuristically.
 ## Constraints
 
 - Derive annotations from the guardrail tier — do not add a separate annotation
-  registry or require extension authors to declare hints manually.
+  registry or require module authors to declare hints manually.
 - If a tool's tier is unknown, omit `annotations` rather than defaulting to destructive.
 - No breaking change to the tools KOTA registers; only the `tools/list` response format changes.
 - Requires MCP SDK support for `annotations` in the `Tool` type; pin to an SDK version

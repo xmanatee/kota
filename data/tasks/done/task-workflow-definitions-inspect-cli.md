@@ -17,7 +17,7 @@ configured. `kota workflow trigger <name>` errors with the list of valid names
 if you guess wrong, but there is no `kota workflow definitions` command.
 
 As the workflow set grows — with the attention digest, future notification
-workflows, and extension-contributed workflows — operators need a direct
+workflows, and module-contributed workflows — operators need a direct
 way to inspect definitions without reading the source files.
 
 ## Desired Outcome

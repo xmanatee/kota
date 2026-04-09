@@ -4,7 +4,7 @@ title: Remove legacy runtime state fields and duplicate manifest-era surfaces
 status: done
 priority: p1
 area: runtime
-summary: Some legacy runtime state was removed, but the public surface still carries old module terminology and manifest-era extension hooks like `promptSection`, `eventHandlers`, and script conversion. Finish removing the leftover parallel surfaces instead of keeping mixed-era names and concepts alive.
+summary: Some legacy runtime state was removed, but the public surface still carries old module terminology and manifest-era module hooks like `promptSection`, `eventHandlers`, and script conversion. Finish removing the leftover parallel surfaces instead of keeping mixed-era names and concepts alive.
 created_at: 2026-03-26
 updated_at: 2026-03-27
 ---
@@ -14,9 +14,9 @@ updated_at: 2026-03-27
 Some legacy runtime state has already been removed, but the codebase still
 exposes obsolete or duplicate surfaces, including:
 
-- old module-oriented naming in extension-facing interfaces
+- old module-oriented naming in module-facing interfaces
 - manifest-era guidance and automation paths layered beside skills and workflows
-- older naming that does not match the current extension/agent/workflow model
+- older naming that does not match the current module/agent/workflow model
 
 These leftovers make the runtime harder to reason about and keep the codebase
 straddling two architectures at once.
@@ -40,5 +40,5 @@ straddling two architectures at once.
 - Duplicate or obsolete manifest/runtime names are removed from public docs and
   code.
 - Manifest-era public surfaces no longer present themselves as first-class
-  runtime concepts beside extensions, skills, agents, and workflows.
+  runtime concepts beside modules, skills, agents, and workflows.
 - Validation, CLI inspection, and stored state all reflect one clear model.

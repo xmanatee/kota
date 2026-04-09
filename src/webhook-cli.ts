@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { Command } from "commander";
 import { loadConfig, updateProjectConfig } from "./config.js";
-import { loadExtensionMetadata } from "./extension-metadata.js";
+import { loadModuleMetadata } from "./module-metadata.js";
 
 export function registerWebhookCommands(program: Command): void {
   const webhookCmd = program
@@ -15,7 +15,7 @@ export function registerWebhookCommands(program: Command): void {
     )
     .action(async () => {
       const config = loadConfig();
-      const loader = await loadExtensionMetadata(config, process.cwd(), false);
+      const loader = await loadModuleMetadata(config, process.cwd(), false);
       const definitions = loader.getContributedWorkflows();
       const webhookDefs = definitions.filter((d) =>
         d.triggers.some((t) => t.webhook),

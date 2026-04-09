@@ -248,18 +248,18 @@ describe("getWebUI", () => {
     expect(html).toContain("refreshCost");
   });
 
-  it("includes extensions panel element", () => {
-    expect(html).toContain('id="extensions-list"');
-    expect(html).toContain("Extensions");
+  it("includes modules panel element", () => {
+    expect(html).toContain('id="modules-list"');
+    expect(html).toContain("Modules");
   });
 
-  it("loads extensions from GET /api/extensions on init", () => {
+  it("loads modules from GET /api/modules on init", () => {
     expect(html).toContain("refreshExtensions");
-    expect(html).toContain("/api/extensions");
+    expect(html).toContain("/api/modules");
   });
 
-  it("renders empty state when no extensions are loaded", () => {
-    expect(html).toContain("No extensions loaded");
+  it("renders empty state when no modules are loaded", () => {
+    expect(html).toContain("No modules loaded");
   });
 
   it("uses long polling interval (≥5 min) for event-driven panels", () => {

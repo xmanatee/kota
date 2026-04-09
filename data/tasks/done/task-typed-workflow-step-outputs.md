@@ -21,7 +21,7 @@ const inspectOutput = stepOutputs["inspect-ready-queue"];
 // Cast and manually check shape before use
 ```
 
-As more workflows chain steps and contributed extensions add their own
+As more workflows chain steps and contributed modules add their own
 step chaining, the lack of type information makes it easy to break a
 downstream step silently when an upstream step changes its output shape.
 
@@ -44,7 +44,7 @@ The goal is compile-time safety at definition sites, not a runtime schema layer.
   naturally.
 - Existing workflow definitions should continue to work unchanged (untyped
   steps remain valid).
-- The solution should work for both built-in and contributed (extension)
+- The solution should work for both built-in and contributed (module)
   workflow definitions.
 
 ## Done When

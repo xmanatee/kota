@@ -9,8 +9,8 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { runFileEdit } from "./extensions/filesystem/file-edit.js";
-import { runGrep } from "./extensions/filesystem/grep.js";
+import { runFileEdit } from "./modules/filesystem/file-edit.js";
+import { runGrep } from "./modules/filesystem/grep.js";
 import { checkFreshness, recordRead } from "./file-tracker.js";
 import { FailureTracker, type ToolResultEntry } from "./tool-runner.js";
 

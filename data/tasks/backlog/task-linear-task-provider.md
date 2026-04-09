@@ -3,7 +3,7 @@ id: task-linear-task-provider
 title: Add Linear task provider so teams can use their Linear workspace as KOTA's task source
 status: backlog
 priority: p3
-area: extensions
+area: modules
 summary: Teams that manage work in Linear have to maintain a parallel file queue in data/tasks/ for the builder to pick up. A Linear TaskProvider would let the builder pull directly from Linear issues with no file duplication.
 created_at: 2026-04-02T13:57:40Z
 updated_at: 2026-04-02T13:57:40Z
@@ -24,7 +24,7 @@ no parallel queue.
 
 ## Desired Outcome
 
-A `linear` extension in `src/extensions/` that optionally contributes a `TaskProvider`:
+A `linear` module in `src/modules/` that optionally contributes a `TaskProvider`:
 
 - **List**: returns Linear issues in a configured team/cycle/project matching a label
   filter (e.g. `kota-task`) and not already `In Progress` or `Done`.
@@ -35,7 +35,7 @@ A `linear` extension in `src/extensions/` that optionally contributes a `TaskPro
 - Priority is derived from Linear `priority` field (0–4) mapped to KOTA p0–p3.
 - `area` is derived from a configurable label-to-area mapping.
 
-Configured via `config.extensions.linear`:
+Configured via `config.modules.linear`:
 ```json
 {
   "linear": {
@@ -63,8 +63,8 @@ Configured via `config.extensions.linear`:
 
 ## Done When
 
-- Linear extension loads and registers a `TaskProvider` when `linear.taskProvider.enabled: true`.
+- Linear module loads and registers a `TaskProvider` when `linear.taskProvider.enabled: true`.
 - Builder can list, claim, and complete Linear issues as tasks.
 - Priority mapping from Linear priority levels to KOTA p0–p3 works correctly.
-- Extension fails gracefully with a clear error when `LINEAR_API_KEY` is missing.
+- Module fails gracefully with a clear error when `LINEAR_API_KEY` is missing.
 - Unit test covers list (label filter), claim (state transition), and complete (state + comment).

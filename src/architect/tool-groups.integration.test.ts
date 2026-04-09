@@ -35,7 +35,7 @@ describe("editor tool set independence from tool-group state", () => {
   // NOT filterTools. These tests verify the contract.
 
   it("editor gets all EDITOR_TOOL_SET tools even with no groups enabled", () => {
-    // Register a mock tool that's in EDITOR_TOOL_SET (simulating extension-loaded shell)
+    // Register a mock tool that's in EDITOR_TOOL_SET (simulating module-loaded shell)
     // to verify that the editor uses getAllTools() directly, not filterTools().
     const mockShellTool = {
       name: "shell",
@@ -58,7 +58,7 @@ describe("editor tool set independence from tool-group state", () => {
     // Direct (what the editor uses) should have MORE or equal tools than filterTools
     expect(direct.length).toBeGreaterThanOrEqual(viaFilterTools.length);
 
-    // shell is in EDITOR_TOOL_SET and in getAllTools() (via registered extension tool)
+    // shell is in EDITOR_TOOL_SET and in getAllTools() (via registered module tool)
     // It appears in direct regardless of group state
     expect(direct).toContain("shell");
   });
@@ -109,7 +109,7 @@ describe("filterTools main-loop behavior with group state", () => {
   });
 
   it("enabling a group adds its tools to filterTools output", () => {
-    // sqlite is in the "code" group (system extension); register a mock to simulate extension load
+    // sqlite is in the "code" group (system module); register a mock to simulate module load
     const mockSqlite = {
       name: "sqlite",
       description: "Query SQLite databases",
@@ -120,16 +120,16 @@ describe("filterTools main-loop behavior with group state", () => {
     const before = new Set(filterTools(getAllTools()).map((t) => t.name));
     expect(before.has("sqlite")).toBe(false);
 
-    // Enable "code" group — sqlite is registered in TOOL_GROUPS.code by the system extension
-    // (notebook and code_exec are also in extensions, not in core)
+    // Enable "code" group — sqlite is registered in TOOL_GROUPS.code by the system module
+    // (notebook and code_exec are also in modules, not in core)
     enableGroup("code");
     const after = new Set(filterTools(getAllTools()).map((t) => t.name));
     expect(after.has("sqlite")).toBe(true);
-    // web tools are in the web-access extension; only available after extension loads
+    // web tools are in the web-access module; only available after module loads
   });
 
   it("resetGroups removes all non-core tools from filterTools", () => {
-    // sqlite is in the "code" group (system extension); register a mock to simulate extension load
+    // sqlite is in the "code" group (system module); register a mock to simulate module load
     const mockSqlite = {
       name: "sqlite",
       description: "Query SQLite databases",
@@ -139,10 +139,10 @@ describe("filterTools main-loop behavior with group state", () => {
 
     enableGroup("all");
     const withAll = filterTools(getAllTools()).map((t) => t.name);
-    // sqlite is in the "code" group via the system extension
-    // (notebook and code_exec are also in extensions, not in core)
+    // sqlite is in the "code" group via the system module
+    // (notebook and code_exec are also in modules, not in core)
     expect(withAll).toContain("sqlite");
-    // web tools are in the web-access extension, only available after extension loads
+    // web tools are in the web-access module, only available after module loads
 
     resetGroups();
     const afterReset = new Set(filterTools(getAllTools()).map((t) => t.name));

@@ -1,11 +1,11 @@
 /**
- * GitHub extension — integration tests with mocked fetch.
+ * GitHub module — integration tests with mocked fetch.
  *
  * Covers: create PR, get PR with CI checks, add comment.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ExtensionContext } from "../../extension-types.js";
+import type { ModuleContext } from "../../module-types.js";
 import githubModule from "./index.js";
 
 // ─── Mock fetch ───────────────────────────────────────────────────────────────
@@ -15,17 +15,17 @@ vi.stubGlobal("fetch", mockFetch);
 
 // ─── Mock context ─────────────────────────────────────────────────────────────
 
-function makeCtx(token = "ghp_test123", repo = "owner/testrepo"): ExtensionContext {
+function makeCtx(token = "ghp_test123", repo = "owner/testrepo"): ModuleContext {
   return {
     cwd: "/tmp",
     verbose: false,
-    config: {} as ExtensionContext["config"],
-    storage: {} as ExtensionContext["storage"],
+    config: {} as ModuleContext["config"],
+    storage: {} as ModuleContext["storage"],
     registerGroup: vi.fn(),
     getRoutes: vi.fn(() => []),
     getContributedWorkflows: vi.fn(() => []),
     getContributedChannels: vi.fn(() => []),
-    getExtensionConfig: vi.fn(() => ({ token, repo })),
+    getModuleConfig: vi.fn(() => ({ token, repo })),
     log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     getSecret: vi.fn(() => null),
     listTools: vi.fn(() => []),
@@ -35,8 +35,8 @@ function makeCtx(token = "ghp_test123", repo = "owner/testrepo"): ExtensionConte
     getProvider: vi.fn(() => null),
     callTool: vi.fn(),
     registerMiddleware: vi.fn(),
-    getExtensionSummaries: vi.fn(() => []),
-  } as unknown as ExtensionContext;
+    getModuleSummaries: vi.fn(() => []),
+  } as unknown as ModuleContext;
 }
 
 function makeResponse(data: unknown, status = 200): Response {
@@ -49,13 +49,13 @@ function makeResponse(data: unknown, status = 200): Response {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function getTools(ctx: ExtensionContext) {
+function getTools(ctx: ModuleContext) {
   const toolsFactory = githubModule.tools;
   if (typeof toolsFactory !== "function") throw new Error("tools should be a factory");
   return toolsFactory(ctx);
 }
 
-function getTool(ctx: ExtensionContext, name: string) {
+function getTool(ctx: ModuleContext, name: string) {
   const tools = getTools(ctx);
   const t = tools.find((t) => t.tool.name === name);
   if (!t) throw new Error(`Tool ${name} not found`);
@@ -64,7 +64,7 @@ function getTool(ctx: ExtensionContext, name: string) {
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-describe("github extension", () => {
+describe("github module", () => {
   beforeEach(() => {
     mockFetch.mockReset();
   });
@@ -94,7 +94,7 @@ describe("github extension", () => {
 
     it("returns no tools when token is missing", () => {
       const ctx = makeCtx();
-      vi.mocked(ctx.getExtensionConfig).mockReturnValue({} as ReturnType<ExtensionContext["getExtensionConfig"]>);
+      vi.mocked(ctx.getModuleConfig).mockReturnValue({} as ReturnType<ModuleContext["getModuleConfig"]>);
       const tools = getTools(ctx);
       expect(tools).toHaveLength(0);
       expect(ctx.log.warn).toHaveBeenCalledWith(

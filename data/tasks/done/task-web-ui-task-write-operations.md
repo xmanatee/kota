@@ -14,7 +14,7 @@ updated_at: 2026-04-01T06:25:00Z
 The web UI task panel (`client-tasks.ts`) displays tasks in all open states but provides no
 write capability. To promote a backlog item to ready, drop a stale task, or create an inbox
 entry, operators must context-switch to the CLI. The web UI is already the operator's primary
-monitoring surface; task management is a natural extension.
+monitoring surface; task management is a natural module.
 
 The task routes in `src/server/task-routes.ts` are read-only (`GET /api/tasks`). No HTTP
 endpoints exist for task state transitions.

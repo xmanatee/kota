@@ -6,7 +6,7 @@
  * the actual integration boundary between these two modules.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createRetryMiddleware, resetRetryStats } from "./extensions/tool-retry/tool-retry.js";
+import { createRetryMiddleware, resetRetryStats } from "./modules/tool-retry/tool-retry.js";
 import { getToolMiddleware, resetToolMiddleware } from "./tool-middleware.js";
 import { executeToolCalls } from "./tool-runner.js";
 

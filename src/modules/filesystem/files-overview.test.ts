@@ -79,7 +79,7 @@ describe("files_overview", () => {
     expect(r.content).toContain("not a directory");
   });
 
-  it("categorizes files without extension as Other", async () => {
+  it("categorizes files without module as Other", async () => {
     await writeFile(join(dir, "Makefile"), "all:\n\techo hi");
     const r = await runFilesOverview({ path: dir });
     expect(r.content).toContain("Other");

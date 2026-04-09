@@ -2,9 +2,9 @@
  * Registry installer implementations — per-source-type install mechanics
  * (npm, URL, GitHub). Extracted from registry.ts for testability.
  *
- * All installed extensions land under `.kota/extensions/<name>/`:
- * - URL downloads:    `.kota/extensions/<name>/index.mjs`
- * - npm packages:     `.kota/extensions/<name>/` (with its own node_modules)
+ * All installed modules land under `.kota/modules/<name>/`:
+ * - URL downloads:    `.kota/modules/<name>/index.mjs`
+ * - npm packages:     `.kota/modules/<name>/` (with its own node_modules)
  * - GitHub packages:  same as npm
  *
  * Each installer receives a resolved kotaDir path (not cwd) so it has
@@ -16,7 +16,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { InstallResult, ParsedSource } from "./registry.js";
 
-export const EXTENSIONS_DIR = "extensions";
+export const EXTENSIONS_DIR = "modules";
 
 export async function installNpm(parsed: ParsedSource, kotaDir: string): Promise<InstallResult> {
   const extDir = join(kotaDir, EXTENSIONS_DIR, parsed.name);
@@ -49,7 +49,7 @@ export async function installNpm(parsed: ParsedSource, kotaDir: string): Promise
   }
 
   // Resolve the installed package's entry point and record it in the wrapper
-  // package.json so extension discovery can find it via the "main" field.
+  // package.json so module discovery can find it via the "main" field.
   const installedPkgName = resolveInstalledPackageName(extDir, parsed.identifier);
   const installedPkgDir = join(extDir, "node_modules", ...installedPkgName.split("/"));
   const entryPath = resolveNpmEntry(installedPkgDir);
@@ -73,7 +73,7 @@ export async function installUrl(parsed: ParsedSource, kotaDir: string): Promise
 
   const destPath = join(extDir, "index.mjs");
   if (existsSync(destPath)) {
-    throw new Error(`Extension "${parsed.name}" already exists in extensions directory`);
+    throw new Error(`Module "${parsed.name}" already exists in modules directory`);
   }
 
   let response: Response;

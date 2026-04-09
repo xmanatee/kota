@@ -1,12 +1,12 @@
 /**
- * ExtensionTestHarness — lightweight in-process harness for testing KotaExtension
+ * ModuleTestHarness — lightweight in-process harness for testing KotaModule
  * definitions without a running daemon, real config, or network.
  *
  * Mirrors the design of WorkflowTestHarness for consistency. Load one or more
- * extensions, call their onLoad, exercise tools and routes, then teardown.
+ * modules, call their onLoad, exercise tools and routes, then teardown.
  *
  * Usage:
- *   const harness = await ExtensionTestHarness.create(myExtension);
+ *   const harness = await ModuleTestHarness.create(myExtension);
  *   const result = await harness.callTool("my_tool", { action: "list" });
  *   expect(result.is_error).toBeUndefined();
  *   await harness.teardown();
@@ -14,16 +14,16 @@
 
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { ExtensionStorage } from "../extension-storage.js";
+import { ModuleStorage } from "../module-storage.js";
 import type {
-  ExtensionContext,
-  KotaExtension,
+  ModuleContext,
+  KotaModule,
   RouteRegistration,
   ToolDef,
-} from "../extension-types.js";
+} from "../module-types.js";
 import type { ToolResult } from "../tools/tool-result.js";
 
-export type ExtensionHarnessOptions = {
+export type ModuleHarnessOptions = {
   /** Working directory passed to ctx.cwd. Defaults to process.cwd(). */
   cwd?: string;
   /** Config object passed to ctx.config. Defaults to {}. */
@@ -32,9 +32,9 @@ export type ExtensionHarnessOptions = {
   secrets?: Record<string, string>;
 };
 
-export class ExtensionTestHarness {
-  readonly #extensions: KotaExtension[];
-  readonly #options: ExtensionHarnessOptions;
+export class ModuleTestHarness {
+  readonly #modules: KotaModule[];
+  readonly #options: ModuleHarnessOptions;
   readonly #tools = new Map<string, ToolDef>();
   #routes: RouteRegistration[] = [];
   readonly #dynamicStateProviders = new Map<string, () => string>();
@@ -47,32 +47,32 @@ export class ExtensionTestHarness {
   #loaded = false;
 
   constructor(
-    extensions: KotaExtension | KotaExtension[],
-    options: ExtensionHarnessOptions = {},
+    modules: KotaModule | KotaModule[],
+    options: ModuleHarnessOptions = {},
   ) {
-    this.#extensions = Array.isArray(extensions) ? extensions : [extensions];
+    this.#modules = Array.isArray(modules) ? modules : [modules];
     this.#options = options;
     this.#tempDir = mkdtempSync(`${tmpdir()}/kota-ext-harness-`);
   }
 
   /**
-   * Create a harness and load the given extension(s). Shorthand for:
-   *   const h = new ExtensionTestHarness(ext);
+   * Create a harness and load the given module(s). Shorthand for:
+   *   const h = new ModuleTestHarness(ext);
    *   await h.load();
    */
   static async create(
-    extensions: KotaExtension | KotaExtension[],
-    options?: ExtensionHarnessOptions,
-  ): Promise<ExtensionTestHarness> {
-    const harness = new ExtensionTestHarness(extensions, options);
+    modules: KotaModule | KotaModule[],
+    options?: ModuleHarnessOptions,
+  ): Promise<ModuleTestHarness> {
+    const harness = new ModuleTestHarness(modules, options);
     await harness.load();
     return harness;
   }
 
-  /** Load all extensions: resolve tools, routes, and call onLoad. */
+  /** Load all modules: resolve tools, routes, and call onLoad. */
   async load(): Promise<void> {
     if (this.#loaded) return;
-    for (const ext of this.#extensions) {
+    for (const ext of this.#modules) {
       const ctx = this.#buildContext(ext.name);
       const tools =
         !ext.tools
@@ -94,11 +94,11 @@ export class ExtensionTestHarness {
   }
 
   /**
-   * Tear down all loaded extensions in reverse order. Calls onUnload on each.
+   * Tear down all loaded modules in reverse order. Calls onUnload on each.
    * After teardown, load() may be called again.
    */
   async teardown(): Promise<void> {
-    for (const ext of [...this.#extensions].reverse()) {
+    for (const ext of [...this.#modules].reverse()) {
       if (ext.onUnload) {
         await ext.onUnload();
       }
@@ -126,7 +126,7 @@ export class ExtensionTestHarness {
     return def.runner(input);
   }
 
-  /** Return HTTP routes contributed by the loaded extension(s). */
+  /** Return HTTP routes contributed by the loaded module(s). */
   getRoutes(): RouteRegistration[] {
     return [...this.#routes];
   }
@@ -150,23 +150,23 @@ export class ExtensionTestHarness {
     for (const h of handlers) h(payload);
   }
 
-  #buildContext(extensionName: string): ExtensionContext {
+  #buildContext(moduleName: string): ModuleContext {
     const cwd = this.#options.cwd ?? process.cwd();
     const config = this.#options.config ?? {};
     const secrets = this.#options.secrets ?? {};
-    const storage = new ExtensionStorage(this.#tempDir, extensionName);
+    const storage = new ModuleStorage(this.#tempDir, moduleName);
 
     return {
       cwd,
       verbose: false,
-      config: config as ExtensionContext["config"],
+      config: config as ModuleContext["config"],
       storage,
       registerGroup: () => {},
       getRoutes: () => [...this.#routes],
       getContributedWorkflows: () => [],
       getContributedChannels: () => [],
-      getExtensionSummaries: () => [],
-      getExtensionConfig: () => undefined,
+      getModuleSummaries: () => [],
+      getModuleConfig: () => undefined,
       log: {
         info: () => {},
         warn: () => {},
@@ -193,7 +193,7 @@ export class ExtensionTestHarness {
         },
       },
       createSession: () => {
-        throw new Error("createSession is not supported in ExtensionTestHarness");
+        throw new Error("createSession is not supported in ModuleTestHarness");
       },
       registerProvider: (type, provider) => {
         this.#providers.set(type, provider);

@@ -645,7 +645,7 @@ describe("Event-Based Triggers", () => {
       status: "success",
       triggerEvent: "runtime.idle",
       durationMs: 100,
-      definitionPath: "src/workflows/builder/workflow.ts",
+      definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
       runDir: ".kota/runs/r1",
     });
     expect(fired).toEqual(["Duration match"]);

@@ -13,7 +13,7 @@ updated_at: 2026-03-31T07:52:00Z
 
 `subscribeWorkflowFailureAlert` in `src/workflow/failure-alert.ts` emits a
 `workflow.failure.alert` bus event for every failed or interrupted run. The
-Telegram and webhook extensions forward each event immediately. When a workflow
+Telegram and webhook modules forward each event immediately. When a workflow
 fails in a tight loop (e.g., a bug causes builder to fail on every attempt),
 operators receive a flood of nearly-identical messages — one per run — with no
 way to configure a minimum quiet period between alerts for the same workflow.
@@ -38,7 +38,7 @@ way to configure a minimum quiet period between alerts for the same workflow.
 - The suppressed-alert count is not surfaced in the notification message (keep
   it simple for a first pass).
 - No changes to the `workflow.failure.alert` bus event schema or the Telegram/
-  webhook extension subscription logic — the cooldown lives in the emitter, not
+  webhook module subscription logic — the cooldown lives in the emitter, not
   the consumers.
 
 ## Done When

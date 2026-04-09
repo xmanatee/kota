@@ -1,4 +1,4 @@
-# History Extension
+# History Module
 
 This directory owns the `conversation_recall` management tool — lets the agent search and read past conversations across sessions.
 
@@ -7,7 +7,7 @@ This directory owns the `conversation_recall` management tool — lets the agent
 
 ## Files
 
-- `index.ts` — `KotaExtension` definition; registers the tool and skill.
+- `index.ts` — `KotaModule` definition; registers the tool and skill.
 - `conversation-recall.ts` — `conversationRecallTool` schema and `runConversationRecall` runner.
 - `conversation-recall.test.ts` — unit tests for recall search and read operations.
 

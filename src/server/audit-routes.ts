@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { AuditEntry, AuditFilter } from "../extensions/guardrails-audit/store.js";
-import { AuditStore } from "../extensions/guardrails-audit/store.js";
+import type { AuditEntry, AuditFilter } from "../modules/guardrails-audit/store.js";
+import { AuditStore } from "../modules/guardrails-audit/store.js";
 import { jsonResponse } from "./session-pool.js";
 
 const DEFAULT_LIMIT = 200;

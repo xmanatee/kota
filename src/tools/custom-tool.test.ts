@@ -157,7 +157,7 @@ describe("runCustomTool", () => {
         code: "print('x')",
       });
       expect(result.is_error).toBe(true);
-      expect(result.content).toContain("conflicts with a built-in tool");
+      expect(result.content).toContain("conflicts with a project tool");
     });
 
     it("rejects missing description", async () => {

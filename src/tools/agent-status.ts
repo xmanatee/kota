@@ -1,22 +1,22 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { getProviderRegistry } from "../extensions/providers/index.js";
+import { getProviderRegistry } from "../modules/providers/index.js";
 import { getEnabledGroups, TOOL_GROUPS } from "../tool-groups.js";
-import { getCoreRegistrations, getExtensionToolRisk, getRegisteredTools, type ToolRegistration, type ToolResult } from "./index.js";
+import { getCoreRegistrations, getModuleToolRisk, getRegisteredTools, type ToolRegistration, type ToolResult } from "./index.js";
 
 export const agentStatusTool: Anthropic.Tool = {
 	name: "agent_status",
 	description:
-		"Introspect the agent's runtime state: available tools, loaded extensions, " +
+		"Introspect the agent's runtime state: available tools, loaded modules, " +
 		"active providers, enabled tool groups, and config. Use when you need to " +
-		"discover capabilities, check what extensions are loaded, or verify configuration.",
+		"discover capabilities, check what modules are loaded, or verify configuration.",
 	input_schema: {
 		type: "object" as const,
 		properties: {
 			query: {
 				type: "string",
-				enum: ["tools", "extensions", "providers", "groups", "config", "all"],
+				enum: ["tools", "modules", "providers", "groups", "config", "all"],
 				description:
-					"What to inspect. tools: list available tools. extensions: loaded extensions. " +
+					"What to inspect. tools: list available tools. modules: loaded modules. " +
 					"providers: registered service providers. groups: tool groups and status. " +
 					"config: current settings. all: everything.",
 			},
@@ -29,21 +29,21 @@ export const agentStatusTool: Anthropic.Tool = {
 	},
 };
 
-// --- Extension info provider (set by loop.ts to avoid circular imports) ---
+// --- Module info provider (set by loop.ts to avoid circular imports) ---
 
-export type ExtensionStatusEntry = {
+export type ModuleStatusEntry = {
 	name: string;
 	toolCount: number;
 };
 
-type ExtensionInfoProvider = () => ExtensionStatusEntry[];
+type ModuleInfoProvider = () => ModuleStatusEntry[];
 type ConfigProvider = () => Record<string, unknown>;
 
-let _extensionInfoProvider: ExtensionInfoProvider | null = null;
+let _moduleInfoProvider: ModuleInfoProvider | null = null;
 let _configProvider: ConfigProvider | null = null;
 
-export function setExtensionInfoProvider(fn: ExtensionInfoProvider): void {
-	_extensionInfoProvider = fn;
+export function setModuleInfoProvider(fn: ModuleInfoProvider): void {
+	_moduleInfoProvider = fn;
 }
 
 export function setConfigProvider(fn: ConfigProvider): void {
@@ -51,7 +51,7 @@ export function setConfigProvider(fn: ConfigProvider): void {
 }
 
 export function resetAgentStatusProviders(): void {
-	_extensionInfoProvider = null;
+	_moduleInfoProvider = null;
 	_configProvider = null;
 }
 
@@ -68,8 +68,8 @@ export async function runAgentStatus(
 	if (query === "tools" || query === "all") {
 		sections.push(formatTools(filter));
 	}
-	if (query === "extensions" || query === "all") {
-		sections.push(formatExtensions(filter));
+	if (query === "modules" || query === "all") {
+		sections.push(formatModules(filter));
 	}
 	if (query === "providers" || query === "all") {
 		sections.push(formatProviders(filter));
@@ -91,7 +91,7 @@ function matches(text: string, filter: string): boolean {
 
 function formatTools(filter: string): string {
 	const core = getCoreRegistrations();
-	const extensionTools = getRegisteredTools();
+	const moduleTools = getRegisteredTools();
 
 	const lines: string[] = ["## Tools"];
 
@@ -105,21 +105,21 @@ function formatTools(filter: string): string {
 		}
 	}
 
-	const extensionFiltered = extensionTools.filter(
+	const moduleFiltered = moduleTools.filter(
 		(t) => matches(t.name, filter) || matches(t.description || "", filter),
 	);
-	if (extensionFiltered.length > 0) {
-		lines.push(`\nExtension tools (${extensionFiltered.length}):`);
-		for (const t of extensionFiltered) {
+	if (moduleFiltered.length > 0) {
+		lines.push(`\nModule tools (${moduleFiltered.length}):`);
+		for (const t of moduleFiltered) {
 			const group = findToolGroup(t.name);
-			const risk = getExtensionToolRisk(t.name);
+			const risk = getModuleToolRisk(t.name);
 			const groupTag = group ? ` [${group}]` : "";
 			const riskTag = risk && risk !== "safe" ? ` (${risk})` : "";
 			lines.push(`- ${t.name}${groupTag}${riskTag}: ${truncate(t.description || "(no description)", 80)}`);
 		}
 	}
 
-	if (coreFiltered.length === 0 && extensionFiltered.length === 0) {
+	if (coreFiltered.length === 0 && moduleFiltered.length === 0) {
 		lines.push("(no tools match filter)");
 	}
 
@@ -140,30 +140,30 @@ function formatToolLine(r: ToolRegistration): string {
 	return `- ${r.tool.name}${group}${risk}: ${truncate(r.tool.description || "", 80)}`;
 }
 
-function formatExtensions(filter: string): string {
-	const lines: string[] = ["## Extensions"];
+function formatModules(filter: string): string {
+	const lines: string[] = ["## Modules"];
 
-	if (!_extensionInfoProvider) {
-		lines.push("(extension info not available)");
+	if (!_moduleInfoProvider) {
+		lines.push("(module info not available)");
 		return lines.join("\n");
 	}
 
-	const extensions = _extensionInfoProvider();
-	const filtered = extensions.filter((extension) => matches(extension.name, filter));
+	const modules = _moduleInfoProvider();
+	const filtered = modules.filter((module) => matches(module.name, filter));
 
 	if (filtered.length === 0) {
 		lines.push(
-			extensions.length > 0
-				? "(no extensions match filter)"
-				: "(no extensions loaded)",
+			modules.length > 0
+				? "(no modules match filter)"
+				: "(no modules loaded)",
 		);
 		return lines.join("\n");
 	}
 
-	lines.push(`${filtered.length} extension(s) loaded:`);
-	for (const extension of filtered) {
-		const tools = extension.toolCount > 0 ? ` (${extension.toolCount} tools)` : "";
-		lines.push(`- ${extension.name}${tools}`);
+	lines.push(`${filtered.length} module(s) loaded:`);
+	for (const module of filtered) {
+		const tools = module.toolCount > 0 ? ` (${module.toolCount} tools)` : "";
+		lines.push(`- ${module.name}${tools}`);
 	}
 
 	return lines.join("\n");

@@ -11,7 +11,7 @@ updated_at: 2026-04-01T10:40:00Z
 
 ## Problem
 
-The daemon event ring buffer (`GET /api/events` on the daemon control port, proxied via `/api/daemon/events`) provides a live SSE stream of all internal bus events. The web UI already consumes this stream for live dashboard updates, but there is no CLI command to observe it. Operators debugging workflow behavior or extension integrations have no direct way to watch the event flow from a terminal.
+The daemon event ring buffer (`GET /api/events` on the daemon control port, proxied via `/api/daemon/events`) provides a live SSE stream of all internal bus events. The web UI already consumes this stream for live dashboard updates, but there is no CLI command to observe it. Operators debugging workflow behavior or module integrations have no direct way to watch the event flow from a terminal.
 
 ## Desired Outcome
 

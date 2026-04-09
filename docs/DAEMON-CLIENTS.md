@@ -17,7 +17,7 @@ control API.
 
 ## Core Shape
 
-- The `daemon` owns workflows, sessions, channels, stores, extension runtime,
+- The `daemon` owns workflows, sessions, channels, stores, module runtime,
   and live operational state.
 - A `client` connects to the daemon to inspect, control, or participate in
   sessions.

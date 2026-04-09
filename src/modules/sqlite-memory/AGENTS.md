@@ -1,6 +1,6 @@
-# SQLite Memory Extension
+# SQLite Memory Module
 
-This directory owns the `sqlite-memory` built-in extension — alternative SQLite-backed memory provider.
+This directory owns the `sqlite-memory` repo module — alternative SQLite-backed memory provider.
 
 - Registers a SQLite-backed memory provider when `providers.memory` is set to `"sqlite-memory"` in config.
 - Data is stored in `.kota/memory.db`.
@@ -8,4 +8,4 @@ This directory owns the `sqlite-memory` built-in extension — alternative SQLit
 
 ## Files
 
-- `index.ts` — `KotaExtension` definition; registers the SQLite memory provider on load.
+- `index.ts` — `KotaModule` definition; registers the SQLite memory provider on load.

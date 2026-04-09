@@ -137,7 +137,7 @@ describe("runViewImage", () => {
 		}
 	});
 
-	it("loads .jpeg extension with correct media type", async () => {
+	it("loads .jpeg module with correct media type", async () => {
 		setPlatform("win32");
 		const result = await runViewImage({ path: "/tmp/photo.jpeg" });
 		expect(result.is_error).toBeUndefined();
@@ -293,9 +293,9 @@ describe("runViewImage", () => {
 		expect(mockCopy).not.toHaveBeenCalled();
 	});
 
-	// --- Case-insensitive extension ---
+	// --- Case-insensitive module ---
 
-	it("handles uppercase extensions", async () => {
+	it("handles uppercase modules", async () => {
 		setPlatform("win32");
 		const result = await runViewImage({ path: "/tmp/photo.PNG" });
 		expect(result.is_error).toBeUndefined();
@@ -304,7 +304,7 @@ describe("runViewImage", () => {
 		}
 	});
 
-	it("handles mixed-case extensions", async () => {
+	it("handles mixed-case modules", async () => {
 		setPlatform("win32");
 		const result = await runViewImage({ path: "/tmp/photo.JpEg" });
 		expect(result.is_error).toBeUndefined();

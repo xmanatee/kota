@@ -1,13 +1,13 @@
-import type { AgentDef } from "../../agent-types.js";
-import type { WorkflowStepContext } from "../../workflow/run-types.js";
-import type { WorkflowDefinitionInput } from "../../workflow/types.js";
-import { commitWorkflowChanges } from "../commit.js";
-import { runCheck, stepCommitted, stepSucceeded } from "../shared.js";
+import type { AgentDef } from "../../../../agent-types.js";
+import type { WorkflowStepContext } from "../../../../workflow/run-types.js";
+import type { WorkflowDefinitionInput } from "../../../../workflow/types.js";
+import { commitWorkflowChanges } from "../../commit.js";
+import { runCheck, stepCommitted, stepSucceeded } from "../../shared.js";
 
 export const agent: AgentDef = {
   name: "improver",
   role: "Improve the autonomous development system itself using evidence from recent runs.",
-  promptPath: "src/workflows/improver/prompt.md",
+  promptPath: "src/modules/autonomy/workflows/improver/prompt.md",
   model: "claude-sonnet-4-6",
   tools: { permissionMode: "bypassPermissions" },
   settingSources: ["project"],
@@ -17,21 +17,19 @@ const improverWorkflow: WorkflowDefinitionInput = {
   name: "improver",
   description:
     "Improve the autonomous development system itself using evidence from recent runs.",
-  tags: ["autonomous", "governance", "recovery-handler", "attention-source"],
   triggers: [
     {
-      event: "workflow.completed",
-      filter: {
-        workflowTags: "delivery",
-        status: ["success", "failed", "interrupted"],
-      },
+      event: "workflow.build.committed",
     },
     {
       event: "workflow.completed",
       filter: {
-        workflowTags: "queue-source",
-        status: "failed",
+        workflow: ["builder", "explorer", "inbox-sorter"],
+        status: ["failed", "interrupted"],
       },
+    },
+    {
+      event: "runtime.recovered",
     },
   ],
   steps: [

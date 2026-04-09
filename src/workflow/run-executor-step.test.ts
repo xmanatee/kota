@@ -92,7 +92,7 @@ describe("executeWorkflowStep — costUsd capture", () => {
   const definition = {
     name: "test-wf",
     enabled: true,
-    definitionPath: "src/workflows/test/workflow.ts",
+    definitionPath: "src/modules/test/workflows/test/workflow.ts",
     triggers: [],
     steps: [],
   };
@@ -101,7 +101,7 @@ describe("executeWorkflowStep — costUsd capture", () => {
     id: "run-cost-01",
     workflow: "test-wf",
     runDir: ".kota/runs/run-cost-01",
-    definitionPath: "src/workflows/test/workflow.ts",
+    definitionPath: "src/modules/test/workflows/test/workflow.ts",
     trigger: { event: "runtime.idle" as const, payload: {} },
     startedAt: new Date().toISOString(),
     status: "running" as const,
@@ -112,7 +112,7 @@ describe("executeWorkflowStep — costUsd capture", () => {
 
   const context = {
     projectDir: "/tmp",
-    workflow: { name: "test-wf", runId: "run-cost-01", runDir: ".kota/runs/run-cost-01", definitionPath: "src/workflows/test/workflow.ts" },
+    workflow: { name: "test-wf", runId: "run-cost-01", runDir: ".kota/runs/run-cost-01", definitionPath: "src/modules/test/workflows/test/workflow.ts" },
     trigger,
     previousOutput: undefined,
     stepOutputs: {},

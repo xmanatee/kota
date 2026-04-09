@@ -12,7 +12,7 @@
 /** All possible session states. */
 export type SessionState =
   | "idle"          // Created, not yet initialized
-  | "initializing"  // Loading extensions, modules, MCP
+  | "initializing"  // Loading modules, modules, MCP
   | "ready"         // Initialized, waiting for user prompt
   | "thinking"      // LLM generating a response
   | "acting"        // Executing tool calls

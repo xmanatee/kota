@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { getKnowledgeProvider } from "../extensions/providers/index.js";
+import { getKnowledgeProvider } from "../modules/providers/index.js";
 import type { KnowledgeEntry } from "../memory/knowledge-store-helpers.js";
 import { jsonResponse, readBody } from "./session-pool.js";
 

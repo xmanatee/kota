@@ -98,7 +98,7 @@ describe("Daemon", () => {
             {
               id: "build",
               type: "agent",
-              promptPath: "src/workflows/builder/prompt.md",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
             },
           ],
         }),
@@ -136,7 +136,7 @@ describe("Daemon", () => {
             {
               id: "build",
               type: "agent",
-              promptPath: "src/workflows/builder/prompt.md",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
             },
           ],
         }),
@@ -243,7 +243,7 @@ describe("Daemon", () => {
             {
               id: "build",
               type: "agent",
-              promptPath: "src/workflows/builder/prompt.md",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
             },
           ],
         }),
@@ -283,7 +283,7 @@ describe("Daemon", () => {
             {
               id: "build",
               type: "agent",
-              promptPath: "src/workflows/builder/prompt.md",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
             },
           ],
         }),
@@ -324,7 +324,7 @@ describe("Daemon", () => {
             {
               id: "build",
               type: "agent",
-              promptPath: "src/workflows/builder/prompt.md",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
             },
           ],
         }),

@@ -9,9 +9,9 @@ vi.mock("../../workflow/validation.js", () => ({
   WorkflowDefinitionError: class WorkflowDefinitionError extends Error {},
 }));
 
-vi.mock("../../extension-metadata.js", () => ({
-  loadExtensionMetadata: vi.fn(async () => ({
-    getExtensionSummaries: () => [{ name: "test-ext" }],
+vi.mock("../../module-metadata.js", () => ({
+  loadModuleMetadata: vi.fn(async () => ({
+    getModuleSummaries: () => [{ name: "test-ext" }],
     getContributedWorkflows: () => [],
   })),
 }));
@@ -101,7 +101,7 @@ describe("kota doctor — offline path", () => {
     expect(cfg?.status).toBe("pass");
   });
 
-  it("passes workflow check with valid built-in definitions", async () => {
+  it("passes workflow check with valid shipped workflow definitions", async () => {
     const results = await runDoctorChecks(projectDir);
     const wf = results.find((r) => r.label.startsWith("Workflows"));
     expect(wf?.status).toBe("pass");
@@ -112,19 +112,19 @@ describe("kota doctor — offline path", () => {
     const labels = results.map((r) => r.label);
     expect(labels.some((l) => l.startsWith("Daemon"))).toBe(true);
     expect(labels.some((l) => l.startsWith("Config:"))).toBe(true);
-    expect(labels.some((l) => l.startsWith("Extensions"))).toBe(true);
+    expect(labels.some((l) => l.startsWith("Modules"))).toBe(true);
     expect(labels.some((l) => l.startsWith("Providers"))).toBe(true);
     expect(labels.some((l) => l.startsWith("Workflows"))).toBe(true);
     expect(labels.some((l) => l.startsWith("Disk:"))).toBe(true);
   });
 
   it("warns about unexpected module state and stray runtime directories", async () => {
-    mkdirSync(join(projectDir, ".kota", "modules", "tool-cache"), { recursive: true });
+    mkdirSync(join(projectDir, ".kota", "extensions", "tool-cache"), { recursive: true });
     mkdirSync(join(projectDir, "runs"), { recursive: true });
     mkdirSync(join(projectDir, "kota"), { recursive: true });
 
     const results = await runDoctorChecks(projectDir);
-    expect(results.find((r) => r.label === "Disk: unexpected .kota/modules/")?.status).toBe("warn");
+    expect(results.find((r) => r.label === "Disk: unexpected .kota/extensions/")?.status).toBe("warn");
     expect(results.find((r) => r.label === "Disk: stray runs/")?.status).toBe("warn");
     expect(results.find((r) => r.label === "Disk: stray kota/")?.status).toBe("warn");
   });
@@ -180,18 +180,18 @@ describe("kota doctor --fix", () => {
     const repairs = runDoctorFixes(projectDir);
     const kotaRepair = repairs.find((r) => r.item.includes("Directory:") && !r.item.includes("runs"));
     const runsRepair = repairs.find((r) => r.item.includes("runs"));
-    const extensionsRepair = repairs.find((r) => r.item.includes(".kota/extensions"));
+    const extensionsRepair = repairs.find((r) => r.item.includes(".kota/modules"));
     expect(kotaRepair?.action).toBe("repaired");
     expect(runsRepair?.action).toBe("repaired");
     expect(extensionsRepair?.action).toBe("repaired");
     expect(existsSync(join(projectDir, ".kota"))).toBe(true);
     expect(existsSync(join(projectDir, ".kota", "runs"))).toBe(true);
-    expect(existsSync(join(projectDir, ".kota", "extensions"))).toBe(true);
+    expect(existsSync(join(projectDir, ".kota", "modules"))).toBe(true);
   });
 
   it("skips directory creation when directories already exist", () => {
     mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
-    mkdirSync(join(projectDir, ".kota", "extensions"), { recursive: true });
+    mkdirSync(join(projectDir, ".kota", "modules"), { recursive: true });
     const repairs = runDoctorFixes(projectDir);
     const dirRepairs = repairs.filter((r) => r.item.startsWith("Directory:"));
     expect(dirRepairs.every((r) => r.action === "skipped")).toBe(true);

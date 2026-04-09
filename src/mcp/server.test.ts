@@ -4,26 +4,26 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { EventBus } from "../event-bus.js";
-import { ExtensionLoader } from "../extension-loader.js";
-import filesystemModule from "../extensions/filesystem/index.js";
+import { ModuleLoader } from "../module-loader.js";
+import filesystemModule from "../modules/filesystem/index.js";
 import { getToolMcpAnnotations } from "../guardrails-classify.js";
 import { clearCustomTools, registerTool } from "../tools/index.js";
 import { anthropicToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
 
-vi.mock("../extensions/providers/index.js", () => ({
+vi.mock("../modules/providers/index.js", () => ({
 	getMemoryProvider: vi.fn(() => ({ list: () => [] })),
 	getKnowledgeProvider: vi.fn(() => ({ list: () => [] })),
 }));
 
-import { getKnowledgeProvider, getMemoryProvider } from "../extensions/providers/index.js";
+import { getKnowledgeProvider, getMemoryProvider } from "../modules/providers/index.js";
 
 beforeAll(async () => {
-	const loader = new ExtensionLoader({});
+	const loader = new ModuleLoader({});
 	await loader.loadAll([filesystemModule]);
 
 	// Register stub for github read tool so MCP annotation tests can verify
-	// that extension-declared safe network tools get readOnlyHint: true.
-	// This mirrors what the github extension does when loaded with a real token.
+	// that module-declared safe network tools get readOnlyHint: true.
+	// This mirrors what the github module does when loaded with a real token.
 	registerTool(
 		{ name: "github_list_prs", description: "stub", input_schema: { type: "object", properties: {} } },
 		async () => ({ content: "" }),
@@ -240,20 +240,20 @@ describe("McpServer", () => {
 			server.stop();
 		});
 
-		it("includes extension tools passed via extensionTools option", async () => {
+		it("includes module tools passed via moduleTools option", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({
 				input,
 				output,
 				log: () => {},
-				extensionTools: [
+				moduleTools: [
 					{
 						tool: {
 							name: "ext_hello",
-							description: "Extension hello tool",
+							description: "Module hello tool",
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
-						runner: async () => ({ content: "hello from extension" }),
+						runner: async () => ({ content: "hello from module" }),
 					},
 				],
 			});
@@ -269,18 +269,18 @@ describe("McpServer", () => {
 			server.stop();
 		});
 
-		it("applies toolFilter to extension tools", async () => {
+		it("applies toolFilter to module tools", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({
 				input,
 				output,
 				log: () => {},
 				toolFilter: ["ext_hello"],
-				extensionTools: [
+				moduleTools: [
 					{
 						tool: {
 							name: "ext_hello",
-							description: "Allowed extension tool",
+							description: "Allowed module tool",
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "hi" }),
@@ -288,7 +288,7 @@ describe("McpServer", () => {
 					{
 						tool: {
 							name: "ext_secret",
-							description: "Filtered extension tool",
+							description: "Filtered module tool",
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "secret" }),
@@ -438,17 +438,17 @@ describe("McpServer", () => {
 			server.stop();
 		});
 
-		it("invokes extension tool runner and returns result", async () => {
+		it("invokes module tool runner and returns result", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({
 				input,
 				output,
 				log: () => {},
-				extensionTools: [
+				moduleTools: [
 					{
 						tool: {
 							name: "ext_greet",
-							description: "Extension greeting tool",
+							description: "Module greeting tool",
 							input_schema: {
 								type: "object" as const,
 								properties: { name: { type: "string" } },
@@ -474,13 +474,13 @@ describe("McpServer", () => {
 			server.stop();
 		});
 
-		it("returns error result when extension tool runner throws", async () => {
+		it("returns error result when module tool runner throws", async () => {
 			const { input, output } = createTestStreams();
 			const server = new McpServer({
 				input,
 				output,
 				log: () => {},
-				extensionTools: [
+				moduleTools: [
 					{
 						tool: {
 							name: "ext_boom",
@@ -1057,7 +1057,7 @@ describe("resource subscriptions", () => {
 			status: "success",
 			triggerEvent: "runtime.idle",
 			durationMs: 1000,
-			definitionPath: "src/workflows/builder/workflow.ts",
+			definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
 			runDir: ".kota/runs/test-run-id",
 		});
 
@@ -1104,7 +1104,7 @@ describe("resource subscriptions", () => {
 			status: "success",
 			triggerEvent: "runtime.idle",
 			durationMs: 1000,
-			definitionPath: "src/workflows/builder/workflow.ts",
+			definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
 			runDir: ".kota/runs/test-run-id",
 		});
 

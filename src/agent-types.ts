@@ -5,7 +5,7 @@
  * and composable across agents.
  *
  * An `AgentDef` is a named autonomous worker with a declared role, model
- * defaults, skill set, and tool policy. Built-in and extension-contributed
+ * defaults, skill set, and tool policy. Built-in and module-contributed
  * agents use the same model rather than ad hoc prompt conventions scattered
  * across workflow files.
  */
@@ -16,8 +16,8 @@ import type { SDKPermissionMode, SDKSettingSource } from "./agent-sdk/types.js";
  * A named, file-backed piece of reusable agent guidance.
  *
  * Skills are the single concept for reusable instructions. Repo AGENTS.md
- * files, workflow prompt files, and extension capability docs are all skills.
- * Extensions contribute skills; agents declare which skills they use.
+ * files, workflow prompt files, and module capability docs are all skills.
+ * Modules contribute skills; agents declare which skills they use.
  */
 export type SkillDef = {
   /** Unique identifier for this skill (e.g. "repo-instructions", "builder-guidance"). */

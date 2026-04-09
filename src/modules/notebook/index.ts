@@ -1,11 +1,11 @@
 /**
- * Notebook extension — Jupyter notebook creation and editing.
+ * Notebook module — Jupyter notebook creation and editing.
  *
  * Tools:
  *   notebook — create or extend .ipynb notebooks with code and markdown cells
  */
 
-import type { KotaExtension, ToolDef } from "../../extension-types.js";
+import type { KotaModule, ToolDef } from "../../module-types.js";
 import { notebookTool, runNotebook } from "./notebook.js";
 
 const tools: ToolDef[] = [
@@ -18,7 +18,7 @@ const tools: ToolDef[] = [
   },
 ];
 
-const notebookModule: KotaExtension = {
+const notebookModule: KotaModule = {
   name: "notebook",
   version: "1.0.0",
   description: "Jupyter notebook creation and cell editing",

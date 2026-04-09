@@ -1,12 +1,12 @@
 /**
- * Read document extension — extract text from PDFs, DOCX, RTF, ODT, and
+ * Read document module — extract text from PDFs, DOCX, RTF, ODT, and
  * other document formats using available system tools.
  *
  * Tools:
  *   read_document — extract plain text from document files
  */
 
-import type { KotaExtension, ToolDef } from "../../extension-types.js";
+import type { KotaModule, ToolDef } from "../../module-types.js";
 import { readDocumentTool, runReadDocument } from "./read-document.js";
 
 const tools: ToolDef[] = [
@@ -18,7 +18,7 @@ const tools: ToolDef[] = [
   },
 ];
 
-const readDocumentModule: KotaExtension = {
+const readDocumentModule: KotaModule = {
   name: "read-document",
   version: "1.0.0",
   description: "Document text extraction: PDF, DOCX, RTF, ODT, EPUB, HTML",

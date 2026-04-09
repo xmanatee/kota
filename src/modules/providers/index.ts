@@ -1,4 +1,4 @@
-/** Provider registry extension — swappable backends for core services. */
+/** Provider registry module — swappable backends for core services. */
 
 import { getHistory } from "../../memory/history.js";
 import { getKnowledgeStore } from "../../memory/knowledge-store.js";
@@ -108,7 +108,7 @@ export function resetProviderRegistry(): void {
 	registry = null;
 }
 
-/** Register built-in stores as default providers for all service types. */
+/** Register the in-process default stores for all service types. */
 export function registerDefaultProviders(cwd?: string): void {
 	if (!registry) return;
 	registry.register("memory", "default", getMemoryStore());
@@ -117,7 +117,7 @@ export function registerDefaultProviders(cwd?: string): void {
 	registry.register("history", "default", getHistory());
 }
 
-/** Get the active memory provider, falling back to the built-in MemoryStore. */
+/** Get the active memory provider, falling back to the default MemoryStore. */
 export function getMemoryProvider(): MemoryProvider {
 	if (registry) {
 		const provider = registry.get<MemoryProvider>("memory");
@@ -126,7 +126,7 @@ export function getMemoryProvider(): MemoryProvider {
 	return getMemoryStore();
 }
 
-/** Get the active knowledge provider, falling back to the built-in KnowledgeStore. */
+/** Get the active knowledge provider, falling back to the default KnowledgeStore. */
 export function getKnowledgeProvider(cwd?: string): KnowledgeProvider {
 	if (registry) {
 		const provider = registry.get<KnowledgeProvider>("knowledge");
@@ -135,7 +135,7 @@ export function getKnowledgeProvider(cwd?: string): KnowledgeProvider {
 	return getKnowledgeStore(cwd);
 }
 
-/** Get the active task provider, falling back to the built-in TaskStore. */
+/** Get the active task provider, falling back to the default TaskStore. */
 export function getTaskProvider(): TaskProvider {
 	if (registry) {
 		const provider = registry.get<TaskProvider>("task");
@@ -144,7 +144,7 @@ export function getTaskProvider(): TaskProvider {
 	return getTaskStore();
 }
 
-/** Get the active history provider, falling back to the built-in ConversationHistory. */
+/** Get the active history provider, falling back to the default ConversationHistory. */
 export function getHistoryProvider(): HistoryProvider {
 	if (registry) {
 		const provider = registry.get<HistoryProvider>("history");

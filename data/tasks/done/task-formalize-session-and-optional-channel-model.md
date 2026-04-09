@@ -1,10 +1,10 @@
 ---
 id: task-formalize-session-and-optional-channel-model
-title: Formalize sessions as core and channels as optional extensions
+title: Formalize sessions as core and channels as optional modules
 status: done
 priority: p1
 area: session
-summary: KOTA already has CLI, server, Telegram, and autonomous execution paths, but the concepts are not explicit. Make `session` a first-class core runtime concept and treat `channel` as an optional interaction extension for CLI, web, Telegram, and future surfaces.
+summary: KOTA already has CLI, server, Telegram, and autonomous execution paths, but the concepts are not explicit. Make `session` a first-class core runtime concept and treat `channel` as an optional interaction module for CLI, web, Telegram, and future surfaces.
 created_at: 2026-03-26
 updated_at: 2026-03-27
 ---
@@ -23,7 +23,7 @@ boundary between autonomous runs and interactive surfaces blurry.
 
 - `session` is a documented first-class runtime concept with clear ownership and
   lifecycle.
-- `channel` is an optional extension concept for external interaction surfaces.
+- `channel` is an optional module concept for external interaction surfaces.
 - CLI, web, and Telegram align around the same session and channel model.
 - Autonomous workflow execution reuses sessions without pretending every run is
   a channel interaction.

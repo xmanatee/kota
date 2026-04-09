@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getEventBus, initEventBus, resetEventBus } from "./event-bus.js";
-import { ApprovalQueue } from "./extensions/approval-queue/queue.js";
+import { ApprovalQueue } from "./modules/approval-queue/queue.js";
 
 describe("approval expiry × event bus integration", () => {
 	let dir: string;

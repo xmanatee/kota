@@ -11,11 +11,11 @@ updated_at: 2026-03-31T04:39:00Z
 
 ## Problem
 
-KOTA's logger (defined in `src/extension-context.ts`) emits plain-text lines to
+KOTA's logger (defined in `src/module-context.ts`) emits plain-text lines to
 stdout/stderr. In production deployments, log lines are typically ingested by a
 log aggregator that expects structured JSON (`{"level":"info","msg":"...","ts":...}`).
 Plain-text lines must be parsed with fragile regex rules or are dropped, losing
-context like workflow run IDs, extension names, and step labels.
+context like workflow run IDs, module names, and step labels.
 
 There is no `LOG_FORMAT` or equivalent config option today.
 
@@ -26,7 +26,7 @@ emitted through the KOTA logger is a single JSON object with at minimum:
 - `level` — one of `debug`, `info`, `warn`, `error`
 - `msg` — the log message string
 - `ts` — ISO 8601 timestamp
-- Any structured fields passed by the caller (e.g. `workflowId`, `runId`, `extension`)
+- Any structured fields passed by the caller (e.g. `workflowId`, `runId`, `module`)
 
 Human-readable format remains the default when `LOG_FORMAT` is absent or `"text"`.
 

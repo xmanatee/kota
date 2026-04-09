@@ -6,7 +6,7 @@ HTTP API server with session management and real-time notifications.
 
 | File | Purpose |
 |------|---------|
-| `server.ts` | `startServer()` — HTTP server with REST endpoints and extension route integration |
+| `server.ts` | `startServer()` — HTTP server with REST endpoints and module route integration |
 | `session-pool.ts` | `SessionPool` — manages concurrent agent sessions, SSE transport, CORS |
 | `server-notifications.ts` | `NotificationHub` — SSE push notifications for scheduled action results |
 | `server-routes.ts` | Thin orchestrator — `ServerContext`, route dispatch, passes `DaemonControlClient` to proxy-capable handlers |
@@ -19,7 +19,7 @@ HTTP API server with session management and real-time notifications.
 | `daemon-routes.ts` | `queryDaemonStatus` — reads live daemon status via `DaemonControlClient` |
 | `daemon-client.ts` | `DaemonControlClient` — queries the running daemon's loopback HTTP control API |
 | `event-routes.ts` | `handleEventTrigger` — emits a named event onto the bus |
-| `extension-routes.ts` | `handleListExtensions` — returns loaded extension metadata for `GET /api/extensions` |
+| `module-routes.ts` | `handleListModules` — returns loaded module metadata for `GET /api/modules` |
 | `config-routes.ts` | `handleGetConfig`, `maskConfig` — returns resolved config with sensitive fields masked for `GET /api/config` |
 | `knowledge-routes.ts` | Knowledge CRUD handlers: list, get, add (`POST`), update (`PATCH /api/knowledge/:id`), and delete |
 | `memory-routes.ts` | Memory CRUD handlers: list, get, add (`POST`), update (`PATCH /api/memory/:id`), and delete |

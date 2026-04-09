@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { ExtensionStorage } from "../../extension-storage.js";
-import type { ExtensionContext } from "../../extension-types.js";
+import { ModuleStorage } from "../../module-storage.js";
+import type { ModuleContext } from "../../module-types.js";
 import registryModule from "./index.js";
 
-const stubCtx: ExtensionContext = {
+const stubCtx: ModuleContext = {
   cwd: "/tmp/test",
   verbose: false,
-  config: {} as ExtensionContext["config"],
-  storage: new ExtensionStorage("/tmp/test", "registry"),
+  config: {} as ModuleContext["config"],
+  storage: new ModuleStorage("/tmp/test", "registry"),
   registerGroup: () => {},
   getRoutes: () => [],
   getContributedWorkflows: () => [],
   getContributedChannels: () => [],
-  getExtensionSummaries: () => [],
-  getExtensionConfig: () => undefined,
+  getModuleSummaries: () => [],
+  getModuleConfig: () => undefined,
   log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
   getSecret: () => null,
   listTools: () => [],

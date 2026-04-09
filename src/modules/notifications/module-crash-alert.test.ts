@@ -1,22 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BusEvents } from "../../event-bus.js";
 import { EventBus } from "../../event-bus.js";
-import { subscribeExtensionCrashAlert } from "./extension-crash-alert.js";
+import { subscribeModuleCrashAlert } from "./module-crash-alert.js";
 
 function emitRestart(bus: EventBus, name: string, totalRestarts = 1) {
-  bus.emit("extension.restarted", { name, reason: "subprocess exited unexpectedly", totalRestarts });
+  bus.emit("module.restarted", { name, reason: "subprocess exited unexpectedly", totalRestarts });
 }
 
-describe("subscribeExtensionCrashAlert", () => {
+describe("subscribeModuleCrashAlert", () => {
   let bus: EventBus;
-  let alerts: BusEvents["extension.crash.alert"][];
+  let alerts: BusEvents["module.crash.alert"][];
   let unsubscribe: () => void;
 
   beforeEach(() => {
     vi.useFakeTimers();
     bus = new EventBus();
     alerts = [];
-    bus.on("extension.crash.alert", (payload) => {
+    bus.on("module.crash.alert", (payload) => {
       alerts.push(payload);
     });
   });
@@ -27,7 +27,7 @@ describe("subscribeExtensionCrashAlert", () => {
   });
 
   it("emits alert when restart count reaches threshold", () => {
-    unsubscribe = subscribeExtensionCrashAlert(bus, { crashAlertThreshold: 3, crashAlertWindowMs: 60_000 });
+    unsubscribe = subscribeModuleCrashAlert(bus, { crashAlertThreshold: 3, crashAlertWindowMs: 60_000 });
     emitRestart(bus, "my-ext", 1);
     emitRestart(bus, "my-ext", 2);
     expect(alerts).toHaveLength(0);
@@ -40,7 +40,7 @@ describe("subscribeExtensionCrashAlert", () => {
   });
 
   it("does not emit alert when restart count is below threshold", () => {
-    unsubscribe = subscribeExtensionCrashAlert(bus, { crashAlertThreshold: 5, crashAlertWindowMs: 60_000 });
+    unsubscribe = subscribeModuleCrashAlert(bus, { crashAlertThreshold: 5, crashAlertWindowMs: 60_000 });
     emitRestart(bus, "my-ext", 1);
     emitRestart(bus, "my-ext", 2);
     emitRestart(bus, "my-ext", 3);
@@ -49,7 +49,7 @@ describe("subscribeExtensionCrashAlert", () => {
   });
 
   it("cooldown prevents second alert within window", () => {
-    unsubscribe = subscribeExtensionCrashAlert(bus, { crashAlertThreshold: 2, crashAlertWindowMs: 60_000 });
+    unsubscribe = subscribeModuleCrashAlert(bus, { crashAlertThreshold: 2, crashAlertWindowMs: 60_000 });
     emitRestart(bus, "my-ext", 1);
     emitRestart(bus, "my-ext", 2);
     expect(alerts).toHaveLength(1);
@@ -60,7 +60,7 @@ describe("subscribeExtensionCrashAlert", () => {
   });
 
   it("fires again after cooldown window expires", () => {
-    unsubscribe = subscribeExtensionCrashAlert(bus, { crashAlertThreshold: 2, crashAlertWindowMs: 60_000 });
+    unsubscribe = subscribeModuleCrashAlert(bus, { crashAlertThreshold: 2, crashAlertWindowMs: 60_000 });
     emitRestart(bus, "my-ext", 1);
     emitRestart(bus, "my-ext", 2);
     expect(alerts).toHaveLength(1);
@@ -74,7 +74,7 @@ describe("subscribeExtensionCrashAlert", () => {
   });
 
   it("uses default threshold of 3 and window of 10 minutes", () => {
-    unsubscribe = subscribeExtensionCrashAlert(bus);
+    unsubscribe = subscribeModuleCrashAlert(bus);
     emitRestart(bus, "my-ext", 1);
     emitRestart(bus, "my-ext", 2);
     expect(alerts).toHaveLength(0);
@@ -83,8 +83,8 @@ describe("subscribeExtensionCrashAlert", () => {
     expect(alerts[0].windowMs).toBe(600_000);
   });
 
-  it("alert is per-extension — one extension does not suppress another", () => {
-    unsubscribe = subscribeExtensionCrashAlert(bus, { crashAlertThreshold: 2, crashAlertWindowMs: 60_000 });
+  it("alert is per-module — one module does not suppress another", () => {
+    unsubscribe = subscribeModuleCrashAlert(bus, { crashAlertThreshold: 2, crashAlertWindowMs: 60_000 });
     emitRestart(bus, "ext-a", 1);
     emitRestart(bus, "ext-a", 2);
     emitRestart(bus, "ext-b", 1);
@@ -95,7 +95,7 @@ describe("subscribeExtensionCrashAlert", () => {
   });
 
   it("restarts outside the rolling window are not counted", () => {
-    unsubscribe = subscribeExtensionCrashAlert(bus, { crashAlertThreshold: 3, crashAlertWindowMs: 60_000 });
+    unsubscribe = subscribeModuleCrashAlert(bus, { crashAlertThreshold: 3, crashAlertWindowMs: 60_000 });
     emitRestart(bus, "my-ext", 1);
     emitRestart(bus, "my-ext", 2);
     // Advance time so those restarts fall outside the window
@@ -112,7 +112,7 @@ describe("subscribeExtensionCrashAlert", () => {
   });
 
   it("unsubscribes correctly", () => {
-    unsubscribe = subscribeExtensionCrashAlert(bus, { crashAlertThreshold: 2, crashAlertWindowMs: 60_000 });
+    unsubscribe = subscribeModuleCrashAlert(bus, { crashAlertThreshold: 2, crashAlertWindowMs: 60_000 });
     unsubscribe();
     emitRestart(bus, "my-ext", 1);
     emitRestart(bus, "my-ext", 2);

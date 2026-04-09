@@ -6,7 +6,7 @@ import type { AgentBackoffManager } from "./agent-backoff.js";
 import type { BudgetGuard } from "./budget-guard.js";
 import { isWithinDispatchWindow } from "./dispatch-window.js";
 import { executeWorkflowRun } from "./run-executor.js";
-import { workflowHasTag, workflowUsesAgent } from "./run-executor-utils.js";
+import { workflowUsesAgent } from "./run-executor-utils.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import { formatRunId } from "./run-store-helpers.js";
 import type { WorkflowRunExecutionResult } from "./run-types.js";
@@ -95,43 +95,27 @@ function nextUtcMidnightIso(now = new Date()): string {
   return new Date(nextMidnight).toISOString();
 }
 
-function isAutonomousWorkflow(definition: WorkflowDefinition): boolean {
-  return workflowHasTag(definition, "autonomous");
-}
-
-function isAutonomousWorkflowRun(
-  state: WorkflowRuntimeDispatchState,
-  workflowName: string,
-): boolean {
-  const definition = state.definitions.find((candidate) => candidate.name === workflowName);
-  return definition ? isAutonomousWorkflow(definition) : false;
-}
-
-function handleDirtyAutonomousCompletion(
+function handleDirtyCompletion(
   state: WorkflowRuntimeDispatchState,
   definition: WorkflowDefinition,
   metadata: WorkflowRunExecutionResult["metadata"],
 ): void {
-  if (!isAutonomousWorkflow(definition)) return;
-
   const worktree = getRepoWorktreeStatus(state.projectDir);
   if (!worktree.available) return;
 
   if (!worktree.dirty) {
-    if (state.store.getAutonomousRecovery()) {
-      state.store.setAutonomousRecovery(null);
+    if (state.store.getRecovery()) {
+      state.store.setRecovery(null);
     }
     return;
   }
 
-  state.wfQueue.setRuns(
-    state.wfQueue.getRuns().filter((run) => !isAutonomousWorkflowRun(state, run.workflowName)),
-  );
+  state.wfQueue.setRuns([]);
   state.wfQueue.persist();
 
-  const existing = state.store.getAutonomousRecovery();
+  const existing = state.store.getRecovery();
   if (existing && existing.attempts >= 1) {
-    state.store.setAutonomousRecovery({
+    state.store.setRecovery({
       ...existing,
       sourceRunId: metadata.id,
       sourceWorkflow: definition.name,
@@ -141,12 +125,12 @@ function handleDirtyAutonomousCompletion(
     });
     state.dispatchPaused = true;
     state.log(
-      `Autonomous recovery already attempted for dirty worktree left by "${definition.name}" (${metadata.id}). Dispatch paused: ${worktree.summary}`,
+      `Recovery already attempted for dirty worktree left by "${definition.name}" (${metadata.id}). Dispatch paused: ${worktree.summary}`,
     );
     return;
   }
 
-  state.store.setAutonomousRecovery({
+  state.store.setRecovery({
     sourceRunId: metadata.id,
     sourceWorkflow: definition.name,
     worktreeFingerprint: worktree.fingerprint,
@@ -156,7 +140,7 @@ function handleDirtyAutonomousCompletion(
   });
   state.dispatchPaused = true;
   state.log(
-    `Workflow "${definition.name}" completed with uncommitted changes. Restarting for autonomous recovery: ${worktree.summary}`,
+    `Workflow "${definition.name}" completed with uncommitted changes. Restarting for recovery: ${worktree.summary}`,
   );
   state.runtimeConfig.bus.emit("runtime.restart_requested", {
     reason: `workflow "${definition.name}" completed with dirty worktree`,
@@ -337,7 +321,7 @@ export async function runWorkflow(
 
   try {
     const result = await promise;
-    handleDirtyAutonomousCompletion(state, definition, result.metadata);
+    handleDirtyCompletion(state, definition, result.metadata);
     if (result.agentBackoff) {
       state.backoff.apply(result.agentBackoff);
       return;

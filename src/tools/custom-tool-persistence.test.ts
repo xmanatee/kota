@@ -65,7 +65,7 @@ describe("validateName", () => {
     for (const name of RESERVED_NAMES) {
       const result = validateName(name);
       expect(result, `Expected "${name}" to be rejected`).not.toBeNull();
-      expect(result).toMatch(/conflicts with a built-in tool/);
+      expect(result).toMatch(/conflicts with a project tool/);
     }
   });
 

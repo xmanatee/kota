@@ -6,7 +6,7 @@
  * Exercises: delegate.ts × tool-retry.ts × delegate-format.ts
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createRetryMiddleware } from "./extensions/tool-retry/tool-retry.js";
+import { createRetryMiddleware } from "./modules/tool-retry/tool-retry.js";
 import { getToolMiddleware, resetToolMiddleware } from "./tool-middleware.js";
 
 // Hoisted mock runner — accessible inside vi.mock factory
@@ -171,7 +171,7 @@ describe("delegate × tool-retry error pipeline (cross-module)", () => {
   });
 
   it("retries transient errors via middleware (delegate × tool-retry)", async () => {
-    // Register retry middleware — normally loaded by the tool-retry extension
+    // Register retry middleware — normally loaded by the tool-retry module
     getToolMiddleware().add("tool-retry", createRetryMiddleware(() => Promise.resolve()), { priority: 20 });
 
     // First call: transient ETIMEDOUT error → middleware retries

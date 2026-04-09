@@ -99,9 +99,9 @@
         "additionalProperties": true
       }
     },
-    "foreignExtensions": {
+    "foreignModules": {
       "type": "array",
-      "description": "Foreign-language (out-of-process) extensions. See docs/FOREIGN-EXTENSIONS.md.",
+      "description": "Foreign-language (out-of-process) extensions. See docs/FOREIGN-MODULES.md.",
       "items": {
         "oneOf": [
           {

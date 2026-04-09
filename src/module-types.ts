@@ -1,9 +1,9 @@
 /**
- * KotaExtension protocol — the standard unit of functionality in KOTA.
+ * KotaModule protocol — the standard unit of functionality in KOTA.
  *
- * An extension can register tools, CLI commands, HTTP routes, and event
- * subscriptions. Built-in features and third-party extensions use the
- * same protocol.
+ * A module can register tools, CLI commands, HTTP routes, and event
+ * subscriptions. Project and third-party modules use the same
+ * protocol.
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -12,20 +12,20 @@ import type { Command } from "commander";
 import type { AgentDef, SkillDef } from "./agent-types.js";
 import type { ChannelDef } from "./channel.js";
 import type { KotaConfig } from "./config.js";
-import type { ExtensionStorage } from "./extension-storage.js";
+import type { ModuleStorage } from "./module-storage.js";
 import type { ToolMiddlewareFn } from "./tool-middleware.js";
 import type { ToolResult } from "./tools/tool-result.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "./workflow/types.js";
 
-/** Health state for a foreign (KEMP) extension subprocess. */
-export type ExtensionHealth = {
+/** Health state for a foreign (KEMP) module subprocess. */
+export type ModuleHealth = {
   status: "ok" | "restarting" | "dead";
   restartCount: number;
   lastRestartAt?: string;
 };
 
-/** Summary of a loaded extension's metadata and contributions. */
-export type ExtensionSummary = {
+/** Summary of a loaded module's metadata and contributions. */
+export type ModuleSummary = {
   name: string;
   version?: string;
   description?: string;
@@ -41,21 +41,21 @@ export type ExtensionSummary = {
   routeSummaries: string[];
   commandError?: string;
   routeError?: string;
-  health?: ExtensionHealth;
-  /** Set when the extension failed to load; absent for successfully loaded extensions. */
+  health?: ModuleHealth;
+  /** Set when the module failed to load; absent for successfully loaded modules. */
   loadError?: string;
 };
 
-/** Scoped logger available to extensions via ExtensionContext. */
-export type ExtensionLogger = {
+/** Scoped logger available to modules via ModuleContext. */
+export type ModuleLogger = {
   info: (msg: string, data?: unknown) => void;
   warn: (msg: string, data?: unknown) => void;
   error: (msg: string, data?: unknown) => void;
   debug: (msg: string, data?: unknown) => void;
 };
 
-/** Event proxy available to extensions via ExtensionContext. */
-export type ExtensionEventProxy = {
+/** Event proxy available to modules via ModuleContext. */
+export type ModuleEventProxy = {
   /** Emit an event on the bus. No-op if bus not available. */
   emit(event: string, payload: Record<string, unknown>): void;
   /** Subscribe to a bus event. Returns an unsubscribe function. No-op (returns noop) if bus not available. */
@@ -63,7 +63,7 @@ export type ExtensionEventProxy = {
 };
 
 /** Minimal session interface returned by ctx.createSession(). */
-export type ExtensionSession = {
+export type ModuleSession = {
   /** Send a prompt and get the response text. */
   send(prompt: string): Promise<string>;
   /** Close the session and release resources. */
@@ -74,11 +74,11 @@ export type ExtensionSession = {
 export type CreateSessionOptions = {
   model?: string;
   label?: string;
-  /** If true, conversation won't be saved to history. Default: true for extension sessions. */
+  /** If true, conversation won't be saved to history. Default: true for module sessions. */
   noHistory?: boolean;
 };
 
-/** A tool definition contributed by an extension. */
+/** A tool definition contributed by a module. */
 export type ToolDef = {
   tool: Anthropic.Tool;
   runner: (input: Record<string, unknown>) => Promise<ToolResult>;
@@ -100,7 +100,7 @@ export type ToolDef = {
   kind?: "discovery" | "action";
 };
 
-/** An HTTP route registered by an extension. */
+/** An HTTP route registered by a module. */
 export type RouteRegistration = {
   method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   path: string;
@@ -108,48 +108,48 @@ export type RouteRegistration = {
   /**
    * When true, the server skips the bearer-token auth check for this route.
    * Use for inbound webhook endpoints that receive external deliveries without
-   * a KOTA auth token (e.g. GitHub webhooks). The extension must perform its
+   * a KOTA auth token (e.g. GitHub webhooks). The module must perform its
    * own request authentication (signature validation, etc.).
    */
   bypassAuth?: boolean;
 };
 
-export type ExtensionContribution<T> =
+export type ModuleContribution<T> =
   | readonly T[]
-  | ((ctx: ExtensionContext) => readonly T[] | Promise<readonly T[]>);
+  | ((ctx: ModuleContext) => readonly T[] | Promise<readonly T[]>);
 
-export type ExtensionWorkflowContribution =
+export type ModuleWorkflowContribution =
   | WorkflowDefinitionInput
   | RegisteredWorkflowDefinitionInput;
 
-/** Context provided to extensions during initialization. */
-export type ExtensionContext = {
+/** Context provided to modules during initialization. */
+export type ModuleContext = {
   cwd: string;
   verbose: boolean;
   config: KotaConfig;
-  /** Scoped file-based storage for this extension (`.kota/extensions/<name>/`). */
-  storage: ExtensionStorage;
+  /** Scoped file-based storage for this module (`.kota/modules/<name>/`). */
+  storage: ModuleStorage;
   /** Register a custom tool group with optional auto-detect regex. */
   registerGroup: (name: string, toolNames: string[], pattern?: RegExp) => void;
-  /** Get HTTP routes registered by all loaded extensions. Decouples extensions from each other. */
+  /** Get HTTP routes registered by all loaded modules. Decouples modules from each other. */
   getRoutes: () => RouteRegistration[];
-  /** Get workflow definitions contributed by loaded extensions. */
+  /** Get workflow definitions contributed by loaded modules. */
   getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
-  /** Get channel definitions contributed by loaded extensions. */
+  /** Get channel definitions contributed by loaded modules. */
   getContributedChannels: () => ChannelDef[];
-  /** Get this extension's config section from the KOTA config. */
-  getExtensionConfig: <T = Record<string, unknown>>() => T | undefined;
-  /** Scoped logger — messages prefixed with `[extension:<name>]`. */
-  log: ExtensionLogger;
+  /** Get this module's config section from the KOTA config. */
+  getModuleConfig: <T = Record<string, unknown>>() => T | undefined;
+  /** Scoped logger — messages prefixed with `[module:<name>]`. */
+  log: ModuleLogger;
   /** Get a secret value by name. Returns null if not found or store not initialized. */
   getSecret: (key: string) => string | null;
   /** List names of all currently registered tools. */
   listTools: () => string[];
   /** Event proxy for emitting and subscribing to bus events. */
-  events: ExtensionEventProxy;
+  events: ModuleEventProxy;
   /** Create an agent session without importing core types. */
-  createSession: (options?: CreateSessionOptions) => ExtensionSession;
-  /** Register this extension as a provider for a service type (e.g., "memory", "knowledge"). */
+  createSession: (options?: CreateSessionOptions) => ModuleSession;
+  /** Register this module as a provider for a service type (e.g., "memory", "knowledge"). */
   registerProvider: (type: string, provider: unknown) => void;
   /** Get the active provider for a service type. Returns null if none registered. */
   getProvider: <T>(type: string) => T | null;
@@ -157,101 +157,101 @@ export type ExtensionContext = {
   callTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
   /** Register a middleware that wraps tool execution. Lower priority runs first. */
   registerMiddleware: (name: string, fn: ToolMiddlewareFn, priority?: number) => void;
-  /** Get summaries of all loaded extensions (name, version, contribution counts). */
-  getExtensionSummaries: () => ExtensionSummary[];
+  /** Get summaries of all loaded modules (name, version, contribution counts). */
+  getModuleSummaries: () => ModuleSummary[];
   /**
    * Register a per-turn dynamic system-prompt state provider.
    * The function is called synchronously on every agent turn and its output
    * is appended to the dynamic system-prompt block. Use this to contribute
-   * extension state (e.g. working memory contents) without modifying core.
+   * module state (e.g. working memory contents) without modifying core.
    */
   registerDynamicStateProvider: (name: string, fn: () => string) => void;
 };
 
 /**
- * KotaExtension — the pluggable unit of KOTA functionality.
+ * KotaModule — the pluggable unit of KOTA functionality.
  *
- * Extensions extend KOTA's capabilities through a declarative protocol:
+ * Modules extend KOTA's capabilities through a declarative protocol:
  * - `tools` — register agent tools
  * - `commands` — add CLI subcommands (appear in `kota --help`)
  * - `routes` — add HTTP endpoints (available when server runs)
  * - `workflows` — contribute automation (event, cron, interval, idle)
  *
- * Built-in extensions ship with KOTA but use the same protocol as external ones.
- * The core without any extensions loaded still functions as a basic agent.
+ * Shipped modules use the same protocol as external ones.
+ * The core without any modules loaded still functions as a basic agent.
  */
-export type KotaExtension = {
-  /** Unique extension identifier (e.g. "memory", "telegram", "web"). */
+export type KotaModule = {
+  /** Unique module identifier (e.g. "memory", "telegram", "web"). */
   name: string;
   /** Semver version string. */
   version?: string;
-  /** Short description of what this extension does. */
+  /** Short description of what this module does. */
   description?: string;
-  /** Names of extensions that must be loaded before this one. */
+  /** Names of modules that must be loaded before this one. */
   dependencies?: string[];
 
   /**
-   * Tools this extension provides. Registered during load.
-   * Can be a static array or a factory that receives ExtensionContext,
-   * allowing tool runners to access extension services via closure.
+   * Tools this module provides. Registered during load.
+   * Can be a static array or a factory that receives ModuleContext,
+   * allowing tool runners to access module services via closure.
    */
-  tools?: ToolDef[] | ((ctx: ExtensionContext) => ToolDef[]);
+  tools?: ToolDef[] | ((ctx: ModuleContext) => ToolDef[]);
 
   /**
-   * CLI commands this extension adds. Called once at load time.
+   * CLI commands this module adds. Called once at load time.
    * Returned commands are added to the main program — they appear in `kota --help`.
    */
-  commands?: (ctx: ExtensionContext) => Command[];
+  commands?: (ctx: ModuleContext) => Command[];
 
   /**
-   * HTTP routes this extension adds. Called when the server starts.
+   * HTTP routes this module adds. Called when the server starts.
    * Routes are matched by method + path in the HTTP request handler.
    */
-  routes?: (ctx: ExtensionContext) => RouteRegistration[];
+  routes?: (ctx: ModuleContext) => RouteRegistration[];
 
   /**
-   * Workflow definitions this extension contributes.
-   * Contributed workflows are registered alongside built-in workflows and support
+   * Workflow definitions this module contributes.
+   * Contributed workflows are registered alongside other contributed workflows and support
    * the same trigger types: event, cron schedule, interval, and runtime.idle.
    * Use workflows to express hook-like reactions, heartbeat jobs, and scheduled
    * automation instead of subscribing to the event bus directly.
    */
-  workflows?: ExtensionContribution<ExtensionWorkflowContribution>;
+  workflows?: ModuleContribution<ModuleWorkflowContribution>;
 
   /**
-   * Channel definitions this extension contributes.
+   * Channel definitions this module contributes.
    * Channels are daemon-owned interaction surfaces that map external I/O to sessions.
    * The daemon starts contributed channels at startup and stops them on shutdown.
    * A channel returns null from its factory if it cannot start (missing credentials).
    */
-  channels?: ExtensionContribution<ChannelDef>;
+  channels?: ModuleContribution<ChannelDef>;
 
   /**
-   * Skills this extension contributes — named, file-backed guidance blocks.
-   * Skills are the one way to teach the agent about extension capabilities.
+   * Skills this module contributes — named, file-backed guidance blocks.
+   * Skills are the one way to teach the agent about module capabilities.
    */
-  skills?: ExtensionContribution<SkillDef>;
+  skills?: ModuleContribution<SkillDef>;
 
   /**
-   * Agent definitions this extension contributes.
+   * Agent definitions this module contributes.
    * Registered agents can be referenced by name in workflow agent steps.
    */
-  agents?: ExtensionContribution<AgentDef>;
+  agents?: ModuleContribution<AgentDef>;
 
-  /** Called after the extension is loaded and tools are registered. */
-  onLoad?: (ctx: ExtensionContext) => Promise<void> | void;
+  /** Called after the module is loaded and tools are registered. */
+  onLoad?: (ctx: ModuleContext) => Promise<void> | void;
 
   /** Called on shutdown — clean up resources, close connections. */
   onUnload?: () => Promise<void> | void;
 
-  /** Returns current health state. Only set by foreign extensions with subprocess management. */
-  getHealth?: () => ExtensionHealth;
+  /** Returns current health state. Only set by foreign modules with subprocess management. */
+  getHealth?: () => ModuleHealth;
 };
 
-/** Resolve tools from a KotaExtension — handles both static array and factory function forms. */
-export function resolveExtensionTools(
-  mod: KotaExtension,
-  ctx?: ExtensionContext,
+/** Resolve tools from a KotaModule — handles both static array and factory function forms. */
+export function resolveModuleTools(
+  mod: KotaModule,
+  ctx?: ModuleContext,
 ): ToolDef[] {
   if (!mod.tools) return [];
   if (typeof mod.tools === "function") {
@@ -262,8 +262,8 @@ export function resolveExtensionTools(
 }
 
 async function resolveContribution<T>(
-  value: ExtensionContribution<T> | undefined,
-  ctx: ExtensionContext,
+  value: ModuleContribution<T> | undefined,
+  ctx: ModuleContext,
 ): Promise<readonly T[]> {
   if (!value) return [];
   if (typeof value === "function") {
@@ -272,30 +272,30 @@ async function resolveContribution<T>(
   return value;
 }
 
-export async function resolveExtensionWorkflows(
-  mod: KotaExtension,
-  ctx: ExtensionContext,
-): Promise<readonly ExtensionWorkflowContribution[]> {
+export async function resolveModuleWorkflows(
+  mod: KotaModule,
+  ctx: ModuleContext,
+): Promise<readonly ModuleWorkflowContribution[]> {
   return resolveContribution(mod.workflows, ctx);
 }
 
-export async function resolveExtensionChannels(
-  mod: KotaExtension,
-  ctx: ExtensionContext,
+export async function resolveModuleChannels(
+  mod: KotaModule,
+  ctx: ModuleContext,
 ): Promise<readonly ChannelDef[]> {
   return resolveContribution(mod.channels, ctx);
 }
 
-export async function resolveExtensionSkills(
-  mod: KotaExtension,
-  ctx: ExtensionContext,
+export async function resolveModuleSkills(
+  mod: KotaModule,
+  ctx: ModuleContext,
 ): Promise<readonly SkillDef[]> {
   return resolveContribution(mod.skills, ctx);
 }
 
-export async function resolveExtensionAgents(
-  mod: KotaExtension,
-  ctx: ExtensionContext,
+export async function resolveModuleAgents(
+  mod: KotaModule,
+  ctx: ModuleContext,
 ): Promise<readonly AgentDef[]> {
   return resolveContribution(mod.agents, ctx);
 }

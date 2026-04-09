@@ -1,5 +1,5 @@
 /**
- * Working Memory extension — explicit, agent-controlled scratchpad.
+ * Working Memory module — explicit, agent-controlled scratchpad.
  *
  * Gives the agent a set of named entries that appear in the system prompt
  * every turn. Unlike the knowledge store (persistent cross-session data)
@@ -12,8 +12,8 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ExtensionStorage } from "../../extension-storage.js";
-import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
+import type { ModuleStorage } from "../../module-storage.js";
+import type { ModuleContext, KotaModule } from "../../module-types.js";
 import type { WorkingMemoryEntry } from "../../memory/working-memory.js";
 import {
 	clearAll,
@@ -29,7 +29,7 @@ import type { ToolResult } from "../../tools/index.js";
 
 const STORAGE_KEY = "entries";
 
-function savePersistent(storage: ExtensionStorage): void {
+function savePersistent(storage: ModuleStorage): void {
 	const entries = getPersistentEntries();
 	if (entries.length === 0) {
 		storage.delete(STORAGE_KEY);
@@ -41,7 +41,7 @@ function savePersistent(storage: ExtensionStorage): void {
 	);
 }
 
-function loadPersistent(storage: ExtensionStorage): number {
+function loadPersistent(storage: ModuleStorage): number {
 	const raw = storage.getJSON<Array<{ key: string; value: string; updatedAt: number }>>(STORAGE_KEY);
 	if (!raw || !Array.isArray(raw)) return 0;
 	const entries: WorkingMemoryEntry[] = raw.map((e) => ({
@@ -87,7 +87,7 @@ const workingMemoryTool: Anthropic.Tool = {
 	},
 };
 
-function makeRunner(ctx: ExtensionContext) {
+function makeRunner(ctx: ModuleContext) {
 	return async (input: Record<string, unknown>): Promise<ToolResult> => {
 		const action = input.action as Action;
 		const key = input.key as string | undefined;
@@ -139,7 +139,7 @@ function makeRunner(ctx: ExtensionContext) {
 	};
 }
 
-const workingMemoryModule: KotaExtension = {
+const workingMemoryModule: KotaModule = {
 	name: "working-memory",
 	version: "2.0.0",
 	description: "Agent-controlled scratchpad visible in the system prompt every turn",
@@ -157,7 +157,7 @@ const workingMemoryModule: KotaExtension = {
 		ctx.registerDynamicStateProvider("working-memory", getWorkingMemoryState);
 	},
 
-	skills: [{ name: "working-memory", promptPath: "src/extensions/skills/working-memory.md" }],
+	skills: [{ name: "working-memory", promptPath: "src/modules/skills/working-memory.md" }],
 };
 
 export default workingMemoryModule;

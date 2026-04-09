@@ -21,9 +21,9 @@ read `TELEGRAM_BOT_TOKEN` / `TELEGRAM_ALERT_CHAT_ID` directly:
 
 This contradicts the channel contribution model introduced for
 `telegram-status-poll`, where Telegram-specific I/O was moved into the Telegram
-extension via a `ChannelDef`. The workflow runtime should not know about Telegram;
+module via a `ChannelDef`. The workflow runtime should not know about Telegram;
 it should only emit events or invoke typed notification callbacks that the
-Telegram extension subscribes to.
+Telegram module subscribes to.
 
 The current pattern also means:
 - Budget alerts, failure alerts, and approval notifications are silently dropped
@@ -41,7 +41,7 @@ read Telegram env vars. Instead:
 - They emit structured bus events (e.g. `"workflow.budget.exceeded"`,
   `"workflow.failure.alert"`) or accept a typed notification callback injected
   at startup.
-- The Telegram extension subscribes to these events (or receives the callback)
+- The Telegram module subscribes to these events (or receives the callback)
   and sends the messages.
 - The abstraction boundary means new notification surfaces can subscribe
   independently.
@@ -54,8 +54,8 @@ read Telegram env vars. Instead:
 - `src/workflow/` must not import from `src/telegram-client.ts` after the change.
 - Prefer bus events over injected callbacks where the event is already a
   naturally useful domain signal (e.g. `workflow.budget.exceeded`).
-- `ExtensionEventProxy` currently only has `emit` — no `subscribe`. Add a
-  `subscribe` method to `ExtensionEventProxy` so the Telegram extension can
+- `ModuleEventProxy` currently only has `emit` — no `subscribe`. Add a
+  `subscribe` method to `ModuleEventProxy` so the Telegram module can
   listen for events in its `onLoad` handler without importing `EventBus` directly.
 - Existing tests must pass; improve testability as a side effect.
 
@@ -64,6 +64,6 @@ read Telegram env vars. Instead:
 - `failure-alert.ts`, `approval-notification.ts`, `budget-guard.ts`, and
   `attention-digest.ts` contain no imports of `callTelegramApi` or references
   to `TELEGRAM_*` env vars.
-- The Telegram extension subscribes to the relevant events and sends the alerts.
+- The Telegram module subscribes to the relevant events and sends the alerts.
 - `src/event-bus-types.ts` documents any new event types added.
 - All existing tests pass; no regressions in Telegram alert behavior.

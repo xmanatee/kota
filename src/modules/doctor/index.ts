@@ -1,8 +1,8 @@
 /**
- * Doctor extension — owns the `kota doctor` CLI health check surface.
+ * Doctor module — owns the `kota doctor` CLI health check surface.
  *
  * Registers the `kota doctor` command that runs pass/warn/fail checks
- * against daemon connectivity, config validity, extensions, providers,
+ * against daemon connectivity, config validity, modules, providers,
  * workflow definitions, and disk state.
  */
 
@@ -18,8 +18,8 @@ import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import { Command } from "commander";
 import { loadConfig } from "../../config.js";
-import { loadExtensionMetadata } from "../../extension-metadata.js";
-import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
+import { loadModuleMetadata } from "../../module-metadata.js";
+import type { ModuleContext, KotaModule } from "../../module-types.js";
 import { createModelClient } from "../../model/model-client.js";
 import { DaemonControlClient } from "../../server/daemon-client.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "../../workflow/validation.js";
@@ -87,7 +87,7 @@ export function runDoctorFixes(projectDir: string): RepairResult[] {
     });
   }
 
-  for (const dir of [kotaDir, join(kotaDir, "runs"), join(kotaDir, "extensions")]) {
+  for (const dir of [kotaDir, join(kotaDir, "runs"), join(kotaDir, "modules")]) {
     if (!existsSync(dir)) {
       try {
         mkdirSync(dir, { recursive: true });
@@ -142,19 +142,19 @@ function checkDisk(projectDir: string): CheckResult[] {
     results.push(fail("Disk: .kota/ writable", "Directory is not writable"));
   }
 
-  const extensionsDir = join(kotaDir, "extensions");
-  if (existsSync(extensionsDir)) {
-    results.push(pass("Disk: .kota/extensions/", "Present"));
+  const modulesDir = join(kotaDir, "modules");
+  if (existsSync(modulesDir)) {
+    results.push(pass("Disk: .kota/modules/", "Present"));
   } else {
-    results.push(warn("Disk: .kota/extensions/", "Missing — run `kota doctor --fix` to create canonical extension state"));
+    results.push(warn("Disk: .kota/modules/", "Missing — run `kota doctor --fix` to create canonical module state"));
   }
 
-  const unexpectedModulesDir = join(kotaDir, "modules");
-  if (existsSync(unexpectedModulesDir)) {
+  const unexpectedExtensionsDir = join(kotaDir, "extensions");
+  if (existsSync(unexpectedExtensionsDir)) {
     results.push(
       warn(
-        "Disk: unexpected .kota/modules/",
-        "Unexpected runtime state path is present; remove it manually",
+        "Disk: unexpected .kota/extensions/",
+        "Unexpected old runtime path is present; remove it manually",
       ),
     );
   }
@@ -192,7 +192,7 @@ function checkConfigFile(configPath: string, label: string): CheckResult {
 
 async function checkWorkflowDefinitions(projectDir: string): Promise<CheckResult> {
   try {
-    const loader = await loadExtensionMetadata(loadConfig(projectDir), projectDir, false);
+    const loader = await loadModuleMetadata(loadConfig(projectDir), projectDir, false);
     const defs = loader.getContributedWorkflows();
     const validated = validateWorkflowDefinitions(defs, projectDir);
     return pass("Workflows: discoverable definitions", `${validated.length} valid`);
@@ -207,11 +207,11 @@ async function checkWorkflowDefinitions(projectDir: string): Promise<CheckResult
 async function checkExtensions(projectDir: string): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
   try {
-    const loader = await loadExtensionMetadata(loadConfig(projectDir), projectDir, false);
-    const summaries = loader.getExtensionSummaries();
-    results.push(pass("Extensions: loaded", `${summaries.length} extension(s)`));
+    const loader = await loadModuleMetadata(loadConfig(projectDir), projectDir, false);
+    const summaries = loader.getModuleSummaries();
+    results.push(pass("Modules: loaded", `${summaries.length} module(s)`));
   } catch (err) {
-    results.push(fail("Extensions: loaded", `Load error: ${err instanceof Error ? err.message : String(err)}`));
+    results.push(fail("Modules: loaded", `Load error: ${err instanceof Error ? err.message : String(err)}`));
   }
   return results;
 }
@@ -298,9 +298,9 @@ export async function runDoctorChecks(
   results.push(checkConfigFile(globalConfigPath, "Config: global (~/.kota/config.json)"));
   results.push(checkConfigFile(projectConfigPath, "Config: project (.kota/config.json)"));
 
-  // Extension checks (skip if daemon running to avoid double-load issues)
+  // Module checks (skip if daemon running to avoid double-load issues)
   if (status) {
-    results.push(pass("Extensions", "Managed by daemon (use `kota extension list` for details)"));
+    results.push(pass("Modules", "Managed by daemon (use `kota module list` for details)"));
   } else {
     const extResults = await checkExtensions(projectDir);
     results.push(...extResults);
@@ -367,7 +367,7 @@ function printRepairs(repairs: RepairResult[]): void {
   }
 }
 
-function buildDoctorCommand(_ctx: ExtensionContext): Command {
+function buildDoctorCommand(_ctx: ModuleContext): Command {
   const cmd = new Command("doctor")
     .description("Run runtime health checks and print a pass/warn/fail summary")
     .option("--json", "Output results as JSON")
@@ -407,11 +407,11 @@ function buildDoctorCommand(_ctx: ExtensionContext): Command {
   return cmd;
 }
 
-const doctorModule: KotaExtension = {
+const doctorModule: KotaModule = {
   name: "doctor",
   version: "1.0.0",
-  description: "Runtime health checks — daemon, config, extensions, providers, workflows, and disk",
-  commands: (ctx: ExtensionContext) => [buildDoctorCommand(ctx)],
+  description: "Runtime health checks — daemon, config, modules, providers, workflows, and disk",
+  commands: (ctx: ModuleContext) => [buildDoctorCommand(ctx)],
 };
 
 export default doctorModule;

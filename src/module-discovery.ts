@@ -1,104 +1,104 @@
 /**
- * Extension discovery — finds user-authored extensions under `.kota/extensions/`
- * and adapts their exports to KotaExtension format for loading via ExtensionLoader.
+ * Module discovery — finds user-authored modules under `.kota/modules/`
+ * and adapts their exports to KotaModule format for loading via ModuleLoader.
  *
- * All user extensions live under `.kota/extensions/<name>/`. Three packaging
+ * All user modules live under `.kota/modules/<name>/`. Three packaging
  * variants are supported:
  *
- *   manifest.json   — JSON-defined tools via the extension manifest format.
- *   index.js / index.mjs — single-file code extension (direct import).
- *   package.json (with "main") — packaged extension (compiled TypeScript or npm-installed).
+ *   manifest.json   — JSON-defined tools via the module manifest format.
+ *   index.js / index.mjs — single-file code module (direct import).
+ *   package.json (with "main") — packaged module (compiled TypeScript or npm-installed).
  *
- * Use `kota extension install <source>` to install extensions from npm, GitHub,
- * or a URL. Extensions installed via the CLI land in the correct directory
+ * Use `kota module install <source>` to install modules from npm, GitHub,
+ * or a URL. Modules installed via the CLI land in the correct directory
  * automatically.
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { KotaExtension } from "./extension-types.js";
-import type { ExtensionManifest } from "./manifest/index.js";
-import { manifestToExtension, validateManifest } from "./manifest/index.js";
+import type { KotaModule } from "./module-types.js";
+import type { ModuleManifest } from "./manifest/index.js";
+import { manifestToModule, validateManifest } from "./manifest/index.js";
 import { adaptExport } from "./tool-adapters.js";
 
-const EXTENSIONS_DIR = ".kota/extensions";
+const MODULES_DIR = ".kota/modules";
 
 /**
- * Discover all user extensions from `.kota/extensions/`.
- * Returns KotaExtension[] ready for ExtensionLoader.loadAll().
+ * Discover all user modules from `.kota/modules/`.
+ * Returns KotaModule[] ready for ModuleLoader.loadAll().
  */
-export async function discoverExtensions(cwd?: string, verbose = false): Promise<KotaExtension[]> {
+export async function discoverModules(cwd?: string, verbose = false): Promise<KotaModule[]> {
   const base = cwd || process.cwd();
-  const extensionsDir = resolve(base, EXTENSIONS_DIR);
+  const modulesDir = resolve(base, MODULES_DIR);
 
-  if (!existsSync(extensionsDir)) return [];
+  if (!existsSync(modulesDir)) return [];
 
-  const entries = readdirSync(extensionsDir, { withFileTypes: true })
+  const entries = readdirSync(modulesDir, { withFileTypes: true })
     .filter((e) => e.isDirectory())
     .map((e) => e.name)
     .sort();
 
-  const extensions: KotaExtension[] = [];
+  const modules: KotaModule[] = [];
 
   for (const name of entries) {
-    const extDir = join(extensionsDir, name);
+    const moduleDir = join(modulesDir, name);
     try {
-      const ext = await loadExtensionDirectory(extDir, name);
-      if (ext) extensions.push(ext);
+      const module = await loadModuleDirectory(moduleDir, name);
+      if (module) modules.push(module);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[kota] Extension "${name}" failed to load: ${msg}`);
+      console.error(`[kota] Module "${name}" failed to load: ${msg}`);
     }
   }
 
-  if (extensions.length > 0 && verbose) {
-    const toolCount = extensions.reduce((n, ext) => n + (ext.tools?.length ?? 0), 0);
-    console.error(`[kota] Discovered ${extensions.length} extension(s) with ${toolCount} tool(s)`);
+  if (modules.length > 0 && verbose) {
+    const toolCount = modules.reduce((n, module) => n + (module.tools?.length ?? 0), 0);
+    console.error(`[kota] Discovered ${modules.length} module(s) with ${toolCount} tool(s)`);
   }
 
-  return extensions;
+  return modules;
 }
 
 /**
- * Load a single extension from its directory.
+ * Load a single module from its directory.
  * Checks for manifest.json, index.js/mjs, then package.json (in that order).
  * Returns null for empty or unrecognized directories.
  */
-async function loadExtensionDirectory(dir: string, name: string): Promise<KotaExtension | null> {
-  // 1. Manifest-based extension (JSON-defined tools)
+async function loadModuleDirectory(dir: string, name: string): Promise<KotaModule | null> {
+  // 1. Manifest-based module (JSON-defined tools)
   const manifestPath = join(dir, "manifest.json");
   if (existsSync(manifestPath)) {
     try {
       const raw = readFileSync(manifestPath, "utf-8");
-      const manifest = JSON.parse(raw) as ExtensionManifest;
+      const manifest = JSON.parse(raw) as ModuleManifest;
       const errors = validateManifest(manifest);
       if (errors.length > 0) {
-        console.error(`[kota] Manifest extension "${name}" has validation errors, skipping`);
+        console.error(`[kota] Manifest module "${name}" has validation errors, skipping`);
         return null;
       }
-      return manifestToExtension(manifest);
+      return manifestToModule(manifest);
     } catch {
-      console.error(`[kota] Failed to parse manifest for extension "${name}", skipping`);
+      console.error(`[kota] Failed to parse manifest for module "${name}", skipping`);
       return null;
     }
   }
 
-  // 2. Single-file code extension (index.js or index.mjs at directory root)
+  // 2. Single-file code module (index.js or index.mjs at directory root)
   for (const entry of ["index.js", "index.mjs"]) {
     const entryPath = join(dir, entry);
     if (existsSync(entryPath)) {
-      return importExtensionFile(entryPath, name);
+      return importModuleFile(entryPath, name);
     }
   }
 
-  // 3. Packaged extension — resolved via package.json "main" or "exports" field.
-  //    Covers compiled TypeScript extensions and npm-installed packages.
+  // 3. Packaged module — resolved via package.json "main" or "exports" field.
+  //    Covers compiled TypeScript modules and npm-installed packages.
   const pkgJsonPath = join(dir, "package.json");
   if (existsSync(pkgJsonPath)) {
     const entryPath = resolvePackageEntry(dir, pkgJsonPath);
     if (entryPath) {
-      return importExtensionFile(entryPath, name);
+      return importModuleFile(entryPath, name);
     }
   }
 
@@ -127,8 +127,8 @@ function resolvePackageEntry(dir: string, pkgJsonPath: string): string | null {
   }
 }
 
-/** Import a single extension file and adapt its export to KotaExtension. */
-async function importExtensionFile(absPath: string, displayName: string): Promise<KotaExtension> {
+/** Import a single module file and adapt its export to KotaModule. */
+async function importModuleFile(absPath: string, displayName: string): Promise<KotaModule> {
   const url = pathToFileURL(absPath).href;
   const imported = await import(url);
   return adaptExport(imported.default ?? imported, displayName);

@@ -27,7 +27,7 @@ export class WatcherManager {
 	/** Start watching a directory. Returns the watcher ID. */
 	async start(
 		watchPath: string,
-		options?: { recursive?: boolean; extensions?: string[] },
+		options?: { recursive?: boolean; modules?: string[] },
 	): Promise<string> {
 		if (this.watchers.size >= MAX_WATCHERS) {
 			throw new Error(
@@ -36,14 +36,14 @@ export class WatcherManager {
 		}
 
 		const recursive = options?.recursive ?? true;
-		const extensions = options?.extensions;
+		const modules = options?.modules;
 		const id = `w${this.nextId++}`;
 
 		const active: ActiveWatcher = {
 			id,
 			rootPath: watchPath,
 			recursive,
-			extensions,
+			modules,
 			fsWatchers: [],
 			watchedDirs: new Set(),
 			snapshot: new Map(),
@@ -59,7 +59,7 @@ export class WatcherManager {
 		active.snapshot = await collectFileSnapshot(
 			active.rootPath,
 			active.recursive,
-			active.extensions,
+			active.modules,
 		);
 		active.pollTimer = setInterval(() => {
 			void this.pollChanges(active);
@@ -84,7 +84,7 @@ export class WatcherManager {
 			id: w.id,
 			path: w.rootPath,
 			recursive: w.recursive,
-			extensions: w.extensions,
+			modules: w.modules,
 			changeCount: w.changeCount,
 			createdAt: w.createdAt.toISOString(),
 		}));
@@ -192,7 +192,7 @@ export class WatcherManager {
 			const nextSnapshot = await collectFileSnapshot(
 				active.rootPath,
 				active.recursive,
-				active.extensions,
+				active.modules,
 			);
 
 			for (const [path, mtimeMs] of nextSnapshot) {

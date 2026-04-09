@@ -16,7 +16,7 @@ function makeTmpDir(): string {
   return dir;
 }
 
-describe("installUrl extension directory", () => {
+describe("installUrl module directory", () => {
   let kotaDir: string;
 
   beforeEach(() => {
@@ -38,47 +38,47 @@ describe("installUrl extension directory", () => {
     );
   }
 
-  it("installs extension to extensions/<name>/index.mjs", async () => {
+  it("installs module to modules/<name>/index.mjs", async () => {
     mockFetch("export default {};");
     const parsed = parseSource("https://example.com/path/to/weather.js");
     const result = await installUrl(parsed, kotaDir);
-    expect(result.files).toEqual(["extensions/weather"]);
+    expect(result.files).toEqual(["modules/weather"]);
   });
 
-  it("installs URL extension using derived name", async () => {
+  it("installs URL module using derived name", async () => {
     mockFetch("export default {};");
     const parsed = parseSource("https://example.com/weather.mjs");
     const result = await installUrl(parsed, kotaDir);
-    expect(result.files).toEqual(["extensions/weather"]);
+    expect(result.files).toEqual(["modules/weather"]);
   });
 
-  it("uses derived name for non-JS extensions", async () => {
+  it("uses derived name for non-JS modules", async () => {
     mockFetch("export default {};");
     const parsed = parseSource("https://example.com/tool.ts");
     const result = await installUrl(parsed, kotaDir);
-    // URL "tool.ts" → name "tool" → extensions/tool/index.mjs
-    expect(result.files).toEqual(["extensions/tool"]);
+    // URL "tool.ts" → name "tool" → modules/tool/index.mjs
+    expect(result.files).toEqual(["modules/tool"]);
   });
 
-  it("uses derived name for URLs without extension", async () => {
+  it("uses derived name for URLs without module", async () => {
     mockFetch("export default {};");
     const parsed = parseSource("https://example.com/api/module");
     const result = await installUrl(parsed, kotaDir);
-    expect(result.files).toEqual(["extensions/module"]);
+    expect(result.files).toEqual(["modules/module"]);
   });
 
   it("strips query string — uses name from parsed source", async () => {
     mockFetch("export default {};");
     const parsed = parseSource("https://example.com/tool.js?v=2&token=abc");
     const result = await installUrl(parsed, kotaDir);
-    expect(result.files).toEqual(["extensions/tool"]);
+    expect(result.files).toEqual(["modules/tool"]);
   });
 
   it("strips fragment — uses name from parsed source", async () => {
     mockFetch("export default {};");
     const parsed = parseSource("https://example.com/tool.mjs#section");
     const result = await installUrl(parsed, kotaDir);
-    expect(result.files).toEqual(["extensions/tool"]);
+    expect(result.files).toEqual(["modules/tool"]);
   });
 
   it("handles URL with only root path", async () => {
@@ -86,7 +86,7 @@ describe("installUrl extension directory", () => {
     const parsed = parseSource("https://example.com/");
     const result = await installUrl(parsed, kotaDir);
     // Root path → empty basename → falls back to name-derived filename
-    expect(result.files).toEqual(["extensions/tool"]);
+    expect(result.files).toEqual(["modules/tool"]);
   });
 });
 

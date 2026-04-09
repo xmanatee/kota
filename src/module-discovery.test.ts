@@ -2,8 +2,8 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { discoverExtensions } from "./extension-discovery.js";
-import { ExtensionLoader } from "./extension-loader.js";
+import { discoverModules } from "./module-discovery.js";
+import { ModuleLoader } from "./module-loader.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./tool-groups.js";
 import { clearCustomTools, executeTool, getAllTools } from "./tools/index.js";
 
@@ -13,23 +13,23 @@ function makeTmpDir(): string {
   return dir;
 }
 
-/** Write a single-file code extension to .kota/extensions/<name>/index.mjs */
+/** Write a single-file code module to .kota/modules/<name>/index.mjs */
 function writeExtension(dir: string, name: string, code: string): void {
-  const extDir = join(dir, ".kota", "extensions", name);
+  const extDir = join(dir, ".kota", "modules", name);
   mkdirSync(extDir, { recursive: true });
   writeFileSync(join(extDir, "index.mjs"), code);
 }
 
-describe("discoverExtensions", () => {
+describe("discoverModules", () => {
   let tmpDir: string;
-  let loader: ExtensionLoader;
+  let loader: ModuleLoader;
 
   beforeEach(() => {
     tmpDir = makeTmpDir();
     clearCustomTools();
     clearCustomGroups();
     resetGroups();
-    loader = new ExtensionLoader({}, false);
+    loader = new ModuleLoader({}, false);
   });
 
   afterEach(async () => {
@@ -37,42 +37,42 @@ describe("discoverExtensions", () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("discovers nothing when .kota/extensions/ does not exist", async () => {
-    const modules = await discoverExtensions(tmpDir);
+  it("discovers nothing when .kota/modules/ does not exist", async () => {
+    const modules = await discoverModules(tmpDir);
     expect(modules).toEqual([]);
   });
 
-  it("discovers and loads a simple extension with one tool", async () => {
+  it("discovers and loads a simple module with one tool", async () => {
     writeExtension(tmpDir, "hello", `
       export default {
-        name: "hello-extension",
+        name: "hello-module",
         tools: [{
           tool: {
             name: "hello_world",
             description: "Says hello",
             input_schema: { type: "object", properties: {} },
           },
-          runner: async () => ({ content: "Hello from extension!" }),
+          runner: async () => ({ content: "Hello from module!" }),
         }],
       };
     `);
 
-    const modules = await discoverExtensions(tmpDir);
+    const modules = await discoverModules(tmpDir);
     expect(modules).toHaveLength(1);
-    expect(modules[0].name).toBe("hello-extension");
+    expect(modules[0].name).toBe("hello-module");
 
     await loader.loadAll(modules);
-    expect(loader.getExtensionCount()).toBe(1);
+    expect(loader.getModuleCount()).toBe(1);
     expect(loader.getToolCount()).toBe(1);
 
     const result = await executeTool("hello_world", {});
-    expect(result.content).toBe("Hello from extension!");
+    expect(result.content).toBe("Hello from module!");
   });
 
   it("registers tool into a group when group is specified", async () => {
     writeExtension(tmpDir, "grouped", `
       export default {
-        name: "grouped-extension",
+        name: "grouped-module",
         tools: [{
           tool: {
             name: "custom_analyzer",
@@ -85,7 +85,7 @@ describe("discoverExtensions", () => {
       };
     `);
 
-    const modules = await discoverExtensions(tmpDir);
+    const modules = await discoverModules(tmpDir);
     await loader.loadAll(modules);
 
     expect(TOOL_GROUPS.analysis).toEqual(["custom_analyzer"]);
@@ -99,10 +99,10 @@ describe("discoverExtensions", () => {
     expect(afterEnable.some((t) => t.name === "custom_analyzer")).toBe(true);
   });
 
-  it("ungrouped extension tools are always available", async () => {
+  it("ungrouped module tools are always available", async () => {
     writeExtension(tmpDir, "always", `
       export default {
-        name: "always-extension",
+        name: "always-module",
         tools: [{
           tool: {
             name: "always_available",
@@ -114,22 +114,22 @@ describe("discoverExtensions", () => {
       };
     `);
 
-    const modules = await discoverExtensions(tmpDir);
+    const modules = await discoverModules(tmpDir);
     await loader.loadAll(modules);
 
     const filtered = filterTools(getAllTools());
     expect(filtered.some((t) => t.name === "always_available")).toBe(true);
   });
 
-  it("calls onLoad with ExtensionContext", async () => {
+  it("calls onLoad with ModuleContext", async () => {
     writeExtension(tmpDir, "lifecycle", `
       let loaded = false;
       export default {
-        name: "lifecycle-extension",
+        name: "lifecycle-module",
         onLoad: (ctx) => {
           loaded = true;
           if (!ctx.cwd || typeof ctx.verbose !== "boolean" || typeof ctx.registerGroup !== "function") {
-            throw new Error("Invalid ExtensionContext");
+            throw new Error("Invalid ModuleContext");
           }
         },
         tools: [{
@@ -143,7 +143,7 @@ describe("discoverExtensions", () => {
       };
     `);
 
-    const modules = await discoverExtensions(tmpDir);
+    const modules = await discoverModules(tmpDir);
     await loader.loadAll(modules);
     const result = await executeTool("check_loaded", {});
     expect(result.content).toBe("yes");
@@ -154,71 +154,71 @@ describe("discoverExtensions", () => {
     writeExtension(tmpDir, "unload", `
       import { writeFileSync } from "node:fs";
       export default {
-        name: "unload-extension",
+        name: "unload-module",
         onUnload: () => {
           writeFileSync(${JSON.stringify(flagPath)}, "unloaded");
         },
       };
     `);
 
-    const modules = await discoverExtensions(tmpDir);
+    const modules = await discoverModules(tmpDir);
     await loader.loadAll(modules);
-    expect(loader.getExtensionCount()).toBe(1);
+    expect(loader.getModuleCount()).toBe(1);
 
     await loader.unloadAll();
-    expect(loader.getExtensionCount()).toBe(0);
+    expect(loader.getModuleCount()).toBe(0);
 
     const { existsSync } = await import("node:fs");
     expect(existsSync(flagPath)).toBe(true);
   });
 
-  it("skips extensions without a name", async () => {
+  it("skips modules without a name", async () => {
     writeExtension(tmpDir, "bad", `
       export default { tools: [] };
     `);
 
-    const modules = await discoverExtensions(tmpDir);
-    // adaptExport logs an error and the extension is skipped
+    const modules = await discoverModules(tmpDir);
+    // adaptExport logs an error and the module is skipped
     expect(modules).toHaveLength(0);
   });
 
-  it("rejects duplicate extension names via ExtensionLoader", async () => {
+  it("rejects duplicate module names via ModuleLoader", async () => {
     writeExtension(tmpDir, "a", `export default { name: "dupe" };`);
     writeExtension(tmpDir, "b", `export default { name: "dupe" };`);
 
-    const modules = await discoverExtensions(tmpDir);
+    const modules = await discoverModules(tmpDir);
     expect(modules).toHaveLength(2);
 
-    // ExtensionLoader rejects the duplicate — first loads, second errors silently
+    // ModuleLoader rejects the duplicate — first loads, second errors silently
     await loader.loadAll(modules);
-    expect(loader.getExtensionCount()).toBe(1);
+    expect(loader.getModuleCount()).toBe(1);
   });
 
-  it("discovers extensions in alphabetical directory order", async () => {
+  it("discovers modules in alphabetical directory order", async () => {
     writeExtension(tmpDir, "z-last", `export default { name: "z-last" };`);
     writeExtension(tmpDir, "a-first", `export default { name: "a-first" };`);
     writeExtension(tmpDir, "m-middle", `export default { name: "m-middle" };`);
 
-    const modules = await discoverExtensions(tmpDir);
+    const modules = await discoverModules(tmpDir);
     expect(modules.map((m) => m.name)).toEqual(["a-first", "m-middle", "z-last"]);
   });
 
-  it("ignores directories with no recognized extension format", async () => {
-    const extDir = join(tmpDir, ".kota", "extensions", "unknown");
+  it("ignores directories with no recognized module format", async () => {
+    const extDir = join(tmpDir, ".kota", "modules", "unknown");
     mkdirSync(extDir, { recursive: true });
-    writeFileSync(join(extDir, "readme.md"), "# Not an extension");
+    writeFileSync(join(extDir, "readme.md"), "# Not a module");
     writeFileSync(join(extDir, "data.json"), "{}");
     writeExtension(tmpDir, "real", `export default { name: "real" };`);
 
-    const modules = await discoverExtensions(tmpDir);
+    const modules = await discoverModules(tmpDir);
     expect(modules).toHaveLength(1);
     expect(modules[0].name).toBe("real");
   });
 
-  it("cleans up tools on ExtensionLoader.unloadAll", async () => {
+  it("cleans up tools on ModuleLoader.unloadAll", async () => {
     writeExtension(tmpDir, "cleanup", `
       export default {
-        name: "cleanup-extension",
+        name: "cleanup-module",
         tools: [{
           tool: {
             name: "temp_tool",
@@ -231,7 +231,7 @@ describe("discoverExtensions", () => {
       };
     `);
 
-    const modules = await discoverExtensions(tmpDir);
+    const modules = await discoverModules(tmpDir);
     await loader.loadAll(modules);
 
     expect(TOOL_GROUPS.temp_group).toEqual(["temp_tool"]);
@@ -245,10 +245,10 @@ describe("discoverExtensions", () => {
     expect(result2.is_error).toBe(true);
   });
 
-  it("registerGroup from ExtensionContext creates groups with auto-detect pattern", async () => {
+  it("registerGroup from ModuleContext creates groups with auto-detect pattern", async () => {
     writeExtension(tmpDir, "custom-group", `
       export default {
-        name: "custom-group-extension",
+        name: "custom-group-module",
         onLoad: (ctx) => {
           ctx.registerGroup("email", ["send_email", "read_inbox"], /\\b(email|mail|inbox|send.?message)\\b/i);
         },
@@ -275,15 +275,15 @@ describe("discoverExtensions", () => {
       };
     `);
 
-    const modules = await discoverExtensions(tmpDir);
+    const modules = await discoverModules(tmpDir);
     await loader.loadAll(modules);
 
     expect(TOOL_GROUPS.email).toContain("send_email");
     expect(TOOL_GROUPS.email).toContain("read_inbox");
   });
 
-  it("discovers a manifest.json extension", async () => {
-    const extDir = join(tmpDir, ".kota", "extensions", "manifest-ext");
+  it("discovers a manifest.json module", async () => {
+    const extDir = join(tmpDir, ".kota", "modules", "manifest-ext");
     mkdirSync(extDir, { recursive: true });
     writeFileSync(
       join(extDir, "manifest.json"),
@@ -293,13 +293,13 @@ describe("discoverExtensions", () => {
       }),
     );
 
-    const modules = await discoverExtensions(tmpDir);
+    const modules = await discoverModules(tmpDir);
     expect(modules).toHaveLength(1);
     expect(modules[0].name).toBe("manifest-ext");
   });
 
-  it("discovers a packaged extension via package.json main field", async () => {
-    const extDir = join(tmpDir, ".kota", "extensions", "packaged-ext");
+  it("discovers a packaged module via package.json main field", async () => {
+    const extDir = join(tmpDir, ".kota", "modules", "packaged-ext");
     mkdirSync(join(extDir, "dist"), { recursive: true });
     writeFileSync(
       join(extDir, "package.json"),
@@ -310,7 +310,7 @@ describe("discoverExtensions", () => {
       `export default { name: "packaged-ext", tools: [] };`,
     );
 
-    const modules = await discoverExtensions(tmpDir);
+    const modules = await discoverModules(tmpDir);
     expect(modules).toHaveLength(1);
     expect(modules[0].name).toBe("packaged-ext");
   });

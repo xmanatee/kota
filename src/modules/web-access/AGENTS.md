@@ -1,10 +1,10 @@
-# Web Access Extension
+# Web Access Module
 
-This directory contains the `web-access` built-in extension — the reference
-implementation of the per-extension directory pattern for KOTA.
+This directory contains the `web-access` repo module — the reference
+implementation of the per-module directory pattern for KOTA.
 
 Tools, implementation files, helpers, and tests all live here rather than in
-`src/tools/`. This is the intended layout for built-in capability packs.
+`src/tools/`. This is the intended layout for project capability packs.
 
 ## Tools
 
@@ -14,7 +14,7 @@ Tools, implementation files, helpers, and tests all live here rather than in
 
 ## Files
 
-- `index.ts` — `KotaExtension` definition; assembles tools with risk/kind metadata
+- `index.ts` — `KotaModule` definition; assembles tools with risk/kind metadata
 - `web-fetch.ts` + `web-fetch.test.ts` — `web_fetch` implementation
 - `web-search.ts` + `web-search.test.ts` — `web_search` implementation
 - `web-search-helpers.ts` — HTML parsing, result formatting, Brave/DDG helpers
@@ -23,6 +23,6 @@ Tools, implementation files, helpers, and tests all live here rather than in
 
 ## Risk / Kind Metadata
 
-Tools declare their `risk` and `kind` in the `ToolDef` returned by the extension.
-The extension loader stores this metadata; guardrails use it for classification.
+Tools declare their `risk` and `kind` in the `ToolDef` returned by the module.
+The module loader stores this metadata; guardrails use it for classification.
 This replaces the old `ToolRegistration` pattern that only worked for core tools.

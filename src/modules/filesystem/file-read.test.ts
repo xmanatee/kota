@@ -97,7 +97,7 @@ describe("file_read: image files", () => {
     }
   });
 
-  it("reads .jpeg extension correctly", async () => {
+  it("reads .jpeg module correctly", async () => {
     const path = join(TEST_DIR, "photo.jpeg");
     writeFileSync(path, MINIMAL_JPEG);
     const result = await runFileRead({ path });
@@ -201,7 +201,7 @@ describe("file_read: image files", () => {
     expect(result.content).not.toContain("code_exec");
   });
 
-  it("treats non-image extensions as text", async () => {
+  it("treats non-image modules as text", async () => {
     const path = join(TEST_DIR, "data.csv");
     writeFileSync(path, "a,b,c\n1,2,3");
     const result = await runFileRead({ path });
@@ -266,7 +266,7 @@ describe("file_read: document format detection", () => {
     expect(result.content).toContain("read_parquet");
   });
 
-  it("returns guidance for .tar.gz compound extension", async () => {
+  it("returns guidance for .tar.gz compound module", async () => {
     const path = join(TEST_DIR, "backup.tar.gz");
     writeFileSync(path, Buffer.from([0x1f, 0x8b, 0x08, 0x00]));
     const result = await runFileRead({ path });
@@ -332,9 +332,9 @@ describe("file_read: PDF files", () => {
     ).toBe(true);
   });
 
-  it("handles .PDF extension case-insensitively", async () => {
+  it("handles .PDF module case-insensitively", async () => {
     const path = join(TEST_DIR, "UPPER.PDF");
-    writeFileSync(path, "%PDF-1.4 uppercase extension");
+    writeFileSync(path, "%PDF-1.4 uppercase module");
     const result = await runFileRead({ path });
     const c = result.content;
     expect(

@@ -4,10 +4,10 @@
 
 import type Anthropic from "@anthropic-ai/sdk";
 import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "../data/code-wrappers.js";
-import type { KotaExtension, ToolDef } from "../extension-types.js";
+import type { KotaModule, ToolDef } from "../module-types.js";
 import type { Language } from "../repl-session.js";
 import { sessions } from "../repl-session.js";
-import type { ExtensionManifest, ManifestToolDef } from "./types.js";
+import type { ModuleManifest, ManifestToolDef } from "./types.js";
 
 // ─── Tool runner builder ─────────────────────────────────────────────
 
@@ -39,9 +39,9 @@ function buildToolRunner(
 	};
 }
 
-// ─── Manifest → KotaExtension conversion ────────────────────────────────
+// ─── Manifest → KotaModule conversion ────────────────────────────────
 
-export function manifestToExtension(manifest: ExtensionManifest): KotaExtension {
+export function manifestToModule(manifest: ModuleManifest): KotaModule {
 	const tools: ToolDef[] = (manifest.tools || []).map((t) => ({
 		tool: {
 			name: t.name,

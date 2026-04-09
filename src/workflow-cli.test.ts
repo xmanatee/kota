@@ -134,9 +134,8 @@ describe("WorkflowRunStore causal chain", () => {
 
   const workflow: WorkflowDefinition = {
     name: "builder",
-    tags: [],
     enabled: true,
-    definitionPath: "src/workflows/builder/workflow.ts",
+    definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
     triggers: [{ event: "workflow.completed", cooldownMs: 0 }],
     steps: [],
   };
@@ -199,9 +198,8 @@ describe("WorkflowRunStore causal chain", () => {
 
 const minimalWorkflow: WorkflowDefinition = {
   name: "builder",
-  tags: [],
   enabled: true,
-  definitionPath: "src/workflows/builder/workflow.ts",
+  definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
   triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
   steps: [],
 };

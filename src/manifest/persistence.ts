@@ -1,5 +1,5 @@
 /**
- * Manifest persistence — save, load, delete, and discover manifest-based extensions.
+ * Manifest persistence — save, load, delete, and discover manifest-based modules.
  */
 
 import {
@@ -11,24 +11,24 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import type { KotaExtension } from "../extension-types.js";
-import { manifestToExtension } from "./execution.js";
-import type { ExtensionManifest } from "./types.js";
+import type { KotaModule } from "../module-types.js";
+import { manifestToModule } from "./execution.js";
+import type { ModuleManifest } from "./types.js";
 import { validateManifest } from "./validation.js";
 
-function getExtensionsDir(cwd?: string): string {
-	return join(cwd || process.cwd(), ".kota", "extensions");
+function getModulesDir(cwd?: string): string {
+	return join(cwd || process.cwd(), ".kota", "modules");
 }
 
-function getManifestPath(extensionName: string, cwd?: string): string {
-	return join(getExtensionsDir(cwd), extensionName, "manifest.json");
+function getManifestPath(moduleName: string, cwd?: string): string {
+	return join(getModulesDir(cwd), moduleName, "manifest.json");
 }
 
 export function saveManifest(
-	manifest: ExtensionManifest,
+	manifest: ModuleManifest,
 	cwd?: string,
 ): string {
-	const dir = join(getExtensionsDir(cwd), manifest.name);
+	const dir = join(getModulesDir(cwd), manifest.name);
 	if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 	const path = join(dir, "manifest.json");
 	writeFileSync(path, JSON.stringify(manifest, null, 2), "utf-8");
@@ -36,20 +36,20 @@ export function saveManifest(
 }
 
 export function loadManifest(
-	extensionName: string,
+	moduleName: string,
 	cwd?: string,
-): ExtensionManifest | null {
-	const path = getManifestPath(extensionName, cwd);
+): ModuleManifest | null {
+	const path = getManifestPath(moduleName, cwd);
 	if (!existsSync(path)) return null;
 	try {
-		return JSON.parse(readFileSync(path, "utf-8")) as ExtensionManifest;
+		return JSON.parse(readFileSync(path, "utf-8")) as ModuleManifest;
 	} catch {
 		return null;
 	}
 }
 
-export function deleteManifest(extensionName: string, cwd?: string): boolean {
-	const dir = join(getExtensionsDir(cwd), extensionName);
+export function deleteManifest(moduleName: string, cwd?: string): boolean {
+	const dir = join(getModulesDir(cwd), moduleName);
 	if (!existsSync(dir)) return false;
 	const manifestPath = join(dir, "manifest.json");
 	if (!existsSync(manifestPath)) return false;
@@ -64,45 +64,45 @@ export function deleteManifest(extensionName: string, cwd?: string): boolean {
 }
 
 /**
- * Discover all manifest-based extensions saved to `.kota/extensions/`.
- * Returns KotaExtension[] ready for ExtensionLoader.loadAll().
+ * Discover all manifest-based modules saved to `.kota/modules/`.
+ * Returns KotaModule[] ready for ModuleLoader.loadAll().
  */
-export function discoverManifestExtensions(cwd?: string): KotaExtension[] {
-	const dir = getExtensionsDir(cwd);
+export function discoverManifestModules(cwd?: string): KotaModule[] {
+	const dir = getModulesDir(cwd);
 	if (!existsSync(dir)) return [];
 
-	const extensions: KotaExtension[] = [];
+	const modules: KotaModule[] = [];
 	for (const entry of readdirSync(dir)) {
 		const manifestPath = join(dir, entry, "manifest.json");
 		if (!existsSync(manifestPath)) continue;
 		try {
 			const raw = readFileSync(manifestPath, "utf-8");
-			const manifest = JSON.parse(raw) as ExtensionManifest;
+			const manifest = JSON.parse(raw) as ModuleManifest;
 			const errors = validateManifest(manifest);
 			if (errors.length > 0) {
 				console.error(
-					`[kota] Manifest extension "${entry}" has validation errors, skipping`,
+					`[kota] Manifest module "${entry}" has validation errors, skipping`,
 				);
 				continue;
 			}
-			extensions.push(manifestToExtension(manifest));
+			modules.push(manifestToModule(manifest));
 		} catch {
 			console.error(
-				`[kota] Failed to load manifest extension "${entry}", skipping`,
+				`[kota] Failed to load manifest module "${entry}", skipping`,
 			);
 		}
 	}
-	return extensions;
+	return modules;
 }
 
-/** List all saved manifest extension names. */
-export function listManifestExtensions(
-	cwd?: string,
-): { name: string; manifest: ExtensionManifest }[] {
-	const dir = getExtensionsDir(cwd);
+/** List all saved manifest module names. */
+export function listManifestModules(
+  cwd?: string,
+): { name: string; manifest: ModuleManifest }[] {
+	const dir = getModulesDir(cwd);
 	if (!existsSync(dir)) return [];
 
-	const results: { name: string; manifest: ExtensionManifest }[] = [];
+	const results: { name: string; manifest: ModuleManifest }[] = [];
 	for (const entry of readdirSync(dir)) {
 		const manifest = loadManifest(entry, cwd);
 		if (manifest) results.push({ name: entry, manifest });

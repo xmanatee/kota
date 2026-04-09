@@ -11,7 +11,7 @@ updated_at: 2026-04-02T11:49:09Z
 
 ## Problem
 
-KOTA's config is spread across two JSON files (global `~/.kota/config.json` and project `.kota/config.json`) merged at runtime. Operators debugging unexpected behavior — wrong model, missing extension, bad budget — have to run `kota config validate` from the CLI to see the resolved config. The web UI provides no config visibility at all.
+KOTA's config is spread across two JSON files (global `~/.kota/config.json` and project `.kota/config.json`) merged at runtime. Operators debugging unexpected behavior — wrong model, missing module, bad budget — have to run `kota config validate` from the CLI to see the resolved config. The web UI provides no config visibility at all.
 
 This creates friction for operators who are primarily using the web UI and don't have a terminal handy, and makes the web UI feel incomplete relative to the CLI.
 

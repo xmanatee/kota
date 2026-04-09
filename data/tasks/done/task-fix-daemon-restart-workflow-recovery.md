@@ -4,7 +4,7 @@ title: Fix daemon restart so workflow definitions and queued runs recover correc
 status: done
 priority: p0
 area: workflow
-summary: A builder-triggered restart can bring the child daemon back up with zero loaded workflows, which then causes pending follow-up runs like improver to be discarded during queue restore. Fix the restart path so built-in workflows always load, extension workflows are merged correctly, and queued runs survive restarts.
+summary: A builder-triggered restart can bring the child daemon back up with zero loaded workflows, which then causes pending follow-up runs like improver to be discarded during queue restore. Fix the restart path so built-in workflows always load, module workflows are merged correctly, and queued runs survive restarts.
 created_at: 2026-03-27
 updated_at: 2026-03-27
 ---
@@ -28,7 +28,7 @@ unsafe.
 ## Desired Outcome
 
 - Restarted daemon children always load the built-in workflows.
-- Extension-contributed workflows are merged with built-ins instead of replacing
+- Module-contributed workflows are merged with built-ins instead of replacing
   them accidentally.
 - Pending queued runs survive restart and recover if their workflow definitions
   are valid.
@@ -40,15 +40,15 @@ unsafe.
 
 - Do not introduce a second workflow-loading path for restarts.
 - Keep the workflow model strict: one canonical source of built-in workflows and
-  one canonical merge point for extension-contributed workflows.
+  one canonical merge point for module-contributed workflows.
 - Prefer direct failure over silently discarding queued work.
 
 ## Done When
 
 - A builder -> restart -> improver chain recovers correctly after daemon restart.
-- Restarted daemons include built-in workflows even when extension-contributed
+- Restarted daemons include built-in workflows even when module-contributed
   workflow lists are empty.
 - Queue restore does not silently discard valid pending runs because the daemon
   started with zero definitions.
 - Focused tests cover restart with built-ins only and restart with built-ins
-  plus contributed extension workflows.
+  plus contributed module workflows.

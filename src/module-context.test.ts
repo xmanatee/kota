@@ -1,13 +1,13 @@
 /**
- * Tests for extended ExtensionContext APIs (log, getSecret, listTools)
+ * Tests for extended ModuleContext APIs (log, getSecret, listTools)
  * and the tools-as-function pattern.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initEventBus, resetEventBus } from "./event-bus.js";
-import { ExtensionLoader } from "./extension-loader.js";
-import type { ExtensionContext, KotaExtension, ToolDef } from "./extension-types.js";
-import { resolveExtensionTools } from "./extension-types.js";
+import { ModuleLoader } from "./module-loader.js";
+import type { ModuleContext, KotaModule, ToolDef } from "./module-types.js";
+import { resolveModuleTools } from "./module-types.js";
 import { initSecretStore, resetSecretStore } from "./secrets.js";
 import { clearCustomGroups, resetGroups } from "./tool-groups.js";
 import { clearCustomTools, executeTool, registerTool } from "./tools/index.js";
@@ -30,34 +30,34 @@ afterEach(() => {
 
 // ── ctx.log ──────────────────────────────────────────────────────────────
 
-describe("ExtensionContext.log", () => {
+describe("ModuleContext.log", () => {
   it("provides info/warn/error/debug methods", async () => {
     const onLoad = vi.fn();
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({ name: "log-test", onLoad });
 
-    const ctx: ExtensionContext = onLoad.mock.calls[0][0];
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
     expect(typeof ctx.log.info).toBe("function");
     expect(typeof ctx.log.warn).toBe("function");
     expect(typeof ctx.log.error).toBe("function");
     expect(typeof ctx.log.debug).toBe("function");
   });
 
-  it("prefixes messages with [extension:<name>]", async () => {
+  it("prefixes messages with [module:<name>]", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const onLoad = vi.fn();
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({ name: "my-mod", onLoad });
 
-    const ctx: ExtensionContext = onLoad.mock.calls[0][0];
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
     ctx.log.info("hello world");
-    expect(errSpy).toHaveBeenCalledWith("[extension:my-mod] hello world");
+    expect(errSpy).toHaveBeenCalledWith("[module:my-mod] hello world");
 
     ctx.log.warn("watch out");
-    expect(errSpy).toHaveBeenCalledWith("[extension:my-mod] WARN: watch out");
+    expect(errSpy).toHaveBeenCalledWith("[module:my-mod] WARN: watch out");
 
     ctx.log.error("something broke");
-    expect(errSpy).toHaveBeenCalledWith("[extension:my-mod] ERROR: something broke");
+    expect(errSpy).toHaveBeenCalledWith("[module:my-mod] ERROR: something broke");
 
     errSpy.mockRestore();
   });
@@ -67,24 +67,24 @@ describe("ExtensionContext.log", () => {
 
     // Non-verbose — debug is silent
     const onLoadQuiet = vi.fn();
-    const loaderQuiet = new ExtensionLoader({}, false);
+    const loaderQuiet = new ModuleLoader({}, false);
     await loaderQuiet.load({ name: "quiet-mod", onLoad: onLoadQuiet });
-    const ctxQuiet: ExtensionContext = onLoadQuiet.mock.calls[0][0];
+    const ctxQuiet: ModuleContext = onLoadQuiet.mock.calls[0][0];
     ctxQuiet.log.debug("hidden");
     expect(errSpy).not.toHaveBeenCalled();
 
     // Verbose — debug logs
     const onLoadVerbose = vi.fn();
-    const loaderVerbose = new ExtensionLoader({}, true);
+    const loaderVerbose = new ModuleLoader({}, true);
     await loaderVerbose.load({ name: "verbose-mod", onLoad: onLoadVerbose });
-    const ctxVerbose: ExtensionContext = onLoadVerbose.mock.calls[0][0];
+    const ctxVerbose: ModuleContext = onLoadVerbose.mock.calls[0][0];
     ctxVerbose.log.debug("visible");
     // The verbose loader also logs "Module loaded" — find the debug message
     const debugCall = errSpy.mock.calls.find(
       (call) => typeof call[0] === "string" && call[0].includes("DEBUG:"),
     );
     expect(debugCall).toBeTruthy();
-    expect(debugCall![0]).toContain("[extension:verbose-mod] DEBUG: visible");
+    expect(debugCall![0]).toContain("[module:verbose-mod] DEBUG: visible");
 
     errSpy.mockRestore();
   });
@@ -92,13 +92,13 @@ describe("ExtensionContext.log", () => {
 
 // ── ctx.getSecret ────────────────────────────────────────────────────────
 
-describe("ExtensionContext.getSecret", () => {
+describe("ModuleContext.getSecret", () => {
   it("returns null when secret store is not initialized", async () => {
     const onLoad = vi.fn();
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({ name: "secret-test", onLoad });
 
-    const ctx: ExtensionContext = onLoad.mock.calls[0][0];
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
     expect(ctx.getSecret("MY_KEY")).toBeNull();
   });
 
@@ -107,10 +107,10 @@ describe("ExtensionContext.getSecret", () => {
     store.set("API_KEY", "test-value-123", "project");
 
     const onLoad = vi.fn();
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({ name: "secret-test2", onLoad });
 
-    const ctx: ExtensionContext = onLoad.mock.calls[0][0];
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
     expect(ctx.getSecret("API_KEY")).toBe("test-value-123");
     expect(ctx.getSecret("NONEXISTENT")).toBeNull();
   });
@@ -118,7 +118,7 @@ describe("ExtensionContext.getSecret", () => {
 
 // ── ctx.listTools ────────────────────────────────────────────────────────
 
-describe("ExtensionContext.listTools", () => {
+describe("ModuleContext.listTools", () => {
   it("returns names of registered tools", async () => {
     registerTool(
       { name: "tool_alpha", description: "Test", input_schema: { type: "object", properties: {} } },
@@ -130,17 +130,17 @@ describe("ExtensionContext.listTools", () => {
     );
 
     const onLoad = vi.fn();
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({ name: "tools-test", onLoad });
 
-    const ctx: ExtensionContext = onLoad.mock.calls[0][0];
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
     const tools = ctx.listTools();
     expect(tools).toContain("tool_alpha");
     expect(tools).toContain("tool_beta");
   });
 
   it("reflects tools registered by other modules", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
 
     await loader.load({
       name: "provider-mod",
@@ -153,7 +153,7 @@ describe("ExtensionContext.listTools", () => {
     const onLoad = vi.fn();
     await loader.load({ name: "consumer-mod", onLoad });
 
-    const ctx: ExtensionContext = onLoad.mock.calls[0][0];
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
     expect(ctx.listTools()).toContain("provided_tool");
   });
 });
@@ -162,9 +162,9 @@ describe("ExtensionContext.listTools", () => {
 
 describe("tools as factory function", () => {
   it("resolves tools from a factory function during load", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
 
-    const mod: KotaExtension = {
+    const mod: KotaModule = {
       name: "factory-mod",
       tools: (ctx) => [{
         tool: {
@@ -187,9 +187,9 @@ describe("tools as factory function", () => {
     const store = initSecretStore("/tmp/test-factory");
     store.set("TOKEN", "my-secret-token", "project");
 
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
 
-    const mod: KotaExtension = {
+    const mod: KotaModule = {
       name: "secret-factory",
       tools: (ctx) => [{
         tool: {
@@ -211,9 +211,9 @@ describe("tools as factory function", () => {
 
   it("tool runner can access ctx.log via closure", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const loader = new ExtensionLoader({}, true);
+    const loader = new ModuleLoader({}, true);
 
-    const mod: KotaExtension = {
+    const mod: KotaModule = {
       name: "logging-factory",
       tools: (ctx) => [{
         tool: {
@@ -236,13 +236,13 @@ describe("tools as factory function", () => {
       (call) => typeof call[0] === "string" && call[0].includes("tool executed"),
     );
     expect(logCall).toBeTruthy();
-    expect(logCall![0]).toContain("[extension:logging-factory]");
+    expect(logCall![0]).toContain("[module:logging-factory]");
 
     errSpy.mockRestore();
   });
 
   it("mixes static and factory tools across modules", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
 
     // Static tools
     await loader.load({
@@ -271,7 +271,7 @@ describe("tools as factory function", () => {
   });
 
   it("getToolCount tracks factory tools correctly", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
 
     await loader.load({
       name: "multi-factory",
@@ -294,20 +294,20 @@ describe("tools as factory function", () => {
   });
 });
 
-// ── resolveExtensionTools ───────────────────────────────────────────────────
+// ── resolveModuleTools ───────────────────────────────────────────────────
 
-describe("resolveExtensionTools", () => {
+describe("resolveModuleTools", () => {
   const dummyCtx = {
     cwd: "/tmp",
     verbose: false,
     config: {},
-    storage: {} as ExtensionContext["storage"],
+    storage: {} as ModuleContext["storage"],
     registerGroup: () => {},
     getRoutes: () => [],
     getContributedWorkflows: () => [],
     getContributedChannels: () => [],
-    getExtensionSummaries: () => [],
-    getExtensionConfig: () => undefined,
+    getModuleSummaries: () => [],
+    getModuleConfig: () => undefined,
     log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
     getSecret: () => null,
     listTools: () => [],
@@ -318,10 +318,10 @@ describe("resolveExtensionTools", () => {
     callTool: async () => ({ content: "" }),
     registerMiddleware: () => {},
     registerDynamicStateProvider: () => {},
-  } as ExtensionContext;
+  } as ModuleContext;
 
   it("returns empty array when tools is undefined", () => {
-    expect(resolveExtensionTools({ name: "empty" })).toEqual([]);
+    expect(resolveModuleTools({ name: "empty" })).toEqual([]);
   });
 
   it("returns array directly for static tools", () => {
@@ -329,39 +329,39 @@ describe("resolveExtensionTools", () => {
       tool: { name: "t", description: "T", input_schema: { type: "object", properties: {} } },
       runner: async () => ({ content: "" }),
     }];
-    expect(resolveExtensionTools({ name: "static", tools })).toBe(tools);
+    expect(resolveModuleTools({ name: "static", tools })).toBe(tools);
   });
 
   it("calls factory with context for function tools", () => {
     const factory = vi.fn(() => [] as ToolDef[]);
-    resolveExtensionTools({ name: "factory", tools: factory }, dummyCtx);
+    resolveModuleTools({ name: "factory", tools: factory }, dummyCtx);
     expect(factory).toHaveBeenCalledWith(dummyCtx);
   });
 
   it("throws when factory tools have no context", () => {
-    const mod: KotaExtension = { name: "no-ctx", tools: () => [] };
-    expect(() => resolveExtensionTools(mod)).toThrow("no context provided");
+    const mod: KotaModule = { name: "no-ctx", tools: () => [] };
+    expect(() => resolveModuleTools(mod)).toThrow("no context provided");
   });
 });
 
 // ── ctx.events ──────────────────────────────────────────────────────────
 
-describe("ExtensionContext.events", () => {
+describe("ModuleContext.events", () => {
   it("provides emit method", async () => {
     const onLoad = vi.fn();
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({ name: "events-test", onLoad });
 
-    const ctx: ExtensionContext = onLoad.mock.calls[0][0];
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
     expect(typeof ctx.events.emit).toBe("function");
   });
 
   it("emit is no-op when bus is not connected", async () => {
     const onLoad = vi.fn();
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({ name: "no-bus", onLoad });
 
-    const ctx: ExtensionContext = onLoad.mock.calls[0][0];
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
     // Should not throw
     ctx.events.emit("test.event", { value: 1 });
   });
@@ -372,11 +372,11 @@ describe("ExtensionContext.events", () => {
     bus.on("custom.event", (payload) => received.push(payload));
 
     const onLoad = vi.fn();
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({ name: "emitter", onLoad });
     loader.setBus(bus);
 
-    const ctx: ExtensionContext = onLoad.mock.calls[0][0];
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
     ctx.events.emit("custom.event", { key: "value" });
 
     expect(received).toHaveLength(1);
@@ -388,7 +388,7 @@ describe("ExtensionContext.events", () => {
     const emitted: unknown[] = [];
     bus.on("tool.ran", (p) => emitted.push(p));
 
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({
       name: "event-tool-mod",
       tools: (ctx) => [{
@@ -414,13 +414,13 @@ describe("ExtensionContext.events", () => {
 
 // ── ctx.createSession ───────────────────────────────────────────────────
 
-describe("ExtensionContext.createSession", () => {
+describe("ModuleContext.createSession", () => {
   it("throws when no session factory is set", async () => {
     const onLoad = vi.fn();
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     await loader.load({ name: "no-factory", onLoad });
 
-    const ctx: ExtensionContext = onLoad.mock.calls[0][0];
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
     expect(() => ctx.createSession()).toThrow("Session factory not available");
   });
 
@@ -432,11 +432,11 @@ describe("ExtensionContext.createSession", () => {
     const factory = vi.fn(() => mockSession);
 
     const onLoad = vi.fn();
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     loader.setSessionFactory(factory);
     await loader.load({ name: "with-factory", onLoad });
 
-    const ctx: ExtensionContext = onLoad.mock.calls[0][0];
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
     const session = ctx.createSession({ label: "test-session" });
 
     expect(factory).toHaveBeenCalledWith({ label: "test-session" });
@@ -450,11 +450,11 @@ describe("ExtensionContext.createSession", () => {
     }));
 
     const onLoad = vi.fn();
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     loader.setSessionFactory(factory);
     await loader.load({ name: "default-opts", onLoad });
 
-    const ctx: ExtensionContext = onLoad.mock.calls[0][0];
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
     ctx.createSession();
 
     expect(factory).toHaveBeenCalledWith({});
@@ -466,11 +466,11 @@ describe("ExtensionContext.createSession", () => {
     const factory = vi.fn(() => ({ send: sendFn, close: closeFn }));
 
     const onLoad = vi.fn();
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     loader.setSessionFactory(factory);
     await loader.load({ name: "session-proxy", onLoad });
 
-    const ctx: ExtensionContext = onLoad.mock.calls[0][0];
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
     const session = ctx.createSession();
 
     const result = await session.send("hello");
@@ -487,7 +487,7 @@ describe("ExtensionContext.createSession", () => {
       close: () => {},
     }));
 
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     loader.setSessionFactory(factory);
     await loader.load({
       name: "session-tool-mod",

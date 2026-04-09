@@ -1,5 +1,5 @@
 /**
- * Git extension — version control operations with safety guardrails.
+ * Git module — version control operations with safety guardrails.
  *
  * Tools:
  *   git — status, diff, log, show, add, commit, branch, push
@@ -8,7 +8,7 @@
  * Deletion of protected branches (main, master) is blocked.
  */
 
-import type { KotaExtension, ToolDef } from "../../extension-types.js";
+import type { KotaModule, ToolDef } from "../../module-types.js";
 import { gitTool, runGit } from "./git.js";
 
 const tools: ToolDef[] = [
@@ -20,7 +20,7 @@ const tools: ToolDef[] = [
   },
 ];
 
-const gitModule: KotaExtension = {
+const gitModule: KotaModule = {
   name: "git",
   version: "1.0.0",
   description: "Git version control tool with safety guardrails",

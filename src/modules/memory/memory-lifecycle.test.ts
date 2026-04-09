@@ -1,7 +1,7 @@
 /**
- * Lifecycle integration test for the memory extension using ExtensionTestHarness.
+ * Lifecycle integration test for the memory module using ModuleTestHarness.
  *
- * Exercises the KotaExtension contract — load, tool call, dynamic state query,
+ * Exercises the KotaModule contract — load, tool call, dynamic state query,
  * and teardown — rather than testing internal helpers directly.
  */
 
@@ -16,7 +16,7 @@ vi.mock("../../memory/store.js", async (importOriginal) => {
   return { ...actual, getMemoryStore: vi.fn() };
 });
 
-import { ExtensionTestHarness } from "../../extension-testing/index.js";
+import { ModuleTestHarness } from "../../module-testing/index.js";
 import { getMemoryStore } from "../../memory/store.js";
 import memoryExtension from "./index.js";
 
@@ -29,11 +29,11 @@ beforeEach(() => {
   mocked.mockReturnValue(new MemoryStore(tempDir));
 });
 
-describe("memory extension lifecycle (ExtensionTestHarness)", () => {
-  let harness: ExtensionTestHarness;
+describe("memory module lifecycle (ModuleTestHarness)", () => {
+  let harness: ModuleTestHarness;
 
   beforeEach(async () => {
-    harness = await ExtensionTestHarness.create(memoryExtension, { cwd: tempDir });
+    harness = await ModuleTestHarness.create(memoryExtension, { cwd: tempDir });
   });
 
   afterEach(async () => {
@@ -77,14 +77,14 @@ describe("memory extension lifecycle (ExtensionTestHarness)", () => {
     expect(harness.getDynamicState()).toBe("");
   });
 
-  it("teardown completes without error (no onUnload on memory extension)", async () => {
+  it("teardown completes without error (no onUnload on memory module)", async () => {
     await expect(harness.teardown()).resolves.toBeUndefined();
   });
 });
 
-describe("memory extension — multiple load/teardown cycles", () => {
+describe("memory module — multiple load/teardown cycles", () => {
   it("can be loaded, torn down, and loaded again", async () => {
-    const harness = new ExtensionTestHarness(memoryExtension);
+    const harness = new ModuleTestHarness(memoryExtension);
 
     await harness.load();
     expect(harness.getTool("memory")).toBeDefined();

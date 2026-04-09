@@ -14,8 +14,8 @@ import { loadConfig } from "../config.js";
 import { CostTracker } from "../cost.js";
 import type { EventBus } from "../event-bus.js";
 import { getEventBus } from "../event-bus.js";
-import { loadExtensionMetadata } from "../extension-metadata.js";
-import type { ToolDef } from "../extension-types.js";
+import { loadModuleMetadata } from "../module-metadata.js";
+import type { ToolDef } from "../module-types.js";
 import { getToolMcpAnnotations } from "../guardrails-classify.js";
 import type { MessageCreateParams, ModelClient } from "../model/model-client.js";
 import { executeTool, getAllTools, type ToolResult } from "../tools/index.js";
@@ -84,11 +84,11 @@ export type McpServerOptions = {
 	/** Event bus to drive resource subscription notifications (default: global singleton). */
 	eventBus?: EventBus | null;
 	/**
-	 * Extension-contributed tools to expose alongside built-in tools. These are
+	 * Module-contributed tools to expose alongside project tools. These are
 	 * routed through their own runners, not the global tool registry. Useful for
 	 * the daemon-embedded MCP server and for tests.
 	 */
-	extensionTools?: ToolDef[];
+	moduleTools?: ToolDef[];
 	/**
 	 * Model client to use for sampling/createMessage requests.
 	 * Required when samplingEnabled is true.
@@ -114,8 +114,8 @@ export class McpServer {
 	private eventBusOverride: EventBus | null | undefined;
 	private subscriptions = new Set<string>();
 	private busUnsubs: (() => void)[] = [];
-	private extensionRunners = new Map<string, (input: Record<string, unknown>) => Promise<ToolResult>>();
-	private extensionToolList: Anthropic.Tool[] = [];
+	private moduleRunners = new Map<string, (input: Record<string, unknown>) => Promise<ToolResult>>();
+	private moduleToolList: Anthropic.Tool[] = [];
 	private clientSupportsElicitation = false;
 	private pendingElicitations = new Map<
 		number | string,
@@ -146,9 +146,9 @@ export class McpServer {
 		this.samplingEnabled = options.samplingEnabled ?? false;
 		this.modelClient = options.modelClient ?? null;
 		this.samplingModel = options.samplingModel ?? "claude-sonnet-4-6";
-		for (const def of options.extensionTools ?? []) {
-			this.extensionRunners.set(def.tool.name, def.runner);
-			this.extensionToolList.push(def.tool);
+		for (const def of options.moduleTools ?? []) {
+			this.moduleRunners.set(def.tool.name, def.runner);
+			this.moduleToolList.push(def.tool);
 		}
 	}
 
@@ -180,12 +180,12 @@ export class McpServer {
 		return this.running;
 	}
 
-	/** Get the tools this server exposes (respecting filter). Merges built-in and extension tools. */
+	/** Get the tools this server exposes (respecting filter). Merges project and module tools. */
 	getExposedTools(): Anthropic.Tool[] {
 		const builtinNames = new Set(getAllTools().map((t) => t.name));
 		const all = [
 			...getAllTools(),
-			...this.extensionToolList.filter((t) => !builtinNames.has(t.name)),
+			...this.moduleToolList.filter((t) => !builtinNames.has(t.name)),
 		];
 		if (!this.toolFilter) return all;
 		return all.filter((t) => this.toolFilter!.has(t.name));
@@ -577,7 +577,7 @@ export class McpServer {
 		}
 
 		let result: ToolResult;
-		const extRunner = this.extensionRunners.get(name);
+		const extRunner = this.moduleRunners.get(name);
 		if (extRunner) {
 			try {
 				result = await extRunner(args);
@@ -617,7 +617,7 @@ export class McpServer {
 		if (ref.type === "ref/prompt") {
 			const promptName = ref.name ?? "";
 			if (promptName === "kota-trigger-workflow" && argName === "workflow") {
-				const loader = await loadExtensionMetadata(
+				const loader = await loadModuleMetadata(
 					loadConfig(this.projectDir),
 					this.projectDir,
 					false,

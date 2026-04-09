@@ -21,7 +21,7 @@ function makePayload(
     status,
     triggerEvent: "runtime.idle",
     durationMs: overrides.durationMs ?? 5000,
-    definitionPath: "src/workflows/builder/workflow.ts",
+    definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
     runDir: overrides.runDir ?? ".kota/runs/run-abc",
   };
 }

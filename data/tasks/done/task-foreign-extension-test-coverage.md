@@ -1,19 +1,19 @@
 ---
-id: task-foreign-extension-test-coverage
-title: Add test coverage for the foreign extension stdio transport
+id: task-foreign-module-test-coverage
+title: Add test coverage for the foreign module stdio transport
 status: done
 priority: p3
 area: reliability
-summary: The foreign extension modules (foreign-extension.ts, foreign-extension-stdio.ts) are critical code paths for integrating external tools via stdio, but have no test coverage. Failures surface as silent hangs or cryptic subprocess errors at runtime.
+summary: The foreign module modules (foreign-module.ts, foreign-module-stdio.ts) are critical code paths for integrating external tools via stdio, but have no test coverage. Failures surface as silent hangs or cryptic subprocess errors at runtime.
 created_at: 2026-03-30T22:38:33Z
 updated_at: 2026-03-31T00:00:00Z
 ---
 
 ## Problem
 
-`src/foreign-extension.ts` and `src/foreign-extension-stdio.ts` implement the stdio
+`src/foreign-module.ts` and `src/foreign-module-stdio.ts` implement the stdio
 transport layer that launches, manages, and communicates with external tool processes.
-This is a critical integration path — broken foreign extensions surface as silent hangs,
+This is a critical integration path — broken foreign modules surface as silent hangs,
 zombie processes, or opaque subprocess errors with no stack trace pointing into KOTA code.
 
 Neither file has a corresponding test file. Any regression in subprocess lifecycle
@@ -43,7 +43,7 @@ run without an actual external binary.
 
 ## Done When
 
-- `src/foreign-extension.test.ts` or `src/foreign-extension-stdio.test.ts` exists with
+- `src/foreign-module.test.ts` or `src/foreign-module-stdio.test.ts` exists with
   tests covering the scenarios above.
 - All new tests pass in CI.
 - No existing tests regressed.

@@ -1,11 +1,11 @@
 import type { Command } from "commander";
-import type { ExtensionContext } from "../../extension-types.js";
+import type { ModuleContext } from "../../module-types.js";
 import { DaemonControlClient } from "../../server/daemon-client.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "../../workflow/validation.js";
 import { buildDryRunPlan, formatDryRunPlan } from "./dry-run.js";
 import { getWorkflowDefinitions } from "./definitions-source.js";
 
-export function registerRunCommand(wfCmd: Command, ctx: ExtensionContext): void {
+export function registerRunCommand(wfCmd: Command, ctx: ModuleContext): void {
   const runCmd = wfCmd
     .command("run")
     .description("Workflow run operations: validate a plan or abort an active run");

@@ -1,7 +1,7 @@
 /**
  * End-to-end integration test: module loading → CLI command registration → tool availability.
  *
- * Tests the seams between ExtensionLoader, cli.ts, and the agent loop to ensure
+ * Tests the seams between ModuleLoader, cli.ts, and the agent loop to ensure
  * modules correctly register their tools, CLI commands, and HTTP routes through
  * the full pipeline — not just in isolation.
  */
@@ -10,9 +10,9 @@ import { execFileSync, type SpawnSyncReturns } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ExtensionLoader } from "./extension-loader.js";
-import type { KotaExtension } from "./extension-types.js";
-import { discoverBuiltinExtensions } from "./extensions/index.js";
+import { ModuleLoader } from "./module-loader.js";
+import type { KotaModule } from "./module-types.js";
+import { discoverProjectModules } from "./modules/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, } from "./tool-groups.js";
 import { clearCustomTools, executeTool, getAllTools } from "./tools/index.js";
 
@@ -37,11 +37,11 @@ function runCli(...args: string[]): { stdout: string; stderr: string; exitCode: 
   }
 }
 
-let builtinExtensions: KotaExtension[];
+let projectModules: KotaModule[];
 
 describe("module → CLI pipeline (full lifecycle)", () => {
   beforeEach(async () => {
-    builtinExtensions = await discoverBuiltinExtensions();
+    projectModules = await discoverProjectModules();
     clearCustomTools();
     clearCustomGroups();
     resetGroups();
@@ -53,12 +53,12 @@ describe("module → CLI pipeline (full lifecycle)", () => {
     resetGroups();
   });
 
-  it("ExtensionLoader.loadAll registers tools from all tool-providing modules", async () => {
-    const loader = new ExtensionLoader({});
-    await loader.loadAll(builtinExtensions);
+  it("ModuleLoader.loadAll registers tools from all tool-providing modules", async () => {
+    const loader = new ModuleLoader({});
+    await loader.loadAll(projectModules);
 
     // Memory and scheduler modules provide tools
-    const moduleNames = loader.getLoadedExtensions();
+    const moduleNames = loader.getLoadedModules();
     expect(moduleNames).toContain("memory");
     expect(moduleNames).toContain("scheduler");
     expect(loader.getToolCount()).toBeGreaterThanOrEqual(2);
@@ -73,12 +73,12 @@ describe("module → CLI pipeline (full lifecycle)", () => {
     await loader.unloadAll();
   });
 
-  it("ExtensionLoader.loadAll registers all builtin modules", async () => {
-    const loader = new ExtensionLoader({});
-    await loader.loadAll(builtinExtensions);
+  it("ModuleLoader.loadAll registers all builtin modules", async () => {
+    const loader = new ModuleLoader({});
+    await loader.loadAll(projectModules);
 
-    const names = loader.getLoadedExtensions();
-    expect(names).toHaveLength(builtinExtensions.length);
+    const names = loader.getLoadedModules();
+    expect(names).toHaveLength(projectModules.length);
     expect(names).toContain("tool-cache");
     expect(names).toContain("working-memory");
     expect(names).toContain("memory");
@@ -97,15 +97,15 @@ describe("module → CLI pipeline (full lifecycle)", () => {
 
   it("commandsOnly loader produces same commands as full loader (no tool side-effects)", async () => {
     // Full loader registers tools
-    const fullLoader = new ExtensionLoader({});
-    await fullLoader.loadAll(builtinExtensions);
+    const fullLoader = new ModuleLoader({});
+    await fullLoader.loadAll(projectModules);
     const fullCommands = fullLoader.getCommands().map((c) => c.name()).sort();
 
     await fullLoader.unloadAll();
 
     // commandsOnly loader should produce the same commands without registering tools
-    const cliLoader = new ExtensionLoader({}, false, { commandsOnly: true });
-    await cliLoader.loadAll(builtinExtensions);
+    const cliLoader = new ModuleLoader({}, false, { commandsOnly: true });
+    await cliLoader.loadAll(projectModules);
     const cliCommands = cliLoader.getCommands().map((c) => c.name()).sort();
 
     expect(cliCommands).toEqual(fullCommands);
@@ -118,8 +118,8 @@ describe("module → CLI pipeline (full lifecycle)", () => {
   });
 
   it("module tools appear in tool registry when groups are enabled", async () => {
-    const loader = new ExtensionLoader({});
-    await loader.loadAll(builtinExtensions);
+    const loader = new ModuleLoader({});
+    await loader.loadAll(projectModules);
 
     // Before enabling groups, module tools should be hidden
     const beforeTools = filterTools(getAllTools());
@@ -139,17 +139,17 @@ describe("module → CLI pipeline (full lifecycle)", () => {
   });
 
   it("unloadAll clears module tools and resets state", async () => {
-    const loader = new ExtensionLoader({});
-    await loader.loadAll(builtinExtensions);
+    const loader = new ModuleLoader({});
+    await loader.loadAll(projectModules);
 
-    expect(loader.getExtensionCount()).toBe(builtinExtensions.length);
+    expect(loader.getModuleCount()).toBe(projectModules.length);
     expect(loader.getToolCount()).toBeGreaterThanOrEqual(2);
 
     await loader.unloadAll();
 
-    expect(loader.getExtensionCount()).toBe(0);
+    expect(loader.getModuleCount()).toBe(0);
     expect(loader.getToolCount()).toBe(0);
-    expect(loader.getLoadedExtensions()).toEqual([]);
+    expect(loader.getLoadedModules()).toEqual([]);
 
     // Module tools should no longer be callable
     const memResult = await executeTool("memory", { action: "list" });
@@ -158,8 +158,8 @@ describe("module → CLI pipeline (full lifecycle)", () => {
   });
 
   it("getRoutes collects HTTP routes from route-providing modules", async () => {
-    const loader = new ExtensionLoader({});
-    await loader.loadAll(builtinExtensions);
+    const loader = new ModuleLoader({});
+    await loader.loadAll(projectModules);
 
     const routes = loader.getRoutes();
     // vercel-adapter provides POST /api/chat/vercel
@@ -183,39 +183,39 @@ describe("module error resilience", () => {
   });
 
   it("broken module in loadAll does not prevent other modules from loading", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const brokenModule: KotaExtension = {
+    const brokenModule: KotaModule = {
       name: "broken",
       onLoad: () => { throw new Error("Module init explosion"); },
     };
 
     // Load broken module alongside real modules
-    await loader.loadAll([brokenModule, ...builtinExtensions]);
+    await loader.loadAll([brokenModule, ...projectModules]);
 
     // Broken module should not be loaded
-    expect(loader.getLoadedExtensions()).not.toContain("broken");
+    expect(loader.getLoadedModules()).not.toContain("broken");
     // But all builtin modules should still load
-    expect(loader.getLoadedExtensions()).toContain("memory");
-    expect(loader.getLoadedExtensions()).toContain("scheduler");
-    expect(loader.getExtensionCount()).toBe(builtinExtensions.length);
+    expect(loader.getLoadedModules()).toContain("memory");
+    expect(loader.getLoadedModules()).toContain("scheduler");
+    expect(loader.getModuleCount()).toBe(projectModules.length);
 
     errSpy.mockRestore();
     await loader.unloadAll();
   });
 
   it("broken module commands() does not prevent other module commands", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const brokenCommandModule: KotaExtension = {
+    const brokenCommandModule: KotaModule = {
       name: "broken-cmd",
       commands: () => { throw new Error("Command factory explosion"); },
     };
 
     // Load the broken module alongside real ones
-    await loader.loadAll([brokenCommandModule, ...builtinExtensions]);
+    await loader.loadAll([brokenCommandModule, ...projectModules]);
 
     // getCommands should gracefully skip the broken module
     const commands = loader.getCommands();
@@ -229,7 +229,7 @@ describe("module error resilience", () => {
 
     // Error should have been logged
     expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Extension "broken-cmd" command registration failed'),
+      expect.stringContaining('Module "broken-cmd" command registration failed'),
     );
 
     errSpy.mockRestore();
@@ -237,22 +237,22 @@ describe("module error resilience", () => {
   });
 
   it("broken module routes() does not prevent other module routes", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const brokenRouteModule: KotaExtension = {
+    const brokenRouteModule: KotaModule = {
       name: "broken-route",
       routes: () => { throw new Error("Route factory explosion"); },
     };
 
-    await loader.loadAll([brokenRouteModule, ...builtinExtensions]);
+    await loader.loadAll([brokenRouteModule, ...projectModules]);
 
     const routes = loader.getRoutes();
     // vercel-adapter routes should still work
     expect(routes.some((r) => r.path === "/api/chat/vercel")).toBe(true);
 
     expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Extension "broken-route" route registration failed'),
+      expect.stringContaining('Module "broken-route" route registration failed'),
     );
 
     errSpy.mockRestore();
@@ -305,21 +305,21 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
   });
 
   it("can load, unload, and reload modules cleanly", async () => {
-    const loader = new ExtensionLoader({});
+    const loader = new ModuleLoader({});
 
     // First cycle
-    await loader.loadAll(builtinExtensions);
-    expect(loader.getExtensionCount()).toBe(builtinExtensions.length);
+    await loader.loadAll(projectModules);
+    expect(loader.getModuleCount()).toBe(projectModules.length);
     const memResult1 = await executeTool("memory", { action: "list" });
     expect(memResult1.is_error).toBeFalsy();
 
     await loader.unloadAll();
-    expect(loader.getExtensionCount()).toBe(0);
+    expect(loader.getModuleCount()).toBe(0);
 
     // Second cycle — should work identically
-    const loader2 = new ExtensionLoader({});
-    await loader2.loadAll(builtinExtensions);
-    expect(loader2.getExtensionCount()).toBe(builtinExtensions.length);
+    const loader2 = new ModuleLoader({});
+    await loader2.loadAll(projectModules);
+    expect(loader2.getModuleCount()).toBe(projectModules.length);
     const memResult2 = await executeTool("memory", { action: "list" });
     expect(memResult2.is_error).toBeFalsy();
 
@@ -327,18 +327,18 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
   });
 
   it("two loaders cannot register the same module tools simultaneously", async () => {
-    const loader1 = new ExtensionLoader({});
-    await loader1.loadAll(builtinExtensions);
+    const loader1 = new ModuleLoader({});
+    await loader1.loadAll(projectModules);
 
     // Second loader should fail on duplicate tools
-    const loader2 = new ExtensionLoader({});
+    const loader2 = new ModuleLoader({});
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await loader2.loadAll(builtinExtensions);
+    await loader2.loadAll(projectModules);
 
     // Tool-providing modules (memory, scheduler) should have failed
     // because their tools are already registered
-    const loaded = loader2.getLoadedExtensions();
+    const loaded = loader2.getLoadedModules();
     expect(loaded).not.toContain("memory");
     expect(loaded).not.toContain("scheduler");
 

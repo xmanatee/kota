@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { KotaConfig } from "../config.js";
 import type { EventBus } from "../event-bus.js";
-import type { ExtensionSummary, RouteRegistration } from "../extension-types.js";
+import type { ModuleSummary, RouteRegistration } from "../module-types.js";
 import type { AgentSession } from "../loop.js";
 import type { Scheduler } from "../scheduler/scheduler.js";
 import type { Transport } from "../transport.js";
@@ -17,7 +17,7 @@ import { handleGetConfig } from "./config-routes.js";
 import { DaemonControlClient } from "./daemon-client.js";
 import { queryDaemonStatus } from "./daemon-routes.js";
 import { handleEventTrigger } from "./event-routes.js";
-import { handleListExtensions } from "./extension-routes.js";
+import { handleListModules } from "./module-routes.js";
 import { handleDeleteHistory, handleGetHistory, handleListHistory } from "./history-routes.js";
 import { handleAddKnowledge, handleDeleteKnowledge, handleGetKnowledge, handleListKnowledge, handleUpdateKnowledge } from "./knowledge-routes.js";
 import { handleAddMemory, handleDeleteMemory, handleGetMemory, handleListMemory, handleUpdateMemory } from "./memory-routes.js";
@@ -63,11 +63,11 @@ export type ServerContext = {
   scheduler: Scheduler;
   hub: NotificationHub;
   bus: EventBus;
-  extensionRoutes: RouteRegistration[];
+  moduleRoutes: RouteRegistration[];
   makeAgent: (transport: Transport) => AgentSession;
   daemonClient?: DaemonControlClient | null;
-  /** Returns current extension summaries for /api/extensions. */
-  getExtensionSummaries?: () => ExtensionSummary[];
+  /** Returns current module summaries for /api/modules. */
+  getModuleSummaries?: () => ModuleSummary[];
   /** Bearer token required on all /api/* requests. Undefined means no auth. */
   authToken?: string;
   /** Resolved merged config — exposed via GET /api/config with secrets masked. */
@@ -87,7 +87,7 @@ export function buildRequestHandler(ctx: ServerContext) {
     }
 
     if (ctx.authToken && path.startsWith("/api/")) {
-      const bypassRoute = ctx.extensionRoutes.find(
+      const bypassRoute = ctx.moduleRoutes.find(
         (r) => r.bypassAuth && r.path === path && r.method === req.method,
       );
       if (!bypassRoute) {
@@ -255,8 +255,8 @@ export function buildRequestHandler(ctx: ServerContext) {
       return;
     }
 
-    if (req.method === "GET" && path === "/api/extensions") {
-      handleListExtensions(res, ctx.getExtensionSummaries ? ctx.getExtensionSummaries() : []);
+    if (req.method === "GET" && path === "/api/modules") {
+      handleListModules(res, ctx.getModuleSummaries ? ctx.getModuleSummaries() : []);
       return;
     }
 
@@ -505,7 +505,7 @@ export function buildRequestHandler(ctx: ServerContext) {
       return;
     }
 
-    for (const route of ctx.extensionRoutes) {
+    for (const route of ctx.moduleRoutes) {
       if (req.method === route.method && path === route.path) {
         Promise.resolve(route.handler(req, res)).catch((err) => {
           if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });

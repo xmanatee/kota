@@ -4,8 +4,8 @@
  * Every tool call assessment is appended to `.kota/audit.jsonl`.
  * Provides query/filter/summarize for post-hoc analysis.
  *
- * Owned by the guardrails-audit extension. Core code emits events to the bus;
- * the extension subscribes and delegates to this store.
+ * Owned by the guardrails-audit module. Core code emits events to the bus;
+ * the module subscribes and delegates to this store.
  */
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -124,7 +124,7 @@ export class AuditStore {
 	}
 }
 
-// Session-scoped singleton — set by the guardrails-audit extension on load.
+// Session-scoped singleton — set by the guardrails-audit module on load.
 let _auditStore: AuditStore | null = null;
 
 export function getAuditStore(): AuditStore | null {

@@ -2,13 +2,13 @@ import { existsSync, mkdirSync, rmSync, } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { initExtensionLogStore, resetExtensionLogStore } from "../extension-log.js";
+import { initModuleLogStore, resetModuleLogStore } from "../module-log.js";
 import {
-	getLoadedManifestExtensionCount,
-	markExtensionLoaded,
-	resetExtensionFactory,
-	runExtensionFactory,
-} from "./extension-factory/index.js";
+	getLoadedManifestModuleCount,
+	markModuleLoaded,
+	resetModuleFactory,
+	runModuleFactory,
+} from "./module-factory/index.js";
 import { clearCustomTools } from "./index.js";
 
 // Save/restore cwd since saveManifest uses cwd by default
@@ -17,7 +17,7 @@ let tmpDir: string;
 
 beforeEach(() => {
 	originalCwd = process.cwd();
-	tmpDir = join(tmpdir(), `kota-eftool-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+	tmpDir = join(tmpdir(), `kota-moduletool-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 	mkdirSync(tmpDir, { recursive: true });
 	process.chdir(tmpDir);
 });
@@ -25,7 +25,7 @@ beforeEach(() => {
 afterEach(() => {
 	process.chdir(originalCwd);
 	clearCustomTools();
-	resetExtensionFactory();
+	resetModuleFactory();
 	try { rmSync(tmpDir, { recursive: true }); } catch { /* */ }
 });
 
@@ -40,28 +40,28 @@ const sampleManifest = {
 	}],
 };
 
-describe("runExtensionFactory — create", () => {
-	it("creates an extension and registers its tools", async () => {
-		const result = await runExtensionFactory({ action: "create", manifest: sampleManifest });
+describe("runModuleFactory — create", () => {
+	it("creates a module and registers its tools", async () => {
+		const result = await runModuleFactory({ action: "create", manifest: sampleManifest });
 		expect(result.is_error).toBeUndefined();
 		expect(result.content).toContain("test-mod");
 		expect(result.content).toContain("test_tool");
 	});
 
 	it("persists the manifest to disk", async () => {
-		await runExtensionFactory({ action: "create", manifest: sampleManifest });
-		const manifestPath = join(tmpDir, ".kota", "extensions", "test-mod", "manifest.json");
+		await runModuleFactory({ action: "create", manifest: sampleManifest });
+		const manifestPath = join(tmpDir, ".kota", "modules", "test-mod", "manifest.json");
 		expect(existsSync(manifestPath)).toBe(true);
 	});
 
 	it("rejects missing manifest", async () => {
-		const result = await runExtensionFactory({ action: "create" });
+		const result = await runModuleFactory({ action: "create" });
 		expect(result.is_error).toBe(true);
 		expect(result.content).toContain("manifest is required");
 	});
 
 	it("rejects invalid manifest", async () => {
-		const result = await runExtensionFactory({
+		const result = await runModuleFactory({
 			action: "create",
 			manifest: { name: "X" },
 		});
@@ -69,23 +69,23 @@ describe("runExtensionFactory — create", () => {
 		expect(result.content).toContain("validation failed");
 	});
 
-	it("allows replacing an existing extension", async () => {
-		await runExtensionFactory({ action: "create", manifest: sampleManifest });
+	it("allows replacing an existing module", async () => {
+		await runModuleFactory({ action: "create", manifest: sampleManifest });
 		const updated = { ...sampleManifest, description: "Updated" };
-		const result = await runExtensionFactory({ action: "create", manifest: updated });
+		const result = await runModuleFactory({ action: "create", manifest: updated });
 		expect(result.is_error).toBeUndefined();
 		expect(result.content).toContain("test-mod");
 	});
 
-	it("rejects when max extensions reached", async () => {
-		// Create 10 extensions to hit the limit
+	it("rejects when max modules reached", async () => {
+		// Create 10 modules to hit the limit
 		for (let i = 0; i < 10; i++) {
-			await runExtensionFactory({
+			await runModuleFactory({
 				action: "create",
 				manifest: { name: `mod-${String(i).padStart(2, "0")}`, tools: [] },
 			});
 		}
-		const result = await runExtensionFactory({
+		const result = await runModuleFactory({
 			action: "create",
 			manifest: { name: "one-too-many", tools: [] },
 		});
@@ -94,71 +94,71 @@ describe("runExtensionFactory — create", () => {
 	});
 });
 
-describe("runExtensionFactory — list", () => {
-	it("returns empty message when no extensions", async () => {
-		const result = await runExtensionFactory({ action: "list" });
-		expect(result.content).toContain("No custom extensions");
+describe("runModuleFactory — list", () => {
+	it("returns empty message when no modules", async () => {
+		const result = await runModuleFactory({ action: "list" });
+		expect(result.content).toContain("No custom modules");
 	});
 
-	it("lists created extensions", async () => {
-		await runExtensionFactory({ action: "create", manifest: sampleManifest });
-		const result = await runExtensionFactory({ action: "list" });
+	it("lists created modules", async () => {
+		await runModuleFactory({ action: "create", manifest: sampleManifest });
+		const result = await runModuleFactory({ action: "list" });
 		expect(result.content).toContain("test-mod");
 		expect(result.content).toContain("active");
 	});
 });
 
-describe("runExtensionFactory — remove", () => {
-	it("removes an existing extension", async () => {
-		await runExtensionFactory({ action: "create", manifest: sampleManifest });
-		const result = await runExtensionFactory({ action: "remove", name: "test-mod" });
+describe("runModuleFactory — remove", () => {
+	it("removes an existing module", async () => {
+		await runModuleFactory({ action: "create", manifest: sampleManifest });
+		const result = await runModuleFactory({ action: "remove", name: "test-mod" });
 		expect(result.is_error).toBeUndefined();
 		expect(result.content).toContain("removed");
 	});
 
 	it("rejects missing name", async () => {
-		const result = await runExtensionFactory({ action: "remove" });
+		const result = await runModuleFactory({ action: "remove" });
 		expect(result.is_error).toBe(true);
 		expect(result.content).toContain("name is required");
 	});
 
-	it("rejects unknown extension name", async () => {
-		const result = await runExtensionFactory({ action: "remove", name: "nope" });
+	it("rejects unknown module name", async () => {
+		const result = await runModuleFactory({ action: "remove", name: "nope" });
 		expect(result.is_error).toBe(true);
-		expect(result.content).toContain("no custom extension");
+		expect(result.content).toContain("no custom module");
 	});
 
 	it("cleans up manifest from disk", async () => {
-		await runExtensionFactory({ action: "create", manifest: sampleManifest });
-		await runExtensionFactory({ action: "remove", name: "test-mod" });
-		const manifestPath = join(tmpDir, ".kota", "extensions", "test-mod", "manifest.json");
+		await runModuleFactory({ action: "create", manifest: sampleManifest });
+		await runModuleFactory({ action: "remove", name: "test-mod" });
+		const manifestPath = join(tmpDir, ".kota", "modules", "test-mod", "manifest.json");
 		expect(existsSync(manifestPath)).toBe(false);
 	});
 });
 
-describe("runExtensionFactory — info", () => {
-	it("shows details for an existing extension", async () => {
-		await runExtensionFactory({ action: "create", manifest: sampleManifest });
-		const result = await runExtensionFactory({ action: "info", name: "test-mod" });
+describe("runModuleFactory — info", () => {
+	it("shows details for an existing module", async () => {
+		await runModuleFactory({ action: "create", manifest: sampleManifest });
+		const result = await runModuleFactory({ action: "info", name: "test-mod" });
 		expect(result.content).toContain("test-mod");
 		expect(result.content).toContain("1.0.0");
 		expect(result.content).toContain("test_tool");
 	});
 
 	it("rejects missing name", async () => {
-		const result = await runExtensionFactory({ action: "info" });
+		const result = await runModuleFactory({ action: "info" });
 		expect(result.is_error).toBe(true);
 	});
 
-	it("rejects unknown extension", async () => {
-		const result = await runExtensionFactory({ action: "info", name: "nope" });
+	it("rejects unknown module", async () => {
+		const result = await runModuleFactory({ action: "info", name: "nope" });
 		expect(result.is_error).toBe(true);
 	});
 });
 
-describe("runExtensionFactory — unknown action", () => {
+describe("runModuleFactory — unknown action", () => {
 	it("returns error for unknown action", async () => {
-		const result = await runExtensionFactory({ action: "bad" });
+		const result = await runModuleFactory({ action: "bad" });
 		expect(result.is_error).toBe(true);
 		expect(result.content).toContain("Unknown action");
 	});
@@ -166,99 +166,99 @@ describe("runExtensionFactory — unknown action", () => {
 
 
 describe("session lifecycle", () => {
-	it("markExtensionLoaded tracks loaded extensions", () => {
-		expect(getLoadedManifestExtensionCount()).toBe(0);
-		markExtensionLoaded("my-mod");
-		expect(getLoadedManifestExtensionCount()).toBe(1);
+	it("markModuleLoaded tracks loaded modules", () => {
+		expect(getLoadedManifestModuleCount()).toBe(0);
+		markModuleLoaded("my-mod");
+		expect(getLoadedManifestModuleCount()).toBe(1);
 	});
 
-	it("resetExtensionFactory clears state", () => {
-		markExtensionLoaded("my-mod");
-		resetExtensionFactory();
-		expect(getLoadedManifestExtensionCount()).toBe(0);
+	it("resetModuleFactory clears state", () => {
+		markModuleLoaded("my-mod");
+		resetModuleFactory();
+		expect(getLoadedManifestModuleCount()).toBe(0);
 	});
 });
 
-describe("runExtensionFactory — logs", () => {
+describe("runModuleFactory — logs", () => {
 	it("returns error when log store not initialized", async () => {
-		resetExtensionLogStore();
-		const result = await runExtensionFactory({ action: "logs" });
+		resetModuleLogStore();
+		const result = await runModuleFactory({ action: "logs" });
 		expect(result.is_error).toBe(true);
 		expect(result.content).toContain("not initialized");
 	});
 
-	it("returns summary of extensions with logs when no name given", async () => {
-		initExtensionLogStore(tmpDir);
-		const store = initExtensionLogStore(tmpDir);
+	it("returns summary of modules with logs when no name given", async () => {
+		initModuleLogStore(tmpDir);
+		const store = initModuleLogStore(tmpDir);
 		store.append("mod-a", "info", "hello from a");
 		store.append("mod-b", "error", "error from b");
 
-		const result = await runExtensionFactory({ action: "logs" });
+		const result = await runModuleFactory({ action: "logs" });
 		expect(result.is_error).toBeUndefined();
 		expect(result.content).toContain("mod-a");
 		expect(result.content).toContain("mod-b");
-		expect(result.content).toContain("Extensions with logs");
-		resetExtensionLogStore();
+		expect(result.content).toContain("Modules with logs");
+		resetModuleLogStore();
 	});
 
 	it("returns no logs message when store is empty", async () => {
-		initExtensionLogStore(tmpDir);
-		const result = await runExtensionFactory({ action: "logs" });
-		expect(result.content).toContain("No extension logs found");
-		resetExtensionLogStore();
+		initModuleLogStore(tmpDir);
+		const result = await runModuleFactory({ action: "logs" });
+		expect(result.content).toContain("No module logs found");
+		resetModuleLogStore();
 	});
 
-	it("returns log entries for a specific extension", async () => {
-		const store = initExtensionLogStore(tmpDir);
+	it("returns log entries for a specific module", async () => {
+		const store = initModuleLogStore(tmpDir);
 		store.append("my-mod", "info", "step 1 done");
 		store.append("my-mod", "error", "step 2 failed");
 
-		const result = await runExtensionFactory({ action: "logs", name: "my-mod" });
+		const result = await runModuleFactory({ action: "logs", name: "my-mod" });
 		expect(result.is_error).toBeUndefined();
 		expect(result.content).toContain("step 1 done");
 		expect(result.content).toContain("step 2 failed");
 		expect(result.content).toContain("2 entries");
-		resetExtensionLogStore();
+		resetModuleLogStore();
 	});
 
 	it("filters by level", async () => {
-		const store = initExtensionLogStore(tmpDir);
+		const store = initModuleLogStore(tmpDir);
 		store.append("my-mod", "info", "info msg");
 		store.append("my-mod", "error", "error msg");
 
-		const result = await runExtensionFactory({ action: "logs", name: "my-mod", level: "error" });
+		const result = await runModuleFactory({ action: "logs", name: "my-mod", level: "error" });
 		expect(result.content).toContain("error msg");
 		expect(result.content).not.toContain("info msg");
 		expect(result.content).toContain("1 entries");
-		resetExtensionLogStore();
+		resetModuleLogStore();
 	});
 
 	it("filters by keyword", async () => {
-		const store = initExtensionLogStore(tmpDir);
+		const store = initModuleLogStore(tmpDir);
 		store.append("my-mod", "info", "weather check passed");
 		store.append("my-mod", "info", "notification sent");
 
-		const result = await runExtensionFactory({ action: "logs", name: "my-mod", keyword: "weather" });
+		const result = await runModuleFactory({ action: "logs", name: "my-mod", keyword: "weather" });
 		expect(result.content).toContain("weather");
 		expect(result.content).not.toContain("notification");
-		resetExtensionLogStore();
+		resetModuleLogStore();
 	});
 
 	it("respects limit parameter", async () => {
-		const store = initExtensionLogStore(tmpDir);
+		const store = initModuleLogStore(tmpDir);
 		for (let i = 0; i < 10; i++) {
 			store.append("my-mod", "info", `msg-${i}`);
 		}
 
-		const result = await runExtensionFactory({ action: "logs", name: "my-mod", limit: 3 });
+		const result = await runModuleFactory({ action: "logs", name: "my-mod", limit: 3 });
 		expect(result.content).toContain("3 entries");
-		resetExtensionLogStore();
+		resetModuleLogStore();
 	});
 
-	it("shows empty message when extension has no entries", async () => {
-		initExtensionLogStore(tmpDir);
-		const result = await runExtensionFactory({ action: "logs", name: "no-logs-mod" });
+	it("shows empty message when module has no entries", async () => {
+		initModuleLogStore(tmpDir);
+		const result = await runModuleFactory({ action: "logs", name: "no-logs-mod" });
 		expect(result.content).toContain("No log entries");
-		resetExtensionLogStore();
+		resetModuleLogStore();
 	});
 });

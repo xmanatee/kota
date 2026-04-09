@@ -4,14 +4,14 @@ title: Add `kota doctor` command for runtime health diagnostics
 status: done
 priority: p2
 area: cli
-summary: Operators debugging KOTA setup issues currently have no single command to check runtime health. A `kota doctor` command would verify daemon connectivity, extension loading, provider availability, and common misconfigurations in one pass.
+summary: Operators debugging KOTA setup issues currently have no single command to check runtime health. A `kota doctor` command would verify daemon connectivity, module loading, provider availability, and common misconfigurations in one pass.
 created_at: 2026-03-31T03:42:35Z
 updated_at: 2026-03-31T03:42:35Z
 ---
 
 ## Problem
 
-When something is broken — KOTA won't start, a workflow isn't triggering, an extension
+When something is broken — KOTA won't start, a workflow isn't triggering, an module
 isn't loading — operators have no quick triage path. They must combine `kota daemon status`,
 manual config inspection, log scanning, and trial-and-error restarts to isolate the issue.
 There is no single command that says "here is what is healthy, here is what is not."
@@ -23,7 +23,7 @@ summary for each item:
 
 - **Daemon**: Is the daemon running? Is the control API reachable at the expected socket/port?
 - **Config**: Does `config.json` parse and validate against the schema? (Delegate to `kota config validate` logic.)
-- **Extensions**: Which extensions are loaded? Any that failed to load or reported errors?
+- **Modules**: Which modules are loaded? Any that failed to load or reported errors?
 - **Providers**: Are memory, history, task, and knowledge providers initialized and reachable?
 - **Workflows**: Are workflow definitions valid? Any duplicates or self-trigger loop risks?
 - **Disk**: Are the `.kota/` data directories present and writable?

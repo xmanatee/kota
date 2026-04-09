@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { clearCustomTools, deregisterExtensionTools, executeTool, getAllTools, getCoreRegistrations, getRegisteredTools, registerTool } from "./index.js";
+import { clearCustomTools, deregisterModuleTools, executeTool, getAllTools, getCoreRegistrations, getRegisteredTools, registerTool } from "./index.js";
 
 const makeTool = (name: string) => ({
   name,
@@ -10,7 +10,7 @@ const makeTool = (name: string) => ({
 });
 
 describe("getAllTools", () => {
-  it("contains built-in tool definitions (web, filesystem, execution, git, notebook, read-document, system tools, notify, and repo_map moved to extensions)", () => {
+  it("contains built-in tool definitions (web, filesystem, execution, git, notebook, read-document, system tools, notify, and repo_map moved to modules)", () => {
     expect(getAllTools()).toHaveLength(15);
   });
 
@@ -33,18 +33,18 @@ describe("getAllTools", () => {
   it("contains the expected tool names", () => {
     const names = new Set(getAllTools().map((t) => t.name));
     // Filesystem tools (file_read, file_write, file_edit, multi_edit, grep, glob,
-    // file_watch, find_replace, files_overview) are now in the filesystem extension.
+    // file_watch, find_replace, files_overview) are now in the filesystem module.
     // Execution tools (shell, process, code_exec, computer_use, screenshot) are now
-    // in the execution extension.
-    // git is now in the git extension.
-    // read_document is now in the read-document extension.
-    // System tools (clipboard, view_image, env_info, sqlite, notify) are now in the system extension.
-    // repo_map is now in the filesystem extension.
+    // in the execution module.
+    // git is now in the git module.
+    // read_document is now in the read-document module.
+    // System tools (clipboard, view_image, env_info, sqlite, notify) are now in the system module.
+    // repo_map is now in the filesystem module.
     const expected = new Set([
       "agent_status", "approval", "audit",
       "todo", "delegate",
       "ask_user", "confirm",
-      "custom_tool", "checkpoint", "extension_factory",
+      "custom_tool", "checkpoint", "module_factory",
       "batch", "pipe", "map", "workspace", "prompt_template",
     ]);
     expect(names).toEqual(expected);
@@ -52,7 +52,7 @@ describe("getAllTools", () => {
 });
 
 describe("getCoreRegistrations", () => {
-  it("returns all core tool registrations (web, filesystem, execution, git, notebook, read-document, system tools, notify, and repo_map moved to extensions)", () => {
+  it("returns all core tool registrations (web, filesystem, execution, git, notebook, read-document, system tools, notify, and repo_map moved to modules)", () => {
     const regs = getCoreRegistrations();
     expect(regs).toHaveLength(15);
   });
@@ -81,7 +81,7 @@ describe("getCoreRegistrations", () => {
       .map((r) => r.tool.name)
       .sort();
     expect(safeNames).toContain("ask_user");
-    // web, filesystem, and execution tools are now in extensions, not in core registrations
+    // web, filesystem, and execution tools are now in modules, not in core registrations
     expect(safeNames).not.toContain("shell");
     expect(safeNames).not.toContain("screenshot");
     expect(safeNames).not.toContain("file_read");
@@ -104,9 +104,9 @@ describe("getCoreRegistrations", () => {
     const coreNames = getCoreRegistrations()
       .filter((r) => !r.group)
       .map((r) => r.tool.name);
-    // shell is now in the execution extension, not in core
+    // shell is now in the execution module, not in core
     expect(coreNames).not.toContain("shell");
-    // file_read is now in the filesystem extension, not in core
+    // file_read is now in the filesystem module, not in core
     expect(coreNames).not.toContain("file_read");
     expect(coreNames).toContain("delegate");
     expect(coreNames).toContain("ask_user");
@@ -216,14 +216,14 @@ describe("child_process isolation", () => {
   });
 });
 
-describe("deregisterExtensionTools", () => {
+describe("deregisterModuleTools", () => {
   afterEach(() => clearCustomTools());
 
   it("removes only tools belonging to the specified module", async () => {
     registerTool(makeTool("mod_a_tool"), async () => ({ content: "a" }), "mod-a");
     registerTool(makeTool("mod_b_tool"), async () => ({ content: "b" }), "mod-b");
 
-    deregisterExtensionTools("mod-a");
+    deregisterModuleTools("mod-a");
 
     const ra = await executeTool("mod_a_tool", {});
     expect(ra.is_error).toBe(true);
@@ -234,13 +234,13 @@ describe("deregisterExtensionTools", () => {
 
   it("is a no-op for unknown module name", () => {
     const before = getAllTools().length;
-    deregisterExtensionTools("nonexistent");
+    deregisterModuleTools("nonexistent");
     expect(getAllTools().length).toBe(before);
   });
 
   it("allows re-registration after deregister", async () => {
     registerTool(makeTool("reuse_tool"), async () => ({ content: "v1" }), "mod-x");
-    deregisterExtensionTools("mod-x");
+    deregisterModuleTools("mod-x");
 
     registerTool(makeTool("reuse_tool"), async () => ({ content: "v2" }), "mod-x");
     const r = await executeTool("reuse_tool", {});

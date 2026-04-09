@@ -1,5 +1,5 @@
 /**
- * Filesystem extension — file read, write, edit, search, and watch tools.
+ * Filesystem module — file read, write, edit, search, and watch tools.
  *
  * Tools:
  *   file_read      — read a file with line numbers; supports images and PDFs
@@ -13,7 +13,7 @@
  *   files_overview — structured directory overview with file type and size breakdown
  */
 
-import type { KotaExtension, ToolDef } from "../../extension-types.js";
+import type { KotaModule, ToolDef } from "../../module-types.js";
 import { fileEditTool, runFileEdit } from "./file-edit.js";
 import { fileReadTool, runFileRead } from "./file-read.js";
 import { fileWatchTool, runFileWatch } from "./file-watch.js";
@@ -92,7 +92,7 @@ const tools: ToolDef[] = [
   },
 ];
 
-const filesystemModule: KotaExtension = {
+const filesystemModule: KotaModule = {
   name: "filesystem",
   version: "1.0.0",
   description:

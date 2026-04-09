@@ -1,15 +1,15 @@
 /**
- * Repo-tasks extension — operator CLI for managing the KOTA task queue.
+ * Repo-tasks module — operator CLI for managing the KOTA task queue.
  *
  * Owns the `kota task` subcommands. The underlying RepoTask types and state
  * constants live in src/repo-tasks.ts which is shared with workflow code.
  */
 
 import { Command } from "commander";
-import type { KotaExtension } from "../../extension-types.js";
+import type { KotaModule } from "../../module-types.js";
 import { registerTaskCommands } from "./cli.js";
 
-const repoTasksModule: KotaExtension = {
+const repoTasksModule: KotaModule = {
 	name: "repo-tasks",
 	version: "1.0.0",
 	description: "Operator CLI for the KOTA repo task queue",

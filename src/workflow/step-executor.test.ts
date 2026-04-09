@@ -38,7 +38,7 @@ function makeStep(overrides: Partial<WorkflowAgentStep> = {}): WorkflowAgentStep
   return {
     id: "test-step",
     type: "agent",
-    promptPath: "src/workflows/test/prompt.md",
+    promptPath: "src/modules/test/workflows/test/prompt.md",
     permissionMode: "bypassPermissions",
     settingSources: [],
     ...overrides,
@@ -48,9 +48,8 @@ function makeStep(overrides: Partial<WorkflowAgentStep> = {}): WorkflowAgentStep
 function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
   return {
     name: "test",
-    tags: [],
     enabled: true,
-    definitionPath: "src/workflows/test/workflow.ts",
+    definitionPath: "src/modules/test/workflows/test/workflow.ts",
     triggers: [],
     steps: [],
     ...overrides,
@@ -61,7 +60,7 @@ function makeMetadata(): WorkflowRunMetadata {
   return {
     id: "run-1",
     workflow: "test",
-    definitionPath: "src/workflows/test/workflow.ts",
+    definitionPath: "src/modules/test/workflows/test/workflow.ts",
     trigger: { event: "runtime.idle", payload: {} },
     startedAt: new Date().toISOString(),
     status: "running",
@@ -596,7 +595,7 @@ describe("executeStep repair loop", () => {
       projectDir,
       workflow: {
         name: "test",
-        definitionPath: "src/workflows/test/workflow.ts",
+        definitionPath: "src/modules/test/workflows/test/workflow.ts",
         runId: "run-1",
         runDir: ".kota/runs/run-1",
         runDirPath: `${projectDir}/.kota/runs/run-1`,

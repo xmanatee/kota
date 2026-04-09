@@ -7,11 +7,11 @@
  * inbound message as a JSON body.
  *
  * Usage:
- *   node examples/extensions/kota-demo-http.js [port]
+ *   node examples/modules/kota-demo-http.js [port]
  *
  * Then configure in .kota/config.json:
  * {
- *   "foreignExtensions": [
+ *   "foreignModules": [
  *     { "transport": "http", "url": "http://localhost:8765" }
  *   ]
  * }
@@ -24,11 +24,11 @@ const PORT = parseInt(process.argv[2] ?? "8765", 10);
 const MANIFEST = {
   name: "kota-demo-http",
   version: "1.0.0",
-  description: "Demo HTTP extension for KOTA — provides two simple tools.",
+  description: "Demo HTTP module for KOTA — provides two simple tools.",
   tools: [
     {
       name: "http_greet",
-      description: "Returns a greeting message from the HTTP extension.",
+      description: "Returns a greeting message from the HTTP module.",
       input_schema: {
         type: "object",
         properties: { name: { type: "string", description: "Name to greet." } },
@@ -55,7 +55,7 @@ function handleMessage(msg) {
   if (msg.type === "invoke") {
     if (msg.name === "http_greet") {
       const name = msg.input?.name ?? "World";
-      return { id: msg.id, type: "result", content: `Hello, ${name}! (from Node.js HTTP extension)` };
+      return { id: msg.id, type: "result", content: `Hello, ${name}! (from Node.js HTTP module)` };
     }
     if (msg.name === "http_echo") {
       return { id: msg.id, type: "result", content: JSON.stringify(msg.input) };

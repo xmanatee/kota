@@ -99,14 +99,14 @@ describe("validateManifest edge cases", () => {
 		expect(errors.some((e) => e.field === "name")).toBe(true);
 	});
 
-	it("validates all builtin module name conflicts", () => {
-		const builtins = [
+	it("validates all reserved module name conflicts", () => {
+		const reservedNames = [
 			"working-memory", "secrets", "memory", "knowledge",
 			"scheduler", "telegram", "daemon", "vercel-adapter", "web", "registry",
 		];
-		for (const name of builtins) {
+		for (const name of reservedNames) {
 			const errors = validateManifest({ name });
-			expect(errors.some((e) => e.message.includes("built-in")), `${name} should conflict`).toBe(true);
+			expect(errors.some((e) => e.message.includes("project module")), `${name} should conflict`).toBe(true);
 		}
 	});
 

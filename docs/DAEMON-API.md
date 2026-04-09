@@ -66,7 +66,7 @@ Returns daemon liveness and component health. No authentication required.
   "uptimeMs": 12345,
   "components": {
     "scheduler": "ok",
-    "extensions": "ok"
+    "modules": "ok"
   }
 }
 ```
@@ -80,7 +80,7 @@ Returns daemon liveness and component health. No authentication required.
   "uptimeMs": 12345,
   "components": {
     "scheduler": "ok",
-    "extensions": "error"
+    "modules": "error"
   }
 }
 ```
@@ -178,7 +178,6 @@ reading config files directly.
   "definitions": [
     {
       "name": "builder",
-      "tags": ["autonomous", "delivery", "attention-source"],
       "enabled": true,
       "stepCount": 5,
       "triggers": [
@@ -201,7 +200,6 @@ Each trigger entry has a `type` discriminant:
 - `"watch"` — file-watch trigger; `patterns` is an array of glob patterns; `debounceMs` is the debounce window in milliseconds
 
 `enabled` reflects the static value from the workflow definition source. `runtimeEnabled` is present only when a runtime override differs from the static value (see `POST /workflow/definitions/:name/enable` and `disable` below).
-`tags` is the workflow's declared routing and policy tag list.
 
 **Client method:** `DaemonControlClient.getWorkflowDefinitions()`
 
@@ -471,9 +469,9 @@ triggers are reconciled against the new definitions.
 
 ### POST /reload
 
-Re-reads `config.json` from disk, rediscovers user extensions from `.kota/extensions/`,
+Re-reads `config.json` from disk, rediscovers user modules from `.kota/modules/`,
 and re-registers their workflow contributions with the workflow runtime. Active workflow
-runs are not interrupted. Extensions that have not changed (same name, same workflows)
+runs are not interrupted. Modules that have not changed (same name, same workflows)
 are not re-initialized. Equivalent to `kota daemon reload`.
 
 **Response:**
@@ -482,7 +480,7 @@ are not re-initialized. Equivalent to `kota daemon reload`.
 { "ok": true, "workflows": 5 }
 ```
 
-`workflows` is the total number of active workflow definitions (built-in plus extension-contributed) after reload.
+`workflows` is the total number of active workflow definitions after reload.
 
 ### GET /events
 
@@ -537,7 +535,7 @@ Each event is formatted as standard SSE:
 
 ```
 event: workflow.started
-data: {"workflow":"builder","workflowTags":["autonomous","delivery","attention-source"],"runId":"2026-03-28T...","triggerEvent":"runtime.idle",...}
+data: {"workflow":"builder","runId":"2026-03-28T...","triggerEvent":"runtime.idle",...}
 
 ```
 
@@ -566,7 +564,6 @@ clients that want to catch up on recent events without opening an SSE stream.
       "type": "workflow.completed",
       "payload": {
         "workflow": "builder",
-        "workflowTags": ["autonomous", "delivery", "attention-source"],
         "runId": "2026-03-28T...",
         "status": "success"
       },
@@ -777,7 +774,7 @@ Returns the resolved merged config (global `~/.kota/config.json` + project
   "config": {
     "model": "claude-opus-4-6",
     "maxTokens": 8192,
-    "extensions": {
+    "modules": {
       "telegram": {
         "token": "***"
       }
@@ -795,15 +792,15 @@ Returns the resolved merged config (global `~/.kota/config.json` + project
 The web UI Config panel fetches this endpoint on load and displays each
 top-level key as a key/value row.
 
-### GET /api/extensions
+### GET /api/modules
 
-Returns the list of loaded extensions and their current status.
+Returns the list of loaded modules and their current status.
 
 **Response (200):**
 
 ```json
 {
-  "extensions": [
+  "modules": [
     {
       "name": "filesystem",
       "version": "1.0.0",
@@ -816,7 +813,7 @@ Returns the list of loaded extensions and their current status.
       "channelCount": 0
     },
     {
-      "name": "my-extension",
+      "name": "my-module",
       "status": "failed",
       "toolCount": 0,
       "agentCount": 0,
@@ -829,9 +826,9 @@ Returns the list of loaded extensions and their current status.
 }
 ```
 
-`status` is `"loaded"` for successfully loaded in-process extensions or `"failed"` when `onLoad` threw.
+`status` is `"loaded"` for successfully loaded in-process modules or `"failed"` when `onLoad` threw.
 Failed entries include an `error` field (truncated to 500 chars) and zero contribution counts.
-Foreign extensions include a `health` field (`{ status, restartCount, lastRestartAt }`) when health data is available.
+Foreign modules include a `health` field (`{ status, restartCount, lastRestartAt }`) when health data is available.
 
 ### GET /api/audit
 

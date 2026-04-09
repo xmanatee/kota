@@ -1,6 +1,6 @@
-# Daemon Extension
+# Daemon Module
 
-This directory owns the `daemon` built-in extension — long-running KOTA process with supervisor and built-in workflow/channel resolution. It also owns the daemon-facing CLI commands: `kota events`, `kota session`, and `kota status`.
+This directory owns the `daemon` repo module — long-running KOTA process with supervisor and autonomy workflow/channel resolution. It also owns the daemon-facing CLI commands: `kota events`, `kota session`, and `kota status`.
 
 - Registers `kota daemon` CLI command with `status`, `pid`, `stop`, `reload`, `install`, and `uninstall` subcommands.
 - Registers `kota events tail` for streaming live daemon event bus events.
@@ -9,11 +9,11 @@ This directory owns the `daemon` built-in extension — long-running KOTA proces
 - `install` registers the daemon as a user-level OS service (launchd on macOS, systemd on Linux); supports `--dry-run` to preview the generated unit without writing it. `uninstall` removes the service.
 - `status` includes a `managed` field indicating whether the OS service is installed.
 - The supervisor loop spawns a child process and restarts it on `RESTART_EXIT_CODE`.
-- Actual daemon runtime lives in `src/scheduler/daemon.ts`; this extension wires it into the CLI.
+- Actual daemon runtime lives in `src/scheduler/daemon.ts`; this module wires it into the CLI.
 
 ## Files
 
-- `index.ts` — `KotaExtension` definition; CLI command registration, supervisor loop, and `buildDaemonChildArgs`/`resolveDaemonWorkflowDefinitions` helpers. Exports `buildLaunchdPlist`, `buildSystemdUnit`, `writeServiceFile`, `removeServiceFile` as testable boundaries for install/uninstall actions.
+- `index.ts` — `KotaModule` definition; CLI command registration, supervisor loop, and `buildDaemonChildArgs`/`resolveDaemonWorkflowDefinitions` helpers. Exports `buildLaunchdPlist`, `buildSystemdUnit`, `writeServiceFile`, `removeServiceFile` as testable boundaries for install/uninstall actions.
 - `events-cli.ts` — `buildEventsCommand`: builds the `kota events` Command with `tail` subcommand.
 - `session-cli.ts` — `buildSessionCommand`: builds the `kota session` Command with `list` and `inspect` subcommands.
 - `status-cli.ts` — `buildStatusCommand`, `formatStatusOutput`, `gatherStatus`, `StatusSnapshot`: builds the `kota status` Command; `gatherStatus` works both online (via daemon API) and offline (disk fallback).

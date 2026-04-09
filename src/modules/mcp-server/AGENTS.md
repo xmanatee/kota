@@ -1,6 +1,6 @@
-# MCP Server Extension
+# MCP Server Module
 
-This directory owns the `mcp-server` built-in extension — exposes KOTA tools via the Model Context Protocol.
+This directory owns the `mcp-server` repo module — exposes KOTA tools via the Model Context Protocol.
 
 - Registers `kota mcp-server` CLI command (starts stdio MCP server).
 - Actual MCP server implementation lives in `src/mcp/server.ts`.
@@ -9,4 +9,4 @@ This directory owns the `mcp-server` built-in extension — exposes KOTA tools v
 
 ## Files
 
-- `index.ts` — `KotaExtension` definition; `kota mcp-server` CLI command.
+- `index.ts` — `KotaModule` definition; `kota mcp-server` CLI command.

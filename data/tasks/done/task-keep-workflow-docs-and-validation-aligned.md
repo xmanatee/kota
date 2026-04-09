@@ -33,7 +33,7 @@ task files, and validation.
 
 ## Resolution
 
-Both `src/workflows/builder/prompt.md` and `src/workflows/improver/prompt.md`
+Both `src/modules/autonomy/workflows/builder/prompt.md` and `src/modules/autonomy/workflows/improver/prompt.md`
 described the verification pipeline as `typecheck`, `test:workflow-critical`,
 and `build`. The actual pipeline in `src/workflows/shared.ts` also runs
 `lint` between typecheck and the workflow-critical tests. Added `npm run lint`

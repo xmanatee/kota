@@ -8,7 +8,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { runAttentionDigestStep } from "./attention-digest.js";
+import { runAttentionDigestStep } from "./step.js";
 
 function makeTaskDir(projectDir: string, state: string, count: number): void {
   const dir = join(projectDir, "data", "tasks", state);
@@ -34,7 +34,7 @@ function writeRunMetadata(
     JSON.stringify({
       id,
       workflow,
-      definitionPath: `src/workflows/${workflow}/workflow.ts`,
+      definitionPath: `src/modules/autonomy/workflows/${workflow}/workflow.ts`,
       trigger: { event: "runtime.idle", payload: {} },
       startedAt: now,
       completedAt: now,

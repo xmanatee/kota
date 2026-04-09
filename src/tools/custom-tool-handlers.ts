@@ -18,7 +18,7 @@ import {
 
 export type ToolResult = { content: string; is_error?: boolean };
 
-type RegisterFn = (tool: Anthropic.Tool, runner: (input: Record<string, unknown>) => Promise<ToolResult>, extensionName?: string) => void;
+type RegisterFn = (tool: Anthropic.Tool, runner: (input: Record<string, unknown>) => Promise<ToolResult>, moduleName?: string) => void;
 type DeregisterFn = (name: string) => boolean;
 
 // ─── Create ───────────────────────────────────────────────────────────

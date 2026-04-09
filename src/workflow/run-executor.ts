@@ -61,7 +61,6 @@ export function executeWorkflowRun(
 
   deps.bus.emit("workflow.started", {
     workflow: definition.name,
-    workflowTags: definition.tags,
     runId: run.metadata.id,
     triggerEvent: trigger.event,
     definitionPath: run.metadata.definitionPath,
@@ -352,7 +351,7 @@ export function executeWorkflowRun(
       emitCostAnomalyIfNeeded(definition, completed, deps);
       deps.bus.emit(
         "workflow.completed",
-        buildWorkflowCompletedPayload(completed, finalStatus, definition.tags),
+        buildWorkflowCompletedPayload(completed, finalStatus),
       );
       deps.log(`Completed workflow "${definition.name}" (${completed.id})`);
       return {
@@ -379,7 +378,7 @@ export function executeWorkflowRun(
       emitCostAnomalyIfNeeded(definition, completed, deps);
       deps.bus.emit(
         "workflow.completed",
-        buildWorkflowCompletedPayload(completed, status, definition.tags),
+        buildWorkflowCompletedPayload(completed, status),
       );
       deps.log(
         `${status === "interrupted" ? "Interrupted" : "Failed"} workflow "${definition.name}" (${completed.id}): ${err.message}`,

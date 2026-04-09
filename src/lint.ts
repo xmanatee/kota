@@ -5,7 +5,7 @@ import { extname } from "node:path";
 export type LintResult = { ok: true } | { ok: false; error: string };
 
 /**
- * Run a syntax check on a file based on its extension.
+ * Run a syntax check on a file based on its module.
  * Returns ok:true if the file passes or if no checker is available.
  * Returns ok:false with the error message if syntax is broken.
  */

@@ -14,17 +14,17 @@ Any MCP-compatible host (Claude Code, Cursor, VS Code) can connect and use KOTA'
 
 ## Tools
 
-All KOTA built-in tools are available. Extension-contributed tools are included when extensions are loaded before the server starts (the default when using `kota mcp-server`, which calls `loader.loadAll()` automatically). Use `--tools <name,...>` to restrict exposure.
+All project KOTA tools are available. Module-contributed tools are included when modules are loaded before the server starts (the default when using `kota mcp-server`, which calls `loader.loadAll()` automatically). Use `--tools <name,...>` to restrict exposure.
 
-When constructing `McpServer` programmatically (e.g., in the daemon), pass `extensionTools` in `McpServerOptions` to inject extension-contributed tools explicitly without relying on the global tool registry:
+When constructing `McpServer` programmatically (e.g., in the daemon), pass `moduleTools` in `McpServerOptions` to inject module-contributed tools explicitly without relying on the global tool registry:
 
 ```ts
 const server = new McpServer({
-  extensionTools: myExtension.tools(ctx),
+  moduleTools: myExtension.tools(ctx),
 });
 ```
 
-Extension tools passed via `extensionTools` go through the same `toolFilter` as built-in tools and are routed through their own runners, not the global registry.
+Module tools passed via `moduleTools` go through the same `toolFilter` as project tools and are routed through their own runners, not the global registry.
 
 ### Tool annotations
 
@@ -37,7 +37,7 @@ Each tool in the `tools/list` response includes an `annotations` object when the
 | destructive | `false`     | `true`            | —               |
 | network   | —             | —                 | `true`          |
 
-Tiers are not mutually exclusive: a destructive GitHub tool also has `openWorldHint: true`. Tools whose tier cannot be determined statically (e.g. unclassified extension tools) omit `annotations` entirely. The annotations are derived from `getToolMcpAnnotations` in `src/guardrails-classify.ts`.
+Tiers are not mutually exclusive: a destructive GitHub tool also has `openWorldHint: true`. Tools whose tier cannot be determined statically (e.g. unclassified module tools) omit `annotations` entirely. The annotations are derived from `getToolMcpAnnotations` in `src/guardrails-classify.ts`.
 
 ## Resources
 

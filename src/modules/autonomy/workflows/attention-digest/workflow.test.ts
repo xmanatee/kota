@@ -1,31 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { registerWorkflowDefinition } from "../../workflow/validation.js";
+import { registerWorkflowDefinition } from "../../../../workflow/validation.js";
 import attentionDigestWorkflow from "./workflow.js";
 
 describe("attention-digest workflow definition", () => {
   it("registers without errors", () => {
     const registered = registerWorkflowDefinition(
-      "src/workflows/attention-digest/workflow.ts",
+      "src/modules/autonomy/workflows/attention-digest/workflow.ts",
       attentionDigestWorkflow,
     );
     expect(registered.name).toBe("attention-digest");
   });
 
-  it("has a workflow.completed trigger filtered to attention-source workflows", () => {
+  it("reacts to explicit attention-worthy events", () => {
     const registered = registerWorkflowDefinition(
-      "src/workflows/attention-digest/workflow.ts",
+      "src/modules/autonomy/workflows/attention-digest/workflow.ts",
       attentionDigestWorkflow,
     );
-    expect(registered.triggers).toHaveLength(1);
-    expect(registered.triggers[0].event).toBe("workflow.completed");
-    expect(registered.triggers[0].filter).toMatchObject({
-      workflowTags: "attention-source",
-    });
+    expect(registered.triggers.map((trigger) => trigger.event)).toEqual([
+      "workflow.build.committed",
+      "workflow.completed",
+      "workflow.cost.anomaly",
+      "workflow.budget.exceeded",
+      "runtime.recovered",
+    ]);
   });
 
   it("has a single code step named digest", () => {
     const registered = registerWorkflowDefinition(
-      "src/workflows/attention-digest/workflow.ts",
+      "src/modules/autonomy/workflows/attention-digest/workflow.ts",
       attentionDigestWorkflow,
     );
     expect(registered.steps).toHaveLength(1);

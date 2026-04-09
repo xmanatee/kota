@@ -1,25 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "../../event-bus.js";
-import { ExtensionStorage } from "../../extension-storage.js";
-import type { ExtensionContext } from "../../extension-types.js";
+import { ModuleStorage } from "../../module-storage.js";
+import type { ModuleContext } from "../../module-types.js";
 import webhookModule from "./index.js";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
-function makeStubCtx(bus?: EventBus, webhookConfig?: unknown): ExtensionContext {
+function makeStubCtx(bus?: EventBus, webhookConfig?: unknown): ModuleContext {
   const b = bus ?? new EventBus();
   return {
     cwd: "/tmp/test",
     verbose: false,
-    config: {} as ExtensionContext["config"],
-    storage: new ExtensionStorage("/tmp/test", "webhook"),
+    config: {} as ModuleContext["config"],
+    storage: new ModuleStorage("/tmp/test", "webhook"),
     registerGroup: () => {},
     getRoutes: () => [],
     getContributedWorkflows: () => [],
     getContributedChannels: () => [],
-  getExtensionSummaries: () => [],
-    getExtensionConfig: () => webhookConfig as never,
+  getModuleSummaries: () => [],
+    getModuleConfig: () => webhookConfig as never,
     log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
     getSecret: () => null,
     listTools: () => [],

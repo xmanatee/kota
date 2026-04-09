@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-export function generateExtensionScaffold(name: string, safeName: string, dir: string): void {
+export function generateModuleScaffold(name: string, safeName: string, dir: string): void {
   const srcDir = join(dir, "src");
   mkdirSync(srcDir, { recursive: true });
 
@@ -58,10 +58,10 @@ function tsconfig(): string {
 
 function indexTs(name: string, safeName: string): string {
   const toolName = `${safeName.replace(/-/g, "_")}_hello`;
-  return `import type { KotaExtension, ToolDef } from "kota/extension";
+  return `import type { KotaModule, ToolDef } from "kota/module";
 
-// KotaExtension supports: tools, commands, routes, workflows, channels,
-// skills, agents, onLoad, onUnload. Add fields as your extension grows.
+// KotaModule supports: tools, commands, routes, workflows, channels,
+// skills, agents, onLoad, onUnload. Add fields as your module grows.
 
 const helloTool: ToolDef = {
   tool: {
@@ -81,45 +81,45 @@ const helloTool: ToolDef = {
   },
 };
 
-const extension: KotaExtension = {
+const module: KotaModule = {
   name: "${safeName}",
   version: "0.1.0",
-  description: "${name} extension",
+  description: "${name} module",
   tools: [helloTool],
   // onLoad: (ctx) => { /* initialize — ctx.log, ctx.storage, ctx.config */ },
   // onUnload: () => { /* clean up connections, timers */ },
 };
 
-export default extension;
+export default module;
 `;
 }
 
 function agentsMd(name: string, safeName: string): string {
-  return `# ${name} Extension
+  return `# ${name} Module
 
-This directory contains the \`${name}\` KOTA extension.
+This directory contains the \`${name}\` KOTA module.
 
 ## Purpose
 
-<!-- Describe what this extension does and why it exists. -->
+<!-- Describe what this module does and why it exists. -->
 
 ## Boundaries
 
 - Contribute tools, commands, routes, workflows, channels, skills, or agents
-  via the \`KotaExtension\` export in \`src/index.ts\`.
-- Do not import KOTA internals directly; use the \`ExtensionContext\` API
+  via the \`KotaModule\` export in \`src/index.ts\`.
+- Do not import KOTA internals directly; use the \`ModuleContext\` API
   passed to \`onLoad\` for runtime services (storage, logging, config).
 
 ## Development
 
 \`\`\`sh
 pnpm install         # install devDependencies (including kota for types)
-pnpm run typecheck   # verify types against KotaExtension
+pnpm run typecheck   # verify types against KotaModule
 pnpm build           # compile to dist/
 \`\`\`
 
 For local drop-in use without npm, compile and copy \`dist/index.js\` to
-\`.kota/extensions/${safeName}/index.js\` in your KOTA project.
+\`.kota/modules/${safeName}/index.js\` in your KOTA project.
 `;
 }
 
@@ -134,12 +134,12 @@ export function generatePythonScaffold(name: string, safeName: string, dir: stri
 function pythonMainPy(name: string, safeName: string): string {
   const toolName = `${safeName.replace(/-/g, "_")}_hello`;
   return `#!/usr/bin/env python3
-"""${name} — KEMP subprocess extension for KOTA.
+"""${name} — KEMP subprocess module for KOTA.
 
 Communicates with KOTA over stdin/stdout using newline-delimited JSON (NDJSON).
 Add your tools to the TOOLS dict and implement their logic in the handlers below.
 
-Protocol reference: docs/FOREIGN-EXTENSIONS.md
+Protocol reference: docs/FOREIGN-MODULES.md
 """
 import json
 import sys
@@ -208,7 +208,7 @@ def main() -> None:
                 "type": "manifest",
                 "name": "${safeName}",
                 "version": "0.1.0",
-                "description": "${name} extension",
+                "description": "${name} module",
                 "tools": TOOLS,
             })
 
@@ -243,15 +243,15 @@ if __name__ == "__main__":
 function pythonReadmeMd(name: string, safeName: string): string {
   return `# ${name}
 
-A Python KEMP subprocess extension for [KOTA](https://github.com/anthropics/kota).
+A Python KEMP subprocess module for [KOTA](https://github.com/anthropics/kota).
 
 ## Usage
 
-Register this extension in your KOTA project's \`.kota/config.json\`:
+Register this module in your KOTA project's \`.kota/config.json\`:
 
 \`\`\`json
 {
-  "foreignExtensions": [
+  "foreignModules": [
     {
       "transport": "stdio",
       "command": "python3",
@@ -265,7 +265,7 @@ A ready-to-paste config fragment is in \`.kota-config-snippet.json\`.
 
 ## Smoke test
 
-Pipe a handcrafted \`init\` message to verify the extension responds:
+Pipe a handcrafted \`init\` message to verify the module responds:
 
 \`\`\`sh
 echo '{"id":"1","type":"init","cwd":".","config":{}}' | python3 main.py
@@ -285,18 +285,18 @@ Expected output (one line):
 
 ## Protocol
 
-Full protocol reference: \`docs/FOREIGN-EXTENSIONS.md\` in the KOTA repository.
+Full protocol reference: \`docs/FOREIGN-MODULES.md\` in the KOTA repository.
 `;
 }
 
 function pythonConfigSnippet(safeName: string): string {
   return `${JSON.stringify(
     {
-      foreignExtensions: [
+      foreignModules: [
         {
           transport: "stdio",
           command: "python3",
-          args: [`.kota/extensions/${safeName}/main.py`],
+          args: [`.kota/modules/${safeName}/main.py`],
         },
       ],
     },

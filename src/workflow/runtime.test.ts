@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAgentSDK } from "../agent-sdk/index.js";
 import { EventBus } from "../event-bus.js";
-import { runShell, shellTool } from "../extensions/execution/shell.js";
+import { runShell, shellTool } from "../modules/execution/shell.js";
 import { clearCustomTools, registerTool } from "../tools/index.js";
 import { WorkflowRunStore } from "./run-store.js";
 import { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE, RELOAD_SIGNAL_FILE, WorkflowRuntime } from "./runtime.js";
@@ -40,8 +40,8 @@ describe("WorkflowRuntime", () => {
       tmpdir(),
       `kota-workflow-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(join(projectDir, "src", "workflows", "builder"), { recursive: true });
-    mkdirSync(join(projectDir, "src", "workflows", "formatter"), { recursive: true });
+    mkdirSync(join(projectDir, "src", "modules", "autonomy", "workflows", "builder"), { recursive: true });
+    mkdirSync(join(projectDir, "src", "modules", "test", "workflows", "formatter"), { recursive: true });
     mockedExecuteWithAgentSDK.mockReset();
   });
 
@@ -52,7 +52,7 @@ describe("WorkflowRuntime", () => {
 
   it("runs idle workflows and writes per-run artifacts", async () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build something useful.\n",
     );
 
@@ -80,7 +80,7 @@ describe("WorkflowRuntime", () => {
             {
               id: "build",
               type: "agent",
-              promptPath: "src/workflows/builder/prompt.md",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
             },
           ],
         }),
@@ -239,7 +239,7 @@ describe("WorkflowRuntime", () => {
     ]);
   });
 
-  it("supports tag-driven workflow handoff without hardcoded workflow-name filters", async () => {
+  it("supports event-driven workflow handoff without hardcoded workflow-name filters", async () => {
     const bus = new EventBus();
     const seenWorkflows: string[] = [];
     bus.on("workflow.started", (payload) => {
@@ -254,20 +254,14 @@ describe("WorkflowRuntime", () => {
       workflows: [
         registerWorkflowDefinition("test/triage.ts", {
           name: "triage",
-          tags: ["queue-source"],
           triggers: [{ event: "runtime.idle" }],
-          steps: [{ id: "inspect", type: "emit", event: "triage.done" }],
+          steps: [{ id: "inspect", type: "emit", event: "autonomy.queue.available" }],
         }),
         registerWorkflowDefinition("test/delivery.ts", {
           name: "delivery",
-          tags: ["delivery"],
           triggers: [
             {
-              event: "workflow.completed",
-              filter: {
-                workflowTags: "queue-source",
-                status: "success",
-              },
+              event: "autonomy.queue.available",
             },
           ],
           steps: [{ id: "deliver", type: "emit", event: "delivery.done" }],
@@ -276,11 +270,7 @@ describe("WorkflowRuntime", () => {
           name: "governance",
           triggers: [
             {
-              event: "workflow.completed",
-              filter: {
-                workflowTags: "delivery",
-                status: ["success", "failed"],
-              },
+              event: "delivery.done",
             },
           ],
           steps: [{ id: "govern", type: "emit", event: "governance.done" }],
@@ -362,11 +352,11 @@ describe("WorkflowRuntime", () => {
 
   it("backs off agent workflows after a quota failure and drops stale follow-up runs", async () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
     writeFileSync(
-      join(projectDir, "src", "workflows", "formatter", "prompt.md"),
+      join(projectDir, "src", "modules", "test", "workflows", "formatter", "prompt.md"),
       "Improve.\n",
     );
 
@@ -398,7 +388,7 @@ describe("WorkflowRuntime", () => {
             {
               id: "explore",
               type: "agent",
-              promptPath: "src/workflows/builder/prompt.md",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
             },
           ],
         }),
@@ -417,7 +407,7 @@ describe("WorkflowRuntime", () => {
             {
               id: "improve",
               type: "agent",
-              promptPath: "src/workflows/formatter/prompt.md",
+              promptPath: "src/modules/test/workflows/formatter/prompt.md",
             },
           ],
         }),
@@ -443,11 +433,11 @@ describe("WorkflowRuntime", () => {
   });
 
   it("supports code steps that call KOTA tools before agent steps", async () => {
-    // Register the shell tool from the execution extension (normally loaded by builtinExtensions)
+    // Register the shell tool from the execution module (normally loaded by repoExtensions)
     registerTool(shellTool, runShell, "execution");
 
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -481,7 +471,7 @@ describe("WorkflowRuntime", () => {
             {
               id: "build",
               type: "agent",
-              promptPath: "src/workflows/builder/prompt.md",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
             },
           ],
         }),
@@ -504,7 +494,7 @@ describe("WorkflowRuntime", () => {
 
   it("uses structured runtime logging instead of streaming raw agent text", async () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -531,7 +521,7 @@ describe("WorkflowRuntime", () => {
             {
               id: "build",
               type: "agent",
-              promptPath: "src/workflows/builder/prompt.md",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
             },
           ],
         }),
@@ -559,7 +549,7 @@ describe("WorkflowRuntime", () => {
 
   it("fails the workflow when an agent step returns an error subtype", async () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -584,7 +574,7 @@ describe("WorkflowRuntime", () => {
             {
               id: "build",
               type: "agent",
-              promptPath: "src/workflows/builder/prompt.md",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
             },
             {
               id: "verify-typecheck",
@@ -622,7 +612,7 @@ describe("WorkflowRuntime", () => {
 
   it("coalesces a rerun when the same workflow is retriggered mid-run", async () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "formatter", "prompt.md"),
+      join(projectDir, "src", "modules", "test", "workflows", "formatter", "prompt.md"),
       "Handle changes.\n",
     );
 
@@ -662,7 +652,7 @@ describe("WorkflowRuntime", () => {
             {
               id: "run",
               type: "agent",
-              promptPath: "src/workflows/formatter/prompt.md",
+              promptPath: "src/modules/test/workflows/formatter/prompt.md",
             },
           ],
         }),
@@ -853,7 +843,7 @@ describe("WorkflowRuntime", () => {
 
   it("interrupts an active agent step when the runtime stops", async () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -880,7 +870,7 @@ describe("WorkflowRuntime", () => {
             {
               id: "build",
               type: "agent",
-              promptPath: "src/workflows/builder/prompt.md",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
             },
           ],
         }),
@@ -907,7 +897,7 @@ describe("WorkflowRuntime", () => {
     expect(metadata.steps[0].status).toBe("failed");
   });
 
-  it("queues the recovery-handler workflow first when startup finds an interrupted run with a dirty worktree", async () => {
+  it("queues runtime.recovered workflows first when startup finds an interrupted run with a dirty worktree", async () => {
     execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
     execFileSync("git", ["config", "user.name", "Kota Tests"], { cwd: projectDir, stdio: "ignore" });
     execFileSync("git", ["config", "user.email", "kota@example.com"], { cwd: projectDir, stdio: "ignore" });
@@ -948,18 +938,15 @@ describe("WorkflowRuntime", () => {
       workflows: [
         registerWorkflowDefinition("test/improver.ts", {
           name: "improver",
-          tags: ["autonomous", "recovery-handler"],
           triggers: [
             {
-              event: "workflow.completed",
-              filter: { workflow: "builder", status: ["failed", "interrupted"] },
+              event: "runtime.recovered",
             },
           ],
           steps: [{ id: "repair", type: "emit", event: "improver.done" }],
         }),
         registerWorkflowDefinition("test/explorer.ts", {
           name: "explorer",
-          tags: ["autonomous"],
           triggers: [{ event: "runtime.idle" }],
           steps: [{ id: "inspect", type: "emit", event: "explorer.done" }],
         }),
@@ -1030,7 +1017,7 @@ describe("WorkflowRuntime", () => {
     expect(summaryLog).toContain("1 run");
   });
 
-  it("requests restart and records autonomous recovery when an autonomous run fails dirty", async () => {
+  it("requests restart and records recovery when a run fails dirty", async () => {
     execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
     execFileSync("git", ["config", "user.name", "Kota Tests"], { cwd: projectDir, stdio: "ignore" });
     execFileSync("git", ["config", "user.email", "kota@example.com"], { cwd: projectDir, stdio: "ignore" });
@@ -1057,7 +1044,6 @@ describe("WorkflowRuntime", () => {
       workflows: [
         registerWorkflowDefinition("test/improver.ts", {
           name: "improver",
-          tags: ["autonomous"],
           triggers: [{ event: "runtime.idle" }],
           steps: [
             {
@@ -1087,14 +1073,14 @@ describe("WorkflowRuntime", () => {
       'workflow "improver" completed with dirty worktree',
     );
 
-    const recovery = new WorkflowRunStore(projectDir).getAutonomousRecovery();
+    const recovery = new WorkflowRunStore(projectDir).getRecovery();
     expect(recovery).toMatchObject({
       sourceWorkflow: "improver",
       attempts: 0,
     });
   });
 
-  it("queues exactly one recovery-handler run on startup for a dirty failed run", async () => {
+  it("queues exactly one runtime.recovered run on startup for a dirty failed run", async () => {
     execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
     execFileSync("git", ["config", "user.name", "Kota Tests"], { cwd: projectDir, stdio: "ignore" });
     execFileSync("git", ["config", "user.email", "kota@example.com"], { cwd: projectDir, stdio: "ignore" });
@@ -1106,7 +1092,7 @@ describe("WorkflowRuntime", () => {
     writeFileSync(join(projectDir, "README.md"), "dirty\n");
 
     const store = new WorkflowRunStore(projectDir);
-    store.setAutonomousRecovery({
+    store.setRecovery({
       sourceRunId: "run-1",
       sourceWorkflow: "builder",
       worktreeFingerprint: "stale",
@@ -1128,18 +1114,15 @@ describe("WorkflowRuntime", () => {
       workflows: [
         registerWorkflowDefinition("test/improver.ts", {
           name: "improver",
-          tags: ["autonomous", "recovery-handler"],
           triggers: [
             {
-              event: "workflow.completed",
-              filter: { workflow: "builder", status: ["failed", "interrupted"] },
+              event: "runtime.recovered",
             },
           ],
           steps: [{ id: "repair", type: "emit", event: "improver.done" }],
         }),
         registerWorkflowDefinition("test/explorer.ts", {
           name: "explorer",
-          tags: ["autonomous"],
           triggers: [{ event: "runtime.idle" }],
           steps: [{ id: "inspect", type: "emit", event: "explorer.done" }],
         }),
@@ -1151,7 +1134,7 @@ describe("WorkflowRuntime", () => {
     await runtime.stop();
 
     expect(started).toEqual(["improver"]);
-    expect(store.getAutonomousRecovery()).toMatchObject({
+    expect(store.getRecovery()).toMatchObject({
       sourceWorkflow: "improver",
       attempts: 1,
     });
@@ -1169,7 +1152,7 @@ describe("WorkflowRuntime", () => {
     writeFileSync(join(projectDir, "README.md"), "dirty\n");
 
     const store = new WorkflowRunStore(projectDir);
-    store.setAutonomousRecovery({
+    store.setRecovery({
       sourceRunId: "run-2",
       sourceWorkflow: "improver",
       worktreeFingerprint: "dirty",
@@ -1331,7 +1314,7 @@ describe("WorkflowRuntime", () => {
 
   it("aborts the active run when abort-request signal file is written", async () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1356,7 +1339,7 @@ describe("WorkflowRuntime", () => {
             {
               id: "build",
               type: "agent",
-              promptPath: "src/workflows/builder/prompt.md",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
             },
           ],
         }),
@@ -1493,7 +1476,7 @@ describe("WorkflowRuntime", () => {
 
   it("does not interrupt an active run when reload signal is processed", async () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1525,7 +1508,7 @@ describe("WorkflowRuntime", () => {
             {
               id: "build",
               type: "agent",
-              promptPath: "src/workflows/builder/prompt.md",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
             },
           ],
         }),
@@ -1651,7 +1634,7 @@ describe("WorkflowRuntime", () => {
 
   it("aborts the run when runTimeoutMs is exceeded", async () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1677,7 +1660,7 @@ describe("WorkflowRuntime", () => {
             {
               id: "build",
               type: "agent",
-              promptPath: "src/workflows/builder/prompt.md",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
             },
           ],
         }),
@@ -1744,12 +1727,12 @@ describe("WorkflowRuntime", () => {
         );
 
       writeFileSync(
-        join(projectDir, "src", "workflows", "builder", "prompt.md"),
+        join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
         "Build.\n",
       );
       mkdirSync(join(projectDir, "src", "workflows", "formatter"), { recursive: true });
       writeFileSync(
-        join(projectDir, "src", "workflows", "formatter", "prompt.md"),
+        join(projectDir, "src", "modules", "test", "workflows", "formatter", "prompt.md"),
         "Format.\n",
       );
 
@@ -1763,14 +1746,14 @@ describe("WorkflowRuntime", () => {
             name: "builder",
             triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
             steps: [
-              { id: "build", type: "agent", promptPath: "src/workflows/builder/prompt.md" },
+              { id: "build", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md" },
             ],
           }),
           registerWorkflowDefinition("test/formatter.ts", {
             name: "formatter",
             triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
             steps: [
-              { id: "format", type: "agent", promptPath: "src/workflows/formatter/prompt.md" },
+              { id: "format", type: "agent", promptPath: "src/modules/test/workflows/formatter/prompt.md" },
             ],
           }),
         ],
@@ -1874,12 +1857,12 @@ describe("WorkflowRuntime", () => {
         );
 
       writeFileSync(
-        join(projectDir, "src", "workflows", "builder", "prompt.md"),
+        join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
         "Build.\n",
       );
       mkdirSync(join(projectDir, "src", "workflows", "formatter"), { recursive: true });
       writeFileSync(
-        join(projectDir, "src", "workflows", "formatter", "prompt.md"),
+        join(projectDir, "src", "modules", "test", "workflows", "formatter", "prompt.md"),
         "Format.\n",
       );
 
@@ -1893,14 +1876,14 @@ describe("WorkflowRuntime", () => {
             name: "builder",
             triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
             steps: [
-              { id: "build", type: "agent", promptPath: "src/workflows/builder/prompt.md" },
+              { id: "build", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md" },
             ],
           }),
           registerWorkflowDefinition("test/formatter.ts", {
             name: "formatter",
             triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
             steps: [
-              { id: "format", type: "agent", promptPath: "src/workflows/formatter/prompt.md" },
+              { id: "format", type: "agent", promptPath: "src/modules/test/workflows/formatter/prompt.md" },
             ],
           }),
         ],
@@ -1955,7 +1938,7 @@ describe("WorkflowRuntime", () => {
       );
 
       writeFileSync(
-        join(projectDir, "src", "workflows", "builder", "prompt.md"),
+        join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
         "Build.\n",
       );
 
@@ -1970,7 +1953,7 @@ describe("WorkflowRuntime", () => {
             name: "builder",
             triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
             steps: [
-              { id: "build", type: "agent", promptPath: "src/workflows/builder/prompt.md" },
+              { id: "build", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md" },
             ],
           }),
           registerWorkflowDefinition("test/notifier.ts", {
@@ -2070,7 +2053,7 @@ describe("WorkflowRuntime", () => {
 
     it("waits for an active run to complete within the grace period", async () => {
       writeFileSync(
-        join(projectDir, "src", "workflows", "builder", "prompt.md"),
+        join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
         "Build.\n",
       );
       mockedExecuteWithAgentSDK.mockImplementation(
@@ -2102,7 +2085,7 @@ describe("WorkflowRuntime", () => {
               {
                 id: "build",
                 type: "agent",
-                promptPath: "src/workflows/builder/prompt.md",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
               },
             ],
           }),
@@ -2123,7 +2106,7 @@ describe("WorkflowRuntime", () => {
 
     it("marks an active run as interrupted when grace period is exceeded", async () => {
       writeFileSync(
-        join(projectDir, "src", "workflows", "builder", "prompt.md"),
+        join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
         "Build.\n",
       );
       mockedExecuteWithAgentSDK.mockImplementation(
@@ -2147,7 +2130,7 @@ describe("WorkflowRuntime", () => {
               {
                 id: "build",
                 type: "agent",
-                promptPath: "src/workflows/builder/prompt.md",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
               },
             ],
           }),

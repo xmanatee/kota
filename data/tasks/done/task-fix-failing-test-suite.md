@@ -11,7 +11,7 @@ updated_at: 2026-03-27
 
 ## Problem
 
-Three consecutive builder runs (2026-03-27) have failed at the test verification step. The test runner reports 32 test failures across 19 test files out of ~4920 total tests. Affected areas include `repl-session`, `init`, `history-resume`, `e2e`, and others. At least one failure is a timeout in `src/workflows/explorer/auto-escalate.test.ts`.
+Three consecutive builder runs (2026-03-27) have failed at the test verification step. The test runner reports 32 test failures across 19 test files out of ~4920 total tests. Affected areas include `repl-session`, `init`, `history-resume`, `e2e`, and others. At least one failure is a timeout in `src/modules/autonomy/workflows/explorer/auto-escalate.test.ts`.
 
 The failures appear systemic rather than isolated — multiple unrelated modules fail simultaneously, suggesting a shared root cause (broken setup, recently broken abstraction, or test-environment drift).
 

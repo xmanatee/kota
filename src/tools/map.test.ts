@@ -2,8 +2,8 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { ExtensionLoader } from "../extension-loader.js";
-import filesystemModule from "../extensions/filesystem/index.js";
+import { ModuleLoader } from "../module-loader.js";
+import filesystemModule from "../modules/filesystem/index.js";
 import { clearCustomTools } from "./index.js";
 import { runMap } from "./map.js";
 
@@ -14,7 +14,7 @@ function makeTempDir(suffix: string): string {
 }
 
 beforeAll(async () => {
-	const loader = new ExtensionLoader({});
+	const loader = new ModuleLoader({});
 	await loader.loadAll([filesystemModule]);
 });
 

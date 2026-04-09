@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, } from "vitest";
 import { extractPlots, readPlotFiles } from "./data/plot-capture.js";
-import { detectPackageHint, extractMissingPackage } from "./extensions/execution/code-exec.js";
+import { detectPackageHint, extractMissingPackage } from "./modules/execution/code-exec.js";
 import { clearCustomGroups, detectToolGroups, enableGroup, getActiveToolNames, registerCustomGroup, resetGroups } from "./tool-groups.js";
 
 /**

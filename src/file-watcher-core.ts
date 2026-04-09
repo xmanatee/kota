@@ -11,7 +11,7 @@ export interface WatcherInfo {
 	id: string;
 	path: string;
 	recursive: boolean;
-	extensions: string[] | undefined;
+	modules: string[] | undefined;
 	changeCount: number;
 	createdAt: string;
 }
@@ -20,7 +20,7 @@ export interface ActiveWatcher {
 	id: string;
 	rootPath: string;
 	recursive: boolean;
-	extensions: string[] | undefined;
+	modules: string[] | undefined;
 	fsWatchers: import("node:fs").FSWatcher[];
 	watchedDirs: Set<string>;
 	snapshot: Map<string, number>;
@@ -87,10 +87,10 @@ export function mapEventType(eventType: import("node:fs").WatchEventType): "crea
 
 export function matchesExtensions(
 	filePath: string,
-	extensions: string[] | undefined,
+	modules: string[] | undefined,
 ): boolean {
-	if (!extensions || extensions.length === 0) return true;
-	return extensions.some((ext) => {
+	if (!modules || modules.length === 0) return true;
+	return modules.some((ext) => {
 		const e = ext.startsWith(".") ? ext : `.${ext}`;
 		return filePath.endsWith(e);
 	});
@@ -107,7 +107,7 @@ export function splitPathSegments(filePath: string): string[] {
 export function shouldTrackPath(active: ActiveWatcher, relativePath: string): boolean {
 	const segments = splitPathSegments(relativePath);
 	if (segments.some((segment) => isIgnored(segment))) return false;
-	return matchesExtensions(relativePath, active.extensions);
+	return matchesExtensions(relativePath, active.modules);
 }
 
 /** Recursively collect subdirectory paths for explicit directory watchers. */
@@ -130,7 +130,7 @@ export async function collectDirs(root: string): Promise<string[]> {
 export async function collectFileSnapshot(
 	root: string,
 	recursive: boolean,
-	extensions: string[] | undefined,
+	modules: string[] | undefined,
 ): Promise<Map<string, number>> {
 	const snapshot = new Map<string, number>();
 
@@ -155,7 +155,7 @@ export async function collectFileSnapshot(
 				continue;
 			}
 
-			if (!matchesExtensions(relativePath, extensions)) continue;
+			if (!matchesExtensions(relativePath, modules)) continue;
 
 			try {
 				const entryStat = await stat(fullPath);

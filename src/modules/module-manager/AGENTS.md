@@ -1,13 +1,13 @@
-# Extension Manager Extension
+# Module Manager Module
 
-This extension contributes the `kota extension` CLI surface: `list`, `inspect`, and `new`.
+This module contributes the `kota module` CLI surface: `list`, `inspect`, and `new`.
 
-- `kota extension list` — show all loaded extensions with contribution counts.
-- `kota extension inspect <name>` — show full detail for one extension.
-- `kota extension new <name>` — scaffold a new TypeScript or Python extension.
+- `kota module list` — show all loaded modules with contribution counts.
+- `kota module inspect <name>` — show full detail for one module.
+- `kota module new <name>` — scaffold a new TypeScript or Python module.
 
 ## Boundaries
 
-- Uses `ctx.getExtensionSummaries()` for live extension data; no independent loader.
+- Uses `ctx.getModuleSummaries()` for live module data; no independent loader.
 - Scaffold generators live in `scaffolds.ts` to keep `index.ts` focused.
-- Avoid importing the built-in extension discovery entrypoint from here; this command should inspect loaded state, not rebuild it.
+- Avoid importing the repo module discovery entrypoint from here; this command should inspect loaded state, not rebuild it.

@@ -19,7 +19,7 @@ impossible without post-hoc inspection of `.kota/runs/` artifacts.
 
 ## Desired Outcome
 
-An opt-in builder mode (configured via the builder extension config or `kota.config`)
+An opt-in builder mode (configured via the builder module config or `kota.config`)
 where each task run:
 1. Creates a branch `kota/task/<task-id>` from the current base.
 2. Commits the task changes to that branch.

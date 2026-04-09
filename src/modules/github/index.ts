@@ -1,5 +1,5 @@
 /**
- * GitHub extension — typed REST API tools for PR and issue operations.
+ * GitHub module — typed REST API tools for PR and issue operations.
  *
  * Tools:
  *   github_create_pr     — create a pull request
@@ -14,7 +14,7 @@
  *   github_add_label     — add a label to a PR or issue
  *   github_remove_label  — remove a label from a PR or issue
  *
- * Config (under extensions.github):
+ * Config (under modules.github):
  *   token:           GitHub PAT or $ENV_VAR reference. Required.
  *   repo:            default owner/repo (e.g. "owner/repo"). Falls back to git remote.
  *   requireApproval: tool names requiring approval before execution.
@@ -29,7 +29,7 @@
  */
 
 import { execSync } from "node:child_process";
-import type { ExtensionContext, KotaExtension, ToolDef } from "../../extension-types.js";
+import type { ModuleContext, KotaModule, ToolDef } from "../../module-types.js";
 import type { ToolResult } from "../../tools/tool-result.js";
 import type { GitHubTaskProviderConfig } from "./task-provider.js";
 import { GitHubTaskProvider } from "./task-provider.js";
@@ -88,7 +88,7 @@ async function githubFetch(
       Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",
       "Content-Type": "application/json",
-      "User-Agent": "kota/github-extension",
+      "User-Agent": "kota/github-module",
       "X-GitHub-Api-Version": "2022-11-28",
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -131,7 +131,7 @@ function makeCreatePr(token: string, defaultRepo: string | null): ToolDef {
     },
     async runner(input): Promise<ToolResult> {
       const repo = (input.repo as string | undefined) ?? defaultRepo;
-      if (!repo) return { content: "No repository configured. Set extensions.github.repo or ensure git remote origin is a GitHub URL.", is_error: true };
+      if (!repo) return { content: "No repository configured. Set modules.github.repo or ensure git remote origin is a GitHub URL.", is_error: true };
 
       const res = await githubFetch(token, "POST", `/repos/${repo}/pulls`, {
         title: input.title,
@@ -657,18 +657,18 @@ function makeRemoveLabel(token: string, defaultRepo: string | null): ToolDef {
   };
 }
 
-// ─── Extension ───────────────────────────────────────────────────────────────
+// ─── Module ───────────────────────────────────────────────────────────────
 
-const githubModule: KotaExtension = {
+const githubModule: KotaModule = {
   name: "github",
   version: "1.0.0",
   description: "GitHub REST API tools for PR and issue operations",
 
-  tools(ctx: ExtensionContext): ToolDef[] {
-    const config = ctx.getExtensionConfig<GitHubConfig>();
+  tools(ctx: ModuleContext): ToolDef[] {
+    const config = ctx.getModuleConfig<GitHubConfig>();
     if (!config?.token) {
       ctx.log.warn(
-        "GitHub extension: extensions.github.token is required but missing — extension inactive",
+        "GitHub module: modules.github.token is required but missing — module inactive",
       );
       return [];
     }
@@ -676,7 +676,7 @@ const githubModule: KotaExtension = {
     const token = resolveToken(config.token);
     if (!token) {
       ctx.log.warn(
-        `GitHub extension: token env var "${config.token}" is not set — extension inactive`,
+        `GitHub module: token env var "${config.token}" is not set — module inactive`,
       );
       return [];
     }
@@ -698,13 +698,13 @@ const githubModule: KotaExtension = {
     ];
   },
 
-  async onLoad(ctx: ExtensionContext): Promise<void> {
-    const config = ctx.getExtensionConfig<GitHubConfig>();
+  async onLoad(ctx: ModuleContext): Promise<void> {
+    const config = ctx.getModuleConfig<GitHubConfig>();
     if (!config?.taskProvider?.enabled) return;
 
     if (!config.token) {
       ctx.log.warn(
-        "GitHub task provider: extensions.github.token is required but missing — provider inactive",
+        "GitHub task provider: modules.github.token is required but missing — provider inactive",
       );
       return;
     }
@@ -718,7 +718,7 @@ const githubModule: KotaExtension = {
     const repo = resolveRepo(config.repo);
     if (!repo) {
       ctx.log.warn(
-        "GitHub task provider: no repository configured — set extensions.github.repo or ensure git remote origin is a GitHub URL",
+        "GitHub task provider: no repository configured — set modules.github.repo or ensure git remote origin is a GitHub URL",
       );
       return;
     }

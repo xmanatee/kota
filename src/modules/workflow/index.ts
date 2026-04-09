@@ -1,5 +1,5 @@
 /**
- * Workflow extension — owns the `kota workflow` CLI surface.
+ * Workflow module — owns the `kota workflow` CLI surface.
  *
  * Registers all workflow subcommands: run list/show/step-inspect/follow/trigger,
  * control (pause/resume/abort/reload), validate, definitions, logs, gc, export,
@@ -7,7 +7,7 @@
  */
 
 import { Command } from "commander";
-import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
+import type { ModuleContext, KotaModule } from "../../module-types.js";
 import { registerControlCommands } from "./control.js";
 import { registerDefinitionLogCommand } from "./definition-log.js";
 import { registerDefinitionsCommand } from "./definitions.js";
@@ -25,9 +25,8 @@ import { registerStepInspectCommand } from "./step-inspect.js";
 import { registerTriggerCommands } from "./trigger.js";
 import { registerTriggersCommand } from "./triggers.js";
 import { registerValidateCommand } from "./validate.js";
-import { discoverBuiltinWorkflowAgents, discoverBuiltinWorkflowDefinitions } from "../../workflow/discovery.js";
 
-export function buildWorkflowCommand(ctx: ExtensionContext): Command {
+export function buildWorkflowCommand(ctx: ModuleContext): Command {
   const wfCmd = new Command("workflow")
     .alias("wf")
     .description(
@@ -60,13 +59,11 @@ export function buildWorkflowCommand(ctx: ExtensionContext): Command {
   return wfCmd;
 }
 
-const workflowModule: KotaExtension = {
+const workflowModule: KotaModule = {
   name: "workflow",
   version: "1.0.0",
   description: "Workflow CLI surface — kota workflow list/show/run/control/validate/definitions/logs/gc/export/diff/cost/stats",
   commands: (ctx) => [buildWorkflowCommand(ctx)],
-  workflows: async () => await discoverBuiltinWorkflowDefinitions(),
-  agents: async () => await discoverBuiltinWorkflowAgents(),
 };
 
 export default workflowModule;

@@ -1,9 +1,9 @@
 /**
- * ExtensionStorage — scoped file-based storage for extensions.
+ * ModuleStorage — scoped file-based storage for modules.
  *
- * Each extension gets its own isolated directory under `.kota/extensions/<name>/`.
+ * Each module gets its own isolated directory under `.kota/modules/<name>/`.
  * Supports JSON objects, raw text, and markdown files.
- * This enables truly self-contained extensions that own their data.
+ * This enables truly self-contained modules that own their data.
  */
 
 import {
@@ -16,11 +16,11 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 
-export class ExtensionStorage {
+export class ModuleStorage {
 	private dir: string;
 
-	constructor(baseDir: string, extensionName: string) {
-		this.dir = join(baseDir, ".kota", "extensions", extensionName);
+	constructor(baseDir: string, moduleName: string) {
+		this.dir = join(baseDir, ".kota", "modules", moduleName);
 	}
 
 	/** Get the storage directory path (creates it lazily on first write). */
@@ -81,7 +81,7 @@ export class ExtensionStorage {
 		writeFileSync(join(this.dir, filename), content, "utf-8");
 	}
 
-	/** Check if a key exists (checks all extensions). */
+	/** Check if a key exists (checks all modules). */
 	has(key: string): boolean {
 		return (
 			existsSync(this.resolvePath(key, ".json")) ||
@@ -94,7 +94,7 @@ export class ExtensionStorage {
 		return existsSync(join(this.dir, filename));
 	}
 
-	/** Delete a key (removes all extensions). Returns true if anything was deleted. */
+	/** Delete a key (removes all modules). Returns true if anything was deleted. */
 	delete(key: string): boolean {
 		let deleted = false;
 		for (const ext of [".json", ".txt"]) {
@@ -126,7 +126,7 @@ export class ExtensionStorage {
 		return this.list().filter((f) => f.endsWith(ext));
 	}
 
-	/** Remove all files in this extension's storage. */
+	/** Remove all files in this module's storage. */
 	clear(): void {
 		if (!existsSync(this.dir)) return;
 		for (const file of readdirSync(this.dir)) {

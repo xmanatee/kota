@@ -13,7 +13,7 @@ import {
 } from "./run-store-helpers.js";
 import type {
   WorkflowActiveRun,
-  WorkflowAutonomousRecoveryState,
+  WorkflowRecoveryState,
   WorkflowQueuedRun,
   WorkflowRunMetadata,
   WorkflowRuntimeState,
@@ -52,7 +52,7 @@ export class WorkflowRunStore {
       ...(state?.totalCostUsd != null ? { totalCostUsd: state.totalCostUsd } : {}),
       ...(state?.definitionsLoadedAt ? { definitionsLoadedAt: state.definitionsLoadedAt } : {}),
       ...(state?.agentBackoff ? { agentBackoff: state.agentBackoff } : {}),
-      ...(state?.autonomousRecovery ? { autonomousRecovery: state.autonomousRecovery } : {}),
+      ...(state?.recovery ? { recovery: state.recovery } : {}),
     };
   }
 
@@ -126,16 +126,16 @@ export class WorkflowRunStore {
     this.writeState(state);
   }
 
-  getAutonomousRecovery(): WorkflowAutonomousRecoveryState | null {
-    return this.readState().autonomousRecovery ?? null;
+  getRecovery(): WorkflowRecoveryState | null {
+    return this.readState().recovery ?? null;
   }
 
-  setAutonomousRecovery(recovery: WorkflowAutonomousRecoveryState | null): void {
+  setRecovery(recovery: WorkflowRecoveryState | null): void {
     const state = this.readState();
     if (recovery) {
-      state.autonomousRecovery = recovery;
+      state.recovery = recovery;
     } else {
-      delete state.autonomousRecovery;
+      delete state.recovery;
     }
     this.writeState(state);
   }
@@ -349,7 +349,6 @@ export class WorkflowRunStore {
     const metadata: WorkflowRunMetadata = {
       id,
       workflow: workflow.name,
-      ...(workflow.tags.length > 0 ? { workflowTags: workflow.tags } : {}),
       definitionPath: workflow.definitionPath,
       trigger,
       ...(triggeredByRunId !== undefined && { triggeredByRunId }),

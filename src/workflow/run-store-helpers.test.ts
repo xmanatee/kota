@@ -78,10 +78,10 @@ describe("assertWorkflowRuntimeState", () => {
     expect(() => assertWorkflowRuntimeState(path, state)).not.toThrow();
   });
 
-  it("accepts autonomous recovery state", () => {
+  it("accepts recovery state", () => {
     const state = {
       ...validState,
-      autonomousRecovery: {
+      recovery: {
         sourceRunId: "run-1",
         sourceWorkflow: "improver",
         worktreeFingerprint: "M README.md",
@@ -212,11 +212,11 @@ describe("assertWorkflowRuntimeState", () => {
     ).toThrow(JsonFileError);
   });
 
-  it("throws when autonomousRecovery is malformed", () => {
+  it("throws when recovery is malformed", () => {
     expect(() =>
       assertWorkflowRuntimeState(path, {
         ...validState,
-        autonomousRecovery: {
+        recovery: {
           sourceRunId: "run-1",
           sourceWorkflow: "improver",
           worktreeFingerprint: "M README.md",
@@ -237,7 +237,7 @@ describe("assertWorkflowRuntimeState", () => {
 const validMetadata = {
   id: "run-1",
   workflow: "builder",
-  definitionPath: "src/workflows/builder/workflow.ts",
+  definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
   trigger: validTrigger,
   startedAt: "2026-01-01T00:00:00.000Z",
   status: "running",
@@ -378,9 +378,8 @@ describe("safeJsonStringify", () => {
 const baseWorkflow: WorkflowDefinition = {
   name: "builder",
   description: "Autonomous improvement workflow",
-  tags: [],
   enabled: true,
-  definitionPath: "src/workflows/builder/workflow.ts",
+  definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
   triggers: [{ event: "runtime.idle", cooldownMs: 30000 }],
   steps: [],
 };
@@ -391,7 +390,7 @@ describe("buildWorkflowSnapshot", () => {
     expect(snap.name).toBe("builder");
     expect(snap.description).toBe("Autonomous improvement workflow");
     expect(snap.enabled).toBe(true);
-    expect(snap.definitionPath).toBe("src/workflows/builder/workflow.ts");
+    expect(snap.definitionPath).toBe("src/modules/autonomy/workflows/builder/workflow.ts");
     expect(snap.triggers).toEqual(baseWorkflow.triggers);
     expect(snap.steps).toEqual([]);
   });
@@ -418,14 +417,14 @@ describe("buildWorkflowSnapshot", () => {
         {
           id: "s1",
           type: "agent",
-          promptPath: "src/workflows/builder/prompt.md",
+          promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
           permissionMode: "default",
           settingSources: [],
         },
       ],
     };
     const snap = buildWorkflowSnapshot(wf);
-    expect(snap.steps[0]).toMatchObject({ id: "s1", type: "agent", promptPath: "src/workflows/builder/prompt.md" });
+    expect(snap.steps[0]).toMatchObject({ id: "s1", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md" });
   });
 
   it("summarizes emit steps", () => {

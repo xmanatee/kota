@@ -1,6 +1,6 @@
-# Filesystem Extension
+# Filesystem Module
 
-This directory contains the filesystem capability pack — a built-in extension that owns all filesystem tools.
+This directory contains the filesystem capability pack — a repo module that owns all filesystem tools.
 
 - This is the canonical home for file and directory tools. Do not add new filesystem tools to `src/tools/`.
 - Tools, helpers, and tests are co-located here, following the pattern established by `web-access/`.
@@ -9,7 +9,7 @@ This directory contains the filesystem capability pack — a built-in extension 
 
 ## Key Modules
 
-- `index.ts` — Extension definition; assembles all tools into the `filesystemModule` export.
+- `index.ts` — Module definition; assembles all tools into the `filesystemModule` export.
 - `file-read.ts` — `fileReadTool` schema and `runFileRead` runner; supports text, JSON, CSV, JSONL, TSV previews via `file-read-formats.ts`.
 - `file-read-formats.ts` — Format-specific preview helpers used by `file-read.ts`.
 - `file-write.ts` — `fileWriteTool` schema and `runFileWrite` runner.

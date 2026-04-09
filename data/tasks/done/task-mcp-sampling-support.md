@@ -11,7 +11,7 @@ updated_at: 2026-04-02T11:49:09Z
 
 ## Problem
 
-The MCP spec includes a `sampling/createMessage` request that lets a client ask the server (KOTA) to perform an LLM completion on its behalf. KOTA's MCP server currently advertises `tools`, `resources`, and `prompts` capabilities but not `sampling`. External agents or IDE extensions that connect as MCP clients cannot delegate inference to KOTA's configured model, so each client must maintain its own model credentials and connection.
+The MCP spec includes a `sampling/createMessage` request that lets a client ask the server (KOTA) to perform an LLM completion on its behalf. KOTA's MCP server currently advertises `tools`, `resources`, and `prompts` capabilities but not `sampling`. External agents or IDE modules that connect as MCP clients cannot delegate inference to KOTA's configured model, so each client must maintain its own model credentials and connection.
 
 ## Desired Outcome
 

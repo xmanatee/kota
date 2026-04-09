@@ -5,22 +5,22 @@ import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerWebhookCommands } from "./webhook-cli.js";
 
-vi.mock("./extension-metadata.js", () => ({
-  loadExtensionMetadata: vi.fn(async () => ({
+vi.mock("./module-metadata.js", () => ({
+  loadModuleMetadata: vi.fn(async () => ({
     getContributedWorkflows: () => [
       {
         name: "my-webhook-flow",
         triggers: [{ event: "webhook", webhook: true }],
         steps: [],
         enabled: true,
-        definitionPath: "src/workflows/my-webhook-flow/workflow.ts",
+        definitionPath: "src/modules/test/workflows/my-webhook-flow/workflow.ts",
       },
       {
         name: "no-webhook-flow",
         triggers: [{ event: "runtime.idle" }],
         steps: [],
         enabled: true,
-        definitionPath: "src/workflows/no-webhook-flow/workflow.ts",
+        definitionPath: "src/modules/test/workflows/no-webhook-flow/workflow.ts",
       },
     ],
   })),

@@ -11,7 +11,7 @@ updated_at: 2026-03-25
 
 ## Problem
 
-The recovery path in `src/workflows/improver/recover-doing-tasks.ts` only runs when the triggering builder status is `failed`. If the builder is `interrupted`, claimed work can still remain stranded in `tasks/doing/`.
+The recovery path in `src/modules/autonomy/workflows/improver/recover-doing-tasks.ts` only runs when the triggering builder status is `failed`. If the builder is `interrupted`, claimed work can still remain stranded in `tasks/doing/`.
 
 The current recovery also always moves stranded work back to `ready/`. It never escalates obviously unhealthy work to `blocked/`, even after repeated failed attempts.
 

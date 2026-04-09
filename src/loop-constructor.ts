@@ -3,16 +3,16 @@ import { buildUserProfile } from "./config.js";
 import { Context } from "./context.js";
 import { CostTracker } from "./cost.js";
 import { tryEmit } from "./event-bus.js";
-import { ExtensionLoader } from "./extension-loader.js";
-import { initExtensionLogStore } from "./extension-log.js";
-import type { CreateSessionOptions, ExtensionSession } from "./extension-types.js";
-import { initProviderRegistry, registerDefaultProviders } from "./extensions/providers/index.js";
+import { ModuleLoader } from "./module-loader.js";
+import { initModuleLogStore } from "./module-log.js";
+import type { CreateSessionOptions, ModuleSession } from "./module-types.js";
+import { initProviderRegistry, registerDefaultProviders } from "./modules/providers/index.js";
 import { initChangeTracker } from "./file-changes.js";
 import { getDefaultConfig as getDefaultGuardrails } from "./guardrails.js";
 import { buildSessionWarmup } from "./init.js";
 import { loadInstructionContext } from "./instruction-files.js";
 import type { LoopOptions } from "./loop.js";
-import { type AgentLoopState, runInitExtensions, saveToHistoryImpl } from "./loop-init.js";
+import { type AgentLoopState, runInitModules, saveToHistoryImpl } from "./loop-init.js";
 import { getHistory } from "./memory/history.js";
 import { createModelClient } from "./model/model-client.js";
 import { loadProjectContext } from "./project-context.js";
@@ -21,7 +21,7 @@ import { initTaskStore } from "./scheduler/task-store.js";
 import { SessionStateMachine } from "./session-state.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { enableGroup } from "./tool-groups.js";
-import { setConfigProvider, setExtensionInfoProvider } from "./tools/agent-status.js";
+import { setConfigProvider, setModuleInfoProvider } from "./tools/agent-status.js";
 import { setDelegateConfig } from "./tools/delegate.js";
 import { CliTransport } from "./transport.js";
 import { detectVerifyCommands, VerifyTracker } from "./verify-tracker.js";
@@ -29,7 +29,7 @@ import { detectVerifyCommands, VerifyTracker } from "./verify-tracker.js";
 export function initAgentSession(
   state: AgentLoopState,
   options: LoopOptions,
-  sessionFactory: (opts: CreateSessionOptions) => ExtensionSession,
+  sessionFactory: (opts: CreateSessionOptions) => ModuleSession,
 ): void {
   state.sessionId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   state.sessionLabel = options.label;
@@ -60,7 +60,7 @@ export function initAgentSession(
 
   initTaskStore(process.cwd());
   initScheduler(process.cwd());
-  initExtensionLogStore(process.cwd());
+  initModuleLogStore(process.cwd());
   initChangeTracker();
   initProviderRegistry();
   registerDefaultProviders();
@@ -138,9 +138,9 @@ export function initAgentSession(
     transport: state.transport,
   });
 
-  state.extensionLoader = new ExtensionLoader(options.config || {}, state.verbose);
-  setExtensionInfoProvider(() =>
-    state.extensionLoader.getLoadedExtensions().map((name) => ({
+  state.moduleLoader = new ModuleLoader(options.config || {}, state.verbose);
+  setModuleInfoProvider(() =>
+    state.moduleLoader.getLoadedModules().map((name) => ({
       name,
       toolCount: 0,
     })),
@@ -157,7 +157,7 @@ export function initAgentSession(
       };
     });
   }
-  state.extensionLoader.setSessionFactory(sessionFactory);
+  state.moduleLoader.setSessionFactory(sessionFactory);
 
   state.stateMachine = new SessionStateMachine();
   state.stateMachine.onChange((from, to, meta) => {
@@ -165,7 +165,7 @@ export function initAgentSession(
     tryEmit("session.state", { sessionId: state.sessionId, from, to, meta });
   });
   state.stateMachine.transition("initializing");
-  state.initPromise = runInitExtensions(state);
+  state.initPromise = runInitModules(state);
 
   state.sigintHandler = () => {
     if (state.sessionPath) {

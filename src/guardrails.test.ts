@@ -19,12 +19,12 @@ describe("classifyRisk", () => {
       const { risk } = classifyRisk(tool, {});
       expect(risk).toBe("safe");
     }
-    // Extension tools (file_read, grep, glob, repo_map, notify, memory, etc.) are safe when their
-    // extension is loaded and registers risk: "safe" metadata via registerTool.
-    // Without the extension loaded, they fall through to "unclassified tool" → moderate.
+    // Module tools (file_read, grep, glob, repo_map, notify, memory, etc.) are safe when their
+    // module is loaded and registers risk: "safe" metadata via registerTool.
+    // Without the module loaded, they fall through to "unclassified tool" → moderate.
   });
 
-  it("classifies extension-declared safe tool as safe", () => {
+  it("classifies module-declared safe tool as safe", () => {
     registerTool(
       { name: "ext_readonly", description: "read-only ext tool", input_schema: { type: "object", properties: {} } },
       async () => ({ content: "ok" }),
@@ -35,7 +35,7 @@ describe("classifyRisk", () => {
     expect(risk).toBe("safe");
   });
 
-  it("classifies extension-declared dangerous tool as dangerous", () => {
+  it("classifies module-declared dangerous tool as dangerous", () => {
     registerTool(
       { name: "ext_mutate", description: "mutating ext tool", input_schema: { type: "object", properties: {} } },
       async () => ({ content: "ok" }),
@@ -46,7 +46,7 @@ describe("classifyRisk", () => {
     expect(risk).toBe("dangerous");
   });
 
-  it("falls back to moderate for extension tool with no risk annotation", () => {
+  it("falls back to moderate for module tool with no risk annotation", () => {
     registerTool(
       { name: "ext_unannotated", description: "unannotated ext tool", input_schema: { type: "object", properties: {} } },
       async () => ({ content: "ok" }),
@@ -196,7 +196,7 @@ describe("assess", () => {
   });
 
   it("allows safe tools by default", () => {
-    // Use a core tool (ask_user) to avoid needing extension loaded
+    // Use a core tool (ask_user) to avoid needing module loaded
     const result = assess("ask_user", {});
     expect(result.risk).toBe("safe");
     expect(result.policy).toBe("allow");

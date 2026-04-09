@@ -13,7 +13,7 @@ updated_at: 2026-04-02T04:47:39Z
 
 KOTA's config format is documented in `docs/CONFIG.md` but has no machine-readable schema.
 Operators editing `.kota/config.json` get no IDE hints, no validation of unknown keys, and no
-documentation-on-hover. As the config grows (log format, daemon settings, extension configs,
+documentation-on-hover. As the config grows (log format, daemon settings, module configs,
 budget guard, model overrides) the risk of silent misconfiguration grows.
 
 `kota config validate` already parses and reports unknown top-level keys, but it requires

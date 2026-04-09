@@ -11,7 +11,7 @@ updated_at: 2026-04-07T12:00:00Z
 
 ## Problem
 
-KOTA's built-in workflows trigger each other: improver runs after builder, builder
+KOTA's autonomy workflows trigger each other: improver runs after builder, builder
 re-runs after explorer produces tasks. As operators add custom workflows that also
 use `workflow.completed` triggers, these chains become hard to reason about. The
 definitions panel lists each workflow in isolation; there is no view showing which

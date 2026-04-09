@@ -6,7 +6,7 @@ import { getRepoWorktreeStatus } from "../repo-worktree.js";
 import { AgentBackoffManager } from "./agent-backoff.js";
 import { BudgetGuard } from "./budget-guard.js";
 import { isWithinDispatchWindow, msUntilDispatchWindowOpens } from "./dispatch-window.js";
-import { enqueueMatchingWorkflows, workflowHasTag, workflowUsesAgent } from "./run-executor-utils.js";
+import { enqueueMatchingWorkflows, workflowUsesAgent } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
 import { formatRunId } from "./run-store-helpers.js";
 import type { WorkflowRunExecutionResult, WorkflowRuntimeState } from "./run-types.js";
@@ -150,7 +150,7 @@ export class WorkflowRuntime {
     this.definitions = this.loadDefinitions();
     this.wfQueue.restorePending();
     this.queueInterruptedRunRecovery(interrupted);
-    this.queueAutonomousRecovery();
+    this.queueRecovery();
     const activeAgentBackoff = this.backoff.getActive();
     if (activeAgentBackoff) {
       this.log(
@@ -391,10 +391,52 @@ export class WorkflowRuntime {
     maybeStartNext(this as unknown as WorkflowRuntimeDispatchState);
   }
 
-  private getEnabledWorkflowByTag(tag: string): WorkflowDefinition | undefined {
-    return this.definitions.find(
-      (definition) => definition.enabled && workflowHasTag(definition, tag),
+  private queueMatchingEventFirst(
+    event: string,
+    payload: Record<string, unknown>,
+  ): number {
+    const queued: Array<{
+      workflowName: string;
+      trigger: WorkflowRunTrigger;
+    }> = [];
+    enqueueMatchingWorkflows(
+      { type: event, payload },
+      this.definitions,
+      (definition, _trigger, run) => {
+        queued.push({ workflowName: definition.name, trigger: run });
+      },
     );
+    if (queued.length === 0) return 0;
+
+    const now = Date.now();
+    const queuedNames = new Set(queued.map((run) => run.workflowName));
+    const remaining = this.wfQueue
+      .getRuns()
+      .filter((run) => !queuedNames.has(run.workflowName));
+    this.wfQueue.setRuns([
+      ...queued.map(({ workflowName, trigger }) => {
+        const runId =
+          typeof trigger.payload._runId === "string" && trigger.payload._runId.trim().length > 0
+            ? trigger.payload._runId
+            : formatRunId(workflowName);
+        return {
+          runId,
+          workflowName,
+          trigger: {
+            ...trigger,
+            payload: {
+              ...trigger.payload,
+              _runId: runId,
+            },
+          },
+          enqueuedAtMs: 0,
+          notBeforeMs: now,
+        };
+      }),
+      ...remaining,
+    ]);
+    this.wfQueue.persist();
+    return queued.length;
   }
 
   private queueInterruptedRunRecovery(
@@ -404,41 +446,36 @@ export class WorkflowRuntime {
     const worktree = getRepoWorktreeStatus(this.projectDir);
     if (!worktree.available || !worktree.dirty) return;
 
-    const recoveryWorkflow = this.getEnabledWorkflowByTag("recovery-handler");
-    if (!recoveryWorkflow) {
+    const queued = this.queueMatchingEventFirst("runtime.recovered", {
+      recoveredRunIds: interrupted.map((run) => run.id),
+      recoveredWorkflows: interrupted.map((run) => run.workflow),
+      recoveredAt: new Date().toISOString(),
+      worktreeSummary: worktree.summary,
+    });
+    if (queued === 0) {
       this.log(
-        `Recovered interrupted run(s) left a dirty worktree, but no recovery workflow is available: ${worktree.summary}`,
+        `Recovered interrupted run(s) left a dirty worktree, but no recovery workflow matched runtime.recovered: ${worktree.summary}`,
       );
       return;
     }
-
-    this.queueRunFirst(recoveryWorkflow.name, {
-      event: "runtime.recovered",
-      payload: {
-        recoveredRunIds: interrupted.map((run) => run.id),
-        recoveredWorkflows: interrupted.map((run) => run.workflow),
-        recoveredAt: new Date().toISOString(),
-        worktreeSummary: worktree.summary,
-      },
-    });
     this.log(
-      `Queued recovery workflow "${recoveryWorkflow.name}" for interrupted run(s) with uncommitted changes: ${worktree.summary}`,
+      `Queued ${queued} recovery workflow${queued === 1 ? "" : "s"} for interrupted run(s) with uncommitted changes: ${worktree.summary}`,
     );
   }
 
-  private queueAutonomousRecovery(): void {
-    const recovery = this.store.getAutonomousRecovery();
+  private queueRecovery(): void {
+    const recovery = this.store.getRecovery();
     if (!recovery) return;
 
     const worktree = getRepoWorktreeStatus(this.projectDir);
     if (!worktree.available) {
       this.log(
-        `Autonomous recovery pending, but git status is unavailable: ${worktree.summary}`,
+        `Recovery pending, but git status is unavailable: ${worktree.summary}`,
       );
       return;
     }
     if (!worktree.dirty) {
-      this.store.setAutonomousRecovery(null);
+      this.store.setRecovery(null);
       return;
     }
 
@@ -450,81 +487,37 @@ export class WorkflowRuntime {
     };
 
     if (recovery.attempts >= 1) {
-      this.store.setAutonomousRecovery(refreshedRecovery);
-      this.pauseAutonomousDispatch(
-        `Autonomous recovery exhausted after a failed recovery attempt from "${recovery.sourceWorkflow}" (${recovery.sourceRunId}): ${worktree.summary}`,
+      this.store.setRecovery(refreshedRecovery);
+      this.pauseDispatch(
+        `Recovery exhausted after a failed recovery attempt from "${recovery.sourceWorkflow}" (${recovery.sourceRunId}): ${worktree.summary}`,
       );
       return;
     }
 
-    const recoveryWorkflow = this.getEnabledWorkflowByTag("recovery-handler");
-    if (!recoveryWorkflow) {
-      this.store.setAutonomousRecovery(refreshedRecovery);
-      this.pauseAutonomousDispatch(
-        `Autonomous recovery pending for dirty worktree, but no recovery workflow is available: ${worktree.summary}`,
-      );
-      return;
-    }
-
-    this.store.setAutonomousRecovery({
+    this.store.setRecovery({
       ...refreshedRecovery,
       attempts: recovery.attempts + 1,
     });
-    this.queueRunFirst(recoveryWorkflow.name, {
-      event: "runtime.recovered",
-      payload: {
-        recoveredAt: new Date().toISOString(),
-        sourceRunId: recovery.sourceRunId,
-        sourceWorkflow: recovery.sourceWorkflow,
-        worktreeSummary: worktree.summary,
-      },
+    const queued = this.queueMatchingEventFirst("runtime.recovered", {
+      recoveredAt: new Date().toISOString(),
+      sourceRunId: recovery.sourceRunId,
+      sourceWorkflow: recovery.sourceWorkflow,
+      worktreeSummary: worktree.summary,
     });
+    if (queued === 0) {
+      this.pauseDispatch(
+        `Recovery pending for dirty worktree, but no workflow matched runtime.recovered: ${worktree.summary}`,
+      );
+      return;
+    }
     this.log(
-      `Queued recovery workflow "${recoveryWorkflow.name}" for dirty worktree left by "${recovery.sourceWorkflow}" (${recovery.sourceRunId}): ${worktree.summary}`,
+      `Queued ${queued} recovery workflow${queued === 1 ? "" : "s"} for dirty worktree left by "${recovery.sourceWorkflow}" (${recovery.sourceRunId}): ${worktree.summary}`,
     );
   }
 
-  private queueRunFirst(
-    workflowName: string,
-    trigger: WorkflowRunTrigger,
-  ): void {
-    const runId =
-      typeof trigger.payload._runId === "string" && trigger.payload._runId.trim().length > 0
-        ? trigger.payload._runId
-        : formatRunId(workflowName);
-    const now = Date.now();
-    const remaining = this.wfQueue
-      .getRuns()
-      .filter((run) => run.workflowName !== workflowName);
-    this.wfQueue.setRuns([
-      {
-        runId,
-        workflowName,
-        trigger: {
-          ...trigger,
-          payload: {
-            ...trigger.payload,
-            _runId: runId,
-          },
-        },
-        enqueuedAtMs: 0,
-        notBeforeMs: now,
-      },
-      ...remaining,
-    ]);
-    this.wfQueue.persist();
-  }
-
-  private pauseAutonomousDispatch(reason: string): void {
+  private pauseDispatch(reason: string): void {
     this.dispatchPaused = true;
-    this.wfQueue.setRuns(
-      this.wfQueue
-        .getRuns()
-        .filter((run) => !workflowHasTag(
-          this.definitions.find((definition) => definition.name === run.workflowName) ?? { tags: [] },
-          "autonomous",
-        )),
-    );
+    this.wfQueue.setRuns([]);
     this.wfQueue.persist();
     writeFileSync(join(this.projectDir, ".kota", PAUSE_SIGNAL_FILE), "");
     this.log(reason);
