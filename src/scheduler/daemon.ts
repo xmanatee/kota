@@ -173,6 +173,7 @@ export class Daemon {
       pollIntervalMs: pollMs,
       approvalTtlMs: this.config.config?.approvalTtlMs,
       alertCooldownMs: this.config.config?.notifications?.alertCooldownMs,
+      extensionCrashAlertOpts: this.config.config?.extensionMonitoring,
       onDueItems: (items) => this.handleDueItems(items),
       onWorkflowCompleted: (payload) => {
         this.state.completedRuns += 1;

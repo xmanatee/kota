@@ -24,6 +24,7 @@ const NOTIFICATION_EVENTS = [
   "workflow.cost.limit.reached",
   "workflow.cost.anomaly",
   "workflow.approval.expired",
+  "extension.crash.alert",
 ] as const;
 
 /** Events that are off by default; subscribed only when explicitly listed in config `events`. */
@@ -165,6 +166,24 @@ function buildBlocks(event: string, payload: Record<string, unknown>): Block[] {
           ]
             .filter(Boolean)
             .join("\n"),
+        ),
+      ];
+    }
+    case "extension.crash.alert": {
+      const name = payload.name as string | undefined;
+      const restartCount = payload.restartCount as number | undefined;
+      const windowMs = payload.windowMs as number | undefined;
+      const durationMin = windowMs !== undefined ? Math.round(windowMs / 60_000) : undefined;
+      return [
+        header(`Extension Crash Loop: ${name ?? "unknown"}`),
+        divider,
+        section(
+          [
+            restartCount !== undefined ? `*Restarts:* ${restartCount}` : null,
+            durationMin !== undefined ? `*Window:* ${durationMin}m` : null,
+          ]
+            .filter(Boolean)
+            .join("  ·  ") || (payload.text as string) || "",
         ),
       ];
     }

@@ -1,5 +1,6 @@
 import { getApprovalQueue } from "../approval-queue.js";
 import type { BusEvents, EventBus } from "../event-bus.js";
+import { type ExtensionCrashAlertOptions, subscribeExtensionCrashAlert } from "../extension-crash-alert.js";
 import { subscribeWorkflowFailureAlert } from "../workflow/failure-alert.js";
 import type { ScheduledItem } from "./scheduler.js";
 import { getScheduler } from "./scheduler.js";
@@ -14,6 +15,7 @@ export type DaemonSubscriptionsOptions = {
   onLog: (message: string) => void;
   approvalTtlMs?: number;
   alertCooldownMs?: number;
+  extensionCrashAlertOpts?: ExtensionCrashAlertOptions;
 };
 
 export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
@@ -27,6 +29,7 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
     onLog,
     approvalTtlMs,
     alertCooldownMs,
+    extensionCrashAlertOpts,
   } = opts;
 
   const scheduler = getScheduler();
@@ -43,6 +46,7 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
   });
 
   const stopFailureAlert = subscribeWorkflowFailureAlert(bus, projectDir, onLog, { alertCooldownMs });
+  const stopCrashAlert = subscribeExtensionCrashAlert(bus, extensionCrashAlertOpts);
 
   const approvalSweepTimer = setInterval(() => {
     getApprovalQueue().expireStale(approvalTtlMs);
@@ -55,6 +59,7 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
     stopWorkflowListener();
     stopRestartListener();
     stopFailureAlert();
+    stopCrashAlert();
     clearInterval(approvalSweepTimer);
   };
 }

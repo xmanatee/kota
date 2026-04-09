@@ -144,6 +144,21 @@ export type KotaConfig = {
     alertCooldownMs?: number;
   };
 
+  /** Foreign extension health monitoring settings. */
+  extensionMonitoring?: {
+    /**
+     * Number of restarts within `crashAlertWindowMs` that triggers an
+     * `extension.crash.alert` notification. Default: 3.
+     */
+    crashAlertThreshold?: number;
+    /**
+     * Rolling window in milliseconds for counting extension restarts.
+     * Also serves as the alert cooldown — at most one alert per extension per window.
+     * Default: 600000 (10 minutes).
+     */
+    crashAlertWindowMs?: number;
+  };
+
   /** Scheduler settings for autonomous workflow dispatch. */
   scheduler?: {
     /**

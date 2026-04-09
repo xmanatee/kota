@@ -1,7 +1,7 @@
 ---
 id: task-extension-crash-alert
 title: Alert operator when a foreign extension crashes and restarts repeatedly
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: Foreign (KEMP) extensions can crash and restart silently. Health data is available in kota extension inspect but no notification fires when an extension enters a crash loop, leaving the operator to discover capability degradation after the fact.

@@ -240,6 +240,7 @@ async function startResilientStdioExtension(
       restarts++;
       totalRestarts++;
       lastRestartAt = new Date().toISOString();
+      tryEmit("extension.restarted", { name: raw.name, reason, totalRestarts });
       const backoffMs = backoffBase * 2 ** (restarts - 1);
       process.stderr.write(`[foreign:${config.command}] Restart ${restarts}/${maxRestarts} in ${backoffMs}ms (${reason}).\n`);
       await new Promise<void>((r) => setTimeout(r, backoffMs));

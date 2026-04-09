@@ -201,6 +201,17 @@ export type BusEvents = {
     name: string;
     reason: string;
   };
+  "extension.restarted": {
+    name: string;
+    reason: string;
+    totalRestarts: number;
+  };
+  "extension.crash.alert": {
+    name: string;
+    restartCount: number;
+    windowMs: number;
+    text: string;
+  };
 };
 
 /** An event as seen by wildcard listeners: type + payload. */

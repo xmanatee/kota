@@ -116,6 +116,11 @@ const telegramModule: KotaExtension = {
         if (!creds) return;
         void sendTelegramMessage(creds.token, creds.chatId, payload.text as string, ctx.log);
       }),
+      ctx.events.subscribe("extension.crash.alert", (payload) => {
+        const creds = getCredentials();
+        if (!creds) return;
+        void sendTelegramMessage(creds.token, creds.chatId, payload.text as string, ctx.log);
+      }),
       ctx.events.subscribe("approval.requested", (payload) => {
         const creds = getCredentials();
         if (!creds) return;
