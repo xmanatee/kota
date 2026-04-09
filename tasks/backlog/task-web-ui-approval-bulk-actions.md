@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-approval-bulk-actions
 title: Add bulk approve-all and reject-all buttons to the web UI approvals panel
-status: ready
+status: backlog
 priority: p3
 area: web-ui
 summary: The CLI has `kota approval approve-all` and `kota approval reject-all` with optional risk filters, but the web UI approval panel has no bulk action. Operators reviewing a backlog of pending approvals must click each one individually.
 created_at: 2026-04-09T00:30:00Z
-updated_at: 2026-04-09T06:19:00Z
+updated_at: 2026-04-09T12:30:00Z
 ---
 
 ## Problem

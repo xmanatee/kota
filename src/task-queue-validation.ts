@@ -88,15 +88,41 @@ export function listRootLevelBuiltInExtensionFiles(projectDir: string): string[]
     .sort();
 }
 
-export function hasReadyArchitectureTask(projectDir: string): boolean {
+const ROOT_CLI_ARCHITECTURE_EXCLUSIONS = new Set([
+  "cli-history",
+]);
+
+export function listRootLevelCliArchitectureDebt(projectDir: string): string[] {
+  const cliPath = join(projectDir, "src", "cli.ts");
+  if (!existsSync(cliPath)) return [];
+  const raw = readFileSync(cliPath, "utf8");
+  const matches = [...raw.matchAll(/from\s+"\.\/([a-z0-9-]+-cli)\.js"/gi)];
+  return matches
+    .map((match) => match[1] ?? "")
+    .filter((name) => name.length > 0)
+    .filter((name) => !ROOT_CLI_ARCHITECTURE_EXCLUSIONS.has(name))
+    .map((name) => join("src", `${name}.ts`))
+    .sort();
+}
+
+export function listVisibleArchitectureDebt(projectDir: string): string[] {
+  return [
+    ...listRootLevelBuiltInExtensionFiles(projectDir),
+    ...listRootLevelCliArchitectureDebt(projectDir),
+  ];
+}
+
+export function hasStrategicReadyArchitectureTask(projectDir: string): boolean {
   return listTaskEntries(projectDir)
     .filter((entry) => entry.state === "ready")
-    .some((entry) => readTaskArea(entry) === "architecture");
+    .some((entry) =>
+      readTaskArea(entry) === "architecture" && isStrategicPriority(readTaskPriority(entry)),
+    );
 }
 
 export function hasArchitectureReadyCoverageGap(projectDir: string): boolean {
-  const remainingFlatExtensions = listRootLevelBuiltInExtensionFiles(projectDir);
-  return remainingFlatExtensions.length > 0 && !hasReadyArchitectureTask(projectDir);
+  const remainingArchitectureDebt = listVisibleArchitectureDebt(projectDir);
+  return remainingArchitectureDebt.length > 0 && !hasStrategicReadyArchitectureTask(projectDir);
 }
 
 export function hasStrategicReadyCoverageGap(projectDir: string): boolean {
@@ -319,13 +345,13 @@ export function validateTaskQueue(
 }
 
 export function assertArchitectureReadyCoverage(projectDir: string): string {
-  const remainingFlatExtensions = listRootLevelBuiltInExtensionFiles(projectDir);
-  if (remainingFlatExtensions.length === 0 || hasReadyArchitectureTask(projectDir)) {
+  const remainingArchitectureDebt = listVisibleArchitectureDebt(projectDir);
+  if (remainingArchitectureDebt.length === 0 || hasStrategicReadyArchitectureTask(projectDir)) {
     return "architecture-ready-coverage-ok";
   }
   throw new Error(
-    "tasks/ready must keep at least one architecture task while built-in extensions still " +
-      `live as flat root-level files: ${remainingFlatExtensions.join(", ")}`,
+    "tasks/ready must keep at least one p1/p2 architecture task while visible extension-first debt remains: " +
+      remainingArchitectureDebt.join(", "),
   );
 }
 

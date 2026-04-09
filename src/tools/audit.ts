@@ -6,7 +6,7 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import { getAuditStore } from "../guardrails-audit.js";
+import { getAuditStore } from "../extensions/guardrails-audit/store.js";
 import type { ToolRegistration, ToolResult } from "./index.js";
 
 export const auditTool: Anthropic.Tool = {

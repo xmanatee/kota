@@ -145,11 +145,6 @@ export function buildConfigCommand(): Command {
   return cmd;
 }
 
-/** @deprecated Use buildConfigCommand() instead — kept for test compatibility */
-export function registerConfigCommands(program: Command): void {
-  program.addCommand(buildConfigCommand());
-}
-
 const configModule: KotaExtension = {
   name: "config",
   version: "1.0.0",

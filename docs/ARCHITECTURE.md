@@ -78,6 +78,11 @@ has to stay in core.
   `CORE_TOOL_NAMES`) and the prompt auto-detection logic (`detectToolGroups`);
   `TOOL_GROUPS` starts empty and is populated at runtime by extensions and core
   tool init — it no longer hardcodes which tools belong to which group.
+- The operator CLI migration is also mostly complete, but not fully done:
+  `src/cli.ts` still directly wires a small number of root-level CLI surfaces
+  (`completion-cli.ts`, `webhook-cli.ts`, `init-cli.ts`). Treat these as
+  remaining architecture debt until the root CLI is only assembling extension
+  contributions plus the truly core interactive loop/history path.
 - `SkillDef` and `AgentDef` now exist, and built-in workflows invoke named
   agents. Skills are the one real reusable guidance path; `promptSection` has
   been removed.

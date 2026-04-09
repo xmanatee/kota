@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
-import type { AuditEntry, AuditFilter } from "../guardrails-audit.js";
+import type { AuditEntry, AuditFilter } from "../extensions/guardrails-audit/store.js";
 import { handleListAudit } from "./audit-routes.js";
 
 function mockReqRes(url = "/api/audit") {

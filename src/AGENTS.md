@@ -27,7 +27,6 @@ When you add a new file to `src/` or change what an existing module exports or d
 - `guardrails.ts` — policy enforcement: `assess`, `resolvePolicy`, config helpers, and exported types.
 - `guardrails-classify.ts` — risk classification: tool lists, pattern constants, `classifyRisk`, and `getToolMcpAnnotations` (derives MCP `tools/list` annotation hints from guardrail risk tier).
 - `tool-groups.ts` — tool-group activation machinery: `TOOL_GROUPS` (runtime-populated group registry, starts empty), `CORE_TOOL_NAMES`, `enableGroup`, `filterTools`, `registerCustomGroup` (called by extension loader and `tools/index.ts` to populate groups at runtime), `deregisterToolsFromGroups` (called on extension unload), `detectToolGroups` (auto-detects needed groups from a prompt), `enableToolsTool`/`runEnableTools` (the `enable_tools` agent tool).
-- `guardrails-audit.ts` — thin re-export shim; state ownership is in `extensions/guardrails-audit/store.ts`. Existing imports from `tools/audit.ts` and `server/audit-routes.ts` continue to work via this shim.
 - `file-changes.ts` — `ChangeTracker` class and singleton utilities: records original file content before first modification and supports undo within a session.
 - `file-diff.ts` — `simpleDiff` utility: line-based diff formatter for agent context display.
 - `log-format.ts` — `resolveLogFormatter`: resolves a log line formatter from config or `LOG_FORMAT` env var; supports `"text"` (default) and `"json"` (newline-delimited JSON for aggregators).

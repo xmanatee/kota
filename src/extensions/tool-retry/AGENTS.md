@@ -11,5 +11,5 @@ This directory owns the `tool-retry` built-in extension — retry middleware for
 
 - `index.ts` — `KotaExtension` definition; registers and unregisters the retry middleware.
 - `index.test.ts` — unit tests for retry middleware registration and behavior.
-- `tool-retry.ts` — core retry logic: `maybeRetry`, `ToolRetryConfig`, transient-error detection, retry stats tracking.
-- `tool-retry.test.ts` — unit tests for `maybeRetry` and retry configuration.
+- `tool-retry.ts` — core retry logic: `createRetryMiddleware`, `ToolRetryConfig`, transient-error detection, retry stats tracking.
+- `tool-retry.test.ts` — unit tests for retry policy classification and middleware behavior.

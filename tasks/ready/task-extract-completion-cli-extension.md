@@ -1,12 +1,12 @@
 ---
 id: task-extract-completion-cli-extension
 title: Move completion-cli.ts into a dedicated completion extension
-status: backlog
-priority: p3
+status: ready
+priority: p2
 area: architecture
 summary: src/completion-cli.ts (205 lines) implements kota completion [bash|zsh] and lives as a standalone core file. Moving it into a new src/extensions/completion/ extension continues the operator CLI surface migration.
 created_at: 2026-04-09T10:34:06Z
-updated_at: 2026-04-09T10:34:06Z
+updated_at: 2026-04-09T12:30:00Z
 ---
 
 ## Problem

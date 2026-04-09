@@ -10,6 +10,7 @@ import {
   assertTaskQueueValid,
   hasArchitectureReadyCoverageGap,
   hasStrategicReadyCoverageGap,
+  listRootLevelCliArchitectureDebt,
   validateTaskQueue,
 } from "./task-queue-validation.js";
 
@@ -296,14 +297,14 @@ Has an outcome.
 
     expect(hasArchitectureReadyCoverageGap(projectDir)).toBe(true);
     expect(() => assertArchitectureReadyCoverage(projectDir)).toThrow(
-      "tasks/ready must keep at least one architecture task",
+      "tasks/ready must keep at least one p1/p2 architecture task",
     );
   });
 
-  it("accepts architecture-ready coverage when a ready architecture task exists", () => {
+  it("accepts architecture-ready coverage when a ready p2 architecture task exists", () => {
     mkdirSync(join(projectDir, "src", "extensions"), { recursive: true });
     writeFileSync(join(projectDir, "src", "extensions", "daemon.ts"), "export default {};\n");
-    writeTask(projectDir, "ready", "task-architecture", { area: "architecture" });
+    writeTask(projectDir, "ready", "task-architecture", { area: "architecture", priority: "p2" });
     execSync("git add tasks src && git commit -m init", {
       cwd: projectDir,
       stdio: "ignore",
@@ -311,6 +312,40 @@ Has an outcome.
 
     expect(hasArchitectureReadyCoverageGap(projectDir)).toBe(false);
     expect(assertArchitectureReadyCoverage(projectDir)).toBe("architecture-ready-coverage-ok");
+  });
+
+  it("treats p3 architecture work as insufficient while visible architecture debt remains", () => {
+    mkdirSync(join(projectDir, "src"), { recursive: true });
+    writeFileSync(
+      join(projectDir, "src", "cli.ts"),
+      'import { registerCompletionCommands } from "./completion-cli.js";\n',
+    );
+    writeTask(projectDir, "ready", "task-architecture", { area: "architecture", priority: "p3" });
+    execSync("git add tasks src && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    expect(hasArchitectureReadyCoverageGap(projectDir)).toBe(true);
+  });
+
+  it("detects root-level CLI extraction debt from src/cli.ts", () => {
+    mkdirSync(join(projectDir, "src"), { recursive: true });
+    writeFileSync(
+      join(projectDir, "src", "cli.ts"),
+      [
+        'import { registerHistoryCommands } from "./cli-history.js";',
+        'import { registerCompletionCommands } from "./completion-cli.js";',
+        'import { registerWebhookCommands } from "./webhook-cli.js";',
+        'import { registerInitCommand } from "./init-cli.js";',
+      ].join("\n"),
+    );
+
+    expect(listRootLevelCliArchitectureDebt(projectDir)).toEqual([
+      join("src", "completion-cli.ts"),
+      join("src", "init-cli.ts"),
+      join("src", "webhook-cli.ts"),
+    ]);
   });
 });
 

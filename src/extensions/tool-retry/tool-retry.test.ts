@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ToolResult } from "../../tools/index.js";
-import { createRetryMiddleware, getRetryStats, maybeRetry, RETRY_POLICIES, resetRetryStats } from "./tool-retry.js";
+import { createRetryMiddleware, getRetryStats, RETRY_POLICIES, resetRetryStats } from "./tool-retry.js";
 
 // --- Shell retry policy ---
 
@@ -84,81 +84,6 @@ describe("RETRY_POLICIES.web_search", () => {
 
   it("does not retry on permanent errors", () => {
     expect(shouldRetry("Error: query is required", {})).toBe(false);
-  });
-});
-
-// --- maybeRetry integration ---
-
-describe("maybeRetry", () => {
-  const failed: ToolResult = { content: "Command timed out after 120000ms", is_error: true };
-
-  it("returns null for tools with no retry policy", async () => {
-    const runner = vi.fn();
-    const result = await maybeRetry("file_read", {}, failed, runner);
-    expect(result).toBeNull();
-    expect(runner).not.toHaveBeenCalled();
-  });
-
-  it("returns null when error does not match policy", async () => {
-    const runner = vi.fn();
-    const nonTimeout: ToolResult = { content: "exit code 1", is_error: true };
-    const result = await maybeRetry("shell", { command: "ls" }, nonTimeout, runner);
-    expect(result).toBeNull();
-    expect(runner).not.toHaveBeenCalled();
-  });
-
-  it("retries shell timeout and returns success", async () => {
-    const runner = vi.fn().mockResolvedValue({ content: "all tests pass" });
-    const result = await maybeRetry("shell", { command: "npm test" }, failed, runner);
-
-    expect(result).not.toBeNull();
-    expect(result!.is_error).toBeUndefined();
-    expect(result!.content).toContain("all tests pass");
-    expect(result!.content).toContain("auto-retry");
-    expect(runner).toHaveBeenCalledWith("shell", { command: "npm test", timeout_ms: 240_000 });
-  });
-
-  it("returns combined error on double failure", async () => {
-    const retryFail: ToolResult = { content: "timed out again at 240s", is_error: true };
-    const runner = vi.fn().mockResolvedValue(retryFail);
-    const result = await maybeRetry("shell", { command: "npm test" }, failed, runner);
-
-    expect(result).not.toBeNull();
-    expect(result!.is_error).toBe(true);
-    expect(result!.content).toContain("Auto-retry also failed");
-    expect(result!.content).toContain("timed out again");
-    expect(result!.content).toContain("Original error");
-  });
-
-  it("retries web_fetch with delay", async () => {
-    vi.useFakeTimers();
-    const runner = vi.fn().mockResolvedValue({ content: "<html>page</html>" });
-    const webFail: ToolResult = { content: "Fetch error: ECONNRESET", is_error: true };
-
-    const promise = maybeRetry("web_fetch", { url: "https://example.com" }, webFail, runner);
-    // Advance past the 1500ms delay
-    await vi.advanceTimersByTimeAsync(1500);
-    const result = await promise;
-
-    expect(result).not.toBeNull();
-    expect(result!.content).toContain("<html>page</html>");
-    expect(runner).toHaveBeenCalledWith("web_fetch", { url: "https://example.com" });
-    vi.useRealTimers();
-  });
-
-  it("does not adjust input for web tools (no adjustInput)", async () => {
-    const runner = vi.fn().mockResolvedValue({ content: "results" });
-    const webFail: ToolResult = { content: "HTTP 502 Bad Gateway", is_error: true };
-
-    // Use real timers for simplicity — the 1.5s delay runs but test is fine
-    vi.useFakeTimers();
-    const promise = maybeRetry("web_search", { query: "test" }, webFail, runner);
-    await vi.advanceTimersByTimeAsync(1500);
-    const result = await promise;
-
-    expect(runner).toHaveBeenCalledWith("web_search", { query: "test" });
-    expect(result!.content).toContain("results");
-    vi.useRealTimers();
   });
 });
 

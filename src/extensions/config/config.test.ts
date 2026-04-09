@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { registerConfigCommands } from "./index.js";
+import { buildConfigCommand } from "./index.js";
 
 const { FAKE_HOME } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -30,7 +30,7 @@ function makeProjectDir(): string {
 function makeProgram(): Command {
   const program = new Command();
   program.exitOverride();
-  registerConfigCommands(program);
+  program.addCommand(buildConfigCommand());
   return program;
 }
 

@@ -1,12 +1,12 @@
 ---
 id: task-extract-init-cli-extension
 title: Move init-cli.ts into a dedicated init extension
-status: backlog
-priority: p3
+status: ready
+priority: p2
 area: architecture
 summary: src/init-cli.ts (174 lines) implements kota init and is imported directly by src/cli.ts. Moving it into a src/extensions/init/ extension continues the operator CLI surface migration.
 created_at: 2026-04-09T10:47:41Z
-updated_at: 2026-04-09T10:47:41Z
+updated_at: 2026-04-09T12:30:00Z
 ---
 
 ## Problem
