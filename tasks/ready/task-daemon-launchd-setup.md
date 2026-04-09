@@ -1,12 +1,12 @@
 ---
 id: task-daemon-launchd-setup
 title: Add kota daemon install command to register the daemon as a launchd/systemd service
-status: backlog
-priority: p3
+status: ready
+priority: p2
 area: operator-ux
 summary: Operators must manually configure launchd (macOS) or systemd (Linux) to keep the KOTA daemon running after reboot. A `kota daemon install` command that generates and loads the appropriate service unit removes a manual setup step and prevents silent daemon outages.
 created_at: 2026-04-09T00:30:00Z
-updated_at: 2026-04-09T00:30:00Z
+updated_at: 2026-04-09T02:03:33Z
 ---
 
 ## Problem

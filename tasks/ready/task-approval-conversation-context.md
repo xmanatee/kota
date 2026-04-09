@@ -1,12 +1,12 @@
 ---
 id: task-approval-conversation-context
 title: Include agent conversation context in approval queue items
-status: backlog
-priority: p3
+status: ready
+priority: p2
 area: operator-ux
 summary: Attach the last few agent conversation turns to each approval item so operators understand why the tool call is being made before deciding to approve or reject.
 created_at: 2026-04-08T22:45:00Z
-updated_at: 2026-04-08T22:45:00Z
+updated_at: 2026-04-09T02:03:33Z
 ---
 
 ## Problem
