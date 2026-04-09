@@ -12,8 +12,8 @@ import { handleLogs } from "./logs.js";
 // Public API
 export { moduleFactoryTool } from "./definition.js";
 export {
-	getLoadedManifestModuleCount,
-	markModuleLoaded,
+	addLoadedModule,
+	loadedModuleCount,
 	resetModuleFactory,
 } from "./state.js";
 

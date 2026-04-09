@@ -13,11 +13,9 @@ import { handleCreate, handleInfo, handleList, handleRemove } from "./actions.js
 import { handleLogs } from "./logs.js";
 import {
 	addLoadedModule,
-	getLoadedManifestModuleCount,
 	isModuleLoaded,
 	loadedModuleCount,
 	loadedModuleNames,
-	markModuleLoaded,
 	removeLoadedModule,
 	resetModuleFactory,
 } from "./state.js";
@@ -95,10 +93,10 @@ describe("state — granular operations", () => {
 		expect(names).toHaveLength(3);
 	});
 
-	it("markModuleLoaded is idempotent", () => {
-		markModuleLoaded("x");
-		markModuleLoaded("x");
-		expect(getLoadedManifestModuleCount()).toBe(1);
+	it("addLoadedModule is idempotent", () => {
+		addLoadedModule("x");
+		addLoadedModule("x");
+		expect(loadedModuleCount()).toBe(1);
 	});
 });
 

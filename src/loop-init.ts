@@ -21,7 +21,7 @@ import { resetToolTelemetry } from "./tool-telemetry.js";
 import { resetAgentStatusProviders } from "./tools/agent-status.js";
 import { loadSavedTools, resetCustomTools } from "./tools/custom-tool.js";
 import { setDelegateConfig } from "./tools/delegate.js";
-import { markModuleLoaded, resetModuleFactory } from "./tools/module-factory/index.js";
+import { addLoadedModule, resetModuleFactory } from "./tools/module-factory/index.js";
 import type { Transport } from "./transport.js";
 import type { VerifyTracker } from "./verify-tracker.js";
 
@@ -88,7 +88,7 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
 
   const projectModules = await discoverProjectModules();
   const modules = await discoverModules(undefined, state.verbose);
-  for (const { name } of listManifestModules()) markModuleLoaded(name);
+  for (const { name } of listManifestModules()) addLoadedModule(name);
   await state.moduleLoader.loadAll([...projectModules, ...modules]);
 
   const skillsPrompt = state.moduleLoader.getSkillsPrompt();

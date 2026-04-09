@@ -97,7 +97,6 @@ export class Daemon {
       bus: this.bus,
       projectDir: this.projectDir,
       model: config.model ?? config.config?.model,
-      verbose: config.verbose,
       config: config.config,
       idleIntervalMs: config.idleIntervalMs,
       agentConcurrency: config.config?.scheduler?.agentConcurrency,

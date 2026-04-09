@@ -249,7 +249,7 @@ Add `foreignModules` to your `.kota/config.json`:
     {
       "transport": "stdio",
       "command": "python3",
-      "args": ["path/to/my_extension.py"],
+      "args": ["path/to/my_module.py"],
       "env": {"MY_API_KEY": "..."},
       "cwd": "."
     }

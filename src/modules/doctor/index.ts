@@ -149,14 +149,12 @@ function checkDisk(projectDir: string): CheckResult[] {
     results.push(warn("Disk: .kota/modules/", "Missing — run `kota doctor --fix` to create canonical module state"));
   }
 
-  const unexpectedExtensionsDir = join(kotaDir, "extensions");
-  if (existsSync(unexpectedExtensionsDir)) {
-    results.push(
-      warn(
-        "Disk: unexpected .kota/extensions/",
-        "Unexpected old runtime path is present; remove it manually",
-      ),
-    );
+  const unexpectedKotaSubdirs = ["extensions"];
+  for (const sub of unexpectedKotaSubdirs) {
+    const subPath = join(kotaDir, sub);
+    if (existsSync(subPath)) {
+      results.push(warn(`Disk: stray .kota/${sub}/`, `Remove this directory — it is no longer used`));
+    }
   }
 
   for (const strayDir of ["runs", "kota"]) {
@@ -204,7 +202,7 @@ async function checkWorkflowDefinitions(projectDir: string): Promise<CheckResult
   }
 }
 
-async function checkExtensions(projectDir: string): Promise<CheckResult[]> {
+async function checkModules(projectDir: string): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
   try {
     const loader = await loadModuleMetadata(loadConfig(projectDir), projectDir, false);
@@ -302,7 +300,7 @@ export async function runDoctorChecks(
   if (status) {
     results.push(pass("Modules", "Managed by daemon (use `kota module list` for details)"));
   } else {
-    const extResults = await checkExtensions(projectDir);
+    const extResults = await checkModules(projectDir);
     results.push(...extResults);
   }
 

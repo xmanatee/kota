@@ -6,7 +6,6 @@ export type WorkflowRuntimeConfig = {
   bus: EventBus;
   projectDir?: string;
   model?: string;
-  verbose?: boolean;
   config?: KotaConfig;
   idleIntervalMs?: number;
   /**

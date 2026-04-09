@@ -42,7 +42,7 @@ describe("Daemon", () => {
       `kota-daemon-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
     stateDir = join(projectDir, ".kota");
-    mkdirSync(join(projectDir, "src", "workflows", "builder"), { recursive: true });
+    mkdirSync(join(projectDir, "src", "modules", "autonomy", "workflows", "builder"), { recursive: true });
     resetEventBus();
     resetScheduler();
     mockedExecuteWithAgentSDK.mockReset();
@@ -78,7 +78,7 @@ describe("Daemon", () => {
 
   it("starts and stops cleanly", async () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
     mockedExecuteWithAgentSDK.mockResolvedValue({
@@ -115,7 +115,7 @@ describe("Daemon", () => {
 
   it("records completed autonomous runs in daemon state", async () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
     mockedExecuteWithAgentSDK.mockResolvedValue({
@@ -223,7 +223,7 @@ describe("Daemon", () => {
 
   it("persists completed run state to disk", async () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
     mockedExecuteWithAgentSDK.mockResolvedValue({
@@ -263,7 +263,7 @@ describe("Daemon", () => {
 
   it("can be started again after stop", async () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
     mockedExecuteWithAgentSDK.mockResolvedValue({
@@ -304,7 +304,7 @@ describe("Daemon", () => {
 
   it("records failed workflow status without requesting restart", async () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
     mockedExecuteWithAgentSDK.mockResolvedValue({

@@ -128,11 +128,7 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
    * Execution does not resolve workflow steps through a global agent catalog.
    */
   agentName?: string;
-  /**
-   * Path to the prompt markdown file (relative to project root).
-   * Required. Workflow steps are self-contained and do not inherit prompt paths
-   * from a separate agent catalog.
-   */
+  /** Path to the prompt markdown file (relative to project root). */
   promptPath?: string;
   model?: string;
   maxTurns?: number;

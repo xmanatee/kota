@@ -44,7 +44,7 @@ export class WorkflowRuntime {
   private readonly codeConcurrency: number;
   private readonly model?: string;
   private readonly config?: KotaConfig;
-  private readonly verbose: boolean;
+
   private readonly onLog?: (message: string) => void;
   private workflowInputs?: readonly RegisteredWorkflowDefinitionInput[];
   private readonly backoff: AgentBackoffManager;
@@ -78,7 +78,7 @@ export class WorkflowRuntime {
     this.codeConcurrency = runtimeConfig.codeConcurrency ?? 4;
     this.model = runtimeConfig.model;
     this.config = runtimeConfig.config;
-    this.verbose = runtimeConfig.verbose ?? false;
+
     this.onLog = runtimeConfig.onLog;
     this.workflowInputs = runtimeConfig.workflows;
     this.backoff = new AgentBackoffManager(
@@ -531,7 +531,6 @@ export class WorkflowRuntime {
   }
 
   private log(message: string): void {
-    if (!this.verbose && !this.onLog) return;
     this.onLog?.(message);
   }
 }

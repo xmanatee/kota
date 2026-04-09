@@ -124,7 +124,7 @@ describe("kota doctor — offline path", () => {
     mkdirSync(join(projectDir, "kota"), { recursive: true });
 
     const results = await runDoctorChecks(projectDir);
-    expect(results.find((r) => r.label === "Disk: unexpected .kota/extensions/")?.status).toBe("warn");
+    expect(results.find((r) => r.label === "Disk: stray .kota/extensions/")?.status).toBe("warn");
     expect(results.find((r) => r.label === "Disk: stray runs/")?.status).toBe("warn");
     expect(results.find((r) => r.label === "Disk: stray kota/")?.status).toBe("warn");
   });

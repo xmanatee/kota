@@ -24,15 +24,6 @@ export function removeLoadedModule(name: string): void {
 	loadedManifestModules.delete(name);
 }
 
-/** Track a module as loaded in this session (called during startup discovery). */
-export function markModuleLoaded(name: string): void {
-	loadedManifestModules.add(name);
-}
-
-/** Get count of loaded manifest modules. For testing. */
-export function getLoadedManifestModuleCount(): number {
-	return loadedManifestModules.size;
-}
 
 /** Clear state. For testing. */
 export function resetModuleFactory(): void {

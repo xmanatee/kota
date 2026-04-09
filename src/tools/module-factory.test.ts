@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { initModuleLogStore, resetModuleLogStore } from "../module-log.js";
 import {
-	getLoadedManifestModuleCount,
-	markModuleLoaded,
+	addLoadedModule,
+	loadedModuleCount,
 	resetModuleFactory,
 	runModuleFactory,
 } from "./module-factory/index.js";
@@ -166,16 +166,16 @@ describe("runModuleFactory — unknown action", () => {
 
 
 describe("session lifecycle", () => {
-	it("markModuleLoaded tracks loaded modules", () => {
-		expect(getLoadedManifestModuleCount()).toBe(0);
-		markModuleLoaded("my-mod");
-		expect(getLoadedManifestModuleCount()).toBe(1);
+	it("addLoadedModule tracks loaded modules", () => {
+		expect(loadedModuleCount()).toBe(0);
+		addLoadedModule("my-mod");
+		expect(loadedModuleCount()).toBe(1);
 	});
 
 	it("resetModuleFactory clears state", () => {
-		markModuleLoaded("my-mod");
+		addLoadedModule("my-mod");
 		resetModuleFactory();
-		expect(getLoadedManifestModuleCount()).toBe(0);
+		expect(loadedModuleCount()).toBe(0);
 	});
 });
 

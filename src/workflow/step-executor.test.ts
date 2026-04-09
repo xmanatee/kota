@@ -90,9 +90,9 @@ describe("executeAgentStep", () => {
       tmpdir(),
       `kota-step-executor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(join(projectDir, "src", "workflows", "test"), { recursive: true });
+    mkdirSync(join(projectDir, "src", "modules", "test", "workflows", "test"), { recursive: true });
     writeFileSync(
-      join(projectDir, "src", "workflows", "test", "prompt.md"),
+      join(projectDir, "src", "modules", "test", "workflows", "test", "prompt.md"),
       "Test prompt.\n",
     );
     agentConfig = { projectDir };
@@ -300,9 +300,9 @@ describe("buildAgentPrompt", () => {
       tmpdir(),
       `kota-build-prompt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(join(projectDir, "src", "workflows", "test"), { recursive: true });
+    mkdirSync(join(projectDir, "src", "modules", "test", "workflows", "test"), { recursive: true });
     writeFileSync(
-      join(projectDir, "src", "workflows", "test", "prompt.md"),
+      join(projectDir, "src", "modules", "test", "workflows", "test", "prompt.md"),
       "Test prompt.\n",
     );
   });
@@ -581,9 +581,9 @@ describe("executeStep repair loop", () => {
       tmpdir(),
       `kota-repair-loop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(join(projectDir, "src", "workflows", "test"), { recursive: true });
+    mkdirSync(join(projectDir, "src", "modules", "test", "workflows", "test"), { recursive: true });
     writeFileSync(
-      join(projectDir, "src", "workflows", "test", "prompt.md"),
+      join(projectDir, "src", "modules", "test", "workflows", "test", "prompt.md"),
       "Test prompt.\n",
     );
     agentConfig = { projectDir };

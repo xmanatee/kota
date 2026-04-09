@@ -91,9 +91,9 @@
         }
       }
     },
-    "extensions": {
+    "modules": {
       "type": "object",
-      "description": "Per-extension configuration. Keys are extension names; values are extension-specific settings.",
+      "description": "Per-module configuration. Keys are module names; values are module-specific settings.",
       "additionalProperties": {
         "type": "object",
         "additionalProperties": true
@@ -101,12 +101,12 @@
     },
     "foreignModules": {
       "type": "array",
-      "description": "Foreign-language (out-of-process) extensions. See docs/FOREIGN-MODULES.md.",
+      "description": "Foreign-language (out-of-process) modules. See docs/FOREIGN-MODULES.md.",
       "items": {
         "oneOf": [
           {
             "type": "object",
-            "description": "Subprocess extension communicating via stdio (KEMP protocol).",
+            "description": "Subprocess module communicating via stdio (KEMP protocol).",
             "required": ["transport", "command"],
             "additionalProperties": false,
             "properties": {
@@ -133,14 +133,14 @@
           },
           {
             "type": "object",
-            "description": "HTTP extension communicating via HTTP (KEMP protocol).",
+            "description": "HTTP module communicating via HTTP (KEMP protocol).",
             "required": ["transport", "url"],
             "additionalProperties": false,
             "properties": {
               "transport": { "type": "string", "enum": ["http"] },
               "url": {
                 "type": "string",
-                "description": "Base URL for the HTTP extension endpoint."
+                "description": "Base URL for the HTTP module endpoint."
               }
             }
           }
@@ -192,7 +192,7 @@
     },
     "agentModels": {
       "type": "object",
-      "description": "Per-agent model overrides. Keys are agent names (built-in or extension-contributed); values are model IDs.",
+      "description": "Per-agent model overrides. Keys are agent names (built-in or module-contributed); values are model IDs.",
       "additionalProperties": { "type": "string" }
     },
     "webhooks": {

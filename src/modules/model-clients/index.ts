@@ -12,9 +12,9 @@ import { createModelClientImpl } from "./factory.js";
 // Self-register at module load so the registry is ready before initAgentSession.
 registerModelClientFactory(createModelClientImpl);
 
-const modelClientsExtension: KotaModule = {
+const modelClientsModule: KotaModule = {
 	name: "model-clients",
 	description: "ModelClient implementations: Anthropic SDK and OpenAI-compatible providers.",
 };
 
-export default modelClientsExtension;
+export default modelClientsModule;

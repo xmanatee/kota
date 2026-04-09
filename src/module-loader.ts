@@ -116,64 +116,64 @@ export class ModuleLoader {
     return createModuleContext(params, moduleName);
   }
 
-  async load(ext: KotaModule): Promise<void> {
-    if (this.modules.some((e) => e.name === ext.name)) {
-      throw new Error(`Duplicate module name: "${ext.name}"`);
+  async load(mod: KotaModule): Promise<void> {
+    if (this.modules.some((m) => m.name === mod.name)) {
+      throw new Error(`Duplicate module name: "${mod.name}"`);
     }
 
-    if (ext.dependencies) {
-      for (const dep of ext.dependencies) {
-        if (!this.modules.some((e) => e.name === dep)) {
-          throw new Error(`Module "${ext.name}" requires "${dep}" which is not loaded`);
+    if (mod.dependencies) {
+      for (const dep of mod.dependencies) {
+        if (!this.modules.some((m) => m.name === dep)) {
+          throw new Error(`Module "${mod.name}" requires "${dep}" which is not loaded`);
         }
       }
     }
 
-    const ctx = this.createContext(ext.name);
-    const tools: ToolDef[] | undefined = ext.tools
-      ? typeof ext.tools === "function" ? ext.tools(ctx) : ext.tools
+    const ctx = this.createContext(mod.name);
+    const tools: ToolDef[] | undefined = mod.tools
+      ? typeof mod.tools === "function" ? mod.tools(ctx) : mod.tools
       : undefined;
 
     if (tools && !this.commandsOnly) {
       for (const def of tools) {
         if (!def.risk) {
-          console.error(`[kota] Module "${ext.name}" tool "${def.tool.name}" has no risk annotation — defaulting to unclassified (moderate)`);
+          console.error(`[kota] Module "${mod.name}" tool "${def.tool.name}" has no risk annotation — defaulting to unclassified (moderate)`);
         }
-        registerTool(def.tool, def.runner, ext.name, { risk: def.risk, kind: def.kind });
+        registerTool(def.tool, def.runner, mod.name, { risk: def.risk, kind: def.kind });
         if (def.group) registerCustomGroup(def.group, [def.tool.name]);
       }
-      this.moduleToolCounts.set(ext.name, tools.length);
+      this.moduleToolCounts.set(mod.name, tools.length);
     }
 
-    const workflows = await resolveModuleWorkflows(ext, ctx);
+    const workflows = await resolveModuleWorkflows(mod, ctx);
     if (workflows.length > 0) {
       const resolvedWorkflows = workflows.map((def) =>
         "definitionPath" in def
           ? def
           : {
               ...def,
-              definitionPath: `modules/${ext.name}`,
+              definitionPath: `modules/${mod.name}`,
             },
       );
-      this.moduleWorkflowDefs.set(ext.name, resolvedWorkflows);
+      this.moduleWorkflowDefs.set(mod.name, resolvedWorkflows);
       for (const def of resolvedWorkflows) {
         this.contributedWorkflows.push(def);
       }
     }
 
-    const channels = await resolveModuleChannels(ext, ctx);
+    const channels = await resolveModuleChannels(mod, ctx);
     if (channels.length > 0) {
-      this.moduleChannelDefs.set(ext.name, channels);
+      this.moduleChannelDefs.set(mod.name, channels);
       for (const def of channels) {
         this.contributedChannels.push(def);
       }
     }
 
-    if (ext.onLoad && !this.commandsOnly) await ext.onLoad(ctx);
+    if (mod.onLoad && !this.commandsOnly) await mod.onLoad(ctx);
 
-    const skills = await resolveModuleSkills(ext, ctx);
+    const skills = await resolveModuleSkills(mod, ctx);
     if (skills.length > 0) {
-      this.moduleSkillDefs.set(ext.name, skills);
+      this.moduleSkillDefs.set(mod.name, skills);
       if (!this.commandsOnly) {
         for (const skill of skills) {
           try {
@@ -181,22 +181,22 @@ export class ModuleLoader {
             if (content) this.skillContents.push(`### ${skill.name}\n${content}`);
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            console.error(`[kota] Module "${ext.name}" skill "${skill.name}" failed to load: ${msg}`);
+            console.error(`[kota] Module "${mod.name}" skill "${skill.name}" failed to load: ${msg}`);
           }
         }
       }
     }
 
-    const agents = await resolveModuleAgents(ext, ctx);
+    const agents = await resolveModuleAgents(mod, ctx);
     if (agents.length > 0) {
-      this.moduleAgentDefs.set(ext.name, agents);
+      this.moduleAgentDefs.set(mod.name, agents);
     }
 
-    this.modules.push(ext);
-    this.moduleRegistry.set(ext.name, ext);
+    this.modules.push(mod);
+    this.moduleRegistry.set(mod.name, mod);
     if (this.verbose) {
-      const tc = this.moduleToolCounts.get(ext.name) ?? 0;
-      console.error(`[kota] Module "${ext.name}" loaded (${tc} tools)`);
+      const tc = this.moduleToolCounts.get(mod.name) ?? 0;
+      console.error(`[kota] Module "${mod.name}" loaded (${tc} tools)`);
     }
   }
 

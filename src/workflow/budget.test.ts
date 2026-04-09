@@ -180,8 +180,8 @@ describe("BudgetGuard soft-limit warning", () => {
     const warningEvents: Record<string, unknown>[] = [];
     bus.on("workflow.budget.warning", (payload) => warningEvents.push(payload));
 
-    mkdirSync(join(projectDir, "src", "workflows", "builder"), { recursive: true });
-    writeFileSync(join(projectDir, "src", "workflows", "builder", "prompt.md"), "Build.\n");
+    mkdirSync(join(projectDir, "src", "modules", "autonomy", "workflows", "builder"), { recursive: true });
+    writeFileSync(join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"), "Build.\n");
     const todayUtc = new Date().toISOString().slice(0, 10);
     const store = new WorkflowRunStore(projectDir);
     // 0.9 spent of 1.0 budget = 90%, crosses 80% warnAt
@@ -231,8 +231,8 @@ describe("BudgetGuard soft-limit warning", () => {
     // 0.5 spent of 1.0 budget = 50%, below 80% warnAt
     writeRunMetadata(store.runsDir, "prior-run", 0.5, `${todayUtc}T06:00:00.000Z`);
 
-    mkdirSync(join(projectDir, "src", "workflows", "builder"), { recursive: true });
-    writeFileSync(join(projectDir, "src", "workflows", "builder", "prompt.md"), "Build.\n");
+    mkdirSync(join(projectDir, "src", "modules", "autonomy", "workflows", "builder"), { recursive: true });
+    writeFileSync(join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"), "Build.\n");
     mockedExecuteWithAgentSDK.mockResolvedValue({
       text: "done",
       streamedText: "",
@@ -272,8 +272,8 @@ describe("BudgetGuard soft-limit warning", () => {
     const store = new WorkflowRunStore(projectDir);
     writeRunMetadata(store.runsDir, "prior-run", 0.9, `${todayUtc}T06:00:00.000Z`);
 
-    mkdirSync(join(projectDir, "src", "workflows", "builder"), { recursive: true });
-    writeFileSync(join(projectDir, "src", "workflows", "builder", "prompt.md"), "Build.\n");
+    mkdirSync(join(projectDir, "src", "modules", "autonomy", "workflows", "builder"), { recursive: true });
+    writeFileSync(join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"), "Build.\n");
     mockedExecuteWithAgentSDK.mockResolvedValue({
       text: "done",
       streamedText: "",
@@ -314,8 +314,8 @@ describe("BudgetGuard soft-limit warning", () => {
     const store = new WorkflowRunStore(projectDir);
     writeRunMetadata(store.runsDir, "prior-run", 0.9, `${todayUtc}T06:00:00.000Z`);
 
-    mkdirSync(join(projectDir, "src", "workflows", "builder"), { recursive: true });
-    writeFileSync(join(projectDir, "src", "workflows", "builder", "prompt.md"), "Build.\n");
+    mkdirSync(join(projectDir, "src", "modules", "autonomy", "workflows", "builder"), { recursive: true });
+    writeFileSync(join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"), "Build.\n");
     mockedExecuteWithAgentSDK.mockResolvedValue({
       text: "done",
       streamedText: "",
@@ -355,7 +355,7 @@ describe("WorkflowRuntime budget enforcement", () => {
       tmpdir(),
       `kota-budget-rt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(join(projectDir, "src", "workflows", "builder"), { recursive: true });
+    mkdirSync(join(projectDir, "src", "modules", "autonomy", "workflows", "builder"), { recursive: true });
     mockedExecuteWithAgentSDK.mockReset();
     mockedCallTelegramApi.mockReset();
     mockedCallTelegramApi.mockResolvedValue({ ok: true, result: {} } as never);
@@ -371,7 +371,7 @@ describe("WorkflowRuntime budget enforcement", () => {
 
   it("pauses dispatch and emits workflow.budget.exceeded event when daily budget is reached", async () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build something useful.\n",
     );
 
@@ -435,7 +435,7 @@ describe("WorkflowRuntime budget enforcement", () => {
 
   it("does not pause dispatch when spend is below budget", async () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build something useful.\n",
     );
 
@@ -592,8 +592,8 @@ describe("WorkflowRuntime budget enforcement", () => {
   });
 
   it("allows a workflow to run when only another workflow's budget is exhausted", async () => {
-    mkdirSync(join(projectDir, "src", "workflows", "explorer"), { recursive: true });
-    writeFileSync(join(projectDir, "src", "workflows", "builder", "prompt.md"), "Build.\n");
+    mkdirSync(join(projectDir, "src", "modules", "autonomy", "workflows", "explorer"), { recursive: true });
+    writeFileSync(join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"), "Build.\n");
     mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
     const todayUtc = new Date().toISOString().slice(0, 10);
     const store = new WorkflowRunStore(projectDir);
@@ -646,7 +646,7 @@ describe("WorkflowRuntime budget enforcement", () => {
 
   it("behaves normally when no dailyBudgetUsd is configured", async () => {
     writeFileSync(
-      join(projectDir, "src", "workflows", "builder", "prompt.md"),
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 

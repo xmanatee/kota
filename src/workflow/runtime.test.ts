@@ -1730,7 +1730,7 @@ describe("WorkflowRuntime", () => {
         join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
         "Build.\n",
       );
-      mkdirSync(join(projectDir, "src", "workflows", "formatter"), { recursive: true });
+      mkdirSync(join(projectDir, "src", "modules", "test", "workflows", "formatter"), { recursive: true });
       writeFileSync(
         join(projectDir, "src", "modules", "test", "workflows", "formatter", "prompt.md"),
         "Format.\n",
@@ -1860,7 +1860,7 @@ describe("WorkflowRuntime", () => {
         join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
         "Build.\n",
       );
-      mkdirSync(join(projectDir, "src", "workflows", "formatter"), { recursive: true });
+      mkdirSync(join(projectDir, "src", "modules", "test", "workflows", "formatter"), { recursive: true });
       writeFileSync(
         join(projectDir, "src", "modules", "test", "workflows", "formatter", "prompt.md"),
         "Format.\n",
