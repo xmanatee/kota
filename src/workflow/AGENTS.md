@@ -13,7 +13,7 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 - `runtime-dispatch.ts` — Extracted dispatch functions (`loadDefinitions`, `emitIdleEvent`, `maybeStartNext`, `runWorkflow`) and `WorkflowRuntimeDispatchState` interface. Idle triggers respect `scheduler.dispatchWindow` from config.
 - `runtime-config.ts` — `WorkflowRuntimeConfig` type definition.
 - `runtime-signals.ts` — `checkAbortSignal`, `checkReloadSignal`, and signal-file constants.
-- `budget-guard.ts` — `BudgetGuard`: daily spend tracking; emits `workflow.budget.exceeded` and `workflow.cost.limit.reached` bus events when thresholds are crossed.
+- `budget-guard.ts` — `BudgetGuard`: daily spend tracking; invokes caller-supplied callbacks for `workflow.budget.warning` (soft-limit, one-time per UTC day) and `workflow.budget.exceeded` (hard stop, pauses dispatch until tomorrow).
 - `cost-anomaly-detector.ts` — `detectCostAnomaly`: compares a completed run's cost against the rolling average of recent non-failed runs; returns a result if the `costAnomalyThreshold` multiplier is exceeded. Called by `run-executor.ts` to emit `workflow.cost.anomaly`.
 - `workflow-queue.ts` — `WorkflowQueueManager`: queue state, enqueue (with inputSchema payload validation), pick, restore, persist, `cancelByWorkflow` (removes all queued runs for a named workflow).
 - `payload-validator.ts` — `validatePayloadSchema`: minimal JSON Schema validator (type, required, properties, additionalProperties, items) used to validate trigger payloads against a workflow's optional `inputSchema` and completed run outputs against an optional `outputSchema`.
