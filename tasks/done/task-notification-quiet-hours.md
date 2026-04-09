@@ -1,7 +1,7 @@
 ---
 id: task-notification-quiet-hours
 title: Add configurable quiet hours to suppress non-critical channel notifications outside specified hours
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: Channel notifications (Telegram, Slack) fire at any hour, disturbing operators with low-urgency alerts. A quiet-hours config window holds non-critical notifications and delivers them in a batch when the window opens.

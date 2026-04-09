@@ -112,6 +112,7 @@ See `src/config.ts` (`KotaConfig` type) for the full list of supported fields an
 - `runsGc` — run artifact retention policy
 - `webhooks` — per-workflow webhook secrets
 - `scheduler.dispatchWindow` — restrict idle and interval triggers to specific hours/days (see below)
+- `notifications.quietHours` — suppress non-critical channel notifications outside specified hours (see below)
 - `workflow.maxStepOutputBytes` — cap step output size to prevent large outputs flooding disk and agent context (see below)
 - `mcp.sampling.enabled` — allow MCP clients to delegate LLM completions to KOTA (default: `false`; see `docs/MCP.md`)
 
@@ -188,6 +189,36 @@ When dispatch is blocked by the window, `GET /workflow/status` includes `dispatc
 and `dispatchWindowOpensAt` (ISO timestamp of when the window next opens). `kota workflow status`
 prints `Dispatch: blocked by window (opens Mon 09:00)` and the web UI shows a badge next to the
 Pause/Resume button.
+
+## Notifications
+
+### notifications.quietHours
+
+Suppresses non-critical channel notifications (Telegram, Slack, webhook) during specified hours and releases them as a single batched digest when the window ends. Workflows and the scheduler continue running normally — only channel delivery is affected.
+
+```json
+{
+  "notifications": {
+    "quietHours": {
+      "start": "22:00",
+      "end": "08:00",
+      "allowCritical": true
+    }
+  }
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `start` | Yes | Quiet period start in local time, `"HH:MM"` (24-hour). |
+| `end` | Yes | Quiet period end in local time, `"HH:MM"` (24-hour). Windows crossing midnight (e.g. `22:00`–`08:00`) are supported. |
+| `allowCritical` | No | When `true` (default), `workflow.failure.alert` and `extension.crash.alert` bypass quiet hours and are delivered immediately. |
+
+**Events held during quiet hours:** `workflow.attention.digest`, `workflow.budget.exceeded`, `workflow.budget.warning`.
+
+**Batch release:** When quiet hours end, all held events are released as a single `workflow.attention.digest` message (one message per channel, not one per held event). Notifications held at daemon restart are lost — the operator receives a fresh digest at the next window opening.
+
+Times use the daemon's local timezone. When no `quietHours` config is set, behavior is identical to today.
 
 ## Extensions
 

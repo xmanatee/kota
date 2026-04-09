@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { ForeignExtensionConfig } from "./foreign-extension.js";
 import { type GuardrailsConfig, sanitizeGuardrailsConfig } from "./guardrails.js";
 import type { ModelTiers } from "./model/model-router.js";
+import { type QuietHoursConfig, validateQuietHours } from "./notification-gate.js";
 import { type DispatchWindow, validateDispatchWindow } from "./workflow/dispatch-window.js";
 
 /**
@@ -142,6 +143,15 @@ export type KotaConfig = {
      * Example: 300000 suppresses repeated alerts within 5 minutes.
      */
     alertCooldownMs?: number;
+    /**
+     * Suppress non-critical channel notifications outside specified hours.
+     * Events held during quiet hours are released as a single batched digest
+     * when the window ends. workflow.failure.alert bypasses quiet hours by default.
+     *
+     * @example
+     * { "start": "22:00", "end": "08:00", "allowCritical": true }
+     */
+    quietHours?: QuietHoursConfig;
   };
 
   /** Foreign extension health monitoring settings. */
@@ -348,6 +358,15 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     const n: KotaConfig["notifications"] = {};
     if (typeof src.alertCooldownMs === "number" && src.alertCooldownMs >= 0) {
       n.alertCooldownMs = src.alertCooldownMs;
+    }
+    if (src.quietHours !== undefined && !validateQuietHours(src.quietHours)) {
+      const qh = src.quietHours as Record<string, unknown>;
+      const quietHours: QuietHoursConfig = {
+        start: qh.start as string,
+        end: qh.end as string,
+      };
+      if (typeof qh.allowCritical === "boolean") quietHours.allowCritical = qh.allowCritical;
+      n.quietHours = quietHours;
     }
     if (Object.keys(n).length > 0) out.notifications = n;
   }

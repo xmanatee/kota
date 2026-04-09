@@ -8,6 +8,7 @@ import { type EventBus, initEventBus } from "../event-bus.js";
 import { initExtensionLogStore } from "../extension-log.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
 import type { LogFormat } from "../log-format.js";
+import { NotificationGate } from "../notification-gate.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import { WorkflowRuntime } from "../workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
@@ -70,6 +71,7 @@ export class Daemon {
 
   private state: DaemonState;
   private unsubscribe: (() => void) | null = null;
+  private notificationGate: NotificationGate | null = null;
   private activeChannels: ChannelAdapter[] = [];
   private sessions = new Map<string, InteractiveSession>();
   private sessionSweepTimer: ReturnType<typeof setInterval> | null = null;
@@ -188,6 +190,12 @@ export class Daemon {
       onLog: (message) => this.log(message),
     });
 
+    const quietHours = this.config.config?.notifications?.quietHours;
+    if (quietHours) {
+      this.notificationGate = new NotificationGate(this.bus, quietHours);
+      this.log(`Notification gate active: quiet hours ${quietHours.start}–${quietHours.end}`);
+    }
+
     this.workflows.start();
 
     const channelCtx = {
@@ -254,6 +262,9 @@ export class Daemon {
 
     this.unsubscribe?.();
     this.unsubscribe = null;
+
+    this.notificationGate?.dispose();
+    this.notificationGate = null;
 
     if (this.shutdownHandler) {
       process.removeListener("SIGINT", this.shutdownHandler);
