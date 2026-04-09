@@ -17,7 +17,6 @@ import { registerConfigCommands } from "./config-cli.js";
 import { setSkipConfirmations } from "./confirm.js";
 import { registerDoctorCommand } from "./doctor-cli.js";
 import { registerEventsCommands } from "./events-cli.js";
-import { registerExtensionCommands } from "./extension-cli.js";
 import { discoverExtensions } from "./extension-discovery.js";
 import { ExtensionLoader } from "./extension-loader.js";
 import { builtinExtensions } from "./extensions/index.js";
@@ -175,7 +174,6 @@ program
 
 registerHistoryCommands(program);
 registerWorkflowCommands(program);
-registerExtensionCommands(program);
 registerSessionCommands(program);
 registerAgentCommands(program);
 registerSkillCommands(program);

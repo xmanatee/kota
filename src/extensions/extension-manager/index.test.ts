@@ -3,7 +3,32 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { registerExtensionCommands } from "./extension-cli.js";
+import { ExtensionStorage } from "../../extension-storage.js";
+import type { ExtensionContext } from "../../extension-types.js";
+import extensionManagerModule from "./index.js";
+
+const stubCtx: ExtensionContext = {
+  cwd: "/tmp/test",
+  verbose: false,
+  config: {} as ExtensionContext["config"],
+  storage: new ExtensionStorage("/tmp/test", "extension-manager"),
+  registerGroup: () => {},
+  getRoutes: () => [],
+  getContributedWorkflows: () => [],
+  getContributedChannels: () => [],
+  getExtensionSummaries: () => [],
+  getExtensionConfig: () => undefined,
+  log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+  getSecret: () => null,
+  listTools: () => [],
+  events: { emit: () => {}, subscribe: () => () => {} },
+  createSession: () => ({ send: async () => "", close: () => {} }),
+  registerProvider: () => {},
+  getProvider: () => null,
+  callTool: async () => ({ content: "" }),
+  registerMiddleware: () => {},
+  registerDynamicStateProvider: () => {},
+};
 
 function makeTmpDir(): string {
   const dir = join(
@@ -17,7 +42,8 @@ function makeTmpDir(): string {
 function makeProgram(): Command {
   const program = new Command();
   program.exitOverride();
-  registerExtensionCommands(program);
+  const cmds = extensionManagerModule.commands!(stubCtx);
+  for (const cmd of cmds) program.addCommand(cmd);
   return program;
 }
 

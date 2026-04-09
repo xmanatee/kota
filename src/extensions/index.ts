@@ -12,6 +12,7 @@ import type { KotaExtension } from "../extension-types.js";
 import approvalQueueModule from "./approval-queue/index.js";
 import daemonModule from "./daemon/index.js";
 import executionModule from "./execution/index.js";
+import extensionManagerModule from "./extension-manager/index.js";
 import filesystemModule from "./filesystem/index.js";
 import gitModule from "./git/index.js";
 import githubModule from "./github/index.js";
@@ -66,6 +67,7 @@ export const builtinExtensions: KotaExtension[] = [
   webAccessModule,
   webModule,
   registryModule,
+  extensionManagerModule,
   mcpServerModule,
   approvalQueueModule,
   guardrailsAuditModule,

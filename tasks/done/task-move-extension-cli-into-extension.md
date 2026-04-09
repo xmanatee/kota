@@ -1,7 +1,7 @@
 ---
 id: task-move-extension-cli-into-extension
 title: Move kota extension CLI commands out of core into an owning extension
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: src/extension-cli.ts (446 lines) registers all kota extension subcommands but lives in core src/ rather than in an owning extension. Moving it closes the last large CLI surface still imported directly from core cli.ts.
