@@ -1,17 +1,17 @@
-/** Provider registry — swappable backends for core services. See provider-types.ts for interfaces. */
+/** Provider registry extension — swappable backends for core services. */
 
-import { getHistory } from "./memory/history.js";
-import { getKnowledgeStore } from "./memory/knowledge-store.js";
-import { getMemoryStore } from "./memory/store.js";
+import { getHistory } from "../../memory/history.js";
+import { getKnowledgeStore } from "../../memory/knowledge-store.js";
+import { getMemoryStore } from "../../memory/store.js";
 import type {
 	HistoryProvider,
 	KnowledgeProvider,
 	MemoryProvider,
 	TaskProvider,
-} from "./provider-types.js";
-import { getTaskStore } from "./scheduler/task-store.js";
+} from "../../provider-types.js";
+import { getTaskStore } from "../../scheduler/task-store.js";
 
-export type { HistoryProvider, KnowledgeProvider, MemoryProvider, TaskProvider } from "./provider-types.js";
+export type { HistoryProvider, KnowledgeProvider, MemoryProvider, TaskProvider } from "../../provider-types.js";
 
 type ProviderEntry = {
 	name: string;

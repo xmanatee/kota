@@ -6,6 +6,7 @@ import { tryEmit } from "./event-bus.js";
 import { ExtensionLoader } from "./extension-loader.js";
 import { initExtensionLogStore } from "./extension-log.js";
 import type { CreateSessionOptions, ExtensionSession } from "./extension-types.js";
+import { initProviderRegistry, registerDefaultProviders } from "./extensions/providers/index.js";
 import { initChangeTracker } from "./file-changes.js";
 import { getDefaultConfig as getDefaultGuardrails } from "./guardrails.js";
 import { buildSessionWarmup } from "./init.js";
@@ -15,7 +16,6 @@ import { type AgentLoopState, runInitExtensions, saveToHistoryImpl } from "./loo
 import { getHistory } from "./memory/history.js";
 import { createModelClient } from "./model/model-client.js";
 import { loadProjectContext } from "./project-context.js";
-import { initProviderRegistry, registerDefaultProviders } from "./providers.js";
 import { initScheduler } from "./scheduler/scheduler.js";
 import { initTaskStore } from "./scheduler/task-store.js";
 import { SessionStateMachine } from "./session-state.js";

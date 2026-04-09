@@ -6,8 +6,8 @@
  */
 
 import { tryEmit } from "../../event-bus.js";
-import { getKnowledgeProvider } from "../../providers.js";
 import type { ToolResult } from "../../tools/tool-result.js";
+import { getKnowledgeProvider } from "../providers/index.js";
 import { knowledgeTool } from "./knowledge-schema.js";
 
 export { knowledgeTool };

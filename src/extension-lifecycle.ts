@@ -1,7 +1,7 @@
 import { resetDynamicStateProviders } from "./dynamic-state.js";
 import type { ExtensionStorage } from "./extension-storage.js";
 import type { KotaExtension } from "./extension-types.js";
-import { getProviderRegistry } from "./providers.js";
+import { getProviderRegistry } from "./extensions/providers/index.js";
 import { getToolMiddleware } from "./tool-middleware.js";
 import { deregisterExtensionTools } from "./tools/index.js";
 

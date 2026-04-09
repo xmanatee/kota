@@ -1,12 +1,12 @@
 ---
 id: task-extract-provider-isolation-extension
 title: Extract provider registry and access patterns into a dedicated extension
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: The provider registry, initialization, and access patterns are scattered across src/ core files (providers.ts, secret-providers.ts, extension-context.ts). Consolidating these into a focused extension would clarify the boundary and reduce core responsibilities.
 created_at: 2026-04-09T06:31:00Z
-updated_at: 2026-04-09T06:31:00Z
+updated_at: 2026-04-09T08:50:00Z
 ---
 
 ## Problem

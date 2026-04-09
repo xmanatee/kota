@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { getMemoryProvider } from "../../providers.js";
 import type { ToolResult } from "../../tools/tool-result.js";
+import { getMemoryProvider } from "../providers/index.js";
 
 export const memoryTool: Anthropic.Tool = {
   name: "memory",

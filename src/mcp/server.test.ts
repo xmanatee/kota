@@ -10,12 +10,12 @@ import { getToolMcpAnnotations } from "../guardrails-classify.js";
 import { clearCustomTools, registerTool } from "../tools/index.js";
 import { anthropicToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
 
-vi.mock("../providers.js", () => ({
+vi.mock("../extensions/providers/index.js", () => ({
 	getMemoryProvider: vi.fn(() => ({ list: () => [] })),
 	getKnowledgeProvider: vi.fn(() => ({ list: () => [] })),
 }));
 
-import { getKnowledgeProvider, getMemoryProvider } from "../providers.js";
+import { getKnowledgeProvider, getMemoryProvider } from "../extensions/providers/index.js";
 
 beforeAll(async () => {
 	const loader = new ExtensionLoader({});

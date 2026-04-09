@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { getMemoryProvider } from "../extensions/providers/index.js";
 import type { Memory } from "../memory/store.js";
-import { getMemoryProvider } from "../providers.js";
 import { jsonResponse, readBody } from "./session-pool.js";
 
 type MemoryListItem = {

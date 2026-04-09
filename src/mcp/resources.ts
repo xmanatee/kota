@@ -11,7 +11,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { getKnowledgeProvider, getMemoryProvider } from "../providers.js";
+import { getKnowledgeProvider, getMemoryProvider } from "../extensions/providers/index.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 
 export type McpResource = {
