@@ -125,5 +125,16 @@ export function createPullRequest(ctx: WorkflowStepContext): { prUrl: string } {
     throw new Error(`Failed to create pull request: ${prCreate.stderr || prCreate.stdout}`);
   }
 
+  // Restore base branch so the daemon restarts on the correct branch for subsequent runs.
+  const restore = spawnSync("git", ["checkout", baseBranch], {
+    cwd: projectDir,
+    encoding: "utf-8",
+  });
+  if (restore.status !== 0) {
+    throw new Error(
+      `PR created but failed to restore base branch ${baseBranch}: ${restore.stderr || restore.stdout}`,
+    );
+  }
+
   return { prUrl: prCreate.stdout.trim() };
 }
