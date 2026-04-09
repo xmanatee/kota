@@ -5,6 +5,11 @@ import { loadConfig } from "../../config.js";
 import type { WorkflowStepContext } from "../../workflow/run-types.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 
+export type CleanupResult = {
+  cleaned: string[];
+  warnings: string[];
+};
+
 export type BranchStepResult = {
   branchPerTask: boolean;
   branch: string | null;
@@ -137,4 +142,65 @@ export function createPullRequest(ctx: WorkflowStepContext): { prUrl: string } {
   }
 
   return { prUrl: prCreate.stdout.trim() };
+}
+
+export function cleanupMergedBranches(ctx: WorkflowStepContext): CleanupResult {
+  const { projectDir } = ctx;
+  const branchInfo = ctx.stepOutputs["create-task-branch"] as BranchStepResult | undefined;
+  const cleaned: string[] = [];
+  const warnings: string[] = [];
+
+  if (!branchInfo?.branchPerTask) {
+    return { cleaned, warnings };
+  }
+
+  try {
+    const authCheck = spawnSync("gh", ["auth", "status"], {
+      cwd: projectDir,
+      encoding: "utf-8",
+    });
+    if (authCheck.status !== 0) {
+      warnings.push("gh CLI not available; skipping branch cleanup");
+      return { cleaned, warnings };
+    }
+
+    const listResult = spawnSync(
+      "gh",
+      ["pr", "list", "--state", "merged", "--json", "headRefName", "--limit", "100"],
+      { cwd: projectDir, encoding: "utf-8" },
+    );
+    if (listResult.status !== 0) {
+      warnings.push(`Failed to list merged PRs: ${listResult.stderr || listResult.stdout}`);
+      return { cleaned, warnings };
+    }
+
+    let prs: Array<{ headRefName: string }>;
+    try {
+      prs = JSON.parse(listResult.stdout) as Array<{ headRefName: string }>;
+    } catch {
+      warnings.push(`Failed to parse gh pr list output: ${listResult.stdout}`);
+      return { cleaned, warnings };
+    }
+
+    const currentBranch = branchInfo.branch;
+    const toDelete = prs
+      .map((pr) => pr.headRefName)
+      .filter((b) => b.startsWith("kota/task/") && b !== currentBranch);
+
+    for (const branch of toDelete) {
+      const del = spawnSync("git", ["push", "origin", "--delete", branch], {
+        cwd: projectDir,
+        encoding: "utf-8",
+      });
+      if (del.status !== 0) {
+        warnings.push(`Failed to delete branch ${branch}: ${del.stderr || del.stdout}`);
+      } else {
+        cleaned.push(branch);
+      }
+    }
+  } catch (err) {
+    warnings.push(`Unexpected error during branch cleanup: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  return { cleaned, warnings };
 }

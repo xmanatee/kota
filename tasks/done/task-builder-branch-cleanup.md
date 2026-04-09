@@ -1,7 +1,7 @@
 ---
 id: task-builder-branch-cleanup
 title: Clean up merged kota/task/* branches after builder PRs are merged
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: The branch-per-task builder mode creates a kota/task/<task-id> branch per run but never deletes them. Merged branches accumulate indefinitely in the remote, creating noise and making the branch list unmanageable for long-running projects.

@@ -51,6 +51,7 @@ vi.mock("./branch-per-task.js", () => ({
     taskId: null,
   })),
   createPullRequest: vi.fn(() => ({ prUrl: "https://github.com/example/repo/pull/1" })),
+  cleanupMergedBranches: vi.fn(() => ({ cleaned: [], warnings: [] })),
 }));
 
 function makeEmptySnapshot() {
@@ -378,5 +379,116 @@ describe("builder workflow", () => {
     expect(result.steps.build.status).toBe("skipped");
     expect(result.steps["create-task-branch"].status).toBe("skipped");
     expect(result.steps["create-pr"].status).toBe("skipped");
+    expect(result.steps["cleanup-merged-branches"].status).toBe("skipped");
+  });
+
+  it("cleanup-merged-branches runs after create-pr when branchPerTask=true and returns cleaned branches", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
+
+    const { getRepoHeadSha } = await import("../../repo-worktree.js");
+    vi.mocked(getRepoHeadSha).mockReturnValue("abc1234");
+
+    const { commitWorkflowChanges } = await import("../commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+
+    const { createTaskBranch, createPullRequest, cleanupMergedBranches } = await import(
+      "./branch-per-task.js"
+    );
+    vi.mocked(createTaskBranch).mockReturnValue({
+      branchPerTask: true,
+      branch: "kota/task/task-foo",
+      baseBranch: "main",
+      taskId: "task-foo",
+    });
+    vi.mocked(createPullRequest).mockReturnValue({ prUrl: "https://github.com/org/repo/pull/42" });
+    vi.mocked(cleanupMergedBranches).mockReturnValue({
+      cleaned: ["kota/task/task-old"],
+      warnings: [],
+    });
+
+    const harness = new WorkflowTestHarness(builderWorkflow, {
+      trigger: { event: "workflow.completed", payload: { workflow: "explorer", status: "success" } },
+      stepMocks: { build: { turns: [], totalCostUsd: 0.05 } },
+    });
+
+    const result = await harness.run();
+
+    expect(result.steps["create-pr"].status).toBe("success");
+    expect(result.steps["cleanup-merged-branches"].status).toBe("success");
+    expect(result.steps["cleanup-merged-branches"].output).toMatchObject({
+      cleaned: ["kota/task/task-old"],
+      warnings: [],
+    });
+  });
+
+  it("cleanup-merged-branches is skipped when branchPerTask=false", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
+
+    const { getRepoHeadSha } = await import("../../repo-worktree.js");
+    vi.mocked(getRepoHeadSha).mockReturnValue("abc1234");
+
+    const { commitWorkflowChanges } = await import("../commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+
+    const { createTaskBranch } = await import("./branch-per-task.js");
+    vi.mocked(createTaskBranch).mockReturnValue({
+      branchPerTask: false,
+      branch: null,
+      baseBranch: null,
+      taskId: null,
+    });
+
+    const harness = new WorkflowTestHarness(builderWorkflow, {
+      trigger: { event: "workflow.completed", payload: { workflow: "explorer", status: "success" } },
+      stepMocks: { build: { turns: [], totalCostUsd: 0.01 } },
+    });
+
+    const result = await harness.run();
+
+    expect(result.steps["create-pr"].status).toBe("skipped");
+    expect(result.steps["cleanup-merged-branches"].status).toBe("skipped");
+  });
+
+  it("cleanup-merged-branches failure with warnings does not fail the run", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
+
+    const { getRepoHeadSha } = await import("../../repo-worktree.js");
+    vi.mocked(getRepoHeadSha).mockReturnValue("abc1234");
+
+    const { commitWorkflowChanges } = await import("../commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+
+    const { createTaskBranch, createPullRequest, cleanupMergedBranches } = await import(
+      "./branch-per-task.js"
+    );
+    vi.mocked(createTaskBranch).mockReturnValue({
+      branchPerTask: true,
+      branch: "kota/task/task-bar",
+      baseBranch: "main",
+      taskId: "task-bar",
+    });
+    vi.mocked(createPullRequest).mockReturnValue({ prUrl: "https://github.com/org/repo/pull/7" });
+    vi.mocked(cleanupMergedBranches).mockReturnValue({
+      cleaned: [],
+      warnings: ["Failed to delete branch kota/task/task-old: remote error"],
+    });
+
+    const harness = new WorkflowTestHarness(builderWorkflow, {
+      trigger: { event: "workflow.completed", payload: { workflow: "explorer", status: "success" } },
+      stepMocks: { build: { turns: [], totalCostUsd: 0.02 } },
+    });
+
+    const result = await harness.run();
+
+    // Cleanup warnings do not fail the run
+    expect(result.steps["cleanup-merged-branches"].status).toBe("success");
+    expect(result.steps["cleanup-merged-branches"].output).toMatchObject({
+      cleaned: [],
+      warnings: ["Failed to delete branch kota/task/task-old: remote error"],
+    });
+    expect(result.status).toBe("success");
   });
 });

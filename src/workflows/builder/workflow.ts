@@ -7,8 +7,8 @@ import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import { typedCodeStep } from "../../workflow/types.js";
 import { commitWorkflowChanges } from "../commit.js";
 import { runCheck, stepCommitted, stepSucceeded } from "../shared.js";
-import type { BranchStepResult } from "./branch-per-task.js";
-import { createPullRequest, createTaskBranch } from "./branch-per-task.js";
+import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
+import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 import { writeBuilderRunSummary } from "./run-summary.js";
 
@@ -158,6 +158,15 @@ const builderWorkflow: WorkflowDefinitionInput = {
       },
       run: (ctx) => createPullRequest(ctx),
     },
+    typedCodeStep<CleanupResult>({
+      id: "cleanup-merged-branches",
+      type: "code",
+      when: (ctx) => {
+        const branchInfo = ctx.stepOutputs["create-task-branch"] as BranchStepResult | undefined;
+        return branchInfo?.branchPerTask === true;
+      },
+      run: (ctx) => cleanupMergedBranches(ctx),
+    }),
     {
       id: "emit-build-committed",
       type: "emit",
