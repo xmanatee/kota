@@ -11,6 +11,7 @@ This directory contains native client apps that connect to the KOTA daemon contr
 ## Clients
 
 - `macos/` — SwiftUI `MenuBarExtra` app (macOS 13+). Surfaces daemon health, active workflow runs with inline step detail, approval management, and workflow triggering. Polls the daemon API every 5 seconds.
+- `mobile/` — React Native (Expo) app (iOS 16+, Android 12+). Four-tab interface: Status, Runs, Approvals, Tasks. SSE-driven live updates with polling fallback. Token stored in OS secure keychain.
 
 ## Adding a New Client
 

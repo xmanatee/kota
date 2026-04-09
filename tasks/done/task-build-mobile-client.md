@@ -1,7 +1,7 @@
 ---
 id: task-build-mobile-client
 title: Build a mobile client for the KOTA daemon
-status: ready
+status: done
 priority: p2
 area: client
 summary: Build a React Native (Expo) mobile client (iOS + Android) that connects to the KOTA daemon control API and lets operators inspect and control their autonomous development system from their phone.
