@@ -52,12 +52,12 @@ export class ModuleTestHarness {
   ) {
     this.#modules = Array.isArray(modules) ? modules : [modules];
     this.#options = options;
-    this.#tempDir = mkdtempSync(`${tmpdir()}/kota-ext-harness-`);
+    this.#tempDir = mkdtempSync(`${tmpdir()}/kota-module-harness-`);
   }
 
   /**
    * Create a harness and load the given module(s). Shorthand for:
-   *   const h = new ModuleTestHarness(ext);
+   *   const h = new ModuleTestHarness(mod);
    *   await h.load();
    */
   static async create(
@@ -72,22 +72,22 @@ export class ModuleTestHarness {
   /** Load all modules: resolve tools, routes, and call onLoad. */
   async load(): Promise<void> {
     if (this.#loaded) return;
-    for (const ext of this.#modules) {
-      const ctx = this.#buildContext(ext.name);
+    for (const mod of this.#modules) {
+      const ctx = this.#buildContext(mod.name);
       const tools =
-        !ext.tools
+        !mod.tools
           ? []
-          : typeof ext.tools === "function"
-            ? ext.tools(ctx)
-            : ext.tools;
+          : typeof mod.tools === "function"
+            ? mod.tools(ctx)
+            : mod.tools;
       for (const t of tools) {
         this.#tools.set(t.tool.name, t);
       }
-      if (ext.routes) {
-        this.#routes.push(...ext.routes(ctx));
+      if (mod.routes) {
+        this.#routes.push(...mod.routes(ctx));
       }
-      if (ext.onLoad) {
-        await ext.onLoad(ctx);
+      if (mod.onLoad) {
+        await mod.onLoad(ctx);
       }
     }
     this.#loaded = true;
@@ -98,9 +98,9 @@ export class ModuleTestHarness {
    * After teardown, load() may be called again.
    */
   async teardown(): Promise<void> {
-    for (const ext of [...this.#modules].reverse()) {
-      if (ext.onUnload) {
-        await ext.onUnload();
+    for (const mod of [...this.#modules].reverse()) {
+      if (mod.onUnload) {
+        await mod.onUnload();
       }
     }
     this.#loaded = false;

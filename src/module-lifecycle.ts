@@ -22,12 +22,12 @@ export interface LifecycleState {
 
 export function getModuleDependents(moduleName: string, modules: KotaModule[]): string[] {
   return modules
-    .filter((e) => e.dependencies?.includes(moduleName))
-    .map((e) => e.name);
+    .filter((m) => m.dependencies?.includes(moduleName))
+    .map((m) => m.name);
 }
 
 export async function unloadModule(moduleName: string, state: LifecycleState): Promise<boolean> {
-  const idx = state.modules.findIndex((e) => e.name === moduleName);
+  const idx = state.modules.findIndex((m) => m.name === moduleName);
   if (idx < 0) return false;
 
   const dependents = getModuleDependents(moduleName, state.modules);
@@ -37,11 +37,11 @@ export async function unloadModule(moduleName: string, state: LifecycleState): P
     );
   }
 
-  const ext = state.modules[idx];
+  const mod = state.modules[idx];
 
-  if (ext.onUnload) {
+  if (mod.onUnload) {
     try {
-      await ext.onUnload();
+      await mod.onUnload();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[kota] Module "${moduleName}" unload error: ${msg}`);
@@ -65,34 +65,34 @@ export async function unloadModule(moduleName: string, state: LifecycleState): P
 export async function reloadModule(
   moduleName: string,
   state: LifecycleState,
-  loadFn: (ext: KotaModule) => Promise<void>,
+  loadFn: (mod: KotaModule) => Promise<void>,
 ): Promise<boolean> {
-  const ext = state.moduleRegistry.get(moduleName);
-  if (!ext) return false;
+  const mod = state.moduleRegistry.get(moduleName);
+  if (!mod) return false;
 
-  if (state.modules.some((e) => e.name === moduleName)) {
+  if (state.modules.some((m) => m.name === moduleName)) {
     await unloadModule(moduleName, state);
   }
 
-  await loadFn(ext);
+  await loadFn(mod);
 
   if (state.verbose) console.error(`[kota] Module "${moduleName}" reloaded`);
   return true;
 }
 
 export async function unloadAllModules(state: LifecycleState): Promise<void> {
-  for (const ext of [...state.modules].reverse()) {
-    if (ext.onUnload) {
+  for (const mod of [...state.modules].reverse()) {
+    if (mod.onUnload) {
       try {
-        await ext.onUnload();
+        await mod.onUnload();
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[kota] Module "${ext.name}" unload error: ${msg}`);
+        console.error(`[kota] Module "${mod.name}" unload error: ${msg}`);
       }
     }
   }
 
-  for (const ext of [...state.modules]) deregisterModuleTools(ext.name);
+  for (const mod of [...state.modules]) deregisterModuleTools(mod.name);
   state.modules.splice(0);
   state.moduleRegistry.clear();
   state.moduleStorages.clear();

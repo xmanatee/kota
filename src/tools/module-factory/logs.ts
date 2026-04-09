@@ -22,14 +22,14 @@ export function handleLogs(input: Record<string, unknown>): ToolResult {
 		if (modules.length === 0) {
 			return { content: "No module logs found." };
 		}
-		const lines = modules.map((ext) => {
-			const recent = store.tail(ext, 1);
+		const lines = modules.map((name) => {
+			const recent = store.tail(name, 1);
 			const last = recent[0];
 			const lastMsg = last
 				? ` — last: [${last.level}] ${last.msg.slice(0, 80)}`
 				: "";
-			const count = store.query({ module: ext, limit: 10000 }).length;
-			return `- ${ext}: ${count} entries${lastMsg}`;
+			const count = store.query({ module: name, limit: 10000 }).length;
+			return `- ${name}: ${count} entries${lastMsg}`;
 		});
 		return {
 			content: `Modules with logs (${modules.length}):\n${lines.join("\n")}`,

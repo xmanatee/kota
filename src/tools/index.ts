@@ -169,9 +169,9 @@ export function deregisterTool(name: string): boolean {
   customToolNames.delete(name);
   moduleToolMeta.delete(name);
   // Remove from module ownership tracking
-  for (const [ext, owned] of moduleToolOwners) {
+  for (const [owner, owned] of moduleToolOwners) {
     if (owned.delete(name) && owned.size === 0) {
-      moduleToolOwners.delete(ext);
+      moduleToolOwners.delete(owner);
     }
   }
   return true;

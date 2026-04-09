@@ -19,12 +19,12 @@ export const CLIENT_MODULES_JS = `
     }
   }
 
-  function healthBadge(ext) {
-    if (ext.status === "failed") {
-      var tip = ext.error ? "Load error: " + ext.error : "Failed to load";
+  function healthBadge(mod) {
+    if (mod.status === "failed") {
+      var tip = mod.error ? "Load error: " + mod.error : "Failed to load";
       return '<span class="run-badge failed" title="' + escapeHtml(tip) + '">\\u2022</span>';
     }
-    var health = ext.health;
+    var health = mod.health;
     if (!health) return '<span class="run-badge success">\\u2022</span>';
     var cls = health.status === "ok" ? "success" : health.status === "restarting" ? "interrupted" : "failed";
     var tip = "Status: " + health.status + " | Restarts: " + health.restartCount;
@@ -39,33 +39,33 @@ export const CLIENT_MODULES_JS = `
       return;
     }
     for (var i = 0; i < modules.length; i++) {
-      var ext = modules[i];
+      var mod = modules[i];
       var item = document.createElement("div");
       item.className = "task-item";
 
       var summary;
-      if (ext.status === "failed") {
-        summary = ext.error ? escapeHtml(ext.error) : "failed to load";
+      if (mod.status === "failed") {
+        summary = mod.error ? escapeHtml(mod.error) : "failed to load";
       } else {
         var parts = [];
-        if (ext.toolCount) parts.push(ext.toolCount + " tool" + (ext.toolCount === 1 ? "" : "s"));
-        if (ext.agentCount) parts.push(ext.agentCount + " agent" + (ext.agentCount === 1 ? "" : "s"));
-        if (ext.workflowCount) parts.push(ext.workflowCount + " workflow" + (ext.workflowCount === 1 ? "" : "s"));
-        if (ext.skillCount) parts.push(ext.skillCount + " skill" + (ext.skillCount === 1 ? "" : "s"));
-        if (ext.channelCount) parts.push(ext.channelCount + " channel" + (ext.channelCount === 1 ? "" : "s"));
+        if (mod.toolCount) parts.push(mod.toolCount + " tool" + (mod.toolCount === 1 ? "" : "s"));
+        if (mod.agentCount) parts.push(mod.agentCount + " agent" + (mod.agentCount === 1 ? "" : "s"));
+        if (mod.workflowCount) parts.push(mod.workflowCount + " workflow" + (mod.workflowCount === 1 ? "" : "s"));
+        if (mod.skillCount) parts.push(mod.skillCount + " skill" + (mod.skillCount === 1 ? "" : "s"));
+        if (mod.channelCount) parts.push(mod.channelCount + " channel" + (mod.channelCount === 1 ? "" : "s"));
         summary = escapeHtml(parts.length ? parts.join(", ") : "no contributions");
       }
 
       var healthInfo = "";
-      if (ext.health && ext.health.restartCount > 0) {
-        healthInfo = ' <span class="task-item-area">' + ext.health.restartCount + ' restart' + (ext.health.restartCount === 1 ? "" : "s") + '</span>';
+      if (mod.health && mod.health.restartCount > 0) {
+        healthInfo = ' <span class="task-item-area">' + mod.health.restartCount + ' restart' + (mod.health.restartCount === 1 ? "" : "s") + '</span>';
       }
 
       item.innerHTML =
         '<div class="task-item-header">' +
-        healthBadge(ext) +
-        '<span class="task-item-title">' + escapeHtml(ext.name) + '</span>' +
-        (ext.version ? '<span class="task-item-area">v' + escapeHtml(ext.version) + '</span>' : '') +
+        healthBadge(mod) +
+        '<span class="task-item-title">' + escapeHtml(mod.name) + '</span>' +
+        (mod.version ? '<span class="task-item-area">v' + escapeHtml(mod.version) + '</span>' : '') +
         healthInfo +
         '</div>' +
         '<div class="task-item-summary">' + summary + '</div>';
