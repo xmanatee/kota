@@ -2,7 +2,7 @@
 id: task-extract-doctor-extension
 title: Move doctor-cli.ts into a dedicated doctor extension
 status: ready
-priority: p3
+priority: p2
 area: architecture
 summary: doctor-cli.ts (369 lines) contributes one CLI command (kota doctor) but lives as a standalone core file imported directly by cli.ts. Following the established pattern of moving operator CLI commands into their owning extensions would shrink core and put doctor alongside its check logic as a cohesive unit.
 created_at: 2026-04-09T07:21:47Z
