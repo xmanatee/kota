@@ -157,12 +157,7 @@ export class KeychainProvider implements SecretProvider {
 
   set(key: string, value: string): void {
     if (!this.isAvailable()) throw new Error("Keychain not available");
-    try {
-      execSync(
-        `security delete-generic-password -s "${KEYCHAIN_SERVICE}" -a "${this.escapeArg(key)}" 2>/dev/null`,
-        { timeout: 5000 },
-      );
-    } catch { /* ok */ }
+    this.remove(key);
     execSync(
       `security add-generic-password -s "${KEYCHAIN_SERVICE}" -a "${this.escapeArg(key)}" -w "${this.escapeArg(value)}"`,
       { timeout: 5000 },

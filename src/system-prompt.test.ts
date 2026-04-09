@@ -133,7 +133,7 @@ describe("SYSTEM_PROMPT", () => {
 
   it("error recovery guides explicit package installation, not auto-install", () => {
     expect(SYSTEM_PROMPT).toContain("pip install <pkg>");
-    expect(SYSTEM_PROMPT).toContain("npm install <pkg>");
+    expect(SYSTEM_PROMPT).toContain("pnpm add <pkg>");
     expect(SYSTEM_PROMPT).toContain("Don't retry the same failing call");
   });
 

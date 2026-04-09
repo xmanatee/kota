@@ -115,9 +115,9 @@ function buildExtensionCommand(ctx: ExtensionContext): Command {
         console.log("");
         console.log("Next steps:");
         console.log(`  cd ${targetDir}`);
-        console.log("  npm install          # install devDependencies");
-        console.log("  npm run typecheck    # verify types");
-        console.log("  npm run build        # compile to dist/");
+        console.log("  pnpm install         # install devDependencies");
+        console.log("  pnpm run typecheck   # verify types");
+        console.log("  pnpm build           # compile to dist/");
         console.log("");
         console.log(`To use without building, copy dist/index.js to .kota/extensions/${safeName}/index.js`);
       }

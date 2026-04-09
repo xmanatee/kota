@@ -6,7 +6,13 @@
  * workflow definitions, and disk state.
  */
 
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
@@ -84,7 +90,7 @@ export function runDoctorFixes(projectDir: string): RepairResult[] {
     });
   }
 
-  for (const dir of [kotaDir, join(kotaDir, "runs")]) {
+  for (const dir of [kotaDir, join(kotaDir, "runs"), join(kotaDir, "extensions")]) {
     if (!existsSync(dir)) {
       try {
         mkdirSync(dir, { recursive: true });
@@ -137,6 +143,35 @@ function checkDisk(projectDir: string): CheckResult[] {
     }
   } catch {
     results.push(fail("Disk: .kota/ writable", "Directory is not writable"));
+  }
+
+  const extensionsDir = join(kotaDir, "extensions");
+  if (existsSync(extensionsDir)) {
+    results.push(pass("Disk: .kota/extensions/", "Present"));
+  } else {
+    results.push(warn("Disk: .kota/extensions/", "Missing — run `kota doctor --fix` to create canonical extension state"));
+  }
+
+  const legacyModulesDir = join(kotaDir, "modules");
+  if (existsSync(legacyModulesDir)) {
+    results.push(
+      warn(
+        "Disk: legacy .kota/modules/",
+        "Unexpected leftover state path is present; remove it manually",
+      ),
+    );
+  }
+
+  for (const strayDir of ["runs", "kota"]) {
+    const strayPath = join(projectDir, strayDir);
+    if (existsSync(strayPath)) {
+      results.push(
+        warn(
+          `Disk: stray ${strayDir}/`,
+          `Unexpected runtime artifact directory outside .kota/: ${strayPath}`,
+        ),
+      );
+    }
   }
 
   return results;

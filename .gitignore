@@ -3,4 +3,7 @@ dist/
 logs/
 .loop-state
 .kota/
+/runs/
+/kota/
+/.worktrees/
 __pycache__/

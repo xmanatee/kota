@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WorkflowRunStore } from "./run-store.js";
+import type { WorkflowDefinition } from "./types.js";
 
 function makeProjectDir(): string {
   const dir = join(
@@ -126,5 +127,22 @@ describe("WorkflowRunStore.recoverInterruptedRuns", () => {
 
     const afterState = store.readState();
     expect(afterState.workflows["builder"]?.lastStatus).toBe("interrupted");
+  });
+
+  it("creates new runs only under .kota/runs", () => {
+    const workflow: WorkflowDefinition = {
+      name: "builder",
+      definitionPath: "src/workflows/builder/workflow.ts",
+      description: "test",
+      enabled: true,
+      triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
+      steps: [],
+    };
+
+    const handle = store.createRun(workflow, { event: "runtime.idle", payload: {} });
+
+    expect(handle.metadata.runDir).toBe(`.kota/runs/${handle.metadata.id}`);
+    expect(existsSync(join(projectDir, handle.metadata.runDir))).toBe(true);
+    expect(existsSync(join(projectDir, "runs", handle.metadata.id))).toBe(false);
   });
 });

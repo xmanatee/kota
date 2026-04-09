@@ -98,7 +98,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
           {
             id: "task-queue-valid",
             type: "code" as const,
-            run: (ctx) => runCheck("npm run validate-tasks -- --min-ready 1", ctx.projectDir),
+            run: (ctx) => runCheck("pnpm run validate-tasks -- --min-ready 1", ctx.projectDir),
           },
           {
             id: "task-queue-range",

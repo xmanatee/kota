@@ -167,9 +167,7 @@ export class ConversationHistory {
     this.saveIndex(index);
 
     const path = join(this.dir, `${id}.json`);
-    try {
-      unlinkSync(path);
-    } catch { /* ok if already gone */ }
+    if (existsSync(path)) unlinkSync(path);
     return true;
   }
 
@@ -214,7 +212,7 @@ export class ConversationHistory {
 
     for (const id of removeIds) {
       const path = join(this.dir, `${id}.json`);
-      try { unlinkSync(path); } catch { /* ok */ }
+      if (existsSync(path)) unlinkSync(path);
     }
 
     index.conversations = keep;

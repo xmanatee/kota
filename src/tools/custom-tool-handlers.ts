@@ -115,11 +115,7 @@ export function handleRemove(
   customDefs.delete(name);
 
   const diskPath = getToolPath(name);
-  if (existsSync(diskPath)) {
-    try {
-      unlinkSync(diskPath);
-    } catch { /* ignore cleanup errors */ }
-  }
+  if (existsSync(diskPath)) unlinkSync(diskPath);
 
   return { content: `Removed custom tool "${name}".` };
 }

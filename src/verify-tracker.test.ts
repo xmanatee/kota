@@ -613,8 +613,7 @@ describe("detectVerifyCommands", () => {
     const commands = detectVerifyCommands(process.cwd());
     const testCmd = commands.find((c) => c.label === "test");
     expect(testCmd).toBeDefined();
-    // Current project uses npm (no pnpm-lock.yaml, no yarn.lock, no bun.lockb)
-    expect(testCmd!.command).toMatch(/^(npm|pnpm|yarn|bun) /);
+    expect(testCmd!.command).toBe("pnpm test");
   });
 
   it("defaults to process.cwd when no dir given", () => {

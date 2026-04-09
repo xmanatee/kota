@@ -1,1 +1,0 @@
-Explorer: promote extension-lifecycle and workflow-resume tasks to ready

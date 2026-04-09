@@ -36,27 +36,27 @@ const improverWorkflow: WorkflowDefinitionInput = {
           {
             id: "build-output",
             type: "code" as const,
-            run: (ctx: WorkflowStepContext) => runCheck("npm run build", ctx.projectDir),
+            run: (ctx: WorkflowStepContext) => runCheck("pnpm build", ctx.projectDir),
           },
           {
             id: "task-queue-valid",
             type: "code" as const,
-            run: (ctx: WorkflowStepContext) => runCheck("npm run validate-tasks", ctx.projectDir),
+            run: (ctx: WorkflowStepContext) => runCheck("pnpm run validate-tasks", ctx.projectDir),
           },
           {
             id: "typecheck",
             type: "code" as const,
-            run: (ctx: WorkflowStepContext) => runCheck("npm run typecheck", ctx.projectDir),
+            run: (ctx: WorkflowStepContext) => runCheck("pnpm run typecheck", ctx.projectDir),
           },
           {
             id: "lint",
             type: "code" as const,
-            run: (ctx: WorkflowStepContext) => runCheck("npm run lint", ctx.projectDir),
+            run: (ctx: WorkflowStepContext) => runCheck("pnpm run lint", ctx.projectDir),
           },
           {
             id: "test",
             type: "code" as const,
-            run: (ctx: WorkflowStepContext) => runCheck("npm test", ctx.projectDir, 300_000),
+            run: (ctx: WorkflowStepContext) => runCheck("pnpm test", ctx.projectDir, 300_000),
           },
         ],
       },

@@ -255,13 +255,7 @@ export class Daemon {
     await this.controlServer.stop();
 
     const controlPath = join(this.stateDir, CONTROL_FILE);
-    if (existsSync(controlPath)) {
-      try {
-        rmSync(controlPath);
-      } catch {
-        // ignore cleanup errors
-      }
-    }
+    if (existsSync(controlPath)) rmSync(controlPath);
 
     this.unsubscribe?.();
     this.unsubscribe = null;

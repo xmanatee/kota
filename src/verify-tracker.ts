@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { readOptionalJsonFile } from "./json-file.js";
 
 export type VerifyCommand = {
   label: string;
@@ -11,51 +12,32 @@ export function detectVerifyCommands(cwd?: string): VerifyCommand[] {
   const dir = cwd || process.cwd();
   const commands: VerifyCommand[] = [];
 
-  const pkgPath = join(dir, "package.json");
-  if (existsSync(pkgPath)) {
-    try {
-      const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
-      const scripts = pkg.scripts || {};
+  const pkg = readOptionalJsonFile<Record<string, unknown>>(join(dir, "package.json"));
+  if (pkg && typeof pkg === "object" && !Array.isArray(pkg)) {
+    const scripts =
+      typeof pkg.scripts === "object" && pkg.scripts !== null && !Array.isArray(pkg.scripts)
+        ? (pkg.scripts as Record<string, unknown>)
+        : {};
+    const pm = detectPackageManager(dir, typeof pkg.packageManager === "string" ? pkg.packageManager : undefined);
 
-      // Detect package manager from lock file
-      const pm = existsSync(join(dir, "bun.lockb")) || existsSync(join(dir, "bun.lock"))
-        ? "bun"
-        : existsSync(join(dir, "pnpm-lock.yaml"))
-          ? "pnpm"
-          : existsSync(join(dir, "yarn.lock"))
-            ? "yarn"
-            : "npm";
+    const targets: Array<[string, string]> = [
+      ["test", "test"],
+      ["typecheck", "run typecheck"],
+      ["type-check", "run type-check"],
+      ["lint", "run lint"],
+      ["check", "run check"],
+      ["build", "run build"],
+    ];
 
-      const targets: Array<[string, string]> = [
-        ["test", "test"],
-        ["typecheck", "run typecheck"],
-        ["type-check", "run type-check"],
-        ["lint", "run lint"],
-        ["check", "run check"],
-        ["build", "run build"],
-      ];
-
-      for (const [script, suffix] of targets) {
-        if (scripts[script]) {
-          commands.push({ label: script, command: `${pm} ${suffix}` });
-        }
+    for (const [script, suffix] of targets) {
+      if (scripts[script]) {
+        commands.push({ label: script, command: `${pm} ${suffix}` });
       }
-    } catch {
-      /* ignore malformed package.json */
     }
   }
 
-  if (existsSync(join(dir, "Makefile"))) {
-    try {
-      const content = readFileSync(join(dir, "Makefile"), "utf-8");
-      for (const target of ["test", "lint", "check", "build"]) {
-        if (new RegExp(`^${target}\\s*:`, "m").test(content)) {
-          commands.push({ label: target, command: `make ${target}` });
-        }
-      }
-    } catch {
-      /* ignore */
-    }
+  for (const command of detectMakefileCommands(dir)) {
+    commands.push(command);
   }
 
   if (existsSync(join(dir, "Cargo.toml"))) {
@@ -77,6 +59,37 @@ export function detectVerifyCommands(cwd?: string): VerifyCommand[] {
     );
   }
 
+  return commands;
+}
+
+function detectPackageManager(dir: string, packageManager: string | undefined): "npm" | "pnpm" | "yarn" | "bun" {
+  const declared = packageManager?.split("@", 1)[0];
+  if (declared === "npm" || declared === "pnpm" || declared === "yarn" || declared === "bun") {
+    return declared;
+  }
+  if (existsSync(join(dir, "bun.lockb")) || existsSync(join(dir, "bun.lock"))) return "bun";
+  if (existsSync(join(dir, "pnpm-lock.yaml"))) return "pnpm";
+  if (existsSync(join(dir, "yarn.lock"))) return "yarn";
+  return "npm";
+}
+
+function detectMakefileCommands(dir: string): VerifyCommand[] {
+  const makefilePath = join(dir, "Makefile");
+  if (!existsSync(makefilePath)) return [];
+
+  let content: string;
+  try {
+    content = readFileSync(makefilePath, "utf-8");
+  } catch {
+    return [];
+  }
+
+  const commands: VerifyCommand[] = [];
+  for (const target of ["test", "lint", "check", "build"]) {
+    if (new RegExp(`^${target}\\s*:`, "m").test(content)) {
+      commands.push({ label: target, command: `make ${target}` });
+    }
+  }
   return commands;
 }
 

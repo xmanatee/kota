@@ -125,7 +125,7 @@ export function detectPackageHint(output: string, language: Language, pythonBina
     if (match) {
       const pkg = match[1];
       if (!pkg.startsWith(".") && !pkg.startsWith("/")) {
-        return `Tip: Install the missing package with shell: npm install ${pkg}`;
+        return `Tip: Install the missing package with shell: pnpm add ${pkg}`;
       }
     }
   }

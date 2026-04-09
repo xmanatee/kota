@@ -121,9 +121,8 @@ export function zodDefToJsonSchema(schema: unknown): Record<string, unknown> {
     case "ZodDefault": {
       const inner = zodDefToJsonSchema(def.innerType);
       if (desc && !inner.description) inner.description = desc;
-      if (typeof def.defaultValue === "function") {
-        try { inner.default = (def.defaultValue as () => unknown)(); } catch { /* skip */ }
-      }
+      const defaultValue = resolveZodDefaultValue(def.defaultValue);
+      if (defaultValue !== undefined) inner.default = defaultValue;
       return inner;
     }
     case "ZodObject": {
@@ -147,5 +146,14 @@ export function zodDefToJsonSchema(schema: unknown): Record<string, unknown> {
     }
     default:
       return base;
+  }
+}
+
+function resolveZodDefaultValue(defaultValue: unknown): unknown {
+  if (typeof defaultValue !== "function") return undefined;
+  try {
+    return (defaultValue as () => unknown)();
+  } catch {
+    return undefined;
   }
 }

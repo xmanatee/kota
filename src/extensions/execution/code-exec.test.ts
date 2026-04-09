@@ -181,7 +181,7 @@ ModuleNotFoundError: No module named 'pandas'`;
     it("detects Node.js missing module", () => {
       const output = "Error: Cannot find module 'lodash'";
       expect(detectPackageHint(output, "node")).toBe(
-        "Tip: Install the missing package with shell: npm install lodash",
+        "Tip: Install the missing package with shell: pnpm add lodash",
       );
     });
 
@@ -385,7 +385,7 @@ ModuleNotFoundError: No module named 'pandas'`;
     it("node hint unchanged by python binary", () => {
       const output = "Error: Cannot find module 'express'";
       expect(detectPackageHint(output, "node", "/some/.venv/bin/python")).toBe(
-        "Tip: Install the missing package with shell: npm install express",
+        "Tip: Install the missing package with shell: pnpm add express",
       );
     });
   });

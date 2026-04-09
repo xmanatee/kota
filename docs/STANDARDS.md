@@ -6,6 +6,8 @@
 - `tasks/` is the live work queue and the source of truth for outstanding work.
 - Local `AGENTS.md` files explain directory purpose and boundaries.
 - Git history and `.kota/runs/` are the historical record. Do not add parallel changelog, audit, archive, or lesson surfaces.
+- Runtime state belongs under `.kota/`. Do not add sibling runtime directories
+  such as `runs/` or `kota/` at the repo root.
 
 ## Documentation
 

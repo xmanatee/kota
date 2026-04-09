@@ -1,1 +1,0 @@
-Explorer: close approval-expiry (already implemented); promote mcp-prompts and kemp-bearer-auth to ready; add daemon-control split and web-ui live-updates to backlog

@@ -130,6 +130,17 @@ describe("kota doctor — offline path", () => {
     expect(labels.some((l) => l.startsWith("Workflows"))).toBe(true);
     expect(labels.some((l) => l.startsWith("Disk:"))).toBe(true);
   });
+
+  it("warns about legacy module state and stray runtime directories", async () => {
+    mkdirSync(join(projectDir, ".kota", "modules", "tool-cache"), { recursive: true });
+    mkdirSync(join(projectDir, "runs"), { recursive: true });
+    mkdirSync(join(projectDir, "kota"), { recursive: true });
+
+    const results = await runDoctorChecks(projectDir);
+    expect(results.find((r) => r.label === "Disk: legacy .kota/modules/")?.status).toBe("warn");
+    expect(results.find((r) => r.label === "Disk: stray runs/")?.status).toBe("warn");
+    expect(results.find((r) => r.label === "Disk: stray kota/")?.status).toBe("warn");
+  });
 });
 
 describe("kota doctor --fix", () => {
@@ -182,18 +193,23 @@ describe("kota doctor --fix", () => {
     const repairs = runDoctorFixes(projectDir);
     const kotaRepair = repairs.find((r) => r.item.includes("Directory:") && !r.item.includes("runs"));
     const runsRepair = repairs.find((r) => r.item.includes("runs"));
+    const extensionsRepair = repairs.find((r) => r.item.includes(".kota/extensions"));
     expect(kotaRepair?.action).toBe("repaired");
     expect(runsRepair?.action).toBe("repaired");
+    expect(extensionsRepair?.action).toBe("repaired");
     expect(existsSync(join(projectDir, ".kota"))).toBe(true);
     expect(existsSync(join(projectDir, ".kota", "runs"))).toBe(true);
+    expect(existsSync(join(projectDir, ".kota", "extensions"))).toBe(true);
   });
 
   it("skips directory creation when directories already exist", () => {
     mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
+    mkdirSync(join(projectDir, ".kota", "extensions"), { recursive: true });
     const repairs = runDoctorFixes(projectDir);
     const dirRepairs = repairs.filter((r) => r.item.startsWith("Directory:"));
     expect(dirRepairs.every((r) => r.action === "skipped")).toBe(true);
   });
+
 });
 
 describe("kota doctor — provider connectivity check", () => {

@@ -48,27 +48,27 @@ const builderWorkflow: WorkflowDefinitionInput = {
           {
             id: "build-output",
             type: "code" as const,
-            run: (ctx) => runCheck("npm run build", ctx.projectDir),
+            run: (ctx) => runCheck("pnpm build", ctx.projectDir),
           },
           {
             id: "task-queue-valid",
             type: "code" as const,
-            run: (ctx) => runCheck("npm run validate-tasks", ctx.projectDir),
+            run: (ctx) => runCheck("pnpm run validate-tasks", ctx.projectDir),
           },
           {
             id: "typecheck",
             type: "code" as const,
-            run: (ctx) => runCheck("npm run typecheck", ctx.projectDir),
+            run: (ctx) => runCheck("pnpm run typecheck", ctx.projectDir),
           },
           {
             id: "lint",
             type: "code" as const,
-            run: (ctx) => runCheck("npm run lint", ctx.projectDir),
+            run: (ctx) => runCheck("pnpm run lint", ctx.projectDir),
           },
           {
             id: "test",
             type: "code" as const,
-            run: (ctx) => runCheck("npm test", ctx.projectDir, 300_000),
+            run: (ctx) => runCheck("pnpm test", ctx.projectDir, 300_000),
           },
           {
             id: "server-readme-sync",
@@ -91,7 +91,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
               if (!existsSync(join(mobileDir, "package.json"))) {
                 return "OK: no mobile client present";
               }
-              return runCheck("npm run typecheck", mobileDir, 60_000);
+              return runCheck("pnpm run typecheck", mobileDir, 60_000);
             },
           },
           {

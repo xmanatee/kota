@@ -113,9 +113,9 @@ This directory contains the \`${name}\` KOTA extension.
 ## Development
 
 \`\`\`sh
-npm install          # install devDependencies (including kota for types)
-npm run typecheck    # verify types against KotaExtension
-npm run build        # compile to dist/ for npm-based use
+pnpm install         # install devDependencies (including kota for types)
+pnpm run typecheck   # verify types against KotaExtension
+pnpm build           # compile to dist/
 \`\`\`
 
 For local drop-in use without npm, compile and copy \`dist/index.js\` to
