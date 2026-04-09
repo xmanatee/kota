@@ -1,8 +1,8 @@
-# KOTA Mobile Client Design Specification
+# KOTA Mobile Client Design
 
-This document defines the technology choice, navigation structure, wireframes,
+This document records the technology choice, navigation structure, wireframes,
 daemon API surface, auth/discovery flow, and approval interaction model for the
-KOTA mobile client. It is the design input for `task-build-mobile-client`.
+KOTA mobile client (`clients/mobile/`).
 
 ---
 
