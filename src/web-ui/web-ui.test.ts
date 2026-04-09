@@ -254,7 +254,7 @@ describe("getWebUI", () => {
   });
 
   it("loads modules from GET /api/modules on init", () => {
-    expect(html).toContain("refreshExtensions");
+    expect(html).toContain("refreshModules");
     expect(html).toContain("/api/modules");
   });
 

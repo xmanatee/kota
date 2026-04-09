@@ -202,13 +202,13 @@ export class ModuleLoader {
 
   async loadAll(modules: KotaModule[]): Promise<void> {
     const sorted = topoSort(modules);
-    for (const ext of sorted) {
+    for (const mod of sorted) {
       try {
-        await this.load(ext);
+        await this.load(mod);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[kota] Module "${ext.name}" failed to load: ${msg}`);
-        this.loadFailures.set(ext.name, { message: msg, timestamp: new Date().toISOString() });
+        console.error(`[kota] Module "${mod.name}" failed to load: ${msg}`);
+        this.loadFailures.set(mod.name, { message: msg, timestamp: new Date().toISOString() });
       }
     }
     if (this.config.foreignModules && this.config.foreignModules.length > 0 && !this.commandsOnly) {
@@ -217,12 +217,12 @@ export class ModuleLoader {
         this.cwd,
         this.config.modules,
       );
-      for (const ext of foreign) {
+      for (const mod of foreign) {
         try {
-          await this.load(ext);
+          await this.load(mod);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          console.error(`[kota] Foreign module "${ext.name}" failed to register: ${msg}`);
+          console.error(`[kota] Foreign module "${mod.name}" failed to register: ${msg}`);
         }
       }
     }
@@ -234,13 +234,13 @@ export class ModuleLoader {
 
   getCommands(): Command[] {
     const commands: Command[] = [];
-    for (const ext of this.modules) {
-      if (ext.commands) {
+    for (const mod of this.modules) {
+      if (mod.commands) {
         try {
-          commands.push(...ext.commands(this.createContext(ext.name)));
+          commands.push(...mod.commands(this.createContext(mod.name)));
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          console.error(`[kota] Module "${ext.name}" command registration failed: ${msg}`);
+          console.error(`[kota] Module "${mod.name}" command registration failed: ${msg}`);
         }
       }
     }
@@ -252,13 +252,13 @@ export class ModuleLoader {
     this.collectingRoutes = true;
     try {
       const routes: RouteRegistration[] = [];
-      for (const ext of this.modules) {
-        if (ext.routes) {
+      for (const mod of this.modules) {
+        if (mod.routes) {
           try {
-            routes.push(...ext.routes(this.createContext(ext.name)));
+            routes.push(...mod.routes(this.createContext(mod.name)));
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            console.error(`[kota] Module "${ext.name}" route registration failed: ${msg}`);
+            console.error(`[kota] Module "${mod.name}" route registration failed: ${msg}`);
           }
         }
       }
@@ -297,7 +297,7 @@ export class ModuleLoader {
     return reloadModule(
       moduleName,
       this.lifecycleState,
-      (ext) => this.load(ext),
+      (m) => this.load(m),
     );
   }
 
@@ -343,46 +343,46 @@ export class ModuleLoader {
   }
 
   getModuleSummaries(): ModuleSummary[] {
-    const loaded = this.modules.map((ext) => {
+    const loaded = this.modules.map((mod) => {
       const commandNames: string[] = [];
       let commandError: string | undefined;
-      if (ext.commands) {
+      if (mod.commands) {
         try {
-          const cmds = ext.commands(this.createContext(ext.name));
+          const cmds = mod.commands(this.createContext(mod.name));
           for (const cmd of cmds) commandNames.push(cmd.name());
         } catch (err) {
           commandError = err instanceof Error ? err.message : String(err);
-          console.error(`[kota] Module "${ext.name}" command summary failed: ${commandError}`);
+          console.error(`[kota] Module "${mod.name}" command summary failed: ${commandError}`);
         }
       }
       const routeSummaries: string[] = [];
       let routeError: string | undefined;
-      if (ext.routes) {
+      if (mod.routes) {
         try {
-          const routes = ext.routes(this.createContext(ext.name));
+          const routes = mod.routes(this.createContext(mod.name));
           for (const r of routes) routeSummaries.push(`${r.method} ${r.path}`);
         } catch (err) {
           routeError = err instanceof Error ? err.message : String(err);
-          console.error(`[kota] Module "${ext.name}" route summary failed: ${routeError}`);
+          console.error(`[kota] Module "${mod.name}" route summary failed: ${routeError}`);
         }
       }
       return {
-        name: ext.name,
-        version: ext.version,
-        description: ext.description,
-        dependencies: ext.dependencies ?? [],
-        toolNames: getModuleToolNames(ext.name),
-        workflowNames: (this.moduleWorkflowDefs.get(ext.name) ?? []).map((w) => w.name),
-        channelNames: (this.moduleChannelDefs.get(ext.name) ?? []).map((c) => c.name),
-        skillNames: (this.moduleSkillDefs.get(ext.name) ?? []).map((s) => s.name),
-        agentNames: (this.moduleAgentDefs.get(ext.name) ?? []).map((a) => a.name),
-        agents: [...(this.moduleAgentDefs.get(ext.name) ?? [])],
-        skills: [...(this.moduleSkillDefs.get(ext.name) ?? [])],
+        name: mod.name,
+        version: mod.version,
+        description: mod.description,
+        dependencies: mod.dependencies ?? [],
+        toolNames: getModuleToolNames(mod.name),
+        workflowNames: (this.moduleWorkflowDefs.get(mod.name) ?? []).map((w) => w.name),
+        channelNames: (this.moduleChannelDefs.get(mod.name) ?? []).map((c) => c.name),
+        skillNames: (this.moduleSkillDefs.get(mod.name) ?? []).map((s) => s.name),
+        agentNames: (this.moduleAgentDefs.get(mod.name) ?? []).map((a) => a.name),
+        agents: [...(this.moduleAgentDefs.get(mod.name) ?? [])],
+        skills: [...(this.moduleSkillDefs.get(mod.name) ?? [])],
         commandNames,
         routeSummaries,
         ...(commandError ? { commandError } : {}),
         ...(routeError ? { routeError } : {}),
-        health: ext.getHealth?.(),
+        health: mod.getHealth?.(),
       };
     });
     const failed: ModuleSummary[] = [];

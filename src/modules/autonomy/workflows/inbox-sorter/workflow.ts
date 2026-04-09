@@ -73,16 +73,6 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
       when: stepSucceeded("sort-inbox"),
       run: ({ projectDir, workflow }) => commitWorkflowChanges(projectDir, workflow.runDirPath),
     },
-    {
-      id: "emit-queue-available",
-      type: "emit",
-      when: stepSucceeded("sort-inbox"),
-      event: "autonomy.queue.available",
-      payload: (ctx) => ({
-        workflow: ctx.workflow.name,
-        runId: ctx.workflow.runId,
-      }),
-    },
   ],
 };
 

@@ -1,21 +1,21 @@
 /** Modules status panel for the KOTA web UI. */
 
-export const CLIENT_EXTENSIONS_JS = `
+export const CLIENT_MODULES_JS = `
   // --- Modules panel ---
 
-  async function refreshExtensions() {
+  async function refreshModules() {
     try {
       var res = await apiFetch(API + "/api/modules");
       if (!res.ok) {
-        $extensionsList.innerHTML = '<div class="run-empty">Failed to load modules</div>';
+        $modulesList.innerHTML = '<div class="run-empty">Failed to load modules</div>';
         return;
       }
       var data = await res.json();
-      _cachedExtensions = data.modules || [];
-      renderExtensions(_cachedExtensions);
+      _cachedModules = data.modules || [];
+      renderModules(_cachedModules);
       refreshOverview();
     } catch {
-      $extensionsList.innerHTML = '<div class="run-empty">Failed to load modules</div>';
+      $modulesList.innerHTML = '<div class="run-empty">Failed to load modules</div>';
     }
   }
 
@@ -32,10 +32,10 @@ export const CLIENT_EXTENSIONS_JS = `
     return '<span class="run-badge ' + cls + '" title="' + escapeHtml(tip) + '">\\u2022</span>';
   }
 
-  function renderExtensions(modules) {
-    $extensionsList.innerHTML = "";
+  function renderModules(modules) {
+    $modulesList.innerHTML = "";
     if (!modules.length) {
-      $extensionsList.innerHTML = '<div class="run-empty">No modules loaded</div>';
+      $modulesList.innerHTML = '<div class="run-empty">No modules loaded</div>';
       return;
     }
     for (var i = 0; i < modules.length; i++) {
@@ -70,7 +70,7 @@ export const CLIENT_EXTENSIONS_JS = `
         '</div>' +
         '<div class="task-item-summary">' + summary + '</div>';
 
-      $extensionsList.appendChild(item);
+      $modulesList.appendChild(item);
     }
   }
 `;

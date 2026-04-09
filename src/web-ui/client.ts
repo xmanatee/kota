@@ -7,7 +7,7 @@ import { CLIENT_AUDIT_JS } from "./client-audit.js";
 import { CLIENT_CHAT_JS } from "./client-chat.js";
 import { CLIENT_CONFIG_JS } from "./client-config.js";
 import { CLIENT_COST_JS } from "./client-cost.js";
-import { CLIENT_EXTENSIONS_JS } from "./client-modules.js";
+import { CLIENT_MODULES_JS } from "./client-modules.js";
 import { CLIENT_KEYBOARD_JS } from "./client-keyboard.js";
 import { CLIENT_KNOWLEDGE_JS } from "./client-knowledge.js";
 import { CLIENT_MEMORY_JS } from "./client-memory.js";
@@ -35,7 +35,7 @@ export const WEB_UI_JS = /* js */ `
   var expandedTasks = {};
   var collapsedGroups = {};
   var cachedTasks = {};
-  var _cachedExtensions = [];
+  var _cachedModules = [];
 
   // Auth token — read from URL param on first load, persist in localStorage
   var _urlToken = new URLSearchParams(window.location.search).get("token");
@@ -67,7 +67,7 @@ export const WEB_UI_JS = /* js */ `
   const $costList = document.getElementById("cost-summary-list");
   const $schedulesList = document.getElementById("schedules-list");
   const $wfDefinitionsList = document.getElementById("wf-definitions-list");
-  const $extensionsList = document.getElementById("modules-list");
+  const $modulesList = document.getElementById("modules-list");
   const $knowledgeList = document.getElementById("knowledge-list");
   const $knowledgeFilter = document.getElementById("knowledge-filter");
   const $memoryList = document.getElementById("memory-list");
@@ -102,7 +102,7 @@ ${CLIENT_COST_JS}
 ${CLIENT_ACTIVE_SESSIONS_JS}
 ${CLIENT_WF_DEFINITIONS_JS}
 ${CLIENT_SCHEDULES_JS}
-${CLIENT_EXTENSIONS_JS}
+${CLIENT_MODULES_JS}
 ${CLIENT_KNOWLEDGE_JS}
 ${CLIENT_MEMORY_JS}
 ${CLIENT_AUDIT_JS}
@@ -168,7 +168,7 @@ ${CLIENT_KEYBOARD_JS}
   refreshActiveSessions();
   refreshWfDefinitions();
   refreshSchedules();
-  refreshExtensions();
+  refreshModules();
   refreshKnowledge();
   refreshMemory();
   refreshAudit();

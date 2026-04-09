@@ -9,7 +9,6 @@ import { typedCodeStep } from "../../../../workflow/types.js";
 import { commitWorkflowChanges } from "../../commit.js";
 import {
   runCheck,
-  stepCommitted,
   stepSucceeded,
 } from "../../shared.js";
 
@@ -109,16 +108,6 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       type: "code",
       when: stepSucceeded("explore"),
       run: ({ projectDir, workflow }) => commitWorkflowChanges(projectDir, workflow.runDirPath),
-    },
-    {
-      id: "emit-queue-updated",
-      type: "emit",
-      when: stepCommitted("commit"),
-      event: "autonomy.queue.available",
-      payload: (ctx) => ({
-        workflow: ctx.workflow.name,
-        runId: ctx.workflow.runId,
-      }),
     },
   ],
 };

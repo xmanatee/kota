@@ -126,9 +126,8 @@ export const CLIENT_STATUS_OVERVIEW_JS = `
     healthRow.appendChild(healthVal);
     frag.appendChild(healthRow);
 
-    // Module health from _cachedExtensions
     var extOk = 0, extDegraded = 0;
-    var exts = _cachedExtensions || [];
+    var exts = _cachedModules || [];
     for (var ei = 0; ei < exts.length; ei++) {
       var eh = exts[ei].health;
       if (!eh || eh.status === "ok") extOk++;
