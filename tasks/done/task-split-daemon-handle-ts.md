@@ -1,7 +1,7 @@
 ---
 id: task-split-daemon-handle-ts
 title: Extract DaemonControlHandle factory from daemon.ts into daemon-handle.ts
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: The Daemon constructor in scheduler/daemon.ts has grown to 645 lines with a ~275-line inline DaemonControlHandle object literal that bridges the Daemon class to DaemonControlServer. Extracting this factory into a dedicated daemon-handle.ts module shrinks daemon.ts back within limits and gives the control bridge a clear home.

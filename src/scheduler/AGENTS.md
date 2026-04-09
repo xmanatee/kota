@@ -8,6 +8,7 @@ This directory contains schedule parsing, persistence, routing, and daemon-time 
 ## Key Modules
 
 - `daemon.ts` — `Daemon` class; orchestration, state management, and public API.
+- `daemon-handle.ts` — `buildDaemonHandle(ctx)` factory; constructs the `DaemonControlHandle` object that bridges `Daemon` internals to `DaemonControlServer`; also exports `DaemonHandleContext` type.
 - `daemon-logger.ts` — `DaemonLogger` class; structured stderr output in text or NDJSON format; reads format from constructor arg or `KOTA_DAEMON_LOG_FORMAT` env var.
 - `daemon-control.ts` — `DaemonControlServer` class; HTTP server wiring, route dispatch, SSE, event ring buffer integration, and authorization. Re-exports all public types from `daemon-control-types.ts`.
 - `event-ring-buffer.ts` — `EventRingBuffer` class; fixed-capacity circular buffer for recent daemon SSE events; supports `query(sinceMs?, limit?)` for catch-up reads.
