@@ -240,6 +240,7 @@ function summarizeStep(step: WorkflowStep): Record<string, unknown> {
       model: step.model,
       maxTurns: step.maxTurns,
       maxBudgetUsd: step.maxBudgetUsd,
+      maxCostUsd: step.maxCostUsd,
       permissionMode: step.permissionMode,
       allowedTools: step.allowedTools,
       disallowedTools: step.disallowedTools,

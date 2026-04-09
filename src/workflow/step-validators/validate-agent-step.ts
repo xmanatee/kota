@@ -240,6 +240,11 @@ export function validateAgentStep(
       `${stepLabel}.maxBudgetUsd`,
       definitionPath,
     ),
+    maxCostUsd: expectOptionalPositiveNumber(
+      step.maxCostUsd,
+      `${stepLabel}.maxCostUsd`,
+      definitionPath,
+    ),
     thinkingEnabled: expectOptionalBoolean(
       step.thinkingEnabled,
       `${stepLabel}.thinkingEnabled`,

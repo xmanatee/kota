@@ -42,6 +42,7 @@ function describeStep(step: WorkflowStepInput): string {
     if (step.agentName) extras.push(`agent=${step.agentName}`);
     else if (step.promptPath) extras.push(`prompt=${step.promptPath}`);
     if (step.maxBudgetUsd != null) extras.push(`budget=$${step.maxBudgetUsd}`);
+    if (step.maxCostUsd != null) extras.push(`cost-cap=$${step.maxCostUsd}`);
     if (step.timeoutMs != null) extras.push(`timeout=${formatDuration(step.timeoutMs)}`);
   }
   if (step.type === "tool") extras.push(`tool=${step.tool}`);

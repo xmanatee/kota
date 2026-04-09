@@ -1,7 +1,7 @@
 ---
 id: task-workflow-agent-step-cost-cap
 title: Add per-step cost cap to workflow agent steps
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: Workflow agent steps have no per-step spending limit. A runaway or looping agent step can exhaust the daily budget in a single run with no early abort.

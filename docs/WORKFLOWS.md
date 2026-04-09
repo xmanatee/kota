@@ -194,7 +194,8 @@ See [`workflow.maxStepOutputBytes` in CONFIG.md](CONFIG.md#maxstepoutputbytes) f
 | `promptPath` | `string` | — | Path to the prompt markdown file (relative to project root). Required when `agentName` is not set. |
 | `model` | `string` | config default | Model to use for this step. Overrides `agentName` model default. |
 | `maxTurns` | `number` | unlimited | Maximum agent turns before the step is interrupted. |
-| `maxBudgetUsd` | `number` | — | Per-step spend cap in USD. When the ceiling is hit the step fails and a `workflow.cost.ceiling.exceeded` bus event is emitted carrying `workflow`, `runId`, `stepId`, `budgetUsd`, and `actualCostUsd`. |
+| `maxBudgetUsd` | `number` | — | Per-step spend cap in USD enforced by the agent SDK. When the ceiling is hit the step fails and a `workflow.cost.ceiling.exceeded` bus event is emitted carrying `workflow`, `runId`, `stepId`, `budgetUsd`, and `actualCostUsd`. |
+| `maxCostUsd` | `number` | — | Per-step spend cap in USD enforced by KOTA after the step completes. When the step's reported cost exceeds this value the step fails with a `cost_cap_exceeded` error that includes the actual spend, the cap, and the step name. Works with any model provider that reports `totalCostUsd`. |
 | `thinkingEnabled` | `boolean` | `false` | Enable extended thinking (Claude reasons before responding). |
 | `thinkingBudget` | `number` | `10000` | Token budget for thinking when `thinkingEnabled` is `true`. Minimum 1024. |
 | `permissionMode` | `SDKPermissionMode` | `"bypassPermissions"` | Tool permission mode. |

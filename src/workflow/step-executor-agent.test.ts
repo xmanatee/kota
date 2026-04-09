@@ -50,6 +50,129 @@ function makeAgentStep(overrides: Partial<WorkflowAgentStep> = {}): WorkflowAgen
   };
 }
 
+describe("executeAgentStep — maxCostUsd", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-step-executor-maxcost-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(join(projectDir, "prompt.md"), "do the thing");
+    tryEmitMock.mockReset();
+    executeWithAgentSDKMock.mockReset();
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("completes normally when totalCostUsd is under maxCostUsd", async () => {
+    executeWithAgentSDKMock.mockResolvedValue({
+      text: "done",
+      streamedText: "",
+      sessionId: undefined,
+      turns: 2,
+      totalCostUsd: 0.30,
+      subtype: "success",
+      isError: false,
+    });
+
+    const step = makeAgentStep({ id: "build", maxCostUsd: 0.50 });
+    const output = await executeAgentStep(
+      makeDefinition(),
+      step,
+      makeMetadata(),
+      { event: "runtime.idle", payload: {} },
+      new AbortController(),
+      () => {},
+      () => {},
+      { projectDir, log: () => {} },
+    );
+
+    expect((output as { content: string }).content).toBe("done");
+  });
+
+  it("fails with cost_cap_exceeded when totalCostUsd exceeds maxCostUsd", async () => {
+    executeWithAgentSDKMock.mockResolvedValue({
+      text: "large output",
+      streamedText: "",
+      sessionId: undefined,
+      turns: 5,
+      totalCostUsd: 0.75,
+      subtype: "success",
+      isError: false,
+    });
+
+    const step = makeAgentStep({ id: "analyze", maxCostUsd: 0.50 });
+    await expect(
+      executeAgentStep(
+        makeDefinition(),
+        step,
+        makeMetadata(),
+        { event: "runtime.idle", payload: {} },
+        new AbortController(),
+        () => {},
+        () => {},
+        { projectDir, log: () => {} },
+      ),
+    ).rejects.toThrow(/cost_cap_exceeded/);
+  });
+
+  it("error message includes actual spend, cap, and step name", async () => {
+    executeWithAgentSDKMock.mockResolvedValue({
+      text: "large output",
+      streamedText: "",
+      sessionId: undefined,
+      turns: 5,
+      totalCostUsd: 1.2345,
+      subtype: "success",
+      isError: false,
+    });
+
+    const step = makeAgentStep({ id: "my-step", maxCostUsd: 0.5 });
+    await expect(
+      executeAgentStep(
+        makeDefinition(),
+        step,
+        makeMetadata(),
+        { event: "runtime.idle", payload: {} },
+        new AbortController(),
+        () => {},
+        () => {},
+        { projectDir, log: () => {} },
+      ),
+    ).rejects.toThrow(/my-step.*cost_cap_exceeded.*1\.2345.*0\.5000/);
+  });
+
+  it("behaves normally when maxCostUsd is absent", async () => {
+    executeWithAgentSDKMock.mockResolvedValue({
+      text: "done",
+      streamedText: "",
+      sessionId: undefined,
+      turns: 10,
+      totalCostUsd: 999.99,
+      subtype: "success",
+      isError: false,
+    });
+
+    const step = makeAgentStep({ id: "build" });
+    const output = await executeAgentStep(
+      makeDefinition(),
+      step,
+      makeMetadata(),
+      { event: "runtime.idle", payload: {} },
+      new AbortController(),
+      () => {},
+      () => {},
+      { projectDir, log: () => {} },
+    );
+
+    expect((output as { content: string }).content).toBe("done");
+  });
+});
+
 describe("executeAgentStep — cost ceiling", () => {
   let projectDir: string;
 

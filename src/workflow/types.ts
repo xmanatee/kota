@@ -127,6 +127,13 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
   model?: string;
   maxTurns?: number;
   maxBudgetUsd?: number;
+  /**
+   * Per-step spend cap enforced by KOTA after each agent run completes. When
+   * the step's reported cost exceeds this value the step fails with a
+   * `cost_cap_exceeded` error. The failure message includes the actual spend,
+   * the cap, and the step name. Optional — omitting it preserves current behavior.
+   */
+  maxCostUsd?: number;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
   permissionMode?: SDKPermissionMode;
@@ -388,6 +395,7 @@ export type WorkflowAgentStep = WorkflowBaseStep & {
   model?: string;
   maxTurns?: number;
   maxBudgetUsd?: number;
+  maxCostUsd?: number;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
   permissionMode: SDKPermissionMode;

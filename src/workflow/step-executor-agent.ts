@@ -270,6 +270,15 @@ export async function executeAgentStep(
           actualCostUsd: result.totalCostUsd,
         });
       }
+      if (
+        step.maxCostUsd != null &&
+        result.totalCostUsd != null &&
+        result.totalCostUsd > step.maxCostUsd
+      ) {
+        throw new Error(
+          `Agent step "${step.id}" cost_cap_exceeded: spent $${result.totalCostUsd.toFixed(4)}, cap $${step.maxCostUsd.toFixed(4)}`,
+        );
+      }
       if (result.isError) {
         const reason = result.subtype ?? "error";
         const detail = result.text.trim() || "Agent step returned an error result";
