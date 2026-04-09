@@ -11,6 +11,9 @@ import type { DaemonControlAddress } from "../../scheduler/daemon-control.js";
 import { DaemonControlClient } from "../../server/daemon-client.js";
 import { getRegisteredWorkflowDefinitions } from "../../workflow/registry.js";
 import type { RegisteredWorkflowDefinitionInput } from "../../workflow/types.js";
+import { buildEventsCommand } from "./events-cli.js";
+import { buildSessionCommand } from "./session-cli.js";
+import { buildStatusCommand } from "./status-cli.js";
 
 const DAEMON_CHILD_ENV = "KOTA_DAEMON_CHILD";
 const LAUNCHD_LABEL = "com.kota.daemon";
@@ -483,7 +486,7 @@ const daemonModule: KotaExtension = {
         }
       });
 
-    return [cmd];
+    return [cmd, buildEventsCommand(), buildSessionCommand(), buildStatusCommand()];
   },
 };
 

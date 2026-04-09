@@ -1,5 +1,5 @@
-import type { Command } from "commander";
-import { DaemonControlClient } from "./server/daemon-client.js";
+import { Command } from "commander";
+import { DaemonControlClient } from "../../server/daemon-client.js";
 
 function formatEventSummary(type: string, payload: Record<string, unknown>): string {
   if (type.startsWith("workflow.")) {
@@ -25,9 +25,8 @@ function formatEventSummary(type: string, payload: Record<string, unknown>): str
   return first != null ? String(first) : "";
 }
 
-export function registerEventsCommands(program: Command): void {
-  const cmd = program
-    .command("events")
+export function buildEventsCommand(): Command {
+  const cmd = new Command("events")
     .description("Inspect the daemon event bus");
 
   cmd
@@ -68,4 +67,6 @@ export function registerEventsCommands(program: Command): void {
         process.exit(1);
       }
     });
+
+  return cmd;
 }

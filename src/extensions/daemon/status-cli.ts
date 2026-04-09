@@ -1,9 +1,9 @@
 import { join } from "node:path";
-import type { Command } from "commander";
-import { loadConfig } from "./config.js";
-import { getApprovalQueue } from "./extensions/approval-queue/queue.js";
-import { DaemonControlClient } from "./server/daemon-client.js";
-import { WorkflowRunStore } from "./workflow/run-store.js";
+import { Command } from "commander";
+import { loadConfig } from "../../config.js";
+import { DaemonControlClient } from "../../server/daemon-client.js";
+import { WorkflowRunStore } from "../../workflow/run-store.js";
+import { getApprovalQueue } from "../approval-queue/queue.js";
 
 export type StatusSnapshot = {
   daemonRunning: boolean;
@@ -104,9 +104,8 @@ export async function gatherStatus(projectDir: string): Promise<StatusSnapshot> 
   };
 }
 
-export function registerStatusCommand(program: Command): void {
-  program
-    .command("status")
+export function buildStatusCommand(): Command {
+  return new Command("status")
     .description("Show a concise operational snapshot: daemon, active runs, approvals, and cost")
     .action(async () => {
       const projectDir = process.cwd();

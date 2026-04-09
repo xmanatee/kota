@@ -43,10 +43,13 @@ describe("daemonModule", () => {
     expect(daemonModule.description).toContain("Long-running");
   });
 
-  it("registers a 'daemon' CLI command", () => {
+  it("registers daemon, events, session, and status CLI commands", () => {
     const cmds = daemonModule.commands!(stubCtx);
-    expect(cmds).toHaveLength(1);
+    expect(cmds).toHaveLength(4);
     expect(cmds[0].name()).toBe("daemon");
+    expect(cmds[1].name()).toBe("events");
+    expect(cmds[2].name()).toBe("session");
+    expect(cmds[3].name()).toBe("status");
   });
 
   it("daemon command has expected options", () => {

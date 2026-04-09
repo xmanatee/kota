@@ -24,7 +24,7 @@ This directory contains built-in extensions and extension-level wiring.
 - `approval-queue/index.ts` — owns `ApprovalQueue` state (file-backed store for tool calls awaiting human approval) and the `kota approval` CLI subcommands (list, approve, approve-all, reject, reject-all, count, history). Exports `ApprovalQueue`, `getApprovalQueue`, `resetApprovalQueue`, `PendingApproval`, and `ApprovalStatus`.
 - `guardrails-audit/index.ts` — owns the guardrail audit trail; subscribes to `guardrail.assessed` bus events and writes entries to `.kota/audit.jsonl` via `AuditStore`. Provides the `kota audit list` CLI command. State implementation in `guardrails-audit/store.ts`; CLI in `guardrails-audit/cli.ts`.
 - `repo-tasks/index.ts` — owns the `kota task` CLI subcommands for managing the KOTA repo task queue. CLI implementation in `repo-tasks/cli.ts`.
-- `daemon/index.ts` — `kota daemon` CLI command (with `status`, `pid`, `stop`, and `reload` subcommands), supervisor/child startup path, and built-in workflow/channel resolution passed into `scheduler/daemon.ts`.
+- `daemon/index.ts` — `kota daemon` CLI command (with `status`, `pid`, `stop`, `reload`, `install`, and `uninstall` subcommands), `kota events tail`, `kota session list/inspect`, and `kota status`. Supervisor/child startup path, and built-in workflow/channel resolution passed into `scheduler/daemon.ts`.
 - `web/index.ts` — `kota serve` CLI command; starts the HTTP API/web UI server and injects extension routes discovered from the loader.
 - `history/index.ts` — `conversation_recall` management tool and matching history skill. Tool implementation in `history/conversation-recall.ts`.
 - `memory/index.ts` — `memory` management tool and matching memory skill. Tool implementation in `memory/memory.ts`.

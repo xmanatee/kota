@@ -1,7 +1,7 @@
-import type { Command } from "commander";
-import type { InteractiveSession } from "./scheduler/daemon-control.js";
-import { DaemonControlClient } from "./server/daemon-client.js";
-import type { WorkflowActiveRun } from "./workflow/run-types.js";
+import { Command } from "commander";
+import type { InteractiveSession } from "../../scheduler/daemon-control.js";
+import { DaemonControlClient } from "../../server/daemon-client.js";
+import type { WorkflowActiveRun } from "../../workflow/run-types.js";
 
 type SessionEntry =
   | { kind: "interactive"; id: string; startedAt: string; lastActive: number }
@@ -28,9 +28,8 @@ function buildSessionList(
   return entries.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
 }
 
-export function registerSessionCommands(program: Command): void {
-  const sessionCmd = program
-    .command("session")
+export function buildSessionCommand(): Command {
+  const sessionCmd = new Command("session")
     .description("Inspect active sessions tracked by the daemon");
 
   sessionCmd
@@ -143,4 +142,6 @@ export function registerSessionCommands(program: Command): void {
       console.error(`Session "${id}" not found.`);
       process.exit(1);
     });
+
+  return sessionCmd;
 }

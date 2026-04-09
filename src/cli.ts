@@ -14,7 +14,6 @@ import { registerCompletionCommands } from "./completion-cli.js";
 import { expandAlias, loadConfig } from "./config.js";
 import { registerConfigCommands } from "./config-cli.js";
 import { setSkipConfirmations } from "./confirm.js";
-import { registerEventsCommands } from "./events-cli.js";
 import { discoverExtensions } from "./extension-discovery.js";
 import { ExtensionLoader } from "./extension-loader.js";
 import { builtinExtensions } from "./extensions/index.js";
@@ -23,8 +22,6 @@ import { registerInitCommand } from "./init-cli.js";
 import { runAgentLoop } from "./loop.js";
 import { getHistory } from "./memory/history.js";
 import { createModelClient } from "./model/model-client.js";
-import { registerSessionCommands } from "./session-cli.js";
-import { registerStatusCommand } from "./status-cli.js";
 import { registerWebhookCommands } from "./webhook-cli.js";
 import { registerWorkflowCommands } from "./workflow-cli.js";
 
@@ -173,12 +170,9 @@ program
 
 registerHistoryCommands(program);
 registerWorkflowCommands(program);
-registerSessionCommands(program);
 registerWebhookCommands(program);
-registerStatusCommand(program);
 registerConfigCommands(program);
 registerInitCommand(program);
-registerEventsCommands(program);
 registerCompletionCommands(program);
 
 // Handle stdin pipe mode
