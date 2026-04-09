@@ -2,11 +2,11 @@
 id: task-extract-model-client-extension
 title: Extract model client implementations into a dedicated extension
 status: backlog
-priority: p3
+priority: p2
 area: architecture
 summary: Model client implementations (openai, anthropic, etc.) and related adapters are scattered across src/ core files. Extracting them into an extension would reduce core scope and allow model providers to be swapped/extended without touching core.
 created_at: 2026-04-09T06:35:00Z
-updated_at: 2026-04-09T06:35:00Z
+updated_at: 2026-04-09T06:48:22Z
 ---
 
 ## Problem
