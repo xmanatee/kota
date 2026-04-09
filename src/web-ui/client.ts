@@ -12,6 +12,10 @@ import { CLIENT_KEYBOARD_JS } from "./client-keyboard.js";
 import { CLIENT_KNOWLEDGE_JS } from "./client-knowledge.js";
 import { CLIENT_MEMORY_JS } from "./client-memory.js";
 import { CLIENT_RUN_DETAIL_JS } from "./client-run-detail.js";
+import { CLIENT_RUN_DETAIL_COMPARE_JS } from "./client-run-detail-compare.js";
+import { CLIENT_RUN_DETAIL_CONTROLS_JS } from "./client-run-detail-controls.js";
+import { CLIENT_RUN_DETAIL_STEPS_JS } from "./client-run-detail-steps.js";
+import { CLIENT_RUN_DETAIL_STREAM_JS } from "./client-run-detail-stream.js";
 import { CLIENT_SCHEDULES_JS } from "./client-schedules.js";
 import { CLIENT_SESSIONS_JS } from "./client-sessions.js";
 import { CLIENT_STATUS_OVERVIEW_JS } from "./client-status-overview.js";
@@ -85,6 +89,10 @@ export const WEB_UI_JS = /* js */ `
 ${CLIENT_UTILS_JS}
 ${CLIENT_SESSIONS_JS}
 ${CLIENT_CHAT_JS}
+${CLIENT_RUN_DETAIL_CONTROLS_JS}
+${CLIENT_RUN_DETAIL_STEPS_JS}
+${CLIENT_RUN_DETAIL_STREAM_JS}
+${CLIENT_RUN_DETAIL_COMPARE_JS}
 ${CLIENT_RUN_DETAIL_JS}
 ${CLIENT_STATUS_OVERVIEW_JS}
 ${CLIENT_WORKFLOWS_JS}

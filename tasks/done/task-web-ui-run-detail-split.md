@@ -1,7 +1,7 @@
 ---
 id: task-web-ui-run-detail-split
 title: Split client-run-detail.ts into focused sub-modules
-status: ready
+status: done
 priority: p2
 area: web-ui
 summary: client-run-detail.ts is 826 lines — 2.7x the project file size limit — and is the most actively changed web-UI module. Five recent tasks touched it in one day. Split it into focused sub-modules to reduce blast radius and keep the codebase navigable.
