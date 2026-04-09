@@ -1,6 +1,6 @@
 import type { BusEvents, EventBus } from "../event-bus.js";
-import { type ExtensionCrashAlertOptions, subscribeExtensionCrashAlert } from "../extension-crash-alert.js";
 import { getApprovalQueue } from "../extensions/approval-queue/queue.js";
+import { type ExtensionCrashAlertOptions, subscribeExtensionCrashAlert } from "../extensions/notifications/extension-crash-alert.js";
 import { subscribeWorkflowFailureAlert } from "../workflow/failure-alert.js";
 import type { WorkflowNotifyConfig } from "../workflow/types.js";
 import type { ScheduledItem } from "./scheduler.js";

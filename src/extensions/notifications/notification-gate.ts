@@ -12,7 +12,7 @@
  *   workflow.failure.alert, extension.crash.alert
  */
 
-import type { EventBus } from "./event-bus.js";
+import type { EventBus } from "../../event-bus.js";
 
 export type QuietHoursConfig = {
   /** Quiet period start in local time, "HH:MM" (24-hour). */
