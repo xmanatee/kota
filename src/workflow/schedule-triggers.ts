@@ -52,7 +52,7 @@ export class ScheduleTriggerManager {
             nextFireMs = Date.now();
           }
         } else {
-          const next = getNextCronTime(trigger.schedule!, new Date());
+          const next = getNextCronTime(trigger.schedule!, new Date(), trigger.timezone);
           if (!next) continue;
           nextFireMs = next.getTime();
         }
@@ -93,7 +93,7 @@ export class ScheduleTriggerManager {
       if (trigger.intervalMs != null) {
         nextMs = now + trigger.intervalMs;
       } else {
-        const next = getNextCronTime(trigger.schedule!, new Date(now));
+        const next = getNextCronTime(trigger.schedule!, new Date(now), trigger.timezone);
         if (!next) return;
         nextMs = next.getTime();
       }
@@ -145,7 +145,7 @@ export class ScheduleTriggerManager {
             nextFireMs = Date.now();
           }
         } else {
-          const next = getNextCronTime(trigger.schedule!, new Date());
+          const next = getNextCronTime(trigger.schedule!, new Date(), trigger.timezone);
           if (!next) continue;
           nextFireMs = next.getTime();
         }

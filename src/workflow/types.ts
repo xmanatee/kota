@@ -42,6 +42,14 @@ export type WorkflowTriggerInput = {
   cooldownMs?: number;
   /** Standard 5-field cron expression (MIN HOUR DOM MONTH DOW). */
   schedule?: string;
+  /**
+   * IANA timezone name for cron schedule evaluation (e.g. `"America/Los_Angeles"`).
+   * When set, the cron expression is evaluated in the named timezone's wall-clock
+   * time, so the workflow fires at the correct local time across daylight saving
+   * transitions. When omitted, the process local timezone is used.
+   * Only valid when `schedule` is also set.
+   */
+  timezone?: string;
   /** Interval in milliseconds. Fires immediately on first run, then every N ms. */
   intervalMs?: number;
   /**
@@ -69,6 +77,8 @@ export type WorkflowTrigger = {
   cooldownMs: number;
   /** Standard 5-field cron expression, if this is a schedule trigger. */
   schedule?: string;
+  /** IANA timezone for cron evaluation. Omitted means process local timezone. */
+  timezone?: string;
   /** Interval in milliseconds, if this is an interval trigger. */
   intervalMs?: number;
   /** When true, this trigger fires via the daemon webhook endpoint. */

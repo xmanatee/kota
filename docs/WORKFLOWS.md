@@ -23,6 +23,25 @@ per-workflow HMAC secret in `.kota/config.json`; see [DAEMON-API.md](./DAEMON-AP
 for signing details, configuration, and the optional `webhookRateLimit` field.
 Interval and idle triggers respect `scheduler.dispatchWindow` in config — see [CONFIG.md](./CONFIG.md#dispatchwindow).
 
+### Cron Timezone
+
+By default, cron expressions are evaluated in the process's local timezone. Add
+`timezone` to evaluate the expression in a specific IANA timezone instead:
+
+```typescript
+{
+  trigger: {
+    schedule: "0 9 * * 1-5", // 9am Mon–Fri
+    timezone: "America/Los_Angeles",
+  }
+}
+```
+
+The scheduler fires at 9am Pacific time and adjusts automatically for daylight
+saving transitions. Use standard IANA names (`America/New_York`, `Europe/London`,
+`Asia/Tokyo`, `UTC`, etc.). An invalid timezone name is rejected at definition
+load time with a clear error.
+
 ## Concurrency Model
 
 Workflows run concurrently based on their step types, unless configured otherwise.

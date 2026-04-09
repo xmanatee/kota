@@ -1,5 +1,5 @@
 import { matchesGlob } from "node:path";
-import { validateCronExpr } from "./cron.js";
+import { validateCronExpr, validateTimezone } from "./cron.js";
 import type { WorkflowTrigger, WorkflowTriggerInput } from "./types.js";
 import {
   expectNonEmptyString,
@@ -92,6 +92,13 @@ export function validateTrigger(
     );
   }
 
+  if (trigger.timezone != null && trigger.schedule == null) {
+    throw new WorkflowDefinitionError(
+      `triggers[${index}].timezone is only valid on cron schedule triggers`,
+      definitionPath,
+    );
+  }
+
   const event = isSchedule
     ? (trigger.event ?? "schedule")
     : expectNonEmptyString(trigger.event, `triggers[${index}].event`, definitionPath);
@@ -118,7 +125,24 @@ export function validateTrigger(
         definitionPath,
       );
     }
-    return { event, cooldownMs, schedule: trigger.schedule };
+    let timezone: string | undefined;
+    if (trigger.timezone != null) {
+      if (typeof trigger.timezone !== "string" || !trigger.timezone.trim()) {
+        throw new WorkflowDefinitionError(
+          `triggers[${index}].timezone must be a non-empty string`,
+          definitionPath,
+        );
+      }
+      const tzError = validateTimezone(trigger.timezone);
+      if (tzError) {
+        throw new WorkflowDefinitionError(
+          `triggers[${index}].timezone: ${tzError}`,
+          definitionPath,
+        );
+      }
+      timezone = trigger.timezone;
+    }
+    return { event, cooldownMs, schedule: trigger.schedule, timezone };
   }
 
   if (trigger.intervalMs != null) {
