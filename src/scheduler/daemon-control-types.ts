@@ -1,4 +1,4 @@
-import type { PendingApproval } from "../approval-queue.js";
+import type { PendingApproval } from "../extensions/approval-queue/queue.js";
 import type { ConversationData, ConversationRecord } from "../memory/history-utils.js";
 import type { ToolCallSummaryEntry, WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState } from "../workflow/run-types.js";
 import type { WorkflowAgentBackoffState } from "../workflow/types.js";

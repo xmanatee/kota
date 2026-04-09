@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { getApprovalQueue } from "./approval-queue.js";
 import { confirmAction } from "./confirm.js";
 import { truncateToolResult } from "./context.js";
+import { getApprovalQueue } from "./extensions/approval-queue/queue.js";
 import { assess, type GuardrailsConfig } from "./guardrails.js";
 import { getAuditStore } from "./guardrails-audit.js";
 import type { McpManager } from "./mcp/manager.js";

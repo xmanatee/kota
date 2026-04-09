@@ -1,9 +1,9 @@
 import { createInterface } from "node:readline";
 import type { Command } from "commander";
-import type { ApprovalStatus } from "../../approval-queue.js";
-import { getApprovalQueue } from "../../approval-queue.js";
 import { loadConfig } from "../../config.js";
 import { executeTool } from "../../tools/index.js";
+import type { ApprovalStatus } from "./queue.js";
+import { getApprovalQueue } from "./queue.js";
 
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 

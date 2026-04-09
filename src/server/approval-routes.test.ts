@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApprovalQueue } from "../approval-queue.js";
+import { ApprovalQueue } from "../extensions/approval-queue/queue.js";
 import {
 	handleApproveApproval,
 	handleListApprovals,

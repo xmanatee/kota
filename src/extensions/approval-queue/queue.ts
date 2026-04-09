@@ -10,8 +10,8 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tryEmit } from "./event-bus.js";
-import type { RiskLevel } from "./guardrails.js";
+import { tryEmit } from "../../event-bus.js";
+import type { RiskLevel } from "../../guardrails.js";
 
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired";
 

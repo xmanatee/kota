@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "./approval-queue.js";
+import { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "./extensions/approval-queue/queue.js";
 
 const tryEmitMock = vi.hoisted(() => vi.fn());
 vi.mock("./event-bus.js", () => ({

@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { PendingApproval } from "../approval-queue.js";
+import type { PendingApproval } from "../extensions/approval-queue/queue.js";
 import { readOptionalJsonFile } from "../json-file.js";
 import type { ConversationData, ConversationRecord } from "../memory/history-utils.js";
 import type {

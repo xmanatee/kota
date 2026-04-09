@@ -1,5 +1,5 @@
-import { getApprovalQueue } from "../approval-queue.js";
 import { tryEmit } from "../event-bus.js";
+import { getApprovalQueue } from "../extensions/approval-queue/queue.js";
 import type { WorkflowStepContext } from "./run-types.js";
 import type { WorkflowStepOutput } from "./step-executor-agent.js";
 import type { WorkflowApprovalStep } from "./types.js";

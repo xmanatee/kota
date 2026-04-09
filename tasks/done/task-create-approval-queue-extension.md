@@ -1,7 +1,7 @@
 ---
 id: task-create-approval-queue-extension
 title: Complete approval-queue extension to own approval state (CLI already migrated)
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: src/extensions/approval-queue/ exists with CLI commands. The remaining work is migrating approval state (ApprovalQueue class, singleton accessors) from src/approval-queue.ts into the extension so core tool-runner imports from the extension instead of a core file.

@@ -21,7 +21,7 @@ vi.mock("./confirm.js", () => ({
 vi.mock("./guardrails-audit.js", () => ({
   getAuditStore: vi.fn(() => null),
 }));
-vi.mock("./approval-queue.js", () => ({
+vi.mock("./extensions/approval-queue/queue.js", () => ({
   getApprovalQueue: vi.fn(() => ({
     enqueue: vi.fn(() => ({ id: "abc123" })),
   })),
@@ -30,9 +30,9 @@ vi.mock("./secrets.js", () => ({
   getSecretStore: vi.fn(() => null),
 }));
 
-import { getApprovalQueue } from "./approval-queue.js";
 import { confirmAction } from "./confirm.js";
 import { truncateToolResult } from "./context.js";
+import { getApprovalQueue } from "./extensions/approval-queue/queue.js";
 import { assess } from "./guardrails.js";
 import { getAuditStore } from "./guardrails-audit.js";
 import { executeTool } from "./tools/index.js";

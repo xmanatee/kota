@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import type { Command } from "commander";
-import { getApprovalQueue } from "./approval-queue.js";
 import { loadConfig } from "./config.js";
+import { getApprovalQueue } from "./extensions/approval-queue/queue.js";
 import { DaemonControlClient } from "./server/daemon-client.js";
 import { WorkflowRunStore } from "./workflow/run-store.js";
 

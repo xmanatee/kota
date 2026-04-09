@@ -1,10 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { getApprovalQueue } from "../approval-queue.js";
 import type { KotaConfig } from "../config.js";
 import type { EventBus } from "../event-bus.js";
 import { discoverExtensions } from "../extension-discovery.js";
+import { getApprovalQueue } from "../extensions/approval-queue/queue.js";
 import { getHistory } from "../memory/history.js";
 import { getRegisteredWorkflowDefinitions } from "../workflow/registry.js";
 import type { WorkflowRunStore } from "../workflow/run-store.js";

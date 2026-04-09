@@ -26,5 +26,5 @@ See `docs/SLACK-CHANNEL.md` for Slack App setup instructions.
 ## Boundaries
 
 - Does not own the one-way Slack webhook notification path (that lives in `../slack/`).
-- Does not own the approval queue itself (`src/approval-queue.ts`).
+- Does not own the approval queue itself (`src/extensions/approval-queue/queue.ts`).
 - Does not add HTTP routes — all inbound traffic comes through Socket Mode WebSocket.
