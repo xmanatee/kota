@@ -123,6 +123,7 @@ describe("builder workflow commit and restart gates", () => {
     const ctx = makeContext({
       build: "success",
       "check-no-intermediate-commits": "success",
+      "create-task-branch": "success",
     });
     expect(await commitStep!.when!(ctx)).toBe(true);
   });

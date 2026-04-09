@@ -43,6 +43,16 @@ vi.mock("./run-summary.js", () => ({
   })),
 }));
 
+vi.mock("./branch-per-task.js", () => ({
+  createTaskBranch: vi.fn(() => ({
+    branchPerTask: false,
+    branch: null,
+    baseBranch: null,
+    taskId: null,
+  })),
+  createPullRequest: vi.fn(() => ({ prUrl: "https://github.com/example/repo/pull/1" })),
+}));
+
 function makeEmptySnapshot() {
   return {
     counts: {
@@ -251,5 +261,122 @@ describe("builder workflow", () => {
       actionableCount: 3,
       counts: expect.objectContaining({ ready: 3 }),
     });
+  });
+
+  it("create-task-branch runs after successful build check, create-pr skipped when branchPerTask=false", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
+
+    const { getRepoHeadSha } = await import("../../repo-worktree.js");
+    vi.mocked(getRepoHeadSha).mockReturnValue("abc1234");
+
+    const { commitWorkflowChanges } = await import("../commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+
+    const { createTaskBranch } = await import("./branch-per-task.js");
+    vi.mocked(createTaskBranch).mockReturnValue({
+      branchPerTask: false,
+      branch: null,
+      baseBranch: null,
+      taskId: null,
+    });
+
+    const harness = new WorkflowTestHarness(builderWorkflow, {
+      trigger: { event: "workflow.completed", payload: { workflow: "explorer", status: "success" } },
+      stepMocks: { build: { turns: [], totalCostUsd: 0.01 } },
+    });
+
+    const result = await harness.run();
+
+    expect(result.steps["create-task-branch"].status).toBe("success");
+    expect(result.steps["create-task-branch"].output).toMatchObject({ branchPerTask: false });
+    expect(result.steps.commit.status).toBe("success");
+    expect(result.steps["create-pr"].status).toBe("skipped");
+  });
+
+  it("create-pr runs and returns PR URL when branchPerTask=true", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
+
+    const { getRepoHeadSha } = await import("../../repo-worktree.js");
+    vi.mocked(getRepoHeadSha).mockReturnValue("abc1234");
+
+    const { commitWorkflowChanges } = await import("../commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+
+    const { createTaskBranch, createPullRequest } = await import("./branch-per-task.js");
+    vi.mocked(createTaskBranch).mockReturnValue({
+      branchPerTask: true,
+      branch: "kota/task/task-foo",
+      baseBranch: "main",
+      taskId: "task-foo",
+    });
+    vi.mocked(createPullRequest).mockReturnValue({ prUrl: "https://github.com/org/repo/pull/42" });
+
+    const harness = new WorkflowTestHarness(builderWorkflow, {
+      trigger: { event: "workflow.completed", payload: { workflow: "explorer", status: "success" } },
+      stepMocks: { build: { turns: [], totalCostUsd: 0.05 } },
+    });
+
+    const result = await harness.run();
+
+    expect(result.steps["create-task-branch"].status).toBe("success");
+    expect(result.steps["create-task-branch"].output).toMatchObject({
+      branchPerTask: true,
+      branch: "kota/task/task-foo",
+    });
+    expect(result.steps["create-pr"].status).toBe("success");
+    expect(result.steps["create-pr"].output).toMatchObject({
+      prUrl: "https://github.com/org/repo/pull/42",
+    });
+  });
+
+  it("create-pr failure propagates as run failure", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
+
+    const { getRepoHeadSha } = await import("../../repo-worktree.js");
+    vi.mocked(getRepoHeadSha).mockReturnValue("abc1234");
+
+    const { commitWorkflowChanges } = await import("../commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+
+    const { createTaskBranch, createPullRequest } = await import("./branch-per-task.js");
+    vi.mocked(createTaskBranch).mockReturnValue({
+      branchPerTask: true,
+      branch: "kota/task/task-foo",
+      baseBranch: "main",
+      taskId: "task-foo",
+    });
+    vi.mocked(createPullRequest).mockImplementation(() => {
+      throw new Error("gh CLI is not available or not authenticated.");
+    });
+
+    const harness = new WorkflowTestHarness(builderWorkflow, {
+      trigger: { event: "workflow.completed", payload: { workflow: "explorer", status: "success" } },
+      stepMocks: { build: { turns: [], totalCostUsd: 0.05 } },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("failed");
+    expect(result.steps["create-pr"].status).toBe("failed");
+    expect(result.steps["create-pr"].error).toMatch(/gh CLI is not available/);
+  });
+
+  it("create-task-branch and create-pr are skipped when build is skipped", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("../../repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeEmptySnapshot());
+
+    const harness = new WorkflowTestHarness(builderWorkflow, {
+      trigger: { event: "workflow.completed", payload: { workflow: "explorer", status: "success" } },
+      stepMocks: { build: { turns: [], totalCostUsd: 0 } },
+    });
+
+    const result = await harness.run();
+
+    expect(result.steps.build.status).toBe("skipped");
+    expect(result.steps["create-task-branch"].status).toBe("skipped");
+    expect(result.steps["create-pr"].status).toBe("skipped");
   });
 });

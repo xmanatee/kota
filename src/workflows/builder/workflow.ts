@@ -5,6 +5,8 @@ import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import { typedCodeStep } from "../../workflow/types.js";
 import { commitWorkflowChanges } from "../commit.js";
 import { runCheck, stepCommitted, stepSucceeded } from "../shared.js";
+import type { BranchStepResult } from "./branch-per-task.js";
+import { createPullRequest, createTaskBranch } from "./branch-per-task.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 import { writeBuilderRunSummary } from "./run-summary.js";
 
@@ -115,10 +117,16 @@ const builderWorkflow: WorkflowDefinitionInput = {
         return { startSha, currentSha, clean: startSha === currentSha };
       },
     },
+    typedCodeStep<BranchStepResult>({
+      id: "create-task-branch",
+      type: "code",
+      when: stepSucceeded("check-no-intermediate-commits"),
+      run: (ctx) => createTaskBranch(ctx),
+    }),
     {
       id: "commit",
       type: "code",
-      when: stepSucceeded("check-no-intermediate-commits"),
+      when: stepSucceeded("create-task-branch"),
       run: ({ projectDir, workflow }) => commitWorkflowChanges(projectDir, workflow.runDirPath),
     },
     typedCodeStep<BuilderRunSummary>({
@@ -127,6 +135,16 @@ const builderWorkflow: WorkflowDefinitionInput = {
       when: stepCommitted("commit"),
       run: (ctx) => writeBuilderRunSummary(ctx),
     }),
+    {
+      id: "create-pr",
+      type: "code",
+      when: (ctx) => {
+        if (!stepCommitted("commit")(ctx)) return false;
+        const branchInfo = ctx.stepOutputs["create-task-branch"] as BranchStepResult | undefined;
+        return branchInfo?.branchPerTask === true;
+      },
+      run: (ctx) => createPullRequest(ctx),
+    },
     {
       id: "emit-build-committed",
       type: "emit",
