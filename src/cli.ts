@@ -4,8 +4,6 @@ import {
   buildClaudeCodeSystemPrompt,
   executeWithAgentSDK,
 } from "./agent-sdk/index.js";
-import { registerApprovalCommands } from "./approval-cli.js";
-import { registerAuditCommands } from "./audit-cli.js";
 import {
   interactiveMode,
   parseIntOption,
@@ -26,11 +24,9 @@ import { builtinExtensions } from "./extensions/index.js";
 import { registerInitCommand } from "./init-cli.js";
 import { runAgentLoop } from "./loop.js";
 import { getHistory } from "./memory/history.js";
-import { registerKnowledgeCommands, registerMemoryCommands } from "./memory-cli.js";
 import { createModelClient, parseModelString } from "./model/provider-factory.js";
 import { registerSessionCommands } from "./session-cli.js";
 import { registerStatusCommand } from "./status-cli.js";
-import { registerTaskCommands } from "./task-cli.js";
 import { registerWebhookCommands } from "./webhook-cli.js";
 import { registerWorkflowCommands } from "./workflow-cli.js";
 
@@ -179,11 +175,6 @@ program
 
 registerHistoryCommands(program);
 registerWorkflowCommands(program);
-registerApprovalCommands(program);
-registerAuditCommands(program);
-registerTaskCommands(program);
-registerMemoryCommands(program);
-registerKnowledgeCommands(program);
 registerExtensionCommands(program);
 registerSessionCommands(program);
 registerAgentCommands(program);

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { findTask, gcTerminalTasks, listTasksForStates, registerTaskCommands, slugify } from "./task-cli.js";
+import { findTask, gcTerminalTasks, listTasksForStates, registerTaskCommands, slugify } from "./cli.js";
 
 vi.mock("node:child_process", () => ({
   execSync: vi.fn(),

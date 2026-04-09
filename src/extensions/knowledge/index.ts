@@ -1,11 +1,14 @@
 /**
  * Knowledge extension — file-based structured data layer.
  *
- * Registers the `knowledge` tool in the `management` group.
+ * Registers the `knowledge` tool in the `management` group and the `kota knowledge`
+ * operator CLI commands.
  * Storage: .kota/data/ (project) and ~/.kota/data/ (global).
  */
 
+import { Command } from "commander";
 import type { KotaExtension } from "../../extension-types.js";
+import { registerKnowledgeCommands } from "./cli.js";
 import { knowledgeTool, runKnowledge } from "./knowledge.js";
 
 const knowledgeModule: KotaExtension = {
@@ -21,6 +24,12 @@ const knowledgeModule: KotaExtension = {
 		},
 	],
 	skills: [{ name: "knowledge", promptPath: "src/extensions/skills/knowledge.md" }],
+
+	commands: () => {
+		const root = new Command("__root__");
+		registerKnowledgeCommands(root);
+		return root.commands as Command[];
+	},
 };
 
 export default knowledgeModule;

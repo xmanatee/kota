@@ -1,6 +1,6 @@
 import type { Command } from "commander";
-import type { AuditEntry, AuditFilter } from "./guardrails-audit.js";
-import { AuditStore } from "./guardrails-audit.js";
+import type { AuditEntry, AuditFilter } from "../../guardrails-audit.js";
+import { AuditStore } from "../../guardrails-audit.js";
 
 const DEFAULT_LIMIT = 50;
 

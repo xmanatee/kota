@@ -2,10 +2,13 @@
  * Memory extension — persistent memory across sessions.
  *
  * First built-in extension extracted using the KotaExtension protocol.
- * Registers the `memory` tool in the `management` group.
+ * Registers the `memory` tool in the `management` group and the `kota memory`
+ * operator CLI commands.
  */
 
+import { Command } from "commander";
 import type { KotaExtension } from "../../extension-types.js";
+import { registerMemoryCommands } from "./cli.js";
 import { memoryTool, runMemory } from "./memory.js";
 
 const memoryModule: KotaExtension = {
@@ -22,6 +25,12 @@ const memoryModule: KotaExtension = {
     },
   ],
   skills: [{ name: "memory", promptPath: "src/extensions/skills/memory.md" }],
+
+  commands: () => {
+    const root = new Command("__root__");
+    registerMemoryCommands(root);
+    return root.commands as Command[];
+  },
 };
 
 export default memoryModule;

@@ -9,12 +9,14 @@
  */
 
 import type { KotaExtension } from "../extension-types.js";
+import approvalQueueModule from "./approval-queue/index.js";
 import daemonModule from "./daemon/index.js";
 import executionModule from "./execution/index.js";
 import filesystemModule from "./filesystem/index.js";
 import gitModule from "./git/index.js";
 import githubModule from "./github/index.js";
 import githubWebhookModule from "./github-webhook/index.js";
+import guardrailsAuditModule from "./guardrails-audit/index.js";
 import historyModule from "./history/index.js";
 import knowledgeModule from "./knowledge/index.js";
 import mcpServerModule from "./mcp-server/index.js";
@@ -22,6 +24,7 @@ import memoryModule from "./memory/index.js";
 import notebookModule from "./notebook/index.js";
 import readDocumentModule from "./read-document/index.js";
 import registryModule from "./registry/index.js";
+import repoTasksModule from "./repo-tasks/index.js";
 import schedulerModule from "./scheduler/index.js";
 import secretsModule from "./secrets/index.js";
 import slackModule from "./slack/index.js";
@@ -64,4 +67,7 @@ export const builtinExtensions: KotaExtension[] = [
   webModule,
   registryModule,
   mcpServerModule,
+  approvalQueueModule,
+  guardrailsAuditModule,
+  repoTasksModule,
 ];

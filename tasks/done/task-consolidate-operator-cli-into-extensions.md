@@ -1,12 +1,12 @@
 ---
 id: task-consolidate-operator-cli-into-extensions
 title: Move operator-facing CLI commands to their contributing extensions
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Approval, memory, knowledge, audit, and task CLI commands are implemented in src/ root files instead of being colocated with their extensions. Consolidating them into the extensions that own the underlying stores would clarify ownership and reduce core bloat.
 created_at: 2026-04-09T06:30:00Z
-updated_at: 2026-04-09T06:30:00Z
+updated_at: 2026-04-09T07:00:00Z
 ---
 
 ## Problem

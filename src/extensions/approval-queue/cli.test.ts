@@ -3,28 +3,29 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { registerApprovalCommands } from "./approval-cli.js";
-import { ApprovalQueue, resetApprovalQueue } from "./approval-queue.js";
+import { ApprovalQueue, resetApprovalQueue } from "../../approval-queue.js";
+import { registerApprovalCommands } from "./cli.js";
 
-vi.mock("./event-bus.js", () => ({
+vi.mock("../../event-bus.js", () => ({
 	tryEmit: vi.fn(),
 	getEventBus: () => null,
 }));
 
 let testQueue: ApprovalQueue;
-vi.mock("./approval-queue.js", async (importOriginal) => {
-	const mod = await importOriginal<typeof import("./approval-queue.js")>();
+vi.mock("../../approval-queue.js", async (importOriginal) => {
+	const mod = await importOriginal<typeof import("../../approval-queue.js")>();
 	return {
 		...mod,
 		getApprovalQueue: () => testQueue,
 	};
 });
 
-vi.mock("./tools/index.js", () => ({
+vi.mock("../../tools/index.js", () => ({
 	executeTool: vi.fn(),
 }));
 
-import { executeTool } from "./tools/index.js";
+import { executeTool } from "../../tools/index.js";
+
 
 function makeProgram(): Command {
 	const program = new Command();
