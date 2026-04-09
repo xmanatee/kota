@@ -1,5 +1,5 @@
-import type { ToolMiddlewareFn } from "./tool-middleware.js";
-import type { ToolResult } from "./tools/index.js";
+import type { ToolMiddlewareFn } from "../../tool-middleware.js";
+import type { ToolResult } from "../../tools/index.js";
 
 /** Max timeout we'll auto-retry a shell command with (5 minutes). */
 const SHELL_MAX_RETRY_TIMEOUT = 300_000;
@@ -54,57 +54,6 @@ export const RETRY_POLICIES: Record<string, RetryPolicy> = {
     delayMs: 1500,
   },
 };
-
-type ToolRunner = (
-  name: string,
-  input: Record<string, unknown>,
-) => Promise<ToolResult>;
-
-/**
- * Attempt one auto-retry for a failed tool call when a matching retry
- * policy exists. Returns the retry result, or null if no retry applies.
- *
- * @deprecated Use createRetryMiddleware() instead. Kept for delegate.ts
- * which has its own tool execution loop outside the middleware chain.
- */
-export async function maybeRetry(
-  toolName: string,
-  input: Record<string, unknown>,
-  failedResult: ToolResult,
-  runner: ToolRunner,
-): Promise<ToolResult | null> {
-  const policy = RETRY_POLICIES[toolName];
-  if (!policy) return null;
-  if (!policy.shouldRetry(failedResult.content, input)) return null;
-
-  const adjustedInput = policy.adjustInput ? policy.adjustInput(input) : input;
-
-  // Describe what changed for the log line
-  let reason = "transient error";
-  if (toolName === "shell" && adjustedInput.timeout_ms) {
-    reason = `timeout → ${Math.round((adjustedInput.timeout_ms as number) / 1000)}s`;
-  }
-
-  if (policy.delayMs) {
-    await new Promise((r) => setTimeout(r, policy.delayMs));
-  }
-
-  console.error(`[kota] Auto-retrying ${toolName} (${reason})...`);
-
-  const retryResult = await runner(toolName, adjustedInput);
-
-  if (retryResult.is_error) {
-    const originalSnippet = failedResult.content.slice(0, 200);
-    return {
-      content: `${retryResult.content}\n\n(Auto-retry also failed. Original error: ${originalSnippet})`,
-      is_error: true,
-    };
-  }
-
-  return {
-    content: `${retryResult.content}\n\n(Succeeded on auto-retry: ${reason})`,
-  };
-}
 
 // ─── Middleware-based retry ──────────────────────────────────────────
 
@@ -178,5 +127,50 @@ export function createRetryMiddleware(
       content: `${retryResult.content}\n\n(Auto-retry also failed. Original error: ${originalSnippet})`,
       is_error: true,
     };
+  };
+}
+
+/**
+ * Attempt one auto-retry for a failed tool call when a matching retry
+ * policy exists. Returns the retry result, or null if no retry applies.
+ *
+ * @deprecated Use createRetryMiddleware() instead. Kept for backward
+ * compatibility; prefer routing tool execution through the middleware chain.
+ */
+export async function maybeRetry(
+  toolName: string,
+  input: Record<string, unknown>,
+  failedResult: ToolResult,
+  runner: (name: string, input: Record<string, unknown>) => Promise<ToolResult>,
+): Promise<ToolResult | null> {
+  const policy = RETRY_POLICIES[toolName];
+  if (!policy) return null;
+  if (!policy.shouldRetry(failedResult.content, input)) return null;
+
+  const adjustedInput = policy.adjustInput ? policy.adjustInput(input) : input;
+
+  let reason = "transient error";
+  if (toolName === "shell" && adjustedInput.timeout_ms) {
+    reason = `timeout → ${Math.round((adjustedInput.timeout_ms as number) / 1000)}s`;
+  }
+
+  if (policy.delayMs) {
+    await new Promise((r) => setTimeout(r, policy.delayMs));
+  }
+
+  console.error(`[kota] Auto-retrying ${toolName} (${reason})...`);
+
+  const retryResult = await runner(toolName, adjustedInput);
+
+  if (retryResult.is_error) {
+    const originalSnippet = failedResult.content.slice(0, 200);
+    return {
+      content: `${retryResult.content}\n\n(Auto-retry also failed. Original error: ${originalSnippet})`,
+      is_error: true,
+    };
+  }
+
+  return {
+    content: `${retryResult.content}\n\n(Succeeded on auto-retry: ${reason})`,
   };
 }

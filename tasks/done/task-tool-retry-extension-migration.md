@@ -1,12 +1,12 @@
 ---
 id: task-tool-retry-extension-migration
 title: Move tool-retry.ts implementation into its owning extension
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: src/tool-retry.ts is the implementation for the tool-retry extension, but it lives in the core root because delegate-turn.ts imports maybeRetry directly. Removing that direct import and routing delegate retries through the middleware system would let the implementation move into src/extensions/tool-retry/, completing the capability pack migration.
 created_at: 2026-04-09T04:20:00Z
-updated_at: 2026-04-09T04:20:00Z
+updated_at: 2026-04-09T05:40:00Z
 ---
 
 ## Problem

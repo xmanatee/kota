@@ -5,7 +5,9 @@
  * circuit breaking, transient retry, and result formatting.
  * Exercises: delegate.ts × tool-retry.ts × delegate-format.ts
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createRetryMiddleware } from "./extensions/tool-retry/tool-retry.js";
+import { getToolMiddleware, resetToolMiddleware } from "./tool-middleware.js";
 
 // Hoisted mock runner — accessible inside vi.mock factory
 const { mockRunner } = vi.hoisted(() => ({
@@ -71,6 +73,10 @@ describe("delegate × tool-retry error pipeline (cross-module)", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     mockRunner.mockReset();
+  });
+
+  afterEach(() => {
+    resetToolMiddleware();
   });
 
   it("circuit breaks after 3 identical tool errors", async () => {
@@ -164,8 +170,11 @@ describe("delegate × tool-retry error pipeline (cross-module)", () => {
     expect(mockRunner).toHaveBeenCalledTimes(10);
   });
 
-  it("retries transient errors via maybeRetry (delegate × tool-retry)", async () => {
-    // First call: transient ETIMEDOUT error → maybeRetry retries
+  it("retries transient errors via middleware (delegate × tool-retry)", async () => {
+    // Register retry middleware — normally loaded by the tool-retry extension
+    getToolMiddleware().add("tool-retry", createRetryMiddleware(() => Promise.resolve()), { priority: 20 });
+
+    // First call: transient ETIMEDOUT error → middleware retries
     // Second call (retry): success
     mockRunner
       .mockResolvedValueOnce({ content: "Error: connect ETIMEDOUT 10.0.0.1:443", is_error: true })

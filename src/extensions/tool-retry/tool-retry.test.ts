@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ToolResult } from "../../tools/index.js";
 import { createRetryMiddleware, getRetryStats, maybeRetry, RETRY_POLICIES, resetRetryStats } from "./tool-retry.js";
-import type { ToolResult } from "./tools/index.js";
 
 // --- Shell retry policy ---
 

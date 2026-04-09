@@ -4,7 +4,7 @@ import type { CostTracker } from "../cost.js";
 import type { McpManager } from "../mcp/manager.js";
 import type { ModelClient } from "../model/model-client.js";
 import { isRetryable } from "../model/streaming.js";
-import { maybeRetry } from "../tool-retry.js";
+import { getToolMiddleware } from "../tool-middleware.js";
 import type { Transport } from "../transport.js";
 import type { DelegateMode } from "./delegate-config.js";
 import {
@@ -162,21 +162,16 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
           return { tool_use_id: block.id, content: `Unknown tool: ${block.name}`, is_error: true as const };
         }
         let result: ToolResult;
+        const call = { name: block.name, input: toolInput };
         try {
-          result = isMcp
-            ? await mcpMgr!.executeTool(block.name, toolInput)
-            : await runner!(toolInput);
+          result = await getToolMiddleware().execute(call, () =>
+            isMcp
+              ? mcpMgr!.executeTool(block.name, call.input)
+              : runner!(call.input)
+          );
         } catch (runnerErr) {
           const errMsg = runnerErr instanceof Error ? runnerErr.message : String(runnerErr);
           result = { content: `Tool error (${block.name}): ${errMsg}`, is_error: true };
-        }
-
-        if (result.is_error) {
-          const executor = isMcp
-            ? async (_n: string, i: Record<string, unknown>) => mcpMgr!.executeTool(block.name, i)
-            : async (_n: string, i: Record<string, unknown>) => runner!(i);
-          const retried = await maybeRetry(block.name, toolInput, result, executor);
-          if (retried) result = retried;
         }
 
         if (isExecute && !result.is_error) {
