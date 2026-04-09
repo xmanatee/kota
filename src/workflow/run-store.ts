@@ -1,4 +1,4 @@
-import { readdirSync, rmSync } from "node:fs";
+import { readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { readOptionalJsonFile } from "../json-file.js";
 import { createActiveRunHandle } from "./active-run-handle.js";
@@ -77,14 +77,17 @@ export class WorkflowRunStore {
       }
       if (!metadata || metadata.status !== "running") continue;
 
+      const now = new Date().toISOString();
       const interrupted: WorkflowRunMetadata = {
         ...metadata,
         status: "interrupted",
-        completedAt: new Date().toISOString(),
+        completedAt: now,
         durationMs: Date.now() - new Date(metadata.startedAt).getTime(),
       };
 
       writeJsonFile(metadataPath, interrupted);
+      const errorPath = join(this.runsDir, runId, "error.txt");
+      writeFileSync(errorPath, "Interrupted: daemon restarted while run was in progress.", "utf-8");
       state.workflows[metadata.workflow] = {
         ...state.workflows[metadata.workflow],
         lastRunId: metadata.id,

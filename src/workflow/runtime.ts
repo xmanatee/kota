@@ -132,6 +132,20 @@ export class WorkflowRuntime {
         `Recovered interrupted workflow run ${run.id} for "${run.workflow}"`,
       );
     }
+    if (interrupted.length > 0) {
+      this.log(`${interrupted.length} run${interrupted.length === 1 ? "" : "s"} marked interrupted from previous session.`);
+      const reason = "Interrupted: daemon restarted while run was in progress.";
+      for (const run of interrupted) {
+        const text = `Workflow interrupted: *${run.workflow}*\nRun: \`${run.id}\`\nReason: ${reason}`;
+        this.runtimeConfig.bus.emit("workflow.interrupted.alert", {
+          workflow: run.workflow,
+          runId: run.id,
+          durationMs: run.durationMs ?? 0,
+          reason,
+          text,
+        });
+      }
+    }
 
     this.definitions = this.loadDefinitions();
     this.wfQueue.restorePending();

@@ -1,7 +1,7 @@
 ---
 id: task-stale-run-recovery-on-startup
 title: Mark stale running workflow runs as interrupted on daemon startup
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: When the daemon stops mid-run (crash or intentional), workflow runs remain stuck in "running" state permanently. On startup, the daemon should reconcile these runs to "interrupted" so operators have accurate queue state and can retry them.

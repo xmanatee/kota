@@ -922,6 +922,52 @@ describe("WorkflowRuntime", () => {
     expect(metadata.status).toBe("interrupted");
   });
 
+  it("emits workflow.interrupted.alert and logs summary for stale runs on startup", async () => {
+    const builderDefinition = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [{ id: "run", type: "emit", event: "builder.done" }],
+        }),
+      ],
+      projectDir,
+    )[0];
+
+    const store = new WorkflowRunStore(projectDir);
+    store.createRun(builderDefinition, {
+      event: "runtime.idle",
+      payload: {},
+    });
+
+    const bus = new EventBus();
+    const alerts: Array<{ workflow: string; runId: string; reason: string }> = [];
+    bus.on("workflow.interrupted.alert", (payload) => {
+      alerts.push({ workflow: payload.workflow, runId: payload.runId, reason: payload.reason });
+    });
+
+    const logs: string[] = [];
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 10_000,
+      onLog: (msg) => logs.push(msg),
+      workflows: [],
+    });
+
+    runtime.start();
+    await wait(20);
+    await runtime.stop();
+
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].workflow).toBe("builder");
+    expect(alerts[0].reason).toContain("daemon restarted");
+
+    const summaryLog = logs.find((l) => l.includes("marked interrupted from previous session"));
+    expect(summaryLog).toBeDefined();
+    expect(summaryLog).toContain("1 run");
+  });
+
   it("requests restart and records autonomous recovery when an autonomous run fails dirty", async () => {
     execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
     execFileSync("git", ["config", "user.name", "Kota Tests"], { cwd: projectDir, stdio: "ignore" });

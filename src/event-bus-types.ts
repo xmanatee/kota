@@ -116,6 +116,13 @@ export type BusEvents = {
     errorSummary: string;
     text: string;
   };
+  "workflow.interrupted.alert": {
+    workflow: string;
+    runId: string;
+    durationMs: number;
+    reason: string;
+    text: string;
+  };
   "workflow.budget.exceeded": {
     dailySpend: number;
     budget: number;
