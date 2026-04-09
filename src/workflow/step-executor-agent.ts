@@ -241,9 +241,14 @@ export async function executeAgentStep(
   const stepTelemetry = new ToolTelemetry();
   const trackedMessage = makeToolTelemetryTracker(stepTelemetry, appendMessage);
 
-  const runAttempt = async () => {
+  let lastSchemaError: string | undefined;
+
+  const runAttempt = async (): Promise<WorkflowStepOutput> => {
+    const prompt = lastSchemaError
+      ? `${agentPrompt.prompt}\n\n[Previous output failed schema validation: ${lastSchemaError}\nPlease include all required fields in your JSON block and try again.]`
+      : agentPrompt.prompt;
     try {
-      const result = await executeWithAgentSDK(agentPrompt.prompt, {
+      const result = await executeWithAgentSDK(prompt, {
         model: resolveAgentModel(step, agentConfig),
         cwd: agentConfig.projectDir,
         systemPrompt,
@@ -292,10 +297,28 @@ export async function executeAgentStep(
         }
         throw new Error(`Agent step "${step.id}" failed (${reason}): ${detail}`);
       }
-      return result;
+      if (step.outputFormat === "json") {
+        try {
+          return extractJsonOutput(step.id, result.text, step.outputSchema) as WorkflowStepOutput;
+        } catch (err) {
+          if (err instanceof JsonSchemaValidationError) {
+            lastSchemaError = err.validationDetail;
+          }
+          throw err;
+        }
+      }
+      return {
+        content: result.text,
+        streamedText: result.streamedText,
+        sessionId: result.sessionId,
+        turns: result.turns,
+        totalCostUsd: result.totalCostUsd,
+        subtype: result.subtype,
+      };
     } catch (error) {
       if (
         error instanceof AgentStepRuntimeError ||
+        error instanceof JsonSchemaValidationError ||
         (error instanceof Error && error.name === "AbortError") ||
         abortController.signal.aborted
       ) {
@@ -314,24 +337,23 @@ export async function executeAgentStep(
     }
   };
 
-  const result = step.retry
+  const output = step.retry
     ? await withRetry(runAttempt, step.retry, agentConfig.log)
     : await runAttempt();
 
   writeToolTelemetryArtifact(step.id, metadata, agentConfig.projectDir, stepTelemetry);
 
-  if (step.outputFormat === "json") {
-    return extractJsonOutput(step.id, result.text, step.outputSchema) as WorkflowStepOutput;
-  }
+  return output;
+}
 
-  return {
-    content: result.text,
-    streamedText: result.streamedText,
-    sessionId: result.sessionId,
-    turns: result.turns,
-    totalCostUsd: result.totalCostUsd,
-    subtype: result.subtype,
-  };
+export class JsonSchemaValidationError extends Error {
+  constructor(
+    message: string,
+    readonly validationDetail: string,
+  ) {
+    super(message);
+    this.name = "JsonSchemaValidationError";
+  }
 }
 
 function extractJsonOutput(
@@ -354,10 +376,11 @@ function extractJsonOutput(
     );
   }
   if (outputSchema !== undefined) {
-    const error = validatePayloadSchema(outputSchema, parsed as Record<string, unknown>);
-    if (error) {
-      throw new Error(
-        `Agent step "${stepId}" output failed schema validation: ${error}`,
+    const validationError = validatePayloadSchema(outputSchema, parsed as Record<string, unknown>);
+    if (validationError) {
+      throw new JsonSchemaValidationError(
+        `Agent step "${stepId}" output failed schema validation: ${validationError}`,
+        validationError,
       );
     }
   }

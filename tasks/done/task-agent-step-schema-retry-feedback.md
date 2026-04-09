@@ -1,7 +1,7 @@
 ---
 id: task-agent-step-schema-retry-feedback
 title: Feed schema validation errors back to agent on JSON output retry
-status: ready
+status: done
 priority: p2
 area: workflow-runtime
 summary: When a workflow agent step with outputFormat:"json" and outputSchema produces JSON that fails validation, retry attempts re-run the agent with no context about what went wrong. Injecting the validation error into the retry prompt would let the agent correct its output instead of blindly repeating the same mistake.

@@ -432,3 +432,134 @@ describe("executeAgentStep — outputFormat: json", () => {
     expect(output).toEqual({ status: "done", count: 5 });
   });
 });
+
+describe("executeAgentStep — schema validation feedback on retry", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-step-executor-schema-retry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(join(projectDir, "prompt.md"), "do the thing");
+    tryEmitMock.mockReset();
+    executeWithAgentSDKMock.mockReset();
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("injects schema validation error into the prompt on the second attempt", async () => {
+    const capturedPrompts: string[] = [];
+
+    executeWithAgentSDKMock.mockImplementation(async (prompt: string) => {
+      capturedPrompts.push(prompt);
+      // First call: missing required field "count"
+      if (capturedPrompts.length === 1) {
+        return {
+          text: 'Result:\n\n```json\n{"status":"ok"}\n```',
+          streamedText: "",
+          sessionId: undefined,
+          turns: 1,
+          totalCostUsd: 0.01,
+          subtype: undefined,
+          isError: false,
+        };
+      }
+      // Second call: valid output
+      return {
+        text: 'Result:\n\n```json\n{"status":"ok","count":3}\n```',
+        streamedText: "",
+        sessionId: undefined,
+        turns: 1,
+        totalCostUsd: 0.01,
+        subtype: undefined,
+        isError: false,
+      };
+    });
+
+    const step = makeAgentStep({
+      id: "analyze",
+      outputFormat: "json",
+      outputSchema: {
+        type: "object",
+        required: ["status", "count"],
+        properties: { status: { type: "string" }, count: { type: "number" } },
+      },
+      retry: { maxAttempts: 2, initialDelayMs: 0, backoffFactor: 1 },
+    });
+
+    const output = await executeAgentStep(
+      makeDefinition(),
+      step,
+      makeMetadata(),
+      { event: "runtime.idle", payload: {} },
+      new AbortController(),
+      () => {},
+      () => {},
+      { projectDir, log: () => {} },
+    );
+
+    expect(output).toEqual({ status: "ok", count: 3 });
+    expect(capturedPrompts).toHaveLength(2);
+    expect(capturedPrompts[0]).not.toContain("Previous output failed schema validation");
+    expect(capturedPrompts[1]).toContain("Previous output failed schema validation");
+    expect(capturedPrompts[1]).toContain("count");
+  });
+
+  it("does not inject feedback for non-schema errors on retry", async () => {
+    const capturedPrompts: string[] = [];
+
+    executeWithAgentSDKMock.mockImplementation(async (prompt: string) => {
+      capturedPrompts.push(prompt);
+      if (capturedPrompts.length === 1) {
+        return {
+          text: "No JSON block here.",
+          streamedText: "",
+          sessionId: undefined,
+          turns: 1,
+          totalCostUsd: 0.01,
+          subtype: undefined,
+          isError: false,
+        };
+      }
+      return {
+        text: 'Result:\n\n```json\n{"status":"ok","count":1}\n```',
+        streamedText: "",
+        sessionId: undefined,
+        turns: 1,
+        totalCostUsd: 0.01,
+        subtype: undefined,
+        isError: false,
+      };
+    });
+
+    const step = makeAgentStep({
+      id: "analyze",
+      outputFormat: "json",
+      outputSchema: {
+        type: "object",
+        required: ["status", "count"],
+        properties: { status: { type: "string" }, count: { type: "number" } },
+      },
+      retry: { maxAttempts: 2, initialDelayMs: 0, backoffFactor: 1 },
+    });
+
+    const output = await executeAgentStep(
+      makeDefinition(),
+      step,
+      makeMetadata(),
+      { event: "runtime.idle", payload: {} },
+      new AbortController(),
+      () => {},
+      () => {},
+      { projectDir, log: () => {} },
+    );
+
+    expect(output).toEqual({ status: "ok", count: 1 });
+    // No schema correction note — the first failure was missing JSON block, not schema mismatch
+    expect(capturedPrompts[1]).not.toContain("Previous output failed schema validation");
+  });
+});
