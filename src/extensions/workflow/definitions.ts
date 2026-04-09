@@ -1,6 +1,6 @@
 import type { Command } from "commander";
-import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
-import type { RegisteredWorkflowDefinitionInput, WorkflowStepInput } from "../workflow/types.js";
+import { getBuiltinWorkflowDefinitions } from "../../workflow/registry.js";
+import type { RegisteredWorkflowDefinitionInput, WorkflowStepInput } from "../../workflow/types.js";
 import { formatDuration } from "./utils.js";
 
 function describeInputSchema(schema: Record<string, unknown>): string | null {

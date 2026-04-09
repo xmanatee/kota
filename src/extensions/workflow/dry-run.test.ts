@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { WorkflowDefinition } from "../workflow/types.js";
+import type { WorkflowDefinition } from "../../workflow/types.js";
 import { buildDryRunPlan, formatDryRunPlan } from "./dry-run.js";
 
 function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {

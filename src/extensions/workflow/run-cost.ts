@@ -1,7 +1,7 @@
 import type { Command } from "commander";
-import { WorkflowRunStore } from "../workflow/run-store.js";
-import type { WorkflowRunMetadata } from "../workflow/run-types.js";
-import { loadRunsInWindow } from "../workflow-history.js";
+import { WorkflowRunStore } from "../../workflow/run-store.js";
+import type { WorkflowRunMetadata } from "../../workflow/run-types.js";
+import { loadRunsInWindow } from "../../workflow-history.js";
 import { formatDate } from "./utils.js";
 
 type DayEntry = {

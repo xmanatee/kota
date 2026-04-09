@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { validateDefinitions } from "./validate.js";
 
-vi.mock("../workflow/registry.js", () => ({
+vi.mock("../../workflow/registry.js", () => ({
   getBuiltinWorkflowDefinitions: vi.fn(),
 }));
 
@@ -21,7 +21,7 @@ const INVALID_DEF = {
 
 describe("validateDefinitions", () => {
   it("returns valid:true for a passing definition", async () => {
-    const { getBuiltinWorkflowDefinitions } = await import("../workflow/registry.js");
+    const { getBuiltinWorkflowDefinitions } = await import("../../workflow/registry.js");
     vi.mocked(getBuiltinWorkflowDefinitions).mockReturnValue([VALID_DEF]);
 
     const results = validateDefinitions();
@@ -32,7 +32,7 @@ describe("validateDefinitions", () => {
   });
 
   it("returns valid:false with error for an invalid definition", async () => {
-    const { getBuiltinWorkflowDefinitions } = await import("../workflow/registry.js");
+    const { getBuiltinWorkflowDefinitions } = await import("../../workflow/registry.js");
     vi.mocked(getBuiltinWorkflowDefinitions).mockReturnValue([INVALID_DEF]);
 
     const results = validateDefinitions();
@@ -42,7 +42,7 @@ describe("validateDefinitions", () => {
   });
 
   it("reports each definition independently when mix of pass and fail", async () => {
-    const { getBuiltinWorkflowDefinitions } = await import("../workflow/registry.js");
+    const { getBuiltinWorkflowDefinitions } = await import("../../workflow/registry.js");
     vi.mocked(getBuiltinWorkflowDefinitions).mockReturnValue([VALID_DEF, INVALID_DEF]);
 
     const results = validateDefinitions();
@@ -52,7 +52,7 @@ describe("validateDefinitions", () => {
   });
 
   it("filters to a single workflow when --workflow is specified", async () => {
-    const { getBuiltinWorkflowDefinitions } = await import("../workflow/registry.js");
+    const { getBuiltinWorkflowDefinitions } = await import("../../workflow/registry.js");
     vi.mocked(getBuiltinWorkflowDefinitions).mockReturnValue([VALID_DEF, INVALID_DEF]);
 
     const results = validateDefinitions("test-workflow");
@@ -62,7 +62,7 @@ describe("validateDefinitions", () => {
   });
 
   it("throws for unknown --workflow name", async () => {
-    const { getBuiltinWorkflowDefinitions } = await import("../workflow/registry.js");
+    const { getBuiltinWorkflowDefinitions } = await import("../../workflow/registry.js");
     vi.mocked(getBuiltinWorkflowDefinitions).mockReturnValue([VALID_DEF]);
 
     expect(() => validateDefinitions("nonexistent")).toThrow("Unknown workflow");

@@ -1,12 +1,12 @@
 ---
 id: task-extract-workflow-cli-extension
 title: Move workflow-cli into a dedicated workflow extension
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: src/workflow-cli/ (25 files, ~4100 lines) is the largest remaining CLI surface in core. Moving it into src/extensions/workflow/ completes the systematic operator CLI migration and makes src/cli.ts a pure assembler of extension-contributed commands.
 created_at: 2026-04-09T10:47:41Z
-updated_at: 2026-04-09T10:47:41Z
+updated_at: 2026-04-09T11:58:00Z
 ---
 
 ## Problem

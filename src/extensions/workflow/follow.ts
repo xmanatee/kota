@@ -1,12 +1,12 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
-import { readOptionalJsonFile } from "../json-file.js";
-import type { DaemonSseEvent } from "../scheduler/daemon-control.js";
-import { DaemonControlClient } from "../server/daemon-client.js";
-import { WorkflowRunStore } from "../workflow/run-store.js";
-import type { WorkflowRunMetadata, WorkflowRuntimeState } from "../workflow/run-types.js";
-import { buildRunLogs, followRunLogs } from "../workflow-logs.js";
+import { readOptionalJsonFile } from "../../json-file.js";
+import type { DaemonSseEvent } from "../../scheduler/daemon-control.js";
+import { DaemonControlClient } from "../../server/daemon-client.js";
+import { WorkflowRunStore } from "../../workflow/run-store.js";
+import type { WorkflowRunMetadata, WorkflowRuntimeState } from "../../workflow/run-types.js";
+import { buildRunLogs, followRunLogs } from "../../workflow-logs.js";
 import { formatDuration, statusIcon } from "./utils.js";
 
 function printRunSummary(metadata: WorkflowRunMetadata): void {

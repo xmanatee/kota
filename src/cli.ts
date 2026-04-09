@@ -22,7 +22,6 @@ import { runAgentLoop } from "./loop.js";
 import { getHistory } from "./memory/history.js";
 import { createModelClient } from "./model/model-client.js";
 import { registerWebhookCommands } from "./webhook-cli.js";
-import { registerWorkflowCommands } from "./workflow-cli.js";
 
 export { parseIntOption } from "./cli-history.js";
 
@@ -168,7 +167,6 @@ program
   });
 
 registerHistoryCommands(program);
-registerWorkflowCommands(program);
 registerWebhookCommands(program);
 registerInitCommand(program);
 registerCompletionCommands(program);

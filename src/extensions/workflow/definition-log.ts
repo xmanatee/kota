@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
 import { resolve } from "node:path";
 import type { Command } from "commander";
-import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
+import { getBuiltinWorkflowDefinitions } from "../../workflow/registry.js";
 
 function runGit(args: string, cwd: string): string {
   try {

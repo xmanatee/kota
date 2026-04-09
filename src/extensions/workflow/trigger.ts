@@ -1,14 +1,14 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
-import { readOptionalJsonFile } from "../json-file.js";
-import { DaemonControlClient } from "../server/daemon-client.js";
-import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
-import { getEligibleAtMs } from "../workflow/run-executor-utils.js";
-import { WorkflowRunStore } from "../workflow/run-store.js";
-import { formatRunId } from "../workflow/run-store-helpers.js";
-import type { WorkflowRunMetadata } from "../workflow/run-types.js";
-import { validateWorkflowDefinitions } from "../workflow/validation.js";
+import { readOptionalJsonFile } from "../../json-file.js";
+import { DaemonControlClient } from "../../server/daemon-client.js";
+import { getBuiltinWorkflowDefinitions } from "../../workflow/registry.js";
+import { getEligibleAtMs } from "../../workflow/run-executor-utils.js";
+import { WorkflowRunStore } from "../../workflow/run-store.js";
+import { formatRunId } from "../../workflow/run-store-helpers.js";
+import type { WorkflowRunMetadata } from "../../workflow/run-types.js";
+import { validateWorkflowDefinitions } from "../../workflow/validation.js";
 
 export function registerTriggerCommands(wfCmd: Command): void {
   wfCmd

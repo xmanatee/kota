@@ -1,9 +1,9 @@
 import type { Command } from "commander";
-import { DaemonControlClient } from "../server/daemon-client.js";
-import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
-import { WorkflowRunStore } from "../workflow/run-store.js";
-import type { HistoryStats } from "../workflow-history.js";
-import { computeHistoryStats, loadRunsInWindow } from "../workflow-history.js";
+import { DaemonControlClient } from "../../server/daemon-client.js";
+import { getBuiltinWorkflowDefinitions } from "../../workflow/registry.js";
+import { WorkflowRunStore } from "../../workflow/run-store.js";
+import type { HistoryStats } from "../../workflow-history.js";
+import { computeHistoryStats, loadRunsInWindow } from "../../workflow-history.js";
 import { formatDate, formatDuration, listRuns, statusIcon } from "./utils.js";
 
 export function registerRunListCommands(wfCmd: Command): void {

@@ -1,7 +1,7 @@
 import type { Command } from "commander";
-import { DaemonControlClient } from "../server/daemon-client.js";
-import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
-import { validateWorkflowDefinitions, WorkflowDefinitionError } from "../workflow/validation.js";
+import { DaemonControlClient } from "../../server/daemon-client.js";
+import { getBuiltinWorkflowDefinitions } from "../../workflow/registry.js";
+import { validateWorkflowDefinitions, WorkflowDefinitionError } from "../../workflow/validation.js";
 import { buildDryRunPlan, formatDryRunPlan } from "./dry-run.js";
 
 export function registerRunCommand(wfCmd: Command): void {

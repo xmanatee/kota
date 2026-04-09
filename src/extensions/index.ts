@@ -44,6 +44,7 @@ import vercelAdapterModule from "./vercel-adapter/index.js";
 import webModule from "./web/index.js";
 import webAccessModule from "./web-access/index.js";
 import webhookModule from "./webhook/index.js";
+import workflowModule from "./workflow/index.js";
 import workingMemoryModule from "./working-memory/index.js";
 
 /** All built-in extensions, in dependency order. */
@@ -84,4 +85,5 @@ export const builtinExtensions: KotaExtension[] = [
   repoTasksModule,
   doctorModule,
   configModule,
+  workflowModule,
 ];

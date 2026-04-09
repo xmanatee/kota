@@ -1,9 +1,9 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
-import { readOptionalJsonFile } from "../json-file.js";
-import { WorkflowRunStore } from "../workflow/run-store.js";
-import type { WorkflowRunMetadata, WorkflowStepResult } from "../workflow/run-types.js";
+import { readOptionalJsonFile } from "../../json-file.js";
+import { WorkflowRunStore } from "../../workflow/run-store.js";
+import type { WorkflowRunMetadata, WorkflowStepResult } from "../../workflow/run-types.js";
 import { formatDuration, statusIcon } from "./utils.js";
 
 type StepDiff = {

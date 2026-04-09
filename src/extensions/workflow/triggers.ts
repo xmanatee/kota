@@ -1,7 +1,7 @@
 import type { Command } from "commander";
-import type { WorkflowDefinitionTriggerSummary } from "../scheduler/daemon-control-types.js";
-import { DaemonControlClient } from "../server/daemon-client.js";
-import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
+import type { WorkflowDefinitionTriggerSummary } from "../../scheduler/daemon-control-types.js";
+import { DaemonControlClient } from "../../server/daemon-client.js";
+import { getBuiltinWorkflowDefinitions } from "../../workflow/registry.js";
 
 type WatchTriggerRow = {
   workflow: string;

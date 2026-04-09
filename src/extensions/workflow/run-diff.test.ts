@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { WorkflowRunMetadata } from "../workflow/run-types.js";
+import type { WorkflowRunMetadata } from "../../workflow/run-types.js";
 import { buildRunDiff, formatRunDiff } from "./run-diff.js";
 
 function makeRun(

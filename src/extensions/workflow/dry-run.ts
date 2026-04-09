@@ -1,5 +1,5 @@
-import type { WorkflowPredicate, WorkflowStepContext } from "../workflow/run-types.js";
-import type { WorkflowDefinition, WorkflowStep } from "../workflow/types.js";
+import type { WorkflowPredicate, WorkflowStepContext } from "../../workflow/run-types.js";
+import type { WorkflowDefinition, WorkflowStep } from "../../workflow/types.js";
 
 export type DryRunWhenResult = "runs" | "skipped" | "error" | "no-condition";
 

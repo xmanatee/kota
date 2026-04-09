@@ -1,6 +1,6 @@
 import type { Command } from "commander";
-import { getBuiltinWorkflowDefinitions } from "../workflow/registry.js";
-import { validateWorkflowDefinitions, WorkflowDefinitionError } from "../workflow/validation.js";
+import { getBuiltinWorkflowDefinitions } from "../../workflow/registry.js";
+import { validateWorkflowDefinitions, WorkflowDefinitionError } from "../../workflow/validation.js";
 
 type ValidationResult = { name: string; valid: boolean; error?: string };
 

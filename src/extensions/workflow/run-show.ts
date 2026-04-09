@@ -1,12 +1,12 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
-import { readOptionalJsonFile } from "../json-file.js";
-import { DaemonControlClient } from "../server/daemon-client.js";
-import { WorkflowRunStore } from "../workflow/run-store.js";
-import type { RepairSummary } from "../workflow/run-store-helpers.js";
-import { extractRepairSummary } from "../workflow/run-store-helpers.js";
-import type { WorkflowRunMetadata } from "../workflow/run-types.js";
+import { readOptionalJsonFile } from "../../json-file.js";
+import { DaemonControlClient } from "../../server/daemon-client.js";
+import { WorkflowRunStore } from "../../workflow/run-store.js";
+import type { RepairSummary } from "../../workflow/run-store-helpers.js";
+import { extractRepairSummary } from "../../workflow/run-store-helpers.js";
+import type { WorkflowRunMetadata } from "../../workflow/run-types.js";
 import { formatDuration, statusIcon } from "./utils.js";
 
 export function formatWarningsSection(warnings: Array<{ type: string; message: string }>): string[] {
