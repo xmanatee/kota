@@ -1,7 +1,7 @@
 ---
 id: task-mobile-push-notifications
 title: Add push notifications to the mobile client for pending approvals
-status: ready
+status: done
 priority: p2
 area: client
 summary: The KOTA mobile client has no push notification support, so operators only see new approvals when the app is open. Approvals are the most time-critical operator action; missing one blocks a running workflow. Adding Expo push notifications for approval.requested and approval.changed events closes the most important gap left after the initial mobile client build.

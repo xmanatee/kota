@@ -46,7 +46,8 @@ Routes are tagged with a capability scope:
   `POST /reload`,
   `DELETE /history/:id`, `POST /approvals/:id/approve`,
   `POST /approvals/:id/reject`,
-  `POST /sessions/register`, `DELETE /sessions/:id`
+  `POST /sessions/register`, `DELETE /sessions/:id`,
+  `POST /push-tokens`
 
 `GET /health` requires **no authentication** and is intended for liveness/readiness probes.
 
@@ -1279,6 +1280,31 @@ When a session is swept, the daemon emits a `session.unregistered` SSE event
 status update. Clients do not need to implement any heartbeat — the TTL is
 enforced server-side only.
 
+## Push Token Endpoint
+
+The daemon delivers push notifications to registered mobile devices when
+`approval.requested` fires. Tokens are stored in `.kota/push-tokens.json`
+and delivered via the Expo Push API.
+
+### POST /push-tokens
+
+Registers or updates a mobile push token for the device identified by
+`deviceId`. Called by the mobile client on startup when push notifications
+are enabled.
+
+**Request body:**
+
+```json
+{ "deviceId": "ios-1743350400000-abc123", "token": "ExponentPushToken[...]" }
+```
+
+**Response:** `{ "ok": true }`
+
+When `approval.requested` fires, the daemon POSTs to
+`https://exp.host/--/expo-server/push/send` for each registered token.
+Delivery is best-effort — Expo API errors are logged but do not affect
+approval queue behavior.
+
 ## Source Of Truth Boundary
 
 When the daemon is running:
@@ -1306,6 +1332,7 @@ API. The stable endpoints are:
 - **History**: list, get, delete conversations
 - **Approvals**: list pending, approve, reject
 - **Task queue**: `GET /tasks` — full task state with priorities
+- **Push tokens**: `POST /push-tokens` — register Expo push token for approval notifications
 
 All endpoints require the `Authorization: Bearer <token>` header. The token
 and port are discovered from `.kota/daemon-control.json`.

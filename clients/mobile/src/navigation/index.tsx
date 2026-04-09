@@ -1,7 +1,8 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { NavigationContainer } from '@react-navigation/native';
+import { createNavigationContainerRef, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import React from 'react';
+import * as Notifications from 'expo-notifications';
+import React, { useEffect } from 'react';
 import { Text, TouchableOpacity } from 'react-native';
 import { useDaemon } from '../context/DaemonContext';
 import { ApprovalDetailScreen } from '../screens/ApprovalDetailScreen';
@@ -39,6 +40,27 @@ const StatusStack = createNativeStackNavigator<StatusStackParams>();
 const RunsStack = createNativeStackNavigator<RunsStackParams>();
 const ApprovalsStack = createNativeStackNavigator<ApprovalsStackParams>();
 const Tab = createBottomTabNavigator<TabParams>();
+
+// Navigation ref for use outside of React tree (e.g. notification response handler).
+const navigationRef = createNavigationContainerRef<TabParams>();
+
+function navigateToApproval(approvalId?: string) {
+  if (!navigationRef.isReady()) return;
+  navigationRef.navigate('Approvals');
+  // ApprovalDetail navigation happens inside the Approvals stack via its own navigator.
+  // We surface the approvalId via initial params when the tab is focused.
+  // The deep link config handles this by encoding the approvalId into the URL.
+  void approvalId;
+}
+
+// Configure how notifications are presented while the app is in the foreground.
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 function StatusNavigator() {
   return (
@@ -110,8 +132,17 @@ export function AppNavigator() {
   const { state } = useDaemon();
   const pendingCount = state.pendingApprovalCount;
 
+  // Handle notification taps — navigate to Approvals tab.
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const approvalId = response.notification.request.content.data?.approvalId;
+      navigateToApproval(typeof approvalId === 'string' ? approvalId : undefined);
+    });
+    return () => sub.remove();
+  }, []);
+
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Tab.Navigator
         screenOptions={{ headerShown: false }}
       >

@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import { DaemonClient } from '../daemonClient';
 import { useSSE } from '../hooks/useSSE';
+import { registerPushTokenWithDaemon } from '../pushNotifications';
 import type {
   Approval,
   DaemonStatus,
@@ -19,6 +20,7 @@ import type {
 
 const URL_KEY = 'kota_daemon_url';
 const TOKEN_KEY = 'kota_daemon_token';
+const PUSH_ENABLED_KEY = 'kota_push_notifications_enabled';
 
 interface DaemonState {
   daemonUrl: string;
@@ -31,13 +33,15 @@ interface DaemonState {
   approvals: Approval[];
   tasks: TasksResponse | null;
   pendingApprovalCount: number;
+  pushNotificationsEnabled: boolean;
   error: string | null;
 }
 
 type DaemonAction =
-  | { type: 'SETTINGS_LOADED'; url: string; token: string }
+  | { type: 'SETTINGS_LOADED'; url: string; token: string; pushEnabled: boolean }
   | { type: 'SET_URL'; url: string }
   | { type: 'SET_TOKEN'; token: string }
+  | { type: 'SET_PUSH_ENABLED'; enabled: boolean }
   | { type: 'ONLINE'; online: boolean }
   | { type: 'SSE_STATUS'; connected: boolean }
   | { type: 'STATUS'; status: DaemonStatus }
@@ -50,11 +54,13 @@ type DaemonAction =
 function reducer(state: DaemonState, action: DaemonAction): DaemonState {
   switch (action.type) {
     case 'SETTINGS_LOADED':
-      return { ...state, daemonUrl: action.url, token: action.token, settingsLoaded: true };
+      return { ...state, daemonUrl: action.url, token: action.token, pushNotificationsEnabled: action.pushEnabled, settingsLoaded: true };
     case 'SET_URL':
       return { ...state, daemonUrl: action.url };
     case 'SET_TOKEN':
       return { ...state, token: action.token };
+    case 'SET_PUSH_ENABLED':
+      return { ...state, pushNotificationsEnabled: action.enabled };
     case 'ONLINE':
       return { ...state, online: action.online, error: action.online ? null : state.error };
     case 'SSE_STATUS':
@@ -91,6 +97,7 @@ const initialState: DaemonState = {
   approvals: [],
   tasks: null,
   pendingApprovalCount: 0,
+  pushNotificationsEnabled: true,
   error: null,
 };
 
@@ -98,6 +105,7 @@ interface DaemonContextValue {
   state: DaemonState;
   client: DaemonClient | null;
   saveSettings: (url: string, token: string) => Promise<void>;
+  setPushNotificationsEnabled: (enabled: boolean) => Promise<void>;
   refresh: () => void;
 }
 
@@ -105,6 +113,7 @@ const DaemonContext = createContext<DaemonContextValue>({
   state: initialState,
   client: null,
   saveSettings: async () => {},
+  setPushNotificationsEnabled: async () => {},
   refresh: () => {},
 });
 
@@ -113,15 +122,18 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
   const clientRef = useRef<DaemonClient | null>(null);
   const healthTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pushRegisteredRef = useRef(false);
 
   // Load persisted settings on mount
   useEffect(() => {
     async function load() {
-      const [url, token] = await Promise.all([
+      const [url, token, pushEnabledRaw] = await Promise.all([
         SecureStore.getItemAsync(URL_KEY),
         SecureStore.getItemAsync(TOKEN_KEY),
+        SecureStore.getItemAsync(PUSH_ENABLED_KEY),
       ]);
-      dispatch({ type: 'SETTINGS_LOADED', url: url ?? '', token: token ?? '' });
+      const pushEnabled = pushEnabledRaw !== 'false';
+      dispatch({ type: 'SETTINGS_LOADED', url: url ?? '', token: token ?? '', pushEnabled });
     }
     void load();
   }, []);
@@ -132,6 +144,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     clientRef.current = state.daemonUrl && state.token
       ? new DaemonClient(state.daemonUrl, state.token)
       : null;
+    pushRegisteredRef.current = false;
   }, [state.daemonUrl, state.token, state.settingsLoaded]);
 
   const fetchAll = useCallback(async () => {
@@ -179,6 +192,17 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
       if (healthTimerRef.current !== null) clearInterval(healthTimerRef.current);
     };
   }, [state.settingsLoaded, state.daemonUrl, state.token, fetchAll]);
+
+  // Register push token once when online and push notifications enabled
+  useEffect(() => {
+    const client = clientRef.current;
+    if (!state.online || !client || pushRegisteredRef.current) return;
+    if (!state.pushNotificationsEnabled) return;
+    pushRegisteredRef.current = true;
+    void registerPushTokenWithDaemon(client).catch(() => {
+      pushRegisteredRef.current = false;
+    });
+  }, [state.online, state.pushNotificationsEnabled]);
 
   // Polling fallback when SSE is not connected
   useEffect(() => {
@@ -241,12 +265,20 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_TOKEN', token });
   }, []);
 
+  const setPushNotificationsEnabled = useCallback(async (enabled: boolean) => {
+    await SecureStore.setItemAsync(PUSH_ENABLED_KEY, enabled ? 'true' : 'false');
+    dispatch({ type: 'SET_PUSH_ENABLED', enabled });
+    if (enabled) {
+      pushRegisteredRef.current = false;
+    }
+  }, []);
+
   const refresh = useCallback(() => {
     void fetchAll();
   }, [fetchAll]);
 
   return (
-    <DaemonContext.Provider value={{ state, client: clientRef.current, saveSettings, refresh }}>
+    <DaemonContext.Provider value={{ state, client: clientRef.current, saveSettings, setPushNotificationsEnabled, refresh }}>
       {children}
     </DaemonContext.Provider>
   );

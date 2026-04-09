@@ -19,6 +19,8 @@ This directory contains schedule parsing, persistence, routing, and daemon-time 
 - `daemon-control-workflow.ts` — workflow status, definitions, runs, pause/resume/abort/reload/trigger/enable/disable endpoint handlers; also handles `POST /reload` (config + extension-contribution reload via `handleReloadConfig`).
 - `daemon-control-history.ts` — history list, show, and delete endpoint handlers.
 - `daemon-control-metrics.ts` — Prometheus metrics endpoint handler; exposes workflow run counts/costs, session and approval counts, dispatch-paused flag, per-workflow active-run gauge (`kota_workflow_active_runs`), total queue-depth gauge (`kota_workflow_queued_runs`), and run duration histogram (`kota_workflow_run_duration_seconds`) with fixed buckets (30s, 2m, 5m, 15m, 30m, 60m).
+- `daemon-control-push-tokens.ts` — push token registration endpoint handler (`POST /push-tokens`).
+- `push-tokens.ts` — `registerPushToken` (stores token in `.kota/push-tokens.json`), `sendPushNotifications` (fires Expo Push API when `approval.requested` emits).
 - `daemon-control-webhook.ts` — inbound webhook trigger endpoint handler.
 - `daemon-subscriptions.ts` — `subscribeDaemon`; sets up all event/bus/scheduler subscriptions and returns a single `unsubscribe()` function.
 - `daemon-state.ts` — `DaemonState` type and assertion helper.

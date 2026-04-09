@@ -198,6 +198,8 @@ export type DaemonControlHandle = {
   registerSession(id: string, createdAt: string): void;
   unregisterSession(id: string): void;
   listSessions(): InteractiveSession[];
+  // Push notifications
+  registerPushToken(deviceId: string, token: string): void;
   // Webhook triggers
   triggerWebhookRun(
     name: string,

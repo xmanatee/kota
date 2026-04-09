@@ -5,6 +5,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -13,7 +14,7 @@ import {
 import { useDaemon } from '../context/DaemonContext';
 
 export function SettingsScreen() {
-  const { state, saveSettings } = useDaemon();
+  const { state, saveSettings, setPushNotificationsEnabled } = useDaemon();
   const [url, setUrl] = useState(state.daemonUrl);
   const [token, setToken] = useState(state.token);
   const [saving, setSaving] = useState(false);
@@ -86,6 +87,18 @@ export function SettingsScreen() {
         >
           <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Save'}</Text>
         </TouchableOpacity>
+
+        <Text style={styles.sectionTitle}>Notifications</Text>
+        <View style={styles.row}>
+          <View style={styles.rowText}>
+            <Text style={styles.rowLabel}>Push notifications for approvals</Text>
+            <Text style={styles.rowHint}>Receive alerts when a workflow needs approval.</Text>
+          </View>
+          <Switch
+            value={state.pushNotificationsEnabled}
+            onValueChange={(v) => void setPushNotificationsEnabled(v)}
+          />
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -115,4 +128,17 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
+  sectionTitle: { fontSize: 13, fontWeight: '600', color: '#6c6c70', marginBottom: 8, marginTop: 32 },
+  row: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#c6c6c8',
+  },
+  rowText: { flex: 1, marginRight: 12 },
+  rowLabel: { fontSize: 15, color: '#1c1c1e' },
+  rowHint: { fontSize: 12, color: '#8e8e93', marginTop: 2 },
 });

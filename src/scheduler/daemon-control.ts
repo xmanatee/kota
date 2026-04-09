@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { handleApproveApproval, handleListApprovals, handleRejectApproval } from "./daemon-control-approvals.js";
 import { handleDeleteHistory, handleGetHistory, handleListHistory } from "./daemon-control-history.js";
 import { handleMetrics } from "./daemon-control-metrics.js";
+import { handleRegisterPushToken } from "./daemon-control-push-tokens.js";
 import { handleListSessions, handleRegisterSession, handleUnregisterSession } from "./daemon-control-sessions.js";
 import type { DaemonControlHandle, DaemonLiveStatus, DaemonSseEvent } from "./daemon-control-types.js";
 import { jsonResponse } from "./daemon-control-utils.js";
@@ -78,6 +79,7 @@ const ROUTE_SCOPES: Record<string, "read" | "control"> = {
   "POST /sessions/register": "control",
   "DELETE /sessions/:id": "control",
   "GET /metrics": "read",
+  "POST /push-tokens": "control",
 };
 
 function extractParams(pattern: string, path: string): Record<string, string> | null {
@@ -305,6 +307,8 @@ export class DaemonControlServer {
     if (method === "DELETE" && params.id && path.startsWith("/sessions/")) { handleUnregisterSession(h, res, params); return; }
 
     if (method === "GET" && path === "/metrics") { handleMetrics(h, res); return; }
+
+    if (method === "POST" && path === "/push-tokens") { handleRegisterPushToken(h, req, res); return; }
 
     jsonResponse(res, 404, { error: "Not found" });
   }

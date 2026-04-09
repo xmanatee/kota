@@ -79,6 +79,13 @@ export class DaemonClient {
     return this.request<TasksResponse>('/tasks');
   }
 
+  registerPushToken(deviceId: string, token: string): Promise<{ ok: boolean }> {
+    return this.request('/push-tokens', {
+      method: 'POST',
+      body: JSON.stringify({ deviceId, token }),
+    });
+  }
+
   pauseDispatch(): Promise<{ ok: boolean; paused: boolean }> {
     return this.request('/workflow/pause', { method: 'POST' });
   }
