@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig } from "../../config.js";
+import { REPO_TASKS_DIR } from "../../repo-tasks.js";
 import type { WorkflowStepContext } from "../../workflow/run-types.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 
@@ -26,7 +27,11 @@ function findTaskIdFromStagedFiles(projectDir: string): string | null {
 
   const files = result.stdout.trim().split("\n").filter(Boolean);
   for (const file of files) {
-    if (!file.startsWith("tasks/") || !file.endsWith(".md") || file.endsWith("AGENTS.md")) {
+    if (
+      !file.startsWith(`${REPO_TASKS_DIR}/`) ||
+      !file.endsWith(".md") ||
+      file.endsWith("AGENTS.md")
+    ) {
       continue;
     }
     try {

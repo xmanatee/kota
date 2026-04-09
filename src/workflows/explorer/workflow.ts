@@ -2,34 +2,24 @@ import { getRepoTaskQueueSnapshot } from "../../repo-tasks.js";
 import { assertRepoWorktreeClean } from "../../repo-worktree.js";
 import {
   assertArchitectureReadyCoverage,
-  assertNoHighPriorityBacklogStrandedTasks,
-  assertStrategicReadyCoverage,
-  assertTaskQueueRecommendations,
-  hasArchitectureReadyCoverageGap,
-  hasHighPriorityBacklogTasks,
-  hasStrategicReadyCoverageGap,
 } from "../../task-queue-validation.js";
 import type { WorkflowDefinitionInput } from "../../workflow/types.js";
 import { typedCodeStep } from "../../workflow/types.js";
 import { commitWorkflowChanges } from "../commit.js";
 import {
-  BACKLOG_TASK_TARGET,
-  READY_TASK_TARGET,
   runCheck,
   stepSucceeded,
 } from "../shared.js";
 
-const STRATEGIC_REFRESH_MS = 30 * 60 * 1000;
+const EXPLORATION_REFRESH_MS = 30 * 60 * 1000;
 
 type ExplorerAssessment = {
   counts: ReturnType<typeof getRepoTaskQueueSnapshot>["counts"];
+  inboxCount: number;
   openCount: number;
   actionableCount: number;
   needsAttention: boolean;
-  strategicRefreshDue: boolean;
-  hasHighPriorityBacklogTasks: boolean;
-  hasArchitectureReadyGap: boolean;
-  hasStrategicReadyGap: boolean;
+  explorationRefreshDue: boolean;
 };
 
 function buildExplorerAssessment(
@@ -37,27 +27,18 @@ function buildExplorerAssessment(
   lastCompletedAt: string | undefined,
 ): ExplorerAssessment {
   const queue = getRepoTaskQueueSnapshot(projectDir);
-  const strategicRefreshDue =
+  const explorationRefreshDue =
     !lastCompletedAt ||
-    Date.now() - new Date(lastCompletedAt).getTime() >= STRATEGIC_REFRESH_MS;
-  const highPriorityInBacklog = hasHighPriorityBacklogTasks(projectDir);
-  const architectureReadyGap = hasArchitectureReadyCoverageGap(projectDir);
-  const strategicReadyGap = hasStrategicReadyCoverageGap(projectDir);
+    Date.now() - new Date(lastCompletedAt).getTime() >= EXPLORATION_REFRESH_MS;
+  const queueEmpty =
+    queue.inboxCount === 0 &&
+    queue.counts.ready === 0 &&
+    queue.counts.backlog === 0;
 
   return {
     ...queue,
-    hasHighPriorityBacklogTasks: highPriorityInBacklog,
-    hasArchitectureReadyGap: architectureReadyGap,
-    hasStrategicReadyGap: strategicReadyGap,
-    needsAttention:
-      queue.counts.inbox > 0 ||
-      queue.counts.ready < READY_TASK_TARGET ||
-      queue.counts.backlog < BACKLOG_TASK_TARGET ||
-      highPriorityInBacklog ||
-      strategicRefreshDue ||
-      architectureReadyGap ||
-      strategicReadyGap,
-    strategicRefreshDue,
+    needsAttention: queueEmpty && explorationRefreshDue,
+    explorationRefreshDue,
   };
 }
 
@@ -76,11 +57,11 @@ const inspectQueue = typedCodeStep<ExplorerAssessment>({
 const explorerWorkflow: WorkflowDefinitionInput = {
   name: "explorer",
   description:
-    "Maintain a strong, deduplicated task portfolio by studying the codebase, recent work, and external ideas.",
+    "Search broadly for external ideas and promising improvements when the local queue is empty.",
   triggers: [
     {
       event: "runtime.idle",
-      cooldownMs: 30_000,
+      cooldownMs: 5 * 60 * 1000,
     },
   ],
   steps: [
@@ -101,32 +82,9 @@ const explorerWorkflow: WorkflowDefinitionInput = {
             run: (ctx) => runCheck("pnpm run validate-tasks -- --min-ready 1", ctx.projectDir),
           },
           {
-            id: "task-queue-range",
-            type: "code",
-            severity: "warning",
-            run: ({ projectDir }) =>
-              assertTaskQueueRecommendations(projectDir, {
-                recommendedMinReady: READY_TASK_TARGET,
-                recommendedMinBacklog: BACKLOG_TASK_TARGET,
-              }),
-          },
-          {
-            id: "high-priority-placement",
-            type: "code",
-            run: ({ projectDir }) =>
-              assertNoHighPriorityBacklogStrandedTasks(projectDir, {
-                recommendedMinReady: READY_TASK_TARGET,
-              }),
-          },
-          {
             id: "architecture-ready-coverage",
             type: "code",
             run: ({ projectDir }) => assertArchitectureReadyCoverage(projectDir),
-          },
-          {
-            id: "strategic-ready-coverage",
-            type: "code",
-            run: ({ projectDir }) => assertStrategicReadyCoverage(projectDir),
           },
         ],
       },

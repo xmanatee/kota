@@ -2,7 +2,12 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { parseFlatFrontMatter } from "./frontmatter.js";
-import { REPO_TASK_STATES, type RepoTaskState } from "./repo-tasks.js";
+import {
+  getRepoTaskStateDir,
+  REPO_TASK_STATES,
+  REPO_TASKS_DIR,
+  type RepoTaskState,
+} from "./repo-tasks.js";
 
 export type TaskQueueValidationSeverity = "error" | "warning";
 
@@ -38,7 +43,7 @@ type TaskFileEntry = {
 function listTaskEntries(projectDir: string): TaskFileEntry[] {
   const entries: TaskFileEntry[] = [];
   for (const state of REPO_TASK_STATES) {
-    const dir = join(projectDir, "tasks", state);
+    const dir = getRepoTaskStateDir(projectDir, state);
     if (!existsSync(dir)) {
       continue;
     }
@@ -150,7 +155,7 @@ function readTaskGitStatus(projectDir: string): {
   try {
     const output = execFileSync(
       "git",
-      ["status", "--porcelain=v1", "--untracked-files=all", "--", "tasks"],
+      ["status", "--porcelain=v1", "--untracked-files=all", "--", REPO_TASKS_DIR],
       { cwd: projectDir, encoding: "utf8" },
     );
     const untracked: string[] = [];
@@ -275,7 +280,7 @@ export function validateTaskQueue(
     findings.push({
       code: "too-many-doing",
       severity: "error",
-      message: `tasks/doing contains ${counts.doing} tasks; maximum supported is ${maxDoing}`,
+      message: `data/tasks/doing contains ${counts.doing} tasks; maximum supported is ${maxDoing}`,
     });
   }
 
@@ -283,7 +288,7 @@ export function validateTaskQueue(
     findings.push({
       code: "ready-underflow",
       severity: "error",
-      message: `tasks/ready contains ${counts.ready} tasks; expected at least ${options.minReady}`,
+      message: `data/tasks/ready contains ${counts.ready} tasks; expected at least ${options.minReady}`,
     });
   }
 
@@ -294,7 +299,7 @@ export function validateTaskQueue(
     findings.push({
       code: "ready-thin",
       severity: "warning",
-      message: `tasks/ready contains ${counts.ready} tasks; recommended minimum is ${options.recommendedMinReady}`,
+      message: `data/tasks/ready contains ${counts.ready} tasks; recommended minimum is ${options.recommendedMinReady}`,
     });
   }
 
@@ -305,7 +310,7 @@ export function validateTaskQueue(
     findings.push({
       code: "backlog-thin",
       severity: "warning",
-      message: `tasks/backlog contains ${counts.backlog} tasks; recommended minimum is ${options.recommendedMinBacklog}`,
+      message: `data/tasks/backlog contains ${counts.backlog} tasks; recommended minimum is ${options.recommendedMinBacklog}`,
     });
   }
 
@@ -350,7 +355,7 @@ export function assertArchitectureReadyCoverage(projectDir: string): string {
     return "architecture-ready-coverage-ok";
   }
   throw new Error(
-    "tasks/ready must keep at least one p1/p2 architecture task while visible extension-first debt remains: " +
+    "data/tasks/ready must keep at least one p1/p2 architecture task while visible extension-first debt remains: " +
       remainingArchitectureDebt.join(", "),
   );
 }
@@ -360,7 +365,7 @@ export function assertStrategicReadyCoverage(projectDir: string): string {
     return "strategic-ready-coverage-ok";
   }
   throw new Error(
-    "tasks/ready must keep at least one p0/p1/p2 task. The actionable queue has drifted " +
+    "data/tasks/ready must keep at least one p0/p1/p2 task. The actionable queue has drifted " +
       "to p3-only work, which is too weak for the front of the autonomous queue.",
   );
 }
@@ -429,6 +434,6 @@ export function assertNoHighPriorityBacklogStrandedTasks(
 
   const taskList = stranded.map((e) => `  - ${e.taskId}`).join("\n");
   throw new Error(
-    `tasks/ready has ${readyCount} task(s) (target: ${options.recommendedMinReady}), but these p1/p2 tasks are still in backlog — promote them to ready:\n${taskList}`,
+    `data/tasks/ready has ${readyCount} task(s) (target: ${options.recommendedMinReady}), but these p1/p2 tasks are still in backlog — promote them to ready:\n${taskList}`,
   );
 }

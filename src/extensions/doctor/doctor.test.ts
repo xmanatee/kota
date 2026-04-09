@@ -131,13 +131,13 @@ describe("kota doctor — offline path", () => {
     expect(labels.some((l) => l.startsWith("Disk:"))).toBe(true);
   });
 
-  it("warns about legacy module state and stray runtime directories", async () => {
+  it("warns about unexpected module state and stray runtime directories", async () => {
     mkdirSync(join(projectDir, ".kota", "modules", "tool-cache"), { recursive: true });
     mkdirSync(join(projectDir, "runs"), { recursive: true });
     mkdirSync(join(projectDir, "kota"), { recursive: true });
 
     const results = await runDoctorChecks(projectDir);
-    expect(results.find((r) => r.label === "Disk: legacy .kota/modules/")?.status).toBe("warn");
+    expect(results.find((r) => r.label === "Disk: unexpected .kota/modules/")?.status).toBe("warn");
     expect(results.find((r) => r.label === "Disk: stray runs/")?.status).toBe("warn");
     expect(results.find((r) => r.label === "Disk: stray kota/")?.status).toBe("warn");
   });

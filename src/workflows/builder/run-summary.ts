@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { REPO_TASKS_DIR } from "../../repo-tasks.js";
 import type { WorkflowStepContext } from "../../workflow/run-types.js";
 
 export type BuilderRunSummary = {
@@ -22,7 +23,11 @@ function findTaskInChangedFiles(
   files: string[],
 ): { taskId: string | null; taskTitle: string | null } {
   for (const file of files) {
-    if (!file.startsWith("tasks/") || !file.endsWith(".md") || file.endsWith("AGENTS.md")) {
+    if (
+      !file.startsWith(`${REPO_TASKS_DIR}/`) ||
+      !file.endsWith(".md") ||
+      file.endsWith("AGENTS.md")
+    ) {
       continue;
     }
     try {

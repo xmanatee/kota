@@ -206,10 +206,10 @@ describe("findInstructionFiles", () => {
 
 	it("supports repo-style root AGENTS that reference docs files", () => {
 		mkdirSync(join(TEST_ROOT, "docs"), { recursive: true });
-		mkdirSync(join(TEST_ROOT, "tasks"), { recursive: true });
+		mkdirSync(join(TEST_ROOT, "data", "tasks"), { recursive: true });
 		writeFileSync(
 			join(TEST_ROOT, "AGENTS.md"),
-			"# Root\n\n@docs/STANDARDS.md\n\n@tasks/AGENTS.md",
+			"# Root\n\n@docs/STANDARDS.md\n\n@data/tasks/AGENTS.md",
 			"utf-8",
 		);
 		writeFileSync(
@@ -218,7 +218,7 @@ describe("findInstructionFiles", () => {
 			"utf-8",
 		);
 		writeFileSync(
-			join(TEST_ROOT, "tasks", "AGENTS.md"),
+			join(TEST_ROOT, "data", "tasks", "AGENTS.md"),
 			"task rules",
 			"utf-8",
 		);
@@ -231,7 +231,7 @@ describe("findInstructionFiles", () => {
 		} finally {
 			rmSync(join(TEST_ROOT, "AGENTS.md"), { force: true });
 			rmSync(join(TEST_ROOT, "docs"), { recursive: true, force: true });
-			rmSync(join(TEST_ROOT, "tasks"), { recursive: true, force: true });
+			rmSync(join(TEST_ROOT, "data"), { recursive: true, force: true });
 		}
 	});
 

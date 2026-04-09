@@ -303,21 +303,25 @@ export class ExtensionLoader {
   getExtensionSummaries(): ExtensionSummary[] {
     const loaded = this.extensions.map((ext) => {
       const commandNames: string[] = [];
+      let commandError: string | undefined;
       if (ext.commands) {
         try {
           const cmds = ext.commands(this.createContext(ext.name));
           for (const cmd of cmds) commandNames.push(cmd.name());
-        } catch {
-          // ignore errors from command factory
+        } catch (err) {
+          commandError = err instanceof Error ? err.message : String(err);
+          console.error(`[kota] Extension "${ext.name}" command summary failed: ${commandError}`);
         }
       }
       const routeSummaries: string[] = [];
+      let routeError: string | undefined;
       if (ext.routes) {
         try {
           const routes = ext.routes(this.createContext(ext.name));
           for (const r of routes) routeSummaries.push(`${r.method} ${r.path}`);
-        } catch {
-          // ignore errors from route factory
+        } catch (err) {
+          routeError = err instanceof Error ? err.message : String(err);
+          console.error(`[kota] Extension "${ext.name}" route summary failed: ${routeError}`);
         }
       }
       return {
@@ -334,6 +338,8 @@ export class ExtensionLoader {
         skills: ext.skills ?? [],
         commandNames,
         routeSummaries,
+        ...(commandError ? { commandError } : {}),
+        ...(routeError ? { routeError } : {}),
         health: ext.getHealth?.(),
       };
     });

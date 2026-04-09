@@ -44,19 +44,21 @@ describe("runInit", () => {
     expect(existsSync(join(tmpDir, "kota.config.ts"))).toBe(true);
   });
 
-  it("creates all tasks/ subdirectories", () => {
+  it("creates data/inbox and all normalized task subdirectories", () => {
     runInit(tmpDir, false);
-    const states = ["inbox", "ready", "doing", "backlog", "blocked", "done", "dropped"];
+    expect(existsSync(join(tmpDir, "data", "inbox"))).toBe(true);
+    const states = ["ready", "doing", "backlog", "blocked", "done", "dropped"];
     for (const state of states) {
-      expect(existsSync(join(tmpDir, "tasks", state))).toBe(true);
+      expect(existsSync(join(tmpDir, "data", "tasks", state))).toBe(true);
     }
   });
 
-  it("creates AGENTS.md in each tasks/ subdirectory", () => {
+  it("creates AGENTS.md in inbox and each normalized task subdirectory", () => {
     runInit(tmpDir, false);
-    const states = ["inbox", "ready", "doing", "backlog", "blocked", "done", "dropped"];
+    expect(existsSync(join(tmpDir, "data", "inbox", "AGENTS.md"))).toBe(true);
+    const states = ["ready", "doing", "backlog", "blocked", "done", "dropped"];
     for (const state of states) {
-      expect(existsSync(join(tmpDir, "tasks", state, "AGENTS.md"))).toBe(true);
+      expect(existsSync(join(tmpDir, "data", "tasks", state, "AGENTS.md"))).toBe(true);
     }
   });
 
@@ -103,9 +105,9 @@ describe("runInit", () => {
     expect(readFileSync(configPath, "utf-8")).not.toBe("// my custom config");
   });
 
-  it("--force does not overwrite tasks AGENTS.md files", () => {
+  it("--force does not overwrite inbox AGENTS.md", () => {
     runInit(tmpDir, false);
-    const inboxAgents = join(tmpDir, "tasks", "inbox", "AGENTS.md");
+    const inboxAgents = join(tmpDir, "data", "inbox", "AGENTS.md");
     writeFileSync(inboxAgents, "# My custom inbox\n", "utf-8");
     runInit(tmpDir, true);
     expect(readFileSync(inboxAgents, "utf-8")).toBe("# My custom inbox\n");
@@ -117,11 +119,11 @@ describe("runInit", () => {
     expect(result.skipped).toHaveLength(0);
   });
 
-  it("works when tasks/ subdirs already exist", () => {
-    mkdirSync(join(tmpDir, "tasks", "inbox"), { recursive: true });
-    writeFileSync(join(tmpDir, "tasks", "inbox", "AGENTS.md"), "# Existing\n", "utf-8");
+  it("works when data/ subdirs already exist", () => {
+    mkdirSync(join(tmpDir, "data", "inbox"), { recursive: true });
+    writeFileSync(join(tmpDir, "data", "inbox", "AGENTS.md"), "# Existing\n", "utf-8");
     runInit(tmpDir, false);
-    expect(readFileSync(join(tmpDir, "tasks", "inbox", "AGENTS.md"), "utf-8")).toBe("# Existing\n");
+    expect(readFileSync(join(tmpDir, "data", "inbox", "AGENTS.md"), "utf-8")).toBe("# Existing\n");
   });
 });
 

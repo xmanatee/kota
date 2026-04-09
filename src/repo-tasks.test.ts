@@ -3,9 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  countRepoTasks,
+  countRepoInboxEntries,
+  countRepoTaskState,
   getRepoTaskQueueSnapshot,
+  REPO_INBOX_DIR,
   REPO_TASK_STATES,
+  REPO_TASKS_DIR,
 } from "./repo-tasks.js";
 
 describe("repo task helpers", () => {
@@ -18,9 +21,11 @@ describe("repo task helpers", () => {
     );
 
     for (const state of REPO_TASK_STATES) {
-      mkdirSync(join(projectDir, "tasks", state), { recursive: true });
-      writeFileSync(join(projectDir, "tasks", state, "AGENTS.md"), `# ${state}\n`);
+      mkdirSync(join(projectDir, REPO_TASKS_DIR, state), { recursive: true });
+      writeFileSync(join(projectDir, REPO_TASKS_DIR, state, "AGENTS.md"), `# ${state}\n`);
     }
+    mkdirSync(join(projectDir, REPO_INBOX_DIR), { recursive: true });
+    writeFileSync(join(projectDir, REPO_INBOX_DIR, "AGENTS.md"), "# inbox\n");
   });
 
   afterEach(() => {
@@ -28,21 +33,22 @@ describe("repo task helpers", () => {
   });
 
   it("counts markdown task files while ignoring AGENTS.md", () => {
-    writeFileSync(join(projectDir, "tasks", "ready", "task-one.md"), "task");
-    writeFileSync(join(projectDir, "tasks", "ready", "task-two.md"), "task");
+    writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-one.md"), "task");
+    writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-two.md"), "task");
 
-    expect(countRepoTasks(projectDir, "ready")).toBe(2);
+    expect(countRepoTaskState(projectDir, "ready")).toBe(2);
   });
 
   it("summarizes the open task queue by state", () => {
-    writeFileSync(join(projectDir, "tasks", "inbox", "task-capture.md"), "task");
-    writeFileSync(join(projectDir, "tasks", "ready", "task-ready.md"), "task");
-    writeFileSync(join(projectDir, "tasks", "doing", "task-doing.md"), "task");
-    writeFileSync(join(projectDir, "tasks", "done", "task-done.md"), "task");
+    writeFileSync(join(projectDir, REPO_INBOX_DIR, "task-capture.md"), "task");
+    writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-ready.md"), "task");
+    writeFileSync(join(projectDir, REPO_TASKS_DIR, "doing", "task-doing.md"), "task");
+    writeFileSync(join(projectDir, REPO_TASKS_DIR, "done", "task-done.md"), "task");
+
+    expect(countRepoInboxEntries(projectDir)).toBe(1);
 
     expect(getRepoTaskQueueSnapshot(projectDir)).toEqual({
       counts: {
-        inbox: 1,
         backlog: 0,
         ready: 1,
         doing: 1,
@@ -50,6 +56,7 @@ describe("repo task helpers", () => {
         done: 1,
         dropped: 0,
       },
+      inboxCount: 1,
       openCount: 3,
       actionableCount: 2,
       headSha: expect.any(String),

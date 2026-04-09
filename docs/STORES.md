@@ -73,9 +73,9 @@ This is the right store for durable evidence of what automated workflows did.
 
 ## Durable State for Built-in Agents
 
-Builder, explorer, and improver operate on repo-local durable state:
+Inbox-sorter, builder, explorer, and improver operate on repo-local durable state:
 
-- **Task files** (`tasks/`) — work queue and status.
+- **Inbox + task files** (`data/inbox/`, `data/tasks/`) — capture surface, work queue, and status.
 - **Git history** — implementation record.
 - **Run artifacts** (`.kota/runs/`) — execution evidence, step outputs, costs.
 

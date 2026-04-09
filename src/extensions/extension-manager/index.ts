@@ -71,6 +71,12 @@ function buildExtensionCommand(ctx: ExtensionContext): Command {
         const restartPart = h.restartCount === 0 ? `(${h.restartCount} restarts)` : `(${h.restartCount} restarts, last: ${h.lastRestartAt ?? "unknown"})`;
         console.log(`Health:    ${h.status}  ${restartPart}`);
       }
+      if (ext.commandError) {
+        console.log(`Command summary error: ${ext.commandError}`);
+      }
+      if (ext.routeError) {
+        console.log(`Route summary error: ${ext.routeError}`);
+      }
       printSection("Tools", ext.toolNames);
       printSection("Workflows", ext.workflowNames);
       printSection("Commands", ext.commandNames);

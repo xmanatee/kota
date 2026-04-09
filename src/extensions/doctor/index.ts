@@ -152,12 +152,12 @@ function checkDisk(projectDir: string): CheckResult[] {
     results.push(warn("Disk: .kota/extensions/", "Missing — run `kota doctor --fix` to create canonical extension state"));
   }
 
-  const legacyModulesDir = join(kotaDir, "modules");
-  if (existsSync(legacyModulesDir)) {
+  const unexpectedModulesDir = join(kotaDir, "modules");
+  if (existsSync(unexpectedModulesDir)) {
     results.push(
       warn(
-        "Disk: legacy .kota/modules/",
-        "Unexpected leftover state path is present; remove it manually",
+        "Disk: unexpected .kota/modules/",
+        "Unexpected runtime state path is present; remove it manually",
       ),
     );
   }

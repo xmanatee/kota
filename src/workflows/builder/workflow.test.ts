@@ -19,17 +19,8 @@ vi.mock("../../repo-worktree.js", () => ({
 
 vi.mock("../../repo-tasks.js", () => ({
   getRepoTaskQueueSnapshot: vi.fn(),
-  countRepoTasks: vi.fn(() => 0),
   isRepoTaskQueueSnapshot: vi.fn(() => true),
-  REPO_TASK_STATES: [
-    "inbox",
-    "backlog",
-    "ready",
-    "doing",
-    "blocked",
-    "done",
-    "dropped",
-  ],
+  REPO_TASK_STATES: ["backlog", "ready", "doing", "blocked", "done", "dropped"],
 }));
 
 vi.mock("../commit.js", () => ({
@@ -57,7 +48,6 @@ vi.mock("./branch-per-task.js", () => ({
 function makeEmptySnapshot() {
   return {
     counts: {
-      inbox: 0,
       backlog: 0,
       ready: 0,
       doing: 0,
@@ -65,6 +55,7 @@ function makeEmptySnapshot() {
       done: 0,
       dropped: 0,
     },
+    inboxCount: 0,
     openCount: 0,
     actionableCount: 0,
     headSha: "abc1234",
@@ -73,7 +64,6 @@ function makeEmptySnapshot() {
 
 function makeSnapshot(ready: number, doing: number) {
   const counts = {
-    inbox: 0,
     backlog: 4,
     ready,
     doing,
@@ -83,7 +73,8 @@ function makeSnapshot(ready: number, doing: number) {
   };
   return {
     counts,
-    openCount: counts.inbox + counts.backlog + counts.ready + counts.doing + counts.blocked,
+    inboxCount: 0,
+    openCount: counts.backlog + counts.ready + counts.doing + counts.blocked,
     actionableCount: ready + doing,
     headSha: "abc1234",
   };
@@ -101,7 +92,7 @@ describe("builder workflow", () => {
     const harness = new WorkflowTestHarness(builderWorkflow, {
       trigger: {
         event: "workflow.completed",
-        payload: { workflow: "explorer", status: "success" },
+        payload: { workflow: "inbox-sorter", status: "success" },
       },
       stepMocks: {
         build: { turns: [], totalCostUsd: 0 },
@@ -240,8 +231,8 @@ describe("builder workflow", () => {
   });
 
   it("prompt instructs agent to scan blocked/ and doing/ before selecting a task", () => {
-    expect(promptContent).toMatch(/tasks\/blocked\//);
-    expect(promptContent).toMatch(/tasks\/doing\//);
+    expect(promptContent).toMatch(/data\/tasks\/blocked\//);
+    expect(promptContent).toMatch(/data\/tasks\/doing\//);
     expect(promptContent).toMatch(/skip/i);
   });
 

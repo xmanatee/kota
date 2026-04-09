@@ -81,39 +81,23 @@ function renderCreateTask(args: Record<string, string>): McpGetPromptResult {
 	const area = args.area ?? "<area>";
 	const priority = args.priority ?? "p3";
 
-	const text = `Create a new KOTA task file at \`tasks/inbox/<kebab-id>.md\` with the following structure:
+	const text = `Create a quick KOTA inbox capture at \`data/inbox/<kebab-id>.md\`.
+
+If the idea is still rough, a short plain-text note is acceptable. If it is already clear enough to normalize later, use this structure:
 
 \`\`\`markdown
----
-id: <kebab-case-id>
-title: ${title}
-status: inbox
-priority: ${priority}
-area: ${area}
-summary: <one-line description>
-created_at: <ISO 8601 datetime>
-updated_at: <ISO 8601 datetime>
----
+# ${title}
 
-## Problem
+Priority: ${priority}
+Area: ${area}
 
-<describe the problem or gap>
+<one-line description>
 
-## Desired Outcome
-
-<describe the desired end state>
-
-## Constraints
-
-- <list constraints>
-
-## Done When
-
-- <list specific, verifiable completion criteria>
+<any useful notes, links, or context>
 \`\`\``;
 
 	return {
-		description: "Draft a new KOTA task file",
+		description: "Draft a new KOTA inbox capture",
 		messages: [{ role: "user", content: { type: "text", text } }],
 	};
 }

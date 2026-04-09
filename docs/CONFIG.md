@@ -4,7 +4,8 @@
 
 Run `kota init` in a new directory to scaffold the required project structure:
 - `kota.config.ts` — project config with commented-out extension blocks
-- `tasks/` — task queue subdirectories (`inbox/`, `ready/`, `doing/`, `backlog/`, `blocked/`, `done/`, `dropped/`)
+- `data/inbox/` — quick captures and rough ideas
+- `data/tasks/` — normalized task queue subdirectories (`ready/`, `doing/`, `backlog/`, `blocked/`, `done/`, `dropped/`)
 - `docs/` — documentation directory
 - `.kota/` — runtime state directory
 

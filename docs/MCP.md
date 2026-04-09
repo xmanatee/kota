@@ -45,7 +45,7 @@ The server implements `resources/list` and `resources/read`. Five read-only reso
 
 ### `kota://tasks/ready`
 
-A JSON array of tasks currently in `tasks/ready/`. Each entry contains:
+A JSON array of tasks currently in `data/tasks/ready/`. Each entry contains:
 
 | Field      | Type   | Description               |
 |------------|--------|---------------------------|

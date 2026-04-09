@@ -668,7 +668,8 @@ Returns `404` if not found or not pending.
 
 ### GET /tasks
 
-Returns the current task queue status from the `tasks/` directory.
+Returns the current normalized task queue status from `data/tasks/` plus inbox
+capture count from `data/inbox/`.
 
 **Response:**
 
@@ -728,11 +729,12 @@ API when the daemon is running:
 When the daemon is not running:
 - `/api/daemon/status` returns `{ daemon: null }`.
 - Workflow status routes return empty state. Pause, resume, and retry return 503.
-- History, approvals, and task routes fall back to reading from the local
-  process state (in-process stores and `tasks/` files directly).
+- History, approvals, and task routes run in standalone server mode and read
+  from local process state (in-process stores and `data/` files directly).
 
 Queuing a workflow (`POST /api/workflow/trigger`) proxies to the daemon when
-available, or writes directly to `.kota/workflow-state.json` as a fallback.
+available, or writes directly to `.kota/workflow-state.json` in standalone
+server mode.
 Run artifacts in `.kota/runs/` are durable evidence and are read directly by
 the server for run listing and streaming.
 

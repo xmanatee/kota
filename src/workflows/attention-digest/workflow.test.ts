@@ -11,7 +11,7 @@ describe("attention-digest workflow definition", () => {
     expect(registered.name).toBe("attention-digest");
   });
 
-  it("has a workflow.completed trigger filtered to explorer, builder, and improver", () => {
+  it("has a workflow.completed trigger filtered to inbox-sorter, explorer, builder, and improver", () => {
     const registered = registerWorkflowDefinition(
       "src/workflows/attention-digest/workflow.ts",
       attentionDigestWorkflow,
@@ -19,7 +19,7 @@ describe("attention-digest workflow definition", () => {
     expect(registered.triggers).toHaveLength(1);
     expect(registered.triggers[0].event).toBe("workflow.completed");
     expect(registered.triggers[0].filter).toMatchObject({
-      workflow: ["explorer", "builder", "improver"],
+      workflow: ["inbox-sorter", "explorer", "builder", "improver"],
     });
   });
 

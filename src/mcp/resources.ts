@@ -12,6 +12,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getKnowledgeProvider, getMemoryProvider } from "../extensions/providers/index.js";
+import { getRepoTaskStateDir } from "../repo-tasks.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 
 export type McpResource = {
@@ -25,7 +26,7 @@ export const KOTA_RESOURCES: McpResource[] = [
 	{
 		uri: "kota://tasks/ready",
 		name: "Ready Tasks",
-		description: "Tasks in tasks/ready/ with id, title, priority, and summary.",
+		description: "Tasks in data/tasks/ready/ with id, title, priority, and summary.",
 		mimeType: "application/json",
 	},
 	{
@@ -70,7 +71,7 @@ function parseFrontmatter(content: string): Record<string, string> {
 }
 
 function readReadyTasks(projectDir: string): unknown {
-	const dir = join(projectDir, "tasks", "ready");
+	const dir = getRepoTaskStateDir(projectDir, "ready");
 	if (!existsSync(dir)) return [];
 	const files = readdirSync(dir).filter((f) => f.endsWith(".md"));
 	const tasks = [];

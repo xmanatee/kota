@@ -30,66 +30,75 @@ function wait(ms: number): Promise<void> {
 }
 
 /**
- * Seed the fixture project so explorer's `needsAttention` evaluates to false,
- * causing the explore agent step to be skipped. This lets explorer complete
- * successfully without any real LLM call, triggering builder.
+ * Seed the fixture project so:
+ *   - `inbox-sorter` has inbox work and can complete successfully without
+ *     needing to mutate the fixture
+ *   - `explorer` sees a non-empty normalized queue and therefore skips
+ *   - `builder` still has actionable normalized work after inbox-sorter
+ *     succeeds
  *
- * Requirements for needsAttention = false:
- *   - inbox == 0 (no inbox task files)
- *   - ready >= READY_TASK_TARGET (4)
- *   - backlog >= BACKLOG_TASK_TARGET (8)
- *   - strategicRefreshDue = false (lastCompletedAt is recent)
+ * This lets us test the autonomous handoff cleanly without relying on
+ * explorer to invent new tasks first.
  */
 function seedFixtureProject(projectDir: string): void {
   for (const dir of [
+    "src/workflows/inbox-sorter",
     "src/workflows/explorer",
     "src/workflows/builder",
     "src/workflows/improver",
-    "tasks/ready",
-    "tasks/backlog",
-    "tasks/inbox",
-    "tasks/doing",
-    "tasks/blocked",
-    "tasks/done",
-    "tasks/dropped",
+    "data/inbox",
+    "data/tasks/ready",
+    "data/tasks/backlog",
+    "data/tasks/doing",
+    "data/tasks/blocked",
+    "data/tasks/done",
+    "data/tasks/dropped",
     ".kota",
   ]) {
     mkdirSync(join(projectDir, dir), { recursive: true });
   }
 
   // Prompt files required by validateAgentStep
+  writeFileSync(join(projectDir, "src/workflows/inbox-sorter/prompt.md"), "Sort inbox.\n");
   writeFileSync(join(projectDir, "src/workflows/explorer/prompt.md"), "Explore.\n");
   writeFileSync(join(projectDir, "src/workflows/builder/prompt.md"), "Build.\n");
   writeFileSync(join(projectDir, "src/workflows/improver/prompt.md"), "Improve.\n");
 
+  // One inbox capture so inbox-sorter has work.
+  writeFileSync(join(projectDir, "data/inbox/task-capture.md"), "# Capture\n\nInteresting idea.\n");
+
   // 4 ready tasks — well-formed so they pass builder preflight validation
   const makeReadyTask = (id: string, title: string) =>
     `---\nid: ${id}\ntitle: ${title}\nstatus: ready\npriority: p2\narea: workflow\nsummary: Summary.\ncreated_at: 2026-01-01\nupdated_at: 2026-01-01\n---\n\n## Problem\n\nA problem exists.\n\n## Desired Outcome\n\nThe problem is resolved.\n\n## Constraints\n\nNone.\n\n## Done When\n\nThe problem is gone.\n`;
+  const makeBacklogTask = (id: string, title: string) =>
+    `---\nid: ${id}\ntitle: ${title}\nstatus: backlog\npriority: p3\narea: workflow\nsummary: Summary.\ncreated_at: 2026-01-01\nupdated_at: 2026-01-01\n---\n\n## Problem\n\nA problem exists.\n\n## Desired Outcome\n\nThe problem is resolved.\n\n## Constraints\n\nNone.\n\n## Done When\n\nThe problem is gone.\n`;
   writeFileSync(
-    join(projectDir, "tasks/ready/task-alpha.md"),
+    join(projectDir, "data/tasks/ready/task-alpha.md"),
     makeReadyTask("task-alpha", "Task Alpha"),
   );
   writeFileSync(
-    join(projectDir, "tasks/ready/task-beta.md"),
+    join(projectDir, "data/tasks/ready/task-beta.md"),
     makeReadyTask("task-beta", "Task Beta"),
   );
   writeFileSync(
-    join(projectDir, "tasks/ready/task-gamma.md"),
+    join(projectDir, "data/tasks/ready/task-gamma.md"),
     makeReadyTask("task-gamma", "Task Gamma"),
   );
   writeFileSync(
-    join(projectDir, "tasks/ready/task-delta.md"),
+    join(projectDir, "data/tasks/ready/task-delta.md"),
     makeReadyTask("task-delta", "Task Delta"),
   );
 
   // 8 backlog tasks so BACKLOG_TASK_TARGET (8) is met
   for (let i = 1; i <= 8; i++) {
-    writeFileSync(join(projectDir, `tasks/backlog/task-${i}.md`), `# Backlog ${i}\n`);
+    writeFileSync(
+      join(projectDir, `data/tasks/backlog/task-${i}.md`),
+      makeBacklogTask(`task-${i}`, `Backlog ${i}`),
+    );
   }
 
-  // Pre-seed runtime state with explorer's lastCompletedAt set to 10 minutes ago:
-  //   - Past the 30s cooldown window → explorer runs immediately on idle
-  //   - Within the 30-minute strategic refresh window → strategicRefreshDue = false
+  // Pre-seed runtime state with explorer's lastCompletedAt set to 10 minutes ago
+  // so explorer will skip broad research while local normalized work exists.
   const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   writeFileSync(
     join(projectDir, ".kota/workflow-state.json"),
@@ -106,7 +115,16 @@ function seedFixtureProject(projectDir: string): void {
   // the workflow runs shell commands with cwd: projectDir (exit 0 for all scripts).
   writeFileSync(
     join(projectDir, "package.json"),
-    JSON.stringify({ name: "test-fixture", scripts: { lint: "exit 0", test: "exit 0", typecheck: "exit 0", build: "exit 0" } }),
+    JSON.stringify({
+      name: "test-fixture",
+      scripts: {
+        "validate-tasks": "node -e \"process.exit(0)\"",
+        lint: "node -e \"process.exit(0)\"",
+        test: "node -e \"process.exit(0)\"",
+        typecheck: "node -e \"process.exit(0)\"",
+        build: "node -e \"process.exit(0)\"",
+      },
+    }),
   );
 
   // .gitignore mirrors the real project: .kota/ is runtime state, not source.
@@ -139,21 +157,25 @@ describe("autonomous workflow loop integration", () => {
   });
 
   it(
-    "drives the explorer → builder → improver handoff using real workflow definitions",
+    "drives the inbox-sorter → builder → improver handoff using real workflow definitions",
     { timeout: 25_000 },
     async () => {
-      // Agent steps in builder and improver fail (isError: true) so that
-      // verification shell steps (npm run typecheck etc.) are skipped.
-      // Builder and improver both complete with "failed" status.
-      // Improver triggers on builder failure since its filter includes "failed".
-      mockedExecuteWithAgentSDK.mockResolvedValue({
-        text: "Agent step hit max turns",
-        streamedText: "",
-        turns: 40,
-        totalCostUsd: 0.3,
-        subtype: "error_max_turns",
-        isError: true,
-      });
+      mockedExecuteWithAgentSDK
+        .mockResolvedValueOnce({
+          text: "Inbox sorted",
+          streamedText: "",
+          turns: 1,
+          totalCostUsd: 0.01,
+          isError: false,
+        } as never)
+        .mockResolvedValue({
+          text: "Agent step hit max turns",
+          streamedText: "",
+          turns: 40,
+          totalCostUsd: 0.3,
+          subtype: "error_max_turns",
+          isError: true,
+        } as never);
 
       const bus = new EventBus();
       const completedRuns: Array<{
@@ -176,9 +198,9 @@ describe("autonomous workflow loop integration", () => {
         bus,
         projectDir,
         idleIntervalMs: 10,
-        // Use the real builtin workflow definitions — this validates actual
-        // trigger wiring and step configuration for all three workflows.
-        workflows: getBuiltinWorkflowDefinitions(),
+        workflows: getBuiltinWorkflowDefinitions().filter((workflow) =>
+          ["inbox-sorter", "builder", "improver"].includes(workflow.name),
+        ),
       });
 
       runtime.start();
@@ -192,14 +214,14 @@ describe("autonomous workflow loop integration", () => {
 
       await runtime.stop();
 
-      // ── Explorer ──────────────────────────────────────────────────────────
-      const explorerRun = completedRuns.find((r) => r.workflow === "explorer");
-      expect(explorerRun, "explorer must complete").toBeDefined();
-      expect(explorerRun?.status).toBe("success");
+      // ── Inbox sorter ──────────────────────────────────────────────────────
+      const inboxSorterRun = completedRuns.find((r) => r.workflow === "inbox-sorter");
+      expect(inboxSorterRun, "inbox-sorter must complete").toBeDefined();
+      expect(inboxSorterRun?.status).toBe("success");
 
-      // ── Builder triggered by explorer ─────────────────────────────────────
+      // ── Builder triggered by inbox-sorter ─────────────────────────────────
       const builderRun = completedRuns.find((r) => r.workflow === "builder");
-      expect(builderRun, "builder must complete after explorer").toBeDefined();
+      expect(builderRun, "builder must complete after inbox-sorter").toBeDefined();
       expect(builderRun?.triggerEvent).toBe("workflow.completed");
 
       // ── Builder run artifacts ─────────────────────────────────────────────
@@ -225,7 +247,8 @@ describe("autonomous workflow loop integration", () => {
       );
       expect(inspectStep.status).toBe("success");
       expect(inspectStep.output).toMatchObject({
-        counts: { ready: 4, backlog: 8, inbox: 0 },
+        counts: { ready: 4, backlog: 8 },
+        inboxCount: 1,
       });
 
       // build agent step must have run and failed
@@ -263,12 +286,11 @@ describe("autonomous workflow loop integration", () => {
   );
 
   it(
-    "writes explorer run artifacts and skips agent step when queue needs no attention",
+    "writes explorer run artifacts and skips agent step when normalized work already exists",
     { timeout: 10_000 },
     async () => {
-      // Explorer agent step must not be called (needsAttention = false).
-      // Use only the explorer workflow to prevent builder from triggering on
-      // explorer.success (builder has a 5s retry delay that would exceed this test's timeout).
+      // Explorer agent step must not be called because ready/backlog already
+      // contain normalized work.
       const bus = new EventBus();
       const runtime = new WorkflowRuntime({
         bus,
@@ -302,6 +324,7 @@ describe("autonomous workflow loop integration", () => {
       );
       expect(inspectStep.status).toBe("success");
       expect(inspectStep.output.needsAttention).toBe(false);
+      expect(inspectStep.output.inboxCount).toBe(1);
       expect(inspectStep.output.counts.ready).toBe(4);
 
       // explore agent step was skipped (file exists but status is "skipped")

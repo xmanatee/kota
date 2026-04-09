@@ -166,7 +166,7 @@ has to stay in core.
 Agents should receive only the runtime facts they cannot reconstruct
 themselves: trigger details, run identity, claimed task ids, and other explicit
 workflow facts. Everything else should stay discoverable through normal repo
-surfaces such as code, tasks, docs, git history, `.kota/runs/`, and external
+surfaces such as code, `data/`, docs, git history, `.kota/runs/`, and external
 research tools.
 
 Do not build a second orchestration layer out of pre-packaged summaries.

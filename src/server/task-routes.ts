@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
+import { getRepoInboxDir, getRepoTasksDir, type RepoTaskState } from "../repo-tasks.js";
 import type { DaemonControlClient } from "./daemon-client.js";
 import { jsonResponse, readBody } from "./session-pool.js";
 
@@ -32,16 +33,54 @@ type TasksResponse = {
 
 const COUNTED_STATES = ["inbox", "ready", "backlog", "doing", "blocked"] as const;
 const DETAIL_STATES = ["doing", "ready", "backlog", "blocked"] as const;
-const OPEN_STATES = ["inbox", "backlog", "ready", "blocked"] as const;
-const ALLOWED_TARGET_STATES = ["inbox", "backlog", "ready", "blocked", "dropped"] as const;
-type AllowedTargetState = (typeof ALLOWED_TARGET_STATES)[number];
+const OPEN_STATES: readonly RepoTaskState[] = ["backlog", "ready", "doing", "blocked"];
+const ALLOWED_TARGET_STATES: readonly RepoTaskState[] = ["backlog", "ready", "blocked", "dropped"];
+type AllowedTargetState = RepoTaskState;
+
+function isMissingPathError(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("code" in error)) {
+    return false;
+  }
+  const code = String((error as { code?: unknown }).code ?? "");
+  return code === "ENOENT" || code === "ENOTDIR";
+}
+
+function logGitStageFailure(action: string, error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`[kota] Task route ${action} failed to stage changes: ${message}`);
+}
 
 function listTaskFiles(tasksDir: string, state: string): string[] {
   const dir = join(tasksDir, state);
   try {
     return readdirSync(dir).filter((f) => f.endsWith(".md") && f !== "AGENTS.md");
-  } catch {
-    return [];
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+function countMarkdownFiles(dir: string): number {
+  try {
+    return readdirSync(dir).filter((f) => f.endsWith(".md") && f !== "AGENTS.md").length;
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return 0;
+    }
+    throw error;
+  }
+}
+
+function tryReadUtf8(path: string): string | null {
+  try {
+    return readFileSync(path, "utf-8");
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return null;
+    }
+    throw error;
   }
 }
 
@@ -68,21 +107,20 @@ function readStateTasks(tasksDir: string, state: string): TaskDetail[] {
   const files = listTaskFiles(tasksDir, state);
   const result: TaskDetail[] = [];
   for (const file of files) {
-    try {
-      const content = readFileSync(join(tasksDir, state, file), "utf-8");
-      const fm = parseFrontmatter(content);
-      if (fm.id && fm.title) {
-        result.push({
-          id: fm.id,
-          title: fm.title,
-          priority: fm.priority ?? "",
-          area: fm.area ?? "",
-          summary: fm.summary ?? "",
-          body: extractBody(content),
-        });
-      }
-    } catch {
-      // skip unreadable files
+    const content = tryReadUtf8(join(tasksDir, state, file));
+    if (content === null) {
+      continue;
+    }
+    const fm = parseFrontmatter(content);
+    if (fm.id && fm.title) {
+      result.push({
+        id: fm.id,
+        title: fm.title,
+        priority: fm.priority ?? "",
+        area: fm.area ?? "",
+        summary: fm.summary ?? "",
+        body: extractBody(content),
+      });
     }
   }
   return result;
@@ -94,13 +132,12 @@ function findTaskInOpenStates(
 ): { state: string; filename: string; content: string } | null {
   for (const state of OPEN_STATES) {
     for (const file of listTaskFiles(tasksDir, state)) {
-      try {
-        const content = readFileSync(join(tasksDir, state, file), "utf-8");
-        const fm = parseFrontmatter(content);
-        if (fm.id === id) return { state, filename: file, content };
-      } catch {
-        // skip
+      const content = tryReadUtf8(join(tasksDir, state, file));
+      if (content === null) {
+        continue;
       }
+      const fm = parseFrontmatter(content);
+      if (fm.id === id) return { state, filename: file, content };
     }
   }
   return null;
@@ -138,7 +175,7 @@ export async function handleTaskStateChange(
     return;
   }
 
-  const tasksDir = join(projectDir, "tasks");
+  const tasksDir = getRepoTasksDir(projectDir);
   const found = findTaskInOpenStates(tasksDir, id);
   if (!found) {
     jsonResponse(res, 404, { error: "Task not found" });
@@ -163,15 +200,15 @@ export async function handleTaskStateChange(
       renameSync(srcPath, destPath);
       try {
         execFileSync("git", ["add", srcPath, destPath], { cwd: projectDir });
-      } catch {
-        // git staging failure is non-fatal
+      } catch (error) {
+        logGitStageFailure(`move ${found.filename}`, error);
       }
     }
     writeFileSync(destPath, updated, "utf-8");
     try {
       execFileSync("git", ["add", destPath], { cwd: projectDir });
-    } catch {
-      // git staging failure is non-fatal
+    } catch (error) {
+      logGitStageFailure(`write ${found.filename}`, error);
     }
     jsonResponse(res, 200, { id, state: newState });
   } catch (err) {
@@ -203,31 +240,15 @@ export async function handleTaskCreate(
   const suffix = Math.random().toString(36).slice(2, 7);
   const id = `task-${slug}-${suffix}`;
   const filename = `${id}.md`;
-  const now = new Date().toISOString();
-
-  const fm = [
-    "---",
-    `id: ${id}`,
-    `title: ${title}`,
-    "status: inbox",
-    "priority: p3",
-    "area: ",
-    `summary: ${summary}`,
-    `created_at: ${now}`,
-    `updated_at: ${now}`,
-    "---",
-    "",
-  ].join("\n");
-
-  const inboxDir = join(projectDir, "tasks", "inbox");
+  const inboxDir = getRepoInboxDir(projectDir);
   const filePath = join(inboxDir, filename);
   try {
     mkdirSync(inboxDir, { recursive: true });
-    writeFileSync(filePath, fm, "utf-8");
+    writeFileSync(filePath, `# ${title}\n${summary ? `\n${summary}\n` : ""}`, "utf-8");
     try {
       execFileSync("git", ["add", filePath], { cwd: projectDir });
-    } catch {
-      // git staging failure is non-fatal
+    } catch (error) {
+      logGitStageFailure(`create ${filename}`, error);
     }
     jsonResponse(res, 201, { id, state: "inbox" });
   } catch (err) {
@@ -257,19 +278,18 @@ export async function handleTaskBodyUpdate(
     return;
   }
 
-  const tasksDir = join(projectDir, "tasks");
+  const tasksDir = getRepoTasksDir(projectDir);
 
   for (const state of TERMINAL_STATES) {
     for (const file of listTaskFiles(tasksDir, state)) {
-      try {
-        const content = readFileSync(join(tasksDir, state, file), "utf-8");
-        const fm = parseFrontmatter(content);
-        if (fm.id === id) {
-          jsonResponse(res, 409, { error: "Task is in a terminal state and cannot be edited" });
-          return;
-        }
-      } catch {
-        // skip unreadable files
+      const content = tryReadUtf8(join(tasksDir, state, file));
+      if (content === null) {
+        continue;
+      }
+      const fm = parseFrontmatter(content);
+      if (fm.id === id) {
+        jsonResponse(res, 409, { error: "Task is in a terminal state and cannot be edited" });
+        return;
       }
     }
   }
@@ -295,8 +315,8 @@ export async function handleTaskBodyUpdate(
     writeFileSync(filePath, newContent, "utf-8");
     try {
       execFileSync("git", ["add", filePath], { cwd: projectDir });
-    } catch {
-      // git staging failure is non-fatal
+    } catch (error) {
+      logGitStageFailure(`edit ${found.filename}`, error);
     }
     const fm = parseFrontmatter(newContent);
     jsonResponse(res, 200, {
@@ -325,9 +345,13 @@ export async function handleTaskStatus(
     }
   }
 
-  const tasksDir = join(projectDir, "tasks");
+  const tasksDir = getRepoTasksDir(projectDir);
+  const inboxDir = getRepoInboxDir(projectDir);
   const counts = Object.fromEntries(
-    COUNTED_STATES.map((state) => [state, listTaskFiles(tasksDir, state).length]),
+    COUNTED_STATES.map((state) => [
+      state,
+      state === "inbox" ? countMarkdownFiles(inboxDir) : listTaskFiles(tasksDir, state).length,
+    ]),
   ) as TasksResponse["counts"];
   const tasks = Object.fromEntries(
     DETAIL_STATES.map((state) => [state, readStateTasks(tasksDir, state)]),

@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
+import { REPO_INBOX_DIR, REPO_TASKS_DIR, REPO_TASK_STATES } from "./repo-tasks.js";
 
 const KOTA_CONFIG_TEMPLATE = `import type { KotaConfig } from "kota/extension";
 
@@ -32,8 +33,7 @@ const config: KotaConfig = {
 export default config;
 `;
 
-const TASKS_AGENTS_STUBS: Record<string, string> = {
-  inbox: `# Inbox
+const INBOX_AGENTS_STUB = `# Inbox
 
 This state is for newly captured ideas that have not been triaged yet.
 
@@ -41,7 +41,18 @@ This state is for newly captured ideas that have not been triaged yet.
 - Rough captures are allowed here.
 - Use filename convention: \`task-<slug>.md\`.
 - Move items out quickly once they are understood.
-`,
+`;
+
+const TASKS_AGENTS_STUB = `# Tasks
+
+This directory is the live work queue.
+
+- \`data/inbox/\` is for quick captures and owner ideas.
+- Only normalized work specs belong here.
+- Pull actionable work from \`ready/\`.
+`;
+
+const TASK_STATE_AGENTS_STUBS: Record<string, string> = {
   ready: `# Ready
 
 This state is the actionable pull queue.
@@ -122,12 +133,21 @@ export function runInit(projectDir: string, force: boolean): ScaffoldResult {
   const configPath = join(projectDir, "kota.config.ts");
   maybeWrite(configPath, KOTA_CONFIG_TEMPLATE, force);
 
-  // tasks/ subdirectories
-  const tasksDir = join(projectDir, "tasks");
-  for (const [state, stub] of Object.entries(TASKS_AGENTS_STUBS)) {
+  // data/ queue layout
+  const dataDir = join(projectDir, "data");
+  ensureDir(dataDir);
+
+  const inboxDir = join(projectDir, REPO_INBOX_DIR);
+  ensureDir(inboxDir);
+  maybeWrite(join(inboxDir, "AGENTS.md"), INBOX_AGENTS_STUB);
+
+  const tasksDir = join(projectDir, REPO_TASKS_DIR);
+  ensureDir(tasksDir);
+  maybeWrite(join(tasksDir, "AGENTS.md"), TASKS_AGENTS_STUB);
+  for (const state of REPO_TASK_STATES) {
     const stateDir = join(tasksDir, state);
     ensureDir(stateDir);
-    maybeWrite(join(stateDir, "AGENTS.md"), stub);
+    maybeWrite(join(stateDir, "AGENTS.md"), TASK_STATE_AGENTS_STUBS[state]);
   }
 
   // docs/

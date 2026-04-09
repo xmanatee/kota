@@ -7,5 +7,5 @@ This directory holds shared repo documentation.
 - `STANDARDS.md` holds concise documentation and maintenance standards.
 - `STORES.md` documents the runtime state subsystem: store types, scopes, and how built-in agents use durable state.
 - `WORKFLOWS.md` explains the workflow automation surface: trigger types and patterns for hooks, heartbeats, and schedules.
-- Active work items live under `tasks/`, not here.
+- Active captures and work items live under `data/`, not here.
 - Docs here should stay durable and broadly useful instead of becoming a second task queue or a historical dump.

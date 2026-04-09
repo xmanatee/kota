@@ -25,7 +25,7 @@ function writeTaskFile(
   id: string,
   extra: Record<string, string> = {},
 ): void {
-  const dir = join(projectDir, "tasks", state);
+  const dir = join(projectDir, "data", "tasks", state);
   mkdirSync(dir, { recursive: true });
   const fm = {
     id,
@@ -101,7 +101,7 @@ describe("listTasksForStates", () => {
   });
 
   it("returns empty array when no tasks exist", () => {
-    const result = listTasksForStates(join(projectDir, "tasks"), ["ready"]);
+    const result = listTasksForStates(join(projectDir, "data", "tasks"), ["ready"]);
     expect(result).toEqual([]);
   });
 
@@ -109,7 +109,7 @@ describe("listTasksForStates", () => {
     writeTaskFile(projectDir, "ready", "task-a");
     writeTaskFile(projectDir, "backlog", "task-b");
 
-    const result = listTasksForStates(join(projectDir, "tasks"), ["ready"]);
+    const result = listTasksForStates(join(projectDir, "data", "tasks"), ["ready"]);
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("task-a");
     expect(result[0].state).toBe("ready");
@@ -119,7 +119,7 @@ describe("listTasksForStates", () => {
     writeTaskFile(projectDir, "ready", "task-a");
     writeTaskFile(projectDir, "doing", "task-b");
 
-    const result = listTasksForStates(join(projectDir, "tasks"), ["ready", "doing"]);
+    const result = listTasksForStates(join(projectDir, "data", "tasks"), ["ready", "doing"]);
     expect(result).toHaveLength(2);
     const ids = result.map((t) => t.id);
     expect(ids).toContain("task-a");
@@ -127,19 +127,19 @@ describe("listTasksForStates", () => {
   });
 
   it("skips AGENTS.md files", () => {
-    const dir = join(projectDir, "tasks", "ready");
+    const dir = join(projectDir, "data", "tasks", "ready");
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "AGENTS.md"), "# Agents");
     writeTaskFile(projectDir, "ready", "task-real");
 
-    const result = listTasksForStates(join(projectDir, "tasks"), ["ready"]);
+    const result = listTasksForStates(join(projectDir, "data", "tasks"), ["ready"]);
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("task-real");
   });
 
   it("returns id and priority from frontmatter", () => {
     writeTaskFile(projectDir, "ready", "task-x", { priority: "p1", title: "My Task" });
-    const result = listTasksForStates(join(projectDir, "tasks"), ["ready"]);
+    const result = listTasksForStates(join(projectDir, "data", "tasks"), ["ready"]);
     expect(result[0].priority).toBe("p1");
     expect(result[0].title).toBe("My Task");
   });
@@ -157,20 +157,20 @@ describe("findTask", () => {
   });
 
   it("returns null when task does not exist", () => {
-    const result = findTask(join(projectDir, "tasks"), "task-missing");
+    const result = findTask(join(projectDir, "data", "tasks"), "task-missing");
     expect(result).toBeNull();
   });
 
   it("finds task in any state", () => {
     writeTaskFile(projectDir, "backlog", "task-foo");
-    const result = findTask(join(projectDir, "tasks"), "task-foo");
+    const result = findTask(join(projectDir, "data", "tasks"), "task-foo");
     expect(result).not.toBeNull();
     expect(result?.state).toBe("backlog");
   });
 
   it("returns the task content", () => {
     writeTaskFile(projectDir, "ready", "task-bar");
-    const result = findTask(join(projectDir, "tasks"), "task-bar");
+    const result = findTask(join(projectDir, "data", "tasks"), "task-bar");
     expect(result?.content).toContain("id: task-bar");
   });
 });
@@ -283,14 +283,14 @@ describe("kota task move", () => {
 
   it("moves task file and updates status frontmatter", async () => {
     writeTaskFile(projectDir, "ready", "task-mover", { status: "ready" });
-    mkdirSync(join(projectDir, "tasks", "doing"), { recursive: true });
+    mkdirSync(join(projectDir, "data", "tasks", "doing"), { recursive: true });
 
     const { execSync: mockExec } = await import("node:child_process");
     vi.mocked(mockExec).mockImplementation((_cmd: unknown) => {
       const cmd = String(_cmd);
       if (cmd.includes("git mv")) {
-        const src = join(projectDir, "tasks", "ready", "task-mover.md");
-        const dst = join(projectDir, "tasks", "doing", "task-mover.md");
+        const src = join(projectDir, "data", "tasks", "ready", "task-mover.md");
+        const dst = join(projectDir, "data", "tasks", "doing", "task-mover.md");
         const content = readFileSync(src, "utf-8");
         writeFileSync(dst, content);
         rmSync(src);
@@ -306,9 +306,9 @@ describe("kota task move", () => {
       logSpy.mockRestore();
     }
 
-    expect(existsSync(join(projectDir, "tasks", "ready", "task-mover.md"))).toBe(false);
-    expect(existsSync(join(projectDir, "tasks", "doing", "task-mover.md"))).toBe(true);
-    const content = readFileSync(join(projectDir, "tasks", "doing", "task-mover.md"), "utf-8");
+    expect(existsSync(join(projectDir, "data", "tasks", "ready", "task-mover.md"))).toBe(false);
+    expect(existsSync(join(projectDir, "data", "tasks", "doing", "task-mover.md"))).toBe(true);
+    const content = readFileSync(join(projectDir, "data", "tasks", "doing", "task-mover.md"), "utf-8");
     expect(content).toMatch(/^status: doing$/m);
   });
 
@@ -323,7 +323,7 @@ describe("kota task move", () => {
   });
 });
 
-describe("kota task add", () => {
+describe("kota task capture", () => {
   let projectDir: string;
   let origCwd: string;
 
@@ -331,7 +331,7 @@ describe("kota task add", () => {
     projectDir = makeProjectDir();
     origCwd = process.cwd();
     process.chdir(projectDir);
-    mkdirSync(join(projectDir, "tasks", "inbox"), { recursive: true });
+    mkdirSync(join(projectDir, "data", "inbox"), { recursive: true });
   });
 
   afterEach(() => {
@@ -343,31 +343,29 @@ describe("kota task add", () => {
     const program = makeProgram();
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
-      program.parse(["node", "kota", "task", "add", "Add search filter"]);
+      program.parse(["node", "kota", "task", "capture", "Add search filter"]);
     } finally {
       logSpy.mockRestore();
     }
 
-    const filePath = join(projectDir, "tasks", "inbox", "task-add-search-filter.md");
+    const filePath = join(projectDir, "data", "inbox", "task-add-search-filter.md");
     expect(existsSync(filePath)).toBe(true);
     const content = readFileSync(filePath, "utf-8");
-    expect(content).toContain("id: task-add-search-filter");
-    expect(content).toContain("title: Add search filter");
-    expect(content).toContain("status: inbox");
+    expect(content).toContain("# Add search filter");
   });
 
   it("reports the created task ID", () => {
     const program = makeProgram();
     const output = captureOutput(() => {
-      program.parse(["node", "kota", "task", "add", "Fix the login bug"]);
+      program.parse(["node", "kota", "task", "capture", "Fix the login bug"]);
     });
     expect(output).toContain("task-fix-the-login-bug");
   });
 
   it("errors if task file already exists", () => {
     writeFileSync(
-      join(projectDir, "tasks", "inbox", "task-duplicate.md"),
-      "---\nid: task-duplicate\n---\n",
+      join(projectDir, "data", "inbox", "task-duplicate.md"),
+      "# duplicate\n",
     );
 
     const program = makeProgram();
@@ -376,7 +374,7 @@ describe("kota task add", () => {
       throw new Error(`process.exit:${code}`);
     }) as never);
     try {
-      expect(() => program.parse(["node", "kota", "task", "add", "duplicate"])).toThrow(
+      expect(() => program.parse(["node", "kota", "task", "capture", "duplicate"])).toThrow(
         "process.exit:1",
       );
     } finally {
@@ -402,7 +400,7 @@ describe("gcTerminalTasks", () => {
     id: string,
     updatedAt: string,
   ): void {
-    const dir = join(projectDir, "tasks", state);
+    const dir = join(projectDir, "data", "tasks", state);
     mkdirSync(dir, { recursive: true });
     const content = `---\nid: ${id}\ntitle: Title\nstatus: ${state}\nupdated_at: ${updatedAt}\n---\n\n## Done.\n`;
     writeFileSync(join(dir, `${id}.md`), content);
@@ -414,7 +412,7 @@ describe("gcTerminalTasks", () => {
     expect(result.archived).toHaveLength(1);
     expect(result.archived[0]).toBe("task-old.md");
     expect(existsSync(join(projectDir, ".kota", "task-archive", "task-old.md"))).toBe(true);
-    expect(existsSync(join(projectDir, "tasks", "done", "task-old.md"))).toBe(false);
+    expect(existsSync(join(projectDir, "data", "tasks", "done", "task-old.md"))).toBe(false);
   });
 
   it("does not archive tasks newer than threshold", () => {
@@ -422,14 +420,14 @@ describe("gcTerminalTasks", () => {
     writeTerminalTask("done", "task-recent", recent);
     const result = gcTerminalTasks(projectDir, { days: 30 });
     expect(result.archived).toHaveLength(0);
-    expect(existsSync(join(projectDir, "tasks", "done", "task-recent.md"))).toBe(true);
+    expect(existsSync(join(projectDir, "data", "tasks", "done", "task-recent.md"))).toBe(true);
   });
 
   it("deletes instead of archiving when delete option is set", () => {
     writeTerminalTask("dropped", "task-drop-old", "2020-01-01");
     const result = gcTerminalTasks(projectDir, { days: 30, delete: true });
     expect(result.deleted).toHaveLength(1);
-    expect(existsSync(join(projectDir, "tasks", "dropped", "task-drop-old.md"))).toBe(false);
+    expect(existsSync(join(projectDir, "data", "tasks", "dropped", "task-drop-old.md"))).toBe(false);
     expect(existsSync(join(projectDir, ".kota", "task-archive", "task-drop-old.md"))).toBe(false);
   });
 
@@ -437,7 +435,7 @@ describe("gcTerminalTasks", () => {
     writeTerminalTask("done", "task-dry", "2020-01-01");
     const result = gcTerminalTasks(projectDir, { days: 30, dryRun: true });
     expect(result.archived).toHaveLength(1);
-    expect(existsSync(join(projectDir, "tasks", "done", "task-dry.md"))).toBe(true);
+    expect(existsSync(join(projectDir, "data", "tasks", "done", "task-dry.md"))).toBe(true);
     expect(existsSync(join(projectDir, ".kota", "task-archive", "task-dry.md"))).toBe(false);
   });
 
@@ -452,6 +450,6 @@ describe("gcTerminalTasks", () => {
     writeTaskFile(projectDir, "ready", "task-ready-skip", { updated_at: "2020-01-01" });
     const result = gcTerminalTasks(projectDir, { days: 30 });
     expect(result.archived).toHaveLength(0);
-    expect(existsSync(join(projectDir, "tasks", "ready", "task-ready-skip.md"))).toBe(true);
+    expect(existsSync(join(projectDir, "data", "tasks", "ready", "task-ready-skip.md"))).toBe(true);
   });
 });

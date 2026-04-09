@@ -608,10 +608,10 @@ describe("McpServer", () => {
 describe("resources", () => {
 	function makeProjectDir(): string {
 		const dir = mkdtempSync(join(tmpdir(), "kota-mcp-test-"));
-		mkdirSync(join(dir, "tasks", "ready"), { recursive: true });
+		mkdirSync(join(dir, "data", "tasks", "ready"), { recursive: true });
 		mkdirSync(join(dir, ".kota", "runs"), { recursive: true });
 		writeFileSync(
-			join(dir, "tasks", "ready", "task-one.md"),
+			join(dir, "data", "tasks", "ready", "task-one.md"),
 			[
 				"---",
 				"id: task-one",
@@ -645,7 +645,7 @@ describe("resources", () => {
 		server.stop();
 	});
 
-	it("resources/read returns tasks/ready content", async () => {
+	it("resources/read returns ready task content", async () => {
 		const projectDir = makeProjectDir();
 		const { input, output } = createTestStreams();
 		const server = new McpServer({ input, output, log: () => {}, projectDir });

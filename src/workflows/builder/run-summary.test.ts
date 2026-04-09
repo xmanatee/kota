@@ -111,9 +111,9 @@ describe("writeBuilderRunSummary", () => {
   });
 
   it("extracts taskId and taskTitle from a task file touched in the commit", () => {
-    mkdirSync(join(projectDir, "tasks", "done"), { recursive: true });
+    mkdirSync(join(projectDir, "data", "tasks", "done"), { recursive: true });
     writeFileSync(
-      join(projectDir, "tasks", "done", "task-foo-bar.md"),
+      join(projectDir, "data", "tasks", "done", "task-foo-bar.md"),
       "---\nid: task-foo-bar\ntitle: Foo bar feature\nstatus: done\n---\n",
     );
     execSync("git add -A && git commit -m 'Foo bar feature'", {

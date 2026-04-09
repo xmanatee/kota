@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runAttentionDigestStep } from "./attention-digest.js";
 
 function makeTaskDir(projectDir: string, state: string, count: number): void {
-  const dir = join(projectDir, "tasks", state);
+  const dir = join(projectDir, "data", "tasks", state);
   mkdirSync(dir, { recursive: true });
   for (let i = 0; i < count; i++) {
     writeFileSync(join(dir, `task-test-${i}.md`), `# task ${i}\n`, "utf-8");

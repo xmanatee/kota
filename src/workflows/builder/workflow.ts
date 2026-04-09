@@ -28,7 +28,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
     {
       event: "workflow.completed",
       filter: {
-        workflow: "explorer",
+        workflow: ["inbox-sorter", "explorer"],
         status: "success",
       },
     },

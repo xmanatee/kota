@@ -9,12 +9,21 @@ import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
 
 export const BUILTIN_AGENTS: readonly AgentDef[] = [
   {
+    name: "inbox-sorter",
+    role: "Sort rough inbox captures into normalized tasks, docs, or other durable project artifacts.",
+    promptPath: "src/workflows/inbox-sorter/prompt.md",
+    model: "claude-sonnet-4-6",
+    tools: { permissionMode: "bypassPermissions" },
+    writeScope: ["data/", "docs/"],
+    settingSources: ["project"],
+  },
+  {
     name: "explorer",
     role: "Maintain a strong task portfolio by studying the codebase, recent work, and external ideas.",
     promptPath: "src/workflows/explorer/prompt.md",
     model: "claude-sonnet-4-6",
     tools: { permissionMode: "bypassPermissions" },
-    writeScope: ["tasks/"],
+    writeScope: ["data/"],
     settingSources: ["project"],
   },
   {

@@ -327,6 +327,6 @@ opening the detail screen to confirm.
   this scope.
 - Do not add any server-side endpoints. The existing daemon API is sufficient.
 - If a missing API capability is discovered during implementation, file a task
-  to `tasks/inbox/` rather than patching the daemon from within the client PR.
+  to `data/inbox/` rather than patching the daemon from within the client PR.
 - Secure token storage: `expo-secure-store` (wraps Keychain on iOS, Keystore on
   Android).

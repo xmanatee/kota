@@ -39,6 +39,8 @@ export type ExtensionSummary = {
   skills: SkillDef[];
   commandNames: string[];
   routeSummaries: string[];
+  commandError?: string;
+  routeError?: string;
   health?: ExtensionHealth;
   /** Set when the extension failed to load; absent for successfully loaded extensions. */
   loadError?: string;
@@ -84,7 +86,7 @@ export type ToolDef = {
   group?: string;
   /**
    * Risk classification for guardrails. When provided, the guardrails system
-   * uses this instead of the fallback "unclassified tool" default.
+   * uses this instead of the default unclassified-tool classification.
    * - safe: read-only, no side effects
    * - moderate: mutates local state in controlled ways
    * - dangerous: destructive or high-impact operations

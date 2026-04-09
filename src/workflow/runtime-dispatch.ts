@@ -97,7 +97,12 @@ function nextUtcMidnightIso(now = new Date()): string {
 }
 
 function isAutonomousWorkflowName(name: string): boolean {
-  return name === "explorer" || name === "builder" || name === "improver";
+  return (
+    name === "inbox-sorter" ||
+    name === "explorer" ||
+    name === "builder" ||
+    name === "improver"
+  );
 }
 
 function isAutonomousWorkflow(definition: WorkflowDefinition): boolean {

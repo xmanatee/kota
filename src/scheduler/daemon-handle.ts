@@ -6,6 +6,7 @@ import type { EventBus } from "../event-bus.js";
 import { discoverExtensions } from "../extension-discovery.js";
 import { getApprovalQueue } from "../extensions/approval-queue/queue.js";
 import { getHistory } from "../memory/history.js";
+import { getRepoInboxDir, getRepoTasksDir } from "../repo-tasks.js";
 import { getRegisteredWorkflowDefinitions } from "../workflow/registry.js";
 import type { WorkflowRunStore } from "../workflow/run-store.js";
 import type { WorkflowRuntime } from "../workflow/runtime.js";
@@ -341,7 +342,8 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
 }
 
 function readTaskStatus(projectDir: string): DaemonTaskStatusResponse {
-  const tasksDir = join(projectDir, "tasks");
+  const tasksDir = getRepoTasksDir(projectDir);
+  const inboxDir = getRepoInboxDir(projectDir);
   const countedStates = ["inbox", "ready", "backlog", "doing", "blocked"] as const;
   const detailStates = ["doing", "ready", "backlog", "blocked"] as const;
 
@@ -383,7 +385,18 @@ function readTaskStatus(projectDir: string): DaemonTaskStatusResponse {
       }
     });
 
-  const counts = Object.fromEntries(countedStates.map((s) => [s, listFiles(s).length])) as DaemonTaskStatusResponse["counts"];
+  const counts = Object.fromEntries(countedStates.map((s) => [
+    s,
+    s === "inbox"
+      ? (() => {
+          try {
+            return readdirSync(inboxDir).filter((f) => f.endsWith(".md") && f !== "AGENTS.md").length;
+          } catch {
+            return 0;
+          }
+        })()
+      : listFiles(s).length,
+  ])) as DaemonTaskStatusResponse["counts"];
   const tasks = Object.fromEntries(detailStates.map((s) => [s, readState(s)])) as DaemonTaskStatusResponse["tasks"];
   return { counts, tasks };
 }

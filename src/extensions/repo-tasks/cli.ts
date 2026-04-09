@@ -3,9 +3,16 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, w
 import { basename, join } from "node:path";
 import type { Command } from "commander";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "../../frontmatter.js";
-import { REPO_TASK_STATES, type RepoTaskState } from "../../repo-tasks.js";
+import {
+	REPO_INBOX_DIR,
+	REPO_TASK_STATES,
+	getRepoInboxDir,
+	getRepoTaskStateDir,
+	getRepoTasksDir,
+	type RepoTaskState,
+} from "../../repo-tasks.js";
 
-const OPEN_STATES: RepoTaskState[] = ["inbox", "backlog", "ready", "doing", "blocked"];
+const OPEN_STATES: RepoTaskState[] = ["backlog", "ready", "doing", "blocked"];
 const TERMINAL_STATES: RepoTaskState[] = ["done", "dropped"];
 
 type TaskEntry = {
@@ -78,7 +85,7 @@ export function gcTerminalTasks(
 	const days = opts.days ?? 30;
 	const deleteMode = opts.delete ?? false;
 	const dryRun = opts.dryRun ?? false;
-	const tasksDir = join(projectDir, "tasks");
+	const tasksDir = getRepoTasksDir(projectDir);
 	const archiveDir = join(projectDir, ".kota", "task-archive");
 	const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 	const archived: string[] = [];
@@ -101,7 +108,7 @@ export function gcTerminalTasks(
 				const raw = attrs.updated_at;
 				if (raw) updatedAt = new Date(String(raw));
 			} catch {
-				// skip unreadable files
+				continue;
 			}
 			if (!updatedAt || Number.isNaN(updatedAt.getTime()) || updatedAt >= cutoff) continue;
 			if (deleteMode) {
@@ -127,13 +134,13 @@ export function registerTaskCommands(program: Command): void {
 
 	taskCmd
 		.command("list")
-		.description("List tasks in the queue")
+		.description("List normalized tasks in the queue")
 		.option(
 			"-s, --state <state>",
-			"Filter by state (inbox|backlog|ready|doing|blocked|done|dropped)",
+			"Filter by state (backlog|ready|doing|blocked|done|dropped)",
 		)
 		.action((opts: { state?: string }) => {
-			const tasksDir = join(process.cwd(), "tasks");
+			const tasksDir = getRepoTasksDir(process.cwd());
 			let states: RepoTaskState[];
 			if (opts.state) {
 				if (!REPO_TASK_STATES.includes(opts.state as RepoTaskState)) {
@@ -167,10 +174,9 @@ export function registerTaskCommands(program: Command): void {
 
 	taskCmd
 		.command("show <id>")
-		.description("Print the full content of a task")
+		.description("Print the full content of a normalized task")
 		.action((id: string) => {
-			const tasksDir = join(process.cwd(), "tasks");
-			const found = findTask(tasksDir, id);
+			const found = findTask(getRepoTasksDir(process.cwd()), id);
 			if (!found) {
 				console.error(`Task "${id}" not found.`);
 				process.exit(1);
@@ -181,13 +187,13 @@ export function registerTaskCommands(program: Command): void {
 
 	taskCmd
 		.command("move <id> <state>")
-		.description("Move a task to the target state, updating status frontmatter")
+		.description("Move a normalized task to the target state, updating status frontmatter")
 		.action((id: string, targetState: string) => {
 			if (!REPO_TASK_STATES.includes(targetState as RepoTaskState)) {
 				console.error(`Unknown state "${targetState}". Valid: ${REPO_TASK_STATES.join(", ")}`);
 				process.exit(1);
 			}
-			const tasksDir = join(process.cwd(), "tasks");
+			const tasksDir = getRepoTasksDir(process.cwd());
 			const found = findTask(tasksDir, id);
 			if (!found) {
 				console.error(`Task "${id}" not found.`);
@@ -201,7 +207,7 @@ export function registerTaskCommands(program: Command): void {
 			const dstPath = join(tasksDir, targetState, `${id}.md`);
 			const { attrs, body } = parseFlatFrontMatter(found.content);
 			attrs.status = targetState;
-			attrs.updated_at = new Date().toISOString().slice(0, 10);
+			attrs.updated_at = new Date().toISOString();
 			const updated = serializeFlatFrontMatter(attrs, body);
 
 			execSync(`git mv "${found.path}" "${dstPath}"`, { cwd: process.cwd() });
@@ -248,10 +254,9 @@ export function registerTaskCommands(program: Command): void {
 		});
 
 	taskCmd
-		.command("add <title>")
-		.description("Create a new inbox task from a title")
+		.command("capture <title>")
+		.description("Create a quick inbox capture under data/inbox")
 		.action((title: string) => {
-			const tasksDir = join(process.cwd(), "tasks");
 			const slug = slugify(title);
 			if (!slug) {
 				console.error("Title produced an empty slug. Use a more descriptive title.");
@@ -259,18 +264,16 @@ export function registerTaskCommands(program: Command): void {
 			}
 
 			const id = `task-${slug}`;
-			const inboxDir = join(tasksDir, "inbox");
+			const inboxDir = getRepoInboxDir(process.cwd());
 			mkdirSync(inboxDir, { recursive: true });
 			const filePath = join(inboxDir, `${id}.md`);
 
 			if (existsSync(filePath)) {
-				console.error(`Task file "${id}.md" already exists in inbox.`);
+				console.error(`Inbox file "${id}.md" already exists.`);
 				process.exit(1);
 			}
 
-			const today = new Date().toISOString().slice(0, 10);
-			const content = `---\nid: ${id}\ntitle: ${title}\nstatus: inbox\ncreated_at: ${today}\nupdated_at: ${today}\n---\n`;
-			writeFileSync(filePath, content, "utf-8");
-			console.log(`Created task "${id}" in inbox.`);
+			writeFileSync(filePath, `# ${title}\n`, "utf-8");
+			console.log(`Created inbox capture "${id}" in ${REPO_INBOX_DIR}.`);
 		});
 }

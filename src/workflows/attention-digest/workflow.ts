@@ -10,7 +10,7 @@ const attentionDigestWorkflow: WorkflowDefinitionInput = {
     {
       event: "workflow.completed",
       filter: {
-        workflow: ["explorer", "builder", "improver"],
+        workflow: ["inbox-sorter", "explorer", "builder", "improver"],
       },
     },
   ],

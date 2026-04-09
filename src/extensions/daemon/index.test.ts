@@ -138,6 +138,7 @@ describe("daemonModule", () => {
     expect(workflows.map((workflow) => workflow.name)).toContain("explorer");
     expect(workflows.map((workflow) => workflow.name)).toContain("builder");
     expect(workflows.map((workflow) => workflow.name)).toContain("improver");
+    expect(workflows.map((workflow) => workflow.name)).toContain("inbox-sorter");
     expect(workflows.map((workflow) => workflow.name)).toContain("extension/nightly");
   });
 });

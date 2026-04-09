@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
-import { countRepoTasks } from "../repo-tasks.js";
+import { countRepoTaskState } from "../repo-tasks.js";
 import {
   computeCostByWorkflow,
   loadRecentRuns,
@@ -94,7 +94,7 @@ function detectAttentionItems(
     });
   }
 
-  const doingCount = countRepoTasks(projectDir, "doing");
+  const doingCount = countRepoTaskState(projectDir, "doing");
   if (doingCount >= 2) {
     items.push({
       label: "Stalled work",
@@ -102,7 +102,7 @@ function detectAttentionItems(
     });
   }
 
-  const blockedCount = countRepoTasks(projectDir, "blocked");
+  const blockedCount = countRepoTaskState(projectDir, "blocked");
   if (blockedCount >= 2) {
     items.push({
       label: "Blocked backlog",
@@ -110,7 +110,7 @@ function detectAttentionItems(
     });
   }
 
-  const readyCount = countRepoTasks(projectDir, "ready");
+  const readyCount = countRepoTaskState(projectDir, "ready");
   if (readyCount === 0) {
     items.push({
       label: "Empty ready queue",
@@ -118,7 +118,7 @@ function detectAttentionItems(
     });
   }
 
-  const backlogCount = countRepoTasks(projectDir, "backlog");
+  const backlogCount = countRepoTaskState(projectDir, "backlog");
   if (backlogCount === 0) {
     items.push({
       label: "Empty backlog",

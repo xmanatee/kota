@@ -13,6 +13,7 @@ import {
   listRootLevelCliArchitectureDebt,
   validateTaskQueue,
 } from "./task-queue-validation.js";
+import { REPO_INBOX_DIR, REPO_TASKS_DIR, REPO_TASK_STATES } from "./repo-tasks.js";
 
 const ROOT = process.cwd();
 
@@ -22,7 +23,7 @@ function writeTask(
   taskId: string,
   overrides: Partial<Record<string, string>> = {},
 ): void {
-  const dir = join(projectDir, "tasks", state);
+  const dir = join(projectDir, REPO_TASKS_DIR, state);
   mkdirSync(dir, { recursive: true });
   const title = overrides.title ?? taskId;
   const body = `---
@@ -56,17 +57,11 @@ Done.
 }
 
 function initTaskRepo(projectDir: string): void {
-  for (const state of [
-    "inbox",
-    "backlog",
-    "ready",
-    "doing",
-    "blocked",
-    "done",
-    "dropped",
-  ]) {
-    mkdirSync(join(projectDir, "tasks", state), { recursive: true });
-    writeFileSync(join(projectDir, "tasks", state, "AGENTS.md"), `# ${state}\n`);
+  mkdirSync(join(projectDir, REPO_INBOX_DIR), { recursive: true });
+  writeFileSync(join(projectDir, REPO_INBOX_DIR, "AGENTS.md"), "# inbox\n");
+  for (const state of REPO_TASK_STATES) {
+    mkdirSync(join(projectDir, REPO_TASKS_DIR, state), { recursive: true });
+    writeFileSync(join(projectDir, REPO_TASKS_DIR, state, "AGENTS.md"), `# ${state}\n`);
   }
   execSync("git init", { cwd: projectDir, stdio: "ignore" });
   execSync('git config user.email "test@test"', { cwd: projectDir, stdio: "ignore" });
@@ -91,7 +86,7 @@ describe("task queue validation", () => {
   it("accepts a clean tracked queue", () => {
     writeTask(projectDir, "ready", "task-alpha");
     writeTask(projectDir, "backlog", "task-beta");
-    execSync("git add tasks && git commit -m init", {
+    execSync("git add data && git commit -m init", {
       cwd: projectDir,
       stdio: "ignore",
     });
@@ -106,7 +101,7 @@ describe("task queue validation", () => {
   it("reports duplicate task ids across states", () => {
     writeTask(projectDir, "ready", "task-alpha");
     writeTask(projectDir, "doing", "task-alpha", { status: "doing" });
-    execSync("git add tasks && git commit -m init", {
+    execSync("git add data && git commit -m init", {
       cwd: projectDir,
       stdio: "ignore",
     });
@@ -123,11 +118,11 @@ describe("task queue validation", () => {
 
   it("reports deleted tracked task files", () => {
     writeTask(projectDir, "ready", "task-alpha");
-    execSync("git add tasks && git commit -m init", {
+    execSync("git add data && git commit -m init", {
       cwd: projectDir,
       stdio: "ignore",
     });
-    rmSync(join(projectDir, "tasks", "ready", "task-alpha.md"));
+    rmSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-alpha.md"));
 
     const result = validateTaskQueue(projectDir);
     expect(result.findings.some((finding) => finding.code === "task-deleted-unstaged")).toBe(true);
@@ -136,7 +131,7 @@ describe("task queue validation", () => {
   it("reports too many doing tasks", () => {
     writeTask(projectDir, "doing", "task-alpha", { status: "doing" });
     writeTask(projectDir, "doing", "task-beta", { status: "doing" });
-    execSync("git add tasks && git commit -m init", {
+    execSync("git add data && git commit -m init", {
       cwd: projectDir,
       stdio: "ignore",
     });
@@ -147,7 +142,7 @@ describe("task queue validation", () => {
 
   it("reports invalid priority values", () => {
     writeTask(projectDir, "ready", "task-alpha", { priority: "high" });
-    execSync("git add tasks && git commit -m init", {
+    execSync("git add data && git commit -m init", {
       cwd: projectDir,
       stdio: "ignore",
     });
@@ -161,7 +156,7 @@ describe("task queue validation", () => {
     writeTask(projectDir, "ready", "task-p1", { priority: "p1" });
     writeTask(projectDir, "backlog", "task-p2", { priority: "p2" });
     writeTask(projectDir, "backlog", "task-p3", { priority: "p3" });
-    execSync("git add tasks && git commit -m init", {
+    execSync("git add data && git commit -m init", {
       cwd: projectDir,
       stdio: "ignore",
     });
@@ -171,7 +166,7 @@ describe("task queue validation", () => {
   });
 
   it("reports tasks missing required body sections", () => {
-    const dir = join(projectDir, "tasks", "ready");
+    const dir = join(projectDir, REPO_TASKS_DIR, "ready");
     mkdirSync(dir, { recursive: true });
     writeFileSync(
       join(dir, "task-no-sections.md"),
@@ -189,7 +184,7 @@ updated_at: 2026-03-28T00:00:00Z
 Just some text with no required sections.
 `,
     );
-    execSync("git add tasks && git commit -m init", {
+    execSync("git add data && git commit -m init", {
       cwd: projectDir,
       stdio: "ignore",
     });
@@ -200,7 +195,7 @@ Just some text with no required sections.
   });
 
   it("reports tasks missing a subset of required body sections", () => {
-    const dir = join(projectDir, "tasks", "ready");
+    const dir = join(projectDir, REPO_TASKS_DIR, "ready");
     mkdirSync(dir, { recursive: true });
     writeFileSync(
       join(dir, "task-partial.md"),
@@ -224,7 +219,7 @@ Has a problem.
 Has an outcome.
 `,
     );
-    execSync("git add tasks && git commit -m init", {
+    execSync("git add data && git commit -m init", {
       cwd: projectDir,
       stdio: "ignore",
     });
@@ -236,7 +231,7 @@ Has an outcome.
 
   it("can enforce a non-empty ready queue", () => {
     writeTask(projectDir, "backlog", "task-beta");
-    execSync("git add tasks && git commit -m init", {
+    execSync("git add data && git commit -m init", {
       cwd: projectDir,
       stdio: "ignore",
     });
@@ -248,7 +243,7 @@ Has an outcome.
 
   it("can surface recommended queue depth as warnings", () => {
     writeTask(projectDir, "ready", "task-alpha");
-    execSync("git add tasks && git commit -m init", {
+    execSync("git add data && git commit -m init", {
       cwd: projectDir,
       stdio: "ignore",
     });
@@ -264,21 +259,21 @@ Has an outcome.
   it("detects when the actionable queue has drifted to p3-only work", () => {
     writeTask(projectDir, "ready", "task-alpha", { priority: "p3" });
     writeTask(projectDir, "backlog", "task-beta", { priority: "p3" });
-    execSync("git add tasks && git commit -m init", {
+    execSync("git add data && git commit -m init", {
       cwd: projectDir,
       stdio: "ignore",
     });
 
     expect(hasStrategicReadyCoverageGap(projectDir)).toBe(true);
     expect(() => assertStrategicReadyCoverage(projectDir)).toThrow(
-      "tasks/ready must keep at least one p0/p1/p2 task",
+      "data/tasks/ready must keep at least one p0/p1/p2 task",
     );
   });
 
   it("accepts a ready queue with a substantive p2 task", () => {
     writeTask(projectDir, "ready", "task-alpha", { priority: "p2" });
     writeTask(projectDir, "backlog", "task-beta", { priority: "p3" });
-    execSync("git add tasks && git commit -m init", {
+    execSync("git add data && git commit -m init", {
       cwd: projectDir,
       stdio: "ignore",
     });
@@ -290,14 +285,14 @@ Has an outcome.
     mkdirSync(join(projectDir, "src", "extensions"), { recursive: true });
     writeFileSync(join(projectDir, "src", "extensions", "daemon.ts"), "export default {};\n");
     writeTask(projectDir, "ready", "task-ops", { area: "runtime" });
-    execSync("git add tasks src && git commit -m init", {
+    execSync("git add data src && git commit -m init", {
       cwd: projectDir,
       stdio: "ignore",
     });
 
     expect(hasArchitectureReadyCoverageGap(projectDir)).toBe(true);
     expect(() => assertArchitectureReadyCoverage(projectDir)).toThrow(
-      "tasks/ready must keep at least one p1/p2 architecture task",
+      "data/tasks/ready must keep at least one p1/p2 architecture task",
     );
   });
 
@@ -305,7 +300,7 @@ Has an outcome.
     mkdirSync(join(projectDir, "src", "extensions"), { recursive: true });
     writeFileSync(join(projectDir, "src", "extensions", "daemon.ts"), "export default {};\n");
     writeTask(projectDir, "ready", "task-architecture", { area: "architecture", priority: "p2" });
-    execSync("git add tasks src && git commit -m init", {
+    execSync("git add data src && git commit -m init", {
       cwd: projectDir,
       stdio: "ignore",
     });
@@ -321,7 +316,7 @@ Has an outcome.
       'import { registerCompletionCommands } from "./completion-cli.js";\n',
     );
     writeTask(projectDir, "ready", "task-architecture", { area: "architecture", priority: "p3" });
-    execSync("git add tasks src && git commit -m init", {
+    execSync("git add data src && git commit -m init", {
       cwd: projectDir,
       stdio: "ignore",
     });

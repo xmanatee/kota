@@ -27,8 +27,8 @@ Set a larger value on known long-running agent steps; the builder's `build` step
 as a reference example.
 
 The timeout is enforced in two places:
-- **agent, code, tool, emit, restart, trigger steps**: enforced by `executeWorkflowStep` in `run-executor-step.ts` via a per-step `AbortController` and a `Promise.race` fallback.
-- **branch and foreach group steps**: enforced directly in `run-executor.ts` with the same `AbortController` + `Promise.race` pattern; the step-level abort is forwarded to all inner steps.
+- **agent, code, tool, emit, restart, trigger steps**: enforced by `executeWorkflowStep` in `run-executor-step.ts` via a per-step `AbortController` and `Promise.race` timeout guard.
+- **branch and foreach group steps**: enforced directly in `run-executor.ts` with the same `AbortController` + `Promise.race` timeout guard; the step-level abort is forwarded to all inner steps.
 - **parallel groups**: `WorkflowParallelGroup` does not extend `WorkflowBaseStep` and has no `timeoutMs`; parallel groups are not subject to the per-step timeout.
 
 A step timeout causes run status `"failed"`, not `"interrupted"` — distinguishable from an external abort.
@@ -45,6 +45,15 @@ See `builder/workflow.test.ts` and `explorer/workflow.test.ts` for representativ
 If a workflow has no `when` predicates or non-trivial skip logic, a unit test adds little value;
 rely on the integration test below instead.
 
+## Built-in Role Split
+
+- `inbox-sorter` owns `data/inbox/` and turns quick captures into normalized
+  tasks, concise doc updates, or other durable notes.
+- `explorer` owns external discovery and should only shape new roadmap work
+  when the local queue is otherwise empty.
+- `builder` owns implementation of normalized tasks from `data/tasks/`.
+- `improver` owns the autonomy/process layer itself.
+
 ## Repair-Loop Checks
 
 Workflow repair-loop checks should use `type: "code"` with `spawnSync` rather than `tool: "shell"`.
@@ -57,7 +66,7 @@ When migrating a tool out of core into an extension, check whether any repair-lo
 
 ## Dirty Failure Recovery
 
-If a built-in autonomous workflow (`explorer`, `builder`, `improver`) fails and leaves the repo
+If a built-in autonomous workflow (`inbox-sorter`, `explorer`, `builder`, `improver`) fails and leaves the repo
 dirty, the runtime now treats that as a recovery condition, not as normal queue progression.
 The daemon restarts once, queues a single improver recovery on the next boot, and then pauses
 dispatch if the same dirty state still cannot be repaired. Do not reintroduce explorer/improver

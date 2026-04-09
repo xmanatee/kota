@@ -445,13 +445,14 @@ describe("workflow validation", () => {
     ).not.toThrow();
   });
 
-  it("exposes the built-in explorer, builder, improver, and attention-digest workflows", () => {
+  it("exposes the built-in inbox-sorter, explorer, builder, improver, and attention-digest workflows", () => {
     const definitions = validateWorkflowDefinitions(
       getBuiltinWorkflowDefinitions(),
       process.cwd(),
     );
 
     expect(definitions.map((definition) => definition.name)).toEqual([
+      "inbox-sorter",
       "explorer",
       "builder",
       "improver",
@@ -459,7 +460,7 @@ describe("workflow validation", () => {
     ]);
   });
 
-  it("keeps the built-in explorer, builder, and improver workflows uncapped by daily budgets", () => {
+  it("keeps the built-in inbox-sorter, explorer, builder, and improver workflows uncapped by daily budgets", () => {
     const definitions = validateWorkflowDefinitions(
       getBuiltinWorkflowDefinitions(),
       process.cwd(),

@@ -20,7 +20,7 @@ function writeTaskFile(
   slug: string,
   frontmatter: Record<string, string>,
 ): void {
-  const dir = join(projectDir, "tasks", state);
+  const dir = join(projectDir, "data", "tasks", state);
   mkdirSync(dir, { recursive: true });
   const fm = Object.entries(frontmatter)
     .map(([k, v]) => `${k}: ${v}`)
@@ -172,8 +172,8 @@ describe("task-routes", () => {
     });
 
     it("ignores AGENTS.md in task directories", async () => {
-      mkdirSync(join(projectDir, "tasks", "ready"), { recursive: true });
-      writeFileSync(join(projectDir, "tasks", "ready", "AGENTS.md"), "# Agents");
+      mkdirSync(join(projectDir, "data", "tasks", "ready"), { recursive: true });
+      writeFileSync(join(projectDir, "data", "tasks", "ready", "AGENTS.md"), "# Agents");
       writeTaskFile(projectDir, "ready", "real-task", { id: "task-real", title: "Real", priority: "p2" });
 
       const { res, result } = mockResponse();
@@ -200,13 +200,13 @@ describe("task-routes", () => {
       expect((result.body as Record<string, string>).state).toBe("backlog");
 
       // File should exist at new location
-      const newPath = join(projectDir, "tasks", "backlog", "task-task-x.md");
+      const newPath = join(projectDir, "data", "tasks", "backlog", "task-task-x.md");
       expect(existsSync(newPath)).toBe(true);
       const content = readFileSync(newPath, "utf-8");
       expect(content).toContain("status: backlog");
 
       // File should be gone from old location
-      const oldPath = join(projectDir, "tasks", "ready", "task-task-x.md");
+      const oldPath = join(projectDir, "data", "tasks", "ready", "task-task-x.md");
       expect(existsSync(oldPath)).toBe(false);
     });
 
@@ -224,7 +224,7 @@ describe("task-routes", () => {
 
       expect(result.status).toBe(200);
       expect((result.body as Record<string, string>).state).toBe("dropped");
-      expect(existsSync(join(projectDir, "tasks", "dropped", "task-task-y.md"))).toBe(true);
+      expect(existsSync(join(projectDir, "data", "tasks", "dropped", "task-task-y.md"))).toBe(true);
     });
 
     it("returns 200 with no-op when state is same", async () => {
@@ -240,7 +240,7 @@ describe("task-routes", () => {
       await handleTaskStateChange(req, res, "task-z", projectDir);
 
       expect(result.status).toBe(200);
-      expect(existsSync(join(projectDir, "tasks", "ready", "task-task-z.md"))).toBe(true);
+      expect(existsSync(join(projectDir, "data", "tasks", "ready", "task-task-z.md"))).toBe(true);
     });
 
     it("returns 400 for invalid target state", async () => {
@@ -273,13 +273,12 @@ describe("task-routes", () => {
       expect(body.state).toBe("inbox");
       expect(body.id).toMatch(/^task-my-new-task-/);
 
-      const inboxDir = join(projectDir, "tasks", "inbox");
+      const inboxDir = join(projectDir, "data", "inbox");
       const files = readdirSync(inboxDir).filter((f) => f.endsWith(".md"));
       expect(files).toHaveLength(1);
       const content = readFileSync(join(inboxDir, files[0]), "utf-8");
-      expect(content).toContain("title: My new task");
-      expect(content).toContain("status: inbox");
-      expect(content).toContain("summary: A quick summary");
+      expect(content).toContain("# My new task");
+      expect(content).toContain("A quick summary");
     });
 
     it("returns 400 when title is missing", async () => {
@@ -310,7 +309,7 @@ describe("task-routes", () => {
       expect(body.id).toBe("task-edit");
       expect(body.body).toContain("Updated content.");
 
-      const filePath = join(projectDir, "tasks", "ready", "task-task-edit.md");
+      const filePath = join(projectDir, "data", "tasks", "ready", "task-task-edit.md");
       const content = readFileSync(filePath, "utf-8");
       expect(content).toContain("id: task-edit");
       expect(content).toContain("title: Edit Me");
