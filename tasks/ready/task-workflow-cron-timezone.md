@@ -1,12 +1,12 @@
 ---
 id: task-workflow-cron-timezone
 title: Add timezone support to cron workflow triggers
-status: backlog
-priority: p3
+status: ready
+priority: p2
 area: runtime
 summary: Cron workflow triggers execute in UTC with no timezone option. Operators in non-UTC timezones must manually convert times, and schedules silently shift during daylight saving transitions.
 created_at: 2026-04-09T03:10:00Z
-updated_at: 2026-04-09T03:10:00Z
+updated_at: 2026-04-09T03:50:00Z
 ---
 
 ## Problem
