@@ -6,7 +6,7 @@ priority: p2
 area: architecture
 summary: src/extensions/guardrails-audit/ exists with CLI commands. The remaining work is migrating audit state from src/guardrails-audit.ts into the extension and wiring it to emit/subscribe on the event bus so the audit trail can be optionally disabled without core changes.
 created_at: 2026-04-09T06:33:00Z
-updated_at: 2026-04-09T05:45:00Z
+updated_at: 2026-04-09T06:02:40Z
 ---
 
 ## Problem
@@ -20,18 +20,22 @@ updated_at: 2026-04-09T05:45:00Z
 the migration is complete.
 
 The remaining gap: `src/guardrails-audit.ts` (audit log appender, query helpers, AuditEntry type)
-still lives in core. Guardrails assessment logic in `guardrails.ts` calls it directly.
+still lives in core. There are two core callsites:
+
+1. `src/tool-runner.ts` — calls `getAuditStore()?.record(assessment, sessionId)` after each tool assessment
+2. `src/tools/audit.ts` — calls `getAuditStore()` to serve the agent's audit query tool
 
 ## Desired Outcome
 
 Complete the extension so it fully owns the audit subsystem:
 
 - Move audit log storage, `appendAuditEntry`, `queryAuditLog`, and `AuditEntry` into the extension
-- Core `guardrails.ts` emits assessment events to the event bus instead of calling the audit module directly
+- `tool-runner.ts` emits assessment events to the event bus instead of calling the audit store directly
 - The extension subscribes to those events and writes to `.kota/audit.jsonl`
-- The extension can be disabled via config without touching core guardrails logic
+- `src/tools/audit.ts` either imports the store from the extension or queries via an event/response mechanism
+- The extension can be disabled via config without touching core tool-runner logic
 
-The core guardrails assessment logic remains in `guardrails.ts`; only the logging output moves to the extension.
+The core guardrails assessment logic remains in `guardrails.ts` and `tool-runner.ts`; only the audit logging and query path moves to the extension.
 No behavior change; this is a refactoring + decoupling.
 
 ## Constraints
@@ -44,7 +48,7 @@ No behavior change; this is a refactoring + decoupling.
 
 - `src/guardrails-audit.ts` is removed or reduced to a minimal type re-export.
 - `src/extensions/guardrails-audit/` has full state + CLI implementation.
-- Core guardrails emit assessment events to the bus.
+- `tool-runner.ts` emits assessment events to the bus instead of calling the audit store directly.
 - Audit extension subscribes and logs assessments to `.kota/audit.jsonl`.
 - `kota audit` commands work unchanged.
 - All guardrails-audit tests pass.
