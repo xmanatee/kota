@@ -12,6 +12,7 @@ import type { KotaExtension } from "../extension-types.js";
 import agentsModule from "./agents/index.js";
 import approvalQueueModule from "./approval-queue/index.js";
 import daemonModule from "./daemon/index.js";
+import doctorModule from "./doctor/index.js";
 import executionModule from "./execution/index.js";
 import extensionManagerModule from "./extension-manager/index.js";
 import filesystemModule from "./filesystem/index.js";
@@ -80,4 +81,5 @@ export const builtinExtensions: KotaExtension[] = [
   approvalQueueModule,
   guardrailsAuditModule,
   repoTasksModule,
+  doctorModule,
 ];

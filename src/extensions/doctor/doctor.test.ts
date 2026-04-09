@@ -2,22 +2,22 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { checkProviderConnectivity, runDoctorChecks, runDoctorFixes } from "./doctor-cli.js";
+import { checkProviderConnectivity, runDoctorChecks, runDoctorFixes } from "./index.js";
 
-vi.mock("./workflow/registry.js", () => ({
+vi.mock("../../workflow/registry.js", () => ({
   getBuiltinWorkflowDefinitions: vi.fn(() => []),
 }));
 
-vi.mock("./workflow/validation.js", () => ({
+vi.mock("../../workflow/validation.js", () => ({
   validateWorkflowDefinitions: vi.fn(() => [{ name: "builder" }]),
   WorkflowDefinitionError: class WorkflowDefinitionError extends Error {},
 }));
 
-vi.mock("./extension-discovery.js", () => ({
+vi.mock("../../extension-discovery.js", () => ({
   discoverExtensions: vi.fn(async () => []),
 }));
 
-vi.mock("./extension-loader.js", () => ({
+vi.mock("../../extension-loader.js", () => ({
   ExtensionLoader: vi.fn().mockImplementation(() => ({
     setCwd: vi.fn(),
     loadAll: vi.fn(async () => {}),
@@ -25,21 +25,21 @@ vi.mock("./extension-loader.js", () => ({
   })),
 }));
 
-vi.mock("./extensions/index.js", () => ({
+vi.mock("../index.js", () => ({
   builtinExtensions: [],
 }));
 
-vi.mock("./config.js", () => ({
+vi.mock("../../config.js", () => ({
   loadConfig: vi.fn(() => ({})),
 }));
 
-vi.mock("./server/daemon-client.js", () => ({
+vi.mock("../../server/daemon-client.js", () => ({
   DaemonControlClient: {
     fromStateDir: vi.fn(() => null),
   },
 }));
 
-vi.mock("./model/model-client.js", () => ({
+vi.mock("../../model/model-client.js", () => ({
   createModelClient: vi.fn(() => ({
     client: {
       messages: {
@@ -51,7 +51,7 @@ vi.mock("./model/model-client.js", () => ({
   })),
 }));
 
-vi.mock("./extensions/model-clients/factory.js", () => ({
+vi.mock("../model-clients/factory.js", () => ({
   resolveApiKey: vi.fn(() => "sk-ant-test-key"),
 }));
 
@@ -210,7 +210,7 @@ describe("kota doctor — provider connectivity check", () => {
   });
 
   it("passes when the model client responds successfully", async () => {
-    const { createModelClient } = await import("./model/model-client.js");
+    const { createModelClient } = await import("../../model/model-client.js");
     vi.mocked(createModelClient).mockReturnValueOnce({
       client: {
         messages: {
@@ -228,7 +228,7 @@ describe("kota doctor — provider connectivity check", () => {
   });
 
   it("fails with authentication error on 401/403 response", async () => {
-    const { createModelClient } = await import("./model/model-client.js");
+    const { createModelClient } = await import("../../model/model-client.js");
     const authErr = Object.assign(new Error("Authentication failed"), { status: 401 });
     // Mimic Anthropic SDK AuthenticationError check via message pattern
     vi.mocked(createModelClient).mockReturnValueOnce({
@@ -249,7 +249,7 @@ describe("kota doctor — provider connectivity check", () => {
   });
 
   it("fails with unreachable message on network error", async () => {
-    const { createModelClient } = await import("./model/model-client.js");
+    const { createModelClient } = await import("../../model/model-client.js");
     vi.mocked(createModelClient).mockReturnValueOnce({
       client: {
         messages: {
@@ -267,7 +267,7 @@ describe("kota doctor — provider connectivity check", () => {
   });
 
   it("warns when API key is not set", async () => {
-    const { resolveApiKey } = await import("./extensions/model-clients/factory.js");
+    const { resolveApiKey } = await import("../model-clients/factory.js");
     vi.mocked(resolveApiKey).mockReturnValueOnce("");
 
     const results = await checkProviderConnectivity(projectDir);

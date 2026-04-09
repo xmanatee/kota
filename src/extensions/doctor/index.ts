@@ -1,17 +1,26 @@
+/**
+ * Doctor extension — owns the `kota doctor` CLI health check surface.
+ *
+ * Registers the `kota doctor` command that runs pass/warn/fail checks
+ * against daemon connectivity, config validity, extensions, providers,
+ * workflow definitions, and disk state.
+ */
+
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
-import type { Command } from "commander";
-import { loadConfig } from "./config.js";
-import { discoverExtensions } from "./extension-discovery.js";
-import { ExtensionLoader } from "./extension-loader.js";
-import { builtinExtensions } from "./extensions/index.js";
-import { resolveApiKey } from "./extensions/model-clients/factory.js";
-import { createModelClient } from "./model/model-client.js";
-import { DaemonControlClient } from "./server/daemon-client.js";
-import { getBuiltinWorkflowDefinitions } from "./workflow/registry.js";
-import { validateWorkflowDefinitions, WorkflowDefinitionError } from "./workflow/validation.js";
+import { Command } from "commander";
+import { loadConfig } from "../../config.js";
+import { discoverExtensions } from "../../extension-discovery.js";
+import { ExtensionLoader } from "../../extension-loader.js";
+import type { ExtensionContext, KotaExtension } from "../../extension-types.js";
+import { createModelClient } from "../../model/model-client.js";
+import { DaemonControlClient } from "../../server/daemon-client.js";
+import { getBuiltinWorkflowDefinitions } from "../../workflow/registry.js";
+import { validateWorkflowDefinitions, WorkflowDefinitionError } from "../../workflow/validation.js";
+import { builtinExtensions } from "../index.js";
+import { resolveApiKey } from "../model-clients/factory.js";
 
 type CheckStatus = "pass" | "warn" | "fail";
 
@@ -329,9 +338,8 @@ function printRepairs(repairs: RepairResult[]): void {
   }
 }
 
-export function registerDoctorCommand(program: Command): void {
-  program
-    .command("doctor")
+function buildDoctorCommand(_ctx: ExtensionContext): Command {
+  const cmd = new Command("doctor")
     .description("Run runtime health checks and print a pass/warn/fail summary")
     .option("--json", "Output results as JSON")
     .option("--fix", "Apply safe automatic repairs for fixable issues")
@@ -366,4 +374,15 @@ export function registerDoctorCommand(program: Command): void {
       const anyFail = results.some((r) => r.status === "fail");
       if (anyFail) process.exit(1);
     });
+
+  return cmd;
 }
+
+const doctorModule: KotaExtension = {
+  name: "doctor",
+  version: "1.0.0",
+  description: "Runtime health checks — daemon, config, extensions, providers, workflows, and disk",
+  commands: (ctx: ExtensionContext) => [buildDoctorCommand(ctx)],
+};
+
+export default doctorModule;
