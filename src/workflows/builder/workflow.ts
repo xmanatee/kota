@@ -110,6 +110,24 @@ const builderWorkflow: WorkflowDefinitionInput = {
                 ctx.projectDir,
               ),
           },
+          {
+            id: "src-agents-md-key-modules",
+            type: "code" as const,
+            severity: "warning" as const,
+            run: (ctx) =>
+              runCheck(
+                `node -e "const {execFileSync}=require('child_process'),{readFileSync}=require('fs'),path=require('path');` +
+                  `const st=execFileSync('git',['diff','--cached','--name-status'],{cwd:process.cwd(),encoding:'utf8'});` +
+                  `const nf=st.split('\\n').filter(l=>l.startsWith('A\\t')).map(l=>l.slice(2).trim())` +
+                  `.filter(f=>f.startsWith('src/')&&f.endsWith('.ts')&&!f.includes('.test.')&&!f.includes('src/extensions/')&&!f.endsWith('/index.ts')&&!f.endsWith('/testing-api.ts'));` +
+                  `if(!nf.length){console.log('OK: no new public src/ modules to check');process.exit(0);}` +
+                  `const md=readFileSync('src/AGENTS.md','utf8');` +
+                  `const ms=nf.filter(f=>!md.includes('\`'+path.basename(f,'.ts')+'.ts\`'));` +
+                  `if(ms.length){console.error('New src/ modules not documented in src/AGENTS.md Key Modules: '+ms.join(', '));process.exit(1);}` +
+                  `console.log('OK: all new src/ modules in src/AGENTS.md Key Modules');"`,
+                ctx.projectDir,
+              ),
+          },
         ],
       },
     },
