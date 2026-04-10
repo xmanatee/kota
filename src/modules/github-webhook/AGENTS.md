@@ -11,6 +11,10 @@ This directory owns the GitHub webhook ingestion module — receives GitHub webh
 - `index.ts` — `KotaModule` definition; implements route registration, HMAC validation, and bus event emission.
 - `github-webhook.test.ts` — unit tests for webhook signature validation and event emission.
 
+## Event Payload Docs
+
+The normalized payload shapes for each emitted `github.*` event are documented in `docs/GITHUB-WEBHOOK.md` (under "Bus Events"). If you add or change a field in the normalized payload, update the corresponding table in that file in the same run.
+
 ## Boundaries
 
 - Does not own GitHub API calls or PR/issue tools (those belong in `github/`).
