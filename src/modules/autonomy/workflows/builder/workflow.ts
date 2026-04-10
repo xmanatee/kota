@@ -8,6 +8,7 @@ import { assertRepoWorktreeClean, getRepoHeadSha } from "../../../../repo-worktr
 import type { RepoTaskQueueSnapshot } from "../../../repo-tasks/repo-tasks.js";
 import { getRepoTaskQueueSnapshot } from "../../../repo-tasks/repo-tasks.js";
 import { commitWorkflowChanges } from "../../commit.js";
+import { createCriticCheck } from "../../critic.js";
 import { runCheck, stepCommitted, stepSucceeded } from "../../shared.js";
 import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
 import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
@@ -243,6 +244,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
               return "OK: all new src/ modules in src/AGENTS.md Key Modules";
             },
           },
+          createCriticCheck(),
         ],
       },
     },

@@ -11,4 +11,5 @@ This module owns the project autonomous development loop.
 - `index.ts` — contributes the autonomy workflows and their paired agents by discovering the local `workflows/` directories.
 - `workflows/` — one directory per autonomy workflow, with code, prompt assets, and tests kept together.
 - `shared.ts` and `commit.ts` — small helpers shared only by the autonomy workflows.
+- `critic.ts` — reusable critic repair check factory that calls the Anthropic API to review agent work against the original task. Used as a repair check in workflow definitions.
 - `autonomous-loop.integration.test.ts` — end-to-end test of the autonomy handoff path.

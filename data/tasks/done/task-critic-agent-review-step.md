@@ -1,7 +1,7 @@
 ---
 id: task-critic-agent-review-step
 title: Add critic agent step to autonomous workflows
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Introduce a critic agent that performs an unbiased LLM review of agent work output after validations pass, catching completeness gaps, inconsistencies, and unfinished migrations that mechanical checks miss.
