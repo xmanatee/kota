@@ -1,7 +1,7 @@
 ---
 id: task-grafana-dashboard-setup
 title: Grafana dashboard and setup guide for KOTA metrics
-status: backlog
+status: done
 priority: p3
 area: observability
 summary: KOTA exposes a Prometheus endpoint but operators have no guidance on connecting it to Grafana; a docs guide and a sample dashboard definition would close that gap.

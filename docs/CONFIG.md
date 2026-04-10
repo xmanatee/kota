@@ -97,6 +97,10 @@ Each line has the shape: `{"ts":"…","level":"info|warn|error","msg":"…","wor
 
 This is intentionally separate from `log.format`: setting `"log": {"format": "json"}` in config does **not** affect daemon operational output. Use `--log-format` or `KOTA_DAEMON_LOG_FORMAT` for daemon logs.
 
+## Metrics endpoint
+
+The daemon exposes a Prometheus-compatible scrape endpoint at `GET /metrics` on the control port. The port is written to `.kota/daemon-control.json` at startup. See `docs/GRAFANA.md` for scrape configuration, available metrics, and a sample Grafana dashboard.
+
 ## Other notable settings
 
 See `src/config.ts` (`KotaConfig` type) for the full list of supported fields and their types. Key areas:
