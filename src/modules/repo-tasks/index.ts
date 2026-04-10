@@ -6,7 +6,7 @@
  */
 
 import { Command } from "commander";
-import type { KotaModule } from "../../core/modules/module-types.js";
+import type { KotaModule } from "#core/modules/module-types.js";
 import { registerTaskCommands } from "./cli.js";
 import { taskRoutes } from "./routes.js";
 

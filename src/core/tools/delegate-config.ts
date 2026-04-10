@@ -1,8 +1,8 @@
-import type { McpManager } from "../mcp/manager.js";
-import type { CostTracker } from "../loop/cost.js";
-import type { Transport } from "../loop/transport.js";
-import type { ModelClient } from "../model/model-client.js";
-import type { DelegateBackend, ModelTiers } from "../model/model-router.js";
+import type { McpManager } from "#core/mcp/manager.js";
+import type { CostTracker } from "#core/loop/cost.js";
+import type { Transport } from "#core/loop/transport.js";
+import type { ModelClient } from "#core/model/model-client.js";
+import type { DelegateBackend, ModelTiers } from "#core/model/model-router.js";
 import { PromptStore } from "./prompt-template.js";
 
 export type DelegateMode = "explore" | "execute" | "research";

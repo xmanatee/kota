@@ -3,7 +3,7 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import type { MessageStream } from "../../../core/model/model-client.js";
+import type { MessageStream } from "#core/model/model-client.js";
 import { buildAnthropicMessage, mapFinishReason, safeJsonParse } from "./translations.js";
 import type { OAIStreamChunk } from "./types.js";
 

@@ -1,6 +1,6 @@
-import type { RouteRegistration } from "../../core/modules/module-types.js";
-import { WorkflowRunStore } from "../../core/workflow/run-store.js";
-import { DaemonControlClient } from "../../core/server/daemon-client.js";
+import type { RouteRegistration } from "#core/modules/module-types.js";
+import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { DaemonControlClient } from "#core/server/daemon-client.js";
 import {
   handleWorkflowAbort,
   handleWorkflowAbortRun,

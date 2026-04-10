@@ -7,7 +7,7 @@
  */
 
 import { Command } from "commander";
-import type { KotaModule, ModuleContext } from "../../core/modules/module-types.js";
+import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import { registerControlCommands } from "./control.js";
 import { registerDefinitionLogCommand } from "./definition-log.js";
 import { registerDefinitionsCommand } from "./definitions.js";

@@ -2,7 +2,7 @@
  * Manifest type definitions — declarative JSON schema for agent-authored modules.
  */
 
-import type { Language } from "../../repl-session.js";
+import type { Language } from "#root/repl-session.js";
 
 export type ManifestToolDef = {
 	name: string;

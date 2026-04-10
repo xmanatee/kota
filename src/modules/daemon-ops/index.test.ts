@@ -1,8 +1,8 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ModuleStorage } from "../../core/modules/module-storage.js";
-import type { ModuleContext } from "../../core/modules/module-types.js";
+import { ModuleStorage } from "#core/modules/module-storage.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import daemonModule, {
   buildLaunchdPlist,
   buildSystemdUnit,

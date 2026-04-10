@@ -11,7 +11,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import type { KotaModule } from "../modules/module-types.js";
+import type { KotaModule } from "#core/modules/module-types.js";
 import { manifestToModule } from "./execution.js";
 import type { ModuleManifest } from "./types.js";
 import { validateManifest } from "./validation.js";

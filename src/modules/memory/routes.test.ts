@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
-import type { MemoryProvider } from "../../core/modules/provider-types.js";
-import type { Memory } from "../../core/memory/store.js";
+import type { MemoryProvider } from "#core/modules/provider-types.js";
+import type { Memory } from "#core/memory/store.js";
 import { handleAddMemory, handleDeleteMemory, handleGetMemory, handleListMemory, handleUpdateMemory } from "./routes.js";
 
 function mockResponse() {
@@ -35,11 +35,11 @@ function makeProvider(entries: Memory[]): MemoryProvider {
   };
 }
 
-vi.mock("../../core/modules/provider-registry.js", () => ({
+vi.mock("#core/modules/provider-registry.js", () => ({
   getMemoryProvider: vi.fn(),
 }));
 
-import { getMemoryProvider } from "../../core/modules/provider-registry.js";
+import { getMemoryProvider } from "#core/modules/provider-registry.js";
 
 describe("memory-routes", () => {
   describe("handleListMemory", () => {

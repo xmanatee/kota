@@ -6,7 +6,7 @@
  */
 
 import { Command } from "commander";
-import type { KotaModule } from "../../core/modules/module-types.js";
+import type { KotaModule } from "#core/modules/module-types.js";
 import { registerMemoryCommands } from "./cli.js";
 import { memoryTool, runMemory } from "./memory.js";
 import { memoryRoutes } from "./routes.js";

@@ -1,5 +1,5 @@
 import type { ServerResponse } from "node:http";
-import type { WorkflowActiveRun } from "../workflow/run-types.js";
+import type { WorkflowActiveRun } from "#core/workflow/run-types.js";
 import type { DaemonControlHandle, WorkflowDurationHistogramEntry, WorkflowMetricCounts } from "./daemon-control-types.js";
 
 function sanitizeLabelValue(value: string): string {

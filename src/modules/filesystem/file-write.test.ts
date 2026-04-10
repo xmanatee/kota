@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { checkFreshness, recordRead } from "../../file-tracker.js";
+import { checkFreshness, recordRead } from "#root/file-tracker.js";
 import { runFileWrite } from "./file-write.js";
 
 const TEST_DIR = join(process.cwd(), ".test-file-write");

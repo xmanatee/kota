@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { platform } from "node:os";
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolResult } from "../../core/tools/index.js";
+import type { ToolResult } from "#core/tools/index.js";
 
 export const notifyTool: Anthropic.Tool = {
 	name: "notify",

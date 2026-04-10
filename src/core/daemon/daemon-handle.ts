@@ -1,15 +1,15 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { KotaConfig } from "../../config.js";
-import { loadConfig } from "../../config.js";
-import { getHistory } from "../memory/history.js";
+import type { KotaConfig } from "#root/config.js";
+import { loadConfig } from "#root/config.js";
+import { getHistory } from "#core/memory/history.js";
 import { getApprovalQueue } from "./approval-queue.js";
-import { getRepoInboxDir, getRepoTasksDir } from "../data/repo-tasks.js";
-import type { EventBus } from "../events/event-bus.js";
-import { loadModuleMetadata } from "../modules/module-metadata.js";
-import type { WorkflowRunStore } from "../workflow/run-store.js";
-import type { WorkflowRuntime } from "../workflow/runtime.js";
+import { getRepoInboxDir, getRepoTasksDir } from "#core/data/repo-tasks.js";
+import type { EventBus } from "#core/events/event-bus.js";
+import { loadModuleMetadata } from "#core/modules/module-metadata.js";
+import type { WorkflowRunStore } from "#core/workflow/run-store.js";
+import type { WorkflowRuntime } from "#core/workflow/runtime.js";
 import { computeModuleConfigDiff } from "./config-reload-diff.js";
 import type {
   DaemonControlHandle,

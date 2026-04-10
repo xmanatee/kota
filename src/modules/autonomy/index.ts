@@ -1,13 +1,13 @@
-import type { AgentDef } from "../../core/agents/agent-types.js";
-import type { KotaModule } from "../../core/modules/module-types.js";
+import type { AgentDef } from "#core/agents/agent-types.js";
+import type { KotaModule } from "#core/modules/module-types.js";
 import {
   importModuleExports,
   listModuleDirectories,
-} from "../../core/modules/runtime-module-discovery.js";
+} from "#core/modules/runtime-module-discovery.js";
 import type {
   RegisteredWorkflowDefinitionInput,
   WorkflowDefinitionInput,
-} from "../../core/workflow/types.js";
+} from "#core/workflow/types.js";
 
 type AutonomyWorkflowModule = {
   default?: WorkflowDefinitionInput;

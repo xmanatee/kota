@@ -10,8 +10,8 @@
 
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { AgentSession } from "../loop/loop.js";
-import { NullTransport, ProxyTransport, type Transport } from "../loop/transport.js";
+import type { AgentSession } from "#core/loop/loop.js";
+import { NullTransport, ProxyTransport, type Transport } from "#core/loop/transport.js";
 import { jsonResponse } from "./daemon-control-utils.js";
 
 /** An agent session owned by the daemon control server. */
@@ -204,7 +204,7 @@ export async function handleDaemonChat(
   });
 
   const sseTransport = {
-    emit(event: import("../loop/transport.js").AgentEvent) {
+    emit(event: import("#core/loop/transport.js").AgentEvent) {
       if (res.writableEnded) return;
       res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
     },

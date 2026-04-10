@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { clearAllWorkspaces, listWorkspaces, readAllEntries, readEntry } from "../../workspace.js";
+import { clearAllWorkspaces, listWorkspaces, readAllEntries, readEntry } from "#root/workspace.js";
 import { runWorkspace } from "./workspace.js";
 
 afterEach(() => clearAllWorkspaces());

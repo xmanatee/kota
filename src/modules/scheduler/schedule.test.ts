@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { initScheduler, resetScheduler } from "../../core/daemon/scheduler.js";
+import { initScheduler, resetScheduler } from "#core/daemon/scheduler.js";
 import { runSchedule } from "./schedule.js";
 
 describe("schedule tool", () => {

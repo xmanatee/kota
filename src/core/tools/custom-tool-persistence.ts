@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Language } from "../../repl-session.js";
+import type { Language } from "#root/repl-session.js";
 
 export type CustomToolDef = {
   name: string;

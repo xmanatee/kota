@@ -9,8 +9,8 @@
  * Cache scope: single session (in-memory Map, cleared on reset).
  */
 
-import type { ToolResult } from "../../core/tools/index.js";
-import type { ToolMiddlewareFn } from "../../core/tools/tool-middleware.js";
+import type { ToolResult } from "#core/tools/index.js";
+import type { ToolMiddlewareFn } from "#core/tools/tool-middleware.js";
 
 /** Tools whose output is deterministic for the same input within a session. */
 const CACHEABLE_TOOLS = new Set([

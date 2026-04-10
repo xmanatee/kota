@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ModelClient } from "../model/model-client.js";
+import type { ModelClient } from "#core/model/model-client.js";
 
 type Message = Anthropic.MessageParam;
 type ContentBlock = Anthropic.Messages.ContentBlockParam;

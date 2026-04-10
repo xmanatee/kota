@@ -3,19 +3,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { EventBus } from "../events/event-bus.js";
-import { ModuleLoader } from "../modules/module-loader.js";
-import { getToolMcpAnnotations } from "../tools/guardrails-classify.js";
-import { clearCustomTools, registerTool } from "../tools/index.js";
-import filesystemModule from "../../modules/filesystem/index.js";
+import { EventBus } from "#core/events/event-bus.js";
+import { ModuleLoader } from "#core/modules/module-loader.js";
+import { getToolMcpAnnotations } from "#core/tools/guardrails-classify.js";
+import { clearCustomTools, registerTool } from "#core/tools/index.js";
+import filesystemModule from "#modules/filesystem/index.js";
 import { anthropicToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
 
-vi.mock("../modules/provider-registry.js", () => ({
+vi.mock("#core/modules/provider-registry.js", () => ({
 	getMemoryProvider: vi.fn(() => ({ list: () => [] })),
 	getKnowledgeProvider: vi.fn(() => ({ list: () => [] })),
 }));
 
-vi.mock("../modules/module-metadata.js", () => ({
+vi.mock("#core/modules/module-metadata.js", () => ({
 	loadModuleMetadata: vi.fn(async () => ({
 		getContributedWorkflows: () => [
 			{ name: "builder", triggers: [], steps: [], enabled: true, definitionPath: "" },
@@ -28,7 +28,7 @@ vi.mock("../modules/module-metadata.js", () => ({
 	})),
 }));
 
-import { getKnowledgeProvider, getMemoryProvider } from "../modules/provider-registry.js";
+import { getKnowledgeProvider, getMemoryProvider } from "#core/modules/provider-registry.js";
 
 beforeAll(async () => {
 	const loader = new ModuleLoader({});
@@ -1292,7 +1292,7 @@ describe("McpServer elicitation", () => {
 		it("falls back to normal confirm tool when client does not support elicitation", async () => {
 			// Without elicitation capability, confirm uses the normal path.
 			// setConfirmOverride to avoid TTY dependency in test.
-			const { setConfirmOverride } = await import("../tools/confirm.js");
+			const { setConfirmOverride } = await import("#core/tools/confirm.js");
 			setConfirmOverride(async () => ({ approved: false, reason: "test-fallback" }));
 
 			const { input, output } = createTestStreams();

@@ -1,4 +1,4 @@
-import type { WorkflowTriggerStep, WorkflowTriggerStepInput } from "../types.js";
+import type { WorkflowTriggerStep, WorkflowTriggerStepInput } from "#core/workflow/types.js";
 import {
   expectName,
   expectNonEmptyString,
@@ -7,7 +7,7 @@ import {
   expectOptionalInteger,
   expectOptionalObjectOrFunction,
   WorkflowDefinitionError,
-} from "../validation-primitives.js";
+} from "#core/workflow/validation-primitives.js";
 
 export function validateTriggerStep(
   step: WorkflowTriggerStepInput,

@@ -1,14 +1,14 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import type { KotaConfig } from "../../config.js";
+import type { KotaConfig } from "#root/config.js";
 import {
   buildClaudeCodeSystemPrompt,
   executeWithAgentSDK,
-} from "../agent-sdk/index.js";
-import type { SDKMessage } from "../agent-sdk/types.js";
-import { tryEmit } from "../events/event-bus.js";
-import type { ToolResult } from "../tools/index.js";
-import { ToolTelemetry } from "../tools/tool-telemetry.js";
+} from "#core/agent-sdk/index.js";
+import type { SDKMessage } from "#core/agent-sdk/types.js";
+import { tryEmit } from "#core/events/event-bus.js";
+import type { ToolResult } from "#core/tools/index.js";
+import { ToolTelemetry } from "#core/tools/tool-telemetry.js";
 import { validatePayloadSchema } from "./payload-validator.js";
 import type { WorkflowRunMetadata } from "./run-types.js";
 import {

@@ -10,7 +10,7 @@
  * across workflow files.
  */
 
-import type { SDKPermissionMode, SDKSettingSource } from "../agent-sdk/types.js";
+import type { SDKPermissionMode, SDKSettingSource } from "#core/agent-sdk/types.js";
 
 /**
  * A named, file-backed piece of reusable agent guidance.

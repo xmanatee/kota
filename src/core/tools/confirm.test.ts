@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type EventBus, initEventBus, resetEventBus } from "../events/event-bus.js";
+import { type EventBus, initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import { runConfirm, setConfirmOverride } from "./confirm.js";
 
 describe("confirm tool", () => {

@@ -11,9 +11,9 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { getRepoTaskStateDir } from "../data/repo-tasks.js";
-import { getKnowledgeProvider, getMemoryProvider } from "../modules/provider-registry.js";
-import { WorkflowRunStore } from "../workflow/run-store.js";
+import { getRepoTaskStateDir } from "#core/data/repo-tasks.js";
+import { getKnowledgeProvider, getMemoryProvider } from "#core/modules/provider-registry.js";
+import { WorkflowRunStore } from "#core/workflow/run-store.js";
 
 export type McpResource = {
 	uri: string;

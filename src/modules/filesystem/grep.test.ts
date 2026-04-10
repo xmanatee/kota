@@ -10,7 +10,7 @@ beforeAll(() => {
   writeFileSync(join(TEST_DIR, "hello.ts"), "const x = 42;\nconst y = 99;\nfunction hello() {}");
   writeFileSync(join(TEST_DIR, "world.py"), "def world():\n    return 42\n# comment");
   mkdirSync(join(TEST_DIR, "sub"), { recursive: true });
-  writeFileSync(join(TEST_DIR, "sub", "nested.ts"), "import { hello } from '../hello';\n");
+  writeFileSync(join(TEST_DIR, "sub", "nested.ts"), "import { hello } from '#modules/hello';\n");
 });
 
 afterAll(() => {

@@ -1,7 +1,7 @@
 import type { Command } from "commander";
-import type { ModuleContext } from "../../core/modules/module-types.js";
-import type { RegisteredWorkflowDefinitionInput } from "../../core/workflow/types.js";
-import { validateWorkflowDefinitions, WorkflowDefinitionError } from "../../core/workflow/validation.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
+import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
+import { validateWorkflowDefinitions, WorkflowDefinitionError } from "#core/workflow/validation.js";
 import { getWorkflowDefinitions } from "./definitions-source.js";
 
 type ValidationResult = { name: string; valid: boolean; error?: string };

@@ -4,10 +4,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const tryEmitMock = vi.hoisted(() => vi.fn());
-vi.mock("../events/event-bus.js", () => ({ tryEmit: tryEmitMock }));
+vi.mock("#core/events/event-bus.js", () => ({ tryEmit: tryEmitMock }));
 
 const executeWithAgentSDKMock = vi.hoisted(() => vi.fn());
-vi.mock("../agent-sdk/index.js", () => ({
+vi.mock("#core/agent-sdk/index.js", () => ({
   buildClaudeCodeSystemPrompt: () => "system",
   executeWithAgentSDK: executeWithAgentSDKMock,
 }));

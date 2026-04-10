@@ -10,7 +10,7 @@
  * - Native KotaModule (pass-through)
  */
 
-import type { KotaModule, ToolDef } from "../modules/module-types.js";
+import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
 import type { OpenAIFunctionTool, SimpleTool, VercelAITool } from "./tool-adapter-types.js";
 import {
   buildInputSchema,

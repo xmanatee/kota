@@ -21,7 +21,7 @@
  * Credentials are never logged.
  */
 
-import type { KotaModule, ModuleContext } from "../../core/modules/module-types.js";
+import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { JiraTaskProviderConfig } from "./task-provider.js";
 import { JiraTaskProvider } from "./task-provider.js";
 

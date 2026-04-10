@@ -9,31 +9,31 @@ import {
 vi.mock("./index.js", () => ({
   executeTool: vi.fn(),
 }));
-vi.mock("../loop/context.js", () => ({
+vi.mock("#core/loop/context.js", () => ({
   truncateToolResult: vi.fn((text: string) => text),
 }));
 vi.mock("./guardrails.js", () => ({
   assess: vi.fn(),
 }));
-vi.mock("../../confirm.js", () => ({
+vi.mock("#root/confirm.js", () => ({
   confirmAction: vi.fn(),
 }));
 const tryEmitMock = vi.hoisted(() => vi.fn());
-vi.mock("../events/event-bus.js", () => ({
+vi.mock("#core/events/event-bus.js", () => ({
   tryEmit: tryEmitMock,
 }));
-vi.mock("../daemon/approval-queue.js", () => ({
+vi.mock("#core/daemon/approval-queue.js", () => ({
   getApprovalQueue: vi.fn(() => ({
     enqueue: vi.fn(() => ({ id: "abc123" })),
   })),
 }));
-vi.mock("../../secrets.js", () => ({
+vi.mock("#root/secrets.js", () => ({
   getSecretStore: vi.fn(() => null),
 }));
 
-import { confirmAction } from "../../confirm.js";
-import { getApprovalQueue } from "../daemon/approval-queue.js";
-import { truncateToolResult } from "../loop/context.js";
+import { confirmAction } from "#root/confirm.js";
+import { getApprovalQueue } from "#core/daemon/approval-queue.js";
+import { truncateToolResult } from "#core/loop/context.js";
 import { assess } from "./guardrails.js";
 import { executeTool } from "./index.js";
 

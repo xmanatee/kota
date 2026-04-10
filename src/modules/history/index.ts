@@ -5,7 +5,7 @@
  * Enables the agent to search and read past conversations.
  */
 
-import type { KotaModule } from "../../core/modules/module-types.js";
+import type { KotaModule } from "#core/modules/module-types.js";
 import {
 	conversationRecallTool,
 	runConversationRecall,

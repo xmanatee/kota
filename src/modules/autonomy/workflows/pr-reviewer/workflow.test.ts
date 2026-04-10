@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WorkflowTestHarness } from "../../../../core/workflow/testing/index.js";
+import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import prReviewerWorkflow from "./workflow.js";
 
 type PrPayload = {

@@ -1,6 +1,6 @@
 import type { ServerResponse } from "node:http";
-import type { KotaConfig } from "../../config.js";
-import { jsonResponse } from "../../core/server/session-pool.js";
+import type { KotaConfig } from "#root/config.js";
+import { jsonResponse } from "#core/server/session-pool.js";
 
 export type ConfigResponse = {
   config: unknown;

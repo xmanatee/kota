@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { EventBus } from "../events/event-bus.js";
+import type { EventBus } from "#core/events/event-bus.js";
 import type { WorkflowNotifyConfig } from "./types.js";
 
 const MAX_ERROR_LENGTH = 300;

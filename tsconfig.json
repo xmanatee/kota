@@ -3,6 +3,12 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "#core/*": ["src/core/*"],
+      "#modules/*": ["src/modules/*"],
+      "#root/*": ["src/*"]
+    },
     "esModuleInterop": true,
     "strict": true,
     "skipLibCheck": true,

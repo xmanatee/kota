@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import { handleListAudit } from "./routes.js";
-import type { AuditEntry, AuditFilter } from "../../core/tools/audit-store.js";
+import type { AuditEntry, AuditFilter } from "#core/tools/audit-store.js";
 
 function mockReqRes(url = "/api/audit") {
 	const result = { status: 0, body: null as unknown };

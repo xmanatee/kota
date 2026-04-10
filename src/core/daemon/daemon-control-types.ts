@@ -1,7 +1,7 @@
-import type { ConversationData, ConversationRecord } from "../memory/history-utils.js";
+import type { ConversationData, ConversationRecord } from "#core/memory/history-utils.js";
 import type { PendingApproval } from "./approval-queue.js";
-import type { ToolCallSummaryEntry, WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState } from "../workflow/run-types.js";
-import type { WorkflowAgentBackoffState } from "../workflow/types.js";
+import type { ToolCallSummaryEntry, WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState } from "#core/workflow/run-types.js";
+import type { WorkflowAgentBackoffState } from "#core/workflow/types.js";
 import type { DaemonState } from "./daemon-state.js";
 
 export type WorkflowDefinitionTriggerSummary =

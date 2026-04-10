@@ -2,8 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type EventBus, initEventBus, resetEventBus } from "../events/event-bus.js";
-import { runKnowledge } from "../../modules/knowledge/knowledge.js";
+import { type EventBus, initEventBus, resetEventBus } from "#core/events/event-bus.js";
+import { runKnowledge } from "#modules/knowledge/knowledge.js";
 import { KnowledgeStore, resetKnowledgeStore } from "./knowledge-store.js";
 
 describe("knowledge events", () => {

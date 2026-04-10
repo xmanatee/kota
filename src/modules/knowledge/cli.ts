@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import type { Command } from "commander";
-import { getKnowledgeStore } from "../../core/memory/knowledge-store.js";
+import { getKnowledgeStore } from "#core/memory/knowledge-store.js";
 
 type RawImportEntry = { title?: unknown; body?: unknown; tags?: unknown };
 

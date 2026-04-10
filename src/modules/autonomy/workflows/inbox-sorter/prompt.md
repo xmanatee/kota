@@ -14,15 +14,6 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
 - Research when needed, but only enough to understand and route the item well.
 - Preserve intent. Do not over-formalize quick captures unless they are clearly ready to become tasks.
 
-## Guidance
-
-- `data/inbox/` is a capture surface, not a long-term queue.
-- If an inbox item implies several distinct next bets, create several tasks instead of one vague umbrella task.
-- If a capture is still too vague for a task, keep it lightweight rather than inventing specificity.
-- Prefer normalized work in `data/tasks/backlog/` or `data/tasks/ready/`; use `data/tasks/dropped/` only when the idea genuinely should not proceed.
-- Do not implement product code or workflow/process code here.
-- Do not treat every inbox item as a task. Some should become docs, some should stay notes, and some should be dropped.
-
 ## Finish
 
 - Follow `data/tasks/AGENTS.md` for normalized task rules.

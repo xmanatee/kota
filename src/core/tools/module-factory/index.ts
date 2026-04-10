@@ -4,7 +4,7 @@
  * Implementation split into: definition, state, actions, logs.
  */
 
-import type { ToolResult } from "../index.js";
+import type { ToolResult } from "#core/tools/index.js";
 import { handleCreate, handleInfo, handleList, handleRemove } from "./actions.js";
 import { moduleFactoryTool } from "./definition.js";
 import { handleLogs } from "./logs.js";

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { extractRepairSummary } from "../../core/workflow/run-store-helpers.js";
+import { extractRepairSummary } from "#core/workflow/run-store-helpers.js";
 import { type ChainNode, formatRepairLine, formatWarningsSection, printChainTree } from "./run-show.js";
 
 // ---------------------------------------------------------------------------

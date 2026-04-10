@@ -1,10 +1,10 @@
-import type { AgentDef, SkillDef } from "../agents/agent-types.js";
-import type { ChannelDef } from "../channels/channel.js";
-import { removeCleanupHooks, resetCleanupHooks } from "../loop/cleanup-hooks.js";
-import { resetDynamicStateProviders } from "../loop/dynamic-state.js";
-import { deregisterModuleTools } from "../tools/index.js";
-import { getToolMiddleware } from "../tools/tool-middleware.js";
-import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
+import type { AgentDef, SkillDef } from "#core/agents/agent-types.js";
+import type { ChannelDef } from "#core/channels/channel.js";
+import { removeCleanupHooks, resetCleanupHooks } from "#core/loop/cleanup-hooks.js";
+import { resetDynamicStateProviders } from "#core/loop/dynamic-state.js";
+import { deregisterModuleTools } from "#core/tools/index.js";
+import { getToolMiddleware } from "#core/tools/tool-middleware.js";
+import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { getProviderRegistry } from "./provider-registry.js";
 import type { ModuleStorage } from "./module-storage.js";
 import type { KotaModule } from "./module-types.js";

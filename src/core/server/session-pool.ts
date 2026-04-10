@@ -8,9 +8,9 @@
 
 import { randomUUID } from "node:crypto";
 import type { ServerResponse } from "node:http";
-import type { ChannelSession } from "../channels/channel.js";
-import type { AgentSession } from "../loop/loop.js";
-import { type AgentEvent, ProxyTransport, type Transport } from "../loop/transport.js";
+import type { ChannelSession } from "#core/channels/channel.js";
+import type { AgentSession } from "#core/loop/loop.js";
+import { type AgentEvent, ProxyTransport, type Transport } from "#core/loop/transport.js";
 
 /** Transport that writes AgentEvents as Server-Sent Events to an HTTP response. */
 export class SseTransport implements Transport {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { KotaModule, ToolDef } from "../modules/module-types.js";
+import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
 import {
   adaptExport,
   extractJsonSchema,

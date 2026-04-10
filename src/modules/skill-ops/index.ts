@@ -9,9 +9,9 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { Command } from "commander";
-import type { SkillDef } from "../../core/agents/agent-types.js";
-import type { KotaModule, ModuleContext } from "../../core/modules/module-types.js";
-import { parseFlatFrontMatter } from "../../frontmatter.js";
+import type { SkillDef } from "#core/agents/agent-types.js";
+import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { parseFlatFrontMatter } from "#root/frontmatter.js";
 
 type ImportedSkill = SkillDef & { source: string };
 

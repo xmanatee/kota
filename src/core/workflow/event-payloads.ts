@@ -1,4 +1,4 @@
-import type { BusEvents } from "../events/event-bus.js";
+import type { BusEvents } from "#core/events/event-bus.js";
 import type { WorkflowRunMetadata, WorkflowRunStatus, WorkflowStepResult } from "./run-types.js";
 import type { WorkflowStep } from "./types.js";
 

@@ -6,7 +6,7 @@
  * 2. Make notification broadcasting independently testable
  */
 
-import type { ScheduledItem } from "../daemon/scheduler.js";
+import type { ScheduledItem } from "#core/daemon/scheduler.js";
 import type { SseTransport } from "./session-pool.js";
 
 export class NotificationHub {

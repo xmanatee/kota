@@ -14,8 +14,8 @@
  */
 
 import { Command } from "commander";
-import type { KotaModule } from "../../core/modules/module-types.js";
-import { postWithRetry } from "../notify-retry.js";
+import type { KotaModule } from "#core/modules/module-types.js";
+import { postWithRetry } from "#modules/notify-retry.js";
 import { registerWebhookCommands } from "./cli.js";
 
 const NOTIFICATION_EVENTS = [

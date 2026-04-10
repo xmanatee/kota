@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
-import type { WorkflowRepairCheck } from "../../core/workflow/run-types.js";
+import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 
 export type CriticVerdict = {
   verdict: "pass" | "fail" | "pass_with_warnings";

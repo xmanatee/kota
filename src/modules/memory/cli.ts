@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import { getMemoryStore } from "../../core/memory/store.js";
+import { getMemoryStore } from "#core/memory/store.js";
 
 function formatDate(iso: string): string {
 	return iso.slice(0, 16).replace("T", " ");

@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import type { ToolResult } from "../../core/tools/tool-result.js";
+import type { ToolResult } from "#core/tools/tool-result.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 

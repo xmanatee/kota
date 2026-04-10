@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { RouteRegistration } from "../../core/modules/module-types.js";
-import type { Memory } from "../../core/memory/store.js";
-import { jsonResponse, readBody } from "../../core/server/session-pool.js";
-import { getMemoryProvider } from "../../core/modules/provider-registry.js";
+import type { RouteRegistration } from "#core/modules/module-types.js";
+import type { Memory } from "#core/memory/store.js";
+import { jsonResponse, readBody } from "#core/server/session-pool.js";
+import { getMemoryProvider } from "#core/modules/provider-registry.js";
 
 type MemoryListItem = {
   id: string;

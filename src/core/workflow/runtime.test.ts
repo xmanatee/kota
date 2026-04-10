@@ -10,15 +10,15 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { runShell, shellTool } from "../../modules/execution/shell.js";
-import { executeWithAgentSDK } from "../agent-sdk/index.js";
-import { EventBus } from "../events/event-bus.js";
-import { clearCustomTools, registerTool } from "../tools/index.js";
+import { runShell, shellTool } from "#modules/execution/shell.js";
+import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
+import { EventBus } from "#core/events/event-bus.js";
+import { clearCustomTools, registerTool } from "#core/tools/index.js";
 import { WorkflowRunStore } from "./run-store.js";
 import { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE, RELOAD_SIGNAL_FILE, WorkflowRuntime } from "./runtime.js";
 import { registerWorkflowDefinition, validateWorkflowDefinitions } from "./validation.js";
 
-vi.mock("../agent-sdk/index.js", async () => {
+vi.mock("#core/agent-sdk/index.js", async () => {
   const actual = await vi.importActual("../agent-sdk/index.js");
   return {
     ...actual,

@@ -1,4 +1,4 @@
-import type { EventBus } from "../events/event-bus.js";
+import type { EventBus } from "#core/events/event-bus.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import { buildStepCompletedPayload, buildStepStartedPayload } from "./event-payloads.js";
 import { buildSkippedResult, executeWorkflowStep, type StepAccumulators } from "./run-executor-step.js";

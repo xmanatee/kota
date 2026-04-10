@@ -3,7 +3,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { REPO_INBOX_DIR, REPO_TASK_STATES, REPO_TASKS_DIR } from "../../core/data/repo-tasks.js";
+import { REPO_INBOX_DIR, REPO_TASK_STATES, REPO_TASKS_DIR } from "#core/data/repo-tasks.js";
 import {
   assertArchitectureReadyCoverage,
   assertStrategicReadyCoverage,
@@ -329,7 +329,7 @@ Has an outcome.
     writeFileSync(
       join(projectDir, "src", "cli.ts"),
       [
-        'import { registerHistoryCommands } from "../../cli-history.js";',
+        'import { registerHistoryCommands } from "#root/cli-history.js";',
         'import { registerCompletionCommands } from "./completion-cli.js";',
         'import { registerWebhookCommands } from "./webhook-cli.js";',
         'import { registerInitCommand } from "./init-cli.js";',

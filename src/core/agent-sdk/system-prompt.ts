@@ -1,6 +1,6 @@
-import { buildUserProfile, type KotaConfig } from "../../config.js";
-import { loadInstructionContext } from "../../instruction-files.js";
-import { loadProjectContext } from "../../project-context.js";
+import { buildUserProfile, type KotaConfig } from "#root/config.js";
+import { loadInstructionContext } from "#root/instruction-files.js";
+import { loadProjectContext } from "#root/project-context.js";
 import type { SDKSystemPrompt } from "./types.js";
 
 export function buildClaudeCodeSystemPrompt(

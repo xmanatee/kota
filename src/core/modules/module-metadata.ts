@@ -1,4 +1,4 @@
-import type { KotaConfig } from "../../config.js";
+import type { KotaConfig } from "#root/config.js";
 import { discoverModules } from "./module-discovery.js";
 import { ModuleLoader } from "./module-loader.js";
 import { discoverProjectModules } from "./project-discovery.js";

@@ -18,7 +18,7 @@ const TOKEN = "test-token";
 const mockApprove = vi.fn();
 const mockReject = vi.fn();
 
-vi.mock("../approval-queue/index.js", () => ({
+vi.mock("#modules/approval-queue/index.js", () => ({
   getApprovalQueue: () => ({ approve: mockApprove, reject: mockReject }),
 }));
 

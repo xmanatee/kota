@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolResult } from "../../core/tools/tool-result.js";
+import type { ToolResult } from "#core/tools/tool-result.js";
 import { queryOS, queryResources, queryRuntimes, queryServices } from "./env-probes.js";
 
 export const envInfoTool: Anthropic.Tool = {

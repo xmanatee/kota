@@ -7,7 +7,7 @@
  */
 
 import { Command } from "commander";
-import type { KotaModule } from "../../core/modules/module-types.js";
+import type { KotaModule } from "#core/modules/module-types.js";
 import { registerKnowledgeCommands } from "./cli.js";
 import { knowledgeTool, runKnowledge } from "./knowledge.js";
 import { knowledgeRoutes } from "./routes.js";

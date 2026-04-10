@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CostTracker } from "../loop/cost.js";
-import type { Transport } from "../loop/transport.js";
+import type { CostTracker } from "#core/loop/cost.js";
+import type { Transport } from "#core/loop/transport.js";
 
 const mockExecuteWithAgentSDK = vi.fn();
 
-vi.mock("../agent-sdk/index.js", () => ({
+vi.mock("#core/agent-sdk/index.js", () => ({
   executeWithAgentSDK: (...args: unknown[]) => mockExecuteWithAgentSDK(...args),
 }));
 

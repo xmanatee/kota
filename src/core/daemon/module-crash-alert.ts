@@ -1,4 +1,4 @@
-import type { EventBus } from "../events/event-bus.js";
+import type { EventBus } from "#core/events/event-bus.js";
 
 const DEFAULT_THRESHOLD = 3;
 const DEFAULT_WINDOW_MS = 600_000;

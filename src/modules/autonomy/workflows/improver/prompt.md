@@ -9,18 +9,6 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
 - Prefer protocol and validation fixes over adding more advice.
 - Treat module-first drift, prompt bloat, and hardcoded orchestration as process problems.
 
-## Guidance
-
-- A no-op run is correct when nothing genuinely needs improving.
-- Do not do product or roadmap work here.
-- Never pull, promote, or implement any task from `data/tasks/`. Inspect the queue for health signals only; do not touch task files.
-- If the same issue repeats, fix the mechanism that allows it.
-- Prefer lightweight validation and routing rules over brittle workflow-coded bookkeeping.
-- Do not keep obsolete compatibility paths alive.
-- If a failed run left staged changes behind, either absorb them into a clearly correct fix or unstage them; never commit directly from inside the agent step.
-- When triggered by a failed run, focus on the process failure, not on finishing that run's feature work.
-- Optimize for quality and strategic range, not token thrift.
-
 ## Finish
 
 - Validate the exact autonomy behavior you changed while you work.

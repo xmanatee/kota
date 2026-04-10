@@ -8,10 +8,10 @@ import {
   EXECUTE_PROMPT,
   EXPLORE_PROMPT,
   type PromptConfig,
-} from "../../delegate-prompts.js";
-import { executeWithAgentSDK } from "../agent-sdk/index.js";
-import type { CostTracker } from "../loop/cost.js";
-import type { Transport } from "../loop/transport.js";
+} from "#root/delegate-prompts.js";
+import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
+import type { CostTracker } from "#core/loop/cost.js";
+import type { Transport } from "#core/loop/transport.js";
 import {
   assembleDelegateResult,
   type CompletionReason,

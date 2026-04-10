@@ -4,8 +4,8 @@ import type {
   WorkflowRepairLoopConfig,
   WorkflowStepContext,
   WorkflowValueResolver,
-} from "../run-types.js";
-import type { WorkflowAgentStep, WorkflowAgentStepInput } from "../types.js";
+} from "#core/workflow/run-types.js";
+import type { WorkflowAgentStep, WorkflowAgentStepInput } from "#core/workflow/types.js";
 import {
   expectName,
   expectNonEmptyString,
@@ -19,7 +19,7 @@ import {
   expectRelativePath,
   isPlainObject,
   WorkflowDefinitionError,
-} from "../validation-primitives.js";
+} from "#core/workflow/validation-primitives.js";
 
 const VALID_SETTING_SOURCES = new Set(["project", "local", "user"]);
 const VALID_PERMISSION_MODES = new Set([

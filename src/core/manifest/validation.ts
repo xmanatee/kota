@@ -2,7 +2,7 @@
  * Manifest validation — structural checks for agent-authored module manifests.
  */
 
-import { getCoreRegistrations } from "../tools/index.js";
+import { getCoreRegistrations } from "#core/tools/index.js";
 import type { ValidationError } from "./types.js";
 
 const MODULE_NAME_RE = /^[a-z][a-z0-9_-]{1,48}[a-z0-9]$/;

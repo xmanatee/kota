@@ -6,7 +6,7 @@
  * the actual integration boundary between these two modules.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createRetryMiddleware, resetRetryStats } from "../../modules/tool-retry/tool-retry.js";
+import { createRetryMiddleware, resetRetryStats } from "#modules/tool-retry/tool-retry.js";
 import { getToolMiddleware, resetToolMiddleware } from "./tool-middleware.js";
 import { executeToolCalls } from "./tool-runner.js";
 
@@ -14,7 +14,7 @@ import { executeToolCalls } from "./tool-runner.js";
 vi.mock("./index.js", () => ({
   executeTool: vi.fn(),
 }));
-vi.mock("../loop/context.js", () => ({
+vi.mock("#core/loop/context.js", () => ({
   truncateToolResult: vi.fn((text: string) => text),
 }));
 

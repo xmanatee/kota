@@ -2,10 +2,10 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
-import type { RouteRegistration } from "../../core/modules/module-types.js";
-import { DaemonControlClient } from "../../core/server/daemon-client.js";
-import { jsonResponse, readBody } from "../../core/server/session-pool.js";
-import { getRepoInboxDir, getRepoTasksDir, type RepoTaskState } from "../../core/data/repo-tasks.js";
+import type { RouteRegistration } from "#core/modules/module-types.js";
+import { DaemonControlClient } from "#core/server/daemon-client.js";
+import { jsonResponse, readBody } from "#core/server/session-pool.js";
+import { getRepoInboxDir, getRepoTasksDir, type RepoTaskState } from "#core/data/repo-tasks.js";
 
 type TaskDetail = {
   id: string;

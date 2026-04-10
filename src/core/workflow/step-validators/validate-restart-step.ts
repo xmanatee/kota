@@ -1,11 +1,11 @@
-import type { WorkflowRestartStep, WorkflowRestartStepInput } from "../types.js";
+import type { WorkflowRestartStep, WorkflowRestartStepInput } from "#core/workflow/types.js";
 import {
   expectName,
   expectOptionalBoolean,
   expectOptionalFunction,
   expectOptionalStringArray,
   WorkflowDefinitionError,
-} from "../validation-primitives.js";
+} from "#core/workflow/validation-primitives.js";
 
 export function validateRestartStep(
   step: WorkflowRestartStepInput,

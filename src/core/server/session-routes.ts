@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { AgentSession } from "../loop/loop.js";
-import { NullTransport, type Transport } from "../loop/transport.js";
+import type { AgentSession } from "#core/loop/loop.js";
+import { NullTransport, type Transport } from "#core/loop/transport.js";
 import {
   jsonResponse,
   type ManagedSession,

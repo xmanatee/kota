@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import type { WorkflowRepairCheck } from "../../../../core/workflow/run-types.js";
-import { createCriticCheck } from "../../critic.js";
-import { runCheck } from "../../shared.js";
+import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
+import { createCriticCheck } from "#modules/autonomy/critic.js";
+import { runCheck } from "#modules/autonomy/shared.js";
 
 export function checkSuccessCriteriaDeclared(runDirPath: string): string {
   const filePath = join(runDirPath, "success-criteria.txt");

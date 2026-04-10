@@ -1,6 +1,6 @@
 import { readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { readOptionalJsonFile } from "../../json-file.js";
+import { readOptionalJsonFile } from "#root/json-file.js";
 import { createActiveRunHandle } from "./active-run-handle.js";
 import {
   assertWorkflowRunMetadata,

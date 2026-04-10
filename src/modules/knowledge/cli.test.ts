@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resetKnowledgeStore } from "../../core/memory/knowledge-store.js";
+import { resetKnowledgeStore } from "#core/memory/knowledge-store.js";
 import { registerKnowledgeCommands } from "./cli.js";
 
 function makeProjectDir(): string {
@@ -87,7 +87,7 @@ describe("kota knowledge add", () => {
 			logSpy.mockRestore();
 		}
 		resetKnowledgeStore();
-		const { getKnowledgeStore } = await import("../../core/memory/knowledge-store.js");
+		const { getKnowledgeStore } = await import("#core/memory/knowledge-store.js");
 		const store = getKnowledgeStore(projectDir);
 		const entry = store.read(id!);
 		expect(entry).not.toBeNull();
@@ -123,7 +123,7 @@ describe("kota knowledge add", () => {
 			stdinSpy.mockRestore();
 		}
 		resetKnowledgeStore();
-		const { getKnowledgeStore } = await import("../../core/memory/knowledge-store.js");
+		const { getKnowledgeStore } = await import("#core/memory/knowledge-store.js");
 		const store = getKnowledgeStore(projectDir);
 		const entry = store.read(id!);
 		expect(entry).not.toBeNull();

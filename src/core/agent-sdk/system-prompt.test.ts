@@ -6,17 +6,17 @@ const mockLoadInstructionContext = vi.fn(
 );
 const mockBuildUserProfile = vi.fn((_cfg: unknown) => "");
 
-vi.mock("../../project-context.js", () => ({
+vi.mock("#root/project-context.js", () => ({
   loadProjectContext: (dir?: string, rootDir?: string) =>
     mockLoadProjectContext(dir, rootDir),
 }));
 
-vi.mock("../../instruction-files.js", () => ({
+vi.mock("#root/instruction-files.js", () => ({
   loadInstructionContext: (dir?: string, rootDir?: string) =>
     mockLoadInstructionContext(dir, rootDir),
 }));
 
-vi.mock("../../config.js", () => ({
+vi.mock("#root/config.js", () => ({
   buildUserProfile: (cfg: unknown) => mockBuildUserProfile(cfg),
 }));
 

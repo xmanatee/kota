@@ -1,7 +1,7 @@
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import type Anthropic from "@anthropic-ai/sdk";
-import { getEventBus } from "../events/event-bus.js";
+import { getEventBus } from "#core/events/event-bus.js";
 import type { ToolResult } from "./index.js";
 
 export const confirmTool: Anthropic.Tool = {

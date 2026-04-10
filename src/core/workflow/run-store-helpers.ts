@@ -1,4 +1,4 @@
-import { JsonFileError } from "../../json-file.js";
+import { JsonFileError } from "#root/json-file.js";
 import type {
   WorkflowQueuedRun,
   WorkflowRecoveryState,

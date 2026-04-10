@@ -1,10 +1,10 @@
-import type { WorkflowCodeStep, WorkflowCodeStepInput } from "../types.js";
+import type { WorkflowCodeStep, WorkflowCodeStepInput } from "#core/workflow/types.js";
 import {
   expectName,
   expectOptionalBoolean,
   expectOptionalFunction,
   WorkflowDefinitionError,
-} from "../validation-primitives.js";
+} from "#core/workflow/validation-primitives.js";
 
 export function validateCodeStep(
   step: WorkflowCodeStepInput,

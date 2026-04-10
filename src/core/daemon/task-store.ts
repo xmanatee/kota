@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { tryEmit } from "../events/event-bus.js";
+import { tryEmit } from "#core/events/event-bus.js";
 import { projectHash } from "./schedule-parser.js";
 import type { Task, TaskFileData, TaskPriority, TaskStatus } from "./task-store-types.js";
 

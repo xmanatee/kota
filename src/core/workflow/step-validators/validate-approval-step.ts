@@ -1,4 +1,4 @@
-import type { WorkflowApprovalStep, WorkflowApprovalStepInput } from "../types.js";
+import type { WorkflowApprovalStep, WorkflowApprovalStepInput } from "#core/workflow/types.js";
 import {
   expectName,
   expectOptionalBoolean,
@@ -6,7 +6,7 @@ import {
   expectOptionalInteger,
   expectOptionalString,
   WorkflowDefinitionError,
-} from "../validation-primitives.js";
+} from "#core/workflow/validation-primitives.js";
 
 const VALID_DEFAULT_RESOLUTIONS = new Set(["deny", "approve"]);
 

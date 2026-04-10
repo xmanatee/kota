@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ModuleLoader } from "../modules/module-loader.js";
+import { ModuleLoader } from "#core/modules/module-loader.js";
 import { clearCustomTools, type ToolResult } from "./index.js";
 import {
 	getToolMiddleware,

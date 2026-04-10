@@ -2,7 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { cleanupSessions } from "../../repl-session.js";
+import { cleanupSessions } from "#root/repl-session.js";
 import {
   getCustomToolCount,
   loadSavedTools,

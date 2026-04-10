@@ -10,8 +10,8 @@
  */
 
 import { resolve } from "node:path";
-import { tryEmit } from "../events/event-bus.js";
-import type { ToolResult } from "../tools/tool-result.js";
+import { tryEmit } from "#core/events/event-bus.js";
+import type { ToolResult } from "#core/tools/tool-result.js";
 import type {
   ForeignModuleConfig,
   KempInbound,

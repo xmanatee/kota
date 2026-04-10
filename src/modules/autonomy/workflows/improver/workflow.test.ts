@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { WorkflowTestHarness } from "../../../../core/workflow/testing/index.js";
+import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import improverWorkflow from "./workflow.js";
 
-vi.mock("../../commit.js", () => ({
+vi.mock("#modules/autonomy/commit.js", () => ({
   commitWorkflowChanges: vi.fn(),
 }));
 
@@ -30,7 +30,7 @@ describe("improver workflow", () => {
   });
 
   it("runs request-restart when improve succeeds and commit commits", async () => {
-    const { commitWorkflowChanges } = await import("../../commit.js");
+    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
 
     const harness = new WorkflowTestHarness(improverWorkflow, {
@@ -52,7 +52,7 @@ describe("improver workflow", () => {
   });
 
   it("skips request-restart when improve succeeds but nothing was committed", async () => {
-    const { commitWorkflowChanges } = await import("../../commit.js");
+    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: false } as never);
 
     const harness = new WorkflowTestHarness(improverWorkflow, {

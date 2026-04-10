@@ -10,14 +10,14 @@
  * sends the full messages array on every request.
  */
 
-import { AgentSession } from "../../core/loop/loop.js";
-import type { KotaModule } from "../../core/modules/module-types.js";
-import { CORS_HEADERS, jsonResponse, readBody, setCors } from "../../core/server/session-pool.js";
+import { AgentSession } from "#core/loop/loop.js";
+import type { KotaModule } from "#core/modules/module-types.js";
+import { CORS_HEADERS, jsonResponse, readBody, setCors } from "#core/server/session-pool.js";
 import {
   DATA_STREAM_HEADERS,
   DataStreamTransport,
   extractLastUserMessage,
-} from "../../vercel-ai-stream.js";
+} from "#root/vercel-ai-stream.js";
 
 const vercelAdapterModule: KotaModule = {
   name: "vercel-adapter",

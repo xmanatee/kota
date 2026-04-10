@@ -2,17 +2,17 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApprovalQueue, resetApprovalQueue } from "../daemon/approval-queue.js";
+import { ApprovalQueue, resetApprovalQueue } from "#core/daemon/approval-queue.js";
 import { WorkflowTestHarness } from "./testing/index.js";
 import { executeApprovalStep } from "./step-executor-approval.js";
 import type { WorkflowApprovalStepInput, WorkflowDefinitionInput } from "./types.js";
 
 const { mockTryEmit } = vi.hoisted(() => ({ mockTryEmit: vi.fn() }));
-vi.mock("../events/event-bus.js", () => ({ tryEmit: mockTryEmit }));
+vi.mock("#core/events/event-bus.js", () => ({ tryEmit: mockTryEmit }));
 
 let testQueue: ApprovalQueue;
-vi.mock("../daemon/approval-queue.js", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("../daemon/approval-queue.js")>();
+vi.mock("#core/daemon/approval-queue.js", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("#core/daemon/approval-queue.js")>();
   return { ...mod, getApprovalQueue: () => testQueue };
 });
 

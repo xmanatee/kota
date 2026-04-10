@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, } from "vitest";
-import { EventBus } from "../events/event-bus.js";
+import { EventBus } from "#core/events/event-bus.js";
 import { resetScheduler, Scheduler } from "./scheduler.js";
 
 describe("Scheduler", () => {

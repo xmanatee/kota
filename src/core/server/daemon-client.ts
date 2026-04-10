@@ -9,10 +9,10 @@ import type {
   WorkflowLiveStatus,
   WorkflowRunDetail,
   WorkflowRunSummary,
-} from "../daemon/daemon-control.js";
-import { readOptionalJsonFile } from "../../json-file.js";
-import type { ConversationData, ConversationRecord } from "../memory/history-utils.js";
-import type { PendingApproval } from "../daemon/approval-queue.js";
+} from "#core/daemon/daemon-control.js";
+import { readOptionalJsonFile } from "#root/json-file.js";
+import type { ConversationData, ConversationRecord } from "#core/memory/history-utils.js";
+import type { PendingApproval } from "#core/daemon/approval-queue.js";
 
 const FETCH_TIMEOUT_MS = 2_000;
 

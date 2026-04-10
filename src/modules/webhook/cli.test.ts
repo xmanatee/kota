@@ -5,7 +5,7 @@ import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerWebhookCommands } from "./cli.js";
 
-vi.mock("../../core/modules/module-metadata.js", () => ({
+vi.mock("#core/modules/module-metadata.js", () => ({
   loadModuleMetadata: vi.fn(async () => ({
     getContributedWorkflows: () => [
       {

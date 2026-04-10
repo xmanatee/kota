@@ -137,7 +137,7 @@ describe("provider singleton", () => {
 
 describe("interface conformance", () => {
 	it("MemoryProvider interface matches MemoryStore shape", async () => {
-		const { MemoryStore } = await import("../memory/store.js");
+		const { MemoryStore } = await import("#core/memory/store.js");
 		const store = new MemoryStore("/tmp/test-provider-conformance");
 		const provider: MemoryProvider = store;
 		expect(typeof provider.save).toBe("function");
@@ -148,7 +148,7 @@ describe("interface conformance", () => {
 	});
 
 	it("KnowledgeProvider interface matches KnowledgeStore shape", async () => {
-		const { KnowledgeStore } = await import("../memory/knowledge-store.js");
+		const { KnowledgeStore } = await import("#core/memory/knowledge-store.js");
 		const store = new KnowledgeStore("/tmp/test-provider-conformance");
 		const provider: KnowledgeProvider = store;
 		expect(typeof provider.create).toBe("function");
@@ -161,7 +161,7 @@ describe("interface conformance", () => {
 	});
 
 	it("TaskProvider interface matches TaskStore shape", async () => {
-		const { TaskStore } = await import("../daemon/task-store.js");
+		const { TaskStore } = await import("#core/daemon/task-store.js");
 		const store = new TaskStore(undefined, null);
 		const provider: TaskProvider = store;
 		expect(typeof provider.add).toBe("function");
@@ -177,7 +177,7 @@ describe("interface conformance", () => {
 	});
 
 	it("HistoryProvider interface matches ConversationHistory shape", async () => {
-		const { ConversationHistory } = await import("../memory/history.js");
+		const { ConversationHistory } = await import("#core/memory/history.js");
 		const history = new ConversationHistory("/tmp/test-provider-conformance-history");
 		const provider: HistoryProvider = history;
 		expect(typeof provider.create).toBe("function");

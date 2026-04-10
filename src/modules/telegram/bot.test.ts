@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resetScheduler, Scheduler } from "../../core/daemon/scheduler.js";
+import { resetScheduler, Scheduler } from "#core/daemon/scheduler.js";
 import { callTelegramApi, splitMessage, TelegramBot, TelegramTransport } from "./bot.js";
 
 // --- splitMessage ---

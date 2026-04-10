@@ -10,9 +10,9 @@ import {
   RESEARCH_PROMPT,
   researchRunners,
   researchTools,
-} from "../../delegate-prompts.js";
-import { createModelClient } from "../model/model-client.js";
-import { routeModel } from "../model/model-router.js";
+} from "#root/delegate-prompts.js";
+import { createModelClient } from "#core/model/model-client.js";
+import { routeModel } from "#core/model/model-router.js";
 import {
   EXECUTE_MAX_TURNS,
   EXPLORE_MAX_TURNS,

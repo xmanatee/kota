@@ -25,9 +25,9 @@
  * null if the channel cannot start (e.g., missing credentials).
  */
 
-import type { AgentSession } from "../loop/loop.js";
-import type { ProxyTransport } from "../loop/transport.js";
-import type { WorkflowRuntimeState } from "../workflow/run-types.js";
+import type { AgentSession } from "#core/loop/loop.js";
+import type { ProxyTransport } from "#core/loop/transport.js";
+import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
 
 /**
  * A session managed by a channel adapter — one AgentSession per user/chat.

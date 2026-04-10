@@ -1,10 +1,10 @@
 import type { Command } from "commander";
-import type { ModuleContext } from "../../core/modules/module-types.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import type {
   RegisteredWorkflowDefinitionInput,
   WorkflowStepInput,
   WorkflowTriggerInput,
-} from "../../core/workflow/types.js";
+} from "#core/workflow/types.js";
 import { getWorkflowDefinitions } from "./definitions-source.js";
 
 type WorkflowNode = {

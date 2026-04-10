@@ -9,7 +9,7 @@
  */
 
 import { Command } from "commander";
-import type { KotaModule, ModuleContext } from "../../core/modules/module-types.js";
+import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 
 const mcpServerModule: KotaModule = {
 	name: "mcp-server",
@@ -25,12 +25,12 @@ const mcpServerModule: KotaModule = {
 			)
 			.option("--name <name>", "Server name reported to MCP clients", "kota")
 			.action(async (opts) => {
-				const { McpServer } = await import("../../core/mcp/server.js");
-				const { loadConfig } = await import("../../config.js");
-				const { ModuleLoader } = await import("../../core/modules/module-loader.js");
-				const { discoverProjectModules } = await import("../../core/modules/project-discovery.js");
+				const { McpServer } = await import("#core/mcp/server.js");
+				const { loadConfig } = await import("#root/config.js");
+				const { ModuleLoader } = await import("#core/modules/module-loader.js");
+				const { discoverProjectModules } = await import("#core/modules/project-discovery.js");
 				const { discoverModules } = await import(
-					"../../core/modules/module-discovery.js"
+					"#core/modules/module-discovery.js"
 				);
 
 				const config = loadConfig(process.cwd());
@@ -48,7 +48,7 @@ const mcpServerModule: KotaModule = {
 				const samplingEnabled = config.mcp?.sampling?.enabled === true;
 				let modelClient;
 				if (samplingEnabled) {
-					const { createModelClient } = await import("../../core/model/model-client.js");
+					const { createModelClient } = await import("#core/model/model-client.js");
 					modelClient = createModelClient({ model: config.model || "claude-sonnet-4-6" }).client;
 				}
 

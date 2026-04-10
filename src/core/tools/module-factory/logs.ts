@@ -2,9 +2,9 @@
  * Module Factory — log query handler.
  */
 
-import type { LogLevel } from "../../modules/module-log.js";
-import { getModuleLogStore } from "../../modules/module-log.js";
-import type { ToolResult } from "../index.js";
+import type { LogLevel } from "#core/modules/module-log.js";
+import { getModuleLogStore } from "#core/modules/module-log.js";
+import type { ToolResult } from "#core/tools/index.js";
 
 export function handleLogs(input: Record<string, unknown>): ToolResult {
 	const store = getModuleLogStore();

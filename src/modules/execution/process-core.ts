@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import type { ToolResult } from "../../core/tools/tool-result.js";
+import type { ToolResult } from "#core/tools/tool-result.js";
 
 const MAX_BUFFER_LINES = 500;
 const MAX_PROCESSES = 5;

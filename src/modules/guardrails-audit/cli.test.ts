@@ -1,8 +1,8 @@
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerAuditCommands } from "./cli.js";
-import type { AuditEntry } from "../../core/tools/audit-store.js";
-import { AuditStore } from "../../core/tools/audit-store.js";
+import type { AuditEntry } from "#core/tools/audit-store.js";
+import { AuditStore } from "#core/tools/audit-store.js";
 
 function makeEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
 	return {

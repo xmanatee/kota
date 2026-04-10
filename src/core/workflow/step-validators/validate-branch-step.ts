@@ -3,14 +3,14 @@ import type {
   WorkflowBranchStepInput,
   WorkflowStep,
   WorkflowStepInput,
-} from "../types.js";
+} from "#core/workflow/types.js";
 import {
   expectName,
   expectOptionalBoolean,
   expectOptionalFunction,
   expectOptionalInteger,
   WorkflowDefinitionError,
-} from "../validation-primitives.js";
+} from "#core/workflow/validation-primitives.js";
 
 export const MAX_BRANCH_DEPTH = 5;
 

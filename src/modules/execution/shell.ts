@@ -1,8 +1,8 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolResult } from "../../core/tools/tool-result.js";
-import { enrichWithSourceContext } from "../../error-context.js";
+import type { ToolResult } from "#core/tools/tool-result.js";
+import { enrichWithSourceContext } from "#root/error-context.js";
 import { smartErrorTruncate } from "./shell-diagnostics.js";
 
 export const shellTool: Anthropic.Tool = {

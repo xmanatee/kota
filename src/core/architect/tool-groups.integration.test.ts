@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { clearCustomTools, getAllTools, registerTool } from "../tools/index.js";
+import { clearCustomTools, getAllTools, registerTool } from "#core/tools/index.js";
 import {
   CORE_TOOL_NAMES,
   clearCustomGroups,
@@ -8,7 +8,7 @@ import {
   registerCustomGroup,
   resetGroups,
   TOOL_GROUPS,
-} from "../tools/tool-groups.js";
+} from "#core/tools/tool-groups.js";
 import { EDITOR_TOOL_SET } from "./architect-editor.js";
 
 /**

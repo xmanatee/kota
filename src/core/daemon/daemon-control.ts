@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import type { AgentSession } from "../loop/loop.js";
-import type { Transport } from "../loop/transport.js";
+import type { AgentSession } from "#core/loop/loop.js";
+import type { Transport } from "#core/loop/transport.js";
 import { handleApproveAllApprovals, handleApproveApproval, handleListApprovals, handleRejectAllApprovals, handleRejectApproval } from "./daemon-control-approvals.js";
 import {
   DaemonChatPool,

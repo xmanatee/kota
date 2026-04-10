@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import filesystemModule from "../../modules/filesystem/index.js";
-import { ModuleLoader } from "../modules/module-loader.js";
+import filesystemModule from "#modules/filesystem/index.js";
+import { ModuleLoader } from "#core/modules/module-loader.js";
 import { clearCustomTools } from "./index.js";
 import { getToolTelemetry, resetToolTelemetry, ToolTelemetry } from "./tool-telemetry.js";
 
@@ -177,7 +177,7 @@ describe("Integration: telemetry populated via executeToolCalls", () => {
   it("records timing and success for real tool execution", async () => {
     // Import executeToolCalls — it uses the real tool runner which calls getToolTelemetry()
     const { executeToolCalls } = await import("./tool-runner.js");
-    const { BufferTransport } = await import("../loop/transport.js");
+    const { BufferTransport } = await import("#core/loop/transport.js");
     const transport = new BufferTransport();
 
     // Use a real tool (file_read with non-existent file → error)
@@ -208,7 +208,7 @@ describe("Integration: telemetry populated via executeToolCalls", () => {
 
   it("records success for working tool", async () => {
     const { executeToolCalls } = await import("./tool-runner.js");
-    const { BufferTransport } = await import("../loop/transport.js");
+    const { BufferTransport } = await import("#core/loop/transport.js");
     const transport = new BufferTransport();
     const { writeFileSync, unlinkSync } = await import("node:fs");
     const { join } = await import("node:path");

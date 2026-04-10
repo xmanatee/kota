@@ -1,5 +1,5 @@
-import type { ToolDef } from "../../core/modules/module-types.js";
-import type { ToolResult } from "../../core/tools/tool-result.js";
+import type { ToolDef } from "#core/modules/module-types.js";
+import type { ToolResult } from "#core/tools/tool-result.js";
 import { apiError, githubFetch } from "./github-auth.js";
 
 function makeCreatePr(token: string, defaultRepo: string | null): ToolDef {

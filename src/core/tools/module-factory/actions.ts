@@ -10,10 +10,10 @@ import {
 	manifestToModule,
 	saveManifest,
 	validateManifest,
-} from "../../manifest/index.js";
-import { resolveModuleTools } from "../../modules/module-types.js";
-import type { ToolResult } from "../index.js";
-import { deregisterModuleTools, registerTool } from "../index.js";
+} from "#core/manifest/index.js";
+import { resolveModuleTools } from "#core/modules/module-types.js";
+import type { ToolResult } from "#core/tools/index.js";
+import { deregisterModuleTools, registerTool } from "#core/tools/index.js";
 import {
 	addLoadedModule,
 	isModuleLoaded,

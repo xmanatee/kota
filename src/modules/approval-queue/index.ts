@@ -7,12 +7,12 @@
  */
 
 import { Command } from "commander";
-import type { KotaModule } from "../../core/modules/module-types.js";
+import type { KotaModule } from "#core/modules/module-types.js";
 import { registerApprovalCommands } from "./cli.js";
 import { approvalRoutes } from "./routes.js";
 
-export type { ApprovalStatus, PendingApproval } from "../../core/daemon/approval-queue.js";
-export { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "../../core/daemon/approval-queue.js";
+export type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
+export { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "#core/daemon/approval-queue.js";
 
 const approvalQueueModule: KotaModule = {
 	name: "approval-queue",

@@ -11,8 +11,8 @@
 
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { EventBus } from "../events/event-bus.js";
-import { tryEmit } from "../events/event-bus.js";
+import type { EventBus } from "#core/events/event-bus.js";
+import { tryEmit } from "#core/events/event-bus.js";
 import {
   getPendingSummary,
   matchesFilter,

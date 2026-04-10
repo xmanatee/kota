@@ -40,6 +40,7 @@ vi.mock("./core/loop/loop.js", () => {
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import { discoverProjectModules } from "./core/modules/project-discovery.js";
 import { startServer } from "./core/server/server.js";
+import { getWebUI } from "./modules/web-ui/web-ui.js";
 
 let server: Server;
 let baseUrl: string;
@@ -119,7 +120,13 @@ beforeAll(async () => {
   const loader = new ModuleLoader({} as any, false, { commandsOnly: true });
   await loader.loadAll(projectModules);
   const moduleRoutes = loader.getRoutes();
-  server = startServer({ port: 0, config: {} as any, moduleRoutes, authToken: TEST_AUTH_TOKEN });
+  server = startServer({
+    port: 0,
+    config: {} as any,
+    moduleRoutes,
+    webUiHtml: getWebUI(),
+    authToken: TEST_AUTH_TOKEN,
+  });
   const port = await waitForPort(server);
   console.log = origLog;
   baseUrl = `http://localhost:${port}`;

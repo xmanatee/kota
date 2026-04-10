@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { getScheduler, parseRepeat, parseTime } from "../../core/daemon/scheduler.js";
-import type { ToolResult } from "../../core/tools/index.js";
+import { getScheduler, parseRepeat, parseTime } from "#core/daemon/scheduler.js";
+import type { ToolResult } from "#core/tools/index.js";
 
 export const scheduleTool: Anthropic.Tool = {
   name: "schedule",

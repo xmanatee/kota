@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ModuleStorage } from "../../core/modules/module-storage.js";
-import type { ModuleContext } from "../../core/modules/module-types.js";
+import { ModuleStorage } from "#core/modules/module-storage.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import vercelAdapterModule from "./index.js";
 
 describe("vercel-adapter module", () => {
@@ -23,7 +23,7 @@ describe("vercel-adapter module", () => {
     const ctx: ModuleContext = {
       cwd: "/tmp",
       verbose: false,
-      config: { model: "test-model" } as import("../../config.js").KotaConfig,
+      config: { model: "test-model" } as import("#root/config.js").KotaConfig,
       storage: new ModuleStorage("/tmp", "vercel-adapter"),
       registerGroup: () => {},
       getRoutes: () => [],

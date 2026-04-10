@@ -3,10 +3,10 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "../data/code-wrappers.js";
-import type { KotaModule, ToolDef } from "../modules/module-types.js";
-import type { Language } from "../../repl-session.js";
-import { sessions } from "../../repl-session.js";
+import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "#core/data/code-wrappers.js";
+import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
+import type { Language } from "#root/repl-session.js";
+import { sessions } from "#root/repl-session.js";
 import type { ManifestToolDef, ModuleManifest } from "./types.js";
 
 // ─── Tool runner builder ─────────────────────────────────────────────

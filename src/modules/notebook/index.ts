@@ -5,7 +5,7 @@
  *   notebook — create or extend .ipynb notebooks with code and markdown cells
  */
 
-import type { KotaModule, ToolDef } from "../../core/modules/module-types.js";
+import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
 import { notebookTool, runNotebook } from "./notebook.js";
 
 const tools: ToolDef[] = [

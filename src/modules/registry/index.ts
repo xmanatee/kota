@@ -9,8 +9,8 @@
  */
 
 import { Command } from "commander";
-import type { KotaModule } from "../../core/modules/module-types.js";
-import { installTool, listTools, removeTool, updateTool } from "../../registry.js";
+import type { KotaModule } from "#core/modules/module-types.js";
+import { installTool, listTools, removeTool, updateTool } from "#root/registry.js";
 
 const registryModule: KotaModule = {
   name: "registry",

@@ -12,7 +12,7 @@
  * and is further classified by the guardrails layer at call time.
  */
 
-import type { KotaModule, ToolDef } from "../../core/modules/module-types.js";
+import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
 import { httpRequestTool, runHttpRequest } from "./http-request.js";
 import { runWebFetch, webFetchTool } from "./web-fetch.js";
 import { runWebSearch, webSearchTool } from "./web-search.js";

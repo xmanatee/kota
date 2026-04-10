@@ -1,6 +1,6 @@
 import type { ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
-import type { ModuleSummary } from "../../core/modules/module-types.js";
+import type { ModuleSummary } from "#core/modules/module-types.js";
 import { handleListModules } from "./routes.js";
 
 function mockResponse() {

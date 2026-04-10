@@ -7,6 +7,20 @@
   "bin": {
     "kota": "./bin/kota.mjs"
   },
+  "imports": {
+    "#core/*.js": {
+      "source": "./src/core/*.ts",
+      "default": "./dist/core/*.js"
+    },
+    "#modules/*.js": {
+      "source": "./src/modules/*.ts",
+      "default": "./dist/modules/*.js"
+    },
+    "#root/*.js": {
+      "source": "./src/*.ts",
+      "default": "./dist/*.js"
+    }
+  },
   "exports": {
     "./module": {
       "types": "./dist/module-api.d.ts",
@@ -18,11 +32,11 @@
     }
   },
   "scripts": {
-    "dev": "tsx src/cli.ts",
+    "dev": "NODE_OPTIONS=--conditions=source tsx src/cli.ts",
     "build": "rm -rf dist && tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:workflow-critical": "vitest run src/core/agent-sdk/executor.test.ts src/event-bus.test.ts src/instruction-files.test.ts src/modules/daemon-ops/index.test.ts src/core/daemon/daemon.test.ts src/task-files.test.ts src/core/workflow/runtime.test.ts src/core/workflow/validation.test.ts",
+    "test": "NODE_OPTIONS=--conditions=source vitest run",
+    "test:workflow-critical": "NODE_OPTIONS=--conditions=source vitest run src/core/agent-sdk/executor.test.ts src/event-bus.test.ts src/instruction-files.test.ts src/modules/daemon-ops/index.test.ts src/core/daemon/daemon.test.ts src/task-files.test.ts src/core/workflow/runtime.test.ts src/core/workflow/validation.test.ts",
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
     "validate-tasks": "node dist/validate-queue.js"

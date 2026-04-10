@@ -1,9 +1,9 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
-import { WorkflowRunStore } from "../../core/workflow/run-store.js";
-import type { WorkflowRunMetadata } from "../../core/workflow/run-types.js";
-import { readOptionalJsonFile } from "../../json-file.js";
+import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { readOptionalJsonFile } from "#root/json-file.js";
 import { formatDuration, statusIcon } from "./utils.js";
 
 type StepRecord = WorkflowRunMetadata["steps"][number];

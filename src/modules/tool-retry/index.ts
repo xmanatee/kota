@@ -7,7 +7,7 @@
  * timeout with doubled timeout_ms. Session-scoped stats reset on unload.
  */
 
-import type { KotaModule } from "../../core/modules/module-types.js";
+import type { KotaModule } from "#core/modules/module-types.js";
 import { createRetryMiddleware, resetRetryStats } from "./tool-retry.js";
 
 const MIDDLEWARE_NAME = "tool-retry";

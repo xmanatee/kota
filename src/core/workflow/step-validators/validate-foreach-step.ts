@@ -5,7 +5,7 @@ import type {
   WorkflowCodeStepInput,
   WorkflowForeachStep,
   WorkflowForeachStepInput,
-} from "../types.js";
+} from "#core/workflow/types.js";
 import {
   expectName,
   expectNonEmptyString,
@@ -13,7 +13,7 @@ import {
   expectOptionalFunction,
   expectOptionalInteger,
   WorkflowDefinitionError,
-} from "../validation-primitives.js";
+} from "#core/workflow/validation-primitives.js";
 import { validateAgentStep } from "./validate-agent-step.js";
 import { validateCodeStep } from "./validate-code-step.js";
 

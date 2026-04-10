@@ -1,5 +1,5 @@
-import type { WorkflowRuntimeState } from "../../core/workflow/run-types.js";
-import { computeCostByWorkflow, loadRecentRuns } from "../autonomy/shared.js";
+import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
+import { computeCostByWorkflow, loadRecentRuns } from "#modules/autonomy/shared.js";
 import { callTelegramApi } from "./client.js";
 
 const POLL_INTERVAL_MS = 30_000;

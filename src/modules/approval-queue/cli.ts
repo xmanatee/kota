@@ -1,9 +1,9 @@
 import { createInterface } from "node:readline";
 import type { Command } from "commander";
-import { loadConfig } from "../../config.js";
-import { executeTool } from "../../core/tools/index.js";
-import type { ApprovalStatus } from "../../core/daemon/approval-queue.js";
-import { getApprovalQueue } from "../../core/daemon/approval-queue.js";
+import { loadConfig } from "#root/config.js";
+import { executeTool } from "#core/tools/index.js";
+import type { ApprovalStatus } from "#core/daemon/approval-queue.js";
+import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 

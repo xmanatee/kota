@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { getProviderRegistry } from "../modules/provider-registry.js";
+import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import { getCoreRegistrations, getModuleToolRisk, getRegisteredTools, type ToolRegistration, type ToolResult } from "./index.js";
 import { getEnabledGroups, TOOL_GROUPS } from "./tool-groups.js";
 

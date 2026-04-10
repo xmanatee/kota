@@ -1,4 +1,4 @@
-import type { KotaConfig } from "../../config.js";
+import type { KotaConfig } from "#root/config.js";
 
 type ModuleDep = { name: string; dependencies: string[] };
 

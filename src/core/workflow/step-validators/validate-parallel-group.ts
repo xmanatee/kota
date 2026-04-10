@@ -3,14 +3,14 @@ import type {
   WorkflowCodeStep,
   WorkflowParallelGroup,
   WorkflowParallelGroupInput,
-} from "../types.js";
+} from "#core/workflow/types.js";
 import {
   expectName,
   expectOptionalBoolean,
   expectOptionalFunction,
   expectOptionalInteger,
   WorkflowDefinitionError,
-} from "../validation-primitives.js";
+} from "#core/workflow/validation-primitives.js";
 import { validateAgentStep } from "./validate-agent-step.js";
 
 const UNSUPPORTED_PARALLEL_TYPES = new Set(["emit", "restart", "trigger", "parallel"]);

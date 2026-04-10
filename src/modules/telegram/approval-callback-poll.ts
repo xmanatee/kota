@@ -7,8 +7,8 @@
  * may be listening for.
  */
 
-import type { ModuleContext } from "../../core/modules/module-types.js";
-import { getApprovalQueue } from "../approval-queue/index.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
+import { getApprovalQueue } from "#modules/approval-queue/index.js";
 import type { TelegramCallbackQuery } from "./client.js";
 import { callTelegramApi } from "./client.js";
 

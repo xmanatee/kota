@@ -14,14 +14,14 @@
 
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { ModuleStorage } from "../module-storage.js";
+import { ModuleStorage } from "#core/modules/module-storage.js";
 import type {
   KotaModule,
   ModuleContext,
   RouteRegistration,
   ToolDef,
-} from "../module-types.js";
-import type { ToolResult } from "../../tools/tool-result.js";
+} from "#core/modules/module-types.js";
+import type { ToolResult } from "#core/tools/tool-result.js";
 
 export type ModuleHarnessOptions = {
   /** Working directory passed to ctx.cwd. Defaults to process.cwd(). */

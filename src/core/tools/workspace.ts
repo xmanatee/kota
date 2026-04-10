@@ -15,7 +15,7 @@ import {
   readAllEntries,
   readEntry,
   writeEntry,
-} from "../../workspace.js";
+} from "#root/workspace.js";
 import type { ToolRegistration, ToolResult } from "./index.js";
 
 export const workspaceTool: Anthropic.Tool = {

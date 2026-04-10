@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
-import type { AgentEvent } from "../loop/transport.js";
+import type { AgentEvent } from "#core/loop/transport.js";
 import {
   CORS_HEADERS,
   jsonResponse,

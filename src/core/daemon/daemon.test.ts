@@ -8,13 +8,13 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { executeWithAgentSDK } from "../agent-sdk/index.js";
-import { resetEventBus } from "../events/event-bus.js";
-import { registerWorkflowDefinition } from "../workflow/validation.js";
+import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
+import { resetEventBus } from "#core/events/event-bus.js";
+import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import { Daemon, type DaemonConfig, RESTART_EXIT_CODE } from "./daemon.js";
 import { getScheduler, initScheduler, resetScheduler } from "./scheduler.js";
 
-vi.mock("../agent-sdk/index.js", async () => {
+vi.mock("#core/agent-sdk/index.js", async () => {
   const actual = await vi.importActual("../agent-sdk/index.js");
   return {
     ...actual,

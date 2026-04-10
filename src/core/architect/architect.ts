@@ -1,8 +1,8 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { CostTracker } from "../loop/cost.js";
-import type { Transport } from "../loop/transport.js";
-import type { ModelClient } from "../model/model-client.js";
-import { isRetryable } from "../model/streaming.js";
+import type { CostTracker } from "#core/loop/cost.js";
+import type { Transport } from "#core/loop/transport.js";
+import type { ModelClient } from "#core/model/model-client.js";
+import { isRetryable } from "#core/model/streaming.js";
 import { STREAM_MAX_RETRIES, streamBackoff } from "./retry.js";
 
 const ARCHITECT_SYSTEM = `You are an expert planner analyzing a task.

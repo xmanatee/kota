@@ -6,7 +6,7 @@
  * Registers the `schedule` tool in the `management` group.
  */
 
-import type { KotaModule } from "../../core/modules/module-types.js";
+import type { KotaModule } from "#core/modules/module-types.js";
 import { runSchedule, scheduleTool } from "./schedule.js";
 
 const schedulerModule: KotaModule = {

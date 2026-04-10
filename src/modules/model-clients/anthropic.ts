@@ -8,7 +8,7 @@ import type {
 	MessageStream,
 	MessageStreamParams,
 	ModelClient,
-} from "../../core/model/model-client.js";
+} from "#core/model/model-client.js";
 
 /** ModelClient wrapping the Anthropic SDK. */
 export class AnthropicModelClient implements ModelClient {

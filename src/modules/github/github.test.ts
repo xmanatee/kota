@@ -5,7 +5,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ModuleContext } from "../../core/modules/module-types.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import githubModule from "./index.js";
 
 // ─── Mock fetch ───────────────────────────────────────────────────────────────

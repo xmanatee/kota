@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { registerCleanupHook, resetCleanupHooks } from "#core/loop/cleanup-hooks.js";
 
 // --- Hoisted mock variables (used inside vi.mock factories) ---
 
@@ -151,12 +152,14 @@ describe("AgentSession", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetCleanupHooks();
     vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
   afterEach(() => {
     session?.close();
+    resetCleanupHooks();
     vi.restoreAllMocks();
   });
 
@@ -566,15 +569,14 @@ describe("AgentSession", () => {
   });
 
   describe("close", () => {
-    it("cleans up processes and sessions", async () => {
-      const { cleanupProcesses } = await import("./modules/execution/process.js");
-      const { cleanupSessions } = await import("./modules/execution/code-exec.js");
+    it("runs registered cleanup hooks", () => {
+      const cleanup = vi.fn();
+      registerCleanupHook("test-cleanup", cleanup);
 
       session = new AgentSession();
       session.close();
 
-      expect(cleanupProcesses).toHaveBeenCalled();
-      expect(cleanupSessions).toHaveBeenCalled();
+      expect(cleanup).toHaveBeenCalledTimes(1);
     });
 
     it("is idempotent", () => {

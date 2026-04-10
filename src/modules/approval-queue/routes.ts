@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { RouteRegistration } from "../../core/modules/module-types.js";
-import { DaemonControlClient } from "../../core/server/daemon-client.js";
-import { jsonResponse, readBody } from "../../core/server/session-pool.js";
-import { type ApprovalQueue, getApprovalQueue } from "../../core/daemon/approval-queue.js";
+import type { RouteRegistration } from "#core/modules/module-types.js";
+import { DaemonControlClient } from "#core/server/daemon-client.js";
+import { jsonResponse, readBody } from "#core/server/session-pool.js";
+import { type ApprovalQueue, getApprovalQueue } from "#core/daemon/approval-queue.js";
 
 export async function handleApproveAllApprovals(
   req: IncomingMessage,

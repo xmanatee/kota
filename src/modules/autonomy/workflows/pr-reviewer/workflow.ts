@@ -1,7 +1,7 @@
-import type { AgentDef } from "../../../../core/agents/agent-types.js";
-import type { WorkflowDefinitionInput } from "../../../../core/workflow/types.js";
-import { typedCodeStep } from "../../../../core/workflow/types.js";
-import { stepSucceeded } from "../../shared.js";
+import type { AgentDef } from "#core/agents/agent-types.js";
+import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { typedCodeStep } from "#core/workflow/types.js";
+import { stepSucceeded } from "#modules/autonomy/shared.js";
 
 export const agent: AgentDef = {
   name: "pr-reviewer",

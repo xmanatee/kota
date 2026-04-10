@@ -19,7 +19,7 @@
  *      or use $ENV_VAR references to environment variables.
  */
 
-import type { KotaModule, ModuleContext, ToolDef } from "../../core/modules/module-types.js";
+import type { KotaModule, ModuleContext, ToolDef } from "#core/modules/module-types.js";
 import { getAccessToken, resolveEnv } from "./auth.js";
 import { makeCalendarCreateEvent, makeCalendarListEvents } from "./calendar.js";
 import { makeDriveListFiles, makeDriveReadFile } from "./drive.js";

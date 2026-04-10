@@ -6,7 +6,7 @@ import { projectHash } from "./schedule-parser.js";
 import { getTaskStore, initTaskStore, resetTaskStore, TaskStore } from "./task-store.js";
 
 const tryEmitMock = vi.hoisted(() => vi.fn());
-vi.mock("../events/event-bus.js", () => ({
+vi.mock("#core/events/event-bus.js", () => ({
   tryEmit: tryEmitMock,
   getEventBus: () => null,
 }));

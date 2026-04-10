@@ -1,4 +1,4 @@
-import type { ToolMiddlewareFn } from "../../core/tools/tool-middleware.js";
+import type { ToolMiddlewareFn } from "#core/tools/tool-middleware.js";
 
 /** Max timeout we'll auto-retry a shell command with (5 minutes). */
 const SHELL_MAX_RETRY_TIMEOUT = 300_000;

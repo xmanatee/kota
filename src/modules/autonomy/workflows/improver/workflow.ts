@@ -1,8 +1,8 @@
-import type { AgentDef } from "../../../../core/agents/agent-types.js";
-import type { WorkflowStepContext } from "../../../../core/workflow/run-types.js";
-import type { WorkflowDefinitionInput } from "../../../../core/workflow/types.js";
-import { commitWorkflowChanges } from "../../commit.js";
-import { runCheck, stepCommitted, stepSucceeded } from "../../shared.js";
+import type { AgentDef } from "#core/agents/agent-types.js";
+import type { WorkflowStepContext } from "#core/workflow/run-types.js";
+import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
+import { runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
 
 export const agent: AgentDef = {
   name: "improver",

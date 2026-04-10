@@ -21,6 +21,13 @@
 - Documentation should cover what cannot be easily inferred from reading the code: vision, conventions, methodology, guidelines derived from experience, and architectural decisions.
 - Scope documentation as close to its subject as possible. Prefer a local `AGENTS.md` or a scoped doc over a global one.
 
+## Prompts
+
+- Keep prompts concise and role-local.
+- A prompt should explain what that agent or workflow is trying to do, not restate nearby architecture docs or task policy.
+- Durable conventions and boundaries belong in `docs/` or local `AGENTS.md` files, not repeated across several prompts.
+- If the same guidance appears in both a prompt and a nearby `AGENTS.md`, keep the durable version and trim the prompt.
+
 ## Engineering Rules
 
 - Do not add test-only production flags, hooks, or override parameters just to make tests easier.
@@ -28,6 +35,11 @@
 - Avoid optimizing healthy mechanisms for speed or cost at the expense of quality, clarity, or capability.
 - Prefer clear discoverable surfaces over injected context summaries. If an
   agent can gather context itself, do not precompute and force-feed it.
+- Prefer internal package imports (`#core/*`, `#modules/*`, `#root/*`) for
+  cross-tree imports. Keep `./` relative imports only for same-directory or
+  tightly local siblings.
+- Those package imports resolve to `src/` in source-mode dev/test runtime and
+  to `dist/` in built runtime. Do not add parallel alias systems.
 - Do not throttle core autonomous workflows with hard daily spend caps by
   default. If autonomy is wasteful, fix the queue, prompts, validation, repair
   flow, or operator controls before capping the workflows themselves.

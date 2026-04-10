@@ -19,7 +19,7 @@ import type {
   KotaModule,
   ModuleContext,
   RouteRegistration,
-} from "../../core/modules/module-types.js";
+} from "#core/modules/module-types.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 

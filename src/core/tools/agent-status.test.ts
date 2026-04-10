@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { initProviderRegistry, resetProviderRegistry } from "../modules/provider-registry.js";
+import { initProviderRegistry, resetProviderRegistry } from "#core/modules/provider-registry.js";
 import {
 	resetAgentStatusProviders,
 	runAgentStatus,

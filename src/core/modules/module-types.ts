@@ -9,12 +9,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Command } from "commander";
-import type { KotaConfig } from "../../config.js";
-import type { AgentDef, SkillDef } from "../agents/agent-types.js";
-import type { ChannelDef } from "../channels/channel.js";
-import type { ToolMiddlewareFn } from "../tools/tool-middleware.js";
-import type { ToolResult } from "../tools/tool-result.js";
-import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "../workflow/types.js";
+import type { KotaConfig } from "#root/config.js";
+import type { AgentDef, SkillDef } from "#core/agents/agent-types.js";
+import type { ChannelDef } from "#core/channels/channel.js";
+import type { ToolMiddlewareFn } from "#core/tools/tool-middleware.js";
+import type { ToolResult } from "#core/tools/tool-result.js";
+import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
 import type { ModuleStorage } from "./module-storage.js";
 
 /** Health state for a foreign (KEMP) module subprocess. */

@@ -1,7 +1,7 @@
 import { Command } from "commander";
-import type { InteractiveSession } from "../../core/daemon/daemon-control.js";
-import type { WorkflowActiveRun } from "../../core/workflow/run-types.js";
-import { DaemonControlClient } from "../../core/server/daemon-client.js";
+import type { InteractiveSession } from "#core/daemon/daemon-control.js";
+import type { WorkflowActiveRun } from "#core/workflow/run-types.js";
+import { DaemonControlClient } from "#core/server/daemon-client.js";
 
 type SessionEntry =
   | { kind: "interactive"; id: string; startedAt: string; lastActive: number }

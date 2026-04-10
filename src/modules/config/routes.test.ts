@@ -1,6 +1,6 @@
 import type { ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
-import type { KotaConfig } from "../../config.js";
+import type { KotaConfig } from "#root/config.js";
 import { handleGetConfig, maskConfig } from "./routes.js";
 
 function mockResponse() {

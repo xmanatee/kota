@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { executeWithAgentSDK } from "../agent-sdk/index.js";
+import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
 import type { WorkflowRunMetadata, WorkflowStepContext } from "./run-types.js";
 import type { AgentStepConfig } from "./step-executor.js";
 import {
@@ -24,7 +24,7 @@ import type {
   WorkflowToolStep,
 } from "./types.js";
 
-vi.mock("../agent-sdk/index.js", async () => {
+vi.mock("#core/agent-sdk/index.js", async () => {
   const actual = await vi.importActual("../agent-sdk/index.js");
   return {
     ...actual,

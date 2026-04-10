@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { EventBus } from "../events/event-bus.js";
-import { executeTool } from "../tools/index.js";
+import type { EventBus } from "#core/events/event-bus.js";
+import { executeTool } from "#core/tools/index.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type {
   WorkflowRunMetadata,

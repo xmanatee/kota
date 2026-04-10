@@ -1,11 +1,11 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { confirmAction } from "../../confirm.js";
-import type { McpManager } from "../mcp/manager.js";
-import { getApprovalQueue } from "../daemon/approval-queue.js";
-import { getSecretStore } from "../../secrets.js";
-import { tryEmit } from "../events/event-bus.js";
-import { truncateToolResult } from "../loop/context.js";
-import type { Transport } from "../loop/transport.js";
+import { confirmAction } from "#root/confirm.js";
+import type { McpManager } from "#core/mcp/manager.js";
+import { getApprovalQueue } from "#core/daemon/approval-queue.js";
+import { getSecretStore } from "#root/secrets.js";
+import { tryEmit } from "#core/events/event-bus.js";
+import { truncateToolResult } from "#core/loop/context.js";
+import type { Transport } from "#core/loop/transport.js";
 import { assess, type GuardrailsConfig } from "./guardrails.js";
 import type { ToolResultBlock } from "./index.js";
 import { executeTool } from "./index.js";

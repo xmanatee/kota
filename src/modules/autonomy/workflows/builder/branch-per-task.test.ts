@@ -8,7 +8,7 @@ vi.mock("node:fs", () => ({
   readFileSync: vi.fn(),
 }));
 
-vi.mock("../../../../config.js", () => ({
+vi.mock("#root/config.js", () => ({
   loadConfig: vi.fn(() => ({ modules: { builder: { branchPerTask: true } } })),
 }));
 

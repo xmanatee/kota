@@ -1,7 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, join } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolResult } from "../../core/tools/tool-result.js";
+import type { ToolResult } from "#core/tools/tool-result.js";
 
 export const filesOverviewTool: Anthropic.Tool = {
   name: "files_overview",

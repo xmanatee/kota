@@ -2,13 +2,13 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { executeWithAgentSDK } from "../agent-sdk/index.js";
-import { EventBus } from "../events/event-bus.js";
+import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
+import { EventBus } from "#core/events/event-bus.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowAgentStep, WorkflowDefinition, WorkflowRunTrigger } from "./types.js";
 
-vi.mock("../agent-sdk/index.js", async () => {
+vi.mock("#core/agent-sdk/index.js", async () => {
   const actual = await vi.importActual("../agent-sdk/index.js");
   return { ...actual, executeWithAgentSDK: vi.fn() };
 });

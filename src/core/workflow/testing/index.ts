@@ -1,10 +1,10 @@
-import type { ToolResult } from "../../tools/tool-result.js";
+import type { ToolResult } from "#core/tools/tool-result.js";
 import type {
   WorkflowRuntimeState,
   WorkflowStepContext,
   WorkflowStepResult,
-} from "../run-types.js";
-import { resolveValue } from "../step-executor.js";
+} from "#core/workflow/run-types.js";
+import { resolveValue } from "#core/workflow/step-executor.js";
 import type {
   WorkflowBranchStepInput,
   WorkflowCodeStepInput,
@@ -12,7 +12,7 @@ import type {
   WorkflowForeachStepInput,
   WorkflowParallelGroupInput,
   WorkflowStepInput,
-} from "../types.js";
+} from "#core/workflow/types.js";
 
 export type HarnessStepResult = {
   id: string;

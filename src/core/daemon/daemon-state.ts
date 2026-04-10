@@ -1,5 +1,5 @@
-import { JsonFileError } from "../../json-file.js";
-import type { WorkflowRunStatus } from "../workflow/run-types.js";
+import { JsonFileError } from "#root/json-file.js";
+import type { WorkflowRunStatus } from "#core/workflow/run-types.js";
 
 export type DaemonState = {
   startedAt: string;

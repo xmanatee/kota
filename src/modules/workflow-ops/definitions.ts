@@ -1,6 +1,6 @@
 import type { Command } from "commander";
-import type { ModuleContext } from "../../core/modules/module-types.js";
-import type { RegisteredWorkflowDefinitionInput, WorkflowStepInput } from "../../core/workflow/types.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
+import type { RegisteredWorkflowDefinitionInput, WorkflowStepInput } from "#core/workflow/types.js";
 import { getWorkflowDefinitions } from "./definitions-source.js";
 import { formatDuration } from "./utils.js";
 

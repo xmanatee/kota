@@ -1,4 +1,4 @@
-import type { ToolResult } from "../../core/tools/tool-result.js";
+import type { ToolResult } from "#core/tools/tool-result.js";
 
 export function resolveEnv(raw: string): string {
   if (raw.startsWith("$")) {

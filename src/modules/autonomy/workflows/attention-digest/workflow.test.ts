@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { registerWorkflowDefinition } from "../../../../core/workflow/validation.js";
+import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import attentionDigestWorkflow from "./workflow.js";
 
 describe("attention-digest workflow definition", () => {

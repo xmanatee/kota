@@ -7,19 +7,19 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { callTelegramApi } from "../../modules/telegram/client.js";
-import { executeWithAgentSDK } from "../agent-sdk/index.js";
-import { EventBus } from "../events/event-bus.js";
+import { callTelegramApi } from "#modules/telegram/client.js";
+import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
+import { EventBus } from "#core/events/event-bus.js";
 import { WorkflowRunStore } from "./run-store.js";
 import { WorkflowRuntime } from "./runtime.js";
 import { registerWorkflowDefinition } from "./validation.js";
 
-vi.mock("../agent-sdk/index.js", async () => {
+vi.mock("#core/agent-sdk/index.js", async () => {
   const actual = await vi.importActual("../agent-sdk/index.js");
   return { ...actual, executeWithAgentSDK: vi.fn() };
 });
 
-vi.mock("../../modules/telegram/client.js", () => ({
+vi.mock("#modules/telegram/client.js", () => ({
   callTelegramApi: vi.fn(),
 }));
 

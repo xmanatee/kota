@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { checkFreshness, recordRead } from "../../file-tracker.js";
+import { checkFreshness, recordRead } from "#root/file-tracker.js";
 import { runFileEdit } from "./file-edit.js";
 import { buildNotFoundMessage, normalizeWhitespace, tryWhitespaceMatch } from "./file-edit-helpers.js";
 

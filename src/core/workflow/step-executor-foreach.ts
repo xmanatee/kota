@@ -1,5 +1,5 @@
-import type { SDKMessage } from "../agent-sdk/types.js";
-import type { EventBus } from "../events/event-bus.js";
+import type { SDKMessage } from "#core/agent-sdk/types.js";
+import type { EventBus } from "#core/events/event-bus.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import { buildStepCompletedPayload, buildStepStartedPayload } from "./event-payloads.js";
 import { applyOutputSizeLimit, DEFAULT_STEP_TIMEOUT_MS } from "./run-executor-step.js";

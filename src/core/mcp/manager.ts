@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolResult } from "../tools/index.js";
+import type { ToolResult } from "#core/tools/index.js";
 import { McpClient, type McpToolSchema } from "./client.js";
 
 type McpServerConfig = {

@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync } from "node:fs";
-import { writeJsonFileAtomic } from "../../json-file.js";
+import { writeJsonFileAtomic } from "#root/json-file.js";
 
 export function ensureDir(path: string): void {
   if (!existsSync(path)) mkdirSync(path, { recursive: true });

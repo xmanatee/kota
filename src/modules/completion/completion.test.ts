@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { describe, expect, it, vi } from "vitest";
-import type { ModuleContext } from "../../core/modules/module-types.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import completionModule from "./index.js";
 
 function makeProgram(): Command {

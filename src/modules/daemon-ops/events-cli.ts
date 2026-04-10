@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { DaemonControlClient } from "../../core/server/daemon-client.js";
+import { DaemonControlClient } from "#core/server/daemon-client.js";
 
 function formatEventSummary(type: string, payload: Record<string, unknown>): string {
   if (type.startsWith("workflow.")) {

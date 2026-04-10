@@ -4,29 +4,29 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { checkProviderConnectivity, runDoctorChecks, runDoctorFixes } from "./index.js";
 
-vi.mock("../../core/workflow/validation.js", () => ({
+vi.mock("#core/workflow/validation.js", () => ({
   validateWorkflowDefinitions: vi.fn(() => [{ name: "builder" }]),
   WorkflowDefinitionError: class WorkflowDefinitionError extends Error {},
 }));
 
-vi.mock("../../core/modules/module-metadata.js", () => ({
+vi.mock("#core/modules/module-metadata.js", () => ({
   loadModuleMetadata: vi.fn(async () => ({
     getModuleSummaries: () => [{ name: "test-module" }],
     getContributedWorkflows: () => [],
   })),
 }));
 
-vi.mock("../../config.js", () => ({
+vi.mock("#root/config.js", () => ({
   loadConfig: vi.fn(() => ({})),
 }));
 
-vi.mock("../../core/server/daemon-client.js", () => ({
+vi.mock("#core/server/daemon-client.js", () => ({
   DaemonControlClient: {
     fromStateDir: vi.fn(() => null),
   },
 }));
 
-vi.mock("../../core/model/model-client.js", () => ({
+vi.mock("#core/model/model-client.js", () => ({
   createModelClient: vi.fn(() => ({
     client: {
       messages: {
@@ -38,7 +38,7 @@ vi.mock("../../core/model/model-client.js", () => ({
   })),
 }));
 
-vi.mock("../model-clients/factory.js", () => ({
+vi.mock("#modules/model-clients/factory.js", () => ({
   resolveApiKey: vi.fn(() => "sk-ant-test-key"),
 }));
 
@@ -213,7 +213,7 @@ describe("kota doctor — provider connectivity check", () => {
   });
 
   it("passes when the model client responds successfully", async () => {
-    const { createModelClient } = await import("../../core/model/model-client.js");
+    const { createModelClient } = await import("#core/model/model-client.js");
     vi.mocked(createModelClient).mockReturnValueOnce({
       client: {
         messages: {
@@ -231,7 +231,7 @@ describe("kota doctor — provider connectivity check", () => {
   });
 
   it("fails with authentication error on 401/403 response", async () => {
-    const { createModelClient } = await import("../../core/model/model-client.js");
+    const { createModelClient } = await import("#core/model/model-client.js");
     const authErr = Object.assign(new Error("Authentication failed"), { status: 401 });
     // Mimic Anthropic SDK AuthenticationError check via message pattern
     vi.mocked(createModelClient).mockReturnValueOnce({
@@ -252,7 +252,7 @@ describe("kota doctor — provider connectivity check", () => {
   });
 
   it("fails with unreachable message on network error", async () => {
-    const { createModelClient } = await import("../../core/model/model-client.js");
+    const { createModelClient } = await import("#core/model/model-client.js");
     vi.mocked(createModelClient).mockReturnValueOnce({
       client: {
         messages: {
@@ -270,7 +270,7 @@ describe("kota doctor — provider connectivity check", () => {
   });
 
   it("warns when API key is not set", async () => {
-    const { resolveApiKey } = await import("../model-clients/factory.js");
+    const { resolveApiKey } = await import("#modules/model-clients/factory.js");
     vi.mocked(resolveApiKey).mockReturnValueOnce("");
 
     const results = await checkProviderConnectivity(projectDir);

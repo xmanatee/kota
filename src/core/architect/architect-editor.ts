@@ -1,11 +1,11 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { truncateToolResult } from "../loop/context.js";
-import type { CostTracker } from "../loop/cost.js";
-import type { Transport } from "../loop/transport.js";
-import type { ModelClient } from "../model/model-client.js";
-import { isRetryable } from "../model/streaming.js";
-import { extractModifiedFiles } from "../tools/delegate-format.js";
-import { executeTool, getAllTools } from "../tools/index.js";
+import { truncateToolResult } from "#core/loop/context.js";
+import type { CostTracker } from "#core/loop/cost.js";
+import type { Transport } from "#core/loop/transport.js";
+import type { ModelClient } from "#core/model/model-client.js";
+import { isRetryable } from "#core/model/streaming.js";
+import { extractModifiedFiles } from "#core/tools/delegate-format.js";
+import { executeTool, getAllTools } from "#core/tools/index.js";
 import { createFailureTracker, detectReplanTrigger, invokeReplanner, recordStep } from "./replan.js";
 import { STREAM_MAX_RETRIES, streamBackoff } from "./retry.js";
 
