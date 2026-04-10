@@ -1,12 +1,12 @@
 ---
 id: task-workflow-step-cost-inspect
 title: Show per-step cost breakdown in kota workflow show output
-status: backlog
+status: done
 priority: p3
 area: operator
 summary: WorkflowStepResult already records costUsd per step, but kota workflow show only displays the run total. Surfacing per-step cost in the inspect output lets operators see which steps drive expense and target prompt or model tuning.
 created_at: 2026-04-10T09:20:00Z
-updated_at: 2026-04-10T09:20:00Z
+updated_at: 2026-04-10T14:00:00Z
 ---
 
 ## Problem

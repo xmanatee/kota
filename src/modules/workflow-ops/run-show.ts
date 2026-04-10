@@ -147,7 +147,7 @@ export function registerRunShowCommand(wfCmd: Command): void {
             completedAt: daemonRun.completedAt ?? daemonRun.startedAt,
             durationMs: s.durationMs,
             error: s.error,
-            ...(s.costUsd != null && { output: { totalCostUsd: s.costUsd } }),
+            ...(s.costUsd != null && { costUsd: s.costUsd, output: { totalCostUsd: s.costUsd } }),
           })),
           ...(daemonRun.completedAt != null && { completedAt: daemonRun.completedAt }),
           ...(daemonRun.durationMs != null && { durationMs: daemonRun.durationMs }),
@@ -277,11 +277,12 @@ export function registerRunShowCommand(wfCmd: Command): void {
             if (step.error) {
               console.log(`      Error: ${step.error}`);
             }
-            const inner = (step.output as { steps?: Array<{ id: string; type: string; status: string; durationMs: number; error?: string; continueOnFailure?: boolean }> } | null)?.steps ?? [];
+            const inner = (step.output as { steps?: Array<{ id: string; type: string; status: string; durationMs: number; costUsd?: number; error?: string; continueOnFailure?: boolean }> } | null)?.steps ?? [];
             for (const childStep of inner) {
               const childIcon = childStep.status === "failed" && childStep.continueOnFailure ? "⚠" : statusIcon(childStep.status as "success" | "failed" | "skipped");
               const childSuffix = childStep.status === "failed" && childStep.continueOnFailure ? " (continued)" : "";
-              console.log(`    ║ ${childIcon} ${childStep.id} [${childStep.type}] ${formatDuration(childStep.durationMs)}${childSuffix}`);
+              const childCost = childStep.costUsd != null ? ` $${childStep.costUsd.toFixed(3)}` : " —";
+              console.log(`    ║ ${childIcon} ${childStep.id} [${childStep.type}] ${formatDuration(childStep.durationMs)}${childCost}${childSuffix}`);
               if (childStep.error) {
                 console.log(`          Error: ${childStep.error}`);
               }
@@ -289,15 +290,12 @@ export function registerRunShowCommand(wfCmd: Command): void {
             continue;
           }
 
-          const stepOutput = step.output as { totalCostUsd?: unknown } | null | undefined;
           const repairSummary = extractRepairSummary(step.output);
-          const agentCost = step.type === "agent" && typeof stepOutput?.totalCostUsd === "number"
-            ? stepOutput.totalCostUsd
-            : null;
-          const totalStepCost = agentCost !== null
-            ? agentCost + (repairSummary?.totalCostUsd ?? 0)
-            : null;
-          const cost = totalStepCost !== null ? ` $${totalStepCost.toFixed(3)}` : "";
+          const baseCost = step.costUsd ?? null;
+          const totalStepCost = baseCost !== null
+            ? baseCost + (repairSummary?.totalCostUsd ?? 0)
+            : repairSummary?.totalCostUsd ?? null;
+          const cost = totalStepCost !== null ? ` $${totalStepCost.toFixed(3)}` : " —";
           console.log(`  ${icon} ${step.id} [${step.type}] ${dur}${cost}${suffix}`);
           if (step.error) {
             console.log(`      Error: ${step.error}`);
