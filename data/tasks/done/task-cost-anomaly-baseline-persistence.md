@@ -1,7 +1,7 @@
 ---
 id: task-cost-anomaly-baseline-persistence
 title: Persist cost anomaly baseline across daemon restarts
-status: backlog
+status: done
 priority: p3
 area: reliability
 summary: The workflow cost anomaly detector maintains a per-workflow baseline in memory. A daemon restart resets it, silencing the first anomaly after every restart. Persist the baseline to disk so it survives restarts.

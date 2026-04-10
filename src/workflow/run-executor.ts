@@ -419,6 +419,7 @@ function emitCostAnomalyIfNeeded(
     completed.id,
     runCostUsd,
     definition.costAnomalyThreshold,
+    deps.store.rootDir,
   );
   if (!anomaly) return;
   deps.bus.emit("workflow.cost.anomaly", {
