@@ -5,11 +5,12 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "../../../../workflow-testing/index.js";
-import builderWorkflow, {
+import {
   checkModuleBoundary,
   checkSuccessCriteriaDeclared,
   checkSuccessCriteriaVerified,
-} from "./workflow.js";
+} from "./repair-checks.js";
+import builderWorkflow from "./workflow.js";
 
 const promptPath = fileURLToPath(new URL("./prompt.md", import.meta.url));
 const promptContent = readFileSync(promptPath, "utf-8");
