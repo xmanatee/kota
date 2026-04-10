@@ -1,7 +1,7 @@
 ---
 id: task-move-model-to-core
 title: "Move model directory to core/"
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: "Move model (9 files, 34 importers) from src/ root into core/. High importer count — do this one alone."

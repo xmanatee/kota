@@ -13,14 +13,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEventBus, initEventBus, resetEventBus } from "./core/events/event-bus.js";
 import { AgentSession } from "./core/loop/loop.js";
 import { BufferTransport } from "./core/loop/transport.js";
-import { resetWorkingMemory } from "./memory/working-memory.js";
 import {
 	createMockClient,
 	type MockApiCall,
 	resetMockIds,
 	textResponse,
 	toolUseResponse,
-} from "./model/mock-client.js";
+} from "./core/model/mock-client.js";
+import { resetWorkingMemory } from "./memory/working-memory.js";
 
 vi.spyOn(console, "error").mockImplementation(() => {});
 

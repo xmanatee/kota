@@ -28,7 +28,7 @@ vi.mock("@anthropic-ai/sdk", () => ({
     messages = { stream: vi.fn() };
   },
 }));
-vi.mock("./model/model-client.js", () => ({
+vi.mock("./core/model/model-client.js", () => ({
   createModelClient: vi.fn(() => ({
     client: { messages: { stream: vi.fn(), create: vi.fn() } },
     model: "claude-sonnet-4-6",
@@ -36,7 +36,7 @@ vi.mock("./model/model-client.js", () => ({
   })),
   registerModelClientFactory: vi.fn(),
 }));
-vi.mock("./model/streaming.js", () => ({ streamMessage: mockStreamMessage }));
+vi.mock("./core/model/streaming.js", () => ({ streamMessage: mockStreamMessage }));
 vi.mock("./core/tools/tool-runner.js", async () => {
   const actual = await vi.importActual<typeof import("./core/tools/tool-runner.js")>(
     "./core/tools/tool-runner.js",

@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ModelClient } from "../../../model/model-client.js";
+import type { ModelClient } from "../../../core/model/model-client.js";
 import { OpenAIModelClient } from "./client.js";
 import type { OAIResponse } from "./types.js";
 

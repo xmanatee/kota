@@ -6,7 +6,7 @@
  * no provider is specified.
  */
 
-import type { ProviderFactoryOptions, ResolvedProvider } from "../../model/model-client.js";
+import type { ProviderFactoryOptions, ResolvedProvider } from "../../core/model/model-client.js";
 import { AnthropicModelClient } from "./anthropic.js";
 import { OpenAIModelClient } from "./openai/client.js";
 

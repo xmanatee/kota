@@ -12,7 +12,7 @@ vi.mock("@anthropic-ai/sdk", () => ({
 vi.mock("./mcp/manager.js", () => ({
   McpManager: { loadConfig: () => null },
 }));
-vi.mock("./model/model-client.js", () => ({
+vi.mock("./core/model/model-client.js", () => ({
   createModelClient: vi.fn(() => ({
     client: { messages: { stream: vi.fn(), create: vi.fn() } },
     model: "claude-sonnet-4-6",

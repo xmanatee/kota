@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { runDelegate, setDelegateConfig } from "./delegate.js";
 
-vi.mock("../../model/model-client.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../model/model-client.js")>();
+vi.mock("../model/model-client.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../model/model-client.js")>();
   return {
     ...actual,
     createModelClient: vi.fn(() => ({

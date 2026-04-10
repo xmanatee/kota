@@ -1,10 +1,10 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { runArchitectStep } from "../../architect/runner.js";
-import { streamMessage } from "../../model/streaming.js";
 import { analyzeRequest, formatContextHint } from "../../request-analyzer.js";
 import { processToolResults } from "../../verify-tracker.js";
 import { formatTaskHint, routeTask } from "../daemon/task-router.js";
 import { tryEmit } from "../events/event-bus.js";
+import { streamMessage } from "../model/streaming.js";
 import { getAllTools } from "../tools/index.js";
 import { detectToolGroups, enableGroup, filterTools } from "../tools/tool-groups.js";
 import { executeToolCalls, FailureTracker } from "../tools/tool-runner.js";

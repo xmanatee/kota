@@ -14,12 +14,12 @@ import { loadConfig } from "../config.js";
 import type { EventBus } from "../core/events/event-bus.js";
 import { getEventBus } from "../core/events/event-bus.js";
 import { CostTracker } from "../core/loop/cost.js";
+import type { MessageCreateParams, ModelClient } from "../core/model/model-client.js";
 import { loadModuleMetadata } from "../core/modules/module-metadata.js";
 import type { ToolDef } from "../core/modules/module-types.js";
 import { getToolMcpAnnotations } from "../core/tools/guardrails-classify.js";
 import { executeTool, getAllTools, type ToolResult } from "../core/tools/index.js";
 import { WorkflowRunStore } from "../core/workflow/run-store.js";
-import type { MessageCreateParams, ModelClient } from "../model/model-client.js";
 import { isKnownPrompt, KOTA_PROMPTS, renderPrompt } from "./prompts.js";
 import {
 	KNOWN_RESOURCE_URIS,

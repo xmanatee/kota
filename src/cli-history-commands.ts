@@ -2,8 +2,8 @@ import type { Command } from "commander";
 import { interactiveMode, parseIntOption, resolveConversationId } from "./cli-history.js";
 import { loadConfig } from "./config.js";
 import { confirmAction } from "./confirm.js";
+import { createModelClient } from "./core/model/model-client.js";
 import { getHistory } from "./memory/history.js";
-import { createModelClient } from "./model/model-client.js";
 
 /** Register the `history` subcommand and its children onto `program`. */
 export function registerHistoryCommands(program: Command) {

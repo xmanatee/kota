@@ -27,7 +27,7 @@ import {
 	resetMockIds,
 	textResponse,
 	toolUseResponse,
-} from "./model/mock-client.js";
+} from "./core/model/mock-client.js";
 
 vi.spyOn(console, "error").mockImplementation(() => {});
 

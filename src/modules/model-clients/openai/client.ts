@@ -11,7 +11,7 @@ import type {
 	MessageStream,
 	MessageStreamParams,
 	ModelClient,
-} from "../../../model/model-client.js";
+} from "../../../core/model/model-client.js";
 import { OpenAIStream } from "./stream.js";
 import { buildAnthropicMessage, mapFinishReason, safeJsonParse, toOpenAIMessages, toOpenAITools } from "./translations.js";
 import type { OAIResponse } from "./types.js";

@@ -48,7 +48,7 @@ const mcpServerModule: KotaModule = {
 				const samplingEnabled = config.mcp?.sampling?.enabled === true;
 				let modelClient;
 				if (samplingEnabled) {
-					const { createModelClient } = await import("../../model/model-client.js");
+					const { createModelClient } = await import("../../core/model/model-client.js");
 					modelClient = createModelClient({ model: config.model || "claude-sonnet-4-6" }).client;
 				}
 
