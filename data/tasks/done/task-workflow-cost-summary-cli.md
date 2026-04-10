@@ -1,12 +1,12 @@
 ---
 id: task-workflow-cost-summary-cli
 title: Add workflow cost summary CLI command
-status: ready
+status: done
 priority: p2
 area: operator-experience
 summary: Operators have no CLI view of per-workflow cost trends. Add a kota workflow cost command that shows total and per-run spend by workflow, helping operators spot expensive or runaway automations.
 created_at: 2026-04-10T06:50:00Z
-updated_at: 2026-04-10T06:50:00Z
+updated_at: 2026-04-10T08:22:00Z
 ---
 
 ## Problem
