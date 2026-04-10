@@ -3,9 +3,9 @@ import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import type { RouteRegistration } from "../../module-types.js";
-import { getRepoInboxDir, getRepoTasksDir, type RepoTaskState } from "../../repo-tasks.js";
 import { DaemonControlClient } from "../../server/daemon-client.js";
 import { jsonResponse, readBody } from "../../server/session-pool.js";
+import { getRepoInboxDir, getRepoTasksDir, type RepoTaskState } from "./repo-tasks.js";
 
 type TaskDetail = {
   id: string;

@@ -2,7 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { WorkflowRunMetadata } from "./workflow/run-types.js";
+import type { WorkflowRunMetadata } from "../../workflow/run-types.js";
 import { filterWithContext, followRunLogs, formatAgentMessage, formatContentBlock, truncateContent } from "./workflow-logs.js";
 
 describe("filterWithContext", () => {

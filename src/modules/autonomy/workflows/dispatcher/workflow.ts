@@ -1,5 +1,5 @@
-import { getRepoTaskQueueSnapshot } from "../../../../repo-tasks.js";
 import type { WorkflowDefinitionInput } from "../../../../workflow/types.js";
+import { getRepoTaskQueueSnapshot } from "../../../repo-tasks/repo-tasks.js";
 
 const dispatcherWorkflow: WorkflowDefinitionInput = {
   name: "dispatcher",

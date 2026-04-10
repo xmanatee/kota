@@ -1,4 +1,4 @@
-import { assertTaskQueueValid } from "./task-queue-validation.js";
+import { assertTaskQueueValid } from "./modules/repo-tasks/task-queue-validation.js";
 
 const args = process.argv.slice(2);
 const minReadyIdx = args.indexOf("--min-ready");

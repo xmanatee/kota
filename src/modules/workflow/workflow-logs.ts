@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { SDKMessage } from "./agent-sdk/types.js";
-import { readOptionalJsonFile } from "./json-file.js";
-import type { WorkflowRunMetadata, WorkflowRuntimeState } from "./workflow/run-types.js";
+import type { SDKMessage } from "../../agent-sdk/types.js";
+import { readOptionalJsonFile } from "../../json-file.js";
+import type { WorkflowRunMetadata, WorkflowRuntimeState } from "../../workflow/run-types.js";
 
 const DEFAULT_MAX_LEN = 200;
 

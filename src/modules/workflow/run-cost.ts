@@ -1,8 +1,8 @@
 import type { Command } from "commander";
 import { DaemonControlClient } from "../../server/daemon-client.js";
 import { WorkflowRunStore } from "../../workflow/run-store.js";
-import { loadRunsInWindow } from "../../workflow-history.js";
 import { formatDate } from "./utils.js";
+import { loadRunsInWindow } from "./workflow-history.js";
 
 type RunCostEntry = {
   id: string;

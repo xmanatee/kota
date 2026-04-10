@@ -2,10 +2,10 @@ import type { Command } from "commander";
 import type { ModuleContext } from "../../module-types.js";
 import { DaemonControlClient } from "../../server/daemon-client.js";
 import { WorkflowRunStore } from "../../workflow/run-store.js";
-import type { HistoryStats } from "../../workflow-history.js";
-import { computeHistoryStats, loadRunsInWindow } from "../../workflow-history.js";
 import { getWorkflowDefinitions } from "./definitions-source.js";
 import { formatDate, formatDuration, listRuns, statusIcon } from "./utils.js";
+import type { HistoryStats } from "./workflow-history.js";
+import { computeHistoryStats, loadRunsInWindow } from "./workflow-history.js";
 
 export function registerRunListCommands(
   wfCmd: Command,

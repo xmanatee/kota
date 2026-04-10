@@ -11,7 +11,7 @@ vi.mock("../../../../repo-worktree.js", () => ({
   })),
 }));
 
-vi.mock("../../../../repo-tasks.js", () => ({
+vi.mock("../../../repo-tasks/repo-tasks.js", () => ({
   getRepoTaskQueueSnapshot: vi.fn(),
   isRepoTaskQueueSnapshot: vi.fn(() => true),
   REPO_TASK_STATES: ["backlog", "ready", "doing", "blocked", "done", "dropped"],
@@ -21,7 +21,7 @@ vi.mock("../../commit.js", () => ({
   commitWorkflowChanges: vi.fn(),
 }));
 
-vi.mock("../../../../task-queue-validation.js", () => ({
+vi.mock("../../../repo-tasks/task-queue-validation.js", () => ({
   assertArchitectureReadyCoverage: vi.fn(),
 }));
 
@@ -55,7 +55,7 @@ describe("explorer workflow", () => {
   });
 
   it("skips explore when inbox is non-empty", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
       makeSnapshot({ inboxCount: 1, ready: 0, backlog: 0 }),
     );
@@ -76,7 +76,7 @@ describe("explorer workflow", () => {
   });
 
   it("skips explore when ready or backlog already contains work", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
       makeSnapshot({ inboxCount: 0, ready: 1, backlog: 2 }),
     );
@@ -96,7 +96,7 @@ describe("explorer workflow", () => {
   });
 
   it("skips explore when doing already contains work", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
       makeSnapshot({ inboxCount: 0, ready: 0, backlog: 0, doing: 1 }),
     );
@@ -116,7 +116,7 @@ describe("explorer workflow", () => {
   });
 
   it("skips explore when the queue is empty but the refresh window is not due", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());
 
     const harness = new WorkflowTestHarness(explorerWorkflow, {
@@ -139,7 +139,7 @@ describe("explorer workflow", () => {
   });
 
   it("runs explore when the queue is empty and refresh is due", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());
 
     const { commitWorkflowChanges } = await import("../../commit.js");

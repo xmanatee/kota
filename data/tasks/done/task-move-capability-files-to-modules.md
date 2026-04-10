@@ -1,7 +1,7 @@
 ---
 id: task-move-capability-files-to-modules
 title: Move capability utility files from src/ root into owning modules
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: src/repo-tasks.ts, src/task-queue-validation.ts, src/workflow-history.ts, and src/workflow-logs.ts are capability code pooling in the core src/ directory rather than in their owning modules. Moving them continues the module-first migration and shrinks the core.

@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import { parseFlatFrontMatter } from "./frontmatter.js";
+import { parseFlatFrontMatter } from "../../frontmatter.js";
 import {
   getRepoTaskStateDir,
   REPO_TASK_STATES,

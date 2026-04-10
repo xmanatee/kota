@@ -7,7 +7,7 @@ import type { EventBus } from "../event-bus.js";
 import { getHistory } from "../memory/history.js";
 import { loadModuleMetadata } from "../module-metadata.js";
 import { getApprovalQueue } from "../modules/approval-queue/queue.js";
-import { getRepoInboxDir, getRepoTasksDir } from "../repo-tasks.js";
+import { getRepoInboxDir, getRepoTasksDir } from "../modules/repo-tasks/repo-tasks.js";
 import type { WorkflowRunStore } from "../workflow/run-store.js";
 import type { WorkflowRuntime } from "../workflow/runtime.js";
 import { computeModuleConfigDiff } from "./config-reload-diff.js";

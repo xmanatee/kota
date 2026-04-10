@@ -5,8 +5,8 @@ import { readOptionalJsonFile } from "../../json-file.js";
 import { jsonResponse, SseTransport, setCors } from "../../server/session-pool.js";
 import { WorkflowRunStore } from "../../workflow/run-store.js";
 import type { WorkflowRunMetadata } from "../../workflow/run-types.js";
-import { readStepEvents } from "../../workflow-logs.js";
 import type { BuilderRunSummary } from "../autonomy/workflows/builder/run-summary.js";
+import { readStepEvents } from "./workflow-logs.js";
 
 type RunSummary = {
   id: string;

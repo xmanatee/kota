@@ -20,7 +20,7 @@ vi.mock("../../../../repo-worktree.js", () => ({
   getRepoHeadSha: vi.fn(() => "abc1234"),
 }));
 
-vi.mock("../../../../repo-tasks.js", () => ({
+vi.mock("../../../repo-tasks/repo-tasks.js", () => ({
   getRepoTaskQueueSnapshot: vi.fn(),
   isRepoTaskQueueSnapshot: vi.fn(() => true),
   REPO_TASK_STATES: ["backlog", "ready", "doing", "blocked", "done", "dropped"],
@@ -91,7 +91,7 @@ describe("builder workflow", () => {
   });
 
   it("skips build and commit when no pullable queue work exists", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeEmptySnapshot());
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
@@ -117,7 +117,7 @@ describe("builder workflow", () => {
   });
 
   it("runs build and commit when ready or doing work exists", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(2, 1));
 
     const { commitWorkflowChanges } = await import("../../commit.js");
@@ -144,7 +144,7 @@ describe("builder workflow", () => {
   });
 
   it("runs build when backlog exists even if ready is empty", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(0, 0, 2));
 
     const { commitWorkflowChanges } = await import("../../commit.js");
@@ -179,7 +179,7 @@ describe("builder workflow", () => {
   });
 
   it("skips commit and write-run-summary when build fails", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
@@ -199,7 +199,7 @@ describe("builder workflow", () => {
   });
 
   it("emits workflow.build.committed after a successful commit with run-summary payload", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
     const { commitWorkflowChanges } = await import("../../commit.js");
@@ -244,7 +244,7 @@ describe("builder workflow", () => {
   });
 
   it("fails when builder agent committed directly (intermediate commit detected)", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
     const { getRepoHeadSha } = await import("../../../../repo-worktree.js");
@@ -277,7 +277,7 @@ describe("builder workflow", () => {
   });
 
   it("includes inspect-ready-queue snapshot in step output", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
     const snapshot = makeSnapshot(3, 0);
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(snapshot);
 
@@ -300,7 +300,7 @@ describe("builder workflow", () => {
   });
 
   it("create-task-branch runs after successful build check, create-pr skipped when branchPerTask=false", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
     const { getRepoHeadSha } = await import("../../../../repo-worktree.js");
@@ -334,7 +334,7 @@ describe("builder workflow", () => {
   });
 
   it("create-pr runs and returns PR URL when branchPerTask=true", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
     const { getRepoHeadSha } = await import("../../../../repo-worktree.js");
@@ -374,7 +374,7 @@ describe("builder workflow", () => {
   });
 
   it("create-pr failure propagates as run failure", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
     const { getRepoHeadSha } = await import("../../../../repo-worktree.js");
@@ -410,7 +410,7 @@ describe("builder workflow", () => {
   });
 
   it("create-task-branch and create-pr are skipped when build is skipped", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeEmptySnapshot());
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
@@ -430,7 +430,7 @@ describe("builder workflow", () => {
   });
 
   it("cleanup-merged-branches runs after create-pr when branchPerTask=true and returns cleaned branches", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
     const { getRepoHeadSha } = await import("../../../../repo-worktree.js");
@@ -473,7 +473,7 @@ describe("builder workflow", () => {
   });
 
   it("cleanup-merged-branches is skipped when branchPerTask=false", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
     const { getRepoHeadSha } = await import("../../../../repo-worktree.js");
@@ -505,7 +505,7 @@ describe("builder workflow", () => {
   });
 
   it("cleanup-merged-branches failure with warnings does not fail the run", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
     const { getRepoHeadSha } = await import("../../../../repo-worktree.js");

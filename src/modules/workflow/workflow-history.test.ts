@@ -2,9 +2,9 @@ import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { WorkflowRunStore } from "./workflow/run-store.js";
-import type { WorkflowStepResult } from "./workflow/run-types.js";
-import type { WorkflowDefinition } from "./workflow/types.js";
+import { WorkflowRunStore } from "../../workflow/run-store.js";
+import type { WorkflowStepResult } from "../../workflow/run-types.js";
+import type { WorkflowDefinition } from "../../workflow/types.js";
 import { computeHistoryStats, loadRunsInWindow } from "./workflow-history.js";
 
 const minimalWorkflow = (name: string): WorkflowDefinition => ({

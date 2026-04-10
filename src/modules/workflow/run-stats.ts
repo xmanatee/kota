@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { WorkflowRunStore } from "../../workflow/run-store.js";
-import { computeHistoryStats, loadRunsInWindow } from "../../workflow-history.js";
 import { formatDuration } from "./utils.js";
+import { computeHistoryStats, loadRunsInWindow } from "./workflow-history.js";
 
 type StatsRow = {
   workflow: string;

@@ -6,8 +6,8 @@ import type { DaemonSseEvent } from "../../scheduler/daemon-control.js";
 import { DaemonControlClient } from "../../server/daemon-client.js";
 import { WorkflowRunStore } from "../../workflow/run-store.js";
 import type { WorkflowRunMetadata, WorkflowRuntimeState } from "../../workflow/run-types.js";
-import { buildRunLogs, followRunLogs } from "../../workflow-logs.js";
 import { formatDuration, statusIcon } from "./utils.js";
+import { buildRunLogs, followRunLogs } from "./workflow-logs.js";
 
 function printRunSummary(metadata: WorkflowRunMetadata): void {
   console.log(`\n${"─".repeat(64)}`);
