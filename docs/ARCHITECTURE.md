@@ -79,7 +79,7 @@ has to stay in core.
   tool init — it no longer hardcodes which tools belong to which group.
 - The operator CLI migration is also mostly complete, but not fully done:
   `src/cli.ts` still directly wires a small number of root-level CLI surfaces
-  (`completion-cli.ts`, `webhook-cli.ts`, `init-cli.ts`). Treat these as
+  (`completion-cli.ts`, `init-cli.ts`). Treat these as
   remaining architecture debt until the root CLI is only assembling module
   contributions plus the truly core interactive loop/history path.
 - `SkillDef` and `AgentDef` now exist, and autonomy workflows invoke named
