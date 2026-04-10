@@ -20,6 +20,8 @@ into.
 - `events/` — typed event catalog and event bus.
 - `loop/` — `AgentSession`, turn execution, context assembly, transport, and
   dynamic state.
+- `model/` — `ModelClient` interface, registry, adaptive routing, and streaming.
+  Provider implementations live in `src/modules/model-clients/`.
 - `modules/` — module protocol, discovery, loading, lifecycle, storage, and
   foreign-module support.
 - `tools/` — core tool runtime and the remaining truly core-hosted tools.

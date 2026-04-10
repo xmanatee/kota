@@ -19,6 +19,7 @@ Kernel areas:
 - `src/core/daemon/`
 - `src/core/events/`
 - `src/core/loop/`
+- `src/core/model/`
 - `src/core/modules/`
 - `src/core/tools/`
 - `src/core/workflow/`

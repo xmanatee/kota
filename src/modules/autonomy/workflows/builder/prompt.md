@@ -49,7 +49,7 @@ the repo dirty.
 - Do not add compatibility shims, fallback paths, or legacy aliases. Remove obsolete code directly.
 - Do not invent roadmap work when there is no actionable normalized task.
 - Capture genuine follow-up work honestly in `data/inbox/` or `data/tasks/` when it is outside scope; do not silently sprawl the task.
-- If you touch documented behavior, update the corresponding docs in the same run. This includes local `AGENTS.md` files: if you add a new file to a directory, add an entry for it; if you change what a file exports or does, update its description. If you add a new module that accepts operator config in `.kota/config.json`, add a section for it in `docs/CONFIG.md`. If you add or change operator-visible behavior in a notification channel module (telegram, webhook, slack, email), update the corresponding section in `docs/NOTIFICATIONS.md`.
+- If you touch documented behavior, update the corresponding docs in the same run. This includes local `AGENTS.md` files: if you add a new file to a directory, add an entry for it; if you change what a file exports or does, update its description. When moving a directory between layers (e.g. `src/foo/` → `src/core/foo/`), update the `AGENTS.md` in both the source and destination parent directories to reflect the new layout. If you add a new module that accepts operator config in `.kota/config.json`, add a section for it in `docs/CONFIG.md`. If you add or change operator-visible behavior in a notification channel module (telegram, webhook, slack, email), update the corresponding section in `docs/NOTIFICATIONS.md`.
 - Avoid changing workflow/process surfaces unless the task is explicitly about them.
 
 ## Finish
