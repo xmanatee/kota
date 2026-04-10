@@ -1,7 +1,7 @@
 # Notification Channels
 
 KOTA emits workflow notification events on its internal event bus. Shipped
-modules (Telegram, webhook, Slack) subscribe to these events and forward
+modules (Telegram, webhook, Slack, email) subscribe to these events and forward
 alerts to external services.
 
 ## Notification Events
@@ -45,6 +45,56 @@ export TELEGRAM_ALERT_CHAT_ID=<your-chat-id>
 ```
 
 When both are set, all notification events are forwarded to that chat.
+
+## Email
+
+The project `email` module sends SMTP emails for all notification events. No API
+token required — only SMTP credentials and from/to addresses.
+
+Configure it in your KOTA config under the `email` key:
+
+```json
+{
+  "modules": {
+    "email": {
+      "smtp": {
+        "host": "smtp.example.com",
+        "port": 587,
+        "secure": false,
+        "auth": { "user": "kota@example.com", "pass": "secret" }
+      },
+      "from": "kota@example.com",
+      "to": "operator@example.com"
+    }
+  }
+}
+```
+
+`smtp.host`, `from`, and `to` are required. When any of these are absent the
+module loads but sends nothing. `smtp.port` defaults to 587 (STARTTLS). Set
+`smtp.secure: true` for port 465 (TLS). `smtp.auth` is optional for
+unauthenticated relays.
+
+`to` accepts a string or an array of addresses for multiple recipients.
+
+To opt in to events that are off by default, add an `events` array:
+
+```json
+{
+  "modules": {
+    "email": {
+      "smtp": { "host": "smtp.example.com" },
+      "from": "kota@example.com",
+      "to": "operator@example.com",
+      "events": ["workflow.build.committed"]
+    }
+  }
+}
+```
+
+The module verifies the SMTP connection on daemon startup and logs a warning if
+the connection fails (it does not prevent daemon startup). SMTP credentials are
+never logged.
 
 ## Webhook
 

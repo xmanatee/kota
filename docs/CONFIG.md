@@ -225,7 +225,7 @@ Active limits are shown in `kota workflow status` under `Concurrency: agent=N, c
 
 ### notifications.quietHours
 
-Suppresses non-critical channel notifications (Telegram, Slack, webhook) during specified hours and releases them as a single batched digest when the window ends. Workflows and the scheduler continue running normally — only channel delivery is affected.
+Suppresses non-critical channel notifications (Telegram, Slack, webhook, email) during specified hours and releases them as a single batched digest when the window ends. Workflows and the scheduler continue running normally — only channel delivery is affected.
 
 ```json
 {
@@ -278,7 +278,7 @@ Foreign (out-of-process) modules that communicate via the KEMP subprocess protoc
 are declared in `foreignModules` in `.kota/config.json`. See `docs/FOREIGN-MODULES.md`.
 
 Module config lives under the `modules` key in your config file.
-Notification modules (Telegram, Slack, webhook) are documented in `docs/NOTIFICATIONS.md`.
+Notification modules (Telegram, Slack, webhook, email) are documented in `docs/NOTIFICATIONS.md`.
 
 ### GitHub
 

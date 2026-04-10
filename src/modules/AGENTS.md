@@ -12,3 +12,7 @@ This directory contains the project-owned modules.
 - Keep top-level files here rare and generic. `index.ts` discovers project
   modules; `notify-retry.ts` is a small shared helper used by multiple
   notification modules.
+- When adding or modifying a notification channel module (Telegram, webhook,
+  Slack, email, or any future transport), update `docs/NOTIFICATIONS.md` to
+  document the operator config. That file is the canonical reference for how
+  operators wire up notification delivery.
