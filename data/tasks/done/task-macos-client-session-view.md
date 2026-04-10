@@ -1,7 +1,7 @@
 ---
 id: task-macos-client-session-view
 title: Add active sessions panel to macOS menu bar client
-status: backlog
+status: done
 priority: p3
 area: client
 summary: The macOS client shows workflows and approvals but has no view of active interactive sessions; adding a sessions panel using the existing GET /sessions daemon endpoint gives operators menu-bar visibility into live kota serve instances.

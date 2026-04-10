@@ -27,6 +27,9 @@ struct MenuBarView: View {
             // Task queue
             TaskQueueView()
 
+            // Active sessions
+            SessionsView()
+
             // Pending approvals
             ApprovalsView()
 

@@ -52,6 +52,10 @@ final class DaemonClient {
         try await get("/tasks")
     }
 
+    func fetchSessions() async throws -> SessionsResponse {
+        try await get("/sessions")
+    }
+
     func fetchRunDetail(runId: String) async throws -> RunDetail {
         try await get("/workflow/runs/\(runId)")
     }

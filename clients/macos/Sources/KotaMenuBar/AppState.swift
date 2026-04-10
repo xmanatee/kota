@@ -9,6 +9,7 @@ final class AppState: ObservableObject {
     @Published var activeRuns: [ActiveRun] = []
     @Published var pendingApprovals: [ApprovalRequest] = []
     @Published var taskQueue: TaskQueueResponse?
+    @Published var activeSessions: [SessionSummary] = []
     @Published var projectDir: URL? {
         didSet {
             if let dir = projectDir {
@@ -54,6 +55,7 @@ final class AppState: ObservableObject {
             activeRuns = []
             pendingApprovals = []
             taskQueue = nil
+            activeSessions = []
             return
         }
 
@@ -69,8 +71,12 @@ final class AppState: ObservableObject {
             do { return .success(try await client.fetchTasks()) }
             catch { return .failure(error) }
         }()
+        async let sessionsResult: Result<SessionsResponse, Error> = {
+            do { return .success(try await client.fetchSessions()) }
+            catch { return .failure(error) }
+        }()
 
-        let (sr, ar, tr) = await (statusResult, approvalsResult, tasksResult)
+        let (sr, ar, tr, sesr) = await (statusResult, approvalsResult, tasksResult, sessionsResult)
 
         switch sr {
         case .success(let status):
@@ -94,6 +100,13 @@ final class AppState: ObservableObject {
             taskQueue = resp
         case .failure:
             taskQueue = nil
+        }
+
+        switch sesr {
+        case .success(let resp):
+            activeSessions = resp.sessions
+        case .failure:
+            activeSessions = []
         }
     }
 

@@ -129,6 +129,29 @@ struct TaskDetail: Codable, Identifiable {
     let summary: String
 }
 
+// MARK: - Sessions
+
+struct SessionsResponse: Codable {
+    let sessions: [SessionSummary]
+}
+
+struct SessionSummary: Codable, Identifiable {
+    let id: String
+    let createdAt: String
+    let lastActive: Double
+
+    var elapsedDescription: String {
+        let formatter = ISO8601DateFormatter()
+        guard let date = formatter.date(from: createdAt) else { return "" }
+        let seconds = Int(-date.timeIntervalSinceNow)
+        if seconds < 60 { return "\(seconds)s" }
+        if seconds < 3600 { return "\(seconds / 60)m \(seconds % 60)s" }
+        let h = seconds / 3600
+        let m = (seconds % 3600) / 60
+        return "\(h)h \(m)m"
+    }
+}
+
 // MARK: - Daemon connectivity state
 
 enum DaemonHealth {
