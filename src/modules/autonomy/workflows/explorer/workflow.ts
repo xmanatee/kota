@@ -3,6 +3,7 @@ import { getRepoTaskQueueSnapshot } from "../../../../repo-tasks.js";
 import { assertRepoWorktreeClean } from "../../../../repo-worktree.js";
 import {
   assertArchitectureReadyCoverage,
+  assertStrategicReadyCoverage,
 } from "../../../../task-queue-validation.js";
 import type { WorkflowDefinitionInput } from "../../../../workflow/types.js";
 import { typedCodeStep } from "../../../../workflow/types.js";
@@ -99,6 +100,11 @@ const explorerWorkflow: WorkflowDefinitionInput = {
             id: "architecture-ready-coverage",
             type: "code",
             run: ({ projectDir }) => assertArchitectureReadyCoverage(projectDir),
+          },
+          {
+            id: "strategic-ready-coverage",
+            type: "code",
+            run: ({ projectDir }) => assertStrategicReadyCoverage(projectDir),
           },
         ],
       },
