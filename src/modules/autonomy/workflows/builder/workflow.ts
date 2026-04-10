@@ -1,5 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { execFileSync } from "node:child_process";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { basename, join } from "node:path";
 import type { AgentDef } from "../../../../agent-types.js";
 import type { RepoTaskQueueSnapshot } from "../../../../repo-tasks.js";
 import { getRepoTaskQueueSnapshot } from "../../../../repo-tasks.js";
@@ -83,15 +84,17 @@ const builderWorkflow: WorkflowDefinitionInput = {
           {
             id: "server-readme-sync",
             type: "code" as const,
-            run: (ctx) =>
-              runCheck(
-                `node -e "const fs=require('fs'),path=require('path'),d=path.join(process.cwd(),'src/server');` +
-                  `const r=fs.readFileSync(path.join(d,'README.md'),'utf8');` +
-                  `const m=fs.readdirSync(d).filter(f=>f.endsWith('-routes.ts')&&f!=='server-routes.ts').filter(f=>!r.includes(f));` +
-                  `if(m.length){console.error('Missing from src/server/README.md: '+m.join(', '));process.exit(1);}` +
-                  `console.log('OK: server README covers all route files');"`,
-                ctx.projectDir,
-              ),
+            run: (ctx) => {
+              const serverDir = join(ctx.projectDir, "src/server");
+              const readme = readFileSync(join(serverDir, "README.md"), "utf8");
+              const missing = readdirSync(serverDir)
+                .filter((f) => f.endsWith("-routes.ts") && f !== "server-routes.ts")
+                .filter((f) => !readme.includes(f));
+              if (missing.length) {
+                throw new Error(`Missing from src/server/README.md: ${missing.join(", ")}`);
+              }
+              return "OK: server README covers all route files";
+            },
           },
           {
             id: "mobile-typecheck",
@@ -121,19 +124,32 @@ const builderWorkflow: WorkflowDefinitionInput = {
           {
             id: "src-agents-md-key-modules",
             type: "code" as const,
-            run: (ctx) =>
-              runCheck(
-                `node -e "const {execFileSync}=require('child_process'),{readFileSync}=require('fs'),path=require('path');` +
-                  `const st=execFileSync('git',['diff','--cached','--name-status'],{cwd:process.cwd(),encoding:'utf8'});` +
-                  `const nf=st.split('\\n').filter(l=>l.startsWith('A\\t')).map(l=>l.slice(2).trim())` +
-                  `.filter(f=>/^src\\/[^\\/]+\\.ts$/.test(f)&&!f.includes('.test.')&&!f.endsWith('/index.ts')&&!f.endsWith('/testing-api.ts'));` +
-                  `if(!nf.length){console.log('OK: no new public src/ modules to check');process.exit(0);}` +
-                  `const md=readFileSync('src/AGENTS.md','utf8');` +
-                  `const ms=nf.filter(f=>!md.includes('\`'+path.basename(f,'.ts')+'.ts\`'));` +
-                  `if(ms.length){console.error('New src/ modules not documented in src/AGENTS.md Key Modules: '+ms.join(', '));process.exit(1);}` +
-                  `console.log('OK: all new src/ modules in src/AGENTS.md Key Modules');"`,
-                ctx.projectDir,
-              ),
+            run: (ctx) => {
+              const staged = execFileSync("git", ["diff", "--cached", "--name-status"], {
+                cwd: ctx.projectDir,
+                encoding: "utf8",
+              });
+              const newFiles = staged
+                .split("\n")
+                .filter((l) => l.startsWith("A\t"))
+                .map((l) => l.slice(2).trim())
+                .filter(
+                  (f) =>
+                    /^src\/[^/]+\.ts$/.test(f) &&
+                    !f.includes(".test.") &&
+                    !f.endsWith("/index.ts") &&
+                    !f.endsWith("/testing-api.ts"),
+                );
+              if (!newFiles.length) return "OK: no new public src/ modules to check";
+              const agentsMd = readFileSync(join(ctx.projectDir, "src/AGENTS.md"), "utf8");
+              const missing = newFiles.filter((f) => !agentsMd.includes(`\`${basename(f, ".ts")}.ts\``));
+              if (missing.length) {
+                throw new Error(
+                  `New src/ modules not documented in src/AGENTS.md Key Modules: ${missing.join(", ")}`,
+                );
+              }
+              return "OK: all new src/ modules in src/AGENTS.md Key Modules";
+            },
           },
         ],
       },
