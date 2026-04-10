@@ -16,6 +16,10 @@
 - Do not duplicate code, tests, prompts, or other docs unless duplication changes decisions.
 - Prefer one clear source of truth per topic.
 - If you change a documented protocol, API surface, CLI behavior, or config behavior, update the corresponding docs in the same run.
+- Do not list functions, methods, file inventories, or directory contents in docs. Agents can discover those from the code.
+- Do not include migration notes, changelog entries, or transitional guidance in durable docs. Once a migration is complete, remove the notes.
+- Documentation should cover what cannot be easily inferred from reading the code: vision, conventions, methodology, guidelines derived from experience, and architectural decisions.
+- Scope documentation as close to its subject as possible. Prefer a local `AGENTS.md` or a scoped doc over a global one.
 
 ## Engineering Rules
 
