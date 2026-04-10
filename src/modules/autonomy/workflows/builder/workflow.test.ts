@@ -1,8 +1,11 @@
-import { readFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "../../../../workflow-testing/index.js";
-import builderWorkflow from "./workflow.js";
+import builderWorkflow, { checkModuleBoundary } from "./workflow.js";
 
 const promptPath = fileURLToPath(new URL("./prompt.md", import.meta.url));
 const promptContent = readFileSync(promptPath, "utf-8");
@@ -543,5 +546,62 @@ describe("builder workflow", () => {
       warnings: ["Failed to delete branch kota/task/task-old: remote error"],
     });
     expect(result.status).toBe("success");
+  });
+});
+
+function makeGitRepo(): string {
+  const dir = join(tmpdir(), `kota-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  mkdirSync(dir, { recursive: true });
+  spawnSync("git", ["init"], { cwd: dir });
+  spawnSync("git", ["config", "user.email", "test@test.com"], { cwd: dir });
+  spawnSync("git", ["config", "user.name", "Test"], { cwd: dir });
+  // Make an initial commit so the repo is valid
+  writeFileSync(join(dir, "README.md"), "init");
+  spawnSync("git", ["add", "README.md"], { cwd: dir });
+  spawnSync("git", ["commit", "-m", "init"], { cwd: dir });
+  return dir;
+}
+
+describe("checkModuleBoundary", () => {
+  it("passes when no new files are staged", () => {
+    const dir = makeGitRepo();
+    expect(checkModuleBoundary(dir)).toBe("OK: no new capability files in src/ root");
+  });
+
+  it("passes when new files are staged inside src/modules/", () => {
+    const dir = makeGitRepo();
+    mkdirSync(join(dir, "src/modules/my-module"), { recursive: true });
+    writeFileSync(join(dir, "src/modules/my-module/index.ts"), "export {};");
+    execFileSync("git", ["add", "src/modules/my-module/index.ts"], { cwd: dir });
+    expect(checkModuleBoundary(dir)).toBe("OK: no new capability files in src/ root");
+  });
+
+  it("passes when a test file is added to src/ root", () => {
+    const dir = makeGitRepo();
+    mkdirSync(join(dir, "src"), { recursive: true });
+    writeFileSync(join(dir, "src/capability.test.ts"), "// test");
+    execFileSync("git", ["add", "src/capability.test.ts"], { cwd: dir });
+    expect(checkModuleBoundary(dir)).toBe("OK: no new capability files in src/ root");
+  });
+
+  it("fails when a new capability file is added directly to src/ root", () => {
+    const dir = makeGitRepo();
+    mkdirSync(join(dir, "src"), { recursive: true });
+    writeFileSync(join(dir, "src/new-capability.ts"), "export {};");
+    execFileSync("git", ["add", "src/new-capability.ts"], { cwd: dir });
+    expect(() => checkModuleBoundary(dir)).toThrow(
+      /New capability files added to src\/ root instead of src\/modules\//,
+    );
+    expect(() => checkModuleBoundary(dir)).toThrow("src/new-capability.ts");
+  });
+
+  it("fails when multiple new root files are added and lists them all", () => {
+    const dir = makeGitRepo();
+    mkdirSync(join(dir, "src"), { recursive: true });
+    writeFileSync(join(dir, "src/feature-a.ts"), "export {};");
+    writeFileSync(join(dir, "src/feature-b.ts"), "export {};");
+    execFileSync("git", ["add", "src/feature-a.ts", "src/feature-b.ts"], { cwd: dir });
+    expect(() => checkModuleBoundary(dir)).toThrow("src/feature-a.ts");
+    expect(() => checkModuleBoundary(dir)).toThrow("src/feature-b.ts");
   });
 });

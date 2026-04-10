@@ -1,7 +1,7 @@
 ---
 id: task-builder-module-boundary-check
 title: Add module-boundary repair check to builder workflow
-status: ready
+status: done
 priority: p2
 area: reliability
 summary: The builder's repair loop validates code quality (typecheck, lint, test, build) but does not catch capability code that leaked into src/ root instead of a module. A check that detects new non-core TypeScript files in src/ would catch architectural regression before it commits.

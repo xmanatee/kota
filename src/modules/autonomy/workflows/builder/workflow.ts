@@ -14,6 +14,25 @@ import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./br
 import type { BuilderRunSummary } from "./run-summary.js";
 import { writeBuilderRunSummary } from "./run-summary.js";
 
+export function checkModuleBoundary(projectDir: string): string {
+  const staged = execFileSync("git", ["diff", "--cached", "--name-status"], {
+    cwd: projectDir,
+    encoding: "utf8",
+  });
+  const violations = staged
+    .split("\n")
+    .filter((l) => l.startsWith("A\t"))
+    .map((l) => l.slice(2).trim())
+    .filter((f) => /^src\/[^/]+\.ts$/.test(f) && !f.includes(".test.") && !f.endsWith(".d.ts"));
+  if (violations.length) {
+    throw new Error(
+      `New capability files added to src/ root instead of src/modules/: ${violations.join(", ")}. ` +
+        `New capabilities belong in src/modules/<name>/.`,
+    );
+  }
+  return "OK: no new capability files in src/ root";
+}
+
 export const agent: AgentDef = {
   name: "builder",
   role: "Ship one cohesive improvement per run by resuming, pulling, or promoting one normalized task.",
@@ -151,6 +170,11 @@ const builderWorkflow: WorkflowDefinitionInput = {
               }
               return "OK: all new src/ modules in src/AGENTS.md Key Modules";
             },
+          },
+          {
+            id: "module-boundary",
+            type: "code" as const,
+            run: (ctx) => checkModuleBoundary(ctx.projectDir),
           },
         ],
       },
