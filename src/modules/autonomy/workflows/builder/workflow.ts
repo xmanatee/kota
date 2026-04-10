@@ -35,6 +35,7 @@ const inspectReadyQueue = typedCodeStep<RepoTaskQueueSnapshot>({
 const builderWorkflow: WorkflowDefinitionInput = {
   name: "builder",
   description: "Build KOTA by shipping one cohesive improvement per workflow run.",
+  costAnomalyThreshold: 3,
   triggers: [
     {
       event: "autonomy.queue.available",
