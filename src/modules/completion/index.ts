@@ -1,4 +1,6 @@
 import type { Command, Option } from "commander";
+import { Command as CommandClass } from "commander";
+import type { KotaModule } from "../../module-types.js";
 
 /** Walk a command tree and collect name + description pairs for each level. */
 function getSubcommands(cmd: Command): Array<{ name: string; description: string }> {
@@ -178,28 +180,45 @@ _kota "$@"
 `;
 }
 
-export function registerCompletionCommands(program: Command): void {
-  program
-    .command("completion [shell]")
-    .description("Print shell completion script (bash or zsh). Source it to enable tab completion.")
-    .action((shell: string | undefined) => {
-      const detected = shell ?? detectShell();
-      if (detected === "zsh") {
-        process.stdout.write(generateZsh(program));
-      } else if (detected === "bash") {
-        process.stdout.write(generateBash(program));
-      } else {
-        console.error(
-          `Unknown shell: ${detected ?? "(none detected)"}\nSupported: bash, zsh\n\nUsage: kota completion bash  OR  kota completion zsh`,
-        );
-        process.exit(1);
-      }
-    });
-}
-
 function detectShell(): string | undefined {
   const shellEnv = process.env.SHELL ?? "";
   if (shellEnv.includes("zsh")) return "zsh";
   if (shellEnv.includes("bash")) return "bash";
   return undefined;
 }
+
+/** Traverse commander parents to reach the root program. */
+function getRoot(cmd: Command): Command {
+  let root: Command = cmd;
+  while (root.parent) root = root.parent;
+  return root;
+}
+
+const completionModule: KotaModule = {
+  name: "completion",
+  version: "1.0.0",
+  description: "Shell completion script generator for bash and zsh",
+
+  commands: () => {
+    const cmd = new CommandClass("completion")
+      .description("Print shell completion script (bash or zsh). Source it to enable tab completion.")
+      .argument("[shell]", "Shell type: bash or zsh (auto-detected from $SHELL if omitted)")
+      .action(function (this: Command, shell: string | undefined) {
+        const program = getRoot(this);
+        const detected = shell ?? detectShell();
+        if (detected === "zsh") {
+          process.stdout.write(generateZsh(program));
+        } else if (detected === "bash") {
+          process.stdout.write(generateBash(program));
+        } else {
+          console.error(
+            `Unknown shell: ${detected ?? "(none detected)"}\nSupported: bash, zsh\n\nUsage: kota completion bash  OR  kota completion zsh`,
+          );
+          process.exit(1);
+        }
+      });
+    return [cmd];
+  },
+};
+
+export default completionModule;

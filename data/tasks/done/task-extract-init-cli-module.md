@@ -1,7 +1,7 @@
 ---
 id: task-extract-init-cli-module
 title: Move init-cli.ts into a dedicated init module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: src/init-cli.ts (174 lines) implements kota init and is imported directly by src/cli.ts. Moving it into a src/modules/init/ module continues the operator CLI surface migration.

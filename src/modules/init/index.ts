@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Command } from "commander";
-import { REPO_INBOX_DIR, REPO_TASK_STATES, REPO_TASKS_DIR } from "./repo-tasks.js";
+import { Command } from "commander";
+import type { KotaModule } from "../../module-types.js";
+import { REPO_INBOX_DIR, REPO_TASK_STATES, REPO_TASKS_DIR } from "../../repo-tasks.js";
 
 const KOTA_CONFIG_TEMPLATE = `import type { KotaConfig } from "kota/module";
 
@@ -162,33 +163,41 @@ export function runInit(projectDir: string, force: boolean): ScaffoldResult {
   return { created, skipped };
 }
 
-export function registerInitCommand(program: Command): void {
-  program
-    .command("init")
-    .description("Scaffold a new KOTA project in the current directory")
-    .option("--force", "Overwrite kota.config.ts even if it already exists")
-    .action((opts: { force?: boolean }) => {
-      const projectDir = process.cwd();
-      const { created, skipped } = runInit(projectDir, opts.force ?? false);
+const initModule: KotaModule = {
+  name: "init",
+  version: "1.0.0",
+  description: "Scaffolds a new KOTA project",
 
-      if (created.length > 0) {
-        console.log("Created:");
-        for (const f of created) {
-          console.log(`  ${f}`);
+  commands: () => {
+    const cmd = new Command("init")
+      .description("Scaffold a new KOTA project in the current directory")
+      .option("--force", "Overwrite kota.config.ts even if it already exists")
+      .action((opts: { force?: boolean }) => {
+        const projectDir = process.cwd();
+        const { created, skipped } = runInit(projectDir, opts.force ?? false);
+
+        if (created.length > 0) {
+          console.log("Created:");
+          for (const f of created) {
+            console.log(`  ${f}`);
+          }
         }
-      }
 
-      if (skipped.length > 0) {
-        console.log("Skipped (already exist):");
-        for (const f of skipped) {
-          console.log(`  ${f}`);
+        if (skipped.length > 0) {
+          console.log("Skipped (already exist):");
+          for (const f of skipped) {
+            console.log(`  ${f}`);
+          }
         }
-      }
 
-      console.log();
-      console.log("Project scaffolded. Next steps:");
-      console.log("  1. Review kota.config.ts and uncomment any modules you need.");
-      console.log("  2. Run `kota doctor` to verify your setup.");
-      console.log("  3. See docs/ for reference documentation.");
-    });
-}
+        console.log();
+        console.log("Project scaffolded. Next steps:");
+        console.log("  1. Review kota.config.ts and uncomment any modules you need.");
+        console.log("  2. Run `kota doctor` to verify your setup.");
+        console.log("  3. See docs/ for reference documentation.");
+      });
+    return [cmd];
+  },
+};
+
+export default initModule;

@@ -1,7 +1,7 @@
 ---
 id: task-extract-completion-cli-module
 title: Move completion-cli.ts into a dedicated completion module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: src/completion-cli.ts (205 lines) implements kota completion [bash|zsh] and lives as a standalone core file. Moving it into a new src/modules/completion/ module continues the operator CLI surface migration.

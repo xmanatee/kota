@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { describe, expect, it, vi } from "vitest";
-import { registerCompletionCommands } from "./completion-cli.js";
+import type { ModuleContext } from "../../module-types.js";
+import completionModule from "./index.js";
 
 function makeProgram(): Command {
   const program = new Command("kota");
@@ -12,7 +13,9 @@ function makeProgram(): Command {
   workflow.command("run").description("Run a workflow").option("--workflow <name>", "workflow name");
 
   program.command("task").description("Manage tasks");
-  registerCompletionCommands(program);
+  for (const cmd of completionModule.commands!({} as ModuleContext)) {
+    program.addCommand(cmd);
+  }
   return program;
 }
 

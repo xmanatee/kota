@@ -10,10 +10,8 @@ import {
   resolveConversationId,
   runPipeLoop,
 } from "./cli-history.js";
-import { registerCompletionCommands } from "./completion-cli.js";
 import { expandAlias, loadConfig } from "./config.js";
 import { setSkipConfirmations } from "./confirm.js";
-import { registerInitCommand } from "./init-cli.js";
 import { runAgentLoop } from "./loop.js";
 import { getHistory } from "./memory/history.js";
 import { createModelClient } from "./model/model-client.js";
@@ -166,8 +164,6 @@ program
   });
 
 registerHistoryCommands(program);
-registerInitCommand(program);
-registerCompletionCommands(program);
 
 // Handle stdin pipe mode
 async function checkPipeMode() {

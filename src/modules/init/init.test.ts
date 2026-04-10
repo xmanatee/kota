@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { registerInitCommand, runInit } from "./init-cli.js";
+import type { ModuleContext } from "../../module-types.js";
+import initModule, { runInit } from "./index.js";
 
 function makeTmpDir(): string {
   const dir = join(
@@ -17,7 +18,9 @@ function makeTmpDir(): string {
 function makeProgram(): Command {
   const program = new Command();
   program.exitOverride();
-  registerInitCommand(program);
+  for (const cmd of initModule.commands!({} as ModuleContext)) {
+    program.addCommand(cmd);
+  }
   return program;
 }
 
