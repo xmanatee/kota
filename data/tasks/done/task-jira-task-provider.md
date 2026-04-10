@@ -1,7 +1,7 @@
 ---
 id: task-jira-task-provider
 title: Add Jira Cloud task provider module
-status: ready
+status: done
 priority: p3
 area: modules
 summary: Teams using Jira Cloud have no way to feed their existing issue tracker into KOTA's builder queue. A Jira module implementing TaskProvider would let the builder pull from Jira issues the same way it does from Linear and GitHub Issues.

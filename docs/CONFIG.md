@@ -375,6 +375,51 @@ transitions to `doneState` and adds a comment. State names must match exactly th
 names in your Linear workspace. If `apiKey` is missing or the env var is unset, the provider is
 inactive (warning logged).
 
+### Jira
+
+Optional module — not loaded by default. Provides a `TaskProvider` backed by Jira Cloud issues so
+KOTA's builder can pull tasks directly from a Jira project without maintaining a parallel file queue.
+No npm dependencies; uses Jira REST API v3 with Basic auth. Cloud only (`.atlassian.net`).
+
+```json
+{
+  "modules": {
+    "jira": {
+      "apiToken": "$JIRA_API_TOKEN",
+      "userEmail": "$JIRA_USER_EMAIL",
+      "baseUrl": "$JIRA_BASE_URL",
+      "taskProvider": {
+        "enabled": true,
+        "projectKey": "ENG",
+        "jqlFilter": "assignee = currentUser()",
+        "inProgressTransition": "In Progress",
+        "doneTransition": "Done",
+        "claimOnStart": true
+      }
+    }
+  }
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `apiToken` | Yes | Jira API token or `$ENV_VAR` reference. Never logged. |
+| `userEmail` | Yes | Jira account email or `$ENV_VAR` reference. Never logged. |
+| `baseUrl` | Yes | Jira Cloud base URL (e.g. `"https://myorg.atlassian.net"`) or `$ENV_VAR`. |
+| `taskProvider.enabled` | No | Set to `true` to register Jira Cloud as KOTA's task source. Default: disabled. |
+| `taskProvider.projectKey` | Yes (when enabled) | Jira project key (e.g. `"ENG"`). |
+| `taskProvider.jqlFilter` | No | Extra JQL appended to the base query. Default: no extra filter. |
+| `taskProvider.inProgressTransition` | No | Transition name to apply when a task is claimed. Default: `"In Progress"`. |
+| `taskProvider.doneTransition` | No | Transition name to apply when a task is completed. Default: `"Done"`. |
+| `taskProvider.claimOnStart` | No | Assign the issue to the authenticated user when claimed. Default: `true`. |
+
+When `taskProvider.enabled` is `true`, the module fetches open issues from `projectKey` at startup
+and caches them in memory. Transition IDs are looked up by name at init and cached. Claiming a task
+applies `inProgressTransition` and optionally assigns the issue to the authenticated user;
+completing it applies `doneTransition`. Transition names must match exactly the workflow transition
+names in your Jira project. If any credential is missing or unset, the provider is inactive
+(warning logged).
+
 ### GitHub Webhook
 
 Receives GitHub webhook deliveries and emits `github.push`, `github.pull_request`, and
