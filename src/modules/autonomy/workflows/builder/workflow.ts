@@ -142,6 +142,11 @@ const builderWorkflow: WorkflowDefinitionInput = {
             },
           },
           {
+            id: "module-boundary",
+            type: "code" as const,
+            run: (ctx) => checkModuleBoundary(ctx.projectDir),
+          },
+          {
             id: "src-agents-md-key-modules",
             type: "code" as const,
             run: (ctx) => {
@@ -170,11 +175,6 @@ const builderWorkflow: WorkflowDefinitionInput = {
               }
               return "OK: all new src/ modules in src/AGENTS.md Key Modules";
             },
-          },
-          {
-            id: "module-boundary",
-            type: "code" as const,
-            run: (ctx) => checkModuleBoundary(ctx.projectDir),
           },
         ],
       },
