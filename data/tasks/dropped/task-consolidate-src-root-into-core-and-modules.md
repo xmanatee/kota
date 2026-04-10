@@ -1,7 +1,7 @@
 ---
 id: task-consolidate-src-root-into-core-and-modules
 title: Consolidate src/ root-level directories and loose files into core/ and modules/
-status: backlog
+status: dropped
 priority: p2
 area: architecture
 summary: The documented two-layer guideline (src/core/ + src/modules/) is violated by 11 extra root-level directories and ~40 loose .ts files under src/. Move them into core/ or modules/ to match the documented structure.
@@ -51,3 +51,17 @@ Suggested moves from the structural audit:
 - All import paths and path mappings are updated.
 - `src/AGENTS.md` accurately reflects the new structure.
 - All checks pass.
+
+## Dropped
+
+Dropped in favor of 6 smaller subtasks that each move one or two directories:
+- task-move-low-import-dirs-to-core
+- task-move-agent-sdk-and-data-to-core
+- task-move-model-to-core
+- task-move-memory-to-core
+- task-move-server-to-core
+- task-move-web-ui-to-modules
+
+The original task caused a builder timeout (60min) when attempted as a single
+265-file refactoring. Loose .ts file consolidation is deferred until the
+directory moves are complete.

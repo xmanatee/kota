@@ -24,6 +24,23 @@ and the evidence that it is met.
 
 Both files are checked by the repair loop. The run cannot finish without them.
 
+## Task Sizing
+
+Before starting implementation, estimate the scope of the task. If a task
+requires touching more than ~30 files or moving/renaming more than a few
+directories, it is too large for a single builder run. Decompose it:
+
+- Split the task into smaller sequential subtasks in `data/tasks/backlog/`.
+- Each subtask should be independently shippable and verifiable.
+- Mark the original task as `done` or `dropped` with a note pointing to
+  the replacement subtasks.
+- Move your subtask status through `doing/` and `done/` normally.
+- This decomposition counts as a successful run — commit it.
+
+Do not attempt large mechanical refactors (mass renames, cross-codebase import
+rewrites) in a single run. The 60-minute timeout will kill the run and leave
+the repo dirty.
+
 ## Guidance
 
 - Work only in this repository.
