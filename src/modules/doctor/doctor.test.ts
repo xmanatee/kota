@@ -16,7 +16,7 @@ vi.mock("#core/modules/module-metadata.js", () => ({
   })),
 }));
 
-vi.mock("#root/config.js", () => ({
+vi.mock("#core/config/config.js", () => ({
   loadConfig: vi.fn(() => ({})),
 }));
 

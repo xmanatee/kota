@@ -2,7 +2,7 @@ import { mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { KNOWN_CONFIG_KEYS, warnInvalidConcurrencyConfig, warnUnknownConfigKeys } from "./config-warnings.js";
+import { KNOWN_CONFIG_KEYS, warnInvalidConcurrencyConfig, warnUnknownConfigKeys } from "#core/config/config-warnings.js";
 
 function makeProjectDir(): string {
   const dir = join(

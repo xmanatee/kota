@@ -1,5 +1,5 @@
+import type { KotaConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
-import type { KotaConfig } from "#root/config.js";
 import type { RegisteredWorkflowDefinitionInput } from "./types.js";
 
 export type WorkflowRuntimeConfig = {

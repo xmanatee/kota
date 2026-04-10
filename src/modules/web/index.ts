@@ -8,10 +8,10 @@
  */
 
 import { Command } from "commander";
+import { warnUnknownConfigKeys } from "#core/config/config-warnings.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { startServer } from "#core/server/server.js";
 import { getWebUI } from "#modules/web-ui/web-ui.js";
-import { warnUnknownConfigKeys } from "#root/config-warnings.js";
 
 function parseIntOption(value: string, name: string): number {
   const n = Number.parseInt(value, 10);

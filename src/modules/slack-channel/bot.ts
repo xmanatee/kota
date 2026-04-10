@@ -7,10 +7,10 @@
  */
 
 import type { ChannelSession } from "#core/channels/channel.js";
+import type { KotaConfig } from "#core/config/config.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
 import { NullTransport, ProxyTransport } from "#core/loop/transport.js";
-import type { KotaConfig } from "#root/config.js";
 import {
   callSlackApi,
   openSocketModeUrl,

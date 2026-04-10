@@ -1,4 +1,4 @@
-import { buildUserProfile, type KotaConfig } from "#root/config.js";
+import { buildUserProfile, type KotaConfig } from "#core/config/config.js";
 import { loadInstructionContext } from "#root/instruction-files.js";
 import { loadProjectContext } from "#root/project-context.js";
 import type { SDKSystemPrompt } from "./types.js";

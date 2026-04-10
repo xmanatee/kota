@@ -27,7 +27,7 @@ vi.mock("#core/daemon/approval-queue.js", () => ({
     enqueue: vi.fn(() => ({ id: "abc123" })),
   })),
 }));
-vi.mock("#root/secrets.js", () => ({
+vi.mock("#core/config/secrets.js", () => ({
   getSecretStore: vi.fn(() => null),
 }));
 

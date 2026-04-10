@@ -23,7 +23,7 @@ describe("vercel-adapter module", () => {
     const ctx: ModuleContext = {
       cwd: "/tmp",
       verbose: false,
-      config: { model: "test-model" } as import("#root/config.js").KotaConfig,
+      config: { model: "test-model" } as import("#core/config/config.js").KotaConfig,
       storage: new ModuleStorage("/tmp", "vercel-adapter"),
       registerGroup: () => {},
       getRoutes: () => [],

@@ -26,7 +26,7 @@ const mcpServerModule: KotaModule = {
 			.option("--name <name>", "Server name reported to MCP clients", "kota")
 			.action(async (opts) => {
 				const { McpServer } = await import("#core/mcp/server.js");
-				const { loadConfig } = await import("#root/config.js");
+				const { loadConfig } = await import("#core/config/config.js");
 				const { ModuleLoader } = await import("#core/modules/module-loader.js");
 				const { discoverProjectModules } = await import("#core/modules/project-discovery.js");
 				const { discoverModules } = await import(

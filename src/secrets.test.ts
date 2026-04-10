@@ -10,7 +10,7 @@ import {
   KeychainProvider,
   resetSecretStore,
   SecretStore,
-} from "./secrets.js";
+} from "#core/config/secrets.js";
 
 function makeTmpDir(): string {
   const dir = join(tmpdir(), `kota-secrets-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);

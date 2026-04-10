@@ -16,7 +16,7 @@ vi.mock("#root/instruction-files.js", () => ({
     mockLoadInstructionContext(dir, rootDir),
 }));
 
-vi.mock("#root/config.js", () => ({
+vi.mock("#core/config/config.js", () => ({
   buildUserProfile: (cfg: unknown) => mockBuildUserProfile(cfg),
 }));
 

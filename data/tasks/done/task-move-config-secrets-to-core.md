@@ -1,7 +1,7 @@
 ---
 id: task-move-config-secrets-to-core
 title: "Move config and secrets helpers from src/ root to src/core/config/"
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: "config.ts, config-warnings.ts, secrets.ts, and secret-providers.ts are kernel-owned configuration helpers sitting as loose root files. Moving them into src/core/config/ is a small, coherent cluster that advances the core/modules directory split."

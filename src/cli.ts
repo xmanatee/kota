@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { expandAlias, loadConfig } from "#core/config/config.js";
 import {
   interactiveMode,
   parseIntOption,
@@ -6,7 +7,6 @@ import {
   resolveConversationId,
   runPipeLoop,
 } from "./cli-history.js";
-import { expandAlias, loadConfig } from "./config.js";
 import { setSkipConfirmations } from "./confirm.js";
 import {
   buildClaudeCodeSystemPrompt,

@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { SYSTEM_PROMPT } from "#core/agents/system-prompt.js";
+import { buildUserProfile } from "#core/config/config.js";
 import { initScheduler } from "#core/daemon/scheduler.js";
 import { initTaskStore } from "#core/daemon/task-store.js";
 import { tryEmit } from "#core/events/event-bus.js";
@@ -13,7 +14,6 @@ import { setConfigProvider, setModuleInfoProvider } from "#core/tools/agent-stat
 import { setDelegateConfig } from "#core/tools/delegate.js";
 import { getDefaultConfig as getDefaultGuardrails } from "#core/tools/guardrails.js";
 import { enableGroup } from "#core/tools/tool-groups.js";
-import { buildUserProfile } from "#root/config.js";
 import { buildSessionWarmup } from "#root/init.js";
 import { loadInstructionContext } from "#root/instruction-files.js";
 import { loadProjectContext } from "#root/project-context.js";

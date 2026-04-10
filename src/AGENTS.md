@@ -17,6 +17,7 @@ Kernel areas:
 
 - `src/core/agents/`
 - `src/core/channels/`
+- `src/core/config/`
 - `src/core/daemon/`
 - `src/core/events/`
 - `src/core/loop/`

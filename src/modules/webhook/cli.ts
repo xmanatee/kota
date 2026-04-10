@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { Command } from "commander";
+import { loadConfig, updateProjectConfig } from "#core/config/config.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
-import { loadConfig, updateProjectConfig } from "#root/config.js";
 
 export function registerWebhookCommands(webhookCmd: Command): void {
   webhookCmd

@@ -1,5 +1,5 @@
 import { createInterface } from "node:readline";
-import { expandAlias, type KotaConfig, loadConfig } from "./config.js";
+import { expandAlias, type KotaConfig, loadConfig } from "#core/config/config.js";
 import { getScheduler, resetScheduler } from "./core/daemon/scheduler.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "./core/loop/loop.js";
 import { type ConversationHistory, getHistory } from "./core/memory/history.js";

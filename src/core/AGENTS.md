@@ -15,6 +15,8 @@ into.
 - `agents/` — core agent and skill definition types plus system-prompt
   primitives.
 - `channels/` — core channel protocol types.
+- `config/` — configuration schema, layered loading, secrets management, and
+  secret providers.
 - `daemon/` — daemon host, control API, scheduler persistence, and live runtime
   state.
 - `events/` — typed event catalog and event bus.

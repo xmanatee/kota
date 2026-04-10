@@ -1,7 +1,7 @@
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { KotaConfig } from "#core/config/config.js";
 import type { BusEnvelope } from "#core/events/event-bus.js";
-import type { KotaConfig } from "#root/config.js";
 import { getRepoWorktreeStatus } from "#root/repo-worktree.js";
 import { AgentBackoffManager } from "./agent-backoff.js";
 import { BudgetGuard } from "./budget-guard.js";
