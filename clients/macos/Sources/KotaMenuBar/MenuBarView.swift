@@ -56,6 +56,8 @@ struct MenuBarView: View {
                     appState.promptForProjectDirectory()
                 }
 
+                NotificationToggleRow()
+
                 Divider()
 
                 MenuActionButton(label: "Quit KOTA Menu Bar", icon: "xmark.circle") {
@@ -69,6 +71,8 @@ struct MenuBarView: View {
             TriggerWorkflowView()
                 .environmentObject(appState)
         }
+        .onAppear { appState.isPopoverOpen = true }
+        .onDisappear { appState.isPopoverOpen = false }
     }
 }
 
@@ -487,6 +491,20 @@ struct TaskQueueView: View {
                     .padding(.bottom, 4)
             }
         }
+    }
+}
+
+struct NotificationToggleRow: View {
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        Toggle(isOn: $appState.notificationsEnabled) {
+            Label("Notifications", systemImage: "bell")
+        }
+        .toggleStyle(.switch)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .font(.body)
     }
 }
 

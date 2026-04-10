@@ -1,7 +1,7 @@
 ---
 id: task-macos-native-notifications
 title: Add macOS native notifications for critical workflow events
-status: ready
+status: done
 priority: p2
 area: client
 summary: The macOS menu bar client polls the daemon every 5 seconds but does not surface critical events (workflow failures, pending approvals) as native OS notifications. Operators must watch the menu bar icon to catch urgent items.

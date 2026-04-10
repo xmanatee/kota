@@ -73,6 +73,12 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(remoteURL, forKey: "remoteDaemonURL") }
     }
 
+    @Published var notificationsEnabled: Bool = UserDefaults.standard.object(forKey: "notificationsEnabled") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(notificationsEnabled, forKey: "notificationsEnabled") }
+    }
+
+    var isPopoverOpen: Bool = false
+
     var connectionMode: DaemonConnectionMode {
         remoteURL.isEmpty ? .local : .remote
     }
@@ -80,11 +86,16 @@ final class AppState: ObservableObject {
     let client = DaemonClient()
     private var pollTask: Task<Void, Never>?
 
+    private var knownFailedRunIDs: Set<String> = []
+    private var knownApprovalIDs: Set<String> = []
+    private var notificationStateInitialized = false
+
     init() {
         if let stored = UserDefaults.standard.string(forKey: "projectDirectory") {
             projectDir = URL(fileURLWithPath: stored)
         }
         remoteURL = UserDefaults.standard.string(forKey: "remoteDaemonURL") ?? ""
+        NotificationManager.shared.requestAuthorization()
         startPolling()
     }
 
@@ -226,6 +237,50 @@ final class AppState: ObservableObject {
         case .failure:
             recentRuns = []
         }
+
+        checkForNotifications()
+    }
+
+    private func checkForNotifications() {
+        guard notificationsEnabled && !isPopoverOpen else {
+            // Seed known state so we don't fire stale notifications when re-enabled
+            if !notificationStateInitialized {
+                knownFailedRunIDs = Set(recentRuns.filter { $0.status == "failed" }.map { $0.id })
+                knownApprovalIDs = Set(pendingApprovals.map { $0.id })
+                notificationStateInitialized = true
+            }
+            return
+        }
+
+        let currentFailedIDs = Set(recentRuns.filter { $0.status == "failed" }.map { $0.id })
+        let currentApprovalIDs = Set(pendingApprovals.map { $0.id })
+
+        if notificationStateInitialized {
+            for id in currentFailedIDs.subtracting(knownFailedRunIDs) {
+                if let run = recentRuns.first(where: { $0.id == id }) {
+                    NotificationManager.shared.notify(
+                        title: "Workflow failed",
+                        body: run.workflow,
+                        identifier: "workflow-failure-\(id)"
+                    )
+                }
+            }
+            for id in currentApprovalIDs.subtracting(knownApprovalIDs) {
+                if let approval = pendingApprovals.first(where: { $0.id == id }) {
+                    let excerpt = approval.reason.flatMap { $0.isEmpty ? nil : String($0.prefix(100)) }
+                    let body = excerpt.map { "\(approval.tool): \($0)" } ?? approval.tool
+                    NotificationManager.shared.notify(
+                        title: "Approval needed",
+                        body: body,
+                        identifier: "approval-\(id)"
+                    )
+                }
+            }
+        }
+
+        knownFailedRunIDs = currentFailedIDs
+        knownApprovalIDs = currentApprovalIDs
+        notificationStateInitialized = true
     }
 
     func approve(id: String) async {
