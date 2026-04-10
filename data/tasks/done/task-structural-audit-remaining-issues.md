@@ -1,7 +1,7 @@
 ---
 id: task-structural-audit-remaining-issues
 title: Audit remaining structural and modularization issues in the codebase
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Review the codebase at a high level to identify concepts, abstractions, and structural elements that are unnecessary, misplaced, or should be modularized, then propose concrete next steps for any real issues found.
