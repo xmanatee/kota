@@ -111,5 +111,10 @@ export function validateForeachStep(
       `steps[${index}].exposeOutputToAgent`,
       definitionPath,
     ),
+    retryFailedItems: expectOptionalBoolean(
+      step.retryFailedItems,
+      `steps[${index}].retryFailedItems`,
+      definitionPath,
+    ),
   };
 }

@@ -552,6 +552,7 @@ steps: [
 | `steps` | `(WorkflowCodeStepInput \| WorkflowAgentStepInput)[]` | — | Required. Non-empty array of steps to run for each item. Only `code` and `agent` steps are supported inside a foreach body. |
 | `when` | predicate | — | Outer skip guard. If false, the entire foreach step is skipped. |
 | `continueOnFailure` | `boolean` | `false` | If true, a failing item does not abort the loop — the workflow continues with warnings after all items are processed. |
+| `retryFailedItems` | `boolean` | `false` | When true and `continueOnFailure: true`, a workflow retry re-runs only the items that failed in the prior run and preserves successful results. Requires `continueOnFailure: true`. If the item count changes between runs, falls back to a full re-run. |
 | `maxConcurrency` | `number` | `1` | Maximum number of items to execute concurrently. Defaults to 1 (serial). Must be a positive integer. Values > 1 are rejected at definition load time if any inner step is an `agent` step. |
 | `timeoutMs` | `number` | 30 min | Maximum time for the entire foreach loop to complete. |
 

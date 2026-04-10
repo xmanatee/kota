@@ -48,6 +48,8 @@ type ForeachRunDeps = ForeachAgentDeps & {
   acc: ForeachStepAccumulators;
   bus: EventBus;
   log: (message: string) => void;
+  /** Preserved item results from a prior run, used by retryFailedItems partial-resume. */
+  priorItemResults?: ForeachItemResult[];
 };
 
 async function executeInnerStep(
@@ -203,6 +205,16 @@ export async function executeForeachStepGroup(
     };
   }
 
+  // Partial-resume: when priorItemResults is provided and count matches, skip
+  // already-successful items and preserve their results.
+  const priorResults = deps.priorItemResults;
+  const usePartialResume = priorResults !== undefined && priorResults.length === items.length;
+  if (priorResults !== undefined && !usePartialResume) {
+    deps.log(
+      `foreach step "${step.id}" item count changed (prior: ${priorResults.length}, now: ${items.length}) — falling back to full re-run in workflow "${deps.definition.name}"`,
+    );
+  }
+
   deps.log(
     `foreach step "${step.id}" iterating over ${items.length} item(s) in workflow "${deps.definition.name}"`,
   );
@@ -259,6 +271,10 @@ export async function executeForeachStepGroup(
 
   if (maxConcurrency <= 1) {
     for (let i = 0; i < items.length; i++) {
+      if (usePartialResume && priorResults![i].status === "success") {
+        handleItemResult(priorResults![i], i);
+        continue;
+      }
       handleItemResult(await executeOneItem(items[i], i), i);
       if (groupFailed && !step.continueOnFailure) break;
     }
@@ -266,7 +282,13 @@ export async function executeForeachStepGroup(
     for (let batchStart = 0; batchStart < items.length; batchStart += maxConcurrency) {
       const batchEnd = Math.min(batchStart + maxConcurrency, items.length);
       const batchSettled = await Promise.allSettled(
-        items.slice(batchStart, batchEnd).map((item, j) => executeOneItem(item, batchStart + j)),
+        items.slice(batchStart, batchEnd).map((item, j) => {
+          const absIndex = batchStart + j;
+          if (usePartialResume && priorResults![absIndex].status === "success") {
+            return Promise.resolve(priorResults![absIndex]);
+          }
+          return executeOneItem(item, absIndex);
+        }),
       );
 
       for (let j = 0; j < batchSettled.length; j++) {

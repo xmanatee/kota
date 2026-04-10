@@ -1,7 +1,7 @@
 ---
 id: task-foreach-partial-resume
 title: Allow foreach steps to resume from failed items on workflow retry
-status: backlog
+status: done
 priority: p3
 area: runtime
 summary: When a foreach step fails partway through (even with continueOnFailure), retrying the workflow re-runs all items from scratch. For expensive agent steps in a foreach loop, recording which items failed and re-running only those on retry would save significant cost and time.

@@ -276,6 +276,13 @@ export type WorkflowForeachStepInput = WorkflowBaseStep & {
    * Must be a positive integer. Values > 1 are rejected if any inner step is an agent step.
    */
   maxConcurrency?: number;
+  /**
+   * When true and `continueOnFailure: true`, a workflow retry will skip items that
+   * succeeded in the prior run and re-run only the failed items. The merged output
+   * preserves successful results from the prior run alongside new results.
+   * Requires `continueOnFailure: true`. Defaults to false.
+   */
+  retryFailedItems?: boolean;
 };
 
 export type WorkflowApprovalStepInput = WorkflowBaseStep & {
@@ -463,6 +470,8 @@ export type WorkflowForeachStep = WorkflowBaseStep & {
   steps: (WorkflowCodeStep | WorkflowAgentStep)[];
   /** Maximum number of items to execute concurrently. Defaults to 1 (serial). */
   maxConcurrency?: number;
+  /** When true and `continueOnFailure: true`, retries re-run only failed items. */
+  retryFailedItems?: boolean;
 };
 
 export type WorkflowApprovalStep = WorkflowBaseStep & {

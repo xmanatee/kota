@@ -248,6 +248,14 @@ export function executeWorkflowRun(
           });
           let foreachGroupResult: ForeachGroupResult | undefined;
           try {
+            let priorItemResults: import("./step-executor-foreach.js").ForeachItemResult[] | undefined;
+            if (step.retryFailedItems && step.continueOnFailure && retryState.priorRunSteps) {
+              const priorForeachResult = retryState.priorRunSteps.find((s) => s.id === step.id);
+              const priorOutput = priorForeachResult?.output as { items?: number; results?: import("./step-executor-foreach.js").ForeachItemResult[] } | undefined;
+              if (Array.isArray(priorOutput?.results)) {
+                priorItemResults = priorOutput.results;
+              }
+            }
             const foreachDeps = {
               definition,
               run,
@@ -257,6 +265,7 @@ export function executeWorkflowRun(
               acc,
               bus: deps.bus,
               log: deps.log,
+              priorItemResults,
             };
             const getContext = () => createStepContext(
               run.metadata, trigger, previousOutput, stepOutputsById, stepResultsById, stepOutputs, deps,

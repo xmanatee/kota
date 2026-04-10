@@ -8,6 +8,10 @@ import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowDefinition, WorkflowForeachStepInput, WorkflowRunTrigger } from "./types.js";
 import { validateWorkflowDefinitions } from "./validation.js";
 
+function makeRetryTrigger(retryOf: string): WorkflowRunTrigger {
+  return { event: "retry", payload: { retryOf, triggeredAt: new Date().toISOString() } };
+}
+
 function makeDefinition(
   steps: WorkflowDefinition["steps"],
   overrides: Partial<WorkflowDefinition> = {},
@@ -635,5 +639,214 @@ describe("foreach step – validation", () => {
         },
       ]),
     ).toThrow('duplicate step id "dup"');
+  });
+});
+
+describe("foreach step – retryFailedItems partial-resume", () => {
+  let projectDir: string;
+  let store: WorkflowRunStore;
+  let bus: EventBus;
+  const log = vi.fn();
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-foreach-retry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    store = new WorkflowRunStore(projectDir);
+    bus = new EventBus();
+    log.mockReset();
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("re-runs only failed items on retry when retryFailedItems is true", async () => {
+    const processed: number[] = [];
+
+    const definition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        continueOnFailure: true,
+        retryFailedItems: true,
+        items: () => [0, 1, 2],
+        as: "idx",
+        steps: [
+          {
+            id: "process",
+            type: "code",
+            run: (ctx) => {
+              const idx = ctx.foreach?.idx as number;
+              processed.push(idx);
+              if (idx === 1) throw new Error("item 1 failed");
+              return `ok:${idx}`;
+            },
+          },
+        ],
+      },
+    ]);
+
+    // First run: items 0 and 2 succeed, item 1 fails
+    const { promise: p1 } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const first = await p1;
+    expect(first.metadata.status).toBe("completed-with-warnings");
+    const firstId = first.metadata.id;
+    processed.length = 0;
+
+    // Retry: item 1 is fixed — should only re-run item 1
+    const fixedDefinition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        continueOnFailure: true,
+        retryFailedItems: true,
+        items: () => [0, 1, 2],
+        as: "idx",
+        steps: [
+          {
+            id: "process",
+            type: "code",
+            run: (ctx) => {
+              const idx = ctx.foreach?.idx as number;
+              processed.push(idx);
+              return `ok:${idx}`;
+            },
+          },
+        ],
+      },
+    ]);
+
+    const { promise: p2 } = executeWorkflowRun(fixedDefinition, makeRetryTrigger(firstId), { projectDir, bus, store, log });
+    const retried = await p2;
+
+    // Only item 1 should have been re-run
+    expect(processed).toEqual([1]);
+    expect(retried.metadata.status).toBe("success");
+
+    const foreachResult = retried.metadata.steps.find((s) => s.id === "iterate");
+    expect(foreachResult?.status).toBe("success");
+    const output = foreachResult?.output as { items: number; results: Array<{ index: number; status: string }> };
+    expect(output.items).toBe(3);
+    expect(output.results).toHaveLength(3);
+    expect(output.results[0].status).toBe("success");
+    expect(output.results[1].status).toBe("success"); // re-run and now succeeds
+    expect(output.results[2].status).toBe("success");
+  });
+
+  it("falls back to a full re-run when item count changes between runs", async () => {
+    const processed: number[] = [];
+
+    const definition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        continueOnFailure: true,
+        retryFailedItems: true,
+        items: () => [0, 1],
+        as: "idx",
+        steps: [
+          {
+            id: "process",
+            type: "code",
+            run: (ctx) => {
+              const idx = ctx.foreach?.idx as number;
+              processed.push(idx);
+              if (idx === 1) throw new Error("item 1 failed");
+              return `ok:${idx}`;
+            },
+          },
+        ],
+      },
+    ]);
+
+    const { promise: p1 } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const first = await p1;
+    const firstId = first.metadata.id;
+    processed.length = 0;
+
+    // Retry with MORE items — count mismatch triggers full re-run
+    const expandedDefinition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        continueOnFailure: true,
+        retryFailedItems: true,
+        items: () => [0, 1, 2], // 3 items now
+        as: "idx",
+        steps: [
+          {
+            id: "process",
+            type: "code",
+            run: (ctx) => {
+              const idx = ctx.foreach?.idx as number;
+              processed.push(idx);
+              return `ok:${idx}`;
+            },
+          },
+        ],
+      },
+    ]);
+
+    const { promise: p2 } = executeWorkflowRun(expandedDefinition, makeRetryTrigger(firstId), { projectDir, bus, store, log });
+    await p2;
+
+    // All 3 items run (full re-run due to count mismatch)
+    expect(processed.sort()).toEqual([0, 1, 2]);
+  });
+
+  it("does not activate partial-resume when retryFailedItems is absent", async () => {
+    const processed: number[] = [];
+
+    // A foreach WITHOUT retryFailedItems but WITH continueOnFailure.
+    // On retry the foreach step is NOT treated as a retry point, so it is
+    // replayed from the prior run result without re-running any items.
+    const definition = makeDefinition([
+      {
+        id: "iterate",
+        type: "foreach",
+        continueOnFailure: true,
+        // no retryFailedItems
+        items: () => [0, 1, 2],
+        as: "idx",
+        steps: [
+          {
+            id: "process",
+            type: "code",
+            run: (ctx) => {
+              const idx = ctx.foreach?.idx as number;
+              processed.push(idx);
+              if (idx === 1) throw new Error("item 1 failed");
+              return `ok:${idx}`;
+            },
+          },
+        ],
+      },
+      {
+        id: "after",
+        type: "code",
+        run: () => "after",
+      },
+    ]);
+
+    const { promise: p1 } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const first = await p1;
+    expect(first.metadata.status).toBe("completed-with-warnings");
+    const firstId = first.metadata.id;
+    processed.length = 0;
+
+    // Retry: the foreach step is replayed (not re-run). The "after" step is the retry point
+    // because findRetryFromIndex skips continueOnFailure failures without retryFailedItems.
+    // However, "after" succeeded in the first run, so retryFromIndex goes past it too —
+    // the whole workflow is considered fully complete and retryFromIndex = steps.length.
+    const { promise: p2 } = executeWorkflowRun(definition, makeRetryTrigger(firstId), { projectDir, bus, store, log });
+    const retried = await p2;
+
+    // No items were processed — the foreach was not re-run
+    expect(processed).toEqual([]);
+    // The retry run has both steps replayed
+    expect(retried.metadata.steps).toHaveLength(2);
   });
 });

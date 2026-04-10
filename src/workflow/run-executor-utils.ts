@@ -50,16 +50,21 @@ export function getEligibleAtMs(
 /**
  * Returns the index of the first definition step that should be re-executed on retry.
  * Steps before this index are replayed from the original run's recorded results.
+ *
+ * A foreach step with `retryFailedItems: true` and `continueOnFailure: true` is treated
+ * as a retry point even when it has `continueOnFailure`, so the partial-resume logic
+ * in the foreach executor can re-run only the failed items.
  */
 export function findRetryFromIndex(
   originalSteps: WorkflowStepResult[],
-  definitionSteps: ReadonlyArray<{ id: string }>,
+  definitionSteps: ReadonlyArray<{ id: string; retryFailedItems?: boolean }>,
 ): number {
   for (let i = 0; i < definitionSteps.length; i++) {
-    const stepId = definitionSteps[i].id;
-    const result = originalSteps.find((s) => s.id === stepId);
+    const defStep = definitionSteps[i];
+    const result = originalSteps.find((s) => s.id === defStep.id);
     if (!result) return i;
     if (result.status === "failed" && !result.continueOnFailure) return i;
+    if (result.status === "failed" && result.continueOnFailure && defStep.retryFailedItems) return i;
   }
   return definitionSteps.length;
 }
@@ -71,11 +76,13 @@ export type RetryInitialState = {
   stepOutputs: unknown[];
   previousOutput: unknown;
   hadWarnings: boolean;
+  /** All step results from the original run, used by retryFailedItems foreach logic. */
+  priorRunSteps?: WorkflowStepResult[];
 };
 
 export function buildRetryInitialState(
   retryOfId: string | undefined,
-  definitionSteps: ReadonlyArray<{ id: string; type: string }>,
+  definitionSteps: ReadonlyArray<{ id: string; type: string; retryFailedItems?: boolean }>,
   recordStep: (result: WorkflowStepResult) => void,
   runsDir: string,
 ): RetryInitialState {
@@ -95,6 +102,7 @@ export function buildRetryInitialState(
   if (!originalMeta) return state;
 
   state.retryFromIndex = findRetryFromIndex(originalMeta.steps, definitionSteps);
+  state.priorRunSteps = originalMeta.steps;
   const replayedAt = new Date().toISOString();
   for (let i = 0; i < state.retryFromIndex; i++) {
     const defStep = definitionSteps[i];
@@ -171,6 +179,7 @@ export function buildResumeInitialState(
   const resumeFromIndex = findResumeFromIndex(resumeFromStep, definitionSteps, originalMeta.steps);
   const state: RetryInitialState = {
     retryFromIndex: resumeFromIndex,
+    priorRunSteps: originalMeta.steps,
     stepOutputsById: {},
     stepResultsById: {},
     stepOutputs: [],
