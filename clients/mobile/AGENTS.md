@@ -4,7 +4,7 @@ React Native (Expo) mobile client for the KOTA daemon. Targets iOS 16+ and Andro
 
 - All state comes from the daemon control API — no `.kota/` file parsing.
 - Authentication uses `Authorization: Bearer <token>` stored in the OS secure keychain via `expo-secure-store`.
-- Navigation: bottom tab bar with four tabs (Status, Runs, Approvals, Tasks) using React Navigation v7.
+- Navigation: bottom tab bar with five tabs (Status, Runs, Approvals, Tasks, Chat) using React Navigation v7.
 - Live updates via SSE (`GET /events`); polling fallback if SSE is unavailable.
 - Settings (daemon URL + token) are accessible from the Status tab header.
 - QR setup: the Settings screen includes a "Scan QR Code" button that reads a QR code
@@ -19,6 +19,8 @@ React Native (Expo) mobile client for the KOTA daemon. Targets iOS 16+ and Andro
 - `src/context/DaemonContext.tsx` — React Context + useReducer state tree
 - `src/navigation/index.tsx` — tab and stack navigator definitions
 - `src/screens/` — one file per screen
+  - `ChatListScreen.tsx` — lists active daemon sessions; "New Session" button creates and navigates into a session
+  - `ChatDetailScreen.tsx` — chat UI for a single daemon session; streams agent responses via SSE POST `/sessions/:id/chat`; "End" button calls `DELETE /sessions/:id`
 
 ## Push Notification Deep Links
 

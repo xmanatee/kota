@@ -2,6 +2,7 @@ import type {
   Approval,
   DaemonStatus,
   HealthResponse,
+  InteractiveSession,
   RunDetail,
   RunSummary,
   TasksResponse,
@@ -92,6 +93,30 @@ export class DaemonClient {
 
   resumeDispatch(): Promise<{ ok: boolean; paused: boolean }> {
     return this.request('/workflow/resume', { method: 'POST' });
+  }
+
+  getSessions(): Promise<{ sessions: InteractiveSession[] }> {
+    return this.request<{ sessions: InteractiveSession[] }>('/sessions');
+  }
+
+  createSession(): Promise<{ session_id: string }> {
+    return this.request<{ session_id: string }>('/sessions', { method: 'POST' });
+  }
+
+  async deleteSession(id: string): Promise<void> {
+    const url = `${this.baseUrl}/sessions/${encodeURIComponent(id)}`;
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${this.token}` },
+    });
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`${res.status} ${res.statusText}`);
+    }
+  }
+
+  /** Returns the chat streaming URL for POST /sessions/:id/chat. */
+  chatUrl(sessionId: string): string {
+    return `${this.baseUrl}/sessions/${encodeURIComponent(sessionId)}/chat`;
   }
 
   /** Returns the SSE endpoint URL (used by useSSE hook). */

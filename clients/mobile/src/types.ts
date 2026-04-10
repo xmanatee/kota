@@ -120,3 +120,18 @@ export interface SseEvent {
   payload: Record<string, unknown>;
   timestamp?: string;
 }
+
+export interface InteractiveSession {
+  id: string;
+  createdAt: string;
+  lastActive: number;
+  source?: 'daemon' | 'serve';
+  busy?: boolean;
+}
+
+export type ChatStreamEventType = 'session' | 'text' | 'thinking' | 'thinking_start' | 'progress' | 'status' | 'cost' | 'error' | 'notification' | 'guardrail' | 'tool_metric' | 'state_change' | 'done';
+
+export interface ChatStreamEvent {
+  type: ChatStreamEventType;
+  payload: Record<string, unknown>;
+}

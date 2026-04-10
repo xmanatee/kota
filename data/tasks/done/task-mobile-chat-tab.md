@@ -1,12 +1,12 @@
 ---
 id: task-mobile-chat-tab
 title: Add interactive chat tab to mobile client using daemon session API
-status: ready
+status: done
 priority: p3
 area: client
 summary: The mobile client has no way to initiate or participate in an interactive KOTA session. Once the daemon exposes a /chat API (task-daemon-interactive-chat-api), a Chat tab on mobile would let operators give the agent ad-hoc instructions without switching to a terminal or the web UI.
 created_at: 2026-04-10T05:20:00Z
-updated_at: 2026-04-10T05:20:00Z
+updated_at: 2026-04-10T06:22:05Z
 ---
 
 ## Problem

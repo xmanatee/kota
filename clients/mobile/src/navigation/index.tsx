@@ -11,6 +11,8 @@ import { Text, TouchableOpacity } from 'react-native';
 import { useDaemon } from '../context/DaemonContext';
 import { ApprovalDetailScreen } from '../screens/ApprovalDetailScreen';
 import { ApprovalListScreen } from '../screens/ApprovalListScreen';
+import { ChatDetailScreen } from '../screens/ChatDetailScreen';
+import { ChatListScreen } from '../screens/ChatListScreen';
 import { RunDetailScreen } from '../screens/RunDetailScreen';
 import { RunListScreen } from '../screens/RunListScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
@@ -33,16 +35,23 @@ export type ApprovalsStackParams = {
   ApprovalDetail: { approvalId: string };
 };
 
+export type ChatStackParams = {
+  ChatList: undefined;
+  ChatDetail: { sessionId: string };
+};
+
 export type TabParams = {
   Status: undefined;
   Runs: undefined;
   Approvals: NavigatorScreenParams<ApprovalsStackParams> | undefined;
   Tasks: undefined;
+  Chat: NavigatorScreenParams<ChatStackParams> | undefined;
 };
 
 const StatusStack = createNativeStackNavigator<StatusStackParams>();
 const RunsStack = createNativeStackNavigator<RunsStackParams>();
 const ApprovalsStack = createNativeStackNavigator<ApprovalsStackParams>();
+const ChatStack = createNativeStackNavigator<ChatStackParams>();
 const Tab = createBottomTabNavigator<TabParams>();
 
 // Navigation ref for use outside of React tree (e.g. notification response handler).
@@ -135,6 +144,28 @@ function ApprovalsNavigator() {
   );
 }
 
+function ChatNavigator() {
+  return (
+    <ChatStack.Navigator>
+      <ChatStack.Screen name="ChatList" options={{ title: 'Chat' }}>
+        {({ navigation }) => (
+          <ChatListScreen
+            onSessionPress={(sessionId) => navigation.navigate('ChatDetail', { sessionId })}
+          />
+        )}
+      </ChatStack.Screen>
+      <ChatStack.Screen name="ChatDetail" options={{ title: 'Session' }}>
+        {({ route, navigation }) => (
+          <ChatDetailScreen
+            sessionId={route.params.sessionId}
+            onClose={() => navigation.goBack()}
+          />
+        )}
+      </ChatStack.Screen>
+    </ChatStack.Navigator>
+  );
+}
+
 export function AppNavigator() {
   const { state } = useDaemon();
   const pendingCount = state.pendingApprovalCount;
@@ -180,6 +211,14 @@ export function AppNavigator() {
           name="Tasks"
           component={TaskQueueScreen}
           options={{ tabBarIcon: () => <Text>📌</Text>, headerShown: true, title: 'Tasks' }}
+        />
+        <Tab.Screen
+          name="Chat"
+          component={ChatNavigator}
+          options={{
+            tabBarIcon: () => <Text>💬</Text>,
+            tabBarActiveTintColor: state.online ? undefined : '#8e8e93',
+          }}
         />
       </Tab.Navigator>
     </NavigationContainer>
