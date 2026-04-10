@@ -1,4 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { createModelClient } from "#core/model/model-client.js";
+import { routeModel } from "#core/model/model-router.js";
 import {
   buildSubAgentPrompt,
   EXECUTE_PROMPT,
@@ -11,8 +13,6 @@ import {
   researchRunners,
   researchTools,
 } from "#root/delegate-prompts.js";
-import { createModelClient } from "#core/model/model-client.js";
-import { routeModel } from "#core/model/model-router.js";
 import {
   EXECUTE_MAX_TURNS,
   EXPLORE_MAX_TURNS,

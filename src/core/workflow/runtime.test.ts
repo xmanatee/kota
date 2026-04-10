@@ -10,10 +10,10 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { runShell, shellTool } from "#modules/execution/shell.js";
 import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { clearCustomTools, registerTool } from "#core/tools/index.js";
+import { runShell, shellTool } from "#modules/execution/shell.js";
 import { WorkflowRunStore } from "./run-store.js";
 import { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE, RELOAD_SIGNAL_FILE, WorkflowRuntime } from "./runtime.js";
 import { registerWorkflowDefinition, validateWorkflowDefinitions } from "./validation.js";

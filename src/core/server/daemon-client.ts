@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import type { PendingApproval } from "#core/daemon/approval-queue.js";
 import type {
   DaemonControlAddress,
   DaemonLiveStatus,
@@ -10,9 +11,8 @@ import type {
   WorkflowRunDetail,
   WorkflowRunSummary,
 } from "#core/daemon/daemon-control.js";
-import { readOptionalJsonFile } from "#root/json-file.js";
 import type { ConversationData, ConversationRecord } from "#core/memory/history-utils.js";
-import type { PendingApproval } from "#core/daemon/approval-queue.js";
+import { readOptionalJsonFile } from "#root/json-file.js";
 
 const FETCH_TIMEOUT_MS = 2_000;
 

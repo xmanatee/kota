@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { RouteRegistration } from "#core/modules/module-types.js";
 import type { KnowledgeEntry } from "#core/memory/knowledge-store-helpers.js";
-import { jsonResponse, readBody } from "#core/server/session-pool.js";
+import type { RouteRegistration } from "#core/modules/module-types.js";
 import { getKnowledgeProvider } from "#core/modules/provider-registry.js";
+import { jsonResponse, readBody } from "#core/server/session-pool.js";
 
 type KnowledgeListItem = {
   id: string;

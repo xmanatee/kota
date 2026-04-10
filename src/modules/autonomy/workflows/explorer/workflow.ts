@@ -1,20 +1,20 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
-import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { typedCodeStep } from "#core/workflow/types.js";
-import { assertRepoWorktreeClean } from "#root/repo-worktree.js";
 import {
   getRepoTaskQueueSnapshot,
   isThinPullQueue,
 } from "#core/data/repo-tasks.js";
-import {
-  assertArchitectureReadyCoverage,
-  assertStrategicReadyCoverage,
-} from "#modules/repo-tasks/task-queue-validation.js";
+import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import {
   runCheck,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
+import {
+  assertArchitectureReadyCoverage,
+  assertStrategicReadyCoverage,
+} from "#modules/repo-tasks/task-queue-validation.js";
+import { assertRepoWorktreeClean } from "#root/repo-worktree.js";
 
 export const agent: AgentDef = {
   name: "explorer",

@@ -2,8 +2,8 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import filesystemModule from "#modules/filesystem/index.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
+import filesystemModule from "#modules/filesystem/index.js";
 import { clearCustomTools } from "./index.js";
 import { runMap } from "./map.js";
 

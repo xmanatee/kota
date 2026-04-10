@@ -1,15 +1,15 @@
 /** Provider registry — swappable backends for core services. */
 
 import { getTaskStore } from "#core/daemon/task-store.js";
+import { getHistory } from "#core/memory/history.js";
+import { getKnowledgeStore } from "#core/memory/knowledge-store.js";
+import { getMemoryStore } from "#core/memory/store.js";
 import type {
 	HistoryProvider,
 	KnowledgeProvider,
 	MemoryProvider,
 	TaskProvider,
 } from "./provider-types.js";
-import { getHistory } from "#core/memory/history.js";
-import { getKnowledgeStore } from "#core/memory/knowledge-store.js";
-import { getMemoryStore } from "#core/memory/store.js";
 
 export type { HistoryProvider, KnowledgeProvider, MemoryProvider, TaskProvider } from "./provider-types.js";
 

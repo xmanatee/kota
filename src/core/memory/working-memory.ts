@@ -135,7 +135,7 @@ function compactIfNeeded(s: Map<string, WorkingMemoryEntry>): void {
 	for (const entry of candidates) {
 		s.set(entry.key, {
 			...entry,
-			value: entry.value.slice(0, COMPACT_TRUNCATE_LENGTH) + "…",
+			value: `${entry.value.slice(0, COMPACT_TRUNCATE_LENGTH)}…`,
 		});
 		compacted++;
 		// Re-check after each truncation — stop early if pressure is relieved

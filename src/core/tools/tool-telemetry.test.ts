@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import filesystemModule from "#modules/filesystem/index.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
+import filesystemModule from "#modules/filesystem/index.js";
 import { clearCustomTools } from "./index.js";
 import { getToolTelemetry, resetToolTelemetry, ToolTelemetry } from "./tool-telemetry.js";
 

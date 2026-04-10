@@ -17,13 +17,13 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import { Command } from "commander";
-import { loadConfig } from "#root/config.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
-import { validateWorkflowDefinitions, WorkflowDefinitionError } from "#core/workflow/validation.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
+import { validateWorkflowDefinitions, WorkflowDefinitionError } from "#core/workflow/validation.js";
 import { resolveApiKey } from "#modules/model-clients/factory.js";
+import { loadConfig } from "#root/config.js";
 
 type CheckStatus = "pass" | "warn" | "fail";
 

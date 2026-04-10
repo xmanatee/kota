@@ -2,7 +2,6 @@ import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { Command } from "commander";
-import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#root/frontmatter.js";
 import {
 	getRepoInboxDir,
 	getRepoTasksDir,
@@ -10,6 +9,7 @@ import {
 	REPO_TASK_STATES,
 	type RepoTaskState,
 } from "#core/data/repo-tasks.js";
+import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#root/frontmatter.js";
 
 const OPEN_STATES: RepoTaskState[] = ["backlog", "ready", "doing", "blocked"];
 const TERMINAL_STATES: RepoTaskState[] = ["done", "dropped"];

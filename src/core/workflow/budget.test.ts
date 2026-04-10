@@ -7,9 +7,9 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { callTelegramApi } from "#modules/telegram/client.js";
 import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
 import { EventBus } from "#core/events/event-bus.js";
+import { callTelegramApi } from "#modules/telegram/client.js";
 import { WorkflowRunStore } from "./run-store.js";
 import { WorkflowRuntime } from "./runtime.js";
 import { registerWorkflowDefinition } from "./validation.js";

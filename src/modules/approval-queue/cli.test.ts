@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { registerApprovalCommands } from "./cli.js";
 import { ApprovalQueue, resetApprovalQueue } from "#core/daemon/approval-queue.js";
+import { registerApprovalCommands } from "./cli.js";
 
 vi.mock("#core/events/event-bus.js", () => ({
 	tryEmit: vi.fn(),

@@ -2,10 +2,10 @@ import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
 import type { DaemonSseEvent } from "#core/daemon/daemon-control.js";
+import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata, WorkflowRuntimeState } from "#core/workflow/run-types.js";
 import { readOptionalJsonFile } from "#root/json-file.js";
-import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { formatDuration, statusIcon } from "./utils.js";
 import { buildRunLogs, followRunLogs } from "./workflow-logs.js";
 

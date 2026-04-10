@@ -108,7 +108,7 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
       event: "workflow.pr.review.posted",
       payload: (ctx) => {
         const assessment = assessPr.output(ctx);
-        const reviewOutput = ctx.stepOutputs["review"] as
+        const reviewOutput = ctx.stepOutputs.review as
           | { recommendation?: string }
           | undefined;
         return {

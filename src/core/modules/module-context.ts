@@ -1,6 +1,3 @@
-import type { KotaConfig } from "#root/config.js";
-import { resolveLogFormatter } from "#root/log-format.js";
-import { getSecretStore } from "#root/secrets.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { registerCleanupHook } from "#core/loop/cleanup-hooks.js";
@@ -10,10 +7,13 @@ import { registerCustomGroup } from "#core/tools/tool-groups.js";
 import { getToolMiddleware } from "#core/tools/tool-middleware.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
+import type { KotaConfig } from "#root/config.js";
+import { resolveLogFormatter } from "#root/log-format.js";
+import { getSecretStore } from "#root/secrets.js";
 import { getModuleLogStore } from "./module-log.js";
-import { getProviderRegistry } from "./provider-registry.js";
 import { ModuleStorage } from "./module-storage.js";
 import type { CreateSessionOptions, ModuleContext, ModuleEventProxy, ModuleSession, ModuleSummary, RouteRegistration } from "./module-types.js";
+import { getProviderRegistry } from "./provider-registry.js";
 
 export interface ModuleContextParams {
   cwd: string;

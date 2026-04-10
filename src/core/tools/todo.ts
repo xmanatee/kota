@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { getTaskProvider } from "#core/modules/provider-registry.js";
 import type { Task, TaskPriority } from "#core/daemon/task-store.js";
+import { getTaskProvider } from "#core/modules/provider-registry.js";
 import type { ToolResult } from "./index.js";
 
 export type Priority = TaskPriority;

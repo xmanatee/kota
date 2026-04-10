@@ -9,9 +9,9 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
+import type { KotaModule } from "#core/modules/module-types.js";
 import { loadConfig, updateProjectConfig } from "#root/config.js";
 import { KNOWN_CONFIG_KEYS } from "#root/config-warnings.js";
-import type { KotaModule } from "#core/modules/module-types.js";
 import { handleGetConfig } from "./routes.js";
 
 function readRawKeys(path: string): string[] | null {

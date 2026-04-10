@@ -1,7 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { runArchitectStep } from "#core/architect/runner.js";
-import { analyzeRequest, formatContextHint } from "#root/request-analyzer.js";
-import { processToolResults } from "#root/verify-tracker.js";
 import { formatTaskHint, routeTask } from "#core/daemon/task-router.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import { streamMessage } from "#core/model/streaming.js";
@@ -9,6 +7,8 @@ import { getAllTools } from "#core/tools/index.js";
 import { detectToolGroups, enableGroup, filterTools } from "#core/tools/tool-groups.js";
 import { executeToolCalls, FailureTracker } from "#core/tools/tool-runner.js";
 import { getToolTelemetry } from "#core/tools/tool-telemetry.js";
+import { analyzeRequest, formatContextHint } from "#root/request-analyzer.js";
+import { processToolResults } from "#root/verify-tracker.js";
 import { CONTEXT_WINDOW } from "./context.js";
 import { collectDynamicState } from "./dynamic-state.js";
 import { getChangeTracker } from "./file-changes.js";

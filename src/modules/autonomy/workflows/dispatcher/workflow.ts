@@ -1,8 +1,8 @@
-import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   getRepoTaskQueueSnapshot,
   isThinPullQueue,
 } from "#core/data/repo-tasks.js";
+import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 
 const dispatcherWorkflow: WorkflowDefinitionInput = {
   name: "dispatcher",

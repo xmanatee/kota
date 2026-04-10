@@ -171,9 +171,9 @@ describe("detectCostAnomaly — baseline persistence", () => {
       readFileSync(join(kotaDir, "cost-baseline.json"), "utf-8"),
     );
     expect(saved.version).toBe(1);
-    expect(saved.baselines["builder"].avgCostUsd).toBeCloseTo(0.10);
-    expect(saved.baselines["builder"].runCount).toBe(3);
-    expect(typeof saved.baselines["builder"].updatedAt).toBe("string");
+    expect(saved.baselines.builder.avgCostUsd).toBeCloseTo(0.10);
+    expect(saved.baselines.builder.runCount).toBe(3);
+    expect(typeof saved.baselines.builder.updatedAt).toBe("string");
   });
 
   it("saves baseline to disk even when no anomaly fires", () => {
@@ -186,7 +186,7 @@ describe("detectCostAnomaly — baseline persistence", () => {
     const saved = JSON.parse(
       readFileSync(join(kotaDir, "cost-baseline.json"), "utf-8"),
     );
-    expect(saved.baselines["builder"].avgCostUsd).toBeCloseTo(0.10);
+    expect(saved.baselines.builder.avgCostUsd).toBeCloseTo(0.10);
   });
 
   it("falls back to persisted baseline when store has insufficient runs", () => {

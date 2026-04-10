@@ -1,13 +1,13 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import { parseFlatFrontMatter } from "#root/frontmatter.js";
 import {
   getRepoTaskStateDir,
   REPO_TASK_STATES,
   REPO_TASKS_DIR,
   type RepoTaskState,
 } from "#core/data/repo-tasks.js";
+import { parseFlatFrontMatter } from "#root/frontmatter.js";
 
 export type TaskQueueValidationSeverity = "error" | "warning";
 

@@ -31,9 +31,9 @@ vi.mock("#root/secrets.js", () => ({
   getSecretStore: vi.fn(() => null),
 }));
 
-import { confirmAction } from "#root/confirm.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { truncateToolResult } from "#core/loop/context.js";
+import { confirmAction } from "#root/confirm.js";
 import { assess } from "./guardrails.js";
 import { executeTool } from "./index.js";
 

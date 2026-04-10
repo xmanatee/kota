@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
-import type { KnowledgeProvider } from "#core/modules/provider-types.js";
 import type { KnowledgeEntry } from "#core/memory/knowledge-store-helpers.js";
+import type { KnowledgeProvider } from "#core/modules/provider-types.js";
 import { handleAddKnowledge, handleDeleteKnowledge, handleGetKnowledge, handleListKnowledge, handleUpdateKnowledge } from "./routes.js";
 
 function mockResponse() {

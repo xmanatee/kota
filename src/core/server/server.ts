@@ -8,14 +8,14 @@
 
 import { randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
-import type { KotaConfig } from "#root/config.js";
-import { loadConfig } from "#root/config.js";
 import { getScheduler, initScheduler, resetScheduler } from "#core/daemon/scheduler.js";
 import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
 import { initModuleLogStore } from "#core/modules/module-log.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
+import type { KotaConfig } from "#root/config.js";
+import { loadConfig } from "#root/config.js";
 import { DaemonControlClient } from "./daemon-client.js";
 import { NotificationHub } from "./server-notifications.js";
 import { buildRequestHandler } from "./server-routes.js";

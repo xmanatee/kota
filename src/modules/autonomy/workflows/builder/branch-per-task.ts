@@ -1,9 +1,9 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadConfig } from "#root/config.js";
-import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { REPO_TASKS_DIR } from "#core/data/repo-tasks.js";
+import type { WorkflowStepContext } from "#core/workflow/run-types.js";
+import { loadConfig } from "#root/config.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 
 export type CleanupResult = {

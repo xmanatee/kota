@@ -1,11 +1,11 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { KotaConfig } from "#root/config.js";
 import type { McpManager } from "#core/mcp/manager.js";
-import type { VerifyTracker } from "#root/verify-tracker.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import type { ModelTiers } from "#core/model/model-router.js";
 import type { ModuleLoader } from "#core/modules/module-loader.js";
 import type { GuardrailsConfig } from "#core/tools/guardrails.js";
+import type { KotaConfig } from "#root/config.js";
+import type { VerifyTracker } from "#root/verify-tracker.js";
 import type { Context } from "./context.js";
 import type { CostTracker } from "./cost.js";
 import { initAgentSession } from "./loop-constructor.js";

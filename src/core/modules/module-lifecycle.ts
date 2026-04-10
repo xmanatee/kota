@@ -5,9 +5,9 @@ import { resetDynamicStateProviders } from "#core/loop/dynamic-state.js";
 import { deregisterModuleTools } from "#core/tools/index.js";
 import { getToolMiddleware } from "#core/tools/tool-middleware.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
-import { getProviderRegistry } from "./provider-registry.js";
 import type { ModuleStorage } from "./module-storage.js";
 import type { KotaModule } from "./module-types.js";
+import { getProviderRegistry } from "./provider-registry.js";
 
 export interface LifecycleState {
   modules: KotaModule[];

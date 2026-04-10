@@ -8,8 +8,8 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getEventBus, initEventBus, resetEventBus } from "./core/events/event-bus.js";
 import { ApprovalQueue } from "./core/daemon/approval-queue.js";
+import { getEventBus, initEventBus, resetEventBus } from "./core/events/event-bus.js";
 
 describe("approval expiry × event bus integration", () => {
 	let dir: string;

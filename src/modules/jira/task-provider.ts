@@ -301,7 +301,7 @@ export class JiraTaskProvider implements TaskProvider {
     }
     const full = texts.join(" ").trim();
     if (!full) return undefined;
-    return full.length > 500 ? full.slice(0, 497) + "..." : full;
+    return full.length > 500 ? `${full.slice(0, 497)}...` : full;
   }
 
   private async cacheTransitionsForIssue(issueKey: string): Promise<void> {
