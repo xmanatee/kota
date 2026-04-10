@@ -10,6 +10,10 @@ vi.mock("./client.js", () => ({
   callTelegramApi: vi.fn(),
 }));
 
+vi.mock("./approval-callback-poll.js", () => ({
+  startApprovalCallbackPoll: vi.fn(() => () => {}),
+}));
+
 const mockedCallTelegramApi = vi.mocked(callTelegramApi);
 
 function makeStubCtx(bus?: EventBus): ModuleContext {
@@ -195,7 +199,7 @@ describe("telegramModule notifications via onLoad", () => {
     );
   });
 
-  it("sends Telegram message on approval.requested", async () => {
+  it("sends Telegram message with inline keyboard on approval.requested", async () => {
     const bus = new EventBus();
     telegramModule.onLoad!(makeStubCtx(bus));
     bus.emit("approval.requested", {
@@ -211,10 +215,19 @@ describe("telegramModule notifications via onLoad", () => {
       "sendMessage",
       expect.objectContaining({ chat_id: FAKE_CHAT_ID }),
     );
-    const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
+    const body = mockedCallTelegramApi.mock.calls[0][2] as {
+      text: string;
+      reply_markup?: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
     expect(body.text).toContain("bash");
     expect(body.text).toContain("kota approval approve abc123");
     expect(body.text).toContain("kota approval reject abc123");
+    expect(body.reply_markup?.inline_keyboard[0]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ callback_data: "approve:abc123" }),
+        expect.objectContaining({ callback_data: "reject:abc123" }),
+      ]),
+    );
   });
 
   it("sends Telegram commit message when workflow.build.committed fires and event is opt-in enabled", async () => {
@@ -281,5 +294,33 @@ describe("telegramModule notifications via onLoad", () => {
     });
     await Promise.resolve();
     expect(mockedCallTelegramApi).not.toHaveBeenCalled();
+  });
+
+  it("starts approval callback poll on load when credentials are present", async () => {
+    const { startApprovalCallbackPoll } = await import("./approval-callback-poll.js");
+    const mockStart = vi.mocked(startApprovalCallbackPoll);
+    mockStart.mockClear();
+
+    const bus = new EventBus();
+    telegramModule.onLoad!(makeStubCtx(bus));
+
+    expect(mockStart).toHaveBeenCalledOnce();
+    expect(mockStart).toHaveBeenCalledWith(
+      FAKE_TOKEN,
+      expect.any(Map),
+      expect.any(Object),
+    );
+  });
+
+  it("does not start approval callback poll when credentials are missing", async () => {
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    const { startApprovalCallbackPoll } = await import("./approval-callback-poll.js");
+    const mockStart = vi.mocked(startApprovalCallbackPoll);
+    mockStart.mockClear();
+
+    const bus = new EventBus();
+    telegramModule.onLoad!(makeStubCtx(bus));
+
+    expect(mockStart).not.toHaveBeenCalled();
   });
 });

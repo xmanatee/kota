@@ -87,24 +87,26 @@ export class ApprovalQueue {
 			.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || (a.seq ?? 0) - (b.seq ?? 0));
 	}
 
-	approve(id: string, note?: string): PendingApproval | null {
+	approve(id: string, note?: string, resolutionSource?: string): PendingApproval | null {
 		const item = this.get(id);
 		if (!item || item.status !== "pending") return null;
 		item.status = "approved";
 		item.resolvedAt = new Date().toISOString();
 		if (note) item.approvalNote = note;
+		if (resolutionSource) item.resolutionSource = resolutionSource;
 		writeFileSync(join(this.dir, `${id}.json`), JSON.stringify(item, null, 2));
 		tryEmit("approval.resolved", { id, tool: item.tool, approved: true, reason: "" });
 		tryEmit("approval.changed", { id, pendingCount: this.count("pending") });
 		return item;
 	}
 
-	reject(id: string, reason?: string): PendingApproval | null {
+	reject(id: string, reason?: string, resolutionSource?: string): PendingApproval | null {
 		const item = this.get(id);
 		if (!item || item.status !== "pending") return null;
 		item.status = "rejected";
 		item.resolvedAt = new Date().toISOString();
 		item.rejectionReason = reason;
+		if (resolutionSource) item.resolutionSource = resolutionSource;
 		writeFileSync(join(this.dir, `${id}.json`), JSON.stringify(item, null, 2));
 		tryEmit("approval.resolved", { id, tool: item.tool, approved: false, reason: reason ?? "" });
 		tryEmit("approval.changed", { id, pendingCount: this.count("pending") });

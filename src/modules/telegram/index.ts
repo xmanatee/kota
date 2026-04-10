@@ -16,7 +16,12 @@
 import { Command } from "commander";
 import type { ChannelDef } from "../../channel.js";
 import type { KotaModule, ModuleContext } from "../../module-types.js";
+import {
+  type PendingApprovalMessage,
+  startApprovalCallbackPoll,
+} from "./approval-callback-poll.js";
 import { TelegramBot } from "./bot.js";
+import type { TelegramMessage } from "./client.js";
 import { callTelegramApi } from "./client.js";
 import { startTelegramStatusPoll } from "./status-poll.js";
 
@@ -33,6 +38,45 @@ async function sendTelegramMessage(
   }).catch((err: unknown) => {
     log.warn(`Failed to send Telegram message: ${(err as Error).message}`);
   });
+}
+
+async function sendApprovalMessage(
+  token: string,
+  chatId: string,
+  approvalId: string,
+  tool: string,
+  risk: string,
+  reason: string,
+  log: ModuleContext["log"],
+): Promise<number | null> {
+  const text = [
+    `Approval required: *${tool}*`,
+    `Risk: ${risk}`,
+    `Reason: ${reason}`,
+    `ID: \`${approvalId}\``,
+    ``,
+    `kota approval approve ${approvalId}`,
+    `kota approval reject ${approvalId}`,
+  ].join("\n");
+  try {
+    const msg = await callTelegramApi<TelegramMessage>(token, "sendMessage", {
+      chat_id: chatId,
+      text,
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "✅ Approve", callback_data: `approve:${approvalId}` },
+            { text: "❌ Reject", callback_data: `reject:${approvalId}` },
+          ],
+        ],
+      },
+    });
+    return msg.message_id;
+  } catch (err) {
+    log.warn(`Failed to send Telegram approval message: ${(err as Error).message}`);
+    return null;
+  }
 }
 
 type TelegramConfig = {
@@ -68,6 +112,8 @@ const telegramStatusChannel: ChannelDef = {
 };
 
 let notificationUnsubs: (() => void)[] = [];
+let stopCallbackPoll: (() => void) | null = null;
+const pendingApprovalMessages = new Map<string, PendingApprovalMessage>();
 
 const telegramModule: KotaModule = {
   name: "telegram",
@@ -79,6 +125,15 @@ const telegramModule: KotaModule = {
   onLoad: (ctx) => {
     const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
     const optInEvents = new Set(telegramConfig?.events ?? []);
+
+    const creds = getCredentials();
+    if (creds) {
+      stopCallbackPoll = startApprovalCallbackPoll(
+        creds.token,
+        pendingApprovalMessages,
+        ctx.log,
+      );
+    }
 
     notificationUnsubs = [
       ctx.events.subscribe("workflow.failure.alert", (payload) => {
@@ -128,16 +183,13 @@ const telegramModule: KotaModule = {
         const tool = payload.tool as string;
         const risk = payload.risk as string;
         const reason = payload.reason as string;
-        const text = [
-          `Approval required: *${tool}*`,
-          `Risk: ${risk}`,
-          `Reason: ${reason}`,
-          `ID: \`${id}\``,
-          ``,
-          `kota approval approve ${id}`,
-          `kota approval reject ${id}`,
-        ].join("\n");
-        void sendTelegramMessage(creds.token, creds.chatId, text, ctx.log);
+        void sendApprovalMessage(creds.token, creds.chatId, id, tool, risk, reason, ctx.log).then(
+          (messageId) => {
+            if (messageId != null) {
+              pendingApprovalMessages.set(id, { chatId: creds.chatId, messageId });
+            }
+          },
+        );
       }),
       ...(optInEvents.has("workflow.build.committed")
         ? [
@@ -163,6 +215,9 @@ const telegramModule: KotaModule = {
   },
 
   onUnload: () => {
+    stopCallbackPoll?.();
+    stopCallbackPoll = null;
+    pendingApprovalMessages.clear();
     for (const unsub of notificationUnsubs) unsub();
     notificationUnsubs = [];
   },

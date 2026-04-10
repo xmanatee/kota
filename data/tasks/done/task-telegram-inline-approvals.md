@@ -1,7 +1,7 @@
 ---
 id: task-telegram-inline-approvals
 title: Telegram inline keyboard buttons for approval requests
-status: backlog
+status: done
 priority: p3
 area: operator
 summary: The Telegram module sends approval requests as text messages with CLI commands to copy. Adding inline keyboard buttons (Approve / Reject) would let operators respond directly from Telegram without running a CLI command, closing the approval loop in a single tap.
