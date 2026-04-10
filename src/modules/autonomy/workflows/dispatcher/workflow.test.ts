@@ -93,7 +93,7 @@ describe("dispatcher workflow", () => {
     expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(true);
   });
 
-  it("does not emit autonomy.queue.thin when multiple backlog tasks remain", async () => {
+  it("emits autonomy.queue.thin when two backlog tasks remain", async () => {
     writeFileSync(
       join(projectDir, "data", "tasks", "backlog", "task-foo.md"),
       "---\nid: task-foo\ntitle: Foo\nstatus: backlog\npriority: p2\n---\n",
@@ -101,6 +101,25 @@ describe("dispatcher workflow", () => {
     writeFileSync(
       join(projectDir, "data", "tasks", "backlog", "task-bar.md"),
       "---\nid: task-bar\ntitle: Bar\nstatus: backlog\npriority: p2\n---\n",
+    );
+    const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
+    const result = await harness.run();
+
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(true);
+  });
+
+  it("does not emit autonomy.queue.thin when three or more tasks remain", async () => {
+    writeFileSync(
+      join(projectDir, "data", "tasks", "ready", "task-a.md"),
+      "---\nid: task-a\ntitle: A\nstatus: ready\npriority: p2\n---\n",
+    );
+    writeFileSync(
+      join(projectDir, "data", "tasks", "backlog", "task-b.md"),
+      "---\nid: task-b\ntitle: B\nstatus: backlog\npriority: p2\n---\n",
+    );
+    writeFileSync(
+      join(projectDir, "data", "tasks", "backlog", "task-c.md"),
+      "---\nid: task-c\ntitle: C\nstatus: backlog\npriority: p2\n---\n",
     );
     const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
     const result = await harness.run();

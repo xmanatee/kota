@@ -71,9 +71,28 @@ describe("repo task helpers", () => {
     expect(isThinPullQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(true);
   });
 
-  it("does not treat ready work as a thin pull queue", () => {
+  it("detects a single ready task as thin", () => {
     writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-ready.md"), "task");
 
+    expect(isThinPullQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(true);
+  });
+
+  it("detects two waiting tasks as thin", () => {
+    writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-a.md"), "task");
+    writeFileSync(join(projectDir, REPO_TASKS_DIR, "backlog", "task-b.md"), "task");
+
+    expect(isThinPullQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(true);
+  });
+
+  it("does not treat three or more waiting tasks as thin", () => {
+    writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-a.md"), "task");
+    writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-b.md"), "task");
+    writeFileSync(join(projectDir, REPO_TASKS_DIR, "backlog", "task-c.md"), "task");
+
+    expect(isThinPullQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(false);
+  });
+
+  it("is not thin when queue is empty", () => {
     expect(isThinPullQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(false);
   });
 });

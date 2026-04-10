@@ -14,7 +14,10 @@ vi.mock("#root/repo-worktree.js", () => ({
 vi.mock("#core/data/repo-tasks.js", () => ({
   getRepoTaskQueueSnapshot: vi.fn(),
   isRepoTaskQueueSnapshot: vi.fn(() => true),
-  isThinPullQueue: vi.fn((snapshot) => snapshot.inboxCount === 0 && snapshot.actionableCount === 0 && snapshot.pullableCount === 1),
+  isThinPullQueue: vi.fn((snapshot) => {
+    const waitingCount = snapshot.counts.ready + snapshot.counts.backlog;
+    return snapshot.inboxCount === 0 && waitingCount > 0 && waitingCount <= 2;
+  }),
   REPO_TASK_STATES: ["backlog", "ready", "doing", "blocked", "done", "dropped"],
 }));
 
@@ -119,6 +122,34 @@ describe("explorer workflow", () => {
     expect(result.steps["inspect-queue"].output).toMatchObject({
       pullableCount: 1,
       actionableCount: 0,
+      needsAttention: true,
+    });
+    expect(result.steps.explore.status).toBe("success");
+  });
+
+  it("runs explore when a single ready task remains and refresh is due", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
+      makeSnapshot({ inboxCount: 0, ready: 1, backlog: 0, doing: 0 }),
+    );
+
+    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+
+    const harness = new WorkflowTestHarness(explorerWorkflow, {
+      trigger: { event: "autonomy.queue.thin", payload: {} },
+      stepMocks: {
+        explore: { turns: [], totalCostUsd: 0.02 },
+      },
+      runtimeState: { workflows: {} },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["inspect-queue"].output).toMatchObject({
+      pullableCount: 1,
+      actionableCount: 1,
       needsAttention: true,
     });
     expect(result.steps.explore.status).toBe("success");
