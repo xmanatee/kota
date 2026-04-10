@@ -49,6 +49,7 @@ describe("workflow validation", () => {
               id: "build",
               type: "agent",
               promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+              model: "claude-opus-4-6",
             },
           ],
         }),
@@ -143,6 +144,7 @@ describe("workflow validation", () => {
                 id: "build",
                 type: "agent",
                 promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                model: "claude-opus-4-6",
                 repairLoop: {
                   maxRepairAttempts: 2,
                   checks: [
@@ -207,6 +209,7 @@ describe("workflow validation", () => {
               id: "build",
               type: "agent",
               promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+              model: "claude-opus-4-6",
               timeoutMs: 45 * 60 * 1000,
             },
           ],
@@ -233,6 +236,7 @@ describe("workflow validation", () => {
                 id: "build",
                 type: "agent",
                 promptPath: "src/modules/autonomy/workflows/builder/missing.md",
+                model: "claude-opus-4-6",
               },
             ],
           }),
@@ -259,6 +263,7 @@ describe("workflow validation", () => {
                 id: "build",
                 type: "agent",
                 promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                model: "claude-opus-4-6",
               },
             ],
           }),
@@ -296,6 +301,7 @@ describe("workflow validation", () => {
                 id: "build",
                 type: "agent",
                 promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                model: "claude-opus-4-6",
               },
               {
                 id: "request-restart",
@@ -328,6 +334,7 @@ describe("workflow validation", () => {
                 id: "build",
                 type: "agent",
                 promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                model: "claude-opus-4-6",
               },
               {
                 id: "request-restart",
@@ -431,7 +438,7 @@ describe("workflow validation", () => {
     }
   });
 
-  it("accepts agent steps without a model field", () => {
+  it("rejects agent steps without a model field", () => {
     writeFileSync(
       join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
@@ -448,13 +455,13 @@ describe("workflow validation", () => {
                 id: "build",
                 type: "agent",
                 promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
-              },
+              } as any,
             ],
           }),
         ],
         projectDir,
       ),
-    ).not.toThrow();
+    ).toThrow("steps[0].model");
   });
 
   it("exposes the expected autonomy workflows without pinning the full set", async () => {

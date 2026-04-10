@@ -588,6 +588,7 @@ describe("foreach step – validation", () => {
                   id: "agent-step",
                   type: "agent",
                   promptPath: "some/prompt.md",
+                  model: "claude-opus-4-6",
                 },
               ],
             } satisfies WorkflowForeachStepInput,

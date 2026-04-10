@@ -130,7 +130,7 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
   agentName?: string;
   /** Path to the prompt markdown file (relative to project root). */
   promptPath?: string;
-  model?: string;
+  model: string;
   maxTurns?: number;
   maxBudgetUsd?: number;
   /**
@@ -405,7 +405,7 @@ export type WorkflowAgentStep = WorkflowBaseStep & {
   /** Name of the agent definition used, if the step was configured via agentName. */
   agentName?: string;
   promptPath: string;
-  model?: string;
+  model: string;
   maxTurns?: number;
   maxBudgetUsd?: number;
   maxCostUsd?: number;

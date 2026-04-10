@@ -205,7 +205,7 @@ describe("BudgetGuard soft-limit warning", () => {
         registerWorkflowDefinition("test/builder.ts", {
           name: "builder",
           triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
-          steps: [{ id: "build", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md" }],
+          steps: [{ id: "build", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md", model: "claude-opus-4-6" }],
         }),
       ],
     });
@@ -251,7 +251,7 @@ describe("BudgetGuard soft-limit warning", () => {
         registerWorkflowDefinition("test/builder.ts", {
           name: "builder",
           triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
-          steps: [{ id: "build", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md" }],
+          steps: [{ id: "build", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md", model: "claude-opus-4-6" }],
         }),
       ],
     });
@@ -293,7 +293,7 @@ describe("BudgetGuard soft-limit warning", () => {
         registerWorkflowDefinition("test/builder.ts", {
           name: "builder",
           triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
-          steps: [{ id: "build", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md" }],
+          steps: [{ id: "build", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md", model: "claude-opus-4-6" }],
         }),
       ],
     });
@@ -334,7 +334,7 @@ describe("BudgetGuard soft-limit warning", () => {
         registerWorkflowDefinition("test/builder.ts", {
           name: "builder",
           triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
-          steps: [{ id: "build", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md" }],
+          steps: [{ id: "build", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md", model: "claude-opus-4-6" }],
         }),
       ],
     });
@@ -411,6 +411,7 @@ describe("WorkflowRuntime budget enforcement", () => {
               id: "build",
               type: "agent",
               promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+              model: "claude-opus-4-6",
             },
           ],
         }),
@@ -462,6 +463,7 @@ describe("WorkflowRuntime budget enforcement", () => {
               id: "build",
               type: "agent",
               promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+              model: "claude-opus-4-6",
             },
           ],
         }),
@@ -624,7 +626,7 @@ describe("WorkflowRuntime budget enforcement", () => {
           dailyBudgetUsd: 5.0,
           triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
           steps: [
-            { id: "build", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md" },
+            { id: "build", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md", model: "claude-opus-4-6" },
           ],
         }),
         registerWorkflowDefinition("test/explorer.ts", {
@@ -672,6 +674,7 @@ describe("WorkflowRuntime budget enforcement", () => {
               id: "build",
               type: "agent",
               promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+              model: "claude-opus-4-6",
             },
           ],
         }),

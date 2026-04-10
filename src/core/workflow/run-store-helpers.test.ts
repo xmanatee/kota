@@ -418,6 +418,7 @@ describe("buildWorkflowSnapshot", () => {
           id: "s1",
           type: "agent",
           promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+          model: "claude-opus-4-6",
           permissionMode: "default",
           settingSources: [],
         },

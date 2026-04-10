@@ -182,8 +182,8 @@ export function validateAgentStep(
     }
   }
 
-  const model = expectOptionalString(step.model, `${stepLabel}.model`, definitionPath);
-  if (model !== undefined && !VALID_MODEL_IDS.has(model)) {
+  const model = expectNonEmptyString(step.model, `${stepLabel}.model`, definitionPath);
+  if (!VALID_MODEL_IDS.has(model)) {
     throw new WorkflowDefinitionError(
       `${stepLabel}.model: unknown model "${model}"`,
       definitionPath,

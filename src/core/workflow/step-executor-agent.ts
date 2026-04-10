@@ -49,17 +49,10 @@ export function resolveAgentModel(
   step: WorkflowAgentStep,
   agentConfig: AgentStepConfig,
 ): string {
-  const model =
+  return (
     (step.agentName ? agentConfig.config?.agentModels?.[step.agentName] : undefined) ??
-    step.model ??
-    agentConfig.model ??
-    agentConfig.config?.model;
-  if (!model) {
-    throw new Error(
-      `No model specified for agent step "${step.id}". Set model on the step, agent, or config.`,
-    );
-  }
-  return model;
+    step.model
+  );
 }
 
 function shouldExposeOutput(output: unknown): boolean {

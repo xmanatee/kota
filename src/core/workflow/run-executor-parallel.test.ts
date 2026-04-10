@@ -405,6 +405,7 @@ describe("parallel step groups with agent steps", () => {
       id,
       type: "agent",
       promptPath: "prompt.md",
+      model: "claude-opus-4-6",
       permissionMode: "bypassPermissions",
       settingSources: [],
       ...overrides,

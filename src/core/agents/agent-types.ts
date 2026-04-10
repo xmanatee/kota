@@ -50,8 +50,8 @@ export type AgentDef = {
   role: string;
   /** Path to this agent's main instruction file (relative to project root). */
   promptPath: string;
-  /** Default model to use when running this agent. */
-  model?: string;
+  /** Model to use when running this agent. */
+  model: string;
   /** Names of skills this agent uses. */
   skills?: string[];
   /** Tool access policy. */

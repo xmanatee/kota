@@ -39,6 +39,7 @@ function makeStep(overrides: Partial<WorkflowAgentStep> = {}): WorkflowAgentStep
     id: "test-step",
     type: "agent",
     promptPath: "src/modules/test/workflows/test/prompt.md",
+    model: "claude-opus-4-6",
     permissionMode: "bypassPermissions",
     settingSources: [],
     ...overrides,
