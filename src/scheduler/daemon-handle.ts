@@ -107,12 +107,11 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       workflows.setWorkflowInputs(loader.getContributedWorkflows());
       const { count } = workflows.reloadWorkflowDefinitions();
       log(`Config reloaded: ${count} workflow definition(s) active`);
-      const userExtensions = loader
+      const nonAutonomyModules = loader
         .getModuleSummaries()
-        .map((summary) => summary.name)
-        .filter((name) => name !== "workflow");
-      if (userExtensions.length > 0) {
-        log(`  Modules: ${userExtensions.join(", ")}`);
+        .map((summary) => summary.name);
+      if (nonAutonomyModules.length > 0) {
+        log(`  Modules: ${nonAutonomyModules.join(", ")}`);
       }
       return { workflows: count };
     },

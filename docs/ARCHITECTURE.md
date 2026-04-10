@@ -40,7 +40,7 @@ adding a parallel surface.
 - Add automation: add a `workflow`.
 - Add an operator or user-facing app: add a `client`.
 - Add an external interaction transport: add a `channel`.
-- Add or ship an integration: add an `module`.
+- Add or ship an integration: add a `module`.
 
 ## Core Boundary
 
@@ -70,7 +70,7 @@ has to stay in core.
   and packaged (`package.json` with `main`) variants. Foreign (KEMP) modules
   remain config-declared via `foreignModules` in `.kota/config.json` as the
   explicit transport variant for out-of-process modules.
-- Shipped capability packs now mostly live under `src/modules/<name>/`, and
+- Project-owned capability packs now mostly live under `src/modules/<name>/`, and
   tool-group membership is now declared by each module via the `group` field
   on `ToolDef`. `src/tool-groups.ts` owns only the activation machinery
   (`enableGroup`, `filterTools`, `registerCustomGroup`, `deregisterToolsFromGroups`,

@@ -136,8 +136,8 @@ Response to `ping`. Echo the same `id`.
 {"id":"4","type":"pong"}
 ```
 
-Modules that do not implement ping will silently time out and be restarted —
-ping/pong is fully optional and backward compatible.
+Modules that do not implement ping will simply time out and be restarted —
+ping/pong is optional.
 
 #### `error` (Module → KOTA)
 

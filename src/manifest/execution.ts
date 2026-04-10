@@ -1,5 +1,5 @@
 /**
- * Manifest execution — converts manifests to KotaExtensions.
+ * Manifest execution — converts manifests to KotaModule objects.
  */
 
 import type Anthropic from "@anthropic-ai/sdk";

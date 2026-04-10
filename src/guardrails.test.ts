@@ -28,7 +28,7 @@ describe("classifyRisk", () => {
     registerTool(
       { name: "ext_readonly", description: "read-only ext tool", input_schema: { type: "object", properties: {} } },
       async () => ({ content: "ok" }),
-      "test-ext",
+      "test-module",
       { risk: "safe", kind: "discovery" },
     );
     const { risk } = classifyRisk("ext_readonly", {});
@@ -39,7 +39,7 @@ describe("classifyRisk", () => {
     registerTool(
       { name: "ext_mutate", description: "mutating ext tool", input_schema: { type: "object", properties: {} } },
       async () => ({ content: "ok" }),
-      "test-ext",
+      "test-module",
       { risk: "dangerous", kind: "action" },
     );
     const { risk } = classifyRisk("ext_mutate", {});
@@ -50,7 +50,7 @@ describe("classifyRisk", () => {
     registerTool(
       { name: "ext_unannotated", description: "unannotated ext tool", input_schema: { type: "object", properties: {} } },
       async () => ({ content: "ok" }),
-      "test-ext",
+      "test-module",
     );
     const { risk } = classifyRisk("ext_unannotated", {});
     expect(risk).toBe("moderate");

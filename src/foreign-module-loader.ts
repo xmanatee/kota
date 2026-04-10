@@ -39,7 +39,7 @@ type PendingInvoke = {
   timer: ReturnType<typeof setTimeout>;
 };
 
-type RawExtension = {
+type RawModule = {
   name: string;
   version?: string;
   description?: string;
@@ -119,8 +119,9 @@ class ForeignModuleSession {
     this.closed = true;
     try {
       await this.transport.send({ id: "shutdown", type: "shutdown" });
-    } catch {
-      // ignore send errors on shutdown
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`${this.label}[warn] Failed to send shutdown: ${msg}\n`);
     }
     await this.transport.close();
     await this.receiveLoop;
@@ -138,7 +139,7 @@ async function createRawModule(
   label: string,
   projectCwd: string,
   moduleConfig?: Record<string, unknown>,
-): Promise<RawExtension> {
+): Promise<RawModule> {
   const initId = newId();
   const session = new ForeignModuleSession(transport, label);
   const manifestMsg = await session.request(

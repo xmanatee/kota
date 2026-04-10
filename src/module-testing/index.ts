@@ -6,7 +6,7 @@
  * modules, call their onLoad, exercise tools and routes, then teardown.
  *
  * Usage:
- *   const harness = await ModuleTestHarness.create(myExtension);
+ *   const harness = await ModuleTestHarness.create(myModule);
  *   const result = await harness.callTool("my_tool", { action: "list" });
  *   expect(result.is_error).toBeUndefined();
  *   await harness.teardown();

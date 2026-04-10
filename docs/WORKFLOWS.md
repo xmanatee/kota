@@ -387,7 +387,7 @@ registers and executes them alongside other contributed workflows — same trigg
 same observability, same run history.
 
 ```typescript
-const myExtension: KotaModule = {
+const myModule: KotaModule = {
   name: "my-module",
   workflows: [
     {
@@ -691,10 +691,10 @@ real config, or network.
 
 ```ts
 import { ModuleTestHarness } from "kota/testing";
-import myExtension from "./index.js";
+import myModule from "./index.js";
 
 test("registers the expected tool and it works", async () => {
-  const harness = await ModuleTestHarness.create(myExtension);
+  const harness = await ModuleTestHarness.create(myModule);
 
   const tool = harness.getTool("my_tool");
   expect(tool).toBeDefined();

@@ -24,7 +24,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         if (queue.actionableCount > 0) {
           emit("autonomy.queue.available", { actionableCount: queue.actionableCount });
         }
-        if (queue.actionableCount === 0 && queue.inboxCount === 0) {
+        if (queue.inboxCount === 0 && queue.counts.ready === 0 && queue.counts.backlog === 0) {
           emit("autonomy.queue.empty", { counts: queue.counts });
         }
 
@@ -34,7 +34,10 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           emitted: [
             queue.inboxCount > 0 && "autonomy.inbox.available",
             queue.actionableCount > 0 && "autonomy.queue.available",
-            queue.actionableCount === 0 && queue.inboxCount === 0 && "autonomy.queue.empty",
+            queue.inboxCount === 0 &&
+              queue.counts.ready === 0 &&
+              queue.counts.backlog === 0 &&
+              "autonomy.queue.empty",
           ].filter(Boolean),
         };
       },

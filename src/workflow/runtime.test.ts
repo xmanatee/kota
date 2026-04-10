@@ -433,7 +433,7 @@ describe("WorkflowRuntime", () => {
   });
 
   it("supports code steps that call KOTA tools before agent steps", async () => {
-    // Register the shell tool from the execution module (normally loaded by repoExtensions)
+    // Register the shell tool from the execution module (normally loaded by project modules)
     registerTool(shellTool, runShell, "execution");
 
     writeFileSync(

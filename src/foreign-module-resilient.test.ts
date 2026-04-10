@@ -27,23 +27,29 @@ type ResilienceConfig = Omit<StdioForeignModuleConfig, "transport" | "command" |
  * Module that uses a counter file to vary behavior by spawn count.
  * - spawn count <= crashOnSpawns: init/manifest OK then crash (triggers watchDeath)
  * - spawn count > crashOnSpawns: init/manifest OK and handles invocations normally
- * - spawn count > crashOnSpawns AND noManifestAfter: exit before manifest (so createRawExtension fails)
+ * - spawn count > crashOnSpawns AND noManifestAfter: exit before manifest (so createRawModule fails)
  */
 function countingModule(
   countFile: string,
   opts: {
     /** Spawns up to this count crash after manifest (to trigger watchDeath). */
     crashAfterManifest?: number;
-    /** Spawns above this count exit before manifest (createRawExtension fails). */
+    /** Spawns above this count exit before manifest (createRawModule fails). */
     failRestarts?: boolean;
     /** Crash on invoke rather than immediately after manifest. */
     crashOnInvoke?: boolean;
     /** Never respond to ping messages. */
     noPing?: boolean;
-    extName?: string;
+    moduleName?: string;
   } = {},
 ): StdioForeignModuleConfig {
-  const { crashAfterManifest = 0, failRestarts = false, crashOnInvoke = false, noPing = false, extName = "test-ext" } = opts;
+  const {
+    crashAfterManifest = 0,
+    failRestarts = false,
+    crashOnInvoke = false,
+    noPing = false,
+    moduleName = "test-module",
+  } = opts;
   const script = `
 const fs = require('fs');
 const countFile = ${JSON.stringify(countFile)};
@@ -57,7 +63,7 @@ const crashAfterManifest = ${crashAfterManifest};
 const crashOnInvoke = ${crashOnInvoke};
 const noPing = ${noPing};
 
-// Restart spawns: crash before manifest so createRawExtension fails fast
+// Restart spawns: crash before manifest so createRawModule fails fast
 if (failRestarts && count > 1) {
   process.exit(1);
 }
@@ -68,7 +74,7 @@ rl.on('line', (line) => {
   const msg = JSON.parse(line);
   if (msg.type === 'init') {
     process.stdout.write(JSON.stringify({
-      id: msg.id, type: 'manifest', name: ${JSON.stringify(extName)},
+      id: msg.id, type: 'manifest', name: ${JSON.stringify(moduleName)},
       tools: [{ name: 'echo', description: 'echo', input_schema: { type: 'object', properties: { v: { type: 'string' } } } }]
     }) + '\\n');
     if (!crashOnInvoke && count <= crashAfterManifest) {
@@ -110,7 +116,7 @@ describe("KEMP resilient module — crash restart", () => {
     const countFile = tempFile();
     // spawn 1 crashes on invoke; spawn 2+ works normally
     const config: StdioForeignModuleConfig = {
-      ...countingModule(countFile, { crashAfterManifest: 1, crashOnInvoke: true, extName: "resilient" }),
+      ...countingModule(countFile, { crashAfterManifest: 1, crashOnInvoke: true, moduleName: "resilient" }),
       ...fastConfig({ maxRestarts: 2 }),
     };
 
@@ -140,7 +146,7 @@ describe("KEMP resilient module — max restarts exhausted", () => {
   it("emits module.failed after all restart attempts fail", async () => {
     const countFile = tempFile();
     // spawn 1: init/manifest OK, then crashes → watchDeath fires
-    // spawn 2+: exit before manifest → createRawExtension fails
+    // spawn 2+: exit before manifest → createRawModule fails
     const config: StdioForeignModuleConfig = {
       ...countingModule(countFile, { crashAfterManifest: 1, failRestarts: true, extName: "exhaust-ext" }),
       ...fastConfig({ maxRestarts: 2 }),
@@ -236,7 +242,7 @@ describe("KEMP resilient module — ping timeout", () => {
   it("hung subprocess detected via ping timeout triggers restart and module.failed after exhaustion", async () => {
     const countFile = tempFile();
     // spawn 1: init/manifest OK but never responds to ping
-    // spawn 2+: exit before manifest → createRawExtension fails → restarts exhausted
+    // spawn 2+: exit before manifest → createRawModule fails → restarts exhausted
     const config: StdioForeignModuleConfig = {
       ...countingModule(countFile, { noPing: true, failRestarts: true, extName: "no-ping-ext" }),
       ...fastConfig({

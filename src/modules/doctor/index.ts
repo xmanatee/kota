@@ -50,10 +50,21 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
+function readDaemonPid(statePath: string): number | null {
+  if (!existsSync(statePath)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(statePath, "utf-8")) as { pid?: unknown };
+    return typeof parsed.pid === "number" ? parsed.pid : null;
+  } catch {
+    return null;
+  }
+}
+
 export function runDoctorFixes(projectDir: string): RepairResult[] {
   const results: RepairResult[] = [];
   const kotaDir = join(projectDir, ".kota");
   const lockFile = join(kotaDir, "daemon-control.json");
+  const daemonStateFile = join(kotaDir, "daemon-state.json");
 
   if (existsSync(lockFile)) {
     try {
@@ -84,6 +95,30 @@ export function runDoctorFixes(projectDir: string): RepairResult[] {
       item: "Daemon lock file (.kota/daemon-control.json)",
       action: "skipped",
       detail: "No lock file present",
+    });
+  }
+
+  if (existsSync(daemonStateFile)) {
+    const pid = readDaemonPid(daemonStateFile);
+    if (typeof pid === "number" && !isProcessAlive(pid)) {
+      unlinkSync(daemonStateFile);
+      results.push({
+        item: "Daemon state file (.kota/daemon-state.json)",
+        action: "repaired",
+        detail: `Removed stale daemon state (pid ${pid} not alive)`,
+      });
+    } else {
+      results.push({
+        item: "Daemon state file (.kota/daemon-state.json)",
+        action: "skipped",
+        detail: pid ? "Daemon process is alive" : "State file present",
+      });
+    }
+  } else {
+    results.push({
+      item: "Daemon state file (.kota/daemon-state.json)",
+      action: "skipped",
+      detail: "No state file present",
     });
   }
 
@@ -279,11 +314,18 @@ export async function runDoctorChecks(
   const results: CheckResult[] = [];
 
   // Daemon check
-  const client = DaemonControlClient.fromStateDir(join(projectDir, ".kota"));
+  const kotaDir = join(projectDir, ".kota");
+  const client = DaemonControlClient.fromStateDir(kotaDir);
   const status = client ? await client.getDaemonStatus() : null;
+  const daemonStatePath = join(kotaDir, "daemon-state.json");
+  const staleDaemonPid = readDaemonPid(daemonStatePath);
 
   if (!client) {
-    results.push(warn("Daemon", "No daemon-control.json found — daemon is not running"));
+    if (typeof staleDaemonPid === "number" && !isProcessAlive(staleDaemonPid)) {
+      results.push(warn("Daemon", `Daemon is not running and .kota/daemon-state.json is stale (pid ${staleDaemonPid})`));
+    } else {
+      results.push(warn("Daemon", "No daemon-control.json found — daemon is not running"));
+    }
   } else if (!status) {
     results.push(fail("Daemon", "Daemon control file present but API is unreachable"));
   } else {

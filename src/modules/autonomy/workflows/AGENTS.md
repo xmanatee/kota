@@ -50,16 +50,13 @@ rely on the integration test below instead.
 
 ## Routing
 
-Only the `dispatcher` workflow listens to `runtime.idle`. All other autonomy
-workflows trigger on condition-based semantic events emitted by the dispatcher:
-
-- `autonomy.queue.available` → builder (ready queue has actionable tasks)
-- `autonomy.inbox.available` → inbox-sorter (inbox has items)
-- `autonomy.queue.empty` → explorer (nothing in queue or inbox)
+Only the `dispatcher` workflow listens to `runtime.idle`. Other autonomy
+workflows should trigger on semantic bus events that describe repo state, not
+on a fixed workflow graph.
 
 Never add `runtime.idle` as a trigger to a non-dispatcher workflow. If a new
 workflow needs periodic polling, add the condition check to the dispatcher and
-emit a new semantic event.
+emit a clearer event.
 
 Prefer explicit bus events over workflow-name inventories or secondary routing metadata.
 

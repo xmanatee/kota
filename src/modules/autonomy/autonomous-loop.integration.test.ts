@@ -299,7 +299,7 @@ describe("autonomous workflow loop integration", () => {
     "explorer skips agent step when exploration refresh is not due",
     { timeout: 10_000 },
     async () => {
-      // Clear ready tasks and inbox so the dispatcher emits autonomy.queue.empty,
+      // Clear ready tasks, backlog, and inbox so the dispatcher emits autonomy.queue.empty,
       // which triggers the explorer. The explorer then skips the agent step because
       // lastCompletedAt was 10 minutes ago (within the 30-minute refresh window).
       for (const f of readdirSync(join(projectDir, "data/tasks/ready"))) {

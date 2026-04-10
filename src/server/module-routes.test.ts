@@ -16,7 +16,7 @@ function mockResponse() {
 
 function makeSummary(overrides: Partial<ModuleSummary> = {}): ModuleSummary {
   return {
-    name: "test-ext",
+    name: "test-module",
     version: "1.0.0",
     description: "A test module",
     dependencies: [],
@@ -44,7 +44,7 @@ describe("handleListModules", () => {
 
   it("returns name, version, status, and contribution counts for each module", () => {
     const summary = makeSummary({
-      name: "my-ext",
+      name: "my-module",
       version: "2.1.0",
       toolNames: ["tool-a", "tool-b", "tool-c"],
       agentNames: ["agent-x"],
@@ -58,7 +58,7 @@ describe("handleListModules", () => {
     const body = result.body as { modules: Array<Record<string, unknown>> };
     expect(body.modules).toHaveLength(1);
     const ext = body.modules[0];
-    expect(ext.name).toBe("my-ext");
+    expect(ext.name).toBe("my-module");
     expect(ext.version).toBe("2.1.0");
     expect(ext.status).toBe("loaded");
     expect(ext.toolCount).toBe(3);
@@ -69,11 +69,11 @@ describe("handleListModules", () => {
   });
 
   it("handles module without version or description", () => {
-    const summary = makeSummary({ name: "bare-ext", version: undefined, description: undefined });
+    const summary = makeSummary({ name: "bare-module", version: undefined, description: undefined });
     const { res, result } = mockResponse();
     handleListModules(res, [summary]);
     const body = result.body as { modules: Array<Record<string, unknown>> };
-    expect(body.modules[0].name).toBe("bare-ext");
+    expect(body.modules[0].name).toBe("bare-module");
     expect(body.modules[0].version).toBeUndefined();
     expect(body.modules[0].description).toBeUndefined();
   });

@@ -11,7 +11,7 @@ vi.mock("../../workflow/validation.js", () => ({
 
 vi.mock("../../module-metadata.js", () => ({
   loadModuleMetadata: vi.fn(async () => ({
-    getModuleSummaries: () => [{ name: "test-ext" }],
+    getModuleSummaries: () => [{ name: "test-module" }],
     getContributedWorkflows: () => [],
   })),
 }));

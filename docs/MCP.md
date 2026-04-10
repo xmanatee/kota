@@ -20,7 +20,7 @@ When constructing `McpServer` programmatically (e.g., in the daemon), pass `modu
 
 ```ts
 const server = new McpServer({
-  moduleTools: myExtension.tools(ctx),
+  moduleTools: myModule.tools(ctx),
 });
 ```
 
