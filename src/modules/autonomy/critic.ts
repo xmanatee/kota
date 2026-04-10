@@ -105,13 +105,20 @@ function getChangedFiles(projectDir: string): string {
 function parseVerdict(text: string): CriticVerdict {
   // Strip markdown fences if present
   const cleaned = text.replace(/^```(?:json)?\s*\n?/m, "").replace(/\n?```\s*$/m, "").trim();
-  const parsed = JSON.parse(cleaned);
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    throw new Error(
+      `Critic returned invalid JSON. Response (first 500 chars): ${cleaned.slice(0, 500)}`,
+    );
+  }
 
-  if (!parsed.verdict || !["pass", "fail", "pass_with_warnings"].includes(parsed.verdict)) {
+  if (!parsed.verdict || !["pass", "fail", "pass_with_warnings"].includes(parsed.verdict as string)) {
     throw new Error(`Invalid verdict: ${parsed.verdict}`);
   }
   return {
-    verdict: parsed.verdict,
+    verdict: parsed.verdict as CriticVerdict["verdict"],
     critical_issues: Array.isArray(parsed.critical_issues) ? parsed.critical_issues : [],
     warnings: Array.isArray(parsed.warnings) ? parsed.warnings : [],
     summary: typeof parsed.summary === "string" ? parsed.summary : "",
