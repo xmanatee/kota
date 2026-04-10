@@ -4,13 +4,13 @@
  *
  * Extracts the `tools` CLI command from cli.ts into a KotaModule,
  * continuing the module-first architecture plan. The actual registry logic
- * lives in src/registry.ts; this module wires it into the CLI as
+ * lives in src/core/modules/registry.ts; this module wires it into the CLI as
  * `kota tools`.
  */
 
 import { Command } from "commander";
 import type { KotaModule } from "#core/modules/module-types.js";
-import { installTool, listTools, removeTool, updateTool } from "#root/registry.js";
+import { installTool, listTools, removeTool, updateTool } from "#core/modules/registry.js";
 
 const registryModule: KotaModule = {
   name: "registry",
