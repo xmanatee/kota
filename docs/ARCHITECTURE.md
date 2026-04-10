@@ -77,11 +77,9 @@ has to stay in core.
   `CORE_TOOL_NAMES`) and the prompt auto-detection logic (`detectToolGroups`);
   `TOOL_GROUPS` starts empty and is populated at runtime by modules and core
   tool init — it no longer hardcodes which tools belong to which group.
-- The operator CLI migration is also mostly complete, but not fully done:
-  `src/cli.ts` still directly wires a small number of root-level CLI surfaces
-  (`completion-cli.ts`, `init-cli.ts`). Treat these as
-  remaining architecture debt until the root CLI is only assembling module
-  contributions plus the truly core interactive loop/history path.
+- The operator CLI migration is complete: `src/cli.ts` only assembles module
+  contributions plus the truly core interactive loop/history path. All CLI
+  commands are contributed by modules and auto-discovered at startup.
 - `SkillDef` and `AgentDef` now exist, and autonomy workflows invoke named
   agents. Skills are the one real reusable guidance path; `promptSection` has
   been removed.

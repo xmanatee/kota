@@ -8,8 +8,8 @@ This directory contains KOTA's runtime, workflow, tool, and integration code.
   prefer `src/modules/` when they can be owned as swappable units.
 - Use local `AGENTS.md` files to understand a subtree before changing it.
 - If a directory's role changes, update its `AGENTS.md` alongside the code.
-- When you add a new root-level `*-cli.ts` file under `src/`, add a matching
-  `*-cli.test.ts` unless the command is truly trivial.
+- Do not add new root-level `*-cli.ts` files under `src/`. New CLI commands
+  belong in a module's `commands` contribution surface, not in the root source tree.
 
 ## Key Modules
 
