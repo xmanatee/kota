@@ -11,6 +11,7 @@ import {
   assertTaskQueueValid,
   hasArchitectureReadyCoverageGap,
   hasStrategicReadyCoverageGap,
+  listRootKernelHelperDebt,
   listRootLevelCliArchitectureDebt,
   validateTaskQueue,
 } from "./task-queue-validation.js";
@@ -316,6 +317,33 @@ Has an outcome.
       'import { registerCompletionCommands } from "./completion-cli.js";\n',
     );
     writeTask(projectDir, "ready", "task-architecture", { area: "architecture", priority: "p3" });
+    execSync("git add data src && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    expect(hasArchitectureReadyCoverageGap(projectDir)).toBe(true);
+  });
+
+  it("detects loose kernel helpers in src/ root beyond known entrypoints", () => {
+    mkdirSync(join(projectDir, "src"), { recursive: true });
+    writeFileSync(join(projectDir, "src", "cli.ts"), "// entrypoint\n");
+    writeFileSync(join(projectDir, "src", "init.ts"), "// entrypoint\n");
+    writeFileSync(join(projectDir, "src", "config.ts"), "// kernel helper\n");
+    writeFileSync(join(projectDir, "src", "frontmatter.ts"), "// kernel helper\n");
+    writeFileSync(join(projectDir, "src", "config.test.ts"), "// test file\n");
+
+    const debt = listRootKernelHelperDebt(projectDir);
+    expect(debt).toEqual([
+      join("src", "config.ts"),
+      join("src", "frontmatter.ts"),
+    ]);
+  });
+
+  it("reports architecture coverage gap when loose root kernel helpers exist", () => {
+    mkdirSync(join(projectDir, "src"), { recursive: true });
+    writeFileSync(join(projectDir, "src", "config.ts"), "// kernel helper\n");
+    writeTask(projectDir, "ready", "task-ops", { area: "runtime" });
     execSync("git add data src && git commit -m init", {
       cwd: projectDir,
       stdio: "ignore",

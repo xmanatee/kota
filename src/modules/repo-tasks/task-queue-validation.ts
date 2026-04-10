@@ -108,23 +108,29 @@ export function listRootLevelCliArchitectureDebt(projectDir: string): string[] {
     .sort();
 }
 
-// Routes that once lived in the old server bucket have been migrated to owning modules.
-// All five capability route files have been migrated; this list is now empty.
-// The function is retained so references to listVisibleArchitectureDebt remain valid.
-const SERVER_ROUTE_MIGRATION_TARGETS: string[] = [];
+const ROOT_SRC_KNOWN_ENTRYPOINTS = new Set([
+  "cli.ts",
+  "init.ts",
+  "module-api.ts",
+  "validate-queue.ts",
+]);
 
-export function listServerRouteMigrationDebt(projectDir: string): string[] {
-  const serverDir = join(projectDir, "src", "server");
-  return SERVER_ROUTE_MIGRATION_TARGETS
-    .filter((f) => existsSync(join(serverDir, f)))
-    .map((f) => join("src", "server", f));
+export function listRootKernelHelperDebt(projectDir: string): string[] {
+  const dir = join(projectDir, "src");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((f) => f.endsWith(".ts"))
+    .filter((f) => !f.endsWith(".test.ts") && !f.endsWith(".integration.test.ts"))
+    .filter((f) => !ROOT_SRC_KNOWN_ENTRYPOINTS.has(f))
+    .map((f) => join("src", f))
+    .sort();
 }
 
 export function listVisibleArchitectureDebt(projectDir: string): string[] {
   return [
     ...listRootLevelBuiltInModuleFiles(projectDir),
     ...listRootLevelCliArchitectureDebt(projectDir),
-    ...listServerRouteMigrationDebt(projectDir),
+    ...listRootKernelHelperDebt(projectDir),
   ];
 }
 
