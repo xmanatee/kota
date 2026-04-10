@@ -2,7 +2,7 @@
 
 This directory owns the `daemon` repo module — long-running KOTA process with supervisor and autonomy workflow/channel resolution. It also owns the daemon-facing CLI commands: `kota events`, `kota session`, and `kota status`.
 
-- Registers `kota daemon` CLI command with `status`, `pid`, `stop`, `reload`, `install`, and `uninstall` subcommands.
+- Registers `kota daemon` CLI command with `status`, `pid`, `stop`, `reload`, `install`, `uninstall`, and `qr` subcommands.
 - Registers `kota events tail` for streaming live daemon event bus events.
 - Registers `kota session list` and `kota session inspect` for inspecting active daemon sessions.
 - Registers `kota status` for an operational snapshot (daemon health, runs, approvals, cost).
@@ -17,6 +17,7 @@ This directory owns the `daemon` repo module — long-running KOTA process with 
 - `events-cli.ts` — `buildEventsCommand`: builds the `kota events` Command with `tail` subcommand.
 - `session-cli.ts` — `buildSessionCommand`: builds the `kota session` Command with `list` and `inspect` subcommands.
 - `status-cli.ts` — `buildStatusCommand`, `formatStatusOutput`, `gatherStatus`, `StatusSnapshot`: builds the `kota status` command; `gatherStatus` reads from the daemon API when available and from disk in standalone mode.
+- `qr-cli.ts` — `buildQrCommand`: builds the `kota daemon qr` command; reads `daemon-control.json`, detects local network IP, and renders the connection payload as a QR code for mobile client setup.
 - `index.test.ts` — unit tests for daemon command registration and supervisor helpers.
 - `install.test.ts` — structural and lifecycle tests for `install`/`uninstall`: launchd plist and systemd unit content assertions, round-trip file lifecycle, and double-install/double-uninstall error cases. Writes to a temp directory; no `launchctl` or `systemctl` calls.
 - `status-cli.test.ts` — unit tests for `formatStatusOutput` covering all output permutations.
