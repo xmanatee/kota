@@ -69,6 +69,44 @@ final class DaemonClient {
         return try await post("/workflow/trigger", body: body)
     }
 
+    func createSession() async throws -> String {
+        let body = "{}".data(using: .utf8)
+        let resp: CreateSessionResponse = try await post("/sessions", body: body)
+        return resp.session_id
+    }
+
+    func deleteSession(id: String) async throws {
+        try await delete("/sessions/\(id)")
+    }
+
+    /// Streams a chat response via SSE. The `onEvent` closure is called on the MainActor
+    /// for each SSE event received. Resolves when the stream ends.
+    func streamChat(sessionId: String, message: String, onEvent: @escaping (String, Data) -> Void) async throws {
+        guard let conn = connection else { throw DaemonClientError.notConnected }
+        let url = conn.baseURL.appendingPathComponent("/sessions/\(sessionId)/chat")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(["message": message])
+
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw DaemonClientError.httpError(http.statusCode)
+        }
+
+        var currentEvent = ""
+        for try await line in bytes.lines {
+            if line.hasPrefix("event: ") {
+                currentEvent = String(line.dropFirst(7))
+            } else if line.hasPrefix("data: "), let data = String(line.dropFirst(6)).data(using: .utf8) {
+                onEvent(currentEvent, data)
+            } else if line.isEmpty {
+                currentEvent = ""
+            }
+        }
+    }
+
     // MARK: - Private helpers
 
     private func get<T: Decodable>(_ path: String) async throws -> T {
@@ -116,6 +154,17 @@ final class DaemonClient {
             request.httpBody = body
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
+        let (_, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw DaemonClientError.httpError(http.statusCode)
+        }
+    }
+
+    private func delete(_ path: String) async throws {
+        guard let conn = connection else { throw DaemonClientError.notConnected }
+        var request = URLRequest(url: conn.baseURL.appendingPathComponent(path))
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
         let (_, response) = try await URLSession.shared.data(for: request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw DaemonClientError.httpError(http.statusCode)

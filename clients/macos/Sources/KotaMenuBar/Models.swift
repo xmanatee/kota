@@ -134,6 +134,12 @@ struct RunSummary: Codable, Identifiable {
     }
 }
 
+// MARK: - Chat session creation
+
+struct CreateSessionResponse: Codable {
+    let session_id: String
+}
+
 // MARK: - Trigger
 
 struct TriggerRequest: Codable {

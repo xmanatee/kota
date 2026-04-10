@@ -1,7 +1,7 @@
 ---
 id: task-macos-client-chat
 title: Add chat panel to macOS menu bar client
-status: ready
+status: done
 priority: p2
 area: client
 summary: The macOS menu bar client shows sessions from GET /sessions but cannot send messages. Add a chat popover or panel that mirrors the mobile chat experience using POST /sessions/:id/chat.

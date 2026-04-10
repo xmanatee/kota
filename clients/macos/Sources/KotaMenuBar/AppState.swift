@@ -138,6 +138,15 @@ final class AppState: ObservableObject {
         await refresh()
     }
 
+    func createSession() async -> String? {
+        return try? await client.createSession()
+    }
+
+    func endSession(_ id: String) async {
+        try? await client.deleteSession(id: id)
+        await refresh()
+    }
+
     func openDashboard() {
         NSWorkspace.shared.open(webUIURL)
     }
