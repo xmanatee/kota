@@ -8,7 +8,7 @@ export const agent: AgentDef = {
   name: "improver",
   role: "Improve the autonomous development system itself using evidence from recent runs.",
   promptPath: "src/modules/autonomy/workflows/improver/prompt.md",
-  model: "claude-sonnet-4-6",
+  model: "claude-opus-4-6",
   tools: { permissionMode: "bypassPermissions" },
   settingSources: ["project"],
 };

@@ -20,7 +20,7 @@ export const agent: AgentDef = {
   name: "explorer",
   role: "Find strong external ideas and promising new directions when the local queue is empty or running thin.",
   promptPath: "src/modules/autonomy/workflows/explorer/prompt.md",
-  model: "claude-sonnet-4-6",
+  model: "claude-opus-4-6",
   tools: { permissionMode: "bypassPermissions" },
   settingSources: ["project"],
 };

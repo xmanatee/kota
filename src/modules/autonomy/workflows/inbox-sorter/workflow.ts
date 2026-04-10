@@ -10,7 +10,7 @@ export const agent: AgentDef = {
   name: "inbox-sorter",
   role: "Turn quick inbox captures into the right durable project artifacts.",
   promptPath: "src/modules/autonomy/workflows/inbox-sorter/prompt.md",
-  model: "claude-sonnet-4-6",
+  model: "claude-opus-4-6",
   tools: { permissionMode: "bypassPermissions" },
   settingSources: ["project"],
 };

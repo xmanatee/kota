@@ -38,7 +38,7 @@ export const agent: AgentDef = {
   name: "builder",
   role: "Ship one cohesive improvement per run by resuming, pulling, or promoting one normalized task.",
   promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
-  model: "claude-sonnet-4-6",
+  model: "claude-opus-4-6",
   tools: { permissionMode: "bypassPermissions" },
   settingSources: ["project"],
 };

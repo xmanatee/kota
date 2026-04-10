@@ -54,9 +54,7 @@ describe("daemonModule", () => {
     const cmds = daemonModule.commands!(stubCtx);
     const cmd = cmds[0];
     const optNames = cmd.options.map((o) => o.long);
-    expect(optNames).toContain("--model");
     expect(optNames).toContain("--verbose");
-    expect(optNames).toContain("--idle-interval");
     expect(optNames).toContain("--poll-interval");
     expect(optNames).toContain("--log-format");
   });
@@ -87,26 +85,19 @@ describe("daemonModule", () => {
 
   it("builds child daemon args from parsed options", () => {
     const args = buildDaemonChildArgs({
-      model: "claude-sonnet-4-6",
       verbose: true,
-      idleInterval: "5",
       pollInterval: "30",
     });
 
     expect(args).toContain("daemon");
-    expect(args).toContain("--idle-interval");
-    expect(args).toContain("5");
     expect(args).toContain("--poll-interval");
     expect(args).toContain("30");
-    expect(args).toContain("--model");
-    expect(args).toContain("claude-sonnet-4-6");
     expect(args).toContain("--verbose");
     expect(args).not.toContain("--log-format");
   });
 
   it("forwards --log-format json to child args", () => {
     const args = buildDaemonChildArgs({
-      idleInterval: "5",
       pollInterval: "30",
       logFormat: "json",
     });

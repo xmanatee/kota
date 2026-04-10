@@ -28,21 +28,16 @@ function parseIntOption(value: string, name: string): number {
 }
 
 export function buildDaemonChildArgs(opts: {
-  model?: string;
   verbose?: boolean;
-  idleInterval: string;
   pollInterval: string;
   logFormat?: LogFormat;
 }): string[] {
   const args = [
     process.argv[1]!,
     "daemon",
-    "--idle-interval",
-    opts.idleInterval,
     "--poll-interval",
     opts.pollInterval,
   ];
-  if (opts.model) args.push("--model", opts.model);
   if (opts.verbose) args.push("--verbose");
   if (opts.logFormat) args.push("--log-format", opts.logFormat);
   return args;
@@ -216,13 +211,7 @@ const daemonModule: KotaModule = {
   commands: (ctx) => {
     const cmd = new Command("daemon")
       .description("Run KOTA as a long-running daemon with autonomous workflows")
-      .option("-m, --model <model>", "Model to use")
       .option("-v, --verbose", "Show debug output")
-      .option(
-        "--idle-interval <seconds>",
-        "How often to emit runtime.idle while no workflow is running",
-        "30",
-      )
       .option("--poll-interval <seconds>", "Scheduler poll interval in seconds", "30")
       .option("--log-format <format>", "Log format: text (default) or json", (v) => {
         if (v !== "text" && v !== "json") {
@@ -238,9 +227,7 @@ const daemonModule: KotaModule = {
 
         if (process.env[DAEMON_CHILD_ENV] !== "1") {
           await runDaemonSupervisor({
-            model: opts.model || ctx.config.model,
             verbose: opts.verbose || ctx.config.verbose,
-            idleInterval: opts.idleInterval,
             pollInterval: opts.pollInterval,
             logFormat,
           });
@@ -248,10 +235,9 @@ const daemonModule: KotaModule = {
         }
 
         const daemon = new Daemon({
-          model: opts.model || ctx.config.model,
           verbose: opts.verbose || ctx.config.verbose,
           config: ctx.config,
-          idleIntervalMs: parseIntOption(opts.idleInterval, "idle-interval") * 1000,
+          idleIntervalMs: 30_000,
           pollIntervalMs: parseIntOption(opts.pollInterval, "poll-interval") * 1000,
           workflows: ctx.getContributedWorkflows(),
           channels: ctx.getContributedChannels(),
