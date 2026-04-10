@@ -1,6 +1,6 @@
 import type { Command, Option } from "commander";
 import { Command as CommandClass } from "commander";
-import type { KotaModule } from "../../module-types.js";
+import type { KotaModule } from "../../core/modules/module-types.js";
 
 /** Walk a command tree and collect name + description pairs for each level. */
 function getSubcommands(cmd: Command): Array<{ name: string; description: string }> {

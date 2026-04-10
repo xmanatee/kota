@@ -6,10 +6,10 @@
  * - Reconnects automatically on WebSocket disconnect.
  */
 
-import type { ChannelSession } from "../../channel.js";
+import type { ChannelSession } from "../../core/channels/channel.js";
 import type { KotaConfig } from "../../config.js";
-import { AgentSession, type LoopOptions } from "../../loop.js";
-import { NullTransport, ProxyTransport } from "../../transport.js";
+import { AgentSession, type LoopOptions } from "../../core/loop/loop.js";
+import { NullTransport, ProxyTransport } from "../../core/loop/transport.js";
 import { getApprovalQueue } from "../approval-queue/queue.js";
 import {
   callSlackApi,

@@ -16,8 +16,8 @@ import { httpRequestTool, runHttpRequest } from "./modules/web-access/http-reque
 import { runWebFetch, webFetchTool } from "./modules/web-access/web-fetch.js";
 import { runWebSearch, webSearchTool } from "./modules/web-access/web-search.js";
 import { detectProject, getDirectoryOverview } from "./project-detection.js";
-import type { ToolResult } from "./tools/index.js";
-import { runWorkspace, workspaceTool } from "./tools/workspace.js";
+import type { ToolResult } from "./core/tools/index.js";
+import { runWorkspace, workspaceTool } from "./core/tools/workspace.js";
 
 // --- Sub-agent system prompts ---
 

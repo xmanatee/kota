@@ -1,6 +1,6 @@
 ---
 id: task-split-read-document-ts
-title: Split src/tools/read-document.ts — 347 lines, over limit
+title: Split src/core/tools/read-document.ts — 347 lines, over limit
 status: done
 priority: p3
 area: source
@@ -11,7 +11,7 @@ updated_at: 2026-03-19
 
 ## Problem
 
-`src/tools/read-document.ts` is 347 lines, exceeding the 300-line limit in AGENTS.md.
+`src/core/tools/read-document.ts` is 347 lines, exceeding the 300-line limit in AGENTS.md.
 
 ## Desired Outcome
 

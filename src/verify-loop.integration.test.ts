@@ -6,7 +6,7 @@ import {
   getEnabledGroups,
   registerCustomGroup,
   resetGroups,
-} from "./tool-groups.js";
+} from "./core/tools/tool-groups.js";
 import {
   processToolResults,
   type ToolCallRecord,

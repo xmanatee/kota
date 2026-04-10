@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CostTracker } from "./cost.js";
+import { CostTracker } from "./core/loop/cost.js";
 
 describe("CostTracker", () => {
   it("starts at zero cost", () => {

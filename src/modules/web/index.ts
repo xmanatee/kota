@@ -9,7 +9,7 @@
 
 import { Command } from "commander";
 import { warnUnknownConfigKeys } from "../../config-warnings.js";
-import type { KotaModule } from "../../module-types.js";
+import type { KotaModule } from "../../core/modules/module-types.js";
 import { startServer } from "../../server/server.js";
 
 function parseIntOption(value: string, name: string): number {

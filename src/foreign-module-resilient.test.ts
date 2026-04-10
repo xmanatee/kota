@@ -9,14 +9,14 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { StdioForeignModuleConfig } from "./foreign-module.js";
-import { loadForeignModules } from "./foreign-module-loader.js";
+import type { StdioForeignModuleConfig } from "./core/modules/foreign-module.js";
+import { loadForeignModules } from "./core/modules/foreign-module-loader.js";
 
 const PROJECT_CWD = process.cwd();
 
 // Mock the event bus so we can observe module.failed emissions
 const tryEmitMock = vi.hoisted(() => vi.fn());
-vi.mock("./event-bus.js", () => ({ tryEmit: tryEmitMock }));
+vi.mock("./core/events/event-bus.js", () => ({ tryEmit: tryEmitMock }));
 
 beforeEach(() => { tryEmitMock.mockClear(); });
 afterEach(() => { vi.restoreAllMocks(); });
@@ -54,7 +54,9 @@ function countingModule(
 const fs = require('fs');
 const countFile = ${JSON.stringify(countFile)};
 let count = 0;
-try { count = parseInt(fs.readFileSync(countFile, 'utf8')); } catch {}
+if (fs.existsSync(countFile)) {
+  count = parseInt(fs.readFileSync(countFile, 'utf8'));
+}
 count++;
 fs.writeFileSync(countFile, String(count));
 

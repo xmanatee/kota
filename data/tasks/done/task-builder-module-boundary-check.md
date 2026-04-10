@@ -18,7 +18,7 @@ As the module migration advances, new capability code added to `src/` root becom
 ## Desired Outcome
 
 The builder's `repairLoop` includes a check that:
-1. Lists TypeScript files added to `src/` root (not `src/modules/`, `src/server/`, `src/scheduler/`, `src/workflow/`, `src/memory/`, `src/web-ui/`, or other established core subdirectories) by the current run.
+1. Lists TypeScript files added to `src/` root (not `src/modules/`, `src/server/`, `src/core/daemon/`, `src/core/workflow/`, `src/memory/`, `src/web-ui/`, or other established core subdirectories) by the current run.
 2. Fails if a non-core `.ts` file appears directly under `src/` that is not in the established core file list.
 
 The check should use `type: "code"` (not `tool: "shell"`) per the repair-loop guidance.

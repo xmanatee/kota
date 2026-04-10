@@ -7,7 +7,7 @@
  */
 
 import { Command } from "commander";
-import type { KotaModule } from "../../module-types.js";
+import type { KotaModule } from "../../core/modules/module-types.js";
 import { registerApprovalCommands } from "./cli.js";
 import { approvalRoutes } from "./routes.js";
 

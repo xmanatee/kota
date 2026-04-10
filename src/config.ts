@@ -1,11 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { ForeignModuleConfig } from "./foreign-module.js";
-import { type GuardrailsConfig, sanitizeGuardrailsConfig } from "./guardrails.js";
+import type { ForeignModuleConfig } from "./core/modules/foreign-module.js";
+import { type GuardrailsConfig, sanitizeGuardrailsConfig } from "./core/tools/guardrails.js";
 import type { ModelTiers } from "./model/model-router.js";
 import { type QuietHoursConfig, validateQuietHours } from "./modules/notifications/notification-gate.js";
-import { type DispatchWindow, validateDispatchWindow } from "./workflow/dispatch-window.js";
+import { type DispatchWindow, validateDispatchWindow } from "./core/workflow/dispatch-window.js";
 
 /**
  * KOTA configuration schema.

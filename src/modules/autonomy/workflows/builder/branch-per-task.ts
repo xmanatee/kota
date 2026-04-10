@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig } from "../../../../config.js";
-import type { WorkflowStepContext } from "../../../../workflow/run-types.js";
+import type { WorkflowStepContext } from "../../../../core/workflow/run-types.js";
 import { REPO_TASKS_DIR } from "../../../repo-tasks/repo-tasks.js";
 import type { BuilderRunSummary } from "./run-summary.js";
 
@@ -22,6 +22,7 @@ function findTaskIdFromStagedFiles(projectDir: string): string | null {
   const result = spawnSync("git", ["diff", "--cached", "--name-only"], {
     cwd: projectDir,
     encoding: "utf-8",
+    stdio: "pipe",
   });
   if (result.status !== 0) return null;
 
@@ -49,6 +50,7 @@ function getCurrentBranch(projectDir: string): string {
   const result = spawnSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
     cwd: projectDir,
     encoding: "utf-8",
+    stdio: "pipe",
   });
   return result.stdout.trim() || "main";
 }
@@ -71,6 +73,7 @@ export function createTaskBranch(ctx: WorkflowStepContext): BranchStepResult {
   const checkout = spawnSync("git", ["checkout", "-b", branch], {
     cwd: projectDir,
     encoding: "utf-8",
+    stdio: "pipe",
   });
 
   if (checkout.status !== 0) {
@@ -90,6 +93,7 @@ export function createPullRequest(ctx: WorkflowStepContext): { prUrl: string } {
   const authCheck = spawnSync("gh", ["auth", "status"], {
     cwd: projectDir,
     encoding: "utf-8",
+    stdio: "pipe",
   });
   if (authCheck.status !== 0) {
     throw new Error(
@@ -105,6 +109,7 @@ export function createPullRequest(ctx: WorkflowStepContext): { prUrl: string } {
   const push = spawnSync("git", ["push", "origin", branch], {
     cwd: projectDir,
     encoding: "utf-8",
+    stdio: "pipe",
   });
   if (push.status !== 0) {
     throw new Error(`Failed to push branch ${branch}: ${push.stderr || push.stdout}`);
@@ -128,7 +133,7 @@ export function createPullRequest(ctx: WorkflowStepContext): { prUrl: string } {
   const prCreate = spawnSync(
     "gh",
     ["pr", "create", "--title", taskTitle, "--body", body, "--base", baseBranch, "--head", branch],
-    { cwd: projectDir, encoding: "utf-8" },
+    { cwd: projectDir, encoding: "utf-8", stdio: "pipe" },
   );
 
   if (prCreate.status !== 0) {
@@ -139,6 +144,7 @@ export function createPullRequest(ctx: WorkflowStepContext): { prUrl: string } {
   const restore = spawnSync("git", ["checkout", baseBranch], {
     cwd: projectDir,
     encoding: "utf-8",
+    stdio: "pipe",
   });
   if (restore.status !== 0) {
     throw new Error(
@@ -163,6 +169,7 @@ export function cleanupMergedBranches(ctx: WorkflowStepContext): CleanupResult {
     const authCheck = spawnSync("gh", ["auth", "status"], {
       cwd: projectDir,
       encoding: "utf-8",
+      stdio: "pipe",
     });
     if (authCheck.status !== 0) {
       warnings.push("gh CLI not available; skipping branch cleanup");
@@ -172,7 +179,7 @@ export function cleanupMergedBranches(ctx: WorkflowStepContext): CleanupResult {
     const listResult = spawnSync(
       "gh",
       ["pr", "list", "--state", "merged", "--json", "headRefName", "--limit", "100"],
-      { cwd: projectDir, encoding: "utf-8" },
+      { cwd: projectDir, encoding: "utf-8", stdio: "pipe" },
     );
     if (listResult.status !== 0) {
       warnings.push(`Failed to list merged PRs: ${listResult.stderr || listResult.stdout}`);
@@ -196,6 +203,7 @@ export function cleanupMergedBranches(ctx: WorkflowStepContext): CleanupResult {
       const del = spawnSync("git", ["push", "origin", "--delete", branch], {
         cwd: projectDir,
         encoding: "utf-8",
+        stdio: "pipe",
       });
       if (del.status !== 0) {
         warnings.push(`Failed to delete branch ${branch}: ${del.stderr || del.stdout}`);

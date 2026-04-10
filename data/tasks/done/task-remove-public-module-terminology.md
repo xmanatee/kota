@@ -17,7 +17,7 @@ public-facing manifest and module-factory surfaces still leak the older
 
 - `ModuleManifest` and manifest-module wording in `src/manifest/*`
 - manifest load/validation diagnostics such as `Manifest module "<name>" ...`
-- loaded-module helper/state names in `src/tools/module-factory/*`
+- loaded-module helper/state names in `src/core/tools/module-factory/*`
 
 The earlier public cleanup removed some visible drift, but the public API and
 diagnostics still do not speak one language end to end.

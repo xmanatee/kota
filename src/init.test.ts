@@ -20,14 +20,14 @@ vi.mock("./memory/history.js", () => ({
 }));
 
 // Mock task-store module to isolate and test failure paths
-vi.mock("./scheduler/task-store.js", () => ({
+vi.mock("./core/daemon/task-store.js", () => ({
   getTaskStore: vi.fn(() => ({
     getActiveSummary: () => null,
   })),
 }));
 
 // Mock scheduler module to isolate and test failure paths
-vi.mock("./scheduler/scheduler.js", () => ({
+vi.mock("./core/daemon/scheduler.js", () => ({
   getScheduler: vi.fn(() => ({
     getPendingSummary: () => null,
   })),
@@ -37,8 +37,8 @@ import { buildSessionWarmup } from "./init.js";
 import { getHistory } from "./memory/history.js";
 import { getMemoryStore } from "./memory/store.js";
 import { detectEnvironment, detectProject, getDirectoryOverview } from "./project-detection.js";
-import { getScheduler } from "./scheduler/scheduler.js";
-import { getTaskStore } from "./scheduler/task-store.js";
+import { getScheduler } from "./core/daemon/scheduler.js";
+import { getTaskStore } from "./core/daemon/task-store.js";
 
 const mocked = vi.mocked(getMemoryStore);
 const mockedHistory = vi.mocked(getHistory);

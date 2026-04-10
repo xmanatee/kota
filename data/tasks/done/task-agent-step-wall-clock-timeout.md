@@ -11,7 +11,7 @@ updated_at: 2026-03-20
 
 ## Problem
 
-`executeAgentStep` in `src/workflow/step-executor.ts` passes an `AbortController` to `executeWithAgentSDK` but never sets a wall-clock deadline on it. If an agent step hangs (network issue, runaway tool loop, LLM API stall), the entire workflow runtime stalls with it. There is no recovery path short of restarting the process.
+`executeAgentStep` in `src/core/workflow/step-executor.ts` passes an `AbortController` to `executeWithAgentSDK` but never sets a wall-clock deadline on it. If an agent step hangs (network issue, runaway tool loop, LLM API stall), the entire workflow runtime stalls with it. There is no recovery path short of restarting the process.
 
 This is especially risky for overnight autonomous runs where the daemon has no external watchdog.
 

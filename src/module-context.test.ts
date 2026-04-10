@@ -4,13 +4,13 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { initEventBus, resetEventBus } from "./event-bus.js";
-import { ModuleLoader } from "./module-loader.js";
-import type { KotaModule, ModuleContext, ToolDef } from "./module-types.js";
-import { resolveModuleTools } from "./module-types.js";
+import { initEventBus, resetEventBus } from "./core/events/event-bus.js";
+import { ModuleLoader } from "./core/modules/module-loader.js";
+import type { KotaModule, ModuleContext, ToolDef } from "./core/modules/module-types.js";
+import { resolveModuleTools } from "./core/modules/module-types.js";
 import { initSecretStore, resetSecretStore } from "./secrets.js";
-import { clearCustomGroups, resetGroups } from "./tool-groups.js";
-import { clearCustomTools, executeTool, registerTool } from "./tools/index.js";
+import { clearCustomGroups, resetGroups } from "./core/tools/tool-groups.js";
+import { clearCustomTools, executeTool, registerTool } from "./core/tools/index.js";
 
 beforeEach(() => {
   clearCustomTools();

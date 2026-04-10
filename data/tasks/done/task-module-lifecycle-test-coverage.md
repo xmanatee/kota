@@ -13,7 +13,7 @@ updated_at: 2026-04-08T00:00:00Z
 
 The module lifecycle — discovering modules, calling `onLoad`, registering their tool/channel/command/skill contributions, calling `onUnload`, and re-registering on reload — is the foundation of the module-first architecture. But it has thin unit test coverage. The existing `registry.test.ts` is limited in scope and does not exercise the full lifecycle.
 
-As the architecture migration moves more capability out of `src/tools/` and behind module boundaries, each move creates a regression risk that only good lifecycle tests would catch. Without this coverage, the architecture migration work in `ready/` is harder to validate safely.
+As the architecture migration moves more capability out of `src/core/tools/` and behind module boundaries, each move creates a regression risk that only good lifecycle tests would catch. Without this coverage, the architecture migration work in `ready/` is harder to validate safely.
 
 ## Desired Outcome
 

@@ -35,7 +35,7 @@ It is acceptable to migrate a subset in this run and capture remaining items in 
 
 - `session-pool.ts`, `session-routes.ts`, `server-notifications.ts`, `server.ts`, and `daemon-client.ts` stay in `src/server/` — they are server-core.
 - `workflow-routes.ts` and `workflow-run-routes.ts` stay in `src/server/` or move to the `workflow` module — treat as out of scope for this task to keep blast radius manageable.
-- Do not break the circular-import boundary: `src/server/` already imports from `src/scheduler/`; modules must not import back from `src/server/`.
+- Do not break the circular-import boundary: `src/server/` already imports from `src/core/daemon/`; modules must not import back from `src/server/`.
 - Existing route tests must be migrated alongside the handlers and continue to pass.
 - The external HTTP behavior (paths, methods, response shapes) must be identical after migration.
 

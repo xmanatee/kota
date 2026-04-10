@@ -6,7 +6,7 @@ vi.mock("./client.js", () => ({
   callTelegramApi: vi.fn(),
 }));
 
-vi.mock("../../workflows/shared.js", () => ({
+vi.mock("../autonomy/shared.js", () => ({
   loadRecentRuns: vi.fn().mockReturnValue([]),
   computeCostByWorkflow: vi.fn().mockReturnValue({}),
 }));

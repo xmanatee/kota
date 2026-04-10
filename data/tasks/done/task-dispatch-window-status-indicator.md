@@ -25,7 +25,7 @@ in-system explanation for why.
 
 - `WorkflowLiveStatus` gains optional `dispatchWindowBlocked?: boolean` and
   `dispatchWindowOpensAt?: string` (ISO timestamp of next window open, when blocked).
-- `getWorkflowLiveStatus()` in `src/workflow/runtime.ts` populates these fields when
+- `getWorkflowLiveStatus()` in `src/core/workflow/runtime.ts` populates these fields when
   `scheduler.dispatchWindow` is configured and the window is currently closed (using the
   existing `isWithinDispatchWindow` and `msUntilDispatchWindowOpens` helpers).
 - `kota workflow status` prints a line like:

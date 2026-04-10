@@ -6,7 +6,7 @@ import {
   getLastAssistantText,
   reflectionIndicatesComplete,
   shouldReflect,
-} from "./reflection.js";
+} from "./core/loop/reflection.js";
 
 type Message = Anthropic.MessageParam;
 

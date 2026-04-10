@@ -1,7 +1,7 @@
-import type { AgentDef } from "../../../../agent-types.js";
+import type { AgentDef } from "../../../../core/agents/agent-types.js";
 import { assertRepoWorktreeClean } from "../../../../repo-worktree.js";
-import type { WorkflowDefinitionInput } from "../../../../workflow/types.js";
-import { typedCodeStep } from "../../../../workflow/types.js";
+import type { WorkflowDefinitionInput } from "../../../../core/workflow/types.js";
+import { typedCodeStep } from "../../../../core/workflow/types.js";
 import { getRepoTaskQueueSnapshot } from "../../../repo-tasks/repo-tasks.js";
 import { commitWorkflowChanges } from "../../commit.js";
 import { runCheck, stepSucceeded } from "../../shared.js";

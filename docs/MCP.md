@@ -37,7 +37,7 @@ Each tool in the `tools/list` response includes an `annotations` object when the
 | destructive | `false`     | `true`            | —               |
 | network   | —             | —                 | `true`          |
 
-Tiers are not mutually exclusive: a destructive GitHub tool also has `openWorldHint: true`. Tools whose tier cannot be determined statically (e.g. unclassified module tools) omit `annotations` entirely. The annotations are derived from `getToolMcpAnnotations` in `src/guardrails-classify.ts`.
+Tiers are not mutually exclusive: a destructive GitHub tool also has `openWorldHint: true`. Tools whose tier cannot be determined statically (e.g. unclassified module tools) omit `annotations` entirely. The annotations are derived from `getToolMcpAnnotations` in `src/core/tools/guardrails-classify.ts`.
 
 ## Resources
 

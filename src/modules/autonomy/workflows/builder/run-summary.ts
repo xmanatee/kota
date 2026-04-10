@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { WorkflowStepContext } from "../../../../workflow/run-types.js";
+import type { WorkflowStepContext } from "../../../../core/workflow/run-types.js";
 import { REPO_TASKS_DIR } from "../../../repo-tasks/repo-tasks.js";
 
 export type BuilderRunSummary = {
@@ -53,16 +53,19 @@ export function writeBuilderRunSummary(ctx: WorkflowStepContext): BuilderRunSumm
   const commitSha = execSync("git rev-parse HEAD", {
     cwd: projectDir,
     encoding: "utf-8",
+    stdio: "pipe",
   }).trim();
 
   const commitMessage = execSync("git log --format=%s -1", {
     cwd: projectDir,
     encoding: "utf-8",
+    stdio: "pipe",
   }).trim();
 
   const filesChanged = execSync("git diff --name-only HEAD~1", {
     cwd: projectDir,
     encoding: "utf-8",
+    stdio: "pipe",
   })
     .trim()
     .split("\n")

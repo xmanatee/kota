@@ -34,7 +34,7 @@ a CLI surface.
 - No daemon required; reads definitions statically, like `kota workflow definitions`.
 - Does not trigger or run any workflow.
 - Output format is human-readable by default; `--json` flag outputs structured results.
-- Reuse `validateWorkflowDefinitions` from `src/workflow/validation.ts` without modification.
+- Reuse `validateWorkflowDefinitions` from `src/core/workflow/validation.ts` without modification.
 
 ## Done When
 

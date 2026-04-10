@@ -15,8 +15,8 @@ Several utility modules extracted during recent file splits have no dedicated te
 
 Modules to address:
 - `src/data/html-extract-utils.ts` — `decodeEntities`, `stripTags`, `removeBlocks`, `convertCodeBlocks`, `convertTables`, `convertHeadings`, `convertInlineElements`, `finalCleanup`
-- `src/tools/http-request-utils.ts` — `safePositiveInt`, `formatBytes`, `looksLikeJson`, `isBinaryContentType`, `formatTabularJson`
-- `src/scheduler/daemon-state.ts` — `assertDaemonState`
+- `src/core/tools/http-request-utils.ts` — `safePositiveInt`, `formatBytes`, `looksLikeJson`, `isBinaryContentType`, `formatTabularJson`
+- `src/core/daemon/daemon-state.ts` — `assertDaemonState`
 
 ## Desired Outcome
 
@@ -29,6 +29,6 @@ All three modules contain only pure functions with no integration dependencies.
 ## Done When
 
 - `src/data/html-extract-utils.test.ts` exists and passes
-- `src/tools/http-request-utils.test.ts` exists and passes
-- `src/scheduler/daemon-state.test.ts` exists and passes
+- `src/core/tools/http-request-utils.test.ts` exists and passes
+- `src/core/daemon/daemon-state.test.ts` exists and passes
 - `npm test` passes in full

@@ -27,8 +27,8 @@ afterEach(() => { vi.restoreAllMocks(); });
 
 describe("init → loop → context: session startup pipeline", () => {
   it("system prompt includes SYSTEM_PROMPT base content", async () => {
-    const { AgentSession } = await import("./loop.js");
-    const { SYSTEM_PROMPT } = await import("./system-prompt.js");
+    const { AgentSession } = await import("./core/loop/loop.js");
+    const { SYSTEM_PROMPT } = await import("./core/agents/system-prompt.js");
 
     const session = new AgentSession();
     // Access the static prompt through the public close path — verify via context
@@ -41,7 +41,7 @@ describe("init → loop → context: session startup pipeline", () => {
   });
 
   it("warmup section appears in the static prompt", async () => {
-    const { AgentSession } = await import("./loop.js");
+    const { AgentSession } = await import("./core/loop/loop.js");
 
     const session = new AgentSession();
     const staticPrompt: string = (session as any).context.getStaticPrompt();
@@ -52,7 +52,7 @@ describe("init → loop → context: session startup pipeline", () => {
   });
 
   it("system info (date, platform) appears in static prompt", async () => {
-    const { AgentSession } = await import("./loop.js");
+    const { AgentSession } = await import("./core/loop/loop.js");
 
     const session = new AgentSession();
     const staticPrompt: string = (session as any).context.getStaticPrompt();
@@ -64,7 +64,7 @@ describe("init → loop → context: session startup pipeline", () => {
 
   it("project detection flows into static prompt for code directories", async () => {
     // Current directory is a Node.js project (has package.json)
-    const { AgentSession } = await import("./loop.js");
+    const { AgentSession } = await import("./core/loop/loop.js");
 
     const session = new AgentSession();
     const staticPrompt: string = (session as any).context.getStaticPrompt();
@@ -107,7 +107,7 @@ describe("init → loop: environment detection for non-code workspaces (cross-mo
 
   it("warmup format produces valid system prompt when concatenated", async () => {
     const { buildSessionWarmup } = await import("./init.js");
-    const { SYSTEM_PROMPT } = await import("./system-prompt.js");
+    const { SYSTEM_PROMPT } = await import("./core/agents/system-prompt.js");
     const fs = await import("node:fs");
     const os = await import("node:os");
     const path = await import("node:path");
@@ -157,7 +157,7 @@ describe("init → loop: environment detection for non-code workspaces (cross-mo
 
 describe("system prompt workflow guidance coverage", () => {
   it("system prompt includes non-code workflow patterns", async () => {
-    const { SYSTEM_PROMPT } = await import("./system-prompt.js");
+    const { SYSTEM_PROMPT } = await import("./core/agents/system-prompt.js");
 
     // These workflow sections are critical for general-purpose use
     expect(SYSTEM_PROMPT).toContain("### Research & Investigation");
@@ -170,7 +170,7 @@ describe("system prompt workflow guidance coverage", () => {
   });
 
   it("system prompt references key tools for non-code tasks", async () => {
-    const { SYSTEM_PROMPT } = await import("./system-prompt.js");
+    const { SYSTEM_PROMPT } = await import("./core/agents/system-prompt.js");
 
     // Data analysis tools
     expect(SYSTEM_PROMPT).toContain("matplotlib");

@@ -10,7 +10,7 @@
  */
 
 import { SQLiteMemoryProvider } from "../../memory/sqlite-memory.js";
-import type { KotaModule, ModuleContext } from "../../module-types.js";
+import type { KotaModule, ModuleContext } from "../../core/modules/module-types.js";
 
 const sqliteMemoryModule: KotaModule = {
 	name: "sqlite-memory",
@@ -24,7 +24,7 @@ const sqliteMemoryModule: KotaModule = {
 		ctx.log.info("SQLite memory provider registered");
 	},
 
-	skills: [{ name: "sqlite-memory", promptPath: "src/modules/skills/sqlite-memory.md" }],
+	skills: [{ name: "sqlite-memory", promptPath: "src/modules/sqlite-memory/sqlite-memory.md" }],
 };
 
 export default sqliteMemoryModule;

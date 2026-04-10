@@ -1,7 +1,7 @@
 import { createInterface } from "node:readline";
 import type { Command } from "commander";
 import { loadConfig } from "../../config.js";
-import { executeTool } from "../../tools/index.js";
+import { executeTool } from "../../core/tools/index.js";
 import type { ApprovalStatus } from "./queue.js";
 import { getApprovalQueue } from "./queue.js";
 

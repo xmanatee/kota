@@ -19,10 +19,10 @@ import Anthropic from "@anthropic-ai/sdk";
 import { Command } from "commander";
 import { loadConfig } from "../../config.js";
 import { createModelClient } from "../../model/model-client.js";
-import { loadModuleMetadata } from "../../module-metadata.js";
-import type { KotaModule, ModuleContext } from "../../module-types.js";
+import { loadModuleMetadata } from "../../core/modules/module-metadata.js";
+import type { KotaModule, ModuleContext } from "../../core/modules/module-types.js";
 import { DaemonControlClient } from "../../server/daemon-client.js";
-import { validateWorkflowDefinitions, WorkflowDefinitionError } from "../../workflow/validation.js";
+import { validateWorkflowDefinitions, WorkflowDefinitionError } from "../../core/workflow/validation.js";
 import { resolveApiKey } from "../model-clients/factory.js";
 
 type CheckStatus = "pass" | "warn" | "fail";

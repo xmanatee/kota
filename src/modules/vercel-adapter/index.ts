@@ -10,8 +10,8 @@
  * sends the full messages array on every request.
  */
 
-import { AgentSession } from "../../loop.js";
-import type { KotaModule } from "../../module-types.js";
+import { AgentSession } from "../../core/loop/loop.js";
+import type { KotaModule } from "../../core/modules/module-types.js";
 import { CORS_HEADERS, jsonResponse, readBody, setCors } from "../../server/session-pool.js";
 import {
   DATA_STREAM_HEADERS,

@@ -2,7 +2,7 @@ import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 import { glob as globFn } from "glob";
-import type { ToolResult } from "../../tools/tool-result.js";
+import type { ToolResult } from "../../core/tools/tool-result.js";
 
 export const globTool: Anthropic.Tool = {
   name: "glob",

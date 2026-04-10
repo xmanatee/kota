@@ -5,7 +5,7 @@
  * Enables the agent to search and read past conversations.
  */
 
-import type { KotaModule } from "../../module-types.js";
+import type { KotaModule } from "../../core/modules/module-types.js";
 import {
 	conversationRecallTool,
 	runConversationRecall,
@@ -26,7 +26,7 @@ const historyModule: KotaModule = {
 			group: "management",
 		},
 	],
-	skills: [{ name: "history", promptPath: "src/modules/skills/history.md" }],
+  skills: [{ name: "history", promptPath: "src/modules/history/history.md" }],
 
 	routes: () => historyRoutes(),
 };

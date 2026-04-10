@@ -22,7 +22,7 @@
     "build": "rm -rf dist && tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:workflow-critical": "vitest run src/agent-sdk/executor.test.ts src/event-bus.test.ts src/instruction-files.test.ts src/modules/daemon/index.test.ts src/scheduler/daemon.test.ts src/task-files.test.ts src/workflow/runtime.test.ts src/workflow/validation.test.ts",
+    "test:workflow-critical": "vitest run src/agent-sdk/executor.test.ts src/event-bus.test.ts src/instruction-files.test.ts src/modules/daemon-ops/index.test.ts src/core/daemon/daemon.test.ts src/task-files.test.ts src/core/workflow/runtime.test.ts src/core/workflow/validation.test.ts",
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
     "validate-tasks": "node dist/validate-queue.js"

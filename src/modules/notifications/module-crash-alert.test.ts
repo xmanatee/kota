@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { BusEvents } from "../../event-bus.js";
-import { EventBus } from "../../event-bus.js";
+import type { BusEvents } from "../../core/events/event-bus.js";
+import { EventBus } from "../../core/events/event-bus.js";
 import { subscribeModuleCrashAlert } from "./module-crash-alert.js";
 
 function emitRestart(bus: EventBus, name: string, totalRestarts = 1) {

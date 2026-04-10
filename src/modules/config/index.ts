@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import { loadConfig, updateProjectConfig } from "../../config.js";
 import { KNOWN_CONFIG_KEYS } from "../../config-warnings.js";
-import type { KotaModule } from "../../module-types.js";
+import type { KotaModule } from "../../core/modules/module-types.js";
 import { handleGetConfig } from "./routes.js";
 
 function readRawKeys(path: string): string[] | null {

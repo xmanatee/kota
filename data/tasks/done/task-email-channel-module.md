@@ -11,7 +11,7 @@ updated_at: 2026-04-10T05:05:00Z
 
 ## Problem
 
-KOTA's channel architecture (`ChannelDef` in `src/channel.ts`) is designed for multiple
+KOTA's channel architecture (`ChannelDef` in `src/core/channels/channel.ts`) is designed for multiple
 transport backends, but only a Telegram channel module exists today. Operators who
 don't use Telegram have no way to receive workflow alerts or send commands via a channel.
 Email is nearly universal and would expand KOTA's reach to any operator environment.
@@ -29,7 +29,7 @@ An `email` module in `src/modules/` that contributes a `ChannelDef`. The channel
   optional IMAP/webhook config for inbound.
 
 Architecture reference: [Telegram module](src/modules/telegram/index.ts) for bus subscription
-pattern; [channel.ts](src/channel.ts) for `ChannelDef` contract.
+pattern; [channel.ts](src/core/channels/channel.ts) for `ChannelDef` contract.
 
 ## Constraints
 

@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ModuleStorage } from "../../module-storage.js";
-import type { ModuleContext } from "../../module-types.js";
+import { ModuleStorage } from "../../core/modules/module-storage.js";
+import type { ModuleContext } from "../../core/modules/module-types.js";
 import moduleManagerModule from "./index.js";
 
 const stubCtx: ModuleContext = {

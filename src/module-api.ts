@@ -8,8 +8,8 @@
  * These types are stable; internal KOTA types are not part of this contract.
  */
 
-export type { AgentDef, SkillDef } from "./agent-types.js";
-export type { ChannelAdapter, ChannelDef, ChannelStartContext } from "./channel.js";
+export type { AgentDef, SkillDef } from "./core/agents/agent-types.js";
+export type { ChannelAdapter, ChannelDef, ChannelStartContext } from "./core/channels/channel.js";
 export type {
   CreateSessionOptions,
   KotaModule,
@@ -19,5 +19,5 @@ export type {
   ModuleSession,
   RouteRegistration,
   ToolDef,
-} from "./module-types.js";
-export type { ToolResult } from "./tools/tool-result.js";
+} from "./core/modules/module-types.js";
+export type { ToolResult } from "./core/tools/tool-result.js";

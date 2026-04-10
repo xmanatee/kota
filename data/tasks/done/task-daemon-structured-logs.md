@@ -11,7 +11,7 @@ updated_at: 2026-03-31T15:07:46Z
 
 ## Problem
 
-`src/scheduler/daemon.ts` and related runtime code writes log output as unstructured text (e.g. `[kota] Workflow "foo" started run abc123`). Operators running KOTA under a process supervisor or in a container that pipes stderr to a log aggregator must parse these lines with fragile regex. There is no JSON log mode, no consistent `level` field, no `workflow` or `runId` fields that aggregators can index on.
+`src/core/daemon/daemon.ts` and related runtime code writes log output as unstructured text (e.g. `[kota] Workflow "foo" started run abc123`). Operators running KOTA under a process supervisor or in a container that pipes stderr to a log aggregator must parse these lines with fragile regex. There is no JSON log mode, no consistent `level` field, no `workflow` or `runId` fields that aggregators can index on.
 
 The agent loop already has a `LOG_FORMAT` env var mechanism in `src/log-format.ts` that produces JSON for agent session output, but the daemon's own operational logs are not covered.
 

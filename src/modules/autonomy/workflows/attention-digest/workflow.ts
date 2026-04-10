@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { WorkflowDefinitionInput } from "../../../../workflow/types.js";
+import type { WorkflowDefinitionInput } from "../../../../core/workflow/types.js";
 import { runAttentionDigestStep } from "./step.js";
 
 const attentionDigestWorkflow: WorkflowDefinitionInput = {

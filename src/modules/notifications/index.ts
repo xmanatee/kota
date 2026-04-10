@@ -11,7 +11,7 @@
  * because they require daemon-level config and must be active before modules load.
  */
 
-import type { KotaModule } from "../../module-types.js";
+import type { KotaModule } from "../../core/modules/module-types.js";
 
 export { type ModuleCrashAlertOptions, subscribeModuleCrashAlert } from "./module-crash-alert.js";
 export {

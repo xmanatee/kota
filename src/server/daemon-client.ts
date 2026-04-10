@@ -12,7 +12,7 @@ import type {
   WorkflowLiveStatus,
   WorkflowRunDetail,
   WorkflowRunSummary,
-} from "../scheduler/daemon-control.js";
+} from "../core/daemon/daemon-control.js";
 
 const FETCH_TIMEOUT_MS = 2_000;
 

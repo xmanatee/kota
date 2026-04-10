@@ -22,13 +22,13 @@ remain in core. This is the remaining visible debt from that migration.
 
 Two new modules:
 
-1. `src/modules/agents/` - owns:
+1. `src/modules/agent-ops/` - owns:
    - Built-in `explorer`, `builder`, `improver` agent definitions
    - `registerAgentCommands` and `kota agent` CLI surface
    - Agent registry singleton and lookup helpers
    - Module context registration method
 
-2. `src/modules/skills/` - owns:
+2. `src/modules/skill-ops/` - owns:
    - Skill discovery from `.kota/skills/` directory
    - Skill loading and validation
    - Built-in skill contributions from other modules
@@ -46,7 +46,7 @@ Core loop imports agents/skills from these modules.
 
 ## Done When
 
-- `src/modules/agents/` and `src/modules/skills/` exist with full implementation.
+- `src/modules/agent-ops/` and `src/modules/skill-ops/` exist with full implementation.
 - Built-in agent definitions move into the agents module.
 - Skill discovery and loading move into the skills module.
 - `kota agent` and `kota skill` commands are registered by their modules.

@@ -13,7 +13,7 @@ updated_at: 2026-03-27T04:20:00Z
 
 `src/workflow-cli.ts` has grown to 636 lines by accumulating every workflow CLI subcommand in one file. The functions and types for run listing, run display, log streaming, pause/resume, abort, and manual triggers are all co-located even though they have no meaningful coupling.
 
-`src/workflow/step-executor.ts` has a similar problem at 563 lines, mixing repair-loop logic, agent-step execution, code-step execution, and result normalization.
+`src/core/workflow/step-executor.ts` has a similar problem at 563 lines, mixing repair-loop logic, agent-step execution, code-step execution, and result normalization.
 
 ## Desired Outcome
 

@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import {
   assembleDelegateResult,
   type DelegateMetadata,
-} from "./tools/delegate-format.js";
+} from "./core/tools/delegate-format.js";
 import {
   processToolResults,
   type ToolCallRecord,

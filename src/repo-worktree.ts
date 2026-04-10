@@ -14,6 +14,7 @@ export function getRepoHeadSha(projectDir: string): string {
     return execFileSync("git", ["rev-parse", "HEAD"], {
       cwd: projectDir,
       encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
     }).trim();
   } catch {
     return "";
@@ -35,7 +36,7 @@ export function getRepoWorktreeStatus(projectDir: string): RepoWorktreeStatus {
     const output = execFileSync(
       "git",
       ["status", "--porcelain=v1", "--untracked-files=all"],
-      { cwd: projectDir, encoding: "utf8" },
+      { cwd: projectDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
     ).trim();
     const entries = output ? output.split("\n").map((line) => line.trim()) : [];
     return {

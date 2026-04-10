@@ -43,7 +43,7 @@ removal. Alternatively, a clean break is acceptable since webhooks require expli
 
 - Use Node.js built-in `crypto.createHmac` — no new dependencies.
 - The timing-safe comparison must use `crypto.timingSafeEqual` to avoid timing attacks.
-- Keep changes inside `src/scheduler/daemon-control-webhook.ts` and `src/webhook-cli.ts`.
+- Keep changes inside `src/core/daemon/daemon-control-webhook.ts` and `src/webhook-cli.ts`.
 - Update `docs/DAEMON-API.md` webhook section with the new signing spec.
 - Update existing webhook integration tests to sign requests with the new scheme.
 

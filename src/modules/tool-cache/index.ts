@@ -7,7 +7,7 @@
  * Session-scoped — cache resets when the module unloads.
  */
 
-import type { KotaModule } from "../../module-types.js";
+import type { KotaModule } from "../../core/modules/module-types.js";
 import { createCacheMiddleware, getToolCache, resetToolCache } from "./cache.js";
 
 const MIDDLEWARE_NAME = "tool-result-cache";
@@ -29,7 +29,7 @@ const toolCacheModule: KotaModule = {
 		resetToolCache();
 	},
 
-	skills: [{ name: "tool-cache", promptPath: "src/modules/skills/tool-cache.md" }],
+	skills: [{ name: "tool-cache", promptPath: "src/modules/tool-cache/tool-cache.md" }],
 };
 
 export default toolCacheModule;

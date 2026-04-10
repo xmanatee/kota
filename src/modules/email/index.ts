@@ -23,8 +23,8 @@
  * Credentials are read from config; never logged.
  */
 
-import type { ChannelDef } from "../../channel.js";
-import type { KotaModule, ModuleContext } from "../../module-types.js";
+import type { ChannelDef } from "../../core/channels/channel.js";
+import type { KotaModule, ModuleContext } from "../../core/modules/module-types.js";
 import { formatEmail } from "./format.js";
 import { createMailer, type Mailer } from "./mailer.js";
 

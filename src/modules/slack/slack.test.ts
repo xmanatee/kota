@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EventBus } from "../../event-bus.js";
-import { ModuleStorage } from "../../module-storage.js";
-import type { ModuleContext } from "../../module-types.js";
+import { EventBus } from "../../core/events/event-bus.js";
+import { ModuleStorage } from "../../core/modules/module-storage.js";
+import type { ModuleContext } from "../../core/modules/module-types.js";
 import slackModule from "./index.js";
 
 const mockFetch = vi.fn();

@@ -1,17 +1,17 @@
 ---
 id: task-split-daemon-ts
-title: Split src/scheduler/daemon.ts — extract startup/shutdown helpers
+title: Split src/core/daemon/daemon.ts — extract startup/shutdown helpers
 status: done
 priority: p2
 area: structure
-summary: src/scheduler/daemon.ts is 311 lines, over the 300-line limit. Splitting improves navigability and keeps each file focused.
+summary: src/core/daemon/daemon.ts is 311 lines, over the 300-line limit. Splitting improves navigability and keeps each file focused.
 created_at: 2026-03-19
 updated_at: 2026-03-19
 ---
 
 ## Problem
 
-`src/scheduler/daemon.ts` is 311 lines (4% over the 300-line limit). The file mixes daemon lifecycle management with lower-level helpers.
+`src/core/daemon/daemon.ts` is 311 lines (4% over the 300-line limit). The file mixes daemon lifecycle management with lower-level helpers.
 
 ## Desired Outcome
 

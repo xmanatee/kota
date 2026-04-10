@@ -7,8 +7,8 @@ import {
   registerCustomGroup,
   resetGroups,
   TOOL_GROUPS,
-} from "../tool-groups.js";
-import { clearCustomTools, getAllTools, registerTool } from "../tools/index.js";
+} from "../core/tools/tool-groups.js";
+import { clearCustomTools, getAllTools, registerTool } from "../core/tools/index.js";
 import { EDITOR_TOOL_SET } from "./architect-editor.js";
 
 /**

@@ -4,7 +4,7 @@ This directory owns the `git` capability pack — version control operations wit
 
 - The single `git` tool handles status, diff, log, show, add, commit, branch, and push.
 - Force-push to `main`/`master` is blocked. Deletion of protected branches is blocked. Large diffs are auto-truncated.
-- Tools and tests live here; no tool logic belongs in `src/tools/`.
+- Tools and tests live here; no tool logic belongs in `src/core/tools/`.
 
 ## Files
 

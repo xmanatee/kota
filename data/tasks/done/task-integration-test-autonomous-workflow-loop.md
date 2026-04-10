@@ -27,7 +27,7 @@ The test should be runnable in CI and complete in under 30 seconds using mocked 
 
 ## Constraints
 
-- Do not make real LLM calls in tests — use stubs/adapters at the provider boundary (`vi.mock("../agent-sdk/index.js")` as used in `src/workflow/runtime.test.ts`)
+- Do not make real LLM calls in tests — use stubs/adapters at the provider boundary (`vi.mock("../agent-sdk/index.js")` as used in `src/core/workflow/runtime.test.ts`)
 - Use a temp directory for the fixture project; clean up after the test
 - No production code changes purely to support testing (follow natural testability via adapter injection)
 

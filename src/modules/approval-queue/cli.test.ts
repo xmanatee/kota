@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerApprovalCommands } from "./cli.js";
 import { ApprovalQueue, resetApprovalQueue } from "./queue.js";
 
-vi.mock("../../event-bus.js", () => ({
+vi.mock("../../core/events/event-bus.js", () => ({
 	tryEmit: vi.fn(),
 	getEventBus: () => null,
 }));
@@ -20,11 +20,11 @@ vi.mock("./queue.js", async (importOriginal) => {
 	};
 });
 
-vi.mock("../../tools/index.js", () => ({
+vi.mock("../../core/tools/index.js", () => ({
 	executeTool: vi.fn(),
 }));
 
-import { executeTool } from "../../tools/index.js";
+import { executeTool } from "../../core/tools/index.js";
 
 
 function makeProgram(): Command {

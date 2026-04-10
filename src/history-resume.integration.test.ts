@@ -35,16 +35,18 @@ vi.mock("./model/model-client.js", () => ({
   registerModelClientFactory: vi.fn(),
 }));
 vi.mock("./model/streaming.js", () => ({ streamMessage: mockStreamMessage }));
-vi.mock("./tool-runner.js", async () => {
-  const actual = await vi.importActual<typeof import("./tool-runner.js")>("./tool-runner.js");
+vi.mock("./core/tools/tool-runner.js", async () => {
+  const actual = await vi.importActual<typeof import("./core/tools/tool-runner.js")>(
+    "./core/tools/tool-runner.js",
+  );
   return { ...actual, executeToolCalls: mockExecuteToolCalls };
 });
-vi.mock("./tools/index.js", () => ({
+vi.mock("./core/tools/index.js", () => ({
   getAllTools: () => [],
   executeTool: vi.fn(),
   getTodoState: vi.fn(() => ""),
 }));
-vi.mock("./tools/delegate.js", () => ({
+vi.mock("./core/tools/delegate.js", () => ({
   setDelegateConfig: vi.fn(),
   delegateTool: { name: "delegate", description: "", input_schema: { type: "object", properties: {} } },
 }));
@@ -66,7 +68,7 @@ vi.mock("./mcp/manager.js", () => ({
 
 // --- Import after mocks ---
 
-import { AgentSession } from "./loop.js";
+import { AgentSession } from "./core/loop/loop.js";
 import { getHistory, resetHistory } from "./memory/history.js";
 
 // --- Test helpers ---

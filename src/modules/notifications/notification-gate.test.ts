@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EventBus } from "../../event-bus.js";
+import { EventBus } from "../../core/events/event-bus.js";
 import {
   isWithinQuietHours,
   msUntilQuietHoursEnd,

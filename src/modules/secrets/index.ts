@@ -13,9 +13,9 @@
 import { createInterface } from "node:readline";
 import type Anthropic from "@anthropic-ai/sdk";
 import { Command } from "commander";
-import type { KotaModule, ModuleContext } from "../../module-types.js";
+import type { KotaModule, ModuleContext } from "../../core/modules/module-types.js";
 import { getSecretStore, initSecretStore, type SecretScope } from "../../secrets.js";
-import type { ToolResult } from "../../tools/index.js";
+import type { ToolResult } from "../../core/tools/index.js";
 
 const getSecretTool: Anthropic.Tool = {
   name: "get_secret",
@@ -179,7 +179,7 @@ const secretsModule: KotaModule = {
     return [cmd];
   },
 
-  skills: [{ name: "secrets", promptPath: "src/modules/skills/secrets.md" }],
+  skills: [{ name: "secrets", promptPath: "src/modules/secrets/secrets.md" }],
 
   onLoad: (ctx) => {
     initSecretStore(ctx.cwd);

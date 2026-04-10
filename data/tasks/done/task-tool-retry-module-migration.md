@@ -11,7 +11,7 @@ updated_at: 2026-04-09T05:40:00Z
 
 ## Problem
 
-`src/tool-retry.ts` is the actual retry middleware implementation. Its module wrapper at `src/modules/tool-retry/index.ts` is a thin shell that just imports from the core root. This is the last tool-level capability implementation stranded in `src/` root — `task-move-remaining-capability-tools-to-modules` cleaned up `tool-cache.ts`, `notify.ts`, and `repo-map.ts` yesterday, but explicitly excluded `tool-retry.ts` because `src/tools/delegate-turn.ts` imports `maybeRetry` directly:
+`src/tool-retry.ts` is the actual retry middleware implementation. Its module wrapper at `src/modules/tool-retry/index.ts` is a thin shell that just imports from the core root. This is the last tool-level capability implementation stranded in `src/` root — `task-move-remaining-capability-tools-to-modules` cleaned up `tool-cache.ts`, `notify.ts`, and `repo-map.ts` yesterday, but explicitly excluded `tool-retry.ts` because `src/core/tools/delegate-turn.ts` imports `maybeRetry` directly:
 
 ```ts
 // delegate-turn.ts line 7
@@ -22,7 +22,7 @@ This direct import creates a core → implementation dependency that prevents mo
 
 ## Desired Outcome
 
-- `src/tools/delegate-turn.ts` no longer imports from `../tool-retry.js`.
+- `src/core/tools/delegate-turn.ts` no longer imports from `../tool-retry.js`.
 - Delegate tool execution routes through the registered middleware chain (the retry middleware, if loaded, handles delegate retries automatically).
 - `src/tool-retry.ts` is moved to `src/modules/tool-retry/tool-retry.ts` (or similar co-located path).
 - `src/modules/tool-retry/index.ts` imports from its local path instead of `../../tool-retry.js`.
@@ -40,5 +40,5 @@ This direct import creates a core → implementation dependency that prevents mo
 
 - `src/tool-retry.ts` no longer exists.
 - `src/modules/tool-retry/` contains the full retry implementation.
-- `src/tools/delegate-turn.ts` has no import from `tool-retry`.
+- `src/core/tools/delegate-turn.ts` has no import from `tool-retry`.
 - All tests pass with no behavior regressions.

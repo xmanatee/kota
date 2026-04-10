@@ -1,10 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
-import { trackFileChange } from "../../file-changes.js";
+import { trackFileChange } from "../../core/loop/file-changes.js";
 import { recordModification } from "../../file-tracker.js";
 import { lintFile } from "../../lint.js";
-import type { ToolResult } from "../../tools/tool-result.js";
+import type { ToolResult } from "../../core/tools/tool-result.js";
 import { printWriteSummary } from "./diff.js";
 
 export const fileWriteTool: Anthropic.Tool = {

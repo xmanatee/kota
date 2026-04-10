@@ -11,7 +11,7 @@ updated_at: 2026-04-09T04:20:00Z
 
 ## Problem
 
-`src/workflow/step-executor-agent.ts` validates agent JSON output against `outputSchema` inside `extractJsonOutput`. When validation fails, it throws an `Error` that propagates to the step executor. If the step has `retry` configured, `withRetry` in `step-executor-retry.ts` catches the error and re-runs the full agent step — but the re-run receives the original prompt with no mention of why the previous attempt was rejected.
+`src/core/workflow/step-executor-agent.ts` validates agent JSON output against `outputSchema` inside `extractJsonOutput`. When validation fails, it throws an `Error` that propagates to the step executor. If the step has `retry` configured, `withRetry` in `step-executor-retry.ts` catches the error and re-runs the full agent step — but the re-run receives the original prompt with no mention of why the previous attempt was rejected.
 
 The agent has no idea its JSON was invalid. It will produce the same malformed or incomplete structure again, burning all retry attempts on identical failures.
 

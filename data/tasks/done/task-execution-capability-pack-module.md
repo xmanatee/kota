@@ -4,14 +4,14 @@ title: Move shell and process execution tools into a built-in module capability 
 status: done
 priority: p2
 area: architecture
-summary: shell, process, code-exec, and computer-use still live in src/tools/ as core-hosted tools. Migrating them to a src/modules/execution/ capability pack continues the minimal-core migration started by the web-access module.
+summary: shell, process, code-exec, and computer-use still live in src/core/tools/ as core-hosted tools. Migrating them to a src/modules/execution/ capability pack continues the minimal-core migration started by the web-access module.
 created_at: 2026-04-08T00:50:00Z
 updated_at: 2026-04-08T00:50:00Z
 ---
 
 ## Problem
 
-Shell execution (`shell`), process control (`process`), code execution (`code_exec`), and computer use (`computer_use`, `screenshot`) are a coherent, high-risk capability family. They currently live as hardcoded entries in `src/tools/index.ts` with their implementations scattered across multiple files in `src/tools/`. The web-access module demonstrated that grouping a capability family behind an module boundary improves co-location, testability, and scope clarity.
+Shell execution (`shell`), process control (`process`), code execution (`code_exec`), and computer use (`computer_use`, `screenshot`) are a coherent, high-risk capability family. They currently live as hardcoded entries in `src/core/tools/index.ts` with their implementations scattered across multiple files in `src/core/tools/`. The web-access module demonstrated that grouping a capability family behind an module boundary improves co-location, testability, and scope clarity.
 
 Moving these tools to an module also makes the high-risk execution surface more explicit: the module can document its scope, carry its own guardrail metadata, and be independently disabled if needed.
 
@@ -23,7 +23,7 @@ A `src/modules/execution/` directory that owns:
 - An `index.ts` that exports a `KotaModule` registering all tools via `onLoad`
 - Co-located tests for lifecycle and representative tools
 
-The tools are removed from `src/tools/index.ts` core registrations. `src/tools/AGENTS.md` and `src/modules/AGENTS.md` are updated.
+The tools are removed from `src/core/tools/index.ts` core registrations. `src/core/tools/AGENTS.md` and `src/modules/AGENTS.md` are updated.
 
 ## Constraints
 
@@ -37,6 +37,6 @@ The tools are removed from `src/tools/index.ts` core registrations. `src/tools/A
 ## Done When
 
 - `src/modules/execution/` exists and contains the migrated tools and tests.
-- `src/tools/index.ts` no longer imports or hardcodes the migrated tools.
+- `src/core/tools/index.ts` no longer imports or hardcodes the migrated tools.
 - `npm test` passes.
-- `src/tools/AGENTS.md` and `src/modules/AGENTS.md` reflect the updated ownership.
+- `src/core/tools/AGENTS.md` and `src/modules/AGENTS.md` reflect the updated ownership.

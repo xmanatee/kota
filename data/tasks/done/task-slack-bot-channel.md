@@ -29,7 +29,7 @@ The existing `slack` notification module is unchanged.
 ## Constraints
 
 - Requires a Slack App with Socket Mode enabled, Bot Token (`xoxb-`), and App-Level Token (`xapp-`). Config must document these.
-- Use `ChannelDef` and `ChannelAdapter` from `src/channel.ts` — do not hardcode channel logic into the daemon.
+- Use `ChannelDef` and `ChannelAdapter` from `src/core/channels/channel.ts` — do not hardcode channel logic into the daemon.
 - Approval button interactions go through Slack's interactivity endpoint; Socket Mode can handle this without a public URL.
 - This module is opt-in; operators who only want notifications keep using the existing `slack` module.
 - Document setup steps in `docs/` (Slack App configuration, required scopes, Socket Mode toggle).

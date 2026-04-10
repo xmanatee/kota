@@ -1,5 +1,5 @@
-import type { ToolDef } from "../../module-types.js";
-import type { ToolResult } from "../../tools/tool-result.js";
+import type { ToolDef } from "../../core/modules/module-types.js";
+import type { ToolResult } from "../../core/tools/tool-result.js";
 import { apiError, googleFetch } from "./auth.js";
 
 export function makeDriveListFiles(getToken: () => Promise<string>): ToolDef {

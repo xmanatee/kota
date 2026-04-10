@@ -12,12 +12,12 @@ import {
 } from "./cli-history.js";
 import { expandAlias, loadConfig } from "./config.js";
 import { setSkipConfirmations } from "./confirm.js";
-import { runAgentLoop } from "./loop.js";
+import { runAgentLoop } from "./core/loop/loop.js";
 import { getHistory } from "./memory/history.js";
 import { createModelClient } from "./model/model-client.js";
-import { discoverModules } from "./module-discovery.js";
-import { ModuleLoader } from "./module-loader.js";
-import { discoverProjectModules } from "./modules/index.js";
+import { discoverModules } from "./core/modules/module-discovery.js";
+import { ModuleLoader } from "./core/modules/module-loader.js";
+import { discoverProjectModules } from "./core/modules/project-discovery.js";
 import { parseModelString } from "./modules/model-clients/factory.js";
 
 export { parseIntOption } from "./cli-history.js";

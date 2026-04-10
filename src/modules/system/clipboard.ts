@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { platform } from "node:os";
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolResult } from "../../tools/tool-result.js";
+import type { ToolResult } from "../../core/tools/tool-result.js";
 
 export const clipboardTool: Anthropic.Tool = {
 	name: "clipboard",

@@ -8,10 +8,10 @@ import type {
 	KnowledgeProvider,
 	MemoryProvider,
 	TaskProvider,
-} from "../../provider-types.js";
-import { getTaskStore } from "../../scheduler/task-store.js";
+} from "../../core/modules/provider-types.js";
+import { getTaskStore } from "../../core/daemon/task-store.js";
 
-export type { HistoryProvider, KnowledgeProvider, MemoryProvider, TaskProvider } from "../../provider-types.js";
+export type { HistoryProvider, KnowledgeProvider, MemoryProvider, TaskProvider } from "../../core/modules/provider-types.js";
 
 type ProviderEntry = {
 	name: string;

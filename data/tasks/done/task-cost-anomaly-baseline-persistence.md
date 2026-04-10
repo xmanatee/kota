@@ -22,7 +22,7 @@ The cost anomaly baseline (per-workflow rolling average and standard deviation) 
 ## Constraints
 
 - Persistence must be atomic (write-tmp-then-rename) to avoid corruption on crash.
-- The cost anomaly logic lives in `src/scheduler/daemon-control-metrics.ts` or nearby — keep the change self-contained there.
+- The cost anomaly logic lives in `src/core/daemon/daemon-control-metrics.ts` or nearby — keep the change self-contained there.
 - If the persisted baseline is stale (> 30 days old), treat it as cold start to avoid penalizing legitimate cost changes after a long pause.
 - No new config keys required.
 

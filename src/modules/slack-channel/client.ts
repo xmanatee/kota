@@ -5,7 +5,7 @@
  * Socket Mode. No external dependencies beyond the KOTA core.
  */
 
-import type { AgentEvent, Transport } from "../../transport.js";
+import type { AgentEvent, Transport } from "../../core/loop/transport.js";
 
 export const SLACK_API = "https://slack.com/api";
 export const MAX_TEXT_LENGTH = 3000;

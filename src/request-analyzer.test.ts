@@ -190,12 +190,12 @@ describe("formatContextHint", () => {
 
   it("formats directories", () => {
     const analysis: RequestAnalysis = {
-      paths: [{ path: "src/tools", type: "dir", sizeKB: 0 }],
+      paths: [{ path: "src/core/tools", type: "dir", sizeKB: 0 }],
       memories: [],
       conversations: [],
     };
     const hint = formatContextHint(analysis);
-    expect(hint).toContain("src/tools (dir)");
+    expect(hint).toContain("src/core/tools (dir)");
   });
 
   it("formats memories with tags", () => {

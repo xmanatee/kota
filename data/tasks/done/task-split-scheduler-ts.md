@@ -4,14 +4,14 @@ title: Split scheduler/scheduler.ts — extract scheduling logic from entry
 status: done
 priority: p2
 area: structure
-summary: src/scheduler/scheduler.ts is 371 lines, 24% over the 300-line limit. Splitting improves navigability and keeps each file focused.
+summary: src/core/daemon/scheduler.ts is 371 lines, 24% over the 300-line limit. Splitting improves navigability and keeps each file focused.
 created_at: 2026-03-19
 updated_at: 2026-03-19
 ---
 
 ## Problem
 
-`src/scheduler/scheduler.ts` is 371 lines (24% over the 300-line limit). The file combines scheduler state, event handling, and execution logic in one place.
+`src/core/daemon/scheduler.ts` is 371 lines (24% over the 300-line limit). The file combines scheduler state, event handling, and execution logic in one place.
 
 ## Desired Outcome
 

@@ -3,11 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { EventBus } from "../event-bus.js";
-import { getToolMcpAnnotations } from "../guardrails-classify.js";
-import { ModuleLoader } from "../module-loader.js";
+import { EventBus } from "../core/events/event-bus.js";
+import { getToolMcpAnnotations } from "../core/tools/guardrails-classify.js";
+import { ModuleLoader } from "../core/modules/module-loader.js";
 import filesystemModule from "../modules/filesystem/index.js";
-import { clearCustomTools, registerTool } from "../tools/index.js";
+import { clearCustomTools, registerTool } from "../core/tools/index.js";
 import { anthropicToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
 
 vi.mock("../modules/providers/index.js", () => ({
@@ -15,7 +15,7 @@ vi.mock("../modules/providers/index.js", () => ({
 	getKnowledgeProvider: vi.fn(() => ({ list: () => [] })),
 }));
 
-vi.mock("../module-metadata.js", () => ({
+vi.mock("../core/modules/module-metadata.js", () => ({
 	loadModuleMetadata: vi.fn(async () => ({
 		getContributedWorkflows: () => [
 			{ name: "builder", triggers: [], steps: [], enabled: true, definitionPath: "" },
@@ -1292,7 +1292,7 @@ describe("McpServer elicitation", () => {
 		it("falls back to normal confirm tool when client does not support elicitation", async () => {
 			// Without elicitation capability, confirm uses the normal path.
 			// setConfirmOverride to avoid TTY dependency in test.
-			const { setConfirmOverride } = await import("../tools/confirm.js");
+			const { setConfirmOverride } = await import("../core/tools/confirm.js");
 			setConfirmOverride(async () => ({ approved: false, reason: "test-fallback" }));
 
 			const { input, output } = createTestStreams();

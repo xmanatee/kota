@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { type SessionState, SessionStateMachine, } from "./session-state.js";
+import { type SessionState, SessionStateMachine, } from "./core/loop/session-state.js";
 
 describe("SessionStateMachine", () => {
   it("starts in idle state", () => {

@@ -11,11 +11,11 @@ updated_at: 2026-03-27
 
 ## Problem
 
-`src/scheduler/daemon.ts` is 296 lines — at the file size limit. The `Daemon` class carries 8 stop-handle fields and manages their setup/teardown inline in `start()` and `stop()`. This subscription lifecycle is a cohesive unit separate from the daemon's orchestration logic.
+`src/core/daemon/daemon.ts` is 296 lines — at the file size limit. The `Daemon` class carries 8 stop-handle fields and manages their setup/teardown inline in `start()` and `stop()`. This subscription lifecycle is a cohesive unit separate from the daemon's orchestration logic.
 
 ## Desired Outcome
 
-Extract the subscription setup and teardown into `src/scheduler/daemon-subscriptions.ts`. This module should expose a function that subscribes all listeners and returns a single `unsubscribe()` function, replacing the 8 individual stop-handle fields in `Daemon`. The `Daemon` class retains orchestration, state management, and the public API.
+Extract the subscription setup and teardown into `src/core/daemon/daemon-subscriptions.ts`. This module should expose a function that subscribes all listeners and returns a single `unsubscribe()` function, replacing the 8 individual stop-handle fields in `Daemon`. The `Daemon` class retains orchestration, state management, and the public API.
 
 ## Constraints
 
@@ -25,7 +25,7 @@ Extract the subscription setup and teardown into `src/scheduler/daemon-subscript
 
 ## Done When
 
-- `src/scheduler/daemon-subscriptions.ts` exists with the extracted subscription logic.
-- `src/scheduler/daemon.ts` is measurably reduced (under 230 lines preferred).
+- `src/core/daemon/daemon-subscriptions.ts` exists with the extracted subscription logic.
+- `src/core/daemon/daemon.ts` is measurably reduced (under 230 lines preferred).
 - All tests pass.
 - `scheduler/AGENTS.md` is updated if it lists key modules.

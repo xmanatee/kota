@@ -14,9 +14,9 @@ updated_at: 2026-03-28T01:20:00Z
 The public model says `module`, but the internal runtime still uses
 module-era names in places such as:
 
-- `src/tools/module-factory/state.ts` — `MAX_MANIFEST_MODULES` constant
+- `src/core/tools/module-factory/state.ts` — `MAX_MANIFEST_MODULES` constant
   (exported and used in `actions.ts`)
-- `src/tools/module-factory/logs.ts` — file-level comment "Module Factory —
+- `src/core/tools/module-factory/logs.ts` — file-level comment "Module Factory —
   log query handler"
 - Test files in `module-factory/` that still use "module" in test names,
   descriptions, and variable names

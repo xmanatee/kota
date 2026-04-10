@@ -1,6 +1,6 @@
-import type { AgentDef } from "../../../../agent-types.js";
-import type { WorkflowStepContext } from "../../../../workflow/run-types.js";
-import type { WorkflowDefinitionInput } from "../../../../workflow/types.js";
+import type { AgentDef } from "../../../../core/agents/agent-types.js";
+import type { WorkflowStepContext } from "../../../../core/workflow/run-types.js";
+import type { WorkflowDefinitionInput } from "../../../../core/workflow/types.js";
 import { commitWorkflowChanges } from "../../commit.js";
 import { runCheck, stepCommitted, stepSucceeded } from "../../shared.js";
 

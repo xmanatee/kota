@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { WorkflowStepContext, WorkflowStepResult } from "../../../../workflow/run-types.js";
+import type { WorkflowStepContext, WorkflowStepResult } from "../../../../core/workflow/run-types.js";
 import { writeBuilderRunSummary } from "./run-summary.js";
 import builderWorkflow from "./workflow.js";
 

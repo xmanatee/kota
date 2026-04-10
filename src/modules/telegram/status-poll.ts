@@ -1,4 +1,4 @@
-import type { WorkflowRuntimeState } from "../../workflow/run-types.js";
+import type { WorkflowRuntimeState } from "../../core/workflow/run-types.js";
 import { computeCostByWorkflow, loadRecentRuns } from "../autonomy/shared.js";
 import { callTelegramApi } from "./client.js";
 

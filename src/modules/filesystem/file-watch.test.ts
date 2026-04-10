@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type EventBus, initEventBus, resetEventBus } from "../../event-bus.js";
+import { type EventBus, initEventBus, resetEventBus } from "../../core/events/event-bus.js";
 import { WatcherManager } from "../../file-watcher.js";
 import { runFileWatch } from "./file-watch.js";
 

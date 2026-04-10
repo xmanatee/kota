@@ -14,12 +14,12 @@ updated_at: 2026-03-26
 Three consecutive builder runs failed at `verify-test` with 58 tests failing across 18 files. The failures are not caused by builder changes — they predate recent commits. The improver worked around this by making `verify-test` globally non-blocking, but this masks future real regressions.
 
 Failing areas:
-- `src/tools/process.test.ts` — process state shows "running" when it should show "exited"; timing-sensitive output/stderr/buffer tests
+- `src/core/tools/process.test.ts` — process state shows "running" when it should show "exited"; timing-sensitive output/stderr/buffer tests
 - `src/repl-session.test.ts` — timeout/interrupt handling tests; Python SIGINT test
 - `src/mcp/client.test.ts` — race condition on second callTool after server crash
 - `src/init.test.ts` — git context tests (likely affected by running inside a worktree or dirty repo state)
 - `src/modules/autonomy/workflows/builder/gather-context.test.ts` — test timeout at 5000ms; tests that create real git commits
-- `src/memory/sqlite-memory.test.ts`, `src/tools/code-exec.test.ts`, `src/e2e.test.ts`, and others
+- `src/memory/sqlite-memory.test.ts`, `src/core/tools/code-exec.test.ts`, `src/e2e.test.ts`, and others
 
 ## Desired Outcome
 

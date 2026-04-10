@@ -8,7 +8,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getEventBus, initEventBus, resetEventBus } from "./event-bus.js";
+import { getEventBus, initEventBus, resetEventBus } from "./core/events/event-bus.js";
 import { ApprovalQueue } from "./modules/approval-queue/queue.js";
 
 describe("approval expiry × event bus integration", () => {

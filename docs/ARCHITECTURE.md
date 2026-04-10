@@ -70,9 +70,13 @@ has to stay in core.
   and packaged (`package.json` with `main`) variants. Foreign (KEMP) modules
   remain config-declared via `foreignModules` in `.kota/config.json` as the
   explicit transport variant for out-of-process modules.
+- The codebase is split the same way the runtime is split:
+  `src/core/` holds the kernel, and `src/modules/<name>/` holds pluggable
+  project modules. Kernel concepts should not also appear as module names
+  unless the module is clearly an operator surface (for example `workflow-ops`).
 - Project-owned capability packs now mostly live under `src/modules/<name>/`, and
   tool-group membership is now declared by each module via the `group` field
-  on `ToolDef`. `src/tool-groups.ts` owns only the activation machinery
+  on `ToolDef`. `src/core/tools/tool-groups.ts` owns only the activation machinery
   (`enableGroup`, `filterTools`, `registerCustomGroup`, `deregisterToolsFromGroups`,
   `CORE_TOOL_NAMES`) and the prompt auto-detection logic (`detectToolGroups`);
   `TOOL_GROUPS` starts empty and is populated at runtime by modules and core
@@ -104,7 +108,7 @@ has to stay in core.
   They remain separate implementations sharing a provider registry, but the
   public model treats them as typed stores rather than many parallel products.
 - The daemon exposes a loopback HTTP+JSON control API (`DaemonControlServer`
-  in `src/scheduler/daemon-control.ts`). Live daemon and workflow status,
+  in `src/core/daemon/daemon-control.ts`). Live daemon and workflow status,
   history, approvals, and task queue all come from this API when the daemon is
   running. The HTTP server proxies all operator dashboard routes — Workflow,
   History, Approvals, Tasks — to the daemon control API, falling back to
@@ -123,7 +127,8 @@ has to stay in core.
   standalone mode (own scheduler and session pool) only when no daemon is
   running. See `docs/DAEMON-API.md`.
 - `KotaModule` now has a `channels` field following the same pattern as
-  `workflows`, `tools`, and `agents`. A `ChannelDef` type in `src/channel.ts`
+  `workflows`, `tools`, and `agents`. A `ChannelDef` type in
+  `src/core/channels/channel.ts`
   captures the channel protocol: name, description, and a factory that receives
   a `ChannelStartContext` (projectDir, log, getWorkflowStatus) and returns a
   `ChannelAdapter`. The daemon collects contributed channels at startup, calls
@@ -200,7 +205,7 @@ CLI daemon mode, web dashboard, or mobile app are not channels unless they also
 own message routing for sessions.
 
 `ChannelSession`, `ChannelAdapter`, and `ChannelDef` are defined in
-`src/channel.ts`. `ChannelAdapter` is the runtime interface (`start`/`stop`);
+`src/core/channels/channel.ts`. `ChannelAdapter` is the runtime interface (`start`/`stop`);
 `ChannelDef` is the module contribution descriptor (name, description, and
 a `create(ctx: ChannelStartContext)` factory). New channels should use these
 types and be contributed via `KotaModule.channels`.
@@ -221,7 +226,7 @@ types and be contributed via `KotaModule.channels`.
 - Keep native UI wrappers thin. The macOS app should be a client of the daemon,
   not a second runtime host.
 - Prefer module-owned capability packs over growing shared buckets like
-  `src/tools/`, `src/server/`, or other generic core directories. If a new
+  `src/core/tools/`, `src/server/`, or other generic core directories. If a new
   capability could plausibly be swapped, configured, or removed as a unit, it
   likely belongs behind a module boundary.
 

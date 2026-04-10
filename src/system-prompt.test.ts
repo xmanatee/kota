@@ -3,9 +3,9 @@ import { codeExecTool } from "./modules/execution/code-exec.js";
 import { grepTool } from "./modules/filesystem/grep.js";
 import { httpRequestTool } from "./modules/web-access/http-request.js";
 import { webFetchTool } from "./modules/web-access/web-fetch.js";
-import { SYSTEM_PROMPT } from "./system-prompt.js";
-import { CORE_TOOL_NAMES, TOOL_GROUPS } from "./tool-groups.js";
-import { getAllTools } from "./tools/index.js";
+import { SYSTEM_PROMPT } from "./core/agents/system-prompt.js";
+import { CORE_TOOL_NAMES, TOOL_GROUPS } from "./core/tools/tool-groups.js";
+import { getAllTools } from "./core/tools/index.js";
 
 describe("SYSTEM_PROMPT", () => {
   it("contains all required sections", () => {

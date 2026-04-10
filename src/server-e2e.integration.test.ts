@@ -15,7 +15,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 /** Configurable send behavior for the mock agent. Reset after each test. */
 let mockSendFn: ((message: string, transport: any) => Promise<string>) | undefined;
 
-vi.mock("./loop.js", () => {
+vi.mock("./core/loop/loop.js", () => {
   class MockAgentSession {
     private transport: any;
     send: (message: string) => Promise<string>;
@@ -37,8 +37,8 @@ vi.mock("./loop.js", () => {
   return { AgentSession: MockAgentSession };
 });
 
-import { ModuleLoader } from "./module-loader.js";
-import { discoverProjectModules } from "./modules/index.js";
+import { ModuleLoader } from "./core/modules/module-loader.js";
+import { discoverProjectModules } from "./core/modules/project-discovery.js";
 import { startServer } from "./server/server.js";
 
 let server: Server;

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { ToolResult } from "../../tools/index.js";
+import type { ToolResult } from "../../core/tools/index.js";
 import {
 	type CacheStats,
 	createCacheMiddleware,

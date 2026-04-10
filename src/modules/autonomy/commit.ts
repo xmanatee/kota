@@ -19,10 +19,11 @@ export function commitWorkflowChanges(
   projectDir: string,
   runDirPath: string,
 ): CommitResult {
-  execSync("git add -A", { cwd: projectDir });
+  execSync("git add -A", { cwd: projectDir, stdio: "pipe" });
   const stagedFiles = execSync("git diff --cached --name-only", {
     cwd: projectDir,
     encoding: "utf-8",
+    stdio: "pipe",
   }).trim();
 
   if (!stagedFiles) {
@@ -37,11 +38,13 @@ export function commitWorkflowChanges(
   execSync(`git commit -F ${JSON.stringify(msgPath)}`, {
     cwd: projectDir,
     encoding: "utf-8",
+    stdio: "pipe",
   });
 
   const message = execSync("git log --format=%s -1", {
     cwd: projectDir,
     encoding: "utf-8",
+    stdio: "pipe",
   }).trim();
 
   return { committed: true, message };

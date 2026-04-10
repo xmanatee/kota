@@ -14,7 +14,7 @@ import {
   exploreTools,
 } from "./delegate-prompts.js";
 import type { McpManager } from "./mcp/manager.js";
-import { type DelegateConfig, setDelegateConfig } from "./tools/delegate.js";
+import { type DelegateConfig, setDelegateConfig } from "./core/tools/delegate.js";
 
 /** Create a mock McpManager that returns controlled tools and results. */
 function createMockMcpManager(

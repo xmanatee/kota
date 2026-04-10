@@ -6,7 +6,7 @@
  *   read_document — extract plain text from document files
  */
 
-import type { KotaModule, ToolDef } from "../../module-types.js";
+import type { KotaModule, ToolDef } from "../../core/modules/module-types.js";
 import { readDocumentTool, runReadDocument } from "./read-document.js";
 
 const tools: ToolDef[] = [

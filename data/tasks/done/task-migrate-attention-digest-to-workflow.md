@@ -11,7 +11,7 @@ updated_at: 2026-03-29T22:35:00Z
 
 ## Problem
 
-`subscribeAttentionDigest` in `src/workflow/attention-digest.ts` is wired
+`subscribeAttentionDigest` in `src/core/workflow/attention-digest.ts` is wired
 directly as a daemon event subscription in `daemon-subscriptions.ts`. It fires
 ad hoc inside the daemon process without appearing in workflow history, cost
 tracking, run artifacts, or `kota workflow list` output.
@@ -38,7 +38,7 @@ The attention digest becomes a built-in workflow (`src/modules/autonomy/workflow
 
 ## Constraints
 
-- Reuse the existing `src/workflow/attention-digest.ts` logic — do not rewrite
+- Reuse the existing `src/core/workflow/attention-digest.ts` logic — do not rewrite
   the detection or formatting code. Only wrap it in a workflow step.
 - The digest trigger should not be more frequent than the existing
   `DIGEST_EVERY_N_RUNS` cadence. A schedule trigger (`intervalMs`) or an event
@@ -53,7 +53,7 @@ The attention digest becomes a built-in workflow (`src/modules/autonomy/workflow
 - A `src/modules/autonomy/workflows/attention-digest/workflow.ts` exists with a schedule or
   event-based trigger and a code step that runs the digest logic.
 - `subscribeAttentionDigest` is removed from `daemon-subscriptions.ts`.
-- `src/workflow/attention-digest.ts` is updated or reorganized as needed.
+- `src/core/workflow/attention-digest.ts` is updated or reorganized as needed.
 - Digest runs appear in `kota workflow list` output.
 - Existing attention digest tests pass; the workflow definition has at least
   a basic smoke test.

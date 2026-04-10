@@ -4,14 +4,14 @@ title: Split tools/delegate.ts — extract delegation logic from entry
 status: done
 priority: p2
 area: structure
-summary: src/tools/delegate.ts is 437 lines, 46% over the 300-line limit. Splitting improves navigability and keeps each file focused.
+summary: src/core/tools/delegate.ts is 437 lines, 46% over the 300-line limit. Splitting improves navigability and keeps each file focused.
 created_at: 2026-03-19
 updated_at: 2026-03-19
 ---
 
 ## Problem
 
-`src/tools/delegate.ts` is 437 lines (46% over the 300-line limit). The file handles delegation tool registration, execution logic, and supporting types in one place.
+`src/core/tools/delegate.ts` is 437 lines (46% over the 300-line limit). The file handles delegation tool registration, execution logic, and supporting types in one place.
 
 ## Desired Outcome
 

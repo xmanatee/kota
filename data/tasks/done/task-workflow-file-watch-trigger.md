@@ -11,7 +11,7 @@ updated_at: 2026-04-01T06:30:00Z
 
 ## Problem
 
-`WorkflowTriggerInput` in `src/workflow/types.ts` supports `event`, `schedule`, `intervalMs`, and `webhook` triggers. There is no way to trigger a workflow when a file or directory changes. KOTA already has a `file-watch` tool and a `FileWatcher` class (`src/file-watcher.ts`) — but these are session-scoped tools, not trigger-level primitives. Operators who want to run a workflow whenever a file changes must poll via interval or wire an external watch process.
+`WorkflowTriggerInput` in `src/core/workflow/types.ts` supports `event`, `schedule`, `intervalMs`, and `webhook` triggers. There is no way to trigger a workflow when a file or directory changes. KOTA already has a `file-watch` tool and a `FileWatcher` class (`src/file-watcher.ts`) — but these are session-scoped tools, not trigger-level primitives. Operators who want to run a workflow whenever a file changes must poll via interval or wire an external watch process.
 
 ## Desired Outcome
 

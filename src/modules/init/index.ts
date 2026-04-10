@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Command } from "commander";
-import type { KotaModule } from "../../module-types.js";
+import type { KotaModule } from "../../core/modules/module-types.js";
 import { REPO_INBOX_DIR, REPO_TASK_STATES, REPO_TASKS_DIR } from "../repo-tasks/repo-tasks.js";
 
 const KOTA_CONFIG_TEMPLATE = `import type { KotaConfig } from "kota/module";

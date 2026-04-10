@@ -11,7 +11,7 @@ updated_at: 2026-03-19
 
 ## Problem
 
-`src/tools/custom-tool-persistence.ts` exposes several public functions (`validateName`, `normalizeSchema`, `getToolsDir`, `getToolPath`, `saveToDisk`) that are only exercised indirectly through `custom-tool.test.ts`. Direct edge-case coverage of validation logic and path helpers is missing.
+`src/core/tools/custom-tool-persistence.ts` exposes several public functions (`validateName`, `normalizeSchema`, `getToolsDir`, `getToolPath`, `saveToDisk`) that are only exercised indirectly through `custom-tool.test.ts`. Direct edge-case coverage of validation logic and path helpers is missing.
 
 ## Desired Outcome
 

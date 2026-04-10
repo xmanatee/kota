@@ -3,8 +3,8 @@ import type {
   KempManifest,
   KempResult,
   StdioForeignModuleConfig,
-} from "./foreign-module.js";
-import { StdioTransport } from "./foreign-module-stdio.js";
+} from "./core/modules/foreign-module.js";
+import { StdioTransport } from "./core/modules/foreign-module-stdio.js";
 
 const PROJECT_CWD = process.cwd();
 

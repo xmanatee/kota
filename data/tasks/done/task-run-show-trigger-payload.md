@@ -46,7 +46,7 @@ When the daemon is offline, read from the disk `metadata.json` directly (already
 ## Constraints
 
 - Add `triggerPayload?: Record<string, unknown>` to `WorkflowRunDetail` in
-  `src/scheduler/daemon-control-types.ts`.
+  `src/core/daemon/daemon-control-types.ts`.
 - Populate it in `daemon.ts` when building the run detail for `getWorkflowRun`.
 - Only print the payload section when `--payload` is passed; do not change the default
   output.

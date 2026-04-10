@@ -12,7 +12,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { checkFreshness, recordRead } from "./file-tracker.js";
 import { runFileEdit } from "./modules/filesystem/file-edit.js";
 import { runGrep } from "./modules/filesystem/grep.js";
-import { FailureTracker, type ToolResultEntry } from "./tool-runner.js";
+import { FailureTracker, type ToolResultEntry } from "./core/tools/tool-runner.js";
 
 const TEST_DIR = join(process.cwd(), ".test-integration");
 

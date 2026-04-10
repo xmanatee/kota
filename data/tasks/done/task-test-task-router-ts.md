@@ -11,7 +11,7 @@ updated_at: 2026-03-19
 
 ## Problem
 
-`src/scheduler/task-router.ts` classifies task descriptions into types (research, coding, data_analysis, writing, planning, debugging, automation) using pattern matching. There are no unit tests. Misrouting silently degrades scheduler behavior.
+`src/core/daemon/task-router.ts` classifies task descriptions into types (research, coding, data_analysis, writing, planning, debugging, automation) using pattern matching. There are no unit tests. Misrouting silently degrades scheduler behavior.
 
 ## Desired Outcome
 

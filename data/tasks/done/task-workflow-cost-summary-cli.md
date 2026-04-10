@@ -23,7 +23,7 @@ updated_at: 2026-04-10T08:22:00Z
 - `--days <n>`: adjust the lookback window.
 - `--json`: machine-readable output.
 
-The command lives in the `workflow` module (`src/modules/workflow/`), alongside `run-cost.ts` and the other workflow CLI helpers. It should use the existing `WorkflowRunStore` and cost data already tracked per run.
+The command lives in the `workflow` module (`src/modules/workflow-ops/`), alongside `run-cost.ts` and the other workflow CLI helpers. It should use the existing `WorkflowRunStore` and cost data already tracked per run.
 
 ## Constraints
 

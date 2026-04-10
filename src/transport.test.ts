@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { type AgentEvent, BufferTransport, CliTransport, NullTransport } from "./transport.js";
+import { type AgentEvent, BufferTransport, CliTransport, NullTransport } from "./core/loop/transport.js";
 
 describe("BufferTransport", () => {
   it("collects all events", () => {

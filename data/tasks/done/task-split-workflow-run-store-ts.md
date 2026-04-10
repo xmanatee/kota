@@ -4,14 +4,14 @@ title: Split workflow/run-store.ts — extract query and serialization helpers
 status: done
 priority: p2
 area: structure
-summary: src/workflow/run-store.ts is 457 lines, over the 300-line limit. The file combines run persistence, querying, and serialization concerns.
+summary: src/core/workflow/run-store.ts is 457 lines, over the 300-line limit. The file combines run persistence, querying, and serialization concerns.
 created_at: 2026-03-19
 updated_at: 2026-03-19
 ---
 
 ## Problem
 
-`src/workflow/run-store.ts` is 457 lines (52% over the 300-line limit). It bundles run persistence, query helpers, and serialization/deserialization logic in a single file.
+`src/core/workflow/run-store.ts` is 457 lines (52% over the 300-line limit). It bundles run persistence, query helpers, and serialization/deserialization logic in a single file.
 
 ## Desired Outcome
 

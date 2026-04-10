@@ -4,14 +4,14 @@ title: Extend daemon control API integration tests to cover approvals, tasks, an
 status: done
 priority: p3
 area: testing
-summary: src/scheduler/daemon-control.test.ts already covers auth, /status, /events, /workflow controls, and /webhooks end-to-end, but GET/POST /approvals, GET /tasks, GET /workflow/history, and session-related routes have no test coverage.
+summary: src/core/daemon/daemon-control.test.ts already covers auth, /status, /events, /workflow controls, and /webhooks end-to-end, but GET/POST /approvals, GET /tasks, GET /workflow/history, and session-related routes have no test coverage.
 created_at: 2026-03-30T18:46:25Z
 updated_at: 2026-03-30T21:20:00Z
 ---
 
 ## Problem
 
-`src/scheduler/daemon-control.test.ts` provides solid HTTP integration coverage for:
+`src/core/daemon/daemon-control.test.ts` provides solid HTTP integration coverage for:
 auth enforcement, `GET /status`, `GET /workflow/status`, workflow control routes
 (`POST /workflow/pause`, `POST /resume`, `POST /abort`, `POST /reload`),
 `GET /events` SSE, and `POST /webhooks/:name`.
@@ -31,7 +31,7 @@ missing endpoint, using the same `makeHandle()` stub pattern already in place.
 
 ## Constraints
 
-- Extend `src/scheduler/daemon-control.test.ts` — do not create a separate file.
+- Extend `src/core/daemon/daemon-control.test.ts` — do not create a separate file.
 - Use the existing `makeHandle()` + `fetchWithToken()`/`fetchNoToken()` helpers.
 - Each new block needs at least one success case and one auth-failure case.
 - Keep tests fast — no process spawning; inject stubs via `makeHandle()`.

@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ModuleStorage } from "./module-storage.js";
+import { ModuleStorage } from "./core/modules/module-storage.js";
 
 const tmpBase = join(process.env.TMPDIR || "/tmp", "kota-storage-test");
 

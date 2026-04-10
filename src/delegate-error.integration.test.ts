@@ -7,7 +7,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRetryMiddleware } from "./modules/tool-retry/tool-retry.js";
-import { getToolMiddleware, resetToolMiddleware } from "./tool-middleware.js";
+import { getToolMiddleware, resetToolMiddleware } from "./core/tools/tool-middleware.js";
 
 // Hoisted mock runner — accessible inside vi.mock factory
 const { mockRunner } = vi.hoisted(() => ({
@@ -35,7 +35,7 @@ vi.mock("./delegate-prompts.js", () => {
   };
 });
 
-import { runDelegate, setDelegateConfig } from "./tools/delegate.js";
+import { runDelegate, setDelegateConfig } from "./core/tools/delegate.js";
 
 function mockStream(response: unknown) {
   const obj = {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolveModuleSkills } from "../../module-types.js";
-import { getToolMiddleware, resetToolMiddleware } from "../../tool-middleware.js";
+import { resolveModuleSkills } from "../../core/modules/module-types.js";
+import { getToolMiddleware, resetToolMiddleware } from "../../core/tools/tool-middleware.js";
 import toolRetryModule from "./index.js";
 import { resetRetryStats } from "./tool-retry.js";
 

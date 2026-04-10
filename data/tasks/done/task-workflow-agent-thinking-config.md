@@ -11,7 +11,7 @@ updated_at: 2026-03-31T13:43:00Z
 
 ## Problem
 
-`WorkflowAgentStepInput` in `src/workflow/types.ts` exposes `model`, `maxTurns`,
+`WorkflowAgentStepInput` in `src/core/workflow/types.ts` exposes `model`, `maxTurns`,
 `maxBudgetUsd`, and permission fields, but not `thinkingEnabled` or `thinkingBudget`.
 The underlying `AgentSessionOptions` (`src/loop.ts`) supports both, and the CLI
 respects them via `--thinking` and `--thinking-budget` flags. Workflow-level agent
@@ -22,7 +22,7 @@ improve output quality (e.g., the builder's `build` step on complex tasks).
 
 - `WorkflowAgentStepInput` gains optional `thinkingEnabled?: boolean` and
   `thinkingBudget?: number` fields.
-- The workflow agent step executor (`src/workflow/step-executor-agent.ts`) passes
+- The workflow agent step executor (`src/core/workflow/step-executor-agent.ts`) passes
   these through to the underlying agent session.
 - Operator-defined workflow definitions can opt specific agent steps into extended
   thinking by setting `thinkingEnabled: true` on the step.

@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 import { extractPage, formatMetadataHeader } from "../../data/html-page-extract.js";
-import type { ToolResult } from "../../tools/tool-result.js";
+import type { ToolResult } from "../../core/tools/tool-result.js";
 
 export const webFetchTool: Anthropic.Tool = {
   name: "web_fetch",

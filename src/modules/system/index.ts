@@ -12,7 +12,7 @@
  * registry.
  */
 
-import type { KotaModule, ToolDef } from "../../module-types.js";
+import type { KotaModule, ToolDef } from "../../core/modules/module-types.js";
 import { clipboardTool, runClipboard } from "./clipboard.js";
 import { envInfoTool, runEnvInfo } from "./env-info.js";
 import { notifyTool, runNotify } from "./notify.js";

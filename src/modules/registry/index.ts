@@ -9,7 +9,7 @@
  */
 
 import { Command } from "commander";
-import type { KotaModule } from "../../module-types.js";
+import type { KotaModule } from "../../core/modules/module-types.js";
 import { installTool, listTools, removeTool, updateTool } from "../../registry.js";
 
 const registryModule: KotaModule = {

@@ -10,20 +10,21 @@ import { execFileSync, type SpawnSyncReturns } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ModuleLoader } from "./module-loader.js";
-import type { KotaModule } from "./module-types.js";
-import { discoverProjectModules } from "./modules/index.js";
-import { clearCustomGroups, enableGroup, filterTools, resetGroups, } from "./tool-groups.js";
-import { clearCustomTools, executeTool, getAllTools } from "./tools/index.js";
+import { ModuleLoader } from "./core/modules/module-loader.js";
+import type { KotaModule } from "./core/modules/module-types.js";
+import { discoverProjectModules } from "./core/modules/project-discovery.js";
+import { clearCustomGroups, enableGroup, filterTools, resetGroups, } from "./core/tools/tool-groups.js";
+import { clearCustomTools, executeTool, getAllTools } from "./core/tools/index.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const CLI = resolve(root, "dist/cli.js");
+const CLI = resolve(root, "src/cli.ts");
+const CLI_TIMEOUT = 15_000;
 
 function runCli(...args: string[]): { stdout: string; stderr: string; exitCode: number } {
   try {
-    const stdout = execFileSync("node", [CLI, ...args], {
+    const stdout = execFileSync(process.execPath, ["--import", "tsx", CLI, ...args], {
       encoding: "utf-8",
-      timeout: 5000,
+      timeout: CLI_TIMEOUT,
       cwd: root,
     });
     return { stdout, stderr: "", exitCode: 0 };
@@ -73,7 +74,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
     await loader.unloadAll();
   });
 
-  it("ModuleLoader.loadAll registers all builtin modules", async () => {
+  it("ModuleLoader.loadAll registers all project modules", async () => {
     const loader = new ModuleLoader({});
     await loader.loadAll(projectModules);
 
@@ -86,7 +87,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
     expect(names).toContain("history");
     expect(names).toContain("scheduler");
     expect(names).toContain("telegram");
-    expect(names).toContain("daemon");
+    expect(names).toContain("daemon-ops");
     expect(names).toContain("mcp-server");
     expect(names).toContain("vercel-adapter");
     expect(names).toContain("web");
@@ -196,7 +197,7 @@ describe("module error resilience", () => {
 
     // Broken module should not be loaded
     expect(loader.getLoadedModules()).not.toContain("broken");
-    // But all builtin modules should still load
+    // But all project modules should still load
     expect(loader.getLoadedModules()).toContain("memory");
     expect(loader.getLoadedModules()).toContain("scheduler");
     expect(loader.getModuleCount()).toBe(projectModules.length);
@@ -344,7 +345,7 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
 
     // Modules without tools should still load
     expect(loaded).toContain("telegram");
-    expect(loaded).toContain("daemon");
+    expect(loaded).toContain("daemon-ops");
 
     errSpy.mockRestore();
     await loader1.unloadAll();

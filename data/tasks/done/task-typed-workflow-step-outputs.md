@@ -53,4 +53,4 @@ The goal is compile-time safety at definition sites, not a runtime schema layer.
 - At least one existing workflow (e.g., builder) adopts the typed form as
   a reference example.
 - No existing tests break.
-- `src/workflow/AGENTS.md` documents the typed step pattern.
+- `src/core/workflow/AGENTS.md` documents the typed step pattern.

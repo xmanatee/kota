@@ -6,7 +6,7 @@
  * Registers the `schedule` tool in the `management` group.
  */
 
-import type { KotaModule } from "../../module-types.js";
+import type { KotaModule } from "../../core/modules/module-types.js";
 import { runSchedule, scheduleTool } from "./schedule.js";
 
 const schedulerModule: KotaModule = {
@@ -22,7 +22,7 @@ const schedulerModule: KotaModule = {
       group: "management",
     },
   ],
-  skills: [{ name: "scheduler", promptPath: "src/modules/skills/scheduler.md" }],
+  skills: [{ name: "scheduler", promptPath: "src/modules/scheduler/scheduler.md" }],
 };
 
 export default schedulerModule;

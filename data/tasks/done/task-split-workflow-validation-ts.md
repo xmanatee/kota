@@ -12,11 +12,11 @@ updated_at: "2026-03-27"
 
 ## Problem
 
-`src/workflow/validation.ts` is 306 lines. It already delegated step validators to `validation-steps.ts` and shared primitives to `validation-primitives.ts`, but the internal `validateTrigger` function (~84 lines) still lives here alongside `validateStep`, `registerWorkflowDefinition`, and `validateWorkflowDefinitions`. The file is over the 300-line limit.
+`src/core/workflow/validation.ts` is 306 lines. It already delegated step validators to `validation-steps.ts` and shared primitives to `validation-primitives.ts`, but the internal `validateTrigger` function (~84 lines) still lives here alongside `validateStep`, `registerWorkflowDefinition`, and `validateWorkflowDefinitions`. The file is over the 300-line limit.
 
 ## Desired Outcome
 
-Extract `validateTrigger` (and any helpers it uses) into `src/workflow/validation-trigger.ts`. Update `validation.ts` to import from the new module. Both files stay under 300 lines.
+Extract `validateTrigger` (and any helpers it uses) into `src/core/workflow/validation-trigger.ts`. Update `validation.ts` to import from the new module. Both files stay under 300 lines.
 
 ## Constraints
 
@@ -26,6 +26,6 @@ Extract `validateTrigger` (and any helpers it uses) into `src/workflow/validatio
 
 ## Done When
 
-- `src/workflow/validation-trigger.ts` exists and contains trigger validation logic.
-- `src/workflow/validation.ts` is under 300 lines.
+- `src/core/workflow/validation-trigger.ts` exists and contains trigger validation logic.
+- `src/core/workflow/validation.ts` is under 300 lines.
 - `npx tsc --noEmit` passes with no new errors.

@@ -11,7 +11,7 @@ updated_at: 2026-03-27
 
 ## Problem
 
-`src/workflow/run-store.ts` is 366 lines. It contains two distinct responsibilities:
+`src/core/workflow/run-store.ts` is 366 lines. It contains two distinct responsibilities:
 `WorkflowRunStore` (manages the run directory, lists/loads/deletes runs) and the
 `ActiveWorkflowRunHandle` type plus its factory logic (append messages, record steps,
 write inputs, finish).

@@ -1,6 +1,6 @@
 ---
 id: task-split-file-read-ts
-title: Split src/tools/file-read.ts — over 300-line limit
+title: Split src/core/tools/file-read.ts — over 300-line limit
 status: done
 priority: p3
 area: source
@@ -11,7 +11,7 @@ updated_at: 2026-03-19
 
 ## Problem
 
-`src/tools/file-read.ts` was 303 lines, just over the 300-line limit defined in AGENTS.md.
+`src/core/tools/file-read.ts` was 303 lines, just over the 300-line limit defined in AGENTS.md.
 
 ## Desired Outcome
 

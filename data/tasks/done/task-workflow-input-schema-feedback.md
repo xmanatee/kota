@@ -11,7 +11,7 @@ updated_at: 2026-04-02T01:06:00Z
 
 ## Problem
 
-Workflows can declare an `inputSchema` that validates trigger payloads before a run starts. When the payload is invalid, the validation error (`src/workflow/payload-validator.ts`) produces a machine-readable string like `payload.count: expected number, got string`. This message is surfaced as-is in:
+Workflows can declare an `inputSchema` that validates trigger payloads before a run starts. When the payload is invalid, the validation error (`src/core/workflow/payload-validator.ts`) produces a machine-readable string like `payload.count: expected number, got string`. This message is surfaced as-is in:
 
 - The CLI `kota workflow trigger` response
 - The webhook `400` response body
@@ -29,7 +29,7 @@ Two improvements:
 
 ## Constraints
 
-- `src/workflow/payload-validator.ts` owns the validation logic; error format improvements stay there.
+- `src/core/workflow/payload-validator.ts` owns the validation logic; error format improvements stay there.
 - Schema display in CLI uses the existing `kota workflow definitions` output format; add a compact `inputs:` section only when `inputSchema` is defined.
 - Web UI schema display reads from the existing definitions API; no new endpoint needed.
 - Do not change the JSON Schema structure or validation rules, only presentation.

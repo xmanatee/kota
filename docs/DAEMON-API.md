@@ -1376,7 +1376,7 @@ When the daemon is running:
 ## Test Coverage
 
 Integration tests for all endpoints live in
-`src/scheduler/daemon-control.test.ts`. The test file uses a `makeHandle()`
+`src/core/daemon/daemon-control.test.ts`. The test file uses a `makeHandle()`
 stub pattern — no process spawning — and covers auth enforcement, each route's
 success path, and error cases (404, 409, 401).
 

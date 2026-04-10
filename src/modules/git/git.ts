@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolResult } from "../../tools/tool-result.js";
+import type { ToolResult } from "../../core/tools/tool-result.js";
 
 export const gitTool: Anthropic.Tool = {
 	name: "git",

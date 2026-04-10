@@ -340,7 +340,7 @@ describe("invokeReplanner", () => {
 			originalPlan: "plan",
 			messages: [],
 			trigger: "consecutive-errors",
-			costTracker: costTracker as unknown as import("../cost.js").CostTracker,
+			costTracker: costTracker as unknown as import("../core/loop/cost.js").CostTracker,
 		});
 		expect(costTracker.addUsage).toHaveBeenCalledWith("test-model", expect.objectContaining({
 			input_tokens: 100,

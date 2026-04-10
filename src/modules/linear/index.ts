@@ -18,7 +18,7 @@
  * API key is never logged.
  */
 
-import type { KotaModule, ModuleContext } from "../../module-types.js";
+import type { KotaModule, ModuleContext } from "../../core/modules/module-types.js";
 import type { LinearTaskProviderConfig } from "./task-provider.js";
 import { LinearTaskProvider } from "./task-provider.js";
 

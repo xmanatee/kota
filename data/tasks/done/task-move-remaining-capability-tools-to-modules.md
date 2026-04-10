@@ -19,15 +19,15 @@ implementations remain stranded in the wrong place:
    thin registration wrapper around it. The implementation belongs in the module
    directory, not the core root.
 
-2. `src/tools/notify.ts` — the `notify` tool sends desktop notifications and belongs
+2. `src/core/tools/notify.ts` — the `notify` tool sends desktop notifications and belongs
    in the `system` capability module alongside `clipboard`, `view_image`, and
    `env_info`. It is currently registered from the core tools bucket.
 
-3. `src/tools/repo-map.ts` — the `repo_map` tool does source code structure analysis
+3. `src/core/tools/repo-map.ts` — the `repo_map` tool does source code structure analysis
    using glob and symbol scanning. It belongs in the `filesystem` capability module
    alongside `glob`, `grep`, and `files_overview`.
 
-`src/tools/AGENTS.md` explicitly says general-purpose capability packs belong in
+`src/core/tools/AGENTS.md` explicitly says general-purpose capability packs belong in
 `src/modules/`, and the `notify` / `repo_map` tools were called out as exceptions
 that should be moved. `src/modules/AGENTS.md` says to prefer real ownership over
 thin wrappers.
@@ -38,11 +38,11 @@ thin wrappers.
   module `index.ts` imports from the local path instead of `../../tool-cache.js`.
   The old `src/tool-cache.ts` is removed.
 
-- `src/tools/notify.ts` → `src/modules/system/notify.ts`; the system module
-  registers the `notify` tool. Core `src/tools/index.ts` no longer imports it.
+- `src/core/tools/notify.ts` → `src/modules/system/notify.ts`; the system module
+  registers the `notify` tool. Core `src/core/tools/index.ts` no longer imports it.
 
-- `src/tools/repo-map.ts` → `src/modules/filesystem/repo-map.ts`; the filesystem
-  module registers the `repo_map` tool. Core `src/tools/index.ts` no longer imports it.
+- `src/core/tools/repo-map.ts` → `src/modules/filesystem/repo-map.ts`; the filesystem
+  module registers the `repo_map` tool. Core `src/core/tools/index.ts` no longer imports it.
 
 - `src/modules/AGENTS.md` entries for `system/index.ts` and `filesystem/index.ts`
   updated to mention the newly added tools.
@@ -61,7 +61,7 @@ thin wrappers.
 ## Done When
 
 - `src/tool-cache.ts` no longer exists; implementation lives in `src/modules/tool-cache/`.
-- `src/tools/notify.ts` no longer exists; `notify` tool registered by system module.
-- `src/tools/repo-map.ts` no longer exists; `repo_map` tool registered by filesystem module.
+- `src/core/tools/notify.ts` no longer exists; `notify` tool registered by system module.
+- `src/core/tools/repo-map.ts` no longer exists; `repo_map` tool registered by filesystem module.
 - All tests pass; no behavior regressions.
 - `src/modules/AGENTS.md` updated for system and filesystem module entries.

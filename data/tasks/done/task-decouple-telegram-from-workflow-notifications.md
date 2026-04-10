@@ -14,10 +14,10 @@ updated_at: 2026-03-30T16:19:34Z
 The workflow runtime contains four files that call `callTelegramApi` and
 read `TELEGRAM_BOT_TOKEN` / `TELEGRAM_ALERT_CHAT_ID` directly:
 
-- `src/workflow/failure-alert.ts` — sends alert on workflow failure/interrupt
-- `src/workflow/approval-notification.ts` — notifies when approval is requested
-- `src/workflow/budget-guard.ts` — sends alert when daily budget is exceeded
-- `src/workflow/attention-digest.ts` — sends digest and budget warn to Telegram
+- `src/core/workflow/failure-alert.ts` — sends alert on workflow failure/interrupt
+- `src/core/workflow/approval-notification.ts` — notifies when approval is requested
+- `src/core/workflow/budget-guard.ts` — sends alert when daily budget is exceeded
+- `src/core/workflow/attention-digest.ts` — sends digest and budget warn to Telegram
 
 This contradicts the channel contribution model introduced for
 `telegram-status-poll`, where Telegram-specific I/O was moved into the Telegram
@@ -51,7 +51,7 @@ read Telegram env vars. Instead:
 - Do not change the observable behavior — the same Telegram messages should be
   sent under the same conditions.
 - Do not introduce a heavyweight notification framework; keep the boundary thin.
-- `src/workflow/` must not import from `src/telegram-client.ts` after the change.
+- `src/core/workflow/` must not import from `src/telegram-client.ts` after the change.
 - Prefer bus events over injected callbacks where the event is already a
   naturally useful domain signal (e.g. `workflow.budget.exceeded`).
 - `ModuleEventProxy` currently only has `emit` — no `subscribe`. Add a

@@ -1,10 +1,10 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import type { AgentDef } from "../../../../agent-types.js";
+import type { AgentDef } from "../../../../core/agents/agent-types.js";
 import { assertRepoWorktreeClean, getRepoHeadSha } from "../../../../repo-worktree.js";
-import type { WorkflowDefinitionInput } from "../../../../workflow/types.js";
-import { typedCodeStep } from "../../../../workflow/types.js";
+import type { WorkflowDefinitionInput } from "../../../../core/workflow/types.js";
+import { typedCodeStep } from "../../../../core/workflow/types.js";
 import type { RepoTaskQueueSnapshot } from "../../../repo-tasks/repo-tasks.js";
 import { getRepoTaskQueueSnapshot } from "../../../repo-tasks/repo-tasks.js";
 import { commitWorkflowChanges } from "../../commit.js";
@@ -18,6 +18,7 @@ export function checkModuleBoundary(projectDir: string): string {
   const staged = execFileSync("git", ["diff", "--cached", "--name-status"], {
     cwd: projectDir,
     encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
   });
   const violations = staged
     .split("\n")
@@ -142,7 +143,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
             id: "daemon-api-doc-sync",
             type: "code" as const,
             run: (ctx) => {
-              const src = readFileSync(join(ctx.projectDir, "src/scheduler/daemon-control.ts"), "utf8");
+              const src = readFileSync(join(ctx.projectDir, "src/core/daemon/daemon-control.ts"), "utf8");
               const doc = readFileSync(join(ctx.projectDir, "docs/DAEMON-API.md"), "utf8");
               const routes = [...src.matchAll(/"(?:GET|POST|DELETE|PUT|PATCH) (\/[^"]+)":\s*"(?:read|control)"/g)].map((m) => m[1]);
               const undocumented = [...new Set(routes)].filter((p) => !doc.includes(p));
@@ -164,6 +165,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
               const staged = execFileSync("git", ["diff", "--cached", "--name-status"], {
                 cwd: ctx.projectDir,
                 encoding: "utf8",
+                stdio: ["ignore", "pipe", "pipe"],
               });
               const newFiles = staged
                 .split("\n")

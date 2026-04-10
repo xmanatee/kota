@@ -10,8 +10,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getEventBus, initEventBus, resetEventBus } from "./event-bus.js";
-import { AgentSession } from "./loop.js";
+import { getEventBus, initEventBus, resetEventBus } from "./core/events/event-bus.js";
+import { AgentSession } from "./core/loop/loop.js";
 import { resetWorkingMemory } from "./memory/working-memory.js";
 import {
 	createMockClient,
@@ -20,7 +20,7 @@ import {
 	textResponse,
 	toolUseResponse,
 } from "./model/mock-client.js";
-import { BufferTransport } from "./transport.js";
+import { BufferTransport } from "./core/loop/transport.js";
 
 vi.spyOn(console, "error").mockImplementation(() => {});
 

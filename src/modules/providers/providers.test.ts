@@ -161,7 +161,7 @@ describe("interface conformance", () => {
 	});
 
 	it("TaskProvider interface matches TaskStore shape", async () => {
-		const { TaskStore } = await import("../../scheduler/task-store.js");
+		const { TaskStore } = await import("../../core/daemon/task-store.js");
 		const store = new TaskStore(undefined, null);
 		const provider: TaskProvider = store;
 		expect(typeof provider.add).toBe("function");

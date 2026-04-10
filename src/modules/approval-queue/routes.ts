@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { RouteRegistration } from "../../module-types.js";
+import type { RouteRegistration } from "../../core/modules/module-types.js";
 import { DaemonControlClient } from "../../server/daemon-client.js";
 import { jsonResponse, readBody } from "../../server/session-pool.js";
 import { type ApprovalQueue, getApprovalQueue } from "./queue.js";

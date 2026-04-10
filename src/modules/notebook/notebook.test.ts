@@ -16,9 +16,7 @@ describe("notebook tool", () => {
   const created: string[] = [];
   afterEach(() => {
     for (const p of created) {
-      try {
-        fs.unlinkSync(p);
-      } catch {}
+      if (fs.existsSync(p)) fs.unlinkSync(p);
     }
     created.length = 0;
   });

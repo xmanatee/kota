@@ -23,7 +23,7 @@ The remaining gap: `src/guardrails-audit.ts` (audit log appender, query helpers,
 still lives in core. There are two core callsites:
 
 1. `src/tool-runner.ts` — calls `getAuditStore()?.record(assessment, sessionId)` after each tool assessment
-2. `src/tools/audit.ts` — calls `getAuditStore()` to serve the agent's audit query tool
+2. `src/core/tools/audit.ts` — calls `getAuditStore()` to serve the agent's audit query tool
 
 ## Desired Outcome
 
@@ -32,7 +32,7 @@ Complete the module so it fully owns the audit subsystem:
 - Move audit log storage, `appendAuditEntry`, `queryAuditLog`, and `AuditEntry` into the module
 - `tool-runner.ts` emits assessment events to the event bus instead of calling the audit store directly
 - The module subscribes to those events and writes to `.kota/audit.jsonl`
-- `src/tools/audit.ts` either imports the store from the module or queries via an event/response mechanism
+- `src/core/tools/audit.ts` either imports the store from the module or queries via an event/response mechanism
 - The module can be disabled via config without touching core tool-runner logic
 
 The core guardrails assessment logic remains in `guardrails.ts` and `tool-runner.ts`; only the audit logging and query path moves to the module.

@@ -28,7 +28,7 @@
  * Token is never logged or included in error messages.
  */
 
-import type { KotaModule, ModuleContext, ToolDef } from "../../module-types.js";
+import type { KotaModule, ModuleContext, ToolDef } from "../../core/modules/module-types.js";
 import type { GitHubConfig } from "./github-auth.js";
 import { githubFetch, resolveRepo, resolveToken } from "./github-auth.js";
 import { makeIssueTools } from "./github-issues.js";

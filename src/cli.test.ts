@@ -7,12 +7,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { formatAuthError, parseIntOption } from "./cli.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const CLI = resolve(root, "dist/cli.js");
+const CLI = resolve(root, "src/cli.ts");
 
 const CLI_TIMEOUT = 15_000;
 
 function run(...args: string[]): string {
-  return execFileSync("node", [CLI, ...args], {
+  return execFileSync(process.execPath, ["--import", "tsx", CLI, ...args], {
     encoding: "utf-8",
     timeout: CLI_TIMEOUT,
     cwd: root,
@@ -22,7 +22,7 @@ function run(...args: string[]): string {
 /** Run CLI expecting it to fail, return stderr. */
 function runExpectFail(...args: string[]): { stderr: string; exitCode: number } {
   try {
-    execFileSync("node", [CLI, ...args], {
+    execFileSync(process.execPath, ["--import", "tsx", CLI, ...args], {
       encoding: "utf-8",
       timeout: CLI_TIMEOUT,
       cwd: root,
@@ -41,7 +41,7 @@ function runFull(
   opts?: { env?: Record<string, string>; input?: string },
 ): { stdout: string; stderr: string; exitCode: number } {
   try {
-    const stdout = execFileSync("node", [CLI, ...args], {
+    const stdout = execFileSync(process.execPath, ["--import", "tsx", CLI, ...args], {
       encoding: "utf-8",
       timeout: CLI_TIMEOUT,
       cwd: root,

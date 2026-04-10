@@ -1,4 +1,4 @@
-import type { WorkflowDefinitionInput } from "../../../../workflow/types.js";
+import type { WorkflowDefinitionInput } from "../../../../core/workflow/types.js";
 import {
   getRepoTaskQueueSnapshot,
   isThinPullQueue,

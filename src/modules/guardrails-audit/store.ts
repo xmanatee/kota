@@ -10,7 +10,7 @@
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Assessment, Policy, RiskLevel } from "../../guardrails.js";
+import type { Assessment, Policy, RiskLevel } from "../../core/tools/guardrails.js";
 
 export type AuditEntry = {
 	ts: string;

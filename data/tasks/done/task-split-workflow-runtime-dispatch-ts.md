@@ -11,11 +11,11 @@ updated_at: 2026-03-27
 
 ## Problem
 
-`src/workflow/runtime.ts` is 297 lines — at the file size limit. It contains `WorkflowRuntime`, a class that mixes the public interface (start, stop, getState, setDispatchPaused) with private dispatch internals (maybeStartNext, runWorkflow, loadDefinitions, emitIdleEvent).
+`src/core/workflow/runtime.ts` is 297 lines — at the file size limit. It contains `WorkflowRuntime`, a class that mixes the public interface (start, stop, getState, setDispatchPaused) with private dispatch internals (maybeStartNext, runWorkflow, loadDefinitions, emitIdleEvent).
 
 ## Desired Outcome
 
-Extract the private dispatch methods (`maybeStartNext`, `runWorkflow`, `loadDefinitions`, `emitIdleEvent`) into a new `src/workflow/runtime-dispatch.ts` file, following the same extracted-function pattern used in `loop-constructor.ts` and similar splits. `WorkflowRuntime` retains the public API and delegates to the extracted functions.
+Extract the private dispatch methods (`maybeStartNext`, `runWorkflow`, `loadDefinitions`, `emitIdleEvent`) into a new `src/core/workflow/runtime-dispatch.ts` file, following the same extracted-function pattern used in `loop-constructor.ts` and similar splits. `WorkflowRuntime` retains the public API and delegates to the extracted functions.
 
 ## Constraints
 
@@ -26,7 +26,7 @@ Extract the private dispatch methods (`maybeStartNext`, `runWorkflow`, `loadDefi
 
 ## Done When
 
-- `src/workflow/runtime-dispatch.ts` exists and contains the extracted dispatch functions.
-- `src/workflow/runtime.ts` is measurably reduced (under 250 lines preferred).
+- `src/core/workflow/runtime-dispatch.ts` exists and contains the extracted dispatch functions.
+- `src/core/workflow/runtime.ts` is measurably reduced (under 250 lines preferred).
 - All tests pass.
 - `workflow/AGENTS.md` is updated to document the new module.

@@ -16,8 +16,8 @@
  *   }
  */
 
-import type { ChannelDef } from "../../channel.js";
-import type { KotaModule, ModuleContext } from "../../module-types.js";
+import type { ChannelDef } from "../../core/channels/channel.js";
+import type { KotaModule, ModuleContext } from "../../core/modules/module-types.js";
 import { SlackBot } from "./bot.js";
 
 type SlackChannelConfig = {

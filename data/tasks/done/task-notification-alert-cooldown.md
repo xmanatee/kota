@@ -11,7 +11,7 @@ updated_at: 2026-03-31T07:52:00Z
 
 ## Problem
 
-`subscribeWorkflowFailureAlert` in `src/workflow/failure-alert.ts` emits a
+`subscribeWorkflowFailureAlert` in `src/core/workflow/failure-alert.ts` emits a
 `workflow.failure.alert` bus event for every failed or interrupted run. The
 Telegram and webhook modules forward each event immediately. When a workflow
 fails in a tight loop (e.g., a bug causes builder to fail on every attempt),

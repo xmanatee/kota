@@ -11,7 +11,7 @@ updated_at: 2026-03-27
 
 ## Problem
 
-`src/workflow/run-executor.ts` is 506 lines — well over the 300-line limit.
+`src/core/workflow/run-executor.ts` is 506 lines — well over the 300-line limit.
 It mixes pure utility functions (matchesFilter, getEligibleAtMs,
 findRetryFromIndex, createStepContext) with the main run orchestration logic
 (executeWorkflowRun).
@@ -19,9 +19,9 @@ findRetryFromIndex, createStepContext) with the main run orchestration logic
 ## Desired Outcome
 
 - Extract `matchesFilter`, `getEligibleAtMs`, `findRetryFromIndex` into
-  `src/workflow/run-executor-utils.ts` (~50 lines).
+  `src/core/workflow/run-executor-utils.ts` (~50 lines).
 - Extract `createStepContext` (and any step-context helpers) into
-  `src/workflow/step-context.ts` (~80 lines).
+  `src/core/workflow/step-context.ts` (~80 lines).
 - `run-executor.ts` imports from these and stays under 300 lines.
 - All tests pass; no behavioral change.
 

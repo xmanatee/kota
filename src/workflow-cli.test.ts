@@ -3,14 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readOptionalJsonFile } from "./json-file.js";
-import { getEligibleAtMs } from "./workflow/run-executor-utils.js";
-import { WorkflowRunStore } from "./workflow/run-store.js";
+import { getEligibleAtMs } from "./core/workflow/run-executor-utils.js";
+import { WorkflowRunStore } from "./core/workflow/run-store.js";
 import type {
   WorkflowRunMetadata,
   WorkflowRuntimeState,
   WorkflowStepResult,
-} from "./workflow/run-types.js";
-import type { WorkflowDefinition } from "./workflow/types.js";
+} from "./core/workflow/run-types.js";
+import type { WorkflowDefinition } from "./core/workflow/types.js";
 
 // Isolated test for the trigger command's core logic:
 // cooldown checks and queue writes via WorkflowRunStore.

@@ -11,8 +11,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSkipConfirmations } from "./confirm.js";
-import { getEventBus, initEventBus, resetEventBus } from "./event-bus.js";
-import { AgentSession } from "./loop.js";
+import { getEventBus, initEventBus, resetEventBus } from "./core/events/event-bus.js";
+import { AgentSession } from "./core/loop/loop.js";
 import {
 	createMockClient,
 	type MockApiCall,
@@ -21,7 +21,7 @@ import {
 	textResponse,
 	toolUseResponse,
 } from "./model/mock-client.js";
-import { BufferTransport } from "./transport.js";
+import { BufferTransport } from "./core/loop/transport.js";
 
 // Suppress console output during tests
 vi.spyOn(console, "error").mockImplementation(() => {});

@@ -2,9 +2,9 @@
 // Runs the architect/editor two-pass pipeline when architect mode is enabled.
 
 import type Anthropic from "@anthropic-ai/sdk";
-import type { CostTracker } from "../cost.js";
+import type { CostTracker } from "../core/loop/cost.js";
 import type { ModelClient } from "../model/model-client.js";
-import type { Transport } from "../transport.js";
+import type { Transport } from "../core/loop/transport.js";
 import { runArchitectPass } from "./architect.js";
 import { runEditorLoop } from "./architect-editor.js";
 

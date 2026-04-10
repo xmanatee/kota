@@ -13,7 +13,7 @@
  *   files_overview — structured directory overview with file type and size breakdown
  */
 
-import type { KotaModule, ToolDef } from "../../module-types.js";
+import type { KotaModule, ToolDef } from "../../core/modules/module-types.js";
 import { fileEditTool, runFileEdit } from "./file-edit.js";
 import { fileReadTool, runFileRead } from "./file-read.js";
 import { fileWatchTool, runFileWatch } from "./file-watch.js";

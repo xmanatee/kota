@@ -23,7 +23,7 @@ If the ID is unknown or not currently active the endpoint returns a clear 404 or
 
 ## Constraints
 
-- Reuse the existing per-run `AbortController` already present in `src/workflow/runtime.ts`; do not add a parallel signal path.
+- Reuse the existing per-run `AbortController` already present in `src/core/workflow/runtime.ts`; do not add a parallel signal path.
 - The new endpoint requires `control` capability scope, same as `POST /workflow/abort`.
 - Active runs that are not targeted must be completely unaffected.
 - CLI command follows existing `kota workflow run <subcommand>` convention.

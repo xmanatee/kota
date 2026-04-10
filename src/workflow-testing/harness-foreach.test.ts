@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { WorkflowDefinitionInput } from "../workflow/types.js";
+import type { WorkflowDefinitionInput } from "../core/workflow/types.js";
 import { WorkflowTestHarness } from "./index.js";
 
 describe("WorkflowTestHarness — foreach step", () => {

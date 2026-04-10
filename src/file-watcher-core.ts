@@ -1,6 +1,6 @@
 import { readdir, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
-import { getEventBus } from "./event-bus.js";
+import { getEventBus } from "./core/events/event-bus.js";
 
 export interface FileChange {
 	path: string;

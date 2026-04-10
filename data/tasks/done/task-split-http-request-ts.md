@@ -1,6 +1,6 @@
 ---
 id: task-split-http-request-ts
-title: Split src/tools/http-request.ts — over 300-line limit
+title: Split src/core/tools/http-request.ts — over 300-line limit
 status: done
 priority: p2
 area: structure
@@ -11,7 +11,7 @@ updated_at: 2026-03-19
 
 ## Problem
 
-`src/tools/http-request.ts` is 333 lines, exceeding the 300-line file size limit.
+`src/core/tools/http-request.ts` is 333 lines, exceeding the 300-line file size limit.
 The file mixes tool definition, request building, and response parsing.
 
 ## Desired Outcome
@@ -27,6 +27,6 @@ bringing the main file under 300 lines.
 
 ## Done When
 
-- `src/tools/http-request.ts` is under 300 lines.
+- `src/core/tools/http-request.ts` is under 300 lines.
 - Extracted logic lives in a clearly named sibling.
 - `npm run typecheck`, `npm run lint`, and `npm test` pass.

@@ -18,7 +18,7 @@ Four capability files live directly in `src/` alongside core protocol and loop c
 - `src/workflow-history.ts` — workflow run metadata helpers owned by the `workflow` module
 - `src/workflow-logs.ts` — workflow step log reading/writing owned by the `workflow` module
 
-Their natural owners (`src/modules/repo-tasks/` and `src/modules/workflow/`) already import these files. The files remain in core only by inertia; no core protocol or loop primitive requires them there. This is the same pooling pattern that route and CLI migration tasks have steadily cleared.
+Their natural owners (`src/modules/repo-tasks/` and `src/modules/workflow-ops/`) already import these files. The files remain in core only by inertia; no core protocol or loop primitive requires them there. This is the same pooling pattern that route and CLI migration tasks have steadily cleared.
 
 ## Desired Outcome
 
@@ -37,7 +37,7 @@ Their natural owners (`src/modules/repo-tasks/` and `src/modules/workflow/`) alr
 ## Done When
 
 - `src/repo-tasks.ts` and `src/task-queue-validation.ts` are absent from `src/` root and present under `src/modules/repo-tasks/`.
-- `src/workflow-history.ts` and `src/workflow-logs.ts` are absent from `src/` root and present under `src/modules/workflow/`.
+- `src/workflow-history.ts` and `src/workflow-logs.ts` are absent from `src/` root and present under `src/modules/workflow-ops/`.
 - `tsc --noEmit` passes with no new errors.
 - All existing tests pass.
 - `src/AGENTS.md` updated.

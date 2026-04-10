@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ModuleStorage } from "../../module-storage.js";
-import type { ModuleContext } from "../../module-types.js";
+import { ModuleStorage } from "../../core/modules/module-storage.js";
+import type { ModuleContext } from "../../core/modules/module-types.js";
 import registryModule from "./index.js";
 
 const stubCtx: ModuleContext = {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ScheduledItem } from "../scheduler/scheduler.js";
+import type { ScheduledItem } from "../core/daemon/scheduler.js";
 import { NotificationHub } from "./server-notifications.js";
 import type { SseTransport } from "./session-pool.js";
 

@@ -11,7 +11,7 @@ updated_at: 2026-03-27
 
 ## Problem
 
-`src/tools/web-search.ts` and `src/tools/file-edit.ts` are each 291 lines — 9 lines from the limit. As the tools grow, they will cross the threshold. Both files mix the tool schema/runner with internal helper logic.
+`src/core/tools/web-search.ts` and `src/core/tools/file-edit.ts` are each 291 lines — 9 lines from the limit. As the tools grow, they will cross the threshold. Both files mix the tool schema/runner with internal helper logic.
 
 ## Desired Outcome
 
@@ -25,6 +25,6 @@ For each file, extract internal helpers (parsing, validation, formatting) into a
 
 ## Done When
 
-- `src/tools/web-search-helpers.ts` and `src/tools/file-edit-helpers.ts` exist.
+- `src/core/tools/web-search-helpers.ts` and `src/core/tools/file-edit-helpers.ts` exist.
 - Both `web-search.ts` and `file-edit.ts` are measurably reduced (under 230 lines preferred).
 - All tests pass.

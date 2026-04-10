@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolResult } from "../../tools/tool-result.js";
+import type { ToolResult } from "../../core/tools/tool-result.js";
 import {
 	linuxClick, linuxCursorPosition, linuxDoubleClick, linuxDrag,
 	linuxKey, linuxMove, linuxRightClick, linuxScroll, linuxType,

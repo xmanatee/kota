@@ -11,7 +11,7 @@ updated_at: 2026-03-31T15:07:46Z
 
 ## Problem
 
-`WorkflowRunMetadata` in `src/workflow/run-types.ts` captures trigger, status, cost, and timing but has no user-defined annotation fields. Operators who run the same workflow for different contexts (e.g., different customers, release stages, experiment IDs) must use separate workflow definitions or read run logs to distinguish runs post-hoc.
+`WorkflowRunMetadata` in `src/core/workflow/run-types.ts` captures trigger, status, cost, and timing but has no user-defined annotation fields. Operators who run the same workflow for different contexts (e.g., different customers, release stages, experiment IDs) must use separate workflow definitions or read run logs to distinguish runs post-hoc.
 
 `kota workflow list` has `--workflow` and `--status` filters but no `--tag` filter.
 

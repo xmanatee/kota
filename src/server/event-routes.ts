@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { EventBus } from "../event-bus.js";
+import type { EventBus } from "../core/events/event-bus.js";
 import { jsonResponse, readBody } from "./session-pool.js";
 
 export async function handleEventTrigger(

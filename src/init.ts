@@ -4,7 +4,7 @@ import { getKnowledgeStore } from "./memory/knowledge-store.js";
 import { getMemoryStore } from "./memory/store.js";
 import { getHistoryProvider, getTaskProvider } from "./modules/providers/index.js";
 import { detectEnvironment, detectProject, getDirectoryOverview } from "./project-detection.js";
-import { getScheduler } from "./scheduler/scheduler.js";
+import { getScheduler } from "./core/daemon/scheduler.js";
 
 const GIT_TIMEOUT = 5000;
 

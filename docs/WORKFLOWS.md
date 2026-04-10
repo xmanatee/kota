@@ -112,7 +112,7 @@ surfaces and tools.
 If a step output truly must be passed forward, mark that step with
 `exposeOutputToAgent: true`. Keep this rare.
 
-Shipped autonomy workflows should default to no `dailyBudgetUsd`. Use
+Project autonomy workflows should default to no `dailyBudgetUsd`. Use
 preflight checks, backoff, repair loops, and better queue shaping before adding
 hard spend caps to the autonomy workflows themselves.
 

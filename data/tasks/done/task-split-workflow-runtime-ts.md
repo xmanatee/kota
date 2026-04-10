@@ -11,7 +11,7 @@ updated_at: 2026-03-27
 
 ## Problem
 
-`src/workflow/runtime.ts` is 382 lines. Previous splits extracted `WorkflowQueueManager`,
+`src/core/workflow/runtime.ts` is 382 lines. Previous splits extracted `WorkflowQueueManager`,
 `AgentBackoffManager`, and `ScheduleTriggerManager`, but `WorkflowRuntime` still contains
 lifecycle management, event-dispatch logic, idle/signal polling, and Telegram budget alerting
 in a single class.
@@ -36,9 +36,9 @@ event-dispatch/signal-polling internals are extracted into small focused modules
 ## What Was Done
 
 Extracted five focused modules:
-- `src/workflow/budget-guard.ts` — `BudgetGuard` class encapsulating daily spend tracking and Telegram alerts
-- `src/workflow/runtime-signals.ts` — `checkAbortSignal`, `checkReloadSignal` functions and all signal-file constants (`ABORT_SIGNAL_FILE`, `PAUSE_SIGNAL_FILE`, `RELOAD_SIGNAL_FILE`)
-- `src/workflow/runtime-config.ts` — `WorkflowRuntimeConfig` type definition
+- `src/core/workflow/budget-guard.ts` — `BudgetGuard` class encapsulating daily spend tracking and Telegram alerts
+- `src/core/workflow/runtime-signals.ts` — `checkAbortSignal`, `checkReloadSignal` functions and all signal-file constants (`ABORT_SIGNAL_FILE`, `PAUSE_SIGNAL_FILE`, `RELOAD_SIGNAL_FILE`)
+- `src/core/workflow/runtime-config.ts` — `WorkflowRuntimeConfig` type definition
 - `enqueueMatchingWorkflows` and `workflowUsesAgent` added to `run-executor-utils.ts`
 
 `runtime.ts` reduced from 382 to 298 lines. All 4935 tests pass.

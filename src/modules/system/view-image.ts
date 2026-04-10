@@ -3,7 +3,7 @@ import { copyFileSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { extname, join, resolve } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolResult } from "../../tools/tool-result.js";
+import type { ToolResult } from "../../core/tools/tool-result.js";
 
 export const viewImageTool: Anthropic.Tool = {
 	name: "view_image",

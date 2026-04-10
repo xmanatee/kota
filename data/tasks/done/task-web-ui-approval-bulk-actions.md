@@ -31,7 +31,7 @@ After success, the approval list refreshes automatically.
   routes to `src/server/approval-routes.ts` and wire them in `src/server/server-routes.ts`.
   The routes delegate to `queue.approveAll()` / `queue.rejectAll()` (add these methods to
   `ApprovalQueue` in `src/modules/approval-queue/queue.ts`). Daemon control API should
-  also expose these via `DaemonControlServer` in `src/scheduler/daemon-control.ts`.
+  also expose these via `DaemonControlServer` in `src/core/daemon/daemon-control.ts`.
 - Confirmation is inline (a brief "Approve 4 items? Confirm" reveal), not a modal.
 - Buttons are hidden when the approval list is empty.
 - Follows the existing `client-approvals.ts` pattern; no new module needed unless

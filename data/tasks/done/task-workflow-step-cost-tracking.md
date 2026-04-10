@@ -28,7 +28,7 @@ Non-agent steps (code, tool, branch, foreach, approval) have `costUsd: 0` or omi
 ## Constraints
 
 - No changes to the `CostTracker` API; read from the session cost tracker after step completion.
-- `costUsd` is optional in `WorkflowStepResult` to keep backward compatibility with existing run artifacts that lack the field.
+- `costUsd` is optional in `WorkflowStepResult` because historical run artifacts may lack the field.
 - Do not add cost tracking to code, tool, or emit steps — those do not run agent sessions.
 - The web UI annotation should be compact (e.g., `$0.04`) and only shown when cost > 0.
 

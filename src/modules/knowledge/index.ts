@@ -7,7 +7,7 @@
  */
 
 import { Command } from "commander";
-import type { KotaModule } from "../../module-types.js";
+import type { KotaModule } from "../../core/modules/module-types.js";
 import { registerKnowledgeCommands } from "./cli.js";
 import { knowledgeTool, runKnowledge } from "./knowledge.js";
 import { knowledgeRoutes } from "./routes.js";
@@ -24,7 +24,7 @@ const knowledgeModule: KotaModule = {
 			group: "management",
 		},
 	],
-	skills: [{ name: "knowledge", promptPath: "src/modules/skills/knowledge.md" }],
+	skills: [{ name: "knowledge", promptPath: "src/modules/knowledge/knowledge.md" }],
 
 	commands: () => {
 		const root = new Command("__root__");

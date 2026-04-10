@@ -4,7 +4,7 @@ This directory contains the `web-access` repo module — the reference
 implementation of the per-module directory pattern for KOTA.
 
 Tools, implementation files, helpers, and tests all live here rather than in
-`src/tools/`. This is the intended layout for project capability packs.
+`src/core/tools/`. This is the intended layout for project capability packs.
 
 ## Tools
 

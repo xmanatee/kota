@@ -13,7 +13,7 @@
  * execute arbitrary code. computer_use controls the GUI. screenshot is read-only.
  */
 
-import type { KotaModule, ToolDef } from "../../module-types.js";
+import type { KotaModule, ToolDef } from "../../core/modules/module-types.js";
 import { codeExecTool, runCodeExec } from "./code-exec.js";
 import { computerUseTool, runComputerUse } from "./computer-use.js";
 import { processTool, runProcess } from "./process.js";

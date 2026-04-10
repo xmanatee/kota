@@ -10,8 +10,8 @@ updated_at: 2026-03-19
 
 ## Resolution
 
-Extracted `ToolResult` and `ToolResultBlock` from `src/tools/index.ts` into
-`src/tools/tool-result.ts`. Updated `src/module-types.ts` and
+Extracted `ToolResult` and `ToolResultBlock` from `src/core/tools/index.ts` into
+`src/core/tools/tool-result.ts`. Updated `src/module-types.ts` and
 `src/tool-adapters.ts` to import directly from `tool-result.ts` rather than
 through `tools/index.ts`. `tools/index.ts` re-exports both types unchanged, so
 no other files needed updating.

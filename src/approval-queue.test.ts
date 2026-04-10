@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "./modules/approval-queue/queue.js";
 
 const tryEmitMock = vi.hoisted(() => vi.fn());
-vi.mock("./event-bus.js", () => ({
+vi.mock("./core/events/event-bus.js", () => ({
 	tryEmit: tryEmitMock,
 	getEventBus: () => null,
 }));

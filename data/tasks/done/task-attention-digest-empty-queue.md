@@ -22,7 +22,7 @@ updated_at: 2026-03-27
 
 ## Constraints
 
-- Add to `detectAttentionItems` in `src/workflow/attention-digest.ts`.
+- Add to `detectAttentionItems` in `src/core/workflow/attention-digest.ts`.
 - No schema changes — this is purely additive logic.
 - Thresholds: alert when count is exactly 0 (not a configurable threshold).
 - Keep the attention item messages short and action-oriented.

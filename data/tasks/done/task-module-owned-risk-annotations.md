@@ -17,7 +17,7 @@ manually maintained list of module-contributed tool names (e.g. `file_read`, `gr
 `glob`, `github_get_pr`, `memory`, `schedule`). A comment in the file acknowledges this:
 "Module-registered tools (not in coreRegistrations) are listed manually."
 
-`getExtensionToolRisk()` already exists in `src/tools/index.ts` and reads risk from
+`getExtensionToolRisk()` already exists in `src/core/tools/index.ts` and reads risk from
 `extensionToolMeta`. The mechanism is present; built-in modules simply don't use it
 when registering their tools. Instead, their tools land in guardrails-classify.ts as
 hardcoded strings — the same centralization problem being addressed for tool-groups.

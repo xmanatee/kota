@@ -11,7 +11,7 @@ updated_at: 2026-03-28T01:35:31Z
 
 ## Problem
 
-`src/scheduler/daemon-control.ts` was added as the daemon's loopback HTTP
+`src/core/daemon/daemon-control.ts` was added as the daemon's loopback HTTP
 control API (commits 38c5e86, b5b787a). It handles POST `/trigger`, GET
 `/status`, GET `/workflows/:id`, POST `/pause`, POST `/resume`, and similar
 endpoints. The CLI routes control commands through this API when a daemon is
@@ -37,6 +37,6 @@ shapes and status codes.
 
 ## Done When
 
-- A test file `src/scheduler/daemon-control.test.ts` exists with passing tests.
+- A test file `src/core/daemon/daemon-control.test.ts` exists with passing tests.
 - Coverage includes: `/status`, `/trigger`, `/workflows`, `/pause`, `/resume`.
 - All existing tests still pass.

@@ -1,10 +1,10 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
 import { glob } from "glob";
-import { trackFileChange } from "../../file-changes.js";
+import { trackFileChange } from "../../core/loop/file-changes.js";
 import { recordModification } from "../../file-tracker.js";
 import { lintFile } from "../../lint.js";
-import type { ToolResult } from "../../tools/tool-result.js";
+import type { ToolResult } from "../../core/tools/tool-result.js";
 
 const MAX_FILES = 50;
 const MAX_GLOB = 1000;

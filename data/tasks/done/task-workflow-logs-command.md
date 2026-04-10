@@ -22,7 +22,7 @@ The output is human-readable, not raw JSON. Long content blocks (tool results, l
 ## Constraints
 
 - Read-only; no mutations to run state.
-- Read events from `.kota/runs/<run-id>/steps/<step-id>.events.jsonl` via `WorkflowRunStore` (see `appendAgentMessage` in `src/workflow/run-store.ts`).
+- Read events from `.kota/runs/<run-id>/steps/<step-id>.events.jsonl` via `WorkflowRunStore` (see `appendAgentMessage` in `src/core/workflow/run-store.ts`).
 - Follow the existing CLI output style in `workflow-cli.ts`.
 
 ## Done When

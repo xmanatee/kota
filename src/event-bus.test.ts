@@ -7,7 +7,7 @@ import {
   initEventBus,
   resetEventBus,
   tryEmit,
-} from "./event-bus.js";
+} from "./core/events/event-bus.js";
 
 afterEach(() => resetEventBus());
 

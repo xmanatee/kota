@@ -11,13 +11,13 @@ updated_at: 2026-04-09T01:06:21Z
 
 ## Problem
 
-`src/scheduler/daemon.ts` has grown from ~300 lines (when it was last split) to 645 lines. The primary culprit is the inline `DaemonControlHandle` object literal passed to `new DaemonControlServer(...)` in the `Daemon` constructor — this anonymous bridge spans approximately lines 121–397 and mixes workflow state projections, run-store data mapping, metric aggregation, and task status reads all in one deeply nested constructor call.
+`src/core/daemon/daemon.ts` has grown from ~300 lines (when it was last split) to 645 lines. The primary culprit is the inline `DaemonControlHandle` object literal passed to `new DaemonControlServer(...)` in the `Daemon` constructor — this anonymous bridge spans approximately lines 121–397 and mixes workflow state projections, run-store data mapping, metric aggregation, and task status reads all in one deeply nested constructor call.
 
 The file violates the 300-line limit by 115%, making it hard to navigate and extend. Each new daemon API endpoint adds more code into this already large constructor, continuing the growth.
 
 ## Desired Outcome
 
-A new `src/scheduler/daemon-handle.ts` module exports a `buildDaemonHandle(daemon: Daemon): DaemonControlHandle` factory function. The `Daemon` constructor calls this factory rather than constructing the handle inline. `daemon.ts` returns to under 300 lines. No behavior changes.
+A new `src/core/daemon/daemon-handle.ts` module exports a `buildDaemonHandle(daemon: Daemon): DaemonControlHandle` factory function. The `Daemon` constructor calls this factory rather than constructing the handle inline. `daemon.ts` returns to under 300 lines. No behavior changes.
 
 ## Constraints
 
@@ -29,7 +29,7 @@ A new `src/scheduler/daemon-handle.ts` module exports a `buildDaemonHandle(daemo
 
 ## Done When
 
-- `src/scheduler/daemon-handle.ts` exists with the extracted handle factory.
-- `src/scheduler/daemon.ts` is under 350 lines.
+- `src/core/daemon/daemon-handle.ts` exists with the extracted handle factory.
+- `src/core/daemon/daemon.ts` is under 350 lines.
 - All existing daemon tests pass without modification.
-- `src/scheduler/AGENTS.md` lists the new module.
+- `src/core/daemon/AGENTS.md` lists the new module.

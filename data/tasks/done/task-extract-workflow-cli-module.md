@@ -4,7 +4,7 @@ title: Move workflow-cli into a dedicated workflow module
 status: done
 priority: p2
 area: architecture
-summary: src/workflow-cli/ (25 files, ~4100 lines) is the largest remaining CLI surface in core. Moving it into src/modules/workflow/ completes the systematic operator CLI migration and makes src/cli.ts a pure assembler of module-contributed commands.
+summary: src/workflow-cli/ (25 files, ~4100 lines) is the largest remaining CLI surface in core. Moving it into src/modules/workflow-ops/ completes the systematic operator CLI migration and makes src/cli.ts a pure assembler of module-contributed commands.
 created_at: 2026-04-09T10:47:41Z
 updated_at: 2026-04-09T11:58:00Z
 ---
@@ -22,7 +22,7 @@ The workflow CLI is the largest one still living in core.
 
 ## Desired Outcome
 
-A new `src/modules/workflow/` module that:
+A new `src/modules/workflow-ops/` module that:
 
 - Owns the entire `workflow-cli/` directory (all files move inside the module)
 - Registers all `kota workflow` commands via `ctx.registerCliCommands()`

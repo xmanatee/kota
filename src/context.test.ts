@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { beforeEach, describe, expect, it } from "vitest";
-import { CONTEXT_WINDOW, Context, truncateToolResult } from "./context.js";
+import { CONTEXT_WINDOW, Context, truncateToolResult } from "./core/loop/context.js";
 import type { ModelClient } from "./model/model-client.js";
 
 // --- truncateToolResult ---

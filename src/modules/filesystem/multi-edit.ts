@@ -1,9 +1,9 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
-import { trackFileChange } from "../../file-changes.js";
+import { trackFileChange } from "../../core/loop/file-changes.js";
 import { recordModification } from "../../file-tracker.js";
 import { lintFile } from "../../lint.js";
-import type { ToolResult } from "../../tools/tool-result.js";
+import type { ToolResult } from "../../core/tools/tool-result.js";
 import { printEditDiff } from "./diff.js";
 
 export const multiEditTool: Anthropic.Tool = {

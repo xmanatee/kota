@@ -4,12 +4,12 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { checkProviderConnectivity, runDoctorChecks, runDoctorFixes } from "./index.js";
 
-vi.mock("../../workflow/validation.js", () => ({
+vi.mock("../../core/workflow/validation.js", () => ({
   validateWorkflowDefinitions: vi.fn(() => [{ name: "builder" }]),
   WorkflowDefinitionError: class WorkflowDefinitionError extends Error {},
 }));
 
-vi.mock("../../module-metadata.js", () => ({
+vi.mock("../../core/modules/module-metadata.js", () => ({
   loadModuleMetadata: vi.fn(async () => ({
     getModuleSummaries: () => [{ name: "test-module" }],
     getContributedWorkflows: () => [],

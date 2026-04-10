@@ -1,5 +1,5 @@
 /**
- * Minimal OpenAI API type subset used by the compatibility layer.
+ * Minimal OpenAI API type subset used by the translation layer.
  */
 
 export type OAIMessage =

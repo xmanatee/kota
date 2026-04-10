@@ -1,6 +1,6 @@
-import type { AgentDef } from "../../../../agent-types.js";
-import type { WorkflowDefinitionInput } from "../../../../workflow/types.js";
-import { typedCodeStep } from "../../../../workflow/types.js";
+import type { AgentDef } from "../../../../core/agents/agent-types.js";
+import type { WorkflowDefinitionInput } from "../../../../core/workflow/types.js";
+import { typedCodeStep } from "../../../../core/workflow/types.js";
 import { stepSucceeded } from "../../shared.js";
 
 export const agent: AgentDef = {

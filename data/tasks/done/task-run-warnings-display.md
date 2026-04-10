@@ -12,11 +12,11 @@ updated_at: 2026-04-02T01:30:00Z
 ## Problem
 
 `WorkflowRunMetadata` has an optional `warnings` field (type `WorkflowRunWarning[]`,
-defined in `src/workflow/run-types.ts`) that is written to the run artifact when a run
+defined in `src/core/workflow/run-types.ts`) that is written to the run artifact when a run
 finishes with status `completed-with-warnings`. Currently the only way a warning is
 generated is an `outputSchema` mismatch (`type: "output-schema-mismatch"`).
 
-Neither the daemon control API response (`src/scheduler/daemon-control-types.ts`), nor
+Neither the daemon control API response (`src/core/daemon/daemon-control-types.ts`), nor
 `kota workflow run show` (`src/workflow-cli/run-show.ts`), nor the web UI run detail
 panel (`src/web-ui/client-run-detail.ts`) exposes these warnings. An operator who sees
 the ⚠ status icon in the run list has no in-product path to learn what the warning says

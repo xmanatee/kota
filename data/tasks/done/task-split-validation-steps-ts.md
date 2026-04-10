@@ -11,7 +11,7 @@ updated_at: 2026-03-27
 
 ## Problem
 
-`src/workflow/validation-steps.ts` is 417 lines — well over the 300-line limit.
+`src/core/workflow/validation-steps.ts` is 417 lines — well over the 300-line limit.
 It contains separate validation functions for every workflow step type, all colocated.
 
 ## Desired Outcome

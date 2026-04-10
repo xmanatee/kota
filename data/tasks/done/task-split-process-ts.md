@@ -1,6 +1,6 @@
 ---
 id: task-split-process-ts
-title: Split src/tools/process.ts — 339 lines, over limit
+title: Split src/core/tools/process.ts — 339 lines, over limit
 status: done
 priority: p3
 area: source
@@ -11,7 +11,7 @@ updated_at: 2026-03-19
 
 ## Problem
 
-`src/tools/process.ts` is 339 lines, exceeding the 300-line limit in AGENTS.md.
+`src/core/tools/process.ts` is 339 lines, exceeding the 300-line limit in AGENTS.md.
 
 ## Desired Outcome
 

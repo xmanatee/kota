@@ -7,7 +7,7 @@ const { mockExecuteTool } = vi.hoisted(() => ({
   mockExecuteTool: vi.fn(),
 }));
 
-vi.mock("../tools/index.js", () => ({
+vi.mock("../core/tools/index.js", () => ({
   getAllTools: () => [
     { name: "file_read", description: "read", input_schema: { type: "object", properties: {} } },
     { name: "file_edit", description: "edit", input_schema: { type: "object", properties: {} } },
@@ -25,7 +25,7 @@ vi.mock("../tools/index.js", () => ({
   executeTool: mockExecuteTool,
 }));
 
-import { enableGroup, resetGroups } from "../tool-groups.js";
+import { enableGroup, resetGroups } from "../core/tools/tool-groups.js";
 import { runArchitectPass } from "./architect.js";
 import { runEditorLoop } from "./architect-editor.js";
 
@@ -119,7 +119,7 @@ describe("runArchitectPass", () => {
     await runArchitectPass({
       client, model: "claude-test", maxTokens: 1000,
       systemContext: "", messages: [{ role: "user", content: "test" }],
-      costTracker: mockTracker as unknown as import("../cost.js").CostTracker,
+      costTracker: mockTracker as unknown as import("../core/loop/cost.js").CostTracker,
     });
 
     expect(mockTracker.addUsage).toHaveBeenCalledWith("claude-test", usage);
@@ -337,7 +337,7 @@ describe("runEditorLoop", () => {
 
     await runEditorLoop({
       client, model: "test-model", maxTokens: 1000, plan: "test",
-      costTracker: mockTracker as unknown as import("../cost.js").CostTracker,
+      costTracker: mockTracker as unknown as import("../core/loop/cost.js").CostTracker,
     });
 
     expect(mockTracker.addUsage).toHaveBeenCalledTimes(2);
@@ -587,7 +587,7 @@ describe("runEditorLoop", () => {
 
     await runEditorLoop({
       client, model: "test", maxTokens: 1000, plan: "test",
-      transport: transport as import("../transport.js").Transport,
+      transport: transport as import("../core/loop/transport.js").Transport,
     });
 
     const turnLimitError = events.find(
@@ -607,7 +607,7 @@ describe("runEditorLoop", () => {
 
     await runEditorLoop({
       client, model: "test", maxTokens: 1000, plan: "test",
-      transport: transport as import("../transport.js").Transport,
+      transport: transport as import("../core/loop/transport.js").Transport,
     });
 
     const turnLimitError = events.find(
@@ -646,7 +646,7 @@ describe("runEditorLoop", () => {
 
     const result = await runEditorLoop({
       client, model: "test", maxTokens: 1000, plan: "Edit a.ts",
-      transport: transport as import("../transport.js").Transport,
+      transport: transport as import("../core/loop/transport.js").Transport,
     });
 
     expect(result.text).toBe("Done after replan.");
@@ -683,7 +683,7 @@ describe("runEditorLoop", () => {
 
     const result = await runEditorLoop({
       client, model: "test", maxTokens: 1000, plan: "Run the command",
-      transport: transport as import("../transport.js").Transport,
+      transport: transport as import("../core/loop/transport.js").Transport,
     });
 
     expect(result.text).toContain("Plan aborted");

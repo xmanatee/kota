@@ -1,5 +1,5 @@
 import { readFileSync, unlinkSync } from "node:fs";
-import type { ToolResultBlock } from "../tools/index.js";
+import type { ToolResultBlock } from "../core/tools/index.js";
 
 const PLOT_MARKER = "__KOTA_PLOT__:";
 

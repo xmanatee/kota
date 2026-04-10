@@ -13,7 +13,7 @@ updated_at: 2026-03-20T03:10:00Z
 
 `ApprovalQueue.request()` emits `approval.requested` on the event bus, but no consumer subscribes to it. The approval CLI (`kota approval list/approve/reject`) was just added, but without proactive notification, remote operators have no signal that approval is waiting. The daemon may be blocked silently for an indefinite period.
 
-The Telegram failure-alert pattern (`src/workflow/failure-alert.ts`) already demonstrates how to subscribe to a bus event and fire a Telegram message.
+The Telegram failure-alert pattern (`src/core/workflow/failure-alert.ts`) already demonstrates how to subscribe to a bus event and fire a Telegram message.
 
 ## Desired Outcome
 

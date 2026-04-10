@@ -37,11 +37,13 @@ vi.mock("./model/model-client.js", () => ({
   registerModelClientFactory: vi.fn(),
 }));
 vi.mock("./model/streaming.js", () => ({ streamMessage: mockStreamMessage }));
-vi.mock("./tool-runner.js", async () => {
-  const actual = await vi.importActual<typeof import("./tool-runner.js")>("./tool-runner.js");
+vi.mock("./core/tools/tool-runner.js", async () => {
+  const actual = await vi.importActual<typeof import("./core/tools/tool-runner.js")>(
+    "./core/tools/tool-runner.js",
+  );
   return { ...actual, executeToolCalls: mockExecuteToolCalls };
 });
-vi.mock("./tools/index.js", () => ({
+vi.mock("./core/tools/index.js", () => ({
   getAllTools: () => [],
   executeTool: vi.fn(),
   getTodoState: vi.fn(() => ""),
@@ -49,7 +51,7 @@ vi.mock("./tools/index.js", () => ({
 vi.mock("./project-context.js", () => ({ loadProjectContext: vi.fn(() => "") }));
 vi.mock("./instruction-files.js", () => ({ loadInstructionContext: vi.fn(() => "") }));
 vi.mock("./init.js", () => ({ buildSessionWarmup: vi.fn(() => "") }));
-vi.mock("./tools/delegate.js", () => ({
+vi.mock("./core/tools/delegate.js", () => ({
   setDelegateConfig: vi.fn(),
   delegateTool: { name: "delegate", description: "", input_schema: { type: "object", properties: {} } },
 }));
@@ -63,7 +65,7 @@ vi.mock("./modules/execution/code-exec.js", () => ({
   codeExecTool: { name: "code_exec", description: "", input_schema: { type: "object", properties: {} } },
   runCodeExec: vi.fn(),
 }));
-vi.mock("./scheduler/task-store.js", () => ({
+vi.mock("./core/daemon/task-store.js", () => ({
   initTaskStore: vi.fn(),
   getTaskStore: vi.fn(() => ({
     add: vi.fn(), update: vi.fn(), list: vi.fn(() => []),
@@ -100,9 +102,9 @@ vi.mock("./architect/architect-editor.js", () => ({
 
 // --- Import after mocks ---
 
-import { Context } from "./context.js";
-import { AgentSession, runAgentLoop } from "./loop.js";
-import { BufferTransport } from "./transport.js";
+import { Context } from "./core/loop/context.js";
+import { AgentSession, runAgentLoop } from "./core/loop/loop.js";
+import { BufferTransport } from "./core/loop/transport.js";
 
 // --- Helpers ---
 

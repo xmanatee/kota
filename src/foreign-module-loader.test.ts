@@ -11,8 +11,8 @@ import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { ForeignModuleConfig } from "./foreign-module.js";
-import { loadForeignModules } from "./foreign-module-loader.js";
+import type { ForeignModuleConfig } from "./core/modules/foreign-module.js";
+import { loadForeignModules } from "./core/modules/foreign-module-loader.js";
 
 const DEMO_SCRIPT = resolve(process.cwd(), "examples/modules/kota-demo.py");
 

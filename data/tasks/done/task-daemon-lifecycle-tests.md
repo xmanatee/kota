@@ -47,7 +47,7 @@ Tests write generated files to a temp directory; they do not invoke
   platform detection to skip inapplicable tests or mock the platform selector
   so both paths run on any OS.
 - Tests should live alongside the daemon module implementation
-  (`src/modules/daemon/`).
+  (`src/modules/daemon-ops/`).
 - No new production flags or test-only conditionals in production code.
 
 ## Done When

@@ -4,14 +4,14 @@ title: Split tools/computer-use.ts — extract action handlers from entry
 status: done
 priority: p2
 area: structure
-summary: src/tools/computer-use.ts is 419 lines, 40% over the 300-line limit. Splitting improves navigability and keeps each file focused.
+summary: src/core/tools/computer-use.ts is 419 lines, 40% over the 300-line limit. Splitting improves navigability and keeps each file focused.
 created_at: 2026-03-19
 updated_at: 2026-03-19T09:13:55
 ---
 
 ## Problem
 
-`src/tools/computer-use.ts` is 419 lines (40% over the 300-line limit). The file combines computer-use tool registration, action dispatch, and per-action implementation in one place.
+`src/core/tools/computer-use.ts` is 419 lines (40% over the 300-line limit). The file combines computer-use tool registration, action dispatch, and per-action implementation in one place.
 
 ## Desired Outcome
 

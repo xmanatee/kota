@@ -329,7 +329,7 @@ Has an outcome.
     writeFileSync(
       join(projectDir, "src", "cli.ts"),
       [
-        'import { registerHistoryCommands } from "./cli-history.js";',
+        'import { registerHistoryCommands } from "../../cli-history.js";',
         'import { registerCompletionCommands } from "./completion-cli.js";',
         'import { registerWebhookCommands } from "./webhook-cli.js";',
         'import { registerInitCommand } from "./init-cli.js";',

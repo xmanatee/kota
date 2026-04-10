@@ -4,7 +4,7 @@ import { extname } from "node:path";
 import { CSV_EXTENSIONS, formatCsvMetadata } from "../../data/csv-preview.js";
 import { formatJsonPreview, JSON_EXTENSIONS } from "../../data/json-preview.js";
 import { recordRead } from "../../file-tracker.js";
-import type { ToolResult, ToolResultBlock } from "../../tools/tool-result.js";
+import type { ToolResult, ToolResultBlock } from "../../core/tools/tool-result.js";
 
 const IMAGE_EXTENSIONS: Record<string, string> = {
   ".png": "image/png",

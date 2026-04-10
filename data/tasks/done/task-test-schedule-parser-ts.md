@@ -11,7 +11,7 @@ updated_at: 2026-03-19
 
 ## Problem
 
-`src/scheduler/schedule-parser.ts` contains three pure, deterministic functions (`getPendingSummary`, `projectHash`, `parseTime`) with no direct unit test coverage. These functions handle time parsing, project hashing, and summary generation for the scheduler — logic that is easy to break silently during refactors.
+`src/core/daemon/schedule-parser.ts` contains three pure, deterministic functions (`getPendingSummary`, `projectHash`, `parseTime`) with no direct unit test coverage. These functions handle time parsing, project hashing, and summary generation for the scheduler — logic that is easy to break silently during refactors.
 
 ## Desired Outcome
 

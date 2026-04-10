@@ -11,7 +11,7 @@ updated_at: 2026-03-27
 
 ## Problem
 
-`src/workflow/run-store-helpers.ts` is 317 lines. It mixes three concerns:
+`src/core/workflow/run-store-helpers.ts` is 317 lines. It mixes three concerns:
 runtime-state validation and assertion (`assertWorkflowRuntimeState`, `assertWorkflowRunMetadata`),
 generic file IO utilities (`ensureDir`, `safeJsonStringify`, `writeJsonFile`, `formatRunId`),
 and snapshot/summary builders (`buildWorkflowSnapshot`, `summarizeStep`, `extractRepairSummary`).

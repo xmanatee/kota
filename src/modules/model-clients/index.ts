@@ -6,7 +6,7 @@
  */
 
 import { registerModelClientFactory } from "../../model/model-client.js";
-import type { KotaModule } from "../../module-types.js";
+import type { KotaModule } from "../../core/modules/module-types.js";
 import { createModelClientImpl } from "./factory.js";
 
 // Self-register at module load so the registry is ready before initAgentSession.

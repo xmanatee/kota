@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { Context } from "./context.js";
-import { initTaskStore, resetTaskStore } from "./scheduler/task-store.js";
-import { runTodo } from "./tools/todo.js";
+import { Context } from "./core/loop/context.js";
+import { initTaskStore, resetTaskStore } from "./core/daemon/task-store.js";
+import { runTodo } from "./core/tools/todo.js";
 
 beforeAll(() => {
   initTaskStore(process.cwd(), null); // in-memory mode for tests

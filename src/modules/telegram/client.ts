@@ -1,4 +1,4 @@
-import type { AgentEvent, Transport } from "../../transport.js";
+import type { AgentEvent, Transport } from "../../core/loop/transport.js";
 
 export const TELEGRAM_API = "https://api.telegram.org";
 export const MAX_MESSAGE_LENGTH = 4096;

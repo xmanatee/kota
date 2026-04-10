@@ -11,17 +11,17 @@ updated_at: 2026-03-27
 
 ## Problem
 
-`src/tools/custom-tool.ts` is 285 lines and near the 300-line limit. It mixes the tool schema definition, CRUD action dispatching, three action handler functions, the runtime execution builder, and the persistence lifecycle (loadSavedTools, getCustomToolCount, resetCustomTools). The handler and execution logic is a separable unit.
+`src/core/tools/custom-tool.ts` is 285 lines and near the 300-line limit. It mixes the tool schema definition, CRUD action dispatching, three action handler functions, the runtime execution builder, and the persistence lifecycle (loadSavedTools, getCustomToolCount, resetCustomTools). The handler and execution logic is a separable unit.
 
 ## Desired Outcome
 
-A new `src/tools/custom-tool-handlers.ts` contains:
+A new `src/core/tools/custom-tool-handlers.ts` contains:
 - `handleCreate(...)` — validates and registers a new custom tool definition.
 - `handleList()` — formats and returns all registered custom tool definitions.
 - `handleRemove(...)` — deregisters a custom tool by name.
 - `buildRunner(...)` — builds the REPL-backed execution function for a custom tool def.
 
-`src/tools/custom-tool.ts` retains the tool schema, `runCustomTool` dispatcher, `initCustomToolRegistry`, and the persistence lifecycle functions.
+`src/core/tools/custom-tool.ts` retains the tool schema, `runCustomTool` dispatcher, `initCustomToolRegistry`, and the persistence lifecycle functions.
 
 ## Constraints
 
@@ -30,6 +30,6 @@ A new `src/tools/custom-tool-handlers.ts` contains:
 
 ## Done When
 
-- `src/tools/custom-tool-handlers.ts` exists with the extracted handler and runner logic.
-- `src/tools/custom-tool.ts` is measurably shorter (target ≤ 180 lines).
+- `src/core/tools/custom-tool-handlers.ts` exists with the extracted handler and runner logic.
+- `src/core/tools/custom-tool.ts` is measurably shorter (target ≤ 180 lines).
 - `npm run typecheck`, `npm run test`, and `npm run lint` all pass.

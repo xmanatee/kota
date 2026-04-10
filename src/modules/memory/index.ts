@@ -6,7 +6,7 @@
  */
 
 import { Command } from "commander";
-import type { KotaModule } from "../../module-types.js";
+import type { KotaModule } from "../../core/modules/module-types.js";
 import { registerMemoryCommands } from "./cli.js";
 import { memoryTool, runMemory } from "./memory.js";
 import { memoryRoutes } from "./routes.js";
@@ -24,7 +24,7 @@ const memoryModule: KotaModule = {
       group: "management",
     },
   ],
-  skills: [{ name: "memory", promptPath: "src/modules/skills/memory.md" }],
+  skills: [{ name: "memory", promptPath: "src/modules/memory/memory.md" }],
 
   commands: () => {
     const root = new Command("__root__");

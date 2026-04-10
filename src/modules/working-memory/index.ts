@@ -23,9 +23,9 @@ import {
 	removeEntry,
 	setEntry,
 } from "../../memory/working-memory.js";
-import type { ModuleStorage } from "../../module-storage.js";
-import type { KotaModule, ModuleContext } from "../../module-types.js";
-import type { ToolResult } from "../../tools/index.js";
+import type { ModuleStorage } from "../../core/modules/module-storage.js";
+import type { KotaModule, ModuleContext } from "../../core/modules/module-types.js";
+import type { ToolResult } from "../../core/tools/index.js";
 
 const STORAGE_KEY = "entries";
 
@@ -157,7 +157,7 @@ const workingMemoryModule: KotaModule = {
 		ctx.registerDynamicStateProvider("working-memory", getWorkingMemoryState);
 	},
 
-	skills: [{ name: "working-memory", promptPath: "src/modules/skills/working-memory.md" }],
+	skills: [{ name: "working-memory", promptPath: "src/modules/working-memory/working-memory.md" }],
 };
 
 export default workingMemoryModule;
