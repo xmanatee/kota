@@ -5,7 +5,7 @@ import type { WorkflowAgentBackoffState } from "../workflow/types.js";
 import type { DaemonState } from "./daemon-state.js";
 
 export type WorkflowDefinitionTriggerSummary =
-  | { type: "event"; event: string }
+  | { type: "event"; event: string; filter?: Record<string, string | string[]> }
   | { type: "cron"; schedule: string }
   | { type: "interval"; intervalMs: number }
   | { type: "webhook" }

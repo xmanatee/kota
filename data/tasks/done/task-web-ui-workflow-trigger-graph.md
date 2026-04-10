@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-workflow-trigger-graph
 title: Add workflow trigger dependency graph to the web UI definitions panel
-status: backlog
+status: done
 priority: p3
 area: web-ui
 summary: Workflows that trigger other workflows via workflow.completed events create implicit dependency chains that are invisible in the definitions panel. A simple dependency graph would let operators understand the full trigger topology at a glance.
 created_at: 2026-04-02T07:14:02Z
-updated_at: 2026-04-07T12:00:00Z
+updated_at: 2026-04-10T04:00:00Z
 ---
 
 ## Problem
