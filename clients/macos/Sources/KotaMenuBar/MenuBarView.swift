@@ -91,7 +91,11 @@ struct StatusHeaderView: View {
 
             Spacer()
 
-            if appState.projectDir == nil {
+            if appState.connectionMode == .remote {
+                Label("Remote", systemImage: "network")
+                    .font(.caption2)
+                    .foregroundStyle(.blue)
+            } else if appState.projectDir == nil {
                 Text("No project")
                     .font(.caption2)
                     .foregroundStyle(.orange)

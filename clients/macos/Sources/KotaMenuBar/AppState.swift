@@ -1,7 +1,56 @@
 import Foundation
+import Security
 import SwiftUI
 
 private let pollInterval: TimeInterval = 5
+private let keychainService = "com.kota.menubar"
+private let keychainAccount = "remote-daemon-token"
+
+// MARK: - Keychain helpers
+
+private func keychainSave(token: String) {
+    let data = Data(token.utf8)
+    let query: [CFString: Any] = [
+        kSecClass: kSecClassGenericPassword,
+        kSecAttrService: keychainService,
+        kSecAttrAccount: keychainAccount,
+        kSecValueData: data,
+    ]
+    SecItemDelete(query as CFDictionary)
+    SecItemAdd(query as CFDictionary, nil)
+}
+
+private func keychainRead() -> String? {
+    let query: [CFString: Any] = [
+        kSecClass: kSecClassGenericPassword,
+        kSecAttrService: keychainService,
+        kSecAttrAccount: keychainAccount,
+        kSecReturnData: true,
+        kSecMatchLimit: kSecMatchLimitOne,
+    ]
+    var result: AnyObject?
+    guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+          let data = result as? Data else { return nil }
+    return String(data: data, encoding: .utf8)
+}
+
+private func keychainDelete() {
+    let query: [CFString: Any] = [
+        kSecClass: kSecClassGenericPassword,
+        kSecAttrService: keychainService,
+        kSecAttrAccount: keychainAccount,
+    ]
+    SecItemDelete(query as CFDictionary)
+}
+
+// MARK: - Connection mode
+
+enum DaemonConnectionMode {
+    case local
+    case remote
+}
+
+// MARK: - AppState
 
 @MainActor
 final class AppState: ObservableObject {
@@ -19,6 +68,15 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Non-empty means remote mode is active; stored in UserDefaults (URL only, token in Keychain).
+    @Published var remoteURL: String = "" {
+        didSet { UserDefaults.standard.set(remoteURL, forKey: "remoteDaemonURL") }
+    }
+
+    var connectionMode: DaemonConnectionMode {
+        remoteURL.isEmpty ? .local : .remote
+    }
+
     let client = DaemonClient()
     private var pollTask: Task<Void, Never>?
 
@@ -26,10 +84,15 @@ final class AppState: ObservableObject {
         if let stored = UserDefaults.standard.string(forKey: "projectDirectory") {
             projectDir = URL(fileURLWithPath: stored)
         }
+        remoteURL = UserDefaults.standard.string(forKey: "remoteDaemonURL") ?? ""
         startPolling()
     }
 
     var webUIURL: URL {
+        if !remoteURL.isEmpty, let base = URL(string: remoteURL) {
+            // Best-effort: point web UI at the same host/port
+            return base
+        }
         let port = UserDefaults.standard.integer(forKey: "webUIPort")
         return URL(string: "http://localhost:\(port > 0 ? port : 3000)")!
     }
@@ -44,7 +107,45 @@ final class AppState: ObservableObject {
         }
     }
 
+    func saveRemoteConfig(url: String, token: String) {
+        remoteURL = url
+        if token.isEmpty {
+            keychainDelete()
+        } else {
+            keychainSave(token: token)
+        }
+        startPolling()
+    }
+
+    func clearRemoteConfig() {
+        remoteURL = ""
+        keychainDelete()
+        startPolling()
+    }
+
+    func loadRemoteToken() -> String {
+        keychainRead() ?? ""
+    }
+
     func refresh() async {
+        if !remoteURL.isEmpty {
+            await refreshRemote()
+        } else {
+            await refreshLocal()
+        }
+    }
+
+    private func refreshRemote() async {
+        guard let url = URL(string: remoteURL) else {
+            health = .error("Invalid remote URL")
+            return
+        }
+        let token = keychainRead() ?? ""
+        client.setRemoteConnection(url: url, token: token)
+        await fetchAll()
+    }
+
+    private func refreshLocal() async {
         guard let dir = projectDir else {
             health = .offline
             return
@@ -61,6 +162,10 @@ final class AppState: ObservableObject {
             return
         }
 
+        await fetchAll()
+    }
+
+    private func fetchAll() async {
         async let statusResult: Result<DaemonStatusResponse, Error> = {
             do { return .success(try await client.fetchStatus()) }
             catch { return .failure(error) }

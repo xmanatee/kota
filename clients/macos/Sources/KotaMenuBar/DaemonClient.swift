@@ -32,6 +32,10 @@ final class DaemonClient {
         return true
     }
 
+    func setRemoteConnection(url: URL, token: String) {
+        connection = DaemonConnection(baseURL: url, token: token)
+    }
+
     func fetchStatus() async throws -> DaemonStatusResponse {
         try await get("/status")
     }

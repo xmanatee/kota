@@ -1,7 +1,7 @@
 ---
 id: task-macos-remote-daemon-config
 title: Support remote daemon connection in macOS menu bar client
-status: backlog
+status: done
 priority: p2
 area: client
 summary: The macOS menu bar client discovers the daemon via a local project directory socket. Operators running KOTA on a remote machine cannot point the macOS client at that daemon. Add explicit URL + auth token configuration in Settings to enable remote connections.

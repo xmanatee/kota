@@ -53,6 +53,8 @@ struct SettingsView: View {
         let p = UserDefaults.standard.integer(forKey: "webUIPort")
         return p > 0 ? String(p) : "3000"
     }()
+    @State private var remoteURLField: String = ""
+    @State private var remoteTokenField: String = ""
 
     var body: some View {
         Form {
@@ -78,15 +80,64 @@ struct SettingsView: View {
                         .onSubmit { savePort() }
                 }
             }
+
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    TextField("http://host:port", text: $remoteURLField)
+                        .textFieldStyle(.roundedBorder)
+
+                    SecureField("Auth token", text: $remoteTokenField)
+                        .textFieldStyle(.roundedBorder)
+
+                    HStack {
+                        Button("Save") { saveRemote() }
+                            .disabled(remoteURLField.isEmpty)
+
+                        if !appState.remoteURL.isEmpty {
+                            Button("Clear", role: .destructive) { clearRemote() }
+                        }
+
+                        Spacer()
+
+                        if !appState.remoteURL.isEmpty {
+                            Label("Remote", systemImage: "network")
+                                .font(.caption)
+                                .foregroundStyle(.blue)
+                        }
+                    }
+                }
+            } header: {
+                Text("Remote Daemon")
+            } footer: {
+                Text("When configured, the remote URL takes precedence over local project-directory discovery. The token is stored in Keychain.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
-        .frame(width: 380)
+        .frame(width: 420)
         .padding()
+        .onAppear { loadRemoteFields() }
     }
 
     private func savePort() {
         if let port = Int(webUIPort), port > 0 {
             UserDefaults.standard.set(port, forKey: "webUIPort")
         }
+    }
+
+    private func loadRemoteFields() {
+        remoteURLField = appState.remoteURL
+        remoteTokenField = appState.loadRemoteToken()
+    }
+
+    private func saveRemote() {
+        appState.saveRemoteConfig(url: remoteURLField, token: remoteTokenField)
+    }
+
+    private func clearRemote() {
+        appState.clearRemoteConfig()
+        remoteURLField = ""
+        remoteTokenField = ""
     }
 }
