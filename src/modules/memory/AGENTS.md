@@ -7,9 +7,11 @@ This directory owns the `memory` management tool — persistent, searchable agen
 
 ## Files
 
-- `index.ts` — `KotaModule` definition; registers the tool and skill.
+- `index.ts` — `KotaModule` definition; registers the tool, skill, and HTTP routes.
 - `memory.ts` — `memoryTool` schema and `runMemory` runner (save/search/list/update/delete operations).
 - `memory.test.ts` — unit tests for memory operations.
+- `routes.ts` — HTTP route handlers for `/api/memory` and `/api/memory/:id`; contributed via `KotaModule.routes`.
+- `routes.test.ts` — unit tests for the HTTP route handlers.
 
 ## Boundaries
 

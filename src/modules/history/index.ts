@@ -10,6 +10,7 @@ import {
 	conversationRecallTool,
 	runConversationRecall,
 } from "./conversation-recall.js";
+import { historyRoutes } from "./routes.js";
 
 const historyModule: KotaModule = {
 	name: "history",
@@ -26,6 +27,8 @@ const historyModule: KotaModule = {
 		},
 	],
 	skills: [{ name: "history", promptPath: "src/modules/skills/history.md" }],
+
+	routes: () => historyRoutes(),
 };
 
 export default historyModule;

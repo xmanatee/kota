@@ -8,6 +8,7 @@
 import { Command } from "commander";
 import type { KotaModule } from "../../module-types.js";
 import { registerTaskCommands } from "./cli.js";
+import { taskRoutes } from "./routes.js";
 
 const repoTasksModule: KotaModule = {
 	name: "repo-tasks",
@@ -19,6 +20,8 @@ const repoTasksModule: KotaModule = {
 		registerTaskCommands(root);
 		return root.commands as Command[];
 	},
+
+	routes: () => taskRoutes(),
 };
 
 export default repoTasksModule;

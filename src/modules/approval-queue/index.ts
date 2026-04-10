@@ -9,6 +9,7 @@
 import { Command } from "commander";
 import type { KotaModule } from "../../module-types.js";
 import { registerApprovalCommands } from "./cli.js";
+import { approvalRoutes } from "./routes.js";
 
 export type { ApprovalStatus, PendingApproval } from "./queue.js";
 export { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "./queue.js";
@@ -23,6 +24,8 @@ const approvalQueueModule: KotaModule = {
 		registerApprovalCommands(root);
 		return root.commands as Command[];
 	},
+
+	routes: () => approvalRoutes(),
 };
 
 export default approvalQueueModule;

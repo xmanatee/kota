@@ -2,9 +2,10 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
-import { getRepoInboxDir, getRepoTasksDir, type RepoTaskState } from "../repo-tasks.js";
-import type { DaemonControlClient } from "./daemon-client.js";
-import { jsonResponse, readBody } from "./session-pool.js";
+import type { RouteRegistration } from "../../module-types.js";
+import { getRepoInboxDir, getRepoTasksDir, type RepoTaskState } from "../../repo-tasks.js";
+import { DaemonControlClient } from "../../server/daemon-client.js";
+import { jsonResponse, readBody } from "../../server/session-pool.js";
 
 type TaskDetail = {
   id: string;
@@ -357,4 +358,40 @@ export async function handleTaskStatus(
     DETAIL_STATES.map((state) => [state, readStateTasks(tasksDir, state)]),
   ) as TasksResponse["tasks"];
   jsonResponse(res, 200, { counts, tasks } satisfies TasksResponse);
+}
+
+const TASK_STATE_PATTERN = /^\/api\/tasks\/([^/]+)\/state$/;
+const TASK_BODY_PATTERN = /^\/api\/tasks\/([^/]+)\/body$/;
+
+export function taskRoutes(): RouteRegistration[] {
+  return [
+    {
+      method: "GET",
+      path: "/api/tasks",
+      handler: (_req, res) => handleTaskStatus(res, DaemonControlClient.fromStateDir()),
+    },
+    {
+      method: "POST",
+      path: "/api/tasks",
+      handler: (req, res) => handleTaskCreate(req, res),
+    },
+    {
+      method: "PATCH",
+      path: "/api/tasks/",
+      pathPattern: TASK_STATE_PATTERN,
+      handler: (req, res) => {
+        const match = new URL(req.url!, "http://localhost").pathname.match(TASK_STATE_PATTERN);
+        return handleTaskStateChange(req, res, match![1]);
+      },
+    },
+    {
+      method: "PATCH",
+      path: "/api/tasks/",
+      pathPattern: TASK_BODY_PATTERN,
+      handler: (req, res) => {
+        const match = new URL(req.url!, "http://localhost").pathname.match(TASK_BODY_PATTERN);
+        return handleTaskBodyUpdate(req, res, match![1]);
+      },
+    },
+  ];
 }

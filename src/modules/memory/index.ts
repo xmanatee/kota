@@ -9,6 +9,7 @@ import { Command } from "commander";
 import type { KotaModule } from "../../module-types.js";
 import { registerMemoryCommands } from "./cli.js";
 import { memoryTool, runMemory } from "./memory.js";
+import { memoryRoutes } from "./routes.js";
 
 const memoryModule: KotaModule = {
   name: "memory",
@@ -30,6 +31,8 @@ const memoryModule: KotaModule = {
     registerMemoryCommands(root);
     return root.commands as Command[];
   },
+
+  routes: () => memoryRoutes(),
 };
 
 export default memoryModule;

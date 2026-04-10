@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { URL } from "node:url";
-import { getHistory } from "../memory/history.js";
-import type { DaemonControlClient } from "./daemon-client.js";
-import { jsonResponse } from "./session-pool.js";
+import { getHistory } from "../../memory/history.js";
+import type { RouteRegistration } from "../../module-types.js";
+import { DaemonControlClient } from "../../server/daemon-client.js";
+import { jsonResponse } from "../../server/session-pool.js";
 
 export async function handleListHistory(
   res: ServerResponse,
@@ -71,4 +71,37 @@ export async function handleDeleteHistory(
   } else {
     jsonResponse(res, 404, { error: "Conversation not found" });
   }
+}
+
+const HISTORY_ENTRY_PATTERN = /^\/api\/history\/([^/]+)$/;
+
+export function historyRoutes(): RouteRegistration[] {
+  return [
+    {
+      method: "GET",
+      path: "/api/history",
+      handler: (req, res) => {
+        const url = new URL(req.url!, `http://localhost`);
+        return handleListHistory(res, url, DaemonControlClient.fromStateDir());
+      },
+    },
+    {
+      method: "GET",
+      path: "/api/history/",
+      pathPattern: HISTORY_ENTRY_PATTERN,
+      handler: (req, res) => {
+        const match = new URL(req.url!, "http://localhost").pathname.match(HISTORY_ENTRY_PATTERN);
+        return handleGetHistory(res, match![1], DaemonControlClient.fromStateDir());
+      },
+    },
+    {
+      method: "DELETE",
+      path: "/api/history/",
+      pathPattern: HISTORY_ENTRY_PATTERN,
+      handler: (req, res) => {
+        const match = new URL(req.url!, "http://localhost").pathname.match(HISTORY_ENTRY_PATTERN);
+        return handleDeleteHistory(req, res, match![1], DaemonControlClient.fromStateDir());
+      },
+    },
+  ];
 }

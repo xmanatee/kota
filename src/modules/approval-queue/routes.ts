@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { type ApprovalQueue, getApprovalQueue } from "../modules/approval-queue/queue.js";
-import type { DaemonControlClient } from "./daemon-client.js";
-import { jsonResponse, readBody } from "./session-pool.js";
+import type { RouteRegistration } from "../../module-types.js";
+import { DaemonControlClient } from "../../server/daemon-client.js";
+import { jsonResponse, readBody } from "../../server/session-pool.js";
+import { type ApprovalQueue, getApprovalQueue } from "./queue.js";
 
 export async function handleApproveAllApprovals(
   req: IncomingMessage,
@@ -126,4 +127,40 @@ export async function handleRejectApproval(
     return;
   }
   jsonResponse(res, 200, { approval: item });
+}
+
+const APPROVAL_ACTION_PATTERN = /^\/api\/approvals\/([^/]+)\/(approve|reject)$/;
+
+export function approvalRoutes(): RouteRegistration[] {
+  return [
+    {
+      method: "GET",
+      path: "/api/approvals",
+      handler: (_req, res) => handleListApprovals(res, DaemonControlClient.fromStateDir()),
+    },
+    {
+      method: "POST",
+      path: "/api/approvals/approve-all",
+      handler: (req, res) => handleApproveAllApprovals(req, res, DaemonControlClient.fromStateDir()),
+    },
+    {
+      method: "POST",
+      path: "/api/approvals/reject-all",
+      handler: (req, res) => handleRejectAllApprovals(req, res, DaemonControlClient.fromStateDir()),
+    },
+    {
+      method: "POST",
+      path: "/api/approvals/",
+      pathPattern: APPROVAL_ACTION_PATTERN,
+      handler: (req, res) => {
+        const match = new URL(req.url!, "http://localhost").pathname.match(APPROVAL_ACTION_PATTERN);
+        const id = match![1];
+        const action = match![2];
+        if (action === "approve") {
+          return handleApproveApproval(req, res, id, DaemonControlClient.fromStateDir());
+        }
+        return handleRejectApproval(req, res, id, DaemonControlClient.fromStateDir());
+      },
+    },
+  ];
 }

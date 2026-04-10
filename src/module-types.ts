@@ -103,7 +103,17 @@ export type ToolDef = {
 /** An HTTP route registered by a module. */
 export type RouteRegistration = {
   method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+  /**
+   * Exact path string for fixed routes. For routes with path parameters,
+   * provide `pathPattern` instead and leave `path` as the base prefix.
+   */
   path: string;
+  /**
+   * Optional regex for routes with path parameters. When present, matched
+   * against the request pathname instead of exact `path` comparison.
+   * The handler must extract parameters from `req.url` itself.
+   */
+  pathPattern?: RegExp;
   handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>;
   /**
    * When true, the server skips the bearer-token auth check for this route.

@@ -10,6 +10,7 @@ import { Command } from "commander";
 import type { KotaModule } from "../../module-types.js";
 import { registerKnowledgeCommands } from "./cli.js";
 import { knowledgeTool, runKnowledge } from "./knowledge.js";
+import { knowledgeRoutes } from "./routes.js";
 
 const knowledgeModule: KotaModule = {
 	name: "knowledge",
@@ -30,6 +31,8 @@ const knowledgeModule: KotaModule = {
 		registerKnowledgeCommands(root);
 		return root.commands as Command[];
 	},
+
+	routes: () => knowledgeRoutes(),
 };
 
 export default knowledgeModule;

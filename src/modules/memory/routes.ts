@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { Memory } from "../memory/store.js";
-import { getMemoryProvider } from "../modules/providers/index.js";
-import { jsonResponse, readBody } from "./session-pool.js";
+import type { Memory } from "../../memory/store.js";
+import type { RouteRegistration } from "../../module-types.js";
+import { jsonResponse, readBody } from "../../server/session-pool.js";
+import { getMemoryProvider } from "../providers/index.js";
 
 type MemoryListItem = {
   id: string;
@@ -110,4 +111,48 @@ export function handleDeleteMemory(res: ServerResponse, id: string): void {
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }
+}
+
+const MEMORY_ENTRY_PATTERN = /^\/api\/memory\/([^/]+)$/;
+
+export function memoryRoutes(): RouteRegistration[] {
+  return [
+    {
+      method: "GET",
+      path: "/api/memory",
+      handler: (_req, res) => handleListMemory(res),
+    },
+    {
+      method: "POST",
+      path: "/api/memory",
+      handler: (req, res) => handleAddMemory(req, res),
+    },
+    {
+      method: "GET",
+      path: "/api/memory/",
+      pathPattern: MEMORY_ENTRY_PATTERN,
+      handler: (req, res) => {
+        const match = new URL(req.url!, "http://localhost").pathname.match(MEMORY_ENTRY_PATTERN);
+        handleGetMemory(res, match![1]);
+      },
+    },
+    {
+      method: "DELETE",
+      path: "/api/memory/",
+      pathPattern: MEMORY_ENTRY_PATTERN,
+      handler: (req, res) => {
+        const match = new URL(req.url!, "http://localhost").pathname.match(MEMORY_ENTRY_PATTERN);
+        handleDeleteMemory(res, match![1]);
+      },
+    },
+    {
+      method: "PATCH",
+      path: "/api/memory/",
+      pathPattern: MEMORY_ENTRY_PATTERN,
+      handler: (req, res) => {
+        const match = new URL(req.url!, "http://localhost").pathname.match(MEMORY_ENTRY_PATTERN);
+        return handleUpdateMemory(req, res, match![1]);
+      },
+    },
+  ];
 }

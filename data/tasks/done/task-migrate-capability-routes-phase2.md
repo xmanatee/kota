@@ -1,7 +1,7 @@
 ---
 id: task-migrate-capability-routes-phase2
 title: Migrate remaining capability routes from src/server/ to owning modules
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: The first phase of server route migration moved audit, config, and module-list routes to their owning modules. Five capability route files remain in src/server/ — memory, knowledge, history, approval-queue, and task — each owned by a module that exists in src/modules/.

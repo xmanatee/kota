@@ -2,14 +2,14 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApprovalQueue } from "../modules/approval-queue/queue.js";
+import { ApprovalQueue } from "./queue.js";
 import {
 	handleApproveAllApprovals,
 	handleApproveApproval,
 	handleListApprovals,
 	handleRejectAllApprovals,
 	handleRejectApproval,
-} from "./approval-routes.js";
+} from "./routes.js";
 
 function makeQueue(): ApprovalQueue {
 	const dir = join(tmpdir(), `kota-approvals-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
@@ -63,7 +63,7 @@ function mockClient(overrides: Partial<Record<string, unknown>> = {}) {
 		approveAllApprovals: vi.fn(async () => null),
 		rejectAllApprovals: vi.fn(async () => null),
 		...overrides,
-	} as unknown as import("./daemon-client.js").DaemonControlClient;
+	} as unknown as import("../../server/daemon-client.js").DaemonControlClient;
 }
 
 describe("approval-routes", () => {

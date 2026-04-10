@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
-import type { Memory } from "../memory/store.js";
-import type { MemoryProvider } from "../provider-types.js";
-import { handleAddMemory, handleDeleteMemory, handleGetMemory, handleListMemory, handleUpdateMemory } from "./memory-routes.js";
+import type { Memory } from "../../memory/store.js";
+import type { MemoryProvider } from "../../provider-types.js";
+import { handleAddMemory, handleDeleteMemory, handleGetMemory, handleListMemory, handleUpdateMemory } from "./routes.js";
 
 function mockResponse() {
   const result = { status: 0, body: null as unknown };
@@ -35,11 +35,11 @@ function makeProvider(entries: Memory[]): MemoryProvider {
   };
 }
 
-vi.mock("../modules/providers/index.js", () => ({
+vi.mock("../providers/index.js", () => ({
   getMemoryProvider: vi.fn(),
 }));
 
-import { getMemoryProvider } from "../modules/providers/index.js";
+import { getMemoryProvider } from "../providers/index.js";
 
 describe("memory-routes", () => {
   describe("handleListMemory", () => {

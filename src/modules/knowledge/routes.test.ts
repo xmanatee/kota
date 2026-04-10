@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
-import type { KnowledgeEntry } from "../memory/knowledge-store-helpers.js";
-import type { KnowledgeProvider } from "../provider-types.js";
-import { handleAddKnowledge, handleDeleteKnowledge, handleGetKnowledge, handleListKnowledge, handleUpdateKnowledge } from "./knowledge-routes.js";
+import type { KnowledgeEntry } from "../../memory/knowledge-store-helpers.js";
+import type { KnowledgeProvider } from "../../provider-types.js";
+import { handleAddKnowledge, handleDeleteKnowledge, handleGetKnowledge, handleListKnowledge, handleUpdateKnowledge } from "./routes.js";
 
 function mockResponse() {
   const result = { status: 0, body: null as unknown };
@@ -42,11 +42,11 @@ function makeProvider(entries: KnowledgeEntry[]): KnowledgeProvider {
   };
 }
 
-vi.mock("../modules/providers/index.js", () => ({
+vi.mock("../providers/index.js", () => ({
   getKnowledgeProvider: vi.fn(),
 }));
 
-import { getKnowledgeProvider } from "../modules/providers/index.js";
+import { getKnowledgeProvider } from "../providers/index.js";
 
 describe("knowledge-routes", () => {
   describe("handleListKnowledge", () => {

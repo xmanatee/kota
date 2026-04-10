@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { handleTaskBodyUpdate, handleTaskCreate, handleTaskStateChange, handleTaskStatus } from "./task-routes.js";
+import { handleTaskBodyUpdate, handleTaskCreate, handleTaskStateChange, handleTaskStatus } from "./routes.js";
 
 function makeProjectDir(): string {
   const dir = join(
@@ -47,7 +47,7 @@ function mockClient(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     getTaskStatus: vi.fn(async () => null),
     ...overrides,
-  } as unknown as import("./daemon-client.js").DaemonControlClient;
+  } as unknown as import("../../server/daemon-client.js").DaemonControlClient;
 }
 
 function mockRequest(body: Record<string, unknown>): IncomingMessage {

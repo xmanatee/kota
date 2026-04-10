@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { KnowledgeEntry } from "../memory/knowledge-store-helpers.js";
-import { getKnowledgeProvider } from "../modules/providers/index.js";
-import { jsonResponse, readBody } from "./session-pool.js";
+import type { KnowledgeEntry } from "../../memory/knowledge-store-helpers.js";
+import type { RouteRegistration } from "../../module-types.js";
+import { jsonResponse, readBody } from "../../server/session-pool.js";
+import { getKnowledgeProvider } from "../providers/index.js";
 
 type KnowledgeListItem = {
   id: string;
@@ -139,4 +140,48 @@ export function handleDeleteKnowledge(
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }
+}
+
+const KNOWLEDGE_ENTRY_PATTERN = /^\/api\/knowledge\/([^/]+)$/;
+
+export function knowledgeRoutes(): RouteRegistration[] {
+  return [
+    {
+      method: "GET",
+      path: "/api/knowledge",
+      handler: (_req, res) => handleListKnowledge(res),
+    },
+    {
+      method: "POST",
+      path: "/api/knowledge",
+      handler: (req, res) => handleAddKnowledge(req, res),
+    },
+    {
+      method: "GET",
+      path: "/api/knowledge/",
+      pathPattern: KNOWLEDGE_ENTRY_PATTERN,
+      handler: (req, res) => {
+        const match = new URL(req.url!, "http://localhost").pathname.match(KNOWLEDGE_ENTRY_PATTERN);
+        handleGetKnowledge(res, match![1]);
+      },
+    },
+    {
+      method: "DELETE",
+      path: "/api/knowledge/",
+      pathPattern: KNOWLEDGE_ENTRY_PATTERN,
+      handler: (req, res) => {
+        const match = new URL(req.url!, "http://localhost").pathname.match(KNOWLEDGE_ENTRY_PATTERN);
+        handleDeleteKnowledge(res, match![1]);
+      },
+    },
+    {
+      method: "PATCH",
+      path: "/api/knowledge/",
+      pathPattern: KNOWLEDGE_ENTRY_PATTERN,
+      handler: (req, res) => {
+        const match = new URL(req.url!, "http://localhost").pathname.match(KNOWLEDGE_ENTRY_PATTERN);
+        return handleUpdateKnowledge(req, res, match![1]);
+      },
+    },
+  ];
 }

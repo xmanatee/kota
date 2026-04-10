@@ -9,29 +9,39 @@ HTTP API server with session management and real-time notifications.
 | `server.ts` | `startServer()` — HTTP server with REST endpoints and module route integration |
 | `session-pool.ts` | `SessionPool` — manages concurrent agent sessions, SSE transport, CORS |
 | `server-notifications.ts` | `NotificationHub` — SSE push notifications for scheduled action results |
-| `server-routes.ts` | Thin orchestrator — `ServerContext`, route dispatch, passes `DaemonControlClient` to proxy-capable handlers |
+| `server-routes.ts` | Thin orchestrator — `ServerContext`, route dispatch, supports module-contributed routes (including parameterized paths via `pathPattern`) |
 | `session-routes.ts` | Session CRUD and chat handlers |
-| `history-routes.ts` | History list/get/delete handlers (proxy-capable) |
-| `approval-routes.ts` | Approval list/approve/reject handlers (proxy-capable) |
-| `task-routes.ts` | Task read (`GET /api/tasks`), state-move (`PATCH /api/tasks/:id/state`), body-edit (`PATCH /api/tasks/:id/body`), and inbox capture (`POST /api/tasks`) handlers (proxy-capable) |
 | `workflow-routes.ts` | Workflow run and status handlers |
 | `workflow-run-routes.ts` | Workflow run detail and log streaming handlers |
 | `daemon-routes.ts` | `queryDaemonStatus` — reads live daemon status via `DaemonControlClient` |
 | `daemon-client.ts` | `DaemonControlClient` — queries the running daemon's loopback HTTP control API |
 | `event-routes.ts` | `handleEventTrigger` — emits a named event onto the bus |
-| `knowledge-routes.ts` | Knowledge CRUD handlers: list, get, add (`POST`), update (`PATCH /api/knowledge/:id`), and delete |
-| `memory-routes.ts` | Memory CRUD handlers: list, get, add (`POST`), update (`PATCH /api/memory/:id`), and delete |
+
+## Module-Contributed Routes
+
+Capability-specific routes are contributed by their owning modules via `KotaModule.routes`:
+
+| Module | Routes | Location |
+|--------|--------|----------|
+| `memory` | `/api/memory`, `/api/memory/:id` | `src/modules/memory/routes.ts` |
+| `knowledge` | `/api/knowledge`, `/api/knowledge/:id` | `src/modules/knowledge/routes.ts` |
+| `history` | `/api/history`, `/api/history/:conversationId` | `src/modules/history/routes.ts` |
+| `approval-queue` | `/api/approvals`, `/api/approvals/:id/approve`, `/api/approvals/:id/reject` | `src/modules/approval-queue/routes.ts` |
+| `repo-tasks` | `/api/tasks`, `/api/tasks/:id/state`, `/api/tasks/:id/body` | `src/modules/repo-tasks/routes.ts` |
+| `guardrails-audit` | `/api/audit` | `src/modules/guardrails-audit/routes.ts` |
+| `config` | `/api/config` | `src/modules/config/routes.ts` |
+| `module-manager` | `/api/modules` | `src/modules/module-manager/routes.ts` (inline) |
 
 ## Proxy Pattern
 
-`history-routes.ts`, `approval-routes.ts`, and `task-routes.ts` accept an optional `DaemonControlClient` as a parameter. When the client is present (daemon is running), they proxy the request through the daemon's control API and return. When `null`, they run in standalone server mode and read local state directly.
+The `history`, `approval-queue`, and `repo-tasks` route handlers accept an optional `DaemonControlClient`. When the client is present (daemon is running), they proxy the request through the daemon's control API and return. When `null`, they run in standalone server mode and read local state directly.
 
-`server-routes.ts` passes `DaemonControlClient.fromStateDir()` to all three. Tests for these handlers must cover **both paths**: the proxy path (mock client returning data) and the standalone path (null client, direct reads).
+Tests for these handlers must cover **both paths**: the proxy path (mock client returning data) and the standalone path (null client, direct reads).
 
 ## Dependencies
 
 - `server.ts` ← `session-pool.ts`, `server-notifications.ts`, `../scheduler/*`, `../memory/*`, `../loop.ts`
-- `server-routes.ts` ← all `*-routes.ts` files, `session-pool.ts`, `daemon-client.ts`
+- `server-routes.ts` ← `session-routes.ts`, `workflow-routes.ts`, `workflow-run-routes.ts`, `daemon-routes.ts`, `event-routes.ts`, `session-pool.ts`, `daemon-client.ts`
 - `session-pool.ts` ← `../transport.ts`, `../loop.ts`
 - `server-notifications.ts` ← `session-pool.ts`, `../scheduler/*`
 - `daemon-client.ts` ← `../scheduler/daemon-control.ts` (types)

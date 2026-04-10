@@ -108,13 +108,10 @@ export function listRootLevelCliArchitectureDebt(projectDir: string): string[] {
     .sort();
 }
 
-// Routes that live in src/server/ but belong in their owning modules.
-// history-routes.ts, approval-routes.ts, and task-routes.ts are intentionally
-// excluded: they use the DaemonControlClient proxy pattern and are server-core.
-const SERVER_ROUTE_MIGRATION_TARGETS = [
-  "memory-routes.ts",
-  "knowledge-routes.ts",
-];
+// Routes that once lived in src/server/ but have been migrated to owning modules.
+// All five capability route files have been migrated; this list is now empty.
+// The function is retained so references to listVisibleArchitectureDebt remain valid.
+const SERVER_ROUTE_MIGRATION_TARGETS: string[] = [];
 
 export function listServerRouteMigrationDebt(projectDir: string): string[] {
   const serverDir = join(projectDir, "src", "server");

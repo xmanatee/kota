@@ -6,19 +6,9 @@ import type { Scheduler } from "../scheduler/scheduler.js";
 import type { Transport } from "../transport.js";
 import { getWebUI } from "../web-ui/web-ui.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
-import {
-  handleApproveAllApprovals,
-  handleApproveApproval,
-  handleListApprovals,
-  handleRejectAllApprovals,
-  handleRejectApproval,
-} from "./approval-routes.js";
 import { DaemonControlClient } from "./daemon-client.js";
 import { queryDaemonStatus } from "./daemon-routes.js";
 import { handleEventTrigger } from "./event-routes.js";
-import { handleDeleteHistory, handleGetHistory, handleListHistory } from "./history-routes.js";
-import { handleAddKnowledge, handleDeleteKnowledge, handleGetKnowledge, handleListKnowledge, handleUpdateKnowledge } from "./knowledge-routes.js";
-import { handleAddMemory, handleDeleteMemory, handleGetMemory, handleListMemory, handleUpdateMemory } from "./memory-routes.js";
 import type { NotificationHub } from "./server-notifications.js";
 import {
   jsonResponse,
@@ -32,7 +22,6 @@ import {
   handleDeleteSession,
   handleListSessions,
 } from "./session-routes.js";
-import { handleTaskBodyUpdate, handleTaskCreate, handleTaskStateChange, handleTaskStatus } from "./task-routes.js";
 import {
   handleWorkflowAbort,
   handleWorkflowAbortRun,
@@ -159,28 +148,6 @@ export function buildRequestHandler(ctx: ServerContext) {
       return;
     }
 
-    if (req.method === "GET" && path === "/api/history") {
-      handleListHistory(res, url, DaemonControlClient.fromStateDir()).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    const historyMatch = path.match(/^\/api\/history\/([^/]+)$/);
-    if (req.method === "GET" && historyMatch) {
-      handleGetHistory(res, historyMatch[1], DaemonControlClient.fromStateDir()).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    if (req.method === "DELETE" && historyMatch) {
-      handleDeleteHistory(req, res, historyMatch[1], DaemonControlClient.fromStateDir()).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
     const eventMatch = path.match(/^\/api\/events\/([^/]+)$/);
     if (req.method === "POST" && eventMatch) {
       let eventName: string;
@@ -191,133 +158,6 @@ export function buildRequestHandler(ctx: ServerContext) {
         return;
       }
       handleEventTrigger(req, res, ctx.bus, eventName).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    if (req.method === "GET" && path === "/api/approvals") {
-      handleListApprovals(res, DaemonControlClient.fromStateDir()).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    if (req.method === "POST" && path === "/api/approvals/approve-all") {
-      handleApproveAllApprovals(req, res, DaemonControlClient.fromStateDir()).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    if (req.method === "POST" && path === "/api/approvals/reject-all") {
-      handleRejectAllApprovals(req, res, DaemonControlClient.fromStateDir()).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    const approvalActionMatch = path.match(/^\/api\/approvals\/([^/]+)\/(approve|reject)$/);
-    if (req.method === "POST" && approvalActionMatch) {
-      const approvalId = approvalActionMatch[1];
-      const action = approvalActionMatch[2];
-      if (action === "approve") {
-        handleApproveApproval(req, res, approvalId, DaemonControlClient.fromStateDir()).catch((err) => {
-          if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-        });
-      } else {
-        handleRejectApproval(req, res, approvalId, DaemonControlClient.fromStateDir()).catch((err) => {
-          if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-        });
-      }
-      return;
-    }
-
-    if (req.method === "GET" && path === "/api/tasks") {
-      handleTaskStatus(res, DaemonControlClient.fromStateDir()).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    if (req.method === "POST" && path === "/api/tasks") {
-      handleTaskCreate(req, res).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    const taskStateMatch = path.match(/^\/api\/tasks\/([^/]+)\/state$/);
-    if (req.method === "PATCH" && taskStateMatch) {
-      handleTaskStateChange(req, res, taskStateMatch[1]).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    const taskBodyMatch = path.match(/^\/api\/tasks\/([^/]+)\/body$/);
-    if (req.method === "PATCH" && taskBodyMatch) {
-      handleTaskBodyUpdate(req, res, taskBodyMatch[1]).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    if (req.method === "GET" && path === "/api/knowledge") {
-      handleListKnowledge(res);
-      return;
-    }
-
-    if (req.method === "POST" && path === "/api/knowledge") {
-      handleAddKnowledge(req, res).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    const knowledgeEntryMatch = path.match(/^\/api\/knowledge\/([^/]+)$/);
-    if (req.method === "GET" && knowledgeEntryMatch) {
-      handleGetKnowledge(res, knowledgeEntryMatch[1]);
-      return;
-    }
-
-    if (req.method === "DELETE" && knowledgeEntryMatch) {
-      handleDeleteKnowledge(res, knowledgeEntryMatch[1]);
-      return;
-    }
-
-    if (req.method === "PATCH" && knowledgeEntryMatch) {
-      handleUpdateKnowledge(req, res, knowledgeEntryMatch[1]).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    if (req.method === "GET" && path === "/api/memory") {
-      handleListMemory(res);
-      return;
-    }
-
-    if (req.method === "POST" && path === "/api/memory") {
-      handleAddMemory(req, res).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    const memoryEntryMatch = path.match(/^\/api\/memory\/([^/]+)$/);
-    if (req.method === "GET" && memoryEntryMatch) {
-      handleGetMemory(res, memoryEntryMatch[1]);
-      return;
-    }
-
-    if (req.method === "DELETE" && memoryEntryMatch) {
-      handleDeleteMemory(res, memoryEntryMatch[1]);
-      return;
-    }
-
-    if (req.method === "PATCH" && memoryEntryMatch) {
-      handleUpdateMemory(req, res, memoryEntryMatch[1]).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;
@@ -495,7 +335,7 @@ export function buildRequestHandler(ctx: ServerContext) {
     }
 
     for (const route of ctx.moduleRoutes) {
-      if (req.method === route.method && path === route.path) {
+      if (req.method === route.method && (route.pathPattern ? route.pathPattern.test(path) : path === route.path)) {
         Promise.resolve(route.handler(req, res)).catch((err) => {
           if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
         });

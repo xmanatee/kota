@@ -8,9 +8,11 @@ This directory owns the `knowledge` management tool — a structured, file-based
 
 ## Files
 
-- `index.ts` — `KotaModule` definition; registers the tool and skill.
+- `index.ts` — `KotaModule` definition; registers the tool, skill, and HTTP routes.
 - `knowledge.ts` — `knowledgeTool` schema and `runKnowledge` runner.
 - `knowledge-schema.ts` — shared type definitions and schema helpers for knowledge entries.
+- `routes.ts` — HTTP route handlers for `/api/knowledge` and `/api/knowledge/:id`; contributed via `KotaModule.routes`.
+- `routes.test.ts` — unit tests for the HTTP route handlers.
 
 ## Boundaries
 
