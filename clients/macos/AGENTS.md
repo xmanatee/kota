@@ -14,7 +14,7 @@ A native SwiftUI `MenuBarExtra` app (macOS 13+) that surfaces KOTA daemon state 
 - `AppState.swift` — `ObservableObject` that holds daemon status, active runs, pending approvals, task queue, and drives the poll loop.
 - `DaemonClient.swift` — typed HTTP client for the daemon control API; reads `daemon-control.json`, sets `Authorization` header.
 - `Models.swift` — `Decodable` types mirroring the daemon API response shapes.
-- `MenuBarView.swift` — top-level menu bar popover; delegates to section views.
+- `MenuBarView.swift` — top-level menu bar popover; delegates to section views. Also contains embedded reusable components: `StatusHeaderView`, `ActiveRunRow` (expandable run row with inline step detail), `RunDetailInlineView` (inline loading + error + content shell), `RunDetailContent` (step list + current step), `TaskQueueView` (collapsible queue summary), `MenuActionButton`.
 - `ApprovalsView.swift` — list of pending approvals with approve/reject buttons.
 - `SessionsView.swift` — list of active interactive sessions from `GET /sessions`, with session ID and elapsed time.
 - `TriggerWorkflowView.swift` — small form for triggering a workflow by name.
