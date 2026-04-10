@@ -11,6 +11,7 @@ import type { KotaModule, ModuleContext } from "../../core/modules/module-types.
 import { registerControlCommands } from "./control.js";
 import { registerDefinitionLogCommand } from "./definition-log.js";
 import { registerDefinitionsCommand } from "./definitions.js";
+import { registerDepsCommand } from "./deps.js";
 import { registerFollowCommand } from "./follow.js";
 import { registerGcCommand } from "./gc.js";
 import { registerLogsCommand } from "./logs.js";
@@ -46,6 +47,7 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
   registerStepInspectCommand(wfCmd);
   registerRunDiffCommand(wfCmd);
   registerDefinitionsCommand(wfCmd, ctx);
+  registerDepsCommand(wfCmd, ctx);
   registerDefinitionLogCommand(wfCmd, ctx);
   registerCostCommand(wfCmd);
   registerLogsCommand(wfCmd);
@@ -63,7 +65,7 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
 const workflowModule: KotaModule = {
   name: "workflow-ops",
   version: "1.0.0",
-  description: "Workflow CLI surface — kota workflow list/show/run/control/validate/definitions/logs/gc/export/diff/cost/stats",
+  description: "Workflow CLI surface — kota workflow list/show/run/control/validate/definitions/deps/logs/gc/export/diff/cost/stats",
   commands: (ctx) => [buildWorkflowCommand(ctx)],
   routes: () => workflowRoutes(),
 };

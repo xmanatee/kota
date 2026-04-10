@@ -872,6 +872,23 @@ definition errors before they reach the daemon.
 - `--json` — emit a structured JSON array of `{ name, valid, error? }` objects.
 - Does not require a running daemon.
 
+### Dependency graph
+
+```
+kota workflow deps [--format <table|dot>]
+```
+
+Loads all discovered workflow definitions and displays the trigger dependency
+graph: which bus events each workflow listens to, which events it emits, and
+which workflows those events wake. Works offline without a running daemon.
+
+- Default output is a human-readable tree grouped by workflow.
+- `--format dot` produces Graphviz DOT output suitable for rendering with `dot -Tpng`.
+- Emitted-event detection is best-effort from `type: "emit"` step definitions;
+  dynamic emissions from agent code are not statically detectable.
+- Direct workflow triggers (`type: "trigger"` steps) are shown separately from
+  event-based connections.
+
 ## Operator Notifications
 
 The following bus events are emitted during workflow execution and can be forwarded

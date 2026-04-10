@@ -1,12 +1,12 @@
 ---
 id: task-workflow-dep-map-cli
 title: Add workflow trigger dependency map to CLI
-status: backlog
+status: done
 priority: p2
 area: operator
 summary: Operators cannot easily see which bus events trigger which workflows or which workflows emit which events. A kota workflow deps command would render this trigger graph, making the autonomy system observable without a running daemon.
 created_at: 2026-04-10T09:20:00Z
-updated_at: 2026-04-10T09:20:00Z
+updated_at: 2026-04-10T13:21:28Z
 ---
 
 ## Problem
