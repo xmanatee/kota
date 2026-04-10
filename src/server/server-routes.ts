@@ -1,8 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { KotaConfig } from "../config.js";
 import type { EventBus } from "../event-bus.js";
 import type { AgentSession } from "../loop.js";
-import type { ModuleSummary, RouteRegistration } from "../module-types.js";
+import type { RouteRegistration } from "../module-types.js";
 import type { Scheduler } from "../scheduler/scheduler.js";
 import type { Transport } from "../transport.js";
 import { getWebUI } from "../web-ui/web-ui.js";
@@ -14,15 +13,12 @@ import {
   handleRejectAllApprovals,
   handleRejectApproval,
 } from "./approval-routes.js";
-import { handleListAudit } from "./audit-routes.js";
-import { handleGetConfig } from "./config-routes.js";
 import { DaemonControlClient } from "./daemon-client.js";
 import { queryDaemonStatus } from "./daemon-routes.js";
 import { handleEventTrigger } from "./event-routes.js";
 import { handleDeleteHistory, handleGetHistory, handleListHistory } from "./history-routes.js";
 import { handleAddKnowledge, handleDeleteKnowledge, handleGetKnowledge, handleListKnowledge, handleUpdateKnowledge } from "./knowledge-routes.js";
 import { handleAddMemory, handleDeleteMemory, handleGetMemory, handleListMemory, handleUpdateMemory } from "./memory-routes.js";
-import { handleListModules } from "./module-routes.js";
 import type { NotificationHub } from "./server-notifications.js";
 import {
   jsonResponse,
@@ -68,12 +64,8 @@ export type ServerContext = {
   moduleRoutes: RouteRegistration[];
   makeAgent: (transport: Transport) => AgentSession;
   daemonClient?: DaemonControlClient | null;
-  /** Returns current module summaries for /api/modules. */
-  getModuleSummaries?: () => ModuleSummary[];
   /** Bearer token required on all /api/* requests. Undefined means no auth. */
   authToken?: string;
-  /** Resolved merged config — exposed via GET /api/config with secrets masked. */
-  config?: KotaConfig;
 };
 
 export function buildRequestHandler(ctx: ServerContext) {
@@ -271,20 +263,6 @@ export function buildRequestHandler(ctx: ServerContext) {
       return;
     }
 
-    if (req.method === "GET" && path === "/api/modules") {
-      handleListModules(res, ctx.getModuleSummaries ? ctx.getModuleSummaries() : []);
-      return;
-    }
-
-    if (req.method === "GET" && path === "/api/config") {
-      if (ctx.config) {
-        handleGetConfig(res, ctx.config);
-      } else {
-        jsonResponse(res, 503, { error: "Config not available" });
-      }
-      return;
-    }
-
     if (req.method === "GET" && path === "/api/knowledge") {
       handleListKnowledge(res);
       return;
@@ -342,11 +320,6 @@ export function buildRequestHandler(ctx: ServerContext) {
       handleUpdateMemory(req, res, memoryEntryMatch[1]).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
-      return;
-    }
-
-    if (req.method === "GET" && path === "/api/audit") {
-      handleListAudit(req, res);
       return;
     }
 

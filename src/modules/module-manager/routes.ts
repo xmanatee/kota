@@ -1,6 +1,6 @@
 import type { ServerResponse } from "node:http";
-import type { ModuleHealth, ModuleSummary } from "../module-types.js";
-import { jsonResponse } from "./session-pool.js";
+import type { ModuleHealth, ModuleSummary } from "../../module-types.js";
+import { jsonResponse } from "../../server/session-pool.js";
 
 export type ModuleStatusEntry = {
   name: string;

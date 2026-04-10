@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "../../module-types.js";
+import { handleListModules } from "./routes.js";
 import { generateModuleScaffold, generatePythonScaffold } from "./scaffolds.js";
 
 function buildModuleCommand(ctx: ModuleContext): Command {
@@ -143,6 +144,10 @@ const moduleManagerModule: KotaModule = {
   description: "Inspect and scaffold KOTA modules",
 
   commands: (ctx: ModuleContext) => [buildModuleCommand(ctx)],
+
+  routes: (ctx) => [
+    { method: "GET", path: "/api/modules", handler: (_req, res) => handleListModules(res, ctx.getModuleSummaries()) },
+  ],
 };
 
 export default moduleManagerModule;

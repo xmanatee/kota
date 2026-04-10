@@ -13,7 +13,7 @@ import { loadConfig } from "../config.js";
 import { initEventBus, resetEventBus } from "../event-bus.js";
 import { AgentSession, type LoopOptions } from "../loop.js";
 import { initModuleLogStore } from "../module-log.js";
-import type { ModuleSummary, RouteRegistration } from "../module-types.js";
+import type { RouteRegistration } from "../module-types.js";
 import { getScheduler, initScheduler, resetScheduler } from "../scheduler/scheduler.js";
 import type { Transport } from "../transport.js";
 import { DaemonControlClient } from "./daemon-client.js";
@@ -34,8 +34,6 @@ export type ServerOptions = {
   authToken?: string;
   /** Routes registered by modules (e.g., vercel-adapter). */
   moduleRoutes?: RouteRegistration[];
-  /** Returns current module summaries for /api/modules. */
-  getModuleSummaries?: () => ModuleSummary[];
 };
 
 export function startServer(options: ServerOptions = {}): Server {
@@ -95,9 +93,7 @@ export function startServer(options: ServerOptions = {}): Server {
     moduleRoutes: options.moduleRoutes ?? [],
     makeAgent,
     daemonClient,
-    getModuleSummaries: options.getModuleSummaries,
     authToken,
-    config,
   });
 
   const server = createServer(handleRequest);

@@ -10,6 +10,7 @@ import { Command } from "commander";
 import type { Policy, RiskLevel } from "../../guardrails.js";
 import type { KotaModule } from "../../module-types.js";
 import { registerAuditCommands } from "./cli.js";
+import { handleListAudit } from "./routes.js";
 import { initAuditStore, resetAuditStore } from "./store.js";
 
 const guardrailsAuditModule: KotaModule = {
@@ -22,6 +23,10 @@ const guardrailsAuditModule: KotaModule = {
 		registerAuditCommands(root);
 		return root.commands as Command[];
 	},
+
+	routes: () => [
+		{ method: "GET", path: "/api/audit", handler: handleListAudit },
+	],
 
 	onLoad(ctx) {
 		const store = initAuditStore(ctx.cwd);

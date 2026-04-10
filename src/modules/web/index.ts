@@ -61,7 +61,6 @@ const webModule: KotaModule = {
           config: ctx.config,
           noAuth: opts.auth === false,
           moduleRoutes,
-          getModuleSummaries: () => ctx.getModuleSummaries(),
         });
       });
 

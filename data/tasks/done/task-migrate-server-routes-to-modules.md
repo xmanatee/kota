@@ -1,7 +1,7 @@
 ---
 id: task-migrate-server-routes-to-modules
 title: Migrate src/server/ route handlers to owning modules
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: src/server/ is a 6K-line shared bucket of route handlers that belong in their owning modules (memory, knowledge, approval, history, task). Move route registrations to the modules that own those capabilities.

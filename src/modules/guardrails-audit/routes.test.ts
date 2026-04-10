@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
-import type { AuditEntry, AuditFilter } from "../modules/guardrails-audit/store.js";
-import { handleListAudit } from "./audit-routes.js";
+import { handleListAudit } from "./routes.js";
+import type { AuditEntry, AuditFilter } from "./store.js";
 
 function mockReqRes(url = "/api/audit") {
 	const result = { status: 0, body: null as unknown };
@@ -37,7 +37,7 @@ function makeEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
 	};
 }
 
-describe("audit-routes", () => {
+describe("audit routes", () => {
 	describe("handleListAudit", () => {
 		it("returns 200 with empty entries when store is empty", () => {
 			const store = makeStore([]);

@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { AuditEntry, AuditFilter } from "../modules/guardrails-audit/store.js";
-import { AuditStore } from "../modules/guardrails-audit/store.js";
-import { jsonResponse } from "./session-pool.js";
+import { jsonResponse } from "../../server/session-pool.js";
+import type { AuditEntry, AuditFilter } from "./store.js";
+import { AuditStore, getAuditStore } from "./store.js";
 
 const DEFAULT_LIMIT = 200;
 
@@ -25,7 +25,7 @@ export function handleListAudit(
 	try {
 		const url = new URL(req.url ?? "/", "http://localhost");
 		const filter = parseFilter(url);
-		const auditStore = store ?? new AuditStore(process.cwd());
+		const auditStore = store ?? getAuditStore() ?? new AuditStore(process.cwd());
 		const entries: AuditEntry[] = auditStore.query(filter);
 		jsonResponse(res, 200, { entries });
 	} catch (err) {

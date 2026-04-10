@@ -19,11 +19,8 @@ HTTP API server with session management and real-time notifications.
 | `daemon-routes.ts` | `queryDaemonStatus` — reads live daemon status via `DaemonControlClient` |
 | `daemon-client.ts` | `DaemonControlClient` — queries the running daemon's loopback HTTP control API |
 | `event-routes.ts` | `handleEventTrigger` — emits a named event onto the bus |
-| `module-routes.ts` | `handleListModules` — returns loaded module metadata for `GET /api/modules` |
-| `config-routes.ts` | `handleGetConfig`, `maskConfig` — returns resolved config with sensitive fields masked for `GET /api/config` |
 | `knowledge-routes.ts` | Knowledge CRUD handlers: list, get, add (`POST`), update (`PATCH /api/knowledge/:id`), and delete |
 | `memory-routes.ts` | Memory CRUD handlers: list, get, add (`POST`), update (`PATCH /api/memory/:id`), and delete |
-| `audit-routes.ts` | `handleListAudit` — returns guardrail audit log entries for `GET /api/audit` |
 
 ## Proxy Pattern
 
