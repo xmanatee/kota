@@ -11,7 +11,6 @@ This directory owns the `conversation_recall` management tool — lets the agent
 - `conversation-recall.ts` — `conversationRecallTool` schema and `runConversationRecall` runner.
 - `conversation-recall.test.ts` — unit tests for recall search and read operations.
 - `routes.ts` — HTTP route handlers for `/api/history`, `/api/history/:conversationId`; contributed via `KotaModule.routes` (proxy-capable via `DaemonControlClient`).
-- `routes.test.ts` — unit tests for the HTTP route handlers (if added).
 
 ## Boundaries
 
