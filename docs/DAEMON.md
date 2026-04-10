@@ -45,6 +45,22 @@ kota daemon pid
 - `reload` hot-reloads config and re-registers module workflow contributions.
 - `pid` prints the daemon's PID (exits non-zero if not running).
 
+## Mobile Client QR Setup
+
+```
+kota daemon qr
+```
+
+Prints a QR code to the terminal encoding the daemon URL and auth token. Scan
+this code with the KOTA mobile app to auto-fill the Settings screen without
+typing the URL or token manually.
+
+The QR payload is `{"url":"http://<local-ip>:<port>","token":"..."}`. The URL
+uses the host's local network IP so the mobile device can reach the daemon on
+the same network.
+
+The daemon must be running (`kota daemon`) before using this command.
+
 ## Installing as an OS Service
 
 `kota daemon install` registers the daemon as a user-level service so it

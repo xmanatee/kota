@@ -10,6 +10,7 @@ import { Daemon, RESTART_EXIT_CODE } from "../../scheduler/daemon.js";
 import type { DaemonControlAddress } from "../../scheduler/daemon-control.js";
 import { DaemonControlClient } from "../../server/daemon-client.js";
 import { buildEventsCommand } from "./events-cli.js";
+import { buildQrCommand } from "./qr-cli.js";
 import { buildSessionCommand } from "./session-cli.js";
 import { buildStatusCommand } from "./status-cli.js";
 
@@ -483,6 +484,7 @@ const daemonModule: KotaModule = {
         }
       });
 
+    cmd.addCommand(buildQrCommand());
     return [cmd, buildEventsCommand(), buildSessionCommand(), buildStatusCommand()];
   },
 };

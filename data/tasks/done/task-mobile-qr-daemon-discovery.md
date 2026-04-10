@@ -1,7 +1,7 @@
 ---
 id: task-mobile-qr-daemon-discovery
 title: Add QR code daemon discovery to the mobile client
-status: backlog
+status: done
 priority: p3
 area: client
 summary: The mobile client requires operators to manually type the daemon URL and token. The design doc identified QR code scan as the preferred v2 discovery flow — the web dashboard or CLI renders a QR code encoding the URL and a short-lived session token, and the app scans it to auto-fill Settings without typing.

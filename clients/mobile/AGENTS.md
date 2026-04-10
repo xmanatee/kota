@@ -7,6 +7,8 @@ React Native (Expo) mobile client for the KOTA daemon. Targets iOS 16+ and Andro
 - Navigation: bottom tab bar with four tabs (Status, Runs, Approvals, Tasks) using React Navigation v7.
 - Live updates via SSE (`GET /events`); polling fallback if SSE is unavailable.
 - Settings (daemon URL + token) are accessible from the Status tab header.
+- QR setup: the Settings screen includes a "Scan QR Code" button that reads a QR code
+  produced by `kota daemon qr` to auto-fill and save the daemon URL and token.
 
 ## Structure
 

@@ -32,12 +32,14 @@
     "@anthropic-ai/sdk": "^0.52.0",
     "commander": "^13.1.0",
     "glob": "^13.0.0",
-    "nodemailer": "^6.9.0"
+    "nodemailer": "^6.9.0",
+    "qrcode-terminal": "^0.12.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.7",
     "@types/node": "^22.0.0",
     "@types/nodemailer": "^6.4.0",
+    "@types/qrcode-terminal": "^0.12.2",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^4.1.0"
