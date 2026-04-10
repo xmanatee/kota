@@ -1,7 +1,7 @@
 ---
 id: task-github-pr-review-workflow
 title: Add GitHub PR automated review autonomy workflow
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: The builder opens GitHub PRs via branch-per-task mode, but nothing reviews them. A webhook-triggered autonomy workflow that fetches the PR diff, reviews it with an agent, and posts structured comments closes the builder → PR → review cycle.

@@ -91,6 +91,9 @@ function normalizePayload(
 
   if (eventType === "pull_request") {
     const pr = raw.pull_request as Record<string, unknown> | undefined;
+    const headRepo =
+      ((pr?.head as Record<string, unknown> | undefined)?.repo as Record<string, unknown> | undefined)
+        ?.full_name ?? null;
     return {
       repo,
       action: raw.action ?? null,
@@ -100,6 +103,8 @@ function normalizePayload(
       merged: pr?.merged ?? null,
       headBranch: (pr?.head as Record<string, unknown> | undefined)?.ref ?? null,
       baseBranch: (pr?.base as Record<string, unknown> | undefined)?.ref ?? null,
+      headRepo,
+      isFork: typeof headRepo === "string" && typeof repo === "string" ? headRepo !== repo : null,
     };
   }
 

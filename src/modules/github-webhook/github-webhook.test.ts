@@ -245,7 +245,7 @@ describe("githubWebhookModule handler — event emission", () => {
         title: "Fix bug",
         state: "open",
         merged: false,
-        head: { ref: "feature-branch" },
+        head: { ref: "feature-branch", repo: { full_name: "owner/repo" } },
         base: { ref: "main" },
       },
     });
@@ -264,6 +264,68 @@ describe("githubWebhookModule handler — event emission", () => {
       title: "Fix bug",
       headBranch: "feature-branch",
       baseBranch: "main",
+      headRepo: "owner/repo",
+      isFork: false,
+    });
+  });
+
+  it("emits isFork:true when head repo differs from base repo", async () => {
+    const bus = new EventBus();
+    const received: Record<string, unknown>[] = [];
+    bus.on("github.pull_request", (p) => received.push(p as Record<string, unknown>));
+
+    const body = JSON.stringify({
+      action: "opened",
+      number: 7,
+      repository: { full_name: "owner/repo" },
+      pull_request: {
+        title: "Fork PR",
+        state: "open",
+        merged: false,
+        head: { ref: "fix-branch", repo: { full_name: "contributor/repo" } },
+        base: { ref: "main" },
+      },
+    });
+
+    const ctx = makeStubCtx(bus, { secret: SECRET });
+    await invokeHandler(githubWebhookModule, ctx, body, {
+      "x-hub-signature-256": sign(SECRET, body),
+      "x-github-event": "pull_request",
+    });
+
+    expect(received[0]).toMatchObject({
+      headRepo: "contributor/repo",
+      isFork: true,
+    });
+  });
+
+  it("emits isFork:null when head.repo is absent from payload", async () => {
+    const bus = new EventBus();
+    const received: Record<string, unknown>[] = [];
+    bus.on("github.pull_request", (p) => received.push(p as Record<string, unknown>));
+
+    const body = JSON.stringify({
+      action: "opened",
+      number: 8,
+      repository: { full_name: "owner/repo" },
+      pull_request: {
+        title: "PR without head repo",
+        state: "open",
+        merged: false,
+        head: { ref: "feature-branch" },
+        base: { ref: "main" },
+      },
+    });
+
+    const ctx = makeStubCtx(bus, { secret: SECRET });
+    await invokeHandler(githubWebhookModule, ctx, body, {
+      "x-hub-signature-256": sign(SECRET, body),
+      "x-github-event": "pull_request",
+    });
+
+    expect(received[0]).toMatchObject({
+      headRepo: null,
+      isFork: null,
     });
   });
 
