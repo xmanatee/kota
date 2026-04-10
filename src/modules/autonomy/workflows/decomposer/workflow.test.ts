@@ -269,5 +269,66 @@ describe("decomposer workflow", () => {
 
     expect(result.steps.decompose.status).toBe("skipped");
     expect(result.steps.commit.status).toBe("skipped");
+    expect(result.steps["request-restart"].status).toBe("skipped");
+  });
+
+  it("runs request-restart when decompose succeeds and commit commits", async () => {
+    const { readOptionalJsonFile } = await import("#root/json-file.js");
+    vi.mocked(readOptionalJsonFile).mockReturnValue(
+      makeFailedBuilderMetadata({ buildDurationMs: 55 * 60 * 1000 }),
+    );
+
+    const fs = await import("node:fs");
+    vi.mocked(fs.readdirSync).mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.includes("data/tasks/doing")) {
+        return ["task-big-refactor.md"] as unknown as ReturnType<typeof fs.readdirSync>;
+      }
+      return [] as unknown as ReturnType<typeof fs.readdirSync>;
+    });
+
+    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+
+    const harness = new WorkflowTestHarness(decomposerWorkflow, {
+      trigger: { event: "workflow.completed", payload: TRIGGER_PAYLOAD },
+      stepMocks: { decompose: { decomposed: true } },
+    });
+
+    const result = await harness.run();
+
+    expect(result.steps.decompose.status).toBe("success");
+    expect(result.steps.commit.status).toBe("success");
+    expect(result.steps["request-restart"].status).toBe("success");
+  });
+
+  it("skips request-restart when nothing was committed", async () => {
+    const { readOptionalJsonFile } = await import("#root/json-file.js");
+    vi.mocked(readOptionalJsonFile).mockReturnValue(
+      makeFailedBuilderMetadata({ buildDurationMs: 55 * 60 * 1000 }),
+    );
+
+    const fs = await import("node:fs");
+    vi.mocked(fs.readdirSync).mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.includes("data/tasks/doing")) {
+        return ["task-big-refactor.md"] as unknown as ReturnType<typeof fs.readdirSync>;
+      }
+      return [] as unknown as ReturnType<typeof fs.readdirSync>;
+    });
+
+    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: false } as never);
+
+    const harness = new WorkflowTestHarness(decomposerWorkflow, {
+      trigger: { event: "workflow.completed", payload: TRIGGER_PAYLOAD },
+      stepMocks: { decompose: { decomposed: true } },
+    });
+
+    const result = await harness.run();
+
+    expect(result.steps.decompose.status).toBe("success");
+    expect(result.steps.commit.status).toBe("success");
+    expect(result.steps["request-restart"].status).toBe("skipped");
   });
 });

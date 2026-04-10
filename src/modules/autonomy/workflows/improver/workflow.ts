@@ -24,7 +24,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
     {
       event: "workflow.completed",
       filter: {
-        workflow: ["builder", "explorer", "inbox-sorter"],
+        workflow: ["builder", "decomposer", "explorer", "inbox-sorter"],
         status: ["failed", "interrupted"],
       },
     },

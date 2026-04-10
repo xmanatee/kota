@@ -5,7 +5,7 @@ import type { WorkflowRunMetadata, WorkflowStepContext } from "#core/workflow/ru
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
-import { runCheck, stepSucceeded } from "#modules/autonomy/shared.js";
+import { runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
 import { readOptionalJsonFile } from "#root/json-file.js";
 
 export const agent: AgentDef = {
@@ -192,6 +192,13 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       when: stepSucceeded("decompose"),
       run: ({ projectDir, workflow }: WorkflowStepContext) =>
         commitWorkflowChanges(projectDir, workflow.runDirPath),
+    },
+    {
+      id: "request-restart",
+      type: "restart",
+      when: stepCommitted("commit"),
+      reason: "decomposer committed new subtasks to ready queue",
+      requires: ["commit"],
     },
   ],
 };
