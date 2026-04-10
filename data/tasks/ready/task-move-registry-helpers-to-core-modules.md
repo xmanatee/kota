@@ -1,7 +1,7 @@
 ---
 id: task-move-registry-helpers-to-core-modules
 title: "Move registry and module-install helpers from src/ root to src/core/modules/"
-status: backlog
+status: ready
 priority: p2
 area: architecture
 summary: "registry.ts, registry-source.ts, and registry-installers.ts are module-system infrastructure sitting as loose root files. Moving them into src/core/modules/ completes the module-system ownership boundary."
