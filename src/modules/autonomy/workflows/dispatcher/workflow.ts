@@ -1,5 +1,8 @@
 import type { WorkflowDefinitionInput } from "../../../../workflow/types.js";
-import { getRepoTaskQueueSnapshot } from "../../../repo-tasks/repo-tasks.js";
+import {
+  getRepoTaskQueueSnapshot,
+  isThinPullQueue,
+} from "../../../repo-tasks/repo-tasks.js";
 
 const dispatcherWorkflow: WorkflowDefinitionInput = {
   name: "dispatcher",
@@ -18,6 +21,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
       run: ({ projectDir, emit }) => {
         const queue = getRepoTaskQueueSnapshot(projectDir);
         const queueEmpty = queue.inboxCount === 0 && queue.pullableCount === 0;
+        const queueThin = isThinPullQueue(queue);
 
         if (queue.inboxCount > 0) {
           emit("autonomy.inbox.available", { inboxCount: queue.inboxCount });
@@ -32,6 +36,12 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         if (queueEmpty) {
           emit("autonomy.queue.empty", { counts: queue.counts });
         }
+        if (queueThin) {
+          emit("autonomy.queue.thin", {
+            pullableCount: queue.pullableCount,
+            counts: queue.counts,
+          });
+        }
 
         return {
           inboxCount: queue.inboxCount,
@@ -41,6 +51,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             queue.inboxCount > 0 && "autonomy.inbox.available",
             queue.pullableCount > 0 && "autonomy.queue.available",
             queueEmpty && "autonomy.queue.empty",
+            queueThin && "autonomy.queue.thin",
           ].filter(Boolean),
         };
       },

@@ -95,3 +95,11 @@ export function getRepoTaskQueueSnapshot(
     headSha: getRepoHeadSha(projectDir),
   };
 }
+
+export function isThinPullQueue(snapshot: RepoTaskQueueSnapshot): boolean {
+  return (
+    snapshot.inboxCount === 0 &&
+    snapshot.actionableCount === 0 &&
+    snapshot.pullableCount === 1
+  );
+}

@@ -2,7 +2,10 @@ import type { AgentDef } from "../../../../agent-types.js";
 import { assertRepoWorktreeClean } from "../../../../repo-worktree.js";
 import type { WorkflowDefinitionInput } from "../../../../workflow/types.js";
 import { typedCodeStep } from "../../../../workflow/types.js";
-import { getRepoTaskQueueSnapshot } from "../../../repo-tasks/repo-tasks.js";
+import {
+  getRepoTaskQueueSnapshot,
+  isThinPullQueue,
+} from "../../../repo-tasks/repo-tasks.js";
 import {
   assertArchitectureReadyCoverage,
   assertStrategicReadyCoverage,
@@ -15,7 +18,7 @@ import {
 
 export const agent: AgentDef = {
   name: "explorer",
-  role: "Find strong external ideas and promising new directions when the local queue is empty.",
+  role: "Find strong external ideas and promising new directions when the local queue is empty or running thin.",
   promptPath: "src/modules/autonomy/workflows/explorer/prompt.md",
   model: "claude-sonnet-4-6",
   tools: { permissionMode: "bypassPermissions" },
@@ -42,13 +45,12 @@ function buildExplorerAssessment(
   const explorationRefreshDue =
     !lastCompletedAt ||
     Date.now() - new Date(lastCompletedAt).getTime() >= EXPLORATION_REFRESH_MS;
-  const queueEmpty =
-    queue.inboxCount === 0 &&
-    queue.pullableCount === 0;
+  const queueEmpty = queue.inboxCount === 0 && queue.pullableCount === 0;
+  const queueThin = isThinPullQueue(queue);
 
   return {
     ...queue,
-    needsAttention: queueEmpty && explorationRefreshDue,
+    needsAttention: (queueEmpty || queueThin) && explorationRefreshDue,
     explorationRefreshDue,
   };
 }
@@ -68,10 +70,14 @@ const inspectQueue = typedCodeStep<ExplorerAssessment>({
 const explorerWorkflow: WorkflowDefinitionInput = {
   name: "explorer",
   description:
-    "Search broadly for external ideas and promising improvements when the local queue is empty.",
+    "Search broadly for external ideas and promising improvements when the local queue is empty or running thin.",
   triggers: [
     {
       event: "autonomy.queue.empty",
+      cooldownMs: 5 * 60 * 1000,
+    },
+    {
+      event: "autonomy.queue.thin",
       cooldownMs: 5 * 60 * 1000,
     },
   ],

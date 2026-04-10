@@ -1,4 +1,4 @@
-Your job is to keep the future work queue strong when there is no local work left.
+Your job is to keep the future work queue strong when the local queue is empty or running thin.
 
 Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files in directories you inspect. Your write scope is `data/tasks/`.
 
@@ -12,7 +12,7 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
 ## Guidance
 
 - Do not implement product code or edit workflow/process surfaces here.
-- Because this workflow runs only when the local queue is empty, actively look for worthwhile next work instead of preserving a thin queue.
+- Because this workflow runs only when the local queue is empty or down to a thin tail, actively look for worthwhile next work instead of preserving a fading queue.
 - Prefer substantive tasks over filler.
 - While visible module or core-shape debt remains, keep at least one real `p1`/`p2` architecture task in `ready/`.
 - Do not let the open queue collapse into only `p3` work unless the repo is genuinely in maintenance mode.

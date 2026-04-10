@@ -35,6 +35,17 @@ export type BusEvents = {
       dropped: number;
     };
   };
+  "autonomy.queue.thin": {
+    pullableCount: number;
+    counts: {
+      backlog: number;
+      ready: number;
+      doing: number;
+      blocked: number;
+      done: number;
+      dropped: number;
+    };
+  };
   "workflow.started": {
     workflow: string;
     runId: string;

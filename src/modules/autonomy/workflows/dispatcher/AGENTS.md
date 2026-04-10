@@ -7,3 +7,4 @@ Events emitted:
 - `autonomy.queue.available` — there is local queued work to pull or promote
 - `autonomy.inbox.available` — inbox has items to sort
 - `autonomy.queue.empty` — inbox is empty and there is no local queued work
+- `autonomy.queue.thin` — only a one-item backlog tail remains, so the future queue should be refreshed soon

@@ -14,6 +14,7 @@ vi.mock("../../../../repo-worktree.js", () => ({
 vi.mock("../../../repo-tasks/repo-tasks.js", () => ({
   getRepoTaskQueueSnapshot: vi.fn(),
   isRepoTaskQueueSnapshot: vi.fn(() => true),
+  isThinPullQueue: vi.fn((snapshot) => snapshot.inboxCount === 0 && snapshot.actionableCount === 0 && snapshot.pullableCount === 1),
   REPO_TASK_STATES: ["backlog", "ready", "doing", "blocked", "done", "dropped"],
 }));
 
@@ -93,6 +94,34 @@ describe("explorer workflow", () => {
       needsAttention: false,
     });
     expect(result.steps.explore.status).toBe("skipped");
+  });
+
+  it("runs explore when only a one-item backlog tail remains and refresh is due", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
+      makeSnapshot({ inboxCount: 0, ready: 0, backlog: 1, doing: 0 }),
+    );
+
+    const { commitWorkflowChanges } = await import("../../commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+
+    const harness = new WorkflowTestHarness(explorerWorkflow, {
+      trigger: { event: "autonomy.queue.thin", payload: {} },
+      stepMocks: {
+        explore: { turns: [], totalCostUsd: 0.02 },
+      },
+      runtimeState: { workflows: {} },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["inspect-queue"].output).toMatchObject({
+      pullableCount: 1,
+      actionableCount: 0,
+      needsAttention: true,
+    });
+    expect(result.steps.explore.status).toBe("success");
   });
 
   it("skips explore when doing already contains work", async () => {

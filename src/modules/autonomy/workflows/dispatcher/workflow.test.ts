@@ -79,6 +79,35 @@ describe("dispatcher workflow", () => {
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(true);
   });
 
+  it("emits autonomy.queue.thin for a one-item backlog tail", async () => {
+    writeFileSync(
+      join(projectDir, "data", "tasks", "backlog", "task-foo.md"),
+      "---\nid: task-foo\ntitle: Foo\nstatus: backlog\npriority: p2\n---\n",
+    );
+    const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
+    const result = await harness.run();
+
+    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    expect(output.pullableCount).toBe(1);
+    expect(output.actionableCount).toBe(0);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(true);
+  });
+
+  it("does not emit autonomy.queue.thin when multiple backlog tasks remain", async () => {
+    writeFileSync(
+      join(projectDir, "data", "tasks", "backlog", "task-foo.md"),
+      "---\nid: task-foo\ntitle: Foo\nstatus: backlog\npriority: p2\n---\n",
+    );
+    writeFileSync(
+      join(projectDir, "data", "tasks", "backlog", "task-bar.md"),
+      "---\nid: task-bar\ntitle: Bar\nstatus: backlog\npriority: p2\n---\n",
+    );
+    const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
+    const result = await harness.run();
+
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(false);
+  });
+
   it("does not emit autonomy.queue.empty when doing work still exists", async () => {
     writeFileSync(
       join(projectDir, "data", "tasks", "doing", "task-foo.md"),

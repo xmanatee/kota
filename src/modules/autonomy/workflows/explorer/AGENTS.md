@@ -3,7 +3,7 @@
 This directory contains the explorer workflow definition and prompt.
 
 - This workflow owns external product discovery and roadmap expansion when the local
-  queue is otherwise empty.
+  queue is otherwise empty or down to a thin tail.
 - Study the codebase and relevant outside ideas, but write only under `data/`.
 - Keep this workflow focused on high-leverage external discovery, meaningful
   future work selection, and strategic range.

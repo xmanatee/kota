@@ -6,6 +6,7 @@ import {
   countRepoInboxEntries,
   countRepoTaskState,
   getRepoTaskQueueSnapshot,
+  isThinPullQueue,
   REPO_INBOX_DIR,
   REPO_TASK_STATES,
   REPO_TASKS_DIR,
@@ -62,5 +63,17 @@ describe("repo task helpers", () => {
       actionableCount: 2,
       headSha: expect.any(String),
     });
+  });
+
+  it("detects a one-item backlog tail with no ready or doing work", () => {
+    writeFileSync(join(projectDir, REPO_TASKS_DIR, "backlog", "task-tail.md"), "task");
+
+    expect(isThinPullQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(true);
+  });
+
+  it("does not treat ready work as a thin pull queue", () => {
+    writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-ready.md"), "task");
+
+    expect(isThinPullQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(false);
   });
 });

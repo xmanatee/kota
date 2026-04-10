@@ -64,6 +64,9 @@ Prefer explicit bus events over workflow-name inventories or secondary routing m
 - Keep the event semantic: describe what became true, not which workflow just ran.
 - Use `workflow.completed` only when the consumer truly cares about generic run
   completion rather than a more specific domain event.
+- Queue-shaping events should describe repo state directly. For example, use a
+  distinct event for a thin backlog tail instead of overloading `queue.empty`
+  or teaching explorer to infer it from unrelated workflow names.
 
 ## Repair-Loop Checks
 
