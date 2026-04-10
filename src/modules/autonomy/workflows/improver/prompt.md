@@ -13,6 +13,7 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
 
 - A no-op run is correct when nothing genuinely needs improving.
 - Do not do product or roadmap work here.
+- Never pull, promote, or implement any task from `data/tasks/`. Inspect the queue for health signals only; do not touch task files.
 - If the same issue repeats, fix the mechanism that allows it.
 - Prefer lightweight validation and routing rules over brittle workflow-coded bookkeeping.
 - Do not keep obsolete compatibility paths alive.
