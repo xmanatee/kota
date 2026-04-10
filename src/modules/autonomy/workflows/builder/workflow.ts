@@ -128,6 +128,17 @@ const builderWorkflow: WorkflowDefinitionInput = {
             },
           },
           {
+            id: "macos-swift-build",
+            type: "code" as const,
+            run: (ctx) => {
+              const macosDir = join(ctx.projectDir, "clients/macos");
+              if (!existsSync(join(macosDir, "Package.swift"))) {
+                return "OK: no macOS client present";
+              }
+              return runCheck("swift build", macosDir, 120_000);
+            },
+          },
+          {
             id: "daemon-api-doc-sync",
             type: "code" as const,
             run: (ctx) => {
