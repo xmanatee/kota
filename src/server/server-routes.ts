@@ -4,7 +4,7 @@ import type { EventBus } from "../core/events/event-bus.js";
 import type { AgentSession } from "../core/loop/loop.js";
 import type { Transport } from "../core/loop/transport.js";
 import type { RouteRegistration } from "../core/modules/module-types.js";
-import { getWebUI } from "../web-ui/web-ui.js";
+import { getWebUI } from "../modules/web-ui/web-ui.js";
 import { DaemonControlClient } from "./daemon-client.js";
 import { queryDaemonStatus } from "./daemon-routes.js";
 import { handleEventTrigger } from "./event-routes.js";

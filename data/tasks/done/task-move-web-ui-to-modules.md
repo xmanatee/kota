@@ -1,7 +1,7 @@
 ---
 id: task-move-web-ui-to-modules
 title: "Move web-ui directory to modules/"
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: "Move web-ui (35 files, 1 importer) from src/ root into modules/. Low importer count despite many files."
