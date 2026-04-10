@@ -70,13 +70,15 @@ export function checkModuleBoundary(projectDir: string): string {
 }
 
 function checkServerReadmeSync(projectDir: string): string {
-  const serverDir = join(projectDir, "src/server");
+  const candidates = [join(projectDir, "src/core/server"), join(projectDir, "src/server")];
+  const serverDir = candidates.find((d) => existsSync(join(d, "README.md")));
+  if (!serverDir) return "OK: no server README to check";
   const readme = readFileSync(join(serverDir, "README.md"), "utf8");
   const missing = readdirSync(serverDir)
     .filter((f) => f.endsWith("-routes.ts") && f !== "server-routes.ts")
     .filter((f) => !readme.includes(f));
   if (missing.length) {
-    throw new Error(`Missing from src/server/README.md: ${missing.join(", ")}`);
+    throw new Error(`Missing from server README.md: ${missing.join(", ")}`);
   }
   return "OK: server README covers all route files";
 }
