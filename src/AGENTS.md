@@ -48,6 +48,7 @@ When you add a new file to `src/` or change what an existing module exports or d
 - `modules/guardrails-audit/cli.ts` — `registerAuditCommands`: CLI subcommands for the guardrail audit trail (`kota audit list`, with `--risk`, `--policy`, `-n` filters). Owned by the `guardrails-audit` module.
 - `modules/repo-tasks/cli.ts` — `registerTaskCommands`: CLI subcommands for the task store (`kota task`). Owned by the `repo-tasks` module.
 - `modules/memory/cli.ts` and `modules/knowledge/cli.ts` — `registerMemoryCommands` and `registerKnowledgeCommands`: CLI subcommands for the memory and knowledge stores (`kota memory`, `kota knowledge`). Owned by the respective modules.
+- `modules/email/index.ts` — email notification module; contributes an `email-alerts` ChannelDef and subscribes to workflow/module/approval bus events to send SMTP emails via nodemailer. Configured via `config.modules.email`. Disabled gracefully when `smtp.host` is absent.
 - `modules/module-manager/index.ts` — owns the `kota module` CLI surface (`list`, `inspect`, `new`). Uses `ctx.getModuleSummaries()` for live data. Scaffold generators in `modules/module-manager/scaffolds.ts`.
 - `module-api.ts` — public re-export surface for module authors; consumed via `kota/module` sub-path import; built to `dist/module-api.js` + `dist/module-api.d.ts`.
 - `workflow-testing/index.ts` — `WorkflowTestHarness` class; lightweight in-process harness for unit-testing workflow definitions without a daemon or real agent; exported via `kota/testing` sub-path import through `workflow-testing/testing-api.ts`.

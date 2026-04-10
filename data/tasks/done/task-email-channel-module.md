@@ -1,12 +1,12 @@
 ---
 id: task-email-channel-module
 title: Add email channel module for KOTA interactions via email
-status: backlog
+status: done
 priority: p3
 area: modules
 summary: The channel module pattern supports multiple interaction surfaces, but only Telegram is implemented. An email channel would let operators interact with KOTA via email, broadening reach without requiring a messaging app.
 created_at: 2026-03-31T03:42:35Z
-updated_at: 2026-03-31T03:42:35Z
+updated_at: 2026-04-10T05:05:00Z
 ---
 
 ## Problem
