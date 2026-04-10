@@ -1,5 +1,9 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createNavigationContainerRef, NavigationContainer } from '@react-navigation/native';
+import {
+  createNavigationContainerRef,
+  NavigationContainer,
+  NavigatorScreenParams,
+} from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as Notifications from 'expo-notifications';
 import React, { useEffect } from 'react';
@@ -32,7 +36,7 @@ export type ApprovalsStackParams = {
 export type TabParams = {
   Status: undefined;
   Runs: undefined;
-  Approvals: undefined;
+  Approvals: NavigatorScreenParams<ApprovalsStackParams> | undefined;
   Tasks: undefined;
 };
 
@@ -46,11 +50,14 @@ const navigationRef = createNavigationContainerRef<TabParams>();
 
 function navigateToApproval(approvalId?: string) {
   if (!navigationRef.isReady()) return;
-  navigationRef.navigate('Approvals');
-  // ApprovalDetail navigation happens inside the Approvals stack via its own navigator.
-  // We surface the approvalId via initial params when the tab is focused.
-  // The deep link config handles this by encoding the approvalId into the URL.
-  void approvalId;
+  if (approvalId) {
+    navigationRef.navigate('Approvals', {
+      screen: 'ApprovalDetail',
+      params: { approvalId },
+    });
+  } else {
+    navigationRef.navigate('Approvals');
+  }
 }
 
 // Configure how notifications are presented while the app is in the foreground.
@@ -132,11 +139,16 @@ export function AppNavigator() {
   const { state } = useDaemon();
   const pendingCount = state.pendingApprovalCount;
 
-  // Handle notification taps — navigate to Approvals tab.
+  // Handle notification taps. Navigate based on the `screen` field in the payload.
+  // Old notifications without `screen` open the app home as-is (no navigation).
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const approvalId = response.notification.request.content.data?.approvalId;
-      navigateToApproval(typeof approvalId === 'string' ? approvalId : undefined);
+      const data = response.notification.request.content.data as Record<string, unknown> | undefined;
+      const screen = data?.screen;
+      if (screen === 'approvals') {
+        const approvalId = typeof data?.approvalId === 'string' ? data.approvalId : undefined;
+        navigateToApproval(approvalId);
+      }
     });
     return () => sub.remove();
   }, []);

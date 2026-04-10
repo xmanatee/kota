@@ -50,7 +50,7 @@ export async function sendPushNotifications(
     sound: "default",
     title,
     body,
-    data: { approvalId },
+    data: { screen: "approvals", approvalId },
   }));
 
   try {
