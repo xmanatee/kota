@@ -45,6 +45,13 @@ export TELEGRAM_ALERT_CHAT_ID=<your-chat-id>
 ```
 
 When both are set, all notification events are forwarded to that chat.
+`approval.requested` is always forwarded regardless of any event filter.
+
+Approval request messages include inline **Approve** and **Reject** buttons.
+Pressing a button resolves the approval immediately and edits the original
+message to show the outcome. Resolution source is recorded as
+`"telegram-inline"`. Manual CLI resolution (`kota approval approve/reject`) also
+works and updates the message if the inline button has not yet been pressed.
 
 ## Email
 
