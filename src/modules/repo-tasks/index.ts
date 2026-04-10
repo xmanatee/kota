@@ -2,7 +2,7 @@
  * Repo-tasks module — operator CLI for managing the KOTA task queue.
  *
  * Owns the `kota task` subcommands. The underlying RepoTask types and state
- * constants live in src/repo-tasks.ts which is shared with workflow code.
+ * constants live in repo-tasks.ts, co-located in this module.
  */
 
 import { Command } from "commander";
