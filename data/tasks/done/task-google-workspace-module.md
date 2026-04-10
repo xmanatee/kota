@@ -1,7 +1,7 @@
 ---
 id: task-google-workspace-module
 title: Add Google Workspace module for Gmail, Calendar, and Drive access from agents
-status: backlog
+status: done
 priority: p3
 area: modules
 summary: Agents have no first-class tools for Google Workspace. A contributed module wrapping Gmail, Calendar, and Drive APIs would let builders and explorers read/write calendar events, emails, and documents without ad-hoc shell commands.
