@@ -18,7 +18,7 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
 - Do not add compatibility shims, fallback paths, or legacy aliases. Remove obsolete code directly.
 - Do not invent roadmap work when there is no actionable normalized task.
 - Capture genuine follow-up work honestly in `data/inbox/` or `data/tasks/` when it is outside scope; do not silently sprawl the task.
-- If you touch documented behavior, update the corresponding docs in the same run. This includes local `AGENTS.md` files: if you add a new file to a directory, add an entry for it; if you change what a file exports or does, update its description.
+- If you touch documented behavior, update the corresponding docs in the same run. This includes local `AGENTS.md` files: if you add a new file to a directory, add an entry for it; if you change what a file exports or does, update its description. If you add a new module that accepts operator config in `.kota/config.json`, add a section for it in `docs/CONFIG.md`.
 - Avoid changing workflow/process surfaces unless the task is explicitly about them.
 
 ## Finish

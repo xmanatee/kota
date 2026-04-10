@@ -407,6 +407,34 @@ Read-only tools (`file_read`, `glob`, `grep`, `files_overview`) are classified s
 
 No config file keys are required.
 
+### Google Workspace
+
+Optional module — not loaded by default. Provides Gmail, Calendar, and Drive tools for agents in the `productivity` tool group: `gmail_list_messages`, `gmail_get_message`, `gmail_send`, `calendar_list_events`, `calendar_create_event`, `drive_list_files`, and `drive_read_file`. Uses OAuth 2.0 refresh token auth with in-process token caching. No npm dependencies beyond Node 18+.
+
+```json
+{
+  "modules": {
+    "google-workspace": {
+      "clientId": "$GOOGLE_CLIENT_ID",
+      "clientSecret": "$GOOGLE_CLIENT_SECRET",
+      "refreshToken": "$GOOGLE_REFRESH_TOKEN",
+      "userId": "me",
+      "calendarId": "primary"
+    }
+  }
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `clientId` | Yes | OAuth 2.0 client ID or `$ENV_VAR` reference. Never logged. |
+| `clientSecret` | Yes | OAuth 2.0 client secret or `$ENV_VAR` reference. Never logged. |
+| `refreshToken` | Yes | OAuth 2.0 refresh token or `$ENV_VAR` reference. Never logged. |
+| `userId` | No | Gmail/Calendar user ID. Default: `"me"`. |
+| `calendarId` | No | Google Calendar ID. Default: `"primary"`. |
+
+Required OAuth scopes: `gmail.modify`, `calendar`, `drive.readonly`. See `src/modules/google-workspace/AGENTS.md` for full setup instructions. `gmail_send` and `calendar_create_event` are classified as dangerous tools and require operator approval in autonomous mode. If any required credential is missing, the module loads but contributes no tools (warning logged).
+
 ### Web Access
 
 Built-in module — always loaded. Provides `web_fetch`, `web_search`, and `http_request` tools.
