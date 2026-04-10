@@ -1,20 +1,20 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { runArchitectStep } from "../../architect/runner.js";
-import { CONTEXT_WINDOW } from "./context.js";
-import { collectDynamicState } from "./dynamic-state.js";
-import { tryEmit } from "../events/event-bus.js";
-import { getChangeTracker } from "./file-changes.js";
-import type { AgentLoopState } from "./loop-init.js";
-import { saveToHistoryImpl } from "./loop-init.js";
 import { streamMessage } from "../../model/streaming.js";
-import { buildReflectionPrompt, getLastAssistantText, shouldReflect } from "./reflection.js";
 import { analyzeRequest, formatContextHint } from "../../request-analyzer.js";
+import { processToolResults } from "../../verify-tracker.js";
 import { formatTaskHint, routeTask } from "../daemon/task-router.js";
+import { tryEmit } from "../events/event-bus.js";
+import { getAllTools } from "../tools/index.js";
 import { detectToolGroups, enableGroup, filterTools } from "../tools/tool-groups.js";
 import { executeToolCalls, FailureTracker } from "../tools/tool-runner.js";
 import { getToolTelemetry } from "../tools/tool-telemetry.js";
-import { getAllTools } from "../tools/index.js";
-import { processToolResults } from "../../verify-tracker.js";
+import { CONTEXT_WINDOW } from "./context.js";
+import { collectDynamicState } from "./dynamic-state.js";
+import { getChangeTracker } from "./file-changes.js";
+import type { AgentLoopState } from "./loop-init.js";
+import { saveToHistoryImpl } from "./loop-init.js";
+import { buildReflectionPrompt, getLastAssistantText, shouldReflect } from "./reflection.js";
 
 const MAX_ITERATIONS = 200;
 

@@ -3,11 +3,19 @@ import { WorkflowTestHarness } from "../../../../workflow-testing/index.js";
 import inboxSorterWorkflow from "./workflow.js";
 
 vi.mock("../../../../repo-worktree.js", () => ({
-  assertRepoWorktreeClean: vi.fn(),
+  getRepoWorktreeStatus: vi.fn().mockReturnValue({
+    available: true,
+    dirty: false,
+    entries: [],
+    fingerprint: "",
+    summary: "clean",
+    headSha: "abc1234",
+  }),
 }));
 
 vi.mock("../../../repo-tasks/repo-tasks.js", () => ({
   getRepoTaskQueueSnapshot: vi.fn(),
+  REPO_INBOX_DIR: "data/inbox",
 }));
 
 vi.mock("../../commit.js", () => ({

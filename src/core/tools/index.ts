@@ -1,5 +1,4 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { deregisterToolsFromGroups, registerCustomGroup, runEnableTools } from "./tool-groups.js";
 import { registration as agentStatus } from "./agent-status.js";
 import { registration as approval } from "./approval.js";
 import { registration as askUser } from "./ask-user.js";
@@ -14,6 +13,7 @@ import { registration as moduleFactory } from "./module-factory/index.js";
 import { registration as pipe } from "./pipe.js";
 import { registration as promptTemplate } from "./prompt.js";
 import { getTodoState, registration as todo } from "./todo.js";
+import { deregisterToolsFromGroups, registerCustomGroup, runEnableTools } from "./tool-groups.js";
 import type { ToolResult, ToolResultBlock } from "./tool-result.js";
 import { registration as workspace } from "./workspace.js";
 

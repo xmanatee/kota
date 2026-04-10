@@ -19,8 +19,8 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { ModuleManifest } from "../../manifest/index.js";
 import { manifestToModule, validateManifest } from "../../manifest/index.js";
-import type { KotaModule } from "./module-types.js";
 import { adaptExport } from "../tools/tool-adapters.js";
+import type { KotaModule } from "./module-types.js";
 
 const MODULES_DIR = ".kota/modules";
 

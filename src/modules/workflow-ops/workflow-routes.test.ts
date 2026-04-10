@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkflowLiveStatus } from "../../core/daemon/daemon-control.js";
-import type { DaemonControlClient } from "../../server/daemon-client.js";
 import { WorkflowRunStore } from "../../core/workflow/run-store.js";
+import type { DaemonControlClient } from "../../server/daemon-client.js";
 import {
   handleWorkflowAbort,
   handleWorkflowCancel,

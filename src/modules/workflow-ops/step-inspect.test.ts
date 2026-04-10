@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { readOptionalJsonFile } from "../../json-file.js";
 import type { WorkflowRunMetadata } from "../../core/workflow/run-types.js";
+import { readOptionalJsonFile } from "../../json-file.js";
 
 type StepRecord = WorkflowRunMetadata["steps"][number];
 

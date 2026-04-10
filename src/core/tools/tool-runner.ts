@@ -1,16 +1,16 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { confirmAction } from "../../confirm.js";
-import { truncateToolResult } from "../loop/context.js";
-import { tryEmit } from "../events/event-bus.js";
-import { assess, type GuardrailsConfig } from "./guardrails.js";
 import type { McpManager } from "../../mcp/manager.js";
 import { getApprovalQueue } from "../../modules/approval-queue/queue.js";
 import { getSecretStore } from "../../secrets.js";
-import { getToolMiddleware } from "./tool-middleware.js";
-import { getToolTelemetry } from "./tool-telemetry.js";
+import { tryEmit } from "../events/event-bus.js";
+import { truncateToolResult } from "../loop/context.js";
+import type { Transport } from "../loop/transport.js";
+import { assess, type GuardrailsConfig } from "./guardrails.js";
 import type { ToolResultBlock } from "./index.js";
 import { executeTool } from "./index.js";
-import type { Transport } from "../loop/transport.js";
+import { getToolMiddleware } from "./tool-middleware.js";
+import { getToolTelemetry } from "./tool-telemetry.js";
 
 type ToolUseBlock = {
   type: "tool_use";

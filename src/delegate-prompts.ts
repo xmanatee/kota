@@ -1,4 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type { ToolResult } from "./core/tools/index.js";
+import { runWorkspace, workspaceTool } from "./core/tools/workspace.js";
 import { codeExecTool, runCodeExec } from "./modules/execution/code-exec.js";
 import { processTool, runProcess } from "./modules/execution/process.js";
 import { runShell } from "./modules/execution/shell.js";
@@ -16,8 +18,6 @@ import { httpRequestTool, runHttpRequest } from "./modules/web-access/http-reque
 import { runWebFetch, webFetchTool } from "./modules/web-access/web-fetch.js";
 import { runWebSearch, webSearchTool } from "./modules/web-access/web-search.js";
 import { detectProject, getDirectoryOverview } from "./project-detection.js";
-import type { ToolResult } from "./core/tools/index.js";
-import { runWorkspace, workspaceTool } from "./core/tools/workspace.js";
 
 // --- Sub-agent system prompts ---
 

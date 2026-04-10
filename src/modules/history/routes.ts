@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { getHistory } from "../../memory/history.js";
 import type { RouteRegistration } from "../../core/modules/module-types.js";
+import { getHistory } from "../../memory/history.js";
 import { DaemonControlClient } from "../../server/daemon-client.js";
 import { jsonResponse } from "../../server/session-pool.js";
 

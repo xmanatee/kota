@@ -1,30 +1,30 @@
 import { existsSync } from "node:fs";
 import { buildUserProfile } from "../../config.js";
-import { Context } from "./context.js";
-import { CostTracker } from "./cost.js";
-import { tryEmit } from "../events/event-bus.js";
-import { initChangeTracker } from "./file-changes.js";
-import { getDefaultConfig as getDefaultGuardrails } from "../tools/guardrails.js";
 import { buildSessionWarmup } from "../../init.js";
 import { loadInstructionContext } from "../../instruction-files.js";
-import type { LoopOptions } from "./loop.js";
-import { type AgentLoopState, runInitModules, saveToHistoryImpl } from "./loop-init.js";
 import { getHistory } from "../../memory/history.js";
 import { createModelClient } from "../../model/model-client.js";
+import { initProviderRegistry, registerDefaultProviders } from "../../modules/providers/index.js";
+import { loadProjectContext } from "../../project-context.js";
+import { detectVerifyCommands, VerifyTracker } from "../../verify-tracker.js";
+import { SYSTEM_PROMPT } from "../agents/system-prompt.js";
+import { initScheduler } from "../daemon/scheduler.js";
+import { initTaskStore } from "../daemon/task-store.js";
+import { tryEmit } from "../events/event-bus.js";
 import { ModuleLoader } from "../modules/module-loader.js";
 import { initModuleLogStore } from "../modules/module-log.js";
 import type { CreateSessionOptions, ModuleSession } from "../modules/module-types.js";
-import { initProviderRegistry, registerDefaultProviders } from "../../modules/providers/index.js";
-import { loadProjectContext } from "../../project-context.js";
-import { initScheduler } from "../daemon/scheduler.js";
-import { initTaskStore } from "../daemon/task-store.js";
-import { SessionStateMachine } from "./session-state.js";
-import { SYSTEM_PROMPT } from "../agents/system-prompt.js";
-import { enableGroup } from "../tools/tool-groups.js";
 import { setConfigProvider, setModuleInfoProvider } from "../tools/agent-status.js";
 import { setDelegateConfig } from "../tools/delegate.js";
+import { getDefaultConfig as getDefaultGuardrails } from "../tools/guardrails.js";
+import { enableGroup } from "../tools/tool-groups.js";
+import { Context } from "./context.js";
+import { CostTracker } from "./cost.js";
+import { initChangeTracker } from "./file-changes.js";
+import type { LoopOptions } from "./loop.js";
+import { type AgentLoopState, runInitModules, saveToHistoryImpl } from "./loop-init.js";
+import { SessionStateMachine } from "./session-state.js";
 import { CliTransport } from "./transport.js";
-import { detectVerifyCommands, VerifyTracker } from "../../verify-tracker.js";
 
 export function initAgentSession(
   state: AgentLoopState,

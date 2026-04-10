@@ -1,7 +1,7 @@
 import { existsSync, statSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
-import { fileNotFoundError } from "../../path-resolver.js";
 import type { ToolResult } from "../../core/tools/tool-result.js";
+import { fileNotFoundError } from "../../path-resolver.js";
 import {
   formatSize,
   getDocumentFormat,

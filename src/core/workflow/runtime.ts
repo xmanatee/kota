@@ -1,8 +1,8 @@
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { KotaConfig } from "../../config.js";
-import type { BusEnvelope } from "../events/event-bus.js";
 import { getRepoWorktreeStatus } from "../../repo-worktree.js";
+import type { BusEnvelope } from "../events/event-bus.js";
 import { AgentBackoffManager } from "./agent-backoff.js";
 import { BudgetGuard } from "./budget-guard.js";
 import { isWithinDispatchWindow, msUntilDispatchWindowOpens } from "./dispatch-window.js";

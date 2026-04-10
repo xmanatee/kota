@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { initProviderRegistry, resetProviderRegistry } from "../../modules/providers/index.js";
-import { clearCustomGroups, enableGroup, registerCustomGroup, resetGroups } from "./tool-groups.js";
 import {
 	resetAgentStatusProviders,
 	runAgentStatus,
 	setConfigProvider,
 	setModuleInfoProvider,
 } from "./agent-status.js";
+import { clearCustomGroups, enableGroup, registerCustomGroup, resetGroups } from "./tool-groups.js";
 
 describe("agent_status", () => {
 	beforeEach(() => {

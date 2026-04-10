@@ -1,8 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { ModuleLoader } from "../modules/module-loader.js";
 import filesystemModule from "../../modules/filesystem/index.js";
-import { getToolTelemetry, resetToolTelemetry, ToolTelemetry } from "./tool-telemetry.js";
+import { ModuleLoader } from "../modules/module-loader.js";
 import { clearCustomTools } from "./index.js";
+import { getToolTelemetry, resetToolTelemetry, ToolTelemetry } from "./tool-telemetry.js";
 
 describe("ToolTelemetry", () => {
   it("records a successful tool call", () => {

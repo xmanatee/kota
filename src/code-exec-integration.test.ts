@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, } from "vitest";
+import { clearCustomGroups, detectToolGroups, enableGroup, getActiveToolNames, registerCustomGroup, resetGroups } from "./core/tools/tool-groups.js";
 import { extractPlots, readPlotFiles } from "./data/plot-capture.js";
 import { detectPackageHint, extractMissingPackage } from "./modules/execution/code-exec.js";
-import { clearCustomGroups, detectToolGroups, enableGroup, getActiveToolNames, registerCustomGroup, resetGroups } from "./core/tools/tool-groups.js";
 
 /**
  * Cross-module integration tests for the data analysis pipeline:

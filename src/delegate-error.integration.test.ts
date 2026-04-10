@@ -6,8 +6,8 @@
  * Exercises: delegate.ts × tool-retry.ts × delegate-format.ts
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createRetryMiddleware } from "./modules/tool-retry/tool-retry.js";
 import { getToolMiddleware, resetToolMiddleware } from "./core/tools/tool-middleware.js";
+import { createRetryMiddleware } from "./modules/tool-retry/tool-retry.js";
 
 // Hoisted mock runner — accessible inside vi.mock factory
 const { mockRunner } = vi.hoisted(() => ({

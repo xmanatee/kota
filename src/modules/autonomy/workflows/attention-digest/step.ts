@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { readOptionalJsonFile, writeJsonFileAtomic } from "../../../../json-file.js";
 import { PAUSE_SIGNAL_FILE } from "../../../../core/workflow/runtime.js";
+import { readOptionalJsonFile, writeJsonFileAtomic } from "../../../../json-file.js";
 import { countRepoTaskState } from "../../../repo-tasks/repo-tasks.js";
 import {
   computeCostByWorkflow,

@@ -1,9 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { Scheduler } from "../core/daemon/scheduler.js";
 import type { EventBus } from "../core/events/event-bus.js";
 import type { AgentSession } from "../core/loop/loop.js";
-import type { RouteRegistration } from "../core/modules/module-types.js";
-import type { Scheduler } from "../core/daemon/scheduler.js";
 import type { Transport } from "../core/loop/transport.js";
+import type { RouteRegistration } from "../core/modules/module-types.js";
 import { getWebUI } from "../web-ui/web-ui.js";
 import { DaemonControlClient } from "./daemon-client.js";
 import { queryDaemonStatus } from "./daemon-routes.js";

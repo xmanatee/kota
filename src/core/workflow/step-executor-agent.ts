@@ -7,8 +7,8 @@ import {
 import type { SDKMessage } from "../../agent-sdk/types.js";
 import type { KotaConfig } from "../../config.js";
 import { tryEmit } from "../events/event-bus.js";
-import { ToolTelemetry } from "../tools/tool-telemetry.js";
 import type { ToolResult } from "../tools/index.js";
+import { ToolTelemetry } from "../tools/tool-telemetry.js";
 import { validatePayloadSchema } from "./payload-validator.js";
 import type { WorkflowRunMetadata } from "./run-types.js";
 import {

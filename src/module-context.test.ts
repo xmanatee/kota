@@ -8,9 +8,9 @@ import { initEventBus, resetEventBus } from "./core/events/event-bus.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import type { KotaModule, ModuleContext, ToolDef } from "./core/modules/module-types.js";
 import { resolveModuleTools } from "./core/modules/module-types.js";
-import { initSecretStore, resetSecretStore } from "./secrets.js";
-import { clearCustomGroups, resetGroups } from "./core/tools/tool-groups.js";
 import { clearCustomTools, executeTool, registerTool } from "./core/tools/index.js";
+import { clearCustomGroups, resetGroups } from "./core/tools/tool-groups.js";
+import { initSecretStore, resetSecretStore } from "./secrets.js";
 
 beforeEach(() => {
   clearCustomTools();

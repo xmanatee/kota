@@ -9,12 +9,12 @@
  * 4. Delegates without MCP work unchanged
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { type DelegateConfig, setDelegateConfig } from "./core/tools/delegate.js";
 import {
   executeTools,
   exploreTools,
 } from "./delegate-prompts.js";
 import type { McpManager } from "./mcp/manager.js";
-import { type DelegateConfig, setDelegateConfig } from "./core/tools/delegate.js";
 
 /** Create a mock McpManager that returns controlled tools and results. */
 function createMockMcpManager(

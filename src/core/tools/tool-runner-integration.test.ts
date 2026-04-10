@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRetryMiddleware, resetRetryStats } from "../../modules/tool-retry/tool-retry.js";
+import { executeTool } from "./index.js";
 import { getToolMiddleware, resetToolMiddleware } from "./tool-middleware.js";
 import { executeToolCalls } from "./tool-runner.js";
-import { executeTool } from "./index.js";
 
 // Mock only the leaf tool executor — let real retry middleware and truncateToolResult run
 vi.mock("./index.js", () => ({

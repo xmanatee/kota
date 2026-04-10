@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { getChangeTracker } from "../loop/file-changes.js";
 import { recordModification } from "../../file-tracker.js";
+import { getChangeTracker } from "../loop/file-changes.js";
 import type { ToolResult } from "./index.js";
 
 export const checkpointTool: Anthropic.Tool = {

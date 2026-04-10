@@ -7,10 +7,10 @@
  * Scheduler integration delivers reminders and action results to active chats.
  */
 
-import type { ChannelSession } from "../../core/channels/channel.js";
 import type { KotaConfig } from "../../config.js";
-import { AgentSession, type LoopOptions } from "../../core/loop/loop.js";
+import type { ChannelSession } from "../../core/channels/channel.js";
 import { getScheduler, initScheduler, resetScheduler } from "../../core/daemon/scheduler.js";
+import { AgentSession, type LoopOptions } from "../../core/loop/loop.js";
 import { NullTransport, ProxyTransport } from "../../core/loop/transport.js";
 import {
   callTelegramApi,

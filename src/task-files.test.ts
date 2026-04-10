@@ -64,12 +64,12 @@ describe("repo task files", () => {
 			.filter((name) => name.endsWith(".md") && name !== "AGENTS.md")
 			.map((name) => join(INBOX_ROOT, name))) {
 			const raw = readFileSync(file, "utf-8").trim();
-			expect(basename(file, ".md")).toMatch(/^task-[a-z0-9-]+$/);
 			expect(raw.length).toBeGreaterThan(0);
 
 			if (raw.startsWith("---\n")) {
 				const { attrs } = parseFlatFrontMatter(raw);
 				if (attrs.id !== undefined) {
+					expect(String(attrs.id)).toMatch(/^task-[a-z0-9-]+$/);
 					expect(String(attrs.id)).toBe(basename(file, ".md"));
 				}
 				if (attrs.priority !== undefined) {

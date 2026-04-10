@@ -1,18 +1,18 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { KotaConfig } from "../../config.js";
-import type { Context } from "./context.js";
-import type { CostTracker } from "./cost.js";
-import type { GuardrailsConfig } from "../tools/guardrails.js";
-import { initAgentSession } from "./loop-constructor.js";
-import { type AgentLoopState, runClose, saveToHistoryImpl } from "./loop-init.js";
-import { runSend } from "./loop-send.js";
 import type { McpManager } from "../../mcp/manager.js";
 import type { ModelClient } from "../../model/model-client.js";
 import type { ModelTiers } from "../../model/model-router.js";
+import type { VerifyTracker } from "../../verify-tracker.js";
 import type { ModuleLoader } from "../modules/module-loader.js";
+import type { GuardrailsConfig } from "../tools/guardrails.js";
+import type { Context } from "./context.js";
+import type { CostTracker } from "./cost.js";
+import { initAgentSession } from "./loop-constructor.js";
+import { type AgentLoopState, runClose, saveToHistoryImpl } from "./loop-init.js";
+import { runSend } from "./loop-send.js";
 import type { SessionState, SessionStateMachine } from "./session-state.js";
 import { BufferTransport, type Transport } from "./transport.js";
-import type { VerifyTracker } from "../../verify-tracker.js";
 
 export type LoopOptions = {
   model?: string;

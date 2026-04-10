@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { loadConfig } from "../../config.js";
-import { DaemonControlClient } from "../../server/daemon-client.js";
 import { WorkflowRunStore } from "../../core/workflow/run-store.js";
+import { DaemonControlClient } from "../../server/daemon-client.js";
 
 export function registerGcCommand(wfCmd: Command): void {
   wfCmd

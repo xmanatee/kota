@@ -2,10 +2,10 @@ import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
 import { loadConfig } from "../../config.js";
-import { DaemonControlClient } from "../../server/daemon-client.js";
 import { isWithinDispatchWindow, msUntilDispatchWindowOpens } from "../../core/workflow/dispatch-window.js";
 import { WorkflowRunStore } from "../../core/workflow/run-store.js";
 import { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE, RELOAD_SIGNAL_FILE } from "../../core/workflow/runtime.js";
+import { DaemonControlClient } from "../../server/daemon-client.js";
 import { formatDate, formatDuration, statusIcon } from "./utils.js";
 
 export function registerControlCommands(wfCmd: Command): void {

@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ModuleLoader } from "../modules/module-loader.js";
+import { clearCustomTools, type ToolResult } from "./index.js";
 import {
 	getToolMiddleware,
 	resetToolMiddleware,
 	type ToolCall,
 	ToolMiddlewareRegistry,
 } from "./tool-middleware.js";
-import { clearCustomTools, type ToolResult } from "./index.js";
 
 const ok = (content: string): ToolResult => ({ content });
 const base = () => Promise.resolve(ok("base"));

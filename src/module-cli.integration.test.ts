@@ -13,8 +13,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import type { KotaModule } from "./core/modules/module-types.js";
 import { discoverProjectModules } from "./core/modules/project-discovery.js";
-import { clearCustomGroups, enableGroup, filterTools, resetGroups, } from "./core/tools/tool-groups.js";
 import { clearCustomTools, executeTool, getAllTools } from "./core/tools/index.js";
+import { clearCustomGroups, enableGroup, filterTools, resetGroups, } from "./core/tools/tool-groups.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = resolve(root, "src/cli.ts");
@@ -275,13 +275,16 @@ describe("CLI module commands (compiled binary)", () => {
   });
 
   it("module commands have working --help", () => {
-    const commands = ["serve", "telegram", "daemon"];
-    for (const cmd of commands) {
+    for (const cmd of ["serve", "telegram"]) {
       const { stdout, exitCode } = runCli(cmd, "--help");
       expect(exitCode).toBe(0);
       expect(stdout).toContain("--model");
       expect(stdout).toContain("--verbose");
     }
+    // daemon uses a fixed model for autonomous workflows — no --model flag
+    const { stdout: daemonHelp, exitCode: daemonExit } = runCli("daemon", "--help");
+    expect(daemonExit).toBe(0);
+    expect(daemonHelp).toContain("--verbose");
   });
 
   it("tools subcommand from registry module works", () => {

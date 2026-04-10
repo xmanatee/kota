@@ -1,10 +1,10 @@
 import { execFileSync } from "node:child_process";
 import { closeSync, openSync, readFileSync, readSync } from "node:fs";
 import { extname } from "node:path";
+import type { ToolResult, ToolResultBlock } from "../../core/tools/tool-result.js";
 import { CSV_EXTENSIONS, formatCsvMetadata } from "../../data/csv-preview.js";
 import { formatJsonPreview, JSON_EXTENSIONS } from "../../data/json-preview.js";
 import { recordRead } from "../../file-tracker.js";
-import type { ToolResult, ToolResultBlock } from "../../core/tools/tool-result.js";
 
 const IMAGE_EXTENSIONS: Record<string, string> = {
   ".png": "image/png",

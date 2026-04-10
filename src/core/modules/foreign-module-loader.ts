@@ -11,6 +11,7 @@
 
 import { resolve } from "node:path";
 import { tryEmit } from "../events/event-bus.js";
+import type { ToolResult } from "../tools/tool-result.js";
 import type {
   ForeignModuleConfig,
   KempInbound,
@@ -21,7 +22,6 @@ import type {
 import { HttpTransport } from "./foreign-module-http.js";
 import { StdioTransport } from "./foreign-module-stdio.js";
 import type { KotaModule, ModuleHealth, ToolDef } from "./module-types.js";
-import type { ToolResult } from "../tools/tool-result.js";
 
 // How long to wait for the manifest after sending init.
 const MANIFEST_TIMEOUT_MS = 10_000;

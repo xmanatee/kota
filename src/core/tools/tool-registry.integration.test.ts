@@ -1,13 +1,13 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, describe, expect, it } from "vitest";
-import { enableGroup, filterTools, resetGroups } from "./tool-groups.js";
-import { FailureTracker } from "./tool-runner.js";
 import {
   clearCustomTools,
   executeTool,
   getAllTools,
   registerTool,
 } from "./index.js";
+import { enableGroup, filterTools, resetGroups } from "./tool-groups.js";
+import { FailureTracker } from "./tool-runner.js";
 
 const makeTool = (name: string): Anthropic.Tool => ({
   name,

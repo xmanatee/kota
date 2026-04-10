@@ -2,8 +2,8 @@ import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { runHttpRequest } from "./modules/web-access/http-request.js";
 import { clearCustomGroups, detectToolGroups, enableGroup, getActiveToolNames, registerCustomGroup, resetGroups } from "./core/tools/tool-groups.js";
+import { runHttpRequest } from "./modules/web-access/http-request.js";
 
 /**
  * Cross-module integration tests for the http_request → code_exec data pipeline.

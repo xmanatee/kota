@@ -1,9 +1,9 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
-import { readOptionalJsonFile } from "../../json-file.js";
 import { WorkflowRunStore } from "../../core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "../../core/workflow/run-types.js";
+import { readOptionalJsonFile } from "../../json-file.js";
 import { buildRunLogs, filterWithContext, followRunLogs } from "./workflow-logs.js";
 
 export function registerLogsCommand(wfCmd: Command): void {

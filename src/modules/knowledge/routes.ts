@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { KnowledgeEntry } from "../../memory/knowledge-store-helpers.js";
 import type { RouteRegistration } from "../../core/modules/module-types.js";
+import type { KnowledgeEntry } from "../../memory/knowledge-store-helpers.js";
 import { jsonResponse, readBody } from "../../server/session-pool.js";
 import { getKnowledgeProvider } from "../providers/index.js";
 

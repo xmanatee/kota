@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetEventBus } from "./core/events/event-bus.js";
 import { AgentSession } from "./core/loop/loop.js";
+import { BufferTransport } from "./core/loop/transport.js";
 import {
 	createMockClient,
 	type MockApiCall,
@@ -22,7 +23,6 @@ import {
 	textResponse,
 	toolUseResponse,
 } from "./model/mock-client.js";
-import { BufferTransport } from "./core/loop/transport.js";
 
 vi.spyOn(console, "error").mockImplementation(() => {});
 

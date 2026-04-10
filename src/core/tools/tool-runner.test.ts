@@ -32,9 +32,9 @@ vi.mock("../../secrets.js", () => ({
 }));
 
 import { confirmAction } from "../../confirm.js";
+import { getApprovalQueue } from "../../modules/approval-queue/queue.js";
 import { truncateToolResult } from "../loop/context.js";
 import { assess } from "./guardrails.js";
-import { getApprovalQueue } from "../../modules/approval-queue/queue.js";
 import { executeTool } from "./index.js";
 
 const mockExecuteTool = vi.mocked(executeTool);

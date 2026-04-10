@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { discoverModules } from "./core/modules/module-discovery.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
-import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./core/tools/tool-groups.js";
 import { clearCustomTools, executeTool, getAllTools } from "./core/tools/index.js";
+import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./core/tools/tool-groups.js";
 
 function makeTmpDir(): string {
   const dir = join(tmpdir(), `kota-ext-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);

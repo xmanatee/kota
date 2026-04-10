@@ -1,29 +1,29 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { Context } from "./context.js";
-import type { CostTracker } from "./cost.js";
-import { getEventBus, tryEmit } from "../events/event-bus.js";
-import { resetChangeTracker } from "./file-changes.js";
-import type { GuardrailsConfig } from "../tools/guardrails.js";
 import { listManifestModules } from "../../manifest/index.js";
 import { McpManager } from "../../mcp/manager.js";
 import { getHistory } from "../../memory/history.js";
 import type { ModelClient } from "../../model/model-client.js";
 import type { ModelTiers } from "../../model/model-router.js";
-import { discoverModules } from "../modules/module-discovery.js";
-import type { ModuleLoader } from "../modules/module-loader.js";
 import { cleanupSessions } from "../../modules/execution/code-exec.js";
 import { cleanupProcesses } from "../../modules/execution/process.js";
-import { discoverProjectModules } from "../modules/project-discovery.js";
 import { resetProviderRegistry } from "../../modules/providers/index.js";
-import type { SessionStateMachine } from "./session-state.js";
-import { resetGroups } from "../tools/tool-groups.js";
-import { resetToolTelemetry } from "../tools/tool-telemetry.js";
+import type { VerifyTracker } from "../../verify-tracker.js";
+import { getEventBus, tryEmit } from "../events/event-bus.js";
+import { discoverModules } from "../modules/module-discovery.js";
+import type { ModuleLoader } from "../modules/module-loader.js";
+import { discoverProjectModules } from "../modules/project-discovery.js";
 import { resetAgentStatusProviders } from "../tools/agent-status.js";
 import { loadSavedTools, resetCustomTools } from "../tools/custom-tool.js";
 import { setDelegateConfig } from "../tools/delegate.js";
+import type { GuardrailsConfig } from "../tools/guardrails.js";
 import { addLoadedModule, resetModuleFactory } from "../tools/module-factory/index.js";
+import { resetGroups } from "../tools/tool-groups.js";
+import { resetToolTelemetry } from "../tools/tool-telemetry.js";
+import type { Context } from "./context.js";
+import type { CostTracker } from "./cost.js";
+import { resetChangeTracker } from "./file-changes.js";
+import type { SessionStateMachine } from "./session-state.js";
 import type { Transport } from "./transport.js";
-import type { VerifyTracker } from "../../verify-tracker.js";
 
 /** Internal state interface used to access AgentSession fields from extracted functions. */
 export interface AgentLoopState {

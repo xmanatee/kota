@@ -13,8 +13,8 @@
  * - add()    → creates a Jira issue; cache entry uses a temp negative ID until created
  */
 
-import type { TaskProvider } from "../../core/modules/provider-types.js";
 import type { Task, TaskPriority, TaskStatus } from "../../core/daemon/task-store-types.js";
+import type { TaskProvider } from "../../core/modules/provider-types.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 

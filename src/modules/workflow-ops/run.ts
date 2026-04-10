@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "../../core/modules/module-types.js";
-import { DaemonControlClient } from "../../server/daemon-client.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "../../core/workflow/validation.js";
+import { DaemonControlClient } from "../../server/daemon-client.js";
 import { getWorkflowDefinitions } from "./definitions-source.js";
 import { buildDryRunPlan, formatDryRunPlan } from "./dry-run.js";
 

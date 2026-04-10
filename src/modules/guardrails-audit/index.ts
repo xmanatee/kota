@@ -7,8 +7,8 @@
  */
 
 import { Command } from "commander";
-import type { Policy, RiskLevel } from "../../core/tools/guardrails.js";
 import type { KotaModule } from "../../core/modules/module-types.js";
+import type { Policy, RiskLevel } from "../../core/tools/guardrails.js";
 import { registerAuditCommands } from "./cli.js";
 import { handleListAudit } from "./routes.js";
 import { initAuditStore, resetAuditStore } from "./store.js";

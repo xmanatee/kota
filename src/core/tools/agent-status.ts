@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { getProviderRegistry } from "../../modules/providers/index.js";
-import { getEnabledGroups, TOOL_GROUPS } from "./tool-groups.js";
 import { getCoreRegistrations, getModuleToolRisk, getRegisteredTools, type ToolRegistration, type ToolResult } from "./index.js";
+import { getEnabledGroups, TOOL_GROUPS } from "./tool-groups.js";
 
 export const agentStatusTool: Anthropic.Tool = {
 	name: "agent_status",

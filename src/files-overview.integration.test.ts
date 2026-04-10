@@ -4,10 +4,10 @@ import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { truncateToolResult } from "./core/loop/context.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
-import filesystemModule from "./modules/filesystem/index.js";
+import { clearCustomTools, executeTool, getAllTools } from "./core/tools/index.js";
 import { enableGroup, filterTools, resetGroups } from "./core/tools/tool-groups.js";
 import { FailureTracker } from "./core/tools/tool-runner.js";
-import { clearCustomTools, executeTool, getAllTools } from "./core/tools/index.js";
+import filesystemModule from "./modules/filesystem/index.js";
 
 let testDir: string;
 

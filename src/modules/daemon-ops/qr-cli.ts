@@ -2,8 +2,8 @@ import { createRequire } from "node:module";
 import { networkInterfaces } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
-import { readOptionalJsonFile } from "../../json-file.js";
 import type { DaemonControlAddress } from "../../core/daemon/daemon-control-types.js";
+import { readOptionalJsonFile } from "../../json-file.js";
 
 const require = createRequire(import.meta.url);
 

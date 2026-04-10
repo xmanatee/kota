@@ -4,10 +4,10 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { EventBus } from "../core/events/event-bus.js";
-import { getToolMcpAnnotations } from "../core/tools/guardrails-classify.js";
 import { ModuleLoader } from "../core/modules/module-loader.js";
-import filesystemModule from "../modules/filesystem/index.js";
+import { getToolMcpAnnotations } from "../core/tools/guardrails-classify.js";
 import { clearCustomTools, registerTool } from "../core/tools/index.js";
+import filesystemModule from "../modules/filesystem/index.js";
 import { anthropicToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
 
 vi.mock("../modules/providers/index.js", () => ({

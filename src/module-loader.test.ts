@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "./core/events/event-bus.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import type { KotaModule } from "./core/modules/module-types.js";
-import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./core/tools/tool-groups.js";
 import { clearCustomTools, executeTool, getAllTools } from "./core/tools/index.js";
+import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./core/tools/tool-groups.js";
 
 function makeTool(name: string) {
   return {

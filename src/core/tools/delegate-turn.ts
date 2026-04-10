@@ -1,10 +1,9 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { truncateToolResult } from "../loop/context.js";
-import type { CostTracker } from "../loop/cost.js";
 import type { McpManager } from "../../mcp/manager.js";
 import type { ModelClient } from "../../model/model-client.js";
 import { isRetryable } from "../../model/streaming.js";
-import { getToolMiddleware } from "./tool-middleware.js";
+import { truncateToolResult } from "../loop/context.js";
+import type { CostTracker } from "../loop/cost.js";
 import type { Transport } from "../loop/transport.js";
 import type { DelegateMode } from "./delegate-config.js";
 import {
@@ -17,6 +16,7 @@ import {
 import type { CompletionReason } from "./delegate-format.js";
 import { collectImageBlocks, extractModifiedFiles } from "./delegate-format.js";
 import type { ToolResult, ToolResultBlock } from "./index.js";
+import { getToolMiddleware } from "./tool-middleware.js";
 
 export type TurnLoopOptions = {
   client: ModelClient;

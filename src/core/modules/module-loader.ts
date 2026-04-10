@@ -1,10 +1,14 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Command } from "commander";
+import type { KotaConfig } from "../../config.js";
+import { getProviderRegistry } from "../../modules/providers/index.js";
 import type { AgentDef, SkillDef } from "../agents/agent-types.js";
 import type { ChannelDef } from "../channels/channel.js";
-import type { KotaConfig } from "../../config.js";
 import type { EventBus } from "../events/event-bus.js";
+import { executeTool, getModuleToolNames, registerTool } from "../tools/index.js";
+import { registerCustomGroup } from "../tools/tool-groups.js";
+import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
 import { loadForeignModules } from "./foreign-module-loader.js";
 import { createModuleContext, type ModuleContextParams } from "./module-context.js";
 import { topoSort } from "./module-deps.js";
@@ -23,10 +27,6 @@ import {
   resolveModuleWorkflows,
   type ToolDef,
 } from "./module-types.js";
-import { getProviderRegistry } from "../../modules/providers/index.js";
-import { registerCustomGroup } from "../tools/tool-groups.js";
-import { executeTool, getModuleToolNames, registerTool } from "../tools/index.js";
-import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
 
 export type { ModuleSummary } from "./module-types.js";
 

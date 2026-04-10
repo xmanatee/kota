@@ -1,11 +1,11 @@
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
 import type Anthropic from "@anthropic-ai/sdk";
+import { which } from "../../core/tools/runtime-check.js";
+import type { ToolResult, ToolResultBlock } from "../../core/tools/tool-result.js";
 import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "../../data/code-wrappers.js";
 import { extractPlots, readPlotFiles } from "../../data/plot-capture.js";
 import { cleanupSessions, findPythonBinary, type Language, type REPLSession, sessions } from "../../repl-session.js";
-import { which } from "../../core/tools/runtime-check.js";
-import type { ToolResult, ToolResultBlock } from "../../core/tools/tool-result.js";
 
 export { cleanupSessions };
 

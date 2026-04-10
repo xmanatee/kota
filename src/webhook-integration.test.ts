@@ -8,8 +8,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, } from "vitest";
-import { type EventBus, initEventBus, resetEventBus } from "./core/events/event-bus.js";
 import { getScheduler, initScheduler, resetScheduler, type Scheduler } from "./core/daemon/scheduler.js";
+import { type EventBus, initEventBus, resetEventBus } from "./core/events/event-bus.js";
 
 describe("webhook → event bus → scheduler integration", () => {
   let bus: EventBus;

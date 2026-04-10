@@ -1,8 +1,8 @@
 import type { AgentDef } from "../../../../core/agents/agent-types.js";
-import { assertRepoWorktreeClean } from "../../../../repo-worktree.js";
 import type { WorkflowDefinitionInput } from "../../../../core/workflow/types.js";
 import { typedCodeStep } from "../../../../core/workflow/types.js";
-import { getRepoTaskQueueSnapshot } from "../../../repo-tasks/repo-tasks.js";
+import { getRepoWorktreeStatus } from "../../../../repo-worktree.js";
+import { getRepoTaskQueueSnapshot, REPO_INBOX_DIR } from "../../../repo-tasks/repo-tasks.js";
 import { commitWorkflowChanges } from "../../commit.js";
 import { runCheck, stepSucceeded } from "../../shared.js";
 
@@ -24,7 +24,13 @@ const inspectInbox = typedCodeStep<InboxSorterAssessment>({
   id: "inspect-inbox",
   type: "code",
   run: ({ projectDir }) => {
-    assertRepoWorktreeClean(projectDir);
+    const status = getRepoWorktreeStatus(projectDir);
+    const nonInboxDirty = status.entries.filter((e) => !e.includes(REPO_INBOX_DIR));
+    if (status.available && nonInboxDirty.length > 0) {
+      throw new Error(
+        `Repository worktree must be clean before starting inbox-sorter: ${nonInboxDirty.join(", ")}`,
+      );
+    }
     const queue = getRepoTaskQueueSnapshot(projectDir);
     return {
       inboxCount: queue.inboxCount,

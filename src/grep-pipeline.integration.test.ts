@@ -2,9 +2,9 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ModuleLoader } from "./core/modules/module-loader.js";
-import filesystemModule from "./modules/filesystem/index.js";
-import { executeToolCalls } from "./core/tools/tool-runner.js";
 import { clearCustomTools } from "./core/tools/index.js";
+import { executeToolCalls } from "./core/tools/tool-runner.js";
+import filesystemModule from "./modules/filesystem/index.js";
 
 /**
  * Cross-module integration: grep output modes × tool-runner × truncateToolResult.
