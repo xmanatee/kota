@@ -1,12 +1,12 @@
 ---
 id: task-working-memory-compaction
 title: Working memory compaction — auto-prune stale entries on context pressure
-status: backlog
+status: done
 priority: p2
 area: reliability
 summary: Working memory has hard limits (20 entries, 4000 chars total) with no automatic compaction. When limits are hit, new entries silently fail or oldest entries are dropped without summarization. Add a compaction step that condenses or removes stale entries when pressure rises.
 created_at: 2026-04-10T06:50:00Z
-updated_at: 2026-04-10T06:50:00Z
+updated_at: 2026-04-10T07:37:00Z
 ---
 
 ## Problem

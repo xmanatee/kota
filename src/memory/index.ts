@@ -37,6 +37,7 @@ export {
 	loadEntries,
 	removeEntry,
 	resetWorkingMemory,
+	setCompactionEnabled,
 	setEntry,
 	type WorkingMemoryEntry,
 } from "./working-memory.js";
