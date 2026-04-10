@@ -24,6 +24,9 @@ struct MenuBarView: View {
                 }
             }
 
+            // Recent runs history
+            RecentRunsView()
+
             // Task queue
             TaskQueueView()
 
@@ -286,6 +289,118 @@ struct RunDetailContent: View {
                 .imageScale(.small)
                 .foregroundStyle(.secondary)
         }
+    }
+}
+
+struct RecentRunsView: View {
+    @EnvironmentObject var appState: AppState
+    @State private var isExpanded = false
+
+    var body: some View {
+        guard !appState.recentRuns.isEmpty else { return AnyView(EmptyView()) }
+        return AnyView(content)
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Divider()
+            Button(action: { isExpanded.toggle() }) {
+                HStack {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .imageScale(.small)
+                        .foregroundStyle(.secondary)
+                    Text("Recent Runs")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .imageScale(.small)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                ForEach(appState.recentRuns) { run in
+                    RecentRunRow(run: run)
+                }
+            }
+        }
+    }
+}
+
+struct RecentRunRow: View {
+    let run: RunSummary
+    @EnvironmentObject var appState: AppState
+    @State private var isExpanded = false
+    @State private var detail: RunDetail?
+    @State private var isLoading = false
+    @State private var loadError: String?
+
+    var statusColor: Color {
+        switch run.status {
+        case "success": return .green
+        case "failed": return .red
+        case "interrupted", "completed-with-warnings": return .orange
+        default: return .secondary
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button(action: toggleExpansion) {
+                HStack {
+                    Image(systemName: run.statusIcon)
+                        .imageScale(.small)
+                        .foregroundStyle(statusColor)
+                    Text(run.workflow)
+                        .font(.system(.body, design: .monospaced))
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                    Spacer()
+                    Text(run.durationDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .imageScale(.small)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                RunDetailInlineView(
+                    detail: detail,
+                    isLoading: isLoading,
+                    loadError: loadError,
+                    onRefresh: { Task { await fetchDetail() } }
+                )
+            }
+        }
+    }
+
+    private func toggleExpansion() {
+        isExpanded.toggle()
+        if isExpanded && detail == nil && !isLoading {
+            Task { await fetchDetail() }
+        }
+    }
+
+    private func fetchDetail() async {
+        isLoading = true
+        loadError = nil
+        do {
+            detail = try await appState.client.fetchRunDetail(runId: run.id)
+        } catch {
+            loadError = error.localizedDescription
+        }
+        isLoading = false
     }
 }
 

@@ -1,7 +1,7 @@
 ---
 id: task-macos-client-run-history
 title: Add recent run history panel to macOS menu bar client
-status: backlog
+status: done
 priority: p3
 area: operator-ux
 summary: The macOS menu bar client shows active runs and approvals but has no way to browse recent completed runs. A compact run history panel would let operators check build outcomes without switching to the web UI.

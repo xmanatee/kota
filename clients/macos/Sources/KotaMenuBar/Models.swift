@@ -91,6 +91,49 @@ struct RunDetail: Codable {
     }
 }
 
+// MARK: - Run history
+
+struct RunHistoryResponse: Codable {
+    let runs: [RunSummary]
+}
+
+struct RunSummary: Codable, Identifiable {
+    let id: String
+    let workflow: String
+    let status: String
+    let startedAt: String
+    let durationMs: Double?
+
+    var durationDescription: String {
+        guard let ms = durationMs, ms > 0 else { return "" }
+        let s = Int(ms / 1000)
+        if s < 60 { return "\(s)s" }
+        let m = s / 60
+        let rem = s % 60
+        return rem == 0 ? "\(m)m" : "\(m)m \(rem)s"
+    }
+
+    var statusIcon: String {
+        switch status {
+        case "success": return "checkmark.circle.fill"
+        case "failed": return "xmark.circle.fill"
+        case "interrupted": return "slash.circle.fill"
+        case "completed-with-warnings": return "exclamationmark.circle.fill"
+        default: return "circle"
+        }
+    }
+
+    var statusColor: String {
+        switch status {
+        case "success": return "green"
+        case "failed": return "red"
+        case "interrupted": return "orange"
+        case "completed-with-warnings": return "yellow"
+        default: return "secondary"
+        }
+    }
+}
+
 // MARK: - Trigger
 
 struct TriggerRequest: Codable {

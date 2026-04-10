@@ -56,6 +56,10 @@ final class DaemonClient {
         try await get("/sessions")
     }
 
+    func fetchRecentRuns(limit: Int = 10) async throws -> RunHistoryResponse {
+        try await get("/workflow/runs?limit=\(limit)")
+    }
+
     func fetchRunDetail(runId: String) async throws -> RunDetail {
         try await get("/workflow/runs/\(runId)")
     }
