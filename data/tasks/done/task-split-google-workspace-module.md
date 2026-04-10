@@ -1,12 +1,12 @@
 ---
 id: task-split-google-workspace-module
 title: Split google-workspace module into focused files
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: The google-workspace module is 663 lines in a single index.ts — well over the 300-line limit. Split into per-service files (gmail, calendar, drive) with a thin index.
 created_at: 2026-04-10T06:50:00Z
-updated_at: 2026-04-10T06:50:00Z
+updated_at: 2026-04-10T07:10:00Z
 ---
 
 ## Problem
