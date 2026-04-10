@@ -55,3 +55,35 @@ export function handleRejectApproval(
     })
     .catch(() => jsonResponse(res, 500, { error: "Internal error" }));
 }
+
+export function handleApproveAllApprovals(handle: DaemonControlHandle, req: IncomingMessage, res: ServerResponse): void {
+  readBody(req)
+    .then((buf) => {
+      let note: string | undefined;
+      try {
+        const body = JSON.parse(buf.toString()) as Record<string, unknown>;
+        note = typeof body.note === "string" ? body.note : undefined;
+      } catch {
+        // note is optional
+      }
+      const items = handle.approveAllApprovals(note);
+      jsonResponse(res, 200, { approvals: items, count: items.length });
+    })
+    .catch(() => jsonResponse(res, 500, { error: "Internal error" }));
+}
+
+export function handleRejectAllApprovals(handle: DaemonControlHandle, req: IncomingMessage, res: ServerResponse): void {
+  readBody(req)
+    .then((buf) => {
+      let reason: string | undefined;
+      try {
+        const body = JSON.parse(buf.toString()) as Record<string, unknown>;
+        reason = typeof body.reason === "string" ? body.reason : undefined;
+      } catch {
+        // reason is optional
+      }
+      const items = handle.rejectAllApprovals(reason);
+      jsonResponse(res, 200, { approvals: items, count: items.length });
+    })
+    .catch(() => jsonResponse(res, 500, { error: "Internal error" }));
+}

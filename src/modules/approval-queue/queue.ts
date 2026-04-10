@@ -137,6 +137,14 @@ export class ApprovalQueue {
 		return expired;
 	}
 
+	approveAll(note?: string): PendingApproval[] {
+		return this.list("pending").map((item) => this.approve(item.id, note)).filter(Boolean) as PendingApproval[];
+	}
+
+	rejectAll(reason?: string): PendingApproval[] {
+		return this.list("pending").map((item) => this.reject(item.id, reason)).filter(Boolean) as PendingApproval[];
+	}
+
 	count(status?: ApprovalStatus): number {
 		return this.list(status).length;
 	}

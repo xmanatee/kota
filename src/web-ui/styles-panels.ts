@@ -76,6 +76,11 @@ export const STYLES_PANELS_CSS = `
   text-overflow: ellipsis;
   margin-bottom: 4px;
 }
+.approval-bulk-bar {
+  display: flex;
+  gap: 4px;
+  padding: 4px 12px 6px;
+}
 .approval-actions {
   display: flex;
   gap: 4px;

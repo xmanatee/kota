@@ -3,6 +3,56 @@ import { type ApprovalQueue, getApprovalQueue } from "../modules/approval-queue/
 import type { DaemonControlClient } from "./daemon-client.js";
 import { jsonResponse, readBody } from "./session-pool.js";
 
+export async function handleApproveAllApprovals(
+  req: IncomingMessage,
+  res: ServerResponse,
+  client: DaemonControlClient | null = null,
+  queue: ApprovalQueue = getApprovalQueue(),
+): Promise<void> {
+  let note: string | undefined;
+  try {
+    const body = await readBody(req);
+    note = typeof body.note === "string" ? body.note : undefined;
+  } catch {
+    // note is optional
+  }
+
+  if (client) {
+    const result = await client.approveAllApprovals(note);
+    if (result) {
+      jsonResponse(res, 200, result);
+      return;
+    }
+  }
+  const items = queue.approveAll(note);
+  jsonResponse(res, 200, { approvals: items, count: items.length });
+}
+
+export async function handleRejectAllApprovals(
+  req: IncomingMessage,
+  res: ServerResponse,
+  client: DaemonControlClient | null = null,
+  queue: ApprovalQueue = getApprovalQueue(),
+): Promise<void> {
+  let reason: string | undefined;
+  try {
+    const body = await readBody(req);
+    reason = typeof body.reason === "string" ? body.reason : undefined;
+  } catch {
+    // reason is optional
+  }
+
+  if (client) {
+    const result = await client.rejectAllApprovals(reason);
+    if (result) {
+      jsonResponse(res, 200, result);
+      return;
+    }
+  }
+  const items = queue.rejectAll(reason);
+  jsonResponse(res, 200, { approvals: items, count: items.length });
+}
+
 export async function handleListApprovals(
   res: ServerResponse,
   client: DaemonControlClient | null = null,

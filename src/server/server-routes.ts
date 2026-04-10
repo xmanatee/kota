@@ -8,8 +8,10 @@ import type { Transport } from "../transport.js";
 import { getWebUI } from "../web-ui/web-ui.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import {
+  handleApproveAllApprovals,
   handleApproveApproval,
   handleListApprovals,
+  handleRejectAllApprovals,
   handleRejectApproval,
 } from "./approval-routes.js";
 import { handleListAudit } from "./audit-routes.js";
@@ -204,6 +206,20 @@ export function buildRequestHandler(ctx: ServerContext) {
 
     if (req.method === "GET" && path === "/api/approvals") {
       handleListApprovals(res, DaemonControlClient.fromStateDir()).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
+      return;
+    }
+
+    if (req.method === "POST" && path === "/api/approvals/approve-all") {
+      handleApproveAllApprovals(req, res, DaemonControlClient.fromStateDir()).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
+      return;
+    }
+
+    if (req.method === "POST" && path === "/api/approvals/reject-all") {
+      handleRejectAllApprovals(req, res, DaemonControlClient.fromStateDir()).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;

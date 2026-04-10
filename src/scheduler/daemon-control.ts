@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { handleApproveApproval, handleListApprovals, handleRejectApproval } from "./daemon-control-approvals.js";
+import { handleApproveAllApprovals, handleApproveApproval, handleListApprovals, handleRejectAllApprovals, handleRejectApproval } from "./daemon-control-approvals.js";
 import { handleDeleteHistory, handleGetHistory, handleListHistory } from "./daemon-control-history.js";
 import { handleMetrics } from "./daemon-control-metrics.js";
 import { handleRegisterPushToken } from "./daemon-control-push-tokens.js";
@@ -67,6 +67,8 @@ const ROUTE_SCOPES: Record<string, "read" | "control"> = {
   "GET /approvals": "read",
   "POST /approvals/:id/approve": "control",
   "POST /approvals/:id/reject": "control",
+  "POST /approvals/approve-all": "control",
+  "POST /approvals/reject-all": "control",
   "GET /workflow/definitions": "read",
   "POST /workflow/definitions/:name/disable": "control",
   "POST /workflow/definitions/:name/enable": "control",
@@ -297,6 +299,8 @@ export class DaemonControlServer {
     if (method === "DELETE" && params.id && path.startsWith("/history/")) { handleDeleteHistory(h, req, res, params); return; }
 
     if (method === "GET" && path === "/approvals") { handleListApprovals(h, res); return; }
+    if (method === "POST" && path === "/approvals/approve-all") { handleApproveAllApprovals(h, req, res); return; }
+    if (method === "POST" && path === "/approvals/reject-all") { handleRejectAllApprovals(h, req, res); return; }
     if (method === "POST" && params.id && path.endsWith("/approve")) { handleApproveApproval(h, req, res, params); return; }
     if (method === "POST" && params.id && path.endsWith("/reject")) { handleRejectApproval(h, req, res, params); return; }
 

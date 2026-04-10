@@ -728,6 +728,8 @@ API when the daemon is running:
 | GET /api/approvals                  | GET /approvals                |
 | POST /api/approvals/:id/approve     | POST /approvals/:id/approve   |
 | POST /api/approvals/:id/reject      | POST /approvals/:id/reject    |
+| POST /api/approvals/approve-all     | POST /approvals/approve-all   |
+| POST /api/approvals/reject-all      | POST /approvals/reject-all    |
 | GET /api/tasks                      | GET /tasks                    |
 
 When the daemon is not running:

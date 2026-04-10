@@ -19,6 +19,55 @@ export const CLIENT_APPROVALS_JS = `
       $approvalList.innerHTML = '<div class="run-empty">No pending approvals</div>';
       return;
     }
+
+    var bulkBar = document.createElement("div");
+    bulkBar.className = "approval-bulk-bar";
+    bulkBar.innerHTML =
+      '<button class="approval-btn approval-approve approval-bulk-approve">Approve all (' + approvals.length + ')</button>' +
+      '<button class="approval-btn approval-reject approval-bulk-reject">Reject all (' + approvals.length + ')</button>';
+    $approvalList.appendChild(bulkBar);
+
+    var bulkApproveBtn = bulkBar.querySelector(".approval-bulk-approve");
+    var bulkRejectBtn = bulkBar.querySelector(".approval-bulk-reject");
+
+    bulkApproveBtn.onclick = async function() {
+      if (bulkApproveBtn.dataset.confirming) {
+        bulkApproveBtn.disabled = true;
+        bulkRejectBtn.disabled = true;
+        try {
+          var res = await apiFetch(API + "/api/approvals/approve-all", { method: "POST" });
+          if (!res.ok) { setApprovalsNotice("Failed to approve all"); renderApprovals(approvals); return; }
+          setApprovalsNotice("");
+          refreshApprovals();
+        } catch {
+          setApprovalsNotice("Failed to approve all");
+          renderApprovals(approvals);
+        }
+      } else {
+        bulkApproveBtn.dataset.confirming = "1";
+        bulkApproveBtn.textContent = "Confirm approve " + approvals.length + "?";
+      }
+    };
+
+    bulkRejectBtn.onclick = async function() {
+      if (bulkRejectBtn.dataset.confirming) {
+        bulkApproveBtn.disabled = true;
+        bulkRejectBtn.disabled = true;
+        try {
+          var res = await apiFetch(API + "/api/approvals/reject-all", { method: "POST" });
+          if (!res.ok) { setApprovalsNotice("Failed to reject all"); renderApprovals(approvals); return; }
+          setApprovalsNotice("");
+          refreshApprovals();
+        } catch {
+          setApprovalsNotice("Failed to reject all");
+          renderApprovals(approvals);
+        }
+      } else {
+        bulkRejectBtn.dataset.confirming = "1";
+        bulkRejectBtn.textContent = "Confirm reject " + approvals.length + "?";
+      }
+    };
+
     for (var i = 0; i < approvals.length; i++) {
       var a = approvals[i];
       var ageMs = Date.now() - new Date(a.createdAt).getTime();
@@ -49,8 +98,8 @@ export const CLIENT_APPROVALS_JS = `
         '</div>';
       $approvalList.appendChild(item);
     }
-    var approveBtns = $approvalList.querySelectorAll(".approval-approve");
-    var rejectBtns = $approvalList.querySelectorAll(".approval-reject");
+    var approveBtns = $approvalList.querySelectorAll(".approval-item .approval-approve");
+    var rejectBtns = $approvalList.querySelectorAll(".approval-item .approval-reject");
     for (var j = 0; j < approveBtns.length; j++) {
       (function(btn) {
         btn.onclick = async function() {

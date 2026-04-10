@@ -191,6 +191,8 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
     listApprovals: () => getApprovalQueue().list("pending"),
     approveApproval: (id: string, note?: string) => getApprovalQueue().approve(id, note),
     rejectApproval: (id: string, reason?: string) => getApprovalQueue().reject(id, reason),
+    approveAllApprovals: (note?: string) => getApprovalQueue().approveAll(note),
+    rejectAllApprovals: (reason?: string) => getApprovalQueue().rejectAll(reason),
     listWorkflowRuns: (workflow?: string, limit?: number, tag?: string, causedByRunId?: string): WorkflowRunSummary[] =>
       runStore.listRuns({ workflow, limit, tag, causedByRunId }).map((m) => ({
         id: m.id,

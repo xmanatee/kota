@@ -191,6 +191,8 @@ export type DaemonControlHandle = {
   listApprovals(): PendingApproval[];
   approveApproval(id: string, note?: string): PendingApproval | null;
   rejectApproval(id: string, reason?: string): PendingApproval | null;
+  approveAllApprovals(note?: string): PendingApproval[];
+  rejectAllApprovals(reason?: string): PendingApproval[];
   // Tasks
   getTaskStatus(): DaemonTaskStatusResponse;
   // Workflow runs

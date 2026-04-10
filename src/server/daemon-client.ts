@@ -286,6 +286,34 @@ export class DaemonControlClient {
     }
   }
 
+  async approveAllApprovals(note?: string): Promise<{ approvals: PendingApproval[]; count: number } | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/approvals/approve-all`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...this.authHeaders() },
+        body: JSON.stringify({ note }),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as { approvals: PendingApproval[]; count: number };
+    } catch {
+      return null;
+    }
+  }
+
+  async rejectAllApprovals(reason?: string): Promise<{ approvals: PendingApproval[]; count: number } | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/approvals/reject-all`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...this.authHeaders() },
+        body: JSON.stringify({ reason }),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as { approvals: PendingApproval[]; count: number };
+    } catch {
+      return null;
+    }
+  }
+
   async getTaskStatus(): Promise<DaemonTaskStatusResponse | null> {
     try {
       const res = await fetchWithTimeout(`${this.baseUrl}/tasks`, { headers: this.authHeaders() });

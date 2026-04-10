@@ -4,8 +4,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApprovalQueue } from "../modules/approval-queue/queue.js";
 import {
+	handleApproveAllApprovals,
 	handleApproveApproval,
 	handleListApprovals,
+	handleRejectAllApprovals,
 	handleRejectApproval,
 } from "./approval-routes.js";
 
@@ -58,6 +60,8 @@ function mockClient(overrides: Partial<Record<string, unknown>> = {}) {
 		listApprovals: vi.fn(async () => null),
 		approveApproval: vi.fn(async () => null),
 		rejectApproval: vi.fn(async () => null),
+		approveAllApprovals: vi.fn(async () => null),
+		rejectAllApprovals: vi.fn(async () => null),
 		...overrides,
 	} as unknown as import("./daemon-client.js").DaemonControlClient;
 }
@@ -233,6 +237,60 @@ describe("approval-routes", () => {
 			const { res, result } = mockResponse();
 			await handleRejectApproval(mockRequest(), res, "nonexistent", null, queue);
 			expect(result.status).toBe(404);
+		});
+	});
+
+	describe("handleApproveAllApprovals", () => {
+		it("approves all pending items and returns them", async () => {
+			queue.enqueue("shell", { command: "a.sh" }, "moderate", "task a");
+			queue.enqueue("shell", { command: "b.sh" }, "moderate", "task b");
+
+			const { res, result } = mockResponse();
+			await handleApproveAllApprovals(mockRequest(), res, null, queue);
+			expect(result.status).toBe(200);
+			const body = result.body as { approvals: Array<{ status: string }>; count: number };
+			expect(body.count).toBe(2);
+			expect(body.approvals.every((a) => a.status === "approved")).toBe(true);
+		});
+
+		it("returns empty list when no pending approvals", async () => {
+			const { res, result } = mockResponse();
+			await handleApproveAllApprovals(mockRequest(), res, null, queue);
+			expect(result.status).toBe(200);
+			const body = result.body as { approvals: unknown[]; count: number };
+			expect(body.count).toBe(0);
+			expect(body.approvals).toEqual([]);
+		});
+
+		it("uses daemon client when available", async () => {
+			const approvals = [{ id: "a1", tool: "shell", status: "approved" }];
+			const client = mockClient({ approveAllApprovals: vi.fn(async () => ({ approvals, count: 1 })) });
+			const { res, result } = mockResponse();
+			await handleApproveAllApprovals(mockRequest(), res, client, makeQueue());
+			expect(result.status).toBe(200);
+			expect((result.body as { count: number }).count).toBe(1);
+		});
+	});
+
+	describe("handleRejectAllApprovals", () => {
+		it("rejects all pending items and returns them", async () => {
+			queue.enqueue("git", { args: ["reset"] }, "dangerous", "reset");
+			queue.enqueue("git", { args: ["push", "--force"] }, "dangerous", "force push");
+
+			const { res, result } = mockResponse();
+			await handleRejectAllApprovals(mockRequest(), res, null, queue);
+			expect(result.status).toBe(200);
+			const body = result.body as { approvals: Array<{ status: string }>; count: number };
+			expect(body.count).toBe(2);
+			expect(body.approvals.every((a) => a.status === "rejected")).toBe(true);
+		});
+
+		it("returns empty list when no pending approvals", async () => {
+			const { res, result } = mockResponse();
+			await handleRejectAllApprovals(mockRequest(), res, null, queue);
+			expect(result.status).toBe(200);
+			const body = result.body as { approvals: unknown[]; count: number };
+			expect(body.count).toBe(0);
 		});
 	});
 });
