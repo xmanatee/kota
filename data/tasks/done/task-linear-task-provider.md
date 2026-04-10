@@ -1,7 +1,7 @@
 ---
 id: task-linear-task-provider
 title: Add Linear task provider so teams can use their Linear workspace as KOTA's task source
-status: backlog
+status: done
 priority: p3
 area: modules
 summary: Teams that manage work in Linear have to maintain a parallel file queue in data/tasks/ for the builder to pick up. A Linear TaskProvider would let the builder pull directly from Linear issues with no file duplication.
