@@ -10,15 +10,3 @@ A native SwiftUI `MenuBarExtra` app (macOS 13+) that surfaces KOTA daemon state 
 - If the daemon is unreachable, the icon shows a slash and all data is cleared — no crash, no stale state.
 - Do not add Swift Package dependencies without a strong reason. The app is intentionally minimal.
 
-## Key Files
-
-- `KotaMenuBarApp.swift` — `@main` entry point; initializes `AppState` and attaches the `MenuBarExtra`.
-- `AppState.swift` — `ObservableObject` that holds daemon status, active runs, pending approvals, task queue, sessions, and drives the poll loop. Owns local/remote connection mode: `remoteURL` (UserDefaults) and Keychain-backed token helpers (`saveRemoteConfig`, `clearRemoteConfig`, `loadRemoteToken`). Also owns `createSession()` and `endSession(_:)` for chat lifecycle.
-- `DaemonClient.swift` — typed HTTP client for the daemon control API; reads `daemon-control.json` for local mode or accepts a direct URL+token via `setRemoteConnection(url:token:)`. Sets `Authorization: Bearer` header. Includes `streamChat(sessionId:message:onEvent:)` for SSE streaming via `URLSession.bytes(for:)`.
-- `Models.swift` — `Decodable` types mirroring the daemon API response shapes, including `CreateSessionResponse`.
-- `MenuBarView.swift` — top-level menu bar popover; delegates to section views. Also contains embedded reusable components: `StatusHeaderView`, `ActiveRunRow` (expandable run row with inline step detail), `RunDetailInlineView` (inline loading + error + content shell), `RunDetailContent` (step list + current step), `RecentRunsView` (collapsible completed-run history, collapsed by default), `RecentRunRow` (single completed run row with expandable step detail reusing `RunDetailInlineView`), `TaskQueueView` (collapsible queue summary), `MenuActionButton`.
-- `ApprovalsView.swift` — list of pending approvals with approve/reject buttons.
-- `SessionsView.swift` — list of active interactive sessions with a "+" button to create new sessions; tapping a row opens `ChatView` as a sheet.
-- `ChatView.swift` — chat sheet for a daemon session; displays conversation history, streams SSE responses in real time, and allows ending the session. Contains `ChatMessage` model, `MessageBubble` component.
-- `TriggerWorkflowView.swift` — small form for triggering a workflow by name.
-- `NotificationManager.swift` — `UNUserNotificationCenter` wrapper; requests authorization on first launch, sends banner notifications, and activates the app on notification tap. `AppState` calls `NotificationManager.shared.notify(title:body:identifier:)` after each poll to surface new workflow failures and pending approvals. Suppression (popover open, notifications disabled) is handled in `AppState` before calling `notify`.

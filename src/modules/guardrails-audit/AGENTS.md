@@ -2,6 +2,4 @@
 
 Owns the guardrail audit trail: subscribes to `guardrail.assessed` events and writes entries to `.kota/audit.jsonl`.
 
-- `store.ts` — append-only audit store for guardrail decisions.
-- `cli.ts` — `kota audit` subcommands for querying and exporting the audit log.
-- `routes.ts` — `handleListAudit` route handler contributed as `GET /api/audit` via `KotaModule.routes`.
+- Provides an append-only audit store, CLI subcommands, and an HTTP route for querying guardrail decisions.

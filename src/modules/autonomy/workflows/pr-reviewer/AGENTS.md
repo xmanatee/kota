@@ -21,8 +21,3 @@ branch, this workflow:
 - The review is advisory — it does not gate or auto-merge the PR.
 - Requires the GitHub module to be configured with a token that has PR comment permissions.
 
-## Files
-
-- `workflow.ts` — workflow definition, `assessPr` code step, and exported `agent` def.
-- `prompt.md` — instructions for the review agent step.
-- `workflow.test.ts` — unit tests for the `assess-pr` step predicate logic.

@@ -8,6 +8,3 @@ This directory contains the `ModuleTestHarness` — a lightweight in-process har
 - Export only stable types and the `ModuleTestHarness` class through `src/core/workflow/testing/testing-api.ts`; keep internal utilities unexported.
 - Do not add production flags or hooks to modules just to make harness testing easier. Design modules with explicit inputs, outputs, and dependency injection so they are naturally testable.
 
-## Key Modules
-
-- `index.ts` — `ModuleTestHarness` class: `create(module, options?)`, `callTool(name, input)`, `callRoute(method, path, body?)`, `emit(event, payload)`, `getProvider(type)`, `teardown()`.

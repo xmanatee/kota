@@ -28,9 +28,3 @@ Outbound email notification channel for KOTA using SMTP (nodemailer).
 `events` is an opt-in list for events that are off by default. All standard
 notification events are always active when the module is configured.
 
-## Files
-
-- `index.ts` — KotaModule entry: onLoad subscriptions, onUnload cleanup, ChannelDef.
-- `mailer.ts` — Nodemailer wrapper; creates and closes the SMTP transporter.
-- `format.ts` — Converts bus event payloads to email subject + text body.
-- `email.test.ts` — Unit tests for message formatting.

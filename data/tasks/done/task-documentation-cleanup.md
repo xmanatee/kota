@@ -1,12 +1,12 @@
 ---
 id: task-documentation-cleanup
 title: Clean up docs and prompts to match documentation standards
-status: backlog
+status: done
 priority: p3
 area: docs
 summary: Remove migration notes, function/directory listings, and other low-value detail from docs and prompts across the repo, keeping documentation high-level, minimal, and scoped close to its subject.
 created_at: 2026-04-10T12:47:56Z
-updated_at: 2026-04-10T12:47:56Z
+updated_at: 2026-04-11T00:00:00Z
 ---
 
 ## Problem

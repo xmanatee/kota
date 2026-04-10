@@ -7,6 +7,3 @@ This directory owns the `mcp-server` repo module — exposes KOTA tools via the 
 - Supports `--tools` filter and `--name` override flags.
 - Passes `samplingEnabled` and `ModelClient` when `mcp.sampling.enabled` is true in config.
 
-## Files
-
-- `index.ts` — `KotaModule` definition; `kota mcp-server` CLI command.

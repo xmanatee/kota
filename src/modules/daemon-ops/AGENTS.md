@@ -13,13 +13,3 @@ CLI commands: `kota events`, `kota session`, and `kota status`.
 - The supervisor loop spawns a child process and restarts it on `RESTART_EXIT_CODE`.
 - Actual daemon runtime lives in `src/core/daemon/daemon.ts`; this module wires it into the CLI.
 
-## Files
-
-- `index.ts` — `KotaModule` definition; CLI command registration, supervisor loop. Exports `buildLaunchdPlist`, `buildSystemdUnit`, `writeServiceFile`, `removeServiceFile` as testable boundaries for install/uninstall actions.
-- `events-cli.ts` — `buildEventsCommand`: builds the `kota events` Command with `tail` subcommand.
-- `session-cli.ts` — `buildSessionCommand`: builds the `kota session` Command with `list` and `inspect` subcommands.
-- `status-cli.ts` — `buildStatusCommand`, `formatStatusOutput`, `gatherStatus`, `StatusSnapshot`: builds the `kota status` command; `gatherStatus` reads from the daemon API when available and from disk in standalone mode.
-- `qr-cli.ts` — `buildQrCommand`: builds the `kota daemon qr` command; reads `daemon-control.json`, detects local network IP, and renders the connection payload as a QR code for mobile client setup.
-- `index.test.ts` — unit tests for daemon command registration and supervisor helpers.
-- `install.test.ts` — structural and lifecycle tests for `install`/`uninstall`: launchd plist and systemd unit content assertions, round-trip file lifecycle, and double-install/double-uninstall error cases. Writes to a temp directory; no `launchctl` or `systemctl` calls.
-- `status-cli.test.ts` — unit tests for `formatStatusOutput` covering all output permutations.

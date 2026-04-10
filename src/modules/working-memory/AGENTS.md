@@ -6,11 +6,6 @@ This directory owns the working memory module — a session-scoped, agent-contro
 - Named entries can be persisted across sessions by marking them persistent; those are saved via `ModuleStorage`.
 - Contributes the `working-memory` skill (prompt guidance for managing entries).
 
-## Files
-
-- `index.ts` — `KotaModule` definition; registers working memory tools, prompt injection, and persistent entry restore on load.
-- `working-memory.test.ts` — unit tests for tool operations and prompt injection.
-
 ## Boundaries
 
 - Tool implementations delegate to `src/core/memory/working-memory.ts`; that module is the canonical data structure.

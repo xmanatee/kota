@@ -7,13 +7,6 @@ This directory owns the outbound webhook notification module and the CLI command
 - CLI commands (`kota webhook list`, `kota webhook secret generate`, `kota webhook secret remove`) manage inbound webhook trigger secrets stored in `.kota/config.json`.
 - Uses `postWithRetry` from `../notify-retry.ts` for delivery with exponential-backoff retry.
 
-## Files
-
-- `index.ts` — `KotaModule` definition; implements event subscription, JSON payload delivery, and contributes CLI commands.
-- `cli.ts` — `registerWebhookCommands`: CLI subcommands for managing inbound webhook secrets.
-- `cli.test.ts` — unit tests for webhook CLI commands.
-- `webhook.test.ts` — unit tests for event subscription and HTTP delivery.
-
 ## Boundaries
 
 - Does not own inbound webhook ingestion (that belongs in `github-webhook/` for GitHub, or user modules for other sources).

@@ -6,11 +6,6 @@ This directory owns the GitHub webhook ingestion module — receives GitHub webh
 - Requires `modules.github-webhook.secret`. The route is not registered when the secret is missing.
 - Invalid signatures are rejected with HTTP 401; unrecognised event types return HTTP 200 with `ignored: true`.
 
-## Files
-
-- `index.ts` — `KotaModule` definition; implements route registration, HMAC validation, and bus event emission.
-- `github-webhook.test.ts` — unit tests for webhook signature validation and event emission.
-
 ## Event Payload Docs
 
 The normalized payload shapes for each emitted `github.*` event are documented in `docs/GITHUB-WEBHOOK.md` (under "Bus Events"). If you add or change a field in the normalized payload, update the corresponding table in that file in the same run.

@@ -2,5 +2,5 @@
 
 Owns the `kota config` CLI surface: `get`, `set`, `validate`, and `schema` subcommands.
 
-- Config logic (`loadConfig`, `updateProjectConfig`) stays in `src/config.ts`; only the CLI wiring and HTTP routes live here.
-- `routes.ts` — `handleGetConfig`, `maskConfig` route handler contributed as `GET /api/config` via `KotaModule.routes`; masks sensitive keys before returning.
+- Config logic stays in `src/config.ts`; only the CLI wiring and HTTP routes live here.
+- The HTTP route masks sensitive keys before returning.

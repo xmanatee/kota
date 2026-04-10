@@ -312,11 +312,8 @@ Use `kota module new` to generate a ready-to-run Python starter:
 kota module new myext --language python
 ```
 
-This creates a directory `myext/` containing:
-- `main.py` — full KEMP message loop with a sample `hello_world` tool
-- `requirements.txt` — empty (stdlib only)
-- `README.md` — usage and smoke-test instructions
-- `.kota-config-snippet.json` — copy-pasteable `foreignModules` config fragment
+This creates a directory `myext/` with a ready-to-run KEMP message loop, a
+config snippet, and usage instructions.
 
 For a TypeScript in-process module, omit `--language` (default).
 
@@ -358,13 +355,6 @@ A full working example lives at `examples/modules/kota-demo.py`.
 ---
 
 ## Implementation
-
-The TypeScript side of the protocol is in:
-
-- `src/foreign-module.ts` — KEMP message types and `ForeignModuleConfig`.
-- `src/foreign-module-stdio.ts` — `StdioTransport` implementation.
-- `src/foreign-module-http.ts` — `HttpTransport` implementation.
-- `src/foreign-module-loader.ts` — handshake, wrapping as `KotaModule`.
 
 From the rest of KOTA's perspective, a foreign module is a normal
 `KotaModule` — its tools are registered and invoked the same way as any

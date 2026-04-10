@@ -8,11 +8,6 @@ This directory owns the Slack notification module — routes KOTA notification e
 - `workflow.build.committed` is opt-in (must be listed in config `events`).
 - Uses `postWithRetry` from `../notify-retry.ts` for delivery with exponential-backoff retry.
 
-## Files
-
-- `index.ts` — `KotaModule` definition; implements event subscription and Block Kit message formatting.
-- `slack.test.ts` — unit tests for event subscription and message delivery.
-
 ## Boundaries
 
 - Does not own Telegram or generic webhook notification (those belong in `telegram/` and `webhook/`).

@@ -17,12 +17,6 @@ Config lives under `modules.slackChannel` in `kota.config`:
 
 See `docs/SLACK-CHANNEL.md` for Slack App setup instructions.
 
-## Files
-
-- `client.ts` — `callSlackApi`, `openSocketModeUrl`, `SlackTransport`, message splitting.
-- `bot.ts` — `SlackBot` class: Socket Mode WebSocket loop, session management, interactive actions.
-- `index.ts` — `KotaModule` definition; wires config, ChannelDef, and approval event subscription.
-
 ## Boundaries
 
 - Does not own the one-way Slack webhook notification path (that lives in `../slack/`).

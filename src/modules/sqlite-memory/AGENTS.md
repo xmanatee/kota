@@ -6,6 +6,3 @@ This directory owns the `sqlite-memory` repo module — alternative SQLite-backe
 - Data is stored in `.kota/memory.db`.
 - Provider implementation lives in `src/core/memory/sqlite-memory.ts`.
 
-## Files
-
-- `index.ts` — `KotaModule` definition; registers the SQLite memory provider on load.

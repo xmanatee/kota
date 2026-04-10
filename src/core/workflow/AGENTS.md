@@ -5,40 +5,6 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 - Keep workflow protocols strict, restart-safe, and easy to reason about.
 - Put top-level autonomous execution semantics here, not in prompts or scheduler side channels.
 
-## Key Modules
-
-- `types.ts` — Workflow definition types: triggers, step kinds, `WorkflowDefinition`, `typedCodeStep` factory, and related config.
-- `run-types.ts` — Runtime execution types: run status (`WorkflowRunStatus`, including `completed-with-warnings`), step status, active run, queued run, execution context, predicates, repair config, step/run results (`WorkflowStepResult` includes optional `toolCalls?: ToolCallSummaryEntry[]`), and `WorkflowRunWarning` (structured warning stored in `WorkflowRunMetadata.warnings`).
-- `runtime.ts` — `WorkflowRuntime` orchestrator: lifecycle, public API, state container. Includes `enableWorkflow`/`disableWorkflow` for runtime-only per-workflow enable/disable overrides; `getDispatchWindowStatus()` returns `{ blocked, opensAt? }` for the daemon `/status` response. On startup, emits `workflow.interrupted.alert` for each stale run recovered by `recoverInterruptedRuns()` and logs a startup summary.
-- `runtime-dispatch.ts` — Extracted dispatch functions (`loadDefinitions`, `emitIdleEvent`, `maybeStartNext`, `runWorkflow`) and `WorkflowRuntimeDispatchState` interface. Idle triggers respect `scheduler.dispatchWindow` from config.
-- `runtime-config.ts` — `WorkflowRuntimeConfig` type definition.
-- `runtime-signals.ts` — `checkAbortSignal`, `checkReloadSignal`, and signal-file constants.
-- `budget-guard.ts` — `BudgetGuard`: daily spend tracking; invokes caller-supplied callbacks for `workflow.budget.warning` (soft-limit, one-time per UTC day) and `workflow.budget.exceeded` (hard stop, pauses dispatch until tomorrow).
-- `cost-anomaly-detector.ts` — `detectCostAnomaly`: compares a completed run's cost against the rolling average of recent non-failed runs; returns a result if the `costAnomalyThreshold` multiplier is exceeded. When `kotaDir` is provided, the computed baseline is persisted to `.kota/cost-baseline.json` (atomic write) and loaded as a fallback when the run store has fewer than 3 historical runs; baselines older than 30 days are treated as cold start. Called by `run-executor.ts` to emit `workflow.cost.anomaly`.
-- `workflow-queue.ts` — `WorkflowQueueManager`: queue state, enqueue (with inputSchema payload validation), pick, restore, persist, `cancelByWorkflow` (removes all queued runs for a named workflow).
-- `payload-validator.ts` — `validatePayloadSchema`: minimal JSON Schema validator (type, required, properties, additionalProperties, items) used to validate trigger payloads against a workflow's optional `inputSchema` and completed run outputs against an optional `outputSchema`.
-- `agent-backoff.ts` — `AgentBackoffManager`: per-agent backoff state and suppression logic.
-- `dispatch-window.ts` — `DispatchWindow` type, `isWithinDispatchWindow`, `msUntilDispatchWindowOpens`, `validateDispatchWindow`; time-of-day/day-of-week gate for idle and interval triggers.
-- `cron.ts` — `validateCronExpr`, `validateTimezone`, `getNextCronTime`: minimal 5-field cron parser with optional IANA timezone support; used by `schedule-triggers.ts` and `validation-trigger.ts`.
-- `schedule-triggers.ts` — `ScheduleTriggerManager`: cron and interval trigger scheduling; interval triggers respect `scheduler.dispatchWindow` from config.
-- `watch-triggers.ts` — `WatchTriggerManager`: file-watch trigger management; subscribes to `file.changed` bus events, matches glob patterns, and fires `files.changed` run triggers after debounce.
-- `run-executor.ts` — `executeWorkflowRun`: core step loop and run orchestration.
-- `run-executor-step.ts` — `executeWorkflowStep` (single non-parallel step execution), `buildSkippedResult` (skipped step handling with recursive child-skipping for parallel, branch, and foreach steps), and `applyOutputSizeLimit` (truncates oversized step outputs to a configurable byte cap with a structured notice and `WorkflowRunWarning`).
-- `run-executor-utils.ts` — Pure utilities: `matchesFilter`, `getEligibleAtMs`, `findRetryFromIndex`, `buildRetryInitialState`, `enqueueMatchingWorkflows`, `workflowUsesAgent`.
-- `step-context.ts` — `createStepContext` and step context helpers.
-- `step-executor.ts` / `step-executor-agent.ts` / `step-executor-parallel.ts` / `step-executor-branch.ts` / `step-executor-foreach.ts` — Step dispatch by type.
-- `step-executor-approval.ts` — `executeApprovalStep`: enqueues a `source: "workflow-step"` entry in the approval queue and polls until the operator approves, rejects, or the step times out; rejects the queue entry on abort or error so no stale pending entries remain. On approval the step output includes `{ approvalId, approved, resolvedAt, resolutionSource, approvalNote? }` — `approvalNote` is present when the operator supplied a note and is available to downstream steps via `stepOutputs`.
-- `step-executor-trigger.ts` — `executeTriggerStep`: enqueues or awaits another workflow; `{{...}}` payload interpolation. `TriggerStepOutput` includes `childOutput?: unknown` when `waitFor: "completed"` — the last successful step's output from the child run.
-- `step-executor-retry.ts` — Retry/backoff primitives: `AgentStepRuntimeError`, `withRetry`, `classifyAgentRuntimeFailure`.
-- `validation.ts` / `validation-primitives.ts` — Workflow definition validation orchestration and shared primitives.
-- `validation-trigger.ts` — `validateTrigger` and trigger-type-specific validation helpers.
-- `validation-steps.ts` — Thin re-export barrel for `step-validators/`.
-- `step-validators/` — Per-step-type validator modules (agent, approval, branch, code, emit, foreach, restart, tool, parallel, trigger).
-- `run-store.ts` — `WorkflowRunStore`: directory management, list/load/delete runs, `recoverInterruptedRuns()` (marks stale running runs as interrupted on daemon startup and writes `error.txt` with reason). Re-exports `ActiveWorkflowRunHandle`.
-- `active-run-handle.ts` — `ActiveWorkflowRunHandle` and `createActiveRunHandle`: append messages, record steps, finish runs.
-- `run-store-helpers.ts` — Runtime-state validation/assertion helpers, snapshot and summary builders. Re-exports from `run-io.ts`.
-- `run-io.ts` — Generic file IO utilities: `ensureDir`, `safeJsonStringify`, `writeJsonFile`, `formatRunId`.
-
 ## Typed Code Step Pattern
 
 Use `typedCodeStep<T>` from `types.ts` when a code step's output is consumed by downstream

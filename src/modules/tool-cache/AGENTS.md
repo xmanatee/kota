@@ -7,6 +7,3 @@ This directory owns the `tool-cache` repo module — caching middleware for dete
 - Session-scoped: cache resets when the module unloads.
 - Middleware implementation lives in this module directory.
 
-## Files
-
-- `index.ts` — `KotaModule` definition; registers and unregisters the cache middleware.

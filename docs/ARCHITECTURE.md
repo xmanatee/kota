@@ -64,102 +64,18 @@ queue state are shared daemon/runtime primitives and belong in `src/core/`.
 
 ## Direction
 
-- Public naming should use `module`, but naming cleanup is not proof that
-  the architectural migration is complete.
-- Module discovery is now unified: all user modules are discovered from
-  `.kota/modules/<name>/`. The separate `.kota/plugins` and `.kota/packages`
-  discovery paths have been removed. Each module directory supports
-  manifest-based (`manifest.json`), single-file code (`index.js`/`index.mjs`),
-  and packaged (`package.json` with `main`) variants. Foreign (KEMP) modules
-  remain config-declared via `foreignModules` in `.kota/config.json` as the
-  explicit transport variant for out-of-process modules.
-- The codebase is split the same way the runtime is split:
-  `src/core/` holds the kernel, and `src/modules/<name>/` holds pluggable
-  project modules. Kernel concepts should not also appear as module names
-  unless the module is clearly an operator surface (for example `workflow-ops`).
-- New non-test source should almost never land directly in `src/`. Prefer
-  `src/core/<subtree>/` for kernel code and `src/modules/<name>/` for
-  project-owned capability.
-- Root `src/*.ts` files should be limited to public entrypoints or thin
-  repo-wide glue such as `cli.ts`, `init.ts`, `module-api.ts`, and
-  `validate-queue.ts`.
-- Project-owned capability packs now mostly live under `src/modules/<name>/`, and
-  tool-group membership is now declared by each module via the `group` field
-  on `ToolDef`. `src/core/tools/tool-groups.ts` owns only the activation machinery
-  (`enableGroup`, `filterTools`, `registerCustomGroup`, `deregisterToolsFromGroups`,
-  `CORE_TOOL_NAMES`) and the prompt auto-detection logic (`detectToolGroups`);
-  `TOOL_GROUPS` starts empty and is populated at runtime by modules and core
-  tool init — it no longer hardcodes which tools belong to which group.
-- The operator CLI migration is complete: `src/cli.ts` only assembles module
-  contributions plus the truly core interactive loop/history path. All CLI
-  commands are contributed by modules and auto-discovered at startup.
-- `SkillDef` and `AgentDef` now exist, and autonomy workflows invoke named
-  agents. Skills are the one real reusable guidance path; `promptSection` has
-  been removed.
-- Workflows are the documented public automation surface, and workflow triggers
-  now cover event, cron, interval, and idle work. Manifest-era `eventHandlers`
-  and `scripts` have been removed. The `events` direct-subscription field has
-  been removed from `KotaModule`; automation uses contributed workflows.
 - Workflow routing should stay definition-driven. A workflow that needs to
   participate in queue shaping, delivery, governance, recovery, or digest
   observation should declare that intent in its own definition. Other workflows
   should react to that declared intent or to generic events, not to a
   hardcoded workflow-name list.
-- Workflows are module contributions, not a separate registry surface.
-  User modules contribute workflows from their normal module entry points.
-  The autonomy workflows live under
-  `src/modules/autonomy/workflows/<name>/workflow.ts` and are discovered by
-  the autonomy module at runtime. If a workflow needs a named agent, export
-  that agent from the same `workflow.ts` file so the workflow directory stays
-  the source of truth.
-- History, memory, working memory, knowledge, and run artifacts are now
-  documented as stores in one runtime state subsystem (`docs/STORES.md`).
-  They remain separate implementations sharing a provider registry, but the
-  public model treats them as typed stores rather than many parallel products.
-- The daemon exposes a loopback HTTP+JSON control API (`DaemonControlServer`
-  in `src/core/daemon/daemon-control.ts`). Live daemon and workflow status,
-  history, approvals, and task queue all come from this API when the daemon is
-  running. The HTTP server proxies all operator dashboard routes — Workflow,
-  History, Approvals, Tasks — to the daemon control API, falling back to
-  direct reads when offline. The daemon API surface is stable and documented
-  in `docs/DAEMON-API.md`; it is sufficient for thin mobile or desktop clients
-  to perform all common operator actions without bespoke server routes.
-  Active workflow agent sessions are visible via `GET /status` (workflow.activeRuns).
-  The daemon/client split is formalized for operator data: clients query the
-  daemon API rather than reading `.kota/` files directly for live state.
-  When the daemon is running, `kota serve` connects to it as a client: it
-  registers and unregisters interactive sessions via the daemon control API
-  (`POST /sessions/register`, `DELETE /sessions/:id`) so the daemon is the
-  single source of truth for all live sessions. `GET /status` returns active
-  interactive sessions alongside workflow active runs. `kota serve` skips
-  starting its own disk-backed scheduler when the daemon is detected, and uses
-  standalone mode (own scheduler and session pool) only when no daemon is
-  running. See `docs/DAEMON-API.md`.
-- `KotaModule` now has a `channels` field following the same pattern as
-  `workflows`, `tools`, and `agents`. A `ChannelDef` type in
-  `src/core/channels/channel.ts`
-  captures the channel protocol: name, description, and a factory that receives
-  a `ChannelStartContext` (projectDir, log, getWorkflowStatus) and returns a
-  `ChannelAdapter`. The daemon collects contributed channels at startup, calls
-  each factory, and manages lifecycle (start on daemon start, stop on shutdown).
-  The Telegram status poll is contributed via the Telegram module rather than
-  hardcoded in daemon-subscriptions. A second module can now add a channel
-  (Slack, email, web chat) by declaring a `ChannelDef` without touching daemon
-  internals.
-- Notification callers (`BudgetGuard`, `AttentionDigest`, `subscribeWorkflowFailureAlert`)
-  emit typed bus events (`workflow.failure.alert`, `workflow.budget.exceeded`,
-  `workflow.budget.warning`, `workflow.attention.digest`, `workflow.cost.limit.reached`) rather than calling
-  Telegram directly. Modules subscribe via `ModuleEventProxy.subscribe()` in
-  their `onLoad` hook and unsubscribe in `onUnload`. A second notification consumer
-  (Slack, email, webhook) can now subscribe to these events without touching the
-  workflow runtime.
+- Notification callers emit typed bus events rather than calling transports
+  directly. Modules subscribe via `ModuleEventProxy.subscribe()` in their
+  `onLoad` hook and unsubscribe in `onUnload`.
 - Modules can register per-turn system-prompt state contributors via
-  `ctx.registerDynamicStateProvider(name, fn)` in `onLoad`. The core turn loop
-  (`loop-send.ts`) calls `collectDynamicState()` each turn instead of importing from
-  specific module modules. This is the correct pattern for any module that
-  needs to inject state into the agent's context window without creating a direct
-  core-to-module import. The working-memory module uses this to surface the
-  session scratchpad.
+  `ctx.registerDynamicStateProvider(name, fn)` in `onLoad`. This is the
+  correct pattern for any module that needs to inject state into the agent's
+  context window without creating a direct core-to-module import.
 
 ## Protocol Boundaries
 

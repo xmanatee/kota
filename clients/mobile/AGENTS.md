@@ -10,18 +10,6 @@ React Native (Expo) mobile client for the KOTA daemon. Targets iOS 16+ and Andro
 - QR setup: the Settings screen includes a "Scan QR Code" button that reads a QR code
   produced by `kota daemon qr` to auto-fill and save the daemon URL and token.
 
-## Structure
-
-- `App.tsx` — entry point, providers, navigation root
-- `src/types.ts` — shared API response types
-- `src/daemonClient.ts` — typed HTTP client wrapping `fetch`
-- `src/hooks/useSSE.ts` — SSE hook driving live state
-- `src/context/DaemonContext.tsx` — React Context + useReducer state tree
-- `src/navigation/index.tsx` — tab and stack navigator definitions
-- `src/screens/` — one file per screen
-  - `ChatListScreen.tsx` — lists active daemon sessions; "New Session" button creates and navigates into a session
-  - `ChatDetailScreen.tsx` — chat UI for a single daemon session; streams agent responses via SSE POST `/sessions/:id/chat`; "End" button calls `DELETE /sessions/:id`
-
 ## Push Notification Deep Links
 
 The daemon sends Expo push notifications when `approval.requested` fires

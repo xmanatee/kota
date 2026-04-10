@@ -10,16 +10,6 @@ by Jira's REST API v3 that lets KOTA's builder pull tasks directly from a Jira p
 - Credentials are never logged.
 - Cloud only — base URL must end in `.atlassian.net`.
 
-## Files
-
-- `index.ts` — `KotaModule` definition; wires config, resolves credentials, and registers
-  `JiraTaskProvider` in `onLoad` when `taskProvider.enabled` is set.
-- `task-provider.ts` — `JiraTaskProvider` class implementing the `TaskProvider` interface
-  backed by Jira Cloud issues; issues cached at init, transitions looked up at init and
-  lazily per-issue; mutations (claim/complete/add) fire async Jira API calls.
-- `jira-task-provider.test.ts` — unit tests covering init, list, claim, complete, add,
-  archiveCompleted, priority mapping, and the onLoad integration.
-
 ## Config
 
 ```json

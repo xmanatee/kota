@@ -39,14 +39,6 @@ Values starting with `$` are resolved from environment variables. Alternatively,
 | `userId`       | no       | `"me"`      | Gmail user ID                        |
 | `calendarId`   | no       | `"primary"` | Google Calendar ID                   |
 
-## Files
-
-- `index.ts` — thin `KotaModule` assembler; validates config, resolves credentials, and delegates to per-service tool factories.
-- `auth.ts` — shared OAuth helpers: `resolveEnv`, `getAccessToken` (with in-process token caching), `googleFetch`, and `apiError`.
-- `gmail.ts` — Gmail tool factories: `makeGmailListMessages`, `makeGmailGetMessage`, `makeGmailSend`.
-- `calendar.ts` — Calendar tool factories: `makeCalendarListEvents`, `makeCalendarCreateEvent`.
-- `drive.ts` — Drive tool factories: `makeDriveListFiles`, `makeDriveReadFile`.
-
 ## Boundaries
 
 - All tools are in the `productivity` tool group.

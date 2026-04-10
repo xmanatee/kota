@@ -6,12 +6,6 @@ This directory owns the `notebook` capability pack — Jupyter notebook creation
 - Supports `python3` and `javascript` kernels.
 - Classified as `moderate` risk in guardrails.
 
-## Files
-
-- `index.ts` — `KotaModule` definition; assembles the `notebook` tool with `moderate` risk and `code` group metadata.
-- `notebook.ts` — `notebookTool` schema and `runNotebook` runner.
-- `notebook.test.ts` — unit tests for notebook creation and cell operations.
-
 ## Boundaries
 
 - Does not own code execution or REPL capabilities (those belong in `execution/`).

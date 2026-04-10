@@ -8,16 +8,6 @@ by Linear's GraphQL API that lets KOTA's builder pull tasks directly from a Line
 - Uses Linear's official GraphQL API (`https://api.linear.app/graphql`); no npm dependencies.
 - API key is never logged.
 
-## Files
-
-- `index.ts` — `KotaModule` definition; wires config, resolves the API key, and registers
-  `LinearTaskProvider` in `onLoad` when `taskProvider.enabled` is set.
-- `task-provider.ts` — `LinearTaskProvider` class implementing the `TaskProvider` interface
-  backed by Linear Issues; issues cached at init, mutations (claim/complete/add) fire
-  async Linear API calls.
-- `linear-task-provider.test.ts` — unit tests covering init, list, claim, complete, add,
-  archiveCompleted, and the onLoad integration.
-
 ## Config
 
 ```json
