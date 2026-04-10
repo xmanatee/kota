@@ -1,7 +1,7 @@
 ---
 id: task-module-config-hot-reload
 title: Support per-module config updates via daemon reload without restarting unaffected modules
-status: ready
+status: done
 priority: p2
 area: runtime
 summary: kota daemon reload currently restarts all modules even when only one module's config changed. Tracking per-module config snapshots and only reloading changed modules would reduce reload disruption and keep unaffected sessions alive.

@@ -2,6 +2,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { KotaConfig } from "../config.js";
+import { loadConfig } from "../config.js";
+import { computeModuleConfigDiff } from "../config-reload-diff.js";
 import type { EventBus } from "../event-bus.js";
 import { getHistory } from "../memory/history.js";
 import { loadModuleMetadata } from "../module-metadata.js";
@@ -99,21 +101,36 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
     abortActiveRun: (runId: string) => workflows.abortActiveRun(runId),
     reloadWorkflowDefinitions: () => workflows.reloadWorkflowDefinitions(),
     reloadConfig: async () => {
+      const oldConfig = config.config ?? {};
+      const newConfig = loadConfig(projectDir);
       const loader = await loadModuleMetadata(
-        config.config ?? {},
+        newConfig,
         projectDir,
         config.verbose ?? false,
       );
+      const allModules = loader.getModuleSummaries().map((s) => ({
+        name: s.name,
+        dependencies: s.dependencies,
+      }));
+      const { changedModules, isFullReload } = computeModuleConfigDiff(
+        oldConfig,
+        newConfig,
+        allModules,
+      );
+      config.config = newConfig;
       workflows.setWorkflowInputs(loader.getContributedWorkflows());
       const { count } = workflows.reloadWorkflowDefinitions();
       log(`Config reloaded: ${count} workflow definition(s) active`);
-      const nonAutonomyModules = loader
-        .getModuleSummaries()
-        .map((summary) => summary.name);
-      if (nonAutonomyModules.length > 0) {
-        log(`  Modules: ${nonAutonomyModules.join(", ")}`);
+      if (isFullReload) {
+        log(`  Full reload: all ${changedModules.length} module(s) restarted (global config changed)`);
+      } else if (changedModules.length > 0) {
+        log(`  Reloaded: ${changedModules.join(", ")}`);
+        const skipped = allModules.filter((m) => !changedModules.includes(m.name)).map((m) => m.name);
+        if (skipped.length > 0) log(`  Skipped: ${skipped.join(", ")}`);
+      } else {
+        log("  No module config changes detected");
       }
-      return { workflows: count };
+      return { workflows: count, changedModules };
     },
     getWorkflowDefinitions: (): WorkflowDefinitionSummary[] =>
       workflows.getDefinitions().map((def) => {

@@ -377,6 +377,11 @@ const daemonModule: KotaModule = {
           return;
         }
         console.log(`Reloaded. ${result.workflows} workflow definition(s) active.`);
+        if (result.changedModules.length === 0) {
+          console.log("  No module config changes detected.");
+        } else {
+          console.log(`  Reloaded module(s): ${result.changedModules.join(", ")}`);
+        }
       });
 
     cmd

@@ -55,7 +55,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),
     triggerWebhookRun: vi.fn(() => ({ ok: false, notFound: true })),
-    reloadConfig: vi.fn(async () => ({ workflows: 3 })),
+    reloadConfig: vi.fn(async () => ({ workflows: 3, changedModules: [] as string[] })),
     registerPushToken: vi.fn(),
     ...overrides,
   };
@@ -334,7 +334,7 @@ describe("DaemonControlServer", () => {
       const res = await fetchWithToken(port, "/reload", { method: "POST" });
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body).toMatchObject({ ok: true, workflows: 3 });
+      expect(body).toMatchObject({ ok: true, workflows: 3, changedModules: [] });
     });
 
     it("requires authentication", async () => {

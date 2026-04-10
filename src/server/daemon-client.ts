@@ -126,14 +126,14 @@ export class DaemonControlClient {
     }
   }
 
-  async reloadConfig(): Promise<{ ok: boolean; workflows: number } | null> {
+  async reloadConfig(): Promise<{ ok: boolean; workflows: number; changedModules: string[] } | null> {
     try {
       const res = await fetchWithTimeout(`${this.baseUrl}/reload`, {
         method: "POST",
         headers: this.authHeaders(),
       });
       if (!res.ok) return null;
-      return (await res.json()) as { ok: boolean; workflows: number };
+      return (await res.json()) as { ok: boolean; workflows: number; changedModules: string[] };
     } catch {
       return null;
     }
