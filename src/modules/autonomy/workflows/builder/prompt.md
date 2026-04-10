@@ -24,6 +24,6 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
 ## Finish
 
 - Move your task through `ready/`, `doing/`, `done/`, or `blocked/` yourself and keep `status:` aligned with the directory.
-- Finish green: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, and `pnpm build`. If you changed `clients/mobile/`, also run `pnpm run typecheck` there.
+- Finish green: `pnpm run typecheck`, `pnpm run lint`, `pnpm test`, and `pnpm build`. If you changed `clients/mobile/`, also run `pnpm run typecheck` there. If you changed `clients/macos/`, also run `swift build` there.
 - Hard validation failures are your responsibility in this run. Do not leave known red checks behind.
 - Stage changes with `git add -A`, write a short commit message to `<run-directory>/commit-message.txt`, and do not run `git commit` yourself.
