@@ -13,3 +13,18 @@ This directory contains the builder workflow definition and its prompt.
 - Do not rely on hardcoded pre-agent task moves or scope policing
   when the same issue can be handled by honest task state and end-of-step
   validation.
+
+## Success Criteria
+
+The builder agent must declare success criteria before implementing and verify
+them after. Two files in the run directory enforce this:
+
+- `success-criteria.txt` — written before implementation. Contains concrete,
+  verifiable conditions (at least 2). Checked by the `success-criteria-declared`
+  repair check.
+- `success-criteria-verified.txt` — written after implementation. Confirms each
+  criterion is satisfied with evidence. Checked by the `success-criteria-verified`
+  repair check.
+
+Both checks run as part of the repair loop alongside build, typecheck, lint,
+and test checks. The agent cannot complete a run without satisfying them.

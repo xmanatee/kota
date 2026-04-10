@@ -10,6 +10,20 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
 - Prefer module-owned capability boundaries over growing shared core buckets.
 - Keep the task state, touched docs, and local instructions honest.
 
+## Success Criteria
+
+Before writing any implementation code, declare success criteria for your task.
+Write a file `<run-directory>/success-criteria.txt` with a short list of
+concrete, verifiable conditions that must be true when the work is complete.
+Each condition should be observable from the repo state — file existence, test
+passing, type checking, grep-verifiable patterns, or similar.
+
+After implementation is complete, write `<run-directory>/success-criteria-verified.txt`
+confirming each criterion is satisfied. For each criterion, state the criterion
+and the evidence that it is met.
+
+Both files are checked by the repair loop. The run cannot finish without them.
+
 ## Guidance
 
 - Work only in this repository.

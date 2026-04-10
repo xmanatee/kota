@@ -14,6 +14,50 @@ import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./br
 import type { BuilderRunSummary } from "./run-summary.js";
 import { writeBuilderRunSummary } from "./run-summary.js";
 
+export function checkSuccessCriteriaDeclared(runDirPath: string): string {
+  const filePath = join(runDirPath, "success-criteria.txt");
+  if (!existsSync(filePath)) {
+    throw new Error(
+      "Missing success-criteria.txt in the run directory. " +
+        "Before implementing, write a short list of concrete, verifiable " +
+        "success conditions to <run-directory>/success-criteria.txt.",
+    );
+  }
+  const content = readFileSync(filePath, "utf8").trim();
+  const lines = content.split("\n").filter((l) => l.trim().length > 0);
+  if (lines.length < 2) {
+    throw new Error(
+      "success-criteria.txt must contain at least 2 concrete criteria. " +
+        `Found ${lines.length} non-empty line(s).`,
+    );
+  }
+  return `OK: success-criteria.txt has ${lines.length} criteria`;
+}
+
+export function checkSuccessCriteriaVerified(runDirPath: string): string {
+  const criteriaPath = join(runDirPath, "success-criteria.txt");
+  const verifiedPath = join(runDirPath, "success-criteria-verified.txt");
+  if (!existsSync(criteriaPath)) {
+    throw new Error("Cannot verify criteria: success-criteria.txt does not exist.");
+  }
+  if (!existsSync(verifiedPath)) {
+    throw new Error(
+      "Missing success-criteria-verified.txt in the run directory. " +
+        "After implementation, write this file confirming each declared criterion " +
+        "is satisfied with evidence.",
+    );
+  }
+  const criteria = readFileSync(criteriaPath, "utf8").trim();
+  const verified = readFileSync(verifiedPath, "utf8").trim();
+  if (verified.length < criteria.length / 2) {
+    throw new Error(
+      "success-criteria-verified.txt appears too short relative to the declared criteria. " +
+        "Each criterion must be addressed with evidence.",
+    );
+  }
+  return "OK: success criteria declared and verified";
+}
+
 export function checkModuleBoundary(projectDir: string): string {
   const staged = execFileSync("git", ["diff", "--cached", "--name-status"], {
     cwd: projectDir,
@@ -77,6 +121,16 @@ const builderWorkflow: WorkflowDefinitionInput = {
       repairLoop: {
         maxRepairAttempts: 3,
         checks: [
+          {
+            id: "success-criteria-declared",
+            type: "code" as const,
+            run: (ctx) => checkSuccessCriteriaDeclared(ctx.workflow.runDirPath),
+          },
+          {
+            id: "success-criteria-verified",
+            type: "code" as const,
+            run: (ctx) => checkSuccessCriteriaVerified(ctx.workflow.runDirPath),
+          },
           {
             id: "build-output",
             type: "code" as const,

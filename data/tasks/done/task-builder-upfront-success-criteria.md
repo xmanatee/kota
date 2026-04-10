@@ -1,7 +1,7 @@
 ---
 id: task-builder-upfront-success-criteria
 title: Builder must declare success criteria before implementing
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: The builder workflow should require the agent to define explicit, verifiable success conditions before starting implementation, creating a TDD-style feedback loop that prevents premature completion.

@@ -5,7 +5,11 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "../../../../workflow-testing/index.js";
-import builderWorkflow, { checkModuleBoundary } from "./workflow.js";
+import builderWorkflow, {
+  checkModuleBoundary,
+  checkSuccessCriteriaDeclared,
+  checkSuccessCriteriaVerified,
+} from "./workflow.js";
 
 const promptPath = fileURLToPath(new URL("./prompt.md", import.meta.url));
 const promptContent = readFileSync(promptPath, "utf-8");
@@ -274,6 +278,12 @@ describe("builder workflow", () => {
     expect(promptContent).toMatch(/data\/tasks\/blocked\//);
     expect(promptContent).toMatch(/data\/tasks\/doing\//);
     expect(promptContent).toMatch(/pick the next safe task/i);
+  });
+
+  it("prompt instructs agent to declare success criteria before implementing", () => {
+    expect(promptContent).toMatch(/success-criteria\.txt/);
+    expect(promptContent).toMatch(/success-criteria-verified\.txt/);
+    expect(promptContent).toMatch(/before writing any implementation code/i);
   });
 
   it("includes inspect-ready-queue snapshot in step output", async () => {
@@ -603,5 +613,71 @@ describe("checkModuleBoundary", () => {
     execFileSync("git", ["add", "src/feature-a.ts", "src/feature-b.ts"], { cwd: dir });
     expect(() => checkModuleBoundary(dir)).toThrow("src/feature-a.ts");
     expect(() => checkModuleBoundary(dir)).toThrow("src/feature-b.ts");
+  });
+});
+
+describe("checkSuccessCriteriaDeclared", () => {
+  function makeTmpDir(): string {
+    const dir = join(tmpdir(), `kota-criteria-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(dir, { recursive: true });
+    return dir;
+  }
+
+  it("fails when success-criteria.txt does not exist", () => {
+    const dir = makeTmpDir();
+    expect(() => checkSuccessCriteriaDeclared(dir)).toThrow(/Missing success-criteria\.txt/);
+  });
+
+  it("fails when success-criteria.txt has fewer than 2 criteria", () => {
+    const dir = makeTmpDir();
+    writeFileSync(join(dir, "success-criteria.txt"), "Only one criterion\n");
+    expect(() => checkSuccessCriteriaDeclared(dir)).toThrow(/at least 2 concrete criteria/);
+  });
+
+  it("passes when success-criteria.txt has 2 or more criteria", () => {
+    const dir = makeTmpDir();
+    writeFileSync(join(dir, "success-criteria.txt"), "Criterion 1\nCriterion 2\n");
+    expect(checkSuccessCriteriaDeclared(dir)).toMatch(/OK.*2 criteria/);
+  });
+
+  it("ignores blank lines when counting criteria", () => {
+    const dir = makeTmpDir();
+    writeFileSync(join(dir, "success-criteria.txt"), "Criterion 1\n\n\nCriterion 2\n\n");
+    expect(checkSuccessCriteriaDeclared(dir)).toMatch(/OK.*2 criteria/);
+  });
+});
+
+describe("checkSuccessCriteriaVerified", () => {
+  function makeTmpDir(): string {
+    const dir = join(tmpdir(), `kota-verified-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(dir, { recursive: true });
+    return dir;
+  }
+
+  it("fails when success-criteria.txt does not exist", () => {
+    const dir = makeTmpDir();
+    expect(() => checkSuccessCriteriaVerified(dir)).toThrow(/success-criteria\.txt does not exist/);
+  });
+
+  it("fails when success-criteria-verified.txt does not exist", () => {
+    const dir = makeTmpDir();
+    writeFileSync(join(dir, "success-criteria.txt"), "Criterion 1\nCriterion 2\n");
+    expect(() => checkSuccessCriteriaVerified(dir)).toThrow(/Missing success-criteria-verified\.txt/);
+  });
+
+  it("fails when verified file is too short relative to criteria", () => {
+    const dir = makeTmpDir();
+    writeFileSync(join(dir, "success-criteria.txt"), "A long detailed criterion about the system behavior\nAnother criterion about expected output");
+    writeFileSync(join(dir, "success-criteria-verified.txt"), "OK");
+    expect(() => checkSuccessCriteriaVerified(dir)).toThrow(/too short/);
+  });
+
+  it("passes when verified file adequately addresses criteria", () => {
+    const dir = makeTmpDir();
+    const criteria = "Criterion 1: tests pass\nCriterion 2: types check";
+    const verified = "Criterion 1: tests pass - verified by running pnpm test\nCriterion 2: types check - verified by running pnpm typecheck";
+    writeFileSync(join(dir, "success-criteria.txt"), criteria);
+    writeFileSync(join(dir, "success-criteria-verified.txt"), verified);
+    expect(checkSuccessCriteriaVerified(dir)).toBe("OK: success criteria declared and verified");
   });
 });
