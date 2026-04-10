@@ -148,7 +148,7 @@ describe("KEMP resilient module — max restarts exhausted", () => {
     // spawn 1: init/manifest OK, then crashes → watchDeath fires
     // spawn 2+: exit before manifest → createRawModule fails
     const config: StdioForeignModuleConfig = {
-      ...countingModule(countFile, { crashAfterManifest: 1, failRestarts: true, extName: "exhaust-ext" }),
+      ...countingModule(countFile, { crashAfterManifest: 1, failRestarts: true, moduleName: "exhaust-ext" }),
       ...fastConfig({ maxRestarts: 2 }),
     };
 
@@ -172,7 +172,7 @@ describe("KEMP resilient module — health state tracking", () => {
   it("starts with ok status and zero restarts", async () => {
     const countFile = tempFile();
     const config: StdioForeignModuleConfig = {
-      ...countingModule(countFile, { extName: "health-ext" }),
+      ...countingModule(countFile, { moduleName: "health-ext" }),
       ...fastConfig({ maxRestarts: 2 }),
     };
 
@@ -192,7 +192,7 @@ describe("KEMP resilient module — health state tracking", () => {
     const countFile = tempFile();
     // spawn 1 crashes after manifest; spawn 2+ works normally
     const config: StdioForeignModuleConfig = {
-      ...countingModule(countFile, { crashAfterManifest: 1, crashOnInvoke: true, extName: "health-restart-ext" }),
+      ...countingModule(countFile, { crashAfterManifest: 1, crashOnInvoke: true, moduleName: "health-restart-ext" }),
       ...fastConfig({ maxRestarts: 2 }),
     };
 
@@ -220,7 +220,7 @@ describe("KEMP resilient module — health state tracking", () => {
     const countFile = tempFile();
     // spawn 1 crashes; all restart attempts also fail
     const config: StdioForeignModuleConfig = {
-      ...countingModule(countFile, { crashAfterManifest: 1, failRestarts: true, extName: "health-dead-ext" }),
+      ...countingModule(countFile, { crashAfterManifest: 1, failRestarts: true, moduleName: "health-dead-ext" }),
       ...fastConfig({ maxRestarts: 2 }),
     };
 
@@ -244,7 +244,7 @@ describe("KEMP resilient module — ping timeout", () => {
     // spawn 1: init/manifest OK but never responds to ping
     // spawn 2+: exit before manifest → createRawModule fails → restarts exhausted
     const config: StdioForeignModuleConfig = {
-      ...countingModule(countFile, { noPing: true, failRestarts: true, extName: "no-ping-ext" }),
+      ...countingModule(countFile, { noPing: true, failRestarts: true, moduleName: "no-ping-ext" }),
       ...fastConfig({
         maxRestarts: 1,
         pingTimeoutMs: 150,

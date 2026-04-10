@@ -1,7 +1,7 @@
 ---
 id: task-skill-import-command
 title: Add skill import command to install external skills from URLs or local paths
-status: ready
+status: done
 priority: p2
 area: modules
 summary: kota skill list and inspect exist but there is no way to install a skill from an external source; a kota skill import <url-or-path> command would let operators pull community skills from GitHub raw URLs or skills.sh-format markdown files into .kota/skills/.
