@@ -3,8 +3,8 @@ import { dirname, resolve } from "node:path";
 import {
   buildClaudeCodeSystemPrompt,
   executeWithAgentSDK,
-} from "../../agent-sdk/index.js";
-import type { SDKMessage } from "../../agent-sdk/types.js";
+} from "../agent-sdk/index.js";
+import type { SDKMessage } from "../agent-sdk/types.js";
 import type { WorkflowRepairCheck, WorkflowStepContext } from "./run-types.js";
 import type { AgentStepConfig, WorkflowStepOutput } from "./step-executor-agent.js";
 import { resolveAgentModel } from "./step-executor-agent.js";

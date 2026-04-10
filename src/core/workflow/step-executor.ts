@@ -1,4 +1,4 @@
-import type { SDKMessage } from "../../agent-sdk/types.js";
+import type { SDKMessage } from "../agent-sdk/types.js";
 import type { RepairCheckResult, RepairIteration } from "./repair-loop.js";
 import { buildRepairPrompt, runAgentRepairLoop } from "./repair-loop.js";
 import type { WorkflowRunMetadata, WorkflowStepContext } from "./run-types.js";

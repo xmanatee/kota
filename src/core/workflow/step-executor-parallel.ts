@@ -1,4 +1,4 @@
-import type { SDKMessage } from "../../agent-sdk/types.js";
+import type { SDKMessage } from "../agent-sdk/types.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import type { WorkflowStepContext, WorkflowStepResult } from "./run-types.js";
 import { executeCodeStep, shouldRunStep } from "./step-executor.js";

@@ -23,6 +23,8 @@ Kernel areas:
 - `src/core/modules/`
 - `src/core/tools/`
 - `src/core/workflow/`
+- `src/core/agent-sdk/`
+- `src/core/data/`
 
 Project modules:
 

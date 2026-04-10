@@ -1,9 +1,5 @@
 import { Command } from "commander";
 import {
-  buildClaudeCodeSystemPrompt,
-  executeWithAgentSDK,
-} from "./agent-sdk/index.js";
-import {
   interactiveMode,
   parseIntOption,
   registerHistoryCommands,
@@ -12,6 +8,10 @@ import {
 } from "./cli-history.js";
 import { expandAlias, loadConfig } from "./config.js";
 import { setSkipConfirmations } from "./confirm.js";
+import {
+  buildClaudeCodeSystemPrompt,
+  executeWithAgentSDK,
+} from "./core/agent-sdk/index.js";
 import { runAgentLoop } from "./core/loop/loop.js";
 import { createModelClient } from "./core/model/model-client.js";
 import { discoverModules } from "./core/modules/module-discovery.js";

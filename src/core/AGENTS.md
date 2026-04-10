@@ -27,3 +27,7 @@ into.
 - `tools/` — core tool runtime and the remaining truly core-hosted tools.
 - `workflow/` — workflow definitions, validation, execution, runtime, and
   repair-loop mechanics.
+- `agent-sdk/` — Claude Agent SDK executor, system-prompt builder, and SDK
+  type re-exports.
+- `data/` — data processing utilities: CSV/JSON preview, HTML extraction,
+  plot capture, and code execution wrappers.

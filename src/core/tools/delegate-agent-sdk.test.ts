@@ -4,7 +4,7 @@ import type { Transport } from "../loop/transport.js";
 
 const mockExecuteWithAgentSDK = vi.fn();
 
-vi.mock("../../agent-sdk/index.js", () => ({
+vi.mock("../agent-sdk/index.js", () => ({
   executeWithAgentSDK: (...args: unknown[]) => mockExecuteWithAgentSDK(...args),
 }));
 

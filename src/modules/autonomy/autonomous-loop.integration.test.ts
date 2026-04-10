@@ -10,14 +10,14 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { executeWithAgentSDK } from "../../agent-sdk/index.js";
+import { executeWithAgentSDK } from "../../core/agent-sdk/index.js";
 import { EventBus } from "../../core/events/event-bus.js";
 import { WorkflowRuntime } from "../../core/workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "../../core/workflow/types.js";
 import autonomyModule from "./index.js";
 
-vi.mock("../../agent-sdk/index.js", async () => {
-  const actual = await vi.importActual("../../agent-sdk/index.js");
+vi.mock("../../core/agent-sdk/index.js", async () => {
+  const actual = await vi.importActual("../../core/agent-sdk/index.js");
   return {
     ...actual,
     executeWithAgentSDK: vi.fn(),

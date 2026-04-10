@@ -5,8 +5,8 @@
 
 import { existsSync, unlinkSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
-import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "../../data/code-wrappers.js";
 import { sessions } from "../../repl-session.js";
+import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "../data/code-wrappers.js";
 import {
   type CustomToolDef,
   getToolPath,

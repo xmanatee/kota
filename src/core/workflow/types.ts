@@ -1,7 +1,7 @@
 import type {
   SDKPermissionMode,
   SDKSettingSource,
-} from "../../agent-sdk/types.js";
+} from "../agent-sdk/types.js";
 import type { BusEvents } from "../events/event-bus.js";
 import type {
   WorkflowPredicate,

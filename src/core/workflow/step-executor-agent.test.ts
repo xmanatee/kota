@@ -7,7 +7,7 @@ const tryEmitMock = vi.hoisted(() => vi.fn());
 vi.mock("../events/event-bus.js", () => ({ tryEmit: tryEmitMock }));
 
 const executeWithAgentSDKMock = vi.hoisted(() => vi.fn());
-vi.mock("../../agent-sdk/index.js", () => ({
+vi.mock("../agent-sdk/index.js", () => ({
   buildClaudeCodeSystemPrompt: () => "system",
   executeWithAgentSDK: executeWithAgentSDKMock,
 }));

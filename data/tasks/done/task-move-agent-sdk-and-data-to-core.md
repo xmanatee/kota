@@ -1,7 +1,7 @@
 ---
 id: task-move-agent-sdk-and-data-to-core
 title: "Move agent-sdk and data directories to core/"
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: "Move agent-sdk (7 files, 17 importers) and data (16 files, 10 importers) from src/ root into core/."
