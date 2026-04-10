@@ -164,7 +164,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
     expect(emitted).toBeUndefined();
   });
 
-  it("skips when isFork is null but branch matches (not enough info to confirm non-fork, proceed)", async () => {
+  it("proceeds when isFork is null — treats absent head.repo as non-fork (safe default)", async () => {
     // isFork=null means the webhook didn't include head.repo info — treat as non-fork (safe default)
     const harness = new WorkflowTestHarness(prReviewerWorkflow, {
       trigger: makeTrigger({ isFork: null }),

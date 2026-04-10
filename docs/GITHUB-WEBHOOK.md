@@ -88,6 +88,8 @@ Emitted on `pull_request` events.
 | `merged` | `true` if the PR was merged |
 | `headBranch` | Source branch |
 | `baseBranch` | Target branch |
+| `headRepo` | Fork's `owner/repo`, or `null` if the payload omits `head.repo` |
+| `isFork` | `true` if `headRepo` differs from `repo`; `false` if same-repo; `null` if `head.repo` absent |
 
 ### `github.check_run`
 
