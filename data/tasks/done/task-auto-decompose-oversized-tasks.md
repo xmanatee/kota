@@ -1,7 +1,7 @@
 ---
 id: task-auto-decompose-oversized-tasks
 title: "Automate task decomposition when builder times out on scope"
-status: ready
+status: done
 priority: p2
 area: capability
 summary: "When a builder run fails due to timeout on an oversized task, no workflow currently decomposes it — the task sits blocked until a human or explorer notices. Adding a decomposition step after repeated builder failure would keep the autonomous loop moving."
