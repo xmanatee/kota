@@ -1,7 +1,7 @@
 ---
 id: task-split-github-module-ts
 title: Split src/modules/github/index.ts into focused files
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: The github module index.ts is 742 lines — more than double the 300-line target. PR tools, issue tools, auth helpers, and task-provider wiring should each have their own file, following the pattern already established in web-access, filesystem, and execution.
