@@ -60,6 +60,7 @@ describe("WorkflowRunStore.recoverInterruptedRuns", () => {
 
     const state = store.readState();
     state.activeRuns = [{ runId: "run-stale-1", workflow: "builder", startedAt: new Date(Date.now() - 60_000).toISOString() }];
+    // biome-ignore lint/complexity/useLiteralKeys: accessing private method in test
     store["writeState"](state);
 
     const recovered = store.recoverInterruptedRuns();
@@ -94,6 +95,7 @@ describe("WorkflowRunStore.recoverInterruptedRuns", () => {
 
     const state = store.readState();
     state.activeRuns = [{ runId: "run-stale-2", workflow: "explorer", startedAt: new Date(Date.now() - 60_000).toISOString() }];
+    // biome-ignore lint/complexity/useLiteralKeys: accessing private method in test
     store["writeState"](state);
 
     store.recoverInterruptedRuns();
@@ -107,6 +109,7 @@ describe("WorkflowRunStore.recoverInterruptedRuns", () => {
 
     const state = store.readState();
     state.activeRuns = [{ runId: "run-already-done", workflow: "builder", startedAt: new Date(Date.now() - 60_000).toISOString() }];
+    // biome-ignore lint/complexity/useLiteralKeys: accessing private method in test
     store["writeState"](state);
 
     const recovered = store.recoverInterruptedRuns();
@@ -121,12 +124,13 @@ describe("WorkflowRunStore.recoverInterruptedRuns", () => {
 
     const state = store.readState();
     state.activeRuns = [{ runId: "run-stale-3", workflow: "builder", startedAt: new Date(Date.now() - 60_000).toISOString() }];
+    // biome-ignore lint/complexity/useLiteralKeys: accessing private method in test
     store["writeState"](state);
 
     store.recoverInterruptedRuns();
 
     const afterState = store.readState();
-    expect(afterState.workflows["builder"]?.lastStatus).toBe("interrupted");
+    expect(afterState.workflows.builder?.lastStatus).toBe("interrupted");
   });
 
   it("creates new runs only under .kota/runs", () => {

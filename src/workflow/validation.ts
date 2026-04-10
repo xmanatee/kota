@@ -18,7 +18,6 @@ import {
   expectOptionalInteger,
   expectOptionalPositiveNumber,
   expectOptionalString,
-  expectOptionalStringArray,
   expectRelativePath,
   WorkflowDefinitionError,
 } from "./validation-primitives.js";

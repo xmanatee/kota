@@ -5,7 +5,6 @@ import type { Command } from "commander";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "../../frontmatter.js";
 import {
 	getRepoInboxDir,
-	getRepoTaskStateDir,
 	getRepoTasksDir,
 	REPO_INBOX_DIR,
 	REPO_TASK_STATES,

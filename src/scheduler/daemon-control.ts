@@ -1,5 +1,14 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import type { AgentSession } from "../loop.js";
+import type { Transport } from "../transport.js";
 import { handleApproveAllApprovals, handleApproveApproval, handleListApprovals, handleRejectAllApprovals, handleRejectApproval } from "./daemon-control-approvals.js";
+import {
+  DaemonChatPool,
+  type DaemonChatPoolOptions,
+  deleteDaemonSession,
+  handleCreateDaemonSession,
+  handleDaemonChat,
+} from "./daemon-control-chat.js";
 import { handleDeleteHistory, handleGetHistory, handleListHistory } from "./daemon-control-history.js";
 import { handleMetrics } from "./daemon-control-metrics.js";
 import { handleRegisterPushToken } from "./daemon-control-push-tokens.js";
@@ -78,7 +87,9 @@ const ROUTE_SCOPES: Record<string, "read" | "control"> = {
   "POST /workflow/runs/:id/abort": "control",
   "GET /tasks": "read",
   "GET /sessions": "read",
+  "POST /sessions": "control",
   "POST /sessions/register": "control",
+  "POST /sessions/:id/chat": "control",
   "DELETE /sessions/:id": "control",
   "GET /metrics": "read",
   "POST /push-tokens": "control",
@@ -118,6 +129,13 @@ function matchRouteKey(
 export type DaemonControlServerOptions = {
   /** Maximum number of events retained in the in-memory ring buffer. Default: 500. */
   eventBufferSize?: number;
+  /**
+   * When provided, enables POST /sessions, POST /sessions/:id/chat for daemon-owned sessions.
+   * The factory receives the proxy transport and returns an AgentSession.
+   */
+  makeAgent?: (transport: Transport) => AgentSession;
+  /** Options forwarded to the daemon chat session pool. */
+  chatPool?: DaemonChatPoolOptions;
 };
 
 export class DaemonControlServer {
@@ -126,6 +144,10 @@ export class DaemonControlServer {
   private sseClients = new Set<ServerResponse>();
   private unsubscribeEvents: (() => void) | null = null;
   private readonly eventBuffer: EventRingBuffer;
+  private readonly chatPool: DaemonChatPool | null;
+  private readonly makeAgent: ((transport: Transport) => AgentSession) | null;
+  private readonly chatSweepMs: number;
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private readonly handle: DaemonControlHandle,
@@ -133,6 +155,10 @@ export class DaemonControlServer {
     options?: DaemonControlServerOptions,
   ) {
     this.eventBuffer = new EventRingBuffer(options?.eventBufferSize ?? 500);
+    this.makeAgent = options?.makeAgent ?? null;
+    this.chatPool = this.makeAgent ? new DaemonChatPool(options?.chatPool) : null;
+    const ttlMs = options?.chatPool?.ttlMs ?? (5 * 60 * 1000);
+    this.chatSweepMs = Math.min(ttlMs, 60_000);
   }
 
   start(): Promise<number> {
@@ -148,6 +174,9 @@ export class DaemonControlServer {
           this.eventBuffer.push(event);
           this.broadcast(event);
         });
+        if (this.chatPool) {
+          this.cleanupTimer = setInterval(() => { this.chatPool!.cleanup(); }, this.chatSweepMs);
+        }
         resolve(addr.port);
       });
       srv.once("error", reject);
@@ -156,6 +185,11 @@ export class DaemonControlServer {
 
   stop(): Promise<void> {
     return new Promise((resolve) => {
+      if (this.cleanupTimer !== null) {
+        clearInterval(this.cleanupTimer);
+        this.cleanupTimer = null;
+      }
+      this.chatPool?.closeAll();
       this.unsubscribeEvents?.();
       this.unsubscribeEvents = null;
       for (const res of this.sseClients) {
@@ -306,9 +340,44 @@ export class DaemonControlServer {
 
     if (method === "GET" && path === "/tasks") { jsonResponse(res, 200, h.getTaskStatus()); return; }
 
-    if (method === "GET" && path === "/sessions") { handleListSessions(h, res); return; }
+    if (method === "GET" && path === "/sessions") {
+      if (this.chatPool) {
+        const serveSessions = h.listSessions().map((s) => ({ ...s, source: "serve" as const }));
+        const daemonSessions = this.chatPool.list();
+        jsonResponse(res, 200, { sessions: [...serveSessions, ...daemonSessions] });
+      } else {
+        handleListSessions(h, res);
+      }
+      return;
+    }
+    if (method === "POST" && path === "/sessions") {
+      if (!this.chatPool || !this.makeAgent) {
+        jsonResponse(res, 503, { error: "Daemon chat sessions not available" });
+      } else {
+        handleCreateDaemonSession(this.chatPool, res, this.makeAgent);
+      }
+      return;
+    }
     if (method === "POST" && path === "/sessions/register") { handleRegisterSession(h, req, res); return; }
-    if (method === "DELETE" && params.id && path.startsWith("/sessions/")) { handleUnregisterSession(h, res, params); return; }
+    if (method === "POST" && params.id && path.endsWith("/chat") && path.startsWith("/sessions/")) {
+      if (!this.chatPool) {
+        jsonResponse(res, 503, { error: "Daemon chat sessions not available" });
+      } else {
+        handleDaemonChat(this.chatPool, req, res, params.id).catch((err: Error) => {
+          if (!res.headersSent) jsonResponse(res, 500, { error: err.message });
+        });
+      }
+      return;
+    }
+    if (method === "DELETE" && params.id && path.startsWith("/sessions/")) {
+      if (this.chatPool && deleteDaemonSession(this.chatPool, params.id)) {
+        res.writeHead(204);
+        res.end();
+      } else {
+        handleUnregisterSession(h, res, params);
+      }
+      return;
+    }
 
     if (method === "GET" && path === "/metrics") { handleMetrics(h, res); return; }
 

@@ -1,7 +1,7 @@
 ---
 id: task-daemon-interactive-chat-api
 title: Add interactive chat endpoint to daemon control API
-status: ready
+status: done
 priority: p2
 area: daemon
 summary: The daemon control API exposes workflow management, approvals, memory, and history — but no way for a connected client (mobile, macOS app, external tool) to start or participate in an interactive agent session. Adding a /chat endpoint and a session pool to the daemon enables any authenticated client to converse with KOTA without running kota serve separately.

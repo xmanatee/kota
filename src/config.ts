@@ -133,6 +133,11 @@ export type KotaConfig = {
      * SSE reconnect with GET /events?since=<timestamp>. Default: 500.
      */
     eventBufferSize?: number;
+    /**
+     * How long (ms) a daemon-owned interactive chat session may be idle before
+     * it is swept. Default: 300000 (5 minutes).
+     */
+    sessionIdleTtlMs?: number;
   };
 
   /** Notification settings. */
@@ -359,6 +364,9 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     }
     if (typeof src.eventBufferSize === "number" && src.eventBufferSize > 0) {
       d.eventBufferSize = src.eventBufferSize;
+    }
+    if (typeof src.sessionIdleTtlMs === "number" && src.sessionIdleTtlMs > 0) {
+      d.sessionIdleTtlMs = src.sessionIdleTtlMs;
     }
     if (Object.keys(d).length > 0) out.daemon = d;
   }

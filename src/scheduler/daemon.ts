@@ -7,8 +7,10 @@ import { warnInvalidConcurrencyConfig, warnUnknownConfigKeys } from "../config-w
 import { type EventBus, initEventBus } from "../event-bus.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "../json-file.js";
 import type { LogFormat } from "../log-format.js";
+import { AgentSession } from "../loop.js";
 import { initModuleLogStore } from "../module-log.js";
 import { NotificationGate } from "../modules/notifications/notification-gate.js";
+import type { Transport } from "../transport.js";
 import { WorkflowRunStore } from "../workflow/run-store.js";
 import { WorkflowRuntime } from "../workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
@@ -114,6 +116,9 @@ export class Daemon {
     this.state.startedAt = new Date().toISOString();
     this.token = randomBytes(32).toString("hex");
 
+    const daemonModel = config.model ?? config.config?.model;
+    const daemonConfig = config.config;
+    const daemonVerbose = config.verbose;
     this.controlServer = new DaemonControlServer(
       buildDaemonHandle({
         getState: () => this.state,
@@ -127,7 +132,17 @@ export class Daemon {
         log: (message) => this.log(message),
       }),
       this.token,
-      { eventBufferSize: config.config?.daemon?.eventBufferSize },
+      {
+        eventBufferSize: config.config?.daemon?.eventBufferSize,
+        makeAgent: (transport: Transport) =>
+          new AgentSession({
+            model: daemonModel,
+            verbose: daemonVerbose,
+            transport,
+            config: daemonConfig,
+          }),
+        chatPool: { ttlMs: config.config?.daemon?.sessionIdleTtlMs },
+      },
     );
   }
 

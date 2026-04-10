@@ -110,6 +110,7 @@ See `src/config.ts` (`KotaConfig` type) for the full list of supported fields an
 - `modules` — per-module config blocks (see below)
 - `foreignModules` — out-of-process KEMP modules (see `docs/FOREIGN-MODULES.md`)
 - `daemon.shutdownGracePeriodMs` — graceful shutdown window
+- `daemon.sessionIdleTtlMs` — idle TTL for daemon-owned interactive chat sessions (default: 300000, 5 minutes)
 - `serve.noAuth` — disable bearer-token auth for `kota serve` (dev only)
 - `serve.showCost` — show per-turn cost line in terminal output (default: `true`; set to `false` to suppress, or pass `--no-cost` CLI flag)
 - `dailyBudgetUsd` — cap autonomous spend per UTC calendar day

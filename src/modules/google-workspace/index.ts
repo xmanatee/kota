@@ -606,7 +606,7 @@ function makeDriveReadFile(getToken: () => Promise<string>): ToolDef {
 
       const text = await res.text();
       const truncated = text.length > maxChars;
-      const content = truncated ? text.slice(0, maxChars) + "\n... (truncated)" : text;
+      const content = truncated ? `${text.slice(0, maxChars)}\n... (truncated)` : text;
 
       return {
         content: `File: ${meta.name}\nType: ${meta.mimeType}\n\n${content}`,

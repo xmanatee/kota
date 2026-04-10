@@ -51,7 +51,7 @@ export function extractApprovalContext(
   }
   if (lines.length === 0) return undefined;
   const joined = lines.join("\n");
-  return joined.length > maxChars ? joined.slice(0, maxChars) + "…" : joined;
+  return joined.length > maxChars ? `${joined.slice(0, maxChars)}…` : joined;
 }
 
 export type ToolResultEntry = {

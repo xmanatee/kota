@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "../../../../agent-types.js";
 import type { RepoTaskQueueSnapshot } from "../../../../repo-tasks.js";
@@ -107,17 +107,16 @@ const builderWorkflow: WorkflowDefinitionInput = {
           {
             id: "daemon-api-doc-sync",
             type: "code" as const,
-            run: (ctx) =>
-              runCheck(
-                `node -e "const fs=require('fs'),path=require('path');` +
-                  `const src=fs.readFileSync(path.join(process.cwd(),'src/scheduler/daemon-control.ts'),'utf8');` +
-                  `const doc=fs.readFileSync(path.join(process.cwd(),'docs/DAEMON-API.md'),'utf8');` +
-                  `const routes=[...src.matchAll(/"(?:GET|POST|DELETE|PUT|PATCH) (\\/[^"]+)":\\s*"(?:read|control)"/g)].map(m=>m[1]);` +
-                  `const undocumented=[...new Set(routes)].filter(p=>!doc.includes(p));` +
-                  `if(undocumented.length){console.error('Missing from docs/DAEMON-API.md: '+undocumented.join(', '));process.exit(1);}` +
-                  `console.log('OK: DAEMON-API.md covers all daemon control routes');"`,
-                ctx.projectDir,
-              ),
+            run: (ctx) => {
+              const src = readFileSync(join(ctx.projectDir, "src/scheduler/daemon-control.ts"), "utf8");
+              const doc = readFileSync(join(ctx.projectDir, "docs/DAEMON-API.md"), "utf8");
+              const routes = [...src.matchAll(/"(?:GET|POST|DELETE|PUT|PATCH) (\/[^"]+)":\s*"(?:read|control)"/g)].map((m) => m[1]);
+              const undocumented = [...new Set(routes)].filter((p) => !doc.includes(p));
+              if (undocumented.length) {
+                throw new Error(`Missing from docs/DAEMON-API.md: ${undocumented.join(", ")}`);
+              }
+              return "OK: DAEMON-API.md covers all daemon control routes";
+            },
           },
           {
             id: "src-agents-md-key-modules",

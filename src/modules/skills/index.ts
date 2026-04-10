@@ -28,8 +28,8 @@ function readImportedSkills(cwd: string): ImportedSkill[] {
     const filePath = join(dir, file);
     const content = readFileSync(filePath, "utf8");
     const { attrs } = parseFlatFrontMatter(content);
-    const name = typeof attrs["name"] === "string" ? attrs["name"] : basename(file, ".md");
-    const description = typeof attrs["description"] === "string" ? attrs["description"] : undefined;
+    const name = typeof attrs.name === "string" ? attrs.name : basename(file, ".md");
+    const description = typeof attrs.description === "string" ? attrs.description : undefined;
     results.push({ name, description, promptPath: join(".kota", "skills", file), source: "imported" });
   }
   return results;
@@ -98,7 +98,7 @@ function buildSkillCommand(ctx: ModuleContext): Command {
       }
 
       const { attrs } = parseFlatFrontMatter(content);
-      const frontmatterName = typeof attrs["name"] === "string" ? attrs["name"] : undefined;
+      const frontmatterName = typeof attrs.name === "string" ? attrs.name : undefined;
 
       if (!frontmatterName && !opts.name) {
         console.error(

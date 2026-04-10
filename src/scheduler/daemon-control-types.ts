@@ -132,6 +132,8 @@ export type InteractiveSession = {
   id: string;
   createdAt: string;
   lastActive: number;
+  /** "serve" = registered from kota serve; "daemon" = owned by daemon control API. */
+  source?: "daemon" | "serve";
 };
 
 export type WorkflowRunCountEntry = {

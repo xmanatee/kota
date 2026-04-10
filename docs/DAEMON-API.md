@@ -46,7 +46,8 @@ Routes are tagged with a capability scope:
   `POST /reload`,
   `DELETE /history/:id`, `POST /approvals/:id/approve`,
   `POST /approvals/:id/reject`,
-  `POST /sessions/register`, `DELETE /sessions/:id`,
+  `POST /sessions`, `POST /sessions/register`, `POST /sessions/:id/chat`,
+  `DELETE /sessions/:id`,
   `POST /push-tokens`
 
 `GET /health` requires **no authentication** and is intended for liveness/readiness probes.
@@ -1181,22 +1182,71 @@ triggers: [{ webhook: true }]
 
 ## Session Endpoints
 
-These endpoints let `kota serve` register and unregister interactive chat
-sessions so the daemon is the single source of truth for live session state.
+The daemon supports two types of interactive sessions:
+
+- **Daemon-owned sessions** (`source: "daemon"`) — created via `POST /sessions` and
+  hosted by the daemon itself. Clients can send messages and receive streaming agent
+  responses without running `kota serve`.
+- **Serve-registered sessions** (`source: "serve"`) — registered by a running
+  `kota serve` instance via `POST /sessions/register` so the daemon is the single
+  source of truth for live session state.
+
+Daemon-owned sessions are swept after an idle TTL (default 5 minutes; configurable
+via `daemon.sessionIdleTtlMs` in `kota.config.json`).
 
 ### GET /sessions
 
-Returns all currently registered interactive sessions.
+Returns all active interactive sessions (both daemon-owned and serve-registered).
 
 **Response:**
 
 ```json
 {
   "sessions": [
-    { "id": "a1b2c3d4", "createdAt": "2026-03-30T16:00:00.000Z", "lastActive": 1743350400000 }
+    { "id": "a1b2c3d4", "createdAt": "2026-03-30T16:00:00.000Z", "lastActive": 1743350400000, "source": "daemon", "busy": false },
+    { "id": "e5f6g7h8", "createdAt": "2026-03-30T15:00:00.000Z", "lastActive": 1743346800000, "source": "serve" }
   ]
 }
 ```
+
+### POST /sessions
+
+Creates a new daemon-owned interactive session. Returns a `session_id` that
+can be passed to `POST /sessions/:id/chat`.
+
+**Response (201):**
+
+```json
+{ "session_id": "a1b2c3d4" }
+```
+
+**Response (503):** Session pool is full (all sessions are busy).
+
+### POST /sessions/:id/chat
+
+Sends a message to a daemon-owned session and streams the agent response as
+Server-Sent Events (`text/event-stream`). The event format mirrors `kota serve`'s
+`/api/chat` response.
+
+**Request body:**
+
+```json
+{ "message": "What tasks are in the queue?" }
+```
+
+**SSE event types:**
+
+| Event    | Payload                          | Description                       |
+|----------|----------------------------------|-----------------------------------|
+| `session`| `{ "session_id": "..." }`        | Emitted first with the session ID |
+| `text`   | `{ "type": "text", "content": "..." }` | Agent text output chunk    |
+| `tool_use` | `{ ... }`                      | Tool call notification            |
+| `tool_result` | `{ ... }`                 | Tool result                       |
+| `done`   | `{ "session_id": "...", "result": {...} }` | Stream complete          |
+| `error`  | `{ "message": "..." }`           | Agent error                       |
+
+**Response codes:** `200 text/event-stream`, `404` (session not found), `400`
+(missing/invalid message), `409` (session busy).
 
 ### POST /sessions/register
 
@@ -1213,8 +1263,9 @@ a new session is created.
 
 ### DELETE /sessions/:id
 
-Unregisters a session. Called by `kota serve` when a session is deleted or
-the server shuts down.
+Closes a daemon-owned session, or unregisters a serve-registered session. The
+daemon tries the daemon-owned pool first; if not found, falls back to
+unregistering from the serve-registered list.
 
 **Response:** `204 No Content`
 

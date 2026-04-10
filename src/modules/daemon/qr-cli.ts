@@ -58,6 +58,6 @@ export function buildQrCommand(): Command {
       console.log("\nScan this QR code with the KOTA mobile app to configure the connection:\n");
       console.log(qr);
       console.log(`  URL:   ${url}`);
-      console.log(`  Token: ${token ? token.slice(0, 8) + "..." : "(none)"}\n`);
+      console.log(`  Token: ${token ? `${token.slice(0, 8)}...` : "(none)"}\n`);
     });
 }
