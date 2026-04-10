@@ -3,7 +3,6 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { KotaConfig } from "../config.js";
 import { loadConfig } from "../config.js";
-import { computeModuleConfigDiff } from "../config-reload-diff.js";
 import type { EventBus } from "../event-bus.js";
 import { getHistory } from "../memory/history.js";
 import { loadModuleMetadata } from "../module-metadata.js";
@@ -11,6 +10,7 @@ import { getApprovalQueue } from "../modules/approval-queue/queue.js";
 import { getRepoInboxDir, getRepoTasksDir } from "../repo-tasks.js";
 import type { WorkflowRunStore } from "../workflow/run-store.js";
 import type { WorkflowRuntime } from "../workflow/runtime.js";
+import { computeModuleConfigDiff } from "./config-reload-diff.js";
 import type {
   DaemonControlHandle,
   DaemonTaskStatusResponse,

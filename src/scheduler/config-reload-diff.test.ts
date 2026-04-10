@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { KotaConfig } from "./config.js";
+import type { KotaConfig } from "../config.js";
 import { computeModuleConfigDiff } from "./config-reload-diff.js";
 
 describe("computeModuleConfigDiff", () => {
