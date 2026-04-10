@@ -3,8 +3,6 @@ import type {
   WorkflowRetryConfig,
 } from "./types.js";
 
-export const DEFAULT_MODEL = "claude-opus-4-6";
-
 export class AgentStepRuntimeError extends Error {
   constructor(
     message: string,

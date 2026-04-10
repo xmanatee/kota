@@ -14,7 +14,6 @@ import type { WorkflowRunMetadata } from "./run-types.js";
 import {
   AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
-  DEFAULT_MODEL,
   withRetry,
 } from "./step-executor-retry.js";
 import type {
@@ -43,7 +42,6 @@ export type AgentStepConfig = {
 export {
   AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
-  DEFAULT_MODEL,
   withRetry,
 };
 
@@ -51,13 +49,17 @@ export function resolveAgentModel(
   step: WorkflowAgentStep,
   agentConfig: AgentStepConfig,
 ): string {
-  return (
+  const model =
     (step.agentName ? agentConfig.config?.agentModels?.[step.agentName] : undefined) ??
     step.model ??
     agentConfig.model ??
-    agentConfig.config?.model ??
-    DEFAULT_MODEL
-  );
+    agentConfig.config?.model;
+  if (!model) {
+    throw new Error(
+      `No model specified for agent step "${step.id}". Set model on the step, agent, or config.`,
+    );
+  }
+  return model;
 }
 
 function shouldExposeOutput(output: unknown): boolean {
