@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock memory module to isolate from real ~/.kota/memory.json
-vi.mock("./memory/store.js", () => ({
+vi.mock("./core/memory/store.js", () => ({
   getMemoryStore: vi.fn(() => ({
     list: () => [] as any[],
     search: () => [] as any[],
@@ -13,7 +13,7 @@ vi.mock("./memory/store.js", () => ({
 }));
 
 // Mock history module to control conversation data
-vi.mock("./memory/history.js", () => ({
+vi.mock("./core/memory/history.js", () => ({
   getHistory: vi.fn(() => ({
     getMostRecent: () => null,
   })),
@@ -36,8 +36,8 @@ vi.mock("./core/daemon/scheduler.js", () => ({
 import { getScheduler } from "./core/daemon/scheduler.js";
 import { getTaskStore } from "./core/daemon/task-store.js";
 import { buildSessionWarmup } from "./init.js";
-import { getHistory } from "./memory/history.js";
-import { getMemoryStore } from "./memory/store.js";
+import { getHistory } from "./core/memory/history.js";
+import { getMemoryStore } from "./core/memory/store.js";
 import { detectEnvironment, detectProject, getDirectoryOverview } from "./project-detection.js";
 
 const mocked = vi.mocked(getMemoryStore);

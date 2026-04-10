@@ -74,7 +74,7 @@ vi.mock("./core/daemon/task-store.js", () => ({
     isEmpty: vi.fn(() => true), count: vi.fn(() => 0),
   })),
 }));
-vi.mock("./mcp/manager.js", () => ({
+vi.mock("./core/mcp/manager.js", () => ({
   McpManager: class MockMcpManager {
     static loadConfig() { return null; }
   },
@@ -92,11 +92,11 @@ vi.mock("./verify-tracker.js", async (importOriginal) => {
     detectVerifyCommands: vi.fn(() => []),
   };
 });
-vi.mock("./architect/architect.js", () => ({
+vi.mock("./core/architect/architect.js", () => ({
   runArchitectPass: mockArchitectPass,
 }));
 
-vi.mock("./architect/architect-editor.js", () => ({
+vi.mock("./core/architect/architect-editor.js", () => ({
   runEditorLoop: mockEditorLoop,
 }));
 

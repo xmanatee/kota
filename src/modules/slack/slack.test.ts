@@ -35,6 +35,7 @@ function makeStubCtx(bus?: EventBus, slackConfig?: unknown): ModuleContext {
     callTool: async () => ({ content: "" }),
     registerMiddleware: () => {},
     registerDynamicStateProvider: () => {},
+    registerCleanupHook: () => {},
   };
 }
 

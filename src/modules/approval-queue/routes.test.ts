@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApprovalQueue } from "./queue.js";
+import { ApprovalQueue } from "../../core/daemon/approval-queue.js";
 import {
 	handleApproveAllApprovals,
 	handleApproveApproval,
@@ -63,7 +63,7 @@ function mockClient(overrides: Partial<Record<string, unknown>> = {}) {
 		approveAllApprovals: vi.fn(async () => null),
 		rejectAllApprovals: vi.fn(async () => null),
 		...overrides,
-	} as unknown as import("../../server/daemon-client.js").DaemonControlClient;
+	} as unknown as import("../../core/server/daemon-client.js").DaemonControlClient;
 }
 
 describe("approval-routes", () => {

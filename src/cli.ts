@@ -17,7 +17,7 @@ import { createModelClient } from "./core/model/model-client.js";
 import { discoverModules } from "./core/modules/module-discovery.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import { discoverProjectModules } from "./core/modules/project-discovery.js";
-import { getHistory } from "./memory/history.js";
+import { getHistory } from "./core/memory/history.js";
 import { parseModelString } from "./modules/model-clients/factory.js";
 
 export { parseIntOption } from "./cli-history.js";

@@ -20,7 +20,7 @@ The daemon writes its control address to `.kota/daemon-control.json`:
 Clients discover the address by reading this file. If the file does not exist,
 or if the HTTP request fails, the daemon is not running.
 
-Use `DaemonControlClient.fromStateDir()` from `src/server/daemon-client.ts` to
+Use `DaemonControlClient.fromStateDir()` from `src/core/server/daemon-client.ts` to
 get a ready-to-use client in TypeScript. The client reads the token from the
 lock file automatically and sends it with all requests.
 

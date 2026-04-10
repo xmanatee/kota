@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { MemoryStore } from "./memory/store.js";
+import { MemoryStore } from "./core/memory/store.js";
 
 /**
  * Integration tests for init × memory cross-module interaction.

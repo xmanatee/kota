@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApprovalQueue, resetApprovalQueue } from "../../modules/approval-queue/queue.js";
+import { ApprovalQueue, resetApprovalQueue } from "../daemon/approval-queue.js";
 import { registration } from "./approval.js";
 
 vi.mock("../events/event-bus.js", () => ({
@@ -12,8 +12,8 @@ vi.mock("../events/event-bus.js", () => ({
 
 // Mock getApprovalQueue to return our test queue
 let testQueue: ApprovalQueue;
-vi.mock("../../modules/approval-queue/queue.js", async (importOriginal) => {
-	const mod = await importOriginal<typeof import("../../modules/approval-queue/queue.js")>();
+vi.mock("../daemon/approval-queue.js", async (importOriginal) => {
+	const mod = await importOriginal<typeof import("../daemon/approval-queue.js")>();
 	return {
 		...mod,
 		getApprovalQueue: () => testQueue,

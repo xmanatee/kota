@@ -68,7 +68,7 @@ This is the right store for durable evidence of what automated workflows did.
 | History | Global | `getHistory()` / `HistoryProvider` |
 | Memory | Global | `getMemoryStore()` / `MemoryProvider` |
 | Knowledge | Project + Global | `getKnowledgeStore(cwd)` / `KnowledgeProvider` |
-| Working Memory | Session | `setEntry` / `getEntry` (from `src/memory/working-memory.ts`) |
+| Working Memory | Session | `setEntry` / `getEntry` (from `src/core/memory/working-memory.ts`) |
 | Run Artifacts | Project | `WorkflowRunStore`, direct file reads under `.kota/runs/` |
 
 ## Durable State for Autonomous Workflows
@@ -89,7 +89,8 @@ sessions.
 ## Provider Registry
 
 The core stores (memory, knowledge, history, task) can be swapped for
-alternative backends using the provider registry in `src/providers.ts`.
+alternative backends using the provider registry in
+`src/core/modules/provider-registry.ts`.
 Modules register custom backends via `registerProvider(type, provider)`.
 
 ## Module Storage

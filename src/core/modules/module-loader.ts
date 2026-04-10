@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Command } from "commander";
 import type { KotaConfig } from "../../config.js";
-import { getProviderRegistry } from "../../modules/providers/index.js";
+import { getProviderRegistry } from "./provider-registry.js";
 import type { AgentDef, SkillDef } from "../agents/agent-types.js";
 import type { ChannelDef } from "../channels/channel.js";
 import type { EventBus } from "../events/event-bus.js";

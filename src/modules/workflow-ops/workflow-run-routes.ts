@@ -4,7 +4,7 @@ import { extname, join } from "node:path";
 import { WorkflowRunStore } from "../../core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "../../core/workflow/run-types.js";
 import { readOptionalJsonFile } from "../../json-file.js";
-import { jsonResponse, SseTransport, setCors } from "../../server/session-pool.js";
+import { jsonResponse, SseTransport, setCors } from "../../core/server/session-pool.js";
 import type { BuilderRunSummary } from "../autonomy/workflows/builder/run-summary.js";
 import { readStepEvents } from "./workflow-logs.js";
 

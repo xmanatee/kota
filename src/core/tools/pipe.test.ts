@@ -19,8 +19,8 @@ vi.mock("./index.js", () => {
 	};
 });
 
-vi.mock("../../manifest/index.js", async () => {
-	const actual = await vi.importActual("../../manifest/index.js");
+vi.mock("../manifest/index.js", async () => {
+	const actual = await vi.importActual("../manifest/index.js");
 	return {
 		resolveStepInput: actual.resolveStepInput,
 		evaluateCondition: actual.evaluateCondition,

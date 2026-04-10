@@ -1,6 +1,6 @@
 import type { Command } from "commander";
-import type { AuditEntry, AuditFilter } from "./store.js";
-import { AuditStore } from "./store.js";
+import type { AuditEntry, AuditFilter } from "../../core/tools/audit-store.js";
+import { AuditStore } from "../../core/tools/audit-store.js";
 
 const DEFAULT_LIMIT = 50;
 

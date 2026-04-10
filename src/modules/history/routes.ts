@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { RouteRegistration } from "../../core/modules/module-types.js";
-import { getHistory } from "../../memory/history.js";
-import { DaemonControlClient } from "../../server/daemon-client.js";
-import { jsonResponse } from "../../server/session-pool.js";
+import { getHistory } from "../../core/memory/history.js";
+import { DaemonControlClient } from "../../core/server/daemon-client.js";
+import { jsonResponse } from "../../core/server/session-pool.js";
 
 export async function handleListHistory(
   res: ServerResponse,

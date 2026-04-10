@@ -14,7 +14,7 @@ import {
   executeTools,
   exploreTools,
 } from "./delegate-prompts.js";
-import type { McpManager } from "./mcp/manager.js";
+import type { McpManager } from "./core/mcp/manager.js";
 
 /** Create a mock McpManager that returns controlled tools and results. */
 function createMockMcpManager(

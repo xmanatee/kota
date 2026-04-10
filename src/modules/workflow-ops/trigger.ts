@@ -8,7 +8,7 @@ import { formatRunId } from "../../core/workflow/run-store-helpers.js";
 import type { WorkflowRunMetadata } from "../../core/workflow/run-types.js";
 import { validateWorkflowDefinitions } from "../../core/workflow/validation.js";
 import { readOptionalJsonFile } from "../../json-file.js";
-import { DaemonControlClient } from "../../server/daemon-client.js";
+import { DaemonControlClient } from "../../core/server/daemon-client.js";
 import { getWorkflowDefinitions } from "./definitions-source.js";
 
 export function registerTriggerCommands(

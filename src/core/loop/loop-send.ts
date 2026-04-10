@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { runArchitectStep } from "../../architect/runner.js";
+import { runArchitectStep } from "../architect/runner.js";
 import { analyzeRequest, formatContextHint } from "../../request-analyzer.js";
 import { processToolResults } from "../../verify-tracker.js";
 import { formatTaskHint, routeTask } from "../daemon/task-router.js";

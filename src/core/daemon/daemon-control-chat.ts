@@ -4,7 +4,7 @@
  * Provides POST /sessions, POST /sessions/:id/chat, and augments the session
  * list returned by GET /sessions with daemon-owned entries (source: "daemon").
  *
- * Deliberately avoids importing from src/server/ to prevent circular deps
+ * Deliberately avoids importing from src/core/server/ to prevent circular deps
  * (server/daemon-client.ts → scheduler/daemon-control.ts).
  */
 

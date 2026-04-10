@@ -1,9 +1,9 @@
 import type { KotaConfig } from "../../config.js";
 import { resolveLogFormatter } from "../../log-format.js";
-import { getProviderRegistry } from "../../modules/providers/index.js";
 import { getSecretStore } from "../../secrets.js";
 import type { ChannelDef } from "../channels/channel.js";
 import type { EventBus } from "../events/event-bus.js";
+import { registerCleanupHook } from "../loop/cleanup-hooks.js";
 import { registerDynamicStateProvider } from "../loop/dynamic-state.js";
 import { getRegisteredTools } from "../tools/index.js";
 import { registerCustomGroup } from "../tools/tool-groups.js";
@@ -11,6 +11,7 @@ import { getToolMiddleware } from "../tools/tool-middleware.js";
 import type { ToolResult } from "../tools/tool-result.js";
 import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
 import { getModuleLogStore } from "./module-log.js";
+import { getProviderRegistry } from "./provider-registry.js";
 import { ModuleStorage } from "./module-storage.js";
 import type { CreateSessionOptions, ModuleContext, ModuleEventProxy, ModuleSession, ModuleSummary, RouteRegistration } from "./module-types.js";
 
@@ -135,6 +136,9 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
     },
     registerDynamicStateProvider: (name, fn) => {
       registerDynamicStateProvider(name, fn);
+    },
+    registerCleanupHook: (fn) => {
+      registerCleanupHook(moduleName ?? "_default", fn);
     },
   };
 }

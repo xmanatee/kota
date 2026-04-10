@@ -1,0 +1,68 @@
+// Extracted from loop.ts to keep it under 300 lines.
+// Runs the architect/editor two-pass pipeline when architect mode is enabled.
+
+import type Anthropic from "@anthropic-ai/sdk";
+import type { CostTracker } from "../loop/cost.js";
+import type { Transport } from "../loop/transport.js";
+import type { ModelClient } from "../model/model-client.js";
+import { runArchitectPass } from "./architect.js";
+import { runEditorLoop } from "./architect-editor.js";
+
+export type ArchitectStepConfig = {
+  client: ModelClient;
+  model: string;
+  editorModel: string;
+  maxTokens: number;
+  effectiveMaxTokens: number;
+  systemContext: string;
+  messages: Anthropic.Messages.MessageParam[];
+  costTracker: CostTracker;
+  verbose: boolean;
+  thinkingConfig?: Anthropic.Messages.ThinkingConfigParam;
+  transport?: Transport;
+};
+
+export type ArchitectStepResult = {
+  lastResult: string;
+  summary: string;
+  modifiedFiles: string[];
+};
+
+/**
+ * Run architect pass (planning) then editor loop (execution).
+ * Returns null if the architect produces no plan.
+ */
+export async function runArchitectStep(
+  config: ArchitectStepConfig,
+): Promise<ArchitectStepResult | null> {
+  const plan = await runArchitectPass({
+    client: config.client,
+    model: config.model,
+    maxTokens: config.effectiveMaxTokens,
+    systemContext: config.systemContext,
+    messages: config.messages,
+    costTracker: config.costTracker,
+    verbose: config.verbose,
+    thinking: config.thinkingConfig,
+    transport: config.transport,
+  });
+  if (!plan) return null;
+
+  const editorResult = await runEditorLoop({
+    client: config.client,
+    model: config.editorModel,
+    maxTokens: config.maxTokens,
+    plan,
+    costTracker: config.costTracker,
+    verbose: config.verbose,
+    transport: config.transport,
+  });
+
+  return {
+    lastResult: editorResult.text || plan,
+    summary:
+      `[Architect/Editor completed]\n\nPlan executed:\n${plan.slice(0, 500)}` +
+      (editorResult.text ? `\n\nEditor result: ${editorResult.text}` : ""),
+    modifiedFiles: editorResult.modifiedFiles,
+  };
+}

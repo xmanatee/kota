@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "../../core/modules/module-types.js";
 import { WorkflowRunStore } from "../../core/workflow/run-store.js";
-import { DaemonControlClient } from "../../server/daemon-client.js";
+import { DaemonControlClient } from "../../core/server/daemon-client.js";
 import { getWorkflowDefinitions } from "./definitions-source.js";
 import { formatDate, formatDuration, listRuns, statusIcon } from "./utils.js";
 import type { HistoryStats } from "./workflow-history.js";

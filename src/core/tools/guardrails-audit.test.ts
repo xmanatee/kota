@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { AuditStore, getAuditStore, initAuditStore, resetAuditStore } from "../../modules/guardrails-audit/store.js";
+import { AuditStore, getAuditStore, initAuditStore, resetAuditStore } from "./audit-store.js";
 import type { Assessment } from "./guardrails.js";
 
 function makeTmpDir(): string {

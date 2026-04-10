@@ -3,7 +3,7 @@ import { interactiveMode, parseIntOption, resolveConversationId } from "./cli-hi
 import { loadConfig } from "./config.js";
 import { confirmAction } from "./confirm.js";
 import { createModelClient } from "./core/model/model-client.js";
-import { getHistory } from "./memory/history.js";
+import { getHistory } from "./core/memory/history.js";
 
 /** Register the `history` subcommand and its children onto `program`. */
 export function registerHistoryCommands(program: Command) {

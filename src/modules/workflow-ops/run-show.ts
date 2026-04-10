@@ -6,7 +6,7 @@ import type { RepairSummary } from "../../core/workflow/run-store-helpers.js";
 import { extractRepairSummary } from "../../core/workflow/run-store-helpers.js";
 import type { WorkflowRunMetadata } from "../../core/workflow/run-types.js";
 import { readOptionalJsonFile } from "../../json-file.js";
-import { DaemonControlClient } from "../../server/daemon-client.js";
+import { DaemonControlClient } from "../../core/server/daemon-client.js";
 import { formatDuration, statusIcon } from "./utils.js";
 
 export function formatWarningsSection(warnings: Array<{ type: string; message: string }>): string[] {

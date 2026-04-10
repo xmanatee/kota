@@ -1,9 +1,9 @@
 import { execSync } from "node:child_process";
 import { basename } from "node:path";
 import { getScheduler } from "./core/daemon/scheduler.js";
-import { getKnowledgeStore } from "./memory/knowledge-store.js";
-import { getMemoryStore } from "./memory/store.js";
-import { getHistoryProvider, getTaskProvider } from "./modules/providers/index.js";
+import { getKnowledgeStore } from "./core/memory/knowledge-store.js";
+import { getMemoryStore } from "./core/memory/store.js";
+import { getHistoryProvider, getTaskProvider } from "./core/modules/provider-registry.js";
 import { detectEnvironment, detectProject, getDirectoryOverview } from "./project-detection.js";
 
 const GIT_TIMEOUT = 5000;

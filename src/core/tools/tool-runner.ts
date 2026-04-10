@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { confirmAction } from "../../confirm.js";
-import type { McpManager } from "../../mcp/manager.js";
-import { getApprovalQueue } from "../../modules/approval-queue/queue.js";
+import type { McpManager } from "../mcp/manager.js";
+import { getApprovalQueue } from "../daemon/approval-queue.js";
 import { getSecretStore } from "../../secrets.js";
 import { tryEmit } from "../events/event-bus.js";
 import { truncateToolResult } from "../loop/context.js";

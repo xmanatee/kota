@@ -1,10 +1,11 @@
-import { getProviderRegistry } from "../../modules/providers/index.js";
 import type { AgentDef, SkillDef } from "../agents/agent-types.js";
 import type { ChannelDef } from "../channels/channel.js";
+import { removeCleanupHooks, resetCleanupHooks } from "../loop/cleanup-hooks.js";
 import { resetDynamicStateProviders } from "../loop/dynamic-state.js";
 import { deregisterModuleTools } from "../tools/index.js";
 import { getToolMiddleware } from "../tools/tool-middleware.js";
 import type { RegisteredWorkflowDefinitionInput } from "../workflow/types.js";
+import { getProviderRegistry } from "./provider-registry.js";
 import type { ModuleStorage } from "./module-storage.js";
 import type { KotaModule } from "./module-types.js";
 
@@ -57,6 +58,7 @@ export async function unloadModule(moduleName: string, state: LifecycleState): P
   state.moduleSkillDefs.delete(moduleName);
   state.moduleAgentDefs.delete(moduleName);
   state.modules.splice(idx, 1);
+  removeCleanupHooks(moduleName);
 
   if (state.verbose) console.error(`[kota] Module "${moduleName}" unloaded`);
   return true;
@@ -105,5 +107,6 @@ export async function unloadAllModules(state: LifecycleState): Promise<void> {
   const reg = getProviderRegistry();
   if (reg) reg.clear();
   getToolMiddleware().clear();
+  resetCleanupHooks();
   resetDynamicStateProviders();
 }

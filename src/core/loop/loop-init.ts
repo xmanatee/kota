@@ -1,16 +1,15 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { listManifestModules } from "../../manifest/index.js";
-import { McpManager } from "../../mcp/manager.js";
-import { getHistory } from "../../memory/history.js";
-import { cleanupSessions } from "../../modules/execution/code-exec.js";
-import { cleanupProcesses } from "../../modules/execution/process.js";
-import { resetProviderRegistry } from "../../modules/providers/index.js";
+import { listManifestModules } from "../manifest/index.js";
+import { McpManager } from "../mcp/manager.js";
+import { getHistory } from "../memory/history.js";
 import type { VerifyTracker } from "../../verify-tracker.js";
 import { getEventBus, tryEmit } from "../events/event-bus.js";
+import { runCleanupHooks } from "../loop/cleanup-hooks.js";
 import type { ModelClient } from "../model/model-client.js";
 import type { ModelTiers } from "../model/model-router.js";
 import { discoverModules } from "../modules/module-discovery.js";
 import type { ModuleLoader } from "../modules/module-loader.js";
+import { resetProviderRegistry } from "../modules/provider-registry.js";
 import { discoverProjectModules } from "../modules/project-discovery.js";
 import { resetAgentStatusProviders } from "../tools/agent-status.js";
 import { loadSavedTools, resetCustomTools } from "../tools/custom-tool.js";
@@ -132,8 +131,7 @@ export function runClose(state: AgentLoopState, errored: boolean): void {
   }
   if (state.sessionPath) state.context.save(state.sessionPath);
   saveToHistoryImpl(state);
-  cleanupProcesses();
-  cleanupSessions();
+  runCleanupHooks();
   resetCustomTools();
   resetModuleFactory();
   resetChangeTracker();

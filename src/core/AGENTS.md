@@ -31,3 +31,5 @@ into.
   type re-exports.
 - `data/` — data processing utilities: CSV/JSON preview, HTML extraction,
   plot capture, and code execution wrappers.
+- New non-test source should land in `src/core/<subtree>/` or `src/modules/<name>/`,
+  not as another loose `src/*.ts` file.

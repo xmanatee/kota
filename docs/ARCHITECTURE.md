@@ -55,9 +55,12 @@ The core should stay small. It should mainly own:
 
 General-purpose capabilities should not accumulate in the core by default.
 Browser use, shell/process access, filesystem actions, HTTP/web access,
-notifications, memory backends, MCP integration, and operator surfaces should
-prefer module-owned capability packs unless a shared runtime primitive truly
-has to stay in core.
+memory backends, MCP integration, and operator surfaces should prefer
+module-owned capability packs unless a shared runtime primitive truly has to
+stay in core.
+
+Quiet-hours gating, crash-loop alerting, provider registry state, and approval
+queue state are shared daemon/runtime primitives and belong in `src/core/`.
 
 ## Direction
 
@@ -74,6 +77,12 @@ has to stay in core.
   `src/core/` holds the kernel, and `src/modules/<name>/` holds pluggable
   project modules. Kernel concepts should not also appear as module names
   unless the module is clearly an operator surface (for example `workflow-ops`).
+- New non-test source should almost never land directly in `src/`. Prefer
+  `src/core/<subtree>/` for kernel code and `src/modules/<name>/` for
+  project-owned capability.
+- Root `src/*.ts` files should be limited to public entrypoints or thin
+  repo-wide glue such as `cli.ts`, `init.ts`, `module-api.ts`, and
+  `validate-queue.ts`.
 - Project-owned capability packs now mostly live under `src/modules/<name>/`, and
   tool-group membership is now declared by each module via the `group` field
   on `ToolDef`. `src/core/tools/tool-groups.ts` owns only the activation machinery
@@ -226,7 +235,7 @@ types and be contributed via `KotaModule.channels`.
 - Keep native UI wrappers thin. The macOS app should be a client of the daemon,
   not a second runtime host.
 - Prefer module-owned capability packs over growing shared buckets like
-  `src/core/tools/`, `src/server/`, or other generic core directories. If a new
+  `src/core/tools/`, `src/core/server/`, or other generic core directories. If a new
   capability could plausibly be swapped, configured, or removed as a unit, it
   likely belongs behind a module boundary.
 

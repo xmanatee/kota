@@ -31,7 +31,8 @@ const stubCtx: ModuleContext = {
   callTool: async () => ({ content: "" }),
   registerMiddleware: () => {},
     registerDynamicStateProvider: () => {},
-};
+    registerCleanupHook: () => {},
+  };
 
 describe("daemonModule", () => {
   it("has correct metadata", () => {

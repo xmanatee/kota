@@ -2,14 +2,14 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ConversationHistory } from "../../memory/history.js";
+import { ConversationHistory } from "../../core/memory/history.js";
 
-vi.mock("../../memory/history.js", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("../../memory/history.js")>();
+vi.mock("../../core/memory/history.js", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../../core/memory/history.js")>();
 	return { ...actual, getHistory: vi.fn() };
 });
 
-import { getHistory } from "../../memory/history.js";
+import { getHistory } from "../../core/memory/history.js";
 import { runConversationRecall } from "./conversation-recall.js";
 
 const mocked = vi.mocked(getHistory);

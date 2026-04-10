@@ -16,7 +16,7 @@ import {
 	resolveStepInput,
 	saveManifest,
 	validateManifest,
-} from "./manifest/index.js";
+} from "./core/manifest/index.js";
 
 /** Helper to get tools as array from a KotaModule. */
 function toolsOf(mod: KotaModule): ToolDef[] {

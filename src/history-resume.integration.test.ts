@@ -60,7 +60,7 @@ vi.mock("./modules/execution/code-exec.js", () => ({
   codeExecTool: { name: "code_exec", description: "", input_schema: { type: "object", properties: {} } },
   runCodeExec: vi.fn(),
 }));
-vi.mock("./mcp/manager.js", () => ({
+vi.mock("./core/mcp/manager.js", () => ({
   McpManager: class MockMcpManager {
     static loadConfig() { return null; }
   },
@@ -69,7 +69,7 @@ vi.mock("./mcp/manager.js", () => ({
 // --- Import after mocks ---
 
 import { AgentSession } from "./core/loop/loop.js";
-import { getHistory, resetHistory } from "./memory/history.js";
+import { getHistory, resetHistory } from "./core/memory/history.js";
 
 // --- Test helpers ---
 

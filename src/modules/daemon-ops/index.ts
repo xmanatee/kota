@@ -8,7 +8,7 @@ import type { DaemonControlAddress } from "../../core/daemon/daemon-control.js";
 import type { KotaModule } from "../../core/modules/module-types.js";
 import { readOptionalJsonFile } from "../../json-file.js";
 import type { LogFormat } from "../../log-format.js";
-import { DaemonControlClient } from "../../server/daemon-client.js";
+import { DaemonControlClient } from "../../core/server/daemon-client.js";
 import { buildEventsCommand } from "./events-cli.js";
 import { buildQrCommand } from "./qr-cli.js";
 import { buildSessionCommand } from "./session-cli.js";

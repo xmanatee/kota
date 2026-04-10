@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { getTaskProvider } from "../../modules/providers/index.js";
+import { getTaskProvider } from "../modules/provider-registry.js";
 import type { Task, TaskPriority } from "../daemon/task-store.js";
 import type { ToolResult } from "./index.js";
 

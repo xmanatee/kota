@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { WorkflowTestHarness } from "../../../../workflow-testing/index.js";
+import { WorkflowTestHarness } from "../../../../core/workflow/testing/index.js";
 import improverWorkflow from "./workflow.js";
 
 vi.mock("../../commit.js", () => ({

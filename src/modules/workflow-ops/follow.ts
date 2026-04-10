@@ -5,7 +5,7 @@ import type { DaemonSseEvent } from "../../core/daemon/daemon-control.js";
 import { WorkflowRunStore } from "../../core/workflow/run-store.js";
 import type { WorkflowRunMetadata, WorkflowRuntimeState } from "../../core/workflow/run-types.js";
 import { readOptionalJsonFile } from "../../json-file.js";
-import { DaemonControlClient } from "../../server/daemon-client.js";
+import { DaemonControlClient } from "../../core/server/daemon-client.js";
 import { formatDuration, statusIcon } from "./utils.js";
 import { buildRunLogs, followRunLogs } from "./workflow-logs.js";
 

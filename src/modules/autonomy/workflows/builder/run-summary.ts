@@ -2,7 +2,7 @@ import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WorkflowStepContext } from "../../../../core/workflow/run-types.js";
-import { REPO_TASKS_DIR } from "../../../repo-tasks/repo-tasks.js";
+import { REPO_TASKS_DIR } from "../../../../core/data/repo-tasks.js";
 
 export type BuilderRunSummary = {
   runId: string;

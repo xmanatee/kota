@@ -11,6 +11,8 @@ This directory contains the project-owned modules.
   module itself.
 - Keep top-level files here rare. This directory should mostly contain actual
   modules, not shared runtime helpers or discovery glue.
+- Do not keep placeholder or wrapper modules after their shared runtime logic
+  has moved into `src/core/`. If a module no longer owns behavior, remove it.
 - When adding or modifying a notification channel module (Telegram, webhook,
   Slack, email, or any future transport), update `docs/NOTIFICATIONS.md` to
   document the operator config. That file is the canonical reference for how

@@ -20,7 +20,7 @@ vi.mock("../../config.js", () => ({
   loadConfig: vi.fn(() => ({})),
 }));
 
-vi.mock("../../server/daemon-client.js", () => ({
+vi.mock("../../core/server/daemon-client.js", () => ({
   DaemonControlClient: {
     fromStateDir: vi.fn(() => null),
   },

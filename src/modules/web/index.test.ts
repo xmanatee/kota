@@ -24,7 +24,8 @@ const stubCtx: ModuleContext = {
   callTool: async () => ({ content: "" }),
   registerMiddleware: () => {},
     registerDynamicStateProvider: () => {},
-};
+    registerCleanupHook: () => {},
+  };
 
 describe("webModule", () => {
   it("has correct metadata", () => {

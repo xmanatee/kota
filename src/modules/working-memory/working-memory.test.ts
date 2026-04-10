@@ -9,7 +9,7 @@ import {
 	removeEntry,
 	resetWorkingMemory,
 	setEntry,
-} from "../../memory/working-memory.js";
+} from "../../core/memory/working-memory.js";
 
 afterEach(() => {
 	resetWorkingMemory();

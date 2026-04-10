@@ -28,6 +28,7 @@ const stubCtx: ModuleContext = {
   callTool: async () => ({ content: "" }),
   registerMiddleware: () => {},
   registerDynamicStateProvider: () => {},
+  registerCleanupHook: () => {},
 };
 
 function makeTmpDir(): string {

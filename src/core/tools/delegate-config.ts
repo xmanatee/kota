@@ -1,4 +1,4 @@
-import type { McpManager } from "../../mcp/manager.js";
+import type { McpManager } from "../mcp/manager.js";
 import type { CostTracker } from "../loop/cost.js";
 import type { Transport } from "../loop/transport.js";
 import type { ModelClient } from "../model/model-client.js";

@@ -10,7 +10,8 @@
 import { Command } from "commander";
 import { warnUnknownConfigKeys } from "../../config-warnings.js";
 import type { KotaModule } from "../../core/modules/module-types.js";
-import { startServer } from "../../server/server.js";
+import { startServer } from "../../core/server/server.js";
+import { getWebUI } from "../web-ui/web-ui.js";
 
 function parseIntOption(value: string, name: string): number {
   const n = Number.parseInt(value, 10);
@@ -61,6 +62,7 @@ const webModule: KotaModule = {
           config: ctx.config,
           noAuth: opts.auth === false,
           moduleRoutes,
+          webUiHtml: getWebUI(),
         });
       });
 

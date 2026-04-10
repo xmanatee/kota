@@ -22,7 +22,7 @@ const tryEmitMock = vi.hoisted(() => vi.fn());
 vi.mock("../events/event-bus.js", () => ({
   tryEmit: tryEmitMock,
 }));
-vi.mock("../../modules/approval-queue/queue.js", () => ({
+vi.mock("../daemon/approval-queue.js", () => ({
   getApprovalQueue: vi.fn(() => ({
     enqueue: vi.fn(() => ({ id: "abc123" })),
   })),
@@ -32,7 +32,7 @@ vi.mock("../../secrets.js", () => ({
 }));
 
 import { confirmAction } from "../../confirm.js";
-import { getApprovalQueue } from "../../modules/approval-queue/queue.js";
+import { getApprovalQueue } from "../daemon/approval-queue.js";
 import { truncateToolResult } from "../loop/context.js";
 import { assess } from "./guardrails.js";
 import { executeTool } from "./index.js";

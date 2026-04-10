@@ -5,7 +5,7 @@ import type { KotaConfig } from "../../config.js";
 import { warnInvalidConcurrencyConfig, warnUnknownConfigKeys } from "../../config-warnings.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "../../json-file.js";
 import type { LogFormat } from "../../log-format.js";
-import { NotificationGate } from "../../modules/notifications/notification-gate.js";
+import { NotificationGate } from "./notification-gate.js";
 import type { ChannelAdapter, ChannelDef } from "../channels/channel.js";
 import { type EventBus, initEventBus } from "../events/event-bus.js";
 import { AgentSession } from "../loop/loop.js";

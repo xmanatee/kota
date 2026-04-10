@@ -47,7 +47,7 @@ function mockClient(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     getTaskStatus: vi.fn(async () => null),
     ...overrides,
-  } as unknown as import("../../server/daemon-client.js").DaemonControlClient;
+  } as unknown as import("../../core/server/daemon-client.js").DaemonControlClient;
 }
 
 function mockRequest(body: Record<string, unknown>): IncomingMessage {

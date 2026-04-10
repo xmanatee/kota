@@ -20,7 +20,7 @@ import {
 	textResponse,
 	toolUseResponse,
 } from "./core/model/mock-client.js";
-import { resetWorkingMemory } from "./memory/working-memory.js";
+import { resetWorkingMemory } from "./core/memory/working-memory.js";
 
 vi.spyOn(console, "error").mockImplementation(() => {});
 

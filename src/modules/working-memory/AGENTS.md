@@ -13,6 +13,6 @@ This directory owns the working memory module — a session-scoped, agent-contro
 
 ## Boundaries
 
-- Tool implementations delegate to `src/memory/working-memory.ts`; that module is the canonical data structure.
+- Tool implementations delegate to `src/core/memory/working-memory.ts`; that module is the canonical data structure.
 - Does not own persistent cross-session memory (that belongs in `memory/`) or structured reference entries (that belongs in `knowledge/`).
 - Does not own conversation recall (that belongs in `history/`).

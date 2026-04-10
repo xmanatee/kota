@@ -176,6 +176,8 @@ export type ModuleContext = {
    * module state (e.g. working memory contents) without modifying core.
    */
   registerDynamicStateProvider: (name: string, fn: () => string) => void;
+  /** Register synchronous cleanup that should run before a session closes. */
+  registerCleanupHook: (fn: () => void) => void;
 };
 
 /**

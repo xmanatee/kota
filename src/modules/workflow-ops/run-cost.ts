@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { WorkflowRunStore } from "../../core/workflow/run-store.js";
-import { DaemonControlClient } from "../../server/daemon-client.js";
+import { DaemonControlClient } from "../../core/server/daemon-client.js";
 import { formatDate } from "./utils.js";
 import { loadRunsInWindow } from "./workflow-history.js";
 

@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { McpManager } from "../../mcp/manager.js";
+import type { McpManager } from "../mcp/manager.js";
 import { truncateToolResult } from "../loop/context.js";
 import type { CostTracker } from "../loop/cost.js";
 import type { Transport } from "../loop/transport.js";

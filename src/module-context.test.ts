@@ -318,6 +318,7 @@ describe("resolveModuleTools", () => {
     callTool: async () => ({ content: "" }),
     registerMiddleware: () => {},
     registerDynamicStateProvider: () => {},
+    registerCleanupHook: () => {},
   } as ModuleContext;
 
   it("returns empty array when tools is undefined", () => {

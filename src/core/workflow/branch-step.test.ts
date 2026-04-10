@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WorkflowTestHarness } from "../../workflow-testing/index.js";
+import { WorkflowTestHarness } from "./testing/index.js";
 import type { WorkflowBranchStepInput, WorkflowDefinitionInput } from "./types.js";
 import { validateWorkflowDefinitions } from "./validation.js";
 

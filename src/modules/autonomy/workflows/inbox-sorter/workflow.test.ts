@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { WorkflowTestHarness } from "../../../../workflow-testing/index.js";
+import { WorkflowTestHarness } from "../../../../core/workflow/testing/index.js";
 import inboxSorterWorkflow from "./workflow.js";
 
 vi.mock("../../../../repo-worktree.js", () => ({
@@ -13,7 +13,7 @@ vi.mock("../../../../repo-worktree.js", () => ({
   }),
 }));
 
-vi.mock("../../../repo-tasks/repo-tasks.js", () => ({
+vi.mock("../../../../core/data/repo-tasks.js", () => ({
   getRepoTaskQueueSnapshot: vi.fn(),
   REPO_INBOX_DIR: "data/inbox",
 }));
@@ -46,7 +46,7 @@ describe("inbox-sorter workflow", () => {
   });
 
   it("skips sorting when inbox is empty", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../../core/data/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(0));
 
     const harness = new WorkflowTestHarness(inboxSorterWorkflow, {
@@ -65,7 +65,7 @@ describe("inbox-sorter workflow", () => {
   });
 
   it("runs sorter and commit when inbox has entries", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("../../../repo-tasks/repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("../../../../core/data/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(2));
 
     const { commitWorkflowChanges } = await import("../../commit.js");

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getMemoryStore, resetMemoryStore } from "../../memory/store.js";
+import { getMemoryStore, resetMemoryStore } from "../../core/memory/store.js";
 import { registerMemoryCommands } from "./cli.js";
 
 function makeProjectDir(): string {

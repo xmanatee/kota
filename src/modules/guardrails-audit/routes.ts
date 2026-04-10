@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { jsonResponse } from "../../server/session-pool.js";
-import type { AuditEntry, AuditFilter } from "./store.js";
-import { AuditStore, getAuditStore } from "./store.js";
+import { jsonResponse } from "../../core/server/session-pool.js";
+import type { AuditEntry, AuditFilter } from "../../core/tools/audit-store.js";
+import { AuditStore, getAuditStore } from "../../core/tools/audit-store.js";
 
 const DEFAULT_LIMIT = 200;
 

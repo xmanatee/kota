@@ -3,7 +3,7 @@ import { expandAlias, type KotaConfig, loadConfig } from "./config.js";
 import { getScheduler, resetScheduler } from "./core/daemon/scheduler.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "./core/loop/loop.js";
 import { createModelClient } from "./core/model/model-client.js";
-import { type ConversationHistory, getHistory } from "./memory/history.js";
+import { type ConversationHistory, getHistory } from "./core/memory/history.js";
 
 export { registerHistoryCommands } from "./cli-history-commands.js";
 

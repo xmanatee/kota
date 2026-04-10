@@ -41,7 +41,8 @@ describe("vercel-adapter module", () => {
       callTool: async () => ({ content: "" }),
       registerMiddleware: () => {},
     registerDynamicStateProvider: () => {},
-    };
+    registerCleanupHook: () => {},
+  };
 
     const routes = vercelAdapterModule.routes!(ctx);
     expect(routes).toHaveLength(1);

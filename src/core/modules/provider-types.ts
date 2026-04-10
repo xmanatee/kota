@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ConversationData, ConversationRecord } from "../../memory/history.js";
-import type { KnowledgeEntry, SearchFilters } from "../../memory/knowledge-store.js";
-import type { Memory } from "../../memory/store.js";
+import type { ConversationData, ConversationRecord } from "../memory/history.js";
+import type { KnowledgeEntry, SearchFilters } from "../memory/knowledge-store.js";
+import type { Memory } from "../memory/store.js";
 import type { Task, TaskPriority, TaskStatus } from "../daemon/task-store.js";
 
 /** Interface for persistent memory storage (save/search/list/update/delete). */

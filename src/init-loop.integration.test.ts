@@ -9,7 +9,7 @@ vi.mock("@anthropic-ai/sdk", () => ({
   },
 }));
 
-vi.mock("./mcp/manager.js", () => ({
+vi.mock("./core/mcp/manager.js", () => ({
   McpManager: { loadConfig: () => null },
 }));
 vi.mock("./core/model/model-client.js", () => ({

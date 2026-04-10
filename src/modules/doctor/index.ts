@@ -22,7 +22,7 @@ import { createModelClient } from "../../core/model/model-client.js";
 import { loadModuleMetadata } from "../../core/modules/module-metadata.js";
 import type { KotaModule, ModuleContext } from "../../core/modules/module-types.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "../../core/workflow/validation.js";
-import { DaemonControlClient } from "../../server/daemon-client.js";
+import { DaemonControlClient } from "../../core/server/daemon-client.js";
 import { resolveApiKey } from "../model-clients/factory.js";
 
 type CheckStatus = "pass" | "warn" | "fail";

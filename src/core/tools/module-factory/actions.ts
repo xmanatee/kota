@@ -10,7 +10,7 @@ import {
 	manifestToModule,
 	saveManifest,
 	validateManifest,
-} from "../../../manifest/index.js";
+} from "../../manifest/index.js";
 import { resolveModuleTools } from "../../modules/module-types.js";
 import type { ToolResult } from "../index.js";
 import { deregisterModuleTools, registerTool } from "../index.js";

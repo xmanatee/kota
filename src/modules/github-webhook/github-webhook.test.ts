@@ -38,6 +38,7 @@ function makeStubCtx(
     callTool: async () => ({ content: "" }),
     registerMiddleware: () => {},
     registerDynamicStateProvider: () => {},
+    registerCleanupHook: () => {},
   };
 }
 

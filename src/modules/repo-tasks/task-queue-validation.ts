@@ -7,7 +7,7 @@ import {
   REPO_TASK_STATES,
   REPO_TASKS_DIR,
   type RepoTaskState,
-} from "./repo-tasks.js";
+} from "../../core/data/repo-tasks.js";
 
 export type TaskQueueValidationSeverity = "error" | "warning";
 
@@ -108,7 +108,7 @@ export function listRootLevelCliArchitectureDebt(projectDir: string): string[] {
     .sort();
 }
 
-// Routes that once lived in src/server/ but have been migrated to owning modules.
+// Routes that once lived in the old server bucket have been migrated to owning modules.
 // All five capability route files have been migrated; this list is now empty.
 // The function is retained so references to listVisibleArchitectureDebt remain valid.
 const SERVER_ROUTE_MIGRATION_TARGETS: string[] = [];

@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { evaluateCondition, resolveStepInput } from "../../manifest/index.js";
+import { evaluateCondition, resolveStepInput } from "../manifest/index.js";
 import { executeTool, type ToolResult } from "./index.js";
 
 export const pipeTool: Anthropic.Tool = {

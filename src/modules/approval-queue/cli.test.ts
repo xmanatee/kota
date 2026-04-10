@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerApprovalCommands } from "./cli.js";
-import { ApprovalQueue, resetApprovalQueue } from "./queue.js";
+import { ApprovalQueue, resetApprovalQueue } from "../../core/daemon/approval-queue.js";
 
 vi.mock("../../core/events/event-bus.js", () => ({
 	tryEmit: vi.fn(),
@@ -12,8 +12,8 @@ vi.mock("../../core/events/event-bus.js", () => ({
 }));
 
 let testQueue: ApprovalQueue;
-vi.mock("./queue.js", async (importOriginal) => {
-	const mod = await importOriginal<typeof import("./queue.js")>();
+vi.mock("../../core/daemon/approval-queue.js", async (importOriginal) => {
+	const mod = await importOriginal<typeof import("../../core/daemon/approval-queue.js")>();
 	return {
 		...mod,
 		getApprovalQueue: () => testQueue,

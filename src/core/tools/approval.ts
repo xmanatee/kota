@@ -7,7 +7,7 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import { getApprovalQueue } from "../../modules/approval-queue/queue.js";
+import { getApprovalQueue } from "../daemon/approval-queue.js";
 import { executeTool, type ToolResult } from "./index.js";
 
 const approvalTool: Anthropic.Tool = {

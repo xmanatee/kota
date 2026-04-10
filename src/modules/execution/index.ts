@@ -14,9 +14,9 @@
  */
 
 import type { KotaModule, ToolDef } from "../../core/modules/module-types.js";
-import { codeExecTool, runCodeExec } from "./code-exec.js";
+import { cleanupSessions, codeExecTool, runCodeExec } from "./code-exec.js";
 import { computerUseTool, runComputerUse } from "./computer-use.js";
-import { processTool, runProcess } from "./process.js";
+import { cleanupProcesses, processTool, runProcess } from "./process.js";
 import { runScreenshot, screenshotTool } from "./screenshot.js";
 import { runShell, shellTool } from "./shell.js";
 
@@ -63,6 +63,12 @@ const executionModule: KotaModule = {
   description:
     "Execution tools: shell, process, code_exec, computer_use, screenshot",
   tools,
+  onLoad: (ctx) => {
+    ctx.registerCleanupHook(() => {
+      cleanupProcesses();
+      cleanupSessions();
+    });
+  },
 };
 
 export default executionModule;

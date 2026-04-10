@@ -9,7 +9,7 @@ import {
 	REPO_INBOX_DIR,
 	REPO_TASK_STATES,
 	type RepoTaskState,
-} from "./repo-tasks.js";
+} from "../../core/data/repo-tasks.js";
 
 const OPEN_STATES: RepoTaskState[] = ["backlog", "ready", "doing", "blocked"];
 const TERMINAL_STATES: RepoTaskState[] = ["done", "dropped"];

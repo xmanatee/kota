@@ -10,7 +10,7 @@
  */
 
 import type { KotaModule, ModuleContext } from "../../core/modules/module-types.js";
-import { SQLiteMemoryProvider } from "../../memory/sqlite-memory.js";
+import { SQLiteMemoryProvider } from "../../core/memory/sqlite-memory.js";
 
 const sqliteMemoryModule: KotaModule = {
 	name: "sqlite-memory",

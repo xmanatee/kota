@@ -12,7 +12,7 @@
 
 import { AgentSession } from "../../core/loop/loop.js";
 import type { KotaModule } from "../../core/modules/module-types.js";
-import { CORS_HEADERS, jsonResponse, readBody, setCors } from "../../server/session-pool.js";
+import { CORS_HEADERS, jsonResponse, readBody, setCors } from "../../core/server/session-pool.js";
 import {
   DATA_STREAM_HEADERS,
   DataStreamTransport,
