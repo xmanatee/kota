@@ -336,6 +336,44 @@ must have `issues:write` scope for mutations.
 
 If `token` is missing or the env var is unset, the module loads but contributes no tools (warning logged).
 
+### Linear
+
+Optional module — not loaded by default. Provides a `TaskProvider` backed by Linear Issues so
+KOTA's builder can pull tasks directly from a Linear team without maintaining a parallel file queue.
+No npm dependencies; uses Linear's GraphQL API directly.
+
+```json
+{
+  "modules": {
+    "linear": {
+      "apiKey": "$LINEAR_API_KEY",
+      "taskProvider": {
+        "enabled": true,
+        "teamKey": "ENG",
+        "labelFilter": "kota-task",
+        "inProgressState": "In Progress",
+        "doneState": "Done"
+      }
+    }
+  }
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `apiKey` | Yes | Linear API key or `$ENV_VAR` reference. Never logged. |
+| `taskProvider.enabled` | No | Set to `true` to register Linear Issues as KOTA's task source. Default: disabled. |
+| `taskProvider.teamKey` | Yes (when enabled) | Linear team key (e.g. `"ENG"`). |
+| `taskProvider.labelFilter` | No | Only include issues with this label. Default: no filter. |
+| `taskProvider.inProgressState` | No | Workflow state name to set when a task is claimed. Default: `"In Progress"`. |
+| `taskProvider.doneState` | No | Workflow state name to set when a task is completed. Default: `"Done"`. A comment is also added. |
+
+When `taskProvider.enabled` is `true`, the module fetches the team's open issues at startup and
+caches them in memory. Claiming a task transitions the issue to `inProgressState`; completing it
+transitions to `doneState` and adds a comment. State names must match exactly the workflow state
+names in your Linear workspace. If `apiKey` is missing or the env var is unset, the provider is
+inactive (warning logged).
+
 ### GitHub Webhook
 
 Receives GitHub webhook deliveries and emits `github.push`, `github.pull_request`, and
