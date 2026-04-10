@@ -3,6 +3,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { REPO_INBOX_DIR, REPO_TASK_STATES, REPO_TASKS_DIR } from "./repo-tasks.js";
 import {
   assertArchitectureReadyCoverage,
   assertStrategicReadyCoverage,
@@ -13,7 +14,6 @@ import {
   listRootLevelCliArchitectureDebt,
   validateTaskQueue,
 } from "./task-queue-validation.js";
-import { REPO_INBOX_DIR, REPO_TASKS_DIR, REPO_TASK_STATES } from "./repo-tasks.js";
 
 const ROOT = process.cwd();
 

@@ -26,8 +26,8 @@ export {
 	resolveStepInput,
 } from "./steps.js";
 export type {
-	ModuleManifest,
 	ManifestToolDef,
+	ModuleManifest,
 	ValidationError,
 } from "./types.js";
 export { validateManifest } from "./validation.js";

@@ -2,8 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { runMemory } from "./modules/memory/memory.js";
 import { MemoryStore } from "./memory/store.js";
+import { runMemory } from "./modules/memory/memory.js";
 
 /**
  * Cross-module integration tests for the memory pipeline.

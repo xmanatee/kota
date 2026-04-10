@@ -9,9 +9,9 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { checkFreshness, recordRead } from "./file-tracker.js";
 import { runFileEdit } from "./modules/filesystem/file-edit.js";
 import { runGrep } from "./modules/filesystem/grep.js";
-import { checkFreshness, recordRead } from "./file-tracker.js";
 import { FailureTracker, type ToolResultEntry } from "./tool-runner.js";
 
 const TEST_DIR = join(process.cwd(), ".test-integration");

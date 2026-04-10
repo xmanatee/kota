@@ -1,8 +1,8 @@
 import { execSync } from "node:child_process";
 import { basename } from "node:path";
-import { getHistoryProvider, getTaskProvider } from "./modules/providers/index.js";
 import { getKnowledgeStore } from "./memory/knowledge-store.js";
 import { getMemoryStore } from "./memory/store.js";
+import { getHistoryProvider, getTaskProvider } from "./modules/providers/index.js";
 import { detectEnvironment, detectProject, getDirectoryOverview } from "./project-detection.js";
 import { getScheduler } from "./scheduler/scheduler.js";
 

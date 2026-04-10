@@ -3,13 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { initModuleLogStore, resetModuleLogStore } from "../module-log.js";
+import { clearCustomTools } from "./index.js";
 import {
 	addLoadedModule,
 	loadedModuleCount,
 	resetModuleFactory,
 	runModuleFactory,
 } from "./module-factory/index.js";
-import { clearCustomTools } from "./index.js";
 
 // Save/restore cwd since saveManifest uses cwd by default
 let originalCwd: string;

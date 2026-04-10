@@ -7,7 +7,7 @@
 
 import { Command } from "commander";
 import type { SkillDef } from "../../agent-types.js";
-import type { ModuleContext, KotaModule } from "../../module-types.js";
+import type { KotaModule, ModuleContext } from "../../module-types.js";
 
 function buildSkillCommand(ctx: ModuleContext): Command {
   const skillCmd = new Command("skill").description("Inspect registered skills");

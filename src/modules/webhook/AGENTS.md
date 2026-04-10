@@ -1,15 +1,17 @@
 # Webhook Module
 
-This directory owns the outbound webhook notification module — routes KOTA notification events to one or more HTTP endpoints via POST.
+This directory owns the outbound webhook notification module and the CLI commands for managing inbound webhook secrets.
 
-- Configured via `modules.webhook.urls` (list of POST endpoints).
+- Outbound notifications: configured via `modules.webhook.urls` (list of POST endpoints).
 - `approval.requested` is always forwarded; other events are filtered by the optional `events` array.
-- No tools, channels, CLI commands, or workflows — notification delivery only.
+- CLI commands (`kota webhook list`, `kota webhook secret generate`, `kota webhook secret remove`) manage inbound webhook trigger secrets stored in `.kota/config.json`.
 - Uses `postWithRetry` from `../notify-retry.ts` for delivery with exponential-backoff retry.
 
 ## Files
 
-- `index.ts` — `KotaModule` definition; implements event subscription and JSON payload delivery.
+- `index.ts` — `KotaModule` definition; implements event subscription, JSON payload delivery, and contributes CLI commands.
+- `cli.ts` — `registerWebhookCommands`: CLI subcommands for managing inbound webhook secrets.
+- `cli.test.ts` — unit tests for webhook CLI commands.
 - `webhook.test.ts` — unit tests for event subscription and HTTP delivery.
 
 ## Boundaries

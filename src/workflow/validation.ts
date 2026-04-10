@@ -1,3 +1,4 @@
+import { matchesFilter } from "./run-executor-utils.js";
 import type {
   RegisteredWorkflowDefinitionInput,
   WorkflowApprovalStepInput,
@@ -21,7 +22,6 @@ import {
   expectRelativePath,
   WorkflowDefinitionError,
 } from "./validation-primitives.js";
-import { matchesFilter } from "./run-executor-utils.js";
 import {
   validateAgentStep,
   validateApprovalStep,

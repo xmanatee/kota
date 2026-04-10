@@ -58,7 +58,6 @@ When you add a new file to `src/` or change what an existing module exports or d
 - `modules/workflow/index.ts` — `kota workflow` CLI surface.
 - `modules/agents/index.ts` — `kota agent` inspection surface for agents contributed by loaded modules.
 - `modules/skills/index.ts` — `kota skill list` CLI surface for inspecting registered skills.
-- `webhook-cli.ts` — `registerWebhookCommands`: CLI subcommands for managing inbound webhook secrets (`kota webhook list`, `kota webhook secret generate <workflow>`, `kota webhook secret remove <workflow>`).
 - `completion-cli.ts` — `registerCompletionCommands`: `kota completion [bash|zsh]` command; introspects the commander program at runtime and generates a shell completion script covering all subcommands and flags; auto-detects shell from `$SHELL` when no argument is given.
 - `config-warnings.ts` — `KNOWN_CONFIG_KEYS` set and `warnUnknownConfigKeys(projectDir, warn)`: shared utility that checks `.kota/config.json` for unknown top-level keys and calls `warn` for each one; used by daemon startup, `kota serve`, and `kota config validate`.
 - `channel.ts` — `ChannelAdapter`, `ChannelDef`, `ChannelWorkflowStatus`, and `ChannelStartContext` types; defines the channel contribution protocol for modules.

@@ -4,11 +4,11 @@ import { basename, join } from "node:path";
 import type { Command } from "commander";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "../../frontmatter.js";
 import {
-	REPO_INBOX_DIR,
-	REPO_TASK_STATES,
 	getRepoInboxDir,
 	getRepoTaskStateDir,
 	getRepoTasksDir,
+	REPO_INBOX_DIR,
+	REPO_TASK_STATES,
 	type RepoTaskState,
 } from "../../repo-tasks.js";
 

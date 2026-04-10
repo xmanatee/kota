@@ -9,7 +9,7 @@
  */
 
 import { Command } from "commander";
-import type { ModuleContext, KotaModule } from "../../module-types.js";
+import type { KotaModule, ModuleContext } from "../../module-types.js";
 
 const mcpServerModule: KotaModule = {
 	name: "mcp-server",

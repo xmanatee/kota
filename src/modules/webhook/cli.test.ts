@@ -3,9 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { registerWebhookCommands } from "./webhook-cli.js";
+import { registerWebhookCommands } from "./cli.js";
 
-vi.mock("./module-metadata.js", () => ({
+vi.mock("../../module-metadata.js", () => ({
   loadModuleMetadata: vi.fn(async () => ({
     getContributedWorkflows: () => [
       {
@@ -38,7 +38,8 @@ function makeProjectDir(): string {
 function makeProgram(): Command {
   const program = new Command();
   program.exitOverride();
-  registerWebhookCommands(program);
+  const webhookCmd = program.command("webhook").description("Manage webhook secrets");
+  registerWebhookCommands(webhookCmd);
   return program;
 }
 

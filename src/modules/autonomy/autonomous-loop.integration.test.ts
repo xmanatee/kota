@@ -12,9 +12,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAgentSDK } from "../../agent-sdk/index.js";
 import { EventBus } from "../../event-bus.js";
-import autonomyModule from "./index.js";
-import type { RegisteredWorkflowDefinitionInput } from "../../workflow/types.js";
 import { WorkflowRuntime } from "../../workflow/runtime.js";
+import type { RegisteredWorkflowDefinitionInput } from "../../workflow/types.js";
+import autonomyModule from "./index.js";
 
 vi.mock("../../agent-sdk/index.js", async () => {
   const actual = await vi.importActual("../../agent-sdk/index.js");

@@ -124,7 +124,7 @@ describe("data analysis pipeline integration", () => {
     it("Node Cannot find module produces install hint", () => {
       const output = "Error: Cannot find module 'lodash'";
       const hint = detectPackageHint(output, "node");
-      expect(hint).toContain("npm install lodash");
+      expect(hint).toContain("pnpm add lodash");
     });
 
     it("extractMissingPackage feeds into detectPackageHint consistently", () => {

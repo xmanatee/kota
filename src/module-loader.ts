@@ -1,32 +1,32 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Command } from "commander";
+import type { AgentDef, SkillDef } from "./agent-types.js";
 import type { ChannelDef } from "./channel.js";
 import type { KotaConfig } from "./config.js";
 import type { EventBus } from "./event-bus.js";
+import { loadForeignModules } from "./foreign-module-loader.js";
 import { createModuleContext, type ModuleContextParams } from "./module-context.js";
 import { topoSort } from "./module-deps.js";
 import { getModuleDependents, type LifecycleState, reloadModule, unloadAllModules, unloadModule } from "./module-lifecycle.js";
 import type { ModuleStorage } from "./module-storage.js";
 import {
+  type CreateSessionOptions,
+  type KotaModule,
+  type ModuleContext,
+  type ModuleSession,
+  type ModuleSummary,
+  type RouteRegistration,
   resolveModuleAgents,
   resolveModuleChannels,
   resolveModuleSkills,
   resolveModuleWorkflows,
-  type CreateSessionOptions,
-  type ModuleContext,
-  type ModuleSession,
-  type ModuleSummary,
-  type KotaModule,
-  type RouteRegistration,
   type ToolDef,
 } from "./module-types.js";
 import { getProviderRegistry } from "./modules/providers/index.js";
-import { loadForeignModules } from "./foreign-module-loader.js";
 import { registerCustomGroup } from "./tool-groups.js";
 import { executeTool, getModuleToolNames, registerTool } from "./tools/index.js";
 import type { RegisteredWorkflowDefinitionInput } from "./workflow/types.js";
-import type { AgentDef, SkillDef } from "./agent-types.js";
 
 export type { ModuleSummary } from "./module-types.js";
 

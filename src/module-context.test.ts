@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initEventBus, resetEventBus } from "./event-bus.js";
 import { ModuleLoader } from "./module-loader.js";
-import type { ModuleContext, KotaModule, ToolDef } from "./module-types.js";
+import type { KotaModule, ModuleContext, ToolDef } from "./module-types.js";
 import { resolveModuleTools } from "./module-types.js";
 import { initSecretStore, resetSecretStore } from "./secrets.js";
 import { clearCustomGroups, resetGroups } from "./tool-groups.js";

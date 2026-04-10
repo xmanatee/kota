@@ -28,6 +28,14 @@ vi.mock("@anthropic-ai/sdk", () => ({
     messages = { stream: vi.fn() };
   },
 }));
+vi.mock("./model/model-client.js", () => ({
+  createModelClient: vi.fn(() => ({
+    client: { messages: { stream: vi.fn(), create: vi.fn() } },
+    model: "claude-sonnet-4-6",
+    providerName: "anthropic",
+  })),
+  registerModelClientFactory: vi.fn(),
+}));
 vi.mock("./model/streaming.js", () => ({ streamMessage: mockStreamMessage }));
 vi.mock("./tool-runner.js", async () => {
   const actual = await vi.importActual<typeof import("./tool-runner.js")>("./tool-runner.js");

@@ -16,8 +16,8 @@ vi.mock("../../memory/store.js", async (importOriginal) => {
   return { ...actual, getMemoryStore: vi.fn() };
 });
 
-import { ModuleTestHarness } from "../../module-testing/index.js";
 import { getMemoryStore } from "../../memory/store.js";
+import { ModuleTestHarness } from "../../module-testing/index.js";
 import memoryExtension from "./index.js";
 
 const mocked = vi.mocked(getMemoryStore);

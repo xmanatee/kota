@@ -1,8 +1,8 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "../../module-types.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowStepInput } from "../../workflow/types.js";
-import { formatDuration } from "./utils.js";
 import { getWorkflowDefinitions } from "./definitions-source.js";
+import { formatDuration } from "./utils.js";
 
 function describeInputSchema(schema: Record<string, unknown>): string | null {
   const props = schema.properties as Record<string, Record<string, unknown>> | undefined;

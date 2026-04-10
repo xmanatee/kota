@@ -16,8 +16,8 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { ModuleStorage } from "../module-storage.js";
 import type {
-  ModuleContext,
   KotaModule,
+  ModuleContext,
   RouteRegistration,
   ToolDef,
 } from "../module-types.js";

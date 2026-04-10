@@ -12,11 +12,11 @@ export type { AgentDef, SkillDef } from "./agent-types.js";
 export type { ChannelAdapter, ChannelDef, ChannelStartContext } from "./channel.js";
 export type {
   CreateSessionOptions,
+  KotaModule,
   ModuleContext,
   ModuleEventProxy,
   ModuleLogger,
   ModuleSession,
-  KotaModule,
   RouteRegistration,
   ToolDef,
 } from "./module-types.js";

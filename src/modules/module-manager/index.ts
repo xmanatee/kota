@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { Command } from "commander";
-import type { ModuleContext, KotaModule } from "../../module-types.js";
+import type { KotaModule, ModuleContext } from "../../module-types.js";
 import { generateModuleScaffold, generatePythonScaffold } from "./scaffolds.js";
 
 function buildModuleCommand(ctx: ModuleContext): Command {

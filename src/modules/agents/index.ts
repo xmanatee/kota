@@ -8,7 +8,7 @@
 
 import { Command } from "commander";
 import type { AgentDef } from "../../agent-types.js";
-import type { ModuleContext, KotaModule } from "../../module-types.js";
+import type { KotaModule, ModuleContext } from "../../module-types.js";
 
 function buildAgentEntries(ctx: ModuleContext): Array<AgentDef & { source: string }> {
   const agentModels = ctx.config.agentModels ?? {};

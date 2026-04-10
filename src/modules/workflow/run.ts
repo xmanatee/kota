@@ -2,8 +2,8 @@ import type { Command } from "commander";
 import type { ModuleContext } from "../../module-types.js";
 import { DaemonControlClient } from "../../server/daemon-client.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "../../workflow/validation.js";
-import { buildDryRunPlan, formatDryRunPlan } from "./dry-run.js";
 import { getWorkflowDefinitions } from "./definitions-source.js";
+import { buildDryRunPlan, formatDryRunPlan } from "./dry-run.js";
 
 export function registerRunCommand(wfCmd: Command, ctx: ModuleContext): void {
   const runCmd = wfCmd

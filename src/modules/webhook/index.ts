@@ -1,8 +1,9 @@
 /**
- * Webhook module — routes notification events to configured HTTP endpoints.
+ * Webhook module — routes notification events to configured HTTP endpoints,
+ * and provides CLI commands for managing inbound webhook secrets.
  *
  * Subscribes to the same bus events as the Telegram module and POSTs a JSON
- * payload to each configured URL. No channels, tools, commands, or workflows.
+ * payload to each configured URL. No channels, tools, or workflows.
  *
  * Config (kota.config under the "webhook" key):
  *   { urls: string[], events?: string[], retries?: number, retryDelayMs?: number }
@@ -12,8 +13,10 @@
  * `retries` defaults to 3; `retryDelayMs` defaults to 1000.
  */
 
+import { Command } from "commander";
 import type { KotaModule } from "../../module-types.js";
 import { postWithRetry } from "../notify-retry.js";
+import { registerWebhookCommands } from "./cli.js";
 
 const NOTIFICATION_EVENTS = [
   "workflow.failure.alert",
@@ -75,6 +78,14 @@ const webhookModule: KotaModule = {
   onUnload: () => {
     for (const unsub of unsubs) unsub();
     unsubs = [];
+  },
+
+  commands: () => {
+    const root = new Command("webhook").description(
+      "Manage inbound webhook secrets for workflow triggers",
+    );
+    registerWebhookCommands(root);
+    return [root];
   },
 };
 

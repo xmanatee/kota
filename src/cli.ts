@@ -13,15 +13,14 @@ import {
 import { registerCompletionCommands } from "./completion-cli.js";
 import { expandAlias, loadConfig } from "./config.js";
 import { setSkipConfirmations } from "./confirm.js";
-import { discoverModules } from "./module-discovery.js";
-import { ModuleLoader } from "./module-loader.js";
-import { discoverProjectModules } from "./modules/index.js";
-import { parseModelString } from "./modules/model-clients/factory.js";
 import { registerInitCommand } from "./init-cli.js";
 import { runAgentLoop } from "./loop.js";
 import { getHistory } from "./memory/history.js";
 import { createModelClient } from "./model/model-client.js";
-import { registerWebhookCommands } from "./webhook-cli.js";
+import { discoverModules } from "./module-discovery.js";
+import { ModuleLoader } from "./module-loader.js";
+import { discoverProjectModules } from "./modules/index.js";
+import { parseModelString } from "./modules/model-clients/factory.js";
 
 export { parseIntOption } from "./cli-history.js";
 
@@ -167,7 +166,6 @@ program
   });
 
 registerHistoryCommands(program);
-registerWebhookCommands(program);
 registerInitCommand(program);
 registerCompletionCommands(program);
 

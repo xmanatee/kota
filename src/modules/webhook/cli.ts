@@ -1,13 +1,9 @@
 import { randomBytes } from "node:crypto";
 import type { Command } from "commander";
-import { loadConfig, updateProjectConfig } from "./config.js";
-import { loadModuleMetadata } from "./module-metadata.js";
+import { loadConfig, updateProjectConfig } from "../../config.js";
+import { loadModuleMetadata } from "../../module-metadata.js";
 
-export function registerWebhookCommands(program: Command): void {
-  const webhookCmd = program
-    .command("webhook")
-    .description("Manage inbound webhook secrets for workflow triggers");
-
+export function registerWebhookCommands(webhookCmd: Command): void {
   webhookCmd
     .command("list")
     .description(
@@ -31,7 +27,9 @@ export function registerWebhookCommands(program: Command): void {
       console.log("-".repeat(nameWidth + 10));
       for (const def of webhookDefs) {
         const hasSecret = !!config.webhooks?.[def.name]?.secret;
-        console.log(`${def.name.padEnd(nameWidth)}  ${hasSecret ? "✓ configured" : "✗ not configured"}`);
+        console.log(
+          `${def.name.padEnd(nameWidth)}  ${hasSecret ? "✓ configured" : "✗ not configured"}`,
+        );
       }
     });
 
@@ -63,22 +61,34 @@ export function registerWebhookCommands(program: Command): void {
         },
       }));
 
-      console.log(`Secret for "${workflow}" (save this — it will not be shown again):`);
+      console.log(
+        `Secret for "${workflow}" (save this — it will not be shown again):`,
+      );
       console.log(secret);
       console.log();
-      console.log("Sign each request with HMAC-SHA256 and send the signature in X-Kota-Webhook-Signature:");
+      console.log(
+        "Sign each request with HMAC-SHA256 and send the signature in X-Kota-Webhook-Signature:",
+      );
       console.log();
       console.log("  // Node.js");
-      console.log(`  const sig = "sha256=" + require("crypto").createHmac("sha256", secret).update(rawBody).digest("hex");`);
+      console.log(
+        `  const sig = "sha256=" + require("crypto").createHmac("sha256", secret).update(rawBody).digest("hex");`,
+      );
       console.log(`  // Set header: X-Kota-Webhook-Signature: <sig>`);
       console.log();
-      console.log("  // Optional replay protection: set X-Kota-Webhook-Timestamp to the current Unix ms timestamp");
-      console.log(`  //   X-Kota-Webhook-Timestamp: ${Date.now()} (requests older than 5 minutes are rejected)`);
+      console.log(
+        "  // Optional replay protection: set X-Kota-Webhook-Timestamp to the current Unix ms timestamp",
+      );
+      console.log(
+        `  //   X-Kota-Webhook-Timestamp: ${Date.now()} (requests older than 5 minutes are rejected)`,
+      );
     });
 
   secretCmd
     .command("remove <workflow>")
-    .description("Remove the webhook secret for a workflow from .kota/config.json")
+    .description(
+      "Remove the webhook secret for a workflow from .kota/config.json",
+    )
     .action((workflow: string) => {
       const config = loadConfig();
       if (!config.webhooks?.[workflow]) {

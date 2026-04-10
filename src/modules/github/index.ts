@@ -29,7 +29,7 @@
  */
 
 import { execSync } from "node:child_process";
-import type { ModuleContext, KotaModule, ToolDef } from "../../module-types.js";
+import type { KotaModule, ModuleContext, ToolDef } from "../../module-types.js";
 import type { ToolResult } from "../../tools/tool-result.js";
 import type { GitHubTaskProviderConfig } from "./task-provider.js";
 import { GitHubTaskProvider } from "./task-provider.js";

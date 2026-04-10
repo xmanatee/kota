@@ -7,7 +7,7 @@ import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "../data/code-wrappers.js";
 import type { KotaModule, ToolDef } from "../module-types.js";
 import type { Language } from "../repl-session.js";
 import { sessions } from "../repl-session.js";
-import type { ModuleManifest, ManifestToolDef } from "./types.js";
+import type { ManifestToolDef, ModuleManifest } from "./types.js";
 
 // ─── Tool runner builder ─────────────────────────────────────────────
 

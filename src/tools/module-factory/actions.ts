@@ -2,16 +2,16 @@
  * Module Factory — CRUD action handlers (create, list, remove, info).
  */
 
-import { resolveModuleTools } from "../../module-types.js";
 import {
 	deleteManifest,
-	type ModuleManifest,
 	listManifestModules,
 	loadManifest,
+	type ModuleManifest,
 	manifestToModule,
 	saveManifest,
 	validateManifest,
 } from "../../manifest/index.js";
+import { resolveModuleTools } from "../../module-types.js";
 import type { ToolResult } from "../index.js";
 import { deregisterModuleTools, registerTool } from "../index.js";
 import {

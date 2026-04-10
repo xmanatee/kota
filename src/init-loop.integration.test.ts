@@ -12,6 +12,14 @@ vi.mock("@anthropic-ai/sdk", () => ({
 vi.mock("./mcp/manager.js", () => ({
   McpManager: { loadConfig: () => null },
 }));
+vi.mock("./model/model-client.js", () => ({
+  createModelClient: vi.fn(() => ({
+    client: { messages: { stream: vi.fn(), create: vi.fn() } },
+    model: "claude-sonnet-4-6",
+    providerName: "anthropic",
+  })),
+  registerModelClientFactory: vi.fn(),
+}));
 
 // Suppress console.error during tests
 beforeEach(() => { vi.spyOn(console, "error").mockImplementation(() => {}); });

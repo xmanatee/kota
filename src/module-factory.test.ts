@@ -2,21 +2,21 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { KotaModule, ToolDef } from "./module-types.js";
 import {
 	deleteManifest,
 	discoverManifestModules,
-	type ModuleManifest,
 	evaluateCondition,
 	getFieldByPath,
 	listManifestModules,
 	loadManifest,
+	type ModuleManifest,
 	manifestToModule,
 	resolveRef,
 	resolveStepInput,
 	saveManifest,
 	validateManifest,
 } from "./manifest/index.js";
+import type { KotaModule, ToolDef } from "./module-types.js";
 
 /** Helper to get tools as array from a KotaModule. */
 function toolsOf(mod: KotaModule): ToolDef[] {

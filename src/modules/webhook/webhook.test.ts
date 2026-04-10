@@ -43,10 +43,9 @@ describe("webhookModule", () => {
     expect(webhookModule.description).toBeTruthy();
   });
 
-  it("has no tools, routes, commands, channels, or workflows", () => {
+  it("has no tools, routes, channels, or workflows", () => {
     expect(webhookModule.tools).toBeUndefined();
     expect(webhookModule.routes).toBeUndefined();
-    expect(webhookModule.commands).toBeUndefined();
     expect(webhookModule.channels).toBeUndefined();
     expect(webhookModule.workflows).toBeUndefined();
   });

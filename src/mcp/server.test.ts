@@ -4,15 +4,28 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { EventBus } from "../event-bus.js";
+import { getToolMcpAnnotations } from "../guardrails-classify.js";
 import { ModuleLoader } from "../module-loader.js";
 import filesystemModule from "../modules/filesystem/index.js";
-import { getToolMcpAnnotations } from "../guardrails-classify.js";
 import { clearCustomTools, registerTool } from "../tools/index.js";
 import { anthropicToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
 
 vi.mock("../modules/providers/index.js", () => ({
 	getMemoryProvider: vi.fn(() => ({ list: () => [] })),
 	getKnowledgeProvider: vi.fn(() => ({ list: () => [] })),
+}));
+
+vi.mock("../module-metadata.js", () => ({
+	loadModuleMetadata: vi.fn(async () => ({
+		getContributedWorkflows: () => [
+			{ name: "builder", triggers: [], steps: [], enabled: true, definitionPath: "" },
+			{ name: "explorer", triggers: [], steps: [], enabled: true, definitionPath: "" },
+			{ name: "inbox-sorter", triggers: [], steps: [], enabled: true, definitionPath: "" },
+			{ name: "improver", triggers: [], steps: [], enabled: true, definitionPath: "" },
+			{ name: "attention-digest", triggers: [], steps: [], enabled: true, definitionPath: "" },
+			{ name: "dispatcher", triggers: [], steps: [], enabled: true, definitionPath: "" },
+		],
+	})),
 }));
 
 import { getKnowledgeProvider, getMemoryProvider } from "../modules/providers/index.js";

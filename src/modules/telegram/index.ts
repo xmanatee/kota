@@ -15,7 +15,7 @@
 
 import { Command } from "commander";
 import type { ChannelDef } from "../../channel.js";
-import type { ModuleContext, KotaModule } from "../../module-types.js";
+import type { KotaModule, ModuleContext } from "../../module-types.js";
 import { TelegramBot } from "./bot.js";
 import { callTelegramApi } from "./client.js";
 import { startTelegramStatusPoll } from "./status-poll.js";

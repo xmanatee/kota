@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { KotaConfig } from "../config.js";
 import type { EventBus } from "../event-bus.js";
-import type { ModuleSummary, RouteRegistration } from "../module-types.js";
 import type { AgentSession } from "../loop.js";
+import type { ModuleSummary, RouteRegistration } from "../module-types.js";
 import type { Scheduler } from "../scheduler/scheduler.js";
 import type { Transport } from "../transport.js";
 import { getWebUI } from "../web-ui/web-ui.js";
@@ -17,10 +17,10 @@ import { handleGetConfig } from "./config-routes.js";
 import { DaemonControlClient } from "./daemon-client.js";
 import { queryDaemonStatus } from "./daemon-routes.js";
 import { handleEventTrigger } from "./event-routes.js";
-import { handleListModules } from "./module-routes.js";
 import { handleDeleteHistory, handleGetHistory, handleListHistory } from "./history-routes.js";
 import { handleAddKnowledge, handleDeleteKnowledge, handleGetKnowledge, handleListKnowledge, handleUpdateKnowledge } from "./knowledge-routes.js";
 import { handleAddMemory, handleDeleteMemory, handleGetMemory, handleListMemory, handleUpdateMemory } from "./memory-routes.js";
+import { handleListModules } from "./module-routes.js";
 import type { NotificationHub } from "./server-notifications.js";
 import {
   jsonResponse,

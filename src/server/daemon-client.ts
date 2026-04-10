@@ -1,7 +1,7 @@
 import { join } from "node:path";
-import type { PendingApproval } from "../modules/approval-queue/queue.js";
 import { readOptionalJsonFile } from "../json-file.js";
 import type { ConversationData, ConversationRecord } from "../memory/history-utils.js";
+import type { PendingApproval } from "../modules/approval-queue/queue.js";
 import type {
   DaemonControlAddress,
   DaemonLiveStatus,

@@ -13,7 +13,7 @@
 import { createInterface } from "node:readline";
 import type Anthropic from "@anthropic-ai/sdk";
 import { Command } from "commander";
-import type { ModuleContext, KotaModule } from "../../module-types.js";
+import type { KotaModule, ModuleContext } from "../../module-types.js";
 import { getSecretStore, initSecretStore, type SecretScope } from "../../secrets.js";
 import type { ToolResult } from "../../tools/index.js";
 

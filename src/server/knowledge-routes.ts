@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { getKnowledgeProvider } from "../modules/providers/index.js";
 import type { KnowledgeEntry } from "../memory/knowledge-store-helpers.js";
+import { getKnowledgeProvider } from "../modules/providers/index.js";
 import { jsonResponse, readBody } from "./session-pool.js";
 
 type KnowledgeListItem = {

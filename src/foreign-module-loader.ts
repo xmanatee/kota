@@ -11,7 +11,6 @@
 
 import { resolve } from "node:path";
 import { tryEmit } from "./event-bus.js";
-import type { ModuleHealth, KotaModule, ToolDef } from "./module-types.js";
 import type {
   ForeignModuleConfig,
   KempInbound,
@@ -21,6 +20,7 @@ import type {
 } from "./foreign-module.js";
 import { HttpTransport } from "./foreign-module-http.js";
 import { StdioTransport } from "./foreign-module-stdio.js";
+import type { KotaModule, ModuleHealth, ToolDef } from "./module-types.js";
 import type { ToolResult } from "./tools/tool-result.js";
 
 // How long to wait for the manifest after sending init.

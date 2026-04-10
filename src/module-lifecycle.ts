@@ -1,12 +1,12 @@
+import type { AgentDef, SkillDef } from "./agent-types.js";
+import type { ChannelDef } from "./channel.js";
 import { resetDynamicStateProviders } from "./dynamic-state.js";
 import type { ModuleStorage } from "./module-storage.js";
-import type { ChannelDef } from "./channel.js";
 import type { KotaModule } from "./module-types.js";
 import { getProviderRegistry } from "./modules/providers/index.js";
 import { getToolMiddleware } from "./tool-middleware.js";
 import { deregisterModuleTools } from "./tools/index.js";
 import type { RegisteredWorkflowDefinitionInput } from "./workflow/types.js";
-import type { AgentDef, SkillDef } from "./agent-types.js";
 
 export interface LifecycleState {
   modules: KotaModule[];

@@ -1,7 +1,7 @@
 ---
 id: task-extract-webhook-cli-module
 title: Move webhook-cli.ts into the existing webhook module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: src/webhook-cli.ts (100 lines) implements kota webhook list/generate-secret/clear-secret and is imported directly by src/cli.ts. The webhook module already exists at src/modules/webhook/; the CLI commands belong there.
