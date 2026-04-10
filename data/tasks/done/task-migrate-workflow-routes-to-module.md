@@ -1,7 +1,7 @@
 ---
 id: task-migrate-workflow-routes-to-module
 title: Migrate workflow HTTP routes from src/server/ to the workflow module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: workflow-routes.ts (375 lines) and workflow-run-routes.ts (348 lines) are the last large capability-specific route files remaining in src/server/. They belong in the workflow module, which already owns the scheduler, workflow definitions, trigger logic, and run store.

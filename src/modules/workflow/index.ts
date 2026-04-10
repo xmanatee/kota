@@ -14,6 +14,7 @@ import { registerDefinitionsCommand } from "./definitions.js";
 import { registerFollowCommand } from "./follow.js";
 import { registerGcCommand } from "./gc.js";
 import { registerLogsCommand } from "./logs.js";
+import { workflowRoutes } from "./routes.js";
 import { registerRunCommand } from "./run.js";
 import { registerCostCommand } from "./run-cost.js";
 import { registerRunDiffCommand } from "./run-diff.js";
@@ -64,6 +65,7 @@ const workflowModule: KotaModule = {
   version: "1.0.0",
   description: "Workflow CLI surface — kota workflow list/show/run/control/validate/definitions/logs/gc/export/diff/cost/stats",
   commands: (ctx) => [buildWorkflowCommand(ctx)],
+  routes: () => workflowRoutes(),
 };
 
 export default workflowModule;

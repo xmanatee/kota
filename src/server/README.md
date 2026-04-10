@@ -11,8 +11,6 @@ HTTP API server with session management and real-time notifications.
 | `server-notifications.ts` | `NotificationHub` — SSE push notifications for scheduled action results |
 | `server-routes.ts` | Thin orchestrator — `ServerContext`, route dispatch, supports module-contributed routes (including parameterized paths via `pathPattern`) |
 | `session-routes.ts` | Session CRUD and chat handlers |
-| `workflow-routes.ts` | Workflow run and status handlers |
-| `workflow-run-routes.ts` | Workflow run detail and log streaming handlers |
 | `daemon-routes.ts` | `queryDaemonStatus` — reads live daemon status via `DaemonControlClient` |
 | `daemon-client.ts` | `DaemonControlClient` — queries the running daemon's loopback HTTP control API |
 | `event-routes.ts` | `handleEventTrigger` — emits a named event onto the bus |
@@ -23,6 +21,7 @@ Capability-specific routes are contributed by their owning modules via `KotaModu
 
 | Module | Routes | Location |
 |--------|--------|----------|
+| `workflow` | `/api/workflow/*`, `/api/workflow/runs/*` | `src/modules/workflow/routes.ts` |
 | `memory` | `/api/memory`, `/api/memory/:id` | `src/modules/memory/routes.ts` |
 | `knowledge` | `/api/knowledge`, `/api/knowledge/:id` | `src/modules/knowledge/routes.ts` |
 | `history` | `/api/history`, `/api/history/:conversationId` | `src/modules/history/routes.ts` |
@@ -41,7 +40,7 @@ Tests for these handlers must cover **both paths**: the proxy path (mock client 
 ## Dependencies
 
 - `server.ts` ← `session-pool.ts`, `server-notifications.ts`, `../scheduler/*`, `../memory/*`, `../loop.ts`
-- `server-routes.ts` ← `session-routes.ts`, `workflow-routes.ts`, `workflow-run-routes.ts`, `daemon-routes.ts`, `event-routes.ts`, `session-pool.ts`, `daemon-client.ts`
+- `server-routes.ts` ← `session-routes.ts`, `daemon-routes.ts`, `event-routes.ts`, `session-pool.ts`, `daemon-client.ts`
 - `session-pool.ts` ← `../transport.ts`, `../loop.ts`
 - `server-notifications.ts` ← `session-pool.ts`, `../scheduler/*`
 - `daemon-client.ts` ← `../scheduler/daemon-control.ts` (types)

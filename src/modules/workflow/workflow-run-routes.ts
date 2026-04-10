@@ -1,12 +1,12 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import type { ServerResponse } from "node:http";
 import { extname, join } from "node:path";
-import { readOptionalJsonFile } from "../json-file.js";
-import type { BuilderRunSummary } from "../modules/autonomy/workflows/builder/run-summary.js";
-import { WorkflowRunStore } from "../workflow/run-store.js";
-import type { WorkflowRunMetadata } from "../workflow/run-types.js";
-import { readStepEvents } from "../workflow-logs.js";
-import { jsonResponse, SseTransport, setCors } from "./session-pool.js";
+import { readOptionalJsonFile } from "../../json-file.js";
+import { jsonResponse, SseTransport, setCors } from "../../server/session-pool.js";
+import { WorkflowRunStore } from "../../workflow/run-store.js";
+import type { WorkflowRunMetadata } from "../../workflow/run-types.js";
+import { readStepEvents } from "../../workflow-logs.js";
+import type { BuilderRunSummary } from "../autonomy/workflows/builder/run-summary.js";
 
 type RunSummary = {
   id: string;

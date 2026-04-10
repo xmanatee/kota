@@ -5,7 +5,6 @@ import type { RouteRegistration } from "../module-types.js";
 import type { Scheduler } from "../scheduler/scheduler.js";
 import type { Transport } from "../transport.js";
 import { getWebUI } from "../web-ui/web-ui.js";
-import { WorkflowRunStore } from "../workflow/run-store.js";
 import { DaemonControlClient } from "./daemon-client.js";
 import { queryDaemonStatus } from "./daemon-routes.js";
 import { handleEventTrigger } from "./event-routes.js";
@@ -22,27 +21,6 @@ import {
   handleDeleteSession,
   handleListSessions,
 } from "./session-routes.js";
-import {
-  handleWorkflowAbort,
-  handleWorkflowAbortRun,
-  handleWorkflowCancel,
-  handleWorkflowDefinitions,
-  handleWorkflowDisable,
-  handleWorkflowEnable,
-  handleWorkflowPause,
-  handleWorkflowReplay,
-  handleWorkflowResume,
-  handleWorkflowRetry,
-  handleWorkflowStatus,
-  handleWorkflowTrigger,
-} from "./workflow-routes.js";
-import {
-  handleWorkflowRunArtifacts,
-  handleWorkflowRunDetail,
-  handleWorkflowRunStream,
-  handleWorkflowRuns,
-  handleWorkflowRunThinking,
-} from "./workflow-run-routes.js";
 
 export type ServerContext = {
   port: number;
@@ -158,136 +136,6 @@ export function buildRequestHandler(ctx: ServerContext) {
         return;
       }
       handleEventTrigger(req, res, ctx.bus, eventName).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    if (req.method === "GET" && path === "/api/workflow/status") {
-      handleWorkflowStatus(res, DaemonControlClient.fromStateDir()).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    if (req.method === "GET" && path === "/api/workflow/definitions") {
-      handleWorkflowDefinitions(res, DaemonControlClient.fromStateDir()).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    const definitionEnableMatch = path.match(/^\/api\/workflow\/definitions\/([^/]+)\/enable$/);
-    if (req.method === "POST" && definitionEnableMatch) {
-      handleWorkflowEnable(res, decodeURIComponent(definitionEnableMatch[1]), DaemonControlClient.fromStateDir()).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    const definitionDisableMatch = path.match(/^\/api\/workflow\/definitions\/([^/]+)\/disable$/);
-    if (req.method === "POST" && definitionDisableMatch) {
-      handleWorkflowDisable(res, decodeURIComponent(definitionDisableMatch[1]), DaemonControlClient.fromStateDir()).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    if (req.method === "POST" && path === "/api/workflow/pause") {
-      handleWorkflowPause(res, DaemonControlClient.fromStateDir()).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    if (req.method === "POST" && path === "/api/workflow/resume") {
-      handleWorkflowResume(res, DaemonControlClient.fromStateDir()).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    if (req.method === "POST" && path === "/api/workflow/abort") {
-      handleWorkflowAbort(res, DaemonControlClient.fromStateDir()).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    if (req.method === "POST" && path === "/api/workflow/retry") {
-      handleWorkflowRetry(
-        req,
-        res,
-        new WorkflowRunStore(),
-        DaemonControlClient.fromStateDir(),
-      ).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    if (req.method === "POST" && path === "/api/workflow/replay") {
-      handleWorkflowReplay(
-        req,
-        res,
-        new WorkflowRunStore(),
-      ).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    if (req.method === "POST" && path === "/api/workflow/trigger") {
-      handleWorkflowTrigger(
-        req,
-        res,
-        new WorkflowRunStore(),
-        DaemonControlClient.fromStateDir(),
-      ).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    if (req.method === "GET" && path === "/api/workflow/runs") {
-      handleWorkflowRuns(res, url);
-      return;
-    }
-
-    const workflowRunStreamMatch = path.match(/^\/api\/workflow\/runs\/([^/]+)\/stream$/);
-    if (req.method === "GET" && workflowRunStreamMatch) {
-      handleWorkflowRunStream(res, workflowRunStreamMatch[1]);
-      return;
-    }
-
-    const workflowRunArtifactsMatch = path.match(/^\/api\/workflow\/runs\/([^/]+)\/artifacts$/);
-    if (req.method === "GET" && workflowRunArtifactsMatch) {
-      handleWorkflowRunArtifacts(res, workflowRunArtifactsMatch[1]);
-      return;
-    }
-
-    const workflowRunThinkingMatch = path.match(/^\/api\/workflow\/runs\/([^/]+)\/thinking$/);
-    if (req.method === "GET" && workflowRunThinkingMatch) {
-      handleWorkflowRunThinking(res, workflowRunThinkingMatch[1]);
-      return;
-    }
-
-    const workflowRunMatch = path.match(/^\/api\/workflow\/runs\/([^/]+)$/);
-    if (req.method === "GET" && workflowRunMatch) {
-      handleWorkflowRunDetail(res, workflowRunMatch[1]);
-      return;
-    }
-
-    if (req.method === "DELETE" && workflowRunMatch) {
-      handleWorkflowCancel(res, workflowRunMatch[1], DaemonControlClient.fromStateDir()).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    const workflowRunAbortMatch = path.match(/^\/api\/workflow\/runs\/([^/]+)\/abort$/);
-    if (req.method === "POST" && workflowRunAbortMatch) {
-      handleWorkflowAbortRun(res, workflowRunAbortMatch[1], DaemonControlClient.fromStateDir()).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;
