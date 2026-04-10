@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 import { ModuleStorage } from "../../core/modules/module-storage.js";
 import type { ModuleContext } from "../../core/modules/module-types.js";
 import daemonModule, {
-  buildDaemonChildArgs,
   buildLaunchdPlist,
   buildSystemdUnit,
   getLaunchdPlistPath,
@@ -81,29 +80,6 @@ describe("daemonModule", () => {
 
   it("has no dependencies", () => {
     expect(daemonModule.dependencies).toBeUndefined();
-  });
-
-  it("builds child daemon args from parsed options", () => {
-    const args = buildDaemonChildArgs({
-      verbose: true,
-      pollInterval: "30",
-    });
-
-    expect(args).toContain("daemon");
-    expect(args).toContain("--poll-interval");
-    expect(args).toContain("30");
-    expect(args).toContain("--verbose");
-    expect(args).not.toContain("--log-format");
-  });
-
-  it("forwards --log-format json to child args", () => {
-    const args = buildDaemonChildArgs({
-      pollInterval: "30",
-      logFormat: "json",
-    });
-
-    expect(args).toContain("--log-format");
-    expect(args).toContain("json");
   });
 
 });

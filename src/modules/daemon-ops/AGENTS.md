@@ -15,7 +15,7 @@ CLI commands: `kota events`, `kota session`, and `kota status`.
 
 ## Files
 
-- `index.ts` — `KotaModule` definition; CLI command registration, supervisor loop, and `buildDaemonChildArgs`/`resolveDaemonWorkflowDefinitions` helpers. Exports `buildLaunchdPlist`, `buildSystemdUnit`, `writeServiceFile`, `removeServiceFile` as testable boundaries for install/uninstall actions.
+- `index.ts` — `KotaModule` definition; CLI command registration, supervisor loop. Exports `buildLaunchdPlist`, `buildSystemdUnit`, `writeServiceFile`, `removeServiceFile` as testable boundaries for install/uninstall actions.
 - `events-cli.ts` — `buildEventsCommand`: builds the `kota events` Command with `tail` subcommand.
 - `session-cli.ts` — `buildSessionCommand`: builds the `kota session` Command with `list` and `inspect` subcommands.
 - `status-cli.ts` — `buildStatusCommand`, `formatStatusOutput`, `gatherStatus`, `StatusSnapshot`: builds the `kota status` command; `gatherStatus` reads from the daemon API when available and from disk in standalone mode.

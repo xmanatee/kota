@@ -27,26 +27,8 @@ function parseIntOption(value: string, name: string): number {
   return parsed;
 }
 
-export function buildDaemonChildArgs(opts: {
-  verbose?: boolean;
-  pollInterval: string;
-  logFormat?: LogFormat;
-}): string[] {
-  const args = [
-    process.argv[1]!,
-    "daemon",
-    "--poll-interval",
-    opts.pollInterval,
-  ];
-  if (opts.verbose) args.push("--verbose");
-  if (opts.logFormat) args.push("--log-format", opts.logFormat);
-  return args;
-}
-
-async function runDaemonSupervisor(
-  opts: Parameters<typeof buildDaemonChildArgs>[0],
-): Promise<void> {
-  const childArgs = buildDaemonChildArgs(opts);
+async function runDaemonSupervisor(): Promise<void> {
+  const childArgs = process.argv.slice(1);
   let forwardSignal: ((signal: NodeJS.Signals) => void) | null = null;
 
   try {
@@ -226,11 +208,7 @@ const daemonModule: KotaModule = {
           (process.env.KOTA_DAEMON_LOG_FORMAT === "json" ? "json" : undefined);
 
         if (process.env[DAEMON_CHILD_ENV] !== "1") {
-          await runDaemonSupervisor({
-            verbose: opts.verbose || ctx.config.verbose,
-            pollInterval: opts.pollInterval,
-            logFormat,
-          });
+          await runDaemonSupervisor();
           return;
         }
 

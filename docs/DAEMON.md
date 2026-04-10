@@ -14,9 +14,7 @@ Options:
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--model` | config default | Model to use for autonomous agents |
 | `--verbose` | false | Show debug output |
-| `--idle-interval <s>` | 30 | How often to emit `runtime.idle` |
 | `--poll-interval <s>` | 30 | Scheduler poll interval |
 | `--log-format` | text | `text` or `json` |
 
