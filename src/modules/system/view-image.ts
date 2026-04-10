@@ -112,8 +112,9 @@ export async function runViewImage(
 		if (readPath !== filePath) {
 			try {
 				unlinkSync(readPath);
-			} catch {
-				// cleanup best-effort
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				console.warn(`[view_image] Failed to remove temp file ${readPath}: ${msg}`);
 			}
 		}
 	}
@@ -157,7 +158,9 @@ function tryResize(srcPath: string, ext: string): string {
 			stdio: "pipe",
 		});
 		return tmpPath;
-	} catch {
+	} catch (err) {
+		const msg = err instanceof Error ? err.message : String(err);
+		console.warn(`[view_image] Resize skipped for ${srcPath}: ${msg}`);
 		return srcPath;
 	}
 }

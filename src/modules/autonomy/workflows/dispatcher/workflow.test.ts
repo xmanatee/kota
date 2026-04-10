@@ -36,6 +36,7 @@ describe("dispatcher workflow", () => {
     const result = await harness.run();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    expect(output.pullableCount).toBe(1);
     expect(output.actionableCount).toBe(1);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(true);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
@@ -62,7 +63,7 @@ describe("dispatcher workflow", () => {
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
   });
 
-  it("does not emit autonomy.queue.empty when backlog still exists", async () => {
+  it("emits autonomy.queue.available when backlog still exists", async () => {
     writeFileSync(
       join(projectDir, "data", "tasks", "backlog", "task-foo.md"),
       "---\nid: task-foo\ntitle: Foo\nstatus: backlog\npriority: p2\n---\n",
@@ -71,10 +72,26 @@ describe("dispatcher workflow", () => {
     const result = await harness.run();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    expect(output.pullableCount).toBe(1);
     expect(output.actionableCount).toBe(0);
     expect(output.inboxCount).toBe(0);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(true);
+  });
+
+  it("does not emit autonomy.queue.empty when doing work still exists", async () => {
+    writeFileSync(
+      join(projectDir, "data", "tasks", "doing", "task-foo.md"),
+      "---\nid: task-foo\ntitle: Foo\nstatus: doing\npriority: p2\n---\n",
+    );
+    const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
+    const result = await harness.run();
+
+    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    expect(output.pullableCount).toBe(1);
+    expect(output.actionableCount).toBe(1);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(true);
   });
 
   it("emits both queue.available and inbox.available when both have items", async () => {

@@ -5,7 +5,7 @@ truth for outstanding work after an idea has been sorted out of `data/inbox/`.
 
 ## States
 
-- `backlog/` = triaged work that matters but is not ready to pull.
+- `backlog/` = triaged work that matters but is not at the front of the queue.
 - `ready/` = short actionable pull queue.
 - `doing/` = active work in progress. Keep WIP at 1 unless there is a clear reason not to.
 - `blocked/` = work that cannot currently move.
@@ -70,7 +70,9 @@ truth for outstanding work after an idea has been sorted out of `data/inbox/`.
 - If a related task already exists, prefer updating its context over creating a duplicate.
 - If research or implementation uncovers a genuinely useful follow-up idea, capture it in `data/inbox/` or enrich an existing task, but do not turn every observation into process overhead.
 - Use common sense when capturing follow-up work: distinct next bets may become distinct tasks; lightly triaged ideas belong in `data/inbox/`; clearer but not-yet-actionable work belongs in `backlog/`.
-- Pull work from `ready/`.
+- Pull work from `ready/` first.
+- If `ready/` is empty, it is valid to promote the best `backlog/` task and
+  start it in the same run.
 - Move a task to `doing/` when work actually starts.
 - Promote work from `backlog/` only when it is actionable.
 - Move files between state directories as work progresses.

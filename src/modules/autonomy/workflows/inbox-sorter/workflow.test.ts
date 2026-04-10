@@ -26,6 +26,7 @@ function makeSnapshot(inboxCount: number) {
     },
     inboxCount,
     openCount: inboxCount,
+    pullableCount: 0,
     actionableCount: 0,
     headSha: "abc1234",
   };

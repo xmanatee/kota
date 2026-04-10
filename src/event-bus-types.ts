@@ -11,8 +11,29 @@ export type BusEvents = {
     requires?: string[];
   };
   "autonomy.queue.available": {
-    workflow: string;
-    runId: string;
+    pullableCount: number;
+    actionableCount: number;
+    counts: {
+      backlog: number;
+      ready: number;
+      doing: number;
+      blocked: number;
+      done: number;
+      dropped: number;
+    };
+  };
+  "autonomy.inbox.available": {
+    inboxCount: number;
+  };
+  "autonomy.queue.empty": {
+    counts: {
+      backlog: number;
+      ready: number;
+      doing: number;
+      blocked: number;
+      done: number;
+      dropped: number;
+    };
   };
   "workflow.started": {
     workflow: string;

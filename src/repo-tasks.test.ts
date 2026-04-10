@@ -58,6 +58,7 @@ describe("repo task helpers", () => {
       },
       inboxCount: 1,
       openCount: 3,
+      pullableCount: 2,
       actionableCount: 2,
       headSha: expect.any(String),
     });

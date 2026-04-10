@@ -16,7 +16,7 @@ This directory owns the `daemon` repo module — long-running KOTA process with 
 - `index.ts` — `KotaModule` definition; CLI command registration, supervisor loop, and `buildDaemonChildArgs`/`resolveDaemonWorkflowDefinitions` helpers. Exports `buildLaunchdPlist`, `buildSystemdUnit`, `writeServiceFile`, `removeServiceFile` as testable boundaries for install/uninstall actions.
 - `events-cli.ts` — `buildEventsCommand`: builds the `kota events` Command with `tail` subcommand.
 - `session-cli.ts` — `buildSessionCommand`: builds the `kota session` Command with `list` and `inspect` subcommands.
-- `status-cli.ts` — `buildStatusCommand`, `formatStatusOutput`, `gatherStatus`, `StatusSnapshot`: builds the `kota status` Command; `gatherStatus` works both online (via daemon API) and offline (disk fallback).
+- `status-cli.ts` — `buildStatusCommand`, `formatStatusOutput`, `gatherStatus`, `StatusSnapshot`: builds the `kota status` command; `gatherStatus` reads from the daemon API when available and from disk in standalone mode.
 - `index.test.ts` — unit tests for daemon command registration and supervisor helpers.
 - `install.test.ts` — structural and lifecycle tests for `install`/`uninstall`: launchd plist and systemd unit content assertions, round-trip file lifecycle, and double-install/double-uninstall error cases. Writes to a temp directory; no `launchctl` or `systemctl` calls.
 - `status-cli.test.ts` — unit tests for `formatStatusOutput` covering all output permutations.

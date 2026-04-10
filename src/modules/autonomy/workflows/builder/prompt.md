@@ -5,7 +5,7 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
 ## Scope
 
 - Own one task from `data/tasks/`.
-- Resume `data/tasks/doing/` first when it exists. Otherwise pull the best task from `data/tasks/ready/`.
+- Resume `data/tasks/doing/` first when it exists. Otherwise pull the best task from `data/tasks/ready/`, or promote the best backlog task when `ready/` is empty.
 - Treat the task as a contract, not a script. Own the technical plan yourself.
 - Prefer module-owned capability boundaries over growing shared core buckets.
 - Keep the task state, touched docs, and local instructions honest.
@@ -14,7 +14,7 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
 
 - Work only in this repository.
 - Keep the repo worktree clean except for your own in-flight changes. Do not use worktrees.
-- Before starting a ready task, do one quick overlap check against `data/tasks/doing/` and `data/tasks/blocked/`. If the best task is genuinely blocked by active or blocked work, record that honestly and pick the next safe task.
+- Before starting a task, do one quick overlap check against `data/tasks/doing/` and `data/tasks/blocked/`. If the best task is genuinely blocked by active or blocked work, record that honestly and pick the next safe task.
 - Do not add compatibility shims, fallback paths, or legacy aliases. Remove obsolete code directly.
 - Do not invent roadmap work when there is no actionable normalized task.
 - Capture genuine follow-up work honestly in `data/inbox/` or `data/tasks/` when it is outside scope; do not silently sprawl the task.

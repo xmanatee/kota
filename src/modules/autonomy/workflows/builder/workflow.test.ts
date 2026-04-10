@@ -57,14 +57,15 @@ function makeEmptySnapshot() {
     },
     inboxCount: 0,
     openCount: 0,
+    pullableCount: 0,
     actionableCount: 0,
     headSha: "abc1234",
   };
 }
 
-function makeSnapshot(ready: number, doing: number) {
+function makeSnapshot(ready: number, doing: number, backlog = 4) {
   const counts = {
-    backlog: 4,
+    backlog,
     ready,
     doing,
     blocked: 0,
@@ -75,6 +76,7 @@ function makeSnapshot(ready: number, doing: number) {
     counts,
     inboxCount: 0,
     openCount: counts.backlog + counts.ready + counts.doing + counts.blocked,
+    pullableCount: counts.backlog + counts.ready + counts.doing,
     actionableCount: ready + doing,
     headSha: "abc1234",
   };
@@ -85,14 +87,14 @@ describe("builder workflow", () => {
     vi.clearAllMocks();
   });
 
-  it("skips build and commit when actionableCount is 0", async () => {
+  it("skips build and commit when no pullable queue work exists", async () => {
     const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeEmptySnapshot());
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
       trigger: {
-        event: "workflow.completed",
-        payload: { workflow: "inbox-sorter", status: "success" },
+        event: "autonomy.queue.available",
+        payload: { pullableCount: 0, actionableCount: 0, counts: makeEmptySnapshot().counts },
       },
       stepMocks: {
         build: { turns: [], totalCostUsd: 0 },
@@ -111,7 +113,7 @@ describe("builder workflow", () => {
     expect(result.steps["request-restart"].status).toBe("skipped");
   });
 
-  it("runs build and commit when actionableCount is greater than 0", async () => {
+  it("runs build and commit when ready or doing work exists", async () => {
     const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(2, 1));
 
@@ -120,8 +122,8 @@ describe("builder workflow", () => {
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
       trigger: {
-        event: "workflow.completed",
-        payload: { workflow: "explorer", status: "success" },
+        event: "autonomy.queue.available",
+        payload: { pullableCount: 3, actionableCount: 3, counts: makeSnapshot(2, 1).counts },
       },
       stepMocks: {
         build: { turns: [], totalCostUsd: 0.05 },
@@ -138,14 +140,49 @@ describe("builder workflow", () => {
     expect(result.steps.commit.status).toBe("success");
   });
 
+  it("runs build when backlog exists even if ready is empty", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(0, 0, 2));
+
+    const { commitWorkflowChanges } = await import("../../commit.js");
+    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
+
+    const harness = new WorkflowTestHarness(builderWorkflow, {
+      trigger: {
+        event: "autonomy.queue.available",
+        payload: {
+          pullableCount: 2,
+          actionableCount: 0,
+          counts: {
+            backlog: 2,
+            ready: 0,
+            doing: 0,
+            blocked: 0,
+            done: 0,
+            dropped: 0,
+          },
+        },
+      },
+      stepMocks: {
+        build: { turns: [], totalCostUsd: 0.03 },
+      },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps.build.status).toBe("success");
+    expect(result.steps.commit.status).toBe("success");
+  });
+
   it("skips commit and write-run-summary when build fails", async () => {
     const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
       trigger: {
-        event: "workflow.completed",
-        payload: { workflow: "explorer", status: "success" },
+        event: "autonomy.queue.available",
+        payload: { pullableCount: 5, actionableCount: 1, counts: makeSnapshot(1, 0).counts },
       },
       // build step mock missing — harness will throw for agent step
     });
@@ -182,8 +219,8 @@ describe("builder workflow", () => {
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
       trigger: {
-        event: "workflow.completed",
-        payload: { workflow: "explorer", status: "success" },
+        event: "autonomy.queue.available",
+        payload: { pullableCount: 5, actionableCount: 1, counts: makeSnapshot(1, 0).counts },
       },
       stepMocks: {
         build: { turns: [], totalCostUsd: 0.42 },
@@ -213,8 +250,8 @@ describe("builder workflow", () => {
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
       trigger: {
-        event: "workflow.completed",
-        payload: { workflow: "explorer", status: "success" },
+        event: "autonomy.queue.available",
+        payload: { pullableCount: 5, actionableCount: 1, counts: makeSnapshot(1, 0).counts },
       },
       stepMocks: {
         build: { turns: [], totalCostUsd: 0.1 },
@@ -242,7 +279,10 @@ describe("builder workflow", () => {
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(snapshot);
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
-      trigger: { event: "workflow.completed", payload: {} },
+      trigger: {
+        event: "autonomy.queue.available",
+        payload: { pullableCount: 7, actionableCount: 3, counts: snapshot.counts },
+      },
       stepMocks: { build: { turns: [] } },
     });
 
@@ -251,6 +291,7 @@ describe("builder workflow", () => {
     expect(result.steps["inspect-ready-queue"].status).toBe("success");
     expect(result.steps["inspect-ready-queue"].output).toMatchObject({
       actionableCount: 3,
+      pullableCount: 7,
       counts: expect.objectContaining({ ready: 3 }),
     });
   });
@@ -274,7 +315,10 @@ describe("builder workflow", () => {
     });
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
-      trigger: { event: "workflow.completed", payload: { workflow: "explorer", status: "success" } },
+      trigger: {
+        event: "autonomy.queue.available",
+        payload: { pullableCount: 5, actionableCount: 1, counts: makeSnapshot(1, 0).counts },
+      },
       stepMocks: { build: { turns: [], totalCostUsd: 0.01 } },
     });
 
@@ -306,7 +350,10 @@ describe("builder workflow", () => {
     vi.mocked(createPullRequest).mockReturnValue({ prUrl: "https://github.com/org/repo/pull/42" });
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
-      trigger: { event: "workflow.completed", payload: { workflow: "explorer", status: "success" } },
+      trigger: {
+        event: "autonomy.queue.available",
+        payload: { pullableCount: 5, actionableCount: 1, counts: makeSnapshot(1, 0).counts },
+      },
       stepMocks: { build: { turns: [], totalCostUsd: 0.05 } },
     });
 
@@ -345,7 +392,10 @@ describe("builder workflow", () => {
     });
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
-      trigger: { event: "workflow.completed", payload: { workflow: "explorer", status: "success" } },
+      trigger: {
+        event: "autonomy.queue.available",
+        payload: { pullableCount: 5, actionableCount: 1, counts: makeSnapshot(1, 0).counts },
+      },
       stepMocks: { build: { turns: [], totalCostUsd: 0.05 } },
     });
 
@@ -361,7 +411,10 @@ describe("builder workflow", () => {
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeEmptySnapshot());
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
-      trigger: { event: "workflow.completed", payload: { workflow: "explorer", status: "success" } },
+      trigger: {
+        event: "autonomy.queue.available",
+        payload: { pullableCount: 5, actionableCount: 1, counts: makeSnapshot(1, 0).counts },
+      },
       stepMocks: { build: { turns: [], totalCostUsd: 0 } },
     });
 
@@ -399,7 +452,10 @@ describe("builder workflow", () => {
     });
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
-      trigger: { event: "workflow.completed", payload: { workflow: "explorer", status: "success" } },
+      trigger: {
+        event: "autonomy.queue.available",
+        payload: { pullableCount: 5, actionableCount: 1, counts: makeSnapshot(1, 0).counts },
+      },
       stepMocks: { build: { turns: [], totalCostUsd: 0.05 } },
     });
 
@@ -432,7 +488,10 @@ describe("builder workflow", () => {
     });
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
-      trigger: { event: "workflow.completed", payload: { workflow: "explorer", status: "success" } },
+      trigger: {
+        event: "autonomy.queue.available",
+        payload: { pullableCount: 5, actionableCount: 1, counts: makeSnapshot(1, 0).counts },
+      },
       stepMocks: { build: { turns: [], totalCostUsd: 0.01 } },
     });
 
@@ -468,7 +527,10 @@ describe("builder workflow", () => {
     });
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
-      trigger: { event: "workflow.completed", payload: { workflow: "explorer", status: "success" } },
+      trigger: {
+        event: "autonomy.queue.available",
+        payload: { pullableCount: 5, actionableCount: 1, counts: makeSnapshot(1, 0).counts },
+      },
       stepMocks: { build: { turns: [], totalCostUsd: 0.02 } },
     });
 

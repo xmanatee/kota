@@ -86,7 +86,7 @@ export async function gatherStatus(projectDir: string): Promise<StatusSnapshot> 
     }
   }
 
-  // Offline fallback: read from disk
+  // Standalone mode: read from disk when no daemon is running
   const store = new WorkflowRunStore(projectDir);
   const state = store.readState();
   const queue = getApprovalQueue(join(stateDir, "approvals"));

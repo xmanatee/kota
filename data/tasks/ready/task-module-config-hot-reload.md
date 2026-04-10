@@ -1,12 +1,12 @@
 ---
 id: task-module-config-hot-reload
 title: Support per-module config updates via daemon reload without restarting unaffected modules
-status: backlog
-priority: p3
+status: ready
+priority: p2
 area: runtime
 summary: kota daemon reload currently restarts all modules even when only one module's config changed. Tracking per-module config snapshots and only reloading changed modules would reduce reload disruption and keep unaffected sessions alive.
 created_at: 2026-04-08T21:43:21Z
-updated_at: 2026-04-08T21:43:21Z
+updated_at: 2026-04-10T10:45:00Z
 ---
 
 ## Problem
@@ -30,7 +30,7 @@ The daemon's config-reload handler computes a per-module config diff. Only modul
 whose config subtree changed (or whose dependencies changed) are unloaded and reloaded.
 Modules with identical config are left running.
 
-A `changedExtensions` list is returned in the `POST /api/daemon/reload` response so
+A `changedModules` list is returned in the `POST /api/daemon/reload` response so
 operators and tooling can see what was restarted.
 
 `kota daemon reload` CLI output shows which modules reloaded and which were skipped.
@@ -48,7 +48,7 @@ operators and tooling can see what was restarted.
 
 ## Done When
 
-- `POST /api/daemon/reload` returns a `changedExtensions` array listing only reloaded
+- `POST /api/daemon/reload` returns a `changedModules` array listing only reloaded
   modules.
 - Updating one module's config via `kota config set` and running `kota daemon reload`
   restarts only that module.

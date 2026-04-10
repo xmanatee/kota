@@ -17,27 +17,30 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
       type: "code",
       run: ({ projectDir, emit }) => {
         const queue = getRepoTaskQueueSnapshot(projectDir);
+        const queueEmpty = queue.inboxCount === 0 && queue.pullableCount === 0;
 
         if (queue.inboxCount > 0) {
           emit("autonomy.inbox.available", { inboxCount: queue.inboxCount });
         }
-        if (queue.actionableCount > 0) {
-          emit("autonomy.queue.available", { actionableCount: queue.actionableCount });
+        if (queue.pullableCount > 0) {
+          emit("autonomy.queue.available", {
+            pullableCount: queue.pullableCount,
+            actionableCount: queue.actionableCount,
+            counts: queue.counts,
+          });
         }
-        if (queue.inboxCount === 0 && queue.counts.ready === 0 && queue.counts.backlog === 0) {
+        if (queueEmpty) {
           emit("autonomy.queue.empty", { counts: queue.counts });
         }
 
         return {
           inboxCount: queue.inboxCount,
+          pullableCount: queue.pullableCount,
           actionableCount: queue.actionableCount,
           emitted: [
             queue.inboxCount > 0 && "autonomy.inbox.available",
-            queue.actionableCount > 0 && "autonomy.queue.available",
-            queue.inboxCount === 0 &&
-              queue.counts.ready === 0 &&
-              queue.counts.backlog === 0 &&
-              "autonomy.queue.empty",
+            queue.pullableCount > 0 && "autonomy.queue.available",
+            queueEmpty && "autonomy.queue.empty",
           ].filter(Boolean),
         };
       },

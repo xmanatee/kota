@@ -39,6 +39,7 @@ function makeSnapshot({
     counts,
     inboxCount,
     openCount: inboxCount + backlog + ready + doing + blocked,
+    pullableCount: backlog + ready + doing,
     actionableCount: ready + doing,
     headSha: "abc1234",
   };
@@ -78,6 +79,26 @@ describe("explorer workflow", () => {
     const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
       makeSnapshot({ inboxCount: 0, ready: 1, backlog: 2 }),
+    );
+
+    const harness = new WorkflowTestHarness(explorerWorkflow, {
+      trigger: { event: "autonomy.queue.empty", payload: {} },
+      runtimeState: { workflows: {} },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["inspect-queue"].output).toMatchObject({
+      needsAttention: false,
+    });
+    expect(result.steps.explore.status).toBe("skipped");
+  });
+
+  it("skips explore when doing already contains work", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("../../../../repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
+      makeSnapshot({ inboxCount: 0, ready: 0, backlog: 0, doing: 1 }),
     );
 
     const harness = new WorkflowTestHarness(explorerWorkflow, {

@@ -15,7 +15,7 @@ import { writeBuilderRunSummary } from "./run-summary.js";
 
 export const agent: AgentDef = {
   name: "builder",
-  role: "Ship one cohesive improvement per run by implementing tasks from the ready queue.",
+  role: "Ship one cohesive improvement per run by resuming, pulling, or promoting one normalized task.",
   promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
   model: "claude-sonnet-4-6",
   tools: { permissionMode: "bypassPermissions" },
@@ -51,7 +51,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       settingSources: agent.settingSources,
       timeoutMs: 60 * 60 * 1000, // 60 minutes — builder runs can be long
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
-      when: (ctx) => inspectReadyQueue.output(ctx).actionableCount > 0,
+      when: (ctx) => inspectReadyQueue.output(ctx).pullableCount > 0,
       repairLoop: {
         maxRepairAttempts: 3,
         checks: [

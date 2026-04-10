@@ -21,6 +21,7 @@ export type RepoTaskQueueSnapshot = {
   counts: Record<RepoTaskState, number>;
   inboxCount: number;
   openCount: number;
+  pullableCount: number;
   actionableCount: number;
   headSha: string;
 };
@@ -35,7 +36,11 @@ export function isRepoTaskQueueSnapshot(
   return (
     REPO_TASK_STATES.every((state) => typeof counts[state] === "number") &&
     "inboxCount" in value &&
-    typeof value.inboxCount === "number"
+    typeof value.inboxCount === "number" &&
+    "pullableCount" in value &&
+    typeof value.pullableCount === "number" &&
+    "actionableCount" in value &&
+    typeof value.actionableCount === "number"
   );
 }
 
@@ -85,6 +90,7 @@ export function getRepoTaskQueueSnapshot(
       counts.ready +
       counts.doing +
       counts.blocked,
+    pullableCount: counts.backlog + counts.ready + counts.doing,
     actionableCount: counts.ready + counts.doing,
     headSha: getRepoHeadSha(projectDir),
   };

@@ -27,6 +27,7 @@ type ExplorerAssessment = {
   counts: ReturnType<typeof getRepoTaskQueueSnapshot>["counts"];
   inboxCount: number;
   openCount: number;
+  pullableCount: number;
   actionableCount: number;
   needsAttention: boolean;
   explorationRefreshDue: boolean;
@@ -42,8 +43,7 @@ function buildExplorerAssessment(
     Date.now() - new Date(lastCompletedAt).getTime() >= EXPLORATION_REFRESH_MS;
   const queueEmpty =
     queue.inboxCount === 0 &&
-    queue.counts.ready === 0 &&
-    queue.counts.backlog === 0;
+    queue.pullableCount === 0;
 
   return {
     ...queue,
