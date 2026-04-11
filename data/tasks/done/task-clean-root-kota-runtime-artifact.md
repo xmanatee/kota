@@ -1,7 +1,7 @@
 ---
 id: task-clean-root-kota-runtime-artifact
 title: Remove root kota runtime artifact and prevent recurrence
-status: ready
+status: done
 priority: p2
 area: runtime-state
 summary: A root kota/runs artifact exists even though runtime state must live under .kota/; cleanup and validation should make this drift visible.

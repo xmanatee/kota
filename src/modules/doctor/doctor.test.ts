@@ -197,6 +197,24 @@ describe("kota doctor --fix", () => {
     expect(dirRepairs.every((r) => r.action === "skipped")).toBe(true);
   });
 
+  it("removes stray root runs/ and kota/ directories", () => {
+    mkdirSync(join(projectDir, "runs", "some-run"), { recursive: true });
+    mkdirSync(join(projectDir, "kota", "runs", "some-run"), { recursive: true });
+    const repairs = runDoctorFixes(projectDir);
+    const runsRepair = repairs.find((r) => r.item === "Stray directory: runs/");
+    const kotaRepair = repairs.find((r) => r.item === "Stray directory: kota/");
+    expect(runsRepair?.action).toBe("repaired");
+    expect(kotaRepair?.action).toBe("repaired");
+    expect(existsSync(join(projectDir, "runs"))).toBe(false);
+    expect(existsSync(join(projectDir, "kota"))).toBe(false);
+  });
+
+  it("does not report stray directories when they do not exist", () => {
+    const repairs = runDoctorFixes(projectDir);
+    const strayRepairs = repairs.filter((r) => r.item.startsWith("Stray directory:"));
+    expect(strayRepairs).toHaveLength(0);
+  });
+
 });
 
 describe("kota doctor — provider connectivity check", () => {

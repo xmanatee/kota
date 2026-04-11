@@ -10,6 +10,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  rmSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -136,6 +137,26 @@ export function runDoctorFixes(projectDir: string): RepairResult[] {
       }
     } else {
       results.push({ item: `Directory: ${dir}`, action: "skipped", detail: "Already present" });
+    }
+  }
+
+  for (const strayDir of ["runs", "kota"]) {
+    const strayPath = join(projectDir, strayDir);
+    if (existsSync(strayPath)) {
+      try {
+        rmSync(strayPath, { recursive: true, force: true });
+        results.push({
+          item: `Stray directory: ${strayDir}/`,
+          action: "repaired",
+          detail: `Removed stray runtime directory outside .kota/`,
+        });
+      } catch (err) {
+        results.push({
+          item: `Stray directory: ${strayDir}/`,
+          action: "manual",
+          detail: `Could not remove: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
     }
   }
 
