@@ -14,4 +14,7 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
 ## Finish
 
 - Declare and verify success criteria in the run directory.
+- Follow `data/tasks/AGENTS.md` for task file handling. Move the task to its
+  final state directory, update its `status` frontmatter, and ensure it is
+  tracked in git.
 - Finish green and leave the task state aligned with reality.
