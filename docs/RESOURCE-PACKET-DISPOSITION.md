@@ -76,10 +76,10 @@ pattern. No follow-up task created; revisit if a new adapter hits a real wall.
 
 ## Domain-Specific Service Adapters
 
-**Disposition: Deferred**
+**Disposition: Reference only — reviewed, no gaps found**
 
-These represent optional module opportunities. None adopted yet; no immediate
-need identified.
+None of these resources map to a real operator use case in KOTA. No payment,
+trading, travel, or Python SDK integration is needed.
 
 | Resource | Note |
 |----------|------|
@@ -88,26 +88,31 @@ need identified.
 | builders.gojinko.com | Travel APIs via MCP/CLI; reference only — niche. |
 | xybernetex-sdk (chrisvx-ctrl) | Python SDK; reference only — no direct applicability. |
 
-**Follow-up:** `task-review-domain-local-ai-and-tooling-resource-group` (backlog, p3) covers realistic optional module opportunities from this group.
+**Review (April 2026):** No change from initial disposition. These remain
+domain-specific integrations without clear operator benefit in KOTA's
+autonomous development workflow.
 
 ---
 
 ## Local AI, Prediction, and Multimodal Opportunities
 
-**Disposition: Reference only + Deferred**
+**Disposition: Reference only — reviewed, no gaps found**
 
-No local inference or forecasting modules adopted. These remain interesting for
-future capability expansion.
+KOTA uses the Claude API for inference. Local model execution, time-series
+forecasting, browser-side inference, and image generation have no operator use
+case in KOTA's autonomous development workflow.
 
 | Resource | Note |
 |----------|------|
-| anemll (x.com/anemll) | On-device model execution; reference only — thin lead. |
-| timesfm (google-research) | Time-series forecasting model; reference only — interesting for future analytics. |
-| transformers.js 4.0 (huggingface) | Browser inference; reference only — relevant if KOTA adds client-side inference. |
+| anemll (x.com/anemll) | On-device model execution; reference only — KOTA uses Claude API, no local inference need. |
+| timesfm (google-research) | Time-series forecasting model; reference only — no analytics use case. |
+| transformers.js 4.0 (huggingface) | Browser inference; reference only — no client-side inference need. |
 | MiroFish (666ghj) | Swarm-intelligence / knowledge-graph; reference only — niche. |
-| nano-banana-pro (clawhub.ai/steipete) | Image generation plugin; reference only. |
+| nano-banana-pro (clawhub.ai/steipete) | Image generation plugin; reference only — no image generation use case. |
 
-**Follow-up:** `task-review-domain-local-ai-and-tooling-resource-group` (backlog, p3).
+**Review (April 2026):** No actionable gaps. Local inference would require a
+fundamentally different runtime model. Forecasting and image generation are
+outside KOTA's scope as an autonomous development system.
 
 ---
 
@@ -217,25 +222,27 @@ imported skill count grows.
 
 ## Tooling and Knowledge Adapter Extensions
 
-**Disposition: Adopted (Google Workspace, GitHub) + Reference**
+**Disposition: Adopted (Google Workspace, GitHub) + Reference only — reviewed, no gaps found**
 
-Google Workspace and GitHub modules were built. Other tooling references noted
-for awareness.
+Google Workspace and GitHub modules were built. Remaining tooling references
+are fully covered by existing modules.
 
 | Resource | Note |
 |----------|------|
 | GitHub skill (clawhub.ai/steipete) | **Adopted** — `src/modules/github/`. |
 | Google Workspace CLI wrapper (clawhub.ai/steipete/gog) | **Adopted** — `src/modules/google-workspace/` with Gmail, Calendar, Drive. |
-| Obsidian plugin (clawhub.ai/steipete) | Reference only — no Obsidian integration planned. |
-| nano-pdf plugin (clawhub.ai/steipete) | Reference only — PDF handling not a current priority. |
-| agent-browser-clawdbot (clawhub.ai/matrixy) | Reference only — `src/modules/web/` covers browser needs. |
-| multi-search-engine (clawhub.ai/gpyangyoujun) | Reference only — `src/modules/web/` covers search. |
+| Obsidian plugin (clawhub.ai/steipete) | Reference only — file-based knowledge management covered by `src/modules/knowledge/`. |
+| nano-pdf plugin (clawhub.ai/steipete) | Reference only — PDF/document extraction covered by `src/modules/read-document/`. |
+| agent-browser-clawdbot (clawhub.ai/matrixy) | Reference only — web fetch/search/HTTP covered by `src/modules/web-access/`. |
+| multi-search-engine (clawhub.ai/gpyangyoujun) | Reference only — web search covered by `src/modules/web-access/` (DuckDuckGo/Brave). |
 
 **Adopted implementations:** `src/modules/github/`, `src/modules/google-workspace/`.
 
 **Done tasks:** `task-google-workspace-module`, `task-split-google-workspace-module`.
 
-**Follow-up:** `task-review-domain-local-ai-and-tooling-resource-group` (backlog, p3).
+**Review (April 2026):** All tooling patterns from the original packet are
+covered by existing modules. Obsidian → knowledge module, PDF → read-document
+module, browser/search → web-access module. No new modules or adapters needed.
 
 ---
 
@@ -245,17 +252,15 @@ for awareness.
 |-------|-----------|---------|----------|-----------|
 | Agent runtimes & harnesses | 10 | 0 | reviewed ✓ | 10 |
 | Channels & adapters | 6 | 6 | 1 task | 0 |
-| Domain services | 4 | 0 | 1 task | 4 |
-| Local AI & multimodal | 5 | 0 | 1 task | 5 |
+| Domain services | 4 | 0 | reviewed ✓ | 4 |
+| Local AI & multimodal | 5 | 0 | reviewed ✓ | 5 |
 | Memory & ontology | 6 | 3 (core) | 1 task | 3 |
 | Self-improving loops | 7 | 2 | reviewed ✓ (1 follow-up) | 5 |
 | Skills ecosystem | 7 | 1 | 1 task | 6 |
-| Tooling & adapters | 6 | 2 | 1 task | 4 |
-| **Total** | **50** | **14** | **3 tasks** | **36** |
+| Tooling & adapters | 6 | 2 | reviewed ✓ | 4 |
+| **Total** | **50** | **14** | **0 tasks** | **36** |
 
-Two remaining backlog tasks cover the deferred review work:
-- `task-review-channel-memory-and-skill-resource-group` (p2)
-- `task-review-domain-local-ai-and-tooling-resource-group` (p3)
-
-Completed review tasks:
-- `task-review-runtime-and-self-improvement-resource-group` — completed April 2026. One follow-up: `task-run-outcome-aggregation-for-improver`.
+All resource-group review tasks are complete:
+- `task-review-runtime-and-self-improvement-resource-group` — done. One follow-up: `task-run-outcome-aggregation-for-improver`.
+- `task-review-channel-memory-and-skill-resource-group` — done. One follow-up: `task-agent-scoped-skill-injection`.
+- `task-review-domain-local-ai-and-tooling-resource-group` — done. No follow-ups needed; all resources covered by existing modules or reference-only.

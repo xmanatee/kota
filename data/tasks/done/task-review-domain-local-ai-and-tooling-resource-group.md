@@ -1,12 +1,12 @@
 ---
 id: task-review-domain-local-ai-and-tooling-resource-group
 title: Review domain, local AI, and tooling resources for optional module opportunities
-status: backlog
+status: done
 priority: p3
 area: modules
 summary: Revisit historical resources for domain-specific services, local inference, forecasting, browser/search, and productivity tooling to identify realistic optional modules or adapter patterns.
 created_at: 2026-04-11T01:49:31Z
-updated_at: 2026-04-11T01:49:31Z
+updated_at: 2026-04-11T16:35:00Z
 ---
 
 ## Problem
