@@ -1,12 +1,12 @@
 ---
 id: task-add-google-workspace-module-tests
 title: Add test coverage for the google-workspace module
-status: backlog
+status: done
 priority: p2
 area: testing
 summary: The google-workspace module has five source files (auth, gmail, calendar, drive, index) with real OAuth logic and zero tests.
 created_at: 2026-04-11T17:03:00Z
-updated_at: 2026-04-11T17:03:00Z
+updated_at: 2026-04-11T20:18:00Z
 ---
 
 ## Problem
