@@ -15,6 +15,10 @@ import {
   assertStrategicReadyCoverage,
 } from "#modules/repo-tasks/task-queue-validation.js";
 import { assertRepoWorktreeClean } from "#root/repo-worktree.js";
+import {
+  readLastExplorationAt,
+  writeLastExplorationAt,
+} from "./explorer-state.js";
 
 export const agent: AgentDef = {
   name: "explorer",
@@ -39,12 +43,12 @@ type ExplorerAssessment = {
 
 function buildExplorerAssessment(
   projectDir: string,
-  lastCompletedAt: string | undefined,
+  lastExplorationAt: string | undefined,
 ): ExplorerAssessment {
   const queue = getRepoTaskQueueSnapshot(projectDir);
   const explorationRefreshDue =
-    !lastCompletedAt ||
-    Date.now() - new Date(lastCompletedAt).getTime() >= EXPLORATION_REFRESH_MS;
+    !lastExplorationAt ||
+    Date.now() - new Date(lastExplorationAt).getTime() >= EXPLORATION_REFRESH_MS;
   const queueEmpty = queue.inboxCount === 0 && queue.pullableCount === 0;
   const queueThin = isThinPullQueue(queue);
 
@@ -58,11 +62,11 @@ function buildExplorerAssessment(
 const inspectQueue = typedCodeStep<ExplorerAssessment>({
   id: "inspect-queue",
   type: "code",
-  run: ({ projectDir, readRuntimeState }) => {
+  run: ({ projectDir }) => {
     assertRepoWorktreeClean(projectDir);
     return buildExplorerAssessment(
       projectDir,
-      readRuntimeState().workflows.explorer?.lastCompletedAt,
+      readLastExplorationAt(projectDir),
     );
   },
 });
@@ -113,6 +117,14 @@ const explorerWorkflow: WorkflowDefinitionInput = {
             run: ({ projectDir }) => assertStrategicReadyCoverage(projectDir),
           },
         ],
+      },
+    },
+    {
+      id: "record-exploration",
+      type: "code",
+      when: stepSucceeded("explore"),
+      run: ({ projectDir }) => {
+        writeLastExplorationAt(projectDir);
       },
     },
     {

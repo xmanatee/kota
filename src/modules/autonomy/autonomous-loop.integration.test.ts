@@ -120,6 +120,13 @@ function seedFixtureProject(projectDir: string): void {
     }),
   );
 
+  // Explorer now measures refresh from a file-based timestamp instead of
+  // lastCompletedAt, so seed that too.
+  writeFileSync(
+    join(projectDir, ".kota/explorer-state.json"),
+    JSON.stringify({ lastExplorationAt: tenMinutesAgo }),
+  );
+
   // Trivial package.json so end-of-step validation checks pass instantly when
   // the workflow runs shell commands with cwd: projectDir (exit 0 for all scripts).
   writeFileSync(

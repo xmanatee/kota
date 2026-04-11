@@ -1,7 +1,7 @@
 ---
 id: task-fix-explorer-refresh-starvation
 title: Fix explorer refresh starvation on empty queues
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Explorer no-op runs update the workflow lastCompletedAt timestamp, so the 30-minute exploration refresh never becomes due while dispatcher keeps enqueueing skipped explorer runs.
