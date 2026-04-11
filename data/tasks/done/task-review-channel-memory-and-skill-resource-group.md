@@ -1,12 +1,12 @@
 ---
 id: task-review-channel-memory-and-skill-resource-group
 title: Review channel, memory, and skill resources against KOTA module APIs
-status: backlog
+status: done
 priority: p2
 area: modules
 summary: Revisit historical resources around Chat SDK adapters, channels, memory, ontology, and skill ecosystems to check whether KOTA's module APIs cover them cleanly.
 created_at: 2026-04-11T01:49:31Z
-updated_at: 2026-04-11T01:49:31Z
+updated_at: 2026-04-11T14:10:00Z
 ---
 
 ## Problem

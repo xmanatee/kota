@@ -62,7 +62,13 @@ channels architecture in the daemon.
 | Claude Code channels model (code.claude.com) | **Adopted** — `src/core/channels/` implements the channel concept. |
 | Telegram UI plugin (clawhub.ai) | **Adopted** — `src/modules/telegram/` with status-poll and approval-callback. |
 
-**Follow-up:** `task-review-channel-memory-and-skill-resource-group` (backlog, p2) covers whether module APIs are broad enough for future adapters.
+**API review (April 2026):** The `ChannelDef`/`ChannelAdapter`/`ChannelSession`
+API is sufficient for current adapters (Telegram, Slack, Vercel, email). Each
+adapter manages its own user-session map and credentials. Minor gaps noted for
+future adapters: no user-identity propagation in `ChannelStartContext`, no
+channel-level middleware hooks, and adapters reimplement busy-state tracking
+independently. These are not blocking — future adapters can follow the existing
+pattern. No follow-up task created; revisit if a new adapter hits a real wall.
 
 **Done tasks:** `task-google-workspace-module`, `task-split-google-workspace-module`.
 
@@ -126,7 +132,18 @@ resources confirmed the design direction.
 
 **Done tasks:** `task-mcp-resources-knowledge-memory`, `task-mcp-server-resources`.
 
-**Follow-up:** `task-review-channel-memory-and-skill-resource-group` (backlog, p2).
+**API review (April 2026):** Memory extensibility is good — `ProviderRegistry`
+supports pluggable backends for memory, knowledge, task, and history via typed
+provider interfaces. Temporal filtering (`since`) exists on MemoryStore.
+`KnowledgeEntry` supports flat metadata with tags, types, and optional `meta`
+fields but has no relational/linking capability between entries. Ontology-style
+graph storage (lat.md, clawhub ontology) would require a `relationships` field
+on `KnowledgeEntry` — not blocking current use cases but would improve
+long-horizon reasoning if needed later. Episodic memory patterns are partially
+addressed by conversation history compaction and temporal memory filtering.
+No follow-up task created — the current flat model is sufficient for KOTA's
+needs. Revisit if agent reasoning requires causal or relational knowledge
+traversal.
 
 ---
 
@@ -186,7 +203,15 @@ Skill import was one of the directly adopted ideas from the packet.
 
 **Done task:** `task-skill-import-command`.
 
-**Follow-up:** `task-review-channel-memory-and-skill-resource-group` (backlog, p2) includes skill ecosystem coverage.
+**API review (April 2026):** The skill system works for basic use (import,
+list, global injection) but has one concrete gap: `AgentDef.skills` is declared
+but never resolved — all module skills are injected globally into every agent
+via `getSkillsPrompt()` in loop-init. Agent-scoped skill injection would let
+specialized agents receive only relevant guidance. Follow-up task created:
+`task-agent-scoped-skill-injection` (backlog, p2). Other gaps (versioning,
+dependency declarations, validation) are not blocking at current scale. The
+skill-vetter pattern remains interesting for future trust/validation if the
+imported skill count grows.
 
 ---
 
