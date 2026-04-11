@@ -57,12 +57,9 @@ export const ROOT_PRODUCTION_ALLOWLIST = new Set([
   "cli.ts",
   "cli-history.ts",
   "cli-history-commands.ts",
-  "delegate-prompts.ts",
   "init.ts",
   "module-api.ts",
-  "project-detection.ts",
   "validate-queue.ts",
-  "workspace.ts",
 ]);
 
 export function checkModuleBoundary(projectDir: string): string {

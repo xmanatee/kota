@@ -14,7 +14,7 @@ const { mockRunner } = vi.hoisted(() => ({
   mockRunner: vi.fn<(input: Record<string, unknown>) => Promise<{ content: string; is_error?: boolean }>>(),
 }));
 
-vi.mock("./delegate-prompts.js", () => {
+vi.mock("#core/agents/delegate-prompts.js", () => {
   const testShellTool = { name: "shell", description: "test shell", input_schema: { type: "object", properties: { command: { type: "string" } } } };
   const testRunners = {
     shell: (input: Record<string, unknown>) => mockRunner(input),

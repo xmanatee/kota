@@ -9,7 +9,7 @@ import {
   getExploreToolSet,
   getResearchToolSet,
   RESEARCH_PROMPT,
-} from "./delegate-prompts.js";
+} from "#core/agents/delegate-prompts.js";
 
 describe("buildSubAgentPrompt", () => {
   const base = "You are a research assistant.";

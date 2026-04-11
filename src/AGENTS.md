@@ -4,7 +4,7 @@
 
 - `src/core/` is the kernel: loop, workflow runtime, daemon runtime, event bus, tool runtime, and module protocol/lifecycle.
 - `src/modules/` is for pluggable project modules.
-- A small number of root `src/*.ts` files may remain as public entrypoints or thin repo-wide glue (`cli.ts`, `init.ts`, `module-api.ts`, `validate-queue.ts`). Everything else should prefer `src/core/` or `src/modules/`.
+- A small number of root `src/*.ts` files may remain as public entrypoints or thin repo-wide glue. The production allowlist is: `cli.ts`, `cli-history.ts`, `cli-history-commands.ts`, `init.ts`, `module-api.ts`, `validate-queue.ts`. Everything else should prefer `src/core/` or `src/modules/`.
 
 Guidelines:
 

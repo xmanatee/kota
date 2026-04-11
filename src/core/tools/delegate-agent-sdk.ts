@@ -4,14 +4,14 @@
  */
 
 import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
-import type { CostTracker } from "#core/loop/cost.js";
-import type { Transport } from "#core/loop/transport.js";
 import {
   buildSubAgentPrompt,
   EXECUTE_PROMPT,
   EXPLORE_PROMPT,
   type PromptConfig,
-} from "#root/delegate-prompts.js";
+} from "#core/agents/delegate-prompts.js";
+import type { CostTracker } from "#core/loop/cost.js";
+import type { Transport } from "#core/loop/transport.js";
 import {
   assembleDelegateResult,
   type CompletionReason,

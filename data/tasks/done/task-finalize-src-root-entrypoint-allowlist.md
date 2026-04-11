@@ -1,7 +1,7 @@
 ---
 id: task-finalize-src-root-entrypoint-allowlist
 title: Finalize the src root entrypoint allowlist
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: After helper clusters move out of src root, the remaining root files should be explicitly justified as entrypoints or moved to clearer owners.

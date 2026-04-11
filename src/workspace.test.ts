@@ -9,7 +9,7 @@ import {
   readAllEntries,
   readEntry,
   writeEntry,
-} from "./workspace.js";
+} from "#core/tools/workspace-store.js";
 
 afterEach(() => clearAllWorkspaces());
 

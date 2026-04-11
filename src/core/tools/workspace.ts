@@ -6,6 +6,7 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
+import type { ToolRegistration, ToolResult } from "./index.js";
 import {
   clearAllWorkspaces,
   createWorkspace,
@@ -15,8 +16,7 @@ import {
   readAllEntries,
   readEntry,
   writeEntry,
-} from "#root/workspace.js";
-import type { ToolRegistration, ToolResult } from "./index.js";
+} from "./workspace-store.js";
 
 export const workspaceTool: Anthropic.Tool = {
   name: "workspace",

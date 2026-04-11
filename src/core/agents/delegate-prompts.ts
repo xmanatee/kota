@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolResult } from "./core/tools/index.js";
-import { resolveToolSet } from "./core/tools/index.js";
-import { detectProject, getDirectoryOverview } from "./project-detection.js";
+import type { ToolResult } from "#core/tools/index.js";
+import { resolveToolSet } from "#core/tools/index.js";
+import { detectProject, getDirectoryOverview } from "#core/util/project-detection.js";
 
 // --- Sub-agent system prompts ---
 

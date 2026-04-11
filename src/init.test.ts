@@ -33,12 +33,12 @@ vi.mock("./core/daemon/scheduler.js", () => ({
   })),
 }));
 
+import { detectEnvironment, detectProject, getDirectoryOverview } from "#core/util/project-detection.js";
 import { getScheduler } from "./core/daemon/scheduler.js";
 import { getTaskStore } from "./core/daemon/task-store.js";
 import { getHistory } from "./core/memory/history.js";
 import { getMemoryStore } from "./core/memory/store.js";
 import { buildSessionWarmup } from "./init.js";
-import { detectEnvironment, detectProject, getDirectoryOverview } from "./project-detection.js";
 
 const mocked = vi.mocked(getMemoryStore);
 const mockedHistory = vi.mocked(getHistory);
