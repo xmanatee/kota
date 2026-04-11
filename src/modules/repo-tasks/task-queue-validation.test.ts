@@ -389,6 +389,25 @@ Has an outcome.
     expect(finding?.paths).toContain(join("data", "tasks", "ready", "task-alpha.md"));
     expect(finding?.paths).not.toContain(join("data", "tasks", "done", "task-archived.md"));
   });
+
+  it("rejects active guidance that optimizes for small diffs over clean outcomes", () => {
+    mkdirSync(join(projectDir, "docs"), { recursive: true });
+    writeFileSync(join(projectDir, "AGENTS.md"), "# Root\n\nUse pnpm.\n");
+    writeFileSync(join(projectDir, "docs", "STANDARDS.md"), "Prefer the smallest patch.\n");
+    writeTask(projectDir, "ready", "task-alpha", { summary: "Make a surgical fix." });
+    writeTask(projectDir, "done", "task-archived", { status: "done", summary: "Old minimal diff note." });
+    execSync("git add data docs AGENTS.md && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    const finding = result.findings.find((f) => f.code === "active-guidance-optimizes-small-diffs");
+
+    expect(finding?.paths).toContain("docs/STANDARDS.md");
+    expect(finding?.paths).toContain(join("data", "tasks", "ready", "task-alpha.md"));
+    expect(finding?.paths).not.toContain(join("data", "tasks", "done", "task-archived.md"));
+  });
 });
 
 describe("current repo task queue", () => {

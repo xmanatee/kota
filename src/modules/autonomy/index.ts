@@ -10,8 +10,7 @@ import type {
 } from "#core/workflow/types.js";
 
 type AutonomyWorkflowModule = {
-  default?: WorkflowDefinitionInput;
-  workflow?: WorkflowDefinitionInput;
+  default: WorkflowDefinitionInput;
   agent?: AgentDef;
 };
 
@@ -35,12 +34,15 @@ async function discoverAutonomyWorkflowModules(): Promise<
       workflowDirUrl,
       "workflow",
     );
-    if (!loaded) continue;
-    const workflow = loaded.default ?? loaded.workflow;
-    if (!workflow) continue;
+    if (!loaded) {
+      throw new Error(`Autonomy workflow "${name}" must provide workflow.ts`);
+    }
+    if (!loaded.default) {
+      throw new Error(`Autonomy workflow "${name}" must export a default workflow definition`);
+    }
     modules.push({
       name,
-      workflow,
+      workflow: loaded.default,
       agent: loaded.agent,
     });
   }

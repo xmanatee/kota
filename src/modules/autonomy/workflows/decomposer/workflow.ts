@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
@@ -10,7 +10,7 @@ import { runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared
 
 export const agent: AgentDef = {
   name: "decomposer",
-  role: "Decompose oversized tasks that caused builder timeouts into smaller, builder-scoped subtasks.",
+  role: "Decompose builder-timeout tasks into coherent task sequences.",
   promptPath: "src/modules/autonomy/workflows/decomposer/prompt.md",
   model: "claude-opus-4-6",
   tools: { permissionMode: "bypassPermissions" },
@@ -21,23 +21,21 @@ export const agent: AgentDef = {
 const TIMEOUT_THRESHOLD_MS = 45 * 60 * 1000;
 
 export type DecomposerAssessment = {
-  shouldDecompose: boolean;
   reason: string;
   failedRunId: string;
   failedRunDir: string;
-  taskId: string | null;
-  taskPath: string | null;
   isTimeout: boolean;
-};
+} & (
+  | { shouldDecompose: false }
+  | { shouldDecompose: true; taskId: string; taskPath: string }
+);
 
 function findTaskInState(projectDir: string, state: string): { id: string; path: string } | null {
   const dir = join(projectDir, "data", "tasks", state);
-  let entries: string[];
-  try {
-    entries = readdirSync(dir);
-  } catch {
+  if (!existsSync(dir)) {
     return null;
   }
+  const entries = readdirSync(dir);
   const taskFile = entries.find((f) => f.startsWith("task-") && f.endsWith(".md"));
   if (!taskFile) return null;
   const id = taskFile.replace(/\.md$/, "");
@@ -50,15 +48,13 @@ function isTimeoutShaped(metadata: WorkflowRunMetadata): boolean {
 
   if (buildStep.durationMs >= TIMEOUT_THRESHOLD_MS) return true;
 
-  const errorPath = join(metadata.runDir, "error.txt");
   const stepError = buildStep.error ?? "";
   if (/time.?out|timed.?out|deadline.?exceeded/i.test(stepError)) return true;
 
-  try {
+  const errorPath = join(metadata.runDir, "error.txt");
+  if (existsSync(errorPath)) {
     const errorTxt = readFileSync(errorPath, "utf-8");
     if (/time.?out|timed.?out|deadline.?exceeded/i.test(errorTxt)) return true;
-  } catch {
-    // no error.txt
   }
 
   return false;
@@ -72,15 +68,7 @@ function buildAssessment(
   const runId = triggerPayload.runId as string | undefined;
 
   if (!runDir || !runId) {
-    return {
-      shouldDecompose: false,
-      reason: "Trigger payload missing runDir or runId",
-      failedRunId: runId ?? "",
-      failedRunDir: runDir ?? "",
-      taskId: null,
-      taskPath: null,
-      isTimeout: false,
-    };
+    throw new Error("Decomposer trigger payload must include runDir and runId");
   }
 
   const metadataPath = join(projectDir, runDir, "metadata.json");
@@ -92,8 +80,6 @@ function buildAssessment(
       reason: `Could not read run metadata at ${metadataPath}`,
       failedRunId: runId,
       failedRunDir: runDir,
-      taskId: null,
-      taskPath: null,
       isTimeout: false,
     };
   }
@@ -106,15 +92,10 @@ function buildAssessment(
       reason: "Builder failure does not look timeout-shaped",
       failedRunId: runId,
       failedRunDir: runDir,
-      taskId: null,
-      taskPath: null,
       isTimeout: false,
     };
   }
 
-  // Find the task that was being worked on. Builder moves the task to doing/
-  // before working on it. If the builder timed out mid-work, the task is
-  // likely still in doing/ or was moved to blocked/.
   const doingTask = findTaskInState(projectDir, "doing");
   const blockedTask = doingTask ? null : findTaskInState(projectDir, "blocked");
   const task = doingTask ?? blockedTask;
@@ -125,8 +106,6 @@ function buildAssessment(
       reason: "No task found in doing/ or blocked/ to decompose",
       failedRunId: runId,
       failedRunDir: runDir,
-      taskId: null,
-      taskPath: null,
       isTimeout: true,
     };
   }
@@ -151,7 +130,7 @@ const assessFailure = typedCodeStep<DecomposerAssessment>({
 const decomposerWorkflow: WorkflowDefinitionInput = {
   name: "decomposer",
   description:
-    "Decompose oversized tasks that caused builder timeouts into smaller, builder-scoped subtasks.",
+    "Decompose builder-timeout tasks into coherent task sequences.",
   triggers: [
     {
       event: "workflow.completed",

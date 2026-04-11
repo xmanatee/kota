@@ -99,7 +99,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
     const harness = new WorkflowTestHarness(prReviewerWorkflow, {
       trigger: makeTrigger({ action: "synchronize" }),
       stepMocks: {
-        review: { turns: [], totalCostUsd: 0.03 },
+        review: { recommendation: "approve" },
       },
     });
 
@@ -118,7 +118,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
     const harness = new WorkflowTestHarness(prReviewerWorkflow, {
       trigger: makeTrigger(),
       stepMocks: {
-        review: { turns: [], totalCostUsd: 0.05 },
+        review: { recommendation: "approve" },
       },
     });
 
@@ -139,7 +139,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
     const harness = new WorkflowTestHarness(prReviewerWorkflow, {
       trigger: makeTrigger(),
       stepMocks: {
-        review: { turns: [], totalCostUsd: 0.05 },
+        review: { recommendation: "approve" },
       },
     });
 
@@ -164,18 +164,17 @@ describe("pr-reviewer workflow — assess-pr step", () => {
     expect(emitted).toBeUndefined();
   });
 
-  it("proceeds when isFork is null — treats absent head.repo as non-fork (safe default)", async () => {
-    // isFork=null means the webhook didn't include head.repo info — treat as non-fork (safe default)
+  it("skips when explicit fork status is missing", async () => {
     const harness = new WorkflowTestHarness(prReviewerWorkflow, {
       trigger: makeTrigger({ isFork: null }),
-      stepMocks: {
-        review: { turns: [], totalCostUsd: 0.02 },
-      },
     });
 
     const result = await harness.run();
 
-    expect(result.steps["assess-pr"].output).toMatchObject({ skip: false });
-    expect(result.steps.review.status).toBe("success");
+    expect(result.steps["assess-pr"].output).toMatchObject({
+      skip: true,
+      skipReason: expect.stringContaining("fork status"),
+    });
+    expect(result.steps.review.status).toBe("skipped");
   });
 });

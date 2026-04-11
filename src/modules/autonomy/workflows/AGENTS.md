@@ -8,7 +8,8 @@ This directory contains the autonomy workflows and their co-located prompts.
 - Keep prompts short. Durable policy belongs here or in nearby docs, not repeated
   in every `prompt.md`.
 - `workflow.ts` in each workflow directory is the source of truth for that workflow.
-- If a workflow uses a named agent, export that agent from the same `workflow.ts`.
+- Workflow modules must default-export their workflow definition. If a workflow
+  uses a named agent, export that agent from the same file.
 - These workflows are discovered from this directory by the autonomy module. Do not add a separate registry for them.
 
 ## Self-Trigger Loop Risk
@@ -18,34 +19,17 @@ cannot match its own completion payload. A self-matching completion trigger
 creates an infinite loop that hangs the runtime and the test suite. The
 validation layer enforces this at definition load time as a hard error.
 
-## Per-Step Timeout
+## Runtime Rails
 
-All step types except `parallel` groups have an optional `timeoutMs` field (defined on
-`WorkflowBaseStep`). `WorkflowParallelGroup` does not extend `WorkflowBaseStep` and therefore
-has no `timeoutMs`; parallel groups run outside `executeWorkflowStep` and are not subject to the
-default timeout. When a non-parallel step does not complete within the deadline, the run fails
-with a descriptive error and the normal failure path executes — failed run record,
-`workflow.failure.alert` emitted, operator notified.
-
-When `timeoutMs` is not specified, `DEFAULT_STEP_TIMEOUT_MS` (30 minutes) applies automatically.
-Set a larger value on known long-running agent steps; the builder's `build` step uses 60 minutes
-as a reference example.
-
-The timeout is enforced in two places:
-- **agent, code, tool, emit, restart, trigger steps**: enforced by `executeWorkflowStep` in `run-executor-step.ts` via a per-step `AbortController` and `Promise.race` timeout guard.
-- **branch and foreach group steps**: enforced directly in `run-executor.ts` with the same `AbortController` + `Promise.race` timeout guard; the step-level abort is forwarded to all inner steps.
-- **parallel groups**: `WorkflowParallelGroup` does not extend `WorkflowBaseStep` and has no `timeoutMs`; parallel groups are not subject to the per-step timeout.
-
-A step timeout causes run status `"failed"`, not `"interrupted"` — distinguishable from an external abort.
+Timeouts, trigger validation, dirty-worktree recovery, and repair-loop checks
+are runtime rails, not prompt policy. Keep workflow code explicit and typed;
+keep prompts focused on the agent's role.
 
 ## Unit Testing
 
-Each workflow should have a co-located `workflow.test.ts` that uses `WorkflowTestHarness`
-(exported from `kota/testing`) to test `when` predicate and skip/run logic without a running
-daemon. Focus on the decisions the workflow makes — which steps run, which skip, and why —
-not on the agent step content itself (mock those via `stepMocks`).
-
-See `builder/workflow.test.ts` and `explorer/workflow.test.ts` for representative examples.
+Each workflow should have a co-located `workflow.test.ts` for `when` predicate
+and skip/run logic when that logic is non-trivial. Focus on decisions the
+workflow makes, not on agent step content.
 
 If a workflow has no `when` predicates or non-trivial skip logic, a unit test adds little value;
 rely on the integration test below instead.
@@ -76,9 +60,6 @@ Workflow repair-loop checks should use `type: "code"` with `spawnSync` rather th
 The `shell` tool lives in the execution module and is not guaranteed to be available in every
 workflow execution context. `type: "code"` checks run inline in the workflow process and have no
 tool-availability dependency.
-
-When migrating a tool out of core into a module, check whether any repair-loop checks in
-this subtree still reference that tool by name — if so, update them in the same commit.
 
 ## Dirty Failure Recovery
 

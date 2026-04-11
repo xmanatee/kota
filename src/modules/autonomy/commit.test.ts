@@ -83,24 +83,27 @@ describe("commitWorkflowChanges", () => {
     expect(log).toBe("Builder: my custom message");
   });
 
-  it("commits working tree changes with a default message when commit-message.txt is absent", () => {
+  it("requires commit-message.txt when there are working tree changes", () => {
     writeFileSync(join(projectDir, "change.txt"), "hello\n");
 
-    const result = commitWorkflowChanges(projectDir, runDirPath);
-    expect(result).toEqual({ committed: true, message: "Workflow: update repo" });
+    expect(() => commitWorkflowChanges(projectDir, runDirPath)).toThrow(
+      "Missing required workflow commit message",
+    );
 
-    const log = execSync("git log --format=%s -1", {
+    const stagedFiles = execSync("git diff --cached --name-only", {
       cwd: projectDir,
       encoding: "utf-8",
     }).trim();
-    expect(log).toBe("Workflow: update repo");
+    expect(stagedFiles).toBe("");
   });
 
-  it("unstages changes when git commit fails", () => {
+  it("rejects an empty commit message before staging changes", () => {
     writeFileSync(join(projectDir, "change.txt"), "hello\n");
     writeFileSync(join(runDirPath, "commit-message.txt"), "");
 
-    expect(() => commitWorkflowChanges(projectDir, runDirPath)).toThrow();
+    expect(() => commitWorkflowChanges(projectDir, runDirPath)).toThrow(
+      "Workflow commit message must not be empty",
+    );
 
     const stagedFiles = execSync("git diff --cached --name-only", {
       cwd: projectDir,

@@ -1,10 +1,10 @@
 ---
 id: task-agent-scoped-skill-injection
-title: Wire agent-declared skills into per-agent prompt injection
+title: Make agent skill injection explicit and scoped
 status: backlog
 priority: p2
 area: core
-summary: AgentDef.skills is declared but never resolved into agent prompts; all skills are injected globally regardless of agent scope.
+summary: AgentDef.skills is declared but never resolved into agent prompts; skill injection should be explicit per agent instead of silently global.
 created_at: 2026-04-11T14:10:00Z
 updated_at: 2026-04-11T14:10:00Z
 ---
@@ -21,15 +21,14 @@ assembly. All module-contributed skills are concatenated into a single global
 
 ## Desired Outcome
 
-When an agent declares `skills: ["memory", "knowledge"]`, only those skills are
-injected into its system prompt. Agents with no `skills` field get all skills
-(backwards-compatible default). The global injection path in loop-init should
-respect this filtering.
+Agents declare the exact skill set they receive. A deliberate all-skills mode
+must be explicit rather than inferred from a missing field. The global injection
+path in loop-init should respect the declared scope.
 
 ## Constraints
 
-- Keep backwards compatibility: no `skills` field = all skills (current behavior).
-- Do not change the `SkillDef` type or module contribution protocol.
+- Do not use a missing `skills` field as an implicit all-skills default.
+- Do not change the `SkillDef` type unless the stricter agent contract requires it.
 - Keep the change in `src/core/loop/` or `src/core/agents/`.
 - Do not add a parallel skill resolution system.
 
@@ -37,5 +36,5 @@ respect this filtering.
 
 - Agent-declared skills are resolved and only those skills appear in the agent's
   system prompt.
-- Agents without a `skills` field still receive all skills.
+- Agents that should receive all skills declare that intent explicitly.
 - At least one existing agent definition uses the scoped `skills` field.

@@ -49,6 +49,12 @@ const ACTIVE_STEERING_FILES = [
 
 const ACTIVE_TASK_STATES: RepoTaskState[] = ["ready", "backlog", "doing", "blocked"];
 const DISALLOWED_NPM_COMMAND = /\bnpm\s+(?:run|test|install|i|ci|exec|start|build|lint|typecheck)\b/;
+const DISALLOWED_SMALL_DIFF_GUIDANCE = [
+  /\bsmall(?:est)?\s+(?:change|diff|patch|scope)\b/i,
+  /\bminimal\s+(?:change|diff|patch|scope)\b/i,
+  /\bsurgical\s+(?:change|fix|patch|scope)\b/i,
+  /\btouches more files than\b/i,
+] as const;
 
 function listTaskEntries(projectDir: string): TaskFileEntry[] {
   const entries: TaskFileEntry[] = [];
@@ -114,6 +120,15 @@ function listActivePackageManagerGuidanceFiles(projectDir: string): string[] {
 function findNpmPackageManagerGuidance(projectDir: string): string[] {
   return listActivePackageManagerGuidanceFiles(projectDir)
     .filter((path) => DISALLOWED_NPM_COMMAND.test(readFileSync(path, "utf8")))
+    .map((path) => path.slice(projectDir.length + 1));
+}
+
+function findSmallDiffOptimizingGuidance(projectDir: string): string[] {
+  return listActivePackageManagerGuidanceFiles(projectDir)
+    .filter((path) => {
+      const raw = readFileSync(path, "utf8");
+      return DISALLOWED_SMALL_DIFF_GUIDANCE.some((pattern) => pattern.test(raw));
+    })
     .map((path) => path.slice(projectDir.length + 1));
 }
 
@@ -416,6 +431,16 @@ export function validateTaskQueue(
       severity: "error",
       message: `Active guidance and open tasks must use pnpm, not npm: ${npmGuidancePaths.join(", ")}`,
       paths: npmGuidancePaths,
+    });
+  }
+
+  const smallDiffGuidancePaths = findSmallDiffOptimizingGuidance(projectDir);
+  if (smallDiffGuidancePaths.length > 0) {
+    findings.push({
+      code: "active-guidance-optimizes-small-diffs",
+      severity: "error",
+      message: `Active guidance and open tasks must optimize for clean outcomes, not small diffs: ${smallDiffGuidancePaths.join(", ")}`,
+      paths: smallDiffGuidancePaths,
     });
   }
 

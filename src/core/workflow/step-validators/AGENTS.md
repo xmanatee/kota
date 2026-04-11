@@ -1,7 +1,6 @@
 # Step Validators
 
-This directory contains per-step-type workflow validation functions, extracted from `validation-steps.ts`.
+This directory owns per-step-type workflow definition validation.
 
-- Each file validates one step type: agent, approval, branch, code, emit, foreach, parallel group, restart, tool, or trigger.
-- `index.ts` re-exports all validators and `VALID_MODEL_IDS` — import from there, not individual files.
+- Import validators through the directory entrypoint.
 - Keep each validator focused on its step type; shared primitives belong in `../validation-primitives.ts`.

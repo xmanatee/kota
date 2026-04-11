@@ -25,7 +25,7 @@ const CRITIC_SYSTEM_PROMPT = `You are a calibrated code review critic. Your job 
 
 - **Completeness**: Does the work address everything the task requires? Are all "Done When" criteria met?
 - **Honesty**: Does the task status match reality? If the task says "done", is the work actually done?
-- **Consistency**: Do the changes match what the task asked for? Are there half-finished migrations, stale references, or contradictions between the task description and the actual changes?
+- **Consistency**: Do the changes match what the task asked for? Are there half-finished transitions, stale references, or contradictions between the task description and the actual changes?
 - **Missed obligations**: If the task mentions updating docs, tests, or config — were those updates made?
 
 ## What you do NOT check

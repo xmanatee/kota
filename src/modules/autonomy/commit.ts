@@ -1,13 +1,10 @@
 import { execSync } from "node:child_process";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-export type CommitResult = {
-  committed: boolean;
-  message?: string;
-};
-
-const DEFAULT_COMMIT_MESSAGE = "Workflow: update repo";
+export type CommitResult =
+  | { committed: false }
+  | { committed: true; message: string };
 
 function runGit(projectDir: string, command: string): string {
   return execSync(command, {
@@ -34,25 +31,28 @@ function unstageAfterFailedCommit(projectDir: string, commitError: unknown): voi
 
 /**
  * Stages all working tree changes and commits them.
- * Reads the commit message from `<runDirPath>/commit-message.txt` if present,
- * otherwise falls back to a default message.
+ * Requires `<runDirPath>/commit-message.txt` when there is anything to commit.
  * Returns `{ committed: false }` when there is nothing to commit.
  */
 export function commitWorkflowChanges(
   projectDir: string,
   runDirPath: string,
 ): CommitResult {
-  execSync("git add -A", { cwd: projectDir, stdio: "pipe" });
-  const stagedFiles = runGit(projectDir, "git diff --cached --name-only");
+  const worktreeChanges = runGit(projectDir, "git status --porcelain=v1");
 
-  if (!stagedFiles) {
+  if (!worktreeChanges) {
     return { committed: false };
   }
 
   const msgPath = join(runDirPath, "commit-message.txt");
   if (!existsSync(msgPath)) {
-    writeFileSync(msgPath, DEFAULT_COMMIT_MESSAGE);
+    throw new Error(`Missing required workflow commit message: ${msgPath}`);
   }
+  if (readFileSync(msgPath, "utf8").trim().length === 0) {
+    throw new Error(`Workflow commit message must not be empty: ${msgPath}`);
+  }
+
+  execSync("git add -A", { cwd: projectDir, stdio: "pipe" });
 
   try {
     runGit(projectDir, `git commit -F ${JSON.stringify(msgPath)}`);

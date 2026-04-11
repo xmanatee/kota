@@ -13,29 +13,38 @@ export const agent: AgentDef = {
 };
 
 type PrWebhookPayload = {
-  repo: string | null;
-  action: string | null;
-  number: number | null;
-  title: string | null;
-  headBranch: string | null;
-  baseBranch: string | null;
-  isFork: boolean | null;
+  repo?: unknown;
+  action?: unknown;
+  number?: unknown;
+  title?: unknown;
+  headBranch?: unknown;
+  baseBranch?: unknown;
+  isFork?: unknown;
 };
 
-export type PrReviewAssessment = {
-  skip: boolean;
-  skipReason?: string;
-  repo: string;
-  prNumber: number;
-  headBranch: string;
-  baseBranch: string;
-  title: string;
-};
+export type PrReviewAssessment =
+  | { skip: true; skipReason: string }
+  | {
+      skip: false;
+      repo: string;
+      prNumber: number;
+      headBranch: string;
+      baseBranch: string;
+      title: string;
+    };
 
 const REVIEWABLE_ACTIONS = new Set(["opened", "synchronize"]);
 
-function isKotaTaskBranch(branch: string | null): branch is string {
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isKotaTaskBranch(branch: unknown): branch is string {
   return typeof branch === "string" && branch.startsWith("kota/task/");
+}
+
+function skip(skipReason: string): PrReviewAssessment {
+  return { skip: true, skipReason };
 }
 
 const assessPr = typedCodeStep<PrReviewAssessment>({
@@ -44,28 +53,23 @@ const assessPr = typedCodeStep<PrReviewAssessment>({
   run: ({ trigger }) => {
     const p = trigger.payload as PrWebhookPayload;
 
-    const base: Omit<PrReviewAssessment, "skip"> = {
-      repo: p.repo ?? "",
-      prNumber: p.number ?? 0,
-      headBranch: p.headBranch ?? "",
-      baseBranch: p.baseBranch ?? "main",
-      title: p.title ?? "",
-    };
-
-    if (!REVIEWABLE_ACTIONS.has(p.action ?? "")) {
-      return { skip: true, skipReason: `action '${p.action}' is not reviewable`, ...base };
+    if (!isNonEmptyString(p.action) || !REVIEWABLE_ACTIONS.has(p.action)) {
+      return skip(`action '${String(p.action)}' is not reviewable`);
     }
-
     if (!isKotaTaskBranch(p.headBranch)) {
-      return { skip: true, skipReason: `head branch '${p.headBranch}' is not a kota/task/* branch`, ...base };
+      return skip(`head branch '${String(p.headBranch)}' is not a kota/task/* branch`);
     }
-
     if (p.isFork === true) {
-      return { skip: true, skipReason: "PR is from a fork — skipping automated review", ...base };
+      return skip("PR is from a fork — skipping automated review");
     }
-
-    if (!p.repo || p.number == null) {
-      return { skip: true, skipReason: "missing repo or PR number in webhook payload", ...base };
+    if (p.isFork !== false) {
+      return skip("missing explicit fork status in webhook payload");
+    }
+    if (!isNonEmptyString(p.repo) || typeof p.number !== "number") {
+      return skip("missing repo or PR number in webhook payload");
+    }
+    if (!isNonEmptyString(p.baseBranch) || !isNonEmptyString(p.title)) {
+      return skip("missing base branch or title in webhook payload");
     }
 
     return {
@@ -73,8 +77,8 @@ const assessPr = typedCodeStep<PrReviewAssessment>({
       repo: p.repo,
       prNumber: p.number,
       headBranch: p.headBranch,
-      baseBranch: p.baseBranch ?? "main",
-      title: p.title ?? "",
+      baseBranch: p.baseBranch,
+      title: p.title,
     };
   },
 });
@@ -108,13 +112,22 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
       event: "workflow.pr.review.posted",
       payload: (ctx) => {
         const assessment = assessPr.output(ctx);
+        if (assessment.skip) {
+          throw new Error("pr-reviewer cannot emit review event for skipped assessment");
+        }
         const reviewOutput = ctx.stepOutputs.review as
-          | { recommendation?: string }
+          | { recommendation: unknown }
           | undefined;
+        if (
+          reviewOutput?.recommendation !== "approve" &&
+          reviewOutput?.recommendation !== "request-changes"
+        ) {
+          throw new Error("pr-reviewer output must include recommendation: approve or request-changes");
+        }
         return {
           prNumber: assessment.prNumber,
           repo: assessment.repo,
-          recommendation: reviewOutput?.recommendation ?? "unknown",
+          recommendation: reviewOutput.recommendation,
         };
       },
     },

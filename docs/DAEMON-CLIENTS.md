@@ -121,15 +121,11 @@ That means:
 - one session control model
 - one workflow control model
 
-## Migration Direction
+## Direction
 
-1. ✓ Formalize the daemon API and its ownership boundaries.
-2. ✓ Move live status/control off file scraping and onto the daemon API.
-3. ✓ Split CLI into standalone mode and daemon-client mode.
-4. ✓ Make the web/server surface daemon-backed instead of a parallel runtime.
-5. Add thin native/web/mobile clients on top of the same protocol.
-   - ✓ macOS menu bar app (`clients/macos/`) — SwiftUI MenuBarExtra, polls daemon API.
-   - iOS/Android mobile client — design complete (`docs/MOBILE-CLIENT-DESIGN.md`); implementation pending.
+New clients should be thin daemon clients. They should reuse the same control
+API, event streams, auth model, and session semantics instead of adding a
+second runtime or scraping local files.
 
 ## External Anchors
 

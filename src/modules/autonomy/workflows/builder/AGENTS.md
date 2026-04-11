@@ -9,22 +9,10 @@ This directory contains the builder workflow definition and its prompt.
 - Tasks define the contract and constraints; the implementing agent owns the detailed plan.
 - Changes here shape the default autonomous development behavior.
 - Work directly in this repository — no worktrees. Sub-agents must also work without isolation.
-- Lightweight validation rails should do most of the consistency work here.
-- Do not rely on hardcoded pre-agent task moves or scope policing
-  when the same issue can be handled by honest task state and end-of-step
-  validation.
+- Prefer validation rails over hardcoded pre-agent task moves or scope policing.
 
 ## Success Criteria
 
-The builder agent must declare success criteria before implementing and verify
-them after. Two files in the run directory enforce this:
-
-- `success-criteria.txt` — written before implementation. Contains concrete,
-  verifiable conditions (at least 2). Checked by the `success-criteria-declared`
-  repair check.
-- `success-criteria-verified.txt` — written after implementation. Confirms each
-  criterion is satisfied with evidence. Checked by the `success-criteria-verified`
-  repair check.
-
-Both checks run as part of the repair loop alongside build, typecheck, lint,
-and test checks. The agent cannot complete a run without satisfying them.
+The builder must declare concrete success criteria before implementation and
+verify them with evidence before completion. Repair-loop checks enforce both
+artifacts.

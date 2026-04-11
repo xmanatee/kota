@@ -77,6 +77,9 @@ queue state are shared daemon/runtime primitives and belong in `src/core/`.
   correct pattern for any module that needs to inject state into the agent's
   context window without creating a direct core-to-module import.
 - Prefer typed code protocols over parallel DSLs.
+- Prefer strict protocols over permissive coercion. Internal malformed data
+  should fail loudly; adapters at external boundaries should normalize once and
+  expose explicit typed results.
 - Remove duplicate public surfaces instead of keeping aliases.
 - Autonomy uses the same `agent`, `workflow`, and `module` model as everything
   else. Do not add a second public automation engine beside workflows.
@@ -136,11 +139,7 @@ the daemon and route traffic to sessions. Clients such as a native macOS app,
 CLI daemon mode, web dashboard, or mobile app are not channels unless they also
 own message routing for sessions.
 
-`ChannelSession`, `ChannelAdapter`, and `ChannelDef` are defined in
-`src/core/channels/channel.ts`. `ChannelAdapter` is the runtime interface (`start`/`stop`);
-`ChannelDef` is the module contribution descriptor (name, description, and
-a `create(ctx: ChannelStartContext)` factory). New channels should use these
-types and be contributed via `KotaModule.channels`.
+New channels should use the channel protocol and be contributed by modules.
 
 ## External Anchors
 

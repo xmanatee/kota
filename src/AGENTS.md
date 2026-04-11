@@ -2,37 +2,18 @@
 
 `src/` has two layers:
 
-- `src/core/` is the kernel: loop, workflow runtime, daemon runtime, event bus, tool runtime, and module protocol/lifecycle.
-- `src/modules/` is for pluggable project modules.
-- A small number of root `src/*.ts` files may remain as public entrypoints or thin repo-wide glue. The production allowlist is: `cli.ts`, `cli-history.ts`, `cli-history-commands.ts`, `init.ts`, `module-api.ts`, `validate-queue.ts`. Everything else should prefer `src/core/` or `src/modules/`.
+- `src/core/` is the small runtime kernel: protocols, lifecycle, daemon,
+  workflow execution, eventing, sessions, and shared contracts.
+- `src/modules/` contains project-owned modules that contribute tools,
+  workflows, agents, skills, channels, routes, commands, and services.
+
+Root `src/*.ts` files should stay rare and act only as public entrypoints or
+thin repo-wide glue.
 
 Guidelines:
 
-- Keep `src/core/` small and protocol-oriented.
-- Put swappable features in `src/modules/<name>/`.
-- Avoid new root-level buckets under `src/`.
-- Use local `AGENTS.md` files before changing a subtree.
-
-Kernel areas:
-
-- `src/core/agents/`
-- `src/core/channels/`
-- `src/core/config/`
-- `src/core/daemon/`
-- `src/core/events/`
-- `src/core/loop/`
-- `src/core/model/`
-- `src/core/modules/`
-- `src/core/tools/`
-- `src/core/workflow/`
-- `src/core/agent-sdk/`
-- `src/core/data/`
-- `src/core/file-tracking/`
-- `src/core/util/`
-
-Project modules:
-
-- `src/modules/<name>/` owns the code, skills, agents, workflows, routes, and commands for that unit.
-- Operator surfaces should use `*-ops` names when they expose CLI/control surfaces for a kernel concept.
-
-Do not add aliases, parallel surfaces, or compatibility wrappers between core and modules.
+- Keep `src/core/` protocol-oriented.
+- Put swappable features in modules.
+- Avoid aliases, compatibility wrappers, and parallel surfaces between core and
+  modules.
+- Read the local `AGENTS.md` before changing a subtree.
