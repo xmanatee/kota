@@ -15,7 +15,7 @@ vi.mock("#core/loop/context.js", () => ({
 vi.mock("./guardrails.js", () => ({
   assess: vi.fn(),
 }));
-vi.mock("#root/confirm.js", () => ({
+vi.mock("#core/util/confirm.js", () => ({
   confirmAction: vi.fn(),
 }));
 const tryEmitMock = vi.hoisted(() => vi.fn());
@@ -33,7 +33,7 @@ vi.mock("#core/config/secrets.js", () => ({
 
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { truncateToolResult } from "#core/loop/context.js";
-import { confirmAction } from "#root/confirm.js";
+import { confirmAction } from "#core/util/confirm.js";
 import { assess } from "./guardrails.js";
 import { executeTool } from "./index.js";
 

@@ -15,7 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   enrichWithSourceContext,
   extractFileReferences,
-} from "./error-context.js";
+} from "#modules/execution/error-context.js";
 import { smartErrorTruncate } from "./modules/execution/shell-diagnostics.js";
 
 const TMP = join(tmpdir(), `kota-pipeline-${process.pid}`);

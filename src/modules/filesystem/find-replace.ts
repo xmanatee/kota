@@ -4,7 +4,7 @@ import { glob } from "glob";
 import { recordModification } from "#core/file-tracking/file-tracker.js";
 import { trackFileChange } from "#core/loop/file-changes.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
-import { lintFile } from "#root/lint.js";
+import { lintFile } from "./lint.js";
 
 const MAX_FILES = 50;
 const MAX_GLOB = 1000;

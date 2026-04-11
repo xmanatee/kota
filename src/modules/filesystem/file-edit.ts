@@ -3,13 +3,13 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { checkFreshness, recordModification } from "#core/file-tracking/file-tracker.js";
 import { trackFileChange } from "#core/loop/file-changes.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
-import { lintFile } from "#root/lint.js";
-import { fileNotFoundError } from "#root/path-resolver.js";
 import { printEditDiff } from "./diff.js";
 import {
   buildNotFoundMessage,
   tryWhitespaceMatch,
 } from "./file-edit-helpers.js";
+import { lintFile } from "./lint.js";
+import { fileNotFoundError } from "./path-resolver.js";
 
 export const fileEditTool: Anthropic.Tool = {
   name: "file_edit",

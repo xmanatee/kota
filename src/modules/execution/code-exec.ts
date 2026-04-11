@@ -3,9 +3,9 @@ import { promisify } from "node:util";
 import type Anthropic from "@anthropic-ai/sdk";
 import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "#core/data/code-wrappers.js";
 import { extractPlots, readPlotFiles } from "#core/data/plot-capture.js";
+import { cleanupSessions, findPythonBinary, type Language, type REPLSession, sessions } from "#core/tools/repl-session.js";
 import { which } from "#core/tools/runtime-check.js";
 import type { ToolResult, ToolResultBlock } from "#core/tools/tool-result.js";
-import { cleanupSessions, findPythonBinary, type Language, type REPLSession, sessions } from "#root/repl-session.js";
 
 export { cleanupSessions };
 

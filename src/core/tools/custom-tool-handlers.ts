@@ -6,7 +6,6 @@
 import { existsSync, unlinkSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
 import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "#core/data/code-wrappers.js";
-import { sessions } from "#root/repl-session.js";
 import {
   type CustomToolDef,
   getToolPath,
@@ -15,6 +14,7 @@ import {
   saveToDisk,
   validateName,
 } from "./custom-tool-persistence.js";
+import { sessions } from "./repl-session.js";
 
 export type ToolResult = { content: string; is_error?: boolean };
 

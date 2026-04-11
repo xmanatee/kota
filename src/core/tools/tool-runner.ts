@@ -5,7 +5,7 @@ import { tryEmit } from "#core/events/event-bus.js";
 import { truncateToolResult } from "#core/loop/context.js";
 import type { Transport } from "#core/loop/transport.js";
 import type { McpManager } from "#core/mcp/manager.js";
-import { confirmAction } from "#root/confirm.js";
+import { confirmAction } from "#core/util/confirm.js";
 import { assess, type GuardrailsConfig } from "./guardrails.js";
 import type { ToolResultBlock } from "./index.js";
 import { executeTool } from "./index.js";

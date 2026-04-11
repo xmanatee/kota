@@ -4,8 +4,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { recordModification } from "#core/file-tracking/file-tracker.js";
 import { trackFileChange } from "#core/loop/file-changes.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
-import { lintFile } from "#root/lint.js";
 import { printWriteSummary } from "./diff.js";
+import { lintFile } from "./lint.js";
 
 export const fileWriteTool: Anthropic.Tool = {
   name: "file_write",

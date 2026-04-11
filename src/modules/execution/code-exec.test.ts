@@ -374,7 +374,7 @@ ModuleNotFoundError: No module named 'pandas'`;
 
     it("findPythonBinary result flows into detectPackageHint for non-venv path", async () => {
       // Cross-module: findPythonBinary from repl-session feeds into detectPackageHint
-      const { findPythonBinary } = await import("#root/repl-session.js");
+      const { findPythonBinary } = await import("#core/tools/repl-session.js");
       const bin = findPythonBinary("/nonexistent/path/no/venv/here");
       const output = "ModuleNotFoundError: No module named 'requests'";
       const hint = detectPackageHint(output, "python", bin);

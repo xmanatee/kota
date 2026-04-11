@@ -1,7 +1,7 @@
 ---
 id: task-consolidate-root-tool-execution-helpers
 title: Move root tool and execution helpers into owning modules or core tools
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Root helpers such as lint, path-resolver, repl-session, confirm, and error-context are used by tools/modules but still live outside clear core or module ownership.

@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
+import { confirmAction } from "#core/util/confirm.js";
 import { interactiveMode, parseIntOption, resolveConversationId } from "./cli-history.js";
-import { confirmAction } from "./confirm.js";
 import { getHistory } from "./core/memory/history.js";
 import { createModelClient } from "./core/model/model-client.js";
 
