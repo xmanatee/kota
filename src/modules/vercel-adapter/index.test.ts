@@ -42,6 +42,8 @@ describe("vercel-adapter module", () => {
       registerMiddleware: () => {},
     registerDynamicStateProvider: () => {},
     registerCleanupHook: () => {},
+    resolveAgentDef: () => undefined,
+    resolveSkillsPrompt: () => "",
   };
 
     const routes = vercelAdapterModule.routes!(ctx);

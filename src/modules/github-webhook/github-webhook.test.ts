@@ -39,6 +39,8 @@ function makeStubCtx(
     registerMiddleware: () => {},
     registerDynamicStateProvider: () => {},
     registerCleanupHook: () => {},
+    resolveAgentDef: () => undefined,
+    resolveSkillsPrompt: () => "",
   };
 }
 

@@ -80,8 +80,9 @@ function buildAgentCommand(ctx: ModuleContext): Command {
       console.log(`Role:       ${agent.role}`);
       if (agent.model) console.log(`Model:      ${agent.model}`);
       console.log(`Prompt:     ${agent.promptPath}`);
-      if (agent.skills && agent.skills.length > 0) {
-        console.log(`Skills:     ${agent.skills.join(", ")}`);
+      if (agent.skills) {
+        const display = agent.skills === "all" ? "all" : agent.skills.join(", ");
+        console.log(`Skills:     ${display}`);
       }
       if (agent.writeScope && agent.writeScope.length > 0) {
         console.log(`WriteScope: ${agent.writeScope.join(", ")}`);

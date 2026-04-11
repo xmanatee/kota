@@ -8,11 +8,13 @@ export function buildClaudeCodeSystemPrompt(
   extraInstructions?: string,
   startDir?: string,
   rootDir?: string,
+  skillsPrompt?: string,
 ): SDKSystemPrompt {
   const sections = [
     loadProjectContext(startDir, rootDir),
     loadInstructionContext(startDir, rootDir),
     config ? buildUserProfile(config) : "",
+    skillsPrompt ?? "",
     extraInstructions?.trim()
       ? `\n\n## Autonomous Agent Instructions\n\n${extraInstructions.trim()}`
       : "",

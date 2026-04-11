@@ -1,3 +1,4 @@
+import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { detectCostAnomaly } from "./cost-anomaly-detector.js";
@@ -39,6 +40,8 @@ export type RunExecutorDeps = {
     waitFor: "queued" | "completed",
     signal?: AbortSignal,
   ) => Promise<{ runId: string; status: "queued" | "completed" | "failed"; childOutput?: unknown }>;
+  resolveAgentDef?: (name: string) => AgentDef | undefined;
+  resolveSkillsPrompt?: (skillNames: string[] | "all") => string;
 };
 
 export function executeWorkflowRun(
@@ -110,6 +113,8 @@ export function executeWorkflowRun(
           config: deps.config,
           projectDir: deps.projectDir,
           log: deps.log,
+          resolveAgentDef: deps.resolveAgentDef,
+          resolveSkillsPrompt: deps.resolveSkillsPrompt,
         };
 
         if (!(await shouldRunStep(step, context))) {

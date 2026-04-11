@@ -52,8 +52,8 @@ export type AgentDef = {
   promptPath: string;
   /** Model to use when running this agent. */
   model: string;
-  /** Names of skills this agent uses. */
-  skills?: string[];
+  /** Names of skills this agent uses. Use "all" to receive every registered skill. */
+  skills?: string[] | "all";
   /** Tool access policy. */
   tools?: AgentToolPolicy;
   /** Directories this agent may write to (relative to project root). Empty = unrestricted. */

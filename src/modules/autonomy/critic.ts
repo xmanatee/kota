@@ -105,6 +105,30 @@ function parseVerdict(text: string): CriticVerdict {
   };
 }
 
+function handleVerdict(verdict: CriticVerdict, runDir?: string): string {
+  if (runDir && (verdict.warnings.length > 0 || verdict.critical_issues.length > 0)) {
+    writeFileSync(
+      join(runDir, "critic-review.json"),
+      JSON.stringify(verdict, null, 2),
+    );
+  }
+
+  if (verdict.verdict === "fail" && verdict.critical_issues.length > 0) {
+    throw new Error(
+      `Critic found ${verdict.critical_issues.length} critical issue(s):\n` +
+        verdict.critical_issues.map((issue, i) => `  ${i + 1}. ${issue}`).join("\n") +
+        (verdict.summary ? `\n\nSummary: ${verdict.summary}` : ""),
+    );
+  }
+
+  const parts = [`OK: critic verdict — ${verdict.verdict}`];
+  if (verdict.summary) parts.push(verdict.summary);
+  if (verdict.warnings.length > 0) {
+    parts.push(`(${verdict.warnings.length} warning(s) recorded in critic-review.json)`);
+  }
+  return parts.join(". ");
+}
+
 /**
  * Creates a critic repair check for agent work. Intended to be the last check
  * in a repair loop so it runs after all mechanical validations have passed.
@@ -166,32 +190,21 @@ export function createCriticCheck(options?: {
         write: () => true,
       });
       if (response.isError) {
+        // The critic has no tools and should finish in one turn, but the SDK
+        // sometimes reports error_max_turns anyway. If the response contains
+        // parseable verdict text, use it instead of crashing.
+        if (response.text.trim()) {
+          try {
+            const recovered = parseVerdict(response.text);
+            // Parsed successfully — fall through to normal verdict handling.
+            return handleVerdict(recovered, runDir);
+          } catch { /* not parseable — throw original error below */ }
+        }
         throw new Error(`Critic agent failed: ${response.text.trim() || response.subtype || "unknown error"}`);
       }
 
       const verdict = parseVerdict(response.text);
-
-      if (runDir && (verdict.warnings.length > 0 || verdict.critical_issues.length > 0)) {
-        writeFileSync(
-          join(runDir, "critic-review.json"),
-          JSON.stringify(verdict, null, 2),
-        );
-      }
-
-      if (verdict.verdict === "fail" && verdict.critical_issues.length > 0) {
-        throw new Error(
-          `Critic found ${verdict.critical_issues.length} critical issue(s):\n` +
-            verdict.critical_issues.map((issue, i) => `  ${i + 1}. ${issue}`).join("\n") +
-            (verdict.summary ? `\n\nSummary: ${verdict.summary}` : ""),
-        );
-      }
-
-      const parts = [`OK: critic verdict — ${verdict.verdict}`];
-      if (verdict.summary) parts.push(verdict.summary);
-      if (verdict.warnings.length > 0) {
-        parts.push(`(${verdict.warnings.length} warning(s) recorded in critic-review.json)`);
-      }
-      return parts.join(". ");
+      return handleVerdict(verdict, runDir);
     },
   };
 }

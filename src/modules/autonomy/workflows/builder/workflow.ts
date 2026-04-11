@@ -17,6 +17,7 @@ export const agent: AgentDef = {
   role: "Ship one cohesive improvement per run by resuming, pulling, or promoting one normalized task.",
   promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
   model: "claude-opus-4-6",
+  skills: "all",
   tools: { permissionMode: "bypassPermissions" },
   settingSources: ["project"],
 };

@@ -34,6 +34,8 @@ function makeStubCtx(bus?: EventBus, webhookConfig?: unknown): ModuleContext {
     registerMiddleware: () => {},
     registerDynamicStateProvider: () => {},
     registerCleanupHook: () => {},
+    resolveAgentDef: () => undefined,
+    resolveSkillsPrompt: () => "",
   };
 }
 

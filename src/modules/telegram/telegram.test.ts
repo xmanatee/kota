@@ -43,6 +43,8 @@ function makeStubCtx(bus?: EventBus): ModuleContext {
     registerMiddleware: () => {},
     registerDynamicStateProvider: () => {},
     registerCleanupHook: () => {},
+    resolveAgentDef: () => undefined,
+    resolveSkillsPrompt: () => "",
   };
 }
 

@@ -1,3 +1,4 @@
+import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { getSecretStore } from "#core/config/secrets.js";
@@ -25,6 +26,8 @@ export interface ModuleContextParams {
   getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
   getContributedChannels: () => ChannelDef[];
   getModuleSummaries: () => ModuleSummary[];
+  resolveAgentDef: (name: string) => AgentDef | undefined;
+  resolveSkillsPrompt: (skillNames: string[] | "all") => string;
   sessionFactory: ((opts: CreateSessionOptions) => ModuleSession) | null;
   callTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
 }
@@ -58,7 +61,7 @@ function createEventProxy(
 }
 
 export function createModuleContext(params: ModuleContextParams, moduleName?: string): ModuleContext {
-  const { cwd, verbose, config, moduleStorages, getBus, getRoutes, getContributedWorkflows, getContributedChannels, getModuleSummaries, sessionFactory, callTool } = params;
+  const { cwd, verbose, config, moduleStorages, getBus, getRoutes, getContributedWorkflows, getContributedChannels, getModuleSummaries, resolveAgentDef, resolveSkillsPrompt, sessionFactory, callTool } = params;
   const storage = moduleName
     ? getOrCreateStorage(moduleName, cwd, moduleStorages)
     : new ModuleStorage(cwd, "_default");
@@ -140,5 +143,7 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
     registerCleanupHook: (fn) => {
       registerCleanupHook(moduleName ?? "_default", fn);
     },
+    resolveAgentDef,
+    resolveSkillsPrompt,
   };
 }

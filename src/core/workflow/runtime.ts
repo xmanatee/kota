@@ -44,6 +44,8 @@ export class WorkflowRuntime {
   private readonly codeConcurrency: number;
   private readonly model?: string;
   private readonly config?: KotaConfig;
+  private readonly resolveAgentDef?: (name: string) => import("#core/agents/agent-types.js").AgentDef | undefined;
+  private readonly resolveSkillsPrompt?: (skillNames: string[] | "all") => string;
 
   private readonly onLog?: (message: string) => void;
   private workflowInputs?: readonly RegisteredWorkflowDefinitionInput[];
@@ -78,6 +80,8 @@ export class WorkflowRuntime {
     this.codeConcurrency = runtimeConfig.codeConcurrency ?? 4;
     this.model = runtimeConfig.model;
     this.config = runtimeConfig.config;
+    this.resolveAgentDef = runtimeConfig.resolveAgentDef;
+    this.resolveSkillsPrompt = runtimeConfig.resolveSkillsPrompt;
 
     this.onLog = runtimeConfig.onLog;
     this.workflowInputs = runtimeConfig.workflows;

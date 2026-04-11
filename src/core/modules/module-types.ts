@@ -178,6 +178,10 @@ export type ModuleContext = {
   registerDynamicStateProvider: (name: string, fn: () => string) => void;
   /** Register synchronous cleanup that should run before a session closes. */
   registerCleanupHook: (fn: () => void) => void;
+  /** Look up a registered agent definition by name. */
+  resolveAgentDef: (name: string) => AgentDef | undefined;
+  /** Build the skills prompt for a set of skill names or "all". */
+  resolveSkillsPrompt: (skillNames: string[] | "all") => string;
 };
 
 /**

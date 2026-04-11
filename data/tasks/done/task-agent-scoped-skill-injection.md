@@ -1,7 +1,7 @@
 ---
 id: task-agent-scoped-skill-injection
 title: Make agent skill injection explicit and scoped
-status: backlog
+status: done
 priority: p2
 area: core
 summary: AgentDef.skills is declared but never resolved into agent prompts; skill injection should be explicit per agent instead of silently global.

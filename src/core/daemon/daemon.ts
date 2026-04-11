@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, rmSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
+import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ChannelAdapter, ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { warnInvalidConcurrencyConfig, warnUnknownConfigKeys } from "#core/config/config-warnings.js";
@@ -52,6 +53,8 @@ export type DaemonConfig = {
    * Also controlled by KOTA_DAEMON_LOG_FORMAT=json env var.
    */
   logFormat?: LogFormat;
+  resolveAgentDef?: (name: string) => AgentDef | undefined;
+  resolveSkillsPrompt?: (skillNames: string[] | "all") => string;
 };
 
 export const RESTART_EXIT_CODE = 75;
@@ -106,6 +109,8 @@ export class Daemon {
       codeConcurrency: config.config?.scheduler?.codeConcurrency,
       onLog: (message) => this.log(message),
       workflows: config.workflows,
+      resolveAgentDef: config.resolveAgentDef,
+      resolveSkillsPrompt: config.resolveSkillsPrompt,
     });
 
     this.state = this.loadState() ?? {

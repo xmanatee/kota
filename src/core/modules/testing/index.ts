@@ -206,6 +206,8 @@ export class ModuleTestHarness {
         this.#dynamicStateProviders.set(name, fn);
       },
       registerCleanupHook: () => {},
+      resolveAgentDef: () => undefined,
+      resolveSkillsPrompt: () => "",
     };
   }
 }

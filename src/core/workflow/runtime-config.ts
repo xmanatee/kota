@@ -1,3 +1,4 @@
+import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { RegisteredWorkflowDefinitionInput } from "./types.js";
@@ -21,4 +22,6 @@ export type WorkflowRuntimeConfig = {
   codeConcurrency?: number;
   onLog?: (message: string) => void;
   workflows?: readonly RegisteredWorkflowDefinitionInput[];
+  resolveAgentDef?: (name: string) => AgentDef | undefined;
+  resolveSkillsPrompt?: (skillNames: string[] | "all") => string;
 };

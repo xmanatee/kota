@@ -5,6 +5,7 @@ import {
   executeWithAgentSDK,
 } from "#core/agent-sdk/index.js";
 import type { SDKMessage } from "#core/agent-sdk/types.js";
+import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import type { ToolResult } from "#core/tools/index.js";
@@ -37,6 +38,8 @@ export type AgentStepConfig = {
   config?: KotaConfig;
   projectDir: string;
   log?: (message: string) => void;
+  resolveAgentDef?: (name: string) => AgentDef | undefined;
+  resolveSkillsPrompt?: (skillNames: string[] | "all") => string;
 };
 
 export {
@@ -223,11 +226,21 @@ export async function executeAgentStep(
     priorStepOutputs,
   );
   const promptDir = dirname(resolve(agentConfig.projectDir, step.promptPath));
+
+  let skillsPrompt: string | undefined;
+  if (step.agentName && agentConfig.resolveAgentDef && agentConfig.resolveSkillsPrompt) {
+    const agentDef = agentConfig.resolveAgentDef(step.agentName);
+    if (agentDef?.skills) {
+      skillsPrompt = agentConfig.resolveSkillsPrompt(agentDef.skills);
+    }
+  }
+
   const systemPrompt = buildClaudeCodeSystemPrompt(
     agentConfig.config,
     agentPrompt.systemPromptAppend,
     promptDir,
     agentConfig.projectDir,
+    skillsPrompt,
   );
   const systemPromptAppend =
     typeof systemPrompt === "string" ? systemPrompt : systemPrompt.append;

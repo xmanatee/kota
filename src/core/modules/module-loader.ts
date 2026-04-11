@@ -47,7 +47,7 @@ export class ModuleLoader {
   private moduleSkillDefs = new Map<string, readonly SkillDef[]>();
   private moduleAgentDefs = new Map<string, readonly AgentDef[]>();
   private loadFailures = new Map<string, ModuleLoadFailure>();
-  private skillContents: string[] = [];
+  private skillContentsByName = new Map<string, string>();
   private contributedWorkflows: RegisteredWorkflowDefinitionInput[] = [];
   private contributedChannels: ChannelDef[] = [];
   private bus: EventBus | null = null;
@@ -100,6 +100,8 @@ export class ModuleLoader {
       getContributedWorkflows: () => this.getContributedWorkflows(),
       getContributedChannels: () => this.getContributedChannels(),
       getModuleSummaries: () => this.getModuleSummaries(),
+      resolveAgentDef: (name) => this.getAgentDef(name),
+      resolveSkillsPrompt: (names) => this.getSkillsPromptFor(names),
       sessionFactory: this.sessionFactory,
       callTool: async (name, input) => {
         if (this.toolCallDepth >= ModuleLoader.MAX_TOOL_CALL_DEPTH) {
@@ -180,7 +182,7 @@ export class ModuleLoader {
         for (const skill of skills) {
           try {
             const content = readFileSync(resolve(this.cwd, skill.promptPath), "utf8").trim();
-            if (content) this.skillContents.push(`### ${skill.name}\n${content}`);
+            if (content) this.skillContentsByName.set(skill.name, `### ${skill.name}\n${content}`);
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             console.error(`[kota] Module "${mod.name}" skill "${skill.name}" failed to load: ${msg}`);
@@ -283,8 +285,26 @@ export class ModuleLoader {
   }
 
   getSkillsPrompt(): string {
-    if (this.skillContents.length === 0) return "";
-    return `\n\n## Module Capabilities\n${this.skillContents.join("\n\n")}`;
+    return this.getSkillsPromptFor("all");
+  }
+
+  getSkillsPromptFor(skillNames: string[] | "all"): string {
+    if (this.skillContentsByName.size === 0) return "";
+    const entries = skillNames === "all"
+      ? [...this.skillContentsByName.values()]
+      : skillNames
+          .map((name) => this.skillContentsByName.get(name))
+          .filter((c): c is string => c !== undefined);
+    if (entries.length === 0) return "";
+    return `\n\n## Module Capabilities\n${entries.join("\n\n")}`;
+  }
+
+  getAgentDef(name: string): AgentDef | undefined {
+    for (const agents of this.moduleAgentDefs.values()) {
+      const found = agents.find((a) => a.name === name);
+      if (found) return found;
+    }
+    return undefined;
   }
 
   getModuleStorage(moduleName: string): ModuleStorage | undefined {

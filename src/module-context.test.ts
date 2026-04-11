@@ -319,6 +319,8 @@ describe("resolveModuleTools", () => {
     registerMiddleware: () => {},
     registerDynamicStateProvider: () => {},
     registerCleanupHook: () => {},
+    resolveAgentDef: () => undefined,
+    resolveSkillsPrompt: () => "",
   } as ModuleContext;
 
   it("returns empty array when tools is undefined", () => {

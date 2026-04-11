@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { AgentBackoffManager } from "./agent-backoff.js";
@@ -44,6 +45,8 @@ export interface WorkflowRuntimeDispatchState {
   model?: string;
   idleIntervalMs: number;
   workflowInputs?: readonly RegisteredWorkflowDefinitionInput[];
+  resolveAgentDef?: (name: string) => AgentDef | undefined;
+  resolveSkillsPrompt?: (skillNames: string[] | "all") => string;
   log(message: string): void;
 }
 
@@ -316,6 +319,8 @@ export async function runWorkflow(
     log: (message) => state.log(message),
     triggerWorkflow: (workflowName, payload, waitFor, signal) =>
       triggerWorkflowFromStep(state, workflowName, payload, waitFor, signal),
+    resolveAgentDef: state.resolveAgentDef,
+    resolveSkillsPrompt: state.resolveSkillsPrompt,
   });
   state.activeRuns.set(definition.name, { promise, abortController });
 
