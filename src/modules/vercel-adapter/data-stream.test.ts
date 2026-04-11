@@ -1,6 +1,6 @@
 import type { ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
-import { DATA_STREAM_HEADERS, DataStreamTransport, extractLastUserMessage } from "./vercel-ai-stream.js";
+import { DATA_STREAM_HEADERS, DataStreamTransport, extractLastUserMessage } from "./data-stream.js";
 
 function mockResponse(): { res: ServerResponse; chunks: string[]; closeHandlers: Array<() => void> } {
   const chunks: string[] = [];

@@ -1,7 +1,7 @@
 ---
 id: task-move-vercel-stream-into-vercel-adapter
 title: Move Vercel AI stream support into the Vercel adapter module
-status: backlog
+status: done
 priority: p2
 area: modules
 summary: Vercel AI Data Stream support lives at src/vercel-ai-stream.ts even though the Vercel adapter module owns that integration.

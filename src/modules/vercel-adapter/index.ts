@@ -17,7 +17,7 @@ import {
   DATA_STREAM_HEADERS,
   DataStreamTransport,
   extractLastUserMessage,
-} from "#root/vercel-ai-stream.js";
+} from "./data-stream.js";
 
 const vercelAdapterModule: KotaModule = {
   name: "vercel-adapter",

@@ -16,7 +16,7 @@
  */
 
 import type { ServerResponse } from "node:http";
-import type { AgentEvent, Transport } from "./core/loop/transport.js";
+import type { AgentEvent, Transport } from "#core/loop/transport.js";
 
 /** Writes AgentEvents as Vercel AI SDK Data Stream Protocol v1 lines. */
 export class DataStreamTransport implements Transport {
