@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { resolveScopedSearch } from "./path-scope.js";
+import { resolveScopedSearch } from "#core/util/path-scope.js";
 
 const INSTRUCTION_FILENAMES = ["AGENTS.md", "CLAUDE.md"] as const;
 type InstructionType = "AGENTS" | "CLAUDE";

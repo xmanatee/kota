@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { getRepoHeadSha } from "#root/repo-worktree.js";
+import { getRepoHeadSha } from "#core/util/repo-worktree.js";
 
 export const REPO_DATA_DIR = "data";
 export const REPO_TASKS_DIR = join(REPO_DATA_DIR, "tasks");

@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseFlatFrontMatter } from "./frontmatter.js";
+import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 
 const ROOT = process.cwd();
 const DATA_ROOT = join(ROOT, "data");

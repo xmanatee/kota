@@ -6,7 +6,7 @@ import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import { readLastExplorationAt, writeLastExplorationAt } from "./explorer-state.js";
 import explorerWorkflow, { EXPLORATION_REFRESH_MS } from "./workflow.js";
 
-vi.mock("#root/repo-worktree.js", () => ({
+vi.mock("#core/util/repo-worktree.js", () => ({
   assertRepoWorktreeClean: vi.fn(),
   getRepoWorktreeStatus: vi.fn(() => ({
     available: true,

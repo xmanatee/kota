@@ -1,13 +1,13 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { countRepoTaskState } from "#core/data/repo-tasks.js";
+import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
 import { PAUSE_SIGNAL_FILE } from "#core/workflow/runtime.js";
 import {
   computeCostByWorkflow,
   loadRecentRuns,
   type RunSummary,
 } from "#modules/autonomy/shared.js";
-import { readOptionalJsonFile, writeJsonFileAtomic } from "#root/json-file.js";
 
 const DIGEST_EVERY_N_RUNS = 10;
 const DEFAULT_COST_WARN_THRESHOLD_USD = 25;

@@ -3,7 +3,7 @@ import { networkInterfaces } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control-types.js";
-import { readOptionalJsonFile } from "#root/json-file.js";
+import { readOptionalJsonFile } from "#core/util/json-file.js";
 
 const require = createRequire(import.meta.url);
 

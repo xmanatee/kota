@@ -1,12 +1,12 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
+import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata, WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
-import { readOptionalJsonFile } from "#root/json-file.js";
 
 export const agent: AgentDef = {
   name: "decomposer",

@@ -3,7 +3,7 @@ import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import decomposerWorkflow from "./workflow.js";
 
-vi.mock("#root/json-file.js", () => ({
+vi.mock("#core/util/json-file.js", () => ({
   readOptionalJsonFile: vi.fn(),
 }));
 
@@ -72,7 +72,7 @@ describe("decomposer workflow", () => {
   });
 
   it("skips decompose when builder failure is not timeout-shaped", async () => {
-    const { readOptionalJsonFile } = await import("#root/json-file.js");
+    const { readOptionalJsonFile } = await import("#core/util/json-file.js");
     vi.mocked(readOptionalJsonFile).mockReturnValue(
       makeFailedBuilderMetadata({ buildDurationMs: 5 * 60 * 1000 }),
     );
@@ -114,7 +114,7 @@ describe("decomposer workflow", () => {
   });
 
   it("skips decompose when no task found in doing/ or blocked/", async () => {
-    const { readOptionalJsonFile } = await import("#root/json-file.js");
+    const { readOptionalJsonFile } = await import("#core/util/json-file.js");
     vi.mocked(readOptionalJsonFile).mockReturnValue(
       makeFailedBuilderMetadata({ buildDurationMs: 55 * 60 * 1000 }),
     );
@@ -145,7 +145,7 @@ describe("decomposer workflow", () => {
   });
 
   it("runs decompose when timeout-shaped failure with task in doing/", async () => {
-    const { readOptionalJsonFile } = await import("#root/json-file.js");
+    const { readOptionalJsonFile } = await import("#core/util/json-file.js");
     vi.mocked(readOptionalJsonFile).mockReturnValue(
       makeFailedBuilderMetadata({ buildDurationMs: 55 * 60 * 1000 }),
     );
@@ -183,7 +183,7 @@ describe("decomposer workflow", () => {
   });
 
   it("detects timeout from error text even when duration is short", async () => {
-    const { readOptionalJsonFile } = await import("#root/json-file.js");
+    const { readOptionalJsonFile } = await import("#core/util/json-file.js");
     vi.mocked(readOptionalJsonFile).mockReturnValue(
       makeFailedBuilderMetadata({
         buildDurationMs: 10 * 60 * 1000,
@@ -218,7 +218,7 @@ describe("decomposer workflow", () => {
   });
 
   it("falls back to blocked/ when doing/ is empty", async () => {
-    const { readOptionalJsonFile } = await import("#root/json-file.js");
+    const { readOptionalJsonFile } = await import("#core/util/json-file.js");
     vi.mocked(readOptionalJsonFile).mockReturnValue(
       makeFailedBuilderMetadata({ buildDurationMs: 55 * 60 * 1000 }),
     );
@@ -255,7 +255,7 @@ describe("decomposer workflow", () => {
   });
 
   it("skips commit when decompose step is skipped", async () => {
-    const { readOptionalJsonFile } = await import("#root/json-file.js");
+    const { readOptionalJsonFile } = await import("#core/util/json-file.js");
     vi.mocked(readOptionalJsonFile).mockReturnValue(
       makeFailedBuilderMetadata({ buildDurationMs: 5 * 60 * 1000 }),
     );
@@ -273,7 +273,7 @@ describe("decomposer workflow", () => {
   });
 
   it("runs request-restart when decompose succeeds and commit commits", async () => {
-    const { readOptionalJsonFile } = await import("#root/json-file.js");
+    const { readOptionalJsonFile } = await import("#core/util/json-file.js");
     vi.mocked(readOptionalJsonFile).mockReturnValue(
       makeFailedBuilderMetadata({ buildDurationMs: 55 * 60 * 1000 }),
     );
@@ -303,7 +303,7 @@ describe("decomposer workflow", () => {
   });
 
   it("skips request-restart when nothing was committed", async () => {
-    const { readOptionalJsonFile } = await import("#root/json-file.js");
+    const { readOptionalJsonFile } = await import("#core/util/json-file.js");
     vi.mocked(readOptionalJsonFile).mockReturnValue(
       makeFailedBuilderMetadata({ buildDurationMs: 55 * 60 * 1000 }),
     );

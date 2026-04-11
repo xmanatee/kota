@@ -7,7 +7,7 @@ import {
   REPO_TASKS_DIR,
   type RepoTaskState,
 } from "#core/data/repo-tasks.js";
-import { parseFlatFrontMatter } from "#root/frontmatter.js";
+import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 
 export type TaskQueueValidationSeverity = "error" | "warning";
 

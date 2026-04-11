@@ -1,10 +1,10 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { getRepoTaskQueueSnapshot, REPO_INBOX_DIR } from "#core/data/repo-tasks.js";
+import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { runCheck, stepSucceeded } from "#modules/autonomy/shared.js";
-import { getRepoWorktreeStatus } from "#root/repo-worktree.js";
 
 export const agent: AgentDef = {
   name: "inbox-sorter",

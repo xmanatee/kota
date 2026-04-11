@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { readOptionalJsonFile } from "./json-file.js";
+import { readOptionalJsonFile } from "#core/util/json-file.js";
 
 export type VerifyCommand = {
   label: string;

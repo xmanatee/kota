@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { getEligibleAtMs } from "./core/workflow/run-executor-utils.js";
 import { WorkflowRunStore } from "./core/workflow/run-store.js";
 import type {
@@ -10,7 +11,6 @@ import type {
   WorkflowStepResult,
 } from "./core/workflow/run-types.js";
 import type { WorkflowDefinition } from "./core/workflow/types.js";
-import { readOptionalJsonFile } from "./json-file.js";
 
 // Isolated test for the trigger command's core logic:
 // cooldown checks and queue writes via WorkflowRunStore.

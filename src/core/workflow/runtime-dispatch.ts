@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { KotaConfig } from "#core/config/config.js";
-import { getRepoWorktreeStatus } from "#root/repo-worktree.js";
+import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { AgentBackoffManager } from "./agent-backoff.js";
 import type { BudgetGuard } from "./budget-guard.js";
 import { isWithinDispatchWindow } from "./dispatch-window.js";

@@ -28,6 +28,7 @@ Kernel areas:
 - `src/core/agent-sdk/`
 - `src/core/data/`
 - `src/core/file-tracking/`
+- `src/core/util/`
 
 Project modules:
 

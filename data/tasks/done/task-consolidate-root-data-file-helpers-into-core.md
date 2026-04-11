@@ -1,12 +1,12 @@
 ---
 id: task-consolidate-root-data-file-helpers-into-core
 title: Move root data and file helper utilities into core
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Shared helpers such as json-file, frontmatter, repo-worktree, log-format, and path-scope still live in src/ root and are imported via #root by core and modules.
 created_at: 2026-04-11T01:44:06Z
-updated_at: 2026-04-11T01:44:06Z
+updated_at: 2026-04-11T03:50:00Z
 ---
 
 ## Problem

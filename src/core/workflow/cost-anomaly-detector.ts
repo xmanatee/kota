@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { readOptionalJsonFile, writeJsonFileAtomic } from "#root/json-file.js";
+import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
 import type { WorkflowRunStore } from "./run-store.js";
 
 const MIN_HISTORY_RUNS = 3;

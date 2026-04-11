@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import type { BusEnvelope } from "#core/events/event-bus.js";
-import { readOptionalJsonFile } from "#root/json-file.js";
+import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type {
   WorkflowRunMetadata,
   WorkflowRuntimeState,

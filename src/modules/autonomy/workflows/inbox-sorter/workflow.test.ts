@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import inboxSorterWorkflow from "./workflow.js";
 
-vi.mock("#root/repo-worktree.js", () => ({
+vi.mock("#core/util/repo-worktree.js", () => ({
   getRepoWorktreeStatus: vi.fn().mockReturnValue({
     available: true,
     dirty: false,

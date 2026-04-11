@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { resolveScopedSearch } from "./path-scope.js";
+import { resolveScopedSearch } from "#core/util/path-scope.js";
 
 const CONTEXT_FILENAME = ".kota.md";
 const MAX_CONTENT_LENGTH = 8_000;

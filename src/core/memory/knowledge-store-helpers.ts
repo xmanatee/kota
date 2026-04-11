@@ -3,7 +3,7 @@ import { join } from "node:path";
 import {
 	parseFlatFrontMatter,
 	serializeFlatFrontMatter,
-} from "#root/frontmatter.js";
+} from "#core/util/frontmatter.js";
 
 export type KnowledgeEntry = {
 	id: string;

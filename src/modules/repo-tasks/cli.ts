@@ -9,7 +9,7 @@ import {
 	REPO_TASK_STATES,
 	type RepoTaskState,
 } from "#core/data/repo-tasks.js";
-import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#root/frontmatter.js";
+import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 
 const OPEN_STATES: RepoTaskState[] = ["backlog", "ready", "doing", "blocked"];
 const TERMINAL_STATES: RepoTaskState[] = ["done", "dropped"];

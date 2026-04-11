@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { JsonFileError } from "#root/json-file.js";
+import { JsonFileError } from "#core/util/json-file.js";
 import { assertDaemonState } from "./daemon-state.js";
 
 const validState = {

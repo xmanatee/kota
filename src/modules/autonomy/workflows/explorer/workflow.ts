@@ -3,6 +3,7 @@ import {
   getRepoTaskQueueSnapshot,
   isThinPullQueue,
 } from "#core/data/repo-tasks.js";
+import { assertRepoWorktreeClean } from "#core/util/repo-worktree.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
@@ -14,7 +15,6 @@ import {
   assertArchitectureReadyCoverage,
   assertStrategicReadyCoverage,
 } from "#modules/repo-tasks/task-queue-validation.js";
-import { assertRepoWorktreeClean } from "#root/repo-worktree.js";
 import {
   readLastExplorationAt,
   writeLastExplorationAt,

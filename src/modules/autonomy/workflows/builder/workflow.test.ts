@@ -19,7 +19,7 @@ const builderAgentsContent = readFileSync(builderAgentsPath, "utf-8");
 const taskAgentsPath = fileURLToPath(new URL("../../../../../data/tasks/AGENTS.md", import.meta.url));
 const taskAgentsContent = readFileSync(taskAgentsPath, "utf-8");
 
-vi.mock("#root/repo-worktree.js", () => ({
+vi.mock("#core/util/repo-worktree.js", () => ({
   assertRepoWorktreeClean: vi.fn(),
   getRepoWorktreeStatus: vi.fn(() => ({
     available: true,
@@ -256,7 +256,7 @@ describe("builder workflow", () => {
     const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
-    const { getRepoHeadSha } = await import("#root/repo-worktree.js");
+    const { getRepoHeadSha } = await import("#core/util/repo-worktree.js");
     // Snapshot captured "abc1234" at start; agent then committed, changing HEAD
     vi.mocked(getRepoHeadSha).mockReturnValue("def5678");
 
@@ -322,7 +322,7 @@ describe("builder workflow", () => {
     const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
-    const { getRepoHeadSha } = await import("#root/repo-worktree.js");
+    const { getRepoHeadSha } = await import("#core/util/repo-worktree.js");
     vi.mocked(getRepoHeadSha).mockReturnValue("abc1234");
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
@@ -356,7 +356,7 @@ describe("builder workflow", () => {
     const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
-    const { getRepoHeadSha } = await import("#root/repo-worktree.js");
+    const { getRepoHeadSha } = await import("#core/util/repo-worktree.js");
     vi.mocked(getRepoHeadSha).mockReturnValue("abc1234");
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
@@ -396,7 +396,7 @@ describe("builder workflow", () => {
     const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
-    const { getRepoHeadSha } = await import("#root/repo-worktree.js");
+    const { getRepoHeadSha } = await import("#core/util/repo-worktree.js");
     vi.mocked(getRepoHeadSha).mockReturnValue("abc1234");
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
@@ -452,7 +452,7 @@ describe("builder workflow", () => {
     const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
-    const { getRepoHeadSha } = await import("#root/repo-worktree.js");
+    const { getRepoHeadSha } = await import("#core/util/repo-worktree.js");
     vi.mocked(getRepoHeadSha).mockReturnValue("abc1234");
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
@@ -495,7 +495,7 @@ describe("builder workflow", () => {
     const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
-    const { getRepoHeadSha } = await import("#root/repo-worktree.js");
+    const { getRepoHeadSha } = await import("#core/util/repo-worktree.js");
     vi.mocked(getRepoHeadSha).mockReturnValue("abc1234");
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
@@ -527,7 +527,7 @@ describe("builder workflow", () => {
     const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
 
-    const { getRepoHeadSha } = await import("#root/repo-worktree.js");
+    const { getRepoHeadSha } = await import("#core/util/repo-worktree.js");
     vi.mocked(getRepoHeadSha).mockReturnValue("abc1234");
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");

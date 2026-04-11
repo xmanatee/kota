@@ -11,7 +11,7 @@
  *   { "ts": "<ISO8601>", "level": "info|warn|error", "msg": "...", ...fields }
  */
 
-import type { LogFormat } from "#root/log-format.js";
+import type { LogFormat } from "#core/util/log-format.js";
 
 export type DaemonLogFields = {
   workflow?: string;
