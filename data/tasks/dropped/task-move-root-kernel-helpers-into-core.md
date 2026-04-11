@@ -1,11 +1,11 @@
 ---
 id: task-move-root-kernel-helpers-into-core
 title: "Move remaining root kernel helpers into core subtrees"
-status: blocked
+status: dropped
 priority: p2
 area: architecture
 summary: "src/ now has the right top-level directories, but too many kernel helpers still live as loose root files. Move the clearly kernel-owned ones into core subtrees so src/ reads as core plus modules instead of a mixed flat bucket."
-blocked_reason: "Task scope too broad for a single builder run — 112 loose .ts files in src/. Two consecutive builder timeouts (2026-04-10). Needs to be split into smaller, focused tasks (e.g., move config-related helpers, move CLI helpers, move test infrastructure) before re-queuing."
+dropped_reason: "Superseded by focused sub-tasks (config move, registry move, file-tracking move) which are all complete. Remaining ~25 non-test root files are mostly intentional entrypoints. Fresh assessment should create new scoped tasks if further moves are warranted."
 created_at: 2026-04-10T18:45:00Z
 updated_at: 2026-04-10T22:33:00Z
 ---

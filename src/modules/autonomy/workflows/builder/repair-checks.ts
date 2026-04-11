@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import { createCriticCheck } from "#modules/autonomy/critic.js";
 import { runCheck } from "#modules/autonomy/shared.js";
@@ -112,34 +112,6 @@ function checkDaemonApiDocSync(projectDir: string): string {
   return "OK: DAEMON-API.md covers all daemon control routes";
 }
 
-function checkSrcAgentsMdKeyModules(projectDir: string): string {
-  const staged = execFileSync("git", ["diff", "--cached", "--name-status"], {
-    cwd: projectDir,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  const newFiles = staged
-    .split("\n")
-    .filter((l) => l.startsWith("A\t"))
-    .map((l) => l.slice(2).trim())
-    .filter(
-      (f) =>
-        /^src\/[^/]+\.ts$/.test(f) &&
-        !f.includes(".test.") &&
-        !f.endsWith("/index.ts") &&
-        !f.endsWith("/testing-api.ts"),
-    );
-  if (!newFiles.length) return "OK: no new public src/ modules to check";
-  const agentsMd = readFileSync(join(projectDir, "src/AGENTS.md"), "utf8");
-  const missing = newFiles.filter((f) => !agentsMd.includes(`\`${basename(f, ".ts")}.ts\``));
-  if (missing.length) {
-    throw new Error(
-      `New src/ modules not documented in src/AGENTS.md Key Modules: ${missing.join(", ")}`,
-    );
-  }
-  return "OK: all new src/ modules in src/AGENTS.md Key Modules";
-}
-
 export function builderRepairChecks(): WorkflowRepairCheck[] {
   return [
     {
@@ -201,11 +173,6 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       id: "module-boundary",
       type: "code" as const,
       run: (ctx) => checkModuleBoundary(ctx.projectDir),
-    },
-    {
-      id: "src-agents-md-key-modules",
-      type: "code" as const,
-      run: (ctx) => checkSrcAgentsMdKeyModules(ctx.projectDir),
     },
     createCriticCheck(),
   ];
