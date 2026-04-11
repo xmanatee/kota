@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import { readLastExplorationAt, writeLastExplorationAt } from "./explorer-state.js";
-import explorerWorkflow from "./workflow.js";
+import explorerWorkflow, { EXPLORATION_REFRESH_MS } from "./workflow.js";
 
 vi.mock("#root/repo-worktree.js", () => ({
   assertRepoWorktreeClean: vi.fn(),
@@ -273,6 +273,12 @@ describe("explorer workflow", () => {
 
     // Timestamp unchanged — no new write happened
     expect(readLastExplorationAt(tempDir)).toBe(before);
+  });
+
+  it("trigger cooldowns match the exploration refresh window to prevent no-op churn", () => {
+    for (const trigger of explorerWorkflow.triggers) {
+      expect(trigger.cooldownMs).toBe(EXPLORATION_REFRESH_MS);
+    }
   });
 
   it("does not starve exploration when skipped runs repeatedly complete", async () => {

@@ -29,7 +29,7 @@ export const agent: AgentDef = {
   settingSources: ["project"],
 };
 
-const EXPLORATION_REFRESH_MS = 30 * 60 * 1000;
+export const EXPLORATION_REFRESH_MS = 30 * 60 * 1000;
 
 type ExplorerAssessment = {
   counts: ReturnType<typeof getRepoTaskQueueSnapshot>["counts"];
@@ -78,11 +78,11 @@ const explorerWorkflow: WorkflowDefinitionInput = {
   triggers: [
     {
       event: "autonomy.queue.empty",
-      cooldownMs: 5 * 60 * 1000,
+      cooldownMs: EXPLORATION_REFRESH_MS,
     },
     {
       event: "autonomy.queue.thin",
-      cooldownMs: 5 * 60 * 1000,
+      cooldownMs: EXPLORATION_REFRESH_MS,
     },
   ],
   steps: [

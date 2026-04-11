@@ -1,7 +1,7 @@
 ---
 id: task-reduce-empty-queue-noop-churn
 title: Reduce empty-queue no-op explorer churn
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Dispatcher currently wakes explorer every few minutes on an empty queue even when explorer will immediately skip; empty-queue scheduling should be quieter and more intentional.

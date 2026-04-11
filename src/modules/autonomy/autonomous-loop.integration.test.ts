@@ -303,12 +303,13 @@ describe("autonomous workflow loop integration", () => {
   );
 
   it(
-    "explorer skips agent step when exploration refresh is not due",
+    "explorer does not run when exploration refresh is not due (no-op churn eliminated)",
     { timeout: 10_000 },
     async () => {
-      // Clear ready tasks, backlog, and inbox so the dispatcher emits autonomy.queue.empty,
-      // which triggers the explorer. The explorer then skips the agent step because
-      // lastCompletedAt was 10 minutes ago (within the 30-minute refresh window).
+      // Clear ready tasks, backlog, and inbox so the dispatcher emits autonomy.queue.empty.
+      // The explorer trigger cooldown now matches the exploration refresh window (30 min),
+      // so with lastCompletedAt only 10 minutes ago, the explorer should not be eligible
+      // to run at all — eliminating the no-op churn of inspect-then-skip runs.
       for (const f of readdirSync(join(projectDir, "data/tasks/ready"))) {
         rmSync(join(projectDir, "data/tasks/ready", f));
       }
@@ -342,27 +343,7 @@ describe("autonomous workflow loop integration", () => {
         const meta = JSON.parse(readFileSync(join(runsDir, id, "metadata.json"), "utf-8"));
         return meta.workflow === "explorer";
       });
-      expect(explorerRunDir, "explorer run directory must exist").toBeDefined();
-
-      const explorerMeta = JSON.parse(
-        readFileSync(join(runsDir, explorerRunDir!, "metadata.json"), "utf-8"),
-      );
-      expect(explorerMeta.status).toBe("success");
-      expect(explorerMeta.workflow).toBe("explorer");
-
-      // inspect-queue step ran and returned the assessment
-      const inspectStep = JSON.parse(
-        readFileSync(join(runsDir, explorerRunDir!, "steps", "inspect-queue.json"), "utf-8"),
-      );
-      expect(inspectStep.status).toBe("success");
-      expect(inspectStep.output.needsAttention).toBe(false);
-      expect(inspectStep.output.explorationRefreshDue).toBe(false);
-
-      // explore agent step was skipped
-      const exploreStep = JSON.parse(
-        readFileSync(join(runsDir, explorerRunDir!, "steps", "explore.json"), "utf-8"),
-      );
-      expect(exploreStep.status).toBe("skipped");
+      expect(explorerRunDir, "explorer must NOT run when cooldown has not elapsed").toBeUndefined();
     },
   );
 });
