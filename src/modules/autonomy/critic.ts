@@ -182,7 +182,7 @@ export function createCriticCheck(options?: {
         model: CRITIC_MODEL,
         cwd: ctx.projectDir,
         systemPrompt: CRITIC_SYSTEM_PROMPT,
-        maxTurns: 2,
+        maxTurns: 3,
         allowedTools: [],
         permissionMode: "bypassPermissions",
         settingSources: ["project"],
