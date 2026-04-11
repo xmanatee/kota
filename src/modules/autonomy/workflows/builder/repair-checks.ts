@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import { createCriticCheck } from "#modules/autonomy/critic.js";
 import { runCheck } from "#modules/autonomy/shared.js";
+import { checkSourceEvidence } from "#modules/autonomy/source-evidence.js";
 
 export function checkSuccessCriteriaDeclared(runDirPath: string): string {
   const filePath = join(runDirPath, "success-criteria.txt");
@@ -184,6 +185,11 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       id: "success-criteria-verified",
       type: "code" as const,
       run: (ctx) => checkSuccessCriteriaVerified(ctx.workflow.runDirPath),
+    },
+    {
+      id: "source-evidence",
+      type: "code" as const,
+      run: (ctx) => checkSourceEvidence(ctx.projectDir, ctx.workflow.runDirPath),
     },
     {
       id: "build-output",

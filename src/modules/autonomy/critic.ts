@@ -1,14 +1,15 @@
 /**
- * Critic repair check: calls the Anthropic API to review agent work against
- * the original task, catching completeness gaps and inconsistencies that
- * mechanical checks miss.
+ * Critic repair check: reviews agent work against the original task, catching
+ * completeness gaps and inconsistencies that mechanical checks miss.
  */
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import Anthropic from "@anthropic-ai/sdk";
+import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
+import { formatSourceEvidenceForReview, requiredSourceUrls } from "./source-evidence.js";
+import { findTaskReviewTarget } from "./task-review-target.js";
 
 export type CriticVerdict = {
   verdict: "pass" | "fail" | "pass_with_warnings";
@@ -40,8 +41,9 @@ const CRITIC_SYSTEM_PROMPT = `You are a calibrated code review critic. Your job 
 
 - Only flag something as a critical issue if it represents a genuine gap: work that was required but not done, or a claim that is demonstrably false.
 - If the work is substantially complete but has a minor omission that doesn't affect correctness, use a warning, not a critical issue.
-- When in doubt, pass. False positives waste expensive agent cycles.
+- If required evidence is absent, fail rather than inferring completion from plausible-looking changes.
 - An empty diff with a moved task file is suspicious — the agent may not have done real work.
+- Source-backed tasks must prove required URLs were actually processed. Do not accept inaccessible or unread sources as done.
 
 Respond with ONLY a JSON object (no markdown fences) matching this schema:
 {
@@ -51,83 +53,37 @@ Respond with ONLY a JSON object (no markdown fences) matching this schema:
   "summary": "string — one sentence overall assessment"
 }`;
 
-function getTaskContent(projectDir: string): string | null {
-  // Check doing/ first — the task is here while the builder is mid-work.
-  const doingDir = join(projectDir, "data/tasks/doing");
-  if (existsSync(doingDir)) {
-    const doingFiles = readdirSync(doingDir).filter((f) => f.endsWith(".md") && f !== "AGENTS.md");
-    if (doingFiles.length > 0) {
-      return readFileSync(join(doingDir, doingFiles[0]), "utf8");
-    }
-  }
-
-  // The builder moves the task to done/ before repair checks run. Find the
-  // newly-staged done/ task from the git index so the critic can still review it.
-  try {
-    const status = execFileSync("git", ["diff", "--cached", "--name-status", "--", "data/tasks/done/"], {
-      cwd: projectDir,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    for (const line of status.split("\n")) {
-      const match = line.match(/^[AR]\S*\t.*\t?(data\/tasks\/done\/task-.+\.md)$/);
-      if (match?.[1]) {
-        const absPath = join(projectDir, match[1]);
-        if (existsSync(absPath)) return readFileSync(absPath, "utf8");
-      }
-    }
-  } catch {
-    // git not available or no staged changes — fall through
-  }
-
-  return null;
-}
-
 function getStagedDiff(projectDir: string): string {
-  try {
-    return execFileSync("git", ["diff", "--cached", "--stat"], {
-      cwd: projectDir,
-      encoding: "utf8",
-      maxBuffer: 50 * 1024,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-  } catch {
-    return "(unable to get diff stat)";
-  }
+  return execFileSync("git", ["diff", "--cached", "--stat"], {
+    cwd: projectDir,
+    encoding: "utf8",
+    maxBuffer: 50 * 1024,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
 }
 
 function getStagedDiffContent(projectDir: string): string {
-  try {
-    const diff = execFileSync("git", ["diff", "--cached"], {
-      cwd: projectDir,
-      encoding: "utf8",
-      maxBuffer: 200 * 1024,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    // Truncate if too large for the API context
-    if (diff.length > 80_000) {
-      return `${diff.slice(0, 80_000)}\n\n[... diff truncated at 80k chars ...]`;
-    }
-    return diff;
-  } catch {
-    return "(unable to get diff)";
+  const diff = execFileSync("git", ["diff", "--cached"], {
+    cwd: projectDir,
+    encoding: "utf8",
+    maxBuffer: 200 * 1024,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (diff.length > 80_000) {
+    return `${diff.slice(0, 80_000)}\n\n[... diff truncated at 80k chars ...]`;
   }
+  return diff;
 }
 
 function getChangedFiles(projectDir: string): string {
-  try {
-    return execFileSync("git", ["diff", "--cached", "--name-only"], {
-      cwd: projectDir,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-  } catch {
-    return "(unable to get changed files)";
-  }
+  return execFileSync("git", ["diff", "--cached", "--name-only"], {
+    cwd: projectDir,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
 }
 
 function parseVerdict(text: string): CriticVerdict {
-  // Strip markdown fences if present
   const cleaned = text.replace(/^```(?:json)?\s*\n?/m, "").replace(/\n?```\s*$/m, "").trim();
   let parsed: Record<string, unknown>;
   try {
@@ -150,9 +106,8 @@ function parseVerdict(text: string): CriticVerdict {
 }
 
 /**
- * Creates a critic repair check that calls the Anthropic API to review
- * agent work. Intended to be the last check in a repair loop so it runs
- * after all mechanical validations have passed.
+ * Creates a critic repair check for agent work. Intended to be the last check
+ * in a repair loop so it runs after all mechanical validations have passed.
  *
  * @param options.runDirPath - Path to the run directory for writing artifacts.
  *   If not provided, warnings are not persisted.
@@ -164,21 +119,33 @@ export function createCriticCheck(options?: {
     id: "critic-review",
     type: "code" as const,
     run: async (ctx) => {
-      const taskContent = getTaskContent(ctx.projectDir);
-      if (!taskContent) {
+      const target = findTaskReviewTarget(ctx.projectDir);
+      if (!target) {
         return "OK: no task in doing/ — skipping critic review";
       }
 
+      const taskContent = target.content;
       const diffStat = getStagedDiff(ctx.projectDir);
       const diffContent = getStagedDiffContent(ctx.projectDir);
       const changedFiles = getChangedFiles(ctx.projectDir);
+      const runDir = options?.runDirPath ?? ctx.workflow.runDirPath;
+      const sourceUrls = requiredSourceUrls(taskContent);
 
       const userMessage = [
         "## Task (what was asked)",
         taskContent,
         "",
+        "## Task state",
+        `${target.path} (${target.state})`,
+        "",
         "## Changed files",
         changedFiles,
+        "",
+        "## Required source URLs",
+        sourceUrls.length > 0 ? sourceUrls.join("\n") : "None.",
+        "",
+        "## Source evidence",
+        formatSourceEvidenceForReview(runDir),
         "",
         "## Diff summary",
         diffStat,
@@ -187,27 +154,23 @@ export function createCriticCheck(options?: {
         diffContent,
       ].join("\n");
 
-      if (!process.env.ANTHROPIC_API_KEY) {
-        return "OK: ANTHROPIC_API_KEY not set — skipping critic review";
+      const response = await executeWithAgentSDK(userMessage, {
+        model: CRITIC_MODEL,
+        cwd: ctx.projectDir,
+        systemPrompt: CRITIC_SYSTEM_PROMPT,
+        maxTurns: 1,
+        allowedTools: [],
+        permissionMode: "bypassPermissions",
+        settingSources: ["project"],
+      }, {
+        write: () => true,
+      });
+      if (response.isError) {
+        throw new Error(`Critic agent failed: ${response.text.trim() || response.subtype || "unknown error"}`);
       }
 
-      const client = new Anthropic();
-      const response = await client.messages.create({
-        model: CRITIC_MODEL,
-        max_tokens: 1024,
-        system: CRITIC_SYSTEM_PROMPT,
-        messages: [{ role: "user", content: userMessage }],
-      });
+      const verdict = parseVerdict(response.text);
 
-      const responseText = response.content
-        .filter((b): b is Anthropic.TextBlock => b.type === "text")
-        .map((b) => b.text)
-        .join("");
-
-      const verdict = parseVerdict(responseText);
-
-      // Persist warnings as run artifact
-      const runDir = options?.runDirPath ?? ctx.workflow.runDirPath;
       if (runDir && (verdict.warnings.length > 0 || verdict.critical_issues.length > 0)) {
         writeFileSync(
           join(runDir, "critic-review.json"),
@@ -223,7 +186,6 @@ export function createCriticCheck(options?: {
         );
       }
 
-      // pass or pass_with_warnings — both succeed
       const parts = [`OK: critic verdict — ${verdict.verdict}`];
       if (verdict.summary) parts.push(verdict.summary);
       if (verdict.warnings.length > 0) {

@@ -14,5 +14,13 @@ This directory contains the builder workflow definition and its prompt.
 ## Success Criteria
 
 The builder must declare concrete success criteria before implementation and
-verify them with evidence before completion. Repair-loop checks enforce both
-artifacts.
+verify them with evidence before completion:
+
+- `success-criteria.txt`
+- `success-criteria-verified.txt`
+
+## Source Evidence
+
+When a task requires external URLs, write `<run-directory>/source-evidence.json`
+with one entry per required URL. A task with unread or blocked required sources
+must stay blocked, not done.

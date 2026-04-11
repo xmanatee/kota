@@ -23,6 +23,8 @@ This directory is the normalized live work queue after ideas leave
 - `## Plan` is optional and should stay high-level.
 - Tasks describe what must become true and why it matters; builders own the
   implementation plan.
+- Put required research links in `## Resources` or explicit URL/source lines.
+  Source-backed tasks are done only when those sources were actually processed.
 
 ## Queue Rules
 
@@ -35,6 +37,8 @@ This directory is the normalized live work queue after ideas leave
 - Do not let open work degrade into only `p3` maintenance.
 - Before creating a task, scan open tasks and related inbox items for overlap.
 - Update `status` frontmatter whenever moving a task between state directories.
+- If required source access fails, move the task to `blocked/` with the blocker
+  recorded instead of marking it done from inference.
 - Prefer `git mv` for tracked task files, then re-read the moved file before
   editing it.
 - Before finishing, ensure task validation would pass: unique ids, tracked task

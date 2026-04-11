@@ -5,14 +5,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CriticVerdict } from "./critic.js";
 import { createCriticCheck } from "./critic.js";
 
-const mockCreate = vi.fn();
+const mockExecuteWithAgentSDK = vi.hoisted(() => vi.fn());
 
-vi.mock("@anthropic-ai/sdk", () => {
-  // Must be a constructor (callable with `new`)
-  const MockAnthropic = vi.fn(function (this: { messages: { create: typeof mockCreate } }) {
-    this.messages = { create: mockCreate };
-  });
-  return { default: MockAnthropic };
+vi.mock("#core/agent-sdk/index.js", () => {
+  return { executeWithAgentSDK: mockExecuteWithAgentSDK };
 });
 
 vi.mock("node:child_process", async () => {
@@ -51,8 +47,11 @@ function makeContext(projectDir: string, runDirPath?: string) {
 }
 
 function setApiResponse(verdict: CriticVerdict) {
-  mockCreate.mockResolvedValue({
-    content: [{ type: "text", text: JSON.stringify(verdict) }],
+  mockExecuteWithAgentSDK.mockResolvedValue({
+    text: JSON.stringify(verdict),
+    streamedText: "",
+    turns: 1,
+    isError: false,
   });
 }
 
@@ -61,22 +60,26 @@ type CodeCheck = { run: (ctx: never) => Promise<unknown> };
 describe("createCriticCheck", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubEnv("ANTHROPIC_API_KEY", "test-key");
   });
 
-  it("skips when ANTHROPIC_API_KEY is not set", async () => {
-    vi.stubEnv("ANTHROPIC_API_KEY", "");
+  it("runs through the workflow agent runtime instead of requiring a separate SDK key", async () => {
     const dir = makeTmpDir();
     const doingDir = join(dir, "data/tasks/doing");
     mkdirSync(doingDir, { recursive: true });
     writeFileSync(join(doingDir, "task-test.md"), "---\ntitle: Test\n---\nContent.");
     const runDir = join(dir, ".kota/runs/test-run");
     mkdirSync(runDir, { recursive: true });
+    setApiResponse({
+      verdict: "pass",
+      critical_issues: [],
+      warnings: [],
+      summary: "Looks complete.",
+    });
 
     const check = createCriticCheck();
     const result = await (check as CodeCheck).run(makeContext(dir));
-    expect(result).toMatch(/ANTHROPIC_API_KEY not set/);
-    expect(mockCreate).not.toHaveBeenCalled();
+    expect(result).toMatch(/pass/);
+    expect(mockExecuteWithAgentSDK).toHaveBeenCalledOnce();
   });
 
   it("skips when no task in doing/ and no staged done/ task", async () => {
@@ -117,13 +120,13 @@ describe("createCriticCheck", () => {
     const result = await (check as CodeCheck).run(makeContext(dir, runDir));
 
     expect(result).toMatch(/pass/);
-    expect(mockCreate).toHaveBeenCalledOnce();
+    expect(mockExecuteWithAgentSDK).toHaveBeenCalledOnce();
     // Verify the task content was passed to the API
-    const userMessage = mockCreate.mock.calls[0][0].messages[0].content;
+    const userMessage = mockExecuteWithAgentSDK.mock.calls[0][0];
     expect(userMessage).toContain("Moved task");
   });
 
-  it("calls Anthropic API and passes on pass verdict", async () => {
+  it("calls the critic agent and passes on pass verdict", async () => {
     const dir = makeTmpDir();
     const doingDir = join(dir, "data/tasks/doing");
     mkdirSync(doingDir, { recursive: true });
@@ -143,7 +146,7 @@ describe("createCriticCheck", () => {
     const result = await (check as CodeCheck).run(makeContext(dir, runDir));
 
     expect(result).toMatch(/pass/);
-    expect(mockCreate).toHaveBeenCalledOnce();
+    expect(mockExecuteWithAgentSDK).toHaveBeenCalledOnce();
   });
 
   it("throws on fail verdict with critical issues", async () => {

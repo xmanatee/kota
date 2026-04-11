@@ -12,6 +12,8 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
   - a cleaned-up inbox note that should stay as a capture or reference note for later
   - a dropped item when it clearly should not move forward
 - Research when needed, but only enough to understand and route the item well.
+- Do not describe an inaccessible URL as researched; preserve the blocker in
+  the routed note or task.
 - Preserve intent. Do not over-formalize quick captures unless they are clearly ready to become tasks.
 
 ## Finish
