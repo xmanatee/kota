@@ -31,6 +31,4 @@ builder can complete within a single run.
 
 ## Finish
 
-- Stage changes with `git add -A`.
-- Write a short commit message to `<run-directory>/commit-message.txt`.
-- Do not run `git commit` yourself.
+Follow the finish protocol in `workflows/AGENTS.md`.

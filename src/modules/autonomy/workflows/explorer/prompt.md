@@ -13,4 +13,3 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
 
 - Follow `data/tasks/AGENTS.md`.
 - If nothing should change, leave the queue untouched and stop.
-- If you changed the repo, stage with `git add -A`, write a short commit message to `<run-directory>/commit-message.txt`, and do not run `git commit` yourself.

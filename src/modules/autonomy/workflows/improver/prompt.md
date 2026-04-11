@@ -12,4 +12,3 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
 ## Finish
 
 - Validate the exact autonomy behavior you changed while you work.
-- Stage changes with `git add -A`, write a short commit message to `<run-directory>/commit-message.txt`, and do not run `git commit` yourself.

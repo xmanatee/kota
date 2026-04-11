@@ -88,6 +88,17 @@ queues any workflows that listen to `runtime.recovered`, and then pauses
 dispatch if the same dirty state still cannot be repaired. Do not reintroduce
 dirty-worktree bounce loops.
 
+## Finish Protocol
+
+When a workflow agent finishes its work:
+
+- Stage changes with `git add -A`.
+- Write a short commit message to `<run-directory>/commit-message.txt`.
+- Do not run `git commit` yourself.
+
+Prompts should not repeat these instructions. Workflow-specific finish guidance
+(e.g. validation before staging, conditional staging) stays in the prompt.
+
 ## Integration Test
 
 `autonomous-loop.integration.test.ts` discovers the autonomy workflow set from this directory. When adding a new workflow here:

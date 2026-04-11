@@ -18,4 +18,3 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
 
 - Follow `data/tasks/AGENTS.md` for normalized task rules.
 - Lightweight validations run after you finish.
-- If you changed the repo, stage all changes with `git add -A`, write a short readable commit message to `<run-directory>/commit-message.txt`, and do **not** run `git commit` yourself.
