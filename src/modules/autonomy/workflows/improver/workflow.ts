@@ -28,7 +28,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
     {
       event: "workflow.completed",
       filter: {
-        workflow: ["builder", "decomposer", "explorer", "inbox-sorter"],
+        workflow: ["builder", "decomposer", "explorer", "inbox-sorter", "pr-reviewer"],
         status: ["failed", "interrupted"],
       },
       cooldownMs: IMPROVER_COOLDOWN_MS,

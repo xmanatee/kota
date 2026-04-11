@@ -13,7 +13,7 @@ const attentionDigestWorkflow: WorkflowDefinitionInput = {
     {
       event: "workflow.completed",
       filter: {
-        workflow: ["builder", "decomposer", "explorer", "inbox-sorter"],
+        workflow: ["builder", "decomposer", "explorer", "inbox-sorter", "pr-reviewer"],
         status: ["failed", "interrupted"],
       },
     },
