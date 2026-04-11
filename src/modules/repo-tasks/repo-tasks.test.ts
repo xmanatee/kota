@@ -92,6 +92,12 @@ describe("repo task helpers", () => {
     expect(isThinPullQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(false);
   });
 
+  it("is thin when only a doing task remains and nothing waits behind it", () => {
+    writeFileSync(join(projectDir, REPO_TASKS_DIR, "doing", "task-active.md"), "task");
+
+    expect(isThinPullQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(true);
+  });
+
   it("is not thin when queue is empty", () => {
     expect(isThinPullQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(false);
   });

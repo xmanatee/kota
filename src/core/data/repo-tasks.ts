@@ -100,7 +100,7 @@ export function isThinPullQueue(snapshot: RepoTaskQueueSnapshot): boolean {
   const waitingCount = snapshot.counts.ready + snapshot.counts.backlog;
   return (
     snapshot.inboxCount === 0 &&
-    waitingCount > 0 &&
-    waitingCount <= 2
+    waitingCount <= 2 &&
+    (waitingCount > 0 || snapshot.counts.doing > 0)
   );
 }
