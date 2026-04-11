@@ -42,14 +42,7 @@ export type RepairResult = {
   detail?: string;
 };
 
-function isProcessAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return (err as NodeJS.ErrnoException).code === "EPERM";
-  }
-}
+import { isProcessAlive } from "#core/util/process-alive.js";
 
 function readDaemonPid(statePath: string): number | null {
   if (!existsSync(statePath)) return null;
@@ -341,14 +334,21 @@ export async function runDoctorChecks(
   const daemonStatePath = join(kotaDir, "daemon-state.json");
   const staleDaemonPid = readDaemonPid(daemonStatePath);
 
+  const controlFilePid = readDaemonPid(join(kotaDir, "daemon-control.json"));
+
   if (!client) {
     if (typeof staleDaemonPid === "number" && !isProcessAlive(staleDaemonPid)) {
-      results.push(warn("Daemon", `Daemon is not running and .kota/daemon-state.json is stale (pid ${staleDaemonPid})`));
+      results.push(warn("Daemon", `Daemon is not running and .kota/daemon-state.json is stale (pid ${staleDaemonPid}) — run 'kota doctor --fix'`));
     } else {
       results.push(warn("Daemon", "No daemon-control.json found — daemon is not running"));
     }
   } else if (!status) {
-    results.push(fail("Daemon", "Daemon control file present but API is unreachable"));
+    // Control file exists but API is unreachable — check if the PID is even alive.
+    if (typeof controlFilePid === "number" && !isProcessAlive(controlFilePid)) {
+      results.push(fail("Daemon", `Stale daemon-control.json (pid ${controlFilePid} is not alive) — run 'kota doctor --fix' to clean up`));
+    } else {
+      results.push(fail("Daemon", `Control file present (pid ${controlFilePid ?? "?"}) but API is unreachable — daemon may have crashed`));
+    }
   } else {
     results.push(pass("Daemon", `Running (pid ${status.pid ?? "?"}, started ${status.startedAt ?? "?"})`));
   }

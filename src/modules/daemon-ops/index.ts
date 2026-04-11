@@ -9,6 +9,7 @@ import type { KotaModule } from "#core/modules/module-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { LogFormat } from "#core/util/log-format.js";
+import { isProcessAlive } from "#core/util/process-alive.js";
 import { buildEventsCommand } from "./events-cli.js";
 import { buildQrCommand } from "./qr-cli.js";
 import { buildSessionCommand } from "./session-cli.js";
@@ -244,10 +245,18 @@ const daemonModule: KotaModule = {
         }
         const status = await client.getDaemonStatus();
         if (!status) {
+          const address = readOptionalJsonFile<DaemonControlAddress>(
+            join(process.cwd(), ".kota", "daemon-control.json"),
+          );
+          const stale = address && typeof address.pid === "number" && !isProcessAlive(address.pid);
           if (opts.json) {
-            console.log(JSON.stringify({ running: false, managed }));
+            console.log(JSON.stringify({ running: false, managed, staleControlFile: !!stale }));
           } else {
-            console.error("Daemon is not reachable.");
+            if (stale) {
+              console.error(`Stale control file (pid ${address!.pid} is not alive). Run 'kota doctor --fix' to clean up.`);
+            } else {
+              console.error("Daemon is not reachable.");
+            }
             if (managed) console.log("managed:  yes (OS service installed)");
           }
           process.exitCode = 1;
@@ -282,6 +291,11 @@ const daemonModule: KotaModule = {
         );
         if (!address || typeof address.pid !== "number") {
           console.error("Daemon is not running.");
+          process.exitCode = 1;
+          return;
+        }
+        if (!isProcessAlive(address.pid)) {
+          console.error(`Stale control file (pid ${address.pid} is not alive). Run 'kota doctor --fix' to clean up.`);
           process.exitCode = 1;
           return;
         }

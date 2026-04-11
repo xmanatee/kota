@@ -1,7 +1,7 @@
 ---
 id: task-audit-daemon-single-instance-liveness
 title: Audit daemon single-instance and liveness handling
-status: backlog
+status: done
 priority: p2
 area: daemon
 summary: Recent process inspection suggested possible duplicate daemon processes; daemon startup and status should make single-instance liveness unambiguous.

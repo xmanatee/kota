@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, rmSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import type { ChannelAdapter, ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
@@ -10,6 +10,7 @@ import type { Transport } from "#core/loop/transport.js";
 import { initModuleLogStore } from "#core/modules/module-log.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
 import type { LogFormat } from "#core/util/log-format.js";
+import { isProcessAlive } from "#core/util/process-alive.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -152,11 +153,6 @@ export class Daemon {
     this.restartRequested = false;
     this.restartReason = null;
 
-    this.log("Daemon starting...");
-    warnUnknownConfigKeys(this.projectDir, (msg) => this.log(msg));
-    warnInvalidConcurrencyConfig(this.projectDir, (msg) => this.log(msg));
-    this.saveState();
-
     // Register signal handlers before any awaits so callers can observe them immediately.
     const gracePeriodMs = this.config.shutdownGracePeriodMs ?? this.config.config?.daemon?.shutdownGracePeriodMs ?? DEFAULT_SHUTDOWN_GRACE_PERIOD_MS;
     this.shutdownHandler = () => {
@@ -164,6 +160,24 @@ export class Daemon {
     };
     process.on("SIGINT", this.shutdownHandler);
     process.on("SIGTERM", this.shutdownHandler);
+
+    try {
+      await this.ensureSingleInstance();
+    } catch (err) {
+      // Clean up the signal handlers and running state set above.
+      this.running = false;
+      if (this.shutdownHandler) {
+        process.removeListener("SIGINT", this.shutdownHandler);
+        process.removeListener("SIGTERM", this.shutdownHandler);
+        this.shutdownHandler = null;
+      }
+      throw err;
+    }
+
+    this.log("Daemon starting...");
+    warnUnknownConfigKeys(this.projectDir, (msg) => this.log(msg));
+    warnInvalidConcurrencyConfig(this.projectDir, (msg) => this.log(msg));
+    this.saveState();
 
     const controlPort = await this.controlServer.start();
     writeJsonFileAtomic(join(this.stateDir, CONTROL_FILE), {
@@ -306,6 +320,56 @@ export class Daemon {
     for (const item of items) {
       this.log(`Reminder: ${item.description}`);
     }
+  }
+
+  /**
+   * Check for an existing daemon instance before starting. If a live daemon
+   * owns the project, refuse to start. If the control file is stale (dead PID
+   * or unreachable port), clean it up and proceed.
+   */
+  private async ensureSingleInstance(): Promise<void> {
+    const controlPath = join(this.stateDir, CONTROL_FILE);
+    const existing = readOptionalJsonFile<{ port?: number; pid?: number; token?: string }>(controlPath);
+    if (!existing || typeof existing.pid !== "number") return;
+
+    const pid = existing.pid;
+    const port = existing.port;
+
+    if (!isProcessAlive(pid)) {
+      this.log(`Removing stale control file (pid ${pid} is not alive)`);
+      try { unlinkSync(controlPath); } catch { /* already gone */ }
+      return;
+    }
+
+    // PID is alive — probe the HTTP control port to confirm it is a real daemon.
+    if (typeof port === "number") {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 2_000);
+        const res = await fetch(`http://127.0.0.1:${port}/health`, {
+          signal: controller.signal,
+        }).finally(() => clearTimeout(timer));
+        if (res.ok) {
+          throw new Error(
+            `Another daemon instance is already running (pid ${pid}, port ${port}). ` +
+            `Stop it with 'kota daemon stop' before starting a new one.`,
+          );
+        }
+      } catch (err) {
+        if (err instanceof Error && err.message.startsWith("Another daemon instance")) {
+          throw err;
+        }
+        // HTTP probe failed — PID is alive but not serving on this port.
+        // Likely a stale file from PID reuse or the supervisor wrapper.
+        this.log(`Control file references pid ${pid} (alive) but port ${port} is unreachable — removing stale control file`);
+        try { unlinkSync(controlPath); } catch { /* already gone */ }
+        return;
+      }
+    }
+
+    // No port in control file — unusual; treat as stale.
+    this.log(`Control file references pid ${pid} (alive) but has no port — removing stale control file`);
+    try { unlinkSync(controlPath); } catch { /* already gone */ }
   }
 
   private maybeRestart(): void {
