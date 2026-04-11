@@ -103,7 +103,7 @@ The daemon exposes a Prometheus-compatible scrape endpoint at `GET /metrics` on 
 
 ## Other notable settings
 
-See `src/config.ts` (`KotaConfig` type) for the full list of supported fields and their types. Key areas:
+See `src/core/config/config.ts` (`KotaConfig` type) for the full list of supported fields and their types. Key areas:
 
 - `model`, `editorModel`, `maxTokens` — model selection
 - `guardrails` — risk policy and tool call enforcement

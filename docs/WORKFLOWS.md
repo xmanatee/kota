@@ -304,7 +304,7 @@ triggers: [
 
 Any event on the internal bus can be a trigger. The bus emits `workflow.started`,
 `workflow.completed`, `workflow.step.completed`, `file.changed`, and more.
-See `src/event-bus.ts` for the full list.
+See `src/core/events/event-bus.ts` for the full list.
 
 Validation rejects any `workflow.completed` trigger whose filter could match the
 workflow's own completion payload.
