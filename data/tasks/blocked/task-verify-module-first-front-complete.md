@@ -36,6 +36,9 @@ any missed gaps with focused follow-up tasks or small direct fixes.
 - `task-add-root-helper-boundary-validation`
 - `task-audit-daemon-single-instance-liveness`
 - `task-trim-architecture-migration-notes`
+- `task-review-runtime-and-self-improvement-resource-group`
+- `task-review-channel-memory-and-skill-resource-group`
+- `task-review-domain-local-ai-and-tooling-resource-group`
 
 ## Constraints
 
@@ -55,4 +58,6 @@ any missed gaps with focused follow-up tasks or small direct fixes.
   documented thin glue.
 - Runtime state lives under `.kota/` with no root `kota/` or `runs/` drift.
 - The historical resource packet has durable disposition notes or tasks.
+- Updated resource-group follow-up tasks are complete or intentionally dropped
+  with clear reasons.
 - Docs and local `AGENTS.md` files match the final architecture.
