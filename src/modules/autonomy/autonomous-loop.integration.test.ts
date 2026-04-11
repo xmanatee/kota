@@ -106,8 +106,7 @@ function seedFixtureProject(projectDir: string): void {
     );
   }
 
-  // Pre-seed runtime state with explorer's lastCompletedAt set to 10 minutes ago
-  // so explorer will skip broad research while local normalized work exists.
+  // Pre-seed runtime state so the explorer cooldown timer sees a recent completion.
   const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   writeFileSync(
     join(projectDir, ".kota/workflow-state.json"),
@@ -307,9 +306,9 @@ describe("autonomous workflow loop integration", () => {
     { timeout: 10_000 },
     async () => {
       // Clear ready tasks, backlog, and inbox so the dispatcher emits autonomy.queue.empty.
-      // The explorer trigger cooldown now matches the exploration refresh window (30 min),
-      // so with lastCompletedAt only 10 minutes ago, the explorer should not be eligible
-      // to run at all — eliminating the no-op churn of inspect-then-skip runs.
+      // The explorer trigger cooldown (30 min) matches the exploration refresh window,
+      // so with the last completion only 10 minutes ago, the explorer should not be
+      // eligible to run — eliminating no-op churn.
       for (const f of readdirSync(join(projectDir, "data/tasks/ready"))) {
         rmSync(join(projectDir, "data/tasks/ready", f));
       }

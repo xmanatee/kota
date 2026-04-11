@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
-import improverWorkflow from "./workflow.js";
+import improverWorkflow, { IMPROVER_COOLDOWN_MS } from "./workflow.js";
 
 vi.mock("#modules/autonomy/commit.js", () => ({
   commitWorkflowChanges: vi.fn(),
@@ -9,6 +9,22 @@ vi.mock("#modules/autonomy/commit.js", () => ({
 describe("improver workflow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("event-driven triggers have cooldowns to prevent no-op churn", () => {
+    const eventTriggers = improverWorkflow.triggers.filter(
+      (t) => t.event !== "runtime.recovered",
+    );
+    for (const trigger of eventTriggers) {
+      expect(trigger.cooldownMs, `${trigger.event} should have a cooldown`).toBe(
+        IMPROVER_COOLDOWN_MS,
+      );
+    }
+    // runtime.recovered should fire immediately without cooldown
+    const recoveredTrigger = improverWorkflow.triggers.find(
+      (t) => t.event === "runtime.recovered",
+    );
+    expect(recoveredTrigger?.cooldownMs).toBeUndefined();
   });
 
   it("skips commit and request-restart when improve fails", async () => {
