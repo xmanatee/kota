@@ -235,6 +235,37 @@ window expires) always fires. Cooldown is per-workflow: a builder failure does
 not suppress an explorer failure alert. The cooldown state is in-memory and
 resets on daemon restart. Default: `0` (no cooldown — every failure fires).
 
+## Channel Identity
+
+Channels receive a `ChannelStartContext` from the daemon at startup. This
+context includes typed identity fields for the operator running this daemon
+instance. Set the operator via environment variable:
+
+```sh
+export KOTA_OPERATOR=michael
+```
+
+When set, the value is available to all channel adapters as both `ctx.operator`
+(plain string) and `ctx.identity` (typed `ChannelOperatorIdentity` with
+`operator` and optional `meta` fields).
+
+Channel adapters can also attach per-user identity (`ChannelUserIdentity`) to
+sessions they create. This lightweight attribution surface carries:
+
+| Field | Type | Description |
+|---|---|---|
+| `channelUserId` | `string` | Channel-specific user identifier (e.g., Telegram chat ID) |
+| `displayName` | `string?` | Human-readable name when available |
+| `channel` | `string` | Which channel the identity came from (e.g., `"telegram"`) |
+| `meta` | `Record<string, unknown>?` | Arbitrary adapter-specific metadata |
+
+The Telegram adapter populates these fields automatically from incoming
+messages. Other adapters can populate them as needed. Sessions created via a
+channel carry the identity forward so that guardrails, audit events, and cost
+tracking can attribute actions without channel-specific knowledge.
+
+Identity is informational — it is not an auth/authz mechanism.
+
 ## Adding a custom notification consumer
 
 Subscribe to notification events in a module's `onLoad` via `ctx.events.subscribe`:

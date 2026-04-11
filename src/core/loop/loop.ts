@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { McpManager } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
@@ -39,6 +40,8 @@ export type LoopOptions = {
   client?: ModelClient;
   /** Show per-turn cost line in terminal output (default: true). */
   showCost?: boolean;
+  /** Channel user identity for attribution (set by channel adapters). */
+  channelIdentity?: ChannelUserIdentity;
 };
 
 /**
@@ -77,6 +80,7 @@ export class AgentSession {
   private reflectionEnabled!: boolean;
   private modelTiers?: ModelTiers;
   private stateMachine!: SessionStateMachine;
+  private channelIdentity?: ChannelUserIdentity;
 
   constructor(options: LoopOptions = {}) {
     initAgentSession(this as unknown as AgentLoopState, options, (opts) => {
@@ -111,6 +115,8 @@ export class AgentSession {
   getState(): SessionState { return this.stateMachine.current(); }
 
   getConversationId(): string | null { return this.conversationId; }
+
+  getChannelIdentity(): ChannelUserIdentity | undefined { return this.channelIdentity; }
 
   /** Clean up handlers and save final state. */
   close(errored = false): void {

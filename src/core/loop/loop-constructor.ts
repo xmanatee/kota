@@ -46,6 +46,7 @@ export function initAgentSession(
     ?? (isNonInteractive ? { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } } : getDefaultGuardrails());
   state.reflectionEnabled = options.reflectionEnabled ?? options.config?.reflection ?? true;
   state.modelTiers = options.config?.modelTiers;
+  state.channelIdentity = options.channelIdentity;
 
   const thinkingBudget = options.thinkingBudget || 10_000;
   state.thinkingConfig = options.thinkingEnabled

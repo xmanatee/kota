@@ -1,3 +1,5 @@
+import type { ChannelUserIdentity } from "#core/channels/channel.js";
+
 /** Known event payloads. Extend this map to add new typed events. */
 export type BusEvents = {
   "runtime.idle": {
@@ -83,7 +85,7 @@ export type BusEvents = {
     runDir: string;
     definitionPath: string;
   };
-  "session.start": { sessionId: string; label?: string };
+  "session.start": { sessionId: string; label?: string; channelIdentity?: ChannelUserIdentity };
   "session.end": {
     sessionId: string;
     label?: string;

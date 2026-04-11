@@ -234,6 +234,7 @@ export class Daemon {
 
     this.workflows.start();
 
+    const operator = process.env.KOTA_OPERATOR;
     const channelCtx = {
       projectDir: this.projectDir,
       log: (message: string) => this.log(message),
@@ -242,6 +243,8 @@ export class Daemon {
         dispatchPaused: this.workflows.isDispatchPaused(),
         runsDir,
       }),
+      operator,
+      identity: operator ? { operator } : undefined,
     };
     for (const def of this.config.channels ?? []) {
       const adapter = def.create(channelCtx);

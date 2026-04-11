@@ -9,7 +9,7 @@
  */
 
 export type { AgentDef, SkillDef } from "./core/agents/agent-types.js";
-export type { ChannelAdapter, ChannelDef, ChannelStartContext } from "./core/channels/channel.js";
+export type { ChannelAdapter, ChannelDef, ChannelOperatorIdentity, ChannelStartContext, ChannelUserIdentity } from "./core/channels/channel.js";
 export type {
   CreateSessionOptions,
   KotaModule,

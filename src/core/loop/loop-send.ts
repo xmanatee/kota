@@ -22,7 +22,11 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
   if (!state.initialized) await state.initPromise;
   if (state.sessionStartTime === 0) {
     state.sessionStartTime = Date.now();
-    tryEmit("session.start", { sessionId: state.sessionId, label: state.sessionLabel });
+    tryEmit("session.start", {
+      sessionId: state.sessionId,
+      label: state.sessionLabel,
+      channelIdentity: state.channelIdentity,
+    });
   }
 
   const analysis = analyzeRequest(prompt, process.cwd());

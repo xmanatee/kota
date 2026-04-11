@@ -7,7 +7,7 @@
  * Scheduler integration delivers reminders and action results to active chats.
  */
 
-import type { ChannelSession } from "#core/channels/channel.js";
+import type { ChannelSession, ChannelUserIdentity } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { getScheduler, initScheduler, resetScheduler } from "#core/daemon/scheduler.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
@@ -172,13 +172,13 @@ export class TelegramBot {
     // Skip bot commands we don't handle
     if (text.startsWith("/")) return;
 
-    this.processMessage(chatId, text).catch((err) => {
+    this.processMessage(chatId, text, firstName).catch((err) => {
       console.error(`[kota-telegram] Error in chat ${chatId}:`, (err as Error).message);
       this.sendText(chatId, "Something went wrong. Try again or /clear to start over.");
     });
   }
 
-  private async processMessage(chatId: number, text: string): Promise<void> {
+  private async processMessage(chatId: number, text: string, firstName?: string): Promise<void> {
     if (this.busyChats.has(chatId)) {
       this.sendText(chatId, "Still working on your previous message. Please wait.");
       return;
@@ -188,7 +188,7 @@ export class TelegramBot {
     const transport = new TelegramTransport(chatId, this.token);
 
     try {
-      const session = this.getOrCreateSession(chatId);
+      const session = this.getOrCreateSession(chatId, firstName);
       session.proxy.target = transport;
       session.lastActive = Date.now();
 
@@ -211,21 +211,28 @@ export class TelegramBot {
     }
   }
 
-  private getOrCreateSession(chatId: number): ChannelSession {
+  private getOrCreateSession(chatId: number, firstName?: string): ChannelSession {
     let session = this.sessions.get(chatId);
     if (session) return session;
 
+    const identity: ChannelUserIdentity = {
+      channelUserId: String(chatId),
+      displayName: firstName,
+      channel: "telegram",
+    };
     const proxy = new ProxyTransport();
     const loopOpts: LoopOptions = {
       model: this.options.model ?? this.options.config?.model,
       verbose: this.options.verbose ?? this.options.config?.verbose,
       transport: proxy,
       config: this.options.config,
+      channelIdentity: identity,
     };
     session = {
       agent: new AgentSession(loopOpts),
       proxy,
       lastActive: Date.now(),
+      identity,
     };
     this.sessions.set(chatId, session);
     return session;

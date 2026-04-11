@@ -30,6 +30,24 @@ import type { ProxyTransport } from "#core/loop/transport.js";
 import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
 
 /**
+ * Informational identity for a channel user or operator.
+ *
+ * This is not access-control — it's a lightweight attribution surface so
+ * that downstream components (guardrails, audit events, cost tracking) can
+ * identify who initiated a session without channel-specific knowledge.
+ */
+export type ChannelUserIdentity = {
+  /** Channel-specific user identifier (e.g., Telegram chat ID, Slack user ID). */
+  channelUserId: string;
+  /** Human-readable display name when available. */
+  displayName?: string;
+  /** Which channel this identity came from (e.g., "telegram", "slack"). */
+  channel: string;
+  /** Arbitrary adapter-specific metadata. */
+  meta?: Record<string, unknown>;
+};
+
+/**
  * A session managed by a channel adapter — one AgentSession per user/chat.
  *
  * Channels use ProxyTransport so the agent's output can be routed to
@@ -42,6 +60,8 @@ export type ChannelSession = {
   agent: AgentSession;
   proxy: ProxyTransport;
   lastActive: number;
+  /** Identity of the user who owns this session, if known. */
+  identity?: ChannelUserIdentity;
 };
 
 /**
@@ -68,6 +88,19 @@ export type ChannelWorkflowStatus = {
 };
 
 /**
+ * Informational identity for a channel operator or instance.
+ *
+ * Populated from config/env at channel start time. Individual per-user
+ * identity is tracked separately on `ChannelSession.identity`.
+ */
+export type ChannelOperatorIdentity = {
+  /** Operator identifier (e.g., from KOTA_OPERATOR env var or config). */
+  operator: string;
+  /** Arbitrary operator-level metadata (deployment tags, environment, etc.). */
+  meta?: Record<string, unknown>;
+};
+
+/**
  * Context provided to a channel factory when the daemon starts it.
  */
 export type ChannelStartContext = {
@@ -77,6 +110,10 @@ export type ChannelStartContext = {
   log: (message: string) => void;
   /** Current workflow runtime status for monitoring/alerting channels. */
   getWorkflowStatus: () => ChannelWorkflowStatus;
+  /** Operator identifier for this channel instance (from config or env). */
+  operator?: string;
+  /** Typed operator-level identity for this channel instance. */
+  identity?: ChannelOperatorIdentity;
 };
 
 /**

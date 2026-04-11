@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import { getEventBus, tryEmit } from "#core/events/event-bus.js";
 import { runCleanupHooks } from "#core/loop/cleanup-hooks.js";
 import { listManifestModules } from "#core/manifest/index.js";
@@ -54,6 +55,7 @@ export interface AgentLoopState {
   projectContext: string;
   instructionContext: string;
   modelTiers: ModelTiers | undefined;
+  channelIdentity: ChannelUserIdentity | undefined;
   moduleLoader: ModuleLoader;
   closed: boolean;
   sigintHandler: () => void;
