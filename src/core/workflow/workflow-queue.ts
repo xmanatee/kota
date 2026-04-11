@@ -165,6 +165,9 @@ export class WorkflowQueueManager {
   pick(canDispatch?: (def: WorkflowDefinition) => boolean): WorkflowQueuedRun | null {
     const now = Date.now();
     const activeAgentBackoff = this.config.getActiveBackoff();
+    // Re-read state at pick time so cooldown checks use the latest
+    // lastCompletedAt, not the potentially-stale value from enqueue time.
+    const freshState = this.config.store.readState();
     const eligible = this.queue
       .map((item, index) => ({ item, index }))
       .filter(({ item }) => {
@@ -174,8 +177,31 @@ export class WorkflowQueueManager {
         const budgetPaused =
           definition?.dailyBudgetUsd != null &&
           Boolean(this.config.getWorkflowBudgetPauseUntil(item.workflowName));
+
+        // Re-validate cooldown against current disk state. The notBeforeMs
+        // computed at enqueue time may be stale if a concurrent finish()
+        // wrote a more recent lastCompletedAt after this item was enqueued.
+        // Only override when a lastCompletedAt actually exists in state —
+        // avoid calling getEligibleAtMs which falls back to Date.now() and
+        // can introduce clock drift relative to the captured `now`.
+        let effectiveNotBefore = item.notBeforeMs;
+        if (definition) {
+          const trigger = definition.triggers.find(
+            (t) => t.event === item.trigger.event,
+          );
+          if (trigger && trigger.cooldownMs > 0) {
+            const lastCompletedAt =
+              freshState.workflows[item.workflowName]?.lastCompletedAt;
+            if (lastCompletedAt) {
+              const freshEligibleAtMs =
+                new Date(lastCompletedAt).getTime() + trigger.cooldownMs;
+              effectiveNotBefore = Math.max(effectiveNotBefore, freshEligibleAtMs);
+            }
+          }
+        }
+
         if (
-          item.notBeforeMs > now ||
+          effectiveNotBefore > now ||
           this.config.isActiveRun(item.workflowName) ||
           budgetPaused
         ) {

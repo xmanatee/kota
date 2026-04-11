@@ -1,7 +1,7 @@
 ---
 id: task-fix-workflow-trigger-cooldown-enforcement
 title: Fix workflow trigger cooldown not preventing bounce runs
-status: ready
+status: done
 priority: p2
 area: core
 summary: Trigger cooldowns on workflow definitions are not preventing runs from being picked within the cooldown window, causing repeated zero-cost bounce runs that create run directory noise.

@@ -77,7 +77,6 @@ export function createActiveRunHandle(opts: {
       persistMetadata();
     },
     finish: (update) => {
-      const currentState = readState();
       const totalCostUsd = metadata.steps
         .filter((s) => s.type === "agent")
         .reduce((sum, s) => {
@@ -101,19 +100,30 @@ export function createActiveRunHandle(opts: {
 
       writeJsonFile(join(runDirPath, "metadata.json"), completed);
 
-      currentState.completedRuns += 1;
-      currentState.totalCostUsd = (currentState.totalCostUsd ?? 0) + totalCostUsd;
-      currentState.workflows[workflowName] = {
-        ...currentState.workflows[workflowName],
-        lastRunId: id,
-        lastStartedAt: metadata.startedAt,
-        lastCompletedAt: completed.completedAt,
-        lastStatus: update.status,
-      };
-      currentState.activeRuns = (currentState.activeRuns ?? []).filter(
+      // Re-read state immediately before writing to minimize the race window.
+      // Merge carefully: only advance lastCompletedAt forward so a concurrent
+      // finish() for another workflow cannot overwrite a more recent timestamp.
+      const freshState = readState();
+      freshState.completedRuns += 1;
+      freshState.totalCostUsd = (freshState.totalCostUsd ?? 0) + totalCostUsd;
+      const existingWorkflow = freshState.workflows[workflowName];
+      const existingCompletedMs = existingWorkflow?.lastCompletedAt
+        ? new Date(existingWorkflow.lastCompletedAt).getTime()
+        : 0;
+      const thisCompletedMs = new Date(completed.completedAt!).getTime();
+      if (thisCompletedMs >= existingCompletedMs) {
+        freshState.workflows[workflowName] = {
+          ...existingWorkflow,
+          lastRunId: id,
+          lastStartedAt: metadata.startedAt,
+          lastCompletedAt: completed.completedAt,
+          lastStatus: update.status,
+        };
+      }
+      freshState.activeRuns = (freshState.activeRuns ?? []).filter(
         (r) => r.runId !== id,
       );
-      writeState(currentState);
+      writeState(freshState);
 
       return completed;
     },
