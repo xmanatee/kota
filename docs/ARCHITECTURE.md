@@ -76,6 +76,13 @@ queue state are shared daemon/runtime primitives and belong in `src/core/`.
   `ctx.registerDynamicStateProvider(name, fn)` in `onLoad`. This is the
   correct pattern for any module that needs to inject state into the agent's
   context window without creating a direct core-to-module import.
+- Prefer typed code protocols over parallel DSLs.
+- Remove duplicate public surfaces instead of keeping aliases.
+- Autonomy uses the same `agent`, `workflow`, and `module` model as everything
+  else. Do not add a second public automation engine beside workflows.
+- Prefer one daemon control protocol over platform-specific side channels.
+- Keep native UI wrappers thin. A macOS app or web dashboard should be a client
+  of the daemon, not a second runtime host.
 
 ## Protocol Boundaries
 
@@ -134,26 +141,6 @@ own message routing for sessions.
 `ChannelDef` is the module contribution descriptor (name, description, and
 a `create(ctx: ChannelStartContext)` factory). New channels should use these
 types and be contributed via `KotaModule.channels`.
-
-## Migration Principles
-
-- Prefer typed code protocols over parallel DSLs.
-- Remove duplicate public surfaces instead of keeping aliases.
-- Keep repo instructions scoped to the repo root; do not inherit parent-tree
-  instructions by default.
-- Make autonomy use the same `agent`, `workflow`, and `module`
-  model as everything else.
-- Do not add a second public automation engine beside workflows.
-- Keep workflow-provided context thin. If an agent can discover something
-  cheaply and reliably from the repo, the runtime should not inject it by
-  default.
-- Prefer one daemon control protocol over platform-specific side channels.
-- Keep native UI wrappers thin. The macOS app should be a client of the daemon,
-  not a second runtime host.
-- Prefer module-owned capability packs over growing shared buckets like
-  `src/core/tools/`, `src/core/server/`, or other generic core directories. If a new
-  capability could plausibly be swapped, configured, or removed as a unit, it
-  likely belongs behind a module boundary.
 
 ## External Anchors
 

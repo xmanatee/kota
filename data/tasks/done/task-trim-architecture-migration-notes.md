@@ -1,12 +1,12 @@
 ---
 id: task-trim-architecture-migration-notes
 title: Trim stale migration wording from architecture docs
-status: backlog
+status: done
 priority: p3
 area: docs
 summary: Architecture docs still contain a Migration Principles section despite standards requiring durable docs to avoid migration notes.
 created_at: 2026-04-11T01:44:06Z
-updated_at: 2026-04-11T01:44:06Z
+updated_at: 2026-04-11T07:28:00Z
 ---
 
 ## Problem
