@@ -50,6 +50,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       model: agent.model,
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
+      maxTurns: 100,
       timeoutMs: 60 * 60 * 1000, // 60 minutes — builder runs can be long
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: (ctx) => inspectReadyQueue.output(ctx).pullableCount > 0,
