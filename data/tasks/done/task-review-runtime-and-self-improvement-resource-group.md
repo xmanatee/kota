@@ -1,12 +1,12 @@
 ---
 id: task-review-runtime-and-self-improvement-resource-group
 title: Review runtime and self-improvement resources against KOTA's autonomy loop
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Revisit the historical agent-runtime and self-improvement resource groups to identify current gaps in KOTA's daemon, workflow, and improvement loop design.
 created_at: 2026-04-11T01:49:31Z
-updated_at: 2026-04-11T01:49:31Z
+updated_at: 2026-04-11T12:00:00Z
 ---
 
 ## Problem

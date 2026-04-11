@@ -16,24 +16,33 @@ notes where needed.
 
 ## Agent Runtimes, Harnesses, and Workspace Protocols
 
-**Disposition: Reference only + Deferred**
+**Disposition: Reference only — reviewed, no gaps found**
 
-KOTA has its own daemon, agent loop, and module runtime. These external
-runtimes were surveyed for design ideas; no direct adoption was needed.
+KOTA has its own daemon, agent loop, and module runtime. Deep review of
+OpenFang and pi-mono confirmed KOTA's architecture covers the useful patterns
+from this group. The remaining differences are language/platform choices (Rust
+WASM sandboxes, multi-provider LLM abstraction) that don't map to real gaps
+in KOTA's TypeScript single-daemon model.
 
 | Resource | Note |
 |----------|------|
-| open-harness (MaxGfeller) | Composable SDK patterns; reference only — KOTA's module protocol covers this. |
-| openfang (RightNow-AI) | Agent OS framing; reference only. |
-| goose (aaif-goose) | Install/execute/edit/test workflow; reference only — KOTA's builder workflow covers this pattern. |
+| open-harness (MaxGfeller) | Composable SDK patterns; reference only — KOTA's `KotaModule` contribution protocol covers this. |
+| openfang (RightNow-AI) | Autonomous "Hands" with scheduling and WASM sandboxing. KOTA's workflow+agent model covers scheduling. The dual-metered sandbox and Ed25519 manifest signing are interesting hardening patterns but require a different runtime substrate. Reference only. |
+| goose (aaif-goose) | Install/execute/edit/test workflow; reference only — KOTA's builder workflow with repair loops covers this pattern more thoroughly. |
 | hermes-agent (NousResearch) | Large runtime; reference only — ecosystem gravity, not directly applicable. |
-| function-calling harness article (autobe.dev) | Tool-call reliability patterns; reference only. |
-| Codex plugin for Claude Code (x.com/reach_vb) | Cross-agent handoff; reference only — interesting for future multi-model work. |
-| OpenClaw workspace anatomy (x.com/coreyganim) | Workspace-file and protocol design; reference only. |
-| OpenClaw plugin listing (clawhub.ai/axonflow) | Plugin packaging patterns; reference only. |
+| function-calling harness article (autobe.dev) | Tool-call reliability patterns; reference only — KOTA's tool runner with retry already implements reliable invocation. |
+| Codex plugin for Claude Code (x.com/reach_vb) | Cross-agent handoff; reference only — interesting for future multi-model work but KOTA's workflow steps already sequence agents. |
+| OpenClaw workspace anatomy (x.com/coreyganim) | Workspace-file and protocol design; reference only — KOTA uses `data/`, `.kota/`, and `AGENTS.md` as its own workspace protocol. |
+| OpenClaw plugin listing (clawhub.ai/axonflow) | Plugin packaging patterns; reference only — KOTA's module protocol covers contribution discovery. |
 | impeccable (pbakaus) | AI harness design language; reference only. |
+| pi-mono (badlogic) | Multi-provider LLM abstraction, session trace sharing, multi-UI agent. Reference only — KOTA separates client from daemon already; multi-provider is out of scope (single Anthropic provider). |
 
-**Follow-up:** `task-review-runtime-and-self-improvement-resource-group` (backlog, p2) covers deeper gap analysis against KOTA's daemon and workflow design.
+**Gap analysis (April 2026):** No actionable gaps. KOTA's daemon lifecycle,
+workflow runtime, module protocol, and repair loops match or exceed the
+patterns in these runtimes. OpenFang's execution sandboxing is the most
+distinct feature but requires WASM — not applicable to KOTA's model. Pi-mono's
+session-trace-as-training-data is interesting but belongs to a model-training
+concern KOTA does not own.
 
 ---
 
@@ -123,25 +132,37 @@ resources confirmed the design direction.
 
 ## Self-Improving and Proactive Agent Loops
 
-**Disposition: Adopted (core patterns) + Deferred (gap review)**
+**Disposition: Adopted (core patterns) — reviewed, one gap identified**
 
 KOTA's autonomy module implements self-improving and proactive patterns:
 dispatcher, explorer, builder, improver, critic, decomposer, inbox-sorter,
-and PR reviewer workflows.
+PR reviewer, and attention-digest workflows. The improver triggers on build
+commits and workflow failures, reads recent runs, and fixes autonomy surfaces.
+The critic provides diff-level code review during repair loops.
 
 | Resource | Note |
 |----------|------|
 | self-improving-agent playbook (skills.sh/charon-fan) | **Adopted** — pattern realized in `improver` and `critic` workflows. |
-| capability-evolver (clawhub.ai/autogame-17) | Reference only — KOTA's improver handles capability evolution. |
+| capability-evolver (clawhub.ai/autogame-17) | Reference only — KOTA's improver handles capability evolution via evidence-based prompt/config changes. |
 | evolver (clawhub.ai/autogame-17) | Reference only — overlaps with above. |
 | self-improving-agent (clawhub.ai/pskoett) | Reference only — pattern adopted via KOTA's own design. |
-| self-improving + proactive (clawhub.ai/ivangdavila) | **Adopted** — proactive dispatch via `dispatcher` workflow. |
+| self-improving + proactive (clawhub.ai/ivangdavila) | **Adopted** — proactive dispatch via `dispatcher` workflow with queue-state events. |
 | proactive-agent (clawhub.ai/halthelobster) | Reference only — overlaps with dispatcher pattern. |
-| flow-weaver-openclaw (clawhub.ai/synergenius) | Reference only — workflow patterns; KOTA has its own workflow runtime. |
+| flow-weaver-openclaw (clawhub.ai/synergenius) | Reference only — workflow patterns; KOTA has its own typed workflow runtime with repair loops. |
 
-**Adopted implementations:** `src/modules/autonomy/workflows/` (8 workflows), `src/modules/autonomy/critic.ts`.
+**Adopted implementations:** `src/modules/autonomy/workflows/` (9 workflows), `src/modules/autonomy/critic.ts`.
 
-**Follow-up:** `task-review-runtime-and-self-improvement-resource-group` (backlog, p2).
+**Gap analysis (April 2026):** One actionable gap identified — **cross-run
+outcome aggregation**. The improver reads recent runs via `loadRecentRuns()`
+(24-hour window, last 20 runs) but gets raw metadata only: status, cost,
+warnings. It cannot easily see patterns like recurring repair-loop failures,
+cost trends by workflow, or which check types fail most often. OpenFang's
+Predictor Hand tracks calibrated accuracy via Brier scores across runs;
+MemPalace's temporal knowledge graph tracks fact validity windows. KOTA does
+not need these specific mechanisms, but a lightweight run-outcome summary
+(aggregated repair failure rates, cost-per-workflow trends, common error
+categories) would give the improver better signal for its fixes. Follow-up
+task created: `task-run-outcome-aggregation-for-improver`.
 
 ---
 
@@ -197,17 +218,19 @@ for awareness.
 
 | Group | Resources | Adopted | Deferred | Reference |
 |-------|-----------|---------|----------|-----------|
-| Agent runtimes & harnesses | 9 | 0 | 1 task | 9 |
+| Agent runtimes & harnesses | 10 | 0 | reviewed ✓ | 10 |
 | Channels & adapters | 6 | 6 | 1 task | 0 |
 | Domain services | 4 | 0 | 1 task | 4 |
 | Local AI & multimodal | 5 | 0 | 1 task | 5 |
 | Memory & ontology | 6 | 3 (core) | 1 task | 3 |
-| Self-improving loops | 7 | 2 | 1 task | 5 |
+| Self-improving loops | 7 | 2 | reviewed ✓ (1 follow-up) | 5 |
 | Skills ecosystem | 7 | 1 | 1 task | 6 |
 | Tooling & adapters | 6 | 2 | 1 task | 4 |
 | **Total** | **50** | **14** | **3 tasks** | **36** |
 
-Three existing backlog tasks cover the deferred review work:
+Two remaining backlog tasks cover the deferred review work:
 - `task-review-channel-memory-and-skill-resource-group` (p2)
-- `task-review-runtime-and-self-improvement-resource-group` (p2)
 - `task-review-domain-local-ai-and-tooling-resource-group` (p3)
+
+Completed review tasks:
+- `task-review-runtime-and-self-improvement-resource-group` — completed April 2026. One follow-up: `task-run-outcome-aggregation-for-improver`.
