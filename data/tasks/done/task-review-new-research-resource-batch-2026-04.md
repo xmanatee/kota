@@ -1,12 +1,12 @@
 ---
 id: task-review-new-research-resource-batch-2026-04
 title: Review April 2026 research resource batch for KOTA relevance
-status: backlog
+status: done
 priority: p3
 area: research
 summary: Nineteen external resources captured covering agent runtimes, tooling, memory systems, security patterns, cloud orchestration, and product strategy; batch-review them for actionable KOTA improvements.
 created_at: 2026-04-11T01:54:48Z
-updated_at: 2026-04-11T15:35:05Z
+updated_at: 2026-04-11T16:55:00Z
 ---
 
 ## Problem

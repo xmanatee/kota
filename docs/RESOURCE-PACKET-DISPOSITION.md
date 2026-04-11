@@ -246,6 +246,88 @@ module, browser/search → web-access module. No new modules or adapters needed.
 
 ---
 
+---
+
+## April 2026 Research Batch (19 URLs)
+
+Batch captured mid-April 2026 covering agent runtimes, tooling, memory, security,
+cloud orchestration, product strategy, and social posts. Reviewed against current
+KOTA architecture and the prior disposition above.
+
+### Agent Runtimes and Frameworks
+
+**Disposition: Reference only — no new gaps**
+
+| Resource | Note |
+|----------|------|
+| [microsoft/agent-lightning](https://github.com/microsoft/agent-lightning) | RL-based agent training framework (Python). Optimizes agent prompts and policies via reinforcement learning. Not applicable — KOTA uses the Claude API for inference and does not train models. Reference only. |
+| [RightNow-AI/openfang](https://github.com/RightNow-AI/openfang) + [openfang.sh](https://www.openfang.sh/) | **Overlap**: OpenFang was reviewed in the prior batch (Agent runtimes & harnesses). No new gaps. WASM sandboxing and Ed25519 manifest signing remain interesting hardening patterns but require a different runtime substrate. Reference only. |
+| [badlogic/pi-mono](https://github.com/badlogic/pi-mono) | **Overlap**: pi-mono was reviewed in the prior batch. Multi-provider LLM abstraction, TUI/web UI libraries, Slack bot. KOTA separates client from daemon already; multi-provider is out of scope. Reference only. |
+| [nearai/ironclaw](https://github.com/nearai/ironclaw) + [ironclaw.com](https://www.ironclaw.com/) | Rust-based OpenClaw alternative focused on security: encrypted credential vault, WASM sandbox per tool, TEE deployment, network allowlisting. The credential-isolation pattern (LLM never sees secrets; injected at network boundary) is a strong security idea. KOTA's `secrets` module already separates credential storage from agent context, but does not enforce network-boundary injection. Reference only — the gap is real but narrow; KOTA's threat model is local-first, not multi-tenant cloud. |
+
+### Tools and Platforms
+
+**Disposition: Reference only — no gaps**
+
+| Resource | Note |
+|----------|------|
+| [GitNexus](https://github.com/abhigyanpatwari/GitNexus) | Client-side code knowledge graph with Graph RAG. Runs in-browser. KOTA's agents read code directly via filesystem and git tools; a knowledge graph over code would add complexity without clear benefit for autonomous dev workflows. Reference only. |
+| [Thesys](https://www.thesys.dev/) | API middleware that turns LLM responses into interactive UI components (charts, forms, tables). Targets AI-native app teams. Not applicable to KOTA's autonomous development workflow — KOTA is not a user-facing chat UI product. Reference only. |
+| [Vercel CLI marketplace/agent adapter](https://vercel.com/changelog/vercel-cli-for-marketplace-integrations-optimized-for-agents) | **Overlap**: Vercel adapter was adopted in the prior batch (`src/modules/vercel-adapter/`). This changelog adds `discover`/`guide` commands for agent-driven integration management. Minor enhancement — could improve the Vercel adapter module's setup flow. Not blocking; note for future adapter work. Reference only. |
+| [BurntSushi/ripgrep](https://github.com/BurntSushi/ripgrep) | Already used as the underlying engine for KOTA's search via Claude Code's Grep tool. No action needed. Reference only. |
+
+### Memory and Context
+
+**Disposition: Reference only — interesting but no actionable gap**
+
+| Resource | Note |
+|----------|------|
+| [mempalace](https://github.com/milla-jovovich/mempalace) | Raw verbatim conversation storage with ChromaDB vector search, scoring 96.6% on LongMemEval. Architecture: wings (people/projects), halls (memory types), rooms (specific ideas). KOTA's memory system uses structured JSON/SQLite stores with temporal filtering, not raw conversation replay. The "store everything, search later" approach trades storage for retrieval quality. KOTA's current approach (selective memory entries, knowledge entries, conversation history with compaction) is more aligned with its autonomous workflow context where precision matters more than total recall. The spatial organization metaphor (wings/halls/rooms) is a UI concept, not a retrieval improvement. Reference only. |
+
+### Security and Safety
+
+**Disposition: Reference only — philosophy, not directly applicable**
+
+| Resource | Note |
+|----------|------|
+| [Vitalik on securing LLMs](https://vitalik.eth.limo/general/2026/04/02/secure_llms.html) | Advocates local-first air-gapped AI with NixOS, local GPU inference, and full sandboxing. Key points: 15% of examined skills contained malicious instructions; sandbox everything; minimize dependencies. KOTA's threat model is different (single-operator, local-first, Claude API for inference) but the skill-vetting observation reinforces the existing `guardrails-audit` module's value. No concrete gap — KOTA already runs locally, uses the secrets module for credentials, and has guardrail checks. The "sandbox tool execution" point overlaps with IronClaw's WASM approach above — not applicable to KOTA's TypeScript model. Reference only. |
+
+### Product Strategy and Thought Leadership
+
+**Disposition: Reference only — no technical applicability**
+
+| Resource | Note |
+|----------|------|
+| [Micro-app portfolios](https://trends.vc/micro-app-portfolios-report-5-hit-rate-vibe-coded-exits-portfolio-os/) | Portfolio strategy for solo founders: launch many small apps, ~5% hit rate. Relevant to product thinking but not to KOTA's architecture or autonomous development workflows. Reference only. |
+| [Latent Space pmarca](https://www.latent.space/p/pmarca) | Andreessen on AI: agent architecture as CLI+filesystem+markdown, open-source models, supply dynamics. The "agents as Unix shell + filesystem + markdown" framing validates KOTA's design (data/, .kota/, AGENTS.md as workspace protocol). No actionable gap. Reference only. |
+
+### Cloud Orchestration
+
+**Disposition: Reference only — out of scope**
+
+| Resource | Note |
+|----------|------|
+| [SkyPilot](https://github.com/skypilot-org/skypilot/) | Multi-cloud ML workload orchestrator (Kubernetes, Slurm, 20+ clouds). For distributed training and GPU job scheduling. KOTA does not train models or orchestrate cloud compute. Reference only. |
+
+### Agent Patterns (Social Posts)
+
+**Disposition: Unreadable — dismissed (auth-walled)**
+
+All five X/Twitter posts returned HTTP 402 (authentication required) and could not
+be fetched. The task categorized them as "agent patterns" social posts. Without
+content, no disposition is possible beyond acknowledging they were captured and are
+inaccessible via automated fetch.
+
+| Resource | Note |
+|----------|------|
+| x.com/akshay_pachaar/…922 | Blocked (402). Dismissed — cannot review. |
+| x.com/arlanr/…908 | Blocked (402). Dismissed — cannot review. |
+| x.com/NickSpisak_/…705 | Blocked (402). Dismissed — cannot review. |
+| x.com/johnrushx/…373 | Blocked (402). Dismissed — cannot review. |
+| x.com/tianle_cai/…818 | Blocked (402). Dismissed — cannot review. |
+
+---
+
 ## Summary
 
 | Group | Resources | Adopted | Deferred | Reference |
@@ -258,9 +340,11 @@ module, browser/search → web-access module. No new modules or adapters needed.
 | Self-improving loops | 7 | 2 | reviewed ✓ (1 follow-up) | 5 |
 | Skills ecosystem | 7 | 1 | 1 task | 6 |
 | Tooling & adapters | 6 | 2 | reviewed ✓ | 4 |
-| **Total** | **50** | **14** | **0 tasks** | **36** |
+| April 2026 batch | 19 | 0 | 0 | 14 + 5 dismissed |
+| **Total** | **70** | **14** | **0 tasks** | **56** |
 
 All resource-group review tasks are complete:
 - `task-review-runtime-and-self-improvement-resource-group` — done. One follow-up: `task-run-outcome-aggregation-for-improver`.
 - `task-review-channel-memory-and-skill-resource-group` — done. One follow-up: `task-agent-scoped-skill-injection`.
 - `task-review-domain-local-ai-and-tooling-resource-group` — done. No follow-ups needed; all resources covered by existing modules or reference-only.
+- `task-review-new-research-resource-batch-2026-04` — done. No follow-ups needed; all accessible resources are reference-only, 3 overlap with prior batch, 5 social posts auth-walled.
