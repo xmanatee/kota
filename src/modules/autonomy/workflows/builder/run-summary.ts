@@ -18,18 +18,27 @@ export type BuilderRunSummary = {
   completedAt: string;
 };
 
+/** Terminal states indicate the task the builder actually completed. */
+const TERMINAL_TASK_STATES = ["done", "blocked", "dropped"];
+
 function findTaskInChangedFiles(
   projectDir: string,
   files: string[],
 ): { taskId: string | null; taskTitle: string | null } {
-  for (const file of files) {
-    if (
-      !file.startsWith(`${REPO_TASKS_DIR}/`) ||
-      !file.endsWith(".md") ||
-      file.endsWith("AGENTS.md")
-    ) {
-      continue;
-    }
+  const taskFiles = files.filter(
+    (f) => f.startsWith(`${REPO_TASKS_DIR}/`) && f.endsWith(".md") && !f.endsWith("AGENTS.md"),
+  );
+
+  // Prefer tasks in terminal states — those are the ones the builder completed.
+  // Newly-created backlog/ready tasks are follow-ups, not the primary work.
+  const sorted = [...taskFiles].sort((a, b) => {
+    const aTerminal = TERMINAL_TASK_STATES.some((s) => a.includes(`/${s}/`));
+    const bTerminal = TERMINAL_TASK_STATES.some((s) => b.includes(`/${s}/`));
+    if (aTerminal !== bTerminal) return aTerminal ? -1 : 1;
+    return 0;
+  });
+
+  for (const file of sorted) {
     try {
       const content = readFileSync(join(projectDir, file), "utf-8");
       const idMatch = content.match(/^id:\s+(.+)$/m);

@@ -94,7 +94,7 @@ describe("decomposer workflow", () => {
     expect(result.steps.decompose.status).toBe("skipped");
   });
 
-  it("skips decompose when trigger payload is missing runDir", async () => {
+  it("fails assess-failure when trigger payload is missing runDir", async () => {
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
       trigger: {
         event: "workflow.completed",
@@ -105,12 +105,8 @@ describe("decomposer workflow", () => {
 
     const result = await harness.run();
 
-    expect(result.status).toBe("success");
-    expect(result.steps["assess-failure"].output).toMatchObject({
-      shouldDecompose: false,
-      reason: expect.stringMatching(/missing/i),
-    });
-    expect(result.steps.decompose.status).toBe("skipped");
+    expect(result.steps["assess-failure"].status).toBe("failed");
+    expect(result.steps.decompose).toBeUndefined();
   });
 
   it("skips decompose when no task found in doing/ or blocked/", async () => {

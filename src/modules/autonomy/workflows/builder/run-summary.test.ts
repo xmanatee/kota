@@ -128,6 +128,29 @@ describe("writeBuilderRunSummary", () => {
     expect(summary.taskTitle).toBe("Foo bar feature");
   });
 
+  it("prefers terminal-state task when both completed and follow-up tasks change", () => {
+    mkdirSync(join(projectDir, "data", "tasks", "done"), { recursive: true });
+    mkdirSync(join(projectDir, "data", "tasks", "backlog"), { recursive: true });
+    writeFileSync(
+      join(projectDir, "data", "tasks", "backlog", "task-follow-up.md"),
+      "---\nid: task-follow-up\ntitle: Follow-up task\nstatus: backlog\n---\n",
+    );
+    writeFileSync(
+      join(projectDir, "data", "tasks", "done", "task-completed-work.md"),
+      "---\nid: task-completed-work\ntitle: Completed work\nstatus: done\n---\n",
+    );
+    execSync("git add -A && git commit -m 'Complete task and add follow-up'", {
+      cwd: projectDir,
+      shell: "/bin/sh",
+    });
+
+    const ctx = makeContext(projectDir, runDirPath);
+    const summary = writeBuilderRunSummary(ctx);
+
+    expect(summary.taskId).toBe("task-completed-work");
+    expect(summary.taskTitle).toBe("Completed work");
+  });
+
   it("sets taskId and taskTitle to null when no task file is in the commit", () => {
     writeFileSync(join(projectDir, "src.ts"), "// code\n");
     execSync("git add -A && git commit -m 'Some code change'", {
