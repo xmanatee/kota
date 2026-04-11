@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { MONITORED_WORKFLOW_NAMES } from "#modules/autonomy/shared.js";
 import { runAttentionDigestStep } from "./step.js";
 
 const attentionDigestWorkflow: WorkflowDefinitionInput = {
@@ -13,7 +14,7 @@ const attentionDigestWorkflow: WorkflowDefinitionInput = {
     {
       event: "workflow.completed",
       filter: {
-        workflow: ["builder", "decomposer", "explorer", "inbox-sorter", "pr-reviewer"],
+        workflow: [...MONITORED_WORKFLOW_NAMES],
         status: ["failed", "interrupted"],
       },
     },

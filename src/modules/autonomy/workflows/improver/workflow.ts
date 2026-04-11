@@ -2,7 +2,7 @@ import type { AgentDef } from "#core/agents/agent-types.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
-import { runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
+import { MONITORED_WORKFLOW_NAMES, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
 
 /** Minimum interval between improver runs triggered by the same event type. */
 export const IMPROVER_COOLDOWN_MS = 60 * 60 * 1000; // 60 minutes
@@ -28,7 +28,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
     {
       event: "workflow.completed",
       filter: {
-        workflow: ["builder", "decomposer", "explorer", "inbox-sorter", "pr-reviewer"],
+        workflow: [...MONITORED_WORKFLOW_NAMES],
         status: ["failed", "interrupted"],
       },
       cooldownMs: IMPROVER_COOLDOWN_MS,
