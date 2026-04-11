@@ -1,7 +1,7 @@
 ---
 id: task-inbound-webhook-channel
 title: Add generic inbound webhook-to-session channel
-status: backlog
+status: done
 priority: p2
 area: modules
 summary: The ChannelDef protocol exists but no generic HTTP webhook channel uses it for inbound session creation. External services cannot start agent sessions via HTTP POST.

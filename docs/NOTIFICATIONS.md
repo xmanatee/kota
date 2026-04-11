@@ -266,6 +266,79 @@ tracking can attribute actions without channel-specific knowledge.
 
 Identity is informational — it is not an auth/authz mechanism.
 
+## Inbound Webhook Channel
+
+The `webhook-channel` module provides a generic inbound HTTP webhook that
+creates agent sessions from external services (CI, monitoring, custom
+integrations). This is separate from the outbound `webhook` notification module.
+
+### Route
+
+`POST /api/channels/webhook` — bypasses bearer-token auth (does its own
+signature validation when configured).
+
+### Payload
+
+```json
+{
+  "message": "Deploy to production completed",
+  "agent": "builder",
+  "metadata": { "service": "api", "env": "production" },
+  "sessionId": "wh-abc123"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `message` | `string` | Yes | Message to send to the agent |
+| `agent` | `string` | No | Agent name (overrides `defaultAgent` config) |
+| `metadata` | `object` | No | Arbitrary context forwarded to the session |
+| `sessionId` | `string` | No | Resume an existing session instead of creating one |
+
+### Response
+
+New session (HTTP 201) or resumed session (HTTP 200):
+
+```json
+{
+  "sessionId": "wh-m3k2f-1",
+  "response": "Agent response text...",
+  "createdAt": "2026-04-12T00:00:00.000Z"
+}
+```
+
+### HMAC Signature Verification
+
+To require HMAC-SHA256 verification, set a `secret` in the module config.
+Requests must include an `X-Webhook-Signature` header with `sha256=<hex>`.
+
+```json
+{
+  "modules": {
+    "webhook-channel": {
+      "secret": "$WEBHOOK_CHANNEL_SECRET",
+      "defaultAgent": "builder"
+    }
+  }
+}
+```
+
+`secret` supports `$ENV_VAR` references. When set, requests without a valid
+signature are rejected with HTTP 401. When omitted, the route accepts all
+requests.
+
+`defaultAgent` sets the agent name when the payload omits the `agent` field.
+
+### Events
+
+The channel emits `webhook-channel.session` on the bus for each request:
+
+| Field | Type | Description |
+|---|---|---|
+| `sessionId` | `string` | The session identifier |
+| `identity` | `ChannelUserIdentity` | Attribution identity for the session |
+| `resumed` | `boolean` | Whether an existing session was resumed |
+
 ## Adding a custom notification consumer
 
 Subscribe to notification events in a module's `onLoad` via `ctx.events.subscribe`:
