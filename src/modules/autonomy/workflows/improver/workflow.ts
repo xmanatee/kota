@@ -56,6 +56,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
       model: agent.model,
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
+      maxTurns: 75,
       timeoutMs: 60 * 60 * 1000, // 60 minutes — improver analysis can be thorough
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       repairLoop: {
