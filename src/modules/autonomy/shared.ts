@@ -60,6 +60,150 @@ export function computeCostByWorkflow(runs: RunSummary[]): Record<string, number
   return result;
 }
 
+// --- Run-outcome aggregation for the improver ---
+
+type WorkflowFailureRate = {
+  workflow: string;
+  total: number;
+  failures: number;
+  rate: number;
+};
+
+type RepairCheckTally = {
+  checkId: string;
+  count: number;
+};
+
+type CostTrend = {
+  workflow: string;
+  currentUsd: number;
+  previousUsd: number;
+  deltaPercent: number | null;
+};
+
+type DurationOutlier = {
+  runId: string;
+  workflow: string;
+  durationMs: number;
+  medianMs: number;
+};
+
+export type RunOutcomeAggregation = {
+  failureRates24h: WorkflowFailureRate[];
+  failureRates7d: WorkflowFailureRate[];
+  topRepairFailures: RepairCheckTally[];
+  costTrends: CostTrend[];
+  durationOutliers: DurationOutlier[];
+};
+
+function computeFailureRates(runs: RunSummary[]): WorkflowFailureRate[] {
+  const byWf = new Map<string, { total: number; failures: number }>();
+  for (const r of runs) {
+    const entry = byWf.get(r.workflow) ?? { total: 0, failures: 0 };
+    entry.total++;
+    if (r.status === "failed") entry.failures++;
+    byWf.set(r.workflow, entry);
+  }
+  return [...byWf.entries()]
+    .map(([workflow, { total, failures }]) => ({
+      workflow,
+      total,
+      failures,
+      rate: total > 0 ? failures / total : 0,
+    }))
+    .sort((a, b) => b.rate - a.rate || b.failures - a.failures);
+}
+
+function tallyRepairFailures(runs: WorkflowRunMetadata[]): RepairCheckTally[] {
+  const counts = new Map<string, number>();
+  for (const run of runs) {
+    for (const step of run.steps) {
+      const output = step.output as
+        | { repairIterations?: Array<{ failures?: Array<{ id: string }> }> }
+        | undefined;
+      if (!output?.repairIterations) continue;
+      for (const iter of output.repairIterations) {
+        for (const f of iter.failures ?? []) {
+          counts.set(f.id, (counts.get(f.id) ?? 0) + 1);
+        }
+      }
+    }
+  }
+  return [...counts.entries()]
+    .map(([checkId, count]) => ({ checkId, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+function computeCostTrends(
+  currentRuns: RunSummary[],
+  previousRuns: RunSummary[],
+): CostTrend[] {
+  const current = computeCostByWorkflow(currentRuns);
+  const previous = computeCostByWorkflow(previousRuns);
+  const allWfs = new Set([...Object.keys(current), ...Object.keys(previous)]);
+  return [...allWfs]
+    .map((workflow) => {
+      const cur = current[workflow] ?? 0;
+      const prev = previous[workflow] ?? 0;
+      return {
+        workflow,
+        currentUsd: cur,
+        previousUsd: prev,
+        deltaPercent: prev > 0 ? ((cur - prev) / prev) * 100 : null,
+      };
+    })
+    .sort((a, b) => (b.currentUsd + b.previousUsd) - (a.currentUsd + a.previousUsd));
+}
+
+function findDurationOutliers(runs: RunSummary[]): DurationOutlier[] {
+  const byWf = new Map<string, RunSummary[]>();
+  for (const r of runs) {
+    if (r.durationMs == null) continue;
+    const list = byWf.get(r.workflow) ?? [];
+    list.push(r);
+    byWf.set(r.workflow, list);
+  }
+  const outliers: DurationOutlier[] = [];
+  for (const [workflow, wfRuns] of byWf) {
+    if (wfRuns.length < 3) continue;
+    const sorted = wfRuns.map((r) => r.durationMs!).sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    for (const r of wfRuns) {
+      if (r.durationMs! > median * 2.5) {
+        outliers.push({ runId: r.id, workflow, durationMs: r.durationMs!, medianMs: median });
+      }
+    }
+  }
+  return outliers.sort((a, b) => b.durationMs - a.durationMs);
+}
+
+export function aggregateRunOutcomes(runsDir: string): RunOutcomeAggregation {
+  const now = Date.now();
+  const cutoff24h = now - 24 * 60 * 60 * 1000;
+  const cutoff7d = now - 7 * 24 * 60 * 60 * 1000;
+  const cutoff14d = now - 14 * 24 * 60 * 60 * 1000;
+
+  const all14d = loadRunsInWindow(runsDir, cutoff14d);
+  const all7d = all14d.filter((r) => new Date(r.startedAt).getTime() >= cutoff7d);
+  const all24h = all7d.filter((r) => new Date(r.startedAt).getTime() >= cutoff24h);
+  const previous7d = all14d.filter((r) => {
+    const t = new Date(r.startedAt).getTime();
+    return t >= cutoff14d && t < cutoff7d;
+  });
+
+  const summaries7d = all7d.map(summarizeRun);
+  const summaries24h = all24h.map(summarizeRun);
+  const previousSummaries = previous7d.map(summarizeRun);
+
+  return {
+    failureRates24h: computeFailureRates(summaries24h),
+    failureRates7d: computeFailureRates(summaries7d),
+    topRepairFailures: tallyRepairFailures(all7d).slice(0, 10),
+    costTrends: computeCostTrends(summaries7d, previousSummaries),
+    durationOutliers: findDurationOutliers(summaries7d).slice(0, 10),
+  };
+}
+
 export function stepSucceeded(stepId: string): WorkflowPredicate {
   return ({ stepResults }) => stepResults[stepId]?.status === "success";
 }

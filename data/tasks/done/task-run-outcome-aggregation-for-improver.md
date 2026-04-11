@@ -1,7 +1,7 @@
 ---
 id: task-run-outcome-aggregation-for-improver
 title: Add run-outcome aggregation to give the improver better signal
-status: backlog
+status: done
 priority: p3
 area: autonomy
 summary: Extend the existing loadRecentRuns helper with lightweight aggregation so the improver can see patterns across runs, not just individual run metadata.

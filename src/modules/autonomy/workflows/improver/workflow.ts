@@ -1,8 +1,9 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
+import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
-import { MONITORED_WORKFLOW_NAMES, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
+import { aggregateRunOutcomes, MONITORED_WORKFLOW_NAMES, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
 
 /** Minimum interval between improver runs triggered by the same event type. */
 export const IMPROVER_COOLDOWN_MS = 60 * 60 * 1000; // 60 minutes
@@ -38,6 +39,15 @@ const improverWorkflow: WorkflowDefinitionInput = {
     },
   ],
   steps: [
+    {
+      id: "gather-run-data",
+      type: "code",
+      exposeOutputToAgent: true,
+      run: () => {
+        const store = new WorkflowRunStore();
+        return aggregateRunOutcomes(store.runsDir);
+      },
+    },
     {
       id: "improve",
       type: "agent",
