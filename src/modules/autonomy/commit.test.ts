@@ -95,6 +95,25 @@ describe("commitWorkflowChanges", () => {
     }).trim();
     expect(log).toBe("Workflow: update repo");
   });
+
+  it("unstages changes when git commit fails", () => {
+    writeFileSync(join(projectDir, "change.txt"), "hello\n");
+    writeFileSync(join(runDirPath, "commit-message.txt"), "");
+
+    expect(() => commitWorkflowChanges(projectDir, runDirPath)).toThrow();
+
+    const stagedFiles = execSync("git diff --cached --name-only", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    }).trim();
+    expect(stagedFiles).toBe("");
+
+    const status = execSync("git status --short", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    }).trim();
+    expect(status).toBe("?? change.txt");
+  });
 });
 
 describe("builder workflow commit and restart gates", () => {

@@ -9,6 +9,29 @@ export type CommitResult = {
 
 const DEFAULT_COMMIT_MESSAGE = "Workflow: update repo";
 
+function runGit(projectDir: string, command: string): string {
+  return execSync(command, {
+    cwd: projectDir,
+    encoding: "utf-8",
+    stdio: "pipe",
+  }).trim();
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function unstageAfterFailedCommit(projectDir: string, commitError: unknown): void {
+  try {
+    execSync("git reset --mixed HEAD", { cwd: projectDir, stdio: "pipe" });
+  } catch (resetError) {
+    throw new Error(
+      `git commit failed, then git reset --mixed HEAD failed: ${describeError(commitError)}`,
+      { cause: resetError },
+    );
+  }
+}
+
 /**
  * Stages all working tree changes and commits them.
  * Reads the commit message from `<runDirPath>/commit-message.txt` if present,
@@ -20,11 +43,7 @@ export function commitWorkflowChanges(
   runDirPath: string,
 ): CommitResult {
   execSync("git add -A", { cwd: projectDir, stdio: "pipe" });
-  const stagedFiles = execSync("git diff --cached --name-only", {
-    cwd: projectDir,
-    encoding: "utf-8",
-    stdio: "pipe",
-  }).trim();
+  const stagedFiles = runGit(projectDir, "git diff --cached --name-only");
 
   if (!stagedFiles) {
     return { committed: false };
@@ -35,17 +54,14 @@ export function commitWorkflowChanges(
     writeFileSync(msgPath, DEFAULT_COMMIT_MESSAGE);
   }
 
-  execSync(`git commit -F ${JSON.stringify(msgPath)}`, {
-    cwd: projectDir,
-    encoding: "utf-8",
-    stdio: "pipe",
-  });
+  try {
+    runGit(projectDir, `git commit -F ${JSON.stringify(msgPath)}`);
+  } catch (error) {
+    unstageAfterFailedCommit(projectDir, error);
+    throw error;
+  }
 
-  const message = execSync("git log --format=%s -1", {
-    cwd: projectDir,
-    encoding: "utf-8",
-    stdio: "pipe",
-  }).trim();
+  const message = runGit(projectDir, "git log --format=%s -1");
 
   return { committed: true, message };
 }
