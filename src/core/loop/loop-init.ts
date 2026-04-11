@@ -17,12 +17,12 @@ import type { GuardrailsConfig } from "#core/tools/guardrails.js";
 import { addLoadedModule, resetModuleFactory } from "#core/tools/module-factory/index.js";
 import { resetGroups } from "#core/tools/tool-groups.js";
 import { resetToolTelemetry } from "#core/tools/tool-telemetry.js";
-import type { VerifyTracker } from "#root/verify-tracker.js";
 import type { Context } from "./context.js";
 import type { CostTracker } from "./cost.js";
 import { resetChangeTracker } from "./file-changes.js";
 import type { SessionStateMachine } from "./session-state.js";
 import type { Transport } from "./transport.js";
+import type { VerifyTracker } from "./verify-tracker.js";
 
 /** Internal state interface used to access AgentSession fields from extracted functions. */
 export interface AgentLoopState {

@@ -627,7 +627,7 @@ describe("checkModuleBoundary", () => {
     mkdirSync(join(dir, "src/core/loop"), { recursive: true });
     writeFileSync(
       join(dir, "src/core/loop/context.ts"),
-      'import { maskObservations } from "#root/observation-masking.js";\n',
+      'import { something } from "#root/init.js";\n',
     );
     expect(checkModuleBoundary(dir)).toBe("OK: no root helper drift detected");
   });

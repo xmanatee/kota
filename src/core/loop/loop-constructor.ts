@@ -15,16 +15,16 @@ import { setDelegateConfig } from "#core/tools/delegate.js";
 import { getDefaultConfig as getDefaultGuardrails } from "#core/tools/guardrails.js";
 import { enableGroup } from "#core/tools/tool-groups.js";
 import { buildSessionWarmup } from "#root/init.js";
-import { loadInstructionContext } from "#root/instruction-files.js";
-import { loadProjectContext } from "#root/project-context.js";
-import { detectVerifyCommands, VerifyTracker } from "#root/verify-tracker.js";
 import { Context } from "./context.js";
 import { CostTracker } from "./cost.js";
 import { initChangeTracker } from "./file-changes.js";
+import { loadInstructionContext } from "./instruction-files.js";
 import type { LoopOptions } from "./loop.js";
 import { type AgentLoopState, runInitModules, saveToHistoryImpl } from "./loop-init.js";
+import { loadProjectContext } from "./project-context.js";
 import { SessionStateMachine } from "./session-state.js";
 import { CliTransport } from "./transport.js";
+import { detectVerifyCommands, VerifyTracker } from "./verify-tracker.js";
 
 export function initAgentSession(
   state: AgentLoopState,

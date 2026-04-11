@@ -4,8 +4,8 @@ import { compactMessages } from "#core/memory/compaction.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import type { ToolResultBlock } from "#core/tools/index.js";
 import { getTodoState } from "#core/tools/index.js";
-import { type MaskStats, maskObservations } from "#root/observation-masking.js";
 import { type PruneStats, pruneMessages } from "./message-pruning.js";
+import { type MaskStats, maskObservations } from "./observation-masking.js";
 
 type Message = Anthropic.MessageParam;
 

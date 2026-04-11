@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  processToolResults,
+  type ToolCallRecord,
+  type ToolResultRecord,
+  VerifyTracker,
+} from "#core/loop/verify-tracker.js";
+import {
   clearCustomGroups,
   enableGroup,
   getActiveToolNames,
@@ -7,12 +13,6 @@ import {
   registerCustomGroup,
   resetGroups,
 } from "./core/tools/tool-groups.js";
-import {
-  processToolResults,
-  type ToolCallRecord,
-  type ToolResultRecord,
-  VerifyTracker,
-} from "./verify-tracker.js";
 
 /**
  * Cross-module integration tests:

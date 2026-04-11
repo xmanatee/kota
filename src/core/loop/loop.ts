@@ -5,7 +5,6 @@ import type { ModelClient } from "#core/model/model-client.js";
 import type { ModelTiers } from "#core/model/model-router.js";
 import type { ModuleLoader } from "#core/modules/module-loader.js";
 import type { GuardrailsConfig } from "#core/tools/guardrails.js";
-import type { VerifyTracker } from "#root/verify-tracker.js";
 import type { Context } from "./context.js";
 import type { CostTracker } from "./cost.js";
 import { initAgentSession } from "./loop-constructor.js";
@@ -13,6 +12,7 @@ import { type AgentLoopState, runClose, saveToHistoryImpl } from "./loop-init.js
 import { runSend } from "./loop-send.js";
 import type { SessionState, SessionStateMachine } from "./session-state.js";
 import { BufferTransport, type Transport } from "./transport.js";
+import type { VerifyTracker } from "./verify-tracker.js";
 
 export type LoopOptions = {
   model?: string;

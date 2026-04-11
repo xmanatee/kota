@@ -7,14 +7,14 @@ import { getAllTools } from "#core/tools/index.js";
 import { detectToolGroups, enableGroup, filterTools } from "#core/tools/tool-groups.js";
 import { executeToolCalls, FailureTracker } from "#core/tools/tool-runner.js";
 import { getToolTelemetry } from "#core/tools/tool-telemetry.js";
-import { analyzeRequest, formatContextHint } from "#root/request-analyzer.js";
-import { processToolResults } from "#root/verify-tracker.js";
 import { CONTEXT_WINDOW } from "./context.js";
 import { collectDynamicState } from "./dynamic-state.js";
 import { getChangeTracker } from "./file-changes.js";
 import type { AgentLoopState } from "./loop-init.js";
 import { saveToHistoryImpl } from "./loop-init.js";
 import { buildReflectionPrompt, getLastAssistantText, shouldReflect } from "./reflection.js";
+import { analyzeRequest, formatContextHint } from "./request-analyzer.js";
+import { processToolResults } from "./verify-tracker.js";
 
 const MAX_ITERATIONS = 200;
 

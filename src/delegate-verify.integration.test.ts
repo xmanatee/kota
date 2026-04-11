@@ -10,15 +10,15 @@
  */
 import { describe, expect, it } from "vitest";
 import {
-  assembleDelegateResult,
-  type DelegateMetadata,
-} from "./core/tools/delegate-format.js";
-import {
   processToolResults,
   type ToolCallRecord,
   type ToolResultRecord,
   VerifyTracker,
-} from "./verify-tracker.js";
+} from "#core/loop/verify-tracker.js";
+import {
+  assembleDelegateResult,
+  type DelegateMetadata,
+} from "./core/tools/delegate-format.js";
 
 function makeMeta(overrides: Partial<DelegateMetadata> = {}): DelegateMetadata {
   return {

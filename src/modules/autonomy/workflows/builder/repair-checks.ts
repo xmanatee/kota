@@ -61,17 +61,12 @@ export const ROOT_PRODUCTION_ALLOWLIST = new Set([
   "delegate-prompts.ts",
   "error-context.ts",
   "init.ts",
-  "instruction-files.ts",
   "lint.ts",
   "module-api.ts",
-  "observation-masking.ts",
   "path-resolver.ts",
-  "project-context.ts",
   "project-detection.ts",
   "repl-session.ts",
-  "request-analyzer.ts",
   "validate-queue.ts",
-  "verify-tracker.ts",
   "workspace.ts",
 ]);
 

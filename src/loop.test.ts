@@ -80,8 +80,8 @@ vi.mock("./core/mcp/manager.js", () => ({
     static loadConfig() { return null; }
   },
 }));
-vi.mock("./verify-tracker.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./verify-tracker.js")>();
+vi.mock("#core/loop/verify-tracker.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("#core/loop/verify-tracker.js")>();
   return {
     ...actual,
     VerifyTracker: class MockVerifyTracker {

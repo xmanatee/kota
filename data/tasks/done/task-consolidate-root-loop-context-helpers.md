@@ -1,7 +1,7 @@
 ---
 id: task-consolidate-root-loop-context-helpers
 title: Move root loop and context helpers into core loop boundaries
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Instruction loading, project context, request analysis, observation masking, and verify tracking still sit in src/ root while core loop code imports them through #root.

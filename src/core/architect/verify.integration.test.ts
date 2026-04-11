@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { VerifyTracker } from "#root/verify-tracker.js";
+import { VerifyTracker } from "#core/loop/verify-tracker.js";
 import type { EditorResult } from "./architect-editor.js";
 import type { ArchitectStepResult } from "./runner.js";
 

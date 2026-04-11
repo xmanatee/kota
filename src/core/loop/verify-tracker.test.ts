@@ -519,7 +519,7 @@ describe("cross-module: assembleDelegateResult → processToolResults", () => {
   // that processToolResults must parse in production.
 
   it("parses realistic delegate result with modified files and metadata", async () => {
-    const { assembleDelegateResult } = await import("./core/tools/delegate-format.js");
+    const { assembleDelegateResult } = await import("#core/tools/delegate-format.js");
     const meta = {
       mode: "execute",
       turnsUsed: 5,
@@ -544,7 +544,7 @@ describe("cross-module: assembleDelegateResult → processToolResults", () => {
   });
 
   it("parses delegate result with sources section without false positives", async () => {
-    const { assembleDelegateResult } = await import("./core/tools/delegate-format.js");
+    const { assembleDelegateResult } = await import("#core/tools/delegate-format.js");
     const meta = {
       mode: "execute",
       turnsUsed: 8,
@@ -570,7 +570,7 @@ describe("cross-module: assembleDelegateResult → processToolResults", () => {
   });
 
   it("does not track files when delegate has no modifications", async () => {
-    const { assembleDelegateResult } = await import("./core/tools/delegate-format.js");
+    const { assembleDelegateResult } = await import("#core/tools/delegate-format.js");
     const meta = {
       mode: "explore",
       turnsUsed: 3,
