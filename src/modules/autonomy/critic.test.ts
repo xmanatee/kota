@@ -63,11 +63,48 @@ describe("createCriticCheck", () => {
     vi.clearAllMocks();
   });
 
-  it("skips when no task in doing/", async () => {
+  it("skips when no task in doing/ and no staged done/ task", async () => {
     const dir = makeTmpDir();
     const check = createCriticCheck();
     const result = await (check as CodeCheck).run(makeContext(dir));
     expect(result).toMatch(/skipping critic review/);
+  });
+
+  it("finds task in done/ via staged git diff when doing/ is empty", async () => {
+    const { execFileSync } = await import("node:child_process");
+    const dir = makeTmpDir();
+    const doneDir = join(dir, "data/tasks/done");
+    mkdirSync(doneDir, { recursive: true });
+    writeFileSync(join(doneDir, "task-moved.md"), "---\ntitle: Moved task\n---\nTask content.");
+
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+
+    // Mock execFileSync to return a rename entry for the done/ query,
+    // and empty strings for diff stat/content/name-only queries.
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const argStr = Array.isArray(args) ? args.join(" ") : "";
+      if (argStr.includes("data/tasks/done/")) {
+        return `R100\tdata/tasks/backlog/task-moved.md\tdata/tasks/done/task-moved.md\n`;
+      }
+      return "";
+    });
+
+    setApiResponse({
+      verdict: "pass",
+      critical_issues: [],
+      warnings: [],
+      summary: "Looks good.",
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+
+    expect(result).toMatch(/pass/);
+    expect(mockCreate).toHaveBeenCalledOnce();
+    // Verify the task content was passed to the API
+    const userMessage = mockCreate.mock.calls[0][0].messages[0].content;
+    expect(userMessage).toContain("Moved task");
   });
 
   it("calls Anthropic API and passes on pass verdict", async () => {

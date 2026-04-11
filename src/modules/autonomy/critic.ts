@@ -52,11 +52,35 @@ Respond with ONLY a JSON object (no markdown fences) matching this schema:
 }`;
 
 function getTaskContent(projectDir: string): string | null {
+  // Check doing/ first — the task is here while the builder is mid-work.
   const doingDir = join(projectDir, "data/tasks/doing");
-  if (!existsSync(doingDir)) return null;
-  const files = readdirSync(doingDir).filter((f) => f.endsWith(".md") && f !== "AGENTS.md");
-  if (files.length === 0) return null;
-  return readFileSync(join(doingDir, files[0]), "utf8");
+  if (existsSync(doingDir)) {
+    const doingFiles = readdirSync(doingDir).filter((f) => f.endsWith(".md") && f !== "AGENTS.md");
+    if (doingFiles.length > 0) {
+      return readFileSync(join(doingDir, doingFiles[0]), "utf8");
+    }
+  }
+
+  // The builder moves the task to done/ before repair checks run. Find the
+  // newly-staged done/ task from the git index so the critic can still review it.
+  try {
+    const status = execFileSync("git", ["diff", "--cached", "--name-status", "--", "data/tasks/done/"], {
+      cwd: projectDir,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    for (const line of status.split("\n")) {
+      const match = line.match(/^[AR]\S*\t.*\t?(data\/tasks\/done\/task-.+\.md)$/);
+      if (match?.[1]) {
+        const absPath = join(projectDir, match[1]);
+        if (existsSync(absPath)) return readFileSync(absPath, "utf8");
+      }
+    }
+  } catch {
+    // git not available or no staged changes — fall through
+  }
+
+  return null;
 }
 
 function getStagedDiff(projectDir: string): string {
