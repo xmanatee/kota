@@ -4,14 +4,14 @@ title: Review April 2026 research resource batch for KOTA relevance
 status: backlog
 priority: p3
 area: research
-summary: Sixteen new external resources were captured covering agent runtimes, tooling, memory systems, security patterns, and product strategy; batch-review them for actionable KOTA improvements.
+summary: Nineteen external resources captured covering agent runtimes, tooling, memory systems, security patterns, cloud orchestration, and product strategy; batch-review them for actionable KOTA improvements.
 created_at: 2026-04-11T01:54:48Z
-updated_at: 2026-04-11T01:54:48Z
+updated_at: 2026-04-11T15:35:05Z
 ---
 
 ## Problem
 
-Sixteen research URLs were captured in `data/inbox/` during early April 2026.
+Nineteen research URLs were captured in `data/inbox/` during April 2026.
 They span several themes but share a common intent: decide whether each
 contains anything useful for improving KOTA. Processing them individually would
 flood the task queue with same-shape work.
@@ -40,11 +40,19 @@ flood the task queue with same-shape work.
 - https://trends.vc/micro-app-portfolios-report-5-hit-rate-vibe-coded-exits-portfolio-os/ — micro-app portfolio strategy
 - https://www.latent.space/p/pmarca — Latent Space pmarca interview/essay
 
+### Cloud orchestration
+- https://github.com/skypilot-org/skypilot/ — SkyPilot cloud ML workload orchestrator
+
+### Agent runtimes (uncategorized)
+- https://www.ironclaw.com/ — Ironclaw (Near AI)
+- https://github.com/nearai/ironclaw — Ironclaw repo
+
 ### Agent patterns (social posts)
 - https://x.com/akshay_pachaar/status/2041146899319971922
 - https://x.com/arlanr/status/2041215978957389908
 - https://x.com/NickSpisak_/status/2040448463540830705
 - https://x.com/johnrushx/status/2011029959079301373
+- https://x.com/tianle_cai/status/2042459055483207818
 
 ## Desired Outcome
 
