@@ -1,12 +1,12 @@
 ---
 id: task-move-cli-history-into-module
 title: Move cli-history files from src root into a module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: cli-history.ts and cli-history-commands.ts remain in src root as module-first debt. Move them into an appropriate module to satisfy the entrypoint allowlist.
 created_at: 2026-04-11T12:00:00Z
-updated_at: 2026-04-11T12:00:00Z
+updated_at: 2026-04-11T18:05:00Z
 ---
 
 ## Problem

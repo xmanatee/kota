@@ -8,5 +8,6 @@ This directory owns the `conversation_recall` management tool — lets the agent
 ## Boundaries
 
 - Does not own the history storage implementation (that lives in `src/core/memory/`).
-- Does not own the `history` CLI commands (`kota history …`) — those live in `src/cli-history-commands.ts`.
+- Owns the `history` CLI commands (`kota history …`) in `cli-commands.ts` and
+  CLI helpers (interactive REPL, pipe mode, option parsing) in `cli.ts`.
 - Does not own the memory or knowledge stores (those belong in `memory/` and `knowledge/`).

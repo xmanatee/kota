@@ -56,8 +56,6 @@ export function checkSuccessCriteriaVerified(runDirPath: string): string {
  */
 export const ROOT_PRODUCTION_ALLOWLIST = new Set([
   "cli.ts",
-  "cli-history.ts",
-  "cli-history-commands.ts",
   "init.ts",
   "module-api.ts",
   "validate-queue.ts",

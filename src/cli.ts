@@ -2,13 +2,6 @@ import { Command } from "commander";
 import { expandAlias, loadConfig } from "#core/config/config.js";
 import { setSkipConfirmations } from "#core/util/confirm.js";
 import {
-  interactiveMode,
-  parseIntOption,
-  registerHistoryCommands,
-  resolveConversationId,
-  runPipeLoop,
-} from "./cli-history.js";
-import {
   buildClaudeCodeSystemPrompt,
   executeWithAgentSDK,
 } from "./core/agent-sdk/index.js";
@@ -18,9 +11,16 @@ import { createModelClient } from "./core/model/model-client.js";
 import { discoverModules } from "./core/modules/module-discovery.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import { discoverProjectModules } from "./core/modules/project-discovery.js";
+import {
+  interactiveMode,
+  parseIntOption,
+  registerHistoryCommands,
+  resolveConversationId,
+  runPipeLoop,
+} from "./modules/history/cli.js";
 import { parseModelString } from "./modules/model-clients/factory.js";
 
-export { parseIntOption } from "./cli-history.js";
+export { parseIntOption } from "./modules/history/cli.js";
 
 /** Check if an error is an Anthropic auth error and return a user-friendly message, or null. */
 export function formatAuthError(err: Error): string | null {

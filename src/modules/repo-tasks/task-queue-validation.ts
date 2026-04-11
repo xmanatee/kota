@@ -159,8 +159,7 @@ export function listRootLevelBuiltInModuleFiles(projectDir: string): string[] {
     .sort();
 }
 
-const ROOT_CLI_ARCHITECTURE_EXCLUSIONS = new Set([
-  "cli-history",
+const ROOT_CLI_ARCHITECTURE_EXCLUSIONS = new Set<string>([
 ]);
 
 export function listRootLevelCliArchitectureDebt(projectDir: string): string[] {

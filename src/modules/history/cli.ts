@@ -1,11 +1,11 @@
 import { createInterface } from "node:readline";
 import { expandAlias, type KotaConfig, loadConfig } from "#core/config/config.js";
-import { getScheduler, resetScheduler } from "./core/daemon/scheduler.js";
-import { AgentSession, type LoopOptions, runAgentLoop } from "./core/loop/loop.js";
-import { type ConversationHistory, getHistory } from "./core/memory/history.js";
-import { createModelClient } from "./core/model/model-client.js";
+import { getScheduler, resetScheduler } from "#core/daemon/scheduler.js";
+import { AgentSession, type LoopOptions, runAgentLoop } from "#core/loop/loop.js";
+import { type ConversationHistory, getHistory } from "#core/memory/history.js";
+import { createModelClient } from "#core/model/model-client.js";
 
-export { registerHistoryCommands } from "./cli-history-commands.js";
+export { registerHistoryCommands } from "./cli-commands.js";
 
 /** Parse a CLI numeric option, exiting with a clear message on invalid input. */
 export function parseIntOption(value: string, name: string): number {
