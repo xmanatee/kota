@@ -1,12 +1,12 @@
 ---
 id: task-slack-channel-module-tests
 title: Add test coverage for the slack-channel module
-status: backlog
+status: done
 priority: p2
 area: testing
 summary: The slack-channel module implements bidirectional Slack bot with Socket Mode and approval interactions but has no tests.
 created_at: 2026-04-11T17:03:00Z
-updated_at: 2026-04-11T17:03:00Z
+updated_at: 2026-04-11T21:29:04Z
 ---
 
 ## Problem
