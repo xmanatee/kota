@@ -1,7 +1,7 @@
 ---
 id: task-channel-user-identity-context
 title: Add user-identity fields to ChannelStartContext
-status: backlog
+status: ready
 priority: p2
 area: core
 summary: ChannelStartContext lacks user/operator identity fields, forcing each channel adapter to reimplement identity propagation independently.
