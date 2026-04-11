@@ -1,7 +1,7 @@
 ---
 id: task-record-historical-resource-packet-disposition
 title: Record durable disposition for the historical external resource packet
-status: ready
+status: done
 priority: p2
 area: research
 summary: The large external resource packet was compressed into a few outcomes; create a concise durable disposition so every provided resource is accounted for.
