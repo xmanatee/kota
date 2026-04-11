@@ -370,6 +370,25 @@ Has an outcome.
       join("src", "webhook-cli.ts"),
     ]);
   });
+
+  it("rejects npm package-manager commands in active guidance and open tasks", () => {
+    mkdirSync(join(projectDir, "docs"), { recursive: true });
+    writeFileSync(join(projectDir, "AGENTS.md"), "# Root\n\nUse pnpm.\n");
+    writeFileSync(join(projectDir, "docs", "STANDARDS.md"), "Use npm test.\n");
+    writeTask(projectDir, "ready", "task-alpha", { summary: "Run npm test." });
+    writeTask(projectDir, "done", "task-archived", { status: "done", summary: "Old npm test note." });
+    execSync("git add data docs AGENTS.md && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    const finding = result.findings.find((f) => f.code === "active-guidance-uses-npm");
+
+    expect(finding?.paths).toContain("docs/STANDARDS.md");
+    expect(finding?.paths).toContain(join("data", "tasks", "ready", "task-alpha.md"));
+    expect(finding?.paths).not.toContain(join("data", "tasks", "done", "task-archived.md"));
+  });
 });
 
 describe("current repo task queue", () => {

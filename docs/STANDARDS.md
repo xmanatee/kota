@@ -30,6 +30,9 @@
 
 ## Engineering Rules
 
+- Use `pnpm` for package scripts, dependency installation, and one-off package
+  execution. Do not use `npm` unless the task explicitly concerns npm
+  compatibility.
 - Do not add test-only production flags, hooks, or override parameters just to make tests easier.
 - Prefer designs that are naturally testable through clear boundaries and explicit inputs and outputs.
 - Avoid optimizing healthy mechanisms for speed or cost at the expense of quality, clarity, or capability.

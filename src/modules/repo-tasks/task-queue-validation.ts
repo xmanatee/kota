@@ -40,6 +40,16 @@ type TaskFileEntry = {
   raw: string;
 };
 
+const ACTIVE_STEERING_FILES = [
+  "AGENTS.md",
+  "docs/STANDARDS.md",
+  "data/tasks/AGENTS.md",
+  "src/modules/autonomy/workflows/AGENTS.md",
+] as const;
+
+const ACTIVE_TASK_STATES: RepoTaskState[] = ["ready", "backlog", "doing", "blocked"];
+const DISALLOWED_NPM_COMMAND = /\bnpm\s+(?:run|test|install|i|ci|exec|start|build|lint|typecheck)\b/;
+
 function listTaskEntries(projectDir: string): TaskFileEntry[] {
   const entries: TaskFileEntry[] = [];
   for (const state of REPO_TASK_STATES) {
@@ -62,6 +72,49 @@ function listTaskEntries(projectDir: string): TaskFileEntry[] {
     }
   }
   return entries;
+}
+
+function listFilesRecursive(dir: string, predicate: (path: string) => boolean): string[] {
+  if (!existsSync(dir)) return [];
+  const paths: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      paths.push(...listFilesRecursive(path, predicate));
+      continue;
+    }
+    if (entry.isFile() && predicate(path)) {
+      paths.push(path);
+    }
+  }
+  return paths;
+}
+
+function listActivePackageManagerGuidanceFiles(projectDir: string): string[] {
+  const explicitFiles = ACTIVE_STEERING_FILES
+    .map((path) => join(projectDir, path))
+    .filter((path) => existsSync(path));
+
+  const promptFiles = listFilesRecursive(
+    join(projectDir, "src", "modules", "autonomy", "workflows"),
+    (path) => basename(path) === "prompt.md",
+  );
+
+  const activeTaskFiles = ACTIVE_TASK_STATES.flatMap((state) => {
+    const dir = getRepoTaskStateDir(projectDir, state);
+    if (!existsSync(dir)) return [];
+    return readdirSync(dir)
+      .filter((fileName) => fileName.endsWith(".md") && fileName !== "AGENTS.md")
+      .map((fileName) => join(dir, fileName));
+  });
+
+  return [...explicitFiles, ...promptFiles, ...activeTaskFiles].sort();
+}
+
+function findNpmPackageManagerGuidance(projectDir: string): string[] {
+  return listActivePackageManagerGuidanceFiles(projectDir)
+    .filter((path) => DISALLOWED_NPM_COMMAND.test(readFileSync(path, "utf8")))
+    .map((path) => path.slice(projectDir.length + 1));
 }
 
 function readTaskArea(entry: TaskFileEntry): string | null {
@@ -354,6 +407,16 @@ export function validateTaskQueue(
         paths: gitStatus.deleted,
       });
     }
+  }
+
+  const npmGuidancePaths = findNpmPackageManagerGuidance(projectDir);
+  if (npmGuidancePaths.length > 0) {
+    findings.push({
+      code: "active-guidance-uses-npm",
+      severity: "error",
+      message: `Active guidance and open tasks must use pnpm, not npm: ${npmGuidancePaths.join(", ")}`,
+      paths: npmGuidancePaths,
+    });
   }
 
   const errorCount = findings.filter((finding) => finding.severity === "error").length;
