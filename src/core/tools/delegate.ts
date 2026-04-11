@@ -5,13 +5,10 @@ import {
   buildSubAgentPrompt,
   EXECUTE_PROMPT,
   EXPLORE_PROMPT,
-  executeRunners,
-  executeTools,
-  exploreRunners,
-  exploreTools,
+  getExecuteToolSet,
+  getExploreToolSet,
+  getResearchToolSet,
   RESEARCH_PROMPT,
-  researchRunners,
-  researchTools,
 } from "#root/delegate-prompts.js";
 import {
   EXECUTE_MAX_TURNS,
@@ -106,13 +103,11 @@ export async function runDelegate(
     });
   }
 
-  const TOOLS_BY_MODE = { explore: exploreTools, execute: executeTools, research: researchTools } as const;
-  const RUNNERS_BY_MODE = { explore: exploreRunners, execute: executeRunners, research: researchRunners } as const;
+  const TOOLSET_BY_MODE = { explore: getExploreToolSet, execute: getExecuteToolSet, research: getResearchToolSet } as const;
   const TURNS_BY_MODE = { explore: EXPLORE_MAX_TURNS, execute: EXECUTE_MAX_TURNS, research: RESEARCH_MAX_TURNS } as const;
   const PROMPT_BY_MODE = { explore: EXPLORE_PROMPT, execute: EXECUTE_PROMPT, research: RESEARCH_PROMPT } as const;
 
-  const builtinTools = TOOLS_BY_MODE[mode];
-  const runners = RUNNERS_BY_MODE[mode];
+  const { tools: builtinTools, runners } = TOOLSET_BY_MODE[mode]();
 
   const mcpMgr = delegateConfig.mcpManager;
   const mcpTools = mcpMgr ? mcpMgr.getTools() : [];

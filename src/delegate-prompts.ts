@@ -1,22 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { ToolResult } from "./core/tools/index.js";
-import { runWorkspace, workspaceTool } from "./core/tools/workspace.js";
-import { codeExecTool, runCodeExec } from "./modules/execution/code-exec.js";
-import { processTool, runProcess } from "./modules/execution/process.js";
-import { runShell } from "./modules/execution/shell.js";
-import { fileEditTool, runFileEdit } from "./modules/filesystem/file-edit.js";
-import { fileReadTool, runFileRead } from "./modules/filesystem/file-read.js";
-import { fileWriteTool, runFileWrite } from "./modules/filesystem/file-write.js";
-import { filesOverviewTool, runFilesOverview } from "./modules/filesystem/files-overview.js";
-import { findReplaceTool, runFindReplace } from "./modules/filesystem/find-replace.js";
-import { globTool, runGlob } from "./modules/filesystem/glob.js";
-import { grepTool, runGrep } from "./modules/filesystem/grep.js";
-import { multiEditTool, runMultiEdit } from "./modules/filesystem/multi-edit.js";
-import { repoMapTool, runRepoMap } from "./modules/filesystem/repo-map.js";
-import { gitTool, runGit } from "./modules/git/git.js";
-import { httpRequestTool, runHttpRequest } from "./modules/web-access/http-request.js";
-import { runWebFetch, webFetchTool } from "./modules/web-access/web-fetch.js";
-import { runWebSearch, webSearchTool } from "./modules/web-access/web-search.js";
+import { resolveToolSet } from "./core/tools/index.js";
 import { detectProject, getDirectoryOverview } from "./project-detection.js";
 
 // --- Sub-agent system prompts ---
@@ -98,24 +82,25 @@ export const EXECUTE_PROMPT = `You are a task execution sub-agent. Complete the 
 - Report verification results (test/typecheck pass or fail).
 - If blocked, explain what's preventing completion.`;
 
+// --- Tool name sets ---
+// These define which registered tools each delegation mode receives.
+// The registry resolves names to definitions + runners at call time.
+
+export const EXPLORE_TOOL_NAMES = [
+  "file_read", "git", "grep", "glob", "repo_map", "files_overview",
+  "web_fetch", "web_search", "http_request", "code_exec", "shell", "workspace",
+] as const;
+
+export const EXECUTE_TOOL_NAMES = [
+  ...EXPLORE_TOOL_NAMES,
+  "file_edit", "file_write", "multi_edit", "process", "find_replace",
+] as const;
+
 // --- Tool sets ---
 
 type ToolRunner = (input: Record<string, unknown>) => Promise<ToolResult>;
 
-/** Shell runner with a 60s max timeout for sub-agents. */
-export async function runShellBounded(
-  input: Record<string, unknown>,
-): Promise<ToolResult> {
-  const MAX_SUB_TIMEOUT = 60_000;
-  return runShell({
-    ...input,
-    timeout_ms: Math.min(
-      (input.timeout_ms as number) || MAX_SUB_TIMEOUT,
-      MAX_SUB_TIMEOUT,
-    ),
-  });
-}
-
+/** Custom shell tool definition with 60s timeout description for sub-agents. */
 const subShellTool: Anthropic.Tool = {
   name: "shell",
   description:
@@ -131,57 +116,45 @@ const subShellTool: Anthropic.Tool = {
   },
 };
 
-export const exploreTools: Anthropic.Tool[] = [
-  fileReadTool,
-  gitTool,
-  grepTool,
-  globTool,
-  repoMapTool,
-  filesOverviewTool,
-  webFetchTool,
-  webSearchTool,
-  httpRequestTool,
-  codeExecTool,
-  subShellTool,
-  workspaceTool,
-];
+/** Wrap a shell runner with a 60s max timeout for sub-agents. */
+function createBoundedShellRunner(baseRunner: ToolRunner): ToolRunner {
+  const MAX_SUB_TIMEOUT = 60_000;
+  return (input) =>
+    baseRunner({
+      ...input,
+      timeout_ms: Math.min(
+        (input.timeout_ms as number) || MAX_SUB_TIMEOUT,
+        MAX_SUB_TIMEOUT,
+      ),
+    });
+}
 
-export const exploreRunners: Record<string, ToolRunner> = {
-  file_read: runFileRead,
-  git: runGit,
-  grep: runGrep,
-  glob: runGlob,
-  repo_map: runRepoMap,
-  files_overview: runFilesOverview,
-  web_fetch: runWebFetch,
-  web_search: runWebSearch,
-  http_request: runHttpRequest,
-  code_exec: runCodeExec,
-  shell: runShellBounded,
-  workspace: runWorkspace,
-};
+/** Apply the bounded shell override to a resolved tool set. */
+function applyShellBound(
+  toolSet: { tools: Anthropic.Tool[]; runners: Record<string, ToolRunner> },
+): void {
+  const idx = toolSet.tools.findIndex((t) => t.name === "shell");
+  if (idx >= 0) toolSet.tools[idx] = subShellTool;
+  if (toolSet.runners.shell) {
+    toolSet.runners.shell = createBoundedShellRunner(toolSet.runners.shell);
+  }
+}
 
-/** Research mode: same tools as explore (read-only) with higher turn budget. */
-export const researchTools: Anthropic.Tool[] = exploreTools;
-export const researchRunners: Record<string, ToolRunner> = exploreRunners;
+export function getExploreToolSet(): { tools: Anthropic.Tool[]; runners: Record<string, ToolRunner> } {
+  const set = resolveToolSet(EXPLORE_TOOL_NAMES);
+  applyShellBound(set);
+  return set;
+}
 
-export const executeTools: Anthropic.Tool[] = [
-  ...exploreTools,
-  fileEditTool,
-  fileWriteTool,
-  multiEditTool,
-  processTool,
-  findReplaceTool,
-];
+export function getResearchToolSet(): { tools: Anthropic.Tool[]; runners: Record<string, ToolRunner> } {
+  return getExploreToolSet();
+}
 
-export const executeRunners: Record<string, ToolRunner> = {
-  ...exploreRunners,
-  file_edit: runFileEdit,
-  file_write: runFileWrite,
-  multi_edit: runMultiEdit,
-  process: runProcess,
-  find_replace: runFindReplace,
-};
+export function getExecuteToolSet(): { tools: Anthropic.Tool[]; runners: Record<string, ToolRunner> } {
+  const set = resolveToolSet(EXECUTE_TOOL_NAMES);
+  applyShellBound(set);
+  return set;
+}
 
 // --- Prompt builder ---
 

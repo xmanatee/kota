@@ -8,12 +8,15 @@
  * 3. Built-in tools still work alongside MCP tools
  * 4. Delegates without MCP work unchanged
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { McpManager } from "./core/mcp/manager.js";
 import { type DelegateConfig, setDelegateConfig } from "./core/tools/delegate.js";
+import { clearCustomTools, getAllTools, registerTool } from "./core/tools/index.js";
 import {
-  executeTools,
-  exploreTools,
+  EXECUTE_TOOL_NAMES,
+  EXPLORE_TOOL_NAMES,
+  getExecuteToolSet,
+  getExploreToolSet,
 } from "./delegate-prompts.js";
 
 /** Create a mock McpManager that returns controlled tools and results. */
@@ -47,7 +50,31 @@ function createMockMcpManager(
   } as unknown as McpManager;
 }
 
+/** Register stub module tools that the delegate tool sets expect from the registry. */
+function registerStubModuleTools(): void {
+  const allNames = new Set([...EXPLORE_TOOL_NAMES, ...EXECUTE_TOOL_NAMES]);
+  const existing = new Set(getAllTools().map((t) => t.name));
+  for (const name of allNames) {
+    if (!existing.has(name)) {
+      registerTool(
+        { name, description: `stub: ${name}`, input_schema: { type: "object", properties: {} } },
+        async () => ({ content: "stub" }),
+        "test",
+        { risk: "safe", kind: "discovery" },
+      );
+    }
+  }
+}
+
 describe("delegate × mcp-manager integration", () => {
+  beforeAll(() => {
+    registerStubModuleTools();
+  });
+
+  afterAll(() => {
+    clearCustomTools();
+  });
+
   beforeEach(() => {
     // Reset delegate config to baseline
     setDelegateConfig({ model: "test-model" });
@@ -62,9 +89,9 @@ describe("delegate × mcp-manager integration", () => {
 
       // Verify MCP tools would be included alongside built-in tools
       const mcpTools = mcpMgr.getTools();
-      const combinedExplore = [...exploreTools, ...mcpTools];
+      const combinedExplore = [...getExploreToolSet().tools, ...mcpTools];
 
-      expect(combinedExplore.length).toBe(exploreTools.length + 2);
+      expect(combinedExplore.length).toBe(getExploreToolSet().tools.length + 2);
 
       // MCP tools have proper namespacing
       const mcpNames = mcpTools.map((t) => t.name);
@@ -72,7 +99,7 @@ describe("delegate × mcp-manager integration", () => {
       expect(mcpNames).toContain("mcp__test__schema");
 
       // Built-in tools are still present
-      const builtinNames = exploreTools.map((t) => t.name);
+      const builtinNames = getExploreToolSet().tools.map((t) => t.name);
       expect(builtinNames).toContain("file_read");
       expect(builtinNames).toContain("grep");
     });
@@ -83,9 +110,9 @@ describe("delegate × mcp-manager integration", () => {
       ]);
 
       const mcpTools = mcpMgr.getTools();
-      const combinedExecute = [...executeTools, ...mcpTools];
+      const combinedExecute = [...getExecuteToolSet().tools, ...mcpTools];
 
-      expect(combinedExecute.length).toBe(executeTools.length + 1);
+      expect(combinedExecute.length).toBe(getExecuteToolSet().tools.length + 1);
       expect(combinedExecute.some((t) => t.name === "mcp__test__deploy")).toBe(true);
       expect(combinedExecute.some((t) => t.name === "file_edit")).toBe(true);
     });
@@ -96,8 +123,8 @@ describe("delegate × mcp-manager integration", () => {
       const mcpTools = mcpMgr.getTools();
       expect(mcpTools).toHaveLength(0);
 
-      const combined = [...exploreTools, ...mcpTools];
-      expect(combined.length).toBe(exploreTools.length);
+      const combined = [...getExploreToolSet().tools, ...mcpTools];
+      expect(combined.length).toBe(getExploreToolSet().tools.length);
     });
   });
 

@@ -1,7 +1,7 @@
 ---
 id: task-delegate-tools-from-registry
 title: "Wire delegate sub-agent tool sets through the tool registry instead of static imports"
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: "delegate-prompts.ts hardcodes cross-module tool imports from execution, filesystem, git, and web-access modules, bypassing the tool registry. Sub-agents should receive tools from the registry so module-contributed tools are available and the module boundary is respected."

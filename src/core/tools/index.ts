@@ -203,6 +203,26 @@ export function getModuleToolNames(moduleName: string): string[] {
   return [...(moduleToolOwners.get(moduleName) ?? [])];
 }
 
+/**
+ * Resolve a subset of registered tools by name.
+ * Returns matching tool definitions and runners; silently skips unknown names.
+ * Callers can override individual entries after resolution (e.g. bounded shell).
+ */
+export function resolveToolSet(names: readonly string[]): { tools: Anthropic.Tool[]; runners: Record<string, ToolRunner> } {
+  ensureInit();
+  const resolvedTools: Anthropic.Tool[] = [];
+  const resolvedRunners: Record<string, ToolRunner> = {};
+  for (const name of names) {
+    const tool = tools.find((t) => t.name === name);
+    const runner = runners[name];
+    if (tool && runner) {
+      resolvedTools.push(tool);
+      resolvedRunners[name] = runner;
+    }
+  }
+  return { tools: resolvedTools, runners: resolvedRunners };
+}
+
 export function clearCustomTools(): void {
   ensureInit();
   for (const name of customToolNames) {

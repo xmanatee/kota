@@ -21,17 +21,15 @@ vi.mock("./delegate-prompts.js", () => {
     web_fetch: (input: Record<string, unknown>) => mockRunner(input),
     http_request: (input: Record<string, unknown>) => mockRunner(input),
   };
+  const testToolSet = { tools: [testShellTool], runners: testRunners };
   return {
     EXPLORE_PROMPT: "Test explore prompt",
     EXECUTE_PROMPT: "Test execute prompt",
     RESEARCH_PROMPT: "Test research prompt",
     buildSubAgentPrompt: () => "test system prompt",
-    exploreTools: [testShellTool],
-    executeTools: [testShellTool],
-    researchTools: [testShellTool],
-    exploreRunners: testRunners,
-    executeRunners: testRunners,
-    researchRunners: testRunners,
+    getExploreToolSet: () => testToolSet,
+    getExecuteToolSet: () => testToolSet,
+    getResearchToolSet: () => testToolSet,
   };
 });
 

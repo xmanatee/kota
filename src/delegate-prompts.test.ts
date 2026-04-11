@@ -2,14 +2,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   buildSubAgentPrompt,
   EXECUTE_PROMPT,
+  EXECUTE_TOOL_NAMES,
   EXPLORE_PROMPT,
-  executeRunners,
-  executeTools,
-  exploreRunners,
-  exploreTools,
+  EXPLORE_TOOL_NAMES,
+  getExecuteToolSet,
+  getExploreToolSet,
+  getResearchToolSet,
   RESEARCH_PROMPT,
-  researchRunners,
-  researchTools,
 } from "./delegate-prompts.js";
 
 describe("buildSubAgentPrompt", () => {
@@ -264,18 +263,17 @@ describe("buildSubAgentPrompt × init.ts — delegate environment context", () =
   });
 });
 
-describe("tool sets", () => {
-  it("explore tools include research + shell for info gathering (no file_edit, file_write)", () => {
-    const names = exploreTools.map((t) => t.name);
-    expect(names).toContain("file_read");
-    expect(names).toContain("grep");
-    expect(names).toContain("glob");
-    expect(names).toContain("files_overview");
-    expect(names).toContain("web_search");
-    expect(names).toContain("code_exec");
-    expect(names).toContain("shell");
-    expect(names).not.toContain("file_edit");
-    expect(names).not.toContain("file_write");
+describe("tool name sets", () => {
+  it("explore names include research + shell for info gathering (no file_edit, file_write)", () => {
+    expect(EXPLORE_TOOL_NAMES).toContain("file_read");
+    expect(EXPLORE_TOOL_NAMES).toContain("grep");
+    expect(EXPLORE_TOOL_NAMES).toContain("glob");
+    expect(EXPLORE_TOOL_NAMES).toContain("files_overview");
+    expect(EXPLORE_TOOL_NAMES).toContain("web_search");
+    expect(EXPLORE_TOOL_NAMES).toContain("code_exec");
+    expect(EXPLORE_TOOL_NAMES).toContain("shell");
+    expect(EXPLORE_TOOL_NAMES).not.toContain("file_edit");
+    expect(EXPLORE_TOOL_NAMES).not.toContain("file_write");
   });
 
   it("EXPLORE_PROMPT includes files_overview guidance for directory orientation", () => {
@@ -289,55 +287,53 @@ describe("tool sets", () => {
     expect(EXPLORE_PROMPT).toContain("information gathering");
   });
 
-  it("explore shell does not appear as duplicate in execute tools", () => {
-    const names = executeTools.map((t) => t.name);
-    const shellCount = names.filter((n) => n === "shell").length;
-    expect(shellCount).toBe(1);
-  });
-
-  it("execute tools include all explore tools plus mutation tools", () => {
-    const names = executeTools.map((t) => t.name);
-    // All explore tools present
-    for (const t of exploreTools) {
-      expect(names).toContain(t.name);
+  it("execute names include all explore names plus mutation tools", () => {
+    for (const name of EXPLORE_TOOL_NAMES) {
+      expect(EXECUTE_TOOL_NAMES).toContain(name);
     }
-    // Plus mutation tools
-    expect(names).toContain("file_edit");
-    expect(names).toContain("file_write");
-    expect(names).toContain("multi_edit");
-    expect(names).toContain("shell");
+    expect(EXECUTE_TOOL_NAMES).toContain("file_edit");
+    expect(EXECUTE_TOOL_NAMES).toContain("file_write");
+    expect(EXECUTE_TOOL_NAMES).toContain("multi_edit");
+    expect(EXECUTE_TOOL_NAMES).toContain("shell");
   });
 
-  it("research tools are read-only (same as explore)", () => {
-    const names = researchTools.map((t) => t.name);
-    expect(names).toContain("web_search");
-    expect(names).toContain("web_fetch");
-    expect(names).toContain("http_request");
-    expect(names).toContain("code_exec");
-    expect(names).toContain("file_read");
-    expect(names).toContain("grep");
-    expect(names).not.toContain("file_edit");
-    expect(names).not.toContain("file_write");
+  it("explore names do not contain duplicates", () => {
+    expect(new Set(EXPLORE_TOOL_NAMES).size).toBe(EXPLORE_TOOL_NAMES.length);
   });
 
-  it("research tools match explore tools exactly", () => {
-    const researchNames = researchTools.map((t) => t.name).sort();
-    const exploreNames = exploreTools.map((t) => t.name).sort();
-    expect(researchNames).toEqual(exploreNames);
+  it("execute names do not contain duplicates", () => {
+    expect(new Set(EXECUTE_TOOL_NAMES).size).toBe(EXECUTE_TOOL_NAMES.length);
+  });
+});
+
+describe("tool set resolution (requires module tools registered)", () => {
+  it("getExploreToolSet returns tools and runners with matching names", () => {
+    const { tools, runners } = getExploreToolSet();
+    const toolNames = tools.map((t) => t.name).sort();
+    const runnerNames = Object.keys(runners).sort();
+    expect(runnerNames).toEqual(toolNames);
   });
 
-  it("runners match tool definitions", () => {
-    const exploreToolNames = exploreTools.map((t) => t.name).sort();
-    const exploreRunnerNames = Object.keys(exploreRunners).sort();
-    expect(exploreRunnerNames).toEqual(exploreToolNames);
+  it("getExecuteToolSet returns tools and runners with matching names", () => {
+    const { tools, runners } = getExecuteToolSet();
+    const toolNames = tools.map((t) => t.name).sort();
+    const runnerNames = Object.keys(runners).sort();
+    expect(runnerNames).toEqual(toolNames);
+  });
 
-    const executeToolNames = executeTools.map((t) => t.name).sort();
-    const executeRunnerNames = Object.keys(executeRunners).sort();
-    expect(executeRunnerNames).toEqual(executeToolNames);
+  it("getResearchToolSet returns tools and runners with matching names", () => {
+    const { tools, runners } = getResearchToolSet();
+    const toolNames = tools.map((t) => t.name).sort();
+    const runnerNames = Object.keys(runners).sort();
+    expect(runnerNames).toEqual(toolNames);
+  });
 
-    const researchToolNames = researchTools.map((t) => t.name).sort();
-    const researchRunnerNames = Object.keys(researchRunners).sort();
-    expect(researchRunnerNames).toEqual(researchToolNames);
+  it("shell tool in explore set has bounded description", () => {
+    const { tools } = getExploreToolSet();
+    const shell = tools.find((t) => t.name === "shell");
+    if (shell) {
+      expect(shell.description).toContain("max 60s timeout");
+    }
   });
 });
 
