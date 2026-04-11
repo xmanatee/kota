@@ -83,14 +83,33 @@ function getChangedFiles(projectDir: string): string {
   });
 }
 
+function extractJson(text: string): Record<string, unknown> | undefined {
+  // Try fenced JSON block first.
+  const jsonBlockMatch = text.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
+  if (jsonBlockMatch) {
+    try { return JSON.parse(jsonBlockMatch[1].trim()); } catch { /* fall through */ }
+  }
+  // Last resort: find the first { ... } block containing "verdict".
+  const braceMatch = text.match(/\{[\s\S]*"verdict"[\s\S]*\}/);
+  if (braceMatch) {
+    try { return JSON.parse(braceMatch[0]); } catch { /* fall through */ }
+  }
+  return undefined;
+}
+
 function parseVerdict(text: string): CriticVerdict {
-  const cleaned = text.replace(/^```(?:json)?\s*\n?/m, "").replace(/\n?```\s*$/m, "").trim();
-  let parsed: Record<string, unknown>;
+  // Try the full text first (after stripping outer fences).
+  const stripped = text.replace(/^```(?:json)?\s*\n?/m, "").replace(/\n?```\s*$/m, "").trim();
+  let parsed: Record<string, unknown> | undefined;
   try {
-    parsed = JSON.parse(cleaned);
+    parsed = JSON.parse(stripped);
   } catch {
+    // The model may have produced preamble text before the JSON.
+    parsed = extractJson(text);
+  }
+  if (!parsed) {
     throw new Error(
-      `Critic returned invalid JSON. Response (first 500 chars): ${cleaned.slice(0, 500)}`,
+      `Critic returned invalid JSON. Response (first 500 chars): ${stripped.slice(0, 500)}`,
     );
   }
 
@@ -185,7 +204,7 @@ export function createCriticCheck(options?: {
         maxTurns: 3,
         allowedTools: [],
         permissionMode: "bypassPermissions",
-        settingSources: ["project"],
+        settingSources: [],
       }, {
         write: () => true,
       });

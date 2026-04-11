@@ -149,6 +149,52 @@ describe("createCriticCheck", () => {
     expect(mockExecuteWithAgentSDK).toHaveBeenCalledOnce();
   });
 
+  it("recovers verdict from response with preamble text before JSON", async () => {
+    const dir = makeTmpDir();
+    const doingDir = join(dir, "data/tasks/doing");
+    mkdirSync(doingDir, { recursive: true });
+    writeFileSync(join(doingDir, "task-preamble.md"), "---\ntitle: Test preamble\n---\nContent.");
+
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+
+    // Simulate model returning preamble text before JSON block
+    mockExecuteWithAgentSDK.mockResolvedValue({
+      text: 'Based on my review of the changes:\n\n```json\n{"verdict":"pass","critical_issues":[],"warnings":[],"summary":"Looks good."}\n```',
+      streamedText: "",
+      turns: 1,
+      isError: true,
+      subtype: "error_max_turns",
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    expect(result).toMatch(/pass/);
+  });
+
+  it("recovers verdict from response with bare JSON after preamble", async () => {
+    const dir = makeTmpDir();
+    const doingDir = join(dir, "data/tasks/doing");
+    mkdirSync(doingDir, { recursive: true });
+    writeFileSync(join(doingDir, "task-bare.md"), "---\ntitle: Test bare\n---\nContent.");
+
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+
+    // Simulate model returning preamble then bare JSON (no fences)
+    mockExecuteWithAgentSDK.mockResolvedValue({
+      text: 'Here is my assessment:\n\n{"verdict":"pass_with_warnings","critical_issues":[],"warnings":["Minor issue"],"summary":"Mostly complete."}',
+      streamedText: "",
+      turns: 1,
+      isError: true,
+      subtype: "error_max_turns",
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    expect(result).toMatch(/pass_with_warnings/);
+  });
+
   it("throws on fail verdict with critical issues", async () => {
     const dir = makeTmpDir();
     const doingDir = join(dir, "data/tasks/doing");
