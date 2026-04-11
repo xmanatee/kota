@@ -8,7 +8,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { checkFreshness, recordRead } from "#root/file-tracker.js";
+import { checkFreshness, recordRead } from "#core/file-tracking/file-tracker.js";
 import { applyReplacement, runFindReplace } from "./find-replace.js";
 
 // --- Unit tests for applyReplacement ---

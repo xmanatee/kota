@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { recordModification, recordRead } from "#core/file-tracking/file-tracker.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
-import { recordModification, recordRead } from "#root/file-tracker.js";
 
 interface NotebookCell {
   type: "code" | "markdown";

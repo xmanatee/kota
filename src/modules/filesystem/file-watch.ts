@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { getWatcherManager } from "#core/file-tracking/file-watcher.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
-import { getWatcherManager } from "#root/file-watcher.js";
 
 export const fileWatchTool: Anthropic.Tool = {
 	name: "file_watch",

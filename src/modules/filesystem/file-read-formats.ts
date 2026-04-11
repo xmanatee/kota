@@ -3,8 +3,8 @@ import { closeSync, openSync, readFileSync, readSync } from "node:fs";
 import { extname } from "node:path";
 import { CSV_EXTENSIONS, formatCsvMetadata } from "#core/data/csv-preview.js";
 import { formatJsonPreview, JSON_EXTENSIONS } from "#core/data/json-preview.js";
+import { recordRead } from "#core/file-tracking/file-tracker.js";
 import type { ToolResult, ToolResultBlock } from "#core/tools/tool-result.js";
-import { recordRead } from "#root/file-tracker.js";
 
 const IMAGE_EXTENSIONS: Record<string, string> = {
   ".png": "image/png",

@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { recordRead } from "./file-tracker.js";
+import { recordRead } from "./core/file-tracking/file-tracker.js";
 import { runFileEdit } from "./modules/filesystem/file-edit.js";
 import { runFileRead } from "./modules/filesystem/file-read.js";
 

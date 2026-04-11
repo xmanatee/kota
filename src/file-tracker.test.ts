@@ -24,7 +24,7 @@ afterEach(() => {
 
 // Dynamic import to get fresh module (shared state isolation via unique paths)
 async function getTracker() {
-  return await import("./file-tracker.js");
+  return await import("./core/file-tracking/file-tracker.js");
 }
 
 describe("recordRead", () => {

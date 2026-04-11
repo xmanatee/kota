@@ -1,6 +1,6 @@
 import { matchesGlob } from "node:path";
 import type { BusEvents } from "#core/events/event-bus-types.js";
-import { WatcherManager } from "#root/file-watcher.js";
+import { WatcherManager } from "#core/file-tracking/file-watcher.js";
 import type { WorkflowDefinition, WorkflowRunTrigger, WorkflowTrigger } from "./types.js";
 
 type FileChangedPayload = BusEvents["file.changed"];

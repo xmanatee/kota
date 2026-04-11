@@ -27,6 +27,7 @@ Kernel areas:
 - `src/core/workflow/`
 - `src/core/agent-sdk/`
 - `src/core/data/`
+- `src/core/file-tracking/`
 
 Project modules:
 

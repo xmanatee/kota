@@ -1,12 +1,12 @@
 ---
 id: task-move-file-tracking-to-core
 title: "Move file-tracking infrastructure from src/ root into core"
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: "file-tracker.ts, file-watcher.ts, and file-watcher-core.ts are kernel infrastructure used by core/workflow and core/tools but still live as loose src/ root files. Moving them into a core subtree completes their ownership boundary."
 created_at: 2026-04-11T06:45:00Z
-updated_at: 2026-04-11T06:45:00Z
+updated_at: 2026-04-11T00:28:00Z
 ---
 
 ## Problem

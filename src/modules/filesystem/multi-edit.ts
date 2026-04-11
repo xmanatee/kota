@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
+import { recordModification } from "#core/file-tracking/file-tracker.js";
 import { trackFileChange } from "#core/loop/file-changes.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
-import { recordModification } from "#root/file-tracker.js";
 import { lintFile } from "#root/lint.js";
 import { printEditDiff } from "./diff.js";
 
