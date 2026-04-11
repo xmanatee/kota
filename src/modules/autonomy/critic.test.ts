@@ -61,6 +61,22 @@ type CodeCheck = { run: (ctx: never) => Promise<unknown> };
 describe("createCriticCheck", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key");
+  });
+
+  it("skips when ANTHROPIC_API_KEY is not set", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+    const dir = makeTmpDir();
+    const doingDir = join(dir, "data/tasks/doing");
+    mkdirSync(doingDir, { recursive: true });
+    writeFileSync(join(doingDir, "task-test.md"), "---\ntitle: Test\n---\nContent.");
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+
+    const check = createCriticCheck();
+    const result = await (check as CodeCheck).run(makeContext(dir));
+    expect(result).toMatch(/ANTHROPIC_API_KEY not set/);
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 
   it("skips when no task in doing/ and no staged done/ task", async () => {

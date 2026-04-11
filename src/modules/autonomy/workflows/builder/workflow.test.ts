@@ -1,4 +1,3 @@
-import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,6 +8,7 @@ import {
   checkModuleBoundary,
   checkSuccessCriteriaDeclared,
   checkSuccessCriteriaVerified,
+  ROOT_PRODUCTION_ALLOWLIST,
 } from "./repair-checks.js";
 import builderWorkflow from "./workflow.js";
 
@@ -568,60 +568,106 @@ describe("builder workflow", () => {
   });
 });
 
-function makeGitRepo(): string {
-  const dir = join(tmpdir(), `kota-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  mkdirSync(dir, { recursive: true });
-  spawnSync("git", ["init"], { cwd: dir });
-  spawnSync("git", ["config", "user.email", "test@test.com"], { cwd: dir });
-  spawnSync("git", ["config", "user.name", "Test"], { cwd: dir });
-  // Make an initial commit so the repo is valid
-  writeFileSync(join(dir, "README.md"), "init");
-  spawnSync("git", ["add", "README.md"], { cwd: dir });
-  spawnSync("git", ["commit", "-m", "init"], { cwd: dir });
+function makeTmpProject(): string {
+  const dir = join(tmpdir(), `kota-boundary-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  mkdirSync(join(dir, "src"), { recursive: true });
   return dir;
 }
 
 describe("checkModuleBoundary", () => {
-  it("passes when no new files are staged", () => {
-    const dir = makeGitRepo();
-    expect(checkModuleBoundary(dir)).toBe("OK: no new capability files in src/ root");
+  it("passes when src/ has no production files", () => {
+    const dir = makeTmpProject();
+    expect(checkModuleBoundary(dir)).toBe("OK: no root helper drift detected");
   });
 
-  it("passes when new files are staged inside src/modules/", () => {
-    const dir = makeGitRepo();
-    mkdirSync(join(dir, "src/modules/my-module"), { recursive: true });
-    writeFileSync(join(dir, "src/modules/my-module/index.ts"), "export {};");
-    execFileSync("git", ["add", "src/modules/my-module/index.ts"], { cwd: dir });
-    expect(checkModuleBoundary(dir)).toBe("OK: no new capability files in src/ root");
+  it("passes when src/ has only allowlisted files", () => {
+    const dir = makeTmpProject();
+    writeFileSync(join(dir, "src/cli.ts"), "export {};");
+    writeFileSync(join(dir, "src/init.ts"), "export {};");
+    expect(checkModuleBoundary(dir)).toBe("OK: no root helper drift detected");
   });
 
-  it("passes when a test file is added to src/ root", () => {
-    const dir = makeGitRepo();
-    mkdirSync(join(dir, "src"), { recursive: true });
+  it("passes when src/ has test and integration test files", () => {
+    const dir = makeTmpProject();
     writeFileSync(join(dir, "src/capability.test.ts"), "// test");
-    execFileSync("git", ["add", "src/capability.test.ts"], { cwd: dir });
-    expect(checkModuleBoundary(dir)).toBe("OK: no new capability files in src/ root");
+    writeFileSync(join(dir, "src/feature.integration.test.ts"), "// integration test");
+    expect(checkModuleBoundary(dir)).toBe("OK: no root helper drift detected");
   });
 
-  it("fails when a new capability file is added directly to src/ root", () => {
-    const dir = makeGitRepo();
-    mkdirSync(join(dir, "src"), { recursive: true });
+  it("passes when src/ has .d.ts declaration files", () => {
+    const dir = makeTmpProject();
+    writeFileSync(join(dir, "src/env.d.ts"), "declare module 'x';");
+    expect(checkModuleBoundary(dir)).toBe("OK: no root helper drift detected");
+  });
+
+  it("fails when a non-allowlisted production file exists in src/ root", () => {
+    const dir = makeTmpProject();
     writeFileSync(join(dir, "src/new-capability.ts"), "export {};");
-    execFileSync("git", ["add", "src/new-capability.ts"], { cwd: dir });
-    expect(() => checkModuleBoundary(dir)).toThrow(
-      /New capability files added to src\/ root instead of src\/modules\//,
-    );
-    expect(() => checkModuleBoundary(dir)).toThrow("src/new-capability.ts");
+    expect(() => checkModuleBoundary(dir)).toThrow(/Unexpected production files in src\/ root/);
+    expect(() => checkModuleBoundary(dir)).toThrow("new-capability.ts");
+    expect(() => checkModuleBoundary(dir)).toThrow(/src\/core\/ or src\/modules\//);
   });
 
-  it("fails when multiple new root files are added and lists them all", () => {
-    const dir = makeGitRepo();
-    mkdirSync(join(dir, "src"), { recursive: true });
+  it("fails and lists all non-allowlisted files", () => {
+    const dir = makeTmpProject();
     writeFileSync(join(dir, "src/feature-a.ts"), "export {};");
     writeFileSync(join(dir, "src/feature-b.ts"), "export {};");
-    execFileSync("git", ["add", "src/feature-a.ts", "src/feature-b.ts"], { cwd: dir });
-    expect(() => checkModuleBoundary(dir)).toThrow("src/feature-a.ts");
-    expect(() => checkModuleBoundary(dir)).toThrow("src/feature-b.ts");
+    expect(() => checkModuleBoundary(dir)).toThrow("feature-a.ts");
+    expect(() => checkModuleBoundary(dir)).toThrow("feature-b.ts");
+  });
+
+  it("passes when src/ directory does not exist", () => {
+    const dir = join(tmpdir(), `kota-nosrc-${Date.now()}`);
+    mkdirSync(dir, { recursive: true });
+    expect(checkModuleBoundary(dir)).toBe("OK: no src/ directory");
+  });
+
+  it("passes when #root/* imports target allowlisted modules", () => {
+    const dir = makeTmpProject();
+    mkdirSync(join(dir, "src/core/loop"), { recursive: true });
+    writeFileSync(
+      join(dir, "src/core/loop/context.ts"),
+      'import { maskObservations } from "#root/observation-masking.js";\n',
+    );
+    expect(checkModuleBoundary(dir)).toBe("OK: no root helper drift detected");
+  });
+
+  it("fails when #root/* import targets a non-allowlisted module", () => {
+    const dir = makeTmpProject();
+    mkdirSync(join(dir, "src/core/loop"), { recursive: true });
+    writeFileSync(
+      join(dir, "src/core/loop/context.ts"),
+      'import { something } from "#root/new-helper.js";\n',
+    );
+    expect(() => checkModuleBoundary(dir)).toThrow(/Disallowed #root\/\* imports/);
+    expect(() => checkModuleBoundary(dir)).toThrow("#root/new-helper.js");
+    expect(() => checkModuleBoundary(dir)).toThrow("core/loop/context.ts");
+  });
+
+  it("ignores #root/* imports in test files", () => {
+    const dir = makeTmpProject();
+    mkdirSync(join(dir, "src/core/tools"), { recursive: true });
+    writeFileSync(
+      join(dir, "src/core/tools/runner.test.ts"),
+      'import { something } from "#root/new-helper.js";\n',
+    );
+    expect(checkModuleBoundary(dir)).toBe("OK: no root helper drift detected");
+  });
+
+  it("detects both file drift and import drift together", () => {
+    const dir = makeTmpProject();
+    writeFileSync(join(dir, "src/stray-helper.ts"), "export const x = 1;");
+    // File drift is checked first, so that error appears
+    expect(() => checkModuleBoundary(dir)).toThrow(/Unexpected production files/);
+    expect(() => checkModuleBoundary(dir)).toThrow("stray-helper.ts");
+  });
+
+  it("the allowlist matches current root production files", () => {
+    // Smoke test: the allowlist should contain known entrypoints
+    expect(ROOT_PRODUCTION_ALLOWLIST.has("cli.ts")).toBe(true);
+    expect(ROOT_PRODUCTION_ALLOWLIST.has("init.ts")).toBe(true);
+    expect(ROOT_PRODUCTION_ALLOWLIST.has("module-api.ts")).toBe(true);
+    expect(ROOT_PRODUCTION_ALLOWLIST.has("validate-queue.ts")).toBe(true);
   });
 });
 

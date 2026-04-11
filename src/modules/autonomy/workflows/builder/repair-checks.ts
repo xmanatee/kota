@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
@@ -49,24 +48,99 @@ export function checkSuccessCriteriaVerified(runDirPath: string): string {
   return "OK: success criteria declared and verified";
 }
 
+/**
+ * Approved root src/*.ts production files. New capabilities belong in
+ * src/core/ or src/modules/, not here. Update this set only when
+ * intentionally adding a root entrypoint or thin glue file.
+ */
+export const ROOT_PRODUCTION_ALLOWLIST = new Set([
+  "cli.ts",
+  "cli-history.ts",
+  "cli-history-commands.ts",
+  "confirm.ts",
+  "delegate-prompts.ts",
+  "error-context.ts",
+  "init.ts",
+  "instruction-files.ts",
+  "lint.ts",
+  "module-api.ts",
+  "observation-masking.ts",
+  "path-resolver.ts",
+  "project-context.ts",
+  "project-detection.ts",
+  "repl-session.ts",
+  "request-analyzer.ts",
+  "validate-queue.ts",
+  "verify-tracker.ts",
+  "workspace.ts",
+]);
+
 export function checkModuleBoundary(projectDir: string): string {
-  const staged = execFileSync("git", ["diff", "--cached", "--name-status"], {
-    cwd: projectDir,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  const violations = staged
-    .split("\n")
-    .filter((l) => l.startsWith("A\t"))
-    .map((l) => l.slice(2).trim())
-    .filter((f) => /^src\/[^/]+\.ts$/.test(f) && !f.includes(".test.") && !f.endsWith(".d.ts"));
-  if (violations.length) {
+  const srcDir = join(projectDir, "src");
+  if (!existsSync(srcDir)) return "OK: no src/ directory";
+
+  // 1. Check for non-allowlisted production files in src/ root.
+  const rootFiles = readdirSync(srcDir).filter(
+    (f) => f.endsWith(".ts") && !f.includes(".test.") && !f.includes(".integration.") && !f.endsWith(".d.ts"),
+  );
+  const fileViolations = rootFiles.filter((f) => !ROOT_PRODUCTION_ALLOWLIST.has(f));
+  if (fileViolations.length) {
     throw new Error(
-      `New capability files added to src/ root instead of src/modules/: ${violations.join(", ")}. ` +
-        `New capabilities belong in src/modules/<name>/.`,
+      `Unexpected production files in src/ root: ${fileViolations.join(", ")}. ` +
+        `New capabilities belong in src/core/ or src/modules/. ` +
+        `If this file is intentional, add it to ROOT_PRODUCTION_ALLOWLIST in repair-checks.ts.`,
     );
   }
-  return "OK: no new capability files in src/ root";
+
+  // 2. Check for #root/* imports targeting non-allowlisted modules.
+  const allowedImportTargets = new Set(
+    [...ROOT_PRODUCTION_ALLOWLIST].map((f) => f.replace(/\.ts$/, ".js")),
+  );
+  const importViolations = findDisallowedRootImports(srcDir, allowedImportTargets);
+  if (importViolations.length) {
+    throw new Error(
+      `Disallowed #root/* imports found:\n${importViolations.map((v) => `  ${v.file}: import from "${v.specifier}"`).join("\n")}\n` +
+        `Only imports of approved root helpers are allowed. ` +
+        `Move the target into src/core/ or src/modules/ instead.`,
+    );
+  }
+
+  return "OK: no root helper drift detected";
+}
+
+type ImportViolation = { file: string; specifier: string };
+
+function findDisallowedRootImports(
+  dir: string,
+  allowedTargets: Set<string>,
+  baseDir?: string,
+): ImportViolation[] {
+  const root = baseDir ?? dir;
+  const violations: ImportViolation[] = [];
+  const rootImportRe = /from\s+["']#root\/([^"']+)["']/g;
+
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      violations.push(...findDisallowedRootImports(fullPath, allowedTargets, root));
+    } else if (
+      entry.name.endsWith(".ts") &&
+      !entry.name.endsWith(".d.ts") &&
+      !entry.name.includes(".test.") &&
+      !entry.name.includes(".integration.")
+    ) {
+      const content = readFileSync(fullPath, "utf8");
+      for (const match of content.matchAll(rootImportRe)) {
+        const target = match[1];
+        if (!allowedTargets.has(target)) {
+          const relPath = fullPath.slice(root.length + 1);
+          violations.push({ file: relPath, specifier: `#root/${target}` });
+        }
+      }
+    }
+  }
+  return violations;
 }
 
 function checkServerReadmeSync(projectDir: string): string {

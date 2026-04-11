@@ -1,12 +1,12 @@
 ---
 id: task-add-root-helper-boundary-validation
 title: Add validation for root helper drift
-status: backlog
+status: done
 priority: p2
 area: validation
 summary: Root src helper drift should be caught automatically so future agents do not recreate broad #root utility buckets.
 created_at: 2026-04-11T01:44:06Z
-updated_at: 2026-04-11T01:44:06Z
+updated_at: 2026-04-11T06:15:00Z
 ---
 
 ## Problem

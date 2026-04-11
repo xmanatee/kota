@@ -187,6 +187,10 @@ export function createCriticCheck(options?: {
         diffContent,
       ].join("\n");
 
+      if (!process.env.ANTHROPIC_API_KEY) {
+        return "OK: ANTHROPIC_API_KEY not set — skipping critic review";
+      }
+
       const client = new Anthropic();
       const response = await client.messages.create({
         model: CRITIC_MODEL,
