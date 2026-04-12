@@ -294,19 +294,23 @@ export function validateTaskQueue(
     seenTaskStates.set(entry.taskId, seenStates);
 
     const { attrs } = parseFlatFrontMatter(entry.raw);
-    if (String(attrs.id || "") !== entry.taskId) {
+    const actualId = String(attrs.id || "");
+    if (actualId !== entry.taskId) {
       findings.push({
         code: "task-id-mismatch",
         severity: "error",
-        message: `${entry.path} id does not match its filename`,
+        message: `${entry.path} frontmatter id "${actualId}" does not match filename "${entry.taskId}". ` +
+          `Fix: set id: ${entry.taskId} in frontmatter, or rename the file to ${actualId}.md`,
         paths: [entry.path],
       });
     }
-    if (String(attrs.status || "") !== entry.state) {
+    const actualStatus = String(attrs.status || "");
+    if (actualStatus !== entry.state) {
       findings.push({
         code: "task-status-mismatch",
         severity: "error",
-        message: `${entry.path} status must match ${entry.state}`,
+        message: `${entry.path} frontmatter status "${actualStatus}" does not match directory "${entry.state}". ` +
+          `Fix: run \`kota task move ${entry.taskId} ${entry.state}\` — never edit status frontmatter manually`,
         paths: [entry.path],
       });
     }
@@ -409,7 +413,8 @@ export function validateTaskQueue(
       findings.push({
         code: "task-untracked",
         severity: "error",
-        message: `Task files must be tracked before a run finishes: ${gitStatus.untracked.join(", ")}`,
+        message: `Task files must be tracked before a run finishes: ${gitStatus.untracked.join(", ")}. ` +
+          `Fix: run \`git add ${gitStatus.untracked.join(" ")}\``,
         paths: gitStatus.untracked,
       });
     }
@@ -417,7 +422,8 @@ export function validateTaskQueue(
       findings.push({
         code: "task-deleted-unstaged",
         severity: "error",
-        message: `Task files must not be left as deleted paths in git status: ${gitStatus.deleted.join(", ")}`,
+        message: `Task file deletions must be staged: ${gitStatus.deleted.join(", ")}. ` +
+          `Fix: run \`git add ${gitStatus.deleted.join(" ")}\``,
         paths: gitStatus.deleted,
       });
     }
@@ -428,7 +434,8 @@ export function validateTaskQueue(
     findings.push({
       code: "active-guidance-uses-npm",
       severity: "error",
-      message: `Active guidance and open tasks must use pnpm, not npm: ${npmGuidancePaths.join(", ")}`,
+      message: `Active guidance and open tasks must use pnpm, not npm: ${npmGuidancePaths.join(", ")}. ` +
+        `Fix: replace npm run/test/install/exec/build commands with their pnpm equivalents in those files`,
       paths: npmGuidancePaths,
     });
   }
