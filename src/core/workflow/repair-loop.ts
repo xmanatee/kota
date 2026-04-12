@@ -168,7 +168,7 @@ export async function runAgentRepairLoop(
   appendMessage: (message: SDKMessage) => void,
   agentConfig: AgentStepConfig,
 ): Promise<WorkflowStepOutput> {
-  const { checks, maxRepairAttempts } = step.repairLoop!;
+  const { checks, maxRepairAttempts, maxTurnsPerRepair } = step.repairLoop!;
   const iterations: RepairIteration[] = [];
   const base = (initialResult && typeof initialResult === "object") ? initialResult as Record<string, unknown> : {};
   let totalTurns = typeof base.turns === "number" ? base.turns : 0;
@@ -184,8 +184,11 @@ export async function runAgentRepairLoop(
     const iteration: RepairIteration = { attempt, failures };
 
     const repairPrompt = buildRepairPrompt(attempt, maxRepairAttempts, failures, step);
+    const effectiveStep = maxTurnsPerRepair != null
+      ? { ...step, maxTurns: maxTurnsPerRepair }
+      : step;
     const repairResult = await executeRepairAgentIteration(
-      step,
+      effectiveStep,
       repairPrompt,
       abortController,
       appendMessage,

@@ -111,6 +111,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       when: (ctx) => inspectQueue.output(ctx).needsAttention,
       repairLoop: {
         maxRepairAttempts: 2,
+        maxTurnsPerRepair: 25,
         checks: [
           {
             id: "task-queue-valid",

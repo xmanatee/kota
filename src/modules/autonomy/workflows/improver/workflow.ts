@@ -71,6 +71,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       repairLoop: {
         maxRepairAttempts: 3,
+        maxTurnsPerRepair: 25,
         checks: [
           {
             id: "build-output",

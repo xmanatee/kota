@@ -156,6 +156,12 @@ export type WorkflowRepairLoopConfig = {
   checks: WorkflowRepairCheck[];
   /** Maximum number of repair agent runs before giving up and failing the step. */
   maxRepairAttempts: number;
+  /**
+   * Maximum agent turns per repair iteration. Repair agents fix specific
+   * identified issues and should need fewer turns than the initial step.
+   * Falls back to the step's maxTurns when unset.
+   */
+  maxTurnsPerRepair?: number;
 };
 
 export type WorkflowRunExecutionResult = {

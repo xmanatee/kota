@@ -163,6 +163,7 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       when: (ctx) => assessFailure.output(ctx).shouldDecompose,
       repairLoop: {
         maxRepairAttempts: 2,
+        maxTurnsPerRepair: 20,
         checks: [
           {
             id: "task-queue-valid",

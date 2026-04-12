@@ -65,6 +65,7 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
       when: (ctx) => inspectInbox.output(ctx).needsAttention,
       repairLoop: {
         maxRepairAttempts: 2,
+        maxTurnsPerRepair: 20,
         checks: [
           {
             id: "task-queue-valid",

@@ -69,6 +69,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       },
       repairLoop: {
         maxRepairAttempts: 3,
+        maxTurnsPerRepair: 30,
         checks: builderRepairChecks(),
       },
     },
