@@ -1,12 +1,12 @@
 ---
 id: task-cost-anomaly-bus-events
 title: Emit bus events from cost anomaly detector so notification channels can alert operators
-status: ready
+status: done
 priority: p1
 area: core
 summary: The cost anomaly detector returns results but does not emit bus events. Notification channels (Telegram, Slack, email) cannot react to cost spikes because no event reaches the bus.
 created_at: 2026-04-12T05:36:07Z
-updated_at: 2026-04-12T05:36:07Z
+updated_at: 2026-04-12T06:34:55.276Z
 ---
 
 ## Problem
