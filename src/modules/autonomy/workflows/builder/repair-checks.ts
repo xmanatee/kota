@@ -4,8 +4,19 @@ import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import { createCriticCheck } from "#modules/autonomy/critic.js";
 import { runCheck } from "#modules/autonomy/shared.js";
 import { checkSourceEvidence } from "#modules/autonomy/source-evidence.js";
+import { findTaskReviewTarget } from "#modules/autonomy/task-review-target.js";
 
-export function checkSuccessCriteriaDeclared(runDirPath: string): string {
+function countDoneWhenItems(taskContent: string): number {
+  const match = taskContent.match(/## Done When\s*\n([\s\S]*?)(?:\n##|\n---|$)/);
+  if (!match) return 0;
+  const section = match[1];
+  return section.split("\n").filter((l) => /^\s*-\s+\S/.test(l)).length;
+}
+
+export function checkSuccessCriteriaDeclared(
+  runDirPath: string,
+  projectDir: string,
+): string {
   const filePath = join(runDirPath, "success-criteria.txt");
   if (!existsSync(filePath)) {
     throw new Error(
@@ -22,6 +33,22 @@ export function checkSuccessCriteriaDeclared(runDirPath: string): string {
         `Found ${lines.length} non-empty line(s).`,
     );
   }
+
+  let target: ReturnType<typeof findTaskReviewTarget> = null;
+  try {
+    target = findTaskReviewTarget(projectDir);
+  } catch { /* skip Done When validation if task lookup fails */ }
+  if (target) {
+    const doneWhenCount = countDoneWhenItems(target.content);
+    if (doneWhenCount > 0 && lines.length < doneWhenCount) {
+      throw new Error(
+        `success-criteria.txt has ${lines.length} criteria but the task has ` +
+          `${doneWhenCount} "Done When" items. Each Done When item needs a ` +
+          `corresponding success criterion. Add the missing criteria.`,
+      );
+    }
+  }
+
   return `OK: success-criteria.txt has ${lines.length} criteria`;
 }
 
@@ -177,7 +204,7 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
     {
       id: "success-criteria-declared",
       type: "code" as const,
-      run: (ctx) => checkSuccessCriteriaDeclared(ctx.workflow.runDirPath),
+      run: (ctx) => checkSuccessCriteriaDeclared(ctx.workflow.runDirPath, ctx.projectDir),
     },
     {
       id: "success-criteria-verified",
