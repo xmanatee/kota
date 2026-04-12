@@ -3,7 +3,7 @@ import {
   getRepoTaskQueueSnapshot,
   isThinPullQueue,
 } from "#core/data/repo-tasks.js";
-import { assertRepoWorktreeClean } from "#core/util/repo-worktree.js";
+import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
@@ -38,6 +38,7 @@ type ExplorerAssessment = {
   openCount: number;
   pullableCount: number;
   actionableCount: number;
+  dirty: boolean;
   needsAttention: boolean;
   explorationRefreshDue: boolean;
 };
@@ -46,6 +47,8 @@ function buildExplorerAssessment(
   projectDir: string,
   lastExplorationAt: string | undefined,
 ): ExplorerAssessment {
+  const worktree = getRepoWorktreeStatus(projectDir);
+  const dirty = worktree.available && worktree.dirty;
   const queue = getRepoTaskQueueSnapshot(projectDir);
   const explorationRefreshDue =
     !lastExplorationAt ||
@@ -55,7 +58,8 @@ function buildExplorerAssessment(
 
   return {
     ...queue,
-    needsAttention: (queueEmpty || queueThin) && explorationRefreshDue,
+    dirty,
+    needsAttention: !dirty && (queueEmpty || queueThin) && explorationRefreshDue,
     explorationRefreshDue,
   };
 }
@@ -64,7 +68,6 @@ const inspectQueue = typedCodeStep<ExplorerAssessment>({
   id: "inspect-queue",
   type: "code",
   run: ({ projectDir }) => {
-    assertRepoWorktreeClean(projectDir);
     return buildExplorerAssessment(
       projectDir,
       readLastExplorationAt(projectDir),

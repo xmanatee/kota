@@ -7,11 +7,13 @@ import { readLastExplorationAt, writeLastExplorationAt } from "./explorer-state.
 import explorerWorkflow, { EXPLORATION_REFRESH_MS } from "./workflow.js";
 
 vi.mock("#core/util/repo-worktree.js", () => ({
-  assertRepoWorktreeClean: vi.fn(),
   getRepoWorktreeStatus: vi.fn(() => ({
     available: true,
     dirty: false,
     entries: [],
+    fingerprint: "",
+    summary: "clean",
+    headSha: "abc1234",
   })),
 }));
 
@@ -273,6 +275,36 @@ describe("explorer workflow", () => {
 
     // Timestamp unchanged — no new write happened
     expect(readLastExplorationAt(tempDir)).toBe(before);
+  });
+
+  it("skips explore when worktree is dirty", async () => {
+    const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
+    vi.mocked(getRepoWorktreeStatus).mockReturnValueOnce({
+      available: true,
+      dirty: true,
+      entries: ["M src/foo.ts"],
+      fingerprint: "M src/foo.ts",
+      summary: "src/foo.ts",
+      headSha: "abc1234",
+    });
+
+    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());
+
+    const harness = new WorkflowTestHarness(explorerWorkflow, {
+      trigger: { event: "autonomy.queue.empty", payload: {} },
+      runtimeState: { workflows: {} },
+      projectDir: tempDir,
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["inspect-queue"].output).toMatchObject({
+      dirty: true,
+      needsAttention: false,
+    });
+    expect(result.steps.explore.status).toBe("skipped");
   });
 
   it("trigger cooldowns match the exploration refresh window to prevent no-op churn", () => {

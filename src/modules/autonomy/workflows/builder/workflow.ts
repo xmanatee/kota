@@ -1,7 +1,7 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { RepoTaskQueueSnapshot } from "#core/data/repo-tasks.js";
 import { getRepoTaskQueueSnapshot } from "#core/data/repo-tasks.js";
-import { assertRepoWorktreeClean, getRepoHeadSha } from "#core/util/repo-worktree.js";
+import { getRepoHeadSha, getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
@@ -23,12 +23,15 @@ export const agent: AgentDef = {
   settingSources: ["project"],
 };
 
-const inspectReadyQueue = typedCodeStep<RepoTaskQueueSnapshot>({
+type InspectResult = RepoTaskQueueSnapshot & { dirty: boolean };
+
+const inspectReadyQueue = typedCodeStep<InspectResult>({
   id: "inspect-ready-queue",
   type: "code",
   run: ({ projectDir }) => {
-    assertRepoWorktreeClean(projectDir);
-    return getRepoTaskQueueSnapshot(projectDir);
+    const worktree = getRepoWorktreeStatus(projectDir);
+    const dirty = worktree.available && worktree.dirty;
+    return { ...getRepoTaskQueueSnapshot(projectDir), dirty };
   },
 });
 
@@ -60,7 +63,10 @@ const builderWorkflow: WorkflowDefinitionInput = {
       maxTurns: 100,
       timeoutMs: 60 * 60 * 1000, // 60 minutes — builder runs can be long
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
-      when: (ctx) => inspectReadyQueue.output(ctx).pullableCount > 0,
+      when: (ctx) => {
+        const { dirty, pullableCount } = inspectReadyQueue.output(ctx);
+        return !dirty && pullableCount > 0;
+      },
       repairLoop: {
         maxRepairAttempts: 3,
         checks: builderRepairChecks(),

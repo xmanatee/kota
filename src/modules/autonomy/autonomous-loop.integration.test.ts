@@ -143,12 +143,12 @@ function seedFixtureProject(projectDir: string): void {
   );
 
   // .gitignore mirrors the real project: .kota/ is runtime state, not source.
-  // Without this, assertRepoWorktreeClean would fail when the workflow runtime
-  // modifies workflow-state.json and creates run artifacts before the step runs.
+  // Without this, getRepoWorktreeStatus would report dirty when the workflow
+  // runtime modifies workflow-state.json and creates run artifacts.
   writeFileSync(join(projectDir, ".gitignore"), ".kota/\n");
 
   // Initialize a git repo so workflow commit steps can run if a test needs them.
-  // Commit all seeded files (excluding .kota/) so assertRepoWorktreeClean passes.
+  // Commit all seeded files (excluding .kota/) so worktree reads as clean.
   execSync("git init && git add .", { cwd: projectDir });
   execSync('git -c user.email="test@test" -c user.name="Test" commit -m "init"', {
     cwd: projectDir,

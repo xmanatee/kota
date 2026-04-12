@@ -20,11 +20,13 @@ const taskAgentsPath = fileURLToPath(new URL("../../../../../data/tasks/AGENTS.m
 const taskAgentsContent = readFileSync(taskAgentsPath, "utf-8");
 
 vi.mock("#core/util/repo-worktree.js", () => ({
-  assertRepoWorktreeClean: vi.fn(),
   getRepoWorktreeStatus: vi.fn(() => ({
     available: true,
     dirty: false,
     entries: [],
+    fingerprint: "",
+    summary: "clean",
+    headSha: "abc1234",
   })),
   getRepoHeadSha: vi.fn(() => "abc1234"),
 }));
@@ -97,6 +99,35 @@ function makeSnapshot(ready: number, doing: number, backlog = 4) {
 describe("builder workflow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("skips build when worktree is dirty", async () => {
+    const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
+    vi.mocked(getRepoWorktreeStatus).mockReturnValueOnce({
+      available: true,
+      dirty: true,
+      entries: ["M src/foo.ts"],
+      fingerprint: "M src/foo.ts",
+      summary: "src/foo.ts",
+      headSha: "abc1234",
+    });
+
+    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(2, 1));
+
+    const harness = new WorkflowTestHarness(builderWorkflow, {
+      trigger: {
+        event: "autonomy.queue.available",
+        payload: { pullableCount: 7, actionableCount: 3, counts: makeSnapshot(2, 1).counts },
+      },
+      stepMocks: { build: { turns: [], totalCostUsd: 0 } },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["inspect-ready-queue"].output).toMatchObject({ dirty: true });
+    expect(result.steps.build.status).toBe("skipped");
   });
 
   it("skips build and commit when no pullable queue work exists", async () => {
