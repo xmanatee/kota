@@ -67,6 +67,7 @@ function makeStubCtx(): ModuleContext {
 		registerCleanupHook: () => {},
 		resolveAgentDef: () => undefined,
 		resolveSkillsPrompt: () => "",
+		probeHealthChecks: async () => ({}),
 	};
 }
 

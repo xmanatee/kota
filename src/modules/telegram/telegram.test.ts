@@ -45,6 +45,7 @@ function makeStubCtx(bus?: EventBus): ModuleContext {
     registerCleanupHook: () => {},
     resolveAgentDef: () => undefined,
     resolveSkillsPrompt: () => "",
+    probeHealthChecks: async () => ({}),
   };
 }
 

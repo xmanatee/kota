@@ -9,8 +9,26 @@
  * Data is stored in `.kota/memory.db`.
  */
 
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { SQLiteMemoryProvider } from "#core/memory/sqlite-memory.js";
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { HealthCheckResult, KotaModule, ModuleContext } from "#core/modules/module-types.js";
+
+let storageDir: string | null = null;
+
+function checkSqliteHealth(): HealthCheckResult {
+	if (!storageDir) return { status: "unhealthy", message: "Module not loaded" };
+	const dbPath = join(storageDir, "memory.db");
+	if (!existsSync(dbPath)) return { status: "healthy", message: "No database yet (will be created on first write)" };
+	try {
+		execFileSync("sqlite3", [dbPath, "SELECT 1"], { timeout: 2000, stdio: ["pipe", "pipe", "pipe"] });
+		return { status: "healthy" };
+	} catch (err) {
+		const msg = err instanceof Error ? err.message : String(err);
+		return { status: "unhealthy", message: `SQLite probe failed: ${msg.slice(0, 120)}` };
+	}
+}
 
 const sqliteMemoryModule: KotaModule = {
 	name: "sqlite-memory",
@@ -19,10 +37,17 @@ const sqliteMemoryModule: KotaModule = {
 	dependencies: ["memory"],
 
 	onLoad: (ctx: ModuleContext) => {
-		const provider = new SQLiteMemoryProvider(ctx.storage.getDir());
+		storageDir = ctx.storage.getDir();
+		const provider = new SQLiteMemoryProvider(storageDir);
 		ctx.registerProvider("memory", provider);
 		ctx.log.info("SQLite memory provider registered");
 	},
+
+	onUnload: () => {
+		storageDir = null;
+	},
+
+	healthCheck: () => checkSqliteHealth(),
 
 	skills: [{ name: "sqlite-memory", promptPath: "src/modules/sqlite-memory/sqlite-memory.md" }],
 };

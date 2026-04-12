@@ -1178,6 +1178,30 @@ describe("DaemonControlServer", () => {
       const body = await res.json();
       expect(body.status).toBe("degraded");
     });
+
+    it("includes moduleHealthChecks in response when present", async () => {
+      handle = makeHandle({
+        getHealthStatus: vi.fn(() => ({
+          scheduler: "ok" as const,
+          modules: "ok" as const,
+          moduleHealthChecks: {
+            "sqlite-memory": { status: "healthy" as const },
+            "webhook": { status: "degraded" as const, message: "endpoint unreachable" },
+          },
+        })),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchNoToken(port, "/health");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.components.moduleHealthChecks).toEqual({
+        "sqlite-memory": { status: "healthy" },
+        "webhook": { status: "degraded", message: "endpoint unreachable" },
+      });
+    });
   });
 
   describe("DELETE /workflow/runs/:id", () => {

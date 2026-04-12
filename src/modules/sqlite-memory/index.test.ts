@@ -46,6 +46,7 @@ function makeStubCtx(storageDir: string): ModuleContext {
 		registerCleanupHook: () => {},
 		resolveAgentDef: () => undefined,
 		resolveSkillsPrompt: () => "",
+		probeHealthChecks: async () => ({}),
 	};
 }
 
@@ -267,6 +268,28 @@ describeIfSqlite("sqliteMemoryModule onLoad", () => {
 		for (const id of ids.slice(10)) provider.update(id, { content: "updated" });
 		const remaining = provider.list();
 		expect(remaining.every((m: { content: string }) => m.content === "updated")).toBe(true);
+	});
+
+	it("healthCheck returns healthy after load", async () => {
+		const dir = join(testDir, `run-${Date.now()}`);
+		mkdirSync(dir, { recursive: true });
+		const ctx = makeStubCtx(dir);
+
+		sqliteMemoryModule.onLoad!(ctx);
+		const result = await sqliteMemoryModule.healthCheck!();
+		expect(result.status).toBe("healthy");
+	});
+
+	it("healthCheck returns healthy with existing db", async () => {
+		const dir = join(testDir, `run-${Date.now()}`);
+		mkdirSync(dir, { recursive: true });
+		const ctx = makeStubCtx(dir);
+		sqliteMemoryModule.onLoad!(ctx);
+		const provider = (ctx.registerProvider as ReturnType<typeof vi.fn>).mock.calls[0][1];
+		provider.save("test entry");
+
+		const result = await sqliteMemoryModule.healthCheck!();
+		expect(result.status).toBe("healthy");
 	});
 
 	it("logs info message on load", () => {

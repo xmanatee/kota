@@ -6,6 +6,7 @@ import type {
   DaemonSseEvent,
   DaemonSseEventType,
   DaemonTaskStatusResponse,
+  HealthStatus,
   WorkflowDefinitionSummary,
   WorkflowLiveStatus,
   WorkflowRunDetail,
@@ -42,6 +43,16 @@ export class DaemonControlClient {
 
   private authHeaders(): Record<string, string> {
     return this.token ? { Authorization: `Bearer ${this.token}` } : {};
+  }
+
+  async getHealth(): Promise<{ status: string; components: HealthStatus } | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/health`);
+      if (!res.ok) return null;
+      return (await res.json()) as { status: string; components: HealthStatus };
+    } catch {
+      return null;
+    }
   }
 
   async getDaemonStatus(): Promise<DaemonLiveStatus | null> {

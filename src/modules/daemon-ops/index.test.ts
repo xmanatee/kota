@@ -34,6 +34,7 @@ const stubCtx: ModuleContext = {
     registerCleanupHook: () => {},
     resolveAgentDef: () => undefined,
     resolveSkillsPrompt: () => "",
+    probeHealthChecks: async () => ({}),
   };
 
 describe("daemonModule", () => {

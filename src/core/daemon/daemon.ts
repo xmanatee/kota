@@ -55,6 +55,7 @@ export type DaemonConfig = {
   logFormat?: LogFormat;
   resolveAgentDef?: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt?: (skillNames: string[] | "all") => string;
+  probeModuleHealthChecks?: () => Promise<Record<string, import("#core/modules/module-types.js").HealthCheckResult>>;
 };
 
 export const RESTART_EXIT_CODE = 75;
@@ -81,6 +82,8 @@ export class Daemon {
   private activeChannels: ChannelAdapter[] = [];
   private sessions = new Map<string, InteractiveSession>();
   private sessionSweepTimer: ReturnType<typeof setInterval> | null = null;
+  private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
+  private moduleHealthChecks: Record<string, import("#core/modules/module-types.js").HealthCheckResult> = {};
   private restartRequested = false;
   private restartReason: string | null = null;
   private running = false;
@@ -136,6 +139,7 @@ export class Daemon {
         projectDir: this.projectDir,
         config: { config: config.config, verbose: config.verbose },
         log: (message) => this.log(message),
+        getModuleHealthChecks: () => this.moduleHealthChecks,
       }),
       this.token,
       {
@@ -201,6 +205,13 @@ export class Daemon {
         this.bus.emit("session.unregistered", { id });
       }
     }, sweepMs);
+
+    if (this.config.probeModuleHealthChecks) {
+      const probe = this.config.probeModuleHealthChecks;
+      const runProbe = () => { void probe().then((r) => { this.moduleHealthChecks = r; }).catch(() => {}); };
+      runProbe();
+      this.healthCheckTimer = setInterval(runProbe, 30_000);
+    }
 
     const pollMs = this.config.pollIntervalMs ?? DEFAULT_POLL_INTERVAL;
     const runsDir = join(this.stateDir, "runs");
@@ -280,6 +291,10 @@ export class Daemon {
     if (this.sessionSweepTimer !== null) {
       clearInterval(this.sessionSweepTimer);
       this.sessionSweepTimer = null;
+    }
+    if (this.healthCheckTimer !== null) {
+      clearInterval(this.healthCheckTimer);
+      this.healthCheckTimer = null;
     }
 
     for (const adapter of this.activeChannels) {

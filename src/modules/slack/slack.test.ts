@@ -38,6 +38,7 @@ function makeStubCtx(bus?: EventBus, slackConfig?: unknown): ModuleContext {
     registerCleanupHook: () => {},
     resolveAgentDef: () => undefined,
     resolveSkillsPrompt: () => "",
+    probeHealthChecks: async () => ({}),
   };
 }
 

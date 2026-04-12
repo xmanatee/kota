@@ -166,6 +166,7 @@ export class ModuleTestHarness {
       getContributedWorkflows: () => [],
       getContributedChannels: () => [],
       getModuleSummaries: () => [],
+      probeHealthChecks: async () => ({}),
       getModuleConfig: () => undefined,
       log: {
         info: () => {},

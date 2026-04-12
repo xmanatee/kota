@@ -164,9 +164,15 @@ export type WorkflowMetricCounts = {
 
 export type ComponentStatus = "ok" | "error";
 
+export type ModuleHealthCheckResult = {
+  status: "healthy" | "degraded" | "unhealthy";
+  message?: string;
+};
+
 export type HealthStatus = {
   scheduler: ComponentStatus;
   modules: ComponentStatus;
+  moduleHealthChecks?: Record<string, ModuleHealthCheckResult>;
 };
 
 export type DaemonControlHandle = {

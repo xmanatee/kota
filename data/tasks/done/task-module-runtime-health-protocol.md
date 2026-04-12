@@ -1,12 +1,12 @@
 ---
 id: task-module-runtime-health-protocol
 title: Add optional runtime health check protocol to modules for daemon and doctor probing
-status: backlog
+status: done
 priority: p2
 area: core
 summary: Modules can load and unload but cannot report runtime health. The daemon and doctor have no way to detect degraded modules (expired tokens, lost connections, crashed subprocesses) after initial load succeeds.
 created_at: 2026-04-12T05:36:07Z
-updated_at: 2026-04-12T05:36:07Z
+updated_at: 2026-04-12T09:11:48.531Z
 ---
 
 ## Problem

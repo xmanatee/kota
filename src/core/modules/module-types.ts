@@ -24,6 +24,12 @@ export type ModuleHealth = {
   lastRestartAt?: string;
 };
 
+/** Result of an optional module-level runtime health check. */
+export type HealthCheckResult = {
+  status: "healthy" | "degraded" | "unhealthy";
+  message?: string;
+};
+
 /** Summary of a loaded module's metadata and contributions. */
 export type ModuleSummary = {
   name: string;
@@ -42,6 +48,8 @@ export type ModuleSummary = {
   commandError?: string;
   routeError?: string;
   health?: ModuleHealth;
+  /** Result of the module's optional runtime health check. */
+  healthCheck?: HealthCheckResult;
   /** Set when the module failed to load; absent for successfully loaded modules. */
   loadError?: string;
 };
@@ -182,6 +190,8 @@ export type ModuleContext = {
   resolveAgentDef: (name: string) => AgentDef | undefined;
   /** Build the skills prompt for a set of skill names or "all". */
   resolveSkillsPrompt: (skillNames: string[] | "all") => string;
+  /** Probe all modules that declare a healthCheck and return results. */
+  probeHealthChecks: () => Promise<Record<string, HealthCheckResult>>;
 };
 
 /**
@@ -262,6 +272,13 @@ export type KotaModule = {
 
   /** Returns current health state. Only set by foreign modules with subprocess management. */
   getHealth?: () => ModuleHealth;
+
+  /**
+   * Optional runtime health check. Returns the module's current readiness state.
+   * Must be fast (< 1s) — probe cached state or do a lightweight ping, not a full test.
+   * Modules without a healthCheck are assumed healthy.
+   */
+  healthCheck?: () => HealthCheckResult | Promise<HealthCheckResult>;
 };
 
 /** Resolve tools from a KotaModule — handles both static array and factory function forms. */

@@ -44,6 +44,7 @@ describe("vercel-adapter module", () => {
     registerCleanupHook: () => {},
     resolveAgentDef: () => undefined,
     resolveSkillsPrompt: () => "",
+    probeHealthChecks: async () => ({}),
   };
 
     const routes = vercelAdapterModule.routes!(ctx);

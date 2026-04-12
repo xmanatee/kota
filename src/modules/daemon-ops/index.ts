@@ -223,6 +223,7 @@ const daemonModule: KotaModule = {
           logFormat,
           resolveAgentDef: (name) => ctx.resolveAgentDef(name),
           resolveSkillsPrompt: (names) => ctx.resolveSkillsPrompt(names),
+          probeModuleHealthChecks: () => ctx.probeHealthChecks(),
         });
 
         await daemon.start();

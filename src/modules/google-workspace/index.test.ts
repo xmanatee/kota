@@ -28,6 +28,7 @@ function makeCtx(config?: Record<string, unknown>): ModuleContext {
     registerCleanupHook: vi.fn(),
     resolveAgentDef: vi.fn().mockReturnValue(undefined),
     resolveSkillsPrompt: vi.fn().mockReturnValue(""),
+    probeHealthChecks: async () => ({}),
   };
 }
 

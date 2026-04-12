@@ -15,6 +15,7 @@ import { getModuleDependents, type LifecycleState, reloadModule, unloadAllModule
 import type { ModuleStorage } from "./module-storage.js";
 import {
   type CreateSessionOptions,
+  type HealthCheckResult,
   type KotaModule,
   type ModuleContext,
   type ModuleSession,
@@ -103,6 +104,7 @@ export class ModuleLoader {
       resolveAgentDef: (name) => this.getAgentDef(name),
       resolveSkillsPrompt: (names) => this.getSkillsPromptFor(names),
       sessionFactory: this.sessionFactory,
+      probeHealthChecks: () => this.probeHealthChecks(),
       callTool: async (name, input) => {
         if (this.toolCallDepth >= ModuleLoader.MAX_TOOL_CALL_DEPTH) {
           return { content: `Tool call depth limit exceeded (max ${ModuleLoader.MAX_TOOL_CALL_DEPTH})`, is_error: true };
@@ -425,5 +427,19 @@ export class ModuleLoader {
       });
     }
     return [...loaded, ...failed];
+  }
+
+  async probeHealthChecks(): Promise<Record<string, HealthCheckResult>> {
+    const results: Record<string, HealthCheckResult> = {};
+    for (const mod of this.modules) {
+      if (!mod.healthCheck) continue;
+      try {
+        results[mod.name] = await mod.healthCheck();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        results[mod.name] = { status: "unhealthy", message: `healthCheck threw: ${msg}` };
+      }
+    }
+    return results;
   }
 }

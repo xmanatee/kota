@@ -1046,4 +1046,34 @@ describe("ctx.callTool — direct tool invocation", () => {
     await new Promise((r) => setTimeout(r, 10));
     expect(eventResult?.content).toBe("result from event_target");
   });
+
+  it("probeHealthChecks collects results from modules with healthCheck", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "healthy-mod",
+      healthCheck: () => ({ status: "healthy" }),
+    });
+    await loader.load({
+      name: "degraded-mod",
+      healthCheck: async () => ({ status: "degraded", message: "token expiring" }),
+    });
+    await loader.load({ name: "no-check-mod" });
+
+    const results = await loader.probeHealthChecks();
+    expect(results["healthy-mod"]).toEqual({ status: "healthy" });
+    expect(results["degraded-mod"]).toEqual({ status: "degraded", message: "token expiring" });
+    expect(results["no-check-mod"]).toBeUndefined();
+  });
+
+  it("probeHealthChecks catches thrown errors as unhealthy", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "broken-mod",
+      healthCheck: () => { throw new Error("boom"); },
+    });
+
+    const results = await loader.probeHealthChecks();
+    expect(results["broken-mod"].status).toBe("unhealthy");
+    expect(results["broken-mod"].message).toContain("boom");
+  });
 });

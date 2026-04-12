@@ -15,6 +15,7 @@ import type {
   DaemonControlHandle,
   DaemonTaskStatusResponse,
   InteractiveSession,
+  ModuleHealthCheckResult,
   WorkflowCostEntry,
   WorkflowDefinitionSummary,
   WorkflowDurationHistogramEntry,
@@ -36,6 +37,7 @@ export type DaemonHandleContext = {
   projectDir: string;
   config: { config?: KotaConfig; verbose?: boolean };
   log: (message: string) => void;
+  getModuleHealthChecks: () => Record<string, ModuleHealthCheckResult>;
 };
 
 export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle {
@@ -61,10 +63,16 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
   });
 
   return {
-    getHealthStatus: () => ({
-      scheduler: "ok" as const,
-      modules: "ok" as const,
-    }),
+    getHealthStatus: () => {
+      const checks = ctx.getModuleHealthChecks();
+      const hasUnhealthy = Object.values(checks).some((c) => c.status === "unhealthy");
+      const moduleHealthChecks = Object.keys(checks).length > 0 ? checks : undefined;
+      return {
+        scheduler: "ok" as const,
+        modules: hasUnhealthy ? ("error" as const) : ("ok" as const),
+        moduleHealthChecks,
+      };
+    },
     getDaemonLiveState: () => ({ ...ctx.getState(), running: ctx.isRunning() }),
     getWorkflowLiveStatus: () => {
       const wfState = workflows.getState();

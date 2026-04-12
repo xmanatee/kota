@@ -362,6 +362,20 @@ export async function runDoctorChecks(
   // Module checks (skip if daemon running to avoid double-load issues)
   if (status) {
     results.push(pass("Modules", "Managed by daemon (use `kota module list` for details)"));
+    const healthResp = await client!.getHealth();
+    const moduleChecks = healthResp?.components?.moduleHealthChecks;
+    if (moduleChecks && Object.keys(moduleChecks).length > 0) {
+      for (const [name, check] of Object.entries(moduleChecks)) {
+        const detail = check.message ? `${check.status} — ${check.message}` : check.status;
+        if (check.status === "healthy") {
+          results.push(pass(`Module health: ${name}`, detail));
+        } else if (check.status === "degraded") {
+          results.push(warn(`Module health: ${name}`, detail));
+        } else {
+          results.push(fail(`Module health: ${name}`, detail));
+        }
+      }
+    }
   } else {
     const extResults = await checkModules(projectDir);
     results.push(...extResults);

@@ -321,6 +321,7 @@ describe("resolveModuleTools", () => {
     registerCleanupHook: () => {},
     resolveAgentDef: () => undefined,
     resolveSkillsPrompt: () => "",
+    probeHealthChecks: async () => ({}),
   } as ModuleContext;
 
   it("returns empty array when tools is undefined", () => {

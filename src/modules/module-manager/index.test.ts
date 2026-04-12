@@ -31,6 +31,7 @@ const stubCtx: ModuleContext = {
   registerCleanupHook: () => {},
   resolveAgentDef: () => undefined,
   resolveSkillsPrompt: () => "",
+  probeHealthChecks: async () => ({}),
 };
 
 function makeTmpDir(): string {
