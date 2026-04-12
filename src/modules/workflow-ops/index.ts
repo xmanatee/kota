@@ -13,6 +13,7 @@ import { registerDefinitionLogCommand } from "./definition-log.js";
 import { registerDefinitionsCommand } from "./definitions.js";
 import { registerDepsCommand } from "./deps.js";
 import { registerFollowCommand } from "./follow.js";
+import { registerForecastCommand } from "./forecast.js";
 import { registerGcCommand } from "./gc.js";
 import { registerLogsCommand } from "./logs.js";
 import { workflowRoutes } from "./routes.js";
@@ -50,6 +51,7 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
   registerDepsCommand(wfCmd, ctx);
   registerDefinitionLogCommand(wfCmd, ctx);
   registerCostCommand(wfCmd);
+  registerForecastCommand(wfCmd);
   registerLogsCommand(wfCmd);
   registerFollowCommand(wfCmd);
   registerTriggerCommands(wfCmd, ctx);

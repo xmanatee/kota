@@ -2,6 +2,19 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { DaemonControlHandle } from "./daemon-control-types.js";
 import { jsonResponse, readBody } from "./daemon-control-utils.js";
 
+export function handleCostForecast(
+  handle: DaemonControlHandle,
+  res: ServerResponse,
+  params: Record<string, string>,
+): void {
+  const forecast = handle.getWorkflowCostForecast(params.name);
+  if (!forecast) {
+    jsonResponse(res, 404, { error: "No baseline data available", workflow: params.name });
+    return;
+  }
+  jsonResponse(res, 200, forecast);
+}
+
 export function handleGetWorkflowStatus(handle: DaemonControlHandle, res: ServerResponse): void {
   jsonResponse(res, 200, handle.getWorkflowLiveStatus());
 }

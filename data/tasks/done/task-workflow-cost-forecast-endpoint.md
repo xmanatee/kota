@@ -1,12 +1,12 @@
 ---
 id: task-workflow-cost-forecast-endpoint
 title: Add workflow cost forecast endpoint using historical run baselines
-status: backlog
+status: done
 priority: p2
 area: core
 summary: The cost anomaly detector maintains rolling per-workflow cost baselines. Expose a forecast endpoint so operators and the dispatch layer can estimate expected cost before running a workflow.
 created_at: 2026-04-12T09:30:00Z
-updated_at: 2026-04-12T09:30:00Z
+updated_at: 2026-04-12T11:26:35.444Z
 ---
 
 ## Problem

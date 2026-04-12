@@ -20,6 +20,7 @@ import {
   handleAbortWorkflow,
   handleAbortWorkflowRun,
   handleCancelWorkflowRun,
+  handleCostForecast,
   handleDisableWorkflow,
   handleEnableWorkflow,
   handleGetWorkflowDefinitions,
@@ -34,6 +35,7 @@ import {
 } from "./daemon-control-workflow.js";
 import { EventRingBuffer } from "./event-ring-buffer.js";
 
+export type { WorkflowCostForecast } from "#core/workflow/cost-forecast.js";
 export type {
   CapabilityScope,
   ComponentStatus,
@@ -81,6 +83,7 @@ const ROUTE_SCOPES: Record<string, "read" | "control"> = {
   "GET /workflow/definitions": "read",
   "POST /workflow/definitions/:name/disable": "control",
   "POST /workflow/definitions/:name/enable": "control",
+  "GET /workflow/cost/forecast/:name": "read",
   "GET /workflow/runs": "read",
   "GET /workflow/runs/:id": "read",
   "DELETE /workflow/runs/:id": "control",
@@ -330,6 +333,7 @@ export class DaemonControlServer {
     if (method === "GET" && path === "/workflow/definitions") { handleGetWorkflowDefinitions(h, res); return; }
     if (method === "POST" && params.name && path.endsWith("/disable") && path.startsWith("/workflow/definitions/")) { handleDisableWorkflow(h, res, params); return; }
     if (method === "POST" && params.name && path.endsWith("/enable") && path.startsWith("/workflow/definitions/")) { handleEnableWorkflow(h, res, params); return; }
+    if (method === "GET" && params.name && path.startsWith("/workflow/cost/forecast/")) { handleCostForecast(h, res, params); return; }
     if (method === "GET" && path === "/workflow/runs") { handleListWorkflowRuns(h, res, url); return; }
     if (method === "GET" && params.id && path.startsWith("/workflow/runs/")) { handleGetWorkflowRun(h, res, params); return; }
     if (method === "DELETE" && params.id && path.startsWith("/workflow/runs/")) { handleCancelWorkflowRun(h, res, params); return; }

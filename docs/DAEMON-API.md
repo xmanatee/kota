@@ -34,7 +34,8 @@ Routes are tagged with a capability scope:
 
 - **`read`** — observe daemon and workflow state, subscribe to events:
   `GET /status`, `GET /workflow/status`, `GET /workflow/definitions`, `GET /events`,
-  `GET /api/events`, `GET /workflow/runs`, `GET /workflow/runs/:id`,
+  `GET /api/events`, `GET /workflow/cost/forecast/:name`,
+  `GET /workflow/runs`, `GET /workflow/runs/:id`,
   `GET /history`, `GET /history/:id`, `GET /approvals`, `GET /tasks`,
   `GET /sessions`, `GET /metrics`
 - **`control`** — mutate workflow dispatch and data:
@@ -231,6 +232,34 @@ Re-enables a workflow that was disabled via `POST /workflow/definitions/:name/di
 Returns `404` if the workflow name is not known.
 
 **Client method:** `DaemonControlClient.enableWorkflow(name)`
+
+### GET /workflow/cost/forecast/:name
+
+Returns a cost forecast for a single run of the named workflow, based on the
+persisted cost baseline from the anomaly detector.
+
+**Path parameters:**
+- `name` (required) — workflow name
+
+**Response (200):**
+
+```json
+{
+  "workflow": "builder",
+  "baselineAvgCostUsd": 2.82,
+  "sampleSize": 9,
+  "updatedAt": "2026-04-12T10:16:08.375Z",
+  "stale": false,
+  "confidence": "high"
+}
+```
+
+`confidence` is `"high"` when sample size >= 3 and baseline is less than 30 days
+old; `"low"` otherwise. `stale` indicates the baseline is older than 30 days.
+
+Returns 404 when no baseline data exists for the workflow.
+
+**Client method:** `DaemonControlClient.getWorkflowCostForecast(name)`
 
 ### GET /workflow/runs
 

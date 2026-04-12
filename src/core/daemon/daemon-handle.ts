@@ -7,6 +7,7 @@ import { getRepoInboxDir, getRepoTasksDir } from "#core/data/repo-tasks.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { getHistory } from "#core/memory/history.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
+import { getWorkflowCostForecast } from "#core/workflow/cost-forecast.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
 import { getApprovalQueue } from "./approval-queue.js";
@@ -252,6 +253,8 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       };
     },
     getTaskStatus: () => readTaskStatus(projectDir),
+    getWorkflowCostForecast: (workflow: string) =>
+      getWorkflowCostForecast(join(projectDir, ".kota"), workflow),
     getWorkflowMetricCounts: (): WorkflowMetricCounts => {
       const now = Date.now();
       if (metricCountsCache && now - metricCountsCacheAt < 30_000) {
