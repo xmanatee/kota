@@ -229,16 +229,19 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
     {
       id: "typecheck",
       type: "code" as const,
+      phase: 1,
       run: (ctx) => runCheck("pnpm run typecheck", ctx.projectDir),
     },
     {
       id: "lint",
       type: "code" as const,
+      phase: 1,
       run: (ctx) => runCheck("pnpm run lint:fix && git add -u && pnpm run lint", ctx.projectDir),
     },
     {
       id: "test",
       type: "code" as const,
+      phase: 1,
       run: (ctx) => runCheck("pnpm test", ctx.projectDir, 300_000),
     },
     {
@@ -266,6 +269,6 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       type: "code" as const,
       run: (ctx) => checkModuleBoundary(ctx.projectDir),
     },
-    { ...createCriticCheck(), phase: 1 },
+    { ...createCriticCheck(), phase: 2 },
   ];
 }
