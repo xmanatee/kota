@@ -1,12 +1,12 @@
 ---
 id: task-knowledge-export-cli
 title: Add knowledge export CLI command to complement the existing import command
-status: backlog
+status: done
 priority: p2
 area: modules
 summary: The knowledge module has an import command but no export. Operators cannot back up, transfer, or share knowledge entries between projects or instances.
 created_at: 2026-04-12T05:36:07Z
-updated_at: 2026-04-12T05:36:07Z
+updated_at: 2026-04-12T07:53:46.693Z
 ---
 
 ## Problem

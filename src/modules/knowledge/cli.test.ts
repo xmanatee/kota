@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resetKnowledgeStore } from "#core/memory/knowledge-store.js";
-import { registerKnowledgeCommands } from "./cli.js";
+import { getKnowledgeStore, resetKnowledgeStore } from "#core/memory/knowledge-store.js";
+import { parseImportEntries, registerKnowledgeCommands } from "./cli.js";
 
 function makeProjectDir(): string {
 	const dir = join(
@@ -96,6 +96,20 @@ describe("kota knowledge add", () => {
 		expect(entry!.status).toBe("archived");
 	});
 
+	it("rejects invalid scope", async () => {
+		const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+		const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => { throw new Error("exit"); });
+		try {
+			await makeKnowledgeProgram().parseAsync([
+				"node", "kota", "knowledge", "add",
+				"--title", "X", "--content", "Y", "--scope", "badscope",
+			]);
+		} catch { /* expected */ }
+		expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("Invalid scope"));
+		errSpy.mockRestore();
+		exitSpy.mockRestore();
+	});
+
 	it("reads content from stdin when --content is omitted", async () => {
 		const stdinContent = "piped body\n";
 		const mockStdin = {
@@ -129,5 +143,152 @@ describe("kota knowledge add", () => {
 		expect(entry).not.toBeNull();
 		expect(entry!.content).toBe("piped body");
 		expect(entry!.title).toBe("Piped");
+	});
+});
+
+describe("kota knowledge export", () => {
+	let projectDir: string;
+	let origCwd: string;
+
+	beforeEach(() => {
+		projectDir = makeProjectDir();
+		origCwd = process.cwd();
+		process.chdir(projectDir);
+		resetKnowledgeStore();
+	});
+
+	afterEach(() => {
+		process.chdir(origCwd);
+		rmSync(projectDir, { recursive: true, force: true });
+		resetKnowledgeStore();
+	});
+
+	function seedEntries() {
+		const store = getKnowledgeStore(projectDir);
+		store.create({ title: "Alpha", content: "alpha body", type: "note", tags: ["a"], status: "active" });
+		store.create({ title: "Beta", content: "beta body", type: "reference", tags: ["b"], status: "archived" });
+		store.create({ title: "Gamma", content: "gamma body", type: "note", tags: ["a", "c"], status: "active" });
+		resetKnowledgeStore();
+	}
+
+	it("exports all entries as JSONL by default", async () => {
+		seedEntries();
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		await makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export"]);
+		expect(logSpy).toHaveBeenCalledTimes(3);
+		for (const call of logSpy.mock.calls) {
+			const obj = JSON.parse(call[0] as string);
+			expect(obj).toHaveProperty("title");
+			expect(obj).toHaveProperty("body");
+			expect(obj).toHaveProperty("tags");
+		}
+		logSpy.mockRestore();
+	});
+
+	it("exports as JSON array with --format json", async () => {
+		seedEntries();
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		await makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--format", "json"]);
+		expect(logSpy).toHaveBeenCalledTimes(1);
+		const arr = JSON.parse(logSpy.mock.calls[0][0] as string);
+		expect(Array.isArray(arr)).toBe(true);
+		expect(arr).toHaveLength(3);
+		logSpy.mockRestore();
+	});
+
+	it("filters by --type", async () => {
+		seedEntries();
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		await makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--type", "reference"]);
+		expect(logSpy).toHaveBeenCalledTimes(1);
+		const obj = JSON.parse(logSpy.mock.calls[0][0] as string);
+		expect(obj.type).toBe("reference");
+		logSpy.mockRestore();
+	});
+
+	it("filters by --status", async () => {
+		seedEntries();
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		await makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--status", "archived"]);
+		expect(logSpy).toHaveBeenCalledTimes(1);
+		const obj = JSON.parse(logSpy.mock.calls[0][0] as string);
+		expect(obj.title).toBe("Beta");
+		logSpy.mockRestore();
+	});
+
+	it("filters by --tag", async () => {
+		seedEntries();
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		await makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--tag", "c"]);
+		expect(logSpy).toHaveBeenCalledTimes(1);
+		const obj = JSON.parse(logSpy.mock.calls[0][0] as string);
+		expect(obj.title).toBe("Gamma");
+		logSpy.mockRestore();
+	});
+
+	it("round-trips through export then import", async () => {
+		seedEntries();
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		await makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--format", "json"]);
+		const exported = logSpy.mock.calls[0][0] as string;
+		logSpy.mockRestore();
+
+		const parsed = parseImportEntries(exported);
+		expect(parsed).toHaveLength(3);
+		for (const entry of parsed) {
+			expect(typeof entry.title).toBe("string");
+			expect(typeof entry.body).toBe("string");
+			expect(Array.isArray(entry.tags)).toBe(true);
+		}
+
+		resetKnowledgeStore();
+		const newDir = makeProjectDir();
+		process.chdir(newDir);
+		const store2 = getKnowledgeStore(newDir);
+		for (const entry of parsed) {
+			store2.create({
+				title: entry.title as string,
+				content: entry.body as string,
+				tags: entry.tags as string[],
+			});
+		}
+		const all = store2.list();
+		expect(all).toHaveLength(3);
+		const titles = all.map((e) => e.title).sort();
+		expect(titles).toEqual(["Alpha", "Beta", "Gamma"]);
+		rmSync(newDir, { recursive: true, force: true });
+	});
+
+	it("JSONL round-trips through parseImportEntries", async () => {
+		seedEntries();
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		await makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--format", "jsonl"]);
+		const lines = logSpy.mock.calls.map((c) => c[0] as string).join("\n");
+		logSpy.mockRestore();
+
+		const parsed = parseImportEntries(lines);
+		expect(parsed).toHaveLength(3);
+		for (const entry of parsed) {
+			expect(typeof entry.title).toBe("string");
+			expect(typeof entry.body).toBe("string");
+		}
+	});
+
+	it("produces empty output when no entries exist", async () => {
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		await makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export"]);
+		expect(logSpy).not.toHaveBeenCalled();
+		logSpy.mockRestore();
+	});
+
+	it("rejects invalid format", async () => {
+		const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+		const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => { throw new Error("exit"); });
+		try {
+			await makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--format", "csv"]);
+		} catch { /* expected */ }
+		expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("Invalid format"));
+		errSpy.mockRestore();
+		exitSpy.mockRestore();
 	});
 });

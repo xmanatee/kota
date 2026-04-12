@@ -157,6 +157,50 @@ export function registerKnowledgeCommands(program: Command): void {
 		});
 
 	kCmd
+		.command("export")
+		.description("Export knowledge entries to stdout in JSON or JSONL format")
+		.option("--type <type>", "Filter by type")
+		.option("--status <status>", "Filter by status")
+		.option("--tag <tag>", "Filter by tag")
+		.option("--scope <scope>", "Storage scope: project, global, or all", "project")
+		.option("--format <fmt>", "Output format: json or jsonl", "jsonl")
+		.action((opts: { type?: string; status?: string; tag?: string; scope: string; format: string }) => {
+			if (opts.scope !== "project" && opts.scope !== "global" && opts.scope !== "all") {
+				console.error(`Invalid scope "${opts.scope}". Use "project", "global", or "all".`);
+				process.exit(1);
+			}
+			if (opts.format !== "json" && opts.format !== "jsonl") {
+				console.error(`Invalid format "${opts.format}". Use "json" or "jsonl".`);
+				process.exit(1);
+			}
+			const store = getKnowledgeStore(process.cwd());
+			const entries = store.list({
+				type: opts.type,
+				status: opts.status,
+				tag: opts.tag,
+				scope: opts.scope as "project" | "global" | "all",
+			});
+			const exported = entries.map((e) => ({
+				title: e.title,
+				body: e.content,
+				tags: e.tags,
+				type: e.type,
+				status: e.status,
+				id: e.id,
+				created: e.created,
+				updated: e.updated,
+				...(Object.keys(e.meta).length > 0 ? { meta: e.meta } : {}),
+			}));
+			if (opts.format === "json") {
+				console.log(JSON.stringify(exported, null, 2));
+			} else {
+				for (const entry of exported) {
+					console.log(JSON.stringify(entry));
+				}
+			}
+		});
+
+	kCmd
 		.command("import <file>")
 		.description("Bulk import knowledge entries from a JSON or JSONL file")
 		.option("--type <type>", "Entry type for all imported entries", "note")
