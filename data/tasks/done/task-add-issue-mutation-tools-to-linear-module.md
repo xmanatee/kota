@@ -1,12 +1,12 @@
 ---
 id: task-add-issue-mutation-tools-to-linear-module
 title: Add issue mutation tools to Linear module
-status: backlog
+status: done
 priority: p2
 area: modules
 summary: The Linear module only provides a read-only TaskProvider. Add tools for creating issues, updating issue state, and adding comments so autonomous workflows can close the loop with Linear without manual intervention.
 created_at: 2026-04-12T16:38:45.418Z
-updated_at: 2026-04-12T16:38:45.418Z
+updated_at: 2026-04-12T18:53:56.736Z
 ---
 
 ## Problem

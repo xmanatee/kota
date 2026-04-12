@@ -1,34 +1,14 @@
-/**
- * Linear module — TaskProvider backed by Linear Issues.
- *
- * When `modules.linear.taskProvider.enabled` is true, this module registers
- * a LinearTaskProvider so KOTA's builder can pull tasks directly from a Linear
- * team's backlog without maintaining a parallel file queue.
- *
- * Config (under modules.linear):
- *   apiKey:        Linear API key or "$ENV_VAR" reference. Required.
- *   taskProvider:
- *     enabled:         Must be true to activate. Default: false.
- *     teamKey:         Linear team key (e.g. "ENG"). Required.
- *     labelFilter:     Only include issues with this label. Default: no filter.
- *     inProgressState: Workflow state name for "in progress". Default: "In Progress".
- *     doneState:       Workflow state name for "done". Default: "Done".
- *
- * Uses Linear's GraphQL API; no npm dependencies.
- * API key is never logged.
- */
-
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleContext, ToolDef } from "#core/modules/module-types.js";
+import { makeLinearTools, resolveTeamContext } from "./linear-tools.js";
 import type { LinearTaskProviderConfig } from "./task-provider.js";
 import { LinearTaskProvider } from "./task-provider.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 type LinearConfig = {
-  /** Linear API key or "$ENV_VAR" reference. Required. */
   apiKey: string;
-  /** Optional Linear Issues task provider configuration. */
   taskProvider?: LinearTaskProviderConfig;
+  teamKey?: string;
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -61,7 +41,31 @@ async function linearFetch(
 
 const linearModule: KotaModule = {
   name: "linear",
-  tools: [],
+
+  tools(ctx: ModuleContext): ToolDef[] {
+    const config = ctx.getModuleConfig<LinearConfig>();
+    if (!config?.apiKey) return [];
+
+    const apiKey = resolveApiKey(config.apiKey);
+    if (!apiKey) return [];
+
+    const teamKey = config.taskProvider?.teamKey ?? config.teamKey;
+    if (!teamKey) {
+      ctx.log.warn("Linear module: no teamKey configured — tools inactive");
+      return [];
+    }
+
+    const boundFetch = (query: string, variables?: Record<string, unknown>) =>
+      linearFetch(apiKey, query, variables);
+
+    let cached: ReturnType<typeof resolveTeamContext> | null = null;
+    const getTeamContext = () => {
+      if (!cached) cached = resolveTeamContext(boundFetch, teamKey);
+      return cached;
+    };
+
+    return makeLinearTools(boundFetch, getTeamContext);
+  },
 
   async onLoad(ctx: ModuleContext): Promise<void> {
     const config = ctx.getModuleConfig<LinearConfig>();
