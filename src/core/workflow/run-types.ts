@@ -131,6 +131,14 @@ export type WorkflowRepairCheck = {
   /** Identifier for this check, shown in repair iteration output. */
   id: string;
   severity?: "error" | "warning";
+  /**
+   * Execution phase. Checks with a lower phase run first; later phases are
+   * skipped when an earlier phase has failures. Within a phase, checks run
+   * in parallel. Default is 0 (mechanical checks). Use phase 1 for semantic
+   * checks (e.g. critic review) that should only run after mechanical
+   * validations pass.
+   */
+  phase?: number;
 } & (
   | {
       type?: "tool";

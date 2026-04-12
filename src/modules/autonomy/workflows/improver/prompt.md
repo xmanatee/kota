@@ -13,6 +13,13 @@ The `gather-run-data` step injects aggregated run outcomes as an exposed step ou
 
 Use this data to prioritize improvements that address systemic patterns rather than one-off failures.
 
+## Knowledge Recall
+
+The `recall-knowledge` step injects prior insights from the knowledge store as
+an exposed step output. If entries are present, factor them into your analysis —
+they may contain lessons from previous workflow runs, cost patterns, or
+architectural decisions. If the recall is empty, proceed normally.
+
 ## Scope
 
 - Improve prompts, instructions, validation, triggering, queue-shaping, and other autonomy surfaces when they materially affect future runs.

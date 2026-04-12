@@ -6,6 +6,7 @@ import type { WorkflowRunMetadata, WorkflowStepContext } from "#core/workflow/ru
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
+import { recallForDecomposer } from "#modules/autonomy/knowledge-recall.js";
 import { runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
 
 export const agent: AgentDef = {
@@ -142,6 +143,12 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
   ],
   steps: [
     assessFailure,
+    {
+      id: "recall-knowledge",
+      type: "code",
+      exposeOutputToAgent: true,
+      run: ({ projectDir }) => recallForDecomposer(projectDir),
+    },
     {
       id: "decompose",
       type: "agent",

@@ -7,6 +7,7 @@ import { assertRepoWorktreeClean } from "#core/util/repo-worktree.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
+import { recallForExplorer } from "#modules/autonomy/knowledge-recall.js";
 import {
   runCheck,
   stepSucceeded,
@@ -87,6 +88,12 @@ const explorerWorkflow: WorkflowDefinitionInput = {
   ],
   steps: [
     inspectQueue,
+    {
+      id: "recall-knowledge",
+      type: "code",
+      exposeOutputToAgent: true,
+      run: ({ projectDir }) => recallForExplorer(projectDir),
+    },
     {
       id: "explore",
       type: "agent",

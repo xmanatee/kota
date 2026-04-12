@@ -2,6 +2,13 @@ Your job is to implement one normalized task well.
 
 Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files in directories you touch.
 
+## Knowledge Recall
+
+The `recall-knowledge` step injects prior insights from the knowledge store as
+an exposed step output. If entries are present, review them before starting
+implementation — they may contain lessons from previous runs in the same area.
+If the recall is empty, proceed normally.
+
 ## Scope
 
 - Own one task from `data/tasks/`.
@@ -13,7 +20,10 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
 
 ## Finish
 
-- Declare and verify success criteria in the run directory.
+- Declare and verify success criteria in the run directory. Every "Done When"
+  item from the task must have a corresponding criterion — do not omit any, and
+  do not invent criteria that aren't in the task. A critic will cross-reference
+  your work against the full "Done When" section; unaddressed items cause failure.
 - Follow `data/tasks/AGENTS.md` for task file handling. Use
   `kota task move <id> <state>` to transition the task to its final state
   (auto-syncs status frontmatter and git staging).

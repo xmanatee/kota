@@ -1,12 +1,12 @@
 ---
 id: task-knowledge-recall-in-autonomous-agents
 title: Wire knowledge recall into autonomous workflow agents before task start
-status: ready
+status: done
 priority: p1
 area: modules
 summary: The knowledge-capture workflow writes structured insights after builder/improver runs, but no autonomous workflow agent queries the knowledge store before starting work. The feedback loop is write-only.
 created_at: 2026-04-12T01:10:00Z
-updated_at: 2026-04-12T01:10:00Z
+updated_at: 2026-04-12T02:30:18.389Z
 ---
 
 ## Problem

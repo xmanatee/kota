@@ -5,6 +5,7 @@ import { assertRepoWorktreeClean, getRepoHeadSha } from "#core/util/repo-worktre
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
+import { recallForBuilder } from "#modules/autonomy/knowledge-recall.js";
 import { stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
 import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
 import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
@@ -42,6 +43,12 @@ const builderWorkflow: WorkflowDefinitionInput = {
   ],
   steps: [
     inspectReadyQueue,
+    {
+      id: "recall-knowledge",
+      type: "code",
+      exposeOutputToAgent: true,
+      run: ({ projectDir }) => recallForBuilder(projectDir),
+    },
     {
       id: "build",
       type: "agent",

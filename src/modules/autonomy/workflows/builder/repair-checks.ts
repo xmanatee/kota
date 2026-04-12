@@ -239,6 +239,6 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       type: "code" as const,
       run: (ctx) => checkModuleBoundary(ctx.projectDir),
     },
-    createCriticCheck(),
+    { ...createCriticCheck(), phase: 1 },
   ];
 }

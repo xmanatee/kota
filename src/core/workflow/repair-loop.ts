@@ -126,6 +126,39 @@ async function executeRepairAgentIteration(
   return { text: result.text, turns: result.turns, totalCostUsd: result.totalCostUsd };
 }
 
+/**
+ * Group checks by phase and run phases sequentially. Within a phase, checks
+ * run in parallel. If any phase produces error-severity failures, later
+ * phases are skipped — this avoids running expensive semantic checks (e.g.
+ * critic review) when mechanical validations have already failed.
+ */
+async function runChecksPhased(
+  checks: WorkflowRepairCheck[],
+  context: WorkflowStepContext,
+): Promise<{ failures: RepairCheckResult[]; warnings: RepairCheckResult[] }> {
+  const phases = new Map<number, WorkflowRepairCheck[]>();
+  for (const check of checks) {
+    const p = check.phase ?? 0;
+    if (!phases.has(p)) phases.set(p, []);
+    phases.get(p)!.push(check);
+  }
+  const sortedPhases = [...phases.keys()].sort((a, b) => a - b);
+
+  const allResults: RepairCheckResult[] = [];
+  for (const phase of sortedPhases) {
+    const phaseChecks = phases.get(phase)!;
+    const results = await Promise.all(phaseChecks.map((c) => runRepairCheck(c, context)));
+    allResults.push(...results);
+    const hasErrors = results.some((r) => !r.passed && r.severity === "error");
+    if (hasErrors) break;
+  }
+
+  return {
+    failures: allResults.filter((r) => !r.passed && r.severity === "error"),
+    warnings: allResults.filter((r) => !r.passed && r.severity === "warning"),
+  };
+}
+
 export async function runAgentRepairLoop(
   step: WorkflowAgentStep,
   initialResult: WorkflowStepOutput,
@@ -142,9 +175,9 @@ export async function runAgentRepairLoop(
   let lastContent = typeof base.content === "string" ? base.content : "";
   let warnings = [] as RepairCheckResult[];
 
-  let checkResults = await Promise.all(checks.map((c) => runRepairCheck(c, context)));
-  let failures = checkResults.filter((r) => !r.passed && r.severity === "error");
-  warnings = checkResults.filter((r) => !r.passed && r.severity === "warning");
+  const { failures: initialFailures, warnings: initialWarnings } = await runChecksPhased(checks, context);
+  let failures = initialFailures;
+  warnings = initialWarnings;
 
   for (let attempt = 1; attempt <= maxRepairAttempts && failures.length > 0; attempt++) {
     const iteration: RepairIteration = { attempt, failures };
@@ -167,9 +200,9 @@ export async function runAgentRepairLoop(
     totalTurns += repairResult.turns ?? 0;
     totalCostUsd += repairResult.totalCostUsd ?? 0;
 
-    checkResults = await Promise.all(checks.map((c) => runRepairCheck(c, context)));
-    failures = checkResults.filter((r) => !r.passed && r.severity === "error");
-    warnings = checkResults.filter((r) => !r.passed && r.severity === "warning");
+    const phased = await runChecksPhased(checks, context);
+    failures = phased.failures;
+    warnings = phased.warnings;
 
     if (failures.length > 0 && attempt === maxRepairAttempts) {
       throw new Error(

@@ -289,6 +289,7 @@ describe("builder workflow", () => {
 
   it("keeps success-criteria protocol in local builder instructions, not repeated in the prompt", () => {
     expect(promptContent).toMatch(/Declare and verify success criteria in the run directory/);
+    expect(promptContent).toMatch(/Done When/);
     expect(promptContent).not.toMatch(/success-criteria\.txt/);
     expect(promptContent).not.toMatch(/success-criteria-verified\.txt/);
     expect(builderAgentsContent).toMatch(/success-criteria\.txt/);

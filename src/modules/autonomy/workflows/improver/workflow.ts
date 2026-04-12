@@ -4,6 +4,7 @@ import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
+import { recallForImprover } from "#modules/autonomy/knowledge-recall.js";
 import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
 import { writeRunSummary } from "#modules/autonomy/run-summary.js";
 import { aggregateRunOutcomes, MONITORED_WORKFLOW_NAMES, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
@@ -50,6 +51,12 @@ const improverWorkflow: WorkflowDefinitionInput = {
         const store = new WorkflowRunStore();
         return aggregateRunOutcomes(store.runsDir);
       },
+    },
+    {
+      id: "recall-knowledge",
+      type: "code",
+      exposeOutputToAgent: true,
+      run: ({ projectDir }) => recallForImprover(projectDir),
     },
     {
       id: "improve",
