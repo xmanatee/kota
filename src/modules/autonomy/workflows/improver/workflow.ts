@@ -67,7 +67,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
       maxTurns: 75,
-      timeoutMs: 60 * 60 * 1000, // 60 minutes — improver analysis can be thorough
+      timeoutMs: 45 * 60 * 1000, // p99 of successful runs is ~35 min; 45 min gives safe headroom
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       repairLoop: {
         maxRepairAttempts: 3,
