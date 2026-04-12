@@ -155,6 +155,43 @@ function handleVerdict(verdict: CriticVerdict, runDir?: string): string {
  * @param options.runDirPath - Path to the run directory for writing artifacts.
  *   If not provided, warnings are not persisted.
  */
+const CRITIC_MAX_RETRIES = 2;
+
+async function invokeCritic(
+  userMessage: string,
+  cwd: string,
+): Promise<{ text: string; isError: boolean; subtype?: string }> {
+  let lastError: Error | undefined;
+  for (let attempt = 0; attempt < CRITIC_MAX_RETRIES; attempt++) {
+    const response = await executeWithAgentSDK(userMessage, {
+      model: CRITIC_MODEL,
+      cwd,
+      systemPrompt: CRITIC_SYSTEM_PROMPT,
+      maxTurns: 3,
+      allowedTools: [],
+      permissionMode: "bypassPermissions",
+      settingSources: [],
+    }, {
+      write: () => true,
+    });
+
+    if (!response.isError) return response;
+
+    if (response.text.trim()) {
+      try {
+        parseVerdict(response.text);
+        return response;
+      } catch { /* verdict not parseable — retry */ }
+    }
+
+    lastError = new Error(
+      `Critic agent failed (attempt ${attempt + 1}/${CRITIC_MAX_RETRIES}): ` +
+        `${response.text.trim() || response.subtype || "unknown error"}`,
+    );
+  }
+  throw lastError!;
+}
+
 export function createCriticCheck(options?: {
   runDirPath?: string;
 }): WorkflowRepairCheck {
@@ -197,29 +234,10 @@ export function createCriticCheck(options?: {
         diffContent,
       ].join("\n");
 
-      const response = await executeWithAgentSDK(userMessage, {
-        model: CRITIC_MODEL,
-        cwd: ctx.projectDir,
-        systemPrompt: CRITIC_SYSTEM_PROMPT,
-        maxTurns: 3,
-        allowedTools: [],
-        permissionMode: "bypassPermissions",
-        settingSources: [],
-      }, {
-        write: () => true,
-      });
+      const response = await invokeCritic(userMessage, ctx.projectDir);
       if (response.isError) {
-        // The critic has no tools and should finish in one turn, but the SDK
-        // sometimes reports error_max_turns anyway. If the response contains
-        // parseable verdict text, use it instead of crashing.
-        if (response.text.trim()) {
-          try {
-            const recovered = parseVerdict(response.text);
-            // Parsed successfully — fall through to normal verdict handling.
-            return handleVerdict(recovered, runDir);
-          } catch { /* not parseable — throw original error below */ }
-        }
-        throw new Error(`Critic agent failed: ${response.text.trim() || response.subtype || "unknown error"}`);
+        const recovered = parseVerdict(response.text);
+        return handleVerdict(recovered, runDir);
       }
 
       const verdict = parseVerdict(response.text);
