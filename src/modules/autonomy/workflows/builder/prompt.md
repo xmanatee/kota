@@ -30,4 +30,6 @@ If the recall is empty, proceed normally.
 - Use `kota task move <id> <state>` for every task state transition — both
   pickup and completion. Never manually move, rename, or edit status frontmatter
   in task files; the CLI handles all of that atomically and stages the result.
-- Finish green and leave the task state aligned with reality.
+- Before staging, run `pnpm run lint:fix` and `pnpm test` to catch issues
+  early. Fix any failures before proceeding to `git add -A`.
+- Leave the task state aligned with reality.

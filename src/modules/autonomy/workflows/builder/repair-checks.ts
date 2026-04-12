@@ -234,7 +234,7 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
     {
       id: "lint",
       type: "code" as const,
-      run: (ctx) => runCheck("pnpm run lint:fix && pnpm run lint", ctx.projectDir),
+      run: (ctx) => runCheck("pnpm run lint:fix && git add -u && pnpm run lint", ctx.projectDir),
     },
     {
       id: "test",
