@@ -1,12 +1,12 @@
 ---
 id: task-knowledge-auto-capture
 title: Auto-capture structured insights from completed workflow runs into the knowledge store
-status: backlog
+status: done
 priority: p2
 area: autonomy
 summary: Completed workflow runs produce valuable observations (patterns, errors, decisions) that are lost when the run ends. No mechanism feeds structured run insights back into the knowledge store for future sessions.
 created_at: 2026-04-11T21:40:00Z
-updated_at: 2026-04-11T21:40:00Z
+updated_at: 2026-04-12T01:10:00Z
 ---
 
 ## Problem
