@@ -26,6 +26,8 @@ export type SkillDef = {
   description?: string;
   /** Path to the markdown file containing this skill's guidance (relative to project root). */
   promptPath: string;
+  /** Agent names this skill is scoped to. Omit for universal availability. */
+  roles?: string[];
 };
 
 /** Tool access policy for an agent. */

@@ -54,7 +54,7 @@ export type DaemonConfig = {
    */
   logFormat?: LogFormat;
   resolveAgentDef?: (name: string) => AgentDef | undefined;
-  resolveSkillsPrompt?: (skillNames: string[] | "all") => string;
+  resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   probeModuleHealthChecks?: () => Promise<Record<string, import("#core/modules/module-types.js").HealthCheckResult>>;
   moduleConfigKeys?: ReadonlySet<string>;
 };

@@ -45,7 +45,7 @@ export class WorkflowRuntime {
   private readonly model?: string;
   private readonly config?: KotaConfig;
   private readonly resolveAgentDef?: (name: string) => import("#core/agents/agent-types.js").AgentDef | undefined;
-  private readonly resolveSkillsPrompt?: (skillNames: string[] | "all") => string;
+  private readonly resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
 
   private readonly onLog?: (message: string) => void;
   private workflowInputs?: readonly RegisteredWorkflowDefinitionInput[];

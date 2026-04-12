@@ -1,12 +1,12 @@
 ---
 id: task-skill-composition-hierarchy
 title: Support conditional skill inclusion based on active modules and agent role
-status: backlog
+status: done
 priority: p2
 area: modules
 summary: Skills are flat and unconditionally included. Agents receive all module-contributed skills regardless of relevance. A lightweight filtering mechanism would reduce prompt noise and let modules scope their skills to specific agent roles.
 created_at: 2026-04-12T12:35:00Z
-updated_at: 2026-04-12T12:35:00Z
+updated_at: 2026-04-12T16:30:51.514Z
 ---
 
 ## Problem

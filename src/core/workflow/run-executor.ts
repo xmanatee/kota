@@ -41,7 +41,7 @@ export type RunExecutorDeps = {
     signal?: AbortSignal,
   ) => Promise<{ runId: string; status: "queued" | "completed" | "failed"; childOutput?: unknown }>;
   resolveAgentDef?: (name: string) => AgentDef | undefined;
-  resolveSkillsPrompt?: (skillNames: string[] | "all") => string;
+  resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
 };
 
 export function executeWorkflowRun(

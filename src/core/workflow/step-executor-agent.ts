@@ -39,7 +39,7 @@ export type AgentStepConfig = {
   projectDir: string;
   log?: (message: string) => void;
   resolveAgentDef?: (name: string) => AgentDef | undefined;
-  resolveSkillsPrompt?: (skillNames: string[] | "all") => string;
+  resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
 };
 
 export {
@@ -231,7 +231,7 @@ export async function executeAgentStep(
   if (step.agentName && agentConfig.resolveAgentDef && agentConfig.resolveSkillsPrompt) {
     const agentDef = agentConfig.resolveAgentDef(step.agentName);
     if (agentDef?.skills) {
-      skillsPrompt = agentConfig.resolveSkillsPrompt(agentDef.skills);
+      skillsPrompt = agentConfig.resolveSkillsPrompt(agentDef.skills, step.agentName);
     }
   }
 

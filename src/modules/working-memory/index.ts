@@ -157,7 +157,7 @@ const workingMemoryModule: KotaModule = {
 		ctx.registerDynamicStateProvider("working-memory", getWorkingMemoryState);
 	},
 
-	skills: [{ name: "working-memory", promptPath: "src/modules/working-memory/working-memory.md" }],
+	skills: [{ name: "working-memory", promptPath: "src/modules/working-memory/working-memory.md", roles: ["builder", "improver"] }],
 };
 
 export default workingMemoryModule;

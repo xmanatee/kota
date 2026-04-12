@@ -50,6 +50,7 @@ export class ModuleLoader {
   private registeredConfigKeys = new Map<string, string>();
   private loadFailures = new Map<string, ModuleLoadFailure>();
   private skillContentsByName = new Map<string, string>();
+  private skillDefsByName = new Map<string, SkillDef>();
   private contributedWorkflows: RegisteredWorkflowDefinitionInput[] = [];
   private contributedChannels: ChannelDef[] = [];
   private bus: EventBus | null = null;
@@ -103,7 +104,7 @@ export class ModuleLoader {
       getContributedChannels: () => this.getContributedChannels(),
       getModuleSummaries: () => this.getModuleSummaries(),
       resolveAgentDef: (name) => this.getAgentDef(name),
-      resolveSkillsPrompt: (names) => this.getSkillsPromptFor(names),
+      resolveSkillsPrompt: (names, agentName) => this.getSkillsPromptFor(names, agentName),
       sessionFactory: this.sessionFactory,
       probeHealthChecks: () => this.probeHealthChecks(),
       getRegisteredConfigKeys: () => this.getRegisteredConfigKeys(),
@@ -198,7 +199,10 @@ export class ModuleLoader {
         for (const skill of skills) {
           try {
             const content = readFileSync(resolve(this.cwd, skill.promptPath), "utf8").trim();
-            if (content) this.skillContentsByName.set(skill.name, `### ${skill.name}\n${content}`);
+            if (content) {
+              this.skillContentsByName.set(skill.name, `### ${skill.name}\n${content}`);
+              this.skillDefsByName.set(skill.name, skill);
+            }
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             console.error(`[kota] Module "${mod.name}" skill "${skill.name}" failed to load: ${msg}`);
@@ -304,13 +308,20 @@ export class ModuleLoader {
     return this.getSkillsPromptFor("all");
   }
 
-  getSkillsPromptFor(skillNames: string[] | "all"): string {
+  getSkillsPromptFor(skillNames: string[] | "all", agentName?: string): string {
     if (this.skillContentsByName.size === 0) return "";
-    const entries = skillNames === "all"
-      ? [...this.skillContentsByName.values()]
-      : skillNames
-          .map((name) => this.skillContentsByName.get(name))
-          .filter((c): c is string => c !== undefined);
+    const names = skillNames === "all"
+      ? [...this.skillContentsByName.keys()]
+      : skillNames;
+    const entries = names
+      .filter((name) => {
+        const def = this.skillDefsByName.get(name);
+        if (!def) return skillNames !== "all";
+        if (!def.roles || def.roles.length === 0) return true;
+        return agentName !== undefined && def.roles.includes(agentName);
+      })
+      .map((name) => this.skillContentsByName.get(name))
+      .filter((c): c is string => c !== undefined);
     if (entries.length === 0) return "";
     return `\n\n## Module Capabilities\n${entries.join("\n\n")}`;
   }

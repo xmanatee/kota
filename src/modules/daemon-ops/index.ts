@@ -222,7 +222,7 @@ const daemonModule: KotaModule = {
           channels: ctx.getContributedChannels(),
           logFormat,
           resolveAgentDef: (name) => ctx.resolveAgentDef(name),
-          resolveSkillsPrompt: (names) => ctx.resolveSkillsPrompt(names),
+          resolveSkillsPrompt: (names, agentName) => ctx.resolveSkillsPrompt(names, agentName),
           probeModuleHealthChecks: () => ctx.probeHealthChecks(),
           moduleConfigKeys: ctx.getRegisteredConfigKeys(),
         });

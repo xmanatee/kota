@@ -46,7 +46,7 @@ export interface WorkflowRuntimeDispatchState {
   idleIntervalMs: number;
   workflowInputs?: readonly RegisteredWorkflowDefinitionInput[];
   resolveAgentDef?: (name: string) => AgentDef | undefined;
-  resolveSkillsPrompt?: (skillNames: string[] | "all") => string;
+  resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   log(message: string): void;
 }
 

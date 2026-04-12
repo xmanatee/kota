@@ -188,8 +188,8 @@ export type ModuleContext = {
   registerCleanupHook: (fn: () => void) => void;
   /** Look up a registered agent definition by name. */
   resolveAgentDef: (name: string) => AgentDef | undefined;
-  /** Build the skills prompt for a set of skill names or "all". */
-  resolveSkillsPrompt: (skillNames: string[] | "all") => string;
+  /** Build the skills prompt for a set of skill names or "all", optionally filtered by agent name. */
+  resolveSkillsPrompt: (skillNames: string[] | "all", agentName?: string) => string;
   /** Probe all modules that declare a healthCheck and return results. */
   probeHealthChecks: () => Promise<Record<string, HealthCheckResult>>;
   /** Top-level config keys registered by loaded modules. */

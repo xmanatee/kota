@@ -27,7 +27,7 @@ export interface ModuleContextParams {
   getContributedChannels: () => ChannelDef[];
   getModuleSummaries: () => ModuleSummary[];
   resolveAgentDef: (name: string) => AgentDef | undefined;
-  resolveSkillsPrompt: (skillNames: string[] | "all") => string;
+  resolveSkillsPrompt: (skillNames: string[] | "all", agentName?: string) => string;
   sessionFactory: ((opts: CreateSessionOptions) => ModuleSession) | null;
   callTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
   probeHealthChecks: () => Promise<Record<string, HealthCheckResult>>;

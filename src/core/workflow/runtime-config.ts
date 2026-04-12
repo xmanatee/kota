@@ -23,5 +23,5 @@ export type WorkflowRuntimeConfig = {
   onLog?: (message: string) => void;
   workflows?: readonly RegisteredWorkflowDefinitionInput[];
   resolveAgentDef?: (name: string) => AgentDef | undefined;
-  resolveSkillsPrompt?: (skillNames: string[] | "all") => string;
+  resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
 };
