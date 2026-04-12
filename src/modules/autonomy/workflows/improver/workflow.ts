@@ -80,7 +80,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
           {
             id: "lint",
             type: "code" as const,
-            run: (ctx: WorkflowStepContext) => runCheck("pnpm run lint", ctx.projectDir),
+            run: (ctx: WorkflowStepContext) => runCheck("pnpm run lint:fix && pnpm run lint", ctx.projectDir),
           },
           {
             id: "test",
