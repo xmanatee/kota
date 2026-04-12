@@ -1,7 +1,21 @@
+import type { WorkflowCostForecast } from "#core/workflow/cost-forecast.js";
+import { matchesFilter } from "#core/workflow/run-executor-utils.js";
 import type { WorkflowPredicate, WorkflowStepContext } from "#core/workflow/run-types.js";
-import type { WorkflowDefinition, WorkflowStep } from "#core/workflow/types.js";
+import type { WorkflowDefinition, WorkflowStep, WorkflowTrigger } from "#core/workflow/types.js";
 
 export type DryRunWhenResult = "runs" | "skipped" | "error" | "no-condition";
+
+export type DryRunDiagnostic = {
+  level: "error" | "warning";
+  stepId?: string;
+  message: string;
+};
+
+export type DryRunTriggerMatch = {
+  matched: boolean;
+  matchedEvent?: string;
+  matchedFilter?: Record<string, unknown>;
+};
 
 export type DryRunStepPlan = {
   id: string;
@@ -9,7 +23,6 @@ export type DryRunStepPlan = {
   config: string;
   whenResult: DryRunWhenResult;
   whenError?: string;
-  /** Branch steps only: result of evaluating the condition predicate. */
   conditionResult?: DryRunWhenResult;
   conditionError?: string;
   children?: DryRunStepPlan[];
@@ -21,7 +34,23 @@ export type DryRunPlan = {
   steps: DryRunStepPlan[];
 };
 
-function makeDryRunContext(definition: WorkflowDefinition): WorkflowStepContext {
+export type DryRunResult = DryRunPlan & {
+  pass: boolean;
+  diagnostics: DryRunDiagnostic[];
+  triggerMatch?: DryRunTriggerMatch;
+  costForecast?: WorkflowCostForecast | null;
+};
+
+export type DryRunOptions = {
+  payload?: Record<string, unknown>;
+  availableToolNames?: ReadonlySet<string>;
+  costForecast?: WorkflowCostForecast | null;
+};
+
+function makeDryRunContext(
+  definition: WorkflowDefinition,
+  payload?: Record<string, unknown>,
+): WorkflowStepContext {
   return {
     projectDir: process.cwd(),
     workflow: {
@@ -31,7 +60,7 @@ function makeDryRunContext(definition: WorkflowDefinition): WorkflowStepContext 
       runDir: "dry-run",
       runDirPath: process.cwd(),
     },
-    trigger: { event: "dry-run", payload: {} },
+    trigger: { event: payload ? "dry-run" : "dry-run", payload: payload ?? {} },
     previousOutput: undefined,
     stepOutputs: {},
     stepResults: {},
@@ -94,9 +123,75 @@ function stepConfig(step: WorkflowStep): string {
   }
 }
 
-export async function buildDryRunPlan(definition: WorkflowDefinition): Promise<DryRunPlan> {
-  const context = makeDryRunContext(definition);
+function checkToolAvailability(
+  step: WorkflowStep,
+  availableToolNames: ReadonlySet<string>,
+  diagnostics: DryRunDiagnostic[],
+): void {
+  if (step.type === "tool" && !availableToolNames.has(step.tool)) {
+    diagnostics.push({
+      level: "error",
+      stepId: step.id,
+      message: `tool "${step.tool}" is not registered`,
+    });
+  }
+  if (step.type === "parallel") {
+    for (const child of step.steps) {
+      checkToolAvailability(child, availableToolNames, diagnostics);
+    }
+  }
+  if (step.type === "branch") {
+    for (const child of [...step.ifTrue, ...step.ifFalse]) {
+      checkToolAvailability(child, availableToolNames, diagnostics);
+    }
+  }
+  if (step.type === "foreach") {
+    for (const child of step.steps) {
+      checkToolAvailability(child, availableToolNames, diagnostics);
+    }
+  }
+}
+
+function resolveTriggerMatch(
+  triggers: WorkflowTrigger[],
+  payload: Record<string, unknown>,
+): DryRunTriggerMatch {
+  for (const trigger of triggers) {
+    if (trigger.event && matchesFilter(trigger.filter, payload)) {
+      return {
+        matched: true,
+        matchedEvent: trigger.event,
+        ...(trigger.filter && { matchedFilter: trigger.filter }),
+      };
+    }
+  }
+  return { matched: false };
+}
+
+export async function buildDryRunPlan(
+  definition: WorkflowDefinition,
+  options: DryRunOptions = {},
+): Promise<DryRunResult> {
+  const context = makeDryRunContext(definition, options.payload);
+  const diagnostics: DryRunDiagnostic[] = [];
   const steps: DryRunStepPlan[] = [];
+
+  if (options.availableToolNames) {
+    for (const step of definition.steps) {
+      checkToolAvailability(step, options.availableToolNames, diagnostics);
+    }
+  }
+
+  let triggerMatch: DryRunTriggerMatch | undefined;
+  if (options.payload) {
+    triggerMatch = resolveTriggerMatch(definition.triggers, options.payload);
+    if (!triggerMatch.matched) {
+      diagnostics.push({
+        level: "error",
+        message: "no trigger matches the provided payload",
+      });
+    }
+  }
 
   for (const step of definition.steps) {
     const { result, error } = await evalWhen(step.when, context);
@@ -107,6 +202,14 @@ export async function buildDryRunPlan(definition: WorkflowDefinition): Promise<D
       whenResult: result,
       whenError: error,
     };
+
+    if (result === "error") {
+      diagnostics.push({
+        level: "warning",
+        stepId: step.id,
+        message: `when predicate error: ${error}`,
+      });
+    }
 
     if (step.type === "parallel") {
       plan.children = await Promise.all(
@@ -155,7 +258,17 @@ export async function buildDryRunPlan(definition: WorkflowDefinition): Promise<D
     steps.push(plan);
   }
 
-  return { name: definition.name, definitionPath: definition.definitionPath, steps };
+  const hasErrors = diagnostics.some((d) => d.level === "error");
+
+  return {
+    name: definition.name,
+    definitionPath: definition.definitionPath,
+    steps,
+    pass: !hasErrors,
+    diagnostics,
+    ...(triggerMatch && { triggerMatch }),
+    ...(options.costForecast !== undefined && { costForecast: options.costForecast }),
+  };
 }
 
 function formatWhenNote(step: DryRunStepPlan): string {
@@ -203,5 +316,40 @@ export function formatDryRunPlan(plan: DryRunPlan): string {
     }
   }
 
+  return lines.join("\n");
+}
+
+export function formatDryRunResult(result: DryRunResult): string {
+  const lines: string[] = [formatDryRunPlan(result)];
+
+  if (result.triggerMatch) {
+    lines.push("");
+    if (result.triggerMatch.matched) {
+      lines.push(`Trigger: matched (event: ${result.triggerMatch.matchedEvent})`);
+    } else {
+      lines.push("Trigger: no match for provided payload");
+    }
+  }
+
+  if (result.costForecast) {
+    lines.push("");
+    lines.push(
+      `Cost forecast: $${result.costForecast.baselineAvgCostUsd.toFixed(4)} avg ` +
+        `(${result.costForecast.confidence} confidence, ${result.costForecast.sampleSize} samples)`,
+    );
+  }
+
+  if (result.diagnostics.length > 0) {
+    lines.push("");
+    lines.push("Diagnostics:");
+    for (const d of result.diagnostics) {
+      const prefix = d.level === "error" ? "ERROR" : "WARN";
+      const stepNote = d.stepId ? ` [${d.stepId}]` : "";
+      lines.push(`  ${prefix}${stepNote}: ${d.message}`);
+    }
+  }
+
+  lines.push("");
+  lines.push(result.pass ? "Result: PASS" : "Result: FAIL");
   return lines.join("\n");
 }

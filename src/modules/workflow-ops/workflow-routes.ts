@@ -2,9 +2,12 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WorkflowDefinitionSummary, WorkflowLiveStatus } from "#core/daemon/daemon-control.js";
 import type { DaemonControlClient } from "#core/server/daemon-client.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
+import { getWorkflowCostForecast } from "#core/workflow/cost-forecast.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { formatRunId } from "#core/workflow/run-store-helpers.js";
 import type { WorkflowQueuedRun } from "#core/workflow/run-types.js";
+import type { WorkflowDefinition } from "#core/workflow/types.js";
+import { buildDryRunPlan, type DryRunResult } from "./dry-run.js";
 
 const EMPTY_WORKFLOW_STATUS: WorkflowLiveStatus = {
   activeRuns: [],
@@ -372,4 +375,57 @@ export async function handleWorkflowTrigger(
   };
   store.setPendingRuns([...state.pendingRuns, queued]);
   jsonResponse(res, 200, { ok: true, queued: name });
+}
+
+export type DryRunDeps = {
+  definitions: WorkflowDefinition[];
+  availableToolNames: ReadonlySet<string>;
+};
+
+export async function handleWorkflowDryRun(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: DryRunDeps,
+): Promise<void> {
+  let body: Record<string, unknown>;
+  try {
+    body = await readBody(req);
+  } catch (err) {
+    jsonResponse(res, 400, { error: (err as Error).message });
+    return;
+  }
+
+  const name = body.name as string | undefined;
+  if (!name || typeof name !== "string" || !/^[a-zA-Z0-9_-]+$/.test(name)) {
+    jsonResponse(res, 400, { error: "name must be a non-empty alphanumeric string" });
+    return;
+  }
+
+  const definition = deps.definitions.find((d) => d.name === name);
+  if (!definition) {
+    jsonResponse(res, 404, { error: `Workflow "${name}" not found` });
+    return;
+  }
+
+  const payload =
+    body.payload !== undefined && body.payload !== null && typeof body.payload === "object" && !Array.isArray(body.payload)
+      ? (body.payload as Record<string, unknown>)
+      : undefined;
+
+  const costForecast = getWorkflowCostForecast(".kota", name);
+
+  let result: DryRunResult;
+  try {
+    result = await buildDryRunPlan(definition, {
+      payload,
+      availableToolNames: deps.availableToolNames,
+      costForecast,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    jsonResponse(res, 500, { error: `Dry-run failed: ${msg}` });
+    return;
+  }
+
+  jsonResponse(res, result.pass ? 200 : 422, result);
 }

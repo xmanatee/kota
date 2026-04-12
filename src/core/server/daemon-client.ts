@@ -194,6 +194,21 @@ export class DaemonControlClient {
     }
   }
 
+  async dryRun(name: string, payload?: Record<string, unknown>): Promise<{ pass: boolean; notFound?: boolean; [key: string]: unknown } | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/api/workflow/dry-run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...this.authHeaders() },
+        body: JSON.stringify({ name, ...(payload && { payload }) }),
+      });
+      if (res.status === 404) return { pass: false, notFound: true };
+      if (!res.ok && res.status !== 422) return null;
+      return (await res.json()) as { pass: boolean; [key: string]: unknown };
+    } catch {
+      return null;
+    }
+  }
+
   async abortRun(runId: string): Promise<{ ok: boolean; notFound?: boolean; queued?: boolean } | null> {
     try {
       const res = await fetchWithTimeout(`${this.baseUrl}/workflow/runs/${encodeURIComponent(runId)}/abort`, {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
-import { buildDryRunPlan, formatDryRunPlan } from "./dry-run.js";
+import { buildDryRunPlan, formatDryRunPlan, formatDryRunResult } from "./dry-run.js";
 
 function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
   return {
@@ -158,6 +158,129 @@ describe("buildDryRunPlan", () => {
   });
 });
 
+describe("buildDryRunPlan with options", () => {
+  it("passes when all tools are available", async () => {
+    const def = makeDefinition({
+      steps: [{ id: "lint", type: "tool", tool: "shell" }],
+    });
+    const result = await buildDryRunPlan(def, {
+      availableToolNames: new Set(["shell", "delegate"]),
+    });
+    expect(result.pass).toBe(true);
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("fails when a tool step references a missing tool", async () => {
+    const def = makeDefinition({
+      steps: [{ id: "lint", type: "tool", tool: "nonexistent-tool" }],
+    });
+    const result = await buildDryRunPlan(def, {
+      availableToolNames: new Set(["shell", "delegate"]),
+    });
+    expect(result.pass).toBe(false);
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0].level).toBe("error");
+    expect(result.diagnostics[0].stepId).toBe("lint");
+    expect(result.diagnostics[0].message).toContain("nonexistent-tool");
+    expect(result.diagnostics[0].message).toContain("not registered");
+  });
+
+  it("checks tool availability in nested parallel steps", async () => {
+    const def = makeDefinition({
+      steps: [
+        {
+          id: "parallel-group",
+          type: "parallel",
+          steps: [
+            { id: "child-a", type: "code", run: () => null },
+          ],
+        },
+      ],
+    });
+    const result = await buildDryRunPlan(def, {
+      availableToolNames: new Set(["shell"]),
+    });
+    expect(result.pass).toBe(true);
+  });
+
+  it("matches trigger against provided payload", async () => {
+    const def = makeDefinition({
+      triggers: [
+        { event: "task.ready", cooldownMs: 0, filter: { area: "workflows" } },
+      ],
+      steps: [{ id: "build", type: "code", run: () => null }],
+    });
+    const result = await buildDryRunPlan(def, {
+      payload: { area: "workflows" },
+    });
+    expect(result.pass).toBe(true);
+    expect(result.triggerMatch).toBeDefined();
+    expect(result.triggerMatch!.matched).toBe(true);
+    expect(result.triggerMatch!.matchedEvent).toBe("task.ready");
+  });
+
+  it("fails when no trigger matches the provided payload", async () => {
+    const def = makeDefinition({
+      triggers: [
+        { event: "task.ready", cooldownMs: 0, filter: { area: "workflows" } },
+      ],
+      steps: [{ id: "build", type: "code", run: () => null }],
+    });
+    const result = await buildDryRunPlan(def, {
+      payload: { area: "something-else" },
+    });
+    expect(result.pass).toBe(false);
+    expect(result.triggerMatch!.matched).toBe(false);
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0].level).toBe("error");
+    expect(result.diagnostics[0].message).toContain("no trigger matches");
+  });
+
+  it("includes cost forecast when provided", async () => {
+    const def = makeDefinition({
+      steps: [{ id: "build", type: "code", run: () => null }],
+    });
+    const forecast = {
+      workflow: "test-workflow",
+      baselineAvgCostUsd: 0.42,
+      sampleSize: 10,
+      updatedAt: "2026-04-12T00:00:00Z",
+      stale: false,
+      confidence: "high" as const,
+    };
+    const result = await buildDryRunPlan(def, { costForecast: forecast });
+    expect(result.pass).toBe(true);
+    expect(result.costForecast).toEqual(forecast);
+  });
+
+  it("reports multiple diagnostics for several missing tools", async () => {
+    const def = makeDefinition({
+      steps: [
+        { id: "step-a", type: "tool", tool: "missing-a" },
+        { id: "step-b", type: "tool", tool: "missing-b" },
+      ],
+    });
+    const result = await buildDryRunPlan(def, {
+      availableToolNames: new Set(["shell"]),
+    });
+    expect(result.pass).toBe(false);
+    expect(result.diagnostics).toHaveLength(2);
+    expect(result.diagnostics[0].stepId).toBe("step-a");
+    expect(result.diagnostics[1].stepId).toBe("step-b");
+  });
+
+  it("passes with no options (backward compatible)", async () => {
+    const def = makeDefinition({
+      steps: [{ id: "step-one", type: "code", run: () => null }],
+    });
+    const result = await buildDryRunPlan(def);
+    expect(result.pass).toBe(true);
+    expect(result.diagnostics).toHaveLength(0);
+    expect(result.triggerMatch).toBeUndefined();
+    expect(result.costForecast).toBeUndefined();
+  });
+});
+
 describe("formatDryRunPlan", () => {
   it("includes workflow name, definition path, and step count", async () => {
     const def = makeDefinition({
@@ -236,5 +359,60 @@ describe("formatDryRunPlan", () => {
     const plan = await buildDryRunPlan(def);
     const output = formatDryRunPlan(plan);
     expect(output).not.toContain("when:");
+  });
+});
+
+describe("formatDryRunResult", () => {
+  it("shows PASS for valid workflow", async () => {
+    const def = makeDefinition({
+      steps: [{ id: "step-one", type: "code", run: () => null }],
+    });
+    const result = await buildDryRunPlan(def);
+    const output = formatDryRunResult(result);
+    expect(output).toContain("Result: PASS");
+  });
+
+  it("shows FAIL with diagnostics for missing tool", async () => {
+    const def = makeDefinition({
+      steps: [{ id: "lint", type: "tool", tool: "nonexistent" }],
+    });
+    const result = await buildDryRunPlan(def, {
+      availableToolNames: new Set(["shell"]),
+    });
+    const output = formatDryRunResult(result);
+    expect(output).toContain("Result: FAIL");
+    expect(output).toContain("Diagnostics:");
+    expect(output).toContain("ERROR");
+    expect(output).toContain("nonexistent");
+  });
+
+  it("shows trigger match info", async () => {
+    const def = makeDefinition({
+      triggers: [{ event: "manual", cooldownMs: 0 }],
+      steps: [{ id: "step", type: "code", run: () => null }],
+    });
+    const result = await buildDryRunPlan(def, { payload: {} });
+    const output = formatDryRunResult(result);
+    expect(output).toContain("Trigger: matched");
+  });
+
+  it("shows cost forecast when available", async () => {
+    const def = makeDefinition({
+      steps: [{ id: "step", type: "code", run: () => null }],
+    });
+    const result = await buildDryRunPlan(def, {
+      costForecast: {
+        workflow: "test-workflow",
+        baselineAvgCostUsd: 1.2345,
+        sampleSize: 5,
+        updatedAt: "2026-04-12T00:00:00Z",
+        stale: false,
+        confidence: "high",
+      },
+    });
+    const output = formatDryRunResult(result);
+    expect(output).toContain("Cost forecast:");
+    expect(output).toContain("$1.2345");
+    expect(output).toContain("high confidence");
   });
 });

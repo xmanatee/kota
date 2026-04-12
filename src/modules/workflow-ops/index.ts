@@ -69,7 +69,7 @@ const workflowModule: KotaModule = {
   version: "1.0.0",
   description: "Workflow CLI surface — kota workflow list/show/run/control/validate/definitions/deps/logs/gc/export/diff/cost/stats",
   commands: (ctx) => [buildWorkflowCommand(ctx)],
-  routes: () => workflowRoutes(),
+  routes: (ctx) => workflowRoutes(ctx),
 };
 
 export default workflowModule;

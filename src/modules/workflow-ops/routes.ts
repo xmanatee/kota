@@ -1,12 +1,14 @@
-import type { RouteRegistration } from "#core/modules/module-types.js";
+import type { ModuleContext, RouteRegistration } from "#core/modules/module-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import {
   handleWorkflowAbort,
   handleWorkflowAbortRun,
   handleWorkflowCancel,
   handleWorkflowDefinitions,
   handleWorkflowDisable,
+  handleWorkflowDryRun,
   handleWorkflowEnable,
   handleWorkflowPause,
   handleWorkflowReplay,
@@ -31,7 +33,7 @@ const RUN_THINKING_PATTERN = /^\/api\/workflow\/runs\/([^/]+)\/thinking$/;
 const RUN_ABORT_PATTERN = /^\/api\/workflow\/runs\/([^/]+)\/abort$/;
 const RUN_MATCH_PATTERN = /^\/api\/workflow\/runs\/([^/]+)$/;
 
-export function workflowRoutes(): RouteRegistration[] {
+export function workflowRoutes(ctx?: ModuleContext): RouteRegistration[] {
   return [
     {
       method: "GET",
@@ -92,6 +94,17 @@ export function workflowRoutes(): RouteRegistration[] {
       path: "/api/workflow/replay",
       handler: (req, res) =>
         handleWorkflowReplay(req, res, new WorkflowRunStore()),
+    },
+    {
+      method: "POST",
+      path: "/api/workflow/dry-run",
+      handler: (req, res) => {
+        const definitions = ctx
+          ? validateWorkflowDefinitions(ctx.getContributedWorkflows(), ctx.cwd)
+          : [];
+        const availableToolNames = new Set(ctx?.listTools() ?? []);
+        return handleWorkflowDryRun(req, res, { definitions, availableToolNames });
+      },
     },
     {
       method: "POST",

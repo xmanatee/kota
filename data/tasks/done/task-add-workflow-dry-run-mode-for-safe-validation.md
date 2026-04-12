@@ -1,12 +1,12 @@
 ---
 id: task-add-workflow-dry-run-mode-for-safe-validation
 title: Add workflow dry-run mode for safe validation
-status: ready
+status: done
 priority: p2
 area: workflows
 summary: Operators have no way to validate a workflow definition end-to-end without actually executing it. A dry-run mode would resolve trigger predicates, enumerate steps, check tool availability, and report the plan without side effects.
 created_at: 2026-04-12T16:39:24.627Z
-updated_at: 2026-04-12T16:39:24.627Z
+updated_at: 2026-04-12T17:46:53.514Z
 ---
 
 ## Problem

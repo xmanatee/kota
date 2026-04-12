@@ -1,9 +1,10 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
+import { getWorkflowCostForecast } from "#core/workflow/cost-forecast.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "#core/workflow/validation.js";
 import { getWorkflowDefinitions } from "./definitions-source.js";
-import { buildDryRunPlan, formatDryRunPlan } from "./dry-run.js";
+import { buildDryRunPlan, formatDryRunResult } from "./dry-run.js";
 
 export function registerRunCommand(wfCmd: Command, ctx: ModuleContext): void {
   const runCmd = wfCmd
@@ -39,13 +40,24 @@ export function registerRunCommand(wfCmd: Command, ctx: ModuleContext): void {
     .command("<name>", { isDefault: true })
     .description("Validate and preview a workflow execution plan")
     .option("--dry-run", "Validate the workflow and print the step execution plan without executing")
-    .action(async (name: string, opts: { dryRun?: boolean }) => {
+    .option("--payload <json>", "JSON payload to test trigger resolution against")
+    .action(async (name: string, opts: { dryRun?: boolean; payload?: string }) => {
       if (!opts.dryRun) {
         console.error(
           "kota workflow run requires --dry-run.\n" +
             "To enqueue a workflow for execution, use: kota workflow trigger <name>",
         );
         process.exit(1);
+      }
+
+      let payload: Record<string, unknown> | undefined;
+      if (opts.payload) {
+        try {
+          payload = JSON.parse(opts.payload) as Record<string, unknown>;
+        } catch {
+          console.error("--payload must be valid JSON");
+          process.exit(1);
+        }
       }
 
       let definitions;
@@ -69,7 +81,21 @@ export function registerRunCommand(wfCmd: Command, ctx: ModuleContext): void {
         process.exit(1);
       }
 
-      const plan = await buildDryRunPlan(definition);
-      console.log(formatDryRunPlan(plan));
+      const availableToolNames = new Set(ctx.listTools());
+
+      const kotaDir = ".kota";
+      const costForecast = getWorkflowCostForecast(kotaDir, name);
+
+      const result = await buildDryRunPlan(definition, {
+        payload,
+        availableToolNames,
+        costForecast,
+      });
+
+      console.log(formatDryRunResult(result));
+
+      if (!result.pass) {
+        process.exit(1);
+      }
     });
 }
