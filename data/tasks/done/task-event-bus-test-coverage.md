@@ -1,12 +1,12 @@
 ---
 id: task-event-bus-test-coverage
 title: Add test coverage for core event bus and typed event contracts
-status: ready
+status: done
 priority: p2
 area: core
 summary: The event bus is foundational infrastructure with zero tests. Subscriber lifecycle, wildcard dispatch, typed event contracts, and edge cases like double-unsubscribe are untested.
 created_at: 2026-04-12T12:35:00Z
-updated_at: 2026-04-12T12:35:00Z
+updated_at: 2026-04-12T13:41:33.468Z
 ---
 
 ## Problem
