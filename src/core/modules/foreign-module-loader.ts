@@ -21,12 +21,14 @@ import type {
 } from "./foreign-module.js";
 import { HttpTransport } from "./foreign-module-http.js";
 import { StdioTransport } from "./foreign-module-stdio.js";
-import type { KotaModule, ModuleHealth, ToolDef } from "./module-types.js";
+import type { HealthCheckResult, KotaModule, ModuleHealth, ToolDef } from "./module-types.js";
 
 // How long to wait for the manifest after sending init.
 const MANIFEST_TIMEOUT_MS = 10_000;
 // How long to wait for a tool result.
 const INVOKE_TIMEOUT_MS = 60_000;
+// How long to wait for a health_status response before assuming healthy.
+const HEALTH_CHECK_TIMEOUT_MS = 1_000;
 
 const DEFAULT_MAX_RESTARTS = 3;
 const DEFAULT_PING_TIMEOUT_MS = 5_000;
@@ -112,6 +114,20 @@ class ForeignModuleSession {
   async ping(timeoutMs: number): Promise<void> {
     const id = newId();
     await this.request(id, { id, type: "ping" }, timeoutMs);
+  }
+
+  /** Send a health_check and wait for health_status. Returns the result or healthy on timeout. */
+  async healthCheck(timeoutMs: number): Promise<HealthCheckResult> {
+    const id = newId();
+    try {
+      const msg = await this.request(id, { id, type: "health_check" }, timeoutMs);
+      if (msg.type === "health_status") {
+        return { status: msg.status, message: msg.message };
+      }
+      return { status: "healthy" };
+    } catch {
+      return { status: "healthy" };
+    }
   }
 
   async close(): Promise<void> {
@@ -312,6 +328,7 @@ async function startResilientStdioModule(
       restartCount: totalRestarts,
       lastRestartAt,
     }),
+    healthCheck: () => session.healthCheck(HEALTH_CHECK_TIMEOUT_MS),
     onUnload: async () => {
       stopped = true;
       clearPingTimer();
@@ -349,6 +366,7 @@ async function startForeignModule(
     version: raw.version,
     description: raw.description,
     tools,
+    healthCheck: () => raw.session.healthCheck(HEALTH_CHECK_TIMEOUT_MS),
     onUnload: () => raw.session.close(),
   };
 }

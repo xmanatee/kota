@@ -139,6 +139,36 @@ Response to `ping`. Echo the same `id`.
 Modules that do not implement ping will simply time out and be restarted —
 ping/pong is optional.
 
+#### `health_check` (KOTA → Module)
+
+Requests the module's runtime health state. Unlike `ping` (which only checks
+liveness), `health_check` lets a module report degraded or unhealthy status with
+diagnostic detail. Modules that do not respond within 1 second are assumed
+healthy.
+
+```json
+{"id":"5","type":"health_check"}
+```
+
+#### `health_status` (Module → KOTA)
+
+Response to `health_check`. Reports the module's runtime health.
+
+```json
+{"id":"5","type":"health_status","status":"degraded","message":"DB connection pool exhausted"}
+```
+
+| Field     | Type   | Description |
+|-----------|--------|-------------|
+| `id`      | string | Must match the `health_check` id. |
+| `status`  | string | `"healthy"`, `"degraded"`, or `"unhealthy"`. |
+| `message` | string | Optional diagnostic detail. |
+
+Modules that implement `health_status` participate in `probeHealthChecks()` and
+appear in `kota doctor` and the `/health` API endpoint alongside native modules.
+Implementing `health_check` is optional — modules that do not respond are
+treated as healthy.
+
 #### `error` (Module → KOTA)
 
 Sent when the module encounters a protocol or runtime error.

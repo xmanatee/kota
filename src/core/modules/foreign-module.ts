@@ -65,7 +65,17 @@ export type KempPing = {
   type: "ping";
 };
 
-export type KempOutbound = KempInit | KempInvoke | KempShutdown | KempPing;
+/**
+ * Request the module's runtime health state. Module should reply with
+ * `health_status` using the same `id`. Modules that do not respond within
+ * the timeout are assumed healthy.
+ */
+export type KempHealthCheck = {
+  id: string;
+  type: "health_check";
+};
+
+export type KempOutbound = KempInit | KempInvoke | KempShutdown | KempPing | KempHealthCheck;
 
 // ─── Inbound (Module → KOTA) ─────────────────────────────────────────────────
 
@@ -106,6 +116,14 @@ export type KempPong = {
   type: "pong";
 };
 
+/** Response to `health_check`. Reports the module's runtime health state. */
+export type KempHealthStatus = {
+  id: string;
+  type: "health_status";
+  status: "healthy" | "degraded" | "unhealthy";
+  message?: string;
+};
+
 /** Sent when the module encounters a protocol or runtime error. */
 export type KempError = {
   id?: string;
@@ -120,7 +138,7 @@ export type KempLog = {
   message: string;
 };
 
-export type KempInbound = KempManifest | KempResult | KempShutdownAck | KempError | KempLog | KempPong;
+export type KempInbound = KempManifest | KempResult | KempShutdownAck | KempError | KempLog | KempPong | KempHealthStatus;
 export type KempMessage = KempOutbound | KempInbound;
 
 // ─── Transport abstraction ───────────────────────────────────────────────────

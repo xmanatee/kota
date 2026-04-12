@@ -1,12 +1,12 @@
 ---
 id: task-kemp-health-check-message
 title: Extend KEMP protocol with health_check message for foreign module health reporting
-status: backlog
+status: done
 priority: p2
 area: core
 summary: Foreign modules only have ping/pong liveness. The new healthCheck protocol on KotaModule is unavailable to KEMP modules. Add a health_check request/health_status response so foreign modules can report degraded or unhealthy status with diagnostic details.
 created_at: 2026-04-12T09:30:00Z
-updated_at: 2026-04-12T09:30:00Z
+updated_at: 2026-04-12T12:33:13.091Z
 ---
 
 ## Problem
