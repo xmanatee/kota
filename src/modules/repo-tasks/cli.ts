@@ -253,6 +253,70 @@ export function registerTaskCommands(program: Command): void {
 		});
 
 	taskCmd
+		.command("create <title>")
+		.description("Create a normalized task file with all required structure")
+		.option("-p, --priority <priority>", "Priority: p0, p1, p2, p3", "p2")
+		.option("-a, --area <area>", "Area (e.g. core, architecture, modules)", "core")
+		.option("-s, --state <state>", "Initial state directory", "backlog")
+		.option("--summary <summary>", "One-line summary")
+		.action((title: string, opts: { priority: string; area: string; state: string; summary?: string }) => {
+			if (!["p0", "p1", "p2", "p3"].includes(opts.priority)) {
+				console.error(`Invalid priority "${opts.priority}". Must be p0, p1, p2, or p3.`);
+				process.exit(1);
+			}
+			if (!REPO_TASK_STATES.includes(opts.state as RepoTaskState)) {
+				console.error(`Unknown state "${opts.state}". Valid: ${REPO_TASK_STATES.join(", ")}`);
+				process.exit(1);
+			}
+
+			const slug = slugify(title);
+			if (!slug) {
+				console.error("Title produced an empty slug. Use a more descriptive title.");
+				process.exit(1);
+			}
+
+			const id = `task-${slug}`;
+			const tasksDir = getRepoTasksDir(process.cwd());
+			const stateDir = join(tasksDir, opts.state);
+			mkdirSync(stateDir, { recursive: true });
+			const filePath = join(stateDir, `${id}.md`);
+
+			if (existsSync(filePath)) {
+				console.error(`Task file "${id}.md" already exists in ${opts.state}/.`);
+				process.exit(1);
+			}
+
+			const now = new Date().toISOString();
+			const attrs: Record<string, string> = {
+				id,
+				title,
+				status: opts.state,
+				priority: opts.priority,
+				area: opts.area,
+				summary: opts.summary ?? "",
+				created_at: now,
+				updated_at: now,
+			};
+
+			const body = [
+				"",
+				"## Problem",
+				"",
+				"## Desired Outcome",
+				"",
+				"## Constraints",
+				"",
+				"## Done When",
+				"",
+			].join("\n");
+
+			writeFileSync(filePath, serializeFlatFrontMatter(attrs, body), "utf-8");
+			execSync(`git add "${filePath}"`, { cwd: process.cwd() });
+			console.log(`Created task "${id}" in ${opts.state}/. Edit the file to fill in sections.`);
+			console.log(filePath);
+		});
+
+	taskCmd
 		.command("capture <title>")
 		.description("Create a quick inbox capture under data/inbox")
 		.action((title: string) => {

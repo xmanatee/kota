@@ -16,6 +16,10 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
   the routed note or task.
 - Preserve intent. Do not over-formalize quick captures unless they are clearly ready to become tasks.
 
+## Creating Tasks
+
+When converting an inbox item to a normalized task, use `kota task create "<title>" --priority <p0-p3> --area <area> --state <state> --summary "<summary>"` to scaffold the file. This guarantees all required frontmatter and body sections exist. Then edit the file to fill in `## Problem`, `## Desired Outcome`, `## Constraints`, and `## Done When`.
+
 ## Finish
 
 - Follow `data/tasks/AGENTS.md` for normalized task rules.

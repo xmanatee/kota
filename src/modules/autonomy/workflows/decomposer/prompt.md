@@ -20,8 +20,8 @@ in the same area. If the recall is empty, proceed normally.
 
 ## Subtask Rules
 
+- Use `kota task create "<title>" --priority <p0-p3> --area <area> --state ready --summary "<summary>"` to scaffold each subtask. This guarantees all required frontmatter and body sections exist. Then edit each file to fill in `## Problem`, `## Desired Outcome`, `## Constraints`, and `## Done When`.
 - Follow `data/tasks/AGENTS.md`.
-- Place subtasks in `data/tasks/ready/`.
 - Make subtasks sequenceable and independently completable when possible.
 - Do not split only to reduce diff size. Keep a cohesive change together when
   that produces a cleaner result.

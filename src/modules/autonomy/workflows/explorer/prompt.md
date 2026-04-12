@@ -16,6 +16,10 @@ previous runs surfaced. If the recall is empty, proceed normally.
 - Keep the queue relevant, mixed, and non-duplicative.
 - Treat the minimal-core, module-first architecture as a live goal.
 
+## Creating Tasks
+
+Use `kota task create "<title>" --priority <p0-p3> --area <area> --state <state> --summary "<summary>"` to scaffold new task files. This guarantees all required frontmatter and body sections exist. Then edit the file to fill in `## Problem`, `## Desired Outcome`, `## Constraints`, and `## Done When`.
+
 ## Finish
 
 - Follow `data/tasks/AGENTS.md`.
