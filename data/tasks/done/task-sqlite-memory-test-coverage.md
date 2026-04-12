@@ -1,12 +1,12 @@
 ---
 id: task-sqlite-memory-test-coverage
 title: Add test coverage for sqlite-memory module
-status: backlog
+status: done
 priority: p2
 area: modules
 summary: The sqlite-memory module implements persistent memory storage via SQLite but has zero tests. As a data persistence layer, it needs coverage for CRUD operations, search, and edge cases.
 created_at: 2026-04-12T01:10:00Z
-updated_at: 2026-04-12T01:10:00Z
+updated_at: 2026-04-12T04:10:13.073Z
 ---
 
 ## Problem
