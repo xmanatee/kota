@@ -12,7 +12,10 @@ If the recall is empty, proceed normally.
 ## Scope
 
 - Own one task from `data/tasks/`.
-- Resume `data/tasks/doing/` first when it exists. Otherwise pull the best task from `data/tasks/ready/`, or promote the best backlog task when `ready/` is empty.
+- Resume `data/tasks/doing/` first when it exists. Otherwise pull the best task
+  from `data/tasks/ready/`, or promote the best backlog task when `ready/` is
+  empty. Use `kota task move <id> doing` to pick up the task — this atomically
+  moves the file, updates status frontmatter, and stages the result.
 - Treat the task as a contract, not a script. Own the technical plan yourself.
 - Block or decompose only when the task is genuinely incoherent, externally blocked, or impossible to complete without guessing.
 - Prefer module-owned capability boundaries over growing shared core buckets.
@@ -24,7 +27,7 @@ If the recall is empty, proceed normally.
   item from the task must have a corresponding criterion — do not omit any, and
   do not invent criteria that aren't in the task. A critic will cross-reference
   your work against the full "Done When" section; unaddressed items cause failure.
-- Follow `data/tasks/AGENTS.md` for task file handling. Use
-  `kota task move <id> <state>` to transition the task to its final state
-  (auto-syncs status frontmatter and git staging).
+- Use `kota task move <id> <state>` for every task state transition — both
+  pickup and completion. Never manually move, rename, or edit status frontmatter
+  in task files; the CLI handles all of that atomically and stages the result.
 - Finish green and leave the task state aligned with reality.
