@@ -1,12 +1,12 @@
 ---
 id: task-event-bus-query-cli
 title: Add CLI command to query recent daemon bus events for trigger debugging
-status: ready
+status: done
 priority: p2
 area: modules
 summary: The daemon EventRingBuffer holds recent bus events but there is no CLI command to query them. Operators debugging workflow trigger mismatches must watch SSE streams in real time. A query command with type and time filters would close this gap.
 created_at: 2026-04-12T09:30:00Z
-updated_at: 2026-04-12T09:29:22.686Z
+updated_at: 2026-04-12T10:14:07.450Z
 ---
 
 ## Problem

@@ -1332,4 +1332,110 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(401);
     });
   });
+
+  describe("GET /api/events", () => {
+    function pushEvents(h: DaemonControlHandle): (event: DaemonSseEvent) => void {
+      const calls = (h.subscribeToEvents as ReturnType<typeof vi.fn>).mock.calls;
+      return calls[calls.length - 1][0];
+    }
+
+    it("returns empty array when no events buffered", async () => {
+      const res = await fetchWithToken(port, "/api/events");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.events).toEqual([]);
+    });
+
+    it("returns all buffered events", async () => {
+      const emit = pushEvents(handle);
+      emit({ type: "workflow.started", payload: { workflow: "builder" } });
+      emit({ type: "workflow.completed", payload: { workflow: "builder" } });
+
+      const res = await fetchWithToken(port, "/api/events");
+      const body = await res.json();
+      expect(body.events).toHaveLength(2);
+      expect(body.events[0].type).toBe("workflow.started");
+      expect(body.events[1].type).toBe("workflow.completed");
+    });
+
+    it("filters by type prefix", async () => {
+      const emit = pushEvents(handle);
+      emit({ type: "workflow.started", payload: { workflow: "a" } });
+      emit({ type: "task.changed", payload: { id: "t1" } });
+      emit({ type: "workflow.completed", payload: { workflow: "a" } });
+
+      const res = await fetchWithToken(port, "/api/events?type=workflow");
+      const body = await res.json();
+      expect(body.events).toHaveLength(2);
+      expect(body.events.every((e: { type: string }) => e.type.startsWith("workflow"))).toBe(true);
+    });
+
+    it("filters by type glob pattern", async () => {
+      const emit = pushEvents(handle);
+      emit({ type: "workflow.started", payload: {} });
+      emit({ type: "workflow.completed", payload: {} });
+      emit({ type: "workflow.step.completed", payload: {} });
+      emit({ type: "task.changed", payload: {} });
+
+      const res = await fetchWithToken(port, "/api/events?type=workflow.*completed");
+      const body = await res.json();
+      expect(body.events).toHaveLength(2);
+      expect(body.events.map((e: { type: string }) => e.type)).toEqual([
+        "workflow.completed",
+        "workflow.step.completed",
+      ]);
+    });
+
+    it("filters by since timestamp", async () => {
+      const emit = pushEvents(handle);
+      emit({ type: "workflow.started", payload: {} });
+
+      await new Promise((r) => setTimeout(r, 50));
+      const cutoff = new Date().toISOString();
+      await new Promise((r) => setTimeout(r, 50));
+
+      emit({ type: "workflow.completed", payload: {} });
+
+      const res = await fetchWithToken(port, `/api/events?since=${encodeURIComponent(cutoff)}`);
+      const body = await res.json();
+      expect(body.events).toHaveLength(1);
+      expect(body.events[0].type).toBe("workflow.completed");
+    });
+
+    it("limits result count", async () => {
+      const emit = pushEvents(handle);
+      for (let i = 0; i < 10; i++) {
+        emit({ type: "workflow.started", payload: { i } });
+      }
+
+      const res = await fetchWithToken(port, "/api/events?limit=3");
+      const body = await res.json();
+      expect(body.events).toHaveLength(3);
+      expect(body.events[0].payload.i).toBe(7);
+    });
+
+    it("combines type filter and limit", async () => {
+      const emit = pushEvents(handle);
+      for (let i = 0; i < 5; i++) {
+        emit({ type: "workflow.started", payload: { i } });
+        emit({ type: "task.changed", payload: { i } });
+      }
+
+      const res = await fetchWithToken(port, "/api/events?type=workflow&limit=2");
+      const body = await res.json();
+      expect(body.events).toHaveLength(2);
+      expect(body.events.every((e: { type: string }) => e.type.startsWith("workflow"))).toBe(true);
+      expect(body.events[0].payload.i).toBe(3);
+      expect(body.events[1].payload.i).toBe(4);
+    });
+
+    it("includes timestamp in ISO format", async () => {
+      const emit = pushEvents(handle);
+      emit({ type: "workflow.started", payload: {} });
+
+      const res = await fetchWithToken(port, "/api/events");
+      const body = await res.json();
+      expect(body.events[0].timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    });
+  });
 });

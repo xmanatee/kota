@@ -386,6 +386,26 @@ export class DaemonControlClient {
     }
   }
 
+  async queryEvents(opts?: {
+    type?: string;
+    since?: string;
+    limit?: number;
+  }): Promise<{ events: Array<{ type: string; payload: Record<string, unknown>; timestamp: string }> } | null> {
+    try {
+      const params = new URLSearchParams();
+      if (opts?.type) params.set("type", opts.type);
+      if (opts?.since) params.set("since", opts.since);
+      if (opts?.limit != null) params.set("limit", String(opts.limit));
+      const qs = params.toString();
+      const url = `${this.baseUrl}/api/events${qs ? `?${qs}` : ""}`;
+      const res = await fetchWithTimeout(url, { headers: this.authHeaders() });
+      if (!res.ok) return null;
+      return (await res.json()) as { events: Array<{ type: string; payload: Record<string, unknown>; timestamp: string }> };
+    } catch {
+      return null;
+    }
+  }
+
   async *events(): AsyncGenerator<DaemonSseEvent> {
     let res: Response;
     try {

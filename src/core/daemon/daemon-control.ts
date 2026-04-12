@@ -288,12 +288,25 @@ export class DaemonControlServer {
     if (method === "GET" && path === "/api/events") {
       const sinceParam = url.searchParams.get("since");
       const limitParam = url.searchParams.get("limit");
+      const typeParam = url.searchParams.get("type");
       const sinceMs = sinceParam ? new Date(sinceParam).getTime() : undefined;
       const limit = limitParam ? parseInt(limitParam, 10) : undefined;
-      const entries = this.eventBuffer.query(
+      let entries = this.eventBuffer.query(
         sinceMs != null && !Number.isNaN(sinceMs) ? sinceMs : undefined,
-        limit != null && !Number.isNaN(limit) ? limit : undefined,
+        limit == null || typeParam != null ? undefined : limit,
       );
+      if (typeParam) {
+        const isGlob = typeParam.includes("*");
+        if (isGlob) {
+          const re = new RegExp(`^${typeParam.replace(/\./g, "\\.").replace(/\*/g, ".*")}$`);
+          entries = entries.filter(({ event }) => re.test(event.type));
+        } else {
+          entries = entries.filter(({ event }) => event.type.startsWith(typeParam));
+        }
+        if (limit != null && entries.length > limit) {
+          entries = entries.slice(entries.length - limit);
+        }
+      }
       jsonResponse(res, 200, {
         events: entries.map(({ event, timestamp }) => ({
           type: event.type,

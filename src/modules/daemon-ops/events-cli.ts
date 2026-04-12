@@ -68,5 +68,74 @@ export function buildEventsCommand(): Command {
       }
     });
 
+  cmd
+    .command("query")
+    .description(
+      "Query recent buffered events from the daemon ring buffer.\n" +
+      "  Unlike 'tail', this returns historical events and exits.",
+    )
+    .option("--type <pattern>", "Filter by event type (prefix match, or glob with *)")
+    .option("--since <duration>", "Only events within the last duration (e.g. 5m, 1h, 30s)")
+    .option("--limit <n>", "Maximum number of events to return", "50")
+    .option("--json", "Output raw NDJSON for scripting")
+    .action(async (opts: { type?: string; since?: string; limit: string; json?: boolean }) => {
+      const client = DaemonControlClient.fromStateDir();
+      if (!client) {
+        console.error("Daemon is not running. Start the daemon with `kota daemon start`.");
+        process.exitCode = 1;
+        return;
+      }
+
+      let sinceIso: string | undefined;
+      if (opts.since) {
+        const ms = parseDuration(opts.since);
+        if (ms == null) {
+          console.error(`Invalid duration: ${opts.since}. Use e.g. 5m, 1h, 30s.`);
+          process.exitCode = 1;
+          return;
+        }
+        sinceIso = new Date(Date.now() - ms).toISOString();
+      }
+
+      const limit = parseInt(opts.limit, 10);
+      const result = await client.queryEvents({
+        type: opts.type,
+        since: sinceIso,
+        limit: Number.isNaN(limit) ? 50 : limit,
+      });
+
+      if (!result) {
+        console.error("Failed to query events from daemon.");
+        process.exitCode = 1;
+        return;
+      }
+
+      if (result.events.length === 0) {
+        if (!opts.json) console.log("No matching events.");
+        return;
+      }
+
+      for (const ev of result.events) {
+        if (opts.json) {
+          process.stdout.write(`${JSON.stringify(ev)}\n`);
+        } else {
+          const ts = ev.timestamp.replace("T", " ").replace("Z", "");
+          const summary = formatEventSummary(ev.type, ev.payload);
+          console.log(`${ts}  ${ev.type.padEnd(32)}  ${summary}`);
+        }
+      }
+    });
+
   return cmd;
+}
+
+function parseDuration(input: string): number | undefined {
+  const match = input.match(/^(\d+(?:\.\d+)?)\s*(s|sec|m|min|h|hr|hour)s?$/i);
+  if (!match) return undefined;
+  const value = parseFloat(match[1]);
+  const unit = match[2].toLowerCase();
+  if (unit === "s" || unit === "sec") return value * 1000;
+  if (unit === "m" || unit === "min") return value * 60_000;
+  if (unit === "h" || unit === "hr" || unit === "hour") return value * 3_600_000;
+  return undefined;
 }
