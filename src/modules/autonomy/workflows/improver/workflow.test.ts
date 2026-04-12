@@ -6,6 +6,22 @@ vi.mock("#modules/autonomy/commit.js", () => ({
   commitWorkflowChanges: vi.fn(),
 }));
 
+vi.mock("#modules/autonomy/run-summary.js", () => ({
+  writeRunSummary: vi.fn(() => ({
+    runId: "test-run",
+    workflow: "improver",
+    taskId: null,
+    taskTitle: null,
+    outcome: "success",
+    commitSha: "abc123",
+    commitMessage: "test",
+    filesChanged: [],
+    costUsd: null,
+    durationMs: null,
+    completedAt: new Date().toISOString(),
+  })),
+}));
+
 describe("improver workflow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -64,10 +80,11 @@ describe("improver workflow", () => {
     expect(result.status).toBe("success");
     expect(result.steps.improve.status).toBe("success");
     expect(result.steps.commit.status).toBe("success");
+    expect(result.steps["write-run-summary"].status).toBe("success");
     expect(result.steps["request-restart"].status).toBe("success");
   });
 
-  it("skips request-restart when improve succeeds but nothing was committed", async () => {
+  it("skips request-restart and write-run-summary when nothing was committed", async () => {
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: false } as never);
 
@@ -86,6 +103,15 @@ describe("improver workflow", () => {
     expect(result.status).toBe("success");
     expect(result.steps.improve.status).toBe("success");
     expect(result.steps.commit.status).toBe("success");
+    expect(result.steps["write-run-summary"].status).toBe("skipped");
     expect(result.steps["request-restart"].status).toBe("skipped");
+  });
+
+  it("write-run-summary step exists and appears before request-restart", () => {
+    const steps = improverWorkflow.steps;
+    const summaryIdx = steps.findIndex((s) => s.id === "write-run-summary");
+    const restartIdx = steps.findIndex((s) => s.id === "request-restart");
+    expect(summaryIdx).toBeGreaterThan(-1);
+    expect(restartIdx).toBeGreaterThan(summaryIdx);
   });
 });

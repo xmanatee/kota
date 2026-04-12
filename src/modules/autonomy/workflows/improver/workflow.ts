@@ -2,7 +2,10 @@ import type { AgentDef } from "#core/agents/agent-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
+import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
+import { writeRunSummary } from "#modules/autonomy/run-summary.js";
 import { aggregateRunOutcomes, MONITORED_WORKFLOW_NAMES, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
 
 /** Minimum interval between improver runs triggered by the same event type. */
@@ -97,12 +100,18 @@ const improverWorkflow: WorkflowDefinitionInput = {
       run: ({ projectDir, workflow }: WorkflowStepContext) =>
         commitWorkflowChanges(projectDir, workflow.runDirPath),
     },
+    typedCodeStep<WorkflowRunSummary>({
+      id: "write-run-summary",
+      type: "code",
+      when: stepCommitted("commit"),
+      run: (ctx) => writeRunSummary(ctx, "improve"),
+    }),
     {
       id: "request-restart",
       type: "restart",
-      when: stepCommitted("commit"),
+      when: stepSucceeded("write-run-summary"),
       reason: "improver workflow finished validation and commit",
-      requires: ["commit"],
+      requires: ["write-run-summary"],
     },
   ],
 };

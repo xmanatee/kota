@@ -21,8 +21,8 @@ exist.
 
 ## Original Task
 
-- Move the original task to `data/tasks/dropped/` using `git mv`.
-- Update its `status` frontmatter to `dropped`.
+- Use `kota task move <id> dropped` to move the original task to dropped/
+  (auto-syncs status frontmatter and git staging).
 - Add a `## Decomposed` section at the end listing the subtask IDs.
 
 ## Finish

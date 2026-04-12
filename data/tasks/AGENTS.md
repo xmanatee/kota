@@ -36,10 +36,11 @@ This directory is the normalized live work queue after ideas leave
   architecture debt remains.
 - Do not let open work degrade into only `p3` maintenance.
 - Before creating a task, scan open tasks and related inbox items for overlap.
-- Update `status` frontmatter whenever moving a task between state directories.
+- Use `kota task move <id> <state>` to move tasks between state directories.
+  This auto-updates the `status` frontmatter, sets `updated_at`, runs `git mv`,
+  and stages the result. Do not manually move task files or edit status
+  frontmatter — the CLI handles both atomically.
 - If required source access fails, move the task to `blocked/` with the blocker
   recorded instead of marking it done from inference.
-- Prefer `git mv` for tracked task files, then re-read the moved file before
-  editing it.
 - Before finishing, ensure task validation would pass: unique ids, tracked task
   files, no stale deletes, and matching status/directories.
