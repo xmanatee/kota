@@ -132,6 +132,57 @@ describe("persistToFile — null filePath", () => {
   });
 });
 
+describe("persistToFile — event-trigger round-trip", () => {
+  it("preserves triggerEvent, triggerFilter, and repeat through save/load", () => {
+    const eventItem: ScheduledItem = {
+      id: 1,
+      description: "On build complete",
+      triggerAt: "2026-01-01T00:00:00Z",
+      triggerEvent: "workflow.completed",
+      triggerFilter: { workflow: "builder" },
+      repeat: true,
+      status: "pending",
+      created: "2026-01-01T00:00:00Z",
+    };
+    const timeItem: ScheduledItem = {
+      id: 2,
+      description: "Morning check",
+      triggerAt: "2026-01-02T09:00:00Z",
+      status: "pending",
+      created: "2026-01-01T00:00:00Z",
+    };
+    persistToFile(filePath, "proj", [eventItem, timeItem], 3);
+    const result = loadFromFile(filePath, "proj");
+
+    expect(result.items).toHaveLength(2);
+    const loaded = result.items.find((i) => i.id === 1)!;
+    expect(loaded.triggerEvent).toBe("workflow.completed");
+    expect(loaded.triggerFilter).toEqual({ workflow: "builder" });
+    expect(loaded.repeat).toBe(true);
+
+    const loadedTime = result.items.find((i) => i.id === 2)!;
+    expect(loadedTime.triggerEvent).toBeUndefined();
+    expect(loadedTime.triggerFilter).toBeUndefined();
+    expect(loadedTime.repeat).toBeUndefined();
+  });
+
+  it("preserves one-shot event trigger (no repeat field)", () => {
+    const item: ScheduledItem = {
+      id: 1,
+      description: "Once on session end",
+      triggerAt: "2026-01-01T00:00:00Z",
+      triggerEvent: "session.end",
+      status: "pending",
+      created: "2026-01-01T00:00:00Z",
+    };
+    persistToFile(filePath, "proj", [item], 2);
+    const result = loadFromFile(filePath, "proj");
+    const loaded = result.items[0];
+    expect(loaded.triggerEvent).toBe("session.end");
+    expect(loaded.repeat).toBeUndefined();
+  });
+});
+
 describe("persistToFile — creates parent directory", () => {
   it("writes successfully even when the directory does not exist", () => {
     const nested = join(testDir, "a", "b", "c", "schedule.json");

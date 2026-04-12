@@ -1,12 +1,12 @@
 ---
 id: task-scheduler-event-triggers
 title: Implement event-triggered automations in the scheduler module
-status: backlog
+status: done
 priority: p2
 area: modules
 summary: The scheduler module describes event-triggered automations but only implements time-based reminders. Event-based triggers are missing.
 created_at: 2026-04-11T21:40:00Z
-updated_at: 2026-04-11T21:40:00Z
+updated_at: 2026-04-12T02:59:26.837Z
 ---
 
 ## Problem
