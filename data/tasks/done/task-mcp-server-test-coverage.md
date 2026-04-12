@@ -1,12 +1,12 @@
 ---
 id: task-mcp-server-test-coverage
 title: Add test coverage for mcp-server module
-status: backlog
+status: done
 priority: p2
 area: modules
 summary: The mcp-server module exposes KOTA tools to external MCP clients but has zero tests. As an external-facing protocol boundary, it needs coverage for tool registration, invocation routing, and error handling.
 created_at: 2026-04-12T01:10:00Z
-updated_at: 2026-04-12T01:10:00Z
+updated_at: 2026-04-12T05:27:14.043Z
 ---
 
 ## Problem
