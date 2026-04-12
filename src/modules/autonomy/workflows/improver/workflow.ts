@@ -85,16 +85,19 @@ const improverWorkflow: WorkflowDefinitionInput = {
           {
             id: "typecheck",
             type: "code" as const,
+            phase: 1,
             run: (ctx: WorkflowStepContext) => runCheck("pnpm run typecheck", ctx.projectDir),
           },
           {
             id: "lint",
             type: "code" as const,
-            run: (ctx: WorkflowStepContext) => runCheck("pnpm run lint:fix && pnpm run lint", ctx.projectDir),
+            phase: 1,
+            run: (ctx: WorkflowStepContext) => runCheck("pnpm run lint:fix && git add -u && pnpm run lint", ctx.projectDir),
           },
           {
             id: "test",
             type: "code" as const,
+            phase: 1,
             run: (ctx: WorkflowStepContext) => runCheck("pnpm test", ctx.projectDir, 300_000),
           },
         ],
