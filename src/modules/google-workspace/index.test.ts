@@ -29,6 +29,7 @@ function makeCtx(config?: Record<string, unknown>): ModuleContext {
     resolveAgentDef: vi.fn().mockReturnValue(undefined),
     resolveSkillsPrompt: vi.fn().mockReturnValue(""),
     probeHealthChecks: async () => ({}),
+    getRegisteredConfigKeys: () => new Set<string>(),
   };
 }
 

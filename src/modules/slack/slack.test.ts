@@ -39,6 +39,7 @@ function makeStubCtx(bus?: EventBus, slackConfig?: unknown): ModuleContext {
     resolveAgentDef: () => undefined,
     resolveSkillsPrompt: () => "",
     probeHealthChecks: async () => ({}),
+    getRegisteredConfigKeys: () => new Set<string>(),
   };
 }
 

@@ -224,6 +224,7 @@ const daemonModule: KotaModule = {
           resolveAgentDef: (name) => ctx.resolveAgentDef(name),
           resolveSkillsPrompt: (names) => ctx.resolveSkillsPrompt(names),
           probeModuleHealthChecks: () => ctx.probeHealthChecks(),
+          moduleConfigKeys: ctx.getRegisteredConfigKeys(),
         });
 
         await daemon.start();

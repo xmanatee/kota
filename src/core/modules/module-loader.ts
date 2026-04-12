@@ -47,6 +47,7 @@ export class ModuleLoader {
   private moduleChannelDefs = new Map<string, readonly ChannelDef[]>();
   private moduleSkillDefs = new Map<string, readonly SkillDef[]>();
   private moduleAgentDefs = new Map<string, readonly AgentDef[]>();
+  private registeredConfigKeys = new Map<string, string>();
   private loadFailures = new Map<string, ModuleLoadFailure>();
   private skillContentsByName = new Map<string, string>();
   private contributedWorkflows: RegisteredWorkflowDefinitionInput[] = [];
@@ -105,6 +106,7 @@ export class ModuleLoader {
       resolveSkillsPrompt: (names) => this.getSkillsPromptFor(names),
       sessionFactory: this.sessionFactory,
       probeHealthChecks: () => this.probeHealthChecks(),
+      getRegisteredConfigKeys: () => this.getRegisteredConfigKeys(),
       callTool: async (name, input) => {
         if (this.toolCallDepth >= ModuleLoader.MAX_TOOL_CALL_DEPTH) {
           return { content: `Tool call depth limit exceeded (max ${ModuleLoader.MAX_TOOL_CALL_DEPTH})`, is_error: true };
@@ -130,6 +132,18 @@ export class ModuleLoader {
         if (!this.modules.some((m) => m.name === dep)) {
           throw new Error(`Module "${mod.name}" requires "${dep}" which is not loaded`);
         }
+      }
+    }
+
+    if (mod.configKeys) {
+      for (const ck of mod.configKeys) {
+        const existing = this.registeredConfigKeys.get(ck.key);
+        if (existing) {
+          throw new Error(
+            `Module "${mod.name}" tried to register config key "${ck.key}" already claimed by "${existing}"`,
+          );
+        }
+        this.registeredConfigKeys.set(ck.key, mod.name);
       }
     }
 
@@ -307,6 +321,10 @@ export class ModuleLoader {
       if (found) return found;
     }
     return undefined;
+  }
+
+  getRegisteredConfigKeys(): ReadonlySet<string> {
+    return new Set(this.registeredConfigKeys.keys());
   }
 
   getModuleStorage(moduleName: string): ModuleStorage | undefined {

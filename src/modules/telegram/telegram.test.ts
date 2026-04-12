@@ -46,6 +46,7 @@ function makeStubCtx(bus?: EventBus): ModuleContext {
     resolveAgentDef: () => undefined,
     resolveSkillsPrompt: () => "",
     probeHealthChecks: async () => ({}),
+    getRegisteredConfigKeys: () => new Set<string>(),
   };
 }
 

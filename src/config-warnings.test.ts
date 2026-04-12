@@ -76,19 +76,49 @@ describe("warnUnknownConfigKeys", () => {
     warnUnknownConfigKeys(projectDir, (msg) => warnings.push(msg));
     expect(warnings).toHaveLength(0);
   });
+
+  it("suppresses warnings for module-registered keys", () => {
+    writeFileSync(
+      join(projectDir, ".kota", "config.json"),
+      JSON.stringify({ scheduler: {}, customModuleKey: true }),
+    );
+    const moduleKeys = new Set(["scheduler", "customModuleKey"]);
+    const warnings: string[] = [];
+    warnUnknownConfigKeys(projectDir, (msg) => warnings.push(msg), moduleKeys);
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("still warns for keys not in core or module sets", () => {
+    writeFileSync(
+      join(projectDir, ".kota", "config.json"),
+      JSON.stringify({ scheduler: {}, totallyUnknown: 1 }),
+    );
+    const moduleKeys = new Set(["scheduler"]);
+    const warnings: string[] = [];
+    warnUnknownConfigKeys(projectDir, (msg) => warnings.push(msg), moduleKeys);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('"totallyUnknown"');
+  });
 });
 
 describe("KNOWN_CONFIG_KEYS", () => {
-  it("contains the full set of expected keys", () => {
+  it("contains the core-owned keys", () => {
     const expected = [
       "model", "editorModel", "maxTokens", "architect", "thinking", "thinkingBudget",
       "verbose", "skipConfirmations", "autoEnable", "user", "aliases", "reflection",
       "guardrails", "modules", "foreignModules", "providers", "modelProvider",
-      "modelTiers", "agentModels", "webhooks", "approvalTtlMs", "dailyBudgetUsd",
-      "runsGc", "serve", "log", "daemon", "notifications", "scheduler", "workflow",
+      "modelTiers", "agentModels", "approvalTtlMs", "dailyBudgetUsd",
+      "runsGc", "serve", "log", "daemon", "notifications", "workflow",
+      "budget",
     ];
     for (const key of expected) {
       expect(KNOWN_CONFIG_KEYS.has(key), `missing key: ${key}`).toBe(true);
+    }
+  });
+
+  it("does not contain module-registered keys", () => {
+    for (const key of ["scheduler", "webhooks", "mcp"]) {
+      expect(KNOWN_CONFIG_KEYS.has(key), `should not contain module key: ${key}`).toBe(false);
     }
   });
 });

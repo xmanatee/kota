@@ -1,12 +1,12 @@
 ---
 id: task-module-config-extension-registry
 title: Let modules register top-level config keys instead of maintaining a core allowlist
-status: backlog
+status: done
 priority: p2
 area: core
 summary: Modules that introduce new top-level config keys must be manually added to KNOWN_CONFIG_KEYS in core. A registration hook would let modules declare their own keys and remove the coupling.
 created_at: 2026-04-12T12:35:00Z
-updated_at: 2026-04-12T12:35:00Z
+updated_at: 2026-04-12T15:21:13.742Z
 ---
 
 ## Problem

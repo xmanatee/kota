@@ -56,6 +56,7 @@ function makeStubCtx(
     resolveAgentDef: () => undefined,
     resolveSkillsPrompt: () => "",
     probeHealthChecks: async () => ({}),
+    getRegisteredConfigKeys: () => new Set<string>(),
   };
 }
 

@@ -13,6 +13,7 @@ const schedulerModule: KotaModule = {
   name: "scheduler",
   version: "1.0.0",
   description: "Timed reminders, recurring tasks, and event-triggered automations",
+  configKeys: [{ key: "scheduler", description: "Scheduler dispatch window and concurrency settings" }],
   tools: [
     {
       tool: scheduleTool,

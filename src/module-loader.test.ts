@@ -1076,4 +1076,40 @@ describe("ctx.callTool — direct tool invocation", () => {
     expect(results["broken-mod"].status).toBe("unhealthy");
     expect(results["broken-mod"].message).toContain("boom");
   });
+
+  it("collects configKeys from loaded modules", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "mod-a",
+      configKeys: [{ key: "myKey", description: "test key" }],
+    });
+    await loader.load({
+      name: "mod-b",
+      configKeys: [{ key: "otherKey" }],
+    });
+    const keys = loader.getRegisteredConfigKeys();
+    expect(keys.has("myKey")).toBe(true);
+    expect(keys.has("otherKey")).toBe(true);
+    expect(keys.size).toBe(2);
+  });
+
+  it("rejects duplicate configKeys across modules", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "mod-a",
+      configKeys: [{ key: "shared" }],
+    });
+    await expect(
+      loader.load({
+        name: "mod-b",
+        configKeys: [{ key: "shared" }],
+      }),
+    ).rejects.toThrow(/already claimed by "mod-a"/);
+  });
+
+  it("returns empty set when no modules declare configKeys", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({ name: "plain" });
+    expect(loader.getRegisteredConfigKeys().size).toBe(0);
+  });
 });

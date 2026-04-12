@@ -192,6 +192,8 @@ export type ModuleContext = {
   resolveSkillsPrompt: (skillNames: string[] | "all") => string;
   /** Probe all modules that declare a healthCheck and return results. */
   probeHealthChecks: () => Promise<Record<string, HealthCheckResult>>;
+  /** Top-level config keys registered by loaded modules. */
+  getRegisteredConfigKeys: () => ReadonlySet<string>;
 };
 
 /**
@@ -206,6 +208,12 @@ export type ModuleContext = {
  * Project modules use the same protocol as user-installed ones.
  * The core without any modules loaded still functions as a basic agent.
  */
+/** A top-level config key claimed by a module. */
+export type ModuleConfigKey = {
+  key: string;
+  description?: string;
+};
+
 export type KotaModule = {
   /** Unique module identifier (e.g. "memory", "telegram", "web"). */
   name: string;
@@ -215,6 +223,12 @@ export type KotaModule = {
   description?: string;
   /** Names of modules that must be loaded before this one. */
   dependencies?: string[];
+
+  /**
+   * Top-level config keys this module owns. Declared statically so the config
+   * warning system can recognise them without requiring an `onLoad` callback.
+   */
+  configKeys?: readonly ModuleConfigKey[];
 
   /**
    * Tools this module provides. Registered during load.

@@ -31,6 +31,7 @@ export interface ModuleContextParams {
   sessionFactory: ((opts: CreateSessionOptions) => ModuleSession) | null;
   callTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
   probeHealthChecks: () => Promise<Record<string, HealthCheckResult>>;
+  getRegisteredConfigKeys: () => ReadonlySet<string>;
 }
 
 function getOrCreateStorage(
@@ -62,7 +63,7 @@ function createEventProxy(
 }
 
 export function createModuleContext(params: ModuleContextParams, moduleName?: string): ModuleContext {
-  const { cwd, verbose, config, moduleStorages, getBus, getRoutes, getContributedWorkflows, getContributedChannels, getModuleSummaries, resolveAgentDef, resolveSkillsPrompt, sessionFactory, callTool, probeHealthChecks } = params;
+  const { cwd, verbose, config, moduleStorages, getBus, getRoutes, getContributedWorkflows, getContributedChannels, getModuleSummaries, resolveAgentDef, resolveSkillsPrompt, sessionFactory, callTool, probeHealthChecks, getRegisteredConfigKeys } = params;
   const storage = moduleName
     ? getOrCreateStorage(moduleName, cwd, moduleStorages)
     : new ModuleStorage(cwd, "_default");
@@ -147,5 +148,6 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
     resolveAgentDef,
     resolveSkillsPrompt,
     probeHealthChecks,
+    getRegisteredConfigKeys,
   };
 }

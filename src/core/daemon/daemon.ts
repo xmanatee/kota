@@ -56,6 +56,7 @@ export type DaemonConfig = {
   resolveAgentDef?: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt?: (skillNames: string[] | "all") => string;
   probeModuleHealthChecks?: () => Promise<Record<string, import("#core/modules/module-types.js").HealthCheckResult>>;
+  moduleConfigKeys?: ReadonlySet<string>;
 };
 
 export const RESTART_EXIT_CODE = 75;
@@ -184,7 +185,7 @@ export class Daemon {
     }
 
     this.log("Daemon starting...");
-    warnUnknownConfigKeys(this.projectDir, (msg) => this.log(msg));
+    warnUnknownConfigKeys(this.projectDir, (msg) => this.log(msg), this.config.moduleConfigKeys);
     warnInvalidConcurrencyConfig(this.projectDir, (msg) => this.log(msg));
     this.saveState();
 

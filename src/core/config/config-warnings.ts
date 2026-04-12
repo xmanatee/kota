@@ -22,7 +22,6 @@ export const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set<keyof KotaConfig>(
   "modelProvider",
   "modelTiers",
   "agentModels",
-  "webhooks",
   "approvalTtlMs",
   "dailyBudgetUsd",
   "runsGc",
@@ -30,10 +29,8 @@ export const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set<keyof KotaConfig>(
   "log",
   "daemon",
   "notifications",
-  "scheduler",
   "workflow",
   "budget",
-  "mcp",
 ]);
 
 function readRawKeys(path: string): string[] | null {
@@ -50,18 +47,21 @@ function readRawKeys(path: string): string[] | null {
 /**
  * Checks the project-level .kota/config.json for unknown top-level keys and
  * calls `warn` for each one found. Safe to call at startup; non-fatal.
+ *
+ * `moduleKeys` contains additional keys registered by loaded modules.
  */
 export function warnUnknownConfigKeys(
   projectDir: string,
   warn: (message: string) => void,
+  moduleKeys?: ReadonlySet<string>,
 ): void {
   const projectPath = join(projectDir, ".kota", "config.json");
   const keys = readRawKeys(projectPath);
   if (!keys) return;
   for (const k of keys) {
-    if (!KNOWN_CONFIG_KEYS.has(k)) {
-      warn(`Config warning: unknown key "${k}" in ${projectPath}`);
-    }
+    if (KNOWN_CONFIG_KEYS.has(k)) continue;
+    if (moduleKeys?.has(k)) continue;
+    warn(`Config warning: unknown key "${k}" in ${projectPath}`);
   }
 }
 

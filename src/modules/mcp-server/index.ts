@@ -15,6 +15,7 @@ const mcpServerModule: KotaModule = {
 	name: "mcp-server",
 	version: "1.0.0",
 	description: "Expose KOTA tools via the Model Context Protocol (stdio)",
+	configKeys: [{ key: "mcp", description: "MCP server and sampling configuration" }],
 
 	commands: (_ctx: ModuleContext) => {
 		const cmd = new Command("mcp-server")

@@ -50,7 +50,7 @@ const webModule: KotaModule = {
           process.exit(1);
         }
 
-        warnUnknownConfigKeys(process.cwd(), (msg) => console.warn(msg));
+        warnUnknownConfigKeys(process.cwd(), (msg) => console.warn(msg), ctx.getRegisteredConfigKeys());
 
         // Collect routes from all loaded modules via ModuleContext
         const moduleRoutes = ctx.getRoutes();

@@ -45,6 +45,7 @@ const webhookModule: KotaModule = {
   name: "webhook",
   version: "1.0.0",
   description: "HTTP webhook notification channel for KOTA workflow events",
+  configKeys: [{ key: "webhooks", description: "Per-workflow webhook secrets for signature verification" }],
 
   onLoad: (ctx) => {
     const config = ctx.getModuleConfig<WebhookConfig>();
