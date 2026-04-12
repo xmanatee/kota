@@ -41,7 +41,8 @@ export function buildRepairPrompt(
     lines.push(`## ${failure.id}`, "```", failure.output.trim(), "```", "");
   }
   lines.push(
-    "Fix these issues now. The same checks will run again after you finish.",
+    "Fix these issues now. Stage all changes with `git add -A` before stopping —",
+    "review checks evaluate the staged diff, so unstaged fixes are invisible.",
     "Finish this repair fully, then stop.",
   );
   return lines.join("\n");
