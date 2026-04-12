@@ -155,7 +155,7 @@ function handleVerdict(verdict: CriticVerdict, runDir?: string): string {
  * @param options.runDirPath - Path to the run directory for writing artifacts.
  *   If not provided, warnings are not persisted.
  */
-const CRITIC_MAX_RETRIES = 2;
+const CRITIC_MAX_RETRIES = 3;
 
 async function invokeCritic(
   userMessage: string,
@@ -167,7 +167,7 @@ async function invokeCritic(
       model: CRITIC_MODEL,
       cwd,
       systemPrompt: CRITIC_SYSTEM_PROMPT,
-      maxTurns: 3,
+      maxTurns: 5,
       allowedTools: [],
       permissionMode: "bypassPermissions",
       settingSources: [],

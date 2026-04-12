@@ -241,6 +241,65 @@ describe("createCriticCheck", () => {
     expect(artifact.critical_issues).toHaveLength(1);
   });
 
+  it("retries up to 3 times on transient SDK errors before throwing", async () => {
+    const dir = makeTmpDir();
+    const doingDir = join(dir, "data/tasks/doing");
+    mkdirSync(doingDir, { recursive: true });
+    writeFileSync(join(doingDir, "task-retry.md"), "---\ntitle: Test retry\n---\nContent.");
+
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+
+    mockExecuteWithAgentSDK.mockResolvedValue({
+      text: "",
+      streamedText: "",
+      turns: 5,
+      isError: true,
+      subtype: "error_max_turns",
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    await expect((check as CodeCheck).run(makeContext(dir, runDir))).rejects.toThrow(
+      /Critic agent failed \(attempt 3\/3\)/,
+    );
+    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(3);
+  });
+
+  it("succeeds on second retry after initial transient failure", async () => {
+    const dir = makeTmpDir();
+    const doingDir = join(dir, "data/tasks/doing");
+    mkdirSync(doingDir, { recursive: true });
+    writeFileSync(join(doingDir, "task-recover.md"), "---\ntitle: Test recover\n---\nContent.");
+
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+
+    mockExecuteWithAgentSDK
+      .mockResolvedValueOnce({
+        text: "",
+        streamedText: "",
+        turns: 5,
+        isError: true,
+        subtype: "error_max_turns",
+      })
+      .mockResolvedValueOnce({
+        text: JSON.stringify({
+          verdict: "pass",
+          critical_issues: [],
+          warnings: [],
+          summary: "Looks good.",
+        }),
+        streamedText: "",
+        turns: 1,
+        isError: false,
+      });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    expect(result).toMatch(/pass/);
+    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
+  });
+
   it("passes with warnings and writes critic-review.json", async () => {
     const dir = makeTmpDir();
     const doingDir = join(dir, "data/tasks/doing");
