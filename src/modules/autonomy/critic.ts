@@ -161,6 +161,12 @@ function handleVerdict(verdict: CriticVerdict, runDir?: string): string {
  *   If not provided, warnings are not persisted.
  */
 const CRITIC_MAX_RETRIES = 3;
+const CRITIC_MAX_TURNS = 12;
+const CRITIC_RETRY_BASE_DELAY_MS = 2_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 async function invokeCritic(
   userMessage: string,
@@ -168,11 +174,15 @@ async function invokeCritic(
 ): Promise<{ text: string; isError: boolean; subtype?: string }> {
   let lastError: Error | undefined;
   for (let attempt = 0; attempt < CRITIC_MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      await sleep(CRITIC_RETRY_BASE_DELAY_MS * attempt);
+    }
+
     const response = await executeWithAgentSDK(userMessage, {
       model: CRITIC_MODEL,
       cwd,
       systemPrompt: CRITIC_SYSTEM_PROMPT,
-      maxTurns: 8,
+      maxTurns: CRITIC_MAX_TURNS,
       allowedTools: ["Read", "Grep", "Glob"],
       permissionMode: "bypassPermissions",
       settingSources: ["project"],

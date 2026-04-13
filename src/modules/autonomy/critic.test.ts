@@ -267,6 +267,7 @@ describe("createCriticCheck", () => {
   });
 
   it("retries up to 3 times on transient SDK errors before throwing", async () => {
+    vi.useFakeTimers();
     const dir = makeTmpDir();
     const doingDir = join(dir, "data/tasks/doing");
     mkdirSync(doingDir, { recursive: true });
@@ -284,13 +285,17 @@ describe("createCriticCheck", () => {
     });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    await expect((check as CodeCheck).run(makeContext(dir, runDir))).rejects.toThrow(
-      /Critic agent failed \(attempt 3\/3\)/,
-    );
+    const assertion = expect(
+      (check as CodeCheck).run(makeContext(dir, runDir)),
+    ).rejects.toThrow(/Critic agent failed \(attempt 3\/3\)/);
+    await vi.runAllTimersAsync();
+    await assertion;
     expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(3);
+    vi.useRealTimers();
   });
 
   it("succeeds on second retry after initial transient failure", async () => {
+    vi.useFakeTimers();
     const dir = makeTmpDir();
     const doingDir = join(dir, "data/tasks/doing");
     mkdirSync(doingDir, { recursive: true });
@@ -320,9 +325,12 @@ describe("createCriticCheck", () => {
       });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    const promise = (check as CodeCheck).run(makeContext(dir, runDir));
+    await vi.runAllTimersAsync();
+    const result = await promise;
     expect(result).toMatch(/pass/);
     expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 
   it("passes with warnings and writes critic-review.json", async () => {
