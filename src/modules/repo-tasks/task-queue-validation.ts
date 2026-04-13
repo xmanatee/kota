@@ -32,7 +32,7 @@ export type TaskQueueValidationOptions = {
   maxDoing?: number;
 };
 
-type TaskFileEntry = {
+export type TaskFileEntry = {
   state: RepoTaskState;
   fileName: string;
   path: string;
@@ -48,6 +48,46 @@ const ACTIVE_STEERING_FILES = [
 ] as const;
 
 const ACTIVE_TASK_STATES: RepoTaskState[] = ["ready", "backlog", "doing", "blocked"];
+
+const SOURCE_ACCESS_FAILURE_INDICATORS = [
+  /\binaccessible\b/i,
+  /\bnot\s+fetched\b/i,
+  /\bcannot\s+(?:access|review|read|fetch)\b/i,
+  /\bcould\s+not\s+(?:access|review|read|fetch)\b/i,
+  /\bauth[- ]?walled\b/i,
+  /\b(?:returned?|got|received|status)\s+(?:HTTP\s+)?40[123]\b/i,
+  /\bsource\s+unavailable\b/i,
+  /\bpaywall(?:ed)?\b/i,
+] as const;
+
+const SOURCE_ACCESS_HONEST_HANDLING = [
+  /\bblocker\b/i,
+  /\bfollow[- ]?up\b/i,
+  /\benabler\b/i,
+  /\bnext\s+action\b/i,
+  /\bno\s+longer\s+(?:needed|relevant|worth)\b/i,
+  /\bcreated?\s+task\b/i,
+  /\bblocked\s+(?:on|by|until)\b/i,
+  /\bdeferred\b/i,
+  /\bnot\s+applicable\b/i,
+  /\bunrelated\b/i,
+  /\bcaptured\s+into\b/i,
+  /\bdropped\b/i,
+];
+
+function stripProblemSection(raw: string): string {
+  return raw.replace(/## Problem\n[\s\S]*?(?=\n## |\s*$)/, "");
+}
+
+export function hasDishonestSourceAccessCompletion(entry: TaskFileEntry): boolean {
+  if (entry.state !== "done") return false;
+  const body = stripProblemSection(entry.raw);
+  const hasFailureIndicator = SOURCE_ACCESS_FAILURE_INDICATORS.some((p) => p.test(body));
+  if (!hasFailureIndicator) return false;
+  const hasHonestHandling = SOURCE_ACCESS_HONEST_HANDLING.some((p) => p.test(body));
+  return !hasHonestHandling;
+}
+
 const DISALLOWED_NPM_COMMAND = /\bnpm\s+(?:run|test|install|i|ci|exec|start|build|lint|typecheck)\b/;
 const DISALLOWED_SMALL_DIFF_GUIDANCE = [
   /\bsmall(?:est)?\s+(?:change|diff|patch|scope)\b/i,
@@ -346,6 +386,16 @@ export function validateTaskQueue(
           paths: [entry.path],
         });
       }
+    }
+
+    if (hasDishonestSourceAccessCompletion(entry)) {
+      findings.push({
+        code: "done-task-inaccessible-source",
+        severity: "error",
+        message: `${entry.path} is marked done but records inaccessible or unread sources without a blocker, follow-up, or explicit rationale. ` +
+          `Fix: move the task to blocked, add a follow-up task, or document why the source is no longer needed`,
+        paths: [entry.path],
+      });
     }
   }
 

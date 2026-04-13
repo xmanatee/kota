@@ -39,7 +39,10 @@ This directory is the normalized live work queue after ideas leave
   This auto-updates the `status` frontmatter, sets `updated_at`, runs `git mv`,
   and stages the result. Do not manually move task files or edit status
   frontmatter — the CLI handles both atomically.
-- If required source access fails, keep the task state honest and record the
-  blocker instead of marking inferred work as done.
+- If required source access fails (auth-walled, HTTP 4xx, paywall, fetch
+  failure), do not mark the task done. Move it to `blocked`, create a follow-up
+  or enabler task, or document why the source is no longer needed. A done task
+  that records inaccessible sources without honest handling is a validation
+  error (`done-task-inaccessible-source`).
 - Before finishing, ensure task validation would pass: unique ids, tracked task
   files, no stale deletes, and matching status/directories.

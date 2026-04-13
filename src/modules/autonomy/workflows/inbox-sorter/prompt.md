@@ -12,8 +12,10 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
   - a cleaned-up inbox note that should stay as a capture or reference note for later
   - a dropped item when it clearly should not move forward
 - Research when needed, but only enough to understand and route the item well.
-- Do not describe an inaccessible URL as researched; preserve the blocker in
-  the routed note or task.
+- If an inbox item depends on reading a URL and the source is inaccessible,
+  do not mark it as sorted or researched. Record the access failure honestly:
+  create a blocked task, add a follow-up, or note why the source is no longer
+  needed. Never dismiss an unread required source as processed.
 - Preserve intent. Do not over-formalize quick captures unless they are clearly ready to become tasks.
 
 ## Creating Tasks

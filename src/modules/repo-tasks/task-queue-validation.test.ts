@@ -10,9 +10,11 @@ import {
   assertTaskQueueRecommendations,
   assertTaskQueueValid,
   hasArchitectureReadyCoverageGap,
+  hasDishonestSourceAccessCompletion,
   hasStrategicReadyCoverageGap,
   listRootKernelHelperDebt,
   listRootLevelCliArchitectureDebt,
+  type TaskFileEntry,
   validateTaskQueue,
 } from "./task-queue-validation.js";
 
@@ -407,6 +409,212 @@ Has an outcome.
     expect(finding?.paths).toContain("docs/STANDARDS.md");
     expect(finding?.paths).toContain(join("data", "tasks", "ready", "task-alpha.md"));
     expect(finding?.paths).not.toContain(join("data", "tasks", "done", "task-archived.md"));
+  });
+});
+
+function makeEntry(state: string, body: string): TaskFileEntry {
+  return {
+    state: state as TaskFileEntry["state"],
+    fileName: "task-test.md",
+    path: `data/tasks/${state}/task-test.md`,
+    taskId: "task-test",
+    raw: body,
+  };
+}
+
+describe("hasDishonestSourceAccessCompletion", () => {
+  it("flags a done task with inaccessible source and no honest handling", () => {
+    const entry = makeEntry("done", [
+      "## Problem\n\nSome problem.\n",
+      "## Desired Outcome\n\nReview the resource.\n",
+      "## Constraints\n\nNone.\n",
+      "## Done When\n\nResource reviewed.\n",
+      "## Notes\n\nDismissed — cannot access the URL due to auth wall.\n",
+    ].join("\n"));
+    expect(hasDishonestSourceAccessCompletion(entry)).toBe(true);
+  });
+
+  it("ignores inaccessible language in the Problem section", () => {
+    const entry = makeEntry("done", [
+      "## Problem\n\nThe source is inaccessible due to auth walls.\n",
+      "## Desired Outcome\n\nHandle this better.\n",
+      "## Constraints\n\nNone.\n",
+      "## Done When\n\nDone.\n",
+    ].join("\n"));
+    expect(hasDishonestSourceAccessCompletion(entry)).toBe(false);
+  });
+
+  it("accepts a done task with inaccessible source and a follow-up", () => {
+    const entry = makeEntry("done", [
+      "## Problem\n\nSome problem.\n",
+      "## Desired Outcome\n\nReview resource.\n",
+      "## Constraints\n\nNone.\n",
+      "## Done When\n\nDone.\n",
+      "## Notes\n\nSource inaccessible (HTTP 403). Created follow-up task for manual review.\n",
+    ].join("\n"));
+    expect(hasDishonestSourceAccessCompletion(entry)).toBe(false);
+  });
+
+  it("accepts a done task with inaccessible source and a blocker note", () => {
+    const entry = makeEntry("done", [
+      "## Problem\n\nSome problem.\n",
+      "## Desired Outcome\n\nReview resource.\n",
+      "## Constraints\n\nNone.\n",
+      "## Done When\n\nDone.\n",
+      "## Notes\n\nCannot review URL. Blocked on auth access being restored.\n",
+    ].join("\n"));
+    expect(hasDishonestSourceAccessCompletion(entry)).toBe(false);
+  });
+
+  it("accepts a done task with no source-access failure indicators", () => {
+    const entry = makeEntry("done", [
+      "## Problem\n\nSome problem.\n",
+      "## Desired Outcome\n\nFix it.\n",
+      "## Constraints\n\nNone.\n",
+      "## Done When\n\nFixed.\n",
+    ].join("\n"));
+    expect(hasDishonestSourceAccessCompletion(entry)).toBe(false);
+  });
+
+  it("does not flag non-done tasks with inaccessible sources", () => {
+    const entry = makeEntry("blocked", [
+      "## Problem\n\nSome problem.\n",
+      "## Desired Outcome\n\nReview resource.\n",
+      "## Constraints\n\nNone.\n",
+      "## Done When\n\nDone.\n",
+      "## Notes\n\nSource inaccessible.\n",
+    ].join("\n"));
+    expect(hasDishonestSourceAccessCompletion(entry)).toBe(false);
+  });
+
+  it("flags HTTP 402 auth-walled sources marked done without handling", () => {
+    const entry = makeEntry("done", [
+      "## Problem\n\nSome problem.\n",
+      "## Desired Outcome\n\nReview resource.\n",
+      "## Constraints\n\nNone.\n",
+      "## Done When\n\nDone.\n",
+      "## Notes\n\nHTTP 402. Dismissed — cannot review.\n",
+    ].join("\n"));
+    expect(hasDishonestSourceAccessCompletion(entry)).toBe(true);
+  });
+
+  it("accepts source marked no longer needed", () => {
+    const entry = makeEntry("done", [
+      "## Problem\n\nSome problem.\n",
+      "## Desired Outcome\n\nReview resource.\n",
+      "## Constraints\n\nNone.\n",
+      "## Done When\n\nDone.\n",
+      "## Notes\n\nSource inaccessible. No longer needed since the info was covered elsewhere.\n",
+    ].join("\n"));
+    expect(hasDishonestSourceAccessCompletion(entry)).toBe(false);
+  });
+});
+
+describe("done-task-inaccessible-source validation integration", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-source-access-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    initTaskRepo(projectDir);
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("reports done-task-inaccessible-source for a dishonest completion", () => {
+    const dir = join(projectDir, REPO_TASKS_DIR, "done");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "task-bad-research.md"),
+      `---
+id: task-bad-research
+title: Review auth-walled resource
+status: done
+priority: p2
+area: research
+summary: Review a URL that was not accessible.
+created_at: 2026-04-01T00:00:00Z
+updated_at: 2026-04-01T00:00:00Z
+---
+
+## Problem
+
+Need to review a URL.
+
+## Desired Outcome
+
+Research completed.
+
+## Constraints
+
+None.
+
+## Done When
+
+Resource reviewed.
+
+## Notes
+
+Dismissed — cannot review. Source returned HTTP 402.
+`,
+    );
+    execSync("git add data && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "done-task-inaccessible-source")).toBe(true);
+  });
+
+  it("does not flag a done task with honest source-access handling", () => {
+    const dir = join(projectDir, REPO_TASKS_DIR, "done");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "task-honest-research.md"),
+      `---
+id: task-honest-research
+title: Review auth-walled resource
+status: done
+priority: p2
+area: research
+summary: Review a URL that was not accessible.
+created_at: 2026-04-01T00:00:00Z
+updated_at: 2026-04-01T00:00:00Z
+---
+
+## Problem
+
+Need to review a URL.
+
+## Desired Outcome
+
+Research completed.
+
+## Constraints
+
+None.
+
+## Done When
+
+Resource reviewed or blocker recorded.
+
+## Notes
+
+Source inaccessible (HTTP 402). Created follow-up task for manual access.
+`,
+    );
+    execSync("git add data && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "done-task-inaccessible-source")).toBe(false);
   });
 });
 

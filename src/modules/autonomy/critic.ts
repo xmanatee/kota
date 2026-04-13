@@ -42,7 +42,7 @@ const CRITIC_SYSTEM_PROMPT = `You are a calibrated code review critic. Your job 
 - If the work is substantially complete but has a minor omission that doesn't affect correctness, use a warning, not a critical issue.
 - If required evidence is absent, fail rather than inferring completion from plausible-looking changes.
 - An empty diff with a moved task file is suspicious — the agent may not have done real work.
-- For research or URL-dependent tasks, verify that required sources were actually processed. Use the run trace when the diff alone is not enough.
+- For research or URL-dependent tasks, verify that required sources were actually processed — not just referenced or dismissed. If the task depends on reading a URL and the source was inaccessible (auth-walled, 401/402/403, paywall, fetch failure), the task must not be marked done unless it records a blocker, creates a follow-up/enabler task, or documents why the source is no longer needed. Treat an unread required source marked as processed or dismissed without honest handling as a critical issue. Use the run trace when the diff alone is not enough.
 
 Respond with ONLY a JSON object (no markdown fences) matching this schema:
 {

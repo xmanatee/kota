@@ -1,12 +1,12 @@
 ---
 id: task-make-source-access-failures-first-class
 title: Make source-access failures first-class in research workflows
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Adjust research, inbox sorting, and review flow so URL-dependent work cannot be completed by guessing or silently dropping inaccessible sources.
 created_at: 2026-04-13T21:39:00.000Z
-updated_at: 2026-04-13T21:39:00.000Z
+updated_at: 2026-04-13T23:19:04.567Z
 ---
 
 ## Problem
