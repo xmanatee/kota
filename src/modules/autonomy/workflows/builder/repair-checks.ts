@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import { createCriticCheck } from "#modules/autonomy/critic.js";
-import { runCheck } from "#modules/autonomy/shared.js";
+import { checkNoScratchArtifacts, runCheck } from "#modules/autonomy/shared.js";
 import { findTaskReviewTarget } from "#modules/autonomy/task-review-target.js";
 
 function countDoneWhenItems(taskContent: string): number {
@@ -258,6 +258,11 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       id: "module-boundary",
       type: "code" as const,
       run: (ctx) => checkModuleBoundary(ctx.projectDir),
+    },
+    {
+      id: "no-scratch-artifacts",
+      type: "code" as const,
+      run: (ctx) => checkNoScratchArtifacts(ctx.projectDir),
     },
     { ...createCriticCheck(), phase: 2 },
   ];

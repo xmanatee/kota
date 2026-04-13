@@ -7,7 +7,7 @@ import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { recallForImprover } from "#modules/autonomy/knowledge-recall.js";
 import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
 import { writeRunSummary } from "#modules/autonomy/run-summary.js";
-import { aggregateRunOutcomes, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
+import { aggregateRunOutcomes, checkNoScratchArtifacts, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
 
 /** Minimum interval between improver runs triggered by the same event type. */
 export const IMPROVER_COOLDOWN_MS = 60 * 60 * 1000; // 60 minutes
@@ -100,6 +100,11 @@ const improverWorkflow: WorkflowDefinitionInput = {
             type: "code" as const,
             phase: 1,
             run: (ctx: WorkflowStepContext) => runCheck("pnpm test", ctx.projectDir, 300_000),
+          },
+          {
+            id: "no-scratch-artifacts",
+            type: "code" as const,
+            run: (ctx: WorkflowStepContext) => checkNoScratchArtifacts(ctx.projectDir),
           },
         ],
       },

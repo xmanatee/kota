@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import type {
   WorkflowPredicate,
   WorkflowRunMetadata,
@@ -195,6 +195,26 @@ export function aggregateRunOutcomes(runsDir: string): RunOutcomeAggregation {
     costTrends: computeCostTrends(summaries7d, previousSummaries),
     durationOutliers: findDurationOutliers(summaries7d).slice(0, 10),
   };
+}
+
+const SCRATCH_ARTIFACT_PREFIXES = [".claude/worktrees/"];
+
+export function checkNoScratchArtifacts(projectDir: string): string {
+  const staged = execFileSync("git", ["diff", "--cached", "--name-only"], {
+    cwd: projectDir,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const violations = staged
+    .split("\n")
+    .filter((f) => SCRATCH_ARTIFACT_PREFIXES.some((p) => f.startsWith(p)));
+  if (violations.length > 0) {
+    throw new Error(
+      `Staged scratch artifacts must not be committed:\n${violations.map((v) => `  ${v}`).join("\n")}\n` +
+        `Unstage these files with: git reset HEAD ${violations.join(" ")}`,
+    );
+  }
+  return "OK: no scratch artifacts staged";
 }
 
 export function stepSucceeded(stepId: string): WorkflowPredicate {

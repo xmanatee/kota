@@ -6,4 +6,5 @@ logs/
 /runs/
 /kota/
 /.worktrees/
+.claude/worktrees/
 __pycache__/

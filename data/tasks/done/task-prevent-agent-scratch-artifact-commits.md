@@ -1,7 +1,7 @@
 ---
 id: task-prevent-agent-scratch-artifact-commits
 title: Prevent agent scratch artifacts from being committed
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Make local agent scratch directories impossible or visibly invalid to commit, including the .claude/worktrees artifact that recently landed.
