@@ -312,19 +312,21 @@ describe("ModuleLoader", () => {
     expect(routes[0]).toEqual({ method: "GET", path: "/api/test", handler });
   });
 
-  it("handles module load errors gracefully in loadAll", async () => {
+  it("project module load failure throws from loadAll", async () => {
     const loader = new ModuleLoader({});
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await loader.loadAll([
-      {
-        name: "bad-mod",
-        onLoad: () => { throw new Error("boom"); },
-      },
-      { name: "good-mod" },
-    ]);
+    await expect(
+      loader.loadAll([
+        {
+          name: "bad-mod",
+          onLoad: () => { throw new Error("boom"); },
+        },
+        { name: "good-mod" },
+      ]),
+    ).rejects.toThrow("1 project module(s) failed to load");
 
-    // Bad module failed, good module loaded
+    // Good module still loaded despite the throw
     expect(loader.getLoadedModules()).toEqual(["good-mod"]);
     expect(errSpy).toHaveBeenCalledWith(
       expect.stringContaining('Module "bad-mod" failed to load: boom'),
@@ -332,27 +334,48 @@ describe("ModuleLoader", () => {
     errSpy.mockRestore();
   });
 
-  it("records load failures in getModuleSummaries", async () => {
+  it("installed module load failure is non-fatal in loadAll", async () => {
     const loader = new ModuleLoader({});
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await loader.loadAll([
-      {
-        name: "bad-mod",
+    await loader.loadAll(
+      [{ name: "good-mod" }],
+      [{
+        name: "bad-installed",
+        onLoad: () => { throw new Error("missing creds"); },
+      }],
+    );
+
+    expect(loader.getLoadedModules()).toEqual(["good-mod"]);
+    expect(errSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Optional module Module "bad-installed" failed to load'),
+    );
+    errSpy.mockRestore();
+  });
+
+  it("records load failures with source in getModuleSummaries", async () => {
+    const loader = new ModuleLoader({});
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await loader.loadAll(
+      [{ name: "good-mod" }],
+      [{
+        name: "bad-installed",
         onLoad: () => { throw new Error("it broke"); },
-      },
-      { name: "good-mod" },
-    ]);
+      }],
+    );
 
     const summaries = loader.getModuleSummaries();
     const goodSummary = summaries.find((s) => s.name === "good-mod");
-    const badSummary = summaries.find((s) => s.name === "bad-mod");
+    const badSummary = summaries.find((s) => s.name === "bad-installed");
 
     expect(goodSummary).toBeDefined();
     expect(goodSummary?.loadError).toBeUndefined();
+    expect(goodSummary?.source).toBe("project");
 
     expect(badSummary).toBeDefined();
     expect(badSummary?.loadError).toBe("it broke");
+    expect(badSummary?.source).toBe("installed");
     expect(badSummary?.toolNames).toEqual([]);
 
     errSpy.mockRestore();

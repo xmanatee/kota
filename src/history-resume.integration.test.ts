@@ -65,6 +65,12 @@ vi.mock("./core/mcp/manager.js", () => ({
     static loadConfig() { return null; }
   },
 }));
+vi.mock("./core/modules/project-discovery.js", () => ({
+  discoverProjectModules: vi.fn(async () => []),
+}));
+vi.mock("./core/modules/module-discovery.js", () => ({
+  discoverModules: vi.fn(async () => []),
+}));
 
 // --- Import after mocks ---
 

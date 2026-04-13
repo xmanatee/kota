@@ -1,12 +1,12 @@
 ---
 id: task-make-module-load-failure-policy-explicit
 title: Make module load failure policy explicit and strict
-status: backlog
+status: done
 priority: p1
 area: modules
 summary: Module load failures are recorded while loading continues, but the runtime does not clearly distinguish required project modules from optional installed integrations.
 created_at: 2026-04-13T11:16:25Z
-updated_at: 2026-04-13T11:16:25Z
+updated_at: 2026-04-13T20:29:58.626Z
 ---
 
 ## Problem

@@ -210,7 +210,7 @@ async function main() {
   const loader = new ModuleLoader(config, false, { commandsOnly: true });
   const projectModules = await discoverProjectModules();
   const modules = await discoverModules(undefined, false);
-  await loader.loadAll([...projectModules, ...modules]);
+  await loader.loadAll(projectModules, modules);
   for (const cmd of loader.getCommands()) {
     program.addCommand(cmd);
   }

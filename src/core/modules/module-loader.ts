@@ -19,6 +19,7 @@ import {
   type KotaModule,
   type ModuleContext,
   type ModuleSession,
+  type ModuleSource,
   type ModuleSummary,
   type RouteRegistration,
   resolveModuleAgents,
@@ -29,7 +30,7 @@ import {
 } from "./module-types.js";
 import { getProviderRegistry } from "./provider-registry.js";
 
-export type { ModuleSummary } from "./module-types.js";
+export type { ModuleSource, ModuleSummary } from "./module-types.js";
 
 export type ModuleLoaderOptions = {
   /** Skip tool registration — only load modules for command/route discovery. */
@@ -49,6 +50,7 @@ export class ModuleLoader {
   private moduleAgentDefs = new Map<string, readonly AgentDef[]>();
   private registeredConfigKeys = new Map<string, string>();
   private loadFailures = new Map<string, ModuleLoadFailure>();
+  private moduleSources = new Map<string, ModuleSource>();
   private skillContentsByName = new Map<string, string>();
   private skillDefsByName = new Map<string, SkillDef>();
   private contributedWorkflows: RegisteredWorkflowDefinitionInput[] = [];
@@ -225,17 +227,25 @@ export class ModuleLoader {
     }
   }
 
-  async loadAll(modules: KotaModule[]): Promise<void> {
-    const sorted = topoSort(modules);
+  async loadAll(projectModules: KotaModule[], installedModules?: KotaModule[]): Promise<void> {
+    const projectNames = new Set(projectModules.map((m) => m.name));
+    const allModules = [...projectModules, ...(installedModules ?? [])];
+
+    for (const mod of projectModules) this.moduleSources.set(mod.name, "project");
+    for (const mod of installedModules ?? []) this.moduleSources.set(mod.name, "installed");
+
+    const sorted = topoSort(allModules);
     for (const mod of sorted) {
       try {
         await this.load(mod);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[kota] Module "${mod.name}" failed to load: ${msg}`);
+        const prefix = projectNames.has(mod.name) ? "" : "Optional module ";
+        console.error(`[kota] ${prefix}Module "${mod.name}" failed to load: ${msg}`);
         this.loadFailures.set(mod.name, { message: msg, timestamp: new Date().toISOString() });
       }
     }
+
     if (this.config.foreignModules && this.config.foreignModules.length > 0 && !this.commandsOnly) {
       const foreign = await loadForeignModules(
         this.config.foreignModules,
@@ -243,6 +253,7 @@ export class ModuleLoader {
         this.config.modules,
       );
       for (const mod of foreign) {
+        this.moduleSources.set(mod.name, "foreign");
         try {
           await this.load(mod);
         } catch (err) {
@@ -251,7 +262,18 @@ export class ModuleLoader {
         }
       }
     }
+
     this.activateConfiguredProviders();
+
+    const projectFailures = [...this.loadFailures.entries()]
+      .filter(([name]) => projectNames.has(name));
+    if (projectFailures.length > 0) {
+      const details = projectFailures.map(([name, f]) => `  ${name}: ${f.message}`).join("\n");
+      throw new Error(
+        `${projectFailures.length} project module(s) failed to load:\n${details}`,
+      );
+    }
+
     if (this.modules.length > 0 && this.verbose) {
       console.error(`[kota] Modules: ${this.modules.length} loaded, ${this.getToolCount()} tool(s)`);
     }
@@ -422,6 +444,7 @@ export class ModuleLoader {
       }
       return {
         name: mod.name,
+        source: this.moduleSources.get(mod.name) ?? "project",
         version: mod.version,
         description: mod.description,
         dependencies: mod.dependencies ?? [],
@@ -443,6 +466,7 @@ export class ModuleLoader {
     for (const [name, failure] of this.loadFailures) {
       failed.push({
         name,
+        source: this.moduleSources.get(name) ?? "project",
         dependencies: [],
         toolNames: [],
         workflowNames: [],

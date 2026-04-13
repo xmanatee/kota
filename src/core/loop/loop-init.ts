@@ -90,7 +90,7 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
   const projectModules = await discoverProjectModules();
   const modules = await discoverModules(undefined, state.verbose);
   for (const { name } of listManifestModules()) addLoadedModule(name);
-  await state.moduleLoader.loadAll([...projectModules, ...modules]);
+  await state.moduleLoader.loadAll(projectModules, modules);
 
   const skillsPrompt = state.moduleLoader.getSkillsPrompt();
   if (skillsPrompt) {

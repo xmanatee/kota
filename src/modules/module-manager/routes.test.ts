@@ -17,6 +17,7 @@ function mockResponse() {
 function makeSummary(overrides: Partial<ModuleSummary> = {}): ModuleSummary {
   return {
     name: "test-module",
+    source: "project",
     version: "1.0.0",
     description: "A test module",
     dependencies: [],

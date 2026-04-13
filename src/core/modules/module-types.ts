@@ -30,9 +30,13 @@ export type HealthCheckResult = {
   message?: string;
 };
 
+/** Discovery source of a module. */
+export type ModuleSource = "project" | "installed" | "foreign";
+
 /** Summary of a loaded module's metadata and contributions. */
 export type ModuleSummary = {
   name: string;
+  source: ModuleSource;
   version?: string;
   description?: string;
   dependencies: string[];

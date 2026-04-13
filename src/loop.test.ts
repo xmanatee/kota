@@ -100,6 +100,12 @@ vi.mock("./core/architect/architect.js", () => ({
 vi.mock("./core/architect/architect-editor.js", () => ({
   runEditorLoop: mockEditorLoop,
 }));
+vi.mock("./core/modules/project-discovery.js", () => ({
+  discoverProjectModules: vi.fn(async () => []),
+}));
+vi.mock("./core/modules/module-discovery.js", () => ({
+  discoverModules: vi.fn(async () => []),
+}));
 
 // --- Import after mocks ---
 

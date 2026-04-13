@@ -12,6 +12,6 @@ export async function loadModuleMetadata(
   loader.setCwd(projectDir);
   const projectModules = await discoverProjectModules();
   const userModules = await discoverModules(projectDir, verbose);
-  await loader.loadAll([...projectModules, ...userModules]);
+  await loader.loadAll(projectModules, userModules);
   return loader;
 }

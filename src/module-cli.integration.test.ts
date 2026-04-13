@@ -183,7 +183,7 @@ describe("module error resilience", () => {
     resetGroups();
   });
 
-  it("broken module in loadAll does not prevent other modules from loading", async () => {
+  it("broken project module in loadAll throws after loading remaining modules", async () => {
     const loader = new ModuleLoader({});
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -192,14 +192,34 @@ describe("module error resilience", () => {
       onLoad: () => { throw new Error("Module init explosion"); },
     };
 
-    // Load broken module alongside real modules
-    await loader.loadAll([brokenModule, ...projectModules]);
+    await expect(
+      loader.loadAll([brokenModule, ...projectModules]),
+    ).rejects.toThrow("1 project module(s) failed to load");
 
     // Broken module should not be loaded
     expect(loader.getLoadedModules()).not.toContain("broken");
-    // But all project modules should still load
+    // But all other project modules should still have loaded
     expect(loader.getLoadedModules()).toContain("memory");
     expect(loader.getLoadedModules()).toContain("scheduler");
+    expect(loader.getModuleCount()).toBe(projectModules.length);
+
+    errSpy.mockRestore();
+    await loader.unloadAll();
+  });
+
+  it("broken installed module in loadAll does not throw", async () => {
+    const loader = new ModuleLoader({});
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const brokenInstalled: KotaModule = {
+      name: "broken-integration",
+      onLoad: () => { throw new Error("Missing credentials"); },
+    };
+
+    await loader.loadAll(projectModules, [brokenInstalled]);
+
+    expect(loader.getLoadedModules()).not.toContain("broken-integration");
+    expect(loader.getLoadedModules()).toContain("memory");
     expect(loader.getModuleCount()).toBe(projectModules.length);
 
     errSpy.mockRestore();
@@ -334,11 +354,11 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
     const loader1 = new ModuleLoader({});
     await loader1.loadAll(projectModules);
 
-    // Second loader should fail on duplicate tools
+    // Second loader should fail on duplicate tools — project module failures throw
     const loader2 = new ModuleLoader({});
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await loader2.loadAll(projectModules);
+    await expect(loader2.loadAll(projectModules)).rejects.toThrow("project module(s) failed to load");
 
     // Tool-providing modules (memory, scheduler) should have failed
     // because their tools are already registered

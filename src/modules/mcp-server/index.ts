@@ -40,7 +40,7 @@ const mcpServerModule: KotaModule = {
 				const loader = new ModuleLoader(config, false);
 				const projectModules = await discoverProjectModules();
 				const modules = await discoverModules(process.cwd());
-				await loader.loadAll([...projectModules, ...modules]);
+				await loader.loadAll(projectModules, modules);
 
 				const toolFilter = opts.tools
 					? (opts.tools as string).split(",").map((s: string) => s.trim())

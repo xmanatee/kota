@@ -194,7 +194,7 @@ describe("discoverModules", () => {
     expect(modules).toHaveLength(2);
 
     // ModuleLoader rejects the duplicate — first loads, second errors silently
-    await loader.loadAll(modules);
+    await loader.loadAll([], modules);
     expect(loader.getModuleCount()).toBe(1);
   });
 
