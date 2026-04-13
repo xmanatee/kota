@@ -53,6 +53,8 @@ export function manifestToModule(manifest: ModuleManifest): KotaModule {
 		},
 		runner: buildToolRunner(t),
 		group: t.group,
+		risk: "moderate",
+		kind: "action",
 	}));
 
 	return {

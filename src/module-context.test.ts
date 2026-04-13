@@ -147,6 +147,7 @@ describe("ModuleContext.listTools", () => {
       tools: [{
         tool: { name: "provided_tool", description: "Provided", input_schema: { type: "object", properties: {} } },
         runner: async () => ({ content: "ok" }),
+        risk: "safe" as const, kind: "discovery" as const,
       }],
     });
 
@@ -173,6 +174,7 @@ describe("tools as factory function", () => {
           input_schema: { type: "object", properties: {} },
         },
         runner: async () => ({ content: `from factory in ${ctx.cwd}` }),
+        risk: "safe" as const, kind: "discovery" as const,
       }],
     };
 
@@ -201,6 +203,7 @@ describe("tools as factory function", () => {
           const value = ctx.getSecret("TOKEN");
           return { content: value ? "found" : "not found" };
         },
+        risk: "safe" as const, kind: "discovery" as const,
       }],
     };
 
@@ -225,6 +228,7 @@ describe("tools as factory function", () => {
           ctx.log.info("tool executed");
           return { content: "done" };
         },
+        risk: "safe" as const, kind: "discovery" as const,
       }],
     };
 
@@ -250,6 +254,7 @@ describe("tools as factory function", () => {
       tools: [{
         tool: { name: "static_tool", description: "Static", input_schema: { type: "object", properties: {} } },
         runner: async () => ({ content: "static" }),
+        risk: "safe" as const, kind: "discovery" as const,
       }],
     });
 
@@ -259,6 +264,7 @@ describe("tools as factory function", () => {
       tools: (_ctx) => [{
         tool: { name: "dynamic_tool", description: "Dynamic", input_schema: { type: "object", properties: {} } },
         runner: async () => ({ content: "dynamic" }),
+        risk: "safe" as const, kind: "discovery" as const,
       }],
     });
 
@@ -279,10 +285,12 @@ describe("tools as factory function", () => {
         {
           tool: { name: "ft1", description: "F1", input_schema: { type: "object", properties: {} } },
           runner: async () => ({ content: "1" }),
+          risk: "safe" as const, kind: "discovery" as const,
         },
         {
           tool: { name: "ft2", description: "F2", input_schema: { type: "object", properties: {} } },
           runner: async () => ({ content: "2" }),
+          risk: "safe" as const, kind: "discovery" as const,
         },
       ],
     });
@@ -333,6 +341,7 @@ describe("resolveModuleTools", () => {
     const tools: ToolDef[] = [{
       tool: { name: "t", description: "T", input_schema: { type: "object", properties: {} } },
       runner: async () => ({ content: "" }),
+      risk: "safe", kind: "discovery",
     }];
     expect(resolveModuleTools({ name: "static", tools })).toBe(tools);
   });
@@ -406,6 +415,7 @@ describe("ModuleContext.events", () => {
           ctx.events.emit("tool.ran", { tool: "event_emitter_tool" });
           return { content: "emitted" };
         },
+        risk: "safe" as const, kind: "discovery" as const,
       }],
     });
     loader.setBus(bus);
@@ -508,6 +518,7 @@ describe("ModuleContext.createSession", () => {
           session.close();
           return { content: result };
         },
+        risk: "safe" as const, kind: "discovery" as const,
       }],
     });
 

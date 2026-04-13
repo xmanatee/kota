@@ -267,6 +267,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "hello from module" }),
+						risk: "safe" as const, kind: "discovery" as const,
 					},
 				],
 			});
@@ -297,6 +298,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "hi" }),
+						risk: "safe" as const, kind: "discovery" as const,
 					},
 					{
 						tool: {
@@ -305,6 +307,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "secret" }),
+						risk: "safe" as const, kind: "discovery" as const,
 					},
 				],
 			});
@@ -468,7 +471,8 @@ describe("McpServer", () => {
 								required: ["name"],
 							},
 						},
-						runner: async (args) => ({ content: `Hello, ${args.name}!` }),
+						runner: async (args: Record<string, unknown>) => ({ content: `Hello, ${args.name}!` }),
+						risk: "safe" as const, kind: "discovery" as const,
 					},
 				],
 			});
@@ -501,6 +505,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => { throw new Error("boom"); },
+						risk: "safe" as const, kind: "discovery" as const,
 					},
 				],
 			});

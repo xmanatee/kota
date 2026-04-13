@@ -7,6 +7,8 @@ export type SimpleTool = {
   parameters?: Record<string, unknown>;
   run: (input: Record<string, unknown>) => unknown | Promise<unknown>;
   group?: string;
+  risk?: "safe" | "moderate" | "dangerous";
+  kind?: "discovery" | "action";
 };
 
 export type OpenAIFunctionTool = {
@@ -18,6 +20,8 @@ export type OpenAIFunctionTool = {
   };
   run: (input: Record<string, unknown>) => unknown | Promise<unknown>;
   group?: string;
+  risk?: "safe" | "moderate" | "dangerous";
+  kind?: "discovery" | "action";
 };
 
 /** Vercel AI SDK tool() format — uses `execute` and Zod/JSON Schema parameters. */
@@ -26,4 +30,6 @@ export type VercelAITool = {
   parameters: unknown; // Zod schema, AI SDK jsonSchema(), or raw JSON Schema
   execute: (input: Record<string, unknown>) => unknown | Promise<unknown>;
   group?: string;
+  risk?: "safe" | "moderate" | "dangerous";
+  kind?: "discovery" | "action";
 };

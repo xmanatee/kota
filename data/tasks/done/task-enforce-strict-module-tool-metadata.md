@@ -1,12 +1,12 @@
 ---
 id: task-enforce-strict-module-tool-metadata
 title: Enforce strict metadata for module-contributed tools
-status: ready
+status: done
 priority: p1
 area: modules
 summary: Module tools can currently omit risk and kind metadata, causing guardrails to default to unclassified behavior instead of enforcing the tool protocol.
 created_at: 2026-04-13T11:16:25Z
-updated_at: 2026-04-13T11:16:25Z
+updated_at: 2026-04-13T11:41:59.519Z
 ---
 
 ## Problem

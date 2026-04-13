@@ -22,6 +22,8 @@ const knowledgeModule: KotaModule = {
 			tool: knowledgeTool,
 			runner: runKnowledge,
 			group: "management",
+			risk: "moderate",
+			kind: "action",
 		},
 	],
 	skills: [{ name: "knowledge", promptPath: "src/modules/knowledge/knowledge.md" }],

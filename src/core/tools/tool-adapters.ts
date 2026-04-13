@@ -43,7 +43,7 @@ export function fromSimple(def: SimpleTool): ToolDef {
     return normalizeResult(result);
   };
 
-  return { tool, runner, group: def.group };
+  return { tool, runner, group: def.group, risk: def.risk ?? "moderate", kind: def.kind ?? "action" };
 }
 
 /** Convert an OpenAI function-calling tool to KOTA's ToolDef. */
@@ -67,7 +67,7 @@ export function fromOpenAI(def: OpenAIFunctionTool): ToolDef {
     return normalizeResult(result);
   };
 
-  return { tool, runner, group: def.group };
+  return { tool, runner, group: def.group, risk: def.risk ?? "moderate", kind: def.kind ?? "action" };
 }
 
 /** Convert a Vercel AI SDK tool definition to KOTA's ToolDef. */
@@ -91,7 +91,7 @@ export function fromVercelAI(def: VercelAITool, name: string): ToolDef {
     return normalizeResult(result);
   };
 
-  return { tool, runner, group: def.group };
+  return { tool, runner, group: def.group, risk: def.risk ?? "moderate", kind: def.kind ?? "action" };
 }
 
 // --- Format detection ---

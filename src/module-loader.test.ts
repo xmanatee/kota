@@ -8,7 +8,20 @@ import type { KotaModule } from "./core/modules/module-types.js";
 import { clearCustomTools, executeTool, getAllTools } from "./core/tools/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./core/tools/tool-groups.js";
 
-function makeTool(name: string) {
+function makeTool(name: string, opts?: { risk?: "safe" | "moderate" | "dangerous"; kind?: "discovery" | "action" }) {
+  return {
+    tool: {
+      name,
+      description: `Test tool: ${name}`,
+      input_schema: { type: "object" as const, properties: {} },
+    },
+    runner: async () => ({ content: `result from ${name}` }),
+    risk: opts?.risk ?? ("safe" as const),
+    kind: opts?.kind ?? ("discovery" as const),
+  };
+}
+
+function makeToolWithoutMeta(name: string) {
   return {
     tool: {
       name,
@@ -67,41 +80,35 @@ describe("ModuleLoader", () => {
     expect(after.some((t) => t.name === "grouped_tool")).toBe(true);
   });
 
-  it("warns when a tool has no risk annotation", async () => {
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  it("rejects a tool missing risk metadata", async () => {
     const loader = new ModuleLoader({});
     const mod: KotaModule = {
-      name: "unannotated-mod",
-      tools: [makeTool("unannotated_tool")],
+      name: "no-risk-mod",
+      tools: [makeToolWithoutMeta("no_risk_tool") as any],
     };
 
-    await loader.load(mod);
-    expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining('unannotated-mod'),
-    );
-    expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining('unannotated_tool'),
-    );
-    expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining('no risk annotation'),
-    );
-    errSpy.mockRestore();
+    await expect(loader.load(mod)).rejects.toThrow("missing required metadata: risk, kind");
   });
 
-  it("does not warn when a tool has a risk annotation", async () => {
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  it("rejects a tool missing kind metadata", async () => {
+    const loader = new ModuleLoader({});
+    const mod: KotaModule = {
+      name: "no-kind-mod",
+      tools: [{ ...makeToolWithoutMeta("no_kind_tool"), risk: "safe" } as any],
+    };
+
+    await expect(loader.load(mod)).rejects.toThrow("missing required metadata: kind");
+  });
+
+  it("loads a tool with complete metadata", async () => {
     const loader = new ModuleLoader({});
     const mod: KotaModule = {
       name: "annotated-mod",
-      tools: [{ ...makeTool("annotated_tool"), risk: "safe", kind: "discovery" }],
+      tools: [makeTool("annotated_tool")],
     };
 
     await loader.load(mod);
-    const riskWarnings = errSpy.mock.calls.filter(
-      (args) => typeof args[0] === "string" && args[0].includes("no risk annotation"),
-    );
-    expect(riskWarnings).toHaveLength(0);
-    errSpy.mockRestore();
+    expect(loader.getToolCount()).toBe(1);
   });
 
   it("rejects duplicate module names", async () => {
@@ -897,6 +904,7 @@ describe("ctx.callTool — direct tool invocation", () => {
           input_schema: { type: "object" as const, properties: {} },
         },
         runner: async () => { throw new Error("boom"); },
+        risk: "safe" as const, kind: "discovery" as const,
       }],
     });
 
@@ -926,6 +934,7 @@ describe("ctx.callTool — direct tool invocation", () => {
             input_schema: { type: "object" as const, properties: {} },
           },
           runner: async () => ctx.callTool("recursive_tool", {}),
+          risk: "safe" as const, kind: "discovery" as const,
         }];
       },
     });
@@ -967,7 +976,8 @@ describe("ctx.callTool — direct tool invocation", () => {
           description: "Echoes input",
           input_schema: { type: "object" as const, properties: { msg: { type: "string" } } },
         },
-        runner: async (input) => ({ content: `echo: ${input.msg}` }),
+        runner: async (input: Record<string, unknown>) => ({ content: `echo: ${input.msg}` }),
+        risk: "safe" as const, kind: "discovery" as const,
       }],
     });
 
@@ -995,6 +1005,7 @@ describe("ctx.callTool — direct tool invocation", () => {
             input_schema: { type: "object" as const, properties: {} },
           },
           runner: async () => ({ content: "leaf result" }),
+          risk: "safe" as const, kind: "discovery" as const,
         },
         {
           tool: {
@@ -1006,6 +1017,7 @@ describe("ctx.callTool — direct tool invocation", () => {
             const inner = await ctx.callTool("tool_b", {});
             return { content: `chained: ${inner.content}` };
           },
+          risk: "safe" as const, kind: "discovery" as const,
         },
       ],
     });

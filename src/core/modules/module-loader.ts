@@ -157,8 +157,9 @@ export class ModuleLoader {
 
     if (tools && !this.commandsOnly) {
       for (const def of tools) {
-        if (!def.risk) {
-          console.error(`[kota] Module "${mod.name}" tool "${def.tool.name}" has no risk annotation — defaulting to unclassified (moderate)`);
+        if (!def.risk || !def.kind) {
+          const missing = [!def.risk && "risk", !def.kind && "kind"].filter(Boolean).join(", ");
+          throw new Error(`Module "${mod.name}" tool "${def.tool.name}" missing required metadata: ${missing}`);
         }
         registerTool(def.tool, def.runner, mod.name, { risk: def.risk, kind: def.kind });
         if (def.group) registerCustomGroup(def.group, [def.tool.name]);

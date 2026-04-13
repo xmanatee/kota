@@ -137,7 +137,7 @@ export function registerTool(
   tool: Anthropic.Tool,
   runner: ToolRunner,
   moduleName?: string,
-  meta?: { risk?: "safe" | "moderate" | "dangerous"; kind?: "discovery" | "action" },
+  meta?: { risk: "safe" | "moderate" | "dangerous"; kind: "discovery" | "action" },
 ): void {
   ensureInit();
   if (runners[tool.name]) {
@@ -146,7 +146,7 @@ export function registerTool(
   tools.push(tool);
   runners[tool.name] = runner;
   customToolNames.add(tool.name);
-  if (meta?.risk && meta?.kind) {
+  if (meta) {
     moduleToolMeta.set(tool.name, { risk: meta.risk, kind: meta.kind });
   }
   if (moduleName) {

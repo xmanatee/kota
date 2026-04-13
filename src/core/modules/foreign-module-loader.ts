@@ -187,6 +187,8 @@ function buildToolDefs(
       description: def.description,
       input_schema: def.input_schema,
     },
+    risk: "moderate" as const,
+    kind: "action" as const,
     runner: async (input: Record<string, unknown>): Promise<ToolResult> => {
       try {
         const id = newId();

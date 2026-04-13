@@ -148,6 +148,8 @@ const workingMemoryModule: KotaModule = {
 		{
 			tool: workingMemoryTool,
 			runner: makeRunner(ctx),
+			risk: "safe",
+			kind: "action",
 		},
 	],
 
