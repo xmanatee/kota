@@ -37,6 +37,7 @@ export function buildStepCompletedPayload(
 export function buildWorkflowCompletedPayload(
   metadata: WorkflowRunMetadata,
   status: WorkflowRunStatus,
+  tags: readonly string[] = [],
 ): BusEvents["workflow.completed"] {
   return {
     workflow: metadata.workflow,
@@ -46,5 +47,6 @@ export function buildWorkflowCompletedPayload(
     durationMs: metadata.durationMs ?? 0,
     definitionPath: metadata.definitionPath,
     runDir: metadata.runDir,
+    tags,
   };
 }

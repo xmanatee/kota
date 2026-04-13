@@ -12,8 +12,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
 import { EventBus } from "#core/events/event-bus.js";
+import { enqueueMatchingWorkflows } from "#core/workflow/run-executor-utils.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
+import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import autonomyModule from "./index.js";
 
 vi.mock("#core/agent-sdk/index.js", async () => {
@@ -345,4 +347,42 @@ describe("autonomous workflow loop integration", () => {
       expect(explorerRunDir, "explorer must NOT run when cooldown has not elapsed").toBeUndefined();
     },
   );
+
+  it("a new workflow tagged 'monitored' is observed by attention-digest and improver without editing them", async () => {
+    mkdirSync(join(projectDir, "src/modules/autonomy/workflows/attention-digest"), { recursive: true });
+    writeFileSync(join(projectDir, "src/modules/autonomy/workflows/attention-digest/prompt.md"), "Digest.\n");
+
+    const rawDefs = await loadAutonomyWorkflowDefinitions();
+    const compiled = validateWorkflowDefinitions(
+      rawDefs.filter((d) => d.name === "attention-digest" || d.name === "improver"),
+      projectDir,
+    );
+
+    const attentionDigest = compiled.find((d) => d.name === "attention-digest")!;
+    const improver = compiled.find((d) => d.name === "improver")!;
+    expect(attentionDigest).toBeDefined();
+    expect(improver).toBeDefined();
+
+    const enqueued: string[] = [];
+    const envelope = {
+      type: "workflow.completed" as const,
+      payload: {
+        workflow: "brand-new-workflow",
+        runId: "run-xyz",
+        status: "failed" as const,
+        triggerEvent: "some.event",
+        durationMs: 5000,
+        definitionPath: "src/modules/autonomy/workflows/brand-new/workflow.ts",
+        runDir: ".kota/runs/run-xyz",
+        tags: ["monitored"] as readonly string[],
+      },
+    };
+
+    enqueueMatchingWorkflows(envelope, [attentionDigest, improver], (def) => {
+      enqueued.push(def.name);
+    });
+
+    expect(enqueued).toContain("attention-digest");
+    expect(enqueued).toContain("improver");
+  });
 });

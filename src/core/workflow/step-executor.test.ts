@@ -54,6 +54,7 @@ function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDe
     triggers: [],
     steps: [],
     ...overrides,
+    tags: overrides.tags ?? [],
   };
 }
 

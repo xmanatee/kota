@@ -132,6 +132,7 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
   name: "decomposer",
   description:
     "Decompose builder-timeout tasks into coherent task sequences.",
+  tags: ["monitored"],
   triggers: [
     {
       event: "workflow.completed",

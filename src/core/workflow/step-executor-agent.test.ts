@@ -20,6 +20,7 @@ function makeDefinition(name = "test-workflow"): WorkflowDefinition {
   return {
     name,
     enabled: true,
+    tags: [],
     definitionPath: "src/modules/test/workflows/test/workflow.ts",
     triggers: [],
     steps: [],

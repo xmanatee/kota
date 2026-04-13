@@ -385,6 +385,7 @@ export type WorkflowDefinitionInput = {
    * (onFailure: true, onCostAnomaly: true, onSuccess: false).
    */
   notify?: WorkflowNotifyConfig;
+  tags?: readonly string[];
   triggers: WorkflowTriggerInput[];
   steps: WorkflowStepInput[];
 };
@@ -530,6 +531,7 @@ export type WorkflowDefinition = {
    * Omit to use defaults (onFailure: true, onCostAnomaly: true, onSuccess: false).
    */
   notify?: WorkflowNotifyConfig;
+  tags: readonly string[];
   definitionPath: string;
   triggers: WorkflowTrigger[];
   steps: WorkflowStep[];

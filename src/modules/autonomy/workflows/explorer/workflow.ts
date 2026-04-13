@@ -79,6 +79,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
   name: "explorer",
   description:
     "Search broadly for external ideas and promising improvements when the local queue is empty or running thin.",
+  tags: ["monitored"],
   triggers: [
     {
       event: "autonomy.queue.empty",

@@ -206,6 +206,7 @@ describe("cooldown race condition", () => {
         name: "explorer",
         definitionPath: "test/explorer.ts",
         enabled: true,
+        tags: [],
         triggers: [{ event: "queue.empty", cooldownMs: 1_800_000 }], // 30 min cooldown
         steps: [{ id: "explore", type: "emit", event: "explorer.done" }],
       };
@@ -258,6 +259,7 @@ describe("cooldown race condition", () => {
         name: "explorer",
         definitionPath: "test/explorer.ts",
         enabled: true,
+        tags: [],
         triggers: [{ event: "queue.empty", cooldownMs: 1_800_000 }], // 30 min cooldown
         steps: [{ id: "explore", type: "emit", event: "explorer.done" }],
       };

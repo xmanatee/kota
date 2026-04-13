@@ -64,6 +64,7 @@ export type BusEvents = {
     durationMs: number;
     definitionPath: string;
     runDir: string;
+    tags: readonly string[];
   };
   "workflow.step.started": {
     workflow: string;

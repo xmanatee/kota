@@ -38,6 +38,7 @@ const inspectReadyQueue = typedCodeStep<InspectResult>({
 const builderWorkflow: WorkflowDefinitionInput = {
   name: "builder",
   description: "Build KOTA by shipping one cohesive improvement per workflow run.",
+  tags: ["monitored"],
   costAnomalyThreshold: 3,
   triggers: [
     {

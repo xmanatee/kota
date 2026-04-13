@@ -10,6 +10,7 @@ function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDe
     triggers: [{ event: "manual", cooldownMs: 0 }],
     steps: [],
     ...overrides,
+    tags: overrides.tags ?? [],
   };
 }
 

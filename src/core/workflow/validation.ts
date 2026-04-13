@@ -370,6 +370,14 @@ export function validateWorkflowDefinitions(
           ...(onCostAnomaly !== undefined ? { onCostAnomaly: onCostAnomaly as boolean } : {}),
         };
       })(),
+      tags: (() => {
+        const raw = definition.tags;
+        if (raw === undefined) return [];
+        if (!Array.isArray(raw) || raw.some((t: unknown) => typeof t !== "string")) {
+          throw new WorkflowDefinitionError("tags must be an array of strings", definitionPath);
+        }
+        return raw as readonly string[];
+      })(),
       definitionPath,
       triggers: (() => {
         const triggers = definition.triggers.map((trigger, triggerIndex) =>
@@ -377,6 +385,7 @@ export function validateWorkflowDefinitions(
         );
         for (const trigger of triggers) {
           if (trigger.event === "workflow.completed") {
+            const ownTags = definition.tags ?? [];
             const selfMatches = [
               "success",
               "failed",
@@ -391,6 +400,7 @@ export function validateWorkflowDefinitions(
                 definitionPath,
                 runDir: ".kota/runs/self",
                 runId: "self",
+                tags: ownTags,
               }),
             );
             if (selfMatches) {

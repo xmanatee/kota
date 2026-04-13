@@ -379,6 +379,7 @@ const baseWorkflow: WorkflowDefinition = {
   name: "builder",
   description: "Autonomous improvement workflow",
   enabled: true,
+  tags: [],
   definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
   triggers: [{ event: "runtime.idle", cooldownMs: 30000 }],
   steps: [],

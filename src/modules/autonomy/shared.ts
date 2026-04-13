@@ -16,15 +16,6 @@ export function runCheck(command: string, cwd: string, timeoutMs = 120_000): str
 export const READY_TASK_TARGET = 4;
 export const BACKLOG_TASK_TARGET = 8;
 
-/** Autonomy workflows whose failure/interruption should trigger review and alerting. */
-export const MONITORED_WORKFLOW_NAMES = [
-  "builder",
-  "decomposer",
-  "explorer",
-  "inbox-sorter",
-  "pr-reviewer",
-] as const;
-
 export type RunSummary = {
   id: string;
   workflow: string;

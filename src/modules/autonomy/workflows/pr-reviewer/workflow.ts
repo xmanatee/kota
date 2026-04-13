@@ -86,6 +86,7 @@ const assessPr = typedCodeStep<PrReviewAssessment>({
 const prReviewerWorkflow: WorkflowDefinitionInput = {
   name: "pr-reviewer",
   description: "Review KOTA-created pull requests and post structured feedback as a PR comment.",
+  tags: ["monitored"],
   triggers: [
     {
       event: "github.pull_request",

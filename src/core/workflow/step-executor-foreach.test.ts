@@ -23,6 +23,7 @@ function makeDefinition(
     triggers: [],
     steps,
     ...overrides,
+    tags: overrides.tags ?? [],
   };
 }
 

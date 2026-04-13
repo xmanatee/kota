@@ -10,6 +10,7 @@ import { computeHistoryStats, loadRunsInWindow } from "./workflow-history.js";
 const minimalWorkflow = (name: string): WorkflowDefinition => ({
   name,
   enabled: true,
+  tags: [],
   definitionPath: `src/modules/test/workflows/${name}/workflow.ts`,
   triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
   steps: [],

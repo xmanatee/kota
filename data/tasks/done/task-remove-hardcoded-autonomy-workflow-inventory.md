@@ -1,12 +1,12 @@
 ---
 id: task-remove-hardcoded-autonomy-workflow-inventory
 title: Remove hardcoded autonomy workflow monitoring inventory
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Autonomy still uses MONITORED_WORKFLOW_NAMES even though workflow observation and routing should be definition-driven or event-driven.
 created_at: 2026-04-13T11:16:25Z
-updated_at: 2026-04-13T11:16:25Z
+updated_at: 2026-04-13T12:59:04.096Z
 ---
 
 ## Problem

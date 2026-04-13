@@ -7,7 +7,7 @@ import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { recallForImprover } from "#modules/autonomy/knowledge-recall.js";
 import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
 import { writeRunSummary } from "#modules/autonomy/run-summary.js";
-import { aggregateRunOutcomes, MONITORED_WORKFLOW_NAMES, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
+import { aggregateRunOutcomes, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
 
 /** Minimum interval between improver runs triggered by the same event type. */
 export const IMPROVER_COOLDOWN_MS = 60 * 60 * 1000; // 60 minutes
@@ -33,7 +33,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
     {
       event: "workflow.completed",
       filter: {
-        workflow: [...MONITORED_WORKFLOW_NAMES],
+        tags: ["monitored"],
         status: ["failed", "interrupted"],
       },
       cooldownMs: IMPROVER_COOLDOWN_MS,
