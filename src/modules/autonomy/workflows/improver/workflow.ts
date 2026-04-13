@@ -4,6 +4,7 @@ import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
+import { createImproverSemanticCheck } from "#modules/autonomy/improver-semantic-gate.js";
 import { recallForImprover } from "#modules/autonomy/knowledge-recall.js";
 import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
 import { writeRunSummary } from "#modules/autonomy/run-summary.js";
@@ -106,6 +107,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
             type: "code" as const,
             run: (ctx: WorkflowStepContext) => checkNoScratchArtifacts(ctx.projectDir),
           },
+          { ...createImproverSemanticCheck(), phase: 2 },
         ],
       },
     },

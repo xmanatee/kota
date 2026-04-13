@@ -52,7 +52,7 @@ Respond with ONLY a JSON object (no markdown fences) matching this schema:
   "summary": "string — one sentence overall assessment"
 }`;
 
-function getStagedDiff(projectDir: string): string {
+export function getStagedDiff(projectDir: string): string {
   return execFileSync("git", ["diff", "--cached", "--stat"], {
     cwd: projectDir,
     encoding: "utf8",
@@ -61,7 +61,7 @@ function getStagedDiff(projectDir: string): string {
   });
 }
 
-function getStagedDiffContent(projectDir: string): string {
+export function getStagedDiffContent(projectDir: string): string {
   const diff = execFileSync("git", ["diff", "--cached"], {
     cwd: projectDir,
     encoding: "utf8",
@@ -74,7 +74,7 @@ function getStagedDiffContent(projectDir: string): string {
   return diff;
 }
 
-function getChangedFiles(projectDir: string): string {
+export function getChangedFiles(projectDir: string): string {
   return execFileSync("git", ["diff", "--cached", "--name-only"], {
     cwd: projectDir,
     encoding: "utf8",
@@ -104,7 +104,7 @@ function extractJson(text: string): Record<string, unknown> | undefined {
   return undefined;
 }
 
-function parseVerdict(text: string): CriticVerdict {
+export function parseVerdict(text: string): CriticVerdict {
   const stripped = text.replace(/^```(?:json)?\s*\n?/m, "").replace(/\n?```\s*$/m, "").trim();
   let parsed: Record<string, unknown> | undefined;
   try {
@@ -129,10 +129,10 @@ function parseVerdict(text: string): CriticVerdict {
   };
 }
 
-function handleVerdict(verdict: CriticVerdict, runDir?: string): string {
+export function handleVerdict(verdict: CriticVerdict, runDir?: string, artifactName = "critic-review.json"): string {
   if (runDir && (verdict.warnings.length > 0 || verdict.critical_issues.length > 0)) {
     writeFileSync(
-      join(runDir, "critic-review.json"),
+      join(runDir, artifactName),
       JSON.stringify(verdict, null, 2),
     );
   }
@@ -148,7 +148,7 @@ function handleVerdict(verdict: CriticVerdict, runDir?: string): string {
   const parts = [`OK: critic verdict — ${verdict.verdict}`];
   if (verdict.summary) parts.push(verdict.summary);
   if (verdict.warnings.length > 0) {
-    parts.push(`(${verdict.warnings.length} warning(s) recorded in critic-review.json)`);
+    parts.push(`(${verdict.warnings.length} warning(s) recorded in ${artifactName})`);
   }
   return parts.join(". ");
 }

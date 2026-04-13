@@ -1,12 +1,12 @@
 ---
 id: task-add-improver-semantic-quality-gate
 title: Add semantic quality gate for improver commits
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Prevent improver from committing no-op, artifact-only, or process-noise changes without a semantic review of whether the run actually improved autonomy.
 created_at: 2026-04-13T21:39:00.000Z
-updated_at: 2026-04-13T21:39:00.000Z
+updated_at: 2026-04-13T22:08:38.449Z
 ---
 
 ## Problem
