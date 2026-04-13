@@ -57,13 +57,18 @@ export function checkSuccessCriteriaVerified(runDirPath: string): string {
   }
   const criteria = readFileSync(criteriaPath, "utf8").trim();
   const verified = readFileSync(verifiedPath, "utf8").trim();
-  if (verified.length < criteria.length / 2) {
+
+  const criteriaCount = criteria.split("\n").filter((l) => l.trim().length > 0).length;
+  const verifiedCount = verified.split("\n").filter((l) => l.trim().length > 0).length;
+
+  if (verifiedCount < criteriaCount) {
     throw new Error(
-      "success-criteria-verified.txt appears too short relative to the declared criteria. " +
-        "Each criterion must be addressed with evidence.",
+      `success-criteria-verified.txt has ${verifiedCount} evidence line(s) ` +
+        `but success-criteria.txt declares ${criteriaCount} criteria. ` +
+        "Each criterion must be addressed with a corresponding evidence line.",
     );
   }
-  return "OK: success criteria declared and verified";
+  return `OK: success criteria verified (${verifiedCount} evidence lines for ${criteriaCount} criteria)`;
 }
 
 /**

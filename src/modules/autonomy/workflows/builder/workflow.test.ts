@@ -752,19 +752,27 @@ describe("checkSuccessCriteriaVerified", () => {
     expect(() => checkSuccessCriteriaVerified(dir)).toThrow(/Missing success-criteria-verified\.txt/);
   });
 
-  it("fails when verified file is too short relative to criteria", () => {
+  it("fails when verified file has fewer evidence lines than criteria", () => {
     const dir = makeTmpDir();
-    writeFileSync(join(dir, "success-criteria.txt"), "A long detailed criterion about the system behavior\nAnother criterion about expected output");
-    writeFileSync(join(dir, "success-criteria-verified.txt"), "OK");
-    expect(() => checkSuccessCriteriaVerified(dir)).toThrow(/too short/);
+    writeFileSync(join(dir, "success-criteria.txt"), "Criterion 1\nCriterion 2\nCriterion 3\n");
+    writeFileSync(join(dir, "success-criteria-verified.txt"), "Evidence for criterion 1\nEvidence for criterion 2\n");
+    expect(() => checkSuccessCriteriaVerified(dir)).toThrow(/2 evidence line.*3 criteria/);
   });
 
-  it("passes when verified file adequately addresses criteria", () => {
+  it("passes when verified file has at least as many evidence lines as criteria", () => {
     const dir = makeTmpDir();
     const criteria = "Criterion 1: tests pass\nCriterion 2: types check";
     const verified = "Criterion 1: tests pass - verified by running pnpm test\nCriterion 2: types check - verified by running pnpm typecheck";
     writeFileSync(join(dir, "success-criteria.txt"), criteria);
     writeFileSync(join(dir, "success-criteria-verified.txt"), verified);
-    expect(checkSuccessCriteriaVerified(dir)).toBe("OK: success criteria declared and verified");
+    expect(checkSuccessCriteriaVerified(dir)).toMatch(/OK.*2 evidence lines for 2 criteria/);
+  });
+
+  it("ignores blank lines in both files when counting", () => {
+    const dir = makeTmpDir();
+    writeFileSync(join(dir, "success-criteria.txt"), "Criterion 1\n\nCriterion 2\n");
+    writeFileSync(join(dir, "success-criteria-verified.txt"), "Evidence 1\n\n\nEvidence 2\n");
+    writeFileSync(join(dir, "success-criteria.txt"), "Criterion 1\n\nCriterion 2\n");
+    expect(checkSuccessCriteriaVerified(dir)).toMatch(/OK/);
   });
 });
