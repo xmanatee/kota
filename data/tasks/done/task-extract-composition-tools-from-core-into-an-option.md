@@ -1,12 +1,12 @@
 ---
 id: task-extract-composition-tools-from-core-into-an-option
 title: Extract composition tools from core into an optional module
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: The batch, pipe, and map tools live in src/core/tools/ but are general-purpose composition utilities, not core primitives. Moving them to a module shrinks core and aligns with the module-first architecture goal.
 created_at: 2026-04-12T16:39:05.420Z
-updated_at: 2026-04-12T16:39:05.420Z
+updated_at: 2026-04-13T20:58:43.752Z
 ---
 
 ## Problem

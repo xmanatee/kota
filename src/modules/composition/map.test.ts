@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ModuleLoader } from "#core/modules/module-loader.js";
+import { clearCustomTools } from "#core/tools/index.js";
 import filesystemModule from "#modules/filesystem/index.js";
-import { clearCustomTools } from "./index.js";
 import { runMap } from "./map.js";
 
 function makeTempDir(suffix: string): string {
@@ -140,7 +140,6 @@ describe("map tool", () => {
 			expect(item1Idx).toBeLessThan(item2Idx);
 			expect(item2Idx).toBeLessThan(item3Idx);
 
-			// Item 1 should have gamma (c.txt), Item 2 alpha (a.txt)
 			const part1 = r.content.slice(item1Idx, item2Idx);
 			const part2 = r.content.slice(item2Idx, item3Idx);
 			expect(part1).toContain("gamma content");
@@ -183,7 +182,6 @@ describe("map tool", () => {
 		});
 
 		it("truncates individual results when total would exceed budget", async () => {
-			// Create files with large content
 			const bigContent = "x".repeat(20_000);
 			writeFileSync(join(testDir, "big1.txt"), bigContent, "utf-8");
 			writeFileSync(join(testDir, "big2.txt"), bigContent, "utf-8");

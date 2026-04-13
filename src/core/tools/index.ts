@@ -3,14 +3,11 @@ import { registration as agentStatus } from "./agent-status.js";
 import { registration as approval } from "./approval.js";
 import { registration as askUser } from "./ask-user.js";
 import { registration as audit } from "./audit.js";
-import { registration as batch } from "./batch.js";
 import { registration as checkpoint } from "./checkpoint.js";
 import { registration as confirm } from "./confirm.js";
 import { registration as customTool, initCustomToolRegistry } from "./custom-tool.js";
 import { registration as delegate } from "./delegate.js";
-import { registration as map } from "./map.js";
 import { registration as moduleFactory } from "./module-factory/index.js";
-import { registration as pipe } from "./pipe.js";
 import { registration as promptTemplate } from "./prompt.js";
 import { getTodoState, registration as todo } from "./todo.js";
 import { deregisterToolsFromGroups, registerCustomGroup, runEnableTools } from "./tool-groups.js";
@@ -57,9 +54,6 @@ const registrationImports = [
   () => customTool,
   () => checkpoint,
   () => moduleFactory,
-  () => batch,
-  () => pipe,
-  () => map,
   () => workspace,
   () => promptTemplate,
 ];

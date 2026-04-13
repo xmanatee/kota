@@ -1,12 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { runBatch } from "./batch.js";
 
-// Mock runDelegate so we don't make API calls
-vi.mock("./delegate.js", () => ({
+vi.mock("#core/tools/delegate.js", () => ({
 	runDelegate: vi.fn(),
 }));
 
-import { runDelegate } from "./delegate.js";
+import { runDelegate } from "#core/tools/delegate.js";
 
 const mockDelegate = vi.mocked(runDelegate);
 
@@ -103,7 +102,6 @@ describe("runBatch execution", () => {
 		mockDelegate.mockResolvedValue({ content: longContent });
 
 		const r = await runBatch({ tasks: ["a", "b"] });
-		// With 2 tasks, budget is 15000 per task; total should be well under 40k
 		expect(r.content.length).toBeLessThan(35_000);
 		expect(r.content).toContain("(truncated)");
 	});
@@ -189,7 +187,6 @@ describe("runBatch result format", () => {
 		const taskOrder = [...r.content.matchAll(/Task (\d+)/g)].map((m) => m[1]);
 		expect(taskOrder).toEqual(["1", "2", "3"]);
 
-		// First result should appear before second
 		const pos1 = r.content.indexOf("result-first");
 		const pos2 = r.content.indexOf("result-second");
 		const pos3 = r.content.indexOf("result-third");

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { runPipe } from "./pipe.js";
 
-vi.mock("./index.js", () => {
+vi.mock("#core/tools/index.js", () => {
 	const runners: Record<string, (input: Record<string, unknown>) => Promise<{ content: string; is_error?: boolean }>> = {
 		echo: async (input) => ({ content: String(input.text ?? "") }),
 		upper: async (input) => ({ content: String(input.text ?? "").toUpperCase() }),
@@ -20,7 +20,7 @@ vi.mock("./index.js", () => {
 });
 
 vi.mock("#core/manifest/index.js", async () => {
-	const actual = await vi.importActual("../manifest/index.js");
+	const actual = await vi.importActual("../../core/manifest/index.js");
 	return {
 		resolveStepInput: actual.resolveStepInput,
 		evaluateCondition: actual.evaluateCondition,

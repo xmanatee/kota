@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { executeTool, type ToolResult } from "./index.js";
+import { executeTool } from "#core/tools/index.js";
+import type { ToolResult } from "#core/tools/tool-result.js";
 
 export const mapTool: Anthropic.Tool = {
 	name: "map",
@@ -124,11 +125,3 @@ export async function runMap(
 
 	return { content: `${header}\n\n${body}` };
 }
-
-export const registration = {
-	tool: mapTool,
-	runner: runMap,
-	risk: "moderate" as const,
-	kind: "action" as const,
-	group: "orchestration",
-};

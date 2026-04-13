@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { runDelegate } from "./delegate.js";
-import type { ToolResult } from "./index.js";
+import { runDelegate } from "#core/tools/delegate.js";
+import type { ToolResult } from "#core/tools/tool-result.js";
 
 export const batchTool: Anthropic.Tool = {
 	name: "batch",
@@ -42,11 +42,6 @@ type BatchItemResult = {
 	content: string;
 };
 
-/**
- * Run async functions over items with a concurrency limit.
- * Workers pull from a shared index — items complete as fast as possible
- * without exceeding the limit.
- */
 async function mapConcurrent<T, R>(
 	items: T[],
 	limit: number,
@@ -137,11 +132,3 @@ export async function runBatch(
 
 	return { content: `${header}\n\n${body}` };
 }
-
-export const registration = {
-	tool: batchTool,
-	runner: runBatch,
-	risk: "moderate" as const,
-	kind: "action" as const,
-	group: "orchestration",
-};

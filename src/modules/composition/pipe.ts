@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { evaluateCondition, resolveStepInput } from "#core/manifest/index.js";
-import { executeTool, type ToolResult } from "./index.js";
+import { executeTool } from "#core/tools/index.js";
+import type { ToolResult } from "#core/tools/tool-result.js";
 
 export const pipeTool: Anthropic.Tool = {
 	name: "pipe",
@@ -94,11 +95,3 @@ export async function runPipe(input: Record<string, unknown>): Promise<ToolResul
 
 	return { content: prevContent };
 }
-
-export const registration = {
-	tool: pipeTool,
-	runner: runPipe,
-	risk: "moderate" as const,
-	kind: "action" as const,
-	group: "orchestration",
-};
