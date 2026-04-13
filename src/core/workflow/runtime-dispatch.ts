@@ -102,6 +102,7 @@ function handleDirtyCompletion(
   state: WorkflowRuntimeDispatchState,
   definition: WorkflowDefinition,
   metadata: WorkflowRunExecutionResult["metadata"],
+  preRunFingerprint: string,
 ): void {
   const worktree = getRepoWorktreeStatus(state.projectDir);
   if (!worktree.available) return;
@@ -113,10 +114,21 @@ function handleDirtyCompletion(
     return;
   }
 
+  const existing = state.store.getRecovery();
+
+  // If no recovery is pending and the fingerprint is unchanged, this workflow
+  // did not cause the dirty state. Skip recovery attribution so pre-existing
+  // dirt does not repeatedly blame innocent workflows (e.g. explorer skipping
+  // on a dirty repo).
+  if (!existing && worktree.fingerprint === preRunFingerprint) {
+    state.log(
+      `Worktree still dirty after "${definition.name}" but fingerprint unchanged — not attributing: ${worktree.summary}`,
+    );
+    return;
+  }
+
   state.wfQueue.setRuns([]);
   state.wfQueue.persist();
-
-  const existing = state.store.getRecovery();
   if (existing && existing.attempts >= 1) {
     state.store.setRecovery({
       ...existing,
@@ -310,6 +322,7 @@ export async function runWorkflow(
   definition: WorkflowDefinition,
   trigger: WorkflowRunTrigger,
 ): Promise<void> {
+  const preRunFingerprint = getRepoWorktreeStatus(state.projectDir).fingerprint;
   const { promise, abortController } = executeWorkflowRun(definition, trigger, {
     projectDir: state.projectDir,
     bus: state.runtimeConfig.bus,
@@ -326,7 +339,7 @@ export async function runWorkflow(
 
   try {
     const result = await promise;
-    handleDirtyCompletion(state, definition, result.metadata);
+    handleDirtyCompletion(state, definition, result.metadata, preRunFingerprint);
     if (result.agentBackoff) {
       state.backoff.apply(result.agentBackoff);
       return;
