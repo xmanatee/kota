@@ -916,6 +916,81 @@ describe("executeStep repair loop", () => {
     expect(phase2Check).toHaveBeenCalledTimes(1); // only after phase 1 passed
     expect(result.content).toBe("fixed");
   });
+
+  it("stops repair loop when abort signal is already set", async () => {
+    mockedExecuteWithAgentSDK.mockResolvedValue(SUCCESS_RESULT);
+
+    const codeCheck = vi.fn().mockImplementation(() => {
+      throw new Error("always fails");
+    });
+
+    const context = makeRepairContext(vi.fn());
+    const abortController = new AbortController();
+    abortController.abort(new Error("step timed out"));
+
+    const step = makeStep({
+      repairLoop: {
+        maxRepairAttempts: 3,
+        checks: [{ id: "check-build", type: "code", run: codeCheck }],
+      },
+    });
+
+    const result = await executeStep(
+      makeDefinition(),
+      step,
+      makeMetadata(),
+      TRIGGER,
+      context,
+      abortController,
+      () => {},
+      () => {},
+      agentConfig,
+    ) as Record<string, unknown>;
+
+    expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
+    expect(codeCheck).not.toHaveBeenCalled();
+    expect(result.repairIterations).toEqual([]);
+  });
+
+  it("stops repair loop mid-iteration when abort signal fires", async () => {
+    const abortController = new AbortController();
+
+    mockedExecuteWithAgentSDK
+      .mockResolvedValueOnce(SUCCESS_RESULT)
+      .mockImplementation(async () => {
+        abortController.abort(new Error("step timed out"));
+        return { ...SUCCESS_RESULT, text: "partial fix", turns: 2, totalCostUsd: 0.02 };
+      });
+
+    const codeCheck = vi.fn().mockImplementation(() => {
+      throw new Error("still fails");
+    });
+
+    const context = makeRepairContext(vi.fn());
+    const step = makeStep({
+      repairLoop: {
+        maxRepairAttempts: 3,
+        checks: [{ id: "check-build", type: "code", run: codeCheck }],
+      },
+    });
+
+    const result = await executeStep(
+      makeDefinition(),
+      step,
+      makeMetadata(),
+      TRIGGER,
+      context,
+      abortController,
+      () => {},
+      () => {},
+      agentConfig,
+    ) as Record<string, unknown>;
+
+    expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
+    expect(codeCheck).toHaveBeenCalledTimes(1);
+    const iterations = result.repairIterations as Array<Record<string, unknown>>;
+    expect(iterations).toHaveLength(1);
+  });
 });
 
 describe("executeEmitStep — notify config", () => {

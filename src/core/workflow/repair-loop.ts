@@ -176,11 +176,17 @@ export async function runAgentRepairLoop(
   let lastContent = typeof base.content === "string" ? base.content : "";
   let warnings = [] as RepairCheckResult[];
 
+  if (abortController.signal.aborted) {
+    return { ...base, content: lastContent, turns: totalTurns, totalCostUsd, repairIterations: iterations, repairWarnings: warnings };
+  }
+
   const { failures: initialFailures, warnings: initialWarnings } = await runChecksPhased(checks, context);
   let failures = initialFailures;
   warnings = initialWarnings;
 
   for (let attempt = 1; attempt <= maxRepairAttempts && failures.length > 0; attempt++) {
+    if (abortController.signal.aborted) break;
+
     const iteration: RepairIteration = { attempt, failures };
 
     const repairPrompt = buildRepairPrompt(attempt, maxRepairAttempts, failures, step);
@@ -203,6 +209,8 @@ export async function runAgentRepairLoop(
     lastContent = repairResult.text;
     totalTurns += repairResult.turns ?? 0;
     totalCostUsd += repairResult.totalCostUsd ?? 0;
+
+    if (abortController.signal.aborted) break;
 
     const phased = await runChecksPhased(checks, context);
     failures = phased.failures;
