@@ -91,7 +91,8 @@ type DurationOutlier = {
 export type RunOutcomeAggregation = {
   failureRates24h: WorkflowFailureRate[];
   failureRates7d: WorkflowFailureRate[];
-  topRepairFailures: RepairCheckTally[];
+  topRepairFailures24h: RepairCheckTally[];
+  topRepairFailures7d: RepairCheckTally[];
   costTrends: CostTrend[];
   durationOutliers: DurationOutlier[];
 };
@@ -198,7 +199,8 @@ export function aggregateRunOutcomes(runsDir: string): RunOutcomeAggregation {
   return {
     failureRates24h: computeFailureRates(summaries24h),
     failureRates7d: computeFailureRates(summaries7d),
-    topRepairFailures: tallyRepairFailures(all7d).slice(0, 10),
+    topRepairFailures24h: tallyRepairFailures(all24h).slice(0, 10),
+    topRepairFailures7d: tallyRepairFailures(all7d).slice(0, 10),
     costTrends: computeCostTrends(summaries7d, previousSummaries),
     durationOutliers: findDurationOutliers(summaries7d).slice(0, 10),
   };
