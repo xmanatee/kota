@@ -21,8 +21,7 @@ that controls where the app navigates when the user taps the notification.
 | `"approvals"` | Approvals tab; `ApprovalDetail` if `approvalId` is present | `approvalId?: string` |
 | _(absent)_ | No navigation — app opens to current state | — |
 
-Notifications sent before this protocol existed have no `screen` field and are
-treated as open-app-only (backward compatible).
+Notifications without a `screen` field open the app without navigating.
 
 To add a new notification destination: emit the appropriate `screen` value from
 the daemon, add the corresponding navigation case in `navigateToApproval` (or a

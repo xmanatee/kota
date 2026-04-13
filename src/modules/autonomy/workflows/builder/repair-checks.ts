@@ -3,8 +3,15 @@ import { join } from "node:path";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import { createCriticCheck } from "#modules/autonomy/critic.js";
 import { runCheck } from "#modules/autonomy/shared.js";
+import { findTaskReviewTarget } from "#modules/autonomy/task-review-target.js";
 
-export function checkSuccessCriteriaDeclared(runDirPath: string): string {
+function countDoneWhenItems(taskContent: string): number {
+  const doneWhenMatch = taskContent.match(/## Done When\n([\s\S]*?)(?=\n## |\n---|\s*$)/);
+  if (!doneWhenMatch) return 0;
+  return doneWhenMatch[1].split("\n").filter((l) => /^\s*-\s+\S/.test(l)).length;
+}
+
+export function checkSuccessCriteriaDeclared(runDirPath: string, projectDir?: string): string {
   const filePath = join(runDirPath, "success-criteria.txt");
   if (!existsSync(filePath)) {
     throw new Error(
@@ -15,14 +22,24 @@ export function checkSuccessCriteriaDeclared(runDirPath: string): string {
   }
   const content = readFileSync(filePath, "utf8").trim();
   const lines = content.split("\n").filter((l) => l.trim().length > 0);
-  if (lines.length < 2) {
+
+  let minCriteria = 2;
+  if (projectDir) {
+    const task = findTaskReviewTarget(projectDir);
+    if (task) {
+      const doneWhenCount = countDoneWhenItems(task.content);
+      if (doneWhenCount > 0) minCriteria = doneWhenCount;
+    }
+  }
+
+  if (lines.length < minCriteria) {
     throw new Error(
-      "success-criteria.txt must contain at least 2 concrete criteria. " +
-        `Found ${lines.length} non-empty line(s).`,
+      `success-criteria.txt must contain at least ${minCriteria} concrete criteria ` +
+        `(matching the task's Done When items). Found ${lines.length} non-empty line(s).`,
     );
   }
 
-  return `OK: success-criteria.txt has ${lines.length} criteria`;
+  return `OK: success-criteria.txt has ${lines.length} criteria (minimum ${minCriteria})`;
 }
 
 export function checkSuccessCriteriaVerified(runDirPath: string): string {
@@ -177,7 +194,7 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
     {
       id: "success-criteria-declared",
       type: "code" as const,
-      run: (ctx) => checkSuccessCriteriaDeclared(ctx.workflow.runDirPath),
+      run: (ctx) => checkSuccessCriteriaDeclared(ctx.workflow.runDirPath, ctx.projectDir),
     },
     {
       id: "success-criteria-verified",
