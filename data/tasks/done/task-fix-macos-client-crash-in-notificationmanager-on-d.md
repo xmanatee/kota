@@ -1,12 +1,12 @@
 ---
 id: task-fix-macos-client-crash-in-notificationmanager-on-d
 title: Fix macOS client crash in NotificationManager on debug builds
-status: backlog
+status: done
 priority: p1
 area: clients
 summary: KotaMenuBar crashes on launch because UNUserNotificationCenter.current() requires a valid bundle proxy, which is nil when running from .build/debug/. NotificationManager must defer or guard notification center access for non-bundled debug builds.
 created_at: 2026-04-13T13:59:26.599Z
-updated_at: 2026-04-13T13:59:26.599Z
+updated_at: 2026-04-13T16:25:57.314Z
 ---
 
 ## Problem
