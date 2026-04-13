@@ -13,6 +13,11 @@ This directory contains the project-owned modules.
   modules, not shared runtime helpers or discovery glue.
 - Do not keep placeholder or wrapper modules after their shared runtime logic
   has moved into `src/core/`. If a module no longer owns behavior, remove it.
+- If a module imports from another module at runtime (`#modules/X/...`), declare
+  that module in the `dependencies` array of the KotaModule definition. The
+  loader uses declared dependencies for load ordering and unload safety.
+  Type-only imports (`import type`) do not need a declared dependency.
+  `src/module-deps.test.ts` enforces this.
 - When adding or modifying a notification channel module (Telegram, webhook,
   Slack, email, or any future transport), update `docs/NOTIFICATIONS.md` to
   document the operator config. That file is the canonical reference for how

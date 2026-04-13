@@ -78,8 +78,8 @@ describe("telegramModule", () => {
     expect(telegramModule.routes).toBeUndefined();
   });
 
-  it("has no dependencies", () => {
-    expect(telegramModule.dependencies).toBeUndefined();
+  it("declares dependencies", () => {
+    expect(telegramModule.dependencies).toEqual(["approval-queue", "autonomy"]);
   });
 
   it("contributes a telegram-status channel", () => {

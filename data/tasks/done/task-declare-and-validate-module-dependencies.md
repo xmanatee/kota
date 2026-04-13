@@ -1,12 +1,12 @@
 ---
 id: task-declare-and-validate-module-dependencies
 title: Declare and validate module-to-module dependencies
-status: ready
+status: done
 priority: p1
 area: modules
 summary: Several modules import other modules directly without declaring dependencies, weakening unload/reload ordering and module boundary clarity.
 created_at: 2026-04-13T11:16:25Z
-updated_at: 2026-04-13T11:16:25Z
+updated_at: 2026-04-13T15:26:25.346Z
 ---
 
 ## Problem

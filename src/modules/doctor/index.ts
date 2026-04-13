@@ -486,6 +486,7 @@ const doctorModule: KotaModule = {
   name: "doctor",
   version: "1.0.0",
   description: "Runtime health checks — daemon, config, modules, providers, workflows, and disk",
+  dependencies: ["model-clients"],
   commands: (ctx: ModuleContext) => [buildDoctorCommand(ctx)],
 };
 
