@@ -49,6 +49,9 @@
 - Avoid optimizing healthy mechanisms for speed or cost at the expense of quality, clarity, or capability.
 - Prefer clear discoverable surfaces over injected context summaries. If an
   agent can gather context itself, do not precompute and force-feed it.
+- Validate stable invariants in code; leave judgment-heavy review to agents with
+  clear traces and useful tools. Do not replace agent judgment with brittle
+  one-off evidence files or mandatory process rituals.
 - Prefer internal package imports (`#core/*`, `#modules/*`, `#root/*`) for
   cross-tree imports. Keep `./` relative imports only for same-directory or
   tightly local siblings.

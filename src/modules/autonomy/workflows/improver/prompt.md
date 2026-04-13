@@ -24,7 +24,8 @@ architectural decisions. If the recall is empty, proceed normally.
 
 - Improve prompts, instructions, validation, triggering, queue-shaping, and other autonomy surfaces when they materially affect future runs.
 - Start from evidence: the injected run-outcome data, current code, recent runs, recent commits, and current queue shape.
-- Prefer protocol and validation fixes over adding more advice.
+- Prefer small affordances, tools, and strict checks for stable invariants over
+  adding advice or hardcoding agent process.
 - Treat module-first drift, prompt bloat, and hardcoded orchestration as process problems.
 
 ## Finish

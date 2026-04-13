@@ -8,7 +8,6 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
-import { formatSourceEvidenceForReview, requiredSourceUrls } from "./source-evidence.js";
 import { findTaskReviewTarget } from "./task-review-target.js";
 
 export type CriticVerdict = {
@@ -43,7 +42,7 @@ const CRITIC_SYSTEM_PROMPT = `You are a calibrated code review critic. Your job 
 - If the work is substantially complete but has a minor omission that doesn't affect correctness, use a warning, not a critical issue.
 - If required evidence is absent, fail rather than inferring completion from plausible-looking changes.
 - An empty diff with a moved task file is suspicious — the agent may not have done real work.
-- Source-backed tasks must prove required URLs were actually processed. Do not accept inaccessible or unread sources as done.
+- For research or URL-dependent tasks, verify that required sources were actually processed. Use the run trace when the diff alone is not enough.
 
 Respond with ONLY a JSON object (no markdown fences) matching this schema:
 {
@@ -83,28 +82,34 @@ function getChangedFiles(projectDir: string): string {
   });
 }
 
+function tryParseJson(text: string): Record<string, unknown> | undefined {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
 function extractJson(text: string): Record<string, unknown> | undefined {
-  // Try fenced JSON block first.
   const jsonBlockMatch = text.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
   if (jsonBlockMatch) {
-    try { return JSON.parse(jsonBlockMatch[1].trim()); } catch { /* fall through */ }
+    const parsed = tryParseJson(jsonBlockMatch[1].trim());
+    if (parsed) return parsed;
   }
-  // Last resort: find the first { ... } block containing "verdict".
   const braceMatch = text.match(/\{[\s\S]*"verdict"[\s\S]*\}/);
   if (braceMatch) {
-    try { return JSON.parse(braceMatch[0]); } catch { /* fall through */ }
+    const parsed = tryParseJson(braceMatch[0]);
+    if (parsed) return parsed;
   }
   return undefined;
 }
 
 function parseVerdict(text: string): CriticVerdict {
-  // Try the full text first (after stripping outer fences).
   const stripped = text.replace(/^```(?:json)?\s*\n?/m, "").replace(/\n?```\s*$/m, "").trim();
   let parsed: Record<string, unknown> | undefined;
   try {
     parsed = JSON.parse(stripped);
   } catch {
-    // The model may have produced preamble text before the JSON.
     parsed = extractJson(text);
   }
   if (!parsed) {
@@ -167,26 +172,28 @@ async function invokeCritic(
       model: CRITIC_MODEL,
       cwd,
       systemPrompt: CRITIC_SYSTEM_PROMPT,
-      maxTurns: 5,
-      allowedTools: [],
+      maxTurns: 8,
+      allowedTools: ["Read", "Grep", "Glob"],
       permissionMode: "bypassPermissions",
-      settingSources: [],
+      settingSources: ["project"],
     }, {
       write: () => true,
     });
 
     if (!response.isError) return response;
 
+    let failureDetail = response.text.trim() || response.subtype || "unknown error";
     if (response.text.trim()) {
       try {
         parseVerdict(response.text);
         return response;
-      } catch { /* verdict not parseable — retry */ }
+      } catch (error) {
+        failureDetail = error instanceof Error ? error.message : String(error);
+      }
     }
 
     lastError = new Error(
-      `Critic agent failed (attempt ${attempt + 1}/${CRITIC_MAX_RETRIES}): ` +
-        `${response.text.trim() || response.subtype || "unknown error"}`,
+      `Critic agent failed (attempt ${attempt + 1}/${CRITIC_MAX_RETRIES}): ${failureDetail}`,
     );
   }
   throw lastError!;
@@ -209,7 +216,6 @@ export function createCriticCheck(options?: {
       const diffContent = getStagedDiffContent(ctx.projectDir);
       const changedFiles = getChangedFiles(ctx.projectDir);
       const runDir = options?.runDirPath ?? ctx.workflow.runDirPath;
-      const sourceUrls = requiredSourceUrls(taskContent);
 
       const userMessage = [
         "## Task (what was asked)",
@@ -221,11 +227,18 @@ export function createCriticCheck(options?: {
         "## Changed files",
         changedFiles,
         "",
-        "## Required source URLs",
-        sourceUrls.length > 0 ? sourceUrls.join("\n") : "None.",
+        "## Review context",
+        `Project root: ${ctx.projectDir}`,
+        `Run directory: ${runDir}`,
+        "Start from the task, final task state, changed files, and diff below.",
+        "If completeness is uncertain, inspect run artifacts yourself: metadata.json, steps/*.input.md, steps/*.events.jsonl, steps/*.tool-telemetry.json, and related repo files.",
+        "Do not require a specific evidence artifact. Use judgment, but do not accept claims that are unsupported by the task, diff, repo state, or run trace.",
         "",
-        "## Source evidence",
-        formatSourceEvidenceForReview(runDir),
+        "## Useful run artifact globs",
+        `${runDir}/metadata.json`,
+        `${runDir}/steps/*.input.md`,
+        `${runDir}/steps/*.events.jsonl`,
+        `${runDir}/steps/*.tool-telemetry.json`,
         "",
         "## Diff summary",
         diffStat,

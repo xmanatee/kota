@@ -149,6 +149,31 @@ describe("createCriticCheck", () => {
     expect(mockExecuteWithAgentSDK).toHaveBeenCalledOnce();
   });
 
+  it("gives the critic optional run-trace affordances without requiring a fixed evidence file", async () => {
+    const dir = makeTmpDir();
+    const doingDir = join(dir, "data/tasks/doing");
+    mkdirSync(doingDir, { recursive: true });
+    writeFileSync(join(doingDir, "task-trace.md"), "---\ntitle: Review trace\n---\nReview trace.");
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+    setApiResponse({
+      verdict: "pass",
+      critical_issues: [],
+      warnings: [],
+      summary: "Trace context is available.",
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    await (check as CodeCheck).run(makeContext(dir, runDir));
+
+    const userMessage = mockExecuteWithAgentSDK.mock.calls[0][0];
+    const options = mockExecuteWithAgentSDK.mock.calls[0][1];
+    expect(userMessage).toContain("If completeness is uncertain, inspect run artifacts yourself");
+    expect(userMessage).toContain("Do not require a specific evidence artifact");
+    expect(userMessage).toContain(`${runDir}/steps/*.events.jsonl`);
+    expect(options.allowedTools).toEqual(["Read", "Grep", "Glob"]);
+  });
+
   it("recovers verdict from response with preamble text before JSON", async () => {
     const dir = makeTmpDir();
     const doingDir = join(dir, "data/tasks/doing");

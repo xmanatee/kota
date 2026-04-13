@@ -712,51 +712,25 @@ describe("checkSuccessCriteriaDeclared", () => {
 
   it("fails when success-criteria.txt does not exist", () => {
     const dir = makeTmpDir();
-    expect(() => checkSuccessCriteriaDeclared(dir, "/nonexistent")).toThrow(/Missing success-criteria\.txt/);
+    expect(() => checkSuccessCriteriaDeclared(dir)).toThrow(/Missing success-criteria\.txt/);
   });
 
   it("fails when success-criteria.txt has fewer than 2 criteria", () => {
     const dir = makeTmpDir();
     writeFileSync(join(dir, "success-criteria.txt"), "Only one criterion\n");
-    expect(() => checkSuccessCriteriaDeclared(dir, "/nonexistent")).toThrow(/at least 2 concrete criteria/);
+    expect(() => checkSuccessCriteriaDeclared(dir)).toThrow(/at least 2 concrete criteria/);
   });
 
   it("passes when success-criteria.txt has 2 or more criteria", () => {
     const dir = makeTmpDir();
     writeFileSync(join(dir, "success-criteria.txt"), "Criterion 1\nCriterion 2\n");
-    expect(checkSuccessCriteriaDeclared(dir, "/nonexistent")).toMatch(/OK.*2 criteria/);
+    expect(checkSuccessCriteriaDeclared(dir)).toMatch(/OK.*2 criteria/);
   });
 
   it("ignores blank lines when counting criteria", () => {
     const dir = makeTmpDir();
     writeFileSync(join(dir, "success-criteria.txt"), "Criterion 1\n\n\nCriterion 2\n\n");
-    expect(checkSuccessCriteriaDeclared(dir, "/nonexistent")).toMatch(/OK.*2 criteria/);
-  });
-
-  it("fails when criteria count is less than Done When item count", () => {
-    const dir = makeTmpDir();
-    writeFileSync(join(dir, "success-criteria.txt"), "Criterion 1\nCriterion 2\n");
-    const projectDir = join(dir, "project");
-    mkdirSync(join(projectDir, "data/tasks/doing"), { recursive: true });
-    writeFileSync(
-      join(projectDir, "data/tasks/doing/task-example.md"),
-      "---\nid: task-example\nstatus: doing\n---\n\n## Done When\n\n- Item 1\n- Item 2\n- Item 3\n- Item 4\n",
-    );
-    expect(() => checkSuccessCriteriaDeclared(dir, projectDir)).toThrow(
-      /2 criteria but the task has 4/,
-    );
-  });
-
-  it("passes when criteria count meets Done When item count", () => {
-    const dir = makeTmpDir();
-    writeFileSync(join(dir, "success-criteria.txt"), "Criterion 1\nCriterion 2\nCriterion 3\n");
-    const projectDir = join(dir, "project");
-    mkdirSync(join(projectDir, "data/tasks/doing"), { recursive: true });
-    writeFileSync(
-      join(projectDir, "data/tasks/doing/task-example.md"),
-      "---\nid: task-example\nstatus: doing\n---\n\n## Done When\n\n- Item 1\n- Item 2\n- Item 3\n",
-    );
-    expect(checkSuccessCriteriaDeclared(dir, projectDir)).toMatch(/OK.*3 criteria/);
+    expect(checkSuccessCriteriaDeclared(dir)).toMatch(/OK.*2 criteria/);
   });
 });
 

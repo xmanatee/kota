@@ -14,13 +14,12 @@ This directory contains the builder workflow definition and its prompt.
 ## Success Criteria
 
 The builder must declare concrete success criteria before implementation and
-verify them with evidence before completion:
+verify them before completion:
 
 - `success-criteria.txt`
 - `success-criteria-verified.txt`
 
-## Source Evidence
-
-When a task requires external URLs, write `<run-directory>/source-evidence.json`
-with one entry per required URL. A task with unread or blocked required sources
-must stay blocked, not done.
+Keep completion reviewable. If external resources or runtime behavior matter,
+leave enough ordinary context in the task state, docs, code, or run notes for a
+later reviewer to verify the result. If a required resource cannot be reached,
+record the blocker instead of inferring completion.

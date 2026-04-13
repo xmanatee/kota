@@ -23,10 +23,10 @@ If the recall is empty, proceed normally.
 
 ## Finish
 
-- Declare and verify success criteria in the run directory. Every "Done When"
-  item from the task must have a corresponding criterion — do not omit any, and
-  do not invent criteria that aren't in the task. A critic will cross-reference
-  your work against the full "Done When" section; unaddressed items cause failure.
+- Declare and verify success criteria in the run directory. Cover the task's
+  full "Done When" section, but keep the criteria natural and non-duplicative.
+  A critic will cross-reference your work against the full task; unaddressed
+  requirements cause failure.
 - Use `kota task move <id> <state>` for every task state transition — both
   pickup and completion. Never manually move, rename, or edit status frontmatter
   in task files; the CLI handles all of that atomically and stages the result.
