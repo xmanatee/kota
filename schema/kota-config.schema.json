@@ -324,6 +324,23 @@
         }
       }
     },
+    "moduleMonitoring": {
+      "type": "object",
+      "description": "Foreign module health monitoring settings.",
+      "additionalProperties": false,
+      "properties": {
+        "crashAlertThreshold": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of restarts within crashAlertWindowMs that triggers a module.crash.alert notification. Default: 3."
+        },
+        "crashAlertWindowMs": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Rolling window in milliseconds for counting module restarts. Also serves as the alert cooldown. Default: 600000 (10 minutes)."
+        }
+      }
+    },
     "scheduler": {
       "type": "object",
       "description": "Scheduler settings for autonomous workflow dispatch.",

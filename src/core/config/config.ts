@@ -436,6 +436,18 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (Object.keys(m).length > 0) out.mcp = m;
   }
 
+  if (typeof raw.moduleMonitoring === "object" && raw.moduleMonitoring !== null && !Array.isArray(raw.moduleMonitoring)) {
+    const src = raw.moduleMonitoring as Record<string, unknown>;
+    const mm: NonNullable<KotaConfig["moduleMonitoring"]> = {};
+    if (typeof src.crashAlertThreshold === "number" && src.crashAlertThreshold > 0 && Number.isInteger(src.crashAlertThreshold)) {
+      mm.crashAlertThreshold = src.crashAlertThreshold;
+    }
+    if (typeof src.crashAlertWindowMs === "number" && src.crashAlertWindowMs > 0) {
+      mm.crashAlertWindowMs = src.crashAlertWindowMs;
+    }
+    if (Object.keys(mm).length > 0) out.moduleMonitoring = mm;
+  }
+
   if (Array.isArray(raw.foreignModules)) {
     const fexts: ForeignModuleConfig[] = [];
     for (const entry of raw.foreignModules) {
@@ -516,6 +528,8 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
       merged.scheduler = { ...a.scheduler, ...(val as KotaConfig["scheduler"]) };
     } else if (key === "workflow" && typeof val === "object") {
       merged.workflow = { ...a.workflow, ...(val as KotaConfig["workflow"]) };
+    } else if (key === "moduleMonitoring" && typeof val === "object") {
+      merged.moduleMonitoring = { ...a.moduleMonitoring, ...(val as KotaConfig["moduleMonitoring"]) };
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (merged as any)[key] = val;

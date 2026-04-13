@@ -27,10 +27,10 @@ function makeProjectDir(): string {
   return realpathSync(dir);
 }
 
-function makeProgram(): Command {
+function makeProgram(moduleKeys: ReadonlySet<string> = new Set()): Command {
   const program = new Command();
   program.exitOverride();
-  program.addCommand(buildConfigCommand());
+  program.addCommand(buildConfigCommand(moduleKeys));
   return program;
 }
 
@@ -119,6 +119,35 @@ describe("kota config validate", () => {
     });
     expect(err).toContain('Unknown key "modelTier"');
     expect(err).toContain("project");
+  });
+
+  it("does not warn about module-registered config keys", () => {
+    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    writeFileSync(
+      join(projectDir, ".kota", "config.json"),
+      JSON.stringify({ model: "claude-sonnet-4-6", scheduler: { agentConcurrency: 2 }, webhooks: {} }),
+    );
+
+    const moduleKeys = new Set(["scheduler", "webhooks"]);
+    const { err } = captureOutput(() => {
+      makeProgram(moduleKeys).parse(["node", "kota", "config", "validate"]);
+    });
+    expect(err).toBe("");
+  });
+
+  it("warns about keys not in core or module sets", () => {
+    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    writeFileSync(
+      join(projectDir, ".kota", "config.json"),
+      JSON.stringify({ scheduler: {}, bogus: true }),
+    );
+
+    const moduleKeys = new Set(["scheduler"]);
+    const { err } = captureOutput(() => {
+      makeProgram(moduleKeys).parse(["node", "kota", "config", "validate"]);
+    });
+    expect(err).toContain('Unknown key "bogus"');
+    expect(err).not.toContain("scheduler");
   });
 
   it("does not warn about known keys", () => {
@@ -272,6 +301,16 @@ describe("kota config set", () => {
     });
     expect(err).toContain("not a recognised config key");
   });
+
+  it("does not warn when setting a module-registered key", () => {
+    const moduleKeys = new Set(["scheduler"]);
+    const { err } = captureOutput(() => {
+      makeProgram(moduleKeys).parse(["node", "kota", "config", "set", "scheduler.agentConcurrency", "2"]);
+    });
+    expect(err).toBe("");
+    const written = JSON.parse(readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"));
+    expect(written.scheduler.agentConcurrency).toBe(2);
+  });
 });
 
 describe("kota config schema", () => {
@@ -316,7 +355,8 @@ describe("kota config schema", () => {
       "verbose", "skipConfirmations", "autoEnable", "user", "aliases", "reflection",
       "guardrails", "modules", "foreignModules", "providers", "modelProvider",
       "modelTiers", "agentModels", "webhooks", "approvalTtlMs", "dailyBudgetUsd",
-      "runsGc", "serve", "log", "daemon", "notifications",
+      "runsGc", "serve", "log", "daemon", "notifications", "workflow",
+      "moduleMonitoring", "scheduler", "mcp",
     ];
     for (const key of knownKeys) {
       expect(schemaKeys.has(key), `schema missing key: ${key}`).toBe(true);

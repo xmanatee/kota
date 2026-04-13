@@ -109,7 +109,7 @@ describe("KNOWN_CONFIG_KEYS", () => {
       "guardrails", "modules", "foreignModules", "providers", "modelProvider",
       "modelTiers", "agentModels", "approvalTtlMs", "dailyBudgetUsd",
       "runsGc", "serve", "log", "daemon", "notifications", "workflow",
-      "budget",
+      "budget", "moduleMonitoring",
     ];
     for (const key of expected) {
       expect(KNOWN_CONFIG_KEYS.has(key), `missing key: ${key}`).toBe(true);

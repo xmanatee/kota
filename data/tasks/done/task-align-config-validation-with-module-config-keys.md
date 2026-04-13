@@ -1,12 +1,12 @@
 ---
 id: task-align-config-validation-with-module-config-keys
 title: Align config validation with module-owned config keys
-status: ready
+status: done
 priority: p1
 area: config
 summary: Modules can register top-level config keys, but the config CLI still validates against only the static core key set.
 created_at: 2026-04-13T11:16:25Z
-updated_at: 2026-04-13T11:16:25Z
+updated_at: 2026-04-13T14:05:59.747Z
 ---
 
 ## Problem

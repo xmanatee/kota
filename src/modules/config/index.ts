@@ -25,7 +25,11 @@ function readRawKeys(path: string): string[] | null {
   }
 }
 
-export function buildConfigCommand(): Command {
+function isKnownKey(key: string, moduleKeys: ReadonlySet<string>): boolean {
+  return KNOWN_CONFIG_KEYS.has(key) || moduleKeys.has(key);
+}
+
+export function buildConfigCommand(moduleKeys: ReadonlySet<string>): Command {
   const cmd = new Command("config").description("Inspect and validate KOTA configuration");
 
   cmd
@@ -63,7 +67,7 @@ export function buildConfigCommand(): Command {
         const keys = readRawKeys(path);
         if (!keys) continue;
         for (const k of keys) {
-          if (!KNOWN_CONFIG_KEYS.has(k)) {
+          if (!isKnownKey(k, moduleKeys)) {
             warnings.push(`Unknown key "${k}" in ${label} config (${path})`);
           }
         }
@@ -109,7 +113,7 @@ export function buildConfigCommand(): Command {
     .action((key: string, value: string) => {
       const projectDir = process.cwd();
       const topKey = key.split(".")[0];
-      if (!KNOWN_CONFIG_KEYS.has(topKey)) {
+      if (!isKnownKey(topKey, moduleKeys)) {
         console.error(`Warning: "${topKey}" is not a recognised config key`);
       }
       let parsed: unknown;
@@ -150,7 +154,7 @@ const configModule: KotaModule = {
   name: "config",
   version: "1.0.0",
   description: "Config CLI surface — kota config get/set/validate/schema",
-  commands: () => [buildConfigCommand()],
+  commands: (ctx) => [buildConfigCommand(ctx.getRegisteredConfigKeys())],
   routes: (ctx) => [
     { method: "GET", path: "/api/config", handler: (_req, res) => handleGetConfig(res, ctx.config) },
   ],

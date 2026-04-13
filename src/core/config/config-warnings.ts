@@ -31,6 +31,7 @@ export const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set<keyof KotaConfig>(
   "notifications",
   "workflow",
   "budget",
+  "moduleMonitoring",
 ]);
 
 function readRawKeys(path: string): string[] | null {
