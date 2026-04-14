@@ -294,6 +294,7 @@ signature validation when configured).
 | `agent` | `string` | No | Agent name (overrides `defaultAgent` config) |
 | `metadata` | `object` | No | Arbitrary context forwarded to the session |
 | `sessionId` | `string` | No | Resume an existing session instead of creating one |
+| `source` | `string` | No | Source identifier for routing (see Source Routing) |
 
 ### Response
 
@@ -329,6 +330,48 @@ requests.
 
 `defaultAgent` sets the agent name when the payload omits the `agent` field.
 
+### Source Routing
+
+Configure source-to-agent mapping to route different webhook sources to
+different agents with automatic per-source session continuity:
+
+```json
+{
+  "modules": {
+    "webhook-channel": {
+      "secret": "$WEBHOOK_CHANNEL_SECRET",
+      "sources": {
+        "github": { "agent": "builder" },
+        "monitoring": { "agent": "ops" },
+        "ci": { "agent": "reviewer" }
+      }
+    }
+  }
+}
+```
+
+Each configured source gets a persistent session that resumes automatically
+on follow-up requests. Source identification priority:
+
+1. **Path suffix**: `POST /api/channels/webhook/:sourceId`
+2. **Header**: `X-Webhook-Source: sourceId`
+3. **Payload field**: `{ "source": "sourceId" }`
+
+A request that identifies a source not present in the `sources` config
+receives HTTP 404. Requests without any source identifier fall through to
+the default behavior (per-request agent selection or `defaultAgent`).
+
+Source-routed responses include a `source` field:
+
+```json
+{
+  "sessionId": "wh-m3k2f-1",
+  "source": "github",
+  "response": "Agent response text...",
+  "createdAt": "2026-04-12T00:00:00.000Z"
+}
+```
+
 ### Events
 
 The channel emits `webhook-channel.session` on the bus for each request:
@@ -337,6 +380,7 @@ The channel emits `webhook-channel.session` on the bus for each request:
 |---|---|---|
 | `sessionId` | `string` | The session identifier |
 | `identity` | `ChannelUserIdentity` | Attribution identity for the session |
+| `source` | `string?` | Source identifier when source routing is active |
 | `resumed` | `boolean` | Whether an existing session was resumed |
 
 ## Adding a custom notification consumer

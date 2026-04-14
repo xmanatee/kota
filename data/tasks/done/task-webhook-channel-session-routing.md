@@ -1,12 +1,12 @@
 ---
 id: task-webhook-channel-session-routing
 title: Add session routing and multi-agent support to webhook-channel module
-status: backlog
+status: done
 priority: p2
 area: modules
 summary: The webhook-channel module is minimal compared to slack-channel. It needs session routing so different webhook sources can target different agents and maintain separate conversation contexts.
 created_at: 2026-04-12T01:10:00Z
-updated_at: 2026-04-12T01:10:00Z
+updated_at: 2026-04-14T18:51:07.024Z
 ---
 
 ## Problem

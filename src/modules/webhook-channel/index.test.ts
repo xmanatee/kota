@@ -1,11 +1,12 @@
 import { createHmac } from "node:crypto";
 import { EventEmitter } from "node:events";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { resolveModuleChannels } from "#core/modules/module-types.js";
+import { clearSessions } from "./handler.js";
 import webhookChannelModule from "./index.js";
 
 // ─── Test helpers ────────────────────────────────────────────────────────────
@@ -83,9 +84,10 @@ function makeFakeRequest(
   body: string,
   headers: Record<string, string> = {},
   method = "POST",
+  url = "/api/channels/webhook",
 ): IncomingMessage {
   const emitter = new EventEmitter();
-  const req = Object.assign(emitter, { headers, method }) as unknown as IncomingMessage;
+  const req = Object.assign(emitter, { headers, method, url }) as unknown as IncomingMessage;
   setImmediate(() => {
     emitter.emit("data", Buffer.from(body));
     emitter.emit("end");
@@ -101,16 +103,21 @@ async function invokeHandler(
   ctx: ModuleContext,
   body: string,
   headers: Record<string, string> = {},
+  url?: string,
 ): Promise<FakeResponse> {
   const routes = webhookChannelModule.routes!(ctx);
-  const route = routes[0];
-  const req = makeFakeRequest(body, headers);
+  const handler = routes[0].handler;
+  const req = makeFakeRequest(body, headers, "POST", url);
   const res = makeFakeResponse();
-  await route.handler(req, res as unknown as ServerResponse);
+  await handler(req, res as unknown as ServerResponse);
   return res;
 }
 
-// ─── Tests ───────────────────────────────────────────────────────────────────
+beforeEach(() => {
+  clearSessions();
+});
+
+// ─── Module metadata ────────────────────────────────────────────────────────
 
 describe("webhookChannelModule metadata", () => {
   it("has correct name and version", () => {
@@ -134,6 +141,20 @@ describe("webhookChannelModule metadata", () => {
     expect(routes[0].path).toBe("/api/channels/webhook");
     expect(routes[0].bypassAuth).toBe(true);
   });
+
+  it("registers per-source routes when sources configured", () => {
+    const ctx = makeStubCtx(undefined, {
+      sources: { github: { agent: "builder" }, ci: { agent: "reviewer" } },
+    });
+    const routes = webhookChannelModule.routes!(ctx);
+    expect(routes).toHaveLength(3);
+    expect(routes[0].path).toBe("/api/channels/webhook");
+    expect(routes[1].path).toBe("/api/channels/webhook/github");
+    expect(routes[2].path).toBe("/api/channels/webhook/ci");
+    for (const route of routes) {
+      expect(route.bypassAuth).toBe(true);
+    }
+  });
 });
 
 describe("webhookChannelModule channel adapter", () => {
@@ -155,7 +176,9 @@ describe("webhookChannelModule channel adapter", () => {
   });
 });
 
-describe("webhookChannelModule handler — no secret (open mode)", () => {
+// ─── Handler — no secret (open mode) ────────────────────────────────────────
+
+describe("handler — open mode", () => {
   it("creates a session and returns sessionId + response (HTTP 201)", async () => {
     const ctx = makeStubCtx();
     const body = JSON.stringify({ message: "Hello from CI" });
@@ -205,7 +228,9 @@ describe("webhookChannelModule handler — no secret (open mode)", () => {
   });
 });
 
-describe("webhookChannelModule handler — HMAC verification", () => {
+// ─── Handler — HMAC verification ────────────────────────────────────────────
+
+describe("handler — HMAC verification", () => {
   const SECRET = "webhook-test-secret";
 
   it("accepts valid HMAC signature (HTTP 201)", async () => {
@@ -267,17 +292,17 @@ describe("webhookChannelModule handler — HMAC verification", () => {
   });
 });
 
-describe("webhookChannelModule handler — session resume", () => {
+// ─── Handler — session resume ───────────────────────────────────────────────
+
+describe("handler — session resume", () => {
   it("resumes an existing session by sessionId (HTTP 200)", async () => {
     const ctx = makeStubCtx();
 
-    // Create a session first
     const createBody = JSON.stringify({ message: "First message" });
     const createRes = await invokeHandler(ctx, createBody);
     expect(createRes.statusCode).toBe(201);
     const sessionId = JSON.parse(createRes.body!).sessionId;
 
-    // Resume it
     const resumeBody = JSON.stringify({
       message: "Follow-up",
       sessionId,
@@ -299,7 +324,9 @@ describe("webhookChannelModule handler — session resume", () => {
   });
 });
 
-describe("webhookChannelModule handler — metadata and events", () => {
+// ─── Handler — metadata and events ──────────────────────────────────────────
+
+describe("handler — metadata and events", () => {
   it("includes metadata in prompt context for new sessions", async () => {
     const ctx = makeStubCtx();
     const body = JSON.stringify({
