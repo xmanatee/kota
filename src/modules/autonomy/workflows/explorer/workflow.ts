@@ -122,11 +122,13 @@ const explorerWorkflow: WorkflowDefinitionInput = {
           {
             id: "architecture-ready-coverage",
             type: "code",
+            phase: 1,
             run: ({ projectDir }) => assertArchitectureReadyCoverage(projectDir),
           },
           {
             id: "strategic-ready-coverage",
             type: "code",
+            phase: 1,
             run: ({ projectDir }) => assertStrategicReadyCoverage(projectDir),
           },
         ],

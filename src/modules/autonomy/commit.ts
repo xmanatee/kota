@@ -1,6 +1,10 @@
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  checkNoRegisteredScratchWorktrees,
+  findScratchArtifactPaths,
+} from "./shared.js";
 
 export type CommitResult =
   | { committed: false }
@@ -29,6 +33,22 @@ function unstageAfterFailedCommit(projectDir: string, commitError: unknown): voi
   }
 }
 
+function parseStatusPaths(status: string): string[] {
+  return status
+    .split("\n")
+    .filter(Boolean)
+    .flatMap((line) => line.slice(3).split(" -> "));
+}
+
+function checkNoScratchArtifactsInStatus(status: string): void {
+  const violations = findScratchArtifactPaths(parseStatusPaths(status));
+  if (violations.length > 0) {
+    throw new Error(
+      `Scratch artifacts must not be committed:\n${violations.map((v) => `  ${v}`).join("\n")}`,
+    );
+  }
+}
+
 /**
  * Stages all working tree changes and commits them.
  * Requires `<runDirPath>/commit-message.txt` when there is anything to commit.
@@ -38,11 +58,13 @@ export function commitWorkflowChanges(
   projectDir: string,
   runDirPath: string,
 ): CommitResult {
+  checkNoRegisteredScratchWorktrees(projectDir);
   const worktreeChanges = runGit(projectDir, "git status --porcelain=v1");
 
   if (!worktreeChanges) {
     return { committed: false };
   }
+  checkNoScratchArtifactsInStatus(worktreeChanges);
 
   const msgPath = join(runDirPath, "commit-message.txt");
   if (!existsSync(msgPath)) {

@@ -117,6 +117,17 @@ describe("commitWorkflowChanges", () => {
     }).trim();
     expect(status).toBe("?? change.txt");
   });
+
+  it("rejects registered scratch worktrees before committing", () => {
+    writeFileSync(join(projectDir, "change.txt"), "hello\n");
+    writeFileSync(join(runDirPath, "commit-message.txt"), "Builder: change");
+    mkdirSync(join(projectDir, ".claude", "worktrees"), { recursive: true });
+    execSync("git worktree add .claude/worktrees/scratch -b scratch", { cwd: projectDir });
+
+    expect(() => commitWorkflowChanges(projectDir, runDirPath)).toThrow(
+      "Registered scratch worktrees must be merged or removed before committing",
+    );
+  });
 });
 
 describe("builder workflow commit and restart gates", () => {

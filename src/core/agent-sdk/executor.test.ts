@@ -222,4 +222,63 @@ describe("agent-sdk executor", () => {
       pathToClaudeCodeExecutable: undefined,
     });
   });
+
+  it("throws when abort signal fires between messages", async () => {
+    const abortController = new AbortController();
+    const timeoutError = new Error("Step timed out after 1000ms");
+
+    mockQuery.mockReturnValue(
+      makeIterable([
+        {
+          type: "assistant",
+          message: { content: [{ type: "text", text: "first" }] },
+        },
+        {
+          type: "assistant",
+          message: { content: [{ type: "text", text: "second" }] },
+        },
+        {
+          type: "result",
+          result: "done",
+          subtype: "success",
+        },
+      ]),
+    );
+
+    const writer = makeWriter();
+    const onMessage = vi.fn(async () => {
+      if (onMessage.mock.calls.length === 1) {
+        abortController.abort(timeoutError);
+      }
+    });
+
+    await expect(
+      executeWithAgentSDK("test", { abortController, onMessage }, writer),
+    ).rejects.toThrow("Step timed out after 1000ms");
+
+    expect(writer.text).toBe("first");
+  });
+
+  it("throws immediately when abort signal is already set", async () => {
+    const abortController = new AbortController();
+    const reason = new Error("Already aborted");
+    abortController.abort(reason);
+
+    mockQuery.mockReturnValue(
+      makeIterable([
+        {
+          type: "assistant",
+          message: { content: [{ type: "text", text: "should not appear" }] },
+        },
+        { type: "result", result: "done", subtype: "success" },
+      ]),
+    );
+
+    const writer = makeWriter();
+    await expect(
+      executeWithAgentSDK("test", { abortController }, writer),
+    ).rejects.toThrow("Already aborted");
+
+    expect(writer.text).toBe("");
+  });
 });

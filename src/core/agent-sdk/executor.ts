@@ -157,8 +157,14 @@ export async function executeWithAgentSDK(
   let resultMessage: SDKResultMessage | undefined;
   let sessionId: string | undefined;
   let turns = 0;
+  const abortSignal = options?.abortController?.signal;
 
   for await (const message of sdkQuery({ prompt, options: queryOptions })) {
+    if (abortSignal?.aborted) {
+      const reason = abortSignal.reason;
+      throw reason instanceof Error ? reason : new Error("Agent execution aborted");
+    }
+
     await options?.onMessage?.(message);
 
     const messageSessionId = getSessionId(message);

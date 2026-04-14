@@ -1,4 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
+import { realpathSync } from "node:fs";
+import { isAbsolute, relative, resolve } from "node:path";
 import type {
   WorkflowPredicate,
   WorkflowRunMetadata,
@@ -198,16 +200,50 @@ export function aggregateRunOutcomes(runsDir: string): RunOutcomeAggregation {
 }
 
 const SCRATCH_ARTIFACT_PREFIXES = [".claude/worktrees/"];
+const SCRATCH_WORKTREE_ROOTS = [".claude/worktrees"];
+
+function isWithinDirectory(parentDir: string, childPath: string): boolean {
+  const relativePath = relative(parentDir, childPath);
+  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
+}
+
+export function findScratchArtifactPaths(paths: string[]): string[] {
+  return paths.filter((f) => SCRATCH_ARTIFACT_PREFIXES.some((p) => f.startsWith(p)));
+}
+
+export function findRegisteredScratchWorktrees(projectDir: string): string[] {
+  const output = execFileSync("git", ["worktree", "list", "--porcelain"], {
+    cwd: projectDir,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const projectRoot = realpathSync(projectDir);
+  const scratchRoots = SCRATCH_WORKTREE_ROOTS.map((p) => resolve(projectRoot, p));
+  return output
+    .split("\n")
+    .filter((line) => line.startsWith("worktree "))
+    .map((line) => resolve(line.slice("worktree ".length).trim()))
+    .filter((worktreePath) => scratchRoots.some((root) => isWithinDirectory(root, worktreePath)));
+}
+
+export function checkNoRegisteredScratchWorktrees(projectDir: string): string {
+  const worktrees = findRegisteredScratchWorktrees(projectDir);
+  if (worktrees.length > 0) {
+    throw new Error(
+      `Registered scratch worktrees must be merged or removed before committing:\n${worktrees.map((v) => `  ${v}`).join("\n")}`,
+    );
+  }
+  return "OK: no registered scratch worktrees";
+}
 
 export function checkNoScratchArtifacts(projectDir: string): string {
+  checkNoRegisteredScratchWorktrees(projectDir);
   const staged = execFileSync("git", ["diff", "--cached", "--name-only"], {
     cwd: projectDir,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
-  const violations = staged
-    .split("\n")
-    .filter((f) => SCRATCH_ARTIFACT_PREFIXES.some((p) => f.startsWith(p)));
+  const violations = findScratchArtifactPaths(staged.split("\n"));
   if (violations.length > 0) {
     throw new Error(
       `Staged scratch artifacts must not be committed:\n${violations.map((v) => `  ${v}`).join("\n")}\n` +
@@ -219,6 +255,10 @@ export function checkNoScratchArtifacts(projectDir: string): string {
 
 export function stepSucceeded(stepId: string): WorkflowPredicate {
   return ({ stepResults }) => stepResults[stepId]?.status === "success";
+}
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function stepCommitted(stepId: string): WorkflowPredicate {

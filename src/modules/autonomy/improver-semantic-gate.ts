@@ -9,6 +9,7 @@ import {
   handleVerdict,
   parseVerdict,
 } from "./critic.js";
+import { sleep } from "./shared.js";
 
 const GATE_MODEL = "claude-sonnet-4-6";
 const GATE_MAX_RETRIES = 3;
@@ -48,10 +49,6 @@ Respond with ONLY a JSON object (no markdown fences) matching this schema:
   "warnings": ["string — non-blocking observations"],
   "summary": "string — one sentence overall assessment"
 }`;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 async function invokeGate(
   userMessage: string,

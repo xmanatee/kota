@@ -8,6 +8,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
+import { sleep } from "./shared.js";
 import { findTaskReviewTarget } from "./task-review-target.js";
 
 export type CriticVerdict = {
@@ -163,10 +164,6 @@ export function handleVerdict(verdict: CriticVerdict, runDir?: string, artifactN
 const CRITIC_MAX_RETRIES = 3;
 const CRITIC_MAX_TURNS = 12;
 const CRITIC_RETRY_BASE_DELAY_MS = 2_000;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 async function invokeCritic(
   userMessage: string,
