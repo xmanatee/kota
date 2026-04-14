@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import { createCriticCheck } from "#modules/autonomy/critic.js";
-import { checkNoScratchArtifacts, runCheck } from "#modules/autonomy/shared.js";
+import { checkCommitMessageExists, checkNoScratchArtifacts, runCheck } from "#modules/autonomy/shared.js";
 import { findTaskReviewTarget } from "#modules/autonomy/task-review-target.js";
 
 function countDoneWhenItems(taskContent: string): number {
@@ -264,6 +264,11 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       id: "no-scratch-artifacts",
       type: "code" as const,
       run: (ctx) => checkNoScratchArtifacts(ctx.projectDir),
+    },
+    {
+      id: "commit-message-exists",
+      type: "code" as const,
+      run: (ctx) => checkCommitMessageExists(ctx.workflow.runDirPath),
     },
     { ...createCriticCheck(), phase: 2 },
   ];

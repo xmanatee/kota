@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { realpathSync } from "node:fs";
-import { isAbsolute, relative, resolve } from "node:path";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import type {
   WorkflowPredicate,
   WorkflowRunMetadata,
@@ -252,6 +252,24 @@ export function checkNoRegisteredScratchWorktrees(projectDir: string): string {
     );
   }
   return "OK: no registered scratch worktrees";
+}
+
+export function checkCommitMessageExists(runDirPath: string): string {
+  const msgPath = join(runDirPath, "commit-message.txt");
+  if (!existsSync(msgPath)) {
+    throw new Error(
+      `Missing commit-message.txt in the run directory (${runDirPath}). ` +
+        "Write a short commit message to <run-directory>/commit-message.txt before finishing.",
+    );
+  }
+  const content = readFileSync(msgPath, "utf8").trim();
+  if (content.length === 0) {
+    throw new Error(
+      `commit-message.txt in the run directory is empty. ` +
+        "Write a meaningful commit message summarizing the change.",
+    );
+  }
+  return `OK: commit-message.txt present (${content.split("\n").length} line(s))`;
 }
 
 export function checkNoScratchArtifacts(projectDir: string): string {
