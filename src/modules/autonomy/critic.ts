@@ -163,6 +163,7 @@ export function handleVerdict(verdict: CriticVerdict, runDir?: string, artifactN
  */
 const CRITIC_MAX_RETRIES = 3;
 const CRITIC_RETRY_BASE_DELAY_MS = 2_000;
+const CRITIC_MAX_TURNS = 30;
 
 async function invokeCritic(
   userMessage: string,
@@ -178,6 +179,7 @@ async function invokeCritic(
       model: CRITIC_MODEL,
       cwd,
       systemPrompt: CRITIC_SYSTEM_PROMPT,
+      maxTurns: CRITIC_MAX_TURNS,
       effort: "max",
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       permissionMode: "bypassPermissions",
