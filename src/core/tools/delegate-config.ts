@@ -3,7 +3,6 @@ import type { Transport } from "#core/loop/transport.js";
 import type { McpManager } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import type { DelegateBackend, ModelTiers } from "#core/model/model-router.js";
-import { PromptStore } from "#modules/prompt-templates/prompt-template.js";
 
 export type DelegateMode = "explore" | "execute" | "research";
 
@@ -46,25 +45,25 @@ export function getDelegateConfig(): DelegateConfig {
   return delegateConfig;
 }
 
+export type PromptResolverFn = (
+  name: string,
+  vars: Record<string, string>,
+  cwd?: string,
+) => { content?: string; error?: string };
+
+let promptResolver: PromptResolverFn | undefined;
+
+export function setPromptResolver(fn: PromptResolverFn): void {
+  promptResolver = fn;
+}
+
 export function resolvePromptTemplate(
   name: string,
   vars: Record<string, string>,
   cwd?: string,
 ): { content?: string; error?: string } {
-  const store = new PromptStore(cwd || process.cwd());
-  store.discover();
-  const tpl = store.get(name);
-  if (!tpl) {
-    const available = store.list();
-    const hint = available.length > 0
-      ? ` Available: ${available.map((t) => t.name).join(", ")}`
-      : " No templates found in .kota/prompts/.";
-    return { error: `Error: prompt template "${name}" not found.${hint}` };
+  if (!promptResolver) {
+    return { error: "Error: prompt template resolution unavailable (prompt-templates module not loaded)." };
   }
-  const result = store.render(name, vars);
-  if (!result) return { error: `Error: failed to render template "${name}".` };
-  const warn = result.missing.length > 0
-    ? `\n\nNote: unresolved template variables: ${result.missing.join(", ")}`
-    : "";
-  return { content: result.content + warn };
+  return promptResolver(name, vars, cwd);
 }

@@ -2,7 +2,9 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { PromptStore } from "#modules/prompt-templates/prompt-template.js";
 import { runDelegate, setDelegateConfig } from "./delegate.js";
+import { setPromptResolver } from "./delegate-config.js";
 
 vi.mock("#core/model/model-client.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("#core/model/model-client.js")>();
@@ -449,6 +451,29 @@ describe("assembleDelegateResult (cross-module)", () => {
 
 // --- Prompt template integration tests ---
 
+function createTestPromptResolver(
+  name: string,
+  vars: Record<string, string>,
+  cwd?: string,
+): { content?: string; error?: string } {
+  const store = new PromptStore(cwd || process.cwd());
+  store.discover();
+  const tpl = store.get(name);
+  if (!tpl) {
+    const available = store.list();
+    const hint = available.length > 0
+      ? ` Available: ${available.map((t) => t.name).join(", ")}`
+      : " No templates found in .kota/prompts/.";
+    return { error: `Error: prompt template "${name}" not found.${hint}` };
+  }
+  const result = store.render(name, vars);
+  if (!result) return { error: `Error: failed to render template "${name}".` };
+  const warn = result.missing.length > 0
+    ? `\n\nNote: unresolved template variables: ${result.missing.join(", ")}`
+    : "";
+  return { content: result.content + warn };
+}
+
 describe("runDelegate prompt template resolution", () => {
   const testDir = join(tmpdir(), `kota-delegate-prompt-test-${Date.now()}`);
   const promptsDir = join(testDir, ".kota", "prompts");
@@ -470,7 +495,7 @@ describe("runDelegate prompt template resolution", () => {
       join(promptsDir, "simple.md"),
       ["---", "name: simple", "---", "You are a simple helper."].join("\n"),
     );
-    // Configure delegate to use the test directory
+    setPromptResolver(createTestPromptResolver);
     setDelegateConfig({ model: "test-model", cwd: testDir });
   });
 
@@ -550,6 +575,7 @@ describe("runDelegate prompt with empty prompts dir", () => {
   const emptyDir = join(tmpdir(), `kota-empty-prompt-test-${Date.now()}`);
 
   beforeAll(() => {
+    setPromptResolver(createTestPromptResolver);
     setDelegateConfig({ model: "test-model", cwd: emptyDir });
   });
 
