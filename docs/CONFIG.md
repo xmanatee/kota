@@ -23,7 +23,7 @@ Run `kota init` in a new directory to scaffold the required project structure:
 | Modules | All configured modules load without error |
 | Providers | Provider configuration is present |
 | Provider connectivity | A live 1-token completion reaches the configured model provider |
-| Workflows | Built-in workflow definitions are valid |
+| Workflows | Workflow definitions are valid |
 | Disk | `.kota/` directory exists and is writable |
 
 **Flags:**
@@ -447,7 +447,7 @@ If `secret` is missing or the env var is unset, the route is not registered (war
 
 ### Filesystem
 
-Built-in module — always loaded. Provides `file_read`, `file_write`, `file_edit`, `multi_edit`, `find_replace`, `glob`, `grep`, `file_watch`, and `files_overview` tools.
+Project module — always loaded. Provides `file_read`, `file_write`, `file_edit`, `multi_edit`, `find_replace`, `glob`, `grep`, `file_watch`, and `files_overview` tools.
 
 Read-only tools (`file_read`, `glob`, `grep`, `files_overview`) are classified safe in guardrails. Write tools (`file_write`, `file_edit`, `multi_edit`, `find_replace`) are moderate risk. `file_watch` runs background watchers and is moderate risk.
 
@@ -483,7 +483,7 @@ Required OAuth scopes: `gmail.modify`, `calendar`, `drive.readonly`. See `src/mo
 
 ### Web Access
 
-Built-in module — always loaded. Provides `web_fetch`, `web_search`, and `http_request` tools.
+Project module — always loaded. Provides `web_fetch`, `web_search`, and `http_request` tools.
 
 `web_search` uses DuckDuckGo by default. Set `BRAVE_SEARCH_API_KEY` in the environment to use the Brave Search API instead (higher quality results, rate-limited by plan).
 

@@ -12,11 +12,11 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
-  EXTENSIONS_DIR,
   getNpmVersion,
   installGithub,
   installNpm,
   installUrl,
+  MODULES_DIR,
   resolveInstalledPackageName,
 } from "./registry-installers.js";
 import {
@@ -126,10 +126,10 @@ export async function installTool(
       parsed.type === "npm"
         ? parsed.identifier
         : resolveInstalledPackageName(
-            join(dir, EXTENSIONS_DIR, parsed.name),
+            join(dir, MODULES_DIR, parsed.name),
             parsed.identifier,
           );
-    const pkgDir = join(dir, EXTENSIONS_DIR, parsed.name, "node_modules", ...actualPkg.split("/"));
+    const pkgDir = join(dir, MODULES_DIR, parsed.name, "node_modules", ...actualPkg.split("/"));
     version = getNpmVersion(pkgDir);
   }
 

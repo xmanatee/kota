@@ -1,12 +1,12 @@
 ---
 id: task-clean-module-terminology-and-doc-leftovers
 title: Clean stale module terminology and documentation leftovers
-status: backlog
+status: done
 priority: p2
 area: documentation
 summary: Some code helpers, tests, and local docs still use old extension terminology or stale paths after the module-first cleanup.
 created_at: 2026-04-13T11:16:25Z
-updated_at: 2026-04-13T11:16:25Z
+updated_at: 2026-04-14T04:04:54.979Z
 ---
 
 ## Problem

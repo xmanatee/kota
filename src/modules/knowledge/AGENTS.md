@@ -8,6 +8,6 @@ This directory owns the `knowledge` management tool — a structured, file-based
 
 ## Boundaries
 
-- Does not own the `knowledge` CLI commands (`kota knowledge …`) — those live in `src/memory-cli.ts`.
+- Does not own the `knowledge` CLI commands (`kota knowledge …`) — those live in `src/modules/knowledge/cli.ts`.
 - Does not own session-scoped working memory (that belongs in `working-memory/`).
 - Does not own persistent note-style memory (that belongs in `memory/`).

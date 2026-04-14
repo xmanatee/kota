@@ -16,13 +16,13 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { InstallResult, ParsedSource } from "./registry.js";
 
-export const EXTENSIONS_DIR = "modules";
+export const MODULES_DIR = "modules";
 
 export async function installNpm(parsed: ParsedSource, kotaDir: string): Promise<InstallResult> {
-  const extDir = join(kotaDir, EXTENSIONS_DIR, parsed.name);
-  mkdirSync(extDir, { recursive: true });
+  const moduleDir = join(kotaDir, MODULES_DIR, parsed.name);
+  mkdirSync(moduleDir, { recursive: true });
 
-  const pkgJsonPath = join(extDir, "package.json");
+  const pkgJsonPath = join(moduleDir, "package.json");
   if (!existsSync(pkgJsonPath)) {
     writeFileSync(
       pkgJsonPath,
@@ -36,7 +36,7 @@ export async function installNpm(parsed: ParsedSource, kotaDir: string): Promise
 
   try {
     execFileSync("npm", ["install", parsed.identifier], {
-      cwd: extDir,
+      cwd: moduleDir,
       stdio: "pipe",
       timeout: 60_000,
     });
@@ -50,8 +50,8 @@ export async function installNpm(parsed: ParsedSource, kotaDir: string): Promise
 
   // Resolve the installed package's entry point and record it in the wrapper
   // package.json so module discovery can find it via the "main" field.
-  const installedPkgName = resolveInstalledPackageName(extDir, parsed.identifier);
-  const installedPkgDir = join(extDir, "node_modules", ...installedPkgName.split("/"));
+  const installedPkgName = resolveInstalledPackageName(moduleDir, parsed.identifier);
+  const installedPkgDir = join(moduleDir, "node_modules", ...installedPkgName.split("/"));
   const entryPath = resolveNpmEntry(installedPkgDir);
   if (entryPath) {
     const relEntry = `node_modules/${installedPkgName}/${entryPath}`;
@@ -63,15 +63,15 @@ export async function installNpm(parsed: ParsedSource, kotaDir: string): Promise
   return {
     name: parsed.name,
     source: "npm",
-    files: [`${EXTENSIONS_DIR}/${parsed.name}`],
+    files: [`${MODULES_DIR}/${parsed.name}`],
   };
 }
 
 export async function installUrl(parsed: ParsedSource, kotaDir: string): Promise<InstallResult> {
-  const extDir = join(kotaDir, EXTENSIONS_DIR, parsed.name);
-  mkdirSync(extDir, { recursive: true });
+  const moduleDir = join(kotaDir, MODULES_DIR, parsed.name);
+  mkdirSync(moduleDir, { recursive: true });
 
-  const destPath = join(extDir, "index.mjs");
+  const destPath = join(moduleDir, "index.mjs");
   if (existsSync(destPath)) {
     throw new Error(`Module "${parsed.name}" already exists in modules directory`);
   }
@@ -109,15 +109,15 @@ export async function installUrl(parsed: ParsedSource, kotaDir: string): Promise
   return {
     name: parsed.name,
     source: "url",
-    files: [`${EXTENSIONS_DIR}/${parsed.name}`],
+    files: [`${MODULES_DIR}/${parsed.name}`],
   };
 }
 
 export async function installGithub(parsed: ParsedSource, kotaDir: string): Promise<InstallResult> {
-  const extDir = join(kotaDir, EXTENSIONS_DIR, parsed.name);
-  mkdirSync(extDir, { recursive: true });
+  const moduleDir = join(kotaDir, MODULES_DIR, parsed.name);
+  mkdirSync(moduleDir, { recursive: true });
 
-  const pkgJsonPath = join(extDir, "package.json");
+  const pkgJsonPath = join(moduleDir, "package.json");
   if (!existsSync(pkgJsonPath)) {
     writeFileSync(
       pkgJsonPath,
@@ -132,7 +132,7 @@ export async function installGithub(parsed: ParsedSource, kotaDir: string): Prom
   const gitUrl = `github:${parsed.identifier}`;
   try {
     execFileSync("npm", ["install", gitUrl], {
-      cwd: extDir,
+      cwd: moduleDir,
       stdio: "pipe",
       timeout: 60_000,
     });
@@ -145,8 +145,8 @@ export async function installGithub(parsed: ParsedSource, kotaDir: string): Prom
   }
 
   // Determine actual package name and resolve entry point.
-  const actualPkg = resolveInstalledPackageName(extDir, parsed.identifier);
-  const installedPkgDir = join(extDir, "node_modules", ...actualPkg.split("/"));
+  const actualPkg = resolveInstalledPackageName(moduleDir, parsed.identifier);
+  const installedPkgDir = join(moduleDir, "node_modules", ...actualPkg.split("/"));
   const entryPath = resolveNpmEntry(installedPkgDir);
   if (entryPath) {
     const relEntry = `node_modules/${actualPkg}/${entryPath}`;
@@ -158,7 +158,7 @@ export async function installGithub(parsed: ParsedSource, kotaDir: string): Prom
   return {
     name: parsed.name,
     source: "github",
-    files: [`${EXTENSIONS_DIR}/${parsed.name}`],
+    files: [`${MODULES_DIR}/${parsed.name}`],
   };
 }
 
@@ -167,10 +167,10 @@ export async function installGithub(parsed: ParsedSource, kotaDir: string): Prom
  * actual installed package name by inspecting npm's recorded dependencies.
  * Falls back to the repo/package name if detection fails.
  */
-export function resolveInstalledPackageName(extDir: string, identifier: string): string {
+export function resolveInstalledPackageName(moduleDir: string, identifier: string): string {
   const fallback = identifier.split("/").pop()!;
   try {
-    const pkgJson = JSON.parse(readFileSync(join(extDir, "package.json"), "utf-8")) as {
+    const pkgJson = JSON.parse(readFileSync(join(moduleDir, "package.json"), "utf-8")) as {
       dependencies?: Record<string, string>;
     };
     const deps = pkgJson.dependencies;
@@ -213,7 +213,7 @@ export function resolveNpmEntry(pkgDir: string): string | null {
 
 /**
  * Read the installed version of an npm package from its package.json.
- * Takes the full path to the package directory (e.g. extDir/node_modules/pkg).
+ * Takes the full path to the package directory (e.g. moduleDir/node_modules/pkg).
  */
 export function getNpmVersion(pkgDir: string): string {
   try {

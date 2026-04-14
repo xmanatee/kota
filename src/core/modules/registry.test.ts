@@ -155,9 +155,9 @@ describe("removeTool", () => {
 
   it("removes tool and its module directory from manifest", () => {
     // Create a module directory
-    const extDir = join(tmpDir, ".kota", "modules", "weather");
-    mkdirSync(extDir, { recursive: true });
-    writeFileSync(join(extDir, "index.mjs"), "export default {}");
+    const moduleDir = join(tmpDir, ".kota", "modules", "weather");
+    mkdirSync(moduleDir, { recursive: true });
+    writeFileSync(join(moduleDir, "index.mjs"), "export default {}");
 
     // Create manifest with the tool
     saveManifest({
@@ -176,7 +176,7 @@ describe("removeTool", () => {
     expect(removed).toBe(true);
 
     // Module directory should be deleted
-    expect(existsSync(extDir)).toBe(false);
+    expect(existsSync(moduleDir)).toBe(false);
 
     // Manifest should be updated
     const manifest = loadManifest(tmpDir);
@@ -412,9 +412,9 @@ describe("installTool URL error paths", () => {
 
   it("rejects when module directory already has index.mjs", async () => {
     // Pre-create the module directory with index.mjs
-    const extDir = join(tmpDir, ".kota", "modules", "tool");
-    mkdirSync(extDir, { recursive: true });
-    writeFileSync(join(extDir, "index.mjs"), "existing");
+    const moduleDir = join(tmpDir, ".kota", "modules", "tool");
+    mkdirSync(moduleDir, { recursive: true });
+    writeFileSync(join(moduleDir, "index.mjs"), "existing");
 
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("export default {};", { status: 200 }),
@@ -469,9 +469,9 @@ describe("updateTool error paths", () => {
 
   it("preserves manifest entry when reinstall fails", async () => {
     // Set up an existing URL-based tool
-    const extDir = join(tmpDir, ".kota", "modules", "weather");
-    mkdirSync(extDir, { recursive: true });
-    writeFileSync(join(extDir, "index.mjs"), "export default {}");
+    const moduleDir = join(tmpDir, ".kota", "modules", "weather");
+    mkdirSync(moduleDir, { recursive: true });
+    writeFileSync(join(moduleDir, "index.mjs"), "export default {}");
 
     saveManifest({
       tools: {
@@ -497,9 +497,9 @@ describe("updateTool error paths", () => {
   });
 
   it("preserves original files on disk when reinstall fails", async () => {
-    const extDir = join(tmpDir, ".kota", "modules", "myutil");
-    mkdirSync(extDir, { recursive: true });
-    writeFileSync(join(extDir, "index.mjs"), "export const x = 1;");
+    const moduleDir = join(tmpDir, ".kota", "modules", "myutil");
+    mkdirSync(moduleDir, { recursive: true });
+    writeFileSync(join(moduleDir, "index.mjs"), "export const x = 1;");
 
     saveManifest({
       tools: {
@@ -518,14 +518,14 @@ describe("updateTool error paths", () => {
     await expect(updateTool("myutil", tmpDir)).rejects.toThrow();
 
     // Module directory should still exist on disk
-    expect(existsSync(extDir)).toBe(true);
-    expect(readFileSync(join(extDir, "index.mjs"), "utf-8")).toBe("export const x = 1;");
+    expect(existsSync(moduleDir)).toBe(true);
+    expect(readFileSync(join(moduleDir, "index.mjs"), "utf-8")).toBe("export const x = 1;");
   });
 
   it("succeeds and updates manifest on successful reinstall", async () => {
-    const extDir = join(tmpDir, ".kota", "modules", "mytool");
-    mkdirSync(extDir, { recursive: true });
-    writeFileSync(join(extDir, "index.mjs"), "export default { v: 1 };");
+    const moduleDir = join(tmpDir, ".kota", "modules", "mytool");
+    mkdirSync(moduleDir, { recursive: true });
+    writeFileSync(join(moduleDir, "index.mjs"), "export default { v: 1 };");
 
     saveManifest({
       tools: {
@@ -540,7 +540,7 @@ describe("updateTool error paths", () => {
     }, tmpDir);
 
     // Remove existing module dir so installUrl doesn't complain about duplicate
-    rmSync(extDir, { recursive: true, force: true });
+    rmSync(moduleDir, { recursive: true, force: true });
 
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("export default { v: 2 };", {
@@ -641,9 +641,9 @@ describe("updateTool backup lifecycle", () => {
   });
 
   it("removes .kota-update-bak dirs after successful update", async () => {
-    const extDir = join(tmpDir, ".kota", "modules", "tool");
-    mkdirSync(extDir, { recursive: true });
-    writeFileSync(join(extDir, "index.mjs"), "export default { v: 1 };");
+    const moduleDir = join(tmpDir, ".kota", "modules", "tool");
+    mkdirSync(moduleDir, { recursive: true });
+    writeFileSync(join(moduleDir, "index.mjs"), "export default { v: 1 };");
 
     saveManifest({
       tools: {
@@ -669,16 +669,16 @@ describe("updateTool backup lifecycle", () => {
     // Backup directory must not persist
     expect(existsSync(join(tmpDir, ".kota", "modules", "tool.kota-update-bak"))).toBe(false);
     // New module directory should exist
-    expect(existsSync(extDir)).toBe(true);
+    expect(existsSync(moduleDir)).toBe(true);
   });
 
   it("restores manifest when backup rename fails mid-loop", async () => {
-    const extDirA = join(tmpDir, ".kota", "modules", "a");
-    const extDirB = join(tmpDir, ".kota", "modules", "b");
-    mkdirSync(extDirA, { recursive: true });
-    mkdirSync(extDirB, { recursive: true });
-    writeFileSync(join(extDirA, "index.mjs"), "export const a = 1;");
-    writeFileSync(join(extDirB, "index.mjs"), "export const b = 2;");
+    const moduleDirA = join(tmpDir, ".kota", "modules", "a");
+    const moduleDirB = join(tmpDir, ".kota", "modules", "b");
+    mkdirSync(moduleDirA, { recursive: true });
+    mkdirSync(moduleDirB, { recursive: true });
+    writeFileSync(join(moduleDirA, "index.mjs"), "export const a = 1;");
+    writeFileSync(join(moduleDirB, "index.mjs"), "export const b = 2;");
 
     saveManifest({
       tools: {
@@ -706,9 +706,9 @@ describe("updateTool backup lifecycle", () => {
   });
 
   it("does not leave backup dirs when install fails", async () => {
-    const extDir = join(tmpDir, ".kota", "modules", "fail");
-    mkdirSync(extDir, { recursive: true });
-    writeFileSync(join(extDir, "index.mjs"), "export default {}");
+    const moduleDir = join(tmpDir, ".kota", "modules", "fail");
+    mkdirSync(moduleDir, { recursive: true });
+    writeFileSync(join(moduleDir, "index.mjs"), "export default {}");
 
     saveManifest({
       tools: {
@@ -729,6 +729,6 @@ describe("updateTool backup lifecycle", () => {
     // Backup dir should be cleaned up (restored to original path)
     expect(existsSync(join(tmpDir, ".kota", "modules", "fail.kota-update-bak"))).toBe(false);
     // Original module dir restored
-    expect(existsSync(extDir)).toBe(true);
+    expect(existsSync(moduleDir)).toBe(true);
   });
 });

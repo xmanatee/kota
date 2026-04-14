@@ -8,16 +8,16 @@ import { clearCustomTools, executeTool, getAllTools } from "./core/tools/index.j
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./core/tools/tool-groups.js";
 
 function makeTmpDir(): string {
-  const dir = join(tmpdir(), `kota-ext-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const dir = join(tmpdir(), `kota-module-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(dir, { recursive: true });
   return dir;
 }
 
 /** Write a single-file code module to .kota/modules/<name>/index.mjs */
-function writeExtension(dir: string, name: string, code: string): void {
-  const extDir = join(dir, ".kota", "modules", name);
-  mkdirSync(extDir, { recursive: true });
-  writeFileSync(join(extDir, "index.mjs"), code);
+function writeModule(dir: string, name: string, code: string): void {
+  const moduleDir = join(dir, ".kota", "modules", name);
+  mkdirSync(moduleDir, { recursive: true });
+  writeFileSync(join(moduleDir, "index.mjs"), code);
 }
 
 describe("discoverModules", () => {
@@ -43,7 +43,7 @@ describe("discoverModules", () => {
   });
 
   it("discovers and loads a simple module with one tool", async () => {
-    writeExtension(tmpDir, "hello", `
+    writeModule(tmpDir, "hello", `
       export default {
         name: "hello-module",
         tools: [{
@@ -71,7 +71,7 @@ describe("discoverModules", () => {
   });
 
   it("registers tool into a group when group is specified", async () => {
-    writeExtension(tmpDir, "grouped", `
+    writeModule(tmpDir, "grouped", `
       export default {
         name: "grouped-module",
         tools: [{
@@ -102,7 +102,7 @@ describe("discoverModules", () => {
   });
 
   it("ungrouped module tools are always available", async () => {
-    writeExtension(tmpDir, "always", `
+    writeModule(tmpDir, "always", `
       export default {
         name: "always-module",
         tools: [{
@@ -125,7 +125,7 @@ describe("discoverModules", () => {
   });
 
   it("calls onLoad with ModuleContext", async () => {
-    writeExtension(tmpDir, "lifecycle", `
+    writeModule(tmpDir, "lifecycle", `
       let loaded = false;
       export default {
         name: "lifecycle-module",
@@ -155,7 +155,7 @@ describe("discoverModules", () => {
 
   it("calls onUnload during unloadAll", async () => {
     const flagPath = join(tmpDir, "unloaded.flag");
-    writeExtension(tmpDir, "unload", `
+    writeModule(tmpDir, "unload", `
       import { writeFileSync } from "node:fs";
       export default {
         name: "unload-module",
@@ -177,7 +177,7 @@ describe("discoverModules", () => {
   });
 
   it("skips modules without a name", async () => {
-    writeExtension(tmpDir, "bad", `
+    writeModule(tmpDir, "bad", `
       export default { tools: [] };
     `);
 
@@ -187,8 +187,8 @@ describe("discoverModules", () => {
   });
 
   it("rejects duplicate module names via ModuleLoader", async () => {
-    writeExtension(tmpDir, "a", `export default { name: "dupe" };`);
-    writeExtension(tmpDir, "b", `export default { name: "dupe" };`);
+    writeModule(tmpDir, "a", `export default { name: "dupe" };`);
+    writeModule(tmpDir, "b", `export default { name: "dupe" };`);
 
     const modules = await discoverModules(tmpDir);
     expect(modules).toHaveLength(2);
@@ -199,20 +199,20 @@ describe("discoverModules", () => {
   });
 
   it("discovers modules in alphabetical directory order", async () => {
-    writeExtension(tmpDir, "z-last", `export default { name: "z-last" };`);
-    writeExtension(tmpDir, "a-first", `export default { name: "a-first" };`);
-    writeExtension(tmpDir, "m-middle", `export default { name: "m-middle" };`);
+    writeModule(tmpDir, "z-last", `export default { name: "z-last" };`);
+    writeModule(tmpDir, "a-first", `export default { name: "a-first" };`);
+    writeModule(tmpDir, "m-middle", `export default { name: "m-middle" };`);
 
     const modules = await discoverModules(tmpDir);
     expect(modules.map((m) => m.name)).toEqual(["a-first", "m-middle", "z-last"]);
   });
 
   it("ignores directories with no recognized module format", async () => {
-    const extDir = join(tmpDir, ".kota", "modules", "unknown");
-    mkdirSync(extDir, { recursive: true });
-    writeFileSync(join(extDir, "readme.md"), "# Not a module");
-    writeFileSync(join(extDir, "data.json"), "{}");
-    writeExtension(tmpDir, "real", `export default { name: "real" };`);
+    const moduleDir = join(tmpDir, ".kota", "modules", "unknown");
+    mkdirSync(moduleDir, { recursive: true });
+    writeFileSync(join(moduleDir, "readme.md"), "# Not a module");
+    writeFileSync(join(moduleDir, "data.json"), "{}");
+    writeModule(tmpDir, "real", `export default { name: "real" };`);
 
     const modules = await discoverModules(tmpDir);
     expect(modules).toHaveLength(1);
@@ -220,7 +220,7 @@ describe("discoverModules", () => {
   });
 
   it("cleans up tools on ModuleLoader.unloadAll", async () => {
-    writeExtension(tmpDir, "cleanup", `
+    writeModule(tmpDir, "cleanup", `
       export default {
         name: "cleanup-module",
         tools: [{
@@ -251,7 +251,7 @@ describe("discoverModules", () => {
   });
 
   it("registerGroup from ModuleContext creates groups with auto-detect pattern", async () => {
-    writeExtension(tmpDir, "custom-group", `
+    writeModule(tmpDir, "custom-group", `
       export default {
         name: "custom-group-module",
         onLoad: (ctx) => {
@@ -290,10 +290,10 @@ describe("discoverModules", () => {
   });
 
   it("discovers a manifest.json module", async () => {
-    const extDir = join(tmpDir, ".kota", "modules", "manifest-ext");
-    mkdirSync(extDir, { recursive: true });
+    const moduleDir = join(tmpDir, ".kota", "modules", "manifest-ext");
+    mkdirSync(moduleDir, { recursive: true });
     writeFileSync(
-      join(extDir, "manifest.json"),
+      join(moduleDir, "manifest.json"),
       JSON.stringify({
         name: "manifest-ext",
         version: "1.0.0",
@@ -306,14 +306,14 @@ describe("discoverModules", () => {
   });
 
   it("discovers a packaged module via package.json main field", async () => {
-    const extDir = join(tmpDir, ".kota", "modules", "packaged-ext");
-    mkdirSync(join(extDir, "dist"), { recursive: true });
+    const moduleDir = join(tmpDir, ".kota", "modules", "packaged-ext");
+    mkdirSync(join(moduleDir, "dist"), { recursive: true });
     writeFileSync(
-      join(extDir, "package.json"),
+      join(moduleDir, "package.json"),
       JSON.stringify({ name: "packaged-ext", main: "dist/index.js" }),
     );
     writeFileSync(
-      join(extDir, "dist", "index.js"),
+      join(moduleDir, "dist", "index.js"),
       `export default { name: "packaged-ext", tools: [] };`,
     );
 
