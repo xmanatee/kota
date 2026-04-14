@@ -1,29 +1,29 @@
 /** Client-side JavaScript for the KOTA web UI (browser template literal).
  * Assembles section modules into a single IIFE exported as WEB_UI_JS. */
 
-import { CLIENT_ACTIVE_SESSIONS_JS } from "./client-active-sessions.js";
-import { CLIENT_APPROVALS_JS } from "./client-approvals.js";
-import { CLIENT_AUDIT_JS } from "./client-audit.js";
-import { CLIENT_CHAT_JS } from "./client-chat.js";
-import { CLIENT_CONFIG_JS } from "./client-config.js";
-import { CLIENT_COST_JS } from "./client-cost.js";
-import { CLIENT_KEYBOARD_JS } from "./client-keyboard.js";
-import { CLIENT_KNOWLEDGE_JS } from "./client-knowledge.js";
-import { CLIENT_MEMORY_JS } from "./client-memory.js";
-import { CLIENT_MODULES_JS } from "./client-modules.js";
-import { CLIENT_RUN_DETAIL_JS } from "./client-run-detail.js";
-import { CLIENT_RUN_DETAIL_COMPARE_JS } from "./client-run-detail-compare.js";
-import { CLIENT_RUN_DETAIL_CONTROLS_JS } from "./client-run-detail-controls.js";
-import { CLIENT_RUN_DETAIL_STEPS_JS } from "./client-run-detail-steps.js";
-import { CLIENT_RUN_DETAIL_STREAM_JS } from "./client-run-detail-stream.js";
-import { CLIENT_SCHEDULES_JS } from "./client-schedules.js";
-import { CLIENT_SESSIONS_JS } from "./client-sessions.js";
-import { CLIENT_STATUS_OVERVIEW_JS } from "./client-status-overview.js";
-import { CLIENT_TASKS_JS } from "./client-tasks.js";
-import { CLIENT_THEME_JS } from "./client-theme.js";
-import { CLIENT_UTILS_JS } from "./client-utils.js";
-import { CLIENT_WF_DEFINITIONS_JS } from "./client-wf-definitions.js";
-import { CLIENT_WORKFLOWS_JS } from "./client-workflows.js";
+import { CLIENT_ACTIVE_SESSIONS_JS } from "./client/active-sessions.js";
+import { CLIENT_APPROVALS_JS } from "./client/approvals.js";
+import { CLIENT_AUDIT_JS } from "./client/audit.js";
+import { CLIENT_CHAT_JS } from "./client/chat.js";
+import { CLIENT_CONFIG_JS } from "./client/config.js";
+import { CLIENT_COST_JS } from "./client/cost.js";
+import { CLIENT_KEYBOARD_JS } from "./client/keyboard.js";
+import { CLIENT_KNOWLEDGE_JS } from "./client/knowledge.js";
+import { CLIENT_MEMORY_JS } from "./client/memory.js";
+import { CLIENT_MODULES_JS } from "./client/modules.js";
+import { CLIENT_RUN_DETAIL_COMPARE_JS } from "./client/run-detail/compare.js";
+import { CLIENT_RUN_DETAIL_CONTROLS_JS } from "./client/run-detail/controls.js";
+import { CLIENT_RUN_DETAIL_JS } from "./client/run-detail/detail.js";
+import { CLIENT_RUN_DETAIL_STEPS_JS } from "./client/run-detail/steps.js";
+import { CLIENT_RUN_DETAIL_STREAM_JS } from "./client/run-detail/stream.js";
+import { CLIENT_SCHEDULES_JS } from "./client/schedules.js";
+import { CLIENT_SESSIONS_JS } from "./client/sessions.js";
+import { CLIENT_STATUS_OVERVIEW_JS } from "./client/status-overview.js";
+import { CLIENT_TASKS_JS } from "./client/tasks.js";
+import { CLIENT_THEME_JS } from "./client/theme.js";
+import { CLIENT_UTILS_JS } from "./client/utils.js";
+import { CLIENT_WF_DEFINITIONS_JS } from "./client/wf-definitions.js";
+import { CLIENT_WORKFLOWS_JS } from "./client/workflows.js";
 
 export const WEB_UI_JS = /* js */ `
 (function() {

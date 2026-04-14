@@ -1,12 +1,12 @@
 ---
 id: task-structure-web-ui-module-subdomains
 title: Structure web-ui into client and rendering subdomains
-status: backlog
+status: done
 priority: p2
 area: web-ui
 summary: The web-ui module has many flat client and style files, making the UI surface harder to navigate and evolve.
 created_at: 2026-04-13T11:16:25Z
-updated_at: 2026-04-13T11:16:25Z
+updated_at: 2026-04-14T17:33:16.862Z
 ---
 
 ## Problem
