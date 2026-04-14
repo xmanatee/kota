@@ -66,6 +66,8 @@ type WorkflowFailureRate = {
 type RepairCheckTally = {
   checkId: string;
   count: number;
+  recovered: number;
+  terminal: number;
 };
 
 type CostTrend = {
@@ -110,22 +112,37 @@ function computeFailureRates(runs: RunSummary[]): WorkflowFailureRate[] {
 }
 
 function tallyRepairFailures(runs: WorkflowRunMetadata[]): RepairCheckTally[] {
-  const counts = new Map<string, number>();
+  const totals = new Map<string, { count: number; recovered: number; terminal: number }>();
   for (const run of runs) {
     for (const step of run.steps) {
       const output = step.output as
         | { repairIterations?: Array<{ failures?: Array<{ id: string }> }> }
         | undefined;
-      if (!output?.repairIterations) continue;
-      for (const iter of output.repairIterations) {
+      if (!output?.repairIterations?.length) continue;
+
+      const iterations = output.repairIterations;
+      const stepSucceeded = step.status === "success";
+      const lastIter = iterations[iterations.length - 1];
+      const terminalIds = stepSucceeded
+        ? new Set<string>()
+        : new Set((lastIter.failures ?? []).map((f) => f.id));
+
+      for (const iter of iterations) {
         for (const f of iter.failures ?? []) {
-          counts.set(f.id, (counts.get(f.id) ?? 0) + 1);
+          const entry = totals.get(f.id) ?? { count: 0, recovered: 0, terminal: 0 };
+          entry.count++;
+          if (iter === lastIter && terminalIds.has(f.id)) {
+            entry.terminal++;
+          } else {
+            entry.recovered++;
+          }
+          totals.set(f.id, entry);
         }
       }
     }
   }
-  return [...counts.entries()]
-    .map(([checkId, count]) => ({ checkId, count }))
+  return [...totals.entries()]
+    .map(([checkId, { count, recovered, terminal }]) => ({ checkId, count, recovered, terminal }))
     .sort((a, b) => b.count - a.count);
 }
 

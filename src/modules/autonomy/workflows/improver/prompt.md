@@ -7,7 +7,7 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
 The `gather-run-data` step injects aggregated run outcomes as an exposed step output. It contains:
 
 - **failureRates24h / failureRates7d** — per-workflow failure rates.
-- **topRepairFailures24h / topRepairFailures7d** — most common repair-check failures by check id. Compare windows to distinguish current issues from historical ones already fixed.
+- **topRepairFailures24h / topRepairFailures7d** — most common repair-check failures by check id, with `recovered` (agent fixed) vs `terminal` (exhausted repair budget) counts. High recovery rates mean the check is catching real issues agents can fix. High terminal rates mean the check or the agent prompt needs improvement. Compare windows to distinguish current issues from historical ones already fixed.
 - **costTrends** — cost per workflow for the current 7-day window vs the previous 7-day window.
 - **durationOutliers** — runs whose duration exceeded 2.5x the workflow median.
 
