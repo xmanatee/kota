@@ -3,7 +3,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
-import type { WorkflowRunMetadata, WorkflowStepContext } from "./run-types.js";
+import type { WorkflowRunMetadata, WorkflowStepContext } from "../run-types.js";
+import type {
+  WorkflowAgentStep,
+  WorkflowDefinition,
+  WorkflowEmitStep,
+  WorkflowNotifyConfig,
+  WorkflowRunTrigger,
+  WorkflowToolStep,
+} from "../types.js";
 import type { AgentStepConfig } from "./step-executor.js";
 import {
   buildAgentPrompt,
@@ -15,17 +23,9 @@ import {
   withRetry,
 } from "./step-executor.js";
 import { classifyAgentRuntimeFailure } from "./step-executor-retry.js";
-import type {
-  WorkflowAgentStep,
-  WorkflowDefinition,
-  WorkflowEmitStep,
-  WorkflowNotifyConfig,
-  WorkflowRunTrigger,
-  WorkflowToolStep,
-} from "./types.js";
 
 vi.mock("#core/agent-sdk/index.js", async () => {
-  const actual = await vi.importActual("../agent-sdk/index.js");
+  const actual = await vi.importActual("../../agent-sdk/index.js");
   return {
     ...actual,
     executeWithAgentSDK: vi.fn(),

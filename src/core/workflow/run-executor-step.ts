@@ -8,7 +8,7 @@ import {
   type AgentStepConfig,
   AgentStepRuntimeError,
   executeStep,
-} from "./step-executor.js";
+} from "./steps/step-executor.js";
 import type {
   WorkflowAgentBackoffSignal,
   WorkflowDefinition,

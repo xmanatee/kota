@@ -1,10 +1,10 @@
 import type { SDKMessage } from "#core/agent-sdk/types.js";
-import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
-import type { WorkflowStepContext, WorkflowStepResult } from "./run-types.js";
+import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
+import type { WorkflowStepContext, WorkflowStepResult } from "../run-types.js";
+import type { WorkflowDefinition, WorkflowParallelGroup, WorkflowRunTrigger } from "../types.js";
 import { executeCodeStep, shouldRunStep } from "./step-executor.js";
 import type { AgentStepConfig } from "./step-executor-agent.js";
 import { executeAgentStep } from "./step-executor-agent.js";
-import type { WorkflowDefinition, WorkflowParallelGroup, WorkflowRunTrigger } from "./types.js";
 
 export type ParallelGroupResult = {
   groupResult: WorkflowStepResult;

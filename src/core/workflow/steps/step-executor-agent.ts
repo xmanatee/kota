@@ -10,18 +10,18 @@ import type { KotaConfig } from "#core/config/config.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { ToolTelemetry } from "#core/tools/tool-telemetry.js";
-import { validatePayloadSchema } from "./payload-validator.js";
-import type { WorkflowRunMetadata } from "./run-types.js";
+import { validatePayloadSchema } from "../payload-validator.js";
+import type { WorkflowRunMetadata } from "../run-types.js";
+import type {
+  WorkflowAgentStep,
+  WorkflowDefinition,
+  WorkflowRunTrigger,
+} from "../types.js";
 import {
   AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
   withRetry,
 } from "./step-executor-retry.js";
-import type {
-  WorkflowAgentStep,
-  WorkflowDefinition,
-  WorkflowRunTrigger,
-} from "./types.js";
 
 export type WorkflowStepOutput =
   | ToolResult

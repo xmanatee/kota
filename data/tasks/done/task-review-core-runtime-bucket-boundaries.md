@@ -1,12 +1,12 @@
 ---
 id: task-review-core-runtime-bucket-boundaries
 title: Review core runtime bucket boundaries and structure
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Core workflow, daemon, and tools directories are still large flat buckets; review whether their internal boundaries match the minimal-core architecture.
 created_at: 2026-04-13T11:16:25Z
-updated_at: 2026-04-13T11:16:25Z
+updated_at: 2026-04-14T21:42:14.809Z
 ---
 
 ## Problem

@@ -12,9 +12,9 @@ vi.mock("#core/agent-sdk/index.js", () => ({
   executeWithAgentSDK: executeWithAgentSDKMock,
 }));
 
-import type { WorkflowRunMetadata } from "./run-types.js";
+import type { WorkflowRunMetadata } from "../run-types.js";
+import type { WorkflowAgentStep, WorkflowDefinition } from "../types.js";
 import { executeAgentStep } from "./step-executor-agent.js";
-import type { WorkflowAgentStep, WorkflowDefinition } from "./types.js";
 
 function makeDefinition(name = "test-workflow"): WorkflowDefinition {
   return {

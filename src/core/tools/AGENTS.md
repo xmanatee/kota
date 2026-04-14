@@ -23,7 +23,17 @@ conveniences. New capabilities should prefer module-owned tools.
 
 ## Runtime infrastructure
 
-- `tool-groups`, `tool-middleware`, `tool-runner`, `tool-telemetry`, `tool-result`, `tool-adapters` — tool execution pipeline.
+- `tool-groups`, `tool-middleware`, `tool-runner`, `tool-telemetry`, `tool-result`, `tool-adapters`, `tool-adapter-types`, `tool-adapters-zod` — tool execution pipeline.
 - `guardrails`, `guardrails-classify`, `audit-store` — risk assessment and audit storage.
 - `repl-session` — shared REPL sessions used by custom-tool handlers and the execution module.
+- `module-factory/` — module lifecycle: `addLoadedModule`/`resetModuleFactory` called from loop-init.
+
+## Logical clusters
+
+- Delegate: `delegate.ts`, `delegate-agent-sdk.ts`, `delegate-config.ts`,
+  `delegate-format.ts`, `delegate-turn.ts` — sub-agent spawning.
+- Custom tools: `custom-tool.ts`, `custom-tool-handlers.ts`,
+  `custom-tool-persistence.ts` — user-defined tool extensibility.
+- Guardrails: `guardrails.ts`, `guardrails-classify.ts`, `audit-store.ts` —
+  risk classification and audit trail.
 

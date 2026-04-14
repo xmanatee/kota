@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import type { WorkflowStepContext } from "./run-types.js";
+import type { WorkflowStepContext } from "../run-types.js";
+import type { WorkflowTriggerStep } from "../types.js";
 import { executeTriggerStep } from "./step-executor-trigger.js";
-import type { WorkflowTriggerStep } from "./types.js";
 
 function makeContext(
   overrides: Partial<WorkflowStepContext> = {},

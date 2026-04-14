@@ -8,7 +8,7 @@ import {
 } from "./run-executor-step.js";
 
 const executeStepMock = vi.hoisted(() => vi.fn());
-vi.mock("./step-executor.js", () => ({
+vi.mock("./steps/step-executor.js", () => ({
   executeStep: executeStepMock,
   AgentStepRuntimeError: class AgentStepRuntimeError extends Error {
     kind: string;

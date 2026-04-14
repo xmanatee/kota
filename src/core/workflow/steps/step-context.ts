@@ -2,13 +2,13 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { EventBus } from "#core/events/event-bus.js";
 import { executeTool } from "#core/tools/index.js";
-import type { WorkflowRunStore } from "./run-store.js";
+import type { WorkflowRunStore } from "../run-store.js";
 import type {
   WorkflowRunMetadata,
   WorkflowStepContext,
   WorkflowStepResult,
-} from "./run-types.js";
-import type { WorkflowRunTrigger } from "./types.js";
+} from "../run-types.js";
+import type { WorkflowRunTrigger } from "../types.js";
 
 export function createStepContext(
   metadata: WorkflowRunMetadata,

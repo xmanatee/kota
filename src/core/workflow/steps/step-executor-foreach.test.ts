@@ -3,10 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { executeWorkflowRun } from "./run-executor.js";
-import { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowDefinition, WorkflowForeachStepInput, WorkflowRunTrigger } from "./types.js";
-import { validateWorkflowDefinitions } from "./validation.js";
+import { executeWorkflowRun } from "../run-executor.js";
+import { WorkflowRunStore } from "../run-store.js";
+import type { WorkflowDefinition, WorkflowForeachStepInput, WorkflowRunTrigger } from "../types.js";
+import { validateWorkflowDefinitions } from "../validation.js";
 
 function makeRetryTrigger(retryOf: string): WorkflowRunTrigger {
   return { event: "retry", payload: { retryOf, triggeredAt: new Date().toISOString() } };

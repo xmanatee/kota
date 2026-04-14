@@ -4,7 +4,7 @@ import type {
   WorkflowStepContext,
   WorkflowStepResult,
 } from "#core/workflow/run-types.js";
-import { resolveValue } from "#core/workflow/step-executor.js";
+import { resolveValue } from "#core/workflow/steps/step-executor.js";
 import type {
   WorkflowBranchStepInput,
   WorkflowCodeStepInput,

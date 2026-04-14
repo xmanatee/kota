@@ -1,6 +1,6 @@
-import type { WorkflowStepContext } from "./run-types.js";
+import type { WorkflowStepContext } from "../run-types.js";
+import type { WorkflowTriggerStep } from "../types.js";
 import { resolveValue } from "./step-executor.js";
-import type { WorkflowTriggerStep } from "./types.js";
 
 export type TriggerStepOutput = {
   runId: string;

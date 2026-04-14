@@ -1,7 +1,7 @@
 import type {
   WorkflowAgentBackoffKind,
   WorkflowRetryConfig,
-} from "./types.js";
+} from "../types.js";
 
 export class AgentStepRuntimeError extends Error {
   constructor(

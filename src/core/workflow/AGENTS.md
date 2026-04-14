@@ -5,6 +5,24 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 - Keep workflow protocols strict, restart-safe, and easy to reason about.
 - Put top-level autonomous execution semantics here, not in prompts or scheduler side channels.
 
+## Internal Subdomains
+
+- `steps/` — step execution strategies and step context construction.
+- `step-validators/` — per-step-type definition validation.
+- `testing/` — `WorkflowTestHarness` for unit-testing workflow definitions.
+- Runtime orchestration: `runtime.ts`, `runtime-dispatch.ts`,
+  `runtime-config.ts`, `runtime-signals.ts`.
+- Run lifecycle: `run-executor*.ts`, `run-store*.ts`, `run-io.ts`,
+  `run-types.ts`, `active-run-handle.ts`.
+- Definition validation: `validation*.ts`, `payload-validator.ts`.
+- Scheduling: `cron.ts`, `dispatch-window.ts`, `schedule-triggers.ts`,
+  `watch-triggers.ts`.
+- Cost and budget: `budget-guard.ts`, `cost-anomaly-detector.ts`,
+  `cost-forecast.ts`.
+- Repair and resilience: `repair-loop.ts`, `agent-backoff.ts`,
+  `failure-alert.ts`.
+- Shared types and events: `types.ts`, `event-payloads.ts`.
+
 ## Typed Code Step Pattern
 
 Use `typedCodeStep<T>` from `types.ts` when a code step's output is consumed by downstream

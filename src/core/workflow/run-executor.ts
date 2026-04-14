@@ -12,15 +12,15 @@ import { buildSkippedResult, DEFAULT_STEP_TIMEOUT_MS, executeWorkflowStep } from
 import { buildResumeInitialState, buildRetryInitialState } from "./run-executor-utils.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowRunWarning, WorkflowStepResult } from "./run-types.js";
-import { createStepContext } from "./step-context.js";
+import { createStepContext } from "./steps/step-context.js";
 import {
   type AgentStepConfig,
   AgentStepRuntimeError,
   shouldRunStep,
-} from "./step-executor.js";
-import { type BranchGroupResult, executeBranchStepGroup } from "./step-executor-branch.js";
-import { executeForeachStepGroup, type ForeachGroupResult } from "./step-executor-foreach.js";
-import { executeParallelStepGroup, type ParallelAgentDeps } from "./step-executor-parallel.js";
+} from "./steps/step-executor.js";
+import { type BranchGroupResult, executeBranchStepGroup } from "./steps/step-executor-branch.js";
+import { executeForeachStepGroup, type ForeachGroupResult } from "./steps/step-executor-foreach.js";
+import { executeParallelStepGroup, type ParallelAgentDeps } from "./steps/step-executor-parallel.js";
 import type { WorkflowBranchStep, WorkflowDefinition, WorkflowForeachStep, WorkflowRunTrigger } from "./types.js";
 
 export type RunExecutorDeps = {
@@ -253,10 +253,10 @@ export function executeWorkflowRun(
           });
           let foreachGroupResult: ForeachGroupResult | undefined;
           try {
-            let priorItemResults: import("./step-executor-foreach.js").ForeachItemResult[] | undefined;
+            let priorItemResults: import("./steps/step-executor-foreach.js").ForeachItemResult[] | undefined;
             if (step.retryFailedItems && step.continueOnFailure && retryState.priorRunSteps) {
               const priorForeachResult = retryState.priorRunSteps.find((s) => s.id === step.id);
-              const priorOutput = priorForeachResult?.output as { items?: number; results?: import("./step-executor-foreach.js").ForeachItemResult[] } | undefined;
+              const priorOutput = priorForeachResult?.output as { items?: number; results?: import("./steps/step-executor-foreach.js").ForeachItemResult[] } | undefined;
               if (Array.isArray(priorOutput?.results)) {
                 priorItemResults = priorOutput.results;
               }
