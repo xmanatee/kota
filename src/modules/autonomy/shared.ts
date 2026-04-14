@@ -254,7 +254,17 @@ export function checkNoRegisteredScratchWorktrees(projectDir: string): string {
   return "OK: no registered scratch worktrees";
 }
 
-export function checkCommitMessageExists(runDirPath: string): string {
+export function checkCommitMessageExists(runDirPath: string, projectDir?: string): string {
+  if (projectDir) {
+    const staged = execFileSync("git", ["diff", "--cached", "--name-only"], {
+      cwd: projectDir,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+    if (!staged) {
+      return "OK: no staged changes — commit message not required";
+    }
+  }
   const msgPath = join(runDirPath, "commit-message.txt");
   if (!existsSync(msgPath)) {
     throw new Error(

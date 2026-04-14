@@ -268,7 +268,7 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
     {
       id: "commit-message-exists",
       type: "code" as const,
-      run: (ctx) => checkCommitMessageExists(ctx.workflow.runDirPath),
+      run: (ctx) => checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
     },
     { ...createCriticCheck(), phase: 2 },
   ];

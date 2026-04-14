@@ -1,0 +1,1 @@
+make sure macos and ios apps are built using established frameworks and libraries and patterns and practices where possible and not reinvent the wheel... Also make sure there's some kind of ci or tests making sure nothing is broken after changes are made!

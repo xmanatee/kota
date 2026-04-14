@@ -109,7 +109,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
           {
             id: "commit-message-exists",
             type: "code" as const,
-            run: (ctx: WorkflowStepContext) => checkCommitMessageExists(ctx.workflow.runDirPath),
+            run: (ctx: WorkflowStepContext) => checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
           },
           { ...createImproverSemanticCheck(), phase: 2 },
         ],

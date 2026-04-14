@@ -50,7 +50,7 @@ export function buildRepairPrompt(
   lines.push(
     "Fix these issues now. Stage all changes with `git add -A` before stopping —",
     "review checks evaluate the staged diff, so unstaged fixes are invisible.",
-    "If the workflow will commit repository changes, write a short commit message to `<run-directory>/commit-message.txt`.",
+    "Write a short commit message to `<run-directory>/commit-message.txt` summarizing what changed.",
     "Finish this repair fully, then stop.",
   );
   return lines.join("\n");
