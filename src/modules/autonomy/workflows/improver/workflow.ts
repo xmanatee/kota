@@ -41,6 +41,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
     },
     {
       event: "runtime.recovered",
+      cooldownMs: IMPROVER_COOLDOWN_MS,
     },
   ],
   steps: [

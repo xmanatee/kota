@@ -27,20 +27,12 @@ describe("improver workflow", () => {
     vi.clearAllMocks();
   });
 
-  it("event-driven triggers have cooldowns to prevent no-op churn", () => {
-    const eventTriggers = improverWorkflow.triggers.filter(
-      (t) => t.event !== "runtime.recovered",
-    );
-    for (const trigger of eventTriggers) {
+  it("all triggers have cooldowns to prevent duplicate runs", () => {
+    for (const trigger of improverWorkflow.triggers) {
       expect(trigger.cooldownMs, `${trigger.event} should have a cooldown`).toBe(
         IMPROVER_COOLDOWN_MS,
       );
     }
-    // runtime.recovered should fire immediately without cooldown
-    const recoveredTrigger = improverWorkflow.triggers.find(
-      (t) => t.event === "runtime.recovered",
-    );
-    expect(recoveredTrigger?.cooldownMs).toBeUndefined();
   });
 
   it("skips commit and request-restart when improve fails", async () => {
