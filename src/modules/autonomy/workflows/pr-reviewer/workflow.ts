@@ -102,7 +102,6 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
       model: agent.model,
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
-      maxTurns: 30,
       timeoutMs: 20 * 60 * 1000, // 20 minutes
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: (ctx) => !assessPr.output(ctx).skip,

@@ -7,9 +7,9 @@ import { PromptStore } from "./prompt-template.js";
 
 export type DelegateMode = "explore" | "execute" | "research";
 
-export const EXPLORE_MAX_TURNS = 10;
-export const EXECUTE_MAX_TURNS = 15;
-export const RESEARCH_MAX_TURNS = 25;
+export const EXPLORE_MAX_TURNS = 30;
+export const EXECUTE_MAX_TURNS = 50;
+export const RESEARCH_MAX_TURNS = 80;
 export const SUB_AGENT_RESULT_LIMIT = 30_000;
 export const IDENTICAL_FAILURE_LIMIT = 3;
 export const MAX_DELEGATE_IMAGES = 10;
@@ -36,7 +36,7 @@ export type DelegateConfig = {
   agentSdkBudgetUsd?: number;
 };
 
-let delegateConfig: DelegateConfig = { model: "claude-sonnet-4-6" };
+let delegateConfig: DelegateConfig = { model: "claude-opus-4-6" };
 
 export function setDelegateConfig(config: DelegateConfig): void {
   delegateConfig = config;

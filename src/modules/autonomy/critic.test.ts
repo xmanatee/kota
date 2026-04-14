@@ -171,7 +171,8 @@ describe("createCriticCheck", () => {
     expect(userMessage).toContain("If completeness is uncertain, inspect run artifacts yourself");
     expect(userMessage).toContain("Do not require a specific evidence artifact");
     expect(userMessage).toContain(`${runDir}/steps/*.events.jsonl`);
-    expect(options.allowedTools).toEqual(["Read", "Grep", "Glob"]);
+    expect(options.allowedTools).toBeUndefined();
+    expect(options.effort).toBe("max");
   });
 
   it("recovers verdict from response with preamble text before JSON", async () => {

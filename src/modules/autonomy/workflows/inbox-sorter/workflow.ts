@@ -60,13 +60,10 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
       model: agent.model,
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
-      maxTurns: 50,
       timeoutMs: 45 * 60 * 1000,
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: (ctx) => inspectInbox.output(ctx).needsAttention,
       repairLoop: {
-        maxRepairAttempts: 2,
-        maxTurnsPerRepair: 20,
         checks: [
           {
             id: "task-queue-valid",

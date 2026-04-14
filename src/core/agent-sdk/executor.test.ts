@@ -169,7 +169,7 @@ describe("agent-sdk executor", () => {
         enableFileCheckpointing: true,
         pathToClaudeCodeExecutable: "/usr/local/bin/claude",
         abortController: undefined,
-        effort: undefined,
+        effort: "max",
       },
     });
   });

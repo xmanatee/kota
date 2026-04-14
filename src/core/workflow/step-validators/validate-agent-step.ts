@@ -48,12 +48,6 @@ function validateRepairLoop(
     definitionPath,
     1,
   );
-  if (!maxRepairAttempts) {
-    throw new WorkflowDefinitionError(
-      `${field}.maxRepairAttempts must be a positive integer`,
-      definitionPath,
-    );
-  }
   if (!Array.isArray(value.checks) || value.checks.length === 0) {
     throw new WorkflowDefinitionError(
       `${field}.checks must be a non-empty array`,

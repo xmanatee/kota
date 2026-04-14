@@ -225,7 +225,8 @@ describe("createImproverSemanticCheck", () => {
     expect(prompt).toContain(`${runDir}/steps/*.events.jsonl`);
 
     const options = mockExecuteWithAgentSDK.mock.calls[0][1];
-    expect(options.allowedTools).toEqual(["Read", "Grep", "Glob"]);
+    expect(options.allowedTools).toBeUndefined();
+    expect(options.effort).toBe("max");
   });
 
   it("retries on transient SDK errors", async () => {

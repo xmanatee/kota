@@ -19,10 +19,6 @@ import {
 } from "./delegate-format.js";
 import type { ToolResult } from "./index.js";
 
-const EXPLORE_MAX_TURNS = 15;
-const EXECUTE_MAX_TURNS = 25;
-const DEFAULT_BUDGET_USD = 0.5;
-
 const EXPLORE_SDK_TOOLS = [
   "Read",
   "Glob",
@@ -61,7 +57,6 @@ export async function runDelegateAgentSDK(
     instructionContext: config.instructionContext,
   };
   const systemPrompt = buildSubAgentPrompt(basePrompt, promptConfig);
-  const maxTurns = isExecute ? EXECUTE_MAX_TURNS : EXPLORE_MAX_TURNS;
   const allowedTools = isExecute ? EXECUTE_SDK_TOOLS : EXPLORE_SDK_TOOLS;
   const transport = config.transport;
   const taskChars = [...task];
@@ -80,11 +75,11 @@ export async function runDelegateAgentSDK(
     {
       model: config.model,
       systemPrompt,
-      maxTurns,
       allowedTools,
       permissionMode: "bypassPermissions",
       cwd: config.cwd ?? process.cwd(),
-      maxBudgetUsd: config.maxBudgetUsd ?? DEFAULT_BUDGET_USD,
+      maxBudgetUsd: config.maxBudgetUsd,
+      effort: "max",
     },
     transport
       ? {
@@ -122,7 +117,7 @@ export async function runDelegateAgentSDK(
   const meta: DelegateMetadata = {
     mode: `${mode}:agent-sdk`,
     turnsUsed: result.turns,
-    turnsMax: maxTurns,
+    turnsMax: undefined,
     toolsUsed: ["agent-sdk"],
     completionReason,
     urlsFetched: [],

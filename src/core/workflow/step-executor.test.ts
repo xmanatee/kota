@@ -558,6 +558,7 @@ describe("buildRepairPrompt", () => {
     expect(prompt).toContain("## verify-lint");
     expect(prompt).toContain("error: semicolon");
     expect(prompt).toContain("Fix these issues now");
+    expect(prompt).toContain("commit-message.txt");
   });
 
   it("includes all failures", () => {
@@ -723,7 +724,7 @@ describe("executeStep repair loop", () => {
         () => {},
         agentConfig,
       ),
-    ).rejects.toThrow('Repair loop for step "test-step" exhausted budget (2 attempt(s))');
+    ).rejects.toThrow('Repair loop for step "test-step" exhausted repair attempts (2)');
 
     // Initial agent + 2 repair agents (one per attempt): maxRepairAttempts=2 means 2 repair runs
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(3);

@@ -18,7 +18,7 @@ export type CriticVerdict = {
   summary: string;
 };
 
-const CRITIC_MODEL = "claude-sonnet-4-6";
+const CRITIC_MODEL = "claude-opus-4-6";
 
 const CRITIC_SYSTEM_PROMPT = `You are a calibrated code review critic. Your job is to determine whether an agent's work genuinely and completely fulfills its assigned task.
 
@@ -162,7 +162,6 @@ export function handleVerdict(verdict: CriticVerdict, runDir?: string, artifactN
  *   If not provided, warnings are not persisted.
  */
 const CRITIC_MAX_RETRIES = 3;
-const CRITIC_MAX_TURNS = 12;
 const CRITIC_RETRY_BASE_DELAY_MS = 2_000;
 
 async function invokeCritic(
@@ -179,8 +178,7 @@ async function invokeCritic(
       model: CRITIC_MODEL,
       cwd,
       systemPrompt: CRITIC_SYSTEM_PROMPT,
-      maxTurns: CRITIC_MAX_TURNS,
-      allowedTools: ["Read", "Grep", "Glob"],
+      effort: "max",
       permissionMode: "bypassPermissions",
       settingSources: ["project"],
     }, {

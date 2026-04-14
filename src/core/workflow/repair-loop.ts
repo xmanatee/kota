@@ -27,12 +27,16 @@ export type RepairIteration = {
 
 export function buildRepairPrompt(
   attempt: number,
-  maxRepairAttempts: number,
+  maxRepairAttempts: number | undefined,
   failures: RepairCheckResult[],
   step: WorkflowAgentStep,
+  runDirPath?: string,
 ): string {
+  const attemptLabel = maxRepairAttempts === undefined
+    ? `${attempt}`
+    : `${attempt}/${maxRepairAttempts}`;
   const lines = [
-    `Post-check repair attempt ${attempt}/${maxRepairAttempts} for step "${step.id}".`,
+    `Post-check repair attempt ${attemptLabel} for step "${step.id}".`,
     "",
     "The following checks failed after your previous work:",
     "",
@@ -40,9 +44,13 @@ export function buildRepairPrompt(
   for (const failure of failures) {
     lines.push(`## ${failure.id}`, "```", failure.output.trim(), "```", "");
   }
+  if (runDirPath) {
+    lines.push("Run directory:", runDirPath, "");
+  }
   lines.push(
     "Fix these issues now. Stage all changes with `git add -A` before stopping —",
     "review checks evaluate the staged diff, so unstaged fixes are invisible.",
+    "If the workflow will commit repository changes, write a short commit message to `<run-directory>/commit-message.txt`.",
     "Finish this repair fully, then stop.",
   );
   return lines.join("\n");
@@ -168,7 +176,7 @@ export async function runAgentRepairLoop(
   appendMessage: (message: SDKMessage) => void,
   agentConfig: AgentStepConfig,
 ): Promise<WorkflowStepOutput> {
-  const { checks, maxRepairAttempts, maxTurnsPerRepair } = step.repairLoop!;
+  const { checks, maxRepairAttempts } = step.repairLoop!;
   const iterations: RepairIteration[] = [];
   const base = (initialResult && typeof initialResult === "object") ? initialResult as Record<string, unknown> : {};
   let totalTurns = typeof base.turns === "number" ? base.turns : 0;
@@ -184,17 +192,14 @@ export async function runAgentRepairLoop(
   let failures = initialFailures;
   warnings = initialWarnings;
 
-  for (let attempt = 1; attempt <= maxRepairAttempts && failures.length > 0; attempt++) {
+  for (let attempt = 1; failures.length > 0 && (maxRepairAttempts === undefined || attempt <= maxRepairAttempts); attempt++) {
     if (abortController.signal.aborted) break;
 
     const iteration: RepairIteration = { attempt, failures };
 
-    const repairPrompt = buildRepairPrompt(attempt, maxRepairAttempts, failures, step);
-    const effectiveStep = maxTurnsPerRepair != null
-      ? { ...step, maxTurns: maxTurnsPerRepair }
-      : step;
+    const repairPrompt = buildRepairPrompt(attempt, maxRepairAttempts, failures, step, context.workflow.runDirPath);
     const repairResult = await executeRepairAgentIteration(
-      effectiveStep,
+      step,
       repairPrompt,
       abortController,
       appendMessage,
@@ -218,7 +223,7 @@ export async function runAgentRepairLoop(
 
     if (failures.length > 0 && attempt === maxRepairAttempts) {
       throw new Error(
-        `Repair loop for step "${step.id}" exhausted budget (${maxRepairAttempts} attempt(s)). ` +
+        `Repair loop for step "${step.id}" exhausted repair attempts (${maxRepairAttempts}). ` +
           `Still failing: ${failures.map((f) => f.id).join(", ")}`,
       );
     }

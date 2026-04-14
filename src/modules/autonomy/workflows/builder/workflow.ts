@@ -61,7 +61,6 @@ const builderWorkflow: WorkflowDefinitionInput = {
       model: agent.model,
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
-      maxTurns: 100,
       timeoutMs: 35 * 60 * 1000, // p99 of successful runs is ~26 min; 35 min gives safe headroom
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: (ctx) => {
@@ -69,8 +68,6 @@ const builderWorkflow: WorkflowDefinitionInput = {
         return !dirty && pullableCount > 0;
       },
       repairLoop: {
-        maxRepairAttempts: 3,
-        maxTurnsPerRepair: 30,
         checks: builderRepairChecks(),
       },
     },

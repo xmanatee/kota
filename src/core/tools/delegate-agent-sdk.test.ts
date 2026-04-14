@@ -93,10 +93,11 @@ describe("delegate-agent-sdk", () => {
     expect(options).toMatchObject({
       cwd: "/tmp/project",
       model: "claude-haiku-4-5-20251001",
-      maxTurns: 15,
       permissionMode: "bypassPermissions",
-      maxBudgetUsd: 0.5,
+      effort: "max",
     });
+    expect(options.maxTurns).toBeUndefined();
+    expect(options.maxBudgetUsd).toBeUndefined();
     expect(options.allowedTools).toContain("Read");
     expect(options.allowedTools).toContain("Grep");
     expect(options.allowedTools).not.toContain("Edit");
@@ -119,8 +120,9 @@ describe("delegate-agent-sdk", () => {
     });
 
     const [, options] = mockExecuteWithAgentSDK.mock.calls[0];
-    expect(options.maxTurns).toBe(25);
+    expect(options.maxTurns).toBeUndefined();
     expect(options.maxBudgetUsd).toBe(1);
+    expect(options.effort).toBe("max");
     expect(options.allowedTools).toContain("Edit");
     expect(options.allowedTools).toContain("Write");
     expect(options.allowedTools).toContain("Bash");

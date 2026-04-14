@@ -134,7 +134,7 @@ export function buildQueryOptions(options?: ExecutorOptions): SDKQueryOptions {
     cwd: options?.cwd ?? process.cwd(),
     maxBudgetUsd: options?.maxBudgetUsd,
     persistSession: options?.persistSession,
-    effort: options?.effort,
+    effort: options?.effort ?? "max",
     settingSources: options?.settingSources,
     pathToClaudeCodeExecutable:
       options?.pathToClaudeCodeExecutable ?? detectLocalClaudeCodeExecutable(),

@@ -132,7 +132,7 @@ export async function runDelegate(
   const urlsFetched = new Set<string>();
   const searchQueries = new Set<string>();
 
-  const client = delegateConfig.client ?? createModelClient({ model: "claude-sonnet-4-6" }).client;
+  const client = delegateConfig.client ?? createModelClient({ model: delegateConfig.model }).client;
   const costTracker = delegateConfig.costTracker;
   const transport = delegateConfig.transport;
   const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: task }];

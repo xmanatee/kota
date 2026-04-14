@@ -106,13 +106,10 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       model: agent.model,
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
-      maxTurns: 75,
       timeoutMs: 45 * 60 * 1000, // 45 minutes — explorer can do broad external research
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: (ctx) => inspectQueue.output(ctx).needsAttention,
       repairLoop: {
-        maxRepairAttempts: 2,
-        maxTurnsPerRepair: 25,
         checks: [
           {
             id: "task-queue-valid",

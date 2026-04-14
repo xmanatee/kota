@@ -7,7 +7,7 @@ export type CompletionReason = "done" | "turn_limit" | "circuit_break" | "contex
 export type DelegateMetadata = {
   mode: string;
   turnsUsed: number;
-  turnsMax: number;
+  turnsMax?: number;
   toolsUsed: string[];
   completionReason: CompletionReason;
   urlsFetched: string[];
@@ -19,8 +19,11 @@ export type DelegateMetadata = {
 /** Format metadata as a concise single-line prefix for the result. */
 export function formatMetadata(meta: DelegateMetadata): string {
   const toolList = meta.toolsUsed.length > 0 ? meta.toolsUsed.join(", ") : "none";
+  const turns = meta.turnsMax === undefined
+    ? `${meta.turnsUsed} turns`
+    : `${meta.turnsUsed}/${meta.turnsMax} turns`;
   const parts = [
-    `${meta.mode}: ${meta.turnsUsed}/${meta.turnsMax} turns`,
+    `${meta.mode}: ${turns}`,
     `tools: ${toolList}`,
   ];
   if (meta.completionReason !== "done") {

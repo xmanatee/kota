@@ -158,13 +158,10 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       model: agent.model,
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
-      maxTurns: 50,
       timeoutMs: 30 * 60 * 1000,
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: (ctx) => assessFailure.output(ctx).shouldDecompose,
       repairLoop: {
-        maxRepairAttempts: 2,
-        maxTurnsPerRepair: 20,
         checks: [
           {
             id: "task-queue-valid",

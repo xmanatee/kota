@@ -11,9 +11,8 @@ import {
 } from "./critic.js";
 import { sleep } from "./shared.js";
 
-const GATE_MODEL = "claude-sonnet-4-6";
+const GATE_MODEL = "claude-opus-4-6";
 const GATE_MAX_RETRIES = 3;
-const GATE_MAX_TURNS = 10;
 const GATE_RETRY_BASE_DELAY_MS = 2_000;
 const ARTIFACT_NAME = "semantic-gate-review.json";
 
@@ -64,8 +63,7 @@ async function invokeGate(
       model: GATE_MODEL,
       cwd,
       systemPrompt: GATE_SYSTEM_PROMPT,
-      maxTurns: GATE_MAX_TURNS,
-      allowedTools: ["Read", "Grep", "Glob"],
+      effort: "max",
       permissionMode: "bypassPermissions",
       settingSources: ["project"],
     }, {
