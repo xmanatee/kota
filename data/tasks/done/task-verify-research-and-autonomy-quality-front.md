@@ -1,12 +1,12 @@
 ---
 id: task-verify-research-and-autonomy-quality-front
 title: Verify research and autonomy quality fixes
-status: backlog
+status: done
 priority: p1
 area: autonomy
 summary: After the focused fixes land, verify that resource research and improver commits are honest, useful, and protected against the recent failure modes.
 created_at: 2026-04-13T21:39:00.000Z
-updated_at: 2026-04-13T21:39:00.000Z
+updated_at: 2026-04-14T02:51:51.842Z
 ---
 
 ## Problem
