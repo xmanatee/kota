@@ -1,3 +1,0 @@
-wtf is wrong with web ui code?? Why is all js strings? it should be a clean and robust and well designed and general web app in react... probably using smth like vite tanstack start and tanstack query and tailwind css and shadcn ui and etc...
-
-Generally we should use established frameworks and libraries and patterns and practices where possible and not reinvent the wheel... Also make sure these principles are followed across the codebase! Research the existing codebase and make sure we are not repeating the same mistakes anywhere else!
