@@ -499,18 +499,21 @@ triggers are reconciled against the new definitions.
 
 ### POST /reload
 
-Re-reads `config.json` from disk, rediscovers user modules from `.kota/modules/`,
-and re-registers their workflow contributions with the workflow runtime. Active workflow
-runs are not interrupted. Modules that have not changed (same name, same workflows)
-are not re-initialized. Equivalent to `kota daemon reload`.
+Re-reads `config.json` from disk, rediscovers project and user modules, reimports
+their source from disk (bypassing ESM cache), and re-registers workflow
+contributions with the workflow runtime. Active workflow runs are not interrupted.
+Modules whose config has not changed are reported as skipped in the diff, but all
+module source is freshly imported. Equivalent to `kota daemon reload` or
+`kota module reload <name>`.
 
 **Response:**
 
 ```json
-{ "ok": true, "workflows": 5 }
+{ "ok": true, "workflows": 5, "changedModules": ["my-module"] }
 ```
 
 `workflows` is the total number of active workflow definitions after reload.
+`changedModules` lists modules whose config changed since the last load.
 
 ### GET /events
 

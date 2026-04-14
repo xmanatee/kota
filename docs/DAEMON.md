@@ -36,12 +36,30 @@ is managed by the OS process manager (`managed: yes/no`).
 ```
 kota daemon stop [--timeout <seconds>]
 kota daemon reload
+kota module reload <name>
 kota daemon pid
 ```
 
 - `stop` sends SIGTERM and waits up to `--timeout` seconds for a clean exit.
-- `reload` hot-reloads config and re-registers module workflow contributions.
+- `reload` hot-reloads config, reimports all module source from disk, and re-registers workflow contributions.
+- `module reload <name>` reloads a single named module via the daemon (triggers a full config reload under the hood).
 - `pid` prints the daemon's PID (exits non-zero if not running).
+
+## Module Lifecycle
+
+Three operations affect module state at runtime:
+
+- **Reload** (`kota module reload <name>` or `kota daemon reload`): reimports
+  module source from disk (ESM cache-busted), unloads the old instance, and
+  re-registers the fresh module. Picks up changed source without a process
+  restart. Active workflow runs are not interrupted.
+- **Unload / Load**: the internal lifecycle for removing a module and
+  re-adding it. Reload uses this under the hood. Unload tears down tools,
+  workflows, channels, skills, agents, and config keys contributed by the
+  module.
+- **Daemon restart**: full process restart. Required for changes to core
+  runtime code, module protocol changes, or dependency graph changes that
+  reload cannot safely reconcile.
 
 ## Mobile Client QR Setup
 

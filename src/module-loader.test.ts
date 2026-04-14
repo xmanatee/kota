@@ -1,6 +1,7 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "./core/events/event-bus.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
@@ -531,6 +532,36 @@ describe("ModuleLoader", () => {
     expect(await loader.reload("nonexistent")).toBe(false);
   });
 
+  it("reload cleans up config keys, skills, workflows, and channels", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "cleanup-mod",
+      tools: [makeTool("cleanup_tool")],
+      configKeys: [{ key: "cleanupMod" }],
+    });
+
+    expect(loader.getRegisteredConfigKeys().has("cleanupMod")).toBe(true);
+
+    await loader.reload("cleanup-mod");
+
+    expect(loader.getRegisteredConfigKeys().has("cleanupMod")).toBe(true);
+    expect(loader.getLoadedModules()).toEqual(["cleanup-mod"]);
+    const r = await executeTool("cleanup_tool", {});
+    expect(r.content).toBe("result from cleanup_tool");
+  });
+
+  it("unload cleans up config keys", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "cfgkey-mod",
+      configKeys: [{ key: "cfgKeyMod" }],
+    });
+    expect(loader.getRegisteredConfigKeys().has("cfgKeyMod")).toBe(true);
+
+    await loader.unload("cfgkey-mod");
+    expect(loader.getRegisteredConfigKeys().has("cfgKeyMod")).toBe(false);
+  });
+
   it("getDependents returns correct dependents", async () => {
     const loader = new ModuleLoader({});
     await loader.load({ name: "core" });
@@ -541,6 +572,103 @@ describe("ModuleLoader", () => {
     expect(loader.getDependents("core").sort()).toEqual(["ext-a", "ext-b"]);
     expect(loader.getDependents("standalone")).toEqual([]);
     expect(loader.getDependents("ext-a")).toEqual([]);
+  });
+});
+
+describe("source reimport", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    clearCustomTools();
+    clearCustomGroups();
+    resetGroups();
+    tmpDir = mkdtempSync(join(tmpdir(), "kota-reimport-"));
+  });
+
+  afterEach(() => {
+    clearCustomTools();
+    clearCustomGroups();
+    resetGroups();
+    if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
+  });
+
+  it("reimport picks up changed module source from disk", async () => {
+    const modDir = join(tmpDir, ".kota", "modules", "test-mod");
+    mkdirSync(modDir, { recursive: true });
+
+    writeFileSync(
+      join(modDir, "index.mjs"),
+      `export default { name: "test-mod", version: "1.0.0", description: "v1" };`,
+    );
+
+    const url1 = pathToFileURL(join(modDir, "index.mjs")).href;
+    const mod1 = await import(url1);
+    expect(mod1.default.description).toBe("v1");
+
+    writeFileSync(
+      join(modDir, "index.mjs"),
+      `export default { name: "test-mod", version: "2.0.0", description: "v2" };`,
+    );
+
+    const cachedMod = await import(url1);
+    expect(cachedMod.default.description).toBe("v1");
+
+    const cacheBustedUrl = `${url1}?v=${Date.now()}`;
+    const mod2 = await import(cacheBustedUrl);
+    expect(mod2.default.description).toBe("v2");
+  });
+
+  it("ModuleLoader.reload re-imports installed module from disk", async () => {
+    const modDir = join(tmpDir, ".kota", "modules", "disk-mod");
+    mkdirSync(modDir, { recursive: true });
+
+    writeFileSync(
+      join(modDir, "index.mjs"),
+      `export default {
+        name: "disk-mod",
+        description: "original",
+        tools: [{
+          tool: { name: "disk_tool", description: "disk tool", input_schema: { type: "object", properties: {} } },
+          runner: async () => ({ content: "v1" }),
+          risk: "safe",
+          kind: "discovery",
+        }],
+      };`,
+    );
+
+    const loader = new ModuleLoader({});
+    loader.setCwd(tmpDir);
+
+    const { reimportInstalledModule } = await import("./core/modules/module-discovery.js");
+    const mod = await reimportInstalledModule("disk-mod", tmpDir);
+    expect(mod).not.toBeNull();
+
+    await loader.loadAll([], [mod!]);
+
+    const r1 = await executeTool("disk_tool", {});
+    expect(r1.content).toBe("v1");
+
+    writeFileSync(
+      join(modDir, "index.mjs"),
+      `export default {
+        name: "disk-mod",
+        description: "updated",
+        tools: [{
+          tool: { name: "disk_tool", description: "disk tool", input_schema: { type: "object", properties: {} } },
+          runner: async () => ({ content: "v2" }),
+          risk: "safe",
+          kind: "discovery",
+        }],
+      };`,
+    );
+
+    const reloaded = await loader.reload("disk-mod");
+    expect(reloaded).toBe(true);
+
+    const r2 = await executeTool("disk_tool", {});
+    expect(r2.content).toBe("v2");
+
+    await loader.unloadAll();
   });
 });
 

@@ -36,6 +36,21 @@ export async function importModuleEntry<T>(
   return (imported.default ?? imported) as T;
 }
 
+/**
+ * Re-import a module entry with ESM cache busting so changed source is picked up.
+ * Uses a `?v=<timestamp>` query parameter to bypass the ESM module cache.
+ */
+export async function reimportModuleEntry<T>(
+  baseUrl: URL,
+  entryBaseName: string,
+): Promise<T | null> {
+  const entryUrl = resolveModuleEntryUrl(baseUrl, entryBaseName);
+  if (!entryUrl) return null;
+  const cacheBustedUrl = `${pathToFileURL(fileURLToPath(entryUrl)).href}?v=${Date.now()}`;
+  const imported = await import(cacheBustedUrl);
+  return (imported.default ?? imported) as T;
+}
+
 export async function importModuleExports<T>(
   baseUrl: URL,
   entryBaseName: string,

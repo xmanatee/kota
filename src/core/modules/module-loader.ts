@@ -11,7 +11,8 @@ import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js"
 import { loadForeignModules } from "./foreign-module-loader.js";
 import { createModuleContext, type ModuleContextParams } from "./module-context.js";
 import { topoSort } from "./module-deps.js";
-import { getModuleDependents, type LifecycleState, reloadModule, unloadAllModules, unloadModule } from "./module-lifecycle.js";
+import { reimportInstalledModule } from "./module-discovery.js";
+import { getModuleDependents, type LifecycleState, unloadAllModules, unloadModule } from "./module-lifecycle.js";
 import type { ModuleStorage } from "./module-storage.js";
 import {
   type CreateSessionOptions,
@@ -28,6 +29,7 @@ import {
   resolveModuleWorkflows,
   type ToolDef,
 } from "./module-types.js";
+import { reimportProjectModule } from "./project-discovery.js";
 import { getProviderRegistry } from "./provider-registry.js";
 
 export type { ModuleSource, ModuleSummary } from "./module-types.js";
@@ -366,15 +368,31 @@ export class ModuleLoader {
   }
 
   async unload(moduleName: string): Promise<boolean> {
-    return unloadModule(moduleName, this.lifecycleState);
+    const result = await unloadModule(moduleName, this.lifecycleState);
+    if (result) this.cleanupLoaderState(moduleName);
+    return result;
   }
 
   async reload(moduleName: string): Promise<boolean> {
-    return reloadModule(
-      moduleName,
-      this.lifecycleState,
-      (m) => this.load(m),
-    );
+    const source = this.moduleSources.get(moduleName);
+    const registryMod = this.moduleRegistry.get(moduleName);
+    if (!registryMod) return false;
+
+    const freshMod = source ? await this.reimportModule(moduleName, source) : null;
+    const modToLoad = freshMod ?? registryMod;
+
+    if (this.modules.some((m) => m.name === moduleName)) {
+      await this.unload(moduleName);
+    }
+
+    await this.load(modToLoad);
+    if (source) this.moduleSources.set(moduleName, source);
+
+    if (this.verbose) {
+      const how = freshMod ? "from disk" : "from registry";
+      console.error(`[kota] Module "${moduleName}" reloaded (${how})`);
+    }
+    return true;
   }
 
   getDependents(moduleName: string): string[] {
@@ -383,7 +401,60 @@ export class ModuleLoader {
 
   async unloadAll(): Promise<void> {
     await unloadAllModules(this.lifecycleState);
+    this.registeredConfigKeys.clear();
+    this.contributedWorkflows.splice(0);
+    this.contributedChannels.splice(0);
+    this.skillContentsByName.clear();
+    this.skillDefsByName.clear();
+    this.moduleSources.clear();
+    this.loadFailures.clear();
     this.bus = null;
+  }
+
+  private cleanupLoaderState(moduleName: string): void {
+    for (const [key, owner] of this.registeredConfigKeys) {
+      if (owner === moduleName) this.registeredConfigKeys.delete(key);
+    }
+
+    const wfDefs = this.moduleWorkflowDefs.get(moduleName);
+    if (wfDefs) {
+      const wfNames = new Set(wfDefs.map((w) => w.name));
+      for (let i = this.contributedWorkflows.length - 1; i >= 0; i--) {
+        if (wfNames.has(this.contributedWorkflows[i].name)) {
+          this.contributedWorkflows.splice(i, 1);
+        }
+      }
+    }
+
+    const chDefs = this.moduleChannelDefs.get(moduleName);
+    if (chDefs) {
+      const chNames = new Set(chDefs.map((c) => c.name));
+      for (let i = this.contributedChannels.length - 1; i >= 0; i--) {
+        if (chNames.has(this.contributedChannels[i].name)) {
+          this.contributedChannels.splice(i, 1);
+        }
+      }
+    }
+
+    const skillDefs = this.moduleSkillDefs.get(moduleName);
+    if (skillDefs) {
+      for (const skill of skillDefs) {
+        this.skillContentsByName.delete(skill.name);
+        this.skillDefsByName.delete(skill.name);
+      }
+    }
+  }
+
+  private async reimportModule(name: string, source: ModuleSource): Promise<KotaModule | null> {
+    try {
+      if (source === "project") return await reimportProjectModule(name);
+      if (source === "installed") return await reimportInstalledModule(name, this.cwd);
+      return null;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[kota] Failed to reimport module "${name}": ${msg}`);
+      return null;
+    }
   }
 
   private activateConfiguredProviders(): void {

@@ -133,3 +133,49 @@ async function importModuleFile(absPath: string, displayName: string): Promise<K
   const imported = await import(url);
   return adaptExport(imported.default ?? imported, displayName);
 }
+
+async function reimportModuleFile(absPath: string, displayName: string): Promise<KotaModule> {
+  const url = `${pathToFileURL(absPath).href}?v=${Date.now()}`;
+  const imported = await import(url);
+  return adaptExport(imported.default ?? imported, displayName);
+}
+
+/**
+ * Re-import a single installed module from `.kota/modules/<name>/` with ESM
+ * cache busting so changed source is picked up.
+ */
+export async function reimportInstalledModule(name: string, cwd?: string): Promise<KotaModule | null> {
+  const base = cwd || process.cwd();
+  const moduleDir = resolve(base, MODULES_DIR, name);
+  if (!existsSync(moduleDir)) return null;
+
+  const manifestPath = join(moduleDir, "manifest.json");
+  if (existsSync(manifestPath)) {
+    try {
+      const raw = readFileSync(manifestPath, "utf-8");
+      const manifest = JSON.parse(raw) as ModuleManifest;
+      const errors = validateManifest(manifest);
+      if (errors.length > 0) return null;
+      return manifestToModule(manifest);
+    } catch {
+      return null;
+    }
+  }
+
+  for (const entry of ["index.js", "index.mjs"]) {
+    const entryPath = join(moduleDir, entry);
+    if (existsSync(entryPath)) {
+      return reimportModuleFile(entryPath, name);
+    }
+  }
+
+  const pkgJsonPath = join(moduleDir, "package.json");
+  if (existsSync(pkgJsonPath)) {
+    const entryPath = resolvePackageEntry(moduleDir, pkgJsonPath);
+    if (entryPath) {
+      return reimportModuleFile(entryPath, name);
+    }
+  }
+
+  return null;
+}

@@ -8,7 +8,7 @@ import { createImproverSemanticCheck } from "#modules/autonomy/improver-semantic
 import { recallForImprover } from "#modules/autonomy/knowledge-recall.js";
 import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
 import { writeRunSummary } from "#modules/autonomy/run-summary.js";
-import { aggregateRunOutcomes, AUTONOMY_DISALLOWED_TOOLS, checkNoScratchArtifacts, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
+import { AUTONOMY_DISALLOWED_TOOLS, aggregateRunOutcomes, checkNoScratchArtifacts, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
 
 /** Minimum interval between improver runs triggered by the same event type. */
 export const IMPROVER_COOLDOWN_MS = 60 * 60 * 1000; // 60 minutes

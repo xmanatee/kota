@@ -2,6 +2,7 @@ import type { KotaModule } from "./module-types.js";
 import {
   importModuleEntry,
   listModuleDirectories,
+  reimportModuleEntry,
 } from "./runtime-module-discovery.js";
 
 /**
@@ -24,4 +25,14 @@ export async function discoverProjectModules(): Promise<KotaModule[]> {
   }
 
   return modules;
+}
+
+export function getProjectModulesBaseUrl(): URL {
+  return new URL("../../modules/", import.meta.url);
+}
+
+export async function reimportProjectModule(name: string): Promise<KotaModule | null> {
+  const baseUrl = getProjectModulesBaseUrl();
+  const moduleUrl = new URL(`${name}/`, baseUrl);
+  return reimportModuleEntry<KotaModule>(moduleUrl, "index");
 }

@@ -1,7 +1,11 @@
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { Command } from "commander";
+import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { DaemonControlClient } from "#core/server/daemon-client.js";
+import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { isProcessAlive } from "#core/util/process-alive.js";
 import { handleListModules } from "./routes.js";
 import { generateModuleScaffold, generatePythonScaffold } from "./scaffolds.js";
 
@@ -126,6 +130,46 @@ function buildModuleCommand(ctx: ModuleContext): Command {
         console.log("  pnpm build           # compile to dist/");
         console.log("");
         console.log(`To use without building, copy dist/index.js to .kota/modules/${safeName}/index.js`);
+      }
+    });
+
+  moduleCommand
+    .command("reload <name>")
+    .description("Reload a module from disk via daemon config reload")
+    .action(async (name: string) => {
+      const summaries = ctx.getModuleSummaries();
+      const exists = summaries.some((s) => s.name === name);
+      if (!exists) {
+        const names = summaries.map((s) => s.name).join(", ");
+        console.error(`Module "${name}" not found. Loaded: ${names || "(none)"}`);
+        process.exit(1);
+      }
+
+      const address = readOptionalJsonFile<DaemonControlAddress>(
+        join(process.cwd(), ".kota", "daemon-control.json"),
+      );
+      if (!address || typeof address.pid !== "number" || !isProcessAlive(address.pid)) {
+        console.error("Daemon is not running. Module reload requires a running daemon.");
+        process.exit(1);
+      }
+
+      const client = DaemonControlClient.fromStateDir();
+      if (!client) {
+        console.error("Cannot connect to daemon.");
+        process.exit(1);
+      }
+
+      const result = await client.reloadConfig();
+      if (!result) {
+        console.error("Daemon reload failed or daemon is not reachable.");
+        process.exit(1);
+      }
+
+      const reloaded = result.changedModules.includes(name);
+      if (reloaded) {
+        console.log(`Module "${name}" reloaded from disk.`);
+      } else {
+        console.log(`Module "${name}" unchanged (no config diff detected). ${result.workflows} workflow(s) active.`);
       }
     });
 

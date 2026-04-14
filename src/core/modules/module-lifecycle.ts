@@ -64,24 +64,6 @@ export async function unloadModule(moduleName: string, state: LifecycleState): P
   return true;
 }
 
-export async function reloadModule(
-  moduleName: string,
-  state: LifecycleState,
-  loadFn: (mod: KotaModule) => Promise<void>,
-): Promise<boolean> {
-  const mod = state.moduleRegistry.get(moduleName);
-  if (!mod) return false;
-
-  if (state.modules.some((m) => m.name === moduleName)) {
-    await unloadModule(moduleName, state);
-  }
-
-  await loadFn(mod);
-
-  if (state.verbose) console.error(`[kota] Module "${moduleName}" reloaded`);
-  return true;
-}
-
 export async function unloadAllModules(state: LifecycleState): Promise<void> {
   for (const mod of [...state.modules].reverse()) {
     if (mod.onUnload) {

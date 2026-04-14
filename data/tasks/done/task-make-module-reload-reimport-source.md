@@ -1,12 +1,12 @@
 ---
 id: task-make-module-reload-reimport-source
 title: Make module reload semantics match dynamic source loading
-status: backlog
+status: done
 priority: p2
 area: modules
 summary: Module reload currently reloads the same in-memory module object, so it does not reliably pick up changed module source.
 created_at: 2026-04-13T11:16:25Z
-updated_at: 2026-04-13T11:16:25Z
+updated_at: 2026-04-14T15:59:49.003Z
 ---
 
 ## Problem
