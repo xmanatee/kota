@@ -3,7 +3,7 @@ import type { WorkflowDefinitionTriggerSummary } from "#core/daemon/daemon-contr
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
-import { getWorkflowDefinitions } from "./definitions-source.js";
+import { getWorkflowDefinitions } from "../definitions-source.js";
 
 type WatchTriggerRow = {
   workflow: string;

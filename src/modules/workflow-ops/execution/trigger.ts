@@ -9,7 +9,7 @@ import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { formatRunId } from "#core/workflow/run-store-helpers.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
-import { getWorkflowDefinitions } from "./definitions-source.js";
+import { getWorkflowDefinitions } from "../definitions-source.js";
 
 export function registerTriggerCommands(
   wfCmd: Command,

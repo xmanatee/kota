@@ -7,7 +7,7 @@ import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { RepairSummary } from "#core/workflow/run-store-helpers.js";
 import { extractRepairSummary } from "#core/workflow/run-store-helpers.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import { formatDuration, statusIcon } from "./utils.js";
+import { formatDuration, statusIcon } from "../utils.js";
 
 export function formatWarningsSection(warnings: Array<{ type: string; message: string }>): string[] {
   return warnings.map((w) => `  [${w.type}] ${w.message}`);

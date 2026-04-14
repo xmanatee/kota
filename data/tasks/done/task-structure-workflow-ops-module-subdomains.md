@@ -1,12 +1,12 @@
 ---
 id: task-structure-workflow-ops-module-subdomains
 title: Structure workflow-ops into clear subdomains
-status: backlog
+status: done
 priority: p2
 area: workflow-ops
 summary: The workflow-ops module is one of the flattest module directories and mixes run inspection, control, history, routes, validation, and definitions.
 created_at: 2026-04-13T11:16:25Z
-updated_at: 2026-04-13T11:16:25Z
+updated_at: 2026-04-14T16:22:38.603Z
 ---
 
 ## Problem

@@ -5,7 +5,7 @@ import type {
   WorkflowStepInput,
   WorkflowTriggerInput,
 } from "#core/workflow/types.js";
-import { getWorkflowDefinitions } from "./definitions-source.js";
+import { getWorkflowDefinitions } from "../definitions-source.js";
 
 type WorkflowNode = {
   name: string;

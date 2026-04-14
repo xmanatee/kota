@@ -8,26 +8,26 @@
 
 import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
-import { registerControlCommands } from "./control.js";
-import { registerDefinitionLogCommand } from "./definition-log.js";
-import { registerDefinitionsCommand } from "./definitions.js";
-import { registerDepsCommand } from "./deps.js";
-import { registerFollowCommand } from "./follow.js";
-import { registerForecastCommand } from "./forecast.js";
-import { registerGcCommand } from "./gc.js";
-import { registerLogsCommand } from "./logs.js";
-import { workflowRoutes } from "./routes.js";
-import { registerRunCommand } from "./run.js";
-import { registerCostCommand } from "./run-cost.js";
-import { registerRunDiffCommand } from "./run-diff.js";
-import { registerExportCommand } from "./run-export.js";
-import { registerRunListCommands } from "./run-list.js";
-import { registerRunShowCommand } from "./run-show.js";
-import { registerStatsCommand } from "./run-stats.js";
-import { registerStepInspectCommand } from "./step-inspect.js";
-import { registerTriggerCommands } from "./trigger.js";
-import { registerTriggersCommand } from "./triggers.js";
-import { registerValidateCommand } from "./validate.js";
+import { registerDefinitionLogCommand } from "./definitions/definition-log.js";
+import { registerDefinitionsCommand } from "./definitions/definitions.js";
+import { registerDepsCommand } from "./definitions/deps.js";
+import { registerValidateCommand } from "./definitions/validate.js";
+import { registerControlCommands } from "./execution/control.js";
+import { registerForecastCommand } from "./execution/forecast.js";
+import { registerGcCommand } from "./execution/gc.js";
+import { registerRunCommand } from "./execution/run.js";
+import { registerTriggerCommands } from "./execution/trigger.js";
+import { registerTriggersCommand } from "./execution/triggers.js";
+import { workflowRoutes } from "./routes/routes.js";
+import { registerFollowCommand } from "./runs/follow.js";
+import { registerLogsCommand } from "./runs/logs.js";
+import { registerCostCommand } from "./runs/run-cost.js";
+import { registerRunDiffCommand } from "./runs/run-diff.js";
+import { registerExportCommand } from "./runs/run-export.js";
+import { registerRunListCommands } from "./runs/run-list.js";
+import { registerRunShowCommand } from "./runs/run-show.js";
+import { registerStatsCommand } from "./runs/run-stats.js";
+import { registerStepInspectCommand } from "./runs/step-inspect.js";
 
 export function buildWorkflowCommand(ctx: ModuleContext): Command {
   const wfCmd = new Command("workflow")

@@ -6,7 +6,7 @@ import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { isWithinDispatchWindow, msUntilDispatchWindowOpens } from "#core/workflow/dispatch-window.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE, RELOAD_SIGNAL_FILE } from "#core/workflow/runtime.js";
-import { formatDate, formatDuration, statusIcon } from "./utils.js";
+import { formatDate, formatDuration, statusIcon } from "../utils.js";
 
 export function registerControlCommands(wfCmd: Command): void {
   wfCmd

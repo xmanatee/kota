@@ -7,7 +7,7 @@ import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { formatRunId } from "#core/workflow/run-store-helpers.js";
 import type { WorkflowQueuedRun } from "#core/workflow/run-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
-import { buildDryRunPlan, type DryRunResult } from "./dry-run.js";
+import { buildDryRunPlan, type DryRunResult } from "../execution/dry-run.js";
 
 const EMPTY_WORKFLOW_STATUS: WorkflowLiveStatus = {
   activeRuns: [],

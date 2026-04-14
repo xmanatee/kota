@@ -6,7 +6,7 @@ import type {
   WorkflowRunMetadata,
   WorkflowRunWarning,
 } from "#core/workflow/run-types.js";
-import { loadRunsInWindow } from "#modules/workflow-ops/workflow-history.js";
+import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
 
 export function runCheck(command: string, cwd: string, timeoutMs = 120_000): string {
   const result = spawnSync(command, { shell: true, cwd, timeout: timeoutMs, encoding: "utf-8" });
