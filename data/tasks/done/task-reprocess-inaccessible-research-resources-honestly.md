@@ -1,12 +1,12 @@
 ---
 id: task-reprocess-inaccessible-research-resources-honestly
 title: Reprocess inaccessible research resources honestly
-status: ready
+status: done
 priority: p1
 area: research
 summary: Revisit historical resource dispositions, especially auth-walled X links, and convert unread resources into honest blocked/follow-up work instead of dismissed research.
 created_at: 2026-04-13T21:37:53.066Z
-updated_at: 2026-04-13T21:37:53.066Z
+updated_at: 2026-04-14T00:31:02.379Z
 ---
 
 ## Problem

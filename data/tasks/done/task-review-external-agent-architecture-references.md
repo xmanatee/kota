@@ -30,7 +30,7 @@ All references below have been evaluated and the task is moved to done with a br
 
 ## Outcome
 
-9 of 13 references were accessible and evaluated. 4 were inaccessible (rate limits, JS-render, or not fetched). Full notes in `.kota/runs/2026-03-19T06-18-28-201Z-builder-9mjgwc/research-notes.md`.
+9 of 13 references were accessible and evaluated. 4 were inaccessible (rate limits, JS-render, or not fetched). 3 of the inaccessible references have a grouped follow-up task (`task-review-inaccessible-research-resources-when-access`); 1 (chatterbox) was dropped based on repo metadata. Full notes in `.kota/runs/2026-03-19T06-18-28-201Z-builder-9mjgwc/research-notes.md`.
 
 Captured into backlog:
 - `task-context-compaction-strategy` — Handle long-session context overflow
@@ -40,8 +40,12 @@ Captured into backlog:
 
 Dropped as not applicable:
 - open-pencil — design tool, not an agent framework
-- resemble-ai/chatterbox — not fetched (audio TTS, unrelated)
-- arxiv.org/abs/2511.18423 — not fetched (paper not retrieved)
+- resemble-ai/chatterbox — not fetched, but repo name and description confirm audio TTS; unrelated
+
+Inaccessible — unread, follow-up created:
+- glthr.com/XML-fundamental-to-Claude — inaccessible (rate limit / JS render); follow-up: `task-review-inaccessible-research-resources-when-access`
+- bengubler.com/posts/2026-02-25-introducing-helm — inaccessible; follow-up: `task-review-inaccessible-research-resources-when-access`
+- arxiv.org/abs/2511.18423 — not fetched, topic unknown; follow-up: `task-review-inaccessible-research-resources-when-access`
 
 ## References
 

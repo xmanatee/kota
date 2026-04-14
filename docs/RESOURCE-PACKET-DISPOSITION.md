@@ -11,6 +11,7 @@ notes where needed.
 - **Adopted** — idea implemented in KOTA.
 - **Deferred** — captured in a follow-up task for future review.
 - **Reference only** — noted for awareness; no action planned.
+- **Inaccessible** — source could not be read; follow-up task created for when access is available.
 
 ---
 
@@ -311,20 +312,21 @@ KOTA architecture and the prior disposition above.
 
 ### Agent Patterns (Social Posts)
 
-**Disposition: Unreadable — dismissed (auth-walled)**
+**Disposition: Inaccessible — unread, follow-up created**
 
-All five X/Twitter posts returned HTTP 402 (authentication required) and could not
-be fetched. The task categorized them as "agent patterns" social posts. Without
-content, no disposition is possible beyond acknowledging they were captured and are
-inaccessible via automated fetch.
+All five X/Twitter posts returned HTTP 402 (authentication required) and could
+not be fetched. Content is unknown — no disposition of the material itself is
+possible. Grouped into follow-up task
+`task-review-inaccessible-research-resources-when-access` (blocked) for review
+when access becomes available.
 
 | Resource | Note |
 |----------|------|
-| x.com/akshay_pachaar/…922 | Blocked (402). Dismissed — cannot review. |
-| x.com/arlanr/…908 | Blocked (402). Dismissed — cannot review. |
-| x.com/NickSpisak_/…705 | Blocked (402). Dismissed — cannot review. |
-| x.com/johnrushx/…373 | Blocked (402). Dismissed — cannot review. |
-| x.com/tianle_cai/…818 | Blocked (402). Dismissed — cannot review. |
+| x.com/akshay_pachaar/…922 | Inaccessible (402). Unread — follow-up task created. |
+| x.com/arlanr/…908 | Inaccessible (402). Unread — follow-up task created. |
+| x.com/NickSpisak_/…705 | Inaccessible (402). Unread — follow-up task created. |
+| x.com/johnrushx/…373 | Inaccessible (402). Unread — follow-up task created. |
+| x.com/tianle_cai/…818 | Inaccessible (402). Unread — follow-up task created. |
 
 ---
 
@@ -340,11 +342,11 @@ inaccessible via automated fetch.
 | Self-improving loops | 7 | 2 | reviewed ✓ (1 follow-up) | 5 |
 | Skills ecosystem | 7 | 1 | 1 task | 6 |
 | Tooling & adapters | 6 | 2 | reviewed ✓ | 4 |
-| April 2026 batch | 19 | 0 | 0 | 14 + 5 dismissed |
-| **Total** | **70** | **14** | **0 tasks** | **56** |
+| April 2026 batch | 19 | 0 | 1 task (5 inaccessible) | 14 |
+| **Total** | **70** | **14** | **1 task** | **51** |
 
 All resource-group review tasks are complete:
 - `task-review-runtime-and-self-improvement-resource-group` — done. One follow-up: `task-run-outcome-aggregation-for-improver`.
 - `task-review-channel-memory-and-skill-resource-group` — done. One follow-up: `task-agent-scoped-skill-injection`.
 - `task-review-domain-local-ai-and-tooling-resource-group` — done. No follow-ups needed; all resources covered by existing modules or reference-only.
-- `task-review-new-research-resource-batch-2026-04` — done. No follow-ups needed; all accessible resources are reference-only, 3 overlap with prior batch, 5 social posts auth-walled.
+- `task-review-new-research-resource-batch-2026-04` — done. All accessible resources are reference-only, 3 overlap with prior batch. 5 social posts were inaccessible (auth-walled) — follow-up: `task-review-inaccessible-research-resources-when-access`.
