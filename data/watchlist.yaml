@@ -1,0 +1,14 @@
+# External resources to monitor during exploration runs.
+# The explorer consults this list alongside open-ended discovery.
+# Add new entries when a valuable resource is found during exploration.
+# Mark entries with `status: inaccessible` if a URL cannot be reached.
+
+resources:
+  - url: https://github.com/openclaw/openclaw
+    added: "2026-04-14"
+  - url: https://github.com/zeroclaw-labs/zeroclaw
+    added: "2026-04-14"
+  - url: https://github.com/RightNow-AI/openfang
+    added: "2026-04-14"
+  - url: https://github.com/badlogic/pi-mono
+    added: "2026-04-14"

@@ -1,12 +1,12 @@
 ---
 id: task-add-resource-watchlist-to-explorer-workflow
 title: Add resource watchlist to explorer workflow
-status: backlog
+status: done
 priority: p2
 area: autonomy
 summary: Give the explorer a curated list of external resources to monitor regularly for inspiration and updates, in addition to its existing open-ended discovery.
 created_at: 2026-04-13T16:22:32.672Z
-updated_at: 2026-04-13T16:22:32.672Z
+updated_at: 2026-04-14T15:33:06.580Z
 ---
 
 ## Problem
