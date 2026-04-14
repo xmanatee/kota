@@ -214,6 +214,7 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
     {
       id: "task-queue-valid",
       type: "code" as const,
+      phase: 1,
       run: (ctx) => runCheck("pnpm run validate-tasks", ctx.projectDir),
     },
     {

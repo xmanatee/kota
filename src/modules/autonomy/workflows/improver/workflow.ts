@@ -83,6 +83,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
           {
             id: "task-queue-valid",
             type: "code" as const,
+            phase: 1,
             run: (ctx: WorkflowStepContext) => runCheck("pnpm run validate-tasks", ctx.projectDir),
           },
           {
