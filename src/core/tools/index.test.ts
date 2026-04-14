@@ -10,8 +10,8 @@ const makeTool = (name: string) => ({
 });
 
 describe("getAllTools", () => {
-  it("contains built-in tool definitions (batch/pipe/map moved to composition module)", () => {
-    expect(getAllTools()).toHaveLength(12);
+  it("contains built-in tool definitions", () => {
+    expect(getAllTools()).toHaveLength(9);
   });
 
   it("has unique names", () => {
@@ -41,20 +41,19 @@ describe("getAllTools", () => {
     // System tools (clipboard, view_image, env_info, sqlite, notify) are now in the system module.
     // repo_map is now in the filesystem module.
     const expected = new Set([
-      "agent_status", "approval", "audit",
+      "agent_status", "approval",
       "todo", "delegate",
       "ask_user", "confirm",
       "custom_tool", "checkpoint", "module_factory",
-      "workspace", "prompt_template",
     ]);
     expect(names).toEqual(expected);
   });
 });
 
 describe("getCoreRegistrations", () => {
-  it("returns all core tool registrations (batch/pipe/map moved to composition module)", () => {
+  it("returns all core tool registrations", () => {
     const regs = getCoreRegistrations();
-    expect(regs).toHaveLength(12);
+    expect(regs).toHaveLength(9);
   });
 
   it("each registration has tool, runner, and risk", () => {
@@ -162,7 +161,7 @@ describe("registerTool", () => {
     expect(getAllTools().find((t) => t.name === "temp_tool")).toBeDefined();
     clearCustomTools();
     expect(getAllTools().find((t) => t.name === "temp_tool")).toBeUndefined();
-    expect(getAllTools()).toHaveLength(12);
+    expect(getAllTools()).toHaveLength(9);
     expect(getRegisteredTools()).toHaveLength(0);
   });
 

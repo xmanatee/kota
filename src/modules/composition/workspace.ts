@@ -6,7 +6,7 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolRegistration, ToolResult } from "./index.js";
+import type { ToolResult } from "#core/tools/index.js";
 import {
   clearAllWorkspaces,
   createWorkspace,
@@ -133,11 +133,3 @@ export async function runWorkspace(
 }
 
 export { clearAllWorkspaces };
-
-export const registration: ToolRegistration = {
-  tool: workspaceTool,
-  runner: runWorkspace,
-  risk: "safe",
-  kind: "action" as const,
-  group: "orchestration",
-};

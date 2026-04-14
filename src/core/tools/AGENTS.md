@@ -1,16 +1,29 @@
 # Tools
 
-This directory contains shared tool runtime primitives and the remaining
-core-hosted tool implementations.
+This directory contains tool runtime infrastructure and the core-hosted tool
+implementations that are true runtime primitives.
 
-- Keep tool behavior explicit, well-scoped, and self-registering where
-  possible.
-- Do not treat `src/core/tools/` as the default home for every new capability. If a
-  tool belongs to a cohesive project capability pack, prefer moving that pack
-  behind a module boundary instead of growing this bucket further.
-- Cross-cutting tool composition should stay readable; avoid hiding tool semantics inside unrelated runtime code.
-- `repl-session.ts` manages persistent REPL sessions (Python, Node.js) used by
-  custom-tool handlers, manifest execution, and the execution module's code-exec
-  tool. It lives here because it is a shared tool runtime primitive, not a
-  module-owned capability.
+## Boundary
+
+Core tools stay here only when they are part of the agent/session loop,
+guardrails, daemon coordination, or module lifecycle — not general-purpose
+conveniences. New capabilities should prefer module-owned tools.
+
+## Core tools and rationale
+
+- `agent_status` — Runtime introspection of tools, modules, providers, groups.
+- `approval` — Guardrails: review/resolve queued tool calls from the daemon approval queue.
+- `ask_user` — Session loop: interactive terminal I/O.
+- `confirm` — Session coordination: human approval for high-stakes actions.
+- `delegate` — Agent/session loop: sub-agent spawning.
+- `checkpoint` — Session management: track and undo file changes within a session.
+- `todo` — Session state: provider-backed task tracking injected into the system prompt via context.
+- `custom_tool` — Tool extensibility: bidirectional coupling with the core registry via `initCustomToolRegistry`.
+- `module_factory` — Module lifecycle: `addLoadedModule`/`resetModuleFactory` called from loop-init.
+
+## Runtime infrastructure
+
+- `tool-groups`, `tool-middleware`, `tool-runner`, `tool-telemetry`, `tool-result`, `tool-adapters` — tool execution pipeline.
+- `guardrails`, `guardrails-classify`, `audit-store` — risk assessment and audit storage.
+- `repl-session` — shared REPL sessions used by custom-tool handlers and the execution module.
 

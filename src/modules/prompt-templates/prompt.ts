@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { ToolRegistration, ToolResult } from "./index.js";
+import type { ToolResult } from "#core/tools/index.js";
 import { PromptStore } from "./prompt-template.js";
 
 let store: PromptStore | null = null;
@@ -155,10 +155,3 @@ export async function runPromptTemplate(
 	}
 }
 
-export const registration: ToolRegistration = {
-	tool: promptTool,
-	runner: runPromptTemplate,
-	risk: "safe" as const,
-	kind: "discovery" as const,
-	group: "management",
-};

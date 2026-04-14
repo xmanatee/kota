@@ -2,8 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { registration, runAudit } from "./audit.js";
-import { initAuditStore, resetAuditStore } from "./audit-store.js";
+import { initAuditStore, resetAuditStore } from "#core/tools/audit-store.js";
+import { auditTool, runAudit } from "./audit-tool.js";
 
 function makeTmpDir(): string {
 	return mkdtempSync(join(tmpdir(), "audit-tool-test-"));
@@ -25,10 +25,8 @@ describe("audit tool", () => {
 		rmSync(tmpDir, { recursive: true, force: true });
 	});
 
-	it("registration has correct metadata", () => {
-		expect(registration.tool.name).toBe("audit");
-		expect(registration.risk).toBe("safe");
-		expect(registration.group).toBe("management");
+	it("tool has correct metadata", () => {
+		expect(auditTool.name).toBe("audit");
 	});
 
 	it("query returns all entries by default", async () => {

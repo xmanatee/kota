@@ -3,7 +3,7 @@ import type { Transport } from "#core/loop/transport.js";
 import type { McpManager } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import type { DelegateBackend, ModelTiers } from "#core/model/model-router.js";
-import { PromptStore } from "./prompt-template.js";
+import { PromptStore } from "#modules/prompt-templates/prompt-template.js";
 
 export type DelegateMode = "explore" | "execute" | "research";
 

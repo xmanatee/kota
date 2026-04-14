@@ -1,12 +1,12 @@
 ---
 id: task-audit-remaining-core-hosted-tools-after-composition
 title: Audit remaining core-hosted tools after composition extraction
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: After batch, pipe, and map move out of core, the remaining core tool registry should be reassessed so core keeps only true runtime primitives.
 created_at: 2026-04-13T11:16:25Z
-updated_at: 2026-04-13T11:16:25Z
+updated_at: 2026-04-14T20:18:21.244Z
 ---
 
 ## Problem

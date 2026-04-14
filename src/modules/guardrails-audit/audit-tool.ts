@@ -6,8 +6,8 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import { getAuditStore } from "./audit-store.js";
-import type { ToolRegistration, ToolResult } from "./index.js";
+import { getAuditStore } from "#core/tools/audit-store.js";
+import type { ToolResult } from "#core/tools/index.js";
 
 export const auditTool: Anthropic.Tool = {
 	name: "audit",
@@ -110,10 +110,3 @@ export async function runAudit(input: Record<string, unknown>): Promise<ToolResu
 	return { content: lines.join("\n") };
 }
 
-export const registration: ToolRegistration = {
-	tool: auditTool,
-	runner: runAudit,
-	risk: "safe" as const,
-	kind: "action" as const,
-	group: "management",
-};

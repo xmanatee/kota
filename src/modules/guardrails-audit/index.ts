@@ -7,16 +7,29 @@
  */
 
 import { Command } from "commander";
-import type { KotaModule } from "#core/modules/module-types.js";
+import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
 import { initAuditStore, resetAuditStore } from "#core/tools/audit-store.js";
 import type { Policy, RiskLevel } from "#core/tools/guardrails.js";
+import { auditTool, runAudit } from "./audit-tool.js";
 import { registerAuditCommands } from "./cli.js";
 import { handleListAudit } from "./routes.js";
+
+const tools: ToolDef[] = [
+	{
+		tool: auditTool,
+		runner: runAudit,
+		risk: "safe",
+		kind: "action",
+		group: "management",
+	},
+];
 
 const guardrailsAuditModule: KotaModule = {
 	name: "guardrails-audit",
 	version: "1.0.0",
 	description: "Guardrail audit trail — logs all tool assessments to .kota/audit.jsonl",
+
+	tools,
 
 	commands: (_ctx) => {
 		const root = new Command("__root__");
