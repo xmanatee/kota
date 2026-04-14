@@ -8,7 +8,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
-import { sleep } from "./shared.js";
+import { AUTONOMY_DISALLOWED_TOOLS, sleep } from "./shared.js";
 import { findTaskReviewTarget } from "./task-review-target.js";
 
 export type CriticVerdict = {
@@ -179,6 +179,7 @@ async function invokeCritic(
       cwd,
       systemPrompt: CRITIC_SYSTEM_PROMPT,
       effort: "max",
+      disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       permissionMode: "bypassPermissions",
       settingSources: ["project"],
     }, {

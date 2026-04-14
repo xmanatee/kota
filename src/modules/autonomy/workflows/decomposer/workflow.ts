@@ -7,7 +7,7 @@ import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { recallForDecomposer } from "#modules/autonomy/knowledge-recall.js";
-import { runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
+import { AUTONOMY_DISALLOWED_TOOLS, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
 
 export const agent: AgentDef = {
   name: "decomposer",
@@ -158,6 +158,7 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       model: agent.model,
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
+      disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: 30 * 60 * 1000,
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: (ctx) => assessFailure.output(ctx).shouldDecompose,

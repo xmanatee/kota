@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CriticVerdict } from "./critic.js";
 import { createCriticCheck } from "./critic.js";
+import { AUTONOMY_DISALLOWED_TOOLS } from "./shared.js";
 
 const mockExecuteWithAgentSDK = vi.hoisted(() => vi.fn());
 
@@ -172,6 +173,7 @@ describe("createCriticCheck", () => {
     expect(userMessage).toContain("Do not require a specific evidence artifact");
     expect(userMessage).toContain(`${runDir}/steps/*.events.jsonl`);
     expect(options.allowedTools).toBeUndefined();
+    expect(options.disallowedTools).toEqual(AUTONOMY_DISALLOWED_TOOLS);
     expect(options.effort).toBe("max");
   });
 

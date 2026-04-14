@@ -34,6 +34,7 @@ vi.mock("#core/agents/delegate-prompts.js", () => {
 });
 
 import { runDelegate, setDelegateConfig } from "./core/tools/delegate.js";
+import { EXPLORE_MAX_TURNS } from "./core/tools/delegate-config.js";
 
 function mockStream(response: unknown) {
   const obj = {
@@ -155,8 +156,7 @@ describe("delegate × tool-retry error pipeline (cross-module)", () => {
   it("reaches turn limit after max turns", async () => {
     mockRunner.mockResolvedValue({ content: "ok", is_error: false });
 
-    // Explore mode has 10 turn limit — fill all with tool calls
-    const responses = Array.from({ length: 10 }, (_, i) =>
+    const responses = Array.from({ length: EXPLORE_MAX_TURNS }, (_, i) =>
       toolUseMsg(`t${i}`, "shell", { command: `step ${i}` }),
     );
 
@@ -165,7 +165,7 @@ describe("delegate × tool-retry error pipeline (cross-module)", () => {
     const result = await runDelegate({ task: "long task", mode: "explore" });
 
     expect(result.content).toContain("hit turn limit");
-    expect(mockRunner).toHaveBeenCalledTimes(10);
+    expect(mockRunner).toHaveBeenCalledTimes(EXPLORE_MAX_TURNS);
   });
 
   it("retries transient errors via middleware (delegate × tool-retry)", async () => {

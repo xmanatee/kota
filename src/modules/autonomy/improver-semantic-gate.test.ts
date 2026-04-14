@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CriticVerdict } from "./critic.js";
 import { createImproverSemanticCheck } from "./improver-semantic-gate.js";
+import { AUTONOMY_DISALLOWED_TOOLS } from "./shared.js";
 
 const mockExecuteWithAgentSDK = vi.hoisted(() => vi.fn());
 
@@ -226,6 +227,7 @@ describe("createImproverSemanticCheck", () => {
 
     const options = mockExecuteWithAgentSDK.mock.calls[0][1];
     expect(options.allowedTools).toBeUndefined();
+    expect(options.disallowedTools).toEqual(AUTONOMY_DISALLOWED_TOOLS);
     expect(options.effort).toBe("max");
   });
 

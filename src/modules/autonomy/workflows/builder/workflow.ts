@@ -6,7 +6,7 @@ import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { recallForBuilder } from "#modules/autonomy/knowledge-recall.js";
-import { stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
+import { AUTONOMY_DISALLOWED_TOOLS, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
 import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
 import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
 import { builderRepairChecks } from "./repair-checks.js";
@@ -61,6 +61,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       model: agent.model,
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
+      disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: 35 * 60 * 1000, // p99 of successful runs is ~26 min; 35 min gives safe headroom
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: (ctx) => {

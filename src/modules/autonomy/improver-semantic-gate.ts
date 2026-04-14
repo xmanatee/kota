@@ -9,7 +9,7 @@ import {
   handleVerdict,
   parseVerdict,
 } from "./critic.js";
-import { sleep } from "./shared.js";
+import { AUTONOMY_DISALLOWED_TOOLS, sleep } from "./shared.js";
 
 const GATE_MODEL = "claude-opus-4-6";
 const GATE_MAX_RETRIES = 3;
@@ -64,6 +64,7 @@ async function invokeGate(
       cwd,
       systemPrompt: GATE_SYSTEM_PROMPT,
       effort: "max",
+      disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       permissionMode: "bypassPermissions",
       settingSources: ["project"],
     }, {

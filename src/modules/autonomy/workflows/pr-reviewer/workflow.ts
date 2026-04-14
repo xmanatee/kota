@@ -1,7 +1,7 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
-import { stepSucceeded } from "#modules/autonomy/shared.js";
+import { AUTONOMY_DISALLOWED_TOOLS, stepSucceeded } from "#modules/autonomy/shared.js";
 
 export const agent: AgentDef = {
   name: "pr-reviewer",
@@ -102,6 +102,7 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
       model: agent.model,
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
+      disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: 20 * 60 * 1000, // 20 minutes
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: (ctx) => !assessPr.output(ctx).skip,

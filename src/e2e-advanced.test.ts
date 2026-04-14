@@ -23,6 +23,7 @@ import {
 	textResponse,
 	toolUseResponse,
 } from "./core/model/mock-client.js";
+import { RESEARCH_MAX_TURNS } from "./core/tools/delegate-config.js";
 
 vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -298,7 +299,6 @@ describe("E2E: delegate sub-agent", () => {
 
 	it("delegate(research) has higher turn limit than explore", async () => {
 		// Use file_read (local) instead of web_search (network) to avoid hangs.
-		// 12 turns exceeds explore's 10-turn limit but stays within research's 25.
 		const researchFile = join(testDir, "consensus.txt");
 		writeFileSync(researchFile, "Raft, Paxos, PBFT consensus algorithms.", "utf-8");
 
@@ -342,8 +342,7 @@ describe("E2E: delegate sub-agent", () => {
 			toolResult && "content" in toolResult
 				? String(toolResult.content)
 				: "";
-		// Should show research: 12/25 turns (not 10/10 turn limit)
-		expect(resultContent).toContain("research: 12/25 turns");
+		expect(resultContent).toContain(`research: 12/${RESEARCH_MAX_TURNS} turns`);
 		expect(resultContent).not.toContain("hit turn limit");
 
 		expect(result).toContain("consensus");
