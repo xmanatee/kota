@@ -1,12 +1,12 @@
 ---
 id: task-rehome-shared-notification-retry-helper
 title: Rehome the shared notification retry helper
-status: backlog
+status: done
 priority: p2
 area: modules
 summary: src/modules/notify-retry.ts is a top-level shared helper under modules instead of belonging to a module or core protocol boundary.
 created_at: 2026-04-13T11:16:25Z
-updated_at: 2026-04-13T11:16:25Z
+updated_at: 2026-04-14T01:42:30.085Z
 ---
 
 ## Problem

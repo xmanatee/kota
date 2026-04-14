@@ -15,7 +15,7 @@
 
 import { Command } from "commander";
 import type { KotaModule } from "#core/modules/module-types.js";
-import { postWithRetry } from "#modules/notify-retry.js";
+import { postWithRetry } from "#modules/notification/index.js";
 import { registerWebhookCommands } from "./cli.js";
 
 const NOTIFICATION_EVENTS = [
@@ -45,6 +45,7 @@ const webhookModule: KotaModule = {
   name: "webhook",
   version: "1.0.0",
   description: "HTTP webhook notification channel for KOTA workflow events",
+  dependencies: ["notification"],
   configKeys: [{ key: "webhooks", description: "Per-workflow webhook secrets for signature verification" }],
 
   onLoad: (ctx) => {

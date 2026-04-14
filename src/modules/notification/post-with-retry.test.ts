@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { postWithRetry } from "./notify-retry.js";
+import { postWithRetry } from "./index.js";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);

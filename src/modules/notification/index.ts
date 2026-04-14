@@ -1,24 +1,10 @@
-/**
- * Shared HTTP POST helper with exponential-backoff retry for notification modules.
- *
- * Used by the webhook and Slack modules. Retries on non-2xx responses and
- * network errors; logs a warning after all attempts are exhausted.
- *
- * Retries are async (setTimeout-based) and do not block the bus event handler.
- */
+import type { KotaModule } from "#core/modules/module-types.js";
 
 export type RetryOptions = {
-  /** Number of retry attempts after the initial try. Default: 3. */
   retries?: number;
-  /** Base delay in milliseconds for exponential backoff. Default: 1000. */
   baseDelayMs?: number;
 };
 
-/**
- * POST `body` to `url` and retry with exponential backoff on failure.
- * Resolves on the first successful (2xx) response. After all retries are
- * exhausted logs a warning and resolves (never rejects).
- */
 export async function postWithRetry(
   url: string,
   body: string,
@@ -48,3 +34,11 @@ export async function postWithRetry(
   }
   log.warn(`POST to ${url} failed after ${maxRetries + 1} attempt(s): ${lastError}`);
 }
+
+const notificationModule: KotaModule = {
+  name: "notification",
+  version: "1.0.0",
+  description: "Shared notification delivery primitives",
+};
+
+export default notificationModule;

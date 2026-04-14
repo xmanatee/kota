@@ -6,10 +6,11 @@ This directory owns the Slack notification module — routes KOTA notification e
 - `approval.requested` is always forwarded when the module is configured.
 - Default notification events: `workflow.failure.alert`, `workflow.budget.exceeded`, `workflow.attention.digest`, `workflow.cost.limit.reached`, `workflow.cost.anomaly`.
 - `workflow.build.committed` is opt-in (must be listed in config `events`).
-- Uses `postWithRetry` from `../notify-retry.ts` for delivery with exponential-backoff retry.
+- Uses `postWithRetry` from the `notification` module for delivery with exponential-backoff retry.
+- Declares a dependency on the `notification` module.
 
 ## Boundaries
 
 - Does not own Telegram or generic webhook notification (those belong in `telegram/` and `webhook/`).
 - Does not own inbound Slack interactions or slash commands.
-- Does not own retry logic (that lives in `../notify-retry.ts`).
+- Does not own retry logic (that lives in the `notification` module).

@@ -194,7 +194,7 @@ export function listRootLevelBuiltInModuleFiles(projectDir: string): string[] {
   return readdirSync(dir)
     .filter((fileName) => fileName.endsWith(".ts"))
     .filter((fileName) => !fileName.endsWith(".test.ts"))
-    .filter((fileName) => !["index.ts", "notify-retry.ts"].includes(fileName))
+    .filter((fileName) => fileName !== "index.ts")
     .map((fileName) => join("src", "modules", fileName))
     .sort();
 }

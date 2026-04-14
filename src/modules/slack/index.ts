@@ -14,7 +14,7 @@
  */
 
 import type { KotaModule } from "#core/modules/module-types.js";
-import { postWithRetry } from "#modules/notify-retry.js";
+import { postWithRetry } from "#modules/notification/index.js";
 
 const NOTIFICATION_EVENTS = [
   "workflow.failure.alert",
@@ -222,6 +222,7 @@ const slackModule: KotaModule = {
   name: "slack",
   version: "1.0.0",
   description: "Slack Incoming Webhook notification channel for KOTA workflow events",
+  dependencies: ["notification"],
 
   onLoad: (ctx) => {
     const config = ctx.getModuleConfig<SlackConfig>();
