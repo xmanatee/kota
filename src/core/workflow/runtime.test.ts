@@ -2283,17 +2283,22 @@ describe("WorkflowRuntime", () => {
     });
 
     it("returns blocked:false when current time is inside the window (all-hours window)", () => {
-      const bus = new EventBus();
-      const runtime = new WorkflowRuntime({
-        bus,
-        projectDir,
-        idleIntervalMs: 50_000,
-        workflows: [],
-        config: { scheduler: { dispatchWindow: { start: "00:00", end: "23:59" } } },
-      });
-      const status = runtime.getDispatchWindowStatus();
-      expect(status.blocked).toBe(false);
-      expect(status.opensAt).toBeUndefined();
+      vi.useFakeTimers({ now: new Date(2026, 0, 15, 12, 0, 0) });
+      try {
+        const bus = new EventBus();
+        const runtime = new WorkflowRuntime({
+          bus,
+          projectDir,
+          idleIntervalMs: 50_000,
+          workflows: [],
+          config: { scheduler: { dispatchWindow: { start: "00:00", end: "23:59" } } },
+        });
+        const status = runtime.getDispatchWindowStatus();
+        expect(status.blocked).toBe(false);
+        expect(status.opensAt).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("returns blocked:true with opensAt when outside a narrow weekday window", () => {

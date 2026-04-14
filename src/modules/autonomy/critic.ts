@@ -57,7 +57,7 @@ export function getStagedDiff(projectDir: string): string {
   return execFileSync("git", ["diff", "--cached", "--stat"], {
     cwd: projectDir,
     encoding: "utf8",
-    maxBuffer: 50 * 1024,
+    maxBuffer: 1024 * 1024,
     stdio: ["ignore", "pipe", "pipe"],
   });
 }
@@ -66,7 +66,7 @@ export function getStagedDiffContent(projectDir: string): string {
   const diff = execFileSync("git", ["diff", "--cached"], {
     cwd: projectDir,
     encoding: "utf8",
-    maxBuffer: 200 * 1024,
+    maxBuffer: 10 * 1024 * 1024,
     stdio: ["ignore", "pipe", "pipe"],
   });
   if (diff.length > 80_000) {
@@ -175,18 +175,26 @@ async function invokeCritic(
       await sleep(CRITIC_RETRY_BASE_DELAY_MS * attempt);
     }
 
-    const response = await executeWithAgentSDK(userMessage, {
-      model: CRITIC_MODEL,
-      cwd,
-      systemPrompt: CRITIC_SYSTEM_PROMPT,
-      maxTurns: CRITIC_MAX_TURNS,
-      effort: "max",
-      disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-      permissionMode: "bypassPermissions",
-      settingSources: ["project"],
-    }, {
-      write: () => true,
-    });
+    let response: { text: string; isError: boolean; subtype?: string };
+    try {
+      response = await executeWithAgentSDK(userMessage, {
+        model: CRITIC_MODEL,
+        cwd,
+        systemPrompt: CRITIC_SYSTEM_PROMPT,
+        maxTurns: CRITIC_MAX_TURNS,
+        effort: "max",
+        disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
+        permissionMode: "bypassPermissions",
+        settingSources: ["project"],
+      }, {
+        write: () => true,
+      });
+    } catch (thrown) {
+      lastError = new Error(
+        `Critic agent threw (attempt ${attempt + 1}/${CRITIC_MAX_RETRIES}): ${thrown instanceof Error ? thrown.message : String(thrown)}`,
+      );
+      continue;
+    }
 
     if (!response.isError) return response;
 

@@ -14,8 +14,8 @@ React Native (Expo) mobile client for the KOTA daemon. Monitor and control your 
 
 ```sh
 cd clients/mobile
-npm install
-npm start          # Expo Go / dev build
+pnpm install
+pnpm start         # Expo Go / dev build
 ```
 
 ## Configuration

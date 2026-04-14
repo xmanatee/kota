@@ -1,12 +1,12 @@
 ---
 id: task-normalize-mobile-client-package-manager
 title: Normalize the mobile client package manager to pnpm
-status: backlog
+status: done
 priority: p3
 area: clients
 summary: The root repo standard prefers pnpm, but the mobile client still has alternate package-manager guidance and a tracked package-lock.json.
 created_at: 2026-04-13T11:16:25Z
-updated_at: 2026-04-13T11:16:25Z
+updated_at: 2026-04-14T22:42:10.668Z
 ---
 
 ## Problem
