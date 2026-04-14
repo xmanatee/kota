@@ -28,8 +28,9 @@ describe("autonomy agent policy", () => {
         expect(step.maxTurns, `${workflow.name}.${step.id}.maxTurns`).toBeUndefined();
         expect(step.maxBudgetUsd, `${workflow.name}.${step.id}.maxBudgetUsd`).toBeUndefined();
         expect(step.maxCostUsd, `${workflow.name}.${step.id}.maxCostUsd`).toBeUndefined();
-        expect(step.repairLoop?.maxTurnsPerRepair, `${workflow.name}.${step.id}.repairLoop.maxTurnsPerRepair`).toBeUndefined();
-        expect(step.repairLoop?.maxRepairAttempts, `${workflow.name}.${step.id}.repairLoop.maxRepairAttempts`).toBeUndefined();
+        const repairLoop = step.repairLoop as Record<string, unknown> | undefined;
+        expect(repairLoop?.maxTurnsPerRepair, `${workflow.name}.${step.id}.repairLoop.maxTurnsPerRepair`).toBeUndefined();
+        expect(repairLoop?.maxRepairAttempts, `${workflow.name}.${step.id}.repairLoop.maxRepairAttempts`).toBeUndefined();
       }
     }
   });
