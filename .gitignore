@@ -8,3 +8,4 @@ logs/
 /.worktrees/
 .claude/worktrees/
 __pycache__/
+*.tsbuildinfo
