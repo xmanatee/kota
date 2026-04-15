@@ -14,6 +14,7 @@ import { AUTONOMY_DISALLOWED_TOOLS, sleep } from "./shared.js";
 const GATE_MODEL = "claude-opus-4-6";
 const GATE_MAX_RETRIES = 3;
 const GATE_RETRY_BASE_DELAY_MS = 2_000;
+const GATE_MAX_TURNS = 15;
 const ARTIFACT_NAME = "semantic-gate-review.json";
 
 const GATE_SYSTEM_PROMPT = `You are a semantic quality gate for an autonomous improver workflow. Your job is to determine whether a staged diff represents a genuine, valuable improvement to the autonomy system — not just noise, process artifacts, or misleading busywork.
@@ -63,6 +64,7 @@ async function invokeGate(
       model: GATE_MODEL,
       cwd,
       systemPrompt: GATE_SYSTEM_PROMPT,
+      maxTurns: GATE_MAX_TURNS,
       effort: "max",
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       permissionMode: "bypassPermissions",
