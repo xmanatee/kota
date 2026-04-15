@@ -1,12 +1,12 @@
 ---
 id: task-add-browser-automation-module
 title: Add browser automation module
-status: ready
+status: done
 priority: p1
 area: modules
 summary: The architecture doc lists browser use as a capability that should be module-owned. KOTA has web_fetch and web_search but no interactive browser automation. Add a module providing headless browser tools (page navigation, element interaction, screenshot capture, JS evaluation) that agents can use for web scraping, form filling, and UI verification.
 created_at: 2026-04-15T02:51:01.287Z
-updated_at: 2026-04-15T02:51:01.287Z
+updated_at: 2026-04-15T03:48:41.094Z
 ---
 
 ## Problem
