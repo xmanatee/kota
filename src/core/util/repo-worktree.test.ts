@@ -3,10 +3,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  assertRepoWorktreeClean,
-  getRepoWorktreeStatus,
-} from "./repo-worktree.js";
+import { getRepoWorktreeStatus } from "./repo-worktree.js";
 
 describe("repo worktree validation", () => {
   let projectDir: string;
@@ -34,7 +31,6 @@ describe("repo worktree validation", () => {
     expect(status.available).toBe(true);
     expect(status.dirty).toBe(false);
     expect(status.trackedDirty).toBe(false);
-    expect(() => assertRepoWorktreeClean(projectDir)).not.toThrow();
   });
 
   it("reports staged and unstaged changes as dirty", () => {
@@ -45,9 +41,6 @@ describe("repo worktree validation", () => {
     expect(status.dirty).toBe(true);
     expect(status.trackedDirty).toBe(true);
     expect(status.entries.some((entry) => entry.includes("README.md"))).toBe(true);
-    expect(() => assertRepoWorktreeClean(projectDir)).toThrow(
-      /Repository worktree must be clean before starting a new autonomous run/,
-    );
   });
 
   it("distinguishes untracked-only dirty from tracked dirty", () => {

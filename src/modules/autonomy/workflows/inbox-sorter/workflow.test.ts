@@ -42,6 +42,19 @@ function makeSnapshot(inboxCount: number) {
 }
 
 describe("inbox-sorter workflow", () => {
+  async function mockCleanWorktree() {
+    const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
+    vi.mocked(getRepoWorktreeStatus).mockReturnValue({
+      available: true,
+      dirty: false,
+      trackedDirty: false,
+      entries: [],
+      fingerprint: "",
+      summary: "clean",
+      headSha: "abc1234",
+    });
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -65,7 +78,56 @@ describe("inbox-sorter workflow", () => {
     expect(result.steps.commit.status).toBe("skipped");
   });
 
+  it("allows untracked files outside inbox", async () => {
+    const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
+    vi.mocked(getRepoWorktreeStatus).mockReturnValue({
+      available: true,
+      dirty: true,
+      trackedDirty: false,
+      entries: ["?? .DS_Store", "?? tmp/scratch.txt"],
+      fingerprint: "?? .DS_Store\n?? tmp/scratch.txt",
+      summary: ".DS_Store, tmp/scratch.txt",
+      headSha: "abc1234",
+    });
+    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1));
+
+    const harness = new WorkflowTestHarness(inboxSorterWorkflow, {
+      trigger: { event: "autonomy.inbox.available", payload: {} },
+      stepMocks: {
+        "sort-inbox": { turns: [], totalCostUsd: 0.01 },
+      },
+    });
+
+    const result = await harness.run();
+    expect(result.steps["inspect-inbox"].status).toBe("success");
+    expect(result.steps["sort-inbox"].status).toBe("success");
+  });
+
+  it("rejects tracked changes outside inbox", async () => {
+    const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
+    vi.mocked(getRepoWorktreeStatus).mockReturnValue({
+      available: true,
+      dirty: true,
+      trackedDirty: true,
+      entries: [" M src/core/foo.ts"],
+      fingerprint: " M src/core/foo.ts",
+      summary: "src/core/foo.ts",
+      headSha: "abc1234",
+    });
+    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1));
+
+    const harness = new WorkflowTestHarness(inboxSorterWorkflow, {
+      trigger: { event: "autonomy.inbox.available", payload: {} },
+    });
+
+    const result = await harness.run();
+    expect(result.steps["inspect-inbox"].status).toBe("failed");
+  });
+
   it("runs sorter and commit when inbox has entries", async () => {
+    await mockCleanWorktree();
     const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(2));
 

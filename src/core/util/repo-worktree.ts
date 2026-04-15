@@ -62,11 +62,3 @@ export function getRepoWorktreeStatus(projectDir: string): RepoWorktreeStatus {
     };
   }
 }
-
-export function assertRepoWorktreeClean(projectDir: string): RepoWorktreeStatus {
-  const status = getRepoWorktreeStatus(projectDir);
-  if (status.available && status.dirty) {
-    throw new Error(`Repository worktree must be clean before starting a new autonomous run: ${status.summary}`);
-  }
-  return status;
-}

@@ -25,10 +25,12 @@ const inspectInbox = typedCodeStep<InboxSorterAssessment>({
   type: "code",
   run: ({ projectDir }) => {
     const status = getRepoWorktreeStatus(projectDir);
-    const nonInboxDirty = status.entries.filter((e) => !e.includes(REPO_INBOX_DIR));
-    if (status.available && nonInboxDirty.length > 0) {
+    const nonInboxTracked = status.entries.filter(
+      (e) => !e.startsWith("??") && !e.includes(REPO_INBOX_DIR),
+    );
+    if (status.available && nonInboxTracked.length > 0) {
       throw new Error(
-        `Repository worktree must be clean before starting inbox-sorter: ${nonInboxDirty.join(", ")}`,
+        `Repository has tracked changes outside inbox: ${nonInboxTracked.join(", ")}`,
       );
     }
     const queue = getRepoTaskQueueSnapshot(projectDir);
