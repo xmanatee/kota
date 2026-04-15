@@ -1,12 +1,12 @@
 ---
 id: task-rich-daemon-cli-dashboard-output
 title: Rich daemon CLI dashboard output
-status: backlog
+status: done
 priority: p2
 area: cli
 summary: Replace plain log output of kota daemon with a rich terminal dashboard that shows current state, workflow progress, and system health at a glance.
 created_at: 2026-04-14T21:28:47.760Z
-updated_at: 2026-04-14T21:28:47.760Z
+updated_at: 2026-04-15T01:24:52.453Z
 ---
 
 ## Problem

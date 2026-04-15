@@ -339,6 +339,27 @@ export class Daemon {
     return this.workflows.isBusy();
   }
 
+  getDashboardSnapshot() {
+    const wfState = this.workflows.getState();
+    return {
+      pid: this.state.pid,
+      startedAt: this.state.startedAt,
+      running: this.running,
+      stopping: this.stopping,
+      completedRuns: this.state.completedRuns,
+      totalCostUsd: wfState.totalCostUsd,
+      lastCompletedWorkflow: this.state.lastCompletedWorkflow,
+      lastCompletedAt: this.state.lastCompletedAt,
+      lastCompletedStatus: this.state.lastCompletedStatus,
+      activeRuns: wfState.activeRuns ?? [],
+      pendingRunCount: wfState.pendingRuns.length,
+      queueLength: wfState.queueLength,
+      dispatchPaused: this.workflows.isDispatchPaused(),
+      definitionCount: this.workflows.getDefinitionCount(),
+      sessionCount: this.sessions.size,
+    };
+  }
+
   private handleDueItems(items: import("./scheduler.js").ScheduledItem[]): void {
     if (!this.running || this.stopping) return;
     for (const item of items) {

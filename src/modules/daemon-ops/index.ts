@@ -10,6 +10,7 @@ import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { LogFormat } from "#core/util/log-format.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
+import { DaemonDashboard } from "./dashboard.js";
 import { buildEventsCommand } from "./events-cli.js";
 import { buildQrCommand } from "./qr-cli.js";
 import { buildSessionCommand } from "./session-cli.js";
@@ -213,6 +214,10 @@ const daemonModule: KotaModule = {
           return;
         }
 
+        const useDashboard =
+          process.stdout.isTTY === true &&
+          !logFormat;
+
         const daemon = new Daemon({
           verbose: opts.verbose || ctx.config.verbose,
           config: ctx.config,
@@ -227,7 +232,17 @@ const daemonModule: KotaModule = {
           moduleConfigKeys: ctx.getRegisteredConfigKeys(),
         });
 
-        await daemon.start();
+        if (useDashboard) {
+          const dashboard = new DaemonDashboard(() => daemon.getDashboardSnapshot());
+          dashboard.start();
+          try {
+            await daemon.start();
+          } finally {
+            dashboard.stop();
+          }
+        } else {
+          await daemon.start();
+        }
       });
 
     cmd
