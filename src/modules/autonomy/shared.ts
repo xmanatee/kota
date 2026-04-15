@@ -8,11 +8,30 @@ import type {
 } from "#core/workflow/run-types.js";
 import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
 
+const RUN_CHECK_MAX_BUFFER = 10 * 1024 * 1024;
+const RUN_CHECK_OUTPUT_TAIL_LIMIT = 20_000;
+
+function tailTruncate(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+  const tail = text.slice(-limit);
+  const lineBreak = tail.indexOf("\n");
+  const clean = lineBreak >= 0 ? tail.slice(lineBreak + 1) : tail;
+  return `[... ${text.length - clean.length} chars truncated — showing tail ...]\n${clean}`;
+}
+
 export function runCheck(command: string, cwd: string, timeoutMs = 120_000): string {
-  const result = spawnSync(command, { shell: true, cwd, timeout: timeoutMs, encoding: "utf-8" });
-  const output = [result.stdout, result.stderr].filter(Boolean).join("\n");
-  if (result.status !== 0) throw new Error(output || `Command failed: ${command}`);
-  return output;
+  const result = spawnSync(command, {
+    shell: true,
+    cwd,
+    timeout: timeoutMs,
+    encoding: "utf-8",
+    maxBuffer: RUN_CHECK_MAX_BUFFER,
+  });
+  const rawOutput = [result.stdout, result.stderr].filter(Boolean).join("\n");
+  if (result.status !== 0) {
+    throw new Error(tailTruncate(rawOutput, RUN_CHECK_OUTPUT_TAIL_LIMIT) || `Command failed: ${command}`);
+  }
+  return rawOutput;
 }
 
 export const READY_TASK_TARGET = 4;
