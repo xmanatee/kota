@@ -7,7 +7,7 @@ import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { recallForDecomposer } from "#modules/autonomy/knowledge-recall.js";
-import { AUTONOMY_DISALLOWED_TOOLS, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
+import { AUTONOMY_DISALLOWED_TOOLS, checkCommitMessageExists, checkNoScratchArtifacts, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
 
 export const agent: AgentDef = {
   name: "decomposer",
@@ -168,6 +168,16 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
             type: "code" as const,
             run: (ctx: WorkflowStepContext) =>
               runCheck("pnpm run validate-tasks", ctx.projectDir),
+          },
+          {
+            id: "no-scratch-artifacts",
+            type: "code" as const,
+            run: (ctx: WorkflowStepContext) => checkNoScratchArtifacts(ctx.projectDir),
+          },
+          {
+            id: "commit-message-exists",
+            type: "code" as const,
+            run: (ctx: WorkflowStepContext) => checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
           },
         ],
       },

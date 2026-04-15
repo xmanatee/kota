@@ -26,6 +26,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
   name: "improver",
   description:
     "Improve the autonomous development system itself using evidence from recent runs.",
+  costAnomalyThreshold: 3,
   triggers: [
     {
       event: "workflow.build.committed",

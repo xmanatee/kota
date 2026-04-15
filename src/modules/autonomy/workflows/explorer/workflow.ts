@@ -10,6 +10,8 @@ import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { recallForExplorer } from "#modules/autonomy/knowledge-recall.js";
 import {
   AUTONOMY_DISALLOWED_TOOLS,
+  checkCommitMessageExists,
+  checkNoScratchArtifacts,
   runCheck,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
@@ -128,6 +130,16 @@ const explorerWorkflow: WorkflowDefinitionInput = {
             type: "code",
             phase: 1,
             run: ({ projectDir }) => assertStrategicReadyCoverage(projectDir),
+          },
+          {
+            id: "no-scratch-artifacts",
+            type: "code" as const,
+            run: (ctx) => checkNoScratchArtifacts(ctx.projectDir),
+          },
+          {
+            id: "commit-message-exists",
+            type: "code" as const,
+            run: (ctx) => checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
           },
         ],
       },
