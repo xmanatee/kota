@@ -34,8 +34,8 @@ export type ServerOptions = {
   authToken?: string;
   /** Routes registered by modules (e.g., vercel-adapter). */
   moduleRoutes?: RouteRegistration[];
-  /** Pre-rendered module-owned web UI shell, if installed. */
-  webUiHtml?: string;
+  /** Directory containing the built web UI static assets (index.html + assets/). */
+  webUiDir?: string;
 };
 
 export function startServer(options: ServerOptions = {}): Server {
@@ -95,7 +95,7 @@ export function startServer(options: ServerOptions = {}): Server {
     moduleRoutes: options.moduleRoutes ?? [],
     makeAgent,
     daemonClient,
-    webUiHtml: options.webUiHtml,
+    webUiDir: options.webUiDir,
     authToken,
   });
 

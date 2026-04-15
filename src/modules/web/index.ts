@@ -7,11 +7,12 @@
  * `kota serve`.
  */
 
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { Command } from "commander";
 import { warnUnknownConfigKeys } from "#core/config/config-warnings.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { startServer } from "#core/server/server.js";
-import { getWebUI } from "#modules/web-ui/web-ui.js";
 
 function parseIntOption(value: string, name: string): number {
   const n = Number.parseInt(value, 10);
@@ -52,8 +53,12 @@ const webModule: KotaModule = {
 
         warnUnknownConfigKeys(process.cwd(), (msg) => console.warn(msg), ctx.getRegisteredConfigKeys());
 
-        // Collect routes from all loaded modules via ModuleContext
         const moduleRoutes = ctx.getRoutes();
+
+        const webUiDir = resolve(process.cwd(), "clients/web/dist");
+        if (!existsSync(webUiDir)) {
+          console.warn("Warning: Web UI not built. Run `pnpm --filter @kota/web build` in the web client directory.");
+        }
 
         startServer({
           port,
@@ -62,7 +67,7 @@ const webModule: KotaModule = {
           config: ctx.config,
           noAuth: opts.auth === false,
           moduleRoutes,
-          webUiHtml: getWebUI(),
+          webUiDir: existsSync(webUiDir) ? webUiDir : undefined,
         });
       });
 

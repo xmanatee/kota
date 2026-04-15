@@ -10,6 +10,7 @@ This directory contains native client apps that connect to the KOTA daemon contr
 
 ## Clients
 
+- `web/` — React app (Vite, TanStack Router/Query, Tailwind, shadcn/ui). Full-featured dashboard: chat, workflow management, task queue, approvals, run detail, knowledge, memory, audit, config. SSE-driven live updates. Built assets served by the daemon HTTP server.
 - `macos/` — SwiftUI `MenuBarExtra` app (macOS 13+). Surfaces daemon health, active workflow runs with inline step detail, approval management, and workflow triggering. Polls the daemon API every 5 seconds.
 - `mobile/` — React Native (Expo) app (iOS 16+, Android 12+). Four-tab interface: Status, Runs, Approvals, Tasks. SSE-driven live updates with polling fallback. Token stored in OS secure keychain.
 

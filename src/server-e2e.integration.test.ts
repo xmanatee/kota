@@ -37,10 +37,11 @@ vi.mock("./core/loop/loop.js", () => {
   return { AgentSession: MockAgentSession };
 });
 
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import { discoverProjectModules } from "./core/modules/project-discovery.js";
 import { startServer } from "./core/server/server.js";
-import { getWebUI } from "./modules/web-ui/web-ui.js";
 
 let server: Server;
 let baseUrl: string;
@@ -124,7 +125,7 @@ beforeAll(async () => {
     port: 0,
     config: {} as any,
     moduleRoutes,
-    webUiHtml: getWebUI(),
+    webUiDir: existsSync(resolve("clients/web/dist")) ? resolve("clients/web/dist") : undefined,
     authToken: TEST_AUTH_TOKEN,
   });
   const port = await waitForPort(server);

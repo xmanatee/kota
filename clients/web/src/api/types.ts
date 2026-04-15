@@ -1,0 +1,208 @@
+export type WorkflowDefinitionTriggerSummary =
+  | { type: "event"; event: string; filter?: Record<string, string | string[]> }
+  | { type: "cron"; schedule: string }
+  | { type: "interval"; intervalMs: number }
+  | { type: "webhook" }
+  | { type: "watch"; patterns: string[]; debounceMs: number };
+
+export type WorkflowDefinitionSummary = {
+  name: string;
+  enabled: boolean;
+  runtimeEnabled?: boolean;
+  stepCount: number;
+  triggers: WorkflowDefinitionTriggerSummary[];
+};
+
+export type WorkflowActiveRun = {
+  runId: string;
+  workflow: string;
+  startedAt: string;
+  currentStep?: string;
+};
+
+export type WorkflowQueuedRun = {
+  runId: string;
+  workflowName: string;
+};
+
+export type WorkflowLiveStatus = {
+  activeRuns: WorkflowActiveRun[];
+  pendingRuns: WorkflowQueuedRun[];
+  queueLength: number;
+  completedRuns: number;
+  totalCostUsd?: number;
+  paused: boolean;
+  dispatchWindowBlocked?: boolean;
+  dispatchWindowOpensAt?: string;
+  agentConcurrency: number;
+  codeConcurrency: number;
+  workflows: Record<string, { enabled: boolean }>;
+};
+
+export type WorkflowRunSummary = {
+  id: string;
+  workflow: string;
+  status: string;
+  triggerEvent: string;
+  startedAt: string;
+  durationMs?: number;
+  totalCostUsd?: number;
+  triggeredByRunId?: string;
+  causedBy?: { runId: string; workflow: string };
+  retryOf?: string;
+  resumedFromRunId?: string;
+  tags?: string[];
+};
+
+export type WorkflowRunStepSummary = {
+  id: string;
+  type: string;
+  status: string;
+  durationMs: number;
+  error?: string;
+  costUsd?: number;
+  toolCalls?: Array<{ tool: string; count: number }>;
+};
+
+export type WorkflowRunDetail = WorkflowRunSummary & {
+  completedAt?: string;
+  triggerPayload?: Record<string, unknown>;
+  steps: WorkflowRunStepSummary[];
+  warnings?: Array<{ type: string; message: string }>;
+};
+
+export type DaemonTaskDetail = {
+  id: string;
+  title: string;
+  priority: string;
+  area: string;
+  summary: string;
+  body: string;
+};
+
+export type DaemonTaskStatusResponse = {
+  counts: {
+    inbox: number;
+    ready: number;
+    backlog: number;
+    doing: number;
+    blocked: number;
+  };
+  tasks: {
+    doing: DaemonTaskDetail[];
+    ready: DaemonTaskDetail[];
+    backlog: DaemonTaskDetail[];
+    blocked: DaemonTaskDetail[];
+  };
+};
+
+export type InteractiveSession = {
+  id: string;
+  createdAt: string;
+  lastActive: number;
+  source?: "daemon" | "serve";
+};
+
+export type ConversationRecord = {
+  id: string;
+  title?: string;
+  createdAt: string;
+  messageCount: number;
+};
+
+export type ConversationMessage = {
+  role: "user" | "assistant";
+  content: string | Array<{ type: string; text?: string }>;
+};
+
+export type ConversationData = {
+  id: string;
+  messages: ConversationMessage[];
+};
+
+export type PendingApproval = {
+  id: string;
+  runId: string;
+  workflow: string;
+  stepId: string;
+  tool: string;
+  input: Record<string, unknown>;
+  requestedAt: string;
+  status: "pending" | "approved" | "rejected";
+  note?: string;
+  reason?: string;
+};
+
+export type HealthStatus = {
+  status: string;
+  version: string;
+  uptimeMs: number;
+  components: {
+    scheduler: string;
+    modules: string;
+    moduleHealthChecks?: Record<string, { status: string; message?: string }>;
+  };
+};
+
+export type DaemonLiveStatus = {
+  running: boolean;
+  startedAt: string;
+  workflow: WorkflowLiveStatus;
+  sessions: InteractiveSession[];
+};
+
+export type ModuleInfo = {
+  name: string;
+  version: string;
+  description: string;
+  health?: { status: string; message?: string };
+};
+
+export type KnowledgeEntry = {
+  id: string;
+  title: string;
+  category: string;
+  content: string;
+  createdAt: string;
+};
+
+export type MemoryEntry = {
+  id: string;
+  key: string;
+  value: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AuditEntry = {
+  id: string;
+  timestamp: string;
+  tool: string;
+  risk: "safe" | "moderate" | "dangerous";
+  policy: "allow" | "confirm" | "deny" | "queue";
+  input?: Record<string, unknown>;
+  runId?: string;
+};
+
+export type ScheduleEntry = {
+  id: string;
+  description: string;
+  triggerAt: string;
+  repeatLabel?: string;
+};
+
+export type CostSummary = {
+  totalCostUsd: number;
+  workflows: Array<{ workflow: string; costUsd: number }>;
+};
+
+export type DaemonSseEventType =
+  | "workflow.started"
+  | "workflow.completed"
+  | "workflow.step.completed"
+  | "queue.changed"
+  | "approval.changed"
+  | "task.changed"
+  | "session.registered"
+  | "session.unregistered"
+  | "workflow.failure.alert";
