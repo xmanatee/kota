@@ -267,10 +267,12 @@ export class Daemon {
       }
     }
 
+    this.log("────────────────────────────────────────");
     this.log(`Daemon running (pid ${process.pid})`);
-    this.log(`  Scheduler poll: ${pollMs}ms`);
+    this.log(`  Scheduler poll: ${pollMs / 1000}s`);
     this.log(`  Workflows: ${this.workflows.getDefinitionCount()}`);
     this.log(`  Pending schedules: ${getScheduler().count()}`);
+    this.log("────────────────────────────────────────");
 
     await new Promise<void>((resolve) => {
       const keepAlive = setInterval(() => {

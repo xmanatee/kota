@@ -1,11 +1,13 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { DaemonLiveStatus } from "#core/daemon/daemon-control.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import daemonModule, {
   buildLaunchdPlist,
   buildSystemdUnit,
+  formatDaemonStatus,
   getLaunchdPlistPath,
   getSystemdServicePath,
 } from "./index.js";
@@ -148,5 +150,149 @@ describe("buildSystemdUnit", () => {
     const content = buildSystemdUnit("/my/project");
     expect(content).toContain("[Install]");
     expect(content).toContain("WantedBy=default.target");
+  });
+});
+
+function makeLiveStatus(overrides: Partial<DaemonLiveStatus> = {}): DaemonLiveStatus {
+  return {
+    pid: 12345,
+    startedAt: new Date(Date.now() - 3_600_000).toISOString(),
+    completedRuns: 10,
+    running: true,
+    workflow: {
+      activeRuns: [],
+      pendingRuns: [],
+      queueLength: 0,
+      completedRuns: 10,
+      paused: false,
+      agentConcurrency: 1,
+      codeConcurrency: 4,
+      workflows: {},
+    },
+    sessions: [],
+    ...overrides,
+  };
+}
+
+describe("formatDaemonStatus", () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date("2026-01-01T01:00:00Z")); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("shows relative uptime instead of raw seconds", () => {
+    const status = makeLiveStatus({ startedAt: "2026-01-01T00:00:00Z" });
+    const output = formatDaemonStatus(status, false);
+    expect(output).toContain("up 1h 0m");
+    expect(output).not.toContain("3600s");
+  });
+
+  it("shows relative time for start instead of ISO timestamp", () => {
+    const status = makeLiveStatus({ startedAt: "2026-01-01T00:00:00Z" });
+    const output = formatDaemonStatus(status, false);
+    expect(output).toContain("1h ago");
+    expect(output).not.toContain("2026-01-01T00:00:00");
+  });
+
+  it("shows active runs with workflow name and duration", () => {
+    const status = makeLiveStatus({
+      workflow: {
+        activeRuns: [{ runId: "2026-04-15T13-13-57-840Z-builder-i8tz5a", workflow: "builder", startedAt: "2026-01-01T00:58:00Z" }],
+        pendingRuns: [],
+        queueLength: 0,
+        completedRuns: 0,
+        paused: false,
+        agentConcurrency: 1,
+        codeConcurrency: 4,
+        workflows: {},
+      },
+    });
+    const output = formatDaemonStatus(status, false);
+    expect(output).toContain("Active runs:");
+    expect(output).toContain("builder");
+    expect(output).toContain("2m 0s");
+  });
+
+  it("abbreviates run IDs in active runs", () => {
+    const status = makeLiveStatus({
+      workflow: {
+        activeRuns: [{ runId: "2026-04-15T13-13-57-840Z-builder-i8tz5a", workflow: "builder", startedAt: "2026-01-01T00:58:00Z" }],
+        pendingRuns: [],
+        queueLength: 0,
+        completedRuns: 0,
+        paused: false,
+        agentConcurrency: 1,
+        codeConcurrency: 4,
+        workflows: {},
+      },
+    });
+    const output = formatDaemonStatus(status, false);
+    expect(output).toContain("i8tz5a");
+    expect(output).not.toContain("2026-04-15T13-13-57-840Z-builder-i8tz5a");
+  });
+
+  it("shows pending runs summarized with overflow count", () => {
+    const pending = Array.from({ length: 8 }, (_, i) => ({
+      workflowName: `workflow-${i}`,
+      trigger: { type: "event" as const, event: "test", payload: {} },
+      enqueuedAtMs: Date.now(),
+      notBeforeMs: 0,
+    }));
+    const status = makeLiveStatus({
+      workflow: {
+        activeRuns: [],
+        pendingRuns: pending,
+        queueLength: 8,
+        completedRuns: 0,
+        paused: false,
+        agentConcurrency: 1,
+        codeConcurrency: 4,
+        workflows: {},
+      },
+    });
+    const output = formatDaemonStatus(status, false);
+    expect(output).toContain("Pending runs:");
+    expect(output).toContain("+3 more");
+    expect(output).toContain("workflow-0");
+    expect(output).not.toContain("workflow-7");
+  });
+
+  it("shows managed status", () => {
+    const status = makeLiveStatus();
+    expect(formatDaemonStatus(status, true)).toContain("yes (OS service installed)");
+    expect(formatDaemonStatus(status, false)).toContain("Managed:    no");
+  });
+
+  it("shows cost when available", () => {
+    const status = makeLiveStatus({
+      workflow: {
+        activeRuns: [],
+        pendingRuns: [],
+        queueLength: 0,
+        completedRuns: 0,
+        totalCostUsd: 12.5,
+        paused: false,
+        agentConcurrency: 1,
+        codeConcurrency: 4,
+        workflows: {},
+      },
+    });
+    const output = formatDaemonStatus(status, false);
+    expect(output).toContain("$12.50");
+  });
+
+  it("shows paused status", () => {
+    const status = makeLiveStatus({
+      workflow: {
+        activeRuns: [],
+        pendingRuns: [],
+        queueLength: 0,
+        completedRuns: 0,
+        paused: true,
+        agentConcurrency: 1,
+        codeConcurrency: 4,
+        workflows: {},
+      },
+    });
+    const output = formatDaemonStatus(status, false);
+    expect(output).toContain("Paused:     yes");
   });
 });

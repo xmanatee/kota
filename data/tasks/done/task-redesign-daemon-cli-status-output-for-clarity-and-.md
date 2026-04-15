@@ -1,12 +1,12 @@
 ---
 id: task-redesign-daemon-cli-status-output-for-clarity-and-
 title: Redesign daemon CLI status output for clarity and extensibility
-status: backlog
+status: done
 priority: p2
 area: cli
 summary: The daemon status display mixes raw IDs, full timestamps, inconsistent alignment, and noisy details. Redesign it for clean terminal presentation with proper layout, relative times, and a path toward interactivity.
 created_at: 2026-04-15T12:46:18.187Z
-updated_at: 2026-04-15T12:46:18.187Z
+updated_at: 2026-04-15T13:21:42.142Z
 ---
 
 ## Problem

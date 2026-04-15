@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { Command } from "commander";
 import { Daemon, RESTART_EXIT_CODE } from "#core/daemon/daemon.js";
-import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
+import type { DaemonControlAddress, DaemonLiveStatus } from "#core/daemon/daemon-control.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
@@ -12,6 +12,7 @@ import type { LogFormat } from "#core/util/log-format.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
 import { DaemonDashboard } from "./dashboard.js";
 import { buildEventsCommand } from "./events-cli.js";
+import { abbreviateRunId, formatDuration, formatTimeAgo, formatUptime, padLabel, terminalWidth, truncateLine } from "./format-utils.js";
 import { buildQrCommand } from "./qr-cli.js";
 import { buildSessionCommand } from "./session-cli.js";
 import { buildStatusCommand } from "./status-cli.js";
@@ -187,6 +188,49 @@ export function removeServiceFile(path: string): string | null {
   return null;
 }
 
+export function formatDaemonStatus(status: DaemonLiveStatus, managed: boolean): string {
+  const width = terminalWidth();
+  const lines: string[] = [];
+  const pad = padLabel;
+
+  const uptime = status.startedAt ? formatUptime(status.startedAt) : "unknown";
+  const started = status.startedAt ? formatTimeAgo(status.startedAt) : "unknown";
+  lines.push(truncateLine(`${pad("Status:")}running  (pid ${status.pid}, up ${uptime}, started ${started})`, width));
+
+  const wf = status.workflow;
+  lines.push(truncateLine(`${pad("Active:")}${wf.activeRuns.length} run(s), ${wf.pendingRuns.length} pending`, width));
+  lines.push(truncateLine(`${pad("Sessions:")}${status.sessions.length} interactive`, width));
+  lines.push(truncateLine(`${pad("Paused:")}${wf.paused ? "yes" : "no"}`, width));
+  lines.push(truncateLine(`${pad("Managed:")}${managed ? "yes (OS service installed)" : "no"}`, width));
+
+  if (wf.totalCostUsd != null && wf.totalCostUsd > 0) {
+    lines.push(truncateLine(`${pad("Cost:")}$${wf.totalCostUsd.toFixed(2)} total`, width));
+  }
+
+  if (wf.activeRuns.length > 0) {
+    lines.push("");
+    lines.push("Active runs:");
+    for (const run of wf.activeRuns) {
+      const dur = formatDuration(run.startedAt);
+      const id = abbreviateRunId(run.runId);
+      lines.push(truncateLine(`  ${run.workflow.padEnd(20)} ${dur.padEnd(10)} ${id}`, width));
+    }
+  }
+
+  if (wf.pendingRuns.length > 0) {
+    lines.push("");
+    const shown = wf.pendingRuns.slice(0, 5);
+    const suffix = wf.pendingRuns.length > 5 ? ` (+${wf.pendingRuns.length - 5} more)` : "";
+    lines.push(`Pending runs:${suffix}`);
+    for (const run of shown) {
+      const id = run.runId ? abbreviateRunId(run.runId) : "-";
+      lines.push(truncateLine(`  ${run.workflowName.padEnd(20)} ${id}`, width));
+    }
+  }
+
+  return lines.join("\n");
+}
+
 const daemonModule: KotaModule = {
   name: "daemon-ops",
   version: "1.0.0",
@@ -285,20 +329,7 @@ const daemonModule: KotaModule = {
           console.log(JSON.stringify({ ...status, managed }));
           return;
         }
-        const wf = status.workflow;
-        const uptimeSec = status.startedAt
-          ? Math.floor((Date.now() - new Date(status.startedAt).getTime()) / 1000)
-          : null;
-        const uptime = uptimeSec !== null ? `${uptimeSec}s` : "unknown";
-        console.log(`running:  yes`);
-        console.log(`pid:      ${status.pid}`);
-        console.log(`uptime:   ${uptime}`);
-        console.log(`started:  ${status.startedAt}`);
-        console.log(`active:   ${wf.activeRuns.length} run(s)`);
-        console.log(`pending:  ${wf.pendingRuns.length} run(s)`);
-        console.log(`sessions: ${status.sessions.length}`);
-        console.log(`paused:   ${wf.paused}`);
-        console.log(`managed:  ${managed ? "yes (OS service installed)" : "no"}`);
+        console.log(formatDaemonStatus(status, managed));
       });
 
     cmd

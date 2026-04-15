@@ -1,6 +1,7 @@
 import { clearScreenDown, cursorTo } from "node:readline";
 import { styleText } from "node:util";
 import type { WorkflowRunStatus } from "#core/workflow/run-types.js";
+import { formatDuration, formatTimeAgo, formatUptime } from "./format-utils.js";
 
 export type DashboardSnapshot = {
 	pid: number;
@@ -23,33 +24,6 @@ export type DashboardSnapshot = {
 const MAX_LOG_LINES = 20;
 const LOG_BUFFER_MAX = 200;
 const REFRESH_INTERVAL_MS = 1_000;
-
-function formatUptime(startedAt: string): string {
-	const seconds = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
-	const minutes = Math.floor(seconds / 60);
-	const hours = Math.floor(minutes / 60);
-	const days = Math.floor(hours / 24);
-	if (days > 0) return `${days}d ${hours % 24}h`;
-	if (hours > 0) return `${hours}h ${minutes % 60}m`;
-	if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
-	return `${seconds}s`;
-}
-
-function formatDuration(startedAt: string): string {
-	const seconds = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
-	const minutes = Math.floor(seconds / 60);
-	if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
-	return `${seconds}s`;
-}
-
-function formatTimeAgo(iso: string): string {
-	const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-	const minutes = Math.floor(seconds / 60);
-	const hours = Math.floor(minutes / 60);
-	if (hours > 0) return `${hours}h ago`;
-	if (minutes > 0) return `${minutes}m ago`;
-	return `${seconds}s ago`;
-}
 
 function statusIndicator(status: WorkflowRunStatus): string {
 	switch (status) {

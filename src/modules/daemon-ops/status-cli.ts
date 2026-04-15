@@ -4,6 +4,7 @@ import { loadConfig } from "#core/config/config.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { formatUptime as formatUptimeFromIso, padLabel, terminalWidth, truncateLine } from "./format-utils.js";
 
 export type StatusSnapshot = {
   daemonRunning: boolean;
@@ -18,37 +19,33 @@ export type StatusSnapshot = {
 };
 
 function formatUptime(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}m`;
+  return formatUptimeFromIso(new Date(Date.now() - ms).toISOString());
 }
 
 export function formatStatusOutput(snap: StatusSnapshot): string {
+  const width = terminalWidth();
   const lines: string[] = [];
-  const pad = (label: string) => label.padEnd(12);
+  const pad = padLabel;
 
-  // Daemon line
   if (snap.daemonRunning && snap.daemonPid != null) {
     const uptimePart = snap.daemonUptimeMs != null
-      ? `, uptime ${formatUptime(snap.daemonUptimeMs)}`
+      ? `, up ${formatUptime(snap.daemonUptimeMs)}`
       : "";
-    lines.push(`${pad("Daemon:")}running  (pid ${snap.daemonPid}${uptimePart})`);
+    lines.push(truncateLine(`${pad("Daemon:")}running  (pid ${snap.daemonPid}${uptimePart})`, width));
   } else {
-    lines.push(`${pad("Daemon:")}not running  (offline mode)`);
+    lines.push(truncateLine(`${pad("Daemon:")}not running  (offline mode)`, width));
   }
 
-  lines.push(`${pad("Runs:")}${snap.activeRuns} active, ${snap.queuedRuns} queued`);
-  lines.push(`${pad("Sessions:")}${snap.sessions} interactive`);
+  lines.push(truncateLine(`${pad("Runs:")}${snap.activeRuns} active, ${snap.queuedRuns} queued`, width));
+  lines.push(truncateLine(`${pad("Sessions:")}${snap.sessions} interactive`, width));
 
   const approvalSuffix = snap.pendingApprovals > 0 ? "  \u2190 requires attention" : "";
-  lines.push(`${pad("Approvals:")}${snap.pendingApprovals} pending${approvalSuffix}`);
+  lines.push(truncateLine(`${pad("Approvals:")}${snap.pendingApprovals} pending${approvalSuffix}`, width));
 
   if (snap.dailyBudgetUsd != null && snap.dailySpendUsd != null) {
-    lines.push(`${pad("Budget:")}$${snap.dailySpendUsd.toFixed(2)} of $${snap.dailyBudgetUsd.toFixed(2)} today`);
+    lines.push(truncateLine(`${pad("Budget:")}$${snap.dailySpendUsd.toFixed(2)} of $${snap.dailyBudgetUsd.toFixed(2)} today`, width));
   } else if (snap.dailySpendUsd != null && snap.dailySpendUsd > 0) {
-    lines.push(`${pad("Budget:")}$${snap.dailySpendUsd.toFixed(2)} today`);
+    lines.push(truncateLine(`${pad("Budget:")}$${snap.dailySpendUsd.toFixed(2)} today`, width));
   }
 
   return lines.join("\n");
