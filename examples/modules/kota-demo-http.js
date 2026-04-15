@@ -97,5 +97,7 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, "127.0.0.1", () => {
-  process.stderr.write(`[kota-demo-http] Listening on http://127.0.0.1:${PORT}\n`);
+  const addr = server.address();
+  const actualPort = typeof addr === "object" && addr ? addr.port : PORT;
+  process.stderr.write(`[kota-demo-http] Listening on http://127.0.0.1:${actualPort}\n`);
 });

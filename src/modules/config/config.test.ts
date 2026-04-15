@@ -343,23 +343,19 @@ describe("kota config schema", () => {
     expect(content.properties).toBeDefined();
   });
 
-  it("schema covers all known config keys", () => {
-    const { out } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "schema"]);
+  it("committed schema matches generated output (run pnpm build:schema to fix)", () => {
+    const { execSync } = require("node:child_process") as typeof import("node:child_process");
+    const root = resolve(import.meta.dirname, "../../..");
+    const tmpOut = join(tmpdir(), `kota-schema-drift-check-${Date.now()}.json`);
+    execSync(`KOTA_SCHEMA_OUT=${tmpOut} NODE_OPTIONS=--conditions=source tsx src/core/config/build-schema.ts`, {
+      cwd: root,
+      stdio: "ignore",
     });
-    const schemaPath = resolve(out.trim());
-    const schema = JSON.parse(readFileSync(schemaPath, "utf-8"));
-    const schemaKeys = new Set(Object.keys(schema.properties));
-    const knownKeys = [
-      "model", "editorModel", "maxTokens", "architect", "thinking", "thinkingBudget",
-      "verbose", "skipConfirmations", "autoEnable", "user", "aliases", "reflection",
-      "guardrails", "modules", "foreignModules", "providers", "modelProvider",
-      "modelTiers", "agentModels", "webhooks", "approvalTtlMs", "dailyBudgetUsd",
-      "runsGc", "serve", "log", "daemon", "notifications", "workflow",
-      "moduleMonitoring", "scheduler", "mcp",
-    ];
-    for (const key of knownKeys) {
-      expect(schemaKeys.has(key), `schema missing key: ${key}`).toBe(true);
-    }
+    const generated = readFileSync(tmpOut, "utf-8");
+    const committed = readFileSync(resolve(root, "schema/kota-config.schema.json"), "utf-8");
+    try {
+      rmSync(tmpOut);
+    } catch {}
+    expect(committed).toBe(generated);
   });
 });

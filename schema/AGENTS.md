@@ -2,7 +2,7 @@
 
 This directory contains published JSON Schema files for KOTA data structures.
 
-- `kota-config.schema.json` — Draft-7 schema for `KotaConfig` (`.kota/config.json`). Covers all 27 config fields with types, enums, and descriptions. Referenced by `kota config schema` (prints path) and `kota config schema --print` (outputs content). Wire it into VS Code via `.vscode/settings.json` `json.schemas` to get IDE validation and autocompletion.
+- `kota-config.schema.json` — Draft-7 schema for `KotaConfig` (`.kota/config.json`). Generated from the source type by `pnpm build:schema`; do not hand-edit. Referenced by `kota config schema` (prints path) and `kota config schema --print` (outputs content). Wire it into VS Code via `.vscode/settings.json` `json.schemas` to get IDE validation and autocompletion.
 
 ## Adding a schema
 

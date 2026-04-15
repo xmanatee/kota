@@ -39,6 +39,7 @@
     "test:workflow-critical": "NODE_OPTIONS=--conditions=source vitest run src/core/agent-sdk/executor.test.ts src/event-bus.test.ts src/core/loop/instruction-files.test.ts src/modules/daemon-ops/index.test.ts src/core/daemon/daemon.test.ts src/task-files.test.ts src/core/workflow/runtime.test.ts src/core/workflow/validation.test.ts",
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
+    "build:schema": "NODE_OPTIONS=--conditions=source tsx src/core/config/build-schema.ts",
     "validate-tasks": "node dist/validate-queue.js"
   },
   "dependencies": {
@@ -59,6 +60,7 @@
     "@types/node": "^22.0.0",
     "@types/nodemailer": "^6.4.0",
     "@types/qrcode-terminal": "^0.12.2",
+    "ts-json-schema-generator": "^2.9.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^4.1.0"

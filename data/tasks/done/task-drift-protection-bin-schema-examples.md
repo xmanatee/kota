@@ -1,12 +1,12 @@
 ---
 id: task-drift-protection-bin-schema-examples
 title: Drift protection for bin/, schema/, and examples/
-status: backlog
+status: done
 priority: p2
 area: build
 summary: bin/, schema/, and examples/ serve external users (CLI install, IDE config help, KEMP authors, CI integrators). Several drift paths are unprotected and one has already silently drifted.
 created_at: 2026-04-15T15:25:00.000Z
-updated_at: 2026-04-15T21:22:00.000Z
+updated_at: 2026-04-15T22:04:09.500Z
 ---
 
 ## Problem

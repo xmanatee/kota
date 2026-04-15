@@ -2,385 +2,569 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://kota.dev/schema/kota-config.schema.json",
   "title": "KotaConfig",
-  "description": "KOTA configuration file (.kota/config.json). Project-level config overrides global (~/.kota/config.json); CLI flags override both.",
-  "type": "object",
+  "description": "KOTA configuration schema. Loaded from ~/.kota/config.json (global) and .kota/config.json (project). Project-level overrides global. CLI flags override both.",
   "additionalProperties": false,
   "properties": {
-    "model": {
-      "type": "string",
-      "description": "Default model ID to use for agent sessions (e.g. \"claude-sonnet-4-6\")."
-    },
-    "editorModel": {
-      "type": "string",
-      "description": "Model ID to use for editor-style operations (diff application, etc.)."
-    },
-    "maxTokens": {
-      "type": "number",
-      "minimum": 1,
-      "description": "Maximum output tokens per API call."
-    },
-    "architect": {
-      "type": "boolean",
-      "description": "Enable architect mode (two-pass plan-then-implement). Default: false."
-    },
-    "thinking": {
-      "type": "boolean",
-      "description": "Enable extended thinking for supported models. Default: false."
-    },
-    "thinkingBudget": {
-      "type": "number",
-      "minimum": 1024,
-      "description": "Token budget for extended thinking when `thinking` is enabled. Minimum: 1024."
-    },
-    "verbose": {
-      "type": "boolean",
-      "description": "Enable verbose log output. Default: false."
-    },
-    "skipConfirmations": {
-      "type": "boolean",
-      "description": "Skip all interactive confirmation prompts (non-interactive mode). Default: false."
-    },
-    "autoEnable": {
-      "type": "array",
-      "items": { "type": "string" },
-      "description": "Tool groups to auto-enable at session start (e.g. [\"web\", \"code\"])."
-    },
-    "user": {
-      "type": "object",
-      "description": "User profile — injected into system prompt for personalization.",
-      "additionalProperties": false,
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Your name, used in the system prompt."
-        },
-        "context": {
-          "type": "string",
-          "description": "Free-form context about you and your work injected into the system prompt."
-        }
-      }
+    "agentModels": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Per-agent model overrides. Keys are agent names (project or module-contributed); values are model IDs. Takes effect at agent resolve time; invalid model strings are passed through without validation, same as the top-level `model` field.",
+      "type": "object"
     },
     "aliases": {
-      "type": "object",
-      "description": "Prompt aliases — keys that expand into prefix text when starting a message.",
-      "additionalProperties": { "type": "string" }
-    },
-    "reflection": {
-      "type": "boolean",
-      "description": "Evaluate response quality before delivering (self-reflection step). Default: true."
-    },
-    "guardrails": {
-      "type": "object",
-      "description": "Risk classification and policy enforcement for tool calls.",
-      "additionalProperties": false,
-      "properties": {
-        "policies": {
-          "type": "object",
-          "description": "Policy per risk level. Keys: safe, moderate, dangerous.",
-          "additionalProperties": false,
-          "properties": {
-            "safe": { "$ref": "#/definitions/policy" },
-            "moderate": { "$ref": "#/definitions/policy" },
-            "dangerous": { "$ref": "#/definitions/policy" }
-          }
-        },
-        "toolOverrides": {
-          "type": "object",
-          "description": "Per-tool policy overrides. Keys are tool names; values are policies.",
-          "additionalProperties": { "$ref": "#/definitions/policy" }
-        }
-      }
-    },
-    "modules": {
-      "type": "object",
-      "description": "Per-module configuration. Keys are module names; values are module-specific settings.",
       "additionalProperties": {
-        "type": "object",
-        "additionalProperties": true
-      }
+        "type": "string"
+      },
+      "description": "Prompt aliases — keys that expand into prefix text when starting a message.",
+      "type": "object"
     },
-    "foreignModules": {
-      "type": "array",
-      "description": "Foreign-language (out-of-process) modules. See docs/FOREIGN-MODULES.md.",
+    "approvalTtlMs": {
+      "description": "TTL for pending approval items in milliseconds. Default: 86400000 (24 hours).",
+      "type": "number"
+    },
+    "architect": {
+      "type": "boolean"
+    },
+    "autoEnable": {
+      "description": "Tool groups to auto-enable at session start (e.g. [\"web\", \"code\"]).",
       "items": {
-        "oneOf": [
-          {
-            "type": "object",
-            "description": "Subprocess module communicating via stdio (KEMP protocol).",
-            "required": ["transport", "command"],
-            "additionalProperties": false,
-            "properties": {
-              "transport": { "type": "string", "enum": ["stdio"] },
-              "command": {
-                "type": "string",
-                "description": "Command to execute (e.g. \"node\", \"python3\")."
-              },
-              "args": {
-                "type": "array",
-                "items": { "type": "string" },
-                "description": "Arguments passed to the command."
-              },
-              "env": {
-                "type": "object",
-                "additionalProperties": { "type": "string" },
-                "description": "Environment variables to set for the subprocess."
-              },
-              "cwd": {
-                "type": "string",
-                "description": "Working directory for the subprocess."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "description": "HTTP module communicating via HTTP (KEMP protocol).",
-            "required": ["transport", "url"],
-            "additionalProperties": false,
-            "properties": {
-              "transport": { "type": "string", "enum": ["http"] },
-              "url": {
-                "type": "string",
-                "description": "Base URL for the HTTP module endpoint."
-              }
-            }
-          }
-        ]
-      }
+        "type": "string"
+      },
+      "type": "array"
     },
-    "providers": {
-      "type": "object",
-      "description": "Provider overrides. Keys are service types (e.g. \"memory\", \"knowledge\"); values are provider names.",
-      "additionalProperties": { "type": "string" }
-    },
-    "modelProvider": {
-      "type": "object",
-      "description": "Model provider configuration for non-Anthropic backends (OpenAI-compat, Ollama, etc.).",
+    "budget": {
       "additionalProperties": false,
+      "description": "Budget warning settings.",
       "properties": {
-        "type": {
-          "type": "string",
-          "description": "Provider type (e.g. \"openai\", \"ollama\")."
+        "warnAt": {
+          "description": "Fraction of dailyBudgetUsd at which a one-time soft-limit warning notification fires. Must be between 0 and 1 (exclusive). Example: 0.8 warns at 80% of the daily limit. Omitting this field disables soft-limit warnings.",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "daemon": {
+      "additionalProperties": false,
+      "description": "Daemon lifecycle settings.",
+      "properties": {
+        "eventBufferSize": {
+          "description": "Number of recent SSE events to retain in the in-memory ring buffer. Clients can query buffered events via GET /api/events or replay them on SSE reconnect with GET /events?since=<timestamp>. Default: 500.",
+          "type": "number"
+        },
+        "sessionIdleTtlMs": {
+          "description": "How long (ms) a daemon-owned interactive chat session may be idle before it is swept. Default: 300000 (5 minutes).",
+          "type": "number"
+        },
+        "shutdownGracePeriodMs": {
+          "description": "How long (ms) to wait for active workflow runs to complete before aborting them during shutdown. 0 = drain indefinitely. Default: 60000 (60 s).",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "dailyBudgetUsd": {
+      "description": "Maximum API spend per calendar day (UTC). Workflow dispatch pauses when exceeded.",
+      "type": "number"
+    },
+    "editorModel": {
+      "type": "string"
+    },
+    "failover": {
+      "additionalProperties": false,
+      "description": "Model provider failover. When configured, requests fail over to a secondary provider when the primary is detected as unhealthy. Omit to disable (single-provider, no behavior change).",
+      "properties": {
+        "apiKey": {
+          "description": "API key for the fallback provider. Resolved from env if omitted.",
+          "type": "string"
         },
         "baseUrl": {
-          "type": "string",
-          "description": "Base URL for the provider API."
+          "description": "Base URL for the fallback provider. Uses preset if omitted.",
+          "type": "string"
         },
-        "apiKey": {
-          "type": "string",
-          "description": "API key for the provider."
+        "cooldownMs": {
+          "description": "Cooldown before probing the primary again, in milliseconds. Default: 300000.",
+          "type": "number"
+        },
+        "errorThreshold": {
+          "description": "Number of errors in the sliding window that trigger failover. Default: 5.",
+          "type": "number"
+        },
+        "model": {
+          "description": "Fallback model string. Falls back to the primary model if omitted.",
+          "type": "string"
+        },
+        "provider": {
+          "description": "Fallback provider name (e.g. \"openai\"). Required.",
+          "type": "string"
+        },
+        "windowMs": {
+          "description": "Sliding window size in milliseconds. Default: 60000.",
+          "type": "number"
         }
-      }
+      },
+      "required": [
+        "provider"
+      ],
+      "type": "object"
     },
-    "modelTiers": {
-      "type": "object",
-      "description": "Model tier mapping for adaptive routing.",
+    "foreignModules": {
+      "description": "Foreign-language (out-of-process) modules. Each entry declares a subprocess to spawn and communicate with via KEMP. See `docs/FOREIGN-MODULES.md` for the protocol specification.",
+      "items": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "description": "Stdio transport — spawns a subprocess and communicates over stdin/stdout.",
+            "properties": {
+              "args": {
+                "description": "Arguments passed to the executable.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "command": {
+                "description": "Executable to run (e.g. \"python3\", \"/usr/bin/ruby\").",
+                "type": "string"
+              },
+              "cwd": {
+                "description": "Working directory for the subprocess. Relative paths are resolved from the KOTA project root. Defaults to the KOTA project root.",
+                "type": "string"
+              },
+              "env": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Additional environment variables for the subprocess.",
+                "type": "object"
+              },
+              "maxRestarts": {
+                "description": "Maximum number of automatic restart attempts after an unexpected exit. Set to 0 to disable restart. Default: 3.",
+                "type": "number"
+              },
+              "pingIntervalMs": {
+                "description": "How often (ms) to send a health-check ping. Default: 30000. Set to 0 to disable periodic pings.",
+                "type": "number"
+              },
+              "pingTimeoutMs": {
+                "description": "Milliseconds to wait for a `pong` response before declaring the subprocess hung and triggering a restart. Default: 5000. Set to 0 to disable pings.",
+                "type": "number"
+              },
+              "restartBackoffBaseMs": {
+                "description": "Base milliseconds for exponential restart backoff. Default: 2000.",
+                "type": "number"
+              },
+              "transport": {
+                "const": "stdio",
+                "type": "string"
+              }
+            },
+            "required": [
+              "transport",
+              "command"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "HTTP transport — connects to an already-running HTTP server that speaks KEMP.",
+            "properties": {
+              "bearerToken": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "env": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "env"
+                    ],
+                    "type": "object"
+                  }
+                ],
+                "description": "Optional bearer token sent as `Authorization: Bearer <token>` on every request. Supply a string literal or `{ env: \"ENV_VAR_NAME\" }` to read from an environment variable. The token is never logged."
+              },
+              "transport": {
+                "const": "http",
+                "type": "string"
+              },
+              "url": {
+                "description": "Base URL of the KEMP HTTP server (e.g. \"http://localhost:8765\").",
+                "type": "string"
+              }
+            },
+            "required": [
+              "transport",
+              "url"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "Configuration for a single foreign-language module entry."
+      },
+      "type": "array"
+    },
+    "guardrails": {
       "additionalProperties": false,
       "properties": {
-        "fast": {
-          "type": "string",
-          "description": "Model ID for the fast tier (low-latency, high-throughput tasks)."
+        "approvalTimeoutMs": {
+          "description": "TTL in ms for approval requests created in this context. Stored on each queued item.",
+          "type": "number"
         },
+        "policies": {
+          "additionalProperties": false,
+          "description": "Policy applied at each risk level.",
+          "properties": {
+            "dangerous": {
+              "enum": [
+                "allow",
+                "confirm",
+                "deny",
+                "queue"
+              ],
+              "type": "string"
+            },
+            "moderate": {
+              "enum": [
+                "allow",
+                "confirm",
+                "deny",
+                "queue"
+              ],
+              "type": "string"
+            },
+            "safe": {
+              "enum": [
+                "allow",
+                "confirm",
+                "deny",
+                "queue"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "safe",
+            "moderate",
+            "dangerous"
+          ],
+          "type": "object"
+        },
+        "toolOverrides": {
+          "additionalProperties": {
+            "enum": [
+              "allow",
+              "confirm",
+              "deny",
+              "queue"
+            ],
+            "type": "string"
+          },
+          "description": "Override policy for specific tool names (bypasses risk classification).",
+          "type": "object"
+        }
+      },
+      "required": [
+        "policies"
+      ],
+      "type": "object"
+    },
+    "log": {
+      "additionalProperties": false,
+      "description": "Log output settings.",
+      "properties": {
+        "format": {
+          "description": "Output format. \"text\" is human-readable (default); \"json\" emits newline-delimited JSON for log aggregators. Overridden by LOG_FORMAT env var.",
+          "enum": [
+            "text",
+            "json"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "maxTokens": {
+      "type": "number"
+    },
+    "mcp": {
+      "additionalProperties": false,
+      "description": "MCP server settings.",
+      "properties": {
+        "sampling": {
+          "additionalProperties": false,
+          "description": "Sampling settings — allow MCP clients to delegate LLM completions to KOTA. Default: disabled.",
+          "properties": {
+            "enabled": {
+              "description": "Enable the sampling/createMessage handler. Default: false.",
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "model": {
+      "type": "string"
+    },
+    "modelProvider": {
+      "additionalProperties": false,
+      "description": "Model provider configuration for non-Anthropic backends (OpenAI-compat, Ollama, etc.).",
+      "properties": {
+        "apiKey": {
+          "type": "string"
+        },
+        "baseUrl": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "modelTiers": {
+      "additionalProperties": false,
+      "properties": {
         "balanced": {
-          "type": "string",
-          "description": "Model ID for the balanced tier (default for most tasks)."
+          "type": "string"
         },
         "capable": {
-          "type": "string",
-          "description": "Model ID for the capable tier (complex reasoning tasks)."
+          "type": "string"
+        },
+        "fast": {
+          "type": "string"
         }
-      }
+      },
+      "type": "object"
     },
-    "agentModels": {
-      "type": "object",
-      "description": "Per-agent model overrides. Keys are agent names (built-in or module-contributed); values are model IDs.",
-      "additionalProperties": { "type": "string" }
+    "moduleMonitoring": {
+      "additionalProperties": false,
+      "description": "Foreign module health monitoring settings.",
+      "properties": {
+        "crashAlertThreshold": {
+          "description": "Number of restarts within `crashAlertWindowMs` that triggers an `module.crash.alert` notification. Default: 3.",
+          "type": "number"
+        },
+        "crashAlertWindowMs": {
+          "description": "Rolling window in milliseconds for counting module restarts. Also serves as the alert cooldown — at most one alert per module per window. Default: 600000 (10 minutes).",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "modules": {
+      "additionalProperties": {
+        "additionalProperties": {},
+        "type": "object"
+      },
+      "description": "Per-module configuration. Keys are module names, values are module-specific settings.",
+      "type": "object"
+    },
+    "notifications": {
+      "additionalProperties": false,
+      "description": "Notification settings.",
+      "properties": {
+        "alertCooldownMs": {
+          "description": "Minimum milliseconds between failure alerts for the same workflow. Default: 0 (no cooldown — every failure fires an alert). Example: 300000 suppresses repeated alerts within 5 minutes.",
+          "type": "number"
+        },
+        "quietHours": {
+          "additionalProperties": false,
+          "properties": {
+            "allowCritical": {
+              "description": "When true (default), critical events bypass quiet hours. Critical: workflow.failure.alert, module.crash.alert.",
+              "type": "boolean"
+            },
+            "end": {
+              "description": "Quiet period end in local time, \"HH:MM\" (24-hour). Spans crossing midnight are supported.",
+              "type": "string"
+            },
+            "start": {
+              "description": "Quiet period start in local time, \"HH:MM\" (24-hour).",
+              "type": "string"
+            }
+          },
+          "required": [
+            "start",
+            "end"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "providers": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Provider overrides. Keys are service types (e.g. \"memory\", \"knowledge\"), values are provider names.",
+      "type": "object"
+    },
+    "reflection": {
+      "description": "Self-reflection — evaluate response quality before delivering. Default: true.",
+      "type": "boolean"
+    },
+    "runsGc": {
+      "additionalProperties": false,
+      "description": "Run artifact retention policy for `.kota/runs/`. Applied when `kota workflow gc` is run explicitly. Defaults: retentionDays=7, minKeepPerWorkflow=10.",
+      "properties": {
+        "minKeepPerWorkflow": {
+          "description": "Always keep at least this many recent runs per workflow (default: 10).",
+          "type": "number"
+        },
+        "retentionDays": {
+          "description": "Delete runs older than this many days (default: 7).",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "scheduler": {
+      "additionalProperties": false,
+      "description": "Scheduler settings for autonomous workflow dispatch.",
+      "properties": {
+        "agentConcurrency": {
+          "description": "Maximum number of agent-step workflows that may run simultaneously. Must be a positive integer. Default: 1 (serial agent dispatch).",
+          "type": "number"
+        },
+        "codeConcurrency": {
+          "description": "Maximum number of code-only (no agent step) workflows that may run simultaneously. Must be a positive integer. Default: 4.",
+          "type": "number"
+        },
+        "dispatchWindow": {
+          "additionalProperties": false,
+          "description": "Dispatch window — time-of-day and day-of-week restriction for autonomous workflow triggers.\n\nAffects `runtime.idle` (idle trigger) and `intervalMs` (interval trigger) only. Cron, event, file-watch, and manual triggers are not affected.",
+          "properties": {
+            "days": {
+              "description": "Days on which the window applies. Default: all days. Accepted values: \"mon\" | \"tue\" | \"wed\" | \"thu\" | \"fri\" | \"sat\" | \"sun\"",
+              "items": {
+                "enum": [
+                  "mon",
+                  "tue",
+                  "wed",
+                  "thu",
+                  "fri",
+                  "sat",
+                  "sun"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "end": {
+              "description": "End of allowed window in local time, \"HH:MM\" (24-hour, exclusive).",
+              "type": "string"
+            },
+            "start": {
+              "description": "Start of allowed window in local time, \"HH:MM\" (24-hour).",
+              "type": "string"
+            }
+          },
+          "required": [
+            "start",
+            "end"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "serve": {
+      "additionalProperties": false,
+      "description": "HTTP server settings for `kota serve`.",
+      "properties": {
+        "noAuth": {
+          "description": "Disable bearer-token auth (default: auth enabled). For localhost-only dev use.",
+          "type": "boolean"
+        },
+        "showCost": {
+          "description": "Show per-turn cost line in terminal output (default: true). Set to false to suppress.",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "skipConfirmations": {
+      "type": "boolean"
+    },
+    "thinking": {
+      "type": "boolean"
+    },
+    "thinkingBudget": {
+      "type": "number"
+    },
+    "tracing": {
+      "additionalProperties": false,
+      "description": "OpenTelemetry tracing for workflow execution. Opt-in.",
+      "properties": {
+        "endpoint": {
+          "description": "OTLP HTTP endpoint (e.g. \"http://localhost:4318/v1/traces\"). Required to enable tracing.",
+          "type": "string"
+        },
+        "samplingRate": {
+          "description": "Sampling rate between 0 and 1. Default: 1.0 (sample everything).",
+          "type": "number"
+        },
+        "serviceName": {
+          "description": "Service name reported in traces. Default: \"kota\".",
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoint"
+      ],
+      "type": "object"
+    },
+    "user": {
+      "additionalProperties": false,
+      "description": "User profile — injected into system prompt for personalization.",
+      "properties": {
+        "context": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "verbose": {
+      "type": "boolean"
     },
     "webhooks": {
-      "type": "object",
-      "description": "Per-workflow webhook secrets for POST /webhooks/:workflowName. Keep in .kota/config.json (gitignored).",
       "additionalProperties": {
-        "type": "object",
-        "required": ["secret"],
         "additionalProperties": false,
         "properties": {
           "secret": {
-            "type": "string",
-            "description": "HMAC secret for the webhook."
+            "type": "string"
           }
-        }
-      }
-    },
-    "approvalTtlMs": {
-      "type": "number",
-      "minimum": 1,
-      "description": "TTL for pending approval items in milliseconds. Default: 86400000 (24 hours)."
-    },
-    "dailyBudgetUsd": {
-      "type": "number",
-      "minimum": 0,
-      "exclusiveMinimum": true,
-      "description": "Maximum API spend per calendar day (UTC). Workflow dispatch pauses when exceeded."
-    },
-    "runsGc": {
-      "type": "object",
-      "description": "Run artifact retention policy for .kota/runs/. Applied when `kota workflow gc` is run.",
-      "additionalProperties": false,
-      "properties": {
-        "retentionDays": {
-          "type": "number",
-          "minimum": 1,
-          "description": "Delete runs older than this many days. Default: 7."
         },
-        "minKeepPerWorkflow": {
-          "type": "number",
-          "minimum": 0,
-          "description": "Always keep at least this many recent runs per workflow. Default: 10."
-        }
-      }
-    },
-    "serve": {
-      "type": "object",
-      "description": "HTTP server settings for `kota serve`.",
-      "additionalProperties": false,
-      "properties": {
-        "noAuth": {
-          "type": "boolean",
-          "description": "Disable bearer-token auth. For localhost-only dev use. Default: false (auth enabled)."
-        },
-        "showCost": {
-          "type": "boolean",
-          "description": "Show per-turn cost line in terminal output. Default: true. Set to false to suppress."
-        }
-      }
-    },
-    "log": {
-      "type": "object",
-      "description": "Log output settings.",
-      "additionalProperties": false,
-      "properties": {
-        "format": {
-          "type": "string",
-          "enum": ["text", "json"],
-          "description": "Output format. \"text\" is human-readable (default); \"json\" emits newline-delimited JSON for log aggregators. Overridden by LOG_FORMAT env var."
-        }
-      }
-    },
-    "daemon": {
-      "type": "object",
-      "description": "Daemon lifecycle settings.",
-      "additionalProperties": false,
-      "properties": {
-        "shutdownGracePeriodMs": {
-          "type": "number",
-          "minimum": 0,
-          "description": "How long (ms) to wait for active workflow runs to complete before aborting them during shutdown. 0 = drain indefinitely. Default: 60000 (60s)."
-        },
-        "eventBufferSize": {
-          "type": "number",
-          "minimum": 1,
-          "description": "Number of recent SSE events to retain in the in-memory ring buffer for GET /api/events and SSE reconnect replay. Default: 500."
-        }
-      }
-    },
-    "notifications": {
-      "type": "object",
-      "description": "Notification settings.",
-      "additionalProperties": false,
-      "properties": {
-        "alertCooldownMs": {
-          "type": "number",
-          "minimum": 0,
-          "description": "Minimum milliseconds between failure alerts for the same workflow. Default: 0 (no cooldown — every failure fires an alert). Example: 300000 suppresses repeated alerts within 5 minutes."
-        }
-      }
+        "required": [
+          "secret"
+        ],
+        "type": "object"
+      },
+      "description": "Per-workflow webhook secrets for `POST /webhooks/:workflowName`. Keys are workflow names; each entry must have a `secret` string. Keep this in `.kota/config.json` (project-local, gitignored) to avoid committing secrets.",
+      "type": "object"
     },
     "workflow": {
-      "type": "object",
-      "description": "Workflow runtime settings.",
       "additionalProperties": false,
+      "description": "Workflow runtime settings.",
       "properties": {
         "maxStepOutputBytes": {
-          "type": "number",
           "description": "Maximum step output size in bytes before truncation. Default: 262144 (256 KB). Hard cap: 10485760 (10 MB). Outputs exceeding this limit are replaced with a structured truncation notice.",
-          "exclusiveMinimum": 0
+          "type": "number"
         }
-      }
-    },
-    "mcp": {
-      "type": "object",
-      "description": "MCP server settings.",
-      "additionalProperties": false,
-      "properties": {
-        "sampling": {
-          "type": "object",
-          "description": "Sampling settings — allow MCP clients to delegate LLM completions to KOTA.",
-          "additionalProperties": false,
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "description": "Enable the sampling/createMessage handler. Default: false."
-            }
-          }
-        }
-      }
-    },
-    "moduleMonitoring": {
-      "type": "object",
-      "description": "Foreign module health monitoring settings.",
-      "additionalProperties": false,
-      "properties": {
-        "crashAlertThreshold": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Number of restarts within crashAlertWindowMs that triggers a module.crash.alert notification. Default: 3."
-        },
-        "crashAlertWindowMs": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Rolling window in milliseconds for counting module restarts. Also serves as the alert cooldown. Default: 600000 (10 minutes)."
-        }
-      }
-    },
-    "scheduler": {
-      "type": "object",
-      "description": "Scheduler settings for autonomous workflow dispatch.",
-      "additionalProperties": false,
-      "properties": {
-        "dispatchWindow": {
-          "type": "object",
-          "description": "Restrict autonomous dispatch to a time-of-day window. Affects runtime.idle and intervalMs triggers only. Cron, event, file-watch, and manual triggers are not affected.",
-          "additionalProperties": false,
-          "required": ["start", "end"],
-          "properties": {
-            "start": {
-              "type": "string",
-              "pattern": "^\\d{2}:\\d{2}$",
-              "description": "Window open time in local time, HH:MM (24-hour). Example: \"09:00\"."
-            },
-            "end": {
-              "type": "string",
-              "pattern": "^\\d{2}:\\d{2}$",
-              "description": "Window close time in local time, HH:MM (24-hour, exclusive). Must be later than start. Example: \"18:00\"."
-            },
-            "days": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "enum": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-              },
-              "minItems": 1,
-              "description": "Days the window applies. Default: all days. Example: [\"mon\",\"tue\",\"wed\",\"thu\",\"fri\"]."
-            }
-          }
-        }
-      }
+      },
+      "type": "object"
     }
   },
-  "definitions": {
-    "policy": {
-      "type": "string",
-      "enum": ["allow", "confirm", "deny", "queue"],
-      "description": "Guardrail policy: allow (proceed silently), confirm (ask user), deny (block), queue (add to approval queue)."
-    }
-  }
+  "type": "object"
 }
