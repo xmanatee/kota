@@ -1,1 +1,0 @@
-https://lethain.com/agents-as-scaffolding/

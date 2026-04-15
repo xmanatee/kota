@@ -1,12 +1,12 @@
 ---
 id: task-drift-protection-bin-schema-examples
 title: Drift protection for bin/, schema/, and examples/
-status: inbox
+status: backlog
 priority: p2
 area: build
 summary: bin/, schema/, and examples/ serve external users (CLI install, IDE config help, KEMP authors, CI integrators). Several drift paths are unprotected and one has already silently drifted.
 created_at: 2026-04-15T15:25:00.000Z
-updated_at: 2026-04-15T15:25:00.000Z
+updated_at: 2026-04-15T21:22:00.000Z
 ---
 
 ## Problem
@@ -16,7 +16,7 @@ Four distributable surfaces each have a specific drift mode; only one is partial
 1. **`schema/kota-config.schema.json` has already drifted.** Source `KotaConfig` (`src/core/config/config.ts:15`) defines 34 top-level fields; schema has 31. Missing: `budget`, `failover`, `tracing`. The existing check at `src/modules/config/config.test.ts:346-364` cannot catch this — its `knownKeys` reference list is hand-maintained and drifts in lockstep with the schema, not the source type.
 2. **`schema/AGENTS.md:5` claims "Covers all 27 config fields"** — stale literal count.
 3. **`examples/modules/kota-demo-http.js` has no end-to-end coverage.** Only the Python demo is spawned (`src/foreign-module-loader.test.ts:17`). KEMP protocol changes would break the HTTP demo silently.
-4. **`bin/kota.mjs` has no test.** If `dist/cli.js` output path or the `package.json.bin` mapping changes, an `npm i -g` install breaks with no CI signal.
+4. **`bin/kota.mjs` has no test.** If `dist/cli.js` output path or the `package.json.bin` mapping changes, a `pnpm i -g` install breaks with no CI signal.
 5. **`examples/github-actions/kota-trigger.yml` has no test.** Env var names and webhook path are unverified against the webhook module; rename would silently invalidate the published example.
 
 ## Desired Outcome

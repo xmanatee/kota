@@ -330,6 +330,20 @@ when access becomes available.
 
 ---
 
+## April 2026 Inbox Captures (3 URLs)
+
+Captured mid-April 2026 via inbox. All accessible and read.
+
+**Disposition: Reference only — no gaps**
+
+| Resource | Note |
+|----------|------|
+| [Multi-agent coordination patterns](https://claude.com/blog/multi-agent-coordination-patterns) | Anthropic blog. Five patterns: generator-verifier, orchestrator-subagent, agent teams, message bus, shared state. KOTA already implements orchestrator-subagent (dispatcher→workflows), generator-verifier (builder→critic), and shared state (stores). No new gaps. Reference only. |
+| [Agents as scaffolding](https://lethain.com/agents-as-scaffolding/) | Lethain. Thesis: prototype with agents, then refactor to code-driven workflow with agents only for ambiguous tasks. Validates KOTA's hybrid approach (deterministic workflow definitions + agent steps). Reference only. |
+| [recursive-mode](https://recursive-mode.dev/introduction) | Skill package for persistent requirements/plans in repo files to avoid context rot. KOTA uses AGENTS.md, data/, and .kota/ as its own workspace protocol. Overlapping approach, different implementation. Reference only. |
+
+---
+
 ## Summary
 
 | Group | Resources | Adopted | Deferred | Reference |

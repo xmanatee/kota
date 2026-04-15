@@ -17,13 +17,17 @@ The `docs/` directory currently contains files that may not align with the struc
 
 - Every file in `docs/` has a clear purpose aligned with the documentation philosophy in `AGENTS.md`.
 - Files that are stale, duplicative, or violate doc rules are removed or consolidated.
+- Content that belongs closer to its subject is moved to local `AGENTS.md` files (e.g. `DAEMON-CLIENTS.md` content to clients/, `GRAFANA.md` content to the metrics module, `MOBILE-CLIENT-DESIGN.md` content to clients/mobile/).
 - `docs/AGENTS.md` accurately describes what belongs in the directory.
 - Any gaps (documented subsystems without a corresponding doc) are identified and filed as follow-ups if non-trivial.
+- Consider whether `docs/` is needed at all — if every doc belongs closer to its subject, the directory may become empty.
 
 ## Constraints
 
 - Do not rewrite docs for the sake of rewriting. Only change files that are actually drifted or stale.
 - Do not remove docs that are the single source of truth for operator-facing configuration (e.g. `NOTIFICATIONS.md`, `CONFIG.md`).
+- Nothing that can be understood in 1-2 simple bash commands should be documented. No directory structures, no extracts from files.
+- Update relevant prompts, guidelines, and verifications affected by doc moves.
 
 ## Done When
 
