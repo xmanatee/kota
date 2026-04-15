@@ -204,6 +204,7 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
     {
       id: "success-criteria-verified",
       type: "code" as const,
+      phase: 1,
       run: (ctx) => checkSuccessCriteriaVerified(ctx.workflow.runDirPath),
     },
     {
@@ -238,26 +239,31 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
     {
       id: "server-readme-sync",
       type: "code" as const,
+      phase: 1,
       run: (ctx) => checkServerReadmeSync(ctx.projectDir),
     },
     {
       id: "mobile-typecheck",
       type: "code" as const,
+      phase: 1,
       run: (ctx) => checkMobileTypecheck(ctx.projectDir),
     },
     {
       id: "macos-swift-build",
       type: "code" as const,
+      phase: 1,
       run: (ctx) => checkMacosSwiftBuild(ctx.projectDir),
     },
     {
       id: "daemon-api-doc-sync",
       type: "code" as const,
+      phase: 1,
       run: (ctx) => checkDaemonApiDocSync(ctx.projectDir),
     },
     {
       id: "module-boundary",
       type: "code" as const,
+      phase: 1,
       run: (ctx) => checkModuleBoundary(ctx.projectDir),
     },
     {
