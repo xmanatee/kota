@@ -6,7 +6,6 @@ the repo.
 
 @docs/STANDARDS.md
 @docs/ARCHITECTURE.md
-@docs/DAEMON-CLIENTS.md
 
 @data/AGENTS.md
 @data/tasks/AGENTS.md

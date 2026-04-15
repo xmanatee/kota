@@ -99,7 +99,7 @@ This is intentionally separate from `log.format`: setting `"log": {"format": "js
 
 ## Metrics endpoint
 
-The daemon exposes a Prometheus-compatible scrape endpoint at `GET /metrics` on the control port. The port is written to `.kota/daemon-control.json` at startup. See `docs/GRAFANA.md` for scrape configuration, available metrics, and a sample Grafana dashboard.
+The daemon exposes a Prometheus-compatible scrape endpoint at `GET /metrics` on the control port. The port is written to `.kota/daemon-control.json` at startup. See [DAEMON-API.md](./DAEMON-API.md) for endpoint details.
 
 ## Other notable settings
 
@@ -425,7 +425,7 @@ names in your Jira project. If any credential is missing or unset, the provider 
 Receives GitHub webhook deliveries and emits `github.push`, `github.pull_request`, and
 `github.check_run` bus events. Workflows use these as `event:` triggers.
 
-See `docs/GITHUB-WEBHOOK.md` for setup instructions and the full event payload reference.
+See `src/modules/github-webhook/AGENTS.md` for setup instructions and event payload reference.
 
 ```json
 {

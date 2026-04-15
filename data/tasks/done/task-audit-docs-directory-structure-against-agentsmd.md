@@ -1,12 +1,12 @@
 ---
 id: task-audit-docs-directory-structure-against-agentsmd
 title: Audit docs directory structure against AGENTS.md
-status: backlog
+status: done
 priority: p2
 area: docs
 summary: The docs/ directory structure has drifted from what AGENTS.md describes. Audit and reconcile.
 created_at: 2026-04-15T14:28:43.925Z
-updated_at: 2026-04-15T14:28:43.925Z
+updated_at: 2026-04-15T23:11:40.352Z
 ---
 
 ## Problem

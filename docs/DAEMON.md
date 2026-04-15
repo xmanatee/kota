@@ -135,4 +135,4 @@ When running, the daemon exposes a loopback HTTP control API documented in
 [DAEMON-API.md](DAEMON-API.md). Clients and CLI commands use this API to query
 status, manage approvals, inspect workflow runs, and more.
 
-See [DAEMON-CLIENTS.md](DAEMON-CLIENTS.md) for the daemon/client architecture.
+See [ARCHITECTURE.md](../AGENTS.md) for the daemon/client architecture glossary.

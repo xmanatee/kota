@@ -10,12 +10,33 @@ This directory owns the bidirectional Slack bot channel for KOTA.
 
 ## Config
 
-Config lives under `modules.slackChannel` in `kota.config`:
-- `botToken` — Bot Token (`xoxb-`). Required.
-- `appToken` — App-Level Token (`xapp-`, Socket Mode). Required.
-- `notifyChannel` — Slack channel ID for posting approval notifications. Optional.
+```json
+{
+  "modules": {
+    "slackChannel": {
+      "botToken": "xoxb-...",
+      "appToken": "xapp-...",
+      "notifyChannel": "C012345ABCD"
+    }
+  }
+}
+```
 
-See `docs/SLACK-CHANNEL.md` for Slack App setup instructions.
+- `botToken` — Bot User OAuth Token (`xoxb-`). Required.
+- `appToken` — App-Level Token for Socket Mode (`xapp-`). Required.
+- `notifyChannel` — Channel ID for posting approval notifications. Optional.
+
+## Slack App Setup
+
+Create a Slack App (api.slack.com/apps > Create New App > From Scratch).
+
+Required bot token scopes: `chat:write`, `im:history`, `im:read`, `im:write`,
+`channels:history`.
+
+Enable Socket Mode under Settings > Socket Mode and generate an app-level token
+with `connections:write` scope. Subscribe to `message.im` under Event
+Subscriptions. Enable Interactivity (Socket Mode handles the endpoint). Install
+to workspace and copy the Bot User OAuth Token.
 
 ## Boundaries
 

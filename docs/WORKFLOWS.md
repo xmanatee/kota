@@ -346,8 +346,7 @@ The secret lives in `.kota/config.json` under `webhooks.<name>.secret` (keep git
 The optional `webhookRateLimit.maxPerMinute` caps throughput per workflow; the daemon
 returns 429 with a `Retry-After` header when exceeded. See
 [DAEMON-API.md](./DAEMON-API.md#webhook-trigger-endpoint) for signing details and
-configuration. For a step-by-step guide to triggering KOTA workflows from GitHub Actions,
-see [GITHUB-ACTIONS.md](./GITHUB-ACTIONS.md).
+configuration.
 
 ### Heartbeat / standing order
 
