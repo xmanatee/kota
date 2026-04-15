@@ -348,8 +348,27 @@ describe("ModuleLoader", () => {
     );
 
     expect(loader.getLoadedModules()).toEqual(["good-mod"]);
+    expect(errSpy).not.toHaveBeenCalledWith(
+      expect.stringContaining("bad-installed"),
+    );
+    errSpy.mockRestore();
+  });
+
+  it("installed module load failure logs in verbose mode", async () => {
+    const loader = new ModuleLoader({}, true);
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await loader.loadAll(
+      [{ name: "good-mod" }],
+      [{
+        name: "bad-installed",
+        onLoad: () => { throw new Error("missing creds"); },
+      }],
+    );
+
+    expect(loader.getLoadedModules()).toEqual(["good-mod"]);
     expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Optional module Module "bad-installed" failed to load'),
+      expect.stringContaining('Optional module "bad-installed" skipped'),
     );
     errSpy.mockRestore();
   });

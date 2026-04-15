@@ -3,6 +3,7 @@ import { expandAlias, type KotaConfig, loadConfig } from "#core/config/config.js
 import { getScheduler, resetScheduler } from "#core/daemon/scheduler.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "#core/loop/loop.js";
 import { type ConversationHistory, getHistory } from "#core/memory/history.js";
+import { formatAuthError } from "#core/model/auth-error.js";
 import { createModelClient } from "#core/model/model-client.js";
 
 export { registerHistoryCommands } from "./cli-commands.js";
@@ -32,16 +33,64 @@ export function resolveConversationId(history: ConversationHistory, idOrPrefix: 
   }
 }
 
+const REPL_COMMANDS: Record<string, string> = {
+  "/help": "Show available commands",
+  "/status": "Show session info (model, state, cost)",
+  "/reset": "Clear conversation and start fresh",
+  "/clear": "Clear conversation and start fresh",
+  "/cost": "Show accumulated cost summary",
+};
+
+function handleReplCommand(
+  command: string,
+  session: AgentSession,
+  options: LoopOptions,
+  resetSession: () => void,
+): boolean {
+  switch (command) {
+    case "/help": {
+      const lines = Object.entries(REPL_COMMANDS).map(([cmd, desc]) => `  ${cmd.padEnd(10)} ${desc}`);
+      lines.push("  exit       Quit interactive mode");
+      console.error(lines.join("\n"));
+      return true;
+    }
+    case "/status": {
+      const state = session.getState();
+      const model = options.model || "claude-sonnet-4-6";
+      console.error(`Model: ${model}  State: ${state}  Cost: ${session.getCostSummary()}`);
+      return true;
+    }
+    case "/reset":
+    case "/clear": {
+      resetSession();
+      console.error("Conversation cleared.");
+      return true;
+    }
+    case "/cost": {
+      console.error(session.getCostSummary());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
 /**
  * Interactive REPL with persistent conversation context.
  * A single AgentSession is shared across all inputs — the agent
  * remembers previous turns and maintains running cost totals.
  */
 export async function interactiveMode(options: LoopOptions, config?: KotaConfig) {
-  const session = new AgentSession(options);
+  let session = new AgentSession(options);
+
+  const resetSession = () => {
+    session.close();
+    session = new AgentSession(options);
+  };
+
   const rl = createInterface({
     input: process.stdin,
-    output: process.stderr, // Use stderr for prompts so stdout stays clean
+    output: process.stderr,
     prompt: "kota> ",
   });
 
@@ -52,7 +101,7 @@ export async function interactiveMode(options: LoopOptions, config?: KotaConfig)
     }
   });
 
-  console.error("KOTA — interactive mode. Type your task, or 'exit' to quit.\n");
+  console.error("KOTA — interactive mode. Type /help for commands, or 'exit' to quit.\n");
   rl.prompt();
 
   rl.on("line", async (line) => {
@@ -69,14 +118,25 @@ export async function interactiveMode(options: LoopOptions, config?: KotaConfig)
       return;
     }
 
+    if (handleReplCommand(input, session, options, resetSession)) {
+      console.log();
+      rl.prompt();
+      return;
+    }
+
     input = expandAlias(input, config?.aliases);
 
     try {
       await session.send(input);
     } catch (err) {
-      console.error(`Error: ${(err as Error).message}`);
+      const authMsg = formatAuthError(err as Error);
+      if (authMsg) {
+        console.error(authMsg);
+      } else {
+        console.error(`Error: ${(err as Error).message}`);
+      }
     }
-    console.log(); // blank line between interactions
+    console.log();
     rl.prompt();
   });
 

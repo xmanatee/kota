@@ -1,12 +1,12 @@
 ---
 id: task-fix-cli-interactive-mode-robustness
 title: Fix CLI interactive mode robustness
-status: ready
+status: done
 priority: p1
 area: cli
 summary: CLI interactive mode shows noisy module warnings, crashes on auth errors when no API key is set, and built-in commands fail without auth. Make startup clean, auth-free commands work without a configured model, and align CLI mode behavior with daemon mode.
 created_at: 2026-04-15T14:28:15.544Z
-updated_at: 2026-04-15T14:28:15.544Z
+updated_at: 2026-04-15T21:33:04.110Z
 ---
 
 ## Problem

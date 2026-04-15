@@ -242,8 +242,12 @@ export class ModuleLoader {
         await this.load(mod);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        const prefix = projectNames.has(mod.name) ? "" : "Optional module ";
-        console.error(`[kota] ${prefix}Module "${mod.name}" failed to load: ${msg}`);
+        const isProject = projectNames.has(mod.name);
+        if (isProject) {
+          console.error(`[kota] Module "${mod.name}" failed to load: ${msg}`);
+        } else if (this.verbose) {
+          console.error(`[kota] Optional module "${mod.name}" skipped: ${msg}`);
+        }
         this.loadFailures.set(mod.name, { message: msg, timestamp: new Date().toISOString() });
       }
     }

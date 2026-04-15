@@ -7,6 +7,7 @@ import {
 } from "./core/agent-sdk/index.js";
 import { runAgentLoop } from "./core/loop/loop.js";
 import { getHistory } from "./core/memory/history.js";
+import { formatAuthError } from "./core/model/auth-error.js";
 import { createModelClient } from "./core/model/model-client.js";
 import { discoverModules } from "./core/modules/module-discovery.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
@@ -20,26 +21,8 @@ import {
 } from "./modules/history/cli.js";
 import { parseModelString } from "./modules/model-clients/factory.js";
 
+export { formatAuthError } from "./core/model/auth-error.js";
 export { parseIntOption } from "./modules/history/cli.js";
-
-/** Check if an error is an Anthropic auth error and return a user-friendly message, or null. */
-export function formatAuthError(err: Error): string | null {
-  const msg = err.message || "";
-  if (
-    msg.includes("Could not resolve authentication") ||
-    msg.includes("apiKey") ||
-    msg.includes("authToken") ||
-    (err as { status?: number }).status === 401
-  ) {
-    return [
-      "Error: Anthropic API authentication failed.\n",
-      "Check that your ANTHROPIC_API_KEY is set and valid:",
-      "  export ANTHROPIC_API_KEY=sk-ant-...\n",
-      "Get a key at https://console.anthropic.com/settings/keys",
-    ].join("\n");
-  }
-  return null;
-}
 
 const program = new Command();
 
