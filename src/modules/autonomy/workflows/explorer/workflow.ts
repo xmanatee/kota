@@ -51,7 +51,7 @@ function buildExplorerAssessment(
   lastExplorationAt: string | undefined,
 ): ExplorerAssessment {
   const worktree = getRepoWorktreeStatus(projectDir);
-  const dirty = worktree.available && worktree.dirty;
+  const dirty = worktree.available && worktree.trackedDirty;
   const queue = getRepoTaskQueueSnapshot(projectDir);
   const explorationRefreshDue =
     !lastExplorationAt ||

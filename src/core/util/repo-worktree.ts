@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 export type RepoWorktreeStatus = {
   available: boolean;
   dirty: boolean;
+  trackedDirty: boolean;
   entries: string[];
   fingerprint: string;
   summary: string;
@@ -42,6 +43,7 @@ export function getRepoWorktreeStatus(projectDir: string): RepoWorktreeStatus {
     return {
       available: true,
       dirty: entries.length > 0,
+      trackedDirty: entries.some((e) => !e.startsWith("??")),
       entries,
       fingerprint: entries.join("\n"),
       summary: summarizeEntries(entries),
@@ -52,6 +54,7 @@ export function getRepoWorktreeStatus(projectDir: string): RepoWorktreeStatus {
     return {
       available: false,
       dirty: false,
+      trackedDirty: false,
       entries: [],
       fingerprint: "",
       summary: `git status unavailable: ${message}`,

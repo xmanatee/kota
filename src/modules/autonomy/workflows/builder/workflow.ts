@@ -30,7 +30,7 @@ const inspectReadyQueue = typedCodeStep<InspectResult>({
   type: "code",
   run: ({ projectDir }) => {
     const worktree = getRepoWorktreeStatus(projectDir);
-    const dirty = worktree.available && worktree.dirty;
+    const dirty = worktree.available && worktree.trackedDirty;
     return { ...getRepoTaskQueueSnapshot(projectDir), dirty };
   },
 });

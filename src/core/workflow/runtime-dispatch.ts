@@ -107,7 +107,7 @@ function handleDirtyCompletion(
   const worktree = getRepoWorktreeStatus(state.projectDir);
   if (!worktree.available) return;
 
-  if (!worktree.dirty) {
+  if (!worktree.trackedDirty) {
     if (state.store.getRecovery()) {
       state.store.setRecovery(null);
     }

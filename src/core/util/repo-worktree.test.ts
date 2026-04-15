@@ -33,6 +33,7 @@ describe("repo worktree validation", () => {
     const status = getRepoWorktreeStatus(projectDir);
     expect(status.available).toBe(true);
     expect(status.dirty).toBe(false);
+    expect(status.trackedDirty).toBe(false);
     expect(() => assertRepoWorktreeClean(projectDir)).not.toThrow();
   });
 
@@ -42,9 +43,18 @@ describe("repo worktree validation", () => {
     const status = getRepoWorktreeStatus(projectDir);
     expect(status.available).toBe(true);
     expect(status.dirty).toBe(true);
+    expect(status.trackedDirty).toBe(true);
     expect(status.entries.some((entry) => entry.includes("README.md"))).toBe(true);
     expect(() => assertRepoWorktreeClean(projectDir)).toThrow(
       /Repository worktree must be clean before starting a new autonomous run/,
     );
+  });
+
+  it("distinguishes untracked-only dirty from tracked dirty", () => {
+    writeFileSync(join(projectDir, "untracked.txt"), "new file\n");
+
+    const status = getRepoWorktreeStatus(projectDir);
+    expect(status.dirty).toBe(true);
+    expect(status.trackedDirty).toBe(false);
   });
 });

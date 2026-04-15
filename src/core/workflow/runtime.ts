@@ -452,7 +452,7 @@ export class WorkflowRuntime {
   ): void {
     if (interrupted.length === 0) return;
     const worktree = getRepoWorktreeStatus(this.projectDir);
-    if (!worktree.available || !worktree.dirty) return;
+    if (!worktree.available || !worktree.trackedDirty) return;
 
     const recoveryFilter = (def: WorkflowDefinition) => def.recoveryCapable;
     const queued = this.queueMatchingEventFirst("runtime.recovered", {
@@ -483,7 +483,7 @@ export class WorkflowRuntime {
       );
       return;
     }
-    if (!worktree.dirty) {
+    if (!worktree.trackedDirty) {
       this.store.setRecovery(null);
       return;
     }

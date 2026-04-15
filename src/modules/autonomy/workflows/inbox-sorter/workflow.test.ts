@@ -6,6 +6,7 @@ vi.mock("#core/util/repo-worktree.js", () => ({
   getRepoWorktreeStatus: vi.fn().mockReturnValue({
     available: true,
     dirty: false,
+    trackedDirty: false,
     entries: [],
     fingerprint: "",
     summary: "clean",

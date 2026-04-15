@@ -10,6 +10,7 @@ vi.mock("#core/util/repo-worktree.js", () => ({
   getRepoWorktreeStatus: vi.fn(() => ({
     available: true,
     dirty: false,
+    trackedDirty: false,
     entries: [],
     fingerprint: "",
     summary: "clean",
@@ -282,6 +283,7 @@ describe("explorer workflow", () => {
     vi.mocked(getRepoWorktreeStatus).mockReturnValueOnce({
       available: true,
       dirty: true,
+      trackedDirty: true,
       entries: ["M src/foo.ts"],
       fingerprint: "M src/foo.ts",
       summary: "src/foo.ts",

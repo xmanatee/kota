@@ -1,4 +1,6 @@
+import { spawnSync } from "node:child_process";
 import type { AgentDef } from "#core/agents/agent-types.js";
+import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -12,6 +14,22 @@ import { AUTONOMY_DISALLOWED_TOOLS, aggregateRunOutcomes, checkCommitMessageExis
 
 /** Minimum interval between improver runs triggered by the same event type. */
 export const IMPROVER_COOLDOWN_MS = 60 * 60 * 1000; // 60 minutes
+
+function stashTrackedChanges(projectDir: string): { stashed: boolean; summary: string } {
+  const status = getRepoWorktreeStatus(projectDir);
+  if (!status.trackedDirty) {
+    return { stashed: false, summary: "worktree clean (no tracked changes)" };
+  }
+  const result = spawnSync(
+    "git",
+    ["stash", "-m", "Recovery: auto-stash dirty state before improver run"],
+    { cwd: projectDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+  );
+  if (result.status !== 0) {
+    throw new Error(`git stash failed: ${result.stderr}`);
+  }
+  return { stashed: true, summary: result.stdout.trim() };
+}
 
 export const agent: AgentDef = {
   name: "improver",
@@ -61,6 +79,12 @@ const improverWorkflow: WorkflowDefinitionInput = {
       type: "code",
       exposeOutputToAgent: true,
       run: ({ projectDir }) => recallForImprover(projectDir),
+    },
+    {
+      id: "clean-recovery-state",
+      type: "code",
+      when: ({ trigger }) => trigger.event === "runtime.recovered",
+      run: ({ projectDir }) => stashTrackedChanges(projectDir),
     },
     {
       id: "improve",
