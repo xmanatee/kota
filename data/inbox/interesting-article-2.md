@@ -1,0 +1,1 @@
+https://claude.com/blog/multi-agent-coordination-patterns
