@@ -6,6 +6,7 @@ const attentionDigestWorkflow: WorkflowDefinitionInput = {
   name: "attention-digest",
   description:
     "Periodically check for attention-worthy system conditions and send a Telegram digest when any are found.",
+  recoveryCapable: true,
   triggers: [
     {
       event: "workflow.build.committed",

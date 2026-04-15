@@ -1249,7 +1249,7 @@ describe("WorkflowRuntime", () => {
         }),
         registerWorkflowDefinition("test/digest.ts", {
           name: "digest",
-          triggers: [{ event: "runtime.recovered" }],
+          triggers: [{ event: "queue.empty" }],
           steps: [{ id: "notify", type: "emit", event: "digest.done" }],
         }),
       ],

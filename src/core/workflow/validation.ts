@@ -279,7 +279,7 @@ export function validateWorkflowDefinitions(
       }
     }
 
-    return {
+    const validated: WorkflowDefinition = {
       name,
       description: expectOptionalString(
         definition.description,
@@ -421,5 +421,19 @@ export function validateWorkflowDefinitions(
       })(),
       steps,
     };
+
+    const hasRecoveredTrigger = definition.triggers.some(
+      (t) => t.event === "runtime.recovered",
+    );
+    const isRecoveryCapable = validated.recoveryCapable;
+    if (hasRecoveredTrigger && !isRecoveryCapable) {
+      throw new WorkflowDefinitionError(
+        `workflow "${name}" listens to "runtime.recovered" but does not set recoveryCapable: true — ` +
+          `the runtime filters recovery dispatch to recovery-capable workflows, so this trigger would never fire`,
+        definitionPath,
+      );
+    }
+
+    return validated;
   });
 }

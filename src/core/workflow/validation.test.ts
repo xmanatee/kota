@@ -966,4 +966,36 @@ describe("workflow validation", () => {
       ).toThrow("approval steps are not allowed inside branch arms");
     });
   });
+
+  describe("recovery guard", () => {
+    it("rejects a runtime.recovered trigger without recoveryCapable", () => {
+      expect(() =>
+        validateWorkflowDefinitions(
+          [
+            registerWorkflowDefinition("test/wf.ts", {
+              name: "my-recovery",
+              triggers: [{ event: "runtime.recovered" }],
+              steps: [{ id: "fix", type: "code", run: () => {} }],
+            }),
+          ],
+          projectDir,
+        ),
+      ).toThrow("does not set recoveryCapable: true");
+    });
+
+    it("accepts a runtime.recovered trigger with recoveryCapable", () => {
+      const defs = validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/wf.ts", {
+            name: "my-recovery",
+            recoveryCapable: true,
+            triggers: [{ event: "runtime.recovered" }],
+            steps: [{ id: "fix", type: "code", run: () => {} }],
+          }),
+        ],
+        projectDir,
+      );
+      expect(defs[0].recoveryCapable).toBe(true);
+    });
+  });
 });
