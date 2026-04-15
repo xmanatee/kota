@@ -207,6 +207,16 @@ export type KotaConfig = {
     maxStepOutputBytes?: number;
   };
 
+  /** OpenTelemetry tracing for workflow execution. Opt-in. */
+  tracing?: {
+    /** OTLP HTTP endpoint (e.g. "http://localhost:4318/v1/traces"). Required to enable tracing. */
+    endpoint: string;
+    /** Sampling rate between 0 and 1. Default: 1.0 (sample everything). */
+    samplingRate?: number;
+    /** Service name reported in traces. Default: "kota". */
+    serviceName?: string;
+  };
+
   /**
    * Model provider failover. When configured, requests fail over to a
    * secondary provider when the primary is detected as unhealthy.
@@ -446,6 +456,20 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (Object.keys(w).length > 0) out.workflow = w;
   }
 
+  if (typeof raw.tracing === "object" && raw.tracing !== null && !Array.isArray(raw.tracing)) {
+    const src = raw.tracing as Record<string, unknown>;
+    if (typeof src.endpoint === "string" && src.endpoint) {
+      const t: NonNullable<KotaConfig["tracing"]> = { endpoint: src.endpoint };
+      if (typeof src.samplingRate === "number" && src.samplingRate >= 0 && src.samplingRate <= 1) {
+        t.samplingRate = src.samplingRate;
+      }
+      if (typeof src.serviceName === "string" && src.serviceName) {
+        t.serviceName = src.serviceName;
+      }
+      out.tracing = t;
+    }
+  }
+
   if (typeof raw.failover === "object" && raw.failover !== null && !Array.isArray(raw.failover)) {
     const src = raw.failover as Record<string, unknown>;
     if (typeof src.provider === "string" && src.provider) {
@@ -570,6 +594,8 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
       merged.moduleMonitoring = { ...a.moduleMonitoring, ...(val as KotaConfig["moduleMonitoring"]) };
     } else if (key === "failover" && typeof val === "object") {
       merged.failover = { ...a.failover, ...(val as NonNullable<KotaConfig["failover"]>) };
+    } else if (key === "tracing" && typeof val === "object") {
+      merged.tracing = { ...a.tracing, ...(val as NonNullable<KotaConfig["tracing"]>) };
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (merged as any)[key] = val;

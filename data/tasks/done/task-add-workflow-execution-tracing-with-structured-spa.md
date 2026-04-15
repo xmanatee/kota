@@ -1,12 +1,12 @@
 ---
 id: task-add-workflow-execution-tracing-with-structured-spa
 title: Add workflow execution tracing with structured spans
-status: backlog
+status: done
 priority: p2
 area: runtime
 summary: Workflow runs produce cost metrics and run artifacts but lack structured execution traces. When debugging multi-step workflow failures, operators must manually correlate log entries and step outputs. Add OpenTelemetry-compatible trace IDs and spans so each workflow run produces a traceable execution tree visible in Grafana Tempo or Jaeger.
 created_at: 2026-04-15T02:52:26.448Z
-updated_at: 2026-04-15T02:52:26.448Z
+updated_at: 2026-04-15T06:19:10.236Z
 ---
 
 ## Problem

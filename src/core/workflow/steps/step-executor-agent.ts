@@ -25,7 +25,7 @@ import {
 
 export type WorkflowStepOutput =
   | ToolResult
-  | { content: string; streamedText?: string; sessionId?: string; turns?: number; totalCostUsd?: number; subtype?: string }
+  | { content: string; streamedText?: string; sessionId?: string; turns?: number; totalCostUsd?: number; inputTokens?: number; outputTokens?: number; subtype?: string }
   | Record<string, unknown>
   | string
   | number
@@ -321,6 +321,8 @@ export async function executeAgentStep(
         sessionId: result.sessionId,
         turns: result.turns,
         totalCostUsd: result.totalCostUsd,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
         subtype: result.subtype,
       };
     } catch (error) {

@@ -64,6 +64,7 @@ export type SDKResultMessage = SDKMessageWithSession & {
   total_cost_usd?: number;
   num_turns?: number;
   is_error?: boolean;
+  usage?: { input_tokens: number; output_tokens: number };
 };
 
 export type SDKStatusMessage = SDKMessageWithSession & {

@@ -37,6 +37,8 @@ export type ExecutorResult = {
   sessionId?: string;
   turns: number;
   totalCostUsd?: number;
+  inputTokens?: number;
+  outputTokens?: number;
   subtype?: string;
   isError: boolean;
 };
@@ -201,6 +203,8 @@ export async function executeWithAgentSDK(
     sessionId,
     turns,
     totalCostUsd: resultMessage?.total_cost_usd,
+    inputTokens: resultMessage?.usage?.input_tokens,
+    outputTokens: resultMessage?.usage?.output_tokens,
     subtype: resultMessage?.subtype,
     isError:
       resultMessage?.is_error === true ||
