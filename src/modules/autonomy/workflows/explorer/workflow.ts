@@ -70,6 +70,7 @@ function buildExplorerAssessment(
 const inspectQueue = typedCodeStep<ExplorerAssessment>({
   id: "inspect-queue",
   type: "code",
+  exposeOutputToAgent: true,
   run: ({ projectDir }) => {
     return buildExplorerAssessment(
       projectDir,
