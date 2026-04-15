@@ -139,6 +139,7 @@ describe("WorkflowRunStore.recoverInterruptedRuns", () => {
       definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
       description: "test",
       enabled: true,
+      recoveryCapable: false,
       tags: [],
       triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
       steps: [],

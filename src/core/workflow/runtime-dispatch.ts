@@ -116,11 +116,17 @@ function handleDirtyCompletion(
 
   const existing = state.store.getRecovery();
 
-  // If no recovery is pending and the fingerprint is unchanged, this workflow
-  // did not cause the dirty state. Skip recovery attribution so pre-existing
-  // dirt does not repeatedly blame innocent workflows (e.g. explorer skipping
-  // on a dirty repo).
-  if (!existing && worktree.fingerprint === preRunFingerprint) {
+  if (worktree.fingerprint === preRunFingerprint) {
+    if (existing) {
+      state.store.setRecovery({
+        ...existing,
+        retryAttemptedBy: [
+          ...existing.retryAttemptedBy,
+          { workflow: definition.name, runId: metadata.id, attemptedAt: new Date().toISOString() },
+        ],
+        updatedAt: new Date().toISOString(),
+      });
+    }
     state.log(
       `Worktree still dirty after "${definition.name}" but fingerprint unchanged — not attributing: ${worktree.summary}`,
     );
@@ -132,15 +138,17 @@ function handleDirtyCompletion(
   if (existing && existing.attempts >= 1) {
     state.store.setRecovery({
       ...existing,
-      sourceRunId: metadata.id,
-      sourceWorkflow: definition.name,
       worktreeFingerprint: worktree.fingerprint,
       worktreeSummary: worktree.summary,
+      retryAttemptedBy: [
+        ...existing.retryAttemptedBy,
+        { workflow: definition.name, runId: metadata.id, attemptedAt: new Date().toISOString() },
+      ],
       updatedAt: new Date().toISOString(),
     });
     state.dispatchPaused = true;
     state.log(
-      `Recovery already attempted for dirty worktree left by "${definition.name}" (${metadata.id}). Dispatch paused: ${worktree.summary}`,
+      `Recovery already attempted for dirty worktree left by "${existing.sourceWorkflow}" (${existing.sourceRunId}). Dispatch paused: ${worktree.summary}`,
     );
     return;
   }
@@ -151,6 +159,7 @@ function handleDirtyCompletion(
     worktreeFingerprint: worktree.fingerprint,
     worktreeSummary: worktree.summary,
     attempts: existing?.attempts ?? 0,
+    retryAttemptedBy: existing?.retryAttemptedBy ?? [],
     updatedAt: new Date().toISOString(),
   });
   state.dispatchPaused = true;

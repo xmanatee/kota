@@ -13,6 +13,7 @@ function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDe
   return {
     name: "test",
     enabled: true,
+    recoveryCapable: false,
     definitionPath: "src/modules/test/workflows/test/workflow.ts",
     triggers: [],
     steps: [],

@@ -75,6 +75,15 @@ function isQueuedRun(value: unknown): value is WorkflowQueuedRun {
   );
 }
 
+function isRetryAttempt(value: unknown): boolean {
+  return (
+    isPlainObject(value) &&
+    typeof value.workflow === "string" &&
+    typeof value.runId === "string" &&
+    typeof value.attemptedAt === "string"
+  );
+}
+
 function isWorkflowRecoveryState(
   value: unknown,
 ): value is WorkflowRecoveryState {
@@ -89,6 +98,8 @@ function isWorkflowRecoveryState(
     typeof value.attempts === "number" &&
     Number.isInteger(value.attempts) &&
     value.attempts >= 0 &&
+    Array.isArray(value.retryAttemptedBy) &&
+    value.retryAttemptedBy.every(isRetryAttempt) &&
     typeof value.updatedAt === "string" &&
     value.updatedAt.trim().length > 0
   );

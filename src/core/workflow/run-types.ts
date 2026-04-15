@@ -28,12 +28,19 @@ export type WorkflowQueuedRun = {
   notBeforeMs: number;
 };
 
+export type WorkflowRecoveryRetryAttempt = {
+  workflow: string;
+  runId: string;
+  attemptedAt: string;
+};
+
 export type WorkflowRecoveryState = {
   sourceRunId: string;
   sourceWorkflow: string;
   worktreeFingerprint: string;
   worktreeSummary: string;
   attempts: number;
+  retryAttemptedBy: WorkflowRecoveryRetryAttempt[];
   updatedAt: string;
 };
 

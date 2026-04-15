@@ -19,6 +19,7 @@ function makeDefinition(
   return {
     name: "test",
     enabled: true,
+    recoveryCapable: false,
     definitionPath: "src/modules/test/workflows/test/workflow.ts",
     triggers: [],
     steps,

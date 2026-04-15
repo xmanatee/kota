@@ -398,14 +398,18 @@ export class WorkflowRuntime {
   private queueMatchingEventFirst(
     event: string,
     payload: Record<string, unknown>,
+    definitionFilter?: (def: WorkflowDefinition) => boolean,
   ): number {
+    const filteredDefs = definitionFilter
+      ? this.definitions.filter(definitionFilter)
+      : this.definitions;
     const queued: Array<{
       workflowName: string;
       trigger: WorkflowRunTrigger;
     }> = [];
     enqueueMatchingWorkflows(
       { type: event, payload },
-      this.definitions,
+      filteredDefs,
       (definition, _trigger, run) => {
         queued.push({ workflowName: definition.name, trigger: run });
       },
@@ -450,15 +454,16 @@ export class WorkflowRuntime {
     const worktree = getRepoWorktreeStatus(this.projectDir);
     if (!worktree.available || !worktree.dirty) return;
 
+    const recoveryFilter = (def: WorkflowDefinition) => def.recoveryCapable;
     const queued = this.queueMatchingEventFirst("runtime.recovered", {
       recoveredRunIds: interrupted.map((run) => run.id),
       recoveredWorkflows: interrupted.map((run) => run.workflow),
       recoveredAt: new Date().toISOString(),
       worktreeSummary: worktree.summary,
-    });
+    }, recoveryFilter);
     if (queued === 0) {
       this.log(
-        `Recovered interrupted run(s) left a dirty worktree, but no recovery workflow matched runtime.recovered: ${worktree.summary}`,
+        `Recovered interrupted run(s) left a dirty worktree, but no recovery-capable workflow matched runtime.recovered: ${worktree.summary}`,
       );
       return;
     }
@@ -502,15 +507,16 @@ export class WorkflowRuntime {
       ...refreshedRecovery,
       attempts: recovery.attempts + 1,
     });
+    const recoveryFilter = (def: WorkflowDefinition) => def.recoveryCapable;
     const queued = this.queueMatchingEventFirst("runtime.recovered", {
       recoveredAt: new Date().toISOString(),
       sourceRunId: recovery.sourceRunId,
       sourceWorkflow: recovery.sourceWorkflow,
       worktreeSummary: worktree.summary,
-    });
+    }, recoveryFilter);
     if (queued === 0) {
       this.pauseDispatch(
-        `Recovery pending for dirty worktree, but no workflow matched runtime.recovered: ${worktree.summary}`,
+        `Recovery pending for dirty worktree, but no recovery-capable workflow matched runtime.recovered: ${worktree.summary}`,
       );
       return;
     }

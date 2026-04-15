@@ -946,6 +946,7 @@ describe("WorkflowRuntime", () => {
       workflows: [
         registerWorkflowDefinition("test/improver.ts", {
           name: "improver",
+          recoveryCapable: true,
           triggers: [
             {
               event: "runtime.recovered",
@@ -1106,6 +1107,7 @@ describe("WorkflowRuntime", () => {
       worktreeFingerprint: "stale",
       worktreeSummary: "stale",
       attempts: 0,
+      retryAttemptedBy: [],
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
 
@@ -1122,6 +1124,7 @@ describe("WorkflowRuntime", () => {
       workflows: [
         registerWorkflowDefinition("test/improver.ts", {
           name: "improver",
+          recoveryCapable: true,
           triggers: [
             {
               event: "runtime.recovered",
@@ -1142,10 +1145,13 @@ describe("WorkflowRuntime", () => {
     await runtime.stop();
 
     expect(started).toEqual(["improver"]);
-    expect(store.getRecovery()).toMatchObject({
-      sourceWorkflow: "improver",
+    const recovery = store.getRecovery();
+    expect(recovery).toMatchObject({
+      sourceWorkflow: "builder",
       attempts: 1,
     });
+    expect(recovery!.retryAttemptedBy).toHaveLength(1);
+    expect(recovery!.retryAttemptedBy[0].workflow).toBe("improver");
   });
 
   it("pauses dispatch instead of looping when dirty autonomous recovery already failed once", async () => {
@@ -1166,6 +1172,7 @@ describe("WorkflowRuntime", () => {
       worktreeFingerprint: "dirty",
       worktreeSummary: "dirty",
       attempts: 1,
+      retryAttemptedBy: [],
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
 
@@ -1199,6 +1206,66 @@ describe("WorkflowRuntime", () => {
 
     expect(started).toEqual([]);
     expect(existsSync(join(projectDir, ".kota", PAUSE_SIGNAL_FILE))).toBe(true);
+  });
+
+  it("preserves original attribution when a non-causal workflow completes during pending recovery", async () => {
+    execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["config", "user.name", "Kota Tests"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["config", "user.email", "kota@example.com"], { cwd: projectDir, stdio: "ignore" });
+    writeFileSync(join(projectDir, ".gitignore"), ".kota/\n");
+    writeFileSync(join(projectDir, "README.md"), "clean\n");
+    execFileSync("git", ["add", ".gitignore", "README.md"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["commit", "-m", "init"], { cwd: projectDir, stdio: "ignore" });
+
+    writeFileSync(join(projectDir, "README.md"), "dirty\n");
+
+    const store = new WorkflowRunStore(projectDir);
+    store.setRecovery({
+      sourceRunId: "run-original",
+      sourceWorkflow: "builder",
+      worktreeFingerprint: " M README.md",
+      worktreeSummary: "1 modified",
+      attempts: 0,
+      retryAttemptedBy: [],
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    const bus = new EventBus();
+    const started: string[] = [];
+    bus.on("workflow.started", (payload) => {
+      started.push(payload.workflow);
+    });
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 1_000,
+      workflows: [
+        registerWorkflowDefinition("test/repairer.ts", {
+          name: "repairer",
+          recoveryCapable: true,
+          triggers: [{ event: "runtime.recovered" }],
+          steps: [{ id: "fix", type: "emit", event: "repairer.done" }],
+        }),
+        registerWorkflowDefinition("test/digest.ts", {
+          name: "digest",
+          triggers: [{ event: "runtime.recovered" }],
+          steps: [{ id: "notify", type: "emit", event: "digest.done" }],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(80);
+    await runtime.stop();
+
+    expect(started).toEqual(["repairer"]);
+
+    const recovery = store.getRecovery();
+    expect(recovery!.sourceWorkflow).toBe("builder");
+    expect(recovery!.sourceRunId).toBe("run-original");
+    expect(recovery!.retryAttemptedBy).toHaveLength(1);
+    expect(recovery!.retryAttemptedBy[0].workflow).toBe("repairer");
   });
 
   it("fires interval-based schedule trigger immediately on first run", async () => {

@@ -312,6 +312,11 @@ export function validateWorkflowDefinitions(
         "costAnomalyThreshold",
         definitionPath,
       ),
+      recoveryCapable: expectOptionalBoolean(
+        definition.recoveryCapable,
+        "recoveryCapable",
+        definitionPath,
+      ) ?? false,
       concurrencyGroup: expectOptionalString(
         definition.concurrencyGroup,
         "concurrencyGroup",

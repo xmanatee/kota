@@ -87,6 +87,7 @@ describe("assertWorkflowRuntimeState", () => {
         worktreeFingerprint: "M README.md",
         worktreeSummary: "M README.md",
         attempts: 1,
+        retryAttemptedBy: [],
         updatedAt: "2026-01-01T01:30:00.000Z",
       },
     };
@@ -379,6 +380,7 @@ const baseWorkflow: WorkflowDefinition = {
   name: "builder",
   description: "Autonomous improvement workflow",
   enabled: true,
+  recoveryCapable: false,
   tags: [],
   definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
   triggers: [{ event: "runtime.idle", cooldownMs: 30000 }],

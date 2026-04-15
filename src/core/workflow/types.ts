@@ -335,6 +335,11 @@ export type WorkflowDefinitionInput = {
   description?: string;
   enabled?: boolean;
   runTimeoutMs?: number;
+  /**
+   * When true, this workflow is eligible for dirty-worktree recovery dispatch.
+   * Only workflows that can commit, stash, or reset should declare this.
+   */
+  recoveryCapable?: boolean;
   /** Maximum spend (USD) per UTC calendar day before new runs are skipped. */
   dailyBudgetUsd?: number;
   /**
@@ -498,6 +503,7 @@ export type WorkflowDefinition = {
   description?: string;
   enabled: boolean;
   runTimeoutMs?: number;
+  recoveryCapable: boolean;
   /** Maximum spend (USD) per UTC calendar day before new runs are skipped. */
   dailyBudgetUsd?: number;
   /**

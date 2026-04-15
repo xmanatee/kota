@@ -1,12 +1,12 @@
 ---
 id: task-fix-dirty-worktree-recovery-attribution-overwrite-
 title: Fix dirty-worktree recovery attribution overwrite bug
-status: backlog
+status: done
 priority: p1
 area: runtime
 summary: handleDirtyCompletion in runtime-dispatch overwrites sourceWorkflow on retry, misattributing dirt to innocent read-only workflows (e.g. attention-digest). The original culprit is lost and recovery targets the wrong workflow.
 created_at: 2026-04-15T12:46:15.659Z
-updated_at: 2026-04-15T12:46:15.659Z
+updated_at: 2026-04-15T12:59:36.161Z
 ---
 
 ## Problem
