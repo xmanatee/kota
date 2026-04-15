@@ -207,6 +207,28 @@ export type KotaConfig = {
     maxStepOutputBytes?: number;
   };
 
+  /**
+   * Model provider failover. When configured, requests fail over to a
+   * secondary provider when the primary is detected as unhealthy.
+   * Omit to disable (single-provider, no behavior change).
+   */
+  failover?: {
+    /** Fallback provider name (e.g. "openai"). Required. */
+    provider: string;
+    /** Fallback model string. Falls back to the primary model if omitted. */
+    model?: string;
+    /** Base URL for the fallback provider. Uses preset if omitted. */
+    baseUrl?: string;
+    /** API key for the fallback provider. Resolved from env if omitted. */
+    apiKey?: string;
+    /** Number of errors in the sliding window that trigger failover. Default: 5. */
+    errorThreshold?: number;
+    /** Sliding window size in milliseconds. Default: 60000. */
+    windowMs?: number;
+    /** Cooldown before probing the primary again, in milliseconds. Default: 300000. */
+    cooldownMs?: number;
+  };
+
   /** MCP server settings. */
   mcp?: {
     /**
@@ -424,6 +446,22 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (Object.keys(w).length > 0) out.workflow = w;
   }
 
+  if (typeof raw.failover === "object" && raw.failover !== null && !Array.isArray(raw.failover)) {
+    const src = raw.failover as Record<string, unknown>;
+    if (typeof src.provider === "string" && src.provider) {
+      const fo: NonNullable<KotaConfig["failover"]> = { provider: src.provider };
+      if (typeof src.model === "string" && src.model) fo.model = src.model;
+      if (typeof src.baseUrl === "string" && src.baseUrl) fo.baseUrl = src.baseUrl;
+      if (typeof src.apiKey === "string" && src.apiKey) fo.apiKey = src.apiKey;
+      if (typeof src.errorThreshold === "number" && src.errorThreshold > 0 && Number.isInteger(src.errorThreshold)) {
+        fo.errorThreshold = src.errorThreshold;
+      }
+      if (typeof src.windowMs === "number" && src.windowMs > 0) fo.windowMs = src.windowMs;
+      if (typeof src.cooldownMs === "number" && src.cooldownMs > 0) fo.cooldownMs = src.cooldownMs;
+      out.failover = fo;
+    }
+  }
+
   if (typeof raw.mcp === "object" && raw.mcp !== null && !Array.isArray(raw.mcp)) {
     const src = raw.mcp as Record<string, unknown>;
     const m: KotaConfig["mcp"] = {};
@@ -530,6 +568,8 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
       merged.workflow = { ...a.workflow, ...(val as KotaConfig["workflow"]) };
     } else if (key === "moduleMonitoring" && typeof val === "object") {
       merged.moduleMonitoring = { ...a.moduleMonitoring, ...(val as KotaConfig["moduleMonitoring"]) };
+    } else if (key === "failover" && typeof val === "object") {
+      merged.failover = { ...a.failover, ...(val as NonNullable<KotaConfig["failover"]>) };
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (merged as any)[key] = val;

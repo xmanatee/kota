@@ -258,6 +258,12 @@ export type BusEvents = {
     windowMs: number;
     text: string;
   };
+  "model.provider.failover": {
+    from: string;
+    to: string;
+    reason: string;
+    direction: "failover" | "recovery";
+  };
 };
 
 /** An event as seen by wildcard listeners: type + payload. */

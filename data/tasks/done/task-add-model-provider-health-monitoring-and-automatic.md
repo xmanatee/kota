@@ -1,12 +1,12 @@
 ---
 id: task-add-model-provider-health-monitoring-and-automatic
 title: Add model provider health monitoring and automatic failover
-status: backlog
+status: done
 priority: p2
 area: runtime
 summary: The model-clients module creates a single ModelClient per provider with no cross-provider failover. If Anthropic API goes down during unattended autonomous workflows, all agent steps stall. Add health-aware routing that detects provider errors and automatically fails over to an alternative configured provider.
 created_at: 2026-04-15T02:51:32.099Z
-updated_at: 2026-04-15T02:51:32.099Z
+updated_at: 2026-04-15T05:01:45.143Z
 ---
 
 ## Problem

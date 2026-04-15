@@ -6,8 +6,10 @@
  * no provider is specified.
  */
 
-import type { ProviderFactoryOptions, ResolvedProvider } from "#core/model/model-client.js";
+import type { KotaConfig } from "#core/config/config.js";
+import type { ModelClient, ProviderFactoryOptions, ResolvedProvider } from "#core/model/model-client.js";
 import { AnthropicModelClient } from "./anthropic.js";
+import { FailoverModelClient } from "./failover-client.js";
 import { OpenAIModelClient } from "./openai/client.js";
 
 /** Known provider presets: base URL and env var for the API key. */
@@ -56,6 +58,35 @@ export function resolveApiKey(
 	return process.env.OPENAI_API_KEY || "";
 }
 
+function createClientForProvider(
+	providerName: string,
+	baseUrl?: string,
+	apiKey?: string,
+): ModelClient {
+	if (providerName === "anthropic") {
+		return new AnthropicModelClient({ maxRetries: 5 });
+	}
+
+	const preset = PROVIDER_PRESETS[providerName];
+	const resolvedBaseUrl = baseUrl || preset?.baseUrl;
+	if (!resolvedBaseUrl) {
+		throw new Error(
+			`Unknown provider "${providerName}" and no --base-url specified.\n\n` +
+				`Known providers: anthropic, ${Object.keys(PROVIDER_PRESETS).join(", ")}\n` +
+				"Or pass --base-url for any OpenAI-compatible endpoint.",
+		);
+	}
+
+	const resolvedKey = resolveApiKey(providerName, apiKey);
+	return new OpenAIModelClient({ baseUrl: resolvedBaseUrl, apiKey: resolvedKey });
+}
+
+let activeFailoverClient: FailoverModelClient | null = null;
+
+export function getActiveFailoverClient(): FailoverModelClient | null {
+	return activeFailoverClient;
+}
+
 /**
  * Create a ModelClient from combined CLI + config signals.
  *
@@ -71,29 +102,48 @@ export function createModelClientImpl(
 	const providerName = opts.provider || parsed.provider || "anthropic";
 	const model = parsed.model;
 
-	if (providerName === "anthropic") {
-		return {
-			client: new AnthropicModelClient({ maxRetries: 5 }),
-			model,
-			providerName,
-		};
-	}
-
-	// OpenAI-compatible provider
-	const preset = PROVIDER_PRESETS[providerName];
-	const baseUrl = opts.baseUrl || preset?.baseUrl;
-	if (!baseUrl) {
-		throw new Error(
-			`Unknown provider "${providerName}" and no --base-url specified.\n\n` +
-				`Known providers: anthropic, ${Object.keys(PROVIDER_PRESETS).join(", ")}\n` +
-				"Or pass --base-url for any OpenAI-compatible endpoint.",
-		);
-	}
-
-	const apiKey = resolveApiKey(providerName, opts.apiKey);
+	const primary = createClientForProvider(providerName, opts.baseUrl, opts.apiKey);
 
 	return {
-		client: new OpenAIModelClient({ baseUrl, apiKey }),
+		client: primary,
+		model,
+		providerName,
+	};
+}
+
+const DEFAULT_ERROR_THRESHOLD = 5;
+const DEFAULT_WINDOW_MS = 60_000;
+const DEFAULT_COOLDOWN_MS = 300_000;
+
+export function createModelClientWithFailover(
+	opts: ProviderFactoryOptions,
+	failoverConfig: NonNullable<KotaConfig["failover"]>,
+): ResolvedProvider {
+	const parsed = parseModelString(opts.model);
+	const providerName = opts.provider || parsed.provider || "anthropic";
+	const model = parsed.model;
+
+	const primary = createClientForProvider(providerName, opts.baseUrl, opts.apiKey);
+	const fallback = createClientForProvider(
+		failoverConfig.provider,
+		failoverConfig.baseUrl,
+		failoverConfig.apiKey,
+	);
+
+	const failoverClient = new FailoverModelClient({
+		primary,
+		fallback,
+		primaryName: providerName,
+		fallbackName: failoverConfig.provider,
+		errorThreshold: failoverConfig.errorThreshold ?? DEFAULT_ERROR_THRESHOLD,
+		windowMs: failoverConfig.windowMs ?? DEFAULT_WINDOW_MS,
+		cooldownMs: failoverConfig.cooldownMs ?? DEFAULT_COOLDOWN_MS,
+	});
+
+	activeFailoverClient = failoverClient;
+
+	return {
+		client: failoverClient,
 		model,
 		providerName,
 	};
