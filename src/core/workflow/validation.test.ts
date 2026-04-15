@@ -171,6 +171,58 @@ describe("workflow validation", () => {
     ).not.toThrow();
   });
 
+  it("preserves phase on repair checks through validation", () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    const definitions = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+              model: "claude-opus-4-6",
+              repairLoop: {
+                checks: [
+                  {
+                    id: "build-output",
+                    type: "code",
+                    run: () => "OK",
+                  },
+                  {
+                    id: "typecheck",
+                    type: "code",
+                    phase: 1,
+                    run: () => "OK",
+                  },
+                  {
+                    id: "critic",
+                    type: "code",
+                    phase: 2,
+                    run: () => "OK",
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      ],
+      projectDir,
+    );
+
+    const step = definitions[0]?.steps[0] as { repairLoop?: { checks: Array<{ id: string; phase?: number }> } };
+    const checks = step.repairLoop!.checks;
+    expect(checks.find((c) => c.id === "build-output")?.phase).toBeUndefined();
+    expect(checks.find((c) => c.id === "typecheck")?.phase).toBe(1);
+    expect(checks.find((c) => c.id === "critic")?.phase).toBe(2);
+  });
+
   it("rejects non-boolean exposeOutputToAgent values", () => {
     expect(() =>
       validateWorkflowDefinitions(

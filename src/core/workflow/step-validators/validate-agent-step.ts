@@ -77,6 +77,13 @@ function validateRepairLoop(
       );
     }
 
+    const phase = expectOptionalInteger(
+      check.phase,
+      `${field}.checks[${i}].phase`,
+      definitionPath,
+      0,
+    );
+
     if (check.type === "code") {
       const run = expectOptionalFunction(
         check.run,
@@ -93,6 +100,7 @@ function validateRepairLoop(
         id: expectName(check.id, `${field}.checks[${i}].id`, definitionPath),
         type: "code" as const,
         severity: severity as "error" | "warning" | undefined,
+        phase,
         run: run as (context: WorkflowStepContext) => Promise<unknown> | unknown,
       };
     }
@@ -101,6 +109,7 @@ function validateRepairLoop(
       id: expectName(check.id, `${field}.checks[${i}].id`, definitionPath),
       type: "tool" as const,
       severity: severity as "error" | "warning" | undefined,
+      phase,
       tool: expectNonEmptyString(check.tool, `${field}.checks[${i}].tool`, definitionPath),
       input: expectOptionalObjectOrFunction(
         check.input,
