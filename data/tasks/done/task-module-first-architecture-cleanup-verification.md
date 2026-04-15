@@ -1,12 +1,12 @@
 ---
 id: task-module-first-architecture-cleanup-verification
 title: Verify module-first architecture cleanup after focused fixes
-status: backlog
+status: done
 priority: p1
 area: architecture
 summary: After the focused module-first cleanup tasks land, perform an evidence-based pass that checks the architecture is simple, strict, structured, and not drifting.
 created_at: 2026-04-13T11:16:25Z
-updated_at: 2026-04-13T11:16:25Z
+updated_at: 2026-04-14T23:56:18.621Z
 ---
 
 ## Problem
