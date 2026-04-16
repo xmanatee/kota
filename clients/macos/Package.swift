@@ -8,6 +8,11 @@ let package = Package(
         .executableTarget(
             name: "KotaMenuBar",
             path: "Sources/KotaMenuBar"
+        ),
+        .testTarget(
+            name: "KotaMenuBarTests",
+            dependencies: ["KotaMenuBar"],
+            path: "Tests/KotaMenuBarTests"
         )
     ]
 )

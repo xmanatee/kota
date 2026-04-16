@@ -1,12 +1,12 @@
 ---
 id: task-add-ci-and-test-coverage-for-native-client-apps
 title: Add CI and test coverage for native client apps
-status: backlog
+status: done
 priority: p2
 area: clients
 summary: The macOS (SwiftUI) and mobile (React Native/Expo) clients have no tests and no CI. Add test foundations and CI workflows to prevent regressions.
 created_at: 2026-04-14T20:08:20.214Z
-updated_at: 2026-04-14T20:08:20.214Z
+updated_at: 2026-04-16T05:14:47.355Z
 ---
 
 ## Problem

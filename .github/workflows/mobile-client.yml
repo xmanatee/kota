@@ -1,0 +1,41 @@
+name: Mobile client
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'clients/mobile/**'
+      - '.github/workflows/mobile-client.yml'
+  pull_request:
+    paths:
+      - 'clients/mobile/**'
+      - '.github/workflows/mobile-client.yml'
+
+defaults:
+  run:
+    working-directory: clients/mobile
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: clients/mobile/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test -- --ci
