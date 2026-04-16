@@ -118,10 +118,19 @@ function computeCostTrends(
     .sort((a, b) => (b.currentUsd + b.previousUsd) - (a.currentUsd + a.previousUsd));
 }
 
-function findDurationOutliers(runs: RunSummary[]): DurationOutlier[] {
-  const byWf = new Map<string, RunSummary[]>();
+const MEANINGFUL_AGENT_STEP_MIN_MS = 1000;
+
+function hasMeaningfulAgentStep(run: WorkflowRunMetadata): boolean {
+  return run.steps.some(
+    (s) => s.type === "agent" && s.status !== "skipped" && s.durationMs > MEANINGFUL_AGENT_STEP_MIN_MS,
+  );
+}
+
+export function findDurationOutliers(runs: WorkflowRunMetadata[]): DurationOutlier[] {
+  const byWf = new Map<string, WorkflowRunMetadata[]>();
   for (const r of runs) {
     if (r.durationMs == null) continue;
+    if (!hasMeaningfulAgentStep(r)) continue;
     const list = byWf.get(r.workflow) ?? [];
     list.push(r);
     byWf.set(r.workflow, list);
@@ -164,6 +173,6 @@ export function aggregateRunOutcomes(runsDir: string): RunOutcomeAggregation {
     topRepairFailures24h: tallyRepairFailures(all24h).slice(0, 10),
     topRepairFailures7d: tallyRepairFailures(all7d).slice(0, 10),
     costTrends: computeCostTrends(summaries7d, previousSummaries),
-    durationOutliers: findDurationOutliers(summaries7d).slice(0, 10),
+    durationOutliers: findDurationOutliers(all7d).slice(0, 10),
   };
 }

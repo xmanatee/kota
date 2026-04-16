@@ -4,7 +4,7 @@ import type {
   WorkflowStepResult,
   WorkflowStepStatus,
 } from "#core/workflow/run-types.js";
-import { tallyRepairFailures } from "./run-outcome-aggregation.js";
+import { findDurationOutliers, tallyRepairFailures } from "./run-outcome-aggregation.js";
 
 type Iter = { attempt: number; failures: Array<{ id: string }> };
 
@@ -140,5 +140,86 @@ describe("tallyRepairFailures", () => {
       },
     ]);
     expect(tallyRepairFailures([run])).toEqual([]);
+  });
+});
+
+function makeWorkflowRun(
+  id: string,
+  workflow: string,
+  durationMs: number,
+  agentStepDurationMs: number,
+  agentStepStatus: WorkflowStepStatus = "success",
+): WorkflowRunMetadata {
+  return {
+    id,
+    workflow,
+    definitionPath: `src/modules/autonomy/workflows/${workflow}/workflow.ts`,
+    trigger: { event: "runtime.idle", payload: {} },
+    startedAt: "2026-04-16T00:00:00.000Z",
+    status: "success",
+    durationMs,
+    runDir: id,
+    steps: [
+      {
+        id: "gate",
+        type: "code",
+        status: "success",
+        startedAt: "2026-04-16T00:00:00.000Z",
+        completedAt: "2026-04-16T00:00:00.050Z",
+        durationMs: 50,
+      },
+      {
+        id: "agent-step",
+        type: "agent",
+        status: agentStepStatus,
+        startedAt: "2026-04-16T00:00:00.050Z",
+        completedAt: "2026-04-16T00:00:00.050Z",
+        durationMs: agentStepDurationMs,
+      },
+    ],
+  };
+}
+
+describe("findDurationOutliers", () => {
+  it("ignores runs that skipped the agent step so the median reflects real execution", () => {
+    // Explorer-shape: many quick-skip runs and a few real runs. If skips were
+    // counted, the median collapses to ~50ms and every real run looks like an
+    // outlier, defeating the signal.
+    const skipped = Array.from({ length: 10 }, (_, i) =>
+      makeWorkflowRun(`skip-${i}`, "explorer", 60, 0, "skipped"),
+    );
+    const real = [
+      makeWorkflowRun("real-1", "explorer", 400_000, 399_000),
+      makeWorkflowRun("real-2", "explorer", 500_000, 499_000),
+      makeWorkflowRun("real-3", "explorer", 600_000, 599_000),
+      makeWorkflowRun("real-outlier", "explorer", 2_000_000, 1_999_000),
+    ];
+    const outliers = findDurationOutliers([...skipped, ...real]);
+    expect(outliers).toHaveLength(1);
+    expect(outliers[0]).toMatchObject({
+      runId: "real-outlier",
+      workflow: "explorer",
+    });
+    expect(outliers[0].medianMs).toBeGreaterThan(100_000);
+  });
+
+  it("returns no outliers when fewer than 3 real runs exist", () => {
+    const runs = [
+      makeWorkflowRun("a", "builder", 1_000_000, 999_000),
+      makeWorkflowRun("b", "builder", 5_000_000, 4_999_000),
+    ];
+    expect(findDurationOutliers(runs)).toEqual([]);
+  });
+
+  it("flags runs above 2.5x median among real runs", () => {
+    const runs = [
+      makeWorkflowRun("a", "builder", 500_000, 499_000),
+      makeWorkflowRun("b", "builder", 600_000, 599_000),
+      makeWorkflowRun("c", "builder", 700_000, 699_000),
+      makeWorkflowRun("d", "builder", 2_000_000, 1_999_000),
+    ];
+    const outliers = findDurationOutliers(runs);
+    expect(outliers).toHaveLength(1);
+    expect(outliers[0].runId).toBe("d");
   });
 });
