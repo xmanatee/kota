@@ -1,12 +1,12 @@
 ---
 id: task-workflow-and-trigger-visualization
 title: Workflow and trigger visualization
-status: backlog
+status: done
 priority: p3
 area: clients
 summary: Provide birds-eye-view diagrams of triggers, conditions, events, hooks, workflows, and agents, starting with CLI and extending to web client
 created_at: 2026-04-15T21:22:35.857Z
-updated_at: 2026-04-15T21:22:35.857Z
+updated_at: 2026-04-16T02:51:45.585Z
 ---
 
 ## Problem

@@ -1,7 +1,9 @@
 import type { ModuleContext, RouteRegistration } from "#core/modules/module-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
+import { jsonResponse } from "#core/server/session-pool.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
+import { assembleWorkflowGraph } from "../graph/index.js";
 import {
   handleWorkflowAbort,
   handleWorkflowAbortRun,
@@ -35,6 +37,15 @@ const RUN_MATCH_PATTERN = /^\/api\/workflow\/runs\/([^/]+)$/;
 
 export function workflowRoutes(ctx?: ModuleContext): RouteRegistration[] {
   return [
+    {
+      method: "GET",
+      path: "/api/workflow/graph",
+      handler: (_req, res) => {
+        const definitions = ctx?.getContributedWorkflows() ?? [];
+        const graph = assembleWorkflowGraph(definitions);
+        jsonResponse(res, 200, graph);
+      },
+    },
     {
       method: "GET",
       path: "/api/workflow/status",
