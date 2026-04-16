@@ -15,6 +15,7 @@ vi.mock("#core/agent-sdk/index.js", () => ({
 import type { WorkflowRunMetadata } from "../run-types.js";
 import type { WorkflowAgentStep, WorkflowDefinition } from "../types.js";
 import { executeAgentStep } from "./step-executor-agent.js";
+import { AgentStepRuntimeError } from "./step-executor-retry.js";
 
 function makeDefinition(name = "test-workflow"): WorkflowDefinition {
   return {
@@ -564,5 +565,62 @@ describe("executeAgentStep — schema validation feedback on retry", () => {
     expect(output).toEqual({ status: "ok", count: 1 });
     // No schema correction note — the first failure was missing JSON block, not schema mismatch
     expect(capturedPrompts[1]).not.toContain("Previous output failed schema validation");
+  });
+});
+
+describe("executeAgentStep — provider errors from SDK result", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-step-executor-provider-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(join(projectDir, "prompt.md"), "do the thing");
+    tryEmitMock.mockReset();
+    executeWithAgentSDKMock.mockReset();
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("marks SDK-returned provider errors as non-retryable and does not spawn a second session", async () => {
+    executeWithAgentSDKMock.mockResolvedValue({
+      text: 'API Error: 529 {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}',
+      streamedText: "",
+      sessionId: "sess-xyz",
+      turns: 1,
+      totalCostUsd: 0.0006,
+      subtype: "success",
+      isError: true,
+    });
+
+    const step = makeAgentStep({
+      id: "build",
+      retry: { maxAttempts: 3, initialDelayMs: 0, backoffFactor: 1 },
+    });
+
+    let caught: unknown;
+    try {
+      await executeAgentStep(
+        makeDefinition("builder"),
+        step,
+        makeMetadata(),
+        { event: "runtime.idle", payload: {} },
+        new AbortController(),
+        () => {},
+        () => {},
+        { projectDir, log: () => {} },
+      );
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(AgentStepRuntimeError);
+    expect((caught as AgentStepRuntimeError).kind).toBe("provider");
+    expect((caught as AgentStepRuntimeError).retryable).toBe(false);
+    expect(executeWithAgentSDKMock).toHaveBeenCalledTimes(1);
   });
 });

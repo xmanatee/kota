@@ -297,10 +297,16 @@ export async function executeAgentStep(
         const detail = result.text.trim() || "Agent step returned an error result";
         const classified = classifyAgentRuntimeFailure(detail);
         if (classified) {
+          // SDK-returned isError means SDK already exhausted its internal retry
+          // budget. A fresh step-level retry spawns a new session from scratch
+          // (discarding the current session's in-memory progress) and the same
+          // provider is still saturated, so it fails the same way. Fall through
+          // to AgentBackoffManager instead, which applies a provider-kind delay
+          // sized for the outage (5+ min) before dispatching the next run.
           throw new AgentStepRuntimeError(
             `Agent step "${step.id}" failed (${reason}): ${detail}`,
             classified.kind,
-            classified.retryable,
+            false,
           );
         }
         throw new Error(`Agent step "${step.id}" failed (${reason}): ${detail}`);
