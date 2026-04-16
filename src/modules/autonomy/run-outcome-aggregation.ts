@@ -57,7 +57,7 @@ function computeFailureRates(runs: RunSummary[]): WorkflowFailureRate[] {
     .sort((a, b) => b.rate - a.rate || b.failures - a.failures);
 }
 
-function tallyRepairFailures(runs: WorkflowRunMetadata[]): RepairCheckTally[] {
+export function tallyRepairFailures(runs: WorkflowRunMetadata[]): RepairCheckTally[] {
   const totals = new Map<string, { count: number; recovered: number; terminal: number }>();
   for (const run of runs) {
     for (const step of run.steps) {
@@ -73,17 +73,22 @@ function tallyRepairFailures(runs: WorkflowRunMetadata[]): RepairCheckTally[] {
         ? new Set<string>()
         : new Set((lastIter.failures ?? []).map((f) => f.id));
 
+      const everFailed = new Set<string>();
       for (const iter of iterations) {
         for (const f of iter.failures ?? []) {
-          const entry = totals.get(f.id) ?? { count: 0, recovered: 0, terminal: 0 };
-          entry.count++;
-          if (iter === lastIter && terminalIds.has(f.id)) {
-            entry.terminal++;
-          } else {
-            entry.recovered++;
-          }
-          totals.set(f.id, entry);
+          everFailed.add(f.id);
         }
+      }
+
+      for (const id of everFailed) {
+        const entry = totals.get(id) ?? { count: 0, recovered: 0, terminal: 0 };
+        entry.count++;
+        if (terminalIds.has(id)) {
+          entry.terminal++;
+        } else {
+          entry.recovered++;
+        }
+        totals.set(id, entry);
       }
     }
   }
