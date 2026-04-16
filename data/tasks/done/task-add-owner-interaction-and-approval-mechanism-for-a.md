@@ -1,12 +1,12 @@
 ---
 id: task-add-owner-interaction-and-approval-mechanism-for-a
 title: Add owner interaction and approval mechanism for agents
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Allow agents to escalate high-stakes decisions to the owner with structured questions and resumable execution
 created_at: 2026-04-15T21:22:25.531Z
-updated_at: 2026-04-15T21:22:25.531Z
+updated_at: 2026-04-16T07:38:55.564Z
 ---
 
 ## Problem

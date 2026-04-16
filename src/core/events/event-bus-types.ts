@@ -233,6 +233,29 @@ export type BusEvents = {
     id: string;
     pendingCount: number;
   };
+  "owner.question.asked": {
+    id: string;
+    question: string;
+    reason: string;
+    source: string;
+  };
+  "owner.question.resolved": {
+    id: string;
+    answered: boolean;
+    answer: string;
+  };
+  "owner.question.dismissed": {
+    id: string;
+    reason: string;
+  };
+  "owner.question.expired": {
+    id: string;
+    defaultResolution: "dismiss" | "answer";
+  };
+  "owner.question.changed": {
+    id: string;
+    pendingCount: number;
+  };
   "task.changed": {
     counts: { pending: number; in_progress: number; done: number };
   };

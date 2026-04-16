@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { registration as agentStatus } from "./agent-status.js";
 import { registration as approval } from "./approval.js";
+import { registration as askOwner } from "./ask-owner.js";
 import { registration as askUser } from "./ask-user.js";
 import { registration as checkpoint } from "./checkpoint.js";
 import { registration as confirm } from "./confirm.js";
@@ -46,6 +47,7 @@ const registrationImports = [
   () => todo,
   () => delegate,
   () => askUser,
+  () => askOwner,
   () => confirm,
   () => customTool,
   () => checkpoint,
