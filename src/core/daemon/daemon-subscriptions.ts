@@ -3,6 +3,7 @@ import { subscribeWorkflowFailureAlert } from "#core/workflow/failure-alert.js";
 import type { WorkflowNotifyConfig } from "#core/workflow/types.js";
 import { getApprovalQueue } from "./approval-queue.js";
 import { type ModuleCrashAlertOptions, subscribeModuleCrashAlert } from "./module-crash-alert.js";
+import { getOwnerQuestionQueue } from "./owner-question-queue.js";
 import type { ScheduledItem } from "./scheduler.js";
 import { getScheduler } from "./scheduler.js";
 
@@ -57,6 +58,11 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
   }, pollIntervalMs);
   approvalSweepTimer.unref();
 
+  const ownerQuestionSweepTimer = setInterval(() => {
+    getOwnerQuestionQueue().expireStale();
+  }, pollIntervalMs);
+  ownerQuestionSweepTimer.unref();
+
   return () => {
     stopBus();
     stopSchedulerTimer();
@@ -65,5 +71,6 @@ export function subscribeDaemon(opts: DaemonSubscriptionsOptions): () => void {
     stopFailureAlert();
     stopCrashAlert();
     clearInterval(approvalSweepTimer);
+    clearInterval(ownerQuestionSweepTimer);
   };
 }
