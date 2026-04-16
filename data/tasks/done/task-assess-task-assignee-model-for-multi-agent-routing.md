@@ -1,12 +1,12 @@
 ---
 id: task-assess-task-assignee-model-for-multi-agent-routing
 title: Assess task assignee model for multi-agent routing
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Evaluate whether tasks should have assignees to route work to the right agent (explorer, builder, archivarius) and whether tasks should become first-class runtime objects
 created_at: 2026-04-15T21:22:27.886Z
-updated_at: 2026-04-15T21:22:27.886Z
+updated_at: 2026-04-16T01:28:29.946Z
 ---
 
 ## Problem
