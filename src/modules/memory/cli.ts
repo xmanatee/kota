@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import { getMemoryStore } from "#core/memory/store.js";
+import { getMemoryProvider } from "#core/modules/provider-registry.js";
 
 function formatDate(iso: string): string {
 	return iso.slice(0, 16).replace("T", " ");
@@ -89,5 +90,27 @@ export function registerMemoryCommands(program: Command): void {
 				process.exit(1);
 			}
 			console.log(`Deleted memory ${id}.`);
+		});
+
+	memCmd
+		.command("reindex")
+		.description(
+			"Rebuild the semantic search index for all memory entries. " +
+				"No-op when no embedding provider is configured.",
+		)
+		.action(async () => {
+			const provider = getMemoryProvider();
+			const result = await provider.reindex();
+			if (result.skipped) {
+				console.log(
+					"Semantic search not configured — nothing to reindex. " +
+						"Set `providers.memory` to an embedding-capable provider to enable.",
+				);
+				return;
+			}
+			console.log(
+				`Reindexed ${result.indexed} entries (${result.failed} failed).`,
+			);
+			if (result.failed > 0) process.exit(1);
 		});
 }

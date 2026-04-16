@@ -1,9 +1,7 @@
 /** Cosine similarity for dense float vectors. */
 export function cosineSimilarity(a: readonly number[], b: readonly number[]): number {
 	if (a.length !== b.length) {
-		throw new Error(
-			`Vector length mismatch: ${a.length} vs ${b.length}`,
-		);
+		throw new Error(`Vector length mismatch: ${a.length} vs ${b.length}`);
 	}
 	let dot = 0;
 	let magA = 0;

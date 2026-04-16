@@ -15,7 +15,7 @@ import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { MemoryProvider } from "#core/modules/provider-types.js";
+import type { MemoryProvider, ReindexResult } from "#core/modules/provider-types.js";
 import type { Memory } from "./store.js";
 
 const TIMEOUT_MS = 10_000;
@@ -175,6 +175,18 @@ CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created);`,
 			tags: JSON.parse(r.tags) as string[],
 			created: r.created,
 		}));
+	}
+
+	async semanticSearch(
+		query: string,
+		topK: number,
+		options?: { tag?: string; since?: string },
+	): Promise<Memory[]> {
+		return this.search(query, options).slice(0, Math.max(0, topK));
+	}
+
+	async reindex(): Promise<ReindexResult> {
+		return { indexed: 0, failed: 0, skipped: true };
 	}
 
 	/** Get the database file path (for testing/diagnostics). */

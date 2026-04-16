@@ -145,6 +145,8 @@ describe("interface conformance", () => {
 		expect(typeof provider.list).toBe("function");
 		expect(typeof provider.update).toBe("function");
 		expect(typeof provider.delete).toBe("function");
+		expect(typeof provider.semanticSearch).toBe("function");
+		expect(typeof provider.reindex).toBe("function");
 	});
 
 	it("KnowledgeProvider interface matches KnowledgeStore shape", async () => {
@@ -220,6 +222,8 @@ describe("convenience getters", () => {
 			list: () => [],
 			update: () => true,
 			delete: () => true,
+			semanticSearch: async () => [],
+			reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
 		};
 		reg.register("memory", "custom", custom);
 		reg.setActive("memory", "custom");
@@ -373,6 +377,8 @@ describe("registerDefaultProviders", () => {
 			list: () => [],
 			update: () => true,
 			delete: () => true,
+			semanticSearch: async () => [],
+			reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
 		};
 		reg.register("memory", "my-module", custom);
 		reg.setActive("memory", "my-module");

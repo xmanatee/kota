@@ -101,3 +101,21 @@ export function createEmbeddingProvider(
 ): EmbeddingProvider {
 	return new HttpEmbeddingProvider(config);
 }
+
+/**
+ * Build an embedding provider config from a raw module-config record.
+ * Returns `null` when the record does not specify a usable provider.
+ */
+export function readEmbeddingProviderConfig(
+	raw: Record<string, unknown> | undefined,
+): EmbeddingProviderConfig | null {
+	if (!raw) return null;
+	const provider = raw.provider;
+	const model = raw.model;
+	if (provider !== "openai" && provider !== "voyage") return null;
+	if (typeof model !== "string" || !model) return null;
+	const config: EmbeddingProviderConfig = { provider, model };
+	if (typeof raw.apiKey === "string" && raw.apiKey) config.apiKey = raw.apiKey;
+	if (typeof raw.baseUrl === "string" && raw.baseUrl) config.baseUrl = raw.baseUrl;
+	return config;
+}

@@ -45,14 +45,14 @@ describe("SemanticIndexFile", () => {
 			version: INDEX_VERSION,
 			model: "model-a",
 			entries: {
-				alpha: { updated: "2026-04-01T00:00:00Z", embedding: [0.1, 0.2, 0.3] },
+				alpha: { fingerprint: "fp-1", embedding: [0.1, 0.2, 0.3] },
 			},
 		};
 		file.save(saved);
 		expect(existsSync(path)).toBe(true);
 		const loaded = file.load("model-a");
 		expect(loaded.entries.alpha.embedding).toEqual([0.1, 0.2, 0.3]);
-		expect(loaded.entries.alpha.updated).toBe("2026-04-01T00:00:00Z");
+		expect(loaded.entries.alpha.fingerprint).toBe("fp-1");
 	});
 
 	it("returns empty index when model differs (cache invalidation)", () => {
@@ -60,7 +60,7 @@ describe("SemanticIndexFile", () => {
 		file.save({
 			version: INDEX_VERSION,
 			model: "model-a",
-			entries: { alpha: { updated: "t", embedding: [1, 2] } },
+			entries: { alpha: { fingerprint: "fp", embedding: [1, 2] } },
 		});
 		const loaded = file.load("model-b");
 		expect(loaded.entries).toEqual({});
@@ -70,7 +70,11 @@ describe("SemanticIndexFile", () => {
 	it("returns empty index when version differs", () => {
 		writeFileSync(
 			path,
-			JSON.stringify({ version: 99, model: "model-a", entries: { x: { updated: "t", embedding: [1] } } }),
+			JSON.stringify({
+				version: 99,
+				model: "model-a",
+				entries: { x: { fingerprint: "fp", embedding: [1] } },
+			}),
 		);
 		const loaded = new SemanticIndexFile(path).load("model-a");
 		expect(loaded.entries).toEqual({});
@@ -83,9 +87,9 @@ describe("SemanticIndexFile", () => {
 				version: INDEX_VERSION,
 				model: "m",
 				entries: {
-					good: { updated: "t", embedding: [1, 2] },
-					noEmbedding: { updated: "t" },
-					noUpdated: { embedding: [3, 4] },
+					good: { fingerprint: "fp", embedding: [1, 2] },
+					noEmbedding: { fingerprint: "fp" },
+					noFingerprint: { embedding: [3, 4] },
 				},
 			}),
 		);

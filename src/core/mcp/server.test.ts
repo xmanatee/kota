@@ -1746,6 +1746,8 @@ describe("memory and knowledge resources", () => {
 			search: vi.fn(),
 			update: vi.fn(),
 			delete: vi.fn(),
+			semanticSearch: vi.fn(async () => []),
+			reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
 		});
 
 		const { input, output } = createTestStreams();
@@ -1777,6 +1779,8 @@ describe("memory and knowledge resources", () => {
 			search: vi.fn(),
 			update: vi.fn(),
 			delete: vi.fn(),
+			semanticSearch: vi.fn(async () => []),
+			reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
 		});
 
 		const { input, output } = createTestStreams();

@@ -4,6 +4,9 @@ Embedding-backed semantic search over the file-based knowledge store.
 
 - Wraps the default `KnowledgeStore` with a `SemanticKnowledgeStore` that
   keeps a sidecar `.embeddings.json` index next to entries.
+- Delegates embedding, cosine ranking, queueing, and reindex to the shared
+  `SemanticIndexManager` under `src/core/memory/semantic/`. Only the
+  knowledge-specific adapter lives in this module.
 - Uses the configured embedding provider (OpenAI or Voyage AI) via their
   OpenAI-compatible `/embeddings` endpoint.
 - Registers itself as a `KnowledgeProvider` named `knowledge-semantic`.
@@ -17,6 +20,7 @@ Embedding-backed semantic search over the file-based knowledge store.
   block the caller.
 - Reindex on demand via `kota knowledge reindex`; first semantic query
   lazily fills the index for any unknown or stale entries.
+- Staleness is detected via each entry's `updated` timestamp.
 
 ## Config
 

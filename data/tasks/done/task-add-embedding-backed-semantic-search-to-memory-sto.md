@@ -1,12 +1,12 @@
 ---
 id: task-add-embedding-backed-semantic-search-to-memory-sto
 title: Add embedding-backed semantic search to memory store
-status: backlog
+status: done
 priority: p2
 area: stores
 summary: The knowledge store gained semantic search via a sidecar embedding index in knowledge-semantic. Memory recall still uses keyword matching and degrades on cross-term queries. Add a parallel memory-semantic module or shared index abstraction.
 created_at: 2026-04-16T07:47:20.502Z
-updated_at: 2026-04-16T07:47:20.502Z
+updated_at: 2026-04-16T13:51:55.235Z
 ---
 
 ## Problem

@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createEmbeddingProvider, HttpEmbeddingProvider } from "./embedding-provider.js";
+import {
+	createEmbeddingProvider,
+	HttpEmbeddingProvider,
+	readEmbeddingProviderConfig,
+} from "./embedding-provider.js";
 
 const originalFetch = globalThis.fetch;
 
@@ -122,5 +126,38 @@ describe("HttpEmbeddingProvider", () => {
 		const provider = new HttpEmbeddingProvider({ provider: "openai", model: "m" });
 		expect(await provider.embed([])).toEqual([]);
 		expect(fetchMock).not.toHaveBeenCalled();
+	});
+});
+
+describe("readEmbeddingProviderConfig", () => {
+	it("returns null for missing or invalid config", () => {
+		expect(readEmbeddingProviderConfig(undefined)).toBeNull();
+		expect(readEmbeddingProviderConfig({})).toBeNull();
+		expect(readEmbeddingProviderConfig({ provider: "openai" })).toBeNull();
+		expect(readEmbeddingProviderConfig({ provider: "bogus", model: "m" })).toBeNull();
+		expect(readEmbeddingProviderConfig({ provider: "openai", model: "" })).toBeNull();
+	});
+
+	it("parses valid config with required fields", () => {
+		expect(readEmbeddingProviderConfig({ provider: "openai", model: "m" })).toEqual({
+			provider: "openai",
+			model: "m",
+		});
+	});
+
+	it("passes through optional overrides", () => {
+		expect(
+			readEmbeddingProviderConfig({
+				provider: "voyage",
+				model: "voyage-3",
+				apiKey: "sk-x",
+				baseUrl: "https://custom.example/v1",
+			}),
+		).toEqual({
+			provider: "voyage",
+			model: "voyage-3",
+			apiKey: "sk-x",
+			baseUrl: "https://custom.example/v1",
+		});
 	});
 });

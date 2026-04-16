@@ -2,13 +2,13 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { KnowledgeStore } from "#core/memory/knowledge-store.js";
 import type { EmbeddingProvider } from "#core/memory/semantic/embedding-provider.js";
 import {
 	indexPathFor,
 	SemanticIndexFile,
 } from "#core/memory/semantic/semantic-index.js";
-import { SemanticKnowledgeStore } from "./semantic-store.js";
+import { MemoryStore } from "#core/memory/store.js";
+import { SemanticMemoryStore } from "./semantic-store.js";
 
 const CONCEPTS: Record<string, number> = {
 	workflow: 0,
@@ -69,27 +69,25 @@ class FakeEmbeddingProvider implements EmbeddingProvider {
 function makeTmpDir(): string {
 	const dir = join(
 		tmpdir(),
-		`kota-sem-store-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+		`kota-mem-sem-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
 	);
 	mkdirSync(dir, { recursive: true });
 	return dir;
 }
 
-describe("SemanticKnowledgeStore", () => {
-	let projectDir: string;
-	let globalDir: string;
-	let base: KnowledgeStore;
+describe("SemanticMemoryStore", () => {
+	let storeDir: string;
+	let base: MemoryStore;
 	let provider: FakeEmbeddingProvider;
-	let store: SemanticKnowledgeStore;
+	let store: SemanticMemoryStore;
 	let errors: unknown[];
 
 	beforeEach(() => {
-		projectDir = makeTmpDir();
-		globalDir = makeTmpDir();
-		base = new KnowledgeStore(projectDir, globalDir);
+		storeDir = makeTmpDir();
+		base = new MemoryStore(storeDir);
 		provider = new FakeEmbeddingProvider();
 		errors = [];
-		store = new SemanticKnowledgeStore({
+		store = new SemanticMemoryStore({
 			base,
 			provider,
 			onBackgroundError: (e) => errors.push(e),
@@ -97,78 +95,86 @@ describe("SemanticKnowledgeStore", () => {
 	});
 
 	afterEach(() => {
-		rmSync(projectDir, { recursive: true, force: true });
-		rmSync(globalDir, { recursive: true, force: true });
+		rmSync(storeDir, { recursive: true, force: true });
 	});
 
-	it("indexes entries on create and persists to sidecar", async () => {
-		const id = store.create({
-			title: "Budget monitoring",
-			content: "track spend and cost anomaly alerts",
-			tags: ["budget"],
-		});
+	it("indexes entries on save and persists to sidecar", async () => {
+		const id = store.save("track spend and cost anomaly alerts", ["budget"]);
 		await store.flush();
 
 		expect(errors).toEqual([]);
 		expect(provider.calls).toBeGreaterThanOrEqual(1);
-		const sidecar = indexPathFor(join(projectDir, ".kota", "data"));
-		expect(existsSync(sidecar)).toBe(true);
+		expect(existsSync(indexPathFor(storeDir))).toBe(true);
 
 		const results = await store.semanticSearch("workflow cost tracking", 5);
 		expect(results.map((r) => r.id)).toContain(id);
 	});
 
 	it("ranks semantically similar entries above unrelated ones", async () => {
-		const costEntry = store.create({
-			title: "Budget alert",
-			content: "monitor spend and cost anomaly",
-			tags: ["budget"],
-		});
-		const breadEntry = store.create({
-			title: "Sourdough recipe",
-			content: "baking bread at home",
-			tags: ["recipe"],
-		});
-		const authEntry = store.create({
-			title: "Login session handling",
-			content: "auth session cookies",
-			tags: ["auth"],
-		});
+		const costId = store.save("monitor spend and cost anomaly", ["budget"]);
+		const breadId = store.save("baking bread at home", ["recipe"]);
+		const authId = store.save("auth session cookies", ["auth"]);
 		await store.flush();
 
 		const results = await store.semanticSearch("workflow cost tracking", 3);
-		expect(results[0].id).toBe(costEntry);
+		expect(results[0].id).toBe(costId);
 		const ids = results.map((r) => r.id);
-		expect(ids.indexOf(costEntry)).toBeLessThan(ids.indexOf(breadEntry));
-		expect(ids.indexOf(costEntry)).toBeLessThan(ids.indexOf(authEntry));
+		expect(ids.indexOf(costId)).toBeLessThan(ids.indexOf(breadId));
+		expect(ids.indexOf(costId)).toBeLessThan(ids.indexOf(authId));
 	});
 
-	it("re-embeds when an entry is updated (incremental)", async () => {
-		const id = store.create({
-			title: "Misc note",
-			content: "bread baking recipe",
-			tags: [],
-		});
+	it("returns semantically adjacent entries for a lexically distinct query", async () => {
+		const costId = store.save("monitor spend and cost anomaly", ["budget"]);
+		store.save("baking bread at home", ["recipe"]);
+		store.save("auth session cookies", ["auth"]);
 		await store.flush();
 
-		const sidecarPath = indexPathFor(join(projectDir, ".kota", "data"));
-		const before = new SemanticIndexFile(sidecarPath).load(provider.model);
+		// Query uses none of the saved words verbatim — pure concept overlap.
+		const results = await store.semanticSearch("pipeline expense metrics", 3);
+		expect(results[0].id).toBe(costId);
+	});
+
+	it("re-embeds when an entry's content changes (incremental)", async () => {
+		const id = store.save("bread baking recipe", []);
+		await store.flush();
+
+		const before = new SemanticIndexFile(indexPathFor(storeDir)).load(
+			provider.model,
+		);
 		const embBefore = [...before.entries[id].embedding];
+		const fpBefore = before.entries[id].fingerprint;
 
 		store.update(id, { content: "monitor spend and cost anomaly" });
 		await store.flush();
 
-		const after = new SemanticIndexFile(sidecarPath).load(provider.model);
+		const after = new SemanticIndexFile(indexPathFor(storeDir)).load(
+			provider.model,
+		);
 		const embAfter = after.entries[id].embedding;
 		expect(embAfter).not.toEqual(embBefore);
+		expect(after.entries[id].fingerprint).not.toBe(fpBefore);
+	});
+
+	it("re-embeds when an entry's tags change", async () => {
+		const id = store.save("monitor spend and cost anomaly", ["budget"]);
+		await store.flush();
+
+		const before = new SemanticIndexFile(indexPathFor(storeDir)).load(
+			provider.model,
+		);
+		const fpBefore = before.entries[id].fingerprint;
+
+		store.update(id, { tags: ["budget", "finance"] });
+		await store.flush();
+
+		const after = new SemanticIndexFile(indexPathFor(storeDir)).load(
+			provider.model,
+		);
+		expect(after.entries[id].fingerprint).not.toBe(fpBefore);
 	});
 
 	it("falls back to keyword search when the provider throws at query time", async () => {
-		store.create({
-			title: "Budget doc",
-			content: "monitor spend and cost",
-			tags: ["budget"],
-		});
+		store.save("monitor spend and cost", ["budget"]);
 		await store.flush();
 
 		provider.failNext = true;
@@ -178,21 +184,13 @@ describe("SemanticKnowledgeStore", () => {
 	});
 
 	it("keyword search on the base store still works regardless of semantic config", () => {
-		const id = store.create({
-			title: "Plain note",
-			content: "some text about budgeting",
-			tags: [],
-		});
+		const id = store.save("some text about budgeting", []);
 		const results = store.search("budgeting");
 		expect(results.map((r) => r.id)).toContain(id);
 	});
 
 	it("removes deleted entries from the sidecar index", async () => {
-		const id = store.create({
-			title: "Temp entry",
-			content: "monitor spend",
-			tags: [],
-		});
+		const id = store.save("monitor spend", []);
 		await store.flush();
 
 		const before = await store.semanticSearch("cost", 5);
@@ -204,16 +202,8 @@ describe("SemanticKnowledgeStore", () => {
 	});
 
 	it("reindex rebuilds the embedding index and returns counts", async () => {
-		store.create({
-			title: "Entry A",
-			content: "monitor spend",
-			tags: ["budget"],
-		});
-		store.create({
-			title: "Entry B",
-			content: "baking bread",
-			tags: ["recipe"],
-		});
+		store.save("monitor spend", ["budget"]);
+		store.save("baking bread", ["recipe"]);
 		await store.flush();
 
 		const before = provider.calls;
@@ -224,11 +214,7 @@ describe("SemanticKnowledgeStore", () => {
 	});
 
 	it("reindex reports failures when the provider throws", async () => {
-		store.create({
-			title: "Entry",
-			content: "spend",
-			tags: [],
-		});
+		store.save("spend", []);
 		await store.flush();
 
 		provider.failNext = true;
@@ -238,7 +224,7 @@ describe("SemanticKnowledgeStore", () => {
 	});
 
 	it("semanticSearch returns [] when topK is 0 without embedding", async () => {
-		store.create({ title: "x", content: "spend", tags: [] });
+		store.save("spend", []);
 		await store.flush();
 		const embedCallsBefore = provider.calls;
 		const results = await store.semanticSearch("cost", 0);
@@ -247,11 +233,7 @@ describe("SemanticKnowledgeStore", () => {
 	});
 
 	it("uses cached index without re-embedding entries on repeat query", async () => {
-		store.create({
-			title: "Entry",
-			content: "monitor spend and cost anomaly",
-			tags: [],
-		});
+		store.save("monitor spend and cost anomaly", []);
 		await store.flush();
 		const callsAfterIndex = provider.calls;
 
@@ -260,16 +242,29 @@ describe("SemanticKnowledgeStore", () => {
 		expect(provider.calls).toBe(callsAfterIndex + 2);
 	});
 
-	it("passes a non-Error onBackgroundError for provider failures without crashing", async () => {
+	it("reports non-Error failures via onBackgroundError without crashing", async () => {
 		const bgSpy = vi.fn();
-		const store2 = new SemanticKnowledgeStore({
+		const store2 = new SemanticMemoryStore({
 			base,
 			provider,
 			onBackgroundError: bgSpy,
 		});
 		provider.failNext = true;
-		store2.create({ title: "x", content: "spend", tags: [] });
+		store2.save("spend", []);
 		await store2.flush();
 		expect(bgSpy).toHaveBeenCalled();
+	});
+
+	it("respects tag filtering when ranking semantically", async () => {
+		const taggedId = store.save("monitor spend and cost", ["budget"]);
+		store.save("monitor spend and cost", ["other"]);
+		await store.flush();
+
+		const results = await store.semanticSearch("cost tracking", 5, {
+			tag: "budget",
+		});
+		const ids = results.map((r) => r.id);
+		expect(ids).toContain(taggedId);
+		expect(ids).toHaveLength(1);
 	});
 });
