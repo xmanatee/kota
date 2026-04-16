@@ -60,18 +60,26 @@ async function invokeGate(
       await sleep(GATE_RETRY_BASE_DELAY_MS * attempt);
     }
 
-    const response = await executeWithAgentSDK(userMessage, {
-      model: GATE_MODEL,
-      cwd,
-      systemPrompt: GATE_SYSTEM_PROMPT,
-      maxTurns: GATE_MAX_TURNS,
-      effort: "max",
-      disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-      permissionMode: "bypassPermissions",
-      settingSources: ["project"],
-    }, {
-      write: () => true,
-    });
+    let response: { text: string; isError: boolean; subtype?: string };
+    try {
+      response = await executeWithAgentSDK(userMessage, {
+        model: GATE_MODEL,
+        cwd,
+        systemPrompt: GATE_SYSTEM_PROMPT,
+        maxTurns: GATE_MAX_TURNS,
+        effort: "max",
+        disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
+        permissionMode: "bypassPermissions",
+        settingSources: ["project"],
+      }, {
+        write: () => true,
+      });
+    } catch (thrown) {
+      lastError = new Error(
+        `Semantic gate threw (attempt ${attempt + 1}/${GATE_MAX_RETRIES}): ${thrown instanceof Error ? thrown.message : String(thrown)}`,
+      );
+      continue;
+    }
 
     if (!response.isError) return response;
 
