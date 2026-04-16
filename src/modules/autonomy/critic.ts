@@ -166,6 +166,7 @@ export type AgentJudgeConfig = {
   systemPrompt: string;
   model: string;
   maxTurns: number;
+  effort: "low" | "medium" | "high" | "max";
   maxRetries?: number;
   retryBaseDelayMs?: number;
 };
@@ -194,7 +195,7 @@ export async function invokeAgentJudge(
         cwd,
         systemPrompt: config.systemPrompt,
         maxTurns: config.maxTurns,
-        effort: "max",
+        effort: config.effort,
         disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
         permissionMode: "bypassPermissions",
         settingSources: ["project"],
@@ -232,6 +233,7 @@ const criticConfig: AgentJudgeConfig = {
   systemPrompt: CRITIC_SYSTEM_PROMPT,
   model: CRITIC_MODEL,
   maxTurns: CRITIC_MAX_TURNS,
+  effort: "high",
 };
 
 export function createCriticCheck(options?: {

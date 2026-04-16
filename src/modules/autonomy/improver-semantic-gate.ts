@@ -11,7 +11,7 @@ import {
   parseVerdict,
 } from "./critic.js";
 
-const GATE_MAX_TURNS = 15;
+const GATE_MAX_TURNS = 10;
 const ARTIFACT_NAME = "semantic-gate-review.json";
 
 const GATE_SYSTEM_PROMPT = `You are a semantic quality gate for an autonomous improver workflow. Your job is to determine whether a staged diff represents a genuine, valuable improvement to the autonomy system — not just noise, process artifacts, or misleading busywork.
@@ -52,6 +52,7 @@ const gateConfig: AgentJudgeConfig = {
   systemPrompt: GATE_SYSTEM_PROMPT,
   model: "claude-opus-4-6",
   maxTurns: GATE_MAX_TURNS,
+  effort: "high",
 };
 
 function readCommitMessage(runDirPath: string): string {

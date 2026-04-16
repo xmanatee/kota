@@ -228,7 +228,7 @@ describe("createImproverSemanticCheck", () => {
     const options = mockExecuteWithAgentSDK.mock.calls[0][1];
     expect(options.allowedTools).toBeUndefined();
     expect(options.disallowedTools).toEqual(AUTONOMY_DISALLOWED_TOOLS);
-    expect(options.effort).toBe("max");
+    expect(options.effort).toBe("high");
   });
 
   it("retries on transient SDK errors", async () => {
