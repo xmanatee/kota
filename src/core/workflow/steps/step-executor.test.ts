@@ -223,6 +223,34 @@ describe("executeAgentStep", () => {
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
   });
 
+  it("does not retry after the abort signal is set by the step deadline", async () => {
+    const abortController = new AbortController();
+    mockedExecuteWithAgentSDK.mockImplementation(async (_prompt, options) => {
+      abortController.abort(new Error('Step "test-step" timed out after 1000ms'));
+      const reason = options?.abortController?.signal.reason;
+      throw reason instanceof Error ? reason : new Error("aborted");
+    });
+
+    const step = makeStep({
+      retry: { maxAttempts: 2, initialDelayMs: 1, backoffFactor: 1 },
+    });
+
+    await expect(
+      executeAgentStep(
+        makeDefinition(),
+        step,
+        makeMetadata(),
+        TRIGGER,
+        abortController,
+        () => {},
+        () => {},
+        agentConfig,
+      ),
+    ).rejects.toThrow("timed out");
+
+    expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
+  });
+
   describe("tool telemetry artifact", () => {
     it("writes tool-telemetry.json when tool calls were recorded via SDK messages", async () => {
       mockedExecuteWithAgentSDK.mockImplementation(async (_prompt, options) => {

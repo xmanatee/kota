@@ -22,6 +22,7 @@ export async function withRetry<T>(
   fn: () => Promise<T>,
   retry: WorkflowRetryConfig,
   log?: (message: string) => void,
+  abortSignal?: AbortSignal,
 ): Promise<T> {
   let lastError: unknown;
   let delayMs = retry.initialDelayMs;
@@ -30,6 +31,7 @@ export async function withRetry<T>(
       return await fn();
     } catch (error) {
       if (
+        abortSignal?.aborted ||
         (error instanceof Error && error.name === "AbortError") ||
         (error instanceof AgentStepRuntimeError && !error.retryable)
       ) {

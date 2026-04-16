@@ -348,7 +348,7 @@ export async function executeAgentStep(
   };
 
   const output = step.retry
-    ? await withRetry(runAttempt, step.retry, agentConfig.log)
+    ? await withRetry(runAttempt, step.retry, agentConfig.log, abortController.signal)
     : await runAttempt();
 
   writeToolTelemetryArtifact(step.id, metadata, agentConfig.projectDir, stepTelemetry);
