@@ -130,6 +130,9 @@ export function findDurationOutliers(runs: WorkflowRunMetadata[]): DurationOutli
   const byWf = new Map<string, WorkflowRunMetadata[]>();
   for (const r of runs) {
     if (r.durationMs == null) continue;
+    // Failed runs' durations are dominated by timeout ceilings or retry loops
+    // rather than real agent work, so they pollute the signal.
+    if (r.status !== "success") continue;
     if (!hasMeaningfulAgentStep(r)) continue;
     const list = byWf.get(r.workflow) ?? [];
     list.push(r);

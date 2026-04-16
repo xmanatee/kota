@@ -149,6 +149,7 @@ function makeWorkflowRun(
   durationMs: number,
   agentStepDurationMs: number,
   agentStepStatus: WorkflowStepStatus = "success",
+  runStatus: WorkflowRunMetadata["status"] = "success",
 ): WorkflowRunMetadata {
   return {
     id,
@@ -156,7 +157,7 @@ function makeWorkflowRun(
     definitionPath: `src/modules/autonomy/workflows/${workflow}/workflow.ts`,
     trigger: { event: "runtime.idle", payload: {} },
     startedAt: "2026-04-16T00:00:00.000Z",
-    status: "success",
+    status: runStatus,
     durationMs,
     runDir: id,
     steps: [
@@ -221,5 +222,19 @@ describe("findDurationOutliers", () => {
     const outliers = findDurationOutliers(runs);
     expect(outliers).toHaveLength(1);
     expect(outliers[0].runId).toBe("d");
+  });
+
+  it("ignores failed runs so timeout ceilings and retry loops don't pollute the signal", () => {
+    // Failed runs commonly hit the step timeout or exhaust retries; their
+    // duration is driven by the failure mode, not by real agent execution.
+    const runs = [
+      makeWorkflowRun("ok-1", "builder", 500_000, 499_000),
+      makeWorkflowRun("ok-2", "builder", 600_000, 599_000),
+      makeWorkflowRun("ok-3", "builder", 700_000, 699_000),
+      makeWorkflowRun("timeout", "builder", 3_600_000, 3_599_000, "failed", "failed"),
+      makeWorkflowRun("provider-error", "builder", 1_800_000, 1_799_000, "failed", "failed"),
+    ];
+    const outliers = findDurationOutliers(runs);
+    expect(outliers).toEqual([]);
   });
 });
