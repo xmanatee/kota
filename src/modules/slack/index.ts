@@ -209,6 +209,28 @@ function buildBlocks(event: string, payload: Record<string, unknown>): Block[] {
         ),
       ];
     }
+    case "owner.question.asked": {
+      const id = payload.id as string | undefined;
+      const question = payload.question as string | undefined;
+      const reason = payload.reason as string | undefined;
+      const source = payload.source as string | undefined;
+      return [
+        header("Owner Question"),
+        divider,
+        section(
+          [
+            source ? `*Source:* \`${source}\`` : null,
+            reason ? `*Reason:* ${reason}` : null,
+            question ? `*Question:* ${question}` : null,
+            id
+              ? `*Answer:* \`kota owner-question answer ${id} <your answer>\`\n*Dismiss:* \`kota owner-question dismiss ${id}\``
+              : null,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        ),
+      ];
+    }
     default: {
       const text = payload.text as string | undefined;
       return [header(event), divider, section(text ?? JSON.stringify(payload))];
@@ -249,9 +271,11 @@ const slackModule: KotaModule = {
       if (enabledEvents.has(event)) subscribe(event);
     }
 
-    // approval.requested is always subscribed when the module is configured,
-    // independent of the events filter (same as Telegram).
+    // approval.requested and owner.question.asked are always subscribed when
+    // the module is configured, independent of the events filter (same as
+    // Telegram). Both are urgent, actionable escalations.
     subscribe("approval.requested");
+    subscribe("owner.question.asked");
 
     // opt-in events — only subscribed when explicitly listed in config.events
     for (const event of OPT_IN_EVENTS) {

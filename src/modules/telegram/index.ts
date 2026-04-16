@@ -5,7 +5,7 @@
  * - `kota telegram` CLI command (interactive bot)
  * - `telegram-status` channel (daemon status poll — responds to /status)
  * - Notification subscriptions for workflow events (failure alerts, budget alerts,
- *   attention digests, cost limit alerts, approval requests)
+ *   attention digests, cost limit alerts, approval requests, owner questions)
  *
  * The CLI command starts the full interactive TelegramBot.
  * The channel contribution registers a status-only poll with the daemon
@@ -37,6 +37,33 @@ async function sendTelegramMessage(
     parse_mode: "Markdown",
   }).catch((err: unknown) => {
     log.warn(`Failed to send Telegram message: ${(err as Error).message}`);
+  });
+}
+
+async function sendOwnerQuestionMessage(
+  token: string,
+  chatId: string,
+  id: string,
+  question: string,
+  reason: string,
+  source: string,
+  log: ModuleContext["log"],
+): Promise<void> {
+  const text = [
+    `Owner question from *${source}*`,
+    `Reason: ${reason}`,
+    `Question: ${question}`,
+    `ID: \`${id}\``,
+    ``,
+    `kota owner-question answer ${id} <your answer>`,
+    `kota owner-question dismiss ${id}`,
+  ].join("\n");
+  void callTelegramApi(token, "sendMessage", {
+    chat_id: chatId,
+    text,
+    parse_mode: "Markdown",
+  }).catch((err: unknown) => {
+    log.warn(`Failed to send Telegram owner-question message: ${(err as Error).message}`);
   });
 }
 
@@ -190,6 +217,19 @@ const telegramModule: KotaModule = {
               pendingApprovalMessages.set(id, { chatId: creds.chatId, messageId });
             }
           },
+        );
+      }),
+      ctx.events.subscribe("owner.question.asked", (payload) => {
+        const creds = getCredentials();
+        if (!creds) return;
+        void sendOwnerQuestionMessage(
+          creds.token,
+          creds.chatId,
+          payload.id as string,
+          payload.question as string,
+          payload.reason as string,
+          payload.source as string,
+          ctx.log,
         );
       }),
       ...(optInEvents.has("workflow.build.committed")

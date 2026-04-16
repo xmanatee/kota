@@ -56,6 +56,7 @@ const NOTIFICATION_EVENTS = [
   "workflow.approval.expired",
   "module.crash.alert",
   "approval.requested",
+  "owner.question.asked",
 ] as const;
 
 const OPT_IN_EVENTS = ["workflow.build.committed"] as const;

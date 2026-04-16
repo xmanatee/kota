@@ -153,6 +153,45 @@ describe("slackModule notifications", () => {
     expect(mockFetch).toHaveBeenCalledOnce();
   });
 
+  it("POSTs Block Kit on owner.question.asked with answer/dismiss commands", async () => {
+    const bus = new EventBus();
+    slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
+    bus.emit("owner.question.asked", {
+      id: "oq-42",
+      question: "Promote explorer to dispatcher?",
+      reason: "Architectural branch decision",
+      source: "explorer",
+    });
+    await Promise.resolve();
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const body = JSON.parse(
+      (mockFetch.mock.calls[0] as [string, RequestInit])[1].body as string,
+    ) as { blocks: unknown[] };
+    const text = JSON.stringify(body.blocks);
+    expect(text).toContain("Owner Question");
+    expect(text).toContain("oq-42");
+    expect(text).toContain("explorer");
+    expect(text).toContain("Promote explorer to dispatcher?");
+    expect(text).toContain("Architectural branch decision");
+    expect(text).toContain("kota owner-question answer oq-42");
+    expect(text).toContain("kota owner-question dismiss oq-42");
+  });
+
+  it("always fires owner.question.asked regardless of events filter", async () => {
+    const bus = new EventBus();
+    slackModule.onLoad!(
+      makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK, events: ["workflow.failure.alert"] }),
+    );
+    bus.emit("owner.question.asked", {
+      id: "oq-always",
+      question: "Q?",
+      reason: "R",
+      source: "agent",
+    });
+    await Promise.resolve();
+    expect(mockFetch).toHaveBeenCalledOnce();
+  });
+
   it("POSTs Block Kit on workflow.build.committed when explicitly opted in", async () => {
     const bus = new EventBus();
     slackModule.onLoad!(

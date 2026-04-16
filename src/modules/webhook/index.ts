@@ -68,11 +68,17 @@ const webhookModule: KotaModule = {
       unsubs.push(ctx.events.subscribe(event, (payload) => forward(event, payload as Record<string, unknown>)));
     }
 
-    // approval.requested is always forwarded when the module is configured,
-    // independent of the events filter (mirrors Slack and Telegram behavior).
+    // approval.requested and owner.question.asked are always forwarded when the
+    // module is configured, independent of the events filter (mirrors Slack and
+    // Telegram behavior). Both are urgent, actionable escalations.
     unsubs.push(
       ctx.events.subscribe("approval.requested", (payload) =>
         forward("approval.requested", payload as Record<string, unknown>),
+      ),
+    );
+    unsubs.push(
+      ctx.events.subscribe("owner.question.asked", (payload) =>
+        forward("owner.question.asked", payload as Record<string, unknown>),
       ),
     );
   },

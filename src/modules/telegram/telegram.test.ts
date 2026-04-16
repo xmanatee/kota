@@ -204,6 +204,26 @@ describe("telegramModule notifications via onLoad", () => {
     );
   });
 
+  it("sends Telegram message on owner.question.asked with CLI commands", async () => {
+    const bus = new EventBus();
+    telegramModule.onLoad!(makeStubCtx(bus));
+    bus.emit("owner.question.asked", {
+      id: "oq-xyz",
+      question: "Split this migration into two phases?",
+      reason: "Risky one-shot migration",
+      source: "builder",
+    });
+    await Promise.resolve();
+    expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
+    const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
+    expect(body.text).toContain("Owner question");
+    expect(body.text).toContain("builder");
+    expect(body.text).toContain("Split this migration into two phases?");
+    expect(body.text).toContain("Risky one-shot migration");
+    expect(body.text).toContain("kota owner-question answer oq-xyz");
+    expect(body.text).toContain("kota owner-question dismiss oq-xyz");
+  });
+
   it("sends Telegram message with inline keyboard on approval.requested", async () => {
     const bus = new EventBus();
     telegramModule.onLoad!(makeStubCtx(bus));

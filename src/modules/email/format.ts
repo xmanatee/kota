@@ -101,6 +101,22 @@ export function formatEmail(event: string, payload: Record<string, unknown>): Em
       return { subject, text: lines.join("\n") };
     }
 
+    case "owner.question.asked": {
+      const id = payload.id as string | undefined;
+      const question = payload.question as string | undefined;
+      const reason = payload.reason as string | undefined;
+      const source = payload.source as string | undefined;
+      const subject = `[KOTA] Owner Question: ${source ?? "agent"}`;
+      const lines = [`Owner question from: ${source ?? "agent"}`];
+      if (question) lines.push(`Question: ${question}`);
+      if (reason) lines.push(`Reason: ${reason}`);
+      if (id) {
+        lines.push("", `To answer:   kota owner-question answer ${id} <your answer>`);
+        lines.push(`To dismiss:  kota owner-question dismiss ${id}`);
+      }
+      return { subject, text: lines.join("\n") };
+    }
+
     case "workflow.build.committed": {
       const commitMessage = payload.commitMessage as string | undefined;
       const taskId = payload.taskId as string | null | undefined;

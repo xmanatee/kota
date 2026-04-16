@@ -46,6 +46,22 @@ describe("formatEmail", () => {
     expect(msg.text).toContain("kota approval reject abc-123");
   });
 
+  it("formats owner.question.asked with answer/dismiss CLI commands", () => {
+    const msg = formatEmail("owner.question.asked", {
+      id: "oq-abc",
+      question: "Should we rewrite the caching layer?",
+      reason: "Architectural decision blocks progress",
+      source: "builder",
+    });
+    expect(msg.subject).toContain("Owner Question");
+    expect(msg.subject).toContain("builder");
+    expect(msg.text).toContain("Should we rewrite the caching layer?");
+    expect(msg.text).toContain("Architectural decision blocks progress");
+    expect(msg.text).toContain("builder");
+    expect(msg.text).toContain("kota owner-question answer oq-abc");
+    expect(msg.text).toContain("kota owner-question dismiss oq-abc");
+  });
+
   it("formats workflow.build.committed", () => {
     const msg = formatEmail("workflow.build.committed", {
       commitMessage: "feat: add email module",

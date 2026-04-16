@@ -1,12 +1,12 @@
 ---
 id: task-deliver-owner-questions-through-notification-chann
 title: Deliver owner questions through notification channels
-status: ready
+status: done
 priority: p1
 area: modules
 summary: Agents can enqueue owner questions but no channel surfaces them to the owner. Wire the owner.question.asked bus event into notification modules (Telegram, email, webhook, Slack) so escalations are seen asynchronously.
 created_at: 2026-04-16T07:47:14.176Z
-updated_at: 2026-04-16T07:49:09.088Z
+updated_at: 2026-04-16T08:45:35.703Z
 ---
 
 ## Problem

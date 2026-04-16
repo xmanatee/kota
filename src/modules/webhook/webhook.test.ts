@@ -261,4 +261,28 @@ describe("webhookModule notifications", () => {
     const body = JSON.parse((mockFetch.mock.calls[0] as [string, RequestInit])[1].body as string) as Record<string, unknown>;
     expect(body.event).toBe("approval.requested");
   });
+
+  it("forwards owner.question.asked regardless of events filter", async () => {
+    const bus = new EventBus();
+    webhookModule.onLoad!(
+      makeStubCtx(bus, { urls: [FAKE_URL], events: ["workflow.failure.alert"] }),
+    );
+    bus.emit("owner.question.asked", {
+      id: "oq-1",
+      question: "Proceed with refactor?",
+      reason: "high-risk surface",
+      source: "builder",
+    });
+    await Promise.resolve();
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const [url, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(FAKE_URL);
+    const body = JSON.parse(opts.body as string) as Record<string, unknown>;
+    expect(body.event).toBe("owner.question.asked");
+    expect(body.id).toBe("oq-1");
+    expect(body.question).toBe("Proceed with refactor?");
+    expect(body.reason).toBe("high-risk surface");
+    expect(body.source).toBe("builder");
+    expect(typeof body.timestamp).toBe("string");
+  });
 });

@@ -16,8 +16,14 @@ alerts to external services.
 | `workflow.cost.anomaly` | A run's cost significantly exceeds the historical baseline (requires `costAnomalyThreshold`) | Yes |
 | `workflow.build.committed` | Builder workflow successfully commits a task change | Yes |
 | `workflow.approval.expired` | An approval step auto-resolved (approved or denied) due to `timeoutMs` firing | No |
+| `owner.question.asked` | An agent escalated a structured question to the repo owner via the `ask_owner` tool | No |
 
 Opt-in events are not forwarded by default. Add them to the module's `events` config array to enable them (see per-module sections below).
+
+Like `approval.requested`, `owner.question.asked` is always forwarded when a
+channel is configured, independent of any `events` filter. Both are urgent,
+actionable escalations and should not be accidentally silenced by a partial
+filter.
 
 Each event payload includes a human-readable `text` field plus structured fields
 (e.g. `workflow`, `runId`, `status`).
@@ -214,6 +220,38 @@ name, run ID, and relevant detail (error summary, cost figures, approval
 command). Failed POSTs are retried with the same exponential-backoff policy as
 the webhook module (3 retries by default). Configurable via `retries` and
 `retryDelayMs` in the `slack` config block.
+
+## Owner Questions
+
+Agents can escalate a structured question to the repo owner via the `ask_owner`
+tool. The question lands in the owner-question queue (`.kota/owner-questions/`)
+and fires `owner.question.asked` on the event bus. Notification channels pick
+that event up and surface the question asynchronously so the owner sees it
+without polling the CLI or the HTTP route.
+
+Each rendered notification carries the question ID, source agent, reason,
+question text, and the exact CLI commands to answer or dismiss:
+
+```
+kota owner-question answer <id> <your answer>
+kota owner-question dismiss <id>
+```
+
+Per-channel behavior mirrors how `approval.requested` is handled: forwarded
+whenever the channel is configured, regardless of any `events` filter. Per
+channel:
+
+- **Telegram** — plain Markdown message. Inline answer buttons are tracked as
+  a follow-up enhancement.
+- **Email** — subject `[KOTA] Owner Question: <source>`; body includes the
+  question, reason, source, and CLI commands.
+- **Webhook** — POST body: `{ event: "owner.question.asked", id, question, reason, source, timestamp }`.
+- **Slack** — Block Kit message with `Owner Question` header plus a section
+  listing source, reason, question, and CLI commands.
+
+Failed deliveries are best-effort and isolated — one failing channel does not
+block the queue or the agent. Slack and webhook use the shared `postWithRetry`
+helper (3 retries by default).
 
 ## Alert Cooldown
 
