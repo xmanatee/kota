@@ -15,12 +15,10 @@
 
 import { Command } from "commander";
 import type { ChannelDef } from "#core/channels/channel.js";
+import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
-import {
-  type PendingApprovalMessage,
-  startApprovalCallbackPoll,
-} from "./approval-callback-poll.js";
 import { TelegramBot } from "./bot.js";
+import { type PendingMessage, startCallbackPoll } from "./callback-poll.js";
 import type { TelegramMessage } from "./client.js";
 import { callTelegramApi } from "./client.js";
 import { startTelegramStatusPoll } from "./status-poll.js";
@@ -40,6 +38,29 @@ async function sendTelegramMessage(
   });
 }
 
+type InlineButton = { text: string; callback_data: string };
+
+function buildOwnerQuestionKeyboard(
+  id: string,
+  proposedAnswers: string[],
+): InlineButton[][] {
+  const rows: InlineButton[][] = [];
+  for (let i = 0; i < proposedAnswers.length; i += 2) {
+    const row: InlineButton[] = [
+      { text: proposedAnswers[i], callback_data: `answer:${id}:${i}` },
+    ];
+    if (i + 1 < proposedAnswers.length) {
+      row.push({
+        text: proposedAnswers[i + 1],
+        callback_data: `answer:${id}:${i + 1}`,
+      });
+    }
+    rows.push(row);
+  }
+  rows.push([{ text: "Dismiss", callback_data: `dismiss:${id}` }]);
+  return rows;
+}
+
 async function sendOwnerQuestionMessage(
   token: string,
   chatId: string,
@@ -47,8 +68,9 @@ async function sendOwnerQuestionMessage(
   question: string,
   reason: string,
   source: string,
+  proposedAnswers: string[],
   log: ModuleContext["log"],
-): Promise<void> {
+): Promise<number | null> {
   const text = [
     `Owner question from *${source}*`,
     `Reason: ${reason}`,
@@ -58,13 +80,20 @@ async function sendOwnerQuestionMessage(
     `kota owner-question answer ${id} <your answer>`,
     `kota owner-question dismiss ${id}`,
   ].join("\n");
-  void callTelegramApi(token, "sendMessage", {
-    chat_id: chatId,
-    text,
-    parse_mode: "Markdown",
-  }).catch((err: unknown) => {
+  try {
+    const msg = await callTelegramApi<TelegramMessage>(token, "sendMessage", {
+      chat_id: chatId,
+      text,
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: buildOwnerQuestionKeyboard(id, proposedAnswers),
+      },
+    });
+    return msg.message_id;
+  } catch (err) {
     log.warn(`Failed to send Telegram owner-question message: ${(err as Error).message}`);
-  });
+    return null;
+  }
 }
 
 async function sendApprovalMessage(
@@ -140,7 +169,8 @@ const telegramStatusChannel: ChannelDef = {
 
 let notificationUnsubs: (() => void)[] = [];
 let stopCallbackPoll: (() => void) | null = null;
-const pendingApprovalMessages = new Map<string, PendingApprovalMessage>();
+const pendingApprovalMessages = new Map<string, PendingMessage>();
+const pendingOwnerQuestionMessages = new Map<string, PendingMessage>();
 
 const telegramModule: KotaModule = {
   name: "telegram",
@@ -156,9 +186,10 @@ const telegramModule: KotaModule = {
 
     const creds = getCredentials();
     if (creds) {
-      stopCallbackPoll = startApprovalCallbackPoll(
+      stopCallbackPoll = startCallbackPoll(
         creds.token,
         pendingApprovalMessages,
+        pendingOwnerQuestionMessages,
         ctx.log,
       );
     }
@@ -222,15 +253,26 @@ const telegramModule: KotaModule = {
       ctx.events.subscribe("owner.question.asked", (payload) => {
         const creds = getCredentials();
         if (!creds) return;
+        const id = payload.id as string;
+        const question = payload.question as string;
+        const reason = payload.reason as string;
+        const source = payload.source as string;
+        const entry = getOwnerQuestionQueue().get(id);
+        const proposedAnswers = entry?.proposedAnswers ?? [];
         void sendOwnerQuestionMessage(
           creds.token,
           creds.chatId,
-          payload.id as string,
-          payload.question as string,
-          payload.reason as string,
-          payload.source as string,
+          id,
+          question,
+          reason,
+          source,
+          proposedAnswers,
           ctx.log,
-        );
+        ).then((messageId) => {
+          if (messageId != null) {
+            pendingOwnerQuestionMessages.set(id, { chatId: creds.chatId, messageId });
+          }
+        });
       }),
       ...(optInEvents.has("workflow.build.committed")
         ? [
@@ -259,6 +301,7 @@ const telegramModule: KotaModule = {
     stopCallbackPoll?.();
     stopCallbackPoll = null;
     pendingApprovalMessages.clear();
+    pendingOwnerQuestionMessages.clear();
     for (const unsub of notificationUnsubs) unsub();
     notificationUnsubs = [];
   },

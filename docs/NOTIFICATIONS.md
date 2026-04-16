@@ -241,8 +241,15 @@ Per-channel behavior mirrors how `approval.requested` is handled: forwarded
 whenever the channel is configured, regardless of any `events` filter. Per
 channel:
 
-- **Telegram** — plain Markdown message. Inline answer buttons are tracked as
-  a follow-up enhancement.
+- **Telegram** — Markdown message with an inline keyboard. One button per
+  `proposedAnswer` (two per row) plus a `Dismiss` button. Tapping a button
+  resolves the queue entry through the same long-poll that serves approval
+  callbacks (`callback_data` prefixes `answer:<id>:<idx>` and `dismiss:<id>`)
+  and edits the original message to show the outcome. Resolution source is
+  recorded as `"telegram-inline"`. When the question has no proposed answers,
+  only the `Dismiss` button is rendered; free-form typed replies go through
+  the CLI. The message text still includes the CLI commands so the owner can
+  answer off-thread if they prefer.
 - **Email** — subject `[KOTA] Owner Question: <source>`; body includes the
   question, reason, source, and CLI commands.
 - **Webhook** — POST body: `{ event: "owner.question.asked", id, question, reason, source, timestamp }`.

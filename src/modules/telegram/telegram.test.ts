@@ -10,8 +10,13 @@ vi.mock("./client.js", () => ({
   callTelegramApi: vi.fn(),
 }));
 
-vi.mock("./approval-callback-poll.js", () => ({
-  startApprovalCallbackPoll: vi.fn(() => () => {}),
+vi.mock("./callback-poll.js", () => ({
+  startCallbackPoll: vi.fn(() => () => {}),
+}));
+
+const mockOwnerQueueGet = vi.fn();
+vi.mock("#core/daemon/owner-question-queue.js", () => ({
+  getOwnerQuestionQueue: () => ({ get: mockOwnerQueueGet }),
 }));
 
 const mockedCallTelegramApi = vi.mocked(callTelegramApi);
@@ -125,6 +130,8 @@ describe("telegramModule notifications via onLoad", () => {
   beforeEach(() => {
     mockedCallTelegramApi.mockReset();
     mockedCallTelegramApi.mockResolvedValue({ ok: true, result: {} } as never);
+    mockOwnerQueueGet.mockReset();
+    mockOwnerQueueGet.mockReturnValue(null);
     process.env.TELEGRAM_BOT_TOKEN = FAKE_TOKEN;
     process.env.TELEGRAM_ALERT_CHAT_ID = FAKE_CHAT_ID;
   });
@@ -204,7 +211,7 @@ describe("telegramModule notifications via onLoad", () => {
     );
   });
 
-  it("sends Telegram message on owner.question.asked with CLI commands", async () => {
+  it("sends Telegram message on owner.question.asked with CLI commands and Dismiss button", async () => {
     const bus = new EventBus();
     telegramModule.onLoad!(makeStubCtx(bus));
     bus.emit("owner.question.asked", {
@@ -215,13 +222,54 @@ describe("telegramModule notifications via onLoad", () => {
     });
     await Promise.resolve();
     expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
-    const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
+    const body = mockedCallTelegramApi.mock.calls[0][2] as {
+      text: string;
+      reply_markup?: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
     expect(body.text).toContain("Owner question");
     expect(body.text).toContain("builder");
     expect(body.text).toContain("Split this migration into two phases?");
     expect(body.text).toContain("Risky one-shot migration");
     expect(body.text).toContain("kota owner-question answer oq-xyz");
     expect(body.text).toContain("kota owner-question dismiss oq-xyz");
+    const keyboard = body.reply_markup?.inline_keyboard ?? [];
+    expect(keyboard).toEqual([
+      [{ text: "Dismiss", callback_data: "dismiss:oq-xyz" }],
+    ]);
+  });
+
+  it("sends owner.question.asked with per-answer buttons when proposedAnswers is set", async () => {
+    mockOwnerQueueGet.mockReturnValue({
+      id: "oq-abc",
+      question: "Pick cluster region",
+      reason: "multiregion rollout",
+      source: "builder",
+      status: "pending",
+      proposedAnswers: ["us-east-1", "us-west-2", "eu-central-1"],
+    });
+
+    const bus = new EventBus();
+    telegramModule.onLoad!(makeStubCtx(bus));
+    bus.emit("owner.question.asked", {
+      id: "oq-abc",
+      question: "Pick cluster region",
+      reason: "multiregion rollout",
+      source: "builder",
+    });
+    await Promise.resolve();
+    const body = mockedCallTelegramApi.mock.calls[0][2] as {
+      reply_markup?: { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+    };
+    expect(mockOwnerQueueGet).toHaveBeenCalledWith("oq-abc");
+    const keyboard = body.reply_markup?.inline_keyboard ?? [];
+    expect(keyboard).toEqual([
+      [
+        { text: "us-east-1", callback_data: "answer:oq-abc:0" },
+        { text: "us-west-2", callback_data: "answer:oq-abc:1" },
+      ],
+      [{ text: "eu-central-1", callback_data: "answer:oq-abc:2" }],
+      [{ text: "Dismiss", callback_data: "dismiss:oq-abc" }],
+    ]);
   });
 
   it("sends Telegram message with inline keyboard on approval.requested", async () => {
@@ -321,9 +369,9 @@ describe("telegramModule notifications via onLoad", () => {
     expect(mockedCallTelegramApi).not.toHaveBeenCalled();
   });
 
-  it("starts approval callback poll on load when credentials are present", async () => {
-    const { startApprovalCallbackPoll } = await import("./approval-callback-poll.js");
-    const mockStart = vi.mocked(startApprovalCallbackPoll);
+  it("starts unified callback poll on load when credentials are present", async () => {
+    const { startCallbackPoll } = await import("./callback-poll.js");
+    const mockStart = vi.mocked(startCallbackPoll);
     mockStart.mockClear();
 
     const bus = new EventBus();
@@ -333,14 +381,15 @@ describe("telegramModule notifications via onLoad", () => {
     expect(mockStart).toHaveBeenCalledWith(
       FAKE_TOKEN,
       expect.any(Map),
+      expect.any(Map),
       expect.any(Object),
     );
   });
 
-  it("does not start approval callback poll when credentials are missing", async () => {
+  it("does not start callback poll when credentials are missing", async () => {
     delete process.env.TELEGRAM_BOT_TOKEN;
-    const { startApprovalCallbackPoll } = await import("./approval-callback-poll.js");
-    const mockStart = vi.mocked(startApprovalCallbackPoll);
+    const { startCallbackPoll } = await import("./callback-poll.js");
+    const mockStart = vi.mocked(startCallbackPoll);
     mockStart.mockClear();
 
     const bus = new EventBus();

@@ -1,12 +1,12 @@
 ---
 id: task-add-telegram-inline-buttons-for-owner-questions
 title: Add Telegram inline answer/dismiss buttons for owner questions
-status: backlog
+status: done
 priority: p2
 area: modules
 summary: Owner questions surface in Telegram today as text messages with CLI-command hints. Mirror the inline approve/reject buttons used for approvals so the owner can answer or dismiss a question with one tap from the chat.
 created_at: 2026-04-16T08:37:29.917Z
-updated_at: 2026-04-16T08:37:29.917Z
+updated_at: 2026-04-16T09:54:55.426Z
 ---
 
 ## Problem
