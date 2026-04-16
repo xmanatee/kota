@@ -1,5 +1,8 @@
+import { join } from "node:path";
+import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
+import type { WorkflowRunSummary } from "./run-summary.js";
 import { computeCostByWorkflow, type RunSummary, summarizeRun } from "./shared.js";
 
 type WorkflowFailureRate = {
@@ -28,6 +31,7 @@ type DurationOutlier = {
   workflow: string;
   durationMs: number;
   medianMs: number;
+  commitSubject?: string;
 };
 
 export type RunOutcomeAggregation = {
@@ -152,6 +156,24 @@ export function findDurationOutliers(runs: WorkflowRunMetadata[]): DurationOutli
   return outliers.sort((a, b) => b.durationMs - a.durationMs);
 }
 
+function readCommitSubject(runsDir: string, runId: string): string | undefined {
+  const summary = readOptionalJsonFile<WorkflowRunSummary>(
+    join(runsDir, runId, "run-summary.json"),
+  );
+  const message = summary?.commitMessage?.split("\n")[0].trim();
+  return message ? message : undefined;
+}
+
+function enrichOutliersWithSubjects(
+  outliers: DurationOutlier[],
+  runsDir: string,
+): DurationOutlier[] {
+  return outliers.map((outlier) => {
+    const commitSubject = readCommitSubject(runsDir, outlier.runId);
+    return commitSubject ? { ...outlier, commitSubject } : outlier;
+  });
+}
+
 export function aggregateRunOutcomes(runsDir: string): RunOutcomeAggregation {
   const now = Date.now();
   const cutoff24h = now - 24 * 60 * 60 * 1000;
@@ -176,6 +198,9 @@ export function aggregateRunOutcomes(runsDir: string): RunOutcomeAggregation {
     topRepairFailures24h: tallyRepairFailures(all24h).slice(0, 10),
     topRepairFailures7d: tallyRepairFailures(all7d).slice(0, 10),
     costTrends: computeCostTrends(summaries7d, previousSummaries),
-    durationOutliers: findDurationOutliers(all7d).slice(0, 10),
+    durationOutliers: enrichOutliersWithSubjects(
+      findDurationOutliers(all7d).slice(0, 10),
+      runsDir,
+    ),
   };
 }

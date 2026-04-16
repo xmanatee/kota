@@ -1,10 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type {
   WorkflowRunMetadata,
   WorkflowStepResult,
   WorkflowStepStatus,
 } from "#core/workflow/run-types.js";
-import { findDurationOutliers, tallyRepairFailures } from "./run-outcome-aggregation.js";
+import {
+  aggregateRunOutcomes,
+  findDurationOutliers,
+  tallyRepairFailures,
+} from "./run-outcome-aggregation.js";
 
 type Iter = { attempt: number; failures: Array<{ id: string }> };
 
@@ -236,5 +243,106 @@ describe("findDurationOutliers", () => {
     ];
     const outliers = findDurationOutliers(runs);
     expect(outliers).toEqual([]);
+  });
+});
+
+describe("aggregateRunOutcomes duration outlier enrichment", () => {
+  let runsDir: string;
+
+  beforeEach(() => {
+    runsDir = mkdtempSync(join(tmpdir(), "kota-aggregation-"));
+  });
+
+  afterEach(() => {
+    rmSync(runsDir, { recursive: true, force: true });
+  });
+
+  function writeRun(
+    id: string,
+    workflow: string,
+    durationMs: number,
+    agentDurationMs: number,
+    commitSubject?: string,
+  ): void {
+    const runDir = join(runsDir, id);
+    mkdirSync(runDir, { recursive: true });
+    const metadata: WorkflowRunMetadata = {
+      id,
+      workflow,
+      definitionPath: `src/modules/autonomy/workflows/${workflow}/workflow.ts`,
+      trigger: { event: "runtime.idle", payload: {} },
+      startedAt: new Date(Date.now() - 60_000).toISOString(),
+      status: "success",
+      durationMs,
+      runDir: id,
+      steps: [
+        {
+          id: "gate",
+          type: "code",
+          status: "success",
+          startedAt: "2026-04-16T00:00:00.000Z",
+          completedAt: "2026-04-16T00:00:00.050Z",
+          durationMs: 50,
+        },
+        {
+          id: "agent-step",
+          type: "agent",
+          status: "success",
+          startedAt: "2026-04-16T00:00:00.050Z",
+          completedAt: "2026-04-16T00:00:00.050Z",
+          durationMs: agentDurationMs,
+        },
+      ],
+    };
+    writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata));
+    if (commitSubject) {
+      writeFileSync(
+        join(runDir, "run-summary.json"),
+        JSON.stringify({
+          runId: id,
+          workflow,
+          taskId: null,
+          taskTitle: null,
+          outcome: "success",
+          commitSha: "abc123",
+          commitMessage: `${commitSubject}\n\nExtended body.`,
+          filesChanged: [],
+          costUsd: 1,
+          durationMs,
+          completedAt: new Date().toISOString(),
+        }),
+      );
+    }
+  }
+
+  it("includes commit subject from run-summary.json in duration outliers", () => {
+    writeRun("baseline-1", "improver", 500_000, 499_000);
+    writeRun("baseline-2", "improver", 600_000, 599_000);
+    writeRun("baseline-3", "improver", 700_000, 699_000);
+    writeRun(
+      "outlier-1",
+      "improver",
+      2_500_000,
+      2_499_000,
+      "Exclude failed runs from duration-outlier signal",
+    );
+
+    const result = aggregateRunOutcomes(runsDir);
+    expect(result.durationOutliers).toHaveLength(1);
+    expect(result.durationOutliers[0]).toMatchObject({
+      runId: "outlier-1",
+      commitSubject: "Exclude failed runs from duration-outlier signal",
+    });
+  });
+
+  it("omits commitSubject when the run has no run-summary.json", () => {
+    writeRun("baseline-1", "improver", 500_000, 499_000);
+    writeRun("baseline-2", "improver", 600_000, 599_000);
+    writeRun("baseline-3", "improver", 700_000, 699_000);
+    writeRun("outlier-1", "improver", 2_500_000, 2_499_000);
+
+    const result = aggregateRunOutcomes(runsDir);
+    expect(result.durationOutliers).toHaveLength(1);
+    expect(result.durationOutliers[0].commitSubject).toBeUndefined();
   });
 });
