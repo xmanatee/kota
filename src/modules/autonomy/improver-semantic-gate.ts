@@ -1,19 +1,16 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import {
+  type AgentJudgeConfig,
   getChangedFiles,
   getStagedDiff,
   getStagedDiffContent,
   handleVerdict,
+  invokeAgentJudge,
   parseVerdict,
 } from "./critic.js";
-import { AUTONOMY_DISALLOWED_TOOLS, sleep } from "./shared.js";
 
-const GATE_MODEL = "claude-opus-4-6";
-const GATE_MAX_RETRIES = 3;
-const GATE_RETRY_BASE_DELAY_MS = 2_000;
 const GATE_MAX_TURNS = 15;
 const ARTIFACT_NAME = "semantic-gate-review.json";
 
@@ -50,55 +47,12 @@ Respond with ONLY a JSON object (no markdown fences) matching this schema:
   "summary": "string — one sentence overall assessment"
 }`;
 
-async function invokeGate(
-  userMessage: string,
-  cwd: string,
-): Promise<{ text: string; isError: boolean; subtype?: string }> {
-  let lastError: Error | undefined;
-  for (let attempt = 0; attempt < GATE_MAX_RETRIES; attempt++) {
-    if (attempt > 0) {
-      await sleep(GATE_RETRY_BASE_DELAY_MS * attempt);
-    }
-
-    let response: { text: string; isError: boolean; subtype?: string };
-    try {
-      response = await executeWithAgentSDK(userMessage, {
-        model: GATE_MODEL,
-        cwd,
-        systemPrompt: GATE_SYSTEM_PROMPT,
-        maxTurns: GATE_MAX_TURNS,
-        effort: "max",
-        disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-        permissionMode: "bypassPermissions",
-        settingSources: ["project"],
-      }, {
-        write: () => true,
-      });
-    } catch (thrown) {
-      lastError = new Error(
-        `Semantic gate threw (attempt ${attempt + 1}/${GATE_MAX_RETRIES}): ${thrown instanceof Error ? thrown.message : String(thrown)}`,
-      );
-      continue;
-    }
-
-    if (!response.isError) return response;
-
-    let failureDetail = response.text.trim() || response.subtype || "unknown error";
-    if (response.text.trim()) {
-      try {
-        parseVerdict(response.text);
-        return response;
-      } catch (error) {
-        failureDetail = error instanceof Error ? error.message : String(error);
-      }
-    }
-
-    lastError = new Error(
-      `Semantic gate failed (attempt ${attempt + 1}/${GATE_MAX_RETRIES}): ${failureDetail}`,
-    );
-  }
-  throw lastError!;
-}
+const gateConfig: AgentJudgeConfig = {
+  label: "Semantic gate",
+  systemPrompt: GATE_SYSTEM_PROMPT,
+  model: "claude-opus-4-6",
+  maxTurns: GATE_MAX_TURNS,
+};
 
 function readCommitMessage(runDirPath: string): string {
   try {
@@ -151,7 +105,7 @@ export function createImproverSemanticCheck(options?: {
         `${runDir}/steps/*.events.jsonl`,
       ].join("\n");
 
-      const response = await invokeGate(userMessage, ctx.projectDir);
+      const response = await invokeAgentJudge(userMessage, ctx.projectDir, gateConfig);
       if (response.isError) {
         const recovered = parseVerdict(response.text);
         return handleVerdict(recovered, runDir, ARTIFACT_NAME);

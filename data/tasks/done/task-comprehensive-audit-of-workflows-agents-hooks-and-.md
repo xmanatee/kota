@@ -1,12 +1,12 @@
 ---
 id: task-comprehensive-audit-of-workflows-agents-hooks-and-
 title: Comprehensive audit of workflows, agents, hooks, and triggers
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Review all autonomy surfaces for correctness, consistency, completeness, and appropriate guardrailing scope
 created_at: 2026-04-15T21:22:34.853Z
-updated_at: 2026-04-15T21:22:34.853Z
+updated_at: 2026-04-16T00:24:06.558Z
 ---
 
 ## Problem

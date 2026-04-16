@@ -2,18 +2,17 @@ import { spawnSync } from "node:child_process";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { createImproverSemanticCheck } from "#modules/autonomy/improver-semantic-gate.js";
 import { recallForImprover } from "#modules/autonomy/knowledge-recall.js";
+import { aggregateRunOutcomes } from "#modules/autonomy/run-outcome-aggregation.js";
 import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
 import { writeRunSummary } from "#modules/autonomy/run-summary.js";
-import { AUTONOMY_DISALLOWED_TOOLS, aggregateRunOutcomes, checkCommitMessageExists, checkNoScratchArtifacts, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
+import { AUTONOMY_DISALLOWED_TOOLS, checkCommitMessageExists, checkNoScratchArtifacts, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
 
-/** Minimum interval between improver runs triggered by the same event type. */
-export const IMPROVER_COOLDOWN_MS = 60 * 60 * 1000; // 60 minutes
+export const IMPROVER_COOLDOWN_MS = 60 * 60 * 1000;
 
 function stashTrackedChanges(projectDir: string): { stashed: boolean; summary: string } {
   const status = getRepoWorktreeStatus(projectDir);
@@ -101,41 +100,41 @@ const improverWorkflow: WorkflowDefinitionInput = {
           {
             id: "build-output",
             type: "code" as const,
-            run: (ctx: WorkflowStepContext) => runCheck("pnpm build", ctx.projectDir),
+            run: (ctx) => runCheck("pnpm build", ctx.projectDir),
           },
           {
             id: "task-queue-valid",
             type: "code" as const,
             phase: 1,
-            run: (ctx: WorkflowStepContext) => runCheck("pnpm run validate-tasks", ctx.projectDir),
+            run: (ctx) => runCheck("pnpm run validate-tasks", ctx.projectDir),
           },
           {
             id: "typecheck",
             type: "code" as const,
             phase: 1,
-            run: (ctx: WorkflowStepContext) => runCheck("pnpm run typecheck", ctx.projectDir),
+            run: (ctx) => runCheck("pnpm run typecheck", ctx.projectDir),
           },
           {
             id: "lint",
             type: "code" as const,
             phase: 1,
-            run: (ctx: WorkflowStepContext) => runCheck("pnpm run lint:fix && git add -u && pnpm run lint", ctx.projectDir),
+            run: (ctx) => runCheck("pnpm run lint:fix && git add -u && pnpm run lint", ctx.projectDir),
           },
           {
             id: "test",
             type: "code" as const,
             phase: 1,
-            run: (ctx: WorkflowStepContext) => runCheck("pnpm test", ctx.projectDir, 300_000),
+            run: (ctx) => runCheck("pnpm test", ctx.projectDir, 300_000),
           },
           {
             id: "no-scratch-artifacts",
             type: "code" as const,
-            run: (ctx: WorkflowStepContext) => checkNoScratchArtifacts(ctx.projectDir),
+            run: (ctx) => checkNoScratchArtifacts(ctx.projectDir),
           },
           {
             id: "commit-message-exists",
             type: "code" as const,
-            run: (ctx: WorkflowStepContext) => checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
+            run: (ctx) => checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
           },
           { ...createImproverSemanticCheck(), phase: 2 },
         ],
@@ -145,7 +144,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
       id: "commit",
       type: "code",
       when: stepSucceeded("improve"),
-      run: ({ projectDir, workflow }: WorkflowStepContext) =>
+      run: ({ projectDir, workflow }) =>
         commitWorkflowChanges(projectDir, workflow.runDirPath),
     },
     typedCodeStep<WorkflowRunSummary>({

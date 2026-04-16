@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import type { WorkflowRunMetadata, WorkflowStepContext } from "#core/workflow/run-types.js";
+import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
@@ -166,18 +166,18 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
           {
             id: "task-queue-valid",
             type: "code" as const,
-            run: (ctx: WorkflowStepContext) =>
+            run: (ctx) =>
               runCheck("pnpm run validate-tasks", ctx.projectDir),
           },
           {
             id: "no-scratch-artifacts",
             type: "code" as const,
-            run: (ctx: WorkflowStepContext) => checkNoScratchArtifacts(ctx.projectDir),
+            run: (ctx) => checkNoScratchArtifacts(ctx.projectDir),
           },
           {
             id: "commit-message-exists",
             type: "code" as const,
-            run: (ctx: WorkflowStepContext) => checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
+            run: (ctx) => checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
           },
         ],
       },
@@ -186,7 +186,7 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       id: "commit",
       type: "code",
       when: stepSucceeded("decompose"),
-      run: ({ projectDir, workflow }: WorkflowStepContext) =>
+      run: ({ projectDir, workflow }) =>
         commitWorkflowChanges(projectDir, workflow.runDirPath),
     },
     {

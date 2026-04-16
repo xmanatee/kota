@@ -25,12 +25,6 @@ function git(projectDir: string, args: string): string {
   }).trim();
 }
 
-/**
- * Write a run-summary.json to the run directory with commit, cost, and
- * duration information. The optional `findTask` callback allows workflows
- * that own tasks (e.g. builder) to identify the primary task from changed
- * files.
- */
 export function writeRunSummary(
   ctx: WorkflowStepContext,
   agentStepId: string,

@@ -1,8 +1,3 @@
-/**
- * Critic repair check: reviews agent work against the original task, catching
- * completeness gaps and inconsistencies that mechanical checks miss.
- */
-
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -164,34 +159,41 @@ export function handleVerdict(verdict: CriticVerdict, runDir?: string, artifactN
   return parts.join(". ");
 }
 
-/**
- * Creates a critic repair check for agent work. Intended to be the last check
- * in a repair loop so it runs after all mechanical validations have passed.
- *
- * @param options.runDirPath - Path to the run directory for writing artifacts.
- *   If not provided, warnings are not persisted.
- */
-const CRITIC_MAX_RETRIES = 3;
-const CRITIC_RETRY_BASE_DELAY_MS = 2_000;
 const CRITIC_MAX_TURNS = 20;
 
-async function invokeCritic(
+export type AgentJudgeConfig = {
+  label: string;
+  systemPrompt: string;
+  model: string;
+  maxTurns: number;
+  maxRetries?: number;
+  retryBaseDelayMs?: number;
+};
+
+const DEFAULT_MAX_RETRIES = 3;
+const DEFAULT_RETRY_BASE_DELAY_MS = 2_000;
+
+export async function invokeAgentJudge(
   userMessage: string,
   cwd: string,
+  config: AgentJudgeConfig,
 ): Promise<{ text: string; isError: boolean; subtype?: string }> {
+  const maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
+  const retryBaseDelayMs = config.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS;
   let lastError: Error | undefined;
-  for (let attempt = 0; attempt < CRITIC_MAX_RETRIES; attempt++) {
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
     if (attempt > 0) {
-      await sleep(CRITIC_RETRY_BASE_DELAY_MS * attempt);
+      await sleep(retryBaseDelayMs * attempt);
     }
 
     let response: { text: string; isError: boolean; subtype?: string };
     try {
       response = await executeWithAgentSDK(userMessage, {
-        model: CRITIC_MODEL,
+        model: config.model,
         cwd,
-        systemPrompt: CRITIC_SYSTEM_PROMPT,
-        maxTurns: CRITIC_MAX_TURNS,
+        systemPrompt: config.systemPrompt,
+        maxTurns: config.maxTurns,
         effort: "max",
         disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
         permissionMode: "bypassPermissions",
@@ -201,7 +203,7 @@ async function invokeCritic(
       });
     } catch (thrown) {
       lastError = new Error(
-        `Critic agent threw (attempt ${attempt + 1}/${CRITIC_MAX_RETRIES}): ${thrown instanceof Error ? thrown.message : String(thrown)}`,
+        `${config.label} threw (attempt ${attempt + 1}/${maxRetries}): ${thrown instanceof Error ? thrown.message : String(thrown)}`,
       );
       continue;
     }
@@ -219,11 +221,18 @@ async function invokeCritic(
     }
 
     lastError = new Error(
-      `Critic agent failed (attempt ${attempt + 1}/${CRITIC_MAX_RETRIES}): ${failureDetail}`,
+      `${config.label} failed (attempt ${attempt + 1}/${maxRetries}): ${failureDetail}`,
     );
   }
   throw lastError!;
 }
+
+const criticConfig: AgentJudgeConfig = {
+  label: "Critic agent",
+  systemPrompt: CRITIC_SYSTEM_PROMPT,
+  model: CRITIC_MODEL,
+  maxTurns: CRITIC_MAX_TURNS,
+};
 
 export function createCriticCheck(options?: {
   runDirPath?: string;
@@ -273,7 +282,7 @@ export function createCriticCheck(options?: {
         diffContent,
       ].join("\n");
 
-      const response = await invokeCritic(userMessage, ctx.projectDir);
+      const response = await invokeAgentJudge(userMessage, ctx.projectDir, criticConfig);
       if (response.isError) {
         const recovered = parseVerdict(response.text);
         return handleVerdict(recovered, runDir);
