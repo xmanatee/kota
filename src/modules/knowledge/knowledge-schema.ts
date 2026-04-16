@@ -48,6 +48,17 @@ export const knowledgeTool: Anthropic.Tool = {
 				type: "string",
 				description: "Search terms (for search action)",
 			},
+			semantic: {
+				type: "boolean",
+				description:
+					"When true, use embedding-backed semantic ranking instead of keyword matching (for search). " +
+					"Falls back to keyword search if semantic search is not configured or fails.",
+			},
+			topK: {
+				type: "integer",
+				description:
+					"Maximum number of results to return (for search). Default: 20.",
+			},
 			scope: {
 				type: "string",
 				enum: ["project", "global", "all"],

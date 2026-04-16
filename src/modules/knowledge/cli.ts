@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import type { Command } from "commander";
 import { getKnowledgeStore } from "#core/memory/knowledge-store.js";
+import { getKnowledgeProvider } from "#core/modules/provider-registry.js";
 
 type RawImportEntry = { title?: unknown; body?: unknown; tags?: unknown };
 
@@ -198,6 +199,28 @@ export function registerKnowledgeCommands(program: Command): void {
 					console.log(JSON.stringify(entry));
 				}
 			}
+		});
+
+	kCmd
+		.command("reindex")
+		.description(
+			"Rebuild the semantic search index for all knowledge entries. " +
+				"No-op when no embedding provider is configured.",
+		)
+		.action(async () => {
+			const provider = getKnowledgeProvider(process.cwd());
+			const result = await provider.reindex();
+			if (result.skipped) {
+				console.log(
+					"Semantic search not configured — nothing to reindex. " +
+						"Set `providers.knowledge` to an embedding-capable provider to enable.",
+				);
+				return;
+			}
+			console.log(
+				`Reindexed ${result.indexed} entries (${result.failed} failed).`,
+			);
+			if (result.failed > 0) process.exit(1);
 		});
 
 	kCmd

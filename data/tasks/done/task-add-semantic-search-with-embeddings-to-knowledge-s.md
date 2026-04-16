@@ -1,12 +1,12 @@
 ---
 id: task-add-semantic-search-with-embeddings-to-knowledge-s
 title: Add semantic search with embeddings to knowledge store
-status: backlog
+status: done
 priority: p2
 area: stores
 summary: The knowledge store uses file-based YAML entries with keyword search. As the store grows, keyword matching becomes insufficient for finding relevant entries. Add embedding-based semantic search so agents can find knowledge entries by meaning rather than exact terms.
 created_at: 2026-04-15T02:51:59.040Z
-updated_at: 2026-04-15T02:51:59.040Z
+updated_at: 2026-04-16T04:16:45.633Z
 ---
 
 ## Problem

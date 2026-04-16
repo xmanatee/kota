@@ -1814,6 +1814,8 @@ describe("memory and knowledge resources", () => {
 			delete: vi.fn(),
 			search: vi.fn(),
 			count: vi.fn(),
+			semanticSearch: vi.fn(),
+			reindex: vi.fn(),
 		});
 
 		const { input, output } = createTestStreams();
@@ -1849,6 +1851,8 @@ describe("memory and knowledge resources", () => {
 			delete: vi.fn(),
 			search: vi.fn(),
 			count: vi.fn(),
+			semanticSearch: vi.fn(),
+			reindex: vi.fn(),
 		});
 
 		const { input, output } = createTestStreams();

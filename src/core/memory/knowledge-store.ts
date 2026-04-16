@@ -35,6 +35,12 @@ import {
 export type { KnowledgeEntry, SearchFilters };
 export { parseFrontMatter, serializeFrontMatter, toSlug };
 
+export type ReindexResult = {
+	indexed: number;
+	failed: number;
+	skipped?: boolean;
+};
+
 export class KnowledgeStore {
 	private projectDir: string | null;
 	private globalDir: string;
@@ -44,6 +50,24 @@ export class KnowledgeStore {
 			? join(projectDir, ".kota", "data")
 			: null;
 		this.globalDir = globalDir || join(homedir(), ".kota", "data");
+	}
+
+	/** Return the absolute directory path where the entry is stored, or null. */
+	entryDir(id: string): string | null {
+		for (const dir of this.allDirs()) {
+			if (findFileByIdInDir(dir, id)) return dir;
+		}
+		return null;
+	}
+
+	/** Get the project storage directory, or null if none was configured. */
+	getProjectDir(): string | null {
+		return this.projectDir;
+	}
+
+	/** Get the global storage directory. */
+	getGlobalDir(): string {
+		return this.globalDir;
 	}
 
 	private ensureDir(dir: string): void {
@@ -220,6 +244,23 @@ export class KnowledgeStore {
 		if (!type) return entries.length;
 		const t = type.toLowerCase();
 		return entries.filter((e) => e.type.toLowerCase() === t).length;
+	}
+
+	/**
+	 * Default (keyword-based) semantic search. Providers with real embedding
+	 * support override this method to rank by cosine similarity.
+	 */
+	async semanticSearch(
+		query: string,
+		topK: number,
+		filters?: SearchFilters,
+	): Promise<KnowledgeEntry[]> {
+		return this.search(query, filters).slice(0, Math.max(0, topK));
+	}
+
+	/** No-op reindex for the default keyword-only store. */
+	async reindex(): Promise<ReindexResult> {
+		return { indexed: 0, failed: 0, skipped: true };
 	}
 }
 

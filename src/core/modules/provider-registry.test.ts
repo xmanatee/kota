@@ -158,6 +158,8 @@ describe("interface conformance", () => {
 		expect(typeof provider.search).toBe("function");
 		expect(typeof provider.list).toBe("function");
 		expect(typeof provider.count).toBe("function");
+		expect(typeof provider.semanticSearch).toBe("function");
+		expect(typeof provider.reindex).toBe("function");
 	});
 
 	it("TaskProvider interface matches TaskStore shape", async () => {
@@ -237,6 +239,8 @@ describe("convenience getters", () => {
 			search: () => [],
 			list: () => [],
 			count: () => 42,
+			semanticSearch: async () => [],
+			reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
 		};
 		reg.register("knowledge", "custom", custom);
 		reg.setActive("knowledge", "custom");

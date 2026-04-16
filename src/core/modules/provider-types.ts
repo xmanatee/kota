@@ -16,6 +16,14 @@ export interface MemoryProvider {
 	delete(id: string): boolean;
 }
 
+/** Result of rebuilding the semantic search index. */
+export type ReindexResult = {
+	indexed: number;
+	failed: number;
+	/** Skipped — semantic search not supported by this provider. */
+	skipped?: boolean;
+};
+
 /** Interface for structured knowledge storage (CRUD + search over entries). */
 export interface KnowledgeProvider {
 	create(opts: {
@@ -43,6 +51,20 @@ export interface KnowledgeProvider {
 	search(query: string, filters?: SearchFilters): KnowledgeEntry[];
 	list(filters?: SearchFilters): KnowledgeEntry[];
 	count(type?: string): number;
+	/**
+	 * Rank entries by semantic similarity to a natural-language query.
+	 * Providers without embedding support fall back to keyword search.
+	 */
+	semanticSearch(
+		query: string,
+		topK: number,
+		filters?: SearchFilters,
+	): Promise<KnowledgeEntry[]>;
+	/**
+	 * Rebuild the semantic index over all entries. Providers without embedding
+	 * support return `{ indexed: 0, failed: 0, skipped: true }`.
+	 */
+	reindex(): Promise<ReindexResult>;
 }
 
 /** Interface for persistent task storage (add/update/list/get/clear). */

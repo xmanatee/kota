@@ -168,19 +168,26 @@ export async function runKnowledge(
 					is_error: true,
 				};
 			}
-			const results = store.search(query, {
+			const filters = {
 				type: input.type as string | undefined,
 				tag: input.tag as string | undefined,
 				status: input.status as string | undefined,
 				since: input.since as string | undefined,
 				scope: input.scope as "project" | "global" | "all" | undefined,
-			});
+			};
+			const topKInput =
+				typeof input.topK === "number" && input.topK > 0 ? input.topK : 20;
+			const semantic = input.semantic === true;
+			const results = semantic
+				? await store.semanticSearch(query, topKInput, filters)
+				: store.search(query, filters);
 			if (results.length === 0) {
 				return { content: "No matching entries found." };
 			}
-			const lines = results.slice(0, 20).map(formatEntry);
+			const lines = results.slice(0, topKInput).map(formatEntry);
+			const label = semantic ? "semantic" : "keyword";
 			return {
-				content: `${results.length} result(s):\n${lines.join("\n")}`,
+				content: `${results.length} ${label} result(s):\n${lines.join("\n")}`,
 			};
 		}
 
