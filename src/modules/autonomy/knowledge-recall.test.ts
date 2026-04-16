@@ -15,13 +15,14 @@ describe("knowledge-recall", () => {
     );
     mkdirSync(join(projectDir, "data", "tasks", "doing"), { recursive: true });
     mkdirSync(join(projectDir, "data", "tasks", "ready"), { recursive: true });
+    mkdirSync(join(projectDir, "data", "tasks", "backlog"), { recursive: true });
   });
 
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  function seedTask(state: "doing" | "ready", id: string, attrs: Record<string, string>): void {
+  function seedTask(state: "doing" | "ready" | "backlog", id: string, attrs: Record<string, string>): void {
     const lines = ["---"];
     for (const [k, v] of Object.entries(attrs)) {
       lines.push(`${k}: ${v}`);
@@ -76,6 +77,39 @@ describe("knowledge-recall", () => {
       expect(result.query).toContain("Add notification module");
       expect(result.query).toContain("webhook notifications");
       expect(result.entries.some((e) => e.id === entryId)).toBe(true);
+    });
+
+    it("falls back to backlog tasks when doing and ready are empty", () => {
+      seedTask("backlog", "task-add-embeddings", {
+        title: "Add semantic search with embeddings",
+        area: "knowledge",
+        summary: "Integrate vector embeddings into the knowledge store",
+      });
+      const entryId = seedKnowledge(
+        "Knowledge store architecture",
+        "Knowledge store uses flat files with frontmatter. Search is keyword-based.",
+        ["area:knowledge"],
+      );
+
+      const result = recallForBuilder(projectDir);
+      expect(result.query).toContain("Add semantic search with embeddings");
+      expect(result.query).toContain("knowledge");
+      expect(result.entries.some((e) => e.id === entryId)).toBe(true);
+    });
+
+    it("ignores backlog when doing tasks exist", () => {
+      seedTask("doing", "task-current", {
+        title: "Current work item",
+        area: "core",
+      });
+      seedTask("backlog", "task-future", {
+        title: "Future backlog item",
+        area: "modules",
+      });
+
+      const result = recallForBuilder(projectDir);
+      expect(result.query).toContain("Current work item");
+      expect(result.query).not.toContain("Future backlog item");
     });
 
     it("returns empty entries when store has no matches", () => {

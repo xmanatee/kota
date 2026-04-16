@@ -31,22 +31,29 @@ function formatResult(query: string, entries: KnowledgeEntry[]): KnowledgeRecall
   };
 }
 
+function extractTaskTerms(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  const terms: string[] = [];
+  const files = readdirSync(dir).filter((f) => f.endsWith(".md") && f !== "AGENTS.md");
+  for (const file of files) {
+    const raw = readFileSync(join(dir, file), "utf-8");
+    const { attrs } = parseFlatFrontMatter(raw);
+    if (typeof attrs.title === "string") terms.push(attrs.title);
+    if (typeof attrs.area === "string") terms.push(attrs.area);
+    if (typeof attrs.summary === "string") terms.push(attrs.summary);
+  }
+  return terms;
+}
+
 function buildBuilderSearchQuery(projectDir: string): string {
   const terms: string[] = [];
   for (const state of ["doing", "ready"] as const) {
-    const dir = join(projectDir, "data", "tasks", state);
-    if (!existsSync(dir)) continue;
-    const files = readdirSync(dir).filter((f) => f.endsWith(".md") && f !== "AGENTS.md");
-    for (const file of files) {
-      const raw = readFileSync(join(dir, file), "utf-8");
-      const { attrs } = parseFlatFrontMatter(raw);
-      const title = attrs.title;
-      const area = attrs.area;
-      const summary = attrs.summary;
-      if (typeof title === "string") terms.push(title);
-      if (typeof area === "string") terms.push(area);
-      if (typeof summary === "string") terms.push(summary);
-    }
+    terms.push(...extractTaskTerms(join(projectDir, "data", "tasks", state)));
+  }
+  // When doing/ready are empty the builder promotes from backlog.
+  // Include backlog terms so the recall covers the upcoming task.
+  if (terms.length === 0) {
+    terms.push(...extractTaskTerms(join(projectDir, "data", "tasks", "backlog")));
   }
   return terms.join(" ");
 }
