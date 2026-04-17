@@ -4,12 +4,44 @@ Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files i
 
 ## Watchlist
 
-`data/watchlist.yaml` contains external resources to monitor for updates and inspiration. During each run:
+`data/watchlist.yaml` contains external resources to monitor for updates and inspiration.
 
-- Read the watchlist and check entries for meaningful updates or new ideas.
-- If a URL is inaccessible, add `status: inaccessible` to that entry instead of removing it.
-- If you discover a valuable new resource, add it to the watchlist with `url` and `added` fields.
-- Do not let watchlist checks dominate the run — they supplement open-ended discovery.
+The `inspect-watchlist` step exposes each entry's current state (`never-seen`,
+`seen` with prior fingerprint+summary, or `inaccessible`). Use that to decide
+where to spend attention:
+
+- Prioritize `never-seen` entries and `seen` entries whose content has likely
+  changed since `last_seen_at`.
+- Do not re-analyze `seen` entries when you have no reason to believe they
+  changed.
+
+When you fetch an entry, record the result so the watchlist snapshot updates.
+Write a JSON file at `<run-directory>/watchlist-updates.json`:
+
+```json
+{
+  "updates": [
+    {
+      "url": "https://github.com/example/repo",
+      "accessible": true,
+      "content": "Plain-text or extracted-markdown view of what you observed. The classifier normalizes whitespace and strips date churn before hashing — you do not need to strip them yourself.",
+      "summary": "One-sentence description of what this resource currently is or has become."
+    },
+    {
+      "url": "https://broken.example.com",
+      "accessible": false
+    }
+  ]
+}
+```
+
+- `accessible: true` must include both `content` (for fingerprinting) and `summary` (for the operator).
+- `accessible: false` replaces the snapshot with `status: inaccessible`.
+- Only include URLs that already exist in the watchlist. To add a new resource,
+  edit `data/watchlist.yaml` directly with `url` and `added` fields — the
+  snapshot will populate on the next run.
+- Watchlist checks supplement open-ended discovery; do not let them dominate
+  the run.
 
 ## Scope
 

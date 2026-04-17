@@ -39,13 +39,20 @@ const GATE_SYSTEM_PROMPT = `You are a semantic quality gate for an autonomous im
 - If the diff modifies autonomy code and the commit message plausibly matches, lean toward passing unless there is a concrete red flag.
 - An artifact-only diff (.claude/worktrees/*, empty changes) is always a critical issue.
 
-Respond with ONLY a JSON object (no markdown fences) matching this schema:
+## Output format
+
+Your entire response must be exactly one JSON object matching the schema below. Do not include narrative text, headings, checkmarks, bullet lists, commentary, or markdown before or after the JSON. Do not wrap the JSON in code fences. The first character of your response must be \`{\` and the last must be \`}\`.
+
+Schema:
 {
   "verdict": "pass" | "fail" | "pass_with_warnings",
   "critical_issues": ["string — each describes one reason the diff lacks semantic value"],
   "warnings": ["string — non-blocking observations"],
   "summary": "string — one sentence overall assessment"
-}`;
+}
+
+Example:
+{"verdict":"pass","critical_issues":[],"warnings":[],"summary":"Diff tightens validation thresholds with direct run-trace evidence."}`;
 
 const gateConfig: AgentJudgeConfig = {
   label: "Semantic gate",

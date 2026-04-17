@@ -1,12 +1,12 @@
 ---
 id: task-snapshot-watchlist-content-so-explorer-can-detect-
 title: Snapshot watchlist content so explorer can detect meaningful updates
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Record per-URL content fingerprint + short summary so explorer can tell changed entries from unchanged ones across runs
 created_at: 2026-04-17T13:13:58.737Z
-updated_at: 2026-04-17T13:13:58.737Z
+updated_at: 2026-04-17T23:25:47.772Z
 ---
 
 ## Problem

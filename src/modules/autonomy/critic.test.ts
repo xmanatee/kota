@@ -336,6 +336,80 @@ describe("createCriticCheck", () => {
     vi.useRealTimers();
   });
 
+  it("retries with a format reminder when a successful response is pure prose", async () => {
+    vi.useFakeTimers();
+    const dir = makeTmpDir();
+    const doingDir = join(dir, "data/tasks/doing");
+    mkdirSync(doingDir, { recursive: true });
+    writeFileSync(join(doingDir, "task-prose.md"), "---\ntitle: Test prose\n---\nContent.");
+
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+
+    mockExecuteWithAgentSDK
+      .mockResolvedValueOnce({
+        text:
+          "The implementation appears complete and addresses all four \"Done When\" criteria:\n\n" +
+          "1. ✓ Explorer surfaces state — inspectWatchlist categorizes entries.\n" +
+          "2. ✓ Fingerprint + summary fields are populated under the snapshot block.\n",
+        streamedText: "",
+        turns: 1,
+        isError: false,
+      })
+      .mockResolvedValueOnce({
+        text: JSON.stringify({
+          verdict: "pass",
+          critical_issues: [],
+          warnings: [],
+          summary: "Looks complete after reminder.",
+        }),
+        streamedText: "",
+        turns: 1,
+        isError: false,
+      });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    const promise = (check as CodeCheck).run(makeContext(dir, runDir));
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result).toMatch(/pass/);
+    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
+    const firstPrompt = mockExecuteWithAgentSDK.mock.calls[0][0] as string;
+    const secondPrompt = mockExecuteWithAgentSDK.mock.calls[1][0] as string;
+    expect(firstPrompt).not.toContain("Format reminder");
+    expect(secondPrompt).toContain("Format reminder");
+    expect(secondPrompt).toContain("did not contain valid JSON");
+    vi.useRealTimers();
+  });
+
+  it("throws after exhausting retries when every response is unparseable prose", async () => {
+    vi.useFakeTimers();
+    const dir = makeTmpDir();
+    const doingDir = join(dir, "data/tasks/doing");
+    mkdirSync(doingDir, { recursive: true });
+    writeFileSync(join(doingDir, "task-prose-fail.md"), "---\ntitle: Test prose fail\n---\nContent.");
+
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+
+    mockExecuteWithAgentSDK.mockResolvedValue({
+      text: "This change looks good to me, shipping it.",
+      streamedText: "",
+      turns: 1,
+      isError: false,
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    const assertion = expect(
+      (check as CodeCheck).run(makeContext(dir, runDir)),
+    ).rejects.toThrow(/returned unparseable response/);
+    await vi.runAllTimersAsync();
+    await assertion;
+    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(3);
+    vi.useRealTimers();
+  });
+
   it("passes with warnings and writes critic-review.json", async () => {
     const dir = makeTmpDir();
     const doingDir = join(dir, "data/tasks/doing");

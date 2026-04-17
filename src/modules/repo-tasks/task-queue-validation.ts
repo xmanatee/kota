@@ -75,13 +75,25 @@ const SOURCE_ACCESS_HONEST_HANDLING = [
   /\bdropped\b/i,
 ];
 
-function stripProblemSection(raw: string): string {
-  return raw.replace(/## Problem\n[\s\S]*?(?=\n## |\s*$)/, "");
+const SPEC_SECTION_HEADINGS = [
+  "Problem",
+  "Desired Outcome",
+  "Constraints",
+  "Done When",
+] as const;
+
+function stripSpecSections(raw: string): string {
+  let out = raw.replace(/^---\n[\s\S]*?\n---\n?/, "");
+  for (const heading of SPEC_SECTION_HEADINGS) {
+    const pattern = new RegExp(`## ${heading}\\n[\\s\\S]*?(?=\\n## |\\s*$)`, "g");
+    out = out.replace(pattern, "");
+  }
+  return out;
 }
 
 export function hasDishonestSourceAccessCompletion(entry: TaskFileEntry): boolean {
   if (entry.state !== "done") return false;
-  const body = stripProblemSection(entry.raw);
+  const body = stripSpecSections(entry.raw);
   const hasFailureIndicator = SOURCE_ACCESS_FAILURE_INDICATORS.some((p) => p.test(body));
   if (!hasFailureIndicator) return false;
   const hasHonestHandling = SOURCE_ACCESS_HONEST_HANDLING.some((p) => p.test(body));

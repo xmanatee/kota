@@ -26,6 +26,11 @@ import {
   readLastExplorationAt,
   writeLastExplorationAt,
 } from "./explorer-state.js";
+import { readWatchlist, type WatchlistEntry } from "./watchlist.js";
+import {
+  applyWatchlistUpdates,
+  readWatchlistUpdatesFromRun,
+} from "./watchlist-updates.js";
 
 export const agent: AgentDef = {
   name: "explorer",
@@ -83,6 +88,50 @@ const inspectQueue = typedCodeStep<ExplorerAssessment>({
   },
 });
 
+type WatchlistEntrySummary = {
+  url: string;
+  added: string;
+  status: "inaccessible" | "never-seen" | "seen";
+  last_seen_at?: string;
+  fingerprint?: string;
+  summary?: string;
+};
+
+type WatchlistInspection = {
+  entries: WatchlistEntrySummary[];
+  updateReportPath: string;
+};
+
+function summarizeWatchlistEntry(entry: WatchlistEntry): WatchlistEntrySummary {
+  if (entry.status === "inaccessible") {
+    return { url: entry.url, added: entry.added, status: "inaccessible" };
+  }
+  if (!entry.snapshot) {
+    return { url: entry.url, added: entry.added, status: "never-seen" };
+  }
+  return {
+    url: entry.url,
+    added: entry.added,
+    status: "seen",
+    last_seen_at: entry.snapshot.last_seen_at,
+    fingerprint: entry.snapshot.fingerprint,
+    summary: entry.snapshot.summary,
+  };
+}
+
+const inspectWatchlist = typedCodeStep<WatchlistInspection>({
+  id: "inspect-watchlist",
+  type: "code",
+  exposeOutputToAgent: true,
+  run: ({ projectDir }) => {
+    const file = readWatchlist(projectDir);
+    return {
+      entries: file.entries.map(summarizeWatchlistEntry),
+      updateReportPath: "watchlist-updates.json",
+    };
+  },
+});
+
 const explorerWorkflow: WorkflowDefinitionInput = {
   name: "explorer",
   description:
@@ -111,6 +160,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
         resetWorktreeForRecovery({ projectDir, workflowName: "explorer" }),
     },
     inspectQueue,
+    inspectWatchlist,
     {
       id: "explore",
       type: "agent",
@@ -166,6 +216,17 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       when: stepSucceeded("explore"),
       run: ({ projectDir }) => {
         writeLastExplorationAt(projectDir);
+      },
+    },
+    {
+      id: "apply-watchlist-updates",
+      type: "code",
+      when: stepSucceeded("explore"),
+      run: ({ projectDir, workflow }) => {
+        const payload = readWatchlistUpdatesFromRun(workflow.runDirPath);
+        if (!payload) return { applied: [] };
+        const applied = applyWatchlistUpdates(projectDir, payload);
+        return { applied };
       },
     },
     {

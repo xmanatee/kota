@@ -40,13 +40,20 @@ const CRITIC_SYSTEM_PROMPT = `You are a calibrated code review critic. Your job 
 - An empty diff with a moved task file is suspicious — the agent may not have done real work.
 - For research or URL-dependent tasks, verify that required sources were actually processed — not just referenced or dismissed. If the task depends on reading a URL and the source was inaccessible (auth-walled, 401/402/403, paywall, fetch failure), the task must not be marked done unless it records a blocker, creates a follow-up/enabler task, or documents why the source is no longer needed. Treat an unread required source marked as processed or dismissed without honest handling as a critical issue. Use the run trace when the diff alone is not enough.
 
-Respond with ONLY a JSON object (no markdown fences) matching this schema:
+## Output format
+
+Your entire response must be exactly one JSON object matching the schema below. Do not include narrative text, headings, checkmarks, bullet lists, commentary, or markdown before or after the JSON. Do not wrap the JSON in code fences. The first character of your response must be \`{\` and the last must be \`}\`.
+
+Schema:
 {
   "verdict": "pass" | "fail" | "pass_with_warnings",
   "critical_issues": ["string — each describes one required-but-missing piece of work"],
   "warnings": ["string — non-blocking observations"],
   "summary": "string — one sentence overall assessment"
-}`;
+}
+
+Example:
+{"verdict":"pass","critical_issues":[],"warnings":[],"summary":"All Done When criteria addressed with tests covering the new code."}`;
 
 const GIT_MAX_BUFFER = 5 * 1024 * 1024;
 const GIT_DIFF_MAX_BUFFER = 50 * 1024 * 1024;
@@ -174,6 +181,13 @@ export type AgentJudgeConfig = {
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_BASE_DELAY_MS = 2_000;
 
+const JSON_REMINDER =
+  "\n\n## Format reminder\n" +
+  "Your previous response did not contain valid JSON. Output exactly one JSON " +
+  "object matching the schema in the system prompt — no narrative, no " +
+  "checkmarks, no markdown, no code fences. The first character must be `{` " +
+  "and the last must be `}`.";
+
 export async function invokeAgentJudge(
   userMessage: string,
   cwd: string,
@@ -182,15 +196,18 @@ export async function invokeAgentJudge(
   const maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
   const retryBaseDelayMs = config.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS;
   let lastError: Error | undefined;
+  let needsFormatReminder = false;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     if (attempt > 0) {
       await sleep(retryBaseDelayMs * attempt);
     }
 
+    const promptForAttempt = needsFormatReminder ? userMessage + JSON_REMINDER : userMessage;
+
     let response: { text: string; isError: boolean; subtype?: string };
     try {
-      response = await executeWithAgentSDK(userMessage, {
+      response = await executeWithAgentSDK(promptForAttempt, {
         model: config.model,
         cwd,
         systemPrompt: config.systemPrompt,
@@ -206,10 +223,22 @@ export async function invokeAgentJudge(
       lastError = new Error(
         `${config.label} threw (attempt ${attempt + 1}/${maxRetries}): ${thrown instanceof Error ? thrown.message : String(thrown)}`,
       );
+      needsFormatReminder = false;
       continue;
     }
 
-    if (!response.isError) return response;
+    if (!response.isError) {
+      try {
+        parseVerdict(response.text);
+        return response;
+      } catch (error) {
+        lastError = new Error(
+          `${config.label} returned unparseable response (attempt ${attempt + 1}/${maxRetries}): ${error instanceof Error ? error.message : String(error)}`,
+        );
+        needsFormatReminder = true;
+        continue;
+      }
+    }
 
     let failureDetail = response.text.trim() || response.subtype || "unknown error";
     if (response.text.trim()) {
@@ -218,7 +247,10 @@ export async function invokeAgentJudge(
         return response;
       } catch (error) {
         failureDetail = error instanceof Error ? error.message : String(error);
+        needsFormatReminder = true;
       }
+    } else {
+      needsFormatReminder = false;
     }
 
     lastError = new Error(
