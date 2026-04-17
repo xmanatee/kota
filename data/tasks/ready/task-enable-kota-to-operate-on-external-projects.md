@@ -1,12 +1,12 @@
 ---
 id: task-enable-kota-to-operate-on-external-projects
 title: Enable KOTA to operate on external projects
-status: backlog
+status: ready
 priority: p2
 area: architecture
 summary: Refactor KOTA to support running autonomous workflows on projects beyond its own repo, requiring better encapsulation and abstraction of project-specific concerns
 created_at: 2026-04-15T21:22:29.867Z
-updated_at: 2026-04-15T21:22:29.867Z
+updated_at: 2026-04-17T13:13:51.291Z
 ---
 
 ## Problem
