@@ -857,7 +857,6 @@ describe("workflow validation", () => {
               name: "deploy",
               triggers: [{ webhook: true }],
               steps: [{ id: "run", type: "emit", event: "deploy.done" }],
-              // biome-ignore lint/suspicious/noExplicitAny: intentionally feeding an unknown key
               notify: { onFailure: false, onCostAnomaly: true } as any,
             }),
           ],
@@ -874,7 +873,6 @@ describe("workflow validation", () => {
               name: "deploy",
               triggers: [{ webhook: true }],
               steps: [{ id: "run", type: "emit", event: "deploy.done" }],
-              // biome-ignore lint/suspicious/noExplicitAny: intentionally feeding a wrong-typed value
               notify: { onFailure: "no" } as any,
             }),
           ],
@@ -891,7 +889,6 @@ describe("workflow validation", () => {
               name: "deploy",
               triggers: [{ webhook: true }],
               steps: [{ id: "run", type: "emit", event: "deploy.done" }],
-              // biome-ignore lint/suspicious/noExplicitAny: intentionally feeding a wrong shape
               notify: [] as any,
             }),
           ],

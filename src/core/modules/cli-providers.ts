@@ -1,7 +1,7 @@
 import { loadConfig } from "#core/config/config.js";
-import type { KotaModule } from "./module-types.js";
 import { discoverModules } from "./module-discovery.js";
 import { ModuleLoader } from "./module-loader.js";
+import type { KotaModule } from "./module-types.js";
 import { discoverProjectModules } from "./project-discovery.js";
 import {
   getProviderRegistry,
