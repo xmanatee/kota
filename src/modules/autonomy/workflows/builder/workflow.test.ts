@@ -60,6 +60,23 @@ vi.mock("./branch-per-task.js", () => ({
   cleanupMergedBranches: vi.fn(() => ({ cleaned: [], warnings: [] })),
 }));
 
+vi.mock("#modules/autonomy/recovery.js", async () => {
+  const actual =
+    await vi.importActual<typeof import("#modules/autonomy/recovery.js")>(
+      "#modules/autonomy/recovery.js",
+    );
+  return {
+    ...actual,
+    resetWorktreeForRecovery: vi.fn(() => ({
+      stashed: false,
+      stashSummary: "clean",
+      branchRestored: false,
+      previousBranch: null,
+      currentBranch: "main",
+    })),
+  };
+});
+
 function makeEmptySnapshot() {
   return {
     counts: {
@@ -130,6 +147,49 @@ describe("builder workflow", () => {
     expect(result.status).toBe("success");
     expect(result.steps["inspect-ready-queue"].output).toMatchObject({ dirty: true });
     expect(result.steps.build.status).toBe("skipped");
+  });
+
+  it("resets worktree and skips build on runtime.recovered trigger", async () => {
+    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(2, 1));
+
+    const { resetWorktreeForRecovery } = await import("#modules/autonomy/recovery.js");
+    vi.mocked(resetWorktreeForRecovery).mockReturnValue({
+      stashed: true,
+      stashSummary: "1 file stashed",
+      branchRestored: true,
+      previousBranch: "kota/task/task-foo",
+      currentBranch: "main",
+    });
+
+    const harness = new WorkflowTestHarness(builderWorkflow, {
+      trigger: {
+        event: "runtime.recovered",
+        payload: { reason: "dirty-worktree-after-crash" },
+      },
+      stepMocks: { build: { turns: [], totalCostUsd: 0 } },
+    });
+
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["reset-for-recovery"].status).toBe("success");
+    expect(result.steps["reset-for-recovery"].output).toMatchObject({
+      stashed: true,
+      branchRestored: true,
+      previousBranch: "kota/task/task-foo",
+      currentBranch: "main",
+    });
+    expect(vi.mocked(resetWorktreeForRecovery)).toHaveBeenCalledWith(
+      expect.objectContaining({ workflowName: "builder", restoreBaseBranch: true }),
+    );
+    expect(result.steps["recall-knowledge"].status).toBe("skipped");
+    expect(result.steps.build.status).toBe("skipped");
+    expect(result.steps["check-no-intermediate-commits"].status).toBe("skipped");
+    expect(result.steps.commit.status).toBe("skipped");
+    expect(result.steps["write-run-summary"].status).toBe("skipped");
+    expect(result.steps["emit-build-committed"].status).toBe("skipped");
+    expect(result.steps["request-restart"].status).toBe("skipped");
   });
 
   it("skips build and commit when no pullable queue work exists", async () => {

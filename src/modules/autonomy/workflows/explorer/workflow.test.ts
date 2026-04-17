@@ -311,6 +311,9 @@ describe("explorer workflow", () => {
 
   it("trigger cooldowns match the exploration refresh window to prevent no-op churn", () => {
     for (const trigger of explorerWorkflow.triggers) {
+      // runtime.recovered is a crash-recovery path; the runtime dispatches it
+      // at most once per recovery event so it does not need a cooldown.
+      if (trigger.event === "runtime.recovered") continue;
       expect(trigger.cooldownMs).toBe(EXPLORATION_REFRESH_MS);
     }
   });

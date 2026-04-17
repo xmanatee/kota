@@ -69,6 +69,43 @@ queues any workflows that listen to `runtime.recovered`, and then pauses
 dispatch if the same dirty state still cannot be repaired. Do not reintroduce
 dirty-worktree bounce loops.
 
+## Recovery Contract
+
+Every autonomy workflow whose steps can mutate tracked files must participate
+in the recovery protocol. A workflow opts in by:
+
+1. Setting `recoveryCapable: true` in its definition.
+2. Adding a `runtime.recovered` trigger (the runtime filters recovery dispatch
+   to recovery-capable workflows only; the validation layer rejects mismatches).
+3. Running a reset step first that brings the worktree back to a safe base
+   before anything heavier runs. Use `resetWorktreeForRecovery` from
+   `#modules/autonomy/recovery.js` — it stashes tracked dirt and, when asked,
+   switches from a `kota/task/*` branch back to the base branch.
+4. Gating the workflow's expensive work step (the agent call) so it does not
+   run on the recovery trigger. Use the `onNormalTrigger` predicate to skip
+   the agent step during recovery; pair it with an existing "skip when dirty"
+   guard for a complete safety net. Improver is the exception: its analysis
+   runs after stash because its role is evidence review, not task progress.
+5. Ensuring the reset step is idempotent and has no network side effects. If
+   the first recovery attempt fails, the runtime retries once and then pauses
+   dispatch — a network round-trip before the reset would leak side effects
+   on every retry.
+
+A workflow that does not mutate tracked files may still declare
+`recoveryCapable: true` with a `runtime.recovered` trigger when it has a
+useful role on crash recovery (e.g. attention-digest notifies operators).
+The reset step can be omitted in that case, but the workflow must still be
+idempotent and have no pre-reset network effects.
+
+Workflows that neither mutate tracked files nor have a role on recovery
+leave `recoveryCapable` unset and add a short comment above the definition
+explaining why. Today that category covers `dispatcher`, `knowledge-capture`,
+and `pr-reviewer`.
+
+When adding a new autonomy workflow, decide which bucket it falls into and
+wire the reset step accordingly. Do not silently inherit another workflow's
+recovery posture.
+
 ## Finish Protocol
 
 When a workflow agent finishes its work:

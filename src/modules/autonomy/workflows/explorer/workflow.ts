@@ -9,6 +9,11 @@ import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { recallForExplorer } from "#modules/autonomy/knowledge-recall.js";
 import {
+  onNormalTrigger,
+  onRecoveryTrigger,
+  resetWorktreeForRecovery,
+} from "#modules/autonomy/recovery.js";
+import {
   AUTONOMY_DISALLOWED_TOOLS,
   checkCommitMessageExists,
   checkNoScratchArtifacts,
@@ -85,6 +90,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
   description:
     "Search broadly for external ideas and promising improvements when the local queue is empty or running thin.",
   tags: ["monitored"],
+  recoveryCapable: true,
   triggers: [
     {
       event: "autonomy.queue.empty",
@@ -94,12 +100,23 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       event: "autonomy.queue.thin",
       cooldownMs: EXPLORATION_REFRESH_MS,
     },
+    {
+      event: "runtime.recovered",
+    },
   ],
   steps: [
+    {
+      id: "reset-for-recovery",
+      type: "code",
+      when: onRecoveryTrigger,
+      run: ({ projectDir }) =>
+        resetWorktreeForRecovery({ projectDir, workflowName: "explorer" }),
+    },
     inspectQueue,
     {
       id: "recall-knowledge",
       type: "code",
+      when: onNormalTrigger,
       exposeOutputToAgent: true,
       run: ({ projectDir }) => recallForExplorer(projectDir),
     },
@@ -117,7 +134,10 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       // deep-dive sessions without letting stuck exploration run unbounded.
       timeoutMs: 45 * 60 * 1000,
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
-      when: (ctx) => inspectQueue.output(ctx).needsAttention,
+      when: (ctx) => {
+        if (ctx.trigger.event === "runtime.recovered") return false;
+        return inspectQueue.output(ctx).needsAttention;
+      },
       repairLoop: {
         checks: [
           {

@@ -1,6 +1,9 @@
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { captureRunInsight } from "./capture.js";
 
+// Not recovery-capable: writes only to the knowledge store under .kota/,
+// never to tracked files. Recovery dispatch is driven by tracked-dirty
+// state, so knowledge-capture cannot contribute to or consume it.
 const knowledgeCaptureWorkflow: WorkflowDefinitionInput = {
 	name: "knowledge-capture",
 	description:

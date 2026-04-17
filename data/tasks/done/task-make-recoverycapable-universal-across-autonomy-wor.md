@@ -1,12 +1,12 @@
 ---
 id: task-make-recoverycapable-universal-across-autonomy-wor
 title: Make recoveryCapable universal across autonomy workflows
-status: backlog
+status: done
 priority: p1
 area: core
 summary: Design the recovery contract so every workflow can recover from daemon crashes instead of pausing dispatch.
 created_at: 2026-04-17T09:02:16.335Z
-updated_at: 2026-04-17T09:02:16.335Z
+updated_at: 2026-04-17T09:38:54.099Z
 ---
 
 ## Problem

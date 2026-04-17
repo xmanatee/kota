@@ -4,6 +4,10 @@ import {
 } from "#core/data/repo-tasks.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 
+// Not recovery-capable: dispatcher only reads repo state and emits events — it
+// never mutates tracked files, so it cannot leave dirt to heal and cannot help
+// clean dirt left by others. Recovery dispatch is handled by the worktree-
+// mutating workflows (builder, inbox-sorter, decomposer, explorer, improver).
 const dispatcherWorkflow: WorkflowDefinitionInput = {
   name: "dispatcher",
   description:

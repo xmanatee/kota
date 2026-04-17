@@ -4,6 +4,11 @@ import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
+import {
+  onNormalTrigger,
+  onRecoveryTrigger,
+  resetWorktreeForRecovery,
+} from "#modules/autonomy/recovery.js";
 import { AUTONOMY_DISALLOWED_TOOLS, checkCommitMessageExists, checkNoScratchArtifacts, runCheck, stepSucceeded } from "#modules/autonomy/shared.js";
 
 export const agent: AgentDef = {
@@ -24,6 +29,7 @@ type InboxSorterAssessment = {
 const inspectInbox = typedCodeStep<InboxSorterAssessment>({
   id: "inspect-inbox",
   type: "code",
+  when: onNormalTrigger,
   run: ({ projectDir }) => {
     const status = getRepoWorktreeStatus(projectDir);
     const nonInboxTracked = status.entries.filter(
@@ -47,13 +53,24 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
   description:
     "Process quick inbox captures into normalized tasks, docs, or other durable project artifacts.",
   tags: ["monitored"],
+  recoveryCapable: true,
   triggers: [
     {
       event: "autonomy.inbox.available",
       cooldownMs: 30_000,
     },
+    {
+      event: "runtime.recovered",
+    },
   ],
   steps: [
+    {
+      id: "reset-for-recovery",
+      type: "code",
+      when: onRecoveryTrigger,
+      run: ({ projectDir }) =>
+        resetWorktreeForRecovery({ projectDir, workflowName: "inbox-sorter" }),
+    },
     inspectInbox,
     {
       id: "sort-inbox",
@@ -69,7 +86,10 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
       // while still bounding a stuck session above the 30-min global default.
       timeoutMs: 45 * 60 * 1000,
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
-      when: (ctx) => inspectInbox.output(ctx).needsAttention,
+      when: (ctx) => {
+        if (ctx.trigger.event === "runtime.recovered") return false;
+        return inspectInbox.output(ctx).needsAttention;
+      },
       repairLoop: {
         checks: [
           {

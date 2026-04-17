@@ -7,6 +7,11 @@ import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { recallForDecomposer } from "#modules/autonomy/knowledge-recall.js";
+import {
+  onNormalTrigger,
+  onRecoveryTrigger,
+  resetWorktreeForRecovery,
+} from "#modules/autonomy/recovery.js";
 import { AUTONOMY_DISALLOWED_TOOLS, checkCommitMessageExists, checkNoScratchArtifacts, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
 
 export const agent: AgentDef = {
@@ -126,6 +131,7 @@ function buildAssessment(
 const assessFailure = typedCodeStep<DecomposerAssessment>({
   id: "assess-failure",
   type: "code",
+  when: onNormalTrigger,
   run: ({ projectDir, trigger }) => buildAssessment(projectDir, trigger.payload),
 });
 
@@ -134,6 +140,7 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
   description:
     "Decompose builder-timeout tasks into coherent task sequences.",
   tags: ["monitored"],
+  recoveryCapable: true,
   triggers: [
     {
       event: "workflow.completed",
@@ -142,12 +149,23 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
         status: ["failed"],
       },
     },
+    {
+      event: "runtime.recovered",
+    },
   ],
   steps: [
+    {
+      id: "reset-for-recovery",
+      type: "code",
+      when: onRecoveryTrigger,
+      run: ({ projectDir }) =>
+        resetWorktreeForRecovery({ projectDir, workflowName: "decomposer" }),
+    },
     assessFailure,
     {
       id: "recall-knowledge",
       type: "code",
+      when: onNormalTrigger,
       exposeOutputToAgent: true,
       run: ({ projectDir }) => recallForDecomposer(projectDir),
     },
@@ -162,7 +180,10 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
-      when: (ctx) => assessFailure.output(ctx).shouldDecompose,
+      when: (ctx) => {
+        if (ctx.trigger.event === "runtime.recovered") return false;
+        return assessFailure.output(ctx).shouldDecompose;
+      },
       repairLoop: {
         checks: [
           {

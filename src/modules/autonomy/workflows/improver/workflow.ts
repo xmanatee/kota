@@ -1,12 +1,11 @@
-import { spawnSync } from "node:child_process";
 import type { AgentDef } from "#core/agents/agent-types.js";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { createImproverSemanticCheck } from "#modules/autonomy/improver-semantic-gate.js";
 import { recallForImprover } from "#modules/autonomy/knowledge-recall.js";
+import { onRecoveryTrigger, resetWorktreeForRecovery } from "#modules/autonomy/recovery.js";
 import { aggregateRunOutcomes } from "#modules/autonomy/run-outcome-aggregation.js";
 import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
 import { writeRunSummary } from "#modules/autonomy/run-summary.js";
@@ -16,22 +15,6 @@ import { AUTONOMY_DISALLOWED_TOOLS, checkCommitMessageExists, checkNoScratchArti
 // already bounded by this cooldown rather than trigger firing rate, so keep
 // 60m as the single pacing constant across triggers.
 export const IMPROVER_COOLDOWN_MS = 60 * 60 * 1000;
-
-function stashTrackedChanges(projectDir: string): { stashed: boolean; summary: string } {
-  const status = getRepoWorktreeStatus(projectDir);
-  if (!status.trackedDirty) {
-    return { stashed: false, summary: "worktree clean (no tracked changes)" };
-  }
-  const result = spawnSync(
-    "git",
-    ["stash", "-m", "Recovery: auto-stash dirty state before improver run"],
-    { cwd: projectDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-  );
-  if (result.status !== 0) {
-    throw new Error(`git stash failed: ${result.stderr}`);
-  }
-  return { stashed: true, summary: result.stdout.trim() };
-}
 
 export const agent: AgentDef = {
   name: "improver",
@@ -83,8 +66,9 @@ const improverWorkflow: WorkflowDefinitionInput = {
     {
       id: "clean-recovery-state",
       type: "code",
-      when: ({ trigger }) => trigger.event === "runtime.recovered",
-      run: ({ projectDir }) => stashTrackedChanges(projectDir),
+      when: onRecoveryTrigger,
+      run: ({ projectDir }) =>
+        resetWorktreeForRecovery({ projectDir, workflowName: "improver" }),
     },
     {
       id: "improve",

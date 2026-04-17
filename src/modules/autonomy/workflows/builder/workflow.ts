@@ -6,6 +6,11 @@ import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { recallForBuilder } from "#modules/autonomy/knowledge-recall.js";
+import {
+  onNormalTrigger,
+  onRecoveryTrigger,
+  resetWorktreeForRecovery,
+} from "#modules/autonomy/recovery.js";
 import { AUTONOMY_DISALLOWED_TOOLS, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
 import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
 import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
@@ -40,16 +45,36 @@ const builderWorkflow: WorkflowDefinitionInput = {
   name: "builder",
   description: "Build KOTA by shipping one cohesive improvement per workflow run.",
   tags: ["monitored"],
+  recoveryCapable: true,
   triggers: [
     {
       event: "autonomy.queue.available",
     },
+    // Recovery re-entry after a daemon crash: reset step stashes any dirt and
+    // restores the base branch if the crash left the repo on a kota/task/*
+    // branch. The agent build step is gated so it will not re-enter inside an
+    // abandoned run.
+    {
+      event: "runtime.recovered",
+    },
   ],
   steps: [
+    {
+      id: "reset-for-recovery",
+      type: "code",
+      when: onRecoveryTrigger,
+      run: ({ projectDir }) =>
+        resetWorktreeForRecovery({
+          projectDir,
+          workflowName: "builder",
+          restoreBaseBranch: true,
+        }),
+    },
     inspectReadyQueue,
     {
       id: "recall-knowledge",
       type: "code",
+      when: onNormalTrigger,
       exposeOutputToAgent: true,
       run: ({ projectDir }) => recallForBuilder(projectDir),
     },
@@ -68,6 +93,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       timeoutMs: 35 * 60 * 1000,
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: (ctx) => {
+        if (ctx.trigger.event === "runtime.recovered") return false;
         const { dirty, pullableCount } = inspectReadyQueue.output(ctx);
         return !dirty && pullableCount > 0;
       },

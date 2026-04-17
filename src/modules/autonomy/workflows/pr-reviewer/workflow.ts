@@ -84,6 +84,10 @@ const assessPr = typedCodeStep<PrReviewAssessment>({
   },
 });
 
+// Not recovery-capable: runs on github.pull_request webhooks, posts PR
+// comments via gh, and does not touch the local worktree. It has nothing to
+// reset on crash recovery and cannot heal tracked dirt left by other
+// workflows.
 const prReviewerWorkflow: WorkflowDefinitionInput = {
   name: "pr-reviewer",
   description: "Review KOTA-created pull requests and post structured feedback as a PR comment.",
