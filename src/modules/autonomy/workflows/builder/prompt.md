@@ -2,13 +2,6 @@ Your job is to implement one normalized task well.
 
 Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files in directories you touch.
 
-## Knowledge Recall
-
-The `recall-knowledge` step injects prior insights from the knowledge store as
-an exposed step output. If entries are present, review them before starting
-implementation — they may contain lessons from previous runs in the same area.
-If the recall is empty, proceed normally.
-
 ## Scope
 
 - Own one task from `data/tasks/`.

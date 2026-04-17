@@ -4,13 +4,6 @@ The assessment step has identified a task that caused a builder timeout. Read th
 task, understand why it failed, and split it only where real conceptual seams
 exist.
 
-## Knowledge Recall
-
-The `recall-knowledge` step injects prior insights from the knowledge store as
-an exposed step output. If entries are present, review them before decomposing —
-they may contain lessons from previous builder failures or decomposition outcomes
-in the same area. If the recall is empty, proceed normally.
-
 ## Scope
 
 - Read the original task file identified in the assessment output.

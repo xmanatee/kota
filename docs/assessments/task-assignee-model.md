@@ -4,7 +4,7 @@
 
 ## Current State
 
-Nine autonomy workflows, six backed by named agents:
+Eight autonomy workflows, six backed by named agents:
 
 | Workflow | Agent | Trigger | Work Source |
 |----------|-------|---------|-------------|
@@ -15,7 +15,6 @@ Nine autonomy workflows, six backed by named agents:
 | improver | improver | `workflow.build.committed`, failures, recovery | run outcome data |
 | decomposer | decomposer | `workflow.completed` (builder failed) | failed run metadata |
 | pr-reviewer | pr-reviewer | `github.pull_request` | GitHub webhook payload |
-| knowledge-capture | (code-only) | `workflow.completed` (builder/improver success) | run artifacts |
 | attention-digest | (code-only) | various alert events | run/cost/failure data |
 
 Work routing is event-driven. The dispatcher assesses queue state on idle and

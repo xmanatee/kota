@@ -136,8 +136,7 @@ idempotent and have no pre-reset network effects.
 
 Workflows that neither mutate tracked files nor have a role on recovery
 leave `recoveryCapable` unset and add a short comment above the definition
-explaining why. Today that category covers `dispatcher`, `knowledge-capture`,
-and `pr-reviewer`.
+explaining why. Today that category covers `dispatcher` and `pr-reviewer`.
 
 When adding a new autonomy workflow, decide which bucket it falls into and
 wire the reset step accordingly. Do not silently inherit another workflow's

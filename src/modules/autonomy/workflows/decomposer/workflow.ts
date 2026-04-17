@@ -6,7 +6,6 @@ import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
-import { recallForDecomposer } from "#modules/autonomy/knowledge-recall.js";
 import {
   onNormalTrigger,
   onRecoveryTrigger,
@@ -162,13 +161,6 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
         resetWorktreeForRecovery({ projectDir, workflowName: "decomposer" }),
     },
     assessFailure,
-    {
-      id: "recall-knowledge",
-      type: "code",
-      when: onNormalTrigger,
-      exposeOutputToAgent: true,
-      run: ({ projectDir }) => recallForDecomposer(projectDir),
-    },
     {
       id: "decompose",
       type: "agent",

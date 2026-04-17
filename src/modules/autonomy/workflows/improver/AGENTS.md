@@ -8,3 +8,18 @@ This directory contains the improver workflow definition and prompt.
 - Prefer lightweight validations and repair loops over brittle workflow-coded bookkeeping.
 - If tasks or prompts become too procedural, simplify them back
   to clear goals, constraints, and lightweight rails.
+
+## Evidence Attachment
+
+Improver is the autonomous distillation mechanism described in
+`docs/LEARNING.md`: systemic patterns seen in run evidence should graduate
+into durable `AGENTS.md` guidance at the narrowest applicable scope.
+
+When an improver commit adds, changes, or retracts a rule based on recent
+runs, the commit message must cite the driving evidence — run IDs,
+repair-check IDs, or other concrete signals from `.kota/runs/` or run-outcome
+aggregates. This is the commit-linked evidence contract that lets a later
+reviewer trace the rule back to the traces that justified it.
+
+Prefer editing the narrowest applicable `AGENTS.md`. Do not accumulate
+subtree-specific guidance at the repo root.

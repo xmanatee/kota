@@ -183,7 +183,6 @@ describe("builder workflow", () => {
     expect(vi.mocked(resetWorktreeForRecovery)).toHaveBeenCalledWith(
       expect.objectContaining({ workflowName: "builder", restoreBaseBranch: true }),
     );
-    expect(result.steps["recall-knowledge"].status).toBe("skipped");
     expect(result.steps.build.status).toBe("skipped");
     expect(result.steps["check-no-intermediate-commits"].status).toBe("skipped");
     expect(result.steps.commit.status).toBe("skipped");

@@ -4,7 +4,6 @@ import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { createImproverSemanticCheck } from "#modules/autonomy/improver-semantic-gate.js";
-import { recallForImprover } from "#modules/autonomy/knowledge-recall.js";
 import { onRecoveryTrigger, resetWorktreeForRecovery } from "#modules/autonomy/recovery.js";
 import { aggregateRunOutcomes } from "#modules/autonomy/run-outcome-aggregation.js";
 import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
@@ -56,12 +55,6 @@ const improverWorkflow: WorkflowDefinitionInput = {
         const store = new WorkflowRunStore();
         return aggregateRunOutcomes(store.runsDir);
       },
-    },
-    {
-      id: "recall-knowledge",
-      type: "code",
-      exposeOutputToAgent: true,
-      run: ({ projectDir }) => recallForImprover(projectDir),
     },
     {
       id: "clean-recovery-state",

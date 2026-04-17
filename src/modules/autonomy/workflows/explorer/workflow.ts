@@ -7,9 +7,7 @@ import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
-import { recallForExplorer } from "#modules/autonomy/knowledge-recall.js";
 import {
-  onNormalTrigger,
   onRecoveryTrigger,
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
@@ -113,13 +111,6 @@ const explorerWorkflow: WorkflowDefinitionInput = {
         resetWorktreeForRecovery({ projectDir, workflowName: "explorer" }),
     },
     inspectQueue,
-    {
-      id: "recall-knowledge",
-      type: "code",
-      when: onNormalTrigger,
-      exposeOutputToAgent: true,
-      run: ({ projectDir }) => recallForExplorer(projectDir),
-    },
     {
       id: "explore",
       type: "agent",

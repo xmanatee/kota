@@ -5,9 +5,7 @@ import { getRepoHeadSha, getRepoWorktreeStatus } from "#core/util/repo-worktree.
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
-import { recallForBuilder } from "#modules/autonomy/knowledge-recall.js";
 import {
-  onNormalTrigger,
   onRecoveryTrigger,
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
@@ -71,13 +69,6 @@ const builderWorkflow: WorkflowDefinitionInput = {
         }),
     },
     inspectReadyQueue,
-    {
-      id: "recall-knowledge",
-      type: "code",
-      when: onNormalTrigger,
-      exposeOutputToAgent: true,
-      run: ({ projectDir }) => recallForBuilder(projectDir),
-    },
     {
       id: "build",
       type: "agent",

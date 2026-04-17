@@ -1,12 +1,12 @@
 ---
 id: task-turn-knowledge-capture-into-evidence-based-learnin
 title: Turn knowledge-capture into evidence-based learning
-status: backlog
+status: done
 priority: p2
 area: autonomy
 summary: Promote recurring signals into durable AGENTS.md guidance instead of per-run journal entries.
 created_at: 2026-04-17T09:02:15.099Z
-updated_at: 2026-04-17T09:02:15.099Z
+updated_at: 2026-04-17T13:06:14.604Z
 ---
 
 ## Problem
