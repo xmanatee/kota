@@ -113,6 +113,9 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
+      // Explorer can do broad external research; 45 min covers realistic
+      // deep-dive sessions without letting stuck exploration run unbounded.
+      timeoutMs: 45 * 60 * 1000,
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: (ctx) => inspectQueue.output(ctx).needsAttention,
       repairLoop: {

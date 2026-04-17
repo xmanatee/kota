@@ -96,6 +96,10 @@ const improverWorkflow: WorkflowDefinitionInput = {
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
+      // Improver analysis at xhigh effort legitimately runs long; observed
+      // successful outliers reach ~35 min. 45 min gives headroom above the
+      // 30-min global default so real work isn't clipped at the cliff.
+      timeoutMs: 45 * 60 * 1000,
       retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       repairLoop: {
         checks: [

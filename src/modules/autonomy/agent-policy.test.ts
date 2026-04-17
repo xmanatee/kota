@@ -22,11 +22,10 @@ function agentSteps(workflow: WorkflowDefinitionInput): WorkflowAgentStepInput[]
 }
 
 describe("autonomy agent policy", () => {
-  it("runs top-level autonomy agents without turn or spend caps", () => {
+  it("runs top-level autonomy agents without reasoning or repair caps", () => {
     for (const workflow of MUTATING_AGENT_WORKFLOWS) {
       for (const step of agentSteps(workflow)) {
         expect(step.maxTurns, `${workflow.name}.${step.id}.maxTurns`).toBeUndefined();
-        expect(step.timeoutMs, `${workflow.name}.${step.id}.timeoutMs`).toBeUndefined();
         const repairLoop = step.repairLoop as Record<string, unknown> | undefined;
         expect(repairLoop?.maxTurnsPerRepair, `${workflow.name}.${step.id}.repairLoop.maxTurnsPerRepair`).toBeUndefined();
         expect(repairLoop?.maxRepairAttempts, `${workflow.name}.${step.id}.repairLoop.maxRepairAttempts`).toBeUndefined();
