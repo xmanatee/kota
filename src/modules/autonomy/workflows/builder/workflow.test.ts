@@ -814,14 +814,14 @@ describe("checkSuccessCriteriaVerified", () => {
     expect(() => checkSuccessCriteriaVerified(dir)).toThrow(/Missing success-criteria-verified\.txt/);
   });
 
-  it("fails when verified file has fewer evidence lines than criteria", () => {
+  it("fails when free-form verified file has fewer evidence lines than criteria", () => {
     const dir = makeTmpDir();
     writeFileSync(join(dir, "success-criteria.txt"), "Criterion 1\nCriterion 2\nCriterion 3\n");
     writeFileSync(join(dir, "success-criteria-verified.txt"), "Evidence for criterion 1\nEvidence for criterion 2\n");
     expect(() => checkSuccessCriteriaVerified(dir)).toThrow(/2 evidence line.*3 criteria/);
   });
 
-  it("passes when verified file has at least as many evidence lines as criteria", () => {
+  it("passes when free-form verified file has at least as many evidence lines as criteria", () => {
     const dir = makeTmpDir();
     const criteria = "Criterion 1: tests pass\nCriterion 2: types check";
     const verified = "Criterion 1: tests pass - verified by running pnpm test\nCriterion 2: types check - verified by running pnpm typecheck";
@@ -830,11 +830,58 @@ describe("checkSuccessCriteriaVerified", () => {
     expect(checkSuccessCriteriaVerified(dir)).toMatch(/OK.*2 evidence lines for 2 criteria/);
   });
 
-  it("ignores blank lines in both files when counting", () => {
+  it("ignores blank lines in both free-form files when counting", () => {
     const dir = makeTmpDir();
     writeFileSync(join(dir, "success-criteria.txt"), "Criterion 1\n\nCriterion 2\n");
     writeFileSync(join(dir, "success-criteria-verified.txt"), "Evidence 1\n\n\nEvidence 2\n");
-    writeFileSync(join(dir, "success-criteria.txt"), "Criterion 1\n\nCriterion 2\n");
     expect(checkSuccessCriteriaVerified(dir)).toMatch(/OK/);
+  });
+
+  it("counts structured top-level items — sub-bullets under a criterion do not require padding in evidence", () => {
+    const dir = makeTmpDir();
+    // Two top-level criteria, each with three sub-bullets (8 non-empty lines).
+    const criteria =
+      "1. Tests pass end to end.\n" +
+      "   - unit tests cover the new module\n" +
+      "   - integration test covers the new route\n" +
+      "2. Docs describe the new endpoint.\n" +
+      "   - README updated\n" +
+      "   - AGENTS.md updated\n";
+    // Two top-level evidence items, condensed (5 non-empty lines — fewer than
+    // criteria non-empty lines but matching top-level item count).
+    const verified =
+      "1. Tests pass: pnpm test green with 42 added cases.\n" +
+      "2. Docs updated: README and AGENTS.md both reflect the new endpoint.\n";
+    writeFileSync(join(dir, "success-criteria.txt"), criteria);
+    writeFileSync(join(dir, "success-criteria-verified.txt"), verified);
+    expect(checkSuccessCriteriaVerified(dir)).toMatch(
+      /OK.*2 top-level evidence items for 2 criteria/,
+    );
+  });
+
+  it("fails when structured verified file has fewer top-level items than structured criteria", () => {
+    const dir = makeTmpDir();
+    const criteria = "1. First criterion.\n2. Second criterion.\n3. Third criterion.\n";
+    const verified = "1. First criterion verified.\n2. Second criterion verified.\n";
+    writeFileSync(join(dir, "success-criteria.txt"), criteria);
+    writeFileSync(join(dir, "success-criteria-verified.txt"), verified);
+    expect(() => checkSuccessCriteriaVerified(dir)).toThrow(
+      /2 top-level evidence item.*3 criteria/,
+    );
+  });
+
+  it("fails when structured criteria is countered by free-form evidence (no top-level items)", () => {
+    const dir = makeTmpDir();
+    writeFileSync(
+      join(dir, "success-criteria.txt"),
+      "1. First criterion.\n2. Second criterion.\n",
+    );
+    writeFileSync(
+      join(dir, "success-criteria-verified.txt"),
+      "Everything was verified across the two criteria in one paragraph.\n",
+    );
+    expect(() => checkSuccessCriteriaVerified(dir)).toThrow(
+      /0 top-level evidence item.*2 criteria/,
+    );
   });
 });

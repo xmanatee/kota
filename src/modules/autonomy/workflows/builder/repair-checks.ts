@@ -11,6 +11,17 @@ function countDoneWhenItems(taskContent: string): number {
   return doneWhenMatch[1].split("\n").filter((l) => /^\s*-\s+\S/.test(l)).length;
 }
 
+// A "top-level" criterion/evidence item is a line that starts (no indent)
+// with a numbered marker (`1.`, `2)`) or a bullet (`-`, `*`). Sub-bullets
+// describing a single item do not count separately.
+function countTopLevelItems(text: string): number {
+  return text.split("\n").filter((line) => /^(?:\d+[.)]|[-*])\s+\S/.test(line)).length;
+}
+
+function countNonEmptyLines(text: string): number {
+  return text.split("\n").filter((l) => l.trim().length > 0).length;
+}
+
 export function checkSuccessCriteriaDeclared(runDirPath: string, projectDir?: string): string {
   const filePath = join(runDirPath, "success-criteria.txt");
   if (!existsSync(filePath)) {
@@ -55,20 +66,35 @@ export function checkSuccessCriteriaVerified(runDirPath: string): string {
         "is satisfied with evidence.",
     );
   }
-  const criteria = readFileSync(criteriaPath, "utf8").trim();
-  const verified = readFileSync(verifiedPath, "utf8").trim();
+  const criteria = readFileSync(criteriaPath, "utf8");
+  const verified = readFileSync(verifiedPath, "utf8");
 
-  const criteriaCount = criteria.split("\n").filter((l) => l.trim().length > 0).length;
-  const verifiedCount = verified.split("\n").filter((l) => l.trim().length > 0).length;
+  // When criteria are written as structured top-level items (numbered or
+  // bulleted), compare structural item counts — a single criterion with
+  // sub-bullets should need one top-level evidence item, not one evidence
+  // line per sub-bullet. Two observed failures (builder-txyajb, builder-99rp7t)
+  // were agents padding evidence prose just to match inflated line counts.
+  // Fall back to non-empty line counts only when criteria is free-form.
+  const criteriaItems = countTopLevelItems(criteria);
+  const useStructured = criteriaItems > 0;
+  const criteriaCount = useStructured ? criteriaItems : countNonEmptyLines(criteria);
+  const verifiedCount = useStructured
+    ? countTopLevelItems(verified)
+    : countNonEmptyLines(verified);
+  const unit = useStructured ? "top-level evidence item" : "evidence line";
 
   if (verifiedCount < criteriaCount) {
+    const guidance = useStructured
+      ? "Each criterion must be addressed with one top-level evidence item " +
+        '(a line starting with "- ", "* ", "1.", etc.). Sub-bullets under an ' +
+        "item do not count separately."
+      : "Each criterion must be addressed with a corresponding evidence line.";
     throw new Error(
-      `success-criteria-verified.txt has ${verifiedCount} evidence line(s) ` +
-        `but success-criteria.txt declares ${criteriaCount} criteria. ` +
-        "Each criterion must be addressed with a corresponding evidence line.",
+      `success-criteria-verified.txt has ${verifiedCount} ${unit}(s) ` +
+        `but success-criteria.txt declares ${criteriaCount} criteria. ${guidance}`,
     );
   }
-  return `OK: success criteria verified (${verifiedCount} evidence lines for ${criteriaCount} criteria)`;
+  return `OK: success criteria verified (${verifiedCount} ${unit}s for ${criteriaCount} criteria)`;
 }
 
 /**
