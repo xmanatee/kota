@@ -12,6 +12,9 @@ import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
 import { writeRunSummary } from "#modules/autonomy/run-summary.js";
 import { AUTONOMY_DISALLOWED_TOOLS, checkCommitMessageExists, checkNoScratchArtifacts, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
 
+// Measured improver cadence (~60-90m between runs on recent history) is
+// already bounded by this cooldown rather than trigger firing rate, so keep
+// 60m as the single pacing constant across triggers.
 export const IMPROVER_COOLDOWN_MS = 60 * 60 * 1000;
 
 function stashTrackedChanges(projectDir: string): { stashed: boolean; summary: string } {
@@ -46,18 +49,16 @@ const improverWorkflow: WorkflowDefinitionInput = {
     "Improve the autonomous development system itself using evidence from recent runs.",
   recoveryCapable: true,
   triggers: [
-    {
-      event: "workflow.build.committed",
-      cooldownMs: IMPROVER_COOLDOWN_MS,
-    },
+    // Any monitored workflow completion is a signal that aggregate run data
+    // may have shifted — improver reads 24h/7d aggregates, not one specific
+    // run, so it's entity-agnostic by design. Self-trigger-safe: improver
+    // does not carry the "monitored" tag.
     {
       event: "workflow.completed",
-      filter: {
-        tags: ["monitored"],
-        status: ["failed", "interrupted"],
-      },
+      filter: { tags: ["monitored"] },
       cooldownMs: IMPROVER_COOLDOWN_MS,
     },
+    // Distinct trigger class: recovery re-entry after a daemon crash.
     {
       event: "runtime.recovered",
       cooldownMs: IMPROVER_COOLDOWN_MS,

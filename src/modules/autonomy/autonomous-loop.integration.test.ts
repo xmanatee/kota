@@ -279,9 +279,13 @@ describe("autonomous workflow loop integration", () => {
       // post-build commit should not have run on a failed build step
       expect(existsSync(join(runsDir, builderRunDir!, "steps", "commit.json"))).toBe(false);
 
-      // ── Improver triggered by builder failure ─────────────────────────────
+      // ── Improver triggered by any monitored completion ────────────────────
+      // Improver now fires on any monitored completion (success or failure) —
+      // it reads 24h/7d aggregates, not one specific run, so it's
+      // entity-agnostic by design. Cooldown (60m) is the real pacing gate,
+      // so only the first monitored completion per hour fires improver.
       const improverRun = completedRuns.find((r) => r.workflow === "improver");
-      expect(improverRun, "improver must be triggered by builder completion").toBeDefined();
+      expect(improverRun, "improver must be triggered by a monitored completion").toBeDefined();
       expect(improverRun?.triggerEvent).toBe("workflow.completed");
 
       const improverRunDir = runIds.find((id) => {
@@ -294,12 +298,10 @@ describe("autonomous workflow loop integration", () => {
         readFileSync(join(runsDir, improverRunDir!, "metadata.json"), "utf-8"),
       );
 
-      // Verify the trigger payload improver received from builder
+      // Trigger event is always workflow.completed; the payload's workflow
+      // may be any monitored workflow that completed first within the window.
       expect(improverMeta.trigger.event).toBe("workflow.completed");
-      expect(improverMeta.trigger.payload).toMatchObject({
-        workflow: "builder",
-        status: "failed",
-      });
+      expect(improverMeta.trigger.payload.tags).toContain("monitored");
     },
   );
 

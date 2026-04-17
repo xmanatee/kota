@@ -1,12 +1,12 @@
 ---
 id: task-simplify-improver-workflow-triggers
 title: Simplify improver workflow triggers
-status: backlog
+status: done
 priority: p2
 area: autonomy
 summary: Collapse improver's three triggers into one periodic signal and re-evaluate the 60m cooldown.
 created_at: 2026-04-17T09:02:12.940Z
-updated_at: 2026-04-17T09:02:12.940Z
+updated_at: 2026-04-17T09:10:26.408Z
 ---
 
 ## Problem
