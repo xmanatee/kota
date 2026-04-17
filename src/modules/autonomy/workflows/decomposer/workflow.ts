@@ -179,7 +179,6 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-      retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: (ctx) => {
         if (ctx.trigger.event === "runtime.recovered") return false;
         return assessFailure.output(ctx).shouldDecompose;

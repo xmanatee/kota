@@ -303,31 +303,15 @@ describe("executeAgentStep — schema validation feedback on retry", () => {
     expect(capturedPrompts[1]).toContain("count");
   });
 
-  it("does not inject feedback for non-schema errors on retry", async () => {
-    const capturedPrompts: string[] = [];
-
-    executeWithAgentSDKMock.mockImplementation(async (prompt: string) => {
-      capturedPrompts.push(prompt);
-      if (capturedPrompts.length === 1) {
-        return {
-          text: "No JSON block here.",
-          streamedText: "",
-          sessionId: undefined,
-          turns: 1,
-          totalCostUsd: 0.01,
-          subtype: undefined,
-          isError: false,
-        };
-      }
-      return {
-        text: 'Result:\n\n```json\n{"status":"ok","count":1}\n```',
-        streamedText: "",
-        sessionId: undefined,
-        turns: 1,
-        totalCostUsd: 0.01,
-        subtype: undefined,
-        isError: false,
-      };
+  it("fails hard without retry on non-schema JSON format errors", async () => {
+    executeWithAgentSDKMock.mockResolvedValue({
+      text: "No JSON block here.",
+      streamedText: "",
+      sessionId: undefined,
+      turns: 1,
+      totalCostUsd: 0.01,
+      subtype: undefined,
+      isError: false,
     });
 
     const step = makeAgentStep({
@@ -341,20 +325,23 @@ describe("executeAgentStep — schema validation feedback on retry", () => {
       retry: { maxAttempts: 2, initialDelayMs: 0, backoffFactor: 1 },
     });
 
-    const output = await executeAgentStep(
-      makeDefinition(),
-      step,
-      makeMetadata(),
-      { event: "runtime.idle", payload: {} },
-      new AbortController(),
-      () => {},
-      () => {},
-      { projectDir, log: () => {} },
-    );
+    await expect(
+      executeAgentStep(
+        makeDefinition(),
+        step,
+        makeMetadata(),
+        { event: "runtime.idle", payload: {} },
+        new AbortController(),
+        () => {},
+        () => {},
+        { projectDir, log: () => {} },
+      ),
+    ).rejects.toThrow("no fenced JSON block was found");
 
-    expect(output).toEqual({ status: "ok", count: 1 });
-    // No schema correction note — the first failure was missing JSON block, not schema mismatch
-    expect(capturedPrompts[1]).not.toContain("Previous output failed schema validation");
+    // "no fenced block" is a format failure, not a classified transient
+    // failure and not a schema validation error — so the retry predicate
+    // refuses to consume a retry attempt.
+    expect(executeWithAgentSDKMock).toHaveBeenCalledTimes(1);
   });
 });
 

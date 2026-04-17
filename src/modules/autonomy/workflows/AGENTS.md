@@ -25,6 +25,43 @@ Timeouts, trigger validation, dirty-worktree recovery, and repair-loop checks
 are runtime rails, not prompt policy. Keep workflow code explicit and typed;
 keep prompts focused on the agent's role.
 
+### Agent-Step Retry and Error Classification
+
+Every agent step inherits `DEFAULT_AGENT_STEP_RETRY` from
+`src/core/workflow/steps/step-executor-retry.ts` — do not re-declare the same
+block on each step. Add a per-step `retry:` override only when a step has a
+genuinely different requirement and justify it with a comment.
+
+Errors that escape the step are classified by `classifyAgentRuntimeFailure`
+against structured signals in this order:
+
+1. `AbortError` is never classified — it propagates unchanged.
+2. SDK result subtype (`error_max_turns`, `error_max_tokens`) is a runaway
+   agent, not a provider problem. The step fails hard with no retry and no
+   agent-dispatch backoff.
+3. HTTP status on the thrown error: `429` → rate_limit (no retry, backoff),
+   `401`/`403` → auth (no retry, backoff), `5xx` or `408` → provider
+   (retryable, backoff on exhaustion).
+4. Node.js system error codes (`ECONNRESET`, `ECONNREFUSED`, `ENOTFOUND`,
+   `ETIMEDOUT`, `EPIPE`) → provider, retryable.
+5. The `API Error: <status>` marker the SDK encodes into its own error text
+   is parsed and reused as a status code.
+6. Narrow CLI rate-limit and auth text markers
+   (`rate limit`, `quota`, `you've/you have hit your limit`, `not logged in`,
+   `please run /login`, `unauthorized`, `authentication`).
+
+Anything else is **unclassified**: the agent-step retry predicate refuses
+to consume a retry attempt for it, so the step fails on the first attempt
+and the run aborts without triggering agent-dispatch backoff. Retries are
+reserved for classified transient failures and JSON-schema validation
+errors (the latter re-prompts the agent with the validation detail);
+unclassified problems — max-turns, max-tokens, agent logic mistakes,
+malformed tool calls — are deterministic and must not burn budget.
+
+Do not add broad fuzzy string matches to the classifier. Every new match
+must key on a structured field (status code, error code, SDK subtype) or a
+narrow, SDK-specific text marker.
+
 ## Unit Testing
 
 Each workflow should have a co-located `workflow.test.ts` for `when` predicate

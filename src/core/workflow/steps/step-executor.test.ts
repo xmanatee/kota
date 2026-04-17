@@ -151,9 +151,12 @@ describe("executeAgentStep", () => {
     expect(abortController.signal.aborted).toBe(true);
   });
 
-  it("retries on failure and succeeds on second attempt", async () => {
+  it("retries classified transient failures and succeeds on second attempt", async () => {
+    const networkError = Object.assign(new Error("socket hang up"), {
+      code: "ECONNRESET",
+    });
     mockedExecuteWithAgentSDK
-      .mockRejectedValueOnce(new Error("transient network error"))
+      .mockRejectedValueOnce(networkError)
       .mockResolvedValue(SUCCESS_RESULT);
 
     const logs: string[] = [];
@@ -178,8 +181,11 @@ describe("executeAgentStep", () => {
     expect(logs[0]).toContain("Attempt 1/2 failed");
   });
 
-  it("fails after exhausting all retry attempts", async () => {
-    mockedExecuteWithAgentSDK.mockRejectedValue(new Error("persistent error"));
+  it("fails after exhausting all retry attempts on classified provider errors", async () => {
+    const providerError = Object.assign(new Error("socket hang up"), {
+      code: "ECONNRESET",
+    });
+    mockedExecuteWithAgentSDK.mockRejectedValue(providerError);
 
     const logs: string[] = [];
     const step = makeStep({
@@ -197,16 +203,20 @@ describe("executeAgentStep", () => {
         () => {},
         { ...agentConfig, log: (msg) => logs.push(msg) },
       ),
-    ).rejects.toThrow("persistent error");
+    ).rejects.toThrow("socket hang up");
 
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(3);
     expect(logs).toHaveLength(2); // logged after attempt 1 and 2, not after final
   });
 
-  it("does not retry when retry config is absent", async () => {
-    mockedExecuteWithAgentSDK.mockRejectedValue(new Error("one-shot error"));
+  it("fails hard on the first attempt for unclassified errors", async () => {
+    mockedExecuteWithAgentSDK.mockRejectedValue(
+      new Error("agent produced nonsense"),
+    );
 
-    const step = makeStep(); // no retry
+    const step = makeStep({
+      retry: { maxAttempts: 3, initialDelayMs: 1, backoffFactor: 1 },
+    });
 
     await expect(
       executeAgentStep(
@@ -219,9 +229,47 @@ describe("executeAgentStep", () => {
         () => {},
         agentConfig,
       ),
-    ).rejects.toThrow("one-shot error");
+    ).rejects.toThrow("agent produced nonsense");
 
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies the runtime default retry when no explicit retry is configured", async () => {
+    vi.useFakeTimers();
+    try {
+      const providerError = Object.assign(new Error("socket hang up"), {
+        code: "ECONNRESET",
+      });
+      mockedExecuteWithAgentSDK.mockRejectedValue(providerError);
+
+      const step = makeStep(); // no retry — default applies implicitly
+
+      const promise = executeAgentStep(
+        makeDefinition(),
+        step,
+        makeMetadata(),
+        TRIGGER,
+        new AbortController(),
+        () => {},
+        () => {},
+        agentConfig,
+      );
+      // Swallow the rejection now so the fake-timer advancement doesn't
+      // surface it as an unhandled rejection before the final assertion.
+      const rejected = promise.catch((err) => err);
+
+      // DEFAULT_AGENT_STEP_RETRY.initialDelayMs === 5000
+      await vi.advanceTimersByTimeAsync(5000);
+
+      const err = await rejected;
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).toContain("socket hang up");
+
+      // DEFAULT_AGENT_STEP_RETRY.maxAttempts === 2
+      expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does not retry after the abort signal is set by the step deadline", async () => {
@@ -1073,33 +1121,125 @@ describe("executeEmitStep — notify config", () => {
 });
 
 describe("classifyAgentRuntimeFailure", () => {
-  it("classifies rate limit signals as non-retryable rate_limit", () => {
-    expect(classifyAgentRuntimeFailure("you've hit your limit for today")).toEqual({ kind: "rate_limit", retryable: false });
-    expect(classifyAgentRuntimeFailure("rate limit exceeded")).toEqual({ kind: "rate_limit", retryable: false });
-    expect(classifyAgentRuntimeFailure("quota exceeded")).toEqual({ kind: "rate_limit", retryable: false });
+  it("classifies 429 HTTP status as non-retryable rate_limit", () => {
+    expect(classifyAgentRuntimeFailure({ message: "", status: 429 })).toEqual({
+      kind: "rate_limit",
+      retryable: false,
+    });
   });
 
-  it("classifies auth signals as non-retryable auth", () => {
-    expect(classifyAgentRuntimeFailure("not logged in")).toEqual({ kind: "auth", retryable: false });
-    expect(classifyAgentRuntimeFailure("please run /login")).toEqual({ kind: "auth", retryable: false });
-    expect(classifyAgentRuntimeFailure("unauthorized")).toEqual({ kind: "auth", retryable: false });
+  it("classifies 401 and 403 HTTP status as non-retryable auth", () => {
+    expect(classifyAgentRuntimeFailure({ message: "", status: 401 })).toEqual({
+      kind: "auth",
+      retryable: false,
+    });
+    expect(classifyAgentRuntimeFailure({ message: "", status: 403 })).toEqual({
+      kind: "auth",
+      retryable: false,
+    });
   });
 
-  it("classifies network errors as retryable provider", () => {
-    expect(classifyAgentRuntimeFailure("network error occurred")).toEqual({ kind: "provider", retryable: true });
-    expect(classifyAgentRuntimeFailure("connection reset by peer")).toEqual({ kind: "provider", retryable: true });
-    expect(classifyAgentRuntimeFailure("timed out after 30s")).toEqual({ kind: "provider", retryable: true });
+  it("classifies 5xx and 408 HTTP statuses as retryable provider", () => {
+    expect(classifyAgentRuntimeFailure({ message: "", status: 500 })).toEqual({
+      kind: "provider",
+      retryable: true,
+    });
+    expect(classifyAgentRuntimeFailure({ message: "", status: 502 })).toEqual({
+      kind: "provider",
+      retryable: true,
+    });
+    expect(classifyAgentRuntimeFailure({ message: "", status: 503 })).toEqual({
+      kind: "provider",
+      retryable: true,
+    });
+    expect(classifyAgentRuntimeFailure({ message: "", status: 529 })).toEqual({
+      kind: "provider",
+      retryable: true,
+    });
+    expect(classifyAgentRuntimeFailure({ message: "", status: 408 })).toEqual({
+      kind: "provider",
+      retryable: true,
+    });
   });
 
-  it("classifies HTTP 5xx API errors as retryable provider", () => {
-    expect(classifyAgentRuntimeFailure('Claude Code returned an error result: API Error: 500 {"type":"error","error":{"type":"api_error","message":"Internal server error"}}')).toEqual({ kind: "provider", retryable: true });
-    expect(classifyAgentRuntimeFailure("API Error: 529 overloaded")).toEqual({ kind: "provider", retryable: true });
-    expect(classifyAgentRuntimeFailure("API Error: 503 service unavailable")).toEqual({ kind: "provider", retryable: true });
-    expect(classifyAgentRuntimeFailure("internal server error")).toEqual({ kind: "provider", retryable: true });
+  it("classifies Node network error codes as retryable provider", () => {
+    for (const code of ["ECONNRESET", "ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "EPIPE"]) {
+      expect(classifyAgentRuntimeFailure({ message: "", code })).toEqual({
+        kind: "provider",
+        retryable: true,
+      });
+    }
+  });
+
+  it("parses API Error: <status> from SDK result text", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        message:
+          'Claude Code returned an error result: API Error: 500 {"type":"error","error":{"type":"api_error","message":"Internal server error"}}',
+      }),
+    ).toEqual({ kind: "provider", retryable: true });
+    expect(
+      classifyAgentRuntimeFailure({ message: "API Error: 529 overloaded" }),
+    ).toEqual({ kind: "provider", retryable: true });
+    expect(
+      classifyAgentRuntimeFailure({ message: "API Error: 429" }),
+    ).toEqual({ kind: "rate_limit", retryable: false });
+  });
+
+  it("classifies rate-limit and auth CLI text markers", () => {
+    expect(
+      classifyAgentRuntimeFailure({ message: "you've hit your limit for today" }),
+    ).toEqual({ kind: "rate_limit", retryable: false });
+    expect(
+      classifyAgentRuntimeFailure({ message: "rate limit exceeded" }),
+    ).toEqual({ kind: "rate_limit", retryable: false });
+    expect(
+      classifyAgentRuntimeFailure({ message: "quota exceeded" }),
+    ).toEqual({ kind: "rate_limit", retryable: false });
+    expect(
+      classifyAgentRuntimeFailure({ message: "not logged in" }),
+    ).toEqual({ kind: "auth", retryable: false });
+    expect(
+      classifyAgentRuntimeFailure({ message: "please run /login" }),
+    ).toEqual({ kind: "auth", retryable: false });
+    expect(
+      classifyAgentRuntimeFailure({ message: "unauthorized" }),
+    ).toEqual({ kind: "auth", retryable: false });
+  });
+
+  it("does not classify max-turns SDK subtype (step fails hard)", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        message: "Agent exhausted max turns",
+        subtype: "error_max_turns",
+      }),
+    ).toBeNull();
+  });
+
+  it("never classifies AbortError (propagated as-is)", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        message: "aborted",
+        errorName: "AbortError",
+        code: "ECONNRESET",
+      }),
+    ).toBeNull();
   });
 
   it("returns null for unrecognized errors", () => {
-    expect(classifyAgentRuntimeFailure("something unexpected happened")).toBeNull();
-    expect(classifyAgentRuntimeFailure("")).toBeNull();
+    expect(
+      classifyAgentRuntimeFailure({ message: "something unexpected happened" }),
+    ).toBeNull();
+    expect(classifyAgentRuntimeFailure({ message: "" })).toBeNull();
+    // Broad fuzzy matches that used to retry no longer do.
+    expect(
+      classifyAgentRuntimeFailure({ message: "network error occurred" }),
+    ).toBeNull();
+    expect(
+      classifyAgentRuntimeFailure({ message: "timed out after 30s" }),
+    ).toBeNull();
+    expect(
+      classifyAgentRuntimeFailure({ message: "internal server error" }),
+    ).toBeNull();
   });
 });

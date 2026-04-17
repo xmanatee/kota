@@ -91,7 +91,6 @@ const builderWorkflow: WorkflowDefinitionInput = {
       // p99 of successful builder runs is ~26 min; 35 min gives safe headroom
       // above the 30-min global default without letting stuck work run wild.
       timeoutMs: 35 * 60 * 1000,
-      retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: (ctx) => {
         if (ctx.trigger.event === "runtime.recovered") return false;
         const { dirty, pullableCount } = inspectReadyQueue.output(ctx);

@@ -18,6 +18,7 @@ import type { AgentStepConfig, WorkflowStepOutput } from "./step-executor-agent.
 import {
   AgentStepRuntimeError,
   buildAgentPrompt,
+  DEFAULT_AGENT_STEP_RETRY,
   executeAgentStep,
   withRetry,
 } from "./step-executor-agent.js";
@@ -34,6 +35,7 @@ export {
   AgentStepRuntimeError,
   buildAgentPrompt,
   buildRepairPrompt,
+  DEFAULT_AGENT_STEP_RETRY,
   executeAgentStep,
   withRetry,
 };

@@ -112,7 +112,6 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
       // PR review is a bounded task; 20 min is tighter than the global
       // default and signals quickly when a review session is stuck.
       timeoutMs: 20 * 60 * 1000,
-      retry: { maxAttempts: 2, initialDelayMs: 5000, backoffFactor: 2 },
       when: (ctx) => !assessPr.output(ctx).skip,
     },
     {

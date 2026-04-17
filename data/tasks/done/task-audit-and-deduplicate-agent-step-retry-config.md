@@ -1,12 +1,12 @@
 ---
 id: task-audit-and-deduplicate-agent-step-retry-config
 title: Audit and deduplicate agent-step retry config
-status: backlog
+status: done
 priority: p2
 area: core
 summary: Move shared retry defaults out of every agent step, measure real retry rate, and tighten error classification.
 created_at: 2026-04-17T09:02:17.930Z
-updated_at: 2026-04-17T09:02:17.930Z
+updated_at: 2026-04-17T10:50:28.754Z
 ---
 
 ## Problem

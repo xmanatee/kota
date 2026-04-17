@@ -19,6 +19,7 @@ import type {
 import {
   AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
+  DEFAULT_AGENT_STEP_RETRY,
   withRetry,
 } from "./step-executor-retry.js";
 
@@ -44,6 +45,7 @@ export type AgentStepConfig = {
 export {
   AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
+  DEFAULT_AGENT_STEP_RETRY,
   withRetry,
 };
 
@@ -276,7 +278,10 @@ export async function executeAgentStep(
       if (result.isError) {
         const reason = result.subtype ?? "error";
         const detail = result.text.trim() || "Agent step returned an error result";
-        const classified = classifyAgentRuntimeFailure(detail);
+        const classified = classifyAgentRuntimeFailure({
+          message: detail,
+          subtype: result.subtype,
+        });
         if (classified) {
           // SDK-returned isError means SDK already exhausted its internal retry
           // budget. A fresh step-level retry spawns a new session from scratch
@@ -322,7 +327,17 @@ export async function executeAgentStep(
         throw error;
       }
       const detail = error instanceof Error ? error.message : String(error);
-      const classified = classifyAgentRuntimeFailure(detail);
+      const sysError = error as NodeJS.ErrnoException;
+      const errorWithStatus = error as { status?: number };
+      const classified = classifyAgentRuntimeFailure({
+        message: detail,
+        status:
+          typeof errorWithStatus.status === "number"
+            ? errorWithStatus.status
+            : undefined,
+        code: typeof sysError.code === "string" ? sysError.code : undefined,
+        errorName: error instanceof Error ? error.name : undefined,
+      });
       if (classified) {
         throw new AgentStepRuntimeError(
           `Agent step "${step.id}" failed: ${detail}`,
@@ -334,9 +349,18 @@ export async function executeAgentStep(
     }
   };
 
-  const output = step.retry
-    ? await withRetry(runAttempt, step.retry, agentConfig.log, abortController.signal)
-    : await runAttempt();
+  const retry = step.retry ?? DEFAULT_AGENT_STEP_RETRY;
+  const output = await withRetry(runAttempt, retry, {
+    log: agentConfig.log,
+    abortSignal: abortController.signal,
+    // Only consume retry attempts for failures we can confidently classify
+    // as transient (provider / JSON schema). Unclassified errors — max turns,
+    // agent logic mistakes, malformed tool calls — fail hard on the first
+    // attempt so we do not burn budget on deterministic failures.
+    shouldRetry: (err) =>
+      err instanceof JsonSchemaValidationError ||
+      (err instanceof AgentStepRuntimeError && err.retryable),
+  });
 
   writeToolTelemetryArtifact(step.id, metadata, agentConfig.projectDir, stepTelemetry);
 
