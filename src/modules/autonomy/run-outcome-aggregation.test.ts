@@ -263,6 +263,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
     durationMs: number,
     agentDurationMs: number,
     commitSubject?: string,
+    status: WorkflowRunMetadata["status"] = "success",
   ): void {
     const runDir = join(runsDir, id);
     mkdirSync(runDir, { recursive: true });
@@ -272,7 +273,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       definitionPath: `src/modules/autonomy/workflows/${workflow}/workflow.ts`,
       trigger: { event: "runtime.idle", payload: {} },
       startedAt: new Date(Date.now() - 60_000).toISOString(),
-      status: "success",
+      status,
       durationMs,
       runDir: id,
       steps: [
@@ -344,5 +345,22 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
     const result = aggregateRunOutcomes(runsDir);
     expect(result.durationOutliers).toHaveLength(1);
     expect(result.durationOutliers[0].commitSubject).toBeUndefined();
+  });
+
+  it("excludes interrupted runs from failure-rate total and failures", () => {
+    writeRun("ok-1", "improver", 500_000, 499_000);
+    writeRun("ok-2", "improver", 600_000, 599_000);
+    writeRun("fail-1", "improver", 400_000, 399_000, undefined, "failed");
+    writeRun("abort-1", "improver", 100_000, 50_000, undefined, "interrupted");
+    writeRun("abort-2", "improver", 200_000, 100_000, undefined, "interrupted");
+
+    const result = aggregateRunOutcomes(runsDir);
+    const improver = result.failureRates7d.find((r) => r.workflow === "improver");
+    expect(improver).toEqual({
+      workflow: "improver",
+      total: 3,
+      failures: 1,
+      rate: 1 / 3,
+    });
   });
 });

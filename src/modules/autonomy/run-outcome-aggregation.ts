@@ -38,6 +38,11 @@ export type RunOutcomeAggregation = {
 function computeFailureRates(runs: RunSummary[]): WorkflowFailureRate[] {
   const byWf = new Map<string, { total: number; failures: number }>();
   for (const r of runs) {
+    // Interrupted runs (user abort, daemon termination mid-run) carry no
+    // workflow-quality signal — the outcome is indeterminate, not failed.
+    // Including them in the denominator makes real failure rates look lower
+    // than they are and warps improver prioritization, so drop them entirely.
+    if (r.status === "interrupted") continue;
     const entry = byWf.get(r.workflow) ?? { total: 0, failures: 0 };
     entry.total++;
     if (r.status === "failed") entry.failures++;
