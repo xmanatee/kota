@@ -19,7 +19,7 @@ export type ModelTiers = {
 export const DEFAULT_MODEL_TIERS: Required<ModelTiers> = {
 	fast: "claude-haiku-4-5-20251001",
 	balanced: "claude-sonnet-4-6",
-	capable: "claude-opus-4-6",
+	capable: "claude-opus-4-7",
 };
 
 /** Base tier for each task type — before complexity adjustments. */

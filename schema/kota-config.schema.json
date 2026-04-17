@@ -33,17 +33,6 @@
       },
       "type": "array"
     },
-    "budget": {
-      "additionalProperties": false,
-      "description": "Budget warning settings.",
-      "properties": {
-        "warnAt": {
-          "description": "Fraction of dailyBudgetUsd at which a one-time soft-limit warning notification fires. Must be between 0 and 1 (exclusive). Example: 0.8 warns at 80% of the daily limit. Omitting this field disables soft-limit warnings.",
-          "type": "number"
-        }
-      },
-      "type": "object"
-    },
     "daemon": {
       "additionalProperties": false,
       "description": "Daemon lifecycle settings.",
@@ -62,10 +51,6 @@
         }
       },
       "type": "object"
-    },
-    "dailyBudgetUsd": {
-      "description": "Maximum API spend per calendar day (UTC). Workflow dispatch pauses when exceeded.",
-      "type": "number"
     },
     "editorModel": {
       "type": "string"

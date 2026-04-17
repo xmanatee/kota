@@ -4,7 +4,6 @@ import type { KotaConfig } from "#core/config/config.js";
 import type { BusEnvelope } from "#core/events/event-bus.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { AgentBackoffManager } from "./agent-backoff.js";
-import { BudgetGuard } from "./budget-guard.js";
 import { isWithinDispatchWindow, msUntilDispatchWindowOpens } from "./dispatch-window.js";
 import { enqueueMatchingWorkflows, workflowUsesAgent } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
@@ -52,7 +51,6 @@ export class WorkflowRuntime {
   private readonly backoff: AgentBackoffManager;
   private readonly scheduleTriggers: ScheduleTriggerManager;
   private readonly watchTriggers: WatchTriggerManager;
-  private readonly budgetGuard = new BudgetGuard();
 
   private definitions: WorkflowDefinition[] = [];
   private readonly wfQueue: WorkflowQueueManager;
@@ -97,7 +95,6 @@ export class WorkflowRuntime {
     this.wfQueue = new WorkflowQueueManager({
       store: this.store,
       getActiveBackoff: () => this.backoff.getActive(),
-      getWorkflowBudgetPauseUntil: (name) => this.store.getWorkflowBudgetPauseUntil(name),
       shouldSuppressBackoff: (def) => this.backoff.shouldSuppress(def),
       workflowUsesAgent,
       isActiveRun: (name) => this.activeRuns.has(name),

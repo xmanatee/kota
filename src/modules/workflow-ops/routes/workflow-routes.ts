@@ -2,7 +2,6 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WorkflowDefinitionSummary, WorkflowLiveStatus } from "#core/daemon/daemon-control.js";
 import type { DaemonControlClient } from "#core/server/daemon-client.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
-import { getWorkflowCostForecast } from "#core/workflow/cost-forecast.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { formatRunId } from "#core/workflow/run-store-helpers.js";
 import type { WorkflowQueuedRun } from "#core/workflow/run-types.js";
@@ -412,14 +411,11 @@ export async function handleWorkflowDryRun(
       ? (body.payload as Record<string, unknown>)
       : undefined;
 
-  const costForecast = getWorkflowCostForecast(".kota", name);
-
   let result: DryRunResult;
   try {
     result = await buildDryRunPlan(definition, {
       payload,
       availableToolNames: deps.availableToolNames,
-      costForecast,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

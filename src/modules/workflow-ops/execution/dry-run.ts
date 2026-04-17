@@ -1,4 +1,3 @@
-import type { WorkflowCostForecast } from "#core/workflow/cost-forecast.js";
 import { matchesFilter } from "#core/workflow/run-executor-utils.js";
 import type { WorkflowPredicate, WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { WorkflowDefinition, WorkflowStep, WorkflowTrigger } from "#core/workflow/types.js";
@@ -38,13 +37,11 @@ export type DryRunResult = DryRunPlan & {
   pass: boolean;
   diagnostics: DryRunDiagnostic[];
   triggerMatch?: DryRunTriggerMatch;
-  costForecast?: WorkflowCostForecast | null;
 };
 
 export type DryRunOptions = {
   payload?: Record<string, unknown>;
   availableToolNames?: ReadonlySet<string>;
-  costForecast?: WorkflowCostForecast | null;
 };
 
 function makeDryRunContext(
@@ -267,7 +264,6 @@ export async function buildDryRunPlan(
     pass: !hasErrors,
     diagnostics,
     ...(triggerMatch && { triggerMatch }),
-    ...(options.costForecast !== undefined && { costForecast: options.costForecast }),
   };
 }
 
@@ -329,14 +325,6 @@ export function formatDryRunResult(result: DryRunResult): string {
     } else {
       lines.push("Trigger: no match for provided payload");
     }
-  }
-
-  if (result.costForecast) {
-    lines.push("");
-    lines.push(
-      `Cost forecast: $${result.costForecast.baselineAvgCostUsd.toFixed(4)} avg ` +
-        `(${result.costForecast.confidence} confidence, ${result.costForecast.sampleSize} samples)`,
-    );
   }
 
   if (result.diagnostics.length > 0) {

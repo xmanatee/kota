@@ -115,7 +115,7 @@ async function executeRepairAgentIteration(
       cwd: agentConfig.projectDir,
       systemPrompt,
       maxTurns: step.maxTurns,
-      maxBudgetUsd: step.maxBudgetUsd,
+      effort: step.effort,
       thinkingEnabled: step.thinkingEnabled,
       thinkingBudget: step.thinkingBudget,
       allowedTools: step.allowedTools,

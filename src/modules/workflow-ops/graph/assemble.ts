@@ -148,8 +148,6 @@ function buildWorkflowNode(
     description: def.description,
     enabled: def.enabled !== false,
     tags: def.tags ?? [],
-    dailyBudgetUsd: def.dailyBudgetUsd,
-    costLimitUsd: def.costLimitUsd,
     concurrencyGroup: def.concurrencyGroup,
     triggers,
     steps,

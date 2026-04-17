@@ -115,7 +115,7 @@ describe("webhookModule notifications", () => {
     webhookModule.onLoad!(
       makeStubCtx(bus, { urls: [FAKE_URL], events: ["workflow.failure.alert"] }),
     );
-    bus.emit("workflow.budget.exceeded", { dailySpend: 30, budget: 25, text: "over budget" });
+    bus.emit("workflow.attention.digest", { items: [], text: "digest" });
     await Promise.resolve();
     expect(mockFetch).not.toHaveBeenCalled();
   });
@@ -123,9 +123,9 @@ describe("webhookModule notifications", () => {
   it("respects events filter — fires included events", async () => {
     const bus = new EventBus();
     webhookModule.onLoad!(
-      makeStubCtx(bus, { urls: [FAKE_URL], events: ["workflow.budget.exceeded"] }),
+      makeStubCtx(bus, { urls: [FAKE_URL], events: ["workflow.attention.digest"] }),
     );
-    bus.emit("workflow.budget.exceeded", { dailySpend: 30, budget: 25, text: "over budget" });
+    bus.emit("workflow.attention.digest", { items: [], text: "digest" });
     await Promise.resolve();
     expect(mockFetch).toHaveBeenCalledOnce();
   });
@@ -214,13 +214,10 @@ describe("webhookModule notifications", () => {
     webhookModule.onLoad!(makeStubCtx(bus, { urls: [FAKE_URL] }));
 
     bus.emit("workflow.failure.alert", { text: "failure" });
-    bus.emit("workflow.budget.exceeded", { text: "budget" });
     bus.emit("workflow.attention.digest", { text: "digest" });
-    bus.emit("workflow.cost.limit.reached", { text: "cost" });
-    bus.emit("workflow.cost.anomaly", { text: "anomaly", workflow: "builder", runCostUsd: 2.0, baselineCostUsd: 0.5, thresholdMultiplier: 3 });
 
     await Promise.resolve();
-    expect(mockFetch).toHaveBeenCalledTimes(5);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it("forwards approval.requested regardless of events filter", async () => {

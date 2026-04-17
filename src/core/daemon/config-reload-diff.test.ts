@@ -42,7 +42,7 @@ describe("computeModuleConfigDiff", () => {
 
   it("triggers full reload when a global config key changes", () => {
     const oldConfig: KotaConfig = { model: "claude-3-5-sonnet-20241022" };
-    const newConfig: KotaConfig = { model: "claude-opus-4-6" };
+    const newConfig: KotaConfig = { model: "claude-opus-4-7" };
     const result = computeModuleConfigDiff(oldConfig, newConfig, allModules);
     expect(result.isFullReload).toBe(true);
     expect(result.changedModules).toEqual(["git", "github", "fs"]);

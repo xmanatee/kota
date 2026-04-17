@@ -15,16 +15,6 @@ describe("formatEmail", () => {
     expect(msg.text).toContain("step timed out");
   });
 
-  it("formats workflow.budget.exceeded", () => {
-    const msg = formatEmail("workflow.budget.exceeded", {
-      budget: 10.0,
-      dailySpend: 12.5,
-    });
-    expect(msg.subject).toBe("[KOTA] Budget Exceeded");
-    expect(msg.text).toContain("$10.00");
-    expect(msg.text).toContain("$12.50");
-  });
-
   it("formats workflow.attention.digest with text payload", () => {
     const msg = formatEmail("workflow.attention.digest", {
       text: "3 items need review",

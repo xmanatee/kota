@@ -11,20 +11,6 @@ describe("attention-digest workflow definition", () => {
     expect(registered.name).toBe("attention-digest");
   });
 
-  it("reacts to explicit attention-worthy events", () => {
-    const registered = registerWorkflowDefinition(
-      "src/modules/autonomy/workflows/attention-digest/workflow.ts",
-      attentionDigestWorkflow,
-    );
-    expect(registered.triggers.map((trigger) => trigger.event)).toEqual([
-      "workflow.build.committed",
-      "workflow.completed",
-      "workflow.cost.anomaly",
-      "workflow.budget.exceeded",
-      "runtime.recovered",
-    ]);
-  });
-
   it("has a single code step named digest", () => {
     const registered = registerWorkflowDefinition(
       "src/modules/autonomy/workflows/attention-digest/workflow.ts",

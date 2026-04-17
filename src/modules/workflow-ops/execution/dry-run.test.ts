@@ -104,7 +104,8 @@ describe("buildDryRunPlan", () => {
           id: "build",
           type: "agent",
           promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
-          model: "claude-opus-4-6",
+          model: "claude-opus-4-7",
+              effort: "xhigh",
           permissionMode: "default",
           settingSources: ["project"],
         },
@@ -112,7 +113,7 @@ describe("buildDryRunPlan", () => {
     });
     const plan = await buildDryRunPlan(def);
     expect(plan.steps[0].config).toContain("agent");
-    expect(plan.steps[0].config).toContain("claude-opus-4-6");
+    expect(plan.steps[0].config).toContain("claude-opus-4-7");
     expect(plan.steps[0].config).toContain("prompt.md");
   });
 
@@ -238,23 +239,6 @@ describe("buildDryRunPlan with options", () => {
     expect(result.diagnostics[0].message).toContain("no trigger matches");
   });
 
-  it("includes cost forecast when provided", async () => {
-    const def = makeDefinition({
-      steps: [{ id: "build", type: "code", run: () => null }],
-    });
-    const forecast = {
-      workflow: "test-workflow",
-      baselineAvgCostUsd: 0.42,
-      sampleSize: 10,
-      updatedAt: "2026-04-12T00:00:00Z",
-      stale: false,
-      confidence: "high" as const,
-    };
-    const result = await buildDryRunPlan(def, { costForecast: forecast });
-    expect(result.pass).toBe(true);
-    expect(result.costForecast).toEqual(forecast);
-  });
-
   it("reports multiple diagnostics for several missing tools", async () => {
     const def = makeDefinition({
       steps: [
@@ -279,7 +263,6 @@ describe("buildDryRunPlan with options", () => {
     expect(result.pass).toBe(true);
     expect(result.diagnostics).toHaveLength(0);
     expect(result.triggerMatch).toBeUndefined();
-    expect(result.costForecast).toBeUndefined();
   });
 });
 
@@ -398,23 +381,4 @@ describe("formatDryRunResult", () => {
     expect(output).toContain("Trigger: matched");
   });
 
-  it("shows cost forecast when available", async () => {
-    const def = makeDefinition({
-      steps: [{ id: "step", type: "code", run: () => null }],
-    });
-    const result = await buildDryRunPlan(def, {
-      costForecast: {
-        workflow: "test-workflow",
-        baselineAvgCostUsd: 1.2345,
-        sampleSize: 5,
-        updatedAt: "2026-04-12T00:00:00Z",
-        stale: false,
-        confidence: "high",
-      },
-    });
-    const output = formatDryRunResult(result);
-    expect(output).toContain("Cost forecast:");
-    expect(output).toContain("$1.2345");
-    expect(output).toContain("high confidence");
-  });
 });

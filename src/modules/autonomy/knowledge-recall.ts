@@ -67,7 +67,7 @@ export function recallForBuilder(projectDir: string): KnowledgeRecallResult {
 }
 
 export function recallForImprover(projectDir: string): KnowledgeRecallResult {
-  const query = "workflow autonomous builder improver failure repair cost quality";
+  const query = "workflow autonomous builder improver failure repair quality";
   const store = new KnowledgeStore(projectDir);
   const entries = store.search(query);
   return formatResult(query, entries);

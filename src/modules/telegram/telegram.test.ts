@@ -161,22 +161,6 @@ describe("telegramModule notifications via onLoad", () => {
     );
   });
 
-  it("sends Telegram message on workflow.budget.exceeded", async () => {
-    const bus = new EventBus();
-    telegramModule.onLoad!(makeStubCtx(bus));
-    bus.emit("workflow.budget.exceeded", {
-      dailySpend: 30,
-      budget: 25,
-      text: "Daily cost budget reached.",
-    });
-    await Promise.resolve();
-    expect(mockedCallTelegramApi).toHaveBeenCalledWith(
-      FAKE_TOKEN,
-      "sendMessage",
-      expect.objectContaining({ chat_id: FAKE_CHAT_ID, text: "Daily cost budget reached." }),
-    );
-  });
-
   it("sends Telegram message on workflow.attention.digest", async () => {
     const bus = new EventBus();
     telegramModule.onLoad!(makeStubCtx(bus));
@@ -192,23 +176,6 @@ describe("telegramModule notifications via onLoad", () => {
     );
     const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
     expect(body.text).toContain("Builder failure streak");
-  });
-
-  it("sends Telegram message on workflow.cost.limit.reached", async () => {
-    const bus = new EventBus();
-    telegramModule.onLoad!(makeStubCtx(bus));
-    bus.emit("workflow.cost.limit.reached", {
-      totalCost: 55,
-      hardLimit: 50,
-      text: "Cost circuit breaker tripped.",
-      pauseSignalFile: "pause",
-    });
-    await Promise.resolve();
-    expect(mockedCallTelegramApi).toHaveBeenCalledWith(
-      FAKE_TOKEN,
-      "sendMessage",
-      expect.objectContaining({ chat_id: FAKE_CHAT_ID, text: "Cost circuit breaker tripped." }),
-    );
   });
 
   it("sends Telegram message on owner.question.asked with CLI commands and Dismiss button", async () => {

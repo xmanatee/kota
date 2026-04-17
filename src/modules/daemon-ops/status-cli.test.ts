@@ -52,22 +52,6 @@ describe("formatStatusOutput", () => {
     expect(out).not.toContain("requires attention");
   });
 
-  it("shows budget line when both spend and budget are present", () => {
-    const out = formatStatusOutput(makeSnap({ dailySpendUsd: 0.42, dailyBudgetUsd: 5.0 }));
-    expect(out).toContain("$0.42 of $5.00 today");
-  });
-
-  it("shows spend-only line when budget is not configured", () => {
-    const out = formatStatusOutput(makeSnap({ dailySpendUsd: 1.5 }));
-    expect(out).toContain("$1.50 today");
-    expect(out).not.toContain("of $");
-  });
-
-  it("omits budget line when spend is zero and no budget configured", () => {
-    const out = formatStatusOutput(makeSnap({ dailySpendUsd: undefined }));
-    expect(out).not.toContain("Budget:");
-  });
-
   it("formats uptime under one hour as minutes only", () => {
     const out = formatStatusOutput(makeSnap({
       daemonRunning: true,

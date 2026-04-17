@@ -18,11 +18,7 @@ import { postWithRetry } from "#modules/notification/index.js";
 
 const NOTIFICATION_EVENTS = [
   "workflow.failure.alert",
-  "workflow.budget.exceeded",
-  "workflow.budget.warning",
   "workflow.attention.digest",
-  "workflow.cost.limit.reached",
-  "workflow.cost.anomaly",
   "workflow.approval.expired",
   "module.crash.alert",
 ] as const;
@@ -68,67 +64,9 @@ function buildBlocks(event: string, payload: Record<string, unknown>): Block[] {
       if (errorSummary) blocks.push(section(`*Error:* ${errorSummary}`));
       return blocks;
     }
-    case "workflow.budget.exceeded": {
-      const dailySpend = payload.dailySpend as number | undefined;
-      const budget = payload.budget as number | undefined;
-      return [
-        header("Budget Exceeded"),
-        divider,
-        section(
-          [
-            budget !== undefined ? `*Budget:* $${budget.toFixed(2)}` : null,
-            dailySpend !== undefined ? `*Daily spend:* $${dailySpend.toFixed(2)}` : null,
-          ]
-            .filter(Boolean)
-            .join("  ·  ") || (payload.text as string) || "",
-        ),
-      ];
-    }
-    case "workflow.budget.warning": {
-      const dailySpend = payload.dailySpend as number | undefined;
-      const budget = payload.budget as number | undefined;
-      const warnAt = payload.warnAt as number | undefined;
-      const pct = warnAt !== undefined ? `${Math.round(warnAt * 100)}%` : undefined;
-      return [
-        header("Budget Soft-Limit Warning"),
-        divider,
-        section(
-          [
-            pct !== undefined ? `*Threshold:* ${pct}` : null,
-            budget !== undefined ? `*Budget:* $${budget.toFixed(2)}` : null,
-            dailySpend !== undefined ? `*Daily spend:* $${dailySpend.toFixed(2)}` : null,
-          ]
-            .filter(Boolean)
-            .join("  ·  ") || (payload.text as string) || "",
-        ),
-      ];
-    }
     case "workflow.attention.digest": {
       const text = payload.text as string | undefined;
       return [header("Attention Digest"), divider, section(text ?? "Digest available.")];
-    }
-    case "workflow.cost.limit.reached": {
-      const text = payload.text as string | undefined;
-      return [header("Cost Limit Reached"), divider, section(text ?? "Hard cost limit tripped.")];
-    }
-    case "workflow.cost.anomaly": {
-      const workflow = payload.workflow as string | undefined;
-      const runCostUsd = payload.runCostUsd as number | undefined;
-      const baselineCostUsd = payload.baselineCostUsd as number | undefined;
-      const threshold = payload.threshold as number | undefined;
-      return [
-        header(`Cost Anomaly: ${workflow ?? "unknown"}`),
-        divider,
-        section(
-          [
-            runCostUsd !== undefined ? `*Run cost:* $${runCostUsd.toFixed(4)}` : null,
-            baselineCostUsd !== undefined ? `*Baseline:* $${baselineCostUsd.toFixed(4)}` : null,
-            threshold !== undefined ? `*Threshold:* ${threshold}×` : null,
-          ]
-            .filter(Boolean)
-            .join("  ·  ") || (payload.text as string) || "",
-        ),
-      ];
     }
     case "workflow.build.committed": {
       const commitMessage = payload.commitMessage as string | undefined;

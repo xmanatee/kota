@@ -98,7 +98,6 @@ export async function runDelegate(
       instructionContext: delegateConfig.instructionContext,
       costTracker: delegateConfig.costTracker,
       transport: delegateConfig.transport,
-      maxBudgetUsd: delegateConfig.agentSdkBudgetUsd,
       model: selectedModel,
     });
   }

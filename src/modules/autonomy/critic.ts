@@ -13,7 +13,7 @@ export type CriticVerdict = {
   summary: string;
 };
 
-const CRITIC_MODEL = "claude-opus-4-6";
+const CRITIC_MODEL = "claude-opus-4-7";
 
 const CRITIC_SYSTEM_PROMPT = `You are a calibrated code review critic. Your job is to determine whether an agent's work genuinely and completely fulfills its assigned task.
 
@@ -166,7 +166,7 @@ export type AgentJudgeConfig = {
   systemPrompt: string;
   model: string;
   maxTurns: number;
-  effort: "low" | "medium" | "high" | "max";
+  effort: "low" | "medium" | "high" | "xhigh" | "max";
   maxRetries?: number;
   retryBaseDelayMs?: number;
 };
@@ -233,7 +233,7 @@ const criticConfig: AgentJudgeConfig = {
   systemPrompt: CRITIC_SYSTEM_PROMPT,
   model: CRITIC_MODEL,
   maxTurns: CRITIC_MAX_TURNS,
-  effort: "high",
+  effort: "xhigh",
 };
 
 export function createCriticCheck(options?: {

@@ -166,7 +166,6 @@ export function assertWorkflowRuntimeState(
       "lastStartedAt",
       "lastCompletedAt",
       "nextScheduledAt",
-      "budgetPausedUntil",
     ] as const) {
       const current = entry[key];
       if (
@@ -249,9 +248,8 @@ function summarizeStep(step: WorkflowStep): Record<string, unknown> {
       type: step.type,
       promptPath: step.promptPath,
       model: step.model,
+      effort: step.effort,
       maxTurns: step.maxTurns,
-      maxBudgetUsd: step.maxBudgetUsd,
-      maxCostUsd: step.maxCostUsd,
       permissionMode: step.permissionMode,
       allowedTools: step.allowedTools,
       disallowedTools: step.disallowedTools,

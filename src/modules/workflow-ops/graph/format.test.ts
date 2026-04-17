@@ -29,7 +29,6 @@ const SAMPLE_DEFS: RegisteredWorkflowDefinitionInput[] = [
     name: "builder",
     description: "Builds one task",
     tags: ["monitored"],
-    dailyBudgetUsd: 50,
     triggers: [{ event: "autonomy.queue.available" }],
     steps: [
       { type: "code", id: "inspect", run: () => {} },
@@ -37,7 +36,8 @@ const SAMPLE_DEFS: RegisteredWorkflowDefinitionInput[] = [
         type: "agent",
         id: "build",
         agentName: "builder",
-        model: "claude-opus-4-6",
+        model: "claude-opus-4-7",
+        effort: "xhigh",
         when: () => true,
       },
       { type: "emit", id: "done", event: "workflow.build.committed" },
@@ -54,7 +54,8 @@ const SAMPLE_DEFS: RegisteredWorkflowDefinitionInput[] = [
         type: "agent",
         id: "explore",
         agentName: "explorer",
-        model: "claude-opus-4-6",
+        model: "claude-opus-4-7",
+        effort: "xhigh",
       },
     ],
   }),
@@ -88,13 +89,7 @@ describe("formatTable", () => {
   it("shows step details including agent info", () => {
     const graph = assembleWorkflowGraph(SAMPLE_DEFS);
     const output = formatTable(graph);
-    expect(output).toContain("[agent] build (builder, claude-opus-4-6) (conditional)");
-  });
-
-  it("shows budget info", () => {
-    const graph = assembleWorkflowGraph(SAMPLE_DEFS);
-    const output = formatTable(graph);
-    expect(output).toContain("budget: $50/day");
+    expect(output).toContain("[agent] build (builder, claude-opus-4-7) (conditional)");
   });
 
   it("shows summary counts", () => {

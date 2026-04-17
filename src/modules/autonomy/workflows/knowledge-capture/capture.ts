@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getKnowledgeStore } from "#core/memory/knowledge-store.js";
+import { readOptionalJsonFile } from "#core/util/json-file.js";
 
 type RunSummary = {
 	runId: string;
@@ -10,7 +11,6 @@ type RunSummary = {
 	outcome: string;
 	commitMessage?: string;
 	filesChanged?: string[];
-	costUsd?: number;
 	durationMs?: number;
 	completedAt?: string;
 };
@@ -20,33 +20,6 @@ export type CaptureResult = {
 	reason: string;
 	entryId?: string;
 };
-
-/** Check whether a knowledge entry already exists for this run. */
-function alreadyCaptured(
-	store: ReturnType<typeof getKnowledgeStore>,
-	runId: string,
-): boolean {
-	const existing = store.search(runId, { tag: `run:${runId}` });
-	return existing.length > 0;
-}
-
-function readJsonFile<T>(path: string): T | null {
-	if (!existsSync(path)) return null;
-	try {
-		return JSON.parse(readFileSync(path, "utf-8")) as T;
-	} catch {
-		return null;
-	}
-}
-
-function readTextFile(path: string): string | null {
-	if (!existsSync(path)) return null;
-	try {
-		return readFileSync(path, "utf-8").trim();
-	} catch {
-		return null;
-	}
-}
 
 function formatDuration(ms: number): string {
 	if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
@@ -78,12 +51,9 @@ function buildContent(summary: RunSummary, commitDetail: string | null): string 
 		}
 	}
 
-	const stats: string[] = [];
-	if (summary.durationMs != null) stats.push(`duration: ${formatDuration(summary.durationMs)}`);
-	if (summary.costUsd != null) stats.push(`cost: $${summary.costUsd.toFixed(2)}`);
-	if (stats.length > 0) {
+	if (summary.durationMs != null) {
 		lines.push("");
-		lines.push(stats.join(", "));
+		lines.push(`duration: ${formatDuration(summary.durationMs)}`);
 	}
 
 	return lines.join("\n");
@@ -101,12 +71,12 @@ export function captureRunInsight(
 ): CaptureResult {
 	const store = getKnowledgeStore(projectDir);
 
-	if (alreadyCaptured(store, runId)) {
+	if (store.search(runId, { tag: `run:${runId}` }).length > 0) {
 		return { captured: false, reason: "already captured" };
 	}
 
 	const runDirPath = join(projectDir, runDir);
-	const summary = readJsonFile<RunSummary>(join(runDirPath, "run-summary.json"));
+	const summary = readOptionalJsonFile<RunSummary>(join(runDirPath, "run-summary.json"));
 
 	if (!summary) {
 		return { captured: false, reason: "no run-summary.json" };
@@ -116,7 +86,10 @@ export function captureRunInsight(
 		return { captured: false, reason: `run outcome: ${summary.outcome}` };
 	}
 
-	const commitDetail = readTextFile(join(runDirPath, "commit-message.txt"));
+	const commitMessagePath = join(runDirPath, "commit-message.txt");
+	const commitDetail = existsSync(commitMessagePath)
+		? readFileSync(commitMessagePath, "utf-8").trim()
+		: null;
 
 	const title = summary.commitMessage
 		|| summary.taskTitle

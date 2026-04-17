@@ -1,17 +1,9 @@
-import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { countRepoTaskState } from "#core/data/repo-tasks.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
-import { PAUSE_SIGNAL_FILE } from "#core/workflow/runtime.js";
-import {
-  computeCostByWorkflow,
-  loadRecentRuns,
-  type RunSummary,
-} from "#modules/autonomy/shared.js";
+import { loadRecentRuns, type RunSummary } from "#modules/autonomy/shared.js";
 
 const DIGEST_EVERY_N_RUNS = 10;
-const DEFAULT_COST_WARN_THRESHOLD_USD = 25;
-const DEFAULT_COST_HARD_LIMIT_USD = 50;
 // KOTA_DIGEST_WARNINGS_COUNT: number of builder runs with warnings to trigger the check (default 3)
 // KOTA_DIGEST_WARNINGS_WINDOW: how many recent builder runs to inspect (default 10)
 const DEFAULT_WARNINGS_COUNT = 3;
@@ -80,20 +72,6 @@ function detectAttentionItems(
   const warningsItem = builderWarningsCheck(recentRuns);
   if (warningsItem) items.push(warningsItem);
 
-  const totalCost = Object.values(computeCostByWorkflow(recentRuns)).reduce(
-    (a, b) => a + b,
-    0,
-  );
-  const threshold =
-    Number(process.env.KOTA_DIGEST_COST_THRESHOLD) ||
-    DEFAULT_COST_WARN_THRESHOLD_USD;
-  if (totalCost > threshold) {
-    items.push({
-      label: "Budget pressure",
-      detail: `$${totalCost.toFixed(2)} spent in last 24h (threshold: $${threshold})`,
-    });
-  }
-
   const doingCount = countRepoTaskState(projectDir, "doing");
   if (doingCount >= 2) {
     items.push({
@@ -159,24 +137,6 @@ export function runAttentionDigestStep(
   if (count % DIGEST_EVERY_N_RUNS !== 0) return;
 
   const recentRuns = loadRecentRuns(runsDir);
-  const totalCost = Object.values(computeCostByWorkflow(recentRuns)).reduce(
-    (a, b) => a + b,
-    0,
-  );
-  const hardLimit =
-    Number(process.env.KOTA_COST_HARD_LIMIT_USD) || DEFAULT_COST_HARD_LIMIT_USD;
-
-  if (totalCost > hardLimit) {
-    writeFileSync(join(projectDir, ".kota", PAUSE_SIGNAL_FILE), "");
-    const text = `Cost circuit breaker tripped: $${totalCost.toFixed(2)} spent in last 24h (hard limit: $${hardLimit}). Autonomous dispatch paused. Delete \`.kota/${PAUSE_SIGNAL_FILE}\` to resume.`;
-    emit?.("workflow.cost.limit.reached", {
-      totalCost,
-      hardLimit,
-      text,
-      pauseSignalFile: PAUSE_SIGNAL_FILE,
-    });
-    return;
-  }
 
   const items = detectAttentionItems(projectDir, recentRuns);
   if (items.length === 0) return;

@@ -13,7 +13,6 @@ import { registerDefinitionsCommand } from "./definitions/definitions.js";
 import { registerDepsCommand } from "./definitions/deps.js";
 import { registerValidateCommand } from "./definitions/validate.js";
 import { registerControlCommands } from "./execution/control.js";
-import { registerForecastCommand } from "./execution/forecast.js";
 import { registerGcCommand } from "./execution/gc.js";
 import { registerRunCommand } from "./execution/run.js";
 import { registerTriggerCommands } from "./execution/trigger.js";
@@ -41,7 +40,7 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
         "  or static definitions directly.",
     );
 
-  registerRunListCommands(wfCmd, ctx);
+  registerRunListCommands(wfCmd);
   registerStatsCommand(wfCmd);
   registerExportCommand(wfCmd);
   registerRunShowCommand(wfCmd);
@@ -51,7 +50,6 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
   registerDepsCommand(wfCmd, ctx);
   registerDefinitionLogCommand(wfCmd, ctx);
   registerCostCommand(wfCmd);
-  registerForecastCommand(wfCmd);
   registerLogsCommand(wfCmd);
   registerFollowCommand(wfCmd);
   registerTriggerCommands(wfCmd, ctx);

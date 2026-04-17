@@ -16,7 +16,6 @@ import {
   expectName,
   expectOptionalBoolean,
   expectOptionalInteger,
-  expectOptionalPositiveNumber,
   expectOptionalString,
   expectRelativePath,
   WorkflowDefinitionError,
@@ -296,21 +295,6 @@ export function validateWorkflowDefinitions(
         "runTimeoutMs",
         definitionPath,
         1,
-      ),
-      dailyBudgetUsd: expectOptionalPositiveNumber(
-        definition.dailyBudgetUsd,
-        "dailyBudgetUsd",
-        definitionPath,
-      ),
-      costLimitUsd: expectOptionalPositiveNumber(
-        definition.costLimitUsd,
-        "costLimitUsd",
-        definitionPath,
-      ),
-      costAnomalyThreshold: expectOptionalPositiveNumber(
-        definition.costAnomalyThreshold,
-        "costAnomalyThreshold",
-        definitionPath,
       ),
       recoveryCapable: expectOptionalBoolean(
         definition.recoveryCapable,

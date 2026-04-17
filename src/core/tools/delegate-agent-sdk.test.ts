@@ -94,10 +94,9 @@ describe("delegate-agent-sdk", () => {
       cwd: "/tmp/project",
       model: "claude-haiku-4-5-20251001",
       permissionMode: "bypassPermissions",
-      effort: "max",
+      effort: "xhigh",
     });
     expect(options.maxTurns).toBeUndefined();
-    expect(options.maxBudgetUsd).toBeUndefined();
     expect(options.allowedTools).toContain("Read");
     expect(options.allowedTools).toContain("Grep");
     expect(options.allowedTools).not.toContain("Edit");
@@ -116,13 +115,11 @@ describe("delegate-agent-sdk", () => {
 
     await runDelegateAgentSDK("fix the type error", "execute", {
       cwd: "/tmp/project",
-      maxBudgetUsd: 1,
     });
 
     const [, options] = mockExecuteWithAgentSDK.mock.calls[0];
     expect(options.maxTurns).toBeUndefined();
-    expect(options.maxBudgetUsd).toBe(1);
-    expect(options.effort).toBe("max");
+    expect(options.effort).toBe("xhigh");
     expect(options.allowedTools).toContain("Edit");
     expect(options.allowedTools).toContain("Write");
     expect(options.allowedTools).toContain("Bash");
@@ -139,19 +136,6 @@ describe("delegate-agent-sdk", () => {
 
     const result = await runDelegateAgentSDK("huge refactor", "execute", {});
     expect(result.content).toContain("hit turn limit");
-  });
-
-  it("reports circuit-break conditions from executor subtypes", async () => {
-    mockExecuteWithAgentSDK.mockResolvedValue({
-      text: "Budget exceeded",
-      streamedText: "",
-      turns: 10,
-      subtype: "error_max_budget_usd",
-      isError: true,
-    });
-
-    const result = await runDelegateAgentSDK("huge refactor", "execute", {});
-    expect(result.content).toContain("stopped");
   });
 
   it("emits start and done status messages", async () => {

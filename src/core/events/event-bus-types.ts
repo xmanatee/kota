@@ -162,41 +162,9 @@ export type BusEvents = {
     reason: string;
     text: string;
   };
-  "workflow.budget.exceeded": {
-    dailySpend: number;
-    budget: number;
-    text: string;
-  };
-  "workflow.budget.warning": {
-    dailySpend: number;
-    budget: number;
-    warnAt: number;
-    text: string;
-  };
   "workflow.attention.digest": {
     items: { label: string; detail: string }[];
     text: string;
-  };
-  "workflow.cost.limit.reached": {
-    totalCost: number;
-    hardLimit: number;
-    text: string;
-    pauseSignalFile: string;
-  };
-  "workflow.cost.anomaly": {
-    workflow: string;
-    runId: string;
-    runCostUsd: number;
-    baselineCostUsd: number;
-    threshold: number;
-    text: string;
-  };
-  "workflow.cost.ceiling.exceeded": {
-    workflow: string;
-    runId: string;
-    stepId: string;
-    budgetUsd: number;
-    actualCostUsd?: number;
   };
   "workflow.build.committed": {
     runId: string;

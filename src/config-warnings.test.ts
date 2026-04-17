@@ -27,7 +27,7 @@ describe("warnUnknownConfigKeys", () => {
   it("emits no warnings when config has only known keys", () => {
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ model: "claude-sonnet-4-6", dailyBudgetUsd: 5 }),
+      JSON.stringify({ model: "claude-sonnet-4-6", approvalTtlMs: 60000 }),
     );
     const warnings: string[] = [];
     warnUnknownConfigKeys(projectDir, (msg) => warnings.push(msg));
@@ -107,9 +107,9 @@ describe("KNOWN_CONFIG_KEYS", () => {
       "model", "editorModel", "maxTokens", "architect", "thinking", "thinkingBudget",
       "verbose", "skipConfirmations", "autoEnable", "user", "aliases", "reflection",
       "guardrails", "modules", "foreignModules", "providers", "modelProvider",
-      "modelTiers", "agentModels", "approvalTtlMs", "dailyBudgetUsd",
+      "modelTiers", "agentModels", "approvalTtlMs",
       "runsGc", "serve", "log", "daemon", "notifications", "workflow",
-      "budget", "moduleMonitoring",
+      "moduleMonitoring",
     ];
     for (const key of expected) {
       expect(KNOWN_CONFIG_KEYS.has(key), `missing key: ${key}`).toBe(true);

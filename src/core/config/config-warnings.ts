@@ -23,14 +23,12 @@ export const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set<keyof KotaConfig>(
   "modelTiers",
   "agentModels",
   "approvalTtlMs",
-  "dailyBudgetUsd",
   "runsGc",
   "serve",
   "log",
   "daemon",
   "notifications",
   "workflow",
-  "budget",
   "moduleMonitoring",
 ]);
 

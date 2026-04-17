@@ -1,16 +1,11 @@
 import type { Command } from "commander";
-import type { ModuleContext } from "#core/modules/module-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import { getWorkflowDefinitions } from "../definitions-source.js";
 import { formatDate, formatDuration, listRuns, statusIcon } from "../utils.js";
 import type { HistoryStats } from "./workflow-history.js";
 import { computeHistoryStats, loadRunsInWindow } from "./workflow-history.js";
 
-export function registerRunListCommands(
-  wfCmd: Command,
-  ctx: ModuleContext,
-): void {
+export function registerRunListCommands(wfCmd: Command): void {
   wfCmd
     .command("list")
     .description("List recent workflow runs")
@@ -93,19 +88,6 @@ export function registerRunListCommands(
           : r.trigger.event;
         const tagStr = r.tags && r.tags.length > 0 ? ` [${r.tags.join(",")}]` : "";
         console.log(`${id} ${wf} ${st} ${dur} ${cost} ${started} ${trigger}${tagStr}`);
-      }
-
-      const definitions = getWorkflowDefinitions(ctx);
-      const budgeted = definitions.filter((d) => d.dailyBudgetUsd != null);
-      if (budgeted.length > 0) {
-        console.log("\nToday's budget utilization:");
-        for (const def of budgeted) {
-          const spend = store.getDailySpendUsd(def.name);
-          const budget = def.dailyBudgetUsd as number;
-          const pct = Math.min(100, (spend / budget) * 100).toFixed(1);
-          const status = spend >= budget ? " [PAUSED]" : "";
-          console.log(`  ${def.name}: $${spend.toFixed(3)} / $${budget.toFixed(3)} (${pct}%)${status}`);
-        }
       }
     });
 

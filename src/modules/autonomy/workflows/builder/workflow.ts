@@ -17,7 +17,8 @@ export const agent: AgentDef = {
   name: "builder",
   role: "Ship one cohesive improvement per run by resuming, pulling, or promoting one normalized task.",
   promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
-  model: "claude-opus-4-6",
+  model: "claude-opus-4-7",
+  effort: "xhigh",
   skills: "all",
   tools: { permissionMode: "bypassPermissions" },
   settingSources: ["project"],
@@ -39,7 +40,6 @@ const builderWorkflow: WorkflowDefinitionInput = {
   name: "builder",
   description: "Build KOTA by shipping one cohesive improvement per workflow run.",
   tags: ["monitored"],
-  costAnomalyThreshold: 3,
   triggers: [
     {
       event: "autonomy.queue.available",
@@ -59,6 +59,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       agentName: agent.name,
       promptPath: agent.promptPath,
       model: agent.model,
+      effort: agent.effort,
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,

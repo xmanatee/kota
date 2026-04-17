@@ -387,7 +387,7 @@ describe("buildModelLookup", () => {
         name: "builder",
         steps: [
           { id: "check", type: "code" },
-          { id: "build", type: "agent", model: "claude-sonnet-4-6" },
+          { id: "build", type: "agent", model: "claude-sonnet-4-6", effort: "xhigh" },
         ],
       },
     ];
@@ -401,12 +401,13 @@ describe("buildModelLookup", () => {
       {
         name: "builder",
         steps: [
-          { id: "build", type: "agent", model: "claude-sonnet-4-6", agentName: "builder-agent" },
+          { id: "build", type: "agent", model: "claude-sonnet-4-6",
+              effort: "xhigh", agentName: "builder-agent" },
         ],
       },
     ];
-    const lookup = buildModelLookup(workflows, { "builder-agent": "claude-opus-4-6" });
-    expect(lookup.get("builder:build")).toBe("claude-opus-4-6");
+    const lookup = buildModelLookup(workflows, { "builder-agent": "claude-opus-4-7" });
+    expect(lookup.get("builder:build")).toBe("claude-opus-4-7");
   });
 });
 

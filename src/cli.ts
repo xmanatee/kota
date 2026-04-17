@@ -71,6 +71,7 @@ program
         model,
         verbose: opts.verbose || config.verbose || false,
         cwd: process.cwd(),
+        effort: "xhigh",
         systemPrompt: buildClaudeCodeSystemPrompt(
           config,
           undefined,
@@ -166,6 +167,7 @@ async function checkPipeMode() {
           model,
           verbose: config.verbose,
           cwd: process.cwd(),
+          effort: "xhigh",
           systemPrompt: buildClaudeCodeSystemPrompt(
             config,
             undefined,

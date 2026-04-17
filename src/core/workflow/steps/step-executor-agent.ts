@@ -7,7 +7,6 @@ import {
 import type { SDKMessage } from "#core/agent-sdk/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
-import { tryEmit } from "#core/events/event-bus.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { ToolTelemetry } from "#core/tools/tool-telemetry.js";
 import { validatePayloadSchema } from "../payload-validator.js";
@@ -261,7 +260,7 @@ export async function executeAgentStep(
         cwd: agentConfig.projectDir,
         systemPrompt,
         maxTurns: step.maxTurns,
-        maxBudgetUsd: step.maxBudgetUsd,
+        effort: step.effort,
         thinkingEnabled: step.thinkingEnabled,
         thinkingBudget: step.thinkingBudget,
         allowedTools: step.allowedTools,
@@ -274,24 +273,6 @@ export async function executeAgentStep(
       }, {
         write: () => true,
       });
-      if (result.subtype === "error_max_budget_usd") {
-        tryEmit("workflow.cost.ceiling.exceeded", {
-          workflow: definition.name,
-          runId: metadata.id,
-          stepId: step.id,
-          budgetUsd: step.maxBudgetUsd!,
-          actualCostUsd: result.totalCostUsd,
-        });
-      }
-      if (
-        step.maxCostUsd != null &&
-        result.totalCostUsd != null &&
-        result.totalCostUsd > step.maxCostUsd
-      ) {
-        throw new Error(
-          `Agent step "${step.id}" cost_cap_exceeded: spent $${result.totalCostUsd.toFixed(4)}, cap $${step.maxCostUsd.toFixed(4)}`,
-        );
-      }
       if (result.isError) {
         const reason = result.subtype ?? "error";
         const detail = result.text.trim() || "Agent step returned an error result";

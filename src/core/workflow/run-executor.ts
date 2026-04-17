@@ -1,7 +1,6 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
-import { detectCostAnomaly } from "./cost-anomaly-detector.js";
 import {
   buildStepCompletedPayload,
   buildStepStartedPayload,
@@ -327,21 +326,6 @@ export function executeWorkflowRun(
         if (completed.status === "success") previousOutput = completed.output;
         else if (completed.continueOnFailure) { hadWarnings = true; }
         else if (thrownError) throw thrownError;
-
-        if (definition.costLimitUsd !== undefined) {
-          const accumulatedCost = run.metadata.steps.reduce((sum, s) => {
-            if (s.output && typeof s.output === "object" && !Array.isArray(s.output)) {
-              const cost = (s.output as Record<string, unknown>).totalCostUsd;
-              if (typeof cost === "number") return sum + cost;
-            }
-            return sum;
-          }, 0);
-          if (accumulatedCost > definition.costLimitUsd) {
-            throw new Error(
-              `Workflow "${definition.name}" exceeded per-run cost cap of $${definition.costLimitUsd.toFixed(2)}: accumulated $${accumulatedCost.toFixed(2)}`,
-            );
-          }
-        }
       }
 
       const outputWarnings: WorkflowRunWarning[] = [...acc.warnings];
@@ -362,7 +346,6 @@ export function executeWorkflowRun(
         durationMs: Date.now() - startedAt,
         ...(outputWarnings.length > 0 ? { warnings: outputWarnings } : {}),
       });
-      emitCostAnomalyIfNeeded(definition, completed, deps);
       deps.bus.emit(
         "workflow.completed",
         buildWorkflowCompletedPayload(completed, finalStatus, definition.tags),
@@ -389,7 +372,6 @@ export function executeWorkflowRun(
         durationMs: Date.now() - startedAt,
         error: err.message,
       });
-      emitCostAnomalyIfNeeded(definition, completed, deps);
       deps.bus.emit(
         "workflow.completed",
         buildWorkflowCompletedPayload(completed, status, definition.tags),
@@ -407,32 +389,4 @@ export function executeWorkflowRun(
   })();
 
   return { promise, abortController };
-}
-
-function emitCostAnomalyIfNeeded(
-  definition: WorkflowDefinition,
-  completed: import("./run-types.js").WorkflowRunMetadata,
-  deps: RunExecutorDeps,
-): void {
-  if (definition.costAnomalyThreshold === undefined) return;
-  if (definition.notify?.onCostAnomaly === false) return;
-  const runCostUsd = typeof completed.totalCostUsd === "number" ? completed.totalCostUsd : 0;
-  if (runCostUsd <= 0) return;
-  const anomaly = detectCostAnomaly(
-    deps.store,
-    definition.name,
-    completed.id,
-    runCostUsd,
-    definition.costAnomalyThreshold,
-    deps.store.rootDir,
-  );
-  if (!anomaly) return;
-  deps.bus.emit("workflow.cost.anomaly", {
-    workflow: definition.name,
-    runId: completed.id,
-    runCostUsd,
-    baselineCostUsd: anomaly.baselineCostUsd,
-    threshold: definition.costAnomalyThreshold,
-    text: anomaly.text,
-  });
 }

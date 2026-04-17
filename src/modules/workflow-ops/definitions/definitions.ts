@@ -42,8 +42,7 @@ function describeStep(step: WorkflowStepInput): string {
   if (step.type === "agent") {
     if (step.agentName) extras.push(`agent=${step.agentName}`);
     else if (step.promptPath) extras.push(`prompt=${step.promptPath}`);
-    if (step.maxBudgetUsd != null) extras.push(`budget=$${step.maxBudgetUsd}`);
-    if (step.maxCostUsd != null) extras.push(`cost-cap=$${step.maxCostUsd}`);
+    extras.push(`effort=${step.effort}`);
     if (step.timeoutMs != null) extras.push(`timeout=${formatDuration(step.timeoutMs)}`);
   }
   if (step.type === "tool") extras.push(`tool=${step.tool}`);
@@ -80,8 +79,6 @@ export function registerDefinitionsCommand(
         console.log(`Enabled:     ${def.enabled !== false ? "yes" : "no"}`);
         if (def.description) console.log(`Description: ${def.description}`);
         console.log(`Source:      ${def.definitionPath}`);
-        if (def.dailyBudgetUsd != null) console.log(`Daily budget: $${def.dailyBudgetUsd}`);
-        if (def.costLimitUsd != null) console.log(`Cost cap:     $${def.costLimitUsd}/run`);
         if (def.runTimeoutMs != null) console.log(`Run timeout:  ${formatDuration(def.runTimeoutMs)}`);
         if (def.inputSchema) {
           const fields = describeInputSchema(def.inputSchema);
@@ -148,15 +145,11 @@ export function registerDefinitionsCommand(
         console.log(`${name}  ${enabled}  ${steps}  ${triggers}`);
       }
       console.log(`\n${definitions.length} definition(s) loaded.`);
-      if (definitions.some((d) => d.dailyBudgetUsd != null || d.costLimitUsd != null || d.runTimeoutMs != null)) {
+      if (definitions.some((d) => d.runTimeoutMs != null)) {
         console.log("\nConfig:");
         for (const def of definitions) {
-          if (def.dailyBudgetUsd != null || def.costLimitUsd != null || def.runTimeoutMs != null) {
-            const parts: string[] = [];
-            if (def.dailyBudgetUsd != null) parts.push(`budget=$${def.dailyBudgetUsd}/day`);
-            if (def.costLimitUsd != null) parts.push(`cap=$${def.costLimitUsd}/run`);
-            if (def.runTimeoutMs != null) parts.push(`timeout=${formatDuration(def.runTimeoutMs)}`);
-            console.log(`  ${def.name}: ${parts.join(", ")}`);
+          if (def.runTimeoutMs != null) {
+            console.log(`  ${def.name}: timeout=${formatDuration(def.runTimeoutMs)}`);
           }
         }
       }

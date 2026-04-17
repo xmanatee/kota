@@ -40,7 +40,6 @@ export type AgentSDKDelegateConfig = {
   instructionContext?: string;
   costTracker?: CostTracker;
   transport?: Transport;
-  maxBudgetUsd?: number;
   model?: string;
 };
 
@@ -78,8 +77,7 @@ export async function runDelegateAgentSDK(
       allowedTools,
       permissionMode: "bypassPermissions",
       cwd: config.cwd ?? process.cwd(),
-      maxBudgetUsd: config.maxBudgetUsd,
-      effort: "max",
+      effort: "xhigh",
     },
     transport
       ? {
@@ -98,8 +96,6 @@ export async function runDelegateAgentSDK(
   let completionReason: CompletionReason = "done";
   if (result.subtype === "error_max_turns") completionReason = "turn_limit";
   else if (result.subtype === "error_during_execution") {
-    completionReason = "circuit_break";
-  } else if (result.subtype === "error_max_budget_usd") {
     completionReason = "circuit_break";
   }
 

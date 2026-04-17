@@ -7,7 +7,8 @@ export const agent: AgentDef = {
   name: "pr-reviewer",
   role: "Review KOTA-created pull requests for correctness relative to the task's Done When criteria.",
   promptPath: "src/modules/autonomy/workflows/pr-reviewer/prompt.md",
-  model: "claude-opus-4-6",
+  model: "claude-opus-4-7",
+  effort: "xhigh",
   tools: { permissionMode: "bypassPermissions" },
   settingSources: ["project"],
 };
@@ -100,6 +101,7 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
       agentName: agent.name,
       promptPath: agent.promptPath,
       model: agent.model,
+      effort: agent.effort,
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,

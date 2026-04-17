@@ -149,56 +149,6 @@ export class WorkflowRunStore {
     this.writeState(state);
   }
 
-  getWorkflowBudgetPauseUntil(name: string): string | null {
-    const state = this.readState();
-    const until = state.workflows[name]?.budgetPausedUntil;
-    if (!until) return null;
-    if (new Date(until).getTime() > Date.now()) return until;
-    delete state.workflows[name].budgetPausedUntil;
-    this.writeState(state);
-    return null;
-  }
-
-  setWorkflowBudgetPauseUntil(name: string, until: string): void {
-    const state = this.readState();
-    state.workflows[name] = {
-      ...state.workflows[name],
-      budgetPausedUntil: until,
-    };
-    this.writeState(state);
-  }
-
-  clearWorkflowBudgetPause(name: string): void {
-    const state = this.readState();
-    if (!state.workflows[name]?.budgetPausedUntil) return;
-    delete state.workflows[name].budgetPausedUntil;
-    this.writeState(state);
-  }
-
-  reconcileWorkflowBudgetPauses(
-    definitions: readonly Pick<WorkflowDefinition, "name" | "dailyBudgetUsd">[],
-  ): string[] {
-    const state = this.readState();
-    const knownDefinitions = new Map(
-      definitions.map((definition) => [definition.name, definition]),
-    );
-    const cleared: string[] = [];
-
-    for (const [name, workflowState] of Object.entries(state.workflows)) {
-      if (!workflowState.budgetPausedUntil) continue;
-      const definition = knownDefinitions.get(name);
-      if (definition?.dailyBudgetUsd != null) continue;
-      delete workflowState.budgetPausedUntil;
-      cleared.push(name);
-    }
-
-    if (cleared.length > 0) {
-      this.writeState(state);
-    }
-
-    return cleared;
-  }
-
   pruneRuns(opts?: {
     retentionDays?: number;
     minKeepPerWorkflow?: number;
@@ -292,28 +242,6 @@ export class WorkflowRunStore {
 
   getRun(id: string): WorkflowRunMetadata | null {
     return readOptionalJsonFile<WorkflowRunMetadata>(join(this.runsDir, id, "metadata.json"));
-  }
-
-  getDailySpendUsd(workflowName?: string): number {
-    const todayUtc = new Date().toISOString().slice(0, 10);
-    let dirs: string[];
-    try {
-      dirs = readdirSync(this.runsDir);
-    } catch {
-      return 0;
-    }
-    let total = 0;
-    for (const dir of dirs) {
-      const meta = readOptionalJsonFile<WorkflowRunMetadata>(join(this.runsDir, dir, "metadata.json"));
-      if (meta?.completedAt && typeof meta.totalCostUsd === "number") {
-        if (meta.completedAt.slice(0, 10) === todayUtc) {
-          if (workflowName === undefined || meta.workflow === workflowName) {
-            total += meta.totalCostUsd;
-          }
-        }
-      }
-    }
-    return total;
   }
 
   createRun(

@@ -1,10 +1,4 @@
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -64,14 +58,10 @@ describe("runAttentionDigestStep", () => {
     mkdirSync(runsDir, { recursive: true });
     emittedEvents = [];
     emit = (event, payload) => emittedEvents.push({ event, payload });
-    delete process.env.KOTA_DIGEST_COST_THRESHOLD;
-    delete process.env.KOTA_COST_HARD_LIMIT_USD;
   });
 
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
-    delete process.env.KOTA_DIGEST_COST_THRESHOLD;
-    delete process.env.KOTA_COST_HARD_LIMIT_USD;
   });
 
   function runSteps(n: number): void {
@@ -113,18 +103,6 @@ describe("runAttentionDigestStep", () => {
 
     runSteps(10);
     expect(emittedEvents).toHaveLength(0);
-  });
-
-  it("emits digest for high spend when total exceeds threshold", () => {
-    process.env.KOTA_DIGEST_COST_THRESHOLD = "5";
-    writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "success", 10);
-
-    runSteps(10);
-    expect(emittedEvents).toHaveLength(1);
-    expect(emittedEvents[0].event).toBe("workflow.attention.digest");
-    const text = emittedEvents[0].payload.text as string;
-    expect(text).toContain("Budget pressure");
-    expect(text).toContain("$10.00");
   });
 
   it("emits digest for stalled work when doing count >= 2", () => {
@@ -301,56 +279,4 @@ describe("runAttentionDigestStep", () => {
     });
   });
 
-  describe("cost circuit breaker", () => {
-    const pausePath = () => join(projectDir, ".kota", "dispatch-paused");
-
-    it("does not write pause file when spend is below hard limit", () => {
-      process.env.KOTA_COST_HARD_LIMIT_USD = "50";
-      writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "success", 10);
-      runSteps(10);
-      expect(existsSync(pausePath())).toBe(false);
-    });
-
-    it("does not write pause file when soft threshold exceeded but hard limit is not", () => {
-      process.env.KOTA_DIGEST_COST_THRESHOLD = "5";
-      process.env.KOTA_COST_HARD_LIMIT_USD = "50";
-      writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "success", 10);
-      runSteps(10);
-      expect(existsSync(pausePath())).toBe(false);
-      expect(emittedEvents).toHaveLength(1);
-      expect(emittedEvents[0].event).toBe("workflow.attention.digest");
-      expect(emittedEvents[0].payload.text as string).toContain("Budget pressure");
-    });
-
-    it("writes pause file and emits cost.limit.reached when hard limit is exceeded", () => {
-      process.env.KOTA_COST_HARD_LIMIT_USD = "5";
-      writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "success", 10);
-      runSteps(10);
-      expect(existsSync(pausePath())).toBe(true);
-      expect(emittedEvents).toHaveLength(1);
-      expect(emittedEvents[0].event).toBe("workflow.cost.limit.reached");
-      const text = emittedEvents[0].payload.text as string;
-      expect(text).toContain("circuit breaker tripped");
-      expect(text).toContain("$10.00");
-      expect(text).toContain("dispatch-paused");
-    });
-
-    it("writes pause file even when no emit callback is provided", () => {
-      process.env.KOTA_COST_HARD_LIMIT_USD = "5";
-      writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "success", 10);
-      for (let i = 0; i < 10; i++) {
-        runAttentionDigestStep(projectDir, runsDir);
-      }
-      expect(existsSync(pausePath())).toBe(true);
-    });
-
-    it("does not emit regular digest when hard limit is exceeded", () => {
-      process.env.KOTA_COST_HARD_LIMIT_USD = "5";
-      writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "success", 10);
-      makeTaskDir(projectDir, "doing", 3);
-      runSteps(10);
-      expect(emittedEvents).toHaveLength(1);
-      expect(emittedEvents[0].event).toBe("workflow.cost.limit.reached");
-    });
-  });
 });

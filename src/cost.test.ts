@@ -51,7 +51,7 @@ describe("CostTracker", () => {
 
   it("uses opus pricing for opus model", () => {
     const tracker = new CostTracker();
-    tracker.addUsage("claude-opus-4-6", {
+    tracker.addUsage("claude-opus-4-7", {
       input_tokens: 1_000_000,
       output_tokens: 1_000_000,
     });

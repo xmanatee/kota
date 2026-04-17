@@ -32,8 +32,6 @@ export type WorkflowNode = {
   description?: string;
   enabled: boolean;
   tags: readonly string[];
-  dailyBudgetUsd?: number;
-  costLimitUsd?: number;
   concurrencyGroup?: string;
   triggers: TriggerSummary[];
   steps: StepSummary[];

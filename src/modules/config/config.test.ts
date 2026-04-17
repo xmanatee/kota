@@ -83,7 +83,7 @@ describe("kota config validate", () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ model: "claude-opus-4-6" }),
+      JSON.stringify({ model: "claude-opus-4-7" }),
     );
 
     const { out } = captureOutput(() => {
@@ -97,13 +97,13 @@ describe("kota config validate", () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ model: "claude-opus-4-6", maxTokens: 4096 }),
+      JSON.stringify({ model: "claude-opus-4-7", maxTokens: 4096 }),
     );
 
     const { out } = captureOutput(() => {
       makeProgram().parse(["node", "kota", "config", "validate"]);
     });
-    expect(out).toContain("claude-opus-4-6");
+    expect(out).toContain("claude-opus-4-7");
     expect(out).toContain("4096");
   });
 
@@ -167,21 +167,21 @@ describe("kota config validate", () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ model: "claude-opus-4-6" }),
+      JSON.stringify({ model: "claude-opus-4-7" }),
     );
 
     const { out } = captureOutput(() => {
       makeProgram().parse(["node", "kota", "config", "validate", "--json"]);
     });
     const parsed = JSON.parse(out.trim());
-    expect(parsed.model).toBe("claude-opus-4-6");
+    expect(parsed.model).toBe("claude-opus-4-7");
   });
 
   it("--json does not include source headers or warnings", () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ model: "claude-opus-4-6", unknownKey: true }),
+      JSON.stringify({ model: "claude-opus-4-7", unknownKey: true }),
     );
 
     const { out, err } = captureOutput(() => {
@@ -213,13 +213,13 @@ describe("kota config get", () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ model: "claude-opus-4-6" }),
+      JSON.stringify({ model: "claude-opus-4-7" }),
     );
 
     const { out } = captureOutput(() => {
       makeProgram().parse(["node", "kota", "config", "get", "model"]);
     });
-    expect(out.trim()).toBe("claude-opus-4-6");
+    expect(out.trim()).toBe("claude-opus-4-7");
   });
 
   it("prints nested value via dot-notation", () => {
@@ -263,26 +263,18 @@ describe("kota config set", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("writes numeric value to project config", () => {
-    captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "set", "dailyBudgetUsd", "5"]);
-    });
-    const written = JSON.parse(readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"));
-    expect(written.dailyBudgetUsd).toBe(5);
-  });
-
   it("writes string value when not valid JSON", () => {
     captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "set", "model", "claude-opus-4-6"]);
+      makeProgram().parse(["node", "kota", "config", "set", "model", "claude-opus-4-7"]);
     });
     const written = JSON.parse(readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"));
-    expect(written.model).toBe("claude-opus-4-6");
+    expect(written.model).toBe("claude-opus-4-7");
   });
 
   it("creates project config file if it does not exist", () => {
     expect(existsSync(join(projectDir, ".kota", "config.json"))).toBe(false);
     captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "set", "dailyBudgetUsd", "10"]);
+      makeProgram().parse(["node", "kota", "config", "set", "model", "claude-opus-4-7"]);
     });
     expect(existsSync(join(projectDir, ".kota", "config.json"))).toBe(true);
   });

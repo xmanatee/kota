@@ -95,7 +95,7 @@ describe("kota doctor — offline path", () => {
   });
 
   it("passes config check for valid config.json", async () => {
-    writeFileSync(join(projectDir, ".kota", "config.json"), JSON.stringify({ model: "claude-opus-4-6" }));
+    writeFileSync(join(projectDir, ".kota", "config.json"), JSON.stringify({ model: "claude-opus-4-7" }));
     const results = await runDoctorChecks(projectDir);
     const cfg = results.find((r) => r.label.startsWith("Config: project"));
     expect(cfg?.status).toBe("pass");

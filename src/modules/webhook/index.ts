@@ -20,11 +20,7 @@ import { registerWebhookCommands } from "./cli.js";
 
 const NOTIFICATION_EVENTS = [
   "workflow.failure.alert",
-  "workflow.budget.exceeded",
-  "workflow.budget.warning",
   "workflow.attention.digest",
-  "workflow.cost.limit.reached",
-  "workflow.cost.anomaly",
   "workflow.approval.expired",
 ] as const;
 

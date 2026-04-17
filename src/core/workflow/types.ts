@@ -131,15 +131,13 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
   /** Path to the prompt markdown file (relative to project root). */
   promptPath?: string;
   model: string;
-  maxTurns?: number;
-  maxBudgetUsd?: number;
   /**
-   * Per-step spend cap enforced by KOTA after each agent run completes. When
-   * the step's reported cost exceeds this value the step fails with a
-   * `cost_cap_exceeded` error. The failure message includes the actual spend,
-   * the cap, and the step name. Optional — omitting it preserves current behavior.
+   * How hard the model should think on each step. Required — KOTA workflows
+   * optimize for quality, so every agent step must declare its effort level
+   * explicitly rather than relying on a hidden default.
    */
-  maxCostUsd?: number;
+  effort: "low" | "medium" | "high" | "xhigh" | "max";
+  maxTurns?: number;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
   permissionMode?: SDKPermissionMode;
@@ -323,11 +321,6 @@ export type WorkflowNotifyConfig = {
    * Default: false (suppress by default — this event is opt-in at the channel level).
    */
   onSuccess?: boolean;
-  /**
-   * When false, suppresses `workflow.cost.anomaly` for this workflow.
-   * Default: true (emit when anomaly detected).
-   */
-  onCostAnomaly?: boolean;
 };
 
 export type WorkflowDefinitionInput = {
@@ -340,22 +333,6 @@ export type WorkflowDefinitionInput = {
    * Only workflows that can commit, stash, or reset should declare this.
    */
   recoveryCapable?: boolean;
-  /** Maximum spend (USD) per UTC calendar day before new runs are skipped. */
-  dailyBudgetUsd?: number;
-  /**
-   * Maximum spend (USD) for a single run. If accumulated agent cost exceeds this
-   * after any step, the run fails immediately with a descriptive error and the
-   * normal failure path executes (failed record, workflow.failure.alert emitted).
-   * Omit to allow unlimited spend per run. The global dailyBudgetUsd is unaffected.
-   */
-  costLimitUsd?: number;
-  /**
-   * Multiplier over the rolling average cost (last 10 successful runs) that
-   * triggers a `workflow.cost.anomaly` alert. Requires at least 3 historical
-   * runs before firing. Omit to disable anomaly detection for this workflow.
-   * Example: 3.0 fires when a run costs more than 3× the historical average.
-   */
-  costAnomalyThreshold?: number;
   /**
    * Named concurrency group for this workflow. Workflows in the same named group
    * run at most one at a time. Omit to use type-based defaults: agent-step
@@ -387,7 +364,7 @@ export type WorkflowDefinitionInput = {
   webhookRateLimit?: { maxPerMinute: number };
   /**
    * Per-event notification suppression for this workflow. Omit to use defaults
-   * (onFailure: true, onCostAnomaly: true, onSuccess: false).
+   * (onFailure: true, onSuccess: false).
    */
   notify?: WorkflowNotifyConfig;
   tags?: readonly string[];
@@ -412,9 +389,8 @@ export type WorkflowAgentStep = WorkflowBaseStep & {
   agentName?: string;
   promptPath: string;
   model: string;
+  effort: "low" | "medium" | "high" | "xhigh" | "max";
   maxTurns?: number;
-  maxBudgetUsd?: number;
-  maxCostUsd?: number;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
   permissionMode: SDKPermissionMode;
@@ -504,19 +480,6 @@ export type WorkflowDefinition = {
   enabled: boolean;
   runTimeoutMs?: number;
   recoveryCapable: boolean;
-  /** Maximum spend (USD) per UTC calendar day before new runs are skipped. */
-  dailyBudgetUsd?: number;
-  /**
-   * Maximum spend (USD) for a single run. If accumulated agent cost exceeds this
-   * after any step, the run fails with a descriptive error.
-   */
-  costLimitUsd?: number;
-  /**
-   * Multiplier over the rolling average cost (last 10 successful runs) that
-   * triggers a `workflow.cost.anomaly` alert. Requires at least 3 historical
-   * runs before firing. Omit to disable anomaly detection for this workflow.
-   */
-  costAnomalyThreshold?: number;
   /**
    * Named concurrency group. Workflows in the same named group run at most one
    * at a time. Omit to use type-based defaults ("agent" or "code").
@@ -534,7 +497,7 @@ export type WorkflowDefinition = {
   webhookRateLimit?: { maxPerMinute: number };
   /**
    * Per-event notification suppression for this workflow.
-   * Omit to use defaults (onFailure: true, onCostAnomaly: true, onSuccess: false).
+   * Omit to use defaults (onFailure: true, onSuccess: false).
    */
   notify?: WorkflowNotifyConfig;
   tags: readonly string[];

@@ -70,7 +70,7 @@ describe("agent-sdk executor", () => {
     );
 
     const writer = makeWriter();
-    const result = await executeWithAgentSDK("test prompt", {}, writer);
+    const result = await executeWithAgentSDK("test prompt", { effort: "xhigh" }, writer);
 
     expect(writer.text).toBe("Hello world");
     expect(result.text).toBe("Final answer");
@@ -97,7 +97,7 @@ describe("agent-sdk executor", () => {
     );
 
     const writer = makeWriter();
-    const result = await executeWithAgentSDK("test prompt", {}, writer);
+    const result = await executeWithAgentSDK("test prompt", { effort: "xhigh" }, writer);
 
     expect(writer.text).toBe("one two");
     expect(result.text).toBe("one two");
@@ -117,7 +117,7 @@ describe("agent-sdk executor", () => {
       ]),
     );
 
-    const result = await executeWithAgentSDK("test prompt", {}, makeWriter());
+    const result = await executeWithAgentSDK("test prompt", { effort: "xhigh" }, makeWriter());
 
     expect(result.subtype).toBe("error_max_turns");
     expect(result.isError).toBe(true);
@@ -133,7 +133,7 @@ describe("agent-sdk executor", () => {
       model: "claude-sonnet-4-6",
       cwd: "/tmp/project",
       maxTurns: 12,
-      maxBudgetUsd: 1.5,
+      effort: "xhigh",
       systemPrompt: {
         type: "preset",
         preset: "claude_code",
@@ -154,7 +154,6 @@ describe("agent-sdk executor", () => {
         model: "claude-sonnet-4-6",
         cwd: "/tmp/project",
         maxTurns: 12,
-        maxBudgetUsd: 1.5,
         systemPrompt: {
           type: "preset",
           preset: "claude_code",
@@ -169,7 +168,7 @@ describe("agent-sdk executor", () => {
         enableFileCheckpointing: true,
         pathToClaudeCodeExecutable: "/usr/local/bin/claude",
         abortController: undefined,
-        effort: "max",
+        effort: "xhigh",
       },
     });
   });
@@ -205,7 +204,7 @@ describe("agent-sdk executor", () => {
     );
 
     const stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-    await executeWithAgentSDK("task", { verbose: true }, makeWriter());
+    await executeWithAgentSDK("task", { verbose: true, effort: "xhigh" }, makeWriter());
 
     expect(stderrSpy).toHaveBeenCalledWith("[agent-sdk] Running tests\n");
     stderrSpy.mockRestore();
@@ -214,7 +213,7 @@ describe("agent-sdk executor", () => {
   it("buildQueryOptions defaults to bypassPermissions", () => {
     mockSpawnSync.mockReturnValue({ status: 1, stdout: "" });
 
-    expect(buildQueryOptions({ cwd: "/tmp/project" })).toMatchObject({
+    expect(buildQueryOptions({ cwd: "/tmp/project", effort: "xhigh" })).toMatchObject({
       cwd: "/tmp/project",
       maxTurns: undefined,
       permissionMode: "bypassPermissions",
@@ -253,7 +252,7 @@ describe("agent-sdk executor", () => {
     });
 
     await expect(
-      executeWithAgentSDK("test", { abortController, onMessage }, writer),
+      executeWithAgentSDK("test", { abortController, onMessage, effort: "xhigh" }, writer),
     ).rejects.toThrow("Step timed out after 1000ms");
 
     expect(writer.text).toBe("first");
@@ -276,7 +275,7 @@ describe("agent-sdk executor", () => {
 
     const writer = makeWriter();
     await expect(
-      executeWithAgentSDK("test", { abortController }, writer),
+      executeWithAgentSDK("test", { abortController, effort: "xhigh" }, writer),
     ).rejects.toThrow("Already aborted");
 
     expect(writer.text).toBe("");

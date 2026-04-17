@@ -1,5 +1,4 @@
 import type { ConversationData, ConversationRecord } from "#core/memory/history-utils.js";
-import type { WorkflowCostForecast } from "#core/workflow/cost-forecast.js";
 import type { ToolCallSummaryEntry, WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState } from "#core/workflow/run-types.js";
 import type { WorkflowAgentBackoffState } from "#core/workflow/types.js";
 import type { PendingApproval } from "./approval-queue.js";
@@ -215,8 +214,6 @@ export type DaemonControlHandle = {
   listSessions(): InteractiveSession[];
   // Push notifications
   registerPushToken(deviceId: string, token: string): void;
-  // Cost forecast
-  getWorkflowCostForecast(workflow: string): WorkflowCostForecast | null;
   // Webhook triggers
   triggerWebhookRun(
     name: string,

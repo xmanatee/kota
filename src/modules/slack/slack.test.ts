@@ -96,21 +96,6 @@ describe("slackModule notifications", () => {
     expect(bodyText).toContain("out of memory");
   });
 
-  it("POSTs Block Kit on workflow.budget.exceeded", async () => {
-    const bus = new EventBus();
-    slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
-    bus.emit("workflow.budget.exceeded", { dailySpend: 30.5, budget: 25, text: "over budget" });
-    await Promise.resolve();
-    expect(mockFetch).toHaveBeenCalledOnce();
-    const body = JSON.parse((mockFetch.mock.calls[0] as [string, RequestInit])[1].body as string) as {
-      blocks: unknown[];
-    };
-    const text = JSON.stringify(body.blocks);
-    expect(text).toContain("Budget");
-    expect(text).toContain("30.50");
-    expect(text).toContain("25.00");
-  });
-
   it("POSTs Block Kit on approval.requested", async () => {
     const bus = new EventBus();
     slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
@@ -138,7 +123,7 @@ describe("slackModule notifications", () => {
     slackModule.onLoad!(
       makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK, events: ["workflow.failure.alert"] }),
     );
-    bus.emit("workflow.budget.exceeded", { dailySpend: 30, budget: 25, text: "over" });
+    bus.emit("workflow.attention.digest", { items: [], text: "digest" });
     await Promise.resolve();
     expect(mockFetch).not.toHaveBeenCalled();
   });
@@ -234,43 +219,9 @@ describe("slackModule notifications", () => {
     const bus = new EventBus();
     slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
     bus.emit("workflow.failure.alert", { text: "failure" });
-    bus.emit("workflow.budget.exceeded", { text: "budget" });
     bus.emit("workflow.attention.digest", { text: "digest" });
-    bus.emit("workflow.cost.limit.reached", { text: "cost" });
-    bus.emit("workflow.cost.anomaly", {
-      workflow: "builder",
-      runId: "run-xyz",
-      runCostUsd: 1.5,
-      baselineCostUsd: 0.3,
-      threshold: 3,
-      text: "Cost anomaly detected",
-    });
     await Promise.resolve();
-    expect(mockFetch).toHaveBeenCalledTimes(5);
-  });
-
-  it("POSTs Block Kit on workflow.cost.anomaly", async () => {
-    const bus = new EventBus();
-    slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
-    bus.emit("workflow.cost.anomaly", {
-      workflow: "builder",
-      runId: "run-xyz",
-      runCostUsd: 1.5,
-      baselineCostUsd: 0.3,
-      threshold: 3,
-      text: "Cost anomaly detected",
-    });
-    await Promise.resolve();
-    expect(mockFetch).toHaveBeenCalledOnce();
-    const body = JSON.parse(
-      (mockFetch.mock.calls[0] as [string, RequestInit])[1].body as string,
-    ) as { blocks: unknown[] };
-    const text = JSON.stringify(body.blocks);
-    expect(text).toContain("Cost Anomaly");
-    expect(text).toContain("builder");
-    expect(text).toContain("1.5000");
-    expect(text).toContain("0.3000");
-    expect(text).toContain("3×");
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it("is a no-op when config is absent", async () => {

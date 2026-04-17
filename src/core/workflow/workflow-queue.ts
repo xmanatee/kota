@@ -12,7 +12,6 @@ import type {
 export type WorkflowQueueManagerConfig = {
   store: WorkflowRunStore;
   getActiveBackoff: () => WorkflowAgentBackoffState | null;
-  getWorkflowBudgetPauseUntil: (workflowName: string) => string | null;
   shouldSuppressBackoff: (
     definition: WorkflowDefinition,
   ) => WorkflowAgentBackoffState | null;
@@ -57,9 +56,6 @@ export class WorkflowQueueManager {
       const definition = this.config
         .getDefinitions()
         .find((candidate) => candidate.name === item.workflowName);
-      if (definition?.dailyBudgetUsd != null && this.config.getWorkflowBudgetPauseUntil(item.workflowName)) {
-        return false;
-      }
       if (!activeAgentBackoff) return true;
       return !definition || !this.config.workflowUsesAgent(definition);
     });
@@ -74,19 +70,6 @@ export class WorkflowQueueManager {
     triggerConfig: WorkflowDefinition["triggers"][number],
     trigger: WorkflowRunTrigger,
   ): void {
-    const budgetPauseUntil =
-      definition.dailyBudgetUsd != null
-        ? this.config.getWorkflowBudgetPauseUntil(definition.name)
-        : null;
-    if (budgetPauseUntil) {
-      if (trigger.event !== "runtime.idle") {
-        this.config.log(
-          `Skipped workflow "${definition.name}" from event "${trigger.event}" during budget pause until ${new Date(budgetPauseUntil).toLocaleTimeString()}`,
-        );
-      }
-      return;
-    }
-
     const activeAgentBackoff = this.config.shouldSuppressBackoff(definition);
     if (activeAgentBackoff) {
       if (trigger.event !== "runtime.idle") {
@@ -174,9 +157,6 @@ export class WorkflowQueueManager {
         const definition = this.config
           .getDefinitions()
           .find((candidate) => candidate.name === item.workflowName);
-        const budgetPaused =
-          definition?.dailyBudgetUsd != null &&
-          Boolean(this.config.getWorkflowBudgetPauseUntil(item.workflowName));
 
         // Re-validate cooldown against current disk state. The notBeforeMs
         // computed at enqueue time may be stale if a concurrent finish()
@@ -202,8 +182,7 @@ export class WorkflowQueueManager {
 
         if (
           effectiveNotBefore > now ||
-          this.config.isActiveRun(item.workflowName) ||
-          budgetPaused
+          this.config.isActiveRun(item.workflowName)
         ) {
           return false;
         }

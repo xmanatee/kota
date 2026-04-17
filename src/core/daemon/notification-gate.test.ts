@@ -117,8 +117,6 @@ describe("NotificationGate", () => {
     bus = new EventBus();
     received = [];
     bus.on("workflow.attention.digest", (p) => received.push({ event: "workflow.attention.digest", payload: p }));
-    bus.on("workflow.budget.exceeded", (p) => received.push({ event: "workflow.budget.exceeded", payload: p }));
-    bus.on("workflow.budget.warning", (p) => received.push({ event: "workflow.budget.warning", payload: p }));
     bus.on("workflow.failure.alert", (p) => received.push({ event: "workflow.failure.alert", payload: p }));
   });
 
@@ -146,7 +144,6 @@ describe("NotificationGate", () => {
     const gate = new NotificationGate(bus, config);
 
     bus.emit("workflow.attention.digest", { items: [], text: "held" });
-    bus.emit("workflow.budget.exceeded", { dailySpend: 10, budget: 10, text: "budget hit" });
     expect(received).toHaveLength(0);
 
     gate.dispose();
@@ -159,7 +156,7 @@ describe("NotificationGate", () => {
     const gate = new NotificationGate(bus, config);
 
     bus.emit("workflow.attention.digest", { items: [{ label: "a", detail: "first" }], text: "first" });
-    bus.emit("workflow.budget.exceeded", { dailySpend: 10, budget: 10, text: "budget hit" });
+    bus.emit("workflow.attention.digest", { items: [{ label: "b", detail: "second" }], text: "second" });
     expect(received).toHaveLength(0);
 
     // Advance past end of quiet hours (9 hours)
@@ -200,7 +197,7 @@ describe("NotificationGate", () => {
 
     const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
     bus.emit("workflow.attention.digest", { items: [], text: "first" });
-    bus.emit("workflow.budget.exceeded", { dailySpend: 10, budget: 10, text: "second" });
+    bus.emit("workflow.attention.digest", { items: [], text: "second" });
     // Only one timer should be set
     expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
 

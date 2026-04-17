@@ -54,6 +54,8 @@ export type AgentDef = {
   promptPath: string;
   /** Model to use when running this agent. */
   model: string;
+  /** How hard the model should think. Required — every agent declares its effort level explicitly. */
+  effort: "low" | "medium" | "high" | "xhigh" | "max";
   /** Names of skills this agent uses. Use "all" to receive every registered skill. */
   skills?: string[] | "all";
   /** Tool access policy. */

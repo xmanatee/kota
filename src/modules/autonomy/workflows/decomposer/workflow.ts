@@ -13,7 +13,8 @@ export const agent: AgentDef = {
   name: "decomposer",
   role: "Decompose builder-timeout tasks into coherent task sequences.",
   promptPath: "src/modules/autonomy/workflows/decomposer/prompt.md",
-  model: "claude-opus-4-6",
+  model: "claude-opus-4-7",
+  effort: "xhigh",
   tools: { permissionMode: "bypassPermissions" },
   settingSources: ["project"],
 };
@@ -156,6 +157,7 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       agentName: agent.name,
       promptPath: agent.promptPath,
       model: agent.model,
+      effort: agent.effort,
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,

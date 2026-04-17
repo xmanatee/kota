@@ -4,7 +4,6 @@ import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { AgentBackoffManager } from "./agent-backoff.js";
-import type { BudgetGuard } from "./budget-guard.js";
 import { isWithinDispatchWindow } from "./dispatch-window.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { workflowUsesAgent } from "./run-executor-utils.js";
@@ -27,7 +26,6 @@ export interface WorkflowRuntimeDispatchState {
   stopping: boolean;
   dispatchPaused: boolean;
   config?: KotaConfig;
-  budgetGuard: BudgetGuard;
   store: WorkflowRunStore;
   wfQueue: WorkflowQueueManager;
   definitions: WorkflowDefinition[];
@@ -83,19 +81,6 @@ function canDispatchDefinition(
     limit = 1;
   }
   return activeCountForGroup(state, group) < limit;
-}
-
-function nextUtcMidnightIso(now = new Date()): string {
-  const nextMidnight = Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate() + 1,
-    0,
-    0,
-    0,
-    0,
-  );
-  return new Date(nextMidnight).toISOString();
 }
 
 function handleDirtyCompletion(
@@ -176,13 +161,7 @@ function handleDirtyCompletion(
 export function loadDefinitions(state: WorkflowRuntimeDispatchState): WorkflowDefinition[] {
   const definitions = state.workflowInputs ?? [];
   const validated = validateWorkflowDefinitions(definitions, state.projectDir);
-  const clearedBudgetPauses = state.store.reconcileWorkflowBudgetPauses(validated);
   state.store.setDefinitionsLoadedAt(new Date().toISOString());
-  if (clearedBudgetPauses.length > 0) {
-    state.log(
-      `Cleared stale workflow budget pause(s): ${clearedBudgetPauses.join(", ")}`,
-    );
-  }
   return validated;
 }
 
@@ -211,40 +190,10 @@ export function maybeStartNext(state: WorkflowRuntimeDispatchState): void {
   if (state.stopping || state.dispatchPaused) return;
   if (existsSync(join(state.projectDir, ".kota", PAUSE_SIGNAL_FILE))) return;
 
-  const budget = state.config?.dailyBudgetUsd;
-  const warnAt = state.config?.budget?.warnAt;
-  if (budget != null && state.budgetGuard.check(
-    state.store,
-    budget,
-    (msg) => state.log(msg),
-    (dailySpend, budgetAmt, text) => state.runtimeConfig.bus.emit("workflow.budget.exceeded", { dailySpend, budget: budgetAmt, text }),
-    warnAt,
-    (dailySpend, budgetAmt, warnAtVal, text) => state.runtimeConfig.bus.emit("workflow.budget.warning", { dailySpend, budget: budgetAmt, warnAt: warnAtVal, text }),
-  )) return;
-
   let queued: ReturnType<typeof state.wfQueue.pick>;
   while ((queued = state.wfQueue.pick((def) => canDispatchDefinition(state, def)))) {
     const definition = state.definitions.find((d) => d.name === queued!.workflowName);
     if (!definition) continue;
-
-    if (definition.dailyBudgetUsd == null) {
-      state.store.clearWorkflowBudgetPause(definition.name);
-    } else {
-      const pausedUntil = state.store.getWorkflowBudgetPauseUntil(definition.name);
-      if (pausedUntil) {
-        continue;
-      }
-      const wfSpend = state.store.getDailySpendUsd(definition.name);
-      if (wfSpend >= definition.dailyBudgetUsd) {
-        const pauseUntil = nextUtcMidnightIso();
-        state.store.setWorkflowBudgetPauseUntil(definition.name, pauseUntil);
-        state.log(
-          `Daily budget of $${definition.dailyBudgetUsd.toFixed(4)} reached for workflow "${definition.name}" ($${wfSpend.toFixed(4)} spent today). Pausing it until ${pauseUntil}.`,
-        );
-        continue;
-      }
-      state.store.clearWorkflowBudgetPause(definition.name);
-    }
 
     state.log(`Dispatching workflow "${queued!.workflowName}"`);
     void runWorkflow(state, definition, queued!.trigger);

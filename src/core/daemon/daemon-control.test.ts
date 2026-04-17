@@ -59,7 +59,6 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     triggerWebhookRun: vi.fn(() => ({ ok: false, notFound: true })),
     reloadConfig: vi.fn(async () => ({ workflows: 3, changedModules: [] as string[] })),
     registerPushToken: vi.fn(),
-    getWorkflowCostForecast: vi.fn(() => null),
     ...overrides,
   };
 }
@@ -715,7 +714,7 @@ describe("DaemonControlServer", () => {
     });
 
     it("returns conversations from handle", async () => {
-      const record = { id: "conv-1", title: "Test", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", model: "claude-opus-4-6", messageCount: 2, cwd: "/tmp" };
+      const record = { id: "conv-1", title: "Test", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", model: "claude-opus-4-7", messageCount: 2, cwd: "/tmp" };
       handle = makeHandle({ listHistory: vi.fn(() => [record]) });
       await server.stop();
       server = new DaemonControlServer(handle, TEST_TOKEN);
@@ -742,7 +741,7 @@ describe("DaemonControlServer", () => {
 
   describe("GET /history/:id", () => {
     it("returns 200 with conversation data when found", async () => {
-      const record = { id: "conv-1", title: "Test", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", model: "claude-opus-4-6", messageCount: 2, cwd: "/tmp" };
+      const record = { id: "conv-1", title: "Test", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", model: "claude-opus-4-7", messageCount: 2, cwd: "/tmp" };
       const data = { record, messages: [], compactionCount: 0, lastInputTokens: 0 };
       handle = makeHandle({ getHistory: vi.fn(() => data) });
       await server.stop();

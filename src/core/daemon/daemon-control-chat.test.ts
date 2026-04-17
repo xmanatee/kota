@@ -115,7 +115,6 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     triggerWebhookRun: vi.fn(() => ({ ok: false, notFound: true })),
     reloadConfig: vi.fn(async () => ({ workflows: 0, changedModules: [] as string[] })),
     registerPushToken: vi.fn(),
-    getWorkflowCostForecast: vi.fn(() => null),
     ...overrides,
   };
 }

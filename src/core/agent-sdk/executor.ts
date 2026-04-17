@@ -16,12 +16,11 @@ export type ExecutorOptions = {
   verbose?: boolean;
   systemPrompt?: SDKSystemPrompt;
   maxTurns?: number;
-  maxBudgetUsd?: number;
   allowedTools?: string[];
   disallowedTools?: string[];
   permissionMode?: SDKPermissionMode;
   persistSession?: boolean;
-  effort?: SDKQueryOptions["effort"];
+  effort: SDKQueryOptions["effort"];
   settingSources?: SDKQueryOptions["settingSources"];
   pathToClaudeCodeExecutable?: string;
   abortController?: AbortController;
@@ -121,27 +120,26 @@ export function detectLocalClaudeCodeExecutable(): string | undefined {
   return undefined;
 }
 
-export function buildQueryOptions(options?: ExecutorOptions): SDKQueryOptions {
-  const permissionMode = options?.permissionMode ?? "bypassPermissions";
-  const thinking = options?.thinkingEnabled
+export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
+  const permissionMode = options.permissionMode ?? "bypassPermissions";
+  const thinking = options.thinkingEnabled
     ? { type: "enabled" as const, budgetTokens: Math.max(1024, options.thinkingBudget ?? 10_000) }
     : undefined;
   return {
-    model: options?.model,
-    maxTurns: options?.maxTurns,
-    systemPrompt: options?.systemPrompt,
-    allowedTools: options?.allowedTools,
-    disallowedTools: options?.disallowedTools,
+    model: options.model,
+    maxTurns: options.maxTurns,
+    systemPrompt: options.systemPrompt,
+    allowedTools: options.allowedTools,
+    disallowedTools: options.disallowedTools,
     permissionMode,
-    cwd: options?.cwd ?? process.cwd(),
-    maxBudgetUsd: options?.maxBudgetUsd,
-    persistSession: options?.persistSession,
-    effort: options?.effort ?? "max",
-    settingSources: options?.settingSources,
+    cwd: options.cwd ?? process.cwd(),
+    persistSession: options.persistSession,
+    effort: options.effort,
+    settingSources: options.settingSources,
     pathToClaudeCodeExecutable:
-      options?.pathToClaudeCodeExecutable ?? detectLocalClaudeCodeExecutable(),
-    abortController: options?.abortController,
-    enableFileCheckpointing: options?.enableFileCheckpointing,
+      options.pathToClaudeCodeExecutable ?? detectLocalClaudeCodeExecutable(),
+    abortController: options.abortController,
+    enableFileCheckpointing: options.enableFileCheckpointing,
     allowDangerouslySkipPermissions: permissionMode === "bypassPermissions",
     thinking,
   };
@@ -149,7 +147,7 @@ export function buildQueryOptions(options?: ExecutorOptions): SDKQueryOptions {
 
 export async function executeWithAgentSDK(
   prompt: string,
-  options?: ExecutorOptions,
+  options: ExecutorOptions,
   writer?: ExecutorWriter,
 ): Promise<ExecutorResult> {
   const out = writer ?? process.stdout;
@@ -159,7 +157,7 @@ export async function executeWithAgentSDK(
   let resultMessage: SDKResultMessage | undefined;
   let sessionId: string | undefined;
   let turns = 0;
-  const abortSignal = options?.abortController?.signal;
+  const abortSignal = options.abortController?.signal;
 
   for await (const message of sdkQuery({ prompt, options: queryOptions })) {
     if (abortSignal?.aborted) {
@@ -167,7 +165,7 @@ export async function executeWithAgentSDK(
       throw reason instanceof Error ? reason : new Error("Agent execution aborted");
     }
 
-    await options?.onMessage?.(message);
+    await options.onMessage?.(message);
 
     const messageSessionId = getSessionId(message);
     if (messageSessionId) sessionId = messageSessionId;
@@ -188,7 +186,7 @@ export async function executeWithAgentSDK(
       continue;
     }
 
-    if (options?.verbose) {
+    if (options.verbose) {
       const statusMessage = formatStatusMessage(message);
       if (statusMessage) process.stderr.write(`[agent-sdk] ${statusMessage}\n`);
     }

@@ -13,7 +13,6 @@ import {
   expectOptionalFunction,
   expectOptionalInteger,
   expectOptionalObjectOrFunction,
-  expectOptionalPositiveNumber,
   expectOptionalString,
   expectOptionalStringArray,
   expectRelativePath,
@@ -29,9 +28,16 @@ const VALID_PERMISSION_MODES = new Set([
   "bypassPermissions",
 ]);
 export const VALID_MODEL_IDS = new Set([
-  "claude-opus-4-6",
+  "claude-opus-4-7",
   "claude-sonnet-4-6",
   "claude-haiku-4-5-20251001",
+]);
+export const VALID_EFFORT_LEVELS = new Set([
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
 ]);
 
 function validateRepairLoop(
@@ -193,12 +199,21 @@ export function validateAgentStep(
     );
   }
 
+  const effort = expectNonEmptyString(step.effort, `${stepLabel}.effort`, definitionPath);
+  if (!VALID_EFFORT_LEVELS.has(effort)) {
+    throw new WorkflowDefinitionError(
+      `${stepLabel}.effort must be one of ${Array.from(VALID_EFFORT_LEVELS).join(", ")}`,
+      definitionPath,
+    );
+  }
+
   return {
     id: expectName(step.id, `${stepLabel}.id`, definitionPath),
     type: "agent",
     agentName,
     promptPath,
     model,
+    effort: effort as WorkflowAgentStep["effort"],
     timeoutMs: expectOptionalInteger(
       step.timeoutMs,
       `${stepLabel}.timeoutMs`,
@@ -210,16 +225,6 @@ export function validateAgentStep(
       `${stepLabel}.maxTurns`,
       definitionPath,
       1,
-    ),
-    maxBudgetUsd: expectOptionalPositiveNumber(
-      step.maxBudgetUsd,
-      `${stepLabel}.maxBudgetUsd`,
-      definitionPath,
-    ),
-    maxCostUsd: expectOptionalPositiveNumber(
-      step.maxCostUsd,
-      `${stepLabel}.maxCostUsd`,
-      definitionPath,
     ),
     thinkingEnabled: expectOptionalBoolean(
       step.thinkingEnabled,

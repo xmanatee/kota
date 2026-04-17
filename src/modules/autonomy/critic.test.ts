@@ -174,7 +174,7 @@ describe("createCriticCheck", () => {
     expect(userMessage).toContain(`${runDir}/steps/*.events.jsonl`);
     expect(options.allowedTools).toBeUndefined();
     expect(options.disallowedTools).toEqual(AUTONOMY_DISALLOWED_TOOLS);
-    expect(options.effort).toBe("high");
+    expect(options.effort).toBe("xhigh");
   });
 
   it("recovers verdict from response with preamble text before JSON", async () => {

@@ -202,8 +202,6 @@ export function registerControlCommands(wfCmd: Command): void {
             agentBackoff: wf.agentBackoff,
             definitionsLoadedAt: wf.definitionsLoadedAt,
             workflows: wf.workflows,
-            dailySpend: undefined,
-            dailyBudget: undefined,
             dispatchWindowBlocked: wf.dispatchWindowBlocked,
             dispatchWindowOpensAt: wf.dispatchWindowOpensAt,
             agentConcurrency: wf.agentConcurrency,
@@ -231,8 +229,6 @@ export function registerControlCommands(wfCmd: Command): void {
         agentBackoff: state.agentBackoff,
         definitionsLoadedAt: state.definitionsLoadedAt,
         workflows: state.workflows,
-        dailySpend: store.getDailySpendUsd(),
-        dailyBudget: config.dailyBudgetUsd,
         dispatchWindowBlocked: windowBlocked || undefined,
         dispatchWindowOpensAt: windowOpensAt,
       });
@@ -258,8 +254,6 @@ type StatusOptions = {
       nextScheduledAt?: string;
     }
   >;
-  dailySpend: number | undefined;
-  dailyBudget: number | undefined;
   dispatchWindowBlocked?: boolean;
   dispatchWindowOpensAt?: string;
   agentConcurrency?: number;
@@ -338,12 +332,6 @@ function printWorkflowStatus(opts: StatusOptions): void {
   console.log(`Total completed runs: ${opts.completedRuns}`);
   if (opts.totalCostUsd != null) {
     console.log(`Total cost:           $${opts.totalCostUsd.toFixed(4)}`);
-  }
-  if (opts.dailyBudget != null && opts.dailySpend != null) {
-    const budgetStatus = opts.dailySpend >= opts.dailyBudget ? " ⚠ budget reached" : "";
-    console.log(`Today's spend:        $${opts.dailySpend.toFixed(4)} / $${opts.dailyBudget.toFixed(4)}${budgetStatus}`);
-  } else if (opts.dailySpend != null && opts.dailySpend > 0) {
-    console.log(`Today's spend:        $${opts.dailySpend.toFixed(4)}`);
   }
   if (opts.agentBackoff) {
     console.log(

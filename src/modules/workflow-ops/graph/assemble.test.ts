@@ -29,7 +29,6 @@ describe("assembleWorkflowGraph", () => {
         description: "Builds things",
         enabled: true,
         tags: ["monitored"],
-        dailyBudgetUsd: 10,
       }),
     ]);
     expect(graph.workflows).toHaveLength(1);
@@ -38,7 +37,6 @@ describe("assembleWorkflowGraph", () => {
     expect(wf.description).toBe("Builds things");
     expect(wf.enabled).toBe(true);
     expect(wf.tags).toEqual(["monitored"]);
-    expect(wf.dailyBudgetUsd).toBe(10);
   });
 
   it("defaults enabled to true when omitted", () => {
@@ -188,7 +186,8 @@ describe("assembleWorkflowGraph", () => {
             type: "agent",
             id: "build",
             agentName: "builder",
-            model: "claude-opus-4-6",
+            model: "claude-opus-4-7",
+            effort: "xhigh",
           },
         ],
       }),
@@ -206,8 +205,8 @@ describe("assembleWorkflowGraph", () => {
             type: "parallel",
             id: "group",
             steps: [
-              { type: "agent", id: "a", agentName: "alpha", model: "m" },
-              { type: "agent", id: "b", agentName: "beta", model: "m" },
+              { type: "agent", id: "a", agentName: "alpha", model: "m", effort: "xhigh" },
+              { type: "agent", id: "b", agentName: "beta", model: "m", effort: "xhigh" },
             ],
           },
         ],
@@ -227,6 +226,7 @@ describe("assembleWorkflowGraph", () => {
             id: "build",
             agentName: "builder",
             model: "opus",
+            effort: "xhigh",
           },
           { type: "emit", id: "done", event: "complete" },
         ],
@@ -318,14 +318,14 @@ describe("assembleWorkflowGraph", () => {
       makeDef({
         name: "wf1",
         steps: [
-          { type: "agent", id: "a", agentName: "builder", model: "m" },
+          { type: "agent", id: "a", agentName: "builder", model: "m", effort: "xhigh" },
         ],
       }),
       makeDef({
         name: "wf2",
         steps: [
-          { type: "agent", id: "b", agentName: "explorer", model: "m" },
-          { type: "agent", id: "c", agentName: "builder", model: "m" },
+          { type: "agent", id: "b", agentName: "explorer", model: "m", effort: "xhigh" },
+          { type: "agent", id: "c", agentName: "builder", model: "m", effort: "xhigh" },
         ],
       }),
     ]);
@@ -342,7 +342,7 @@ describe("assembleWorkflowGraph", () => {
             id: "group",
             steps: [
               { type: "code", id: "x", run: () => {} },
-              { type: "agent", id: "y", agentName: "a", model: "m" },
+              { type: "agent", id: "y", agentName: "a", model: "m", effort: "xhigh" },
             ],
           },
         ],

@@ -31,11 +31,11 @@ describe("loadConfig", () => {
     mkdirSync(configDir, { recursive: true });
     writeFileSync(
       join(configDir, "config.json"),
-      JSON.stringify({ model: "claude-opus-4-6", maxTokens: 4096 }),
+      JSON.stringify({ model: "claude-opus-4-7", maxTokens: 4096 }),
     );
 
     const config = loadConfig(tmpDir);
-    expect(config.model).toBe("claude-opus-4-6");
+    expect(config.model).toBe("claude-opus-4-7");
     expect(config.maxTokens).toBe(4096);
   });
 
@@ -71,8 +71,8 @@ describe("loadConfig", () => {
       JSON.stringify({ model: "claude-haiku-4-5-20251001", maxTokens: 2048 }),
     );
 
-    const config = loadConfig(tmpDir, { model: "claude-opus-4-6" });
-    expect(config.model).toBe("claude-opus-4-6");
+    const config = loadConfig(tmpDir, { model: "claude-opus-4-7" });
+    expect(config.model).toBe("claude-opus-4-7");
     expect(config.maxTokens).toBe(2048); // not overridden
   });
 
@@ -107,11 +107,11 @@ describe("loadConfig", () => {
     mkdirSync(configDir, { recursive: true });
     writeFileSync(
       join(configDir, "config.json"),
-      JSON.stringify({ agentModels: { builder: "claude-opus-4-6", explorer: "claude-haiku-4-5-20251001" } }),
+      JSON.stringify({ agentModels: { builder: "claude-opus-4-7", explorer: "claude-haiku-4-5-20251001" } }),
     );
 
     const config = loadConfig(tmpDir);
-    expect(config.agentModels?.builder).toBe("claude-opus-4-6");
+    expect(config.agentModels?.builder).toBe("claude-opus-4-7");
     expect(config.agentModels?.explorer).toBe("claude-haiku-4-5-20251001");
   });
 
@@ -120,11 +120,11 @@ describe("loadConfig", () => {
     mkdirSync(configDir, { recursive: true });
     writeFileSync(
       join(configDir, "config.json"),
-      JSON.stringify({ agentModels: { valid: "claude-opus-4-6", bad: 42, empty: "" } }),
+      JSON.stringify({ agentModels: { valid: "claude-opus-4-7", bad: 42, empty: "" } }),
     );
 
     const config = loadConfig(tmpDir);
-    expect(config.agentModels?.valid).toBe("claude-opus-4-6");
+    expect(config.agentModels?.valid).toBe("claude-opus-4-7");
     expect(config.agentModels?.bad).toBeUndefined();
     expect(config.agentModels?.empty).toBeUndefined();
   });
@@ -134,11 +134,11 @@ describe("loadConfig", () => {
     mkdirSync(configDir, { recursive: true });
     writeFileSync(
       join(configDir, "config.json"),
-      JSON.stringify({ agentModels: { builder: "claude-opus-4-6", explorer: "claude-sonnet-4-6" } }),
+      JSON.stringify({ agentModels: { builder: "claude-opus-4-7", explorer: "claude-sonnet-4-6" } }),
     );
 
     const config = loadConfig(tmpDir, { agentModels: { explorer: "claude-haiku-4-5-20251001" } });
-    expect(config.agentModels?.builder).toBe("claude-opus-4-6");      // from file
+    expect(config.agentModels?.builder).toBe("claude-opus-4-7");      // from file
     expect(config.agentModels?.explorer).toBe("claude-haiku-4-5-20251001"); // overridden
   });
 

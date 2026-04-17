@@ -105,14 +105,6 @@ function formatWorkflowBlock(wf: WorkflowNode, graph: WorkflowGraph): string[] {
     lines.push(...formatStepLine(step, "    "));
   }
 
-  // Budget info
-  const budget: string[] = [];
-  if (wf.dailyBudgetUsd != null) budget.push(`$${wf.dailyBudgetUsd}/day`);
-  if (wf.costLimitUsd != null) budget.push(`$${wf.costLimitUsd}/run`);
-  if (budget.length > 0) {
-    lines.push(`  budget: ${budget.join(", ")}`);
-  }
-
   return lines;
 }
 

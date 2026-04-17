@@ -19,12 +19,6 @@ const attentionDigestWorkflow: WorkflowDefinitionInput = {
       },
     },
     {
-      event: "workflow.cost.anomaly",
-    },
-    {
-      event: "workflow.budget.exceeded",
-    },
-    {
       event: "runtime.recovered",
     },
   ],

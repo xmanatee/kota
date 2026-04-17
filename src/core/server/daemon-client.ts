@@ -7,7 +7,6 @@ import type {
   DaemonSseEventType,
   DaemonTaskStatusResponse,
   HealthStatus,
-  WorkflowCostForecast,
   WorkflowDefinitionSummary,
   WorkflowLiveStatus,
   WorkflowRunDetail,
@@ -346,19 +345,6 @@ export class DaemonControlClient {
       const res = await fetchWithTimeout(`${this.baseUrl}/tasks`, { headers: this.authHeaders() });
       if (!res.ok) return null;
       return (await res.json()) as DaemonTaskStatusResponse;
-    } catch {
-      return null;
-    }
-  }
-
-  async getWorkflowCostForecast(workflow: string): Promise<WorkflowCostForecast | null> {
-    try {
-      const res = await fetchWithTimeout(
-        `${this.baseUrl}/workflow/cost/forecast/${encodeURIComponent(workflow)}`,
-        { headers: this.authHeaders() },
-      );
-      if (!res.ok) return null;
-      return (await res.json()) as WorkflowCostForecast;
     } catch {
       return null;
     }

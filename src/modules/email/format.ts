@@ -21,49 +21,12 @@ export function formatEmail(event: string, payload: Record<string, unknown>): Em
       return { subject, text: lines.join("\n") };
     }
 
-    case "workflow.budget.exceeded": {
-      const dailySpend = payload.dailySpend as number | undefined;
-      const budget = payload.budget as number | undefined;
-      const subject = "[KOTA] Budget Exceeded";
-      const lines = ["Daily budget exceeded."];
-      if (budget !== undefined) lines.push(`Budget: $${budget.toFixed(2)}`);
-      if (dailySpend !== undefined) lines.push(`Daily spend: $${dailySpend.toFixed(2)}`);
-      return { subject, text: lines.join("\n") };
-    }
-
-    case "workflow.budget.warning": {
-      const dailySpend = payload.dailySpend as number | undefined;
-      const budget = payload.budget as number | undefined;
-      const subject = "[KOTA] Budget Warning";
-      const lines = ["Approaching daily budget limit."];
-      if (budget !== undefined) lines.push(`Budget: $${budget.toFixed(2)}`);
-      if (dailySpend !== undefined) lines.push(`Daily spend: $${dailySpend.toFixed(2)}`);
-      return { subject, text: lines.join("\n") };
-    }
-
     case "workflow.attention.digest": {
       const text = payload.text as string | undefined;
       return {
         subject: "[KOTA] Attention Digest",
         text: text ?? "Attention digest — review pending items.",
       };
-    }
-
-    case "workflow.cost.limit.reached": {
-      const limitUsd = payload.limitUsd as number | undefined;
-      const subject = "[KOTA] Cost Limit Reached";
-      const lines = ["Workflow cost limit reached."];
-      if (limitUsd !== undefined) lines.push(`Limit: $${limitUsd.toFixed(2)}`);
-      return { subject, text: lines.join("\n") };
-    }
-
-    case "workflow.cost.anomaly": {
-      const workflow = payload.workflow as string | undefined;
-      const costUsd = payload.costUsd as number | undefined;
-      const subject = `[KOTA] Cost Anomaly: ${workflow ?? "unknown"}`;
-      const lines = [`Cost anomaly detected for workflow: ${workflow ?? "unknown"}`];
-      if (costUsd !== undefined) lines.push(`Cost: $${costUsd.toFixed(2)}`);
-      return { subject, text: lines.join("\n") };
     }
 
     case "workflow.approval.expired": {

@@ -49,7 +49,8 @@ describe("workflow validation", () => {
               id: "build",
               type: "agent",
               promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
-              model: "claude-opus-4-6",
+              model: "claude-opus-4-7",
+              effort: "xhigh",
             },
           ],
         }),
@@ -144,7 +145,8 @@ describe("workflow validation", () => {
                 id: "build",
                 type: "agent",
                 promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
-                model: "claude-opus-4-6",
+                model: "claude-opus-4-7",
+                effort: "xhigh",
                 repairLoop: {
                   maxRepairAttempts: 2,
                   checks: [
@@ -187,7 +189,8 @@ describe("workflow validation", () => {
               id: "build",
               type: "agent",
               promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
-              model: "claude-opus-4-6",
+              model: "claude-opus-4-7",
+              effort: "xhigh",
               repairLoop: {
                 checks: [
                   {
@@ -261,7 +264,8 @@ describe("workflow validation", () => {
               id: "build",
               type: "agent",
               promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
-              model: "claude-opus-4-6",
+              model: "claude-opus-4-7",
+              effort: "xhigh",
               timeoutMs: 45 * 60 * 1000,
             },
           ],
@@ -288,7 +292,8 @@ describe("workflow validation", () => {
                 id: "build",
                 type: "agent",
                 promptPath: "src/modules/autonomy/workflows/builder/missing.md",
-                model: "claude-opus-4-6",
+                model: "claude-opus-4-7",
+              effort: "xhigh",
               },
             ],
           }),
@@ -315,7 +320,8 @@ describe("workflow validation", () => {
                 id: "build",
                 type: "agent",
                 promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
-                model: "claude-opus-4-6",
+                model: "claude-opus-4-7",
+              effort: "xhigh",
               },
             ],
           }),
@@ -353,7 +359,8 @@ describe("workflow validation", () => {
                 id: "build",
                 type: "agent",
                 promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
-                model: "claude-opus-4-6",
+                model: "claude-opus-4-7",
+              effort: "xhigh",
               },
               {
                 id: "request-restart",
@@ -386,7 +393,8 @@ describe("workflow validation", () => {
                 id: "build",
                 type: "agent",
                 promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
-                model: "claude-opus-4-6",
+                model: "claude-opus-4-7",
+              effort: "xhigh",
               },
               {
                 id: "request-restart",
@@ -452,6 +460,7 @@ describe("workflow validation", () => {
                 type: "agent",
                 promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
                 model: "gpt-4-turbo",
+              effort: "xhigh",
               },
             ],
           }),
@@ -480,6 +489,7 @@ describe("workflow validation", () => {
                   type: "agent",
                   promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
                   model,
+                  effort: "xhigh" as const,
                 },
               ],
             }),
@@ -530,15 +540,6 @@ describe("workflow validation", () => {
       "improver",
       "attention-digest",
     ]));
-  });
-
-  it("keeps the autonomy workflows uncapped by daily budgets", async () => {
-    const definitions = validateWorkflowDefinitions(
-      await loadAutonomyWorkflowDefinitions(),
-      process.cwd(),
-    );
-
-    expect(definitions.every((definition) => definition.dailyBudgetUsd == null)).toBe(true);
   });
 
   it("accepts webhook trigger type", () => {

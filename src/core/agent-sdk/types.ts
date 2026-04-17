@@ -27,9 +27,8 @@ export type SDKQueryOptions = {
   disallowedTools?: string[];
   permissionMode?: SDKPermissionMode;
   cwd?: string;
-  maxBudgetUsd?: number;
   persistSession?: boolean;
-  effort?: "low" | "medium" | "high" | "max";
+  effort?: "low" | "medium" | "high" | "xhigh" | "max";
   includePartialMessages?: boolean;
   settingSources?: SDKSettingSource[];
   pathToClaudeCodeExecutable?: string;

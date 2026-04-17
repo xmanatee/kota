@@ -3,7 +3,7 @@ import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
 import type { WorkflowRunSummary } from "./run-summary.js";
-import { computeCostByWorkflow, type RunSummary, summarizeRun } from "./shared.js";
+import { type RunSummary, summarizeRun } from "./shared.js";
 
 type WorkflowFailureRate = {
   workflow: string;
@@ -19,13 +19,6 @@ type RepairCheckTally = {
   terminal: number;
 };
 
-type CostTrend = {
-  workflow: string;
-  currentUsd: number;
-  previousUsd: number;
-  deltaPercent: number | null;
-};
-
 type DurationOutlier = {
   runId: string;
   workflow: string;
@@ -39,7 +32,6 @@ export type RunOutcomeAggregation = {
   failureRates7d: WorkflowFailureRate[];
   topRepairFailures24h: RepairCheckTally[];
   topRepairFailures7d: RepairCheckTally[];
-  costTrends: CostTrend[];
   durationOutliers: DurationOutlier[];
 };
 
@@ -101,27 +93,6 @@ export function tallyRepairFailures(runs: WorkflowRunMetadata[]): RepairCheckTal
     .sort((a, b) => b.count - a.count);
 }
 
-function computeCostTrends(
-  currentRuns: RunSummary[],
-  previousRuns: RunSummary[],
-): CostTrend[] {
-  const current = computeCostByWorkflow(currentRuns);
-  const previous = computeCostByWorkflow(previousRuns);
-  const allWfs = new Set([...Object.keys(current), ...Object.keys(previous)]);
-  return [...allWfs]
-    .map((workflow) => {
-      const cur = current[workflow] ?? 0;
-      const prev = previous[workflow] ?? 0;
-      return {
-        workflow,
-        currentUsd: cur,
-        previousUsd: prev,
-        deltaPercent: prev > 0 ? ((cur - prev) / prev) * 100 : null,
-      };
-    })
-    .sort((a, b) => (b.currentUsd + b.previousUsd) - (a.currentUsd + a.previousUsd));
-}
-
 const MEANINGFUL_AGENT_STEP_MIN_MS = 1000;
 
 function hasMeaningfulAgentStep(run: WorkflowRunMetadata): boolean {
@@ -178,26 +149,18 @@ export function aggregateRunOutcomes(runsDir: string): RunOutcomeAggregation {
   const now = Date.now();
   const cutoff24h = now - 24 * 60 * 60 * 1000;
   const cutoff7d = now - 7 * 24 * 60 * 60 * 1000;
-  const cutoff14d = now - 14 * 24 * 60 * 60 * 1000;
 
-  const all14d = loadRunsInWindow(runsDir, cutoff14d);
-  const all7d = all14d.filter((r) => new Date(r.startedAt).getTime() >= cutoff7d);
+  const all7d = loadRunsInWindow(runsDir, cutoff7d);
   const all24h = all7d.filter((r) => new Date(r.startedAt).getTime() >= cutoff24h);
-  const previous7d = all14d.filter((r) => {
-    const t = new Date(r.startedAt).getTime();
-    return t >= cutoff14d && t < cutoff7d;
-  });
 
   const summaries7d = all7d.map(summarizeRun);
   const summaries24h = all24h.map(summarizeRun);
-  const previousSummaries = previous7d.map(summarizeRun);
 
   return {
     failureRates24h: computeFailureRates(summaries24h),
     failureRates7d: computeFailureRates(summaries7d),
     topRepairFailures24h: tallyRepairFailures(all24h).slice(0, 10),
     topRepairFailures7d: tallyRepairFailures(all7d).slice(0, 10),
-    costTrends: computeCostTrends(summaries7d, previousSummaries),
     durationOutliers: enrichOutliersWithSubjects(
       findDurationOutliers(all7d).slice(0, 10),
       runsDir,

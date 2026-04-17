@@ -1,7 +1,6 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
-import { getWorkflowCostForecast } from "#core/workflow/cost-forecast.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "#core/workflow/validation.js";
 import { getWorkflowDefinitions } from "../definitions-source.js";
 import { buildDryRunPlan, formatDryRunResult } from "./dry-run.js";
@@ -83,13 +82,9 @@ export function registerRunCommand(wfCmd: Command, ctx: ModuleContext): void {
 
       const availableToolNames = new Set(ctx.listTools());
 
-      const kotaDir = ".kota";
-      const costForecast = getWorkflowCostForecast(kotaDir, name);
-
       const result = await buildDryRunPlan(definition, {
         payload,
         availableToolNames,
-        costForecast,
       });
 
       console.log(formatDryRunResult(result));

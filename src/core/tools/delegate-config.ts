@@ -31,11 +31,9 @@ export type DelegateConfig = {
   mcpManager?: McpManager;
   /** Override backend selection: "thin" (default KOTA loop) or "agent-sdk" (Claude Code runtime). */
   backend?: DelegateBackend;
-  /** Budget cap in USD for Agent SDK delegations. */
-  agentSdkBudgetUsd?: number;
 };
 
-let delegateConfig: DelegateConfig = { model: "claude-opus-4-6" };
+let delegateConfig: DelegateConfig = { model: "claude-opus-4-7" };
 
 export function setDelegateConfig(config: DelegateConfig): void {
   delegateConfig = config;

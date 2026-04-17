@@ -32,7 +32,6 @@ describe("captureRunInsight", () => {
 			taskTitle?: string;
 			commitMessage?: string;
 			filesChanged?: string[];
-			costUsd?: number;
 			durationMs?: number;
 		} = {},
 	): string {
@@ -50,7 +49,6 @@ describe("captureRunInsight", () => {
 				taskTitle: opts.taskTitle ?? "Test task title",
 				commitMessage: opts.commitMessage ?? "Fix the thing",
 				filesChanged: opts.filesChanged ?? ["src/foo.ts", "src/bar.ts"],
-				costUsd: opts.costUsd ?? 1.5,
 				durationMs: opts.durationMs ?? 60000,
 				completedAt: "2026-04-12T00:00:00Z",
 			}),
@@ -134,15 +132,14 @@ describe("captureRunInsight", () => {
 		expect(entry!.content).toContain("... and 5 more");
 	});
 
-	it("includes cost and duration in content", () => {
+	it("includes duration in content", () => {
 		const runId = "2026-04-12-stats-run";
-		const runDir = seedRun(runId, { costUsd: 3.14, durationMs: 300000 });
+		const runDir = seedRun(runId, { durationMs: 300000 });
 
 		const result = captureRunInsight(projectDir, runDir, runId, "builder");
 		const store = getKnowledgeStore(projectDir);
 		const entry = store.read(result.entryId!);
 		expect(entry!.content).toContain("duration: 5m");
-		expect(entry!.content).toContain("cost: $3.14");
 	});
 
 	it("stores meta fields on the entry", () => {

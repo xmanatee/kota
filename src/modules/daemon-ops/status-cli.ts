@@ -1,6 +1,5 @@
 import { join } from "node:path";
 import { Command } from "commander";
-import { loadConfig } from "#core/config/config.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
@@ -14,8 +13,6 @@ export type StatusSnapshot = {
   queuedRuns: number;
   sessions: number;
   pendingApprovals: number;
-  dailySpendUsd?: number;
-  dailyBudgetUsd?: number;
 };
 
 function formatUptime(ms: number): string {
@@ -42,19 +39,12 @@ export function formatStatusOutput(snap: StatusSnapshot): string {
   const approvalSuffix = snap.pendingApprovals > 0 ? "  \u2190 requires attention" : "";
   lines.push(truncateLine(`${pad("Approvals:")}${snap.pendingApprovals} pending${approvalSuffix}`, width));
 
-  if (snap.dailyBudgetUsd != null && snap.dailySpendUsd != null) {
-    lines.push(truncateLine(`${pad("Budget:")}$${snap.dailySpendUsd.toFixed(2)} of $${snap.dailyBudgetUsd.toFixed(2)} today`, width));
-  } else if (snap.dailySpendUsd != null && snap.dailySpendUsd > 0) {
-    lines.push(truncateLine(`${pad("Budget:")}$${snap.dailySpendUsd.toFixed(2)} today`, width));
-  }
-
   return lines.join("\n");
 }
 
 export async function gatherStatus(projectDir: string): Promise<StatusSnapshot> {
   const stateDir = join(projectDir, ".kota");
   const client = DaemonControlClient.fromStateDir(stateDir);
-  const config = loadConfig(projectDir);
 
   if (client) {
     const status = await client.getDaemonStatus();
@@ -66,8 +56,6 @@ export async function gatherStatus(projectDir: string): Promise<StatusSnapshot> 
       const pendingApprovals = approvalResult
         ? approvalResult.approvals.filter((a) => a.status === "pending").length
         : 0;
-      const store = new WorkflowRunStore(projectDir);
-      const dailySpend = store.getDailySpendUsd();
 
       return {
         daemonRunning: true,
@@ -77,18 +65,14 @@ export async function gatherStatus(projectDir: string): Promise<StatusSnapshot> 
         queuedRuns: status.workflow.queueLength,
         sessions: status.sessions.length,
         pendingApprovals,
-        dailySpendUsd: dailySpend > 0 ? dailySpend : undefined,
-        dailyBudgetUsd: config.dailyBudgetUsd,
       };
     }
   }
 
-  // Standalone mode: read from disk when no daemon is running
   const store = new WorkflowRunStore(projectDir);
   const state = store.readState();
   const queue = getApprovalQueue(join(stateDir, "approvals"));
   const pendingApprovals = queue.count("pending");
-  const dailySpend = store.getDailySpendUsd();
 
   return {
     daemonRunning: false,
@@ -96,8 +80,6 @@ export async function gatherStatus(projectDir: string): Promise<StatusSnapshot> 
     queuedRuns: (state.pendingRuns ?? []).length,
     sessions: 0,
     pendingApprovals,
-    dailySpendUsd: dailySpend > 0 ? dailySpend : undefined,
-    dailyBudgetUsd: config.dailyBudgetUsd,
   };
 }
 

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import {
@@ -23,7 +23,7 @@ const GATE_SYSTEM_PROMPT = `You are a semantic quality gate for an autonomous im
 - **Empty or no-op changes**: Reject diffs with no meaningful behavioral change — whitespace-only, import reordering without functional impact, or trivially circular edits.
 - **Commit message honesty**: Does the commit message accurately describe the actual change? Reject misleading messages that claim improvements not present in the diff.
 - **Documentation-only churn**: Documentation changes are valid only if they address a concrete observed issue or directly support a code change. Reject docs-only diffs with no connection to run evidence or current problems.
-- **Evidence connection**: The improver should be working from observed run data, failure patterns, or cost evidence. Changes that cannot be traced to any systemic issue are suspicious.
+- **Evidence connection**: The improver should be working from observed run data or failure patterns. Changes that cannot be traced to any systemic issue are suspicious.
 
 ## What you do NOT check
 
@@ -50,17 +50,15 @@ Respond with ONLY a JSON object (no markdown fences) matching this schema:
 const gateConfig: AgentJudgeConfig = {
   label: "Semantic gate",
   systemPrompt: GATE_SYSTEM_PROMPT,
-  model: "claude-opus-4-6",
+  model: "claude-opus-4-7",
   maxTurns: GATE_MAX_TURNS,
-  effort: "high",
+  effort: "xhigh",
 };
 
 function readCommitMessage(runDirPath: string): string {
-  try {
-    return readFileSync(join(runDirPath, "commit-message.txt"), "utf8").trim();
-  } catch {
-    return "(no commit message found)";
-  }
+  const path = join(runDirPath, "commit-message.txt");
+  if (!existsSync(path)) return "(no commit message found)";
+  return readFileSync(path, "utf8").trim();
 }
 
 export function createImproverSemanticCheck(options?: {
