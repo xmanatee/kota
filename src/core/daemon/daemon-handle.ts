@@ -25,6 +25,7 @@ import type {
   WorkflowRunSummary,
 } from "./daemon-control-types.js";
 import type { DaemonState } from "./daemon-state.js";
+import { getOwnerQuestionQueue } from "./owner-question-queue.js";
 import { registerPushToken, sendPushNotifications } from "./push-tokens.js";
 
 export type DaemonHandleContext = {
@@ -190,6 +191,21 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         bus.on("session.unregistered", (p) =>
           handler({ type: "session.unregistered", payload: p as unknown as Record<string, unknown> }),
         ),
+        bus.on("owner.question.asked", (p) =>
+          handler({ type: "owner.question.asked", payload: p as unknown as Record<string, unknown> }),
+        ),
+        bus.on("owner.question.changed", (p) =>
+          handler({ type: "owner.question.changed", payload: p as unknown as Record<string, unknown> }),
+        ),
+        bus.on("owner.question.resolved", (p) =>
+          handler({ type: "owner.question.resolved", payload: p as unknown as Record<string, unknown> }),
+        ),
+        bus.on("owner.question.dismissed", (p) =>
+          handler({ type: "owner.question.dismissed", payload: p as unknown as Record<string, unknown> }),
+        ),
+        bus.on("owner.question.expired", (p) =>
+          handler({ type: "owner.question.expired", payload: p as unknown as Record<string, unknown> }),
+        ),
       ];
       return () => stops.forEach((s) => s());
     },
@@ -201,6 +217,9 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
     rejectApproval: (id: string, reason?: string) => getApprovalQueue().reject(id, reason),
     approveAllApprovals: (note?: string) => getApprovalQueue().approveAll(note),
     rejectAllApprovals: (reason?: string) => getApprovalQueue().rejectAll(reason),
+    listOwnerQuestions: () => getOwnerQuestionQueue().list("pending"),
+    answerOwnerQuestion: (id: string, answer: string) => getOwnerQuestionQueue().answer(id, answer, "daemon-control"),
+    dismissOwnerQuestion: (id: string, reason?: string) => getOwnerQuestionQueue().dismiss(id, reason, "daemon-control"),
     listWorkflowRuns: (workflow?: string, limit?: number, tag?: string, causedByRunId?: string): WorkflowRunSummary[] =>
       runStore.listRuns({ workflow, limit, tag, causedByRunId }).map((m) => ({
         id: m.id,

@@ -130,6 +130,38 @@ describe('DaemonClient', () => {
     expect(lastCall()[0]).toBe(`${baseUrl}/workflow/resume`);
   });
 
+  test('getOwnerQuestions sends GET /owner-questions with bearer token', async () => {
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ questions: [] }));
+    await client().getOwnerQuestions();
+    expect(lastCall()[0]).toBe(`${baseUrl}/owner-questions`);
+    expect(lastHeaders().Authorization).toBe(`Bearer ${token}`);
+  });
+
+  test('answerOwnerQuestion posts answer body', async () => {
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ question: {} }));
+    await client().answerOwnerQuestion('oq-1', 'go ahead');
+    const [url, init] = lastCall();
+    expect(url).toBe(`${baseUrl}/owner-questions/oq-1/answer`);
+    expect(init?.method).toBe('POST');
+    expect(init?.body).toBe(JSON.stringify({ answer: 'go ahead' }));
+  });
+
+  test('dismissOwnerQuestion posts optional reason', async () => {
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ question: {} }));
+    await client().dismissOwnerQuestion('oq-1', 'not needed');
+    const [url, init] = lastCall();
+    expect(url).toBe(`${baseUrl}/owner-questions/oq-1/dismiss`);
+    expect(init?.method).toBe('POST');
+    expect(init?.body).toBe(JSON.stringify({ reason: 'not needed' }));
+  });
+
+  test('dismissOwnerQuestion without reason omits body', async () => {
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ question: {} }));
+    await client().dismissOwnerQuestion('oq-1');
+    const init = lastCall()[1];
+    expect(init?.body).toBeUndefined();
+  });
+
   test('throws on non-ok responses', async () => {
     fetchSpy.mockResolvedValueOnce(new Response('', { status: 401, statusText: 'Unauthorized' }));
     await expect(client().getStatus()).rejects.toThrow('401');

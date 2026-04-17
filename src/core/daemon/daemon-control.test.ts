@@ -49,6 +49,9 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     rejectApproval: vi.fn(() => null),
     approveAllApprovals: vi.fn(() => []),
     rejectAllApprovals: vi.fn(() => []),
+    listOwnerQuestions: vi.fn(() => []),
+    answerOwnerQuestion: vi.fn(() => null),
+    dismissOwnerQuestion: vi.fn(() => null),
     getTaskStatus: vi.fn(() => ({ counts: { inbox: 0, ready: 0, backlog: 0, doing: 0, blocked: 0 }, tasks: { doing: [], ready: [], backlog: [], blocked: [] } })),
     listWorkflowRuns: vi.fn(() => []),
     getWorkflowRun: vi.fn(() => null),
@@ -956,6 +959,158 @@ describe("DaemonControlServer", () => {
 
     it("returns 401 without token", async () => {
       const res = await fetchNoToken(port, "/approvals/appr-1/reject", { method: "POST" });
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe("GET /owner-questions", () => {
+    it("returns 200 with empty questions list", async () => {
+      const res = await fetchWithToken(port, "/owner-questions");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toMatchObject({ questions: [] });
+      expect(handle.listOwnerQuestions).toHaveBeenCalled();
+    });
+
+    it("returns questions from handle", async () => {
+      const question = {
+        id: "oq-1",
+        seq: 0,
+        context: "refactor",
+        question: "Should I rename this type?",
+        reason: "touches public surface",
+        source: "builder",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        status: "pending" as const,
+      };
+      handle = makeHandle({ listOwnerQuestions: vi.fn(() => [question]) });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/owner-questions");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.questions).toHaveLength(1);
+      expect(body.questions[0].id).toBe("oq-1");
+    });
+
+    it("returns 401 without token", async () => {
+      const res = await fetchNoToken(port, "/owner-questions");
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe("POST /owner-questions/:id/answer", () => {
+    it("requires a non-empty answer", async () => {
+      const res = await fetchWithToken(port, "/owner-questions/oq-1/answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answer: "   " }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 200 and passes answer to handle", async () => {
+      const question = {
+        id: "oq-1",
+        seq: 0,
+        context: "refactor",
+        question: "Q?",
+        reason: "r",
+        source: "builder",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        status: "answered" as const,
+        resolvedAt: "2026-01-01T00:01:00.000Z",
+        answer: "go ahead",
+      };
+      handle = makeHandle({ answerOwnerQuestion: vi.fn(() => question) });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/owner-questions/oq-1/answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answer: "go ahead" }),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.question.id).toBe("oq-1");
+      expect(handle.answerOwnerQuestion).toHaveBeenCalledWith("oq-1", "go ahead");
+    });
+
+    it("returns 404 when question not found", async () => {
+      const res = await fetchWithToken(port, "/owner-questions/missing/answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answer: "x" }),
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it("returns 401 without token", async () => {
+      const res = await fetchNoToken(port, "/owner-questions/oq-1/answer", { method: "POST" });
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe("POST /owner-questions/:id/dismiss", () => {
+    it("returns 200 and passes reason to handle", async () => {
+      const question = {
+        id: "oq-1",
+        seq: 0,
+        context: "refactor",
+        question: "Q?",
+        reason: "r",
+        source: "builder",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        status: "dismissed" as const,
+        resolvedAt: "2026-01-01T00:01:00.000Z",
+        dismissalReason: "not needed",
+      };
+      handle = makeHandle({ dismissOwnerQuestion: vi.fn(() => question) });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/owner-questions/oq-1/dismiss", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "not needed" }),
+      });
+      expect(res.status).toBe(200);
+      expect(handle.dismissOwnerQuestion).toHaveBeenCalledWith("oq-1", "not needed");
+    });
+
+    it("accepts dismiss without a reason", async () => {
+      const question = {
+        id: "oq-1",
+        seq: 0,
+        context: "refactor",
+        question: "Q?",
+        reason: "r",
+        source: "builder",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        status: "dismissed" as const,
+      };
+      handle = makeHandle({ dismissOwnerQuestion: vi.fn(() => question) });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/owner-questions/oq-1/dismiss", { method: "POST" });
+      expect(res.status).toBe(200);
+      expect(handle.dismissOwnerQuestion).toHaveBeenCalledWith("oq-1", undefined);
+    });
+
+    it("returns 404 when question not found", async () => {
+      const res = await fetchWithToken(port, "/owner-questions/missing/dismiss", { method: "POST" });
+      expect(res.status).toBe(404);
+    });
+
+    it("returns 401 without token", async () => {
+      const res = await fetchNoToken(port, "/owner-questions/oq-1/dismiss", { method: "POST" });
       expect(res.status).toBe(401);
     });
   });

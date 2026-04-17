@@ -109,6 +109,72 @@ final class DaemonClientTests: XCTestCase {
         }
     }
 
+    func testFetchOwnerQuestionsDecodesMockedResponse() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/owner-questions")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+            let body = #"""
+            {"questions": [{"id": "oq-1", "context": "c", "question": "q?", "reason": "r", "source": "builder", "createdAt": "t", "status": "pending"}]}
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let resp = try await client.fetchOwnerQuestions()
+        XCTAssertEqual(resp.questions.count, 1)
+        XCTAssertEqual(resp.questions[0].id, "oq-1")
+    }
+
+    func testAnswerOwnerQuestionSendsAnswerBody() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/owner-questions/oq-1/answer")
+            XCTAssertEqual(request.httpMethod, "POST")
+            let body = request.readBody()
+            let obj = try? JSONSerialization.jsonObject(with: body!) as? [String: Any]
+            XCTAssertEqual(obj?["answer"] as? String, "go ahead")
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 204, httpVersion: nil, headerFields: nil
+            )!
+            return (response, Data())
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+        try await client.answerOwnerQuestion(id: "oq-1", answer: "go ahead")
+    }
+
+    func testDismissOwnerQuestionSendsReasonBody() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/owner-questions/oq-1/dismiss")
+            XCTAssertEqual(request.httpMethod, "POST")
+            let body = request.readBody()
+            let obj = try? JSONSerialization.jsonObject(with: body!) as? [String: Any]
+            XCTAssertEqual(obj?["reason"] as? String, "stale")
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 204, httpVersion: nil, headerFields: nil
+            )!
+            return (response, Data())
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+        try await client.dismissOwnerQuestion(id: "oq-1", reason: "stale")
+    }
+
     func testTriggerWorkflowSendsBody() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }

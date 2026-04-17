@@ -68,6 +68,23 @@ struct ApprovalRequest: Codable, Identifiable {
     }
 }
 
+// MARK: - Owner questions
+
+struct OwnerQuestionsResponse: Codable {
+    let questions: [OwnerQuestion]
+}
+
+struct OwnerQuestion: Codable, Identifiable {
+    let id: String
+    let context: String
+    let question: String
+    let reason: String
+    let source: String
+    let createdAt: String
+    let status: String
+    let proposedAnswers: [String]?
+}
+
 // MARK: - Run detail
 
 struct RunStepSummary: Codable {

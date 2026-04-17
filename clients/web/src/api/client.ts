@@ -9,6 +9,7 @@ import type {
   MemoryEntry,
   ModuleInfo,
   PendingApproval,
+  PendingOwnerQuestion,
   ScheduleEntry,
   WorkflowDefinitionSummary,
   WorkflowLiveStatus,
@@ -180,6 +181,29 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ reason }),
     }),
+
+  listOwnerQuestions: () =>
+    apiJson<{ questions: PendingOwnerQuestion[] }>("/api/owner-questions"),
+
+  answerOwnerQuestion: (id: string, answer: string) =>
+    apiJson<{ question: PendingOwnerQuestion }>(
+      `/api/owner-questions/${encodeURIComponent(id)}/answer`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answer }),
+      },
+    ),
+
+  dismissOwnerQuestion: (id: string, reason?: string) =>
+    apiJson<{ question: PendingOwnerQuestion }>(
+      `/api/owner-questions/${encodeURIComponent(id)}/dismiss`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      },
+    ),
 
   getTasks: () => apiJson<DaemonTaskStatusResponse>("/api/tasks"),
 

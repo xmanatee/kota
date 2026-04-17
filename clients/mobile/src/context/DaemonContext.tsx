@@ -67,16 +67,18 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     const client = clientRef.current;
     if (!client) return;
     try {
-      const [statusRes, runsRes, approvalsRes, tasksRes] = await Promise.all([
+      const [statusRes, runsRes, approvalsRes, tasksRes, ownerQuestionsRes] = await Promise.all([
         client.getStatus(),
         client.getRuns(undefined, 30),
         client.getApprovals(),
         client.getTasks(),
+        client.getOwnerQuestions(),
       ]);
       dispatch({ type: 'STATUS', status: statusRes });
       dispatch({ type: 'RUNS', runs: runsRes.runs });
       dispatch({ type: 'APPROVALS', approvals: approvalsRes.approvals });
       dispatch({ type: 'TASKS', tasks: tasksRes });
+      dispatch({ type: 'OWNER_QUESTIONS', questions: ownerQuestionsRes.questions });
       dispatch({ type: 'ERROR', error: null });
     } catch (e) {
       dispatch({ type: 'ERROR', error: e instanceof Error ? e.message : String(e) });
@@ -157,6 +159,15 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
       }
       case 'task.changed':
         void client.getTasks().then((t) => dispatch({ type: 'TASKS', tasks: t }));
+        break;
+      case 'owner.question.asked':
+      case 'owner.question.changed':
+      case 'owner.question.resolved':
+      case 'owner.question.dismissed':
+      case 'owner.question.expired':
+        void client
+          .getOwnerQuestions()
+          .then((r) => dispatch({ type: 'OWNER_QUESTIONS', questions: r.questions }));
         break;
     }
   }, []);

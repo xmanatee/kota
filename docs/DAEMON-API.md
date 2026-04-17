@@ -37,6 +37,7 @@ Routes are tagged with a capability scope:
   `GET /api/events`, `GET /workflow/cost/forecast/:name`,
   `GET /workflow/runs`, `GET /workflow/runs/:id`,
   `GET /history`, `GET /history/:id`, `GET /approvals`, `GET /tasks`,
+  `GET /owner-questions`,
   `GET /sessions`, `GET /metrics`
 - **`control`** — mutate workflow dispatch and data:
   `POST /workflow/pause`, `POST /workflow/resume`, `POST /workflow/abort`,
@@ -47,6 +48,7 @@ Routes are tagged with a capability scope:
   `POST /reload`,
   `DELETE /history/:id`, `POST /approvals/:id/approve`,
   `POST /approvals/:id/reject`,
+  `POST /owner-questions/:id/answer`, `POST /owner-questions/:id/dismiss`,
   `POST /sessions`, `POST /sessions/register`, `POST /sessions/:id/chat`,
   `DELETE /sessions/:id`,
   `POST /push-tokens`
@@ -700,6 +702,74 @@ Rejects a pending approval request.
 **Response:** `{ "approval": <PendingApproval> }` with status `rejected`.
 
 Returns `404` if not found or not pending.
+
+## Owner Question Endpoints
+
+Owner questions are structured escalations agents file when they face a
+high-stakes decision they cannot resolve alone. The queue is persisted on disk
+and exposed through the daemon control API so operator surfaces (web sidebar,
+mobile list, macOS menu bar) can read pending items and post answers or
+dismissals.
+
+### GET /owner-questions
+
+Lists all pending owner questions, oldest first.
+
+**Response:**
+
+```json
+{
+  "questions": [
+    {
+      "id": "oq-1",
+      "seq": 0,
+      "context": "We're about to rename the public `Result` type.",
+      "question": "Should the rename land in this PR or split out?",
+      "reason": "Touches the public module surface.",
+      "source": "builder",
+      "createdAt": "2026-04-17T11:41:04.143Z",
+      "status": "pending",
+      "proposedAnswers": ["land here", "split out"]
+    }
+  ]
+}
+```
+
+`proposedAnswers`, `timeoutMs`, `defaultResolution`, and `defaultAnswer` are
+optional and only present when the enqueueing agent supplied them.
+
+### POST /owner-questions/:id/answer
+
+Resolves a pending owner question with an owner-provided answer.
+
+**Path parameter:** `:id` — the question ID from `GET /owner-questions`.
+
+**Request body:** `{ "answer": "land here" }`
+
+`answer` (required) — non-empty string. Whitespace-only answers are rejected.
+
+**Response (200):** `{ "question": <PendingOwnerQuestion> }` with `status: "answered"`, `resolvedAt`, and `answer` set.
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | `answer` missing, not a string, or whitespace-only |
+| 404 | No pending question with that ID |
+
+### POST /owner-questions/:id/dismiss
+
+Dismisses a pending owner question without answering it.
+
+**Path parameter:** `:id` — the question ID from `GET /owner-questions`.
+
+**Request body (optional):** `{ "reason": "no longer relevant" }`
+
+`reason` is optional and stored on the resolved record as `dismissalReason`.
+
+**Response (200):** `{ "question": <PendingOwnerQuestion> }` with `status: "dismissed"` and `resolvedAt` set.
+
+Returns `404` if no pending question with that ID exists.
 
 ## Task Endpoints
 

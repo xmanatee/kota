@@ -13,6 +13,7 @@ import { ApprovalDetailScreen } from '../screens/ApprovalDetailScreen';
 import { ApprovalListScreen } from '../screens/ApprovalListScreen';
 import { ChatDetailScreen } from '../screens/ChatDetailScreen';
 import { ChatListScreen } from '../screens/ChatListScreen';
+import { OwnerQuestionListScreen } from '../screens/OwnerQuestionListScreen';
 import { RunDetailScreen } from '../screens/RunDetailScreen';
 import { RunListScreen } from '../screens/RunListScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
@@ -44,6 +45,7 @@ export type TabParams = {
   Status: undefined;
   Runs: undefined;
   Approvals: NavigatorScreenParams<ApprovalsStackParams> | undefined;
+  Questions: undefined;
   Tasks: undefined;
   Chat: NavigatorScreenParams<ChatStackParams> | undefined;
 };
@@ -169,6 +171,7 @@ function ChatNavigator() {
 export function AppNavigator() {
   const { state } = useDaemon();
   const pendingCount = state.pendingApprovalCount;
+  const pendingQuestionCount = state.pendingOwnerQuestionCount;
 
   // Handle notification taps. Navigate based on the `screen` field in the payload.
   // Old notifications without `screen` open the app home as-is (no navigation).
@@ -205,6 +208,16 @@ export function AppNavigator() {
           options={{
             tabBarIcon: () => <Text>✅</Text>,
             tabBarBadge: pendingCount > 0 ? pendingCount : undefined,
+          }}
+        />
+        <Tab.Screen
+          name="Questions"
+          component={OwnerQuestionListScreen}
+          options={{
+            tabBarIcon: () => <Text>❓</Text>,
+            tabBarBadge: pendingQuestionCount > 0 ? pendingQuestionCount : undefined,
+            headerShown: true,
+            title: 'Questions',
           }}
         />
         <Tab.Screen

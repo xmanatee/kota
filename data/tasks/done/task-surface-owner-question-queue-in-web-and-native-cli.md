@@ -1,12 +1,12 @@
 ---
 id: task-surface-owner-question-queue-in-web-and-native-cli
 title: Surface owner-question queue in web and native clients
-status: backlog
+status: done
 priority: p2
 area: clients
 summary: Web dashboard, macOS MenuBarExtra, and mobile app already surface approvals but not owner questions. Add pending-question panels that list, answer, and dismiss questions via the existing /api/owner-questions endpoints.
 created_at: 2026-04-16T07:47:18.494Z
-updated_at: 2026-04-16T07:47:18.494Z
+updated_at: 2026-04-17T11:58:27.704Z
 ---
 
 ## Problem

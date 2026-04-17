@@ -33,6 +33,16 @@ export function useDaemonEvents() {
     source.on("approval.changed", () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.approvals });
     });
+    const invalidateOwnerQuestions = () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.ownerQuestions,
+      });
+    };
+    source.on("owner.question.asked", invalidateOwnerQuestions);
+    source.on("owner.question.changed", invalidateOwnerQuestions);
+    source.on("owner.question.resolved", invalidateOwnerQuestions);
+    source.on("owner.question.dismissed", invalidateOwnerQuestions);
+    source.on("owner.question.expired", invalidateOwnerQuestions);
     source.on("task.changed", () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
     });

@@ -1,6 +1,7 @@
 import type {
   Approval,
   DaemonStatus,
+  OwnerQuestion,
   RunSummary,
   TasksResponse,
 } from '../types';
@@ -14,8 +15,10 @@ export interface DaemonState {
   status: DaemonStatus | null;
   runs: RunSummary[];
   approvals: Approval[];
+  ownerQuestions: OwnerQuestion[];
   tasks: TasksResponse | null;
   pendingApprovalCount: number;
+  pendingOwnerQuestionCount: number;
   pushNotificationsEnabled: boolean;
   error: string | null;
 }
@@ -30,6 +33,7 @@ export type DaemonAction =
   | { type: 'STATUS'; status: DaemonStatus }
   | { type: 'RUNS'; runs: RunSummary[] }
   | { type: 'APPROVALS'; approvals: Approval[] }
+  | { type: 'OWNER_QUESTIONS'; questions: OwnerQuestion[] }
   | { type: 'TASKS'; tasks: TasksResponse }
   | { type: 'PENDING_COUNT'; count: number }
   | { type: 'ERROR'; error: string | null };
@@ -43,8 +47,10 @@ export const initialState: DaemonState = {
   status: null,
   runs: [],
   approvals: [],
+  ownerQuestions: [],
   tasks: null,
   pendingApprovalCount: 0,
+  pendingOwnerQuestionCount: 0,
   pushNotificationsEnabled: true,
   error: null,
 };
@@ -78,6 +84,12 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         ...state,
         approvals: action.approvals,
         pendingApprovalCount: action.approvals.filter((a) => a.status === 'pending').length,
+      };
+    case 'OWNER_QUESTIONS':
+      return {
+        ...state,
+        ownerQuestions: action.questions,
+        pendingOwnerQuestionCount: action.questions.filter((q) => q.status === 'pending').length,
       };
     case 'TASKS':
       return { ...state, tasks: action.tasks };

@@ -133,6 +133,31 @@ export type PendingApproval = {
   reason?: string;
 };
 
+export type OwnerQuestionStatus =
+  | "pending"
+  | "answered"
+  | "dismissed"
+  | "expired";
+
+export type PendingOwnerQuestion = {
+  id: string;
+  seq: number;
+  context: string;
+  question: string;
+  reason: string;
+  source: string;
+  createdAt: string;
+  status: OwnerQuestionStatus;
+  proposedAnswers?: string[];
+  resolvedAt?: string;
+  answer?: string;
+  dismissalReason?: string;
+  timeoutMs?: number;
+  defaultResolution?: "dismiss" | "answer";
+  defaultAnswer?: string;
+  resolutionSource?: string;
+};
+
 export type HealthStatus = {
   status: string;
   version: string;
@@ -205,4 +230,9 @@ export type DaemonSseEventType =
   | "task.changed"
   | "session.registered"
   | "session.unregistered"
-  | "workflow.failure.alert";
+  | "workflow.failure.alert"
+  | "owner.question.asked"
+  | "owner.question.changed"
+  | "owner.question.resolved"
+  | "owner.question.dismissed"
+  | "owner.question.expired";

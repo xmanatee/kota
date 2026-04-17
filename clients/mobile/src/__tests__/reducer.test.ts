@@ -1,5 +1,5 @@
 import { type DaemonState, initialState, reducer } from '../context/state';
-import type { Approval, DaemonStatus, RunSummary, TasksResponse } from '../types';
+import type { Approval, DaemonStatus, OwnerQuestion, RunSummary, TasksResponse } from '../types';
 
 function makeApproval(overrides: Partial<Approval> = {}): Approval {
   return {
@@ -107,5 +107,17 @@ describe('reducer', () => {
   test('SSE_STATUS updates the connected flag', () => {
     const s = reducer(initialState, { type: 'SSE_STATUS', connected: true });
     expect(s.sseConnected).toBe(true);
+  });
+
+  test('OWNER_QUESTIONS recomputes pending count', () => {
+    const questions: OwnerQuestion[] = [
+      { id: 'q1', context: 'c', question: 'q', reason: 'r', source: 'builder', createdAt: 't', status: 'pending' },
+      { id: 'q2', context: 'c', question: 'q', reason: 'r', source: 'builder', createdAt: 't', status: 'pending' },
+      { id: 'q3', context: 'c', question: 'q', reason: 'r', source: 'builder', createdAt: 't', status: 'answered' },
+      { id: 'q4', context: 'c', question: 'q', reason: 'r', source: 'builder', createdAt: 't', status: 'dismissed' },
+    ];
+    const next = reducer(initialState, { type: 'OWNER_QUESTIONS', questions });
+    expect(next.ownerQuestions).toHaveLength(4);
+    expect(next.pendingOwnerQuestionCount).toBe(2);
   });
 });

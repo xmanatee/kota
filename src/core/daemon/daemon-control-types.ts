@@ -3,6 +3,7 @@ import type { ToolCallSummaryEntry, WorkflowActiveRun, WorkflowQueuedRun, Workfl
 import type { WorkflowAgentBackoffState } from "#core/workflow/types.js";
 import type { PendingApproval } from "./approval-queue.js";
 import type { DaemonState } from "./daemon-state.js";
+import type { PendingOwnerQuestion } from "./owner-question-queue.js";
 
 export type WorkflowDefinitionTriggerSummary =
   | { type: "event"; event: string; filter?: Record<string, string | string[]> }
@@ -70,7 +71,12 @@ export type DaemonSseEventType =
   | "approval.changed"
   | "task.changed"
   | "session.registered"
-  | "session.unregistered";
+  | "session.unregistered"
+  | "owner.question.asked"
+  | "owner.question.changed"
+  | "owner.question.resolved"
+  | "owner.question.dismissed"
+  | "owner.question.expired";
 
 export type DaemonSseEvent = {
   type: DaemonSseEventType;
@@ -201,6 +207,10 @@ export type DaemonControlHandle = {
   rejectApproval(id: string, reason?: string): PendingApproval | null;
   approveAllApprovals(note?: string): PendingApproval[];
   rejectAllApprovals(reason?: string): PendingApproval[];
+  // Owner questions
+  listOwnerQuestions(): PendingOwnerQuestion[];
+  answerOwnerQuestion(id: string, answer: string): PendingOwnerQuestion | null;
+  dismissOwnerQuestion(id: string, reason?: string): PendingOwnerQuestion | null;
   // Tasks
   getTaskStatus(): DaemonTaskStatusResponse;
   // Workflow runs

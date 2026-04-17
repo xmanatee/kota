@@ -3,6 +3,7 @@ import type {
   DaemonStatus,
   HealthResponse,
   InteractiveSession,
+  OwnerQuestion,
   RunDetail,
   RunSummary,
   TasksResponse,
@@ -78,6 +79,30 @@ export class DaemonClient {
 
   getTasks(): Promise<TasksResponse> {
     return this.request<TasksResponse>('/tasks');
+  }
+
+  getOwnerQuestions(): Promise<{ questions: OwnerQuestion[] }> {
+    return this.request<{ questions: OwnerQuestion[] }>('/owner-questions');
+  }
+
+  answerOwnerQuestion(id: string, answer: string): Promise<{ question: OwnerQuestion }> {
+    return this.request<{ question: OwnerQuestion }>(
+      `/owner-questions/${encodeURIComponent(id)}/answer`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ answer }),
+      },
+    );
+  }
+
+  dismissOwnerQuestion(id: string, reason?: string): Promise<{ question: OwnerQuestion }> {
+    return this.request<{ question: OwnerQuestion }>(
+      `/owner-questions/${encodeURIComponent(id)}/dismiss`,
+      {
+        method: 'POST',
+        body: reason !== undefined ? JSON.stringify({ reason }) : undefined,
+      },
+    );
   }
 
   registerPushToken(deviceId: string, token: string): Promise<{ ok: boolean }> {

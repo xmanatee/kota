@@ -81,6 +81,21 @@ export interface Approval {
   timeoutMs?: number;
 }
 
+export type OwnerQuestionStatus = 'pending' | 'answered' | 'dismissed' | 'expired';
+
+export interface OwnerQuestion {
+  id: string;
+  context: string;
+  question: string;
+  reason: string;
+  source: string;
+  createdAt: string;
+  status: OwnerQuestionStatus;
+  proposedAnswers?: string[];
+  answer?: string;
+  answeredAt?: string;
+}
+
 export interface TaskCounts {
   inbox?: number;
   ready?: number;
@@ -113,7 +128,12 @@ export type SseEventType =
   | 'workflow.step.completed'
   | 'queue.changed'
   | 'approval.changed'
-  | 'task.changed';
+  | 'task.changed'
+  | 'owner.question.asked'
+  | 'owner.question.changed'
+  | 'owner.question.resolved'
+  | 'owner.question.dismissed'
+  | 'owner.question.expired';
 
 export interface SseEvent {
   type: SseEventType;

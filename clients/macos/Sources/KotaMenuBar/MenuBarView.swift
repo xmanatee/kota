@@ -36,6 +36,9 @@ struct MenuBarView: View {
             // Pending approvals
             ApprovalsView()
 
+            // Pending owner questions
+            OwnerQuestionsView()
+
             // Footer actions
             Divider().padding(.top, 4)
 

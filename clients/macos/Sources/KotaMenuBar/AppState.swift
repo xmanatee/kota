@@ -57,6 +57,7 @@ final class AppState: ObservableObject {
     @Published var health: DaemonHealth = .unknown
     @Published var activeRuns: [ActiveRun] = []
     @Published var pendingApprovals: [ApprovalRequest] = []
+    @Published var pendingOwnerQuestions: [OwnerQuestion] = []
     @Published var taskQueue: TaskQueueResponse?
     @Published var activeSessions: [SessionSummary] = []
     @Published var recentRuns: [RunSummary] = []
@@ -88,6 +89,7 @@ final class AppState: ObservableObject {
 
     private var knownFailedRunIDs: Set<String> = []
     private var knownApprovalIDs: Set<String> = []
+    private var knownOwnerQuestionIDs: Set<String> = []
     private var notificationStateInitialized = false
 
     init() {
@@ -167,6 +169,7 @@ final class AppState: ObservableObject {
             health = .offline
             activeRuns = []
             pendingApprovals = []
+            pendingOwnerQuestions = []
             taskQueue = nil
             activeSessions = []
             recentRuns = []
@@ -185,6 +188,10 @@ final class AppState: ObservableObject {
             do { return .success(try await client.fetchApprovals()) }
             catch { return .failure(error) }
         }()
+        async let ownerQuestionsResult: Result<OwnerQuestionsResponse, Error> = {
+            do { return .success(try await client.fetchOwnerQuestions()) }
+            catch { return .failure(error) }
+        }()
         async let tasksResult: Result<TaskQueueResponse, Error> = {
             do { return .success(try await client.fetchTasks()) }
             catch { return .failure(error) }
@@ -198,7 +205,7 @@ final class AppState: ObservableObject {
             catch { return .failure(error) }
         }()
 
-        let (sr, ar, tr, sesr, rrr) = await (statusResult, approvalsResult, tasksResult, sessionsResult, recentRunsResult)
+        let (sr, ar, oqr, tr, sesr, rrr) = await (statusResult, approvalsResult, ownerQuestionsResult, tasksResult, sessionsResult, recentRunsResult)
 
         switch sr {
         case .success(let status):
@@ -215,6 +222,13 @@ final class AppState: ObservableObject {
             pendingApprovals = resp.approvals.filter { $0.status == "pending" }
         case .failure:
             pendingApprovals = []
+        }
+
+        switch oqr {
+        case .success(let resp):
+            pendingOwnerQuestions = resp.questions.filter { $0.status == "pending" }
+        case .failure:
+            pendingOwnerQuestions = []
         }
 
         switch tr {
@@ -247,6 +261,7 @@ final class AppState: ObservableObject {
             if !notificationStateInitialized {
                 knownFailedRunIDs = Set(recentRuns.filter { $0.status == "failed" }.map { $0.id })
                 knownApprovalIDs = Set(pendingApprovals.map { $0.id })
+                knownOwnerQuestionIDs = Set(pendingOwnerQuestions.map { $0.id })
                 notificationStateInitialized = true
             }
             return
@@ -254,6 +269,7 @@ final class AppState: ObservableObject {
 
         let currentFailedIDs = Set(recentRuns.filter { $0.status == "failed" }.map { $0.id })
         let currentApprovalIDs = Set(pendingApprovals.map { $0.id })
+        let currentOwnerQuestionIDs = Set(pendingOwnerQuestions.map { $0.id })
 
         if notificationStateInitialized {
             for id in currentFailedIDs.subtracting(knownFailedRunIDs) {
@@ -276,10 +292,20 @@ final class AppState: ObservableObject {
                     )
                 }
             }
+            for id in currentOwnerQuestionIDs.subtracting(knownOwnerQuestionIDs) {
+                if let question = pendingOwnerQuestions.first(where: { $0.id == id }) {
+                    NotificationManager.shared.notify(
+                        title: "Owner question",
+                        body: "\(question.source): \(String(question.question.prefix(100)))",
+                        identifier: "owner-question-\(id)"
+                    )
+                }
+            }
         }
 
         knownFailedRunIDs = currentFailedIDs
         knownApprovalIDs = currentApprovalIDs
+        knownOwnerQuestionIDs = currentOwnerQuestionIDs
         notificationStateInitialized = true
     }
 
@@ -290,6 +316,16 @@ final class AppState: ObservableObject {
 
     func reject(id: String) async {
         try? await client.reject(id: id)
+        await refresh()
+    }
+
+    func answerOwnerQuestion(id: String, answer: String) async {
+        try? await client.answerOwnerQuestion(id: id, answer: answer)
+        await refresh()
+    }
+
+    func dismissOwnerQuestion(id: String, reason: String? = nil) async {
+        try? await client.dismissOwnerQuestion(id: id, reason: reason)
         await refresh()
     }
 

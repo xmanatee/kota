@@ -50,4 +50,65 @@ describe("api client", () => {
       }),
     );
   });
+
+  describe("owner questions", () => {
+    beforeEach(() => {
+      Object.defineProperty(window, "location", {
+        value: { search: "", pathname: "/", hash: "" },
+        writable: true,
+      });
+    });
+
+    it("listOwnerQuestions calls GET /api/owner-questions", async () => {
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ questions: [] }),
+      });
+
+      const { api } = await import("./client");
+      const result = await api.listOwnerQuestions();
+
+      expect(result).toEqual({ questions: [] });
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        "/api/owner-questions",
+        expect.any(Object),
+      );
+    });
+
+    it("answerOwnerQuestion POSTs answer to /answer endpoint", async () => {
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ question: { id: "oq-1" } }),
+      });
+
+      const { api } = await import("./client");
+      await api.answerOwnerQuestion("oq-1", "go ahead");
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        "/api/owner-questions/oq-1/answer",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ answer: "go ahead" }),
+        }),
+      );
+    });
+
+    it("dismissOwnerQuestion POSTs reason to /dismiss endpoint", async () => {
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ question: { id: "oq-1" } }),
+      });
+
+      const { api } = await import("./client");
+      await api.dismissOwnerQuestion("oq-1", "no longer needed");
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        "/api/owner-questions/oq-1/dismiss",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ reason: "no longer needed" }),
+        }),
+      );
+    });
+  });
 });

@@ -159,6 +159,42 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(detail.currentStep?.id, "s2")
     }
 
+    func testOwnerQuestionsResponseDecodes() throws {
+        let json = """
+        {
+            "questions": [
+                {
+                    "id": "oq-1",
+                    "context": "task-xyz",
+                    "question": "Which approach should we take?",
+                    "reason": "Ambiguous requirement",
+                    "source": "builder",
+                    "createdAt": "2026-04-17T00:00:00Z",
+                    "status": "pending",
+                    "proposedAnswers": ["Option A", "Option B"]
+                },
+                {
+                    "id": "oq-2",
+                    "context": "task-abc",
+                    "question": "Proceed?",
+                    "reason": "",
+                    "source": "critic",
+                    "createdAt": "2026-04-17T00:00:00Z",
+                    "status": "answered"
+                }
+            ]
+        }
+        """.data(using: .utf8)!
+        let resp = try decoder.decode(OwnerQuestionsResponse.self, from: json)
+        XCTAssertEqual(resp.questions.count, 2)
+        let first = resp.questions[0]
+        XCTAssertEqual(first.id, "oq-1")
+        XCTAssertEqual(first.source, "builder")
+        XCTAssertEqual(first.status, "pending")
+        XCTAssertEqual(first.proposedAnswers, ["Option A", "Option B"])
+        XCTAssertNil(resp.questions[1].proposedAnswers)
+    }
+
     func testSessionsResponseDecodes() throws {
         let json = """
         {"sessions": [{"id": "s1", "createdAt": "t", "lastActive": 1700000000.5}]}

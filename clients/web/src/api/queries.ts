@@ -13,6 +13,7 @@ export const queryKeys = {
     ["history", params] as const,
   historyDetail: (id: string) => ["historyDetail", id] as const,
   approvals: ["approvals"] as const,
+  ownerQuestions: ["ownerQuestions"] as const,
   tasks: ["tasks"] as const,
   sessions: ["sessions"] as const,
   schedules: ["schedules"] as const,
@@ -83,6 +84,12 @@ export function historyDetailQuery(id: string) {
 export const approvalsQuery = queryOptions({
   queryKey: queryKeys.approvals,
   queryFn: api.listApprovals,
+  refetchInterval: 300000,
+});
+
+export const ownerQuestionsQuery = queryOptions({
+  queryKey: queryKeys.ownerQuestions,
+  queryFn: api.listOwnerQuestions,
   refetchInterval: 300000,
 });
 
