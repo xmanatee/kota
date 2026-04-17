@@ -14,7 +14,7 @@ If the recall is empty, proceed normally.
 - Own one task from `data/tasks/`.
 - Resume `data/tasks/doing/` first when it exists. Otherwise pull the best task
   from `data/tasks/ready/`, or promote the best backlog task when `ready/` is
-  empty. Use `kota task move <id> doing` to pick up the task — this atomically
+  empty. Use `pnpm kota task move <id> doing` to pick up the task — this atomically
   moves the file, updates status frontmatter, and stages the result.
 - Treat the task as a contract, not a script. Own the technical plan yourself.
 - Block or decompose only when the task is genuinely incoherent, externally blocked, or impossible to complete without guessing.
@@ -27,7 +27,7 @@ If the recall is empty, proceed normally.
   full "Done When" section, but keep the criteria natural and non-duplicative.
   A critic will cross-reference your work against the full task; unaddressed
   requirements cause failure.
-- Use `kota task move <id> <state>` for every task state transition — both
+- Use `pnpm kota task move <id> <state>` for every task state transition — both
   pickup and completion. Never manually move, rename, or edit status frontmatter
   in task files; the CLI handles all of that atomically and stages the result.
 - Before staging, run `pnpm run lint:fix` and `pnpm test` to catch issues

@@ -40,7 +40,8 @@
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
     "build:schema": "NODE_OPTIONS=--conditions=source tsx src/core/config/build-schema.ts",
-    "validate-tasks": "node dist/validate-queue.js"
+    "validate-tasks": "node dist/validate-queue.js",
+    "kota": "node bin/kota.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.112",

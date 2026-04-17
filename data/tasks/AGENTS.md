@@ -35,7 +35,7 @@ This directory is the normalized live work queue after ideas leave
   architecture debt remains.
 - Do not let open work degrade into only `p3` maintenance.
 - Before creating a task, scan open tasks and related inbox items for overlap.
-- Use `kota task move <id> <state>` to move tasks between state directories.
+- Use `pnpm kota task move <id> <state>` to move tasks between state directories.
   This auto-updates the `status` frontmatter, sets `updated_at`, runs `git mv`,
   and stages the result. Do not manually move task files or edit status
   frontmatter — the CLI handles both atomically.

@@ -20,7 +20,7 @@ in the same area. If the recall is empty, proceed normally.
 
 ## Subtask Rules
 
-- Use `kota task create "<title>" --priority <p0-p3> --area <area> --state ready --summary "<summary>"` to scaffold each subtask. This guarantees all required frontmatter and body sections exist. Then edit each file to fill in `## Problem`, `## Desired Outcome`, `## Constraints`, and `## Done When`.
+- Use `pnpm kota task create "<title>" --priority <p0-p3> --area <area> --state ready --summary "<summary>"` to scaffold each subtask. This guarantees all required frontmatter and body sections exist. Then edit each file to fill in `## Problem`, `## Desired Outcome`, `## Constraints`, and `## Done When`.
 - Follow `data/tasks/AGENTS.md`.
 - Make subtasks sequenceable and independently completable when possible.
 - Do not split only to reduce diff size. Keep a cohesive change together when
@@ -28,7 +28,7 @@ in the same area. If the recall is empty, proceed normally.
 
 ## Original Task
 
-- Use `kota task move <id> dropped` to move the original task to dropped/
+- Use `pnpm kota task move <id> dropped` to move the original task to dropped/
   (auto-syncs status frontmatter and git staging).
 - Add a `## Decomposed` section at the end listing the subtask IDs.
 
