@@ -32,6 +32,7 @@ function makeProvider(entries: Memory[]): MemoryProvider {
     search: vi.fn(() => entries),
     update: vi.fn(() => true),
     delete: vi.fn(() => true),
+    supportsSemanticSearch: vi.fn(() => true),
     semanticSearch: vi.fn(async (_q: string, k: number) => entries.slice(0, k)),
     reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
   };

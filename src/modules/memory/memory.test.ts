@@ -82,6 +82,40 @@ describe("runMemory", () => {
       expect(result.content).toMatch(/\[.+\]/); // ID in brackets
       expect(result.content).toContain("testing");
     });
+
+    it("uses semanticSearch when semantic search is requested and supported", async () => {
+      const dir = mkdtempSync(join(tmpdir(), "kota-memtool-semantic-"));
+      const store = new MemoryStore(dir);
+      mocked.mockReturnValue(store);
+      await runMemory({ action: "save", content: "Project uses React and TypeScript" });
+      vi.spyOn(store, "supportsSemanticSearch").mockReturnValue(true);
+      const semanticSearch = vi.spyOn(store, "semanticSearch").mockResolvedValue(store.list());
+
+      const result = await runMemory({
+        action: "search",
+        query: "frontend framework",
+        semantic: true,
+        topK: 5,
+      });
+
+      expect(semanticSearch).toHaveBeenCalledWith(
+        "frontend framework",
+        5,
+        { tag: undefined, since: undefined },
+      );
+      expect(result.is_error).toBeUndefined();
+    });
+
+    it("rejects semantic search when the active provider does not support it", async () => {
+      const result = await runMemory({
+        action: "search",
+        query: "frontend framework",
+        semantic: true,
+      });
+
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("requires an embedding-backed memory provider");
+    });
   });
 
   describe("list", () => {

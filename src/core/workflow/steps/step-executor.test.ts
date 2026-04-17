@@ -2,7 +2,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
+import {
+  executeWithAgentSDK,
+  KOTA_OWNER_QUESTIONS_MCP_SERVER,
+  KOTA_OWNER_QUESTIONS_MCP_TOOL,
+} from "#core/agent-sdk/index.js";
 import type { WorkflowRunMetadata, WorkflowStepContext } from "../run-types.js";
 import type {
   WorkflowAgentStep,
@@ -40,7 +44,7 @@ function makeStep(overrides: Partial<WorkflowAgentStep> = {}): WorkflowAgentStep
     type: "agent",
     promptPath: "src/modules/test/workflows/test/prompt.md",
     model: "claude-opus-4-7",
-              effort: "xhigh",
+    effort: "xhigh",
     permissionMode: "bypassPermissions",
     settingSources: [],
     ...overrides,
@@ -118,6 +122,60 @@ describe("executeAgentStep", () => {
     );
 
     expect(result).toMatchObject({ content: "done", turns: 1 });
+  });
+
+  it("exposes ask_owner to agent steps through the SDK MCP bridge", async () => {
+    mockedExecuteWithAgentSDK.mockResolvedValue(SUCCESS_RESULT);
+
+    await executeAgentStep(
+      makeDefinition(),
+      makeStep(),
+      makeMetadata(),
+      TRIGGER,
+      new AbortController(),
+      () => {},
+      () => {},
+      agentConfig,
+    );
+
+    const options = mockedExecuteWithAgentSDK.mock.calls[0]?.[1];
+    expect(options?.mcpServers).toHaveProperty(KOTA_OWNER_QUESTIONS_MCP_SERVER);
+  });
+
+  it("keeps ask_owner available when an agent step has an allowedTools list", async () => {
+    mockedExecuteWithAgentSDK.mockResolvedValue(SUCCESS_RESULT);
+
+    await executeAgentStep(
+      makeDefinition(),
+      makeStep({ allowedTools: ["Read"] }),
+      makeMetadata(),
+      TRIGGER,
+      new AbortController(),
+      () => {},
+      () => {},
+      agentConfig,
+    );
+
+    const options = mockedExecuteWithAgentSDK.mock.calls[0]?.[1];
+    expect(options?.allowedTools).toEqual(["Read", KOTA_OWNER_QUESTIONS_MCP_TOOL]);
+  });
+
+  it("keeps ask_owner available when an agent step has a disallowedTools list", async () => {
+    mockedExecuteWithAgentSDK.mockResolvedValue(SUCCESS_RESULT);
+
+    await executeAgentStep(
+      makeDefinition(),
+      makeStep({ disallowedTools: ["Bash", KOTA_OWNER_QUESTIONS_MCP_TOOL] }),
+      makeMetadata(),
+      TRIGGER,
+      new AbortController(),
+      () => {},
+      () => {},
+      agentConfig,
+    );
+
+    const options = mockedExecuteWithAgentSDK.mock.calls[0]?.[1];
+    expect(options?.disallowedTools).toEqual(["Bash"]);
   });
 
   it("aborts when the provided abort controller is triggered externally", async () => {
@@ -411,6 +469,18 @@ describe("buildAgentPrompt", () => {
     expect(prompt).toContain("There is intentionally no fixed checklist here.");
   });
 
+  it("points high-stakes decisions at the owner-question MCP tool", () => {
+    const { prompt } = buildAgentPrompt(
+      makeDefinition(),
+      makeStep(),
+      makeMetadata(),
+      TRIGGER,
+      projectDir,
+      {},
+    );
+    expect(prompt).toContain(KOTA_OWNER_QUESTIONS_MCP_TOOL);
+  });
+
   it("omits non-exposed step outputs", () => {
     const { prompt } = buildAgentPrompt(
       makeDefinition({
@@ -561,27 +631,55 @@ describe("withRetry", () => {
 
   it("applies exponential backoff between attempts", async () => {
     vi.useFakeTimers();
-    const fn = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("fail1"))
-      .mockRejectedValueOnce(new Error("fail2"))
-      .mockResolvedValue("ok");
+    try {
+      const fn = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("fail1"))
+        .mockRejectedValueOnce(new Error("fail2"))
+        .mockResolvedValue("ok");
 
-    const logs: string[] = [];
-    const promise = withRetry(
-      fn,
-      { maxAttempts: 3, initialDelayMs: 100, backoffFactor: 3 },
-      (msg) => logs.push(msg),
-    );
+      const logs: string[] = [];
+      const promise = withRetry(
+        fn,
+        { maxAttempts: 3, initialDelayMs: 100, backoffFactor: 3 },
+        (msg) => logs.push(msg),
+      );
 
-    await vi.advanceTimersByTimeAsync(100);
-    await vi.advanceTimersByTimeAsync(300);
-    await promise;
+      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(300);
+      await promise;
 
-    expect(fn).toHaveBeenCalledTimes(3);
-    expect(logs[0]).toContain("retrying in 100ms");
-    expect(logs[1]).toContain("retrying in 300ms");
-    vi.useRealTimers();
+      expect(fn).toHaveBeenCalledTimes(3);
+      expect(logs[0]).toContain("retrying in 100ms");
+      expect(logs[1]).toContain("retrying in 300ms");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("aborts during retry backoff without starting another attempt", async () => {
+    vi.useFakeTimers();
+    try {
+      const abortController = new AbortController();
+      const fn = vi.fn().mockRejectedValue(new Error("fail"));
+
+      const promise = withRetry(
+        fn,
+        { maxAttempts: 2, initialDelayMs: 100, backoffFactor: 1 },
+        { abortSignal: abortController.signal },
+      );
+      const caught = promise.catch((err) => err);
+
+      await Promise.resolve();
+      abortController.abort(new Error("stop now"));
+
+      const err = await caught;
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).toBe("stop now");
+      expect(fn).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -1014,21 +1112,22 @@ describe("executeStep repair loop", () => {
       },
     });
 
-    const result = await executeStep(
-      makeDefinition(),
-      step,
-      makeMetadata(),
-      TRIGGER,
-      context,
-      abortController,
-      () => {},
-      () => {},
-      agentConfig,
-    ) as Record<string, unknown>;
+    await expect(
+      executeStep(
+        makeDefinition(),
+        step,
+        makeMetadata(),
+        TRIGGER,
+        context,
+        abortController,
+        () => {},
+        () => {},
+        agentConfig,
+      ),
+    ).rejects.toThrow("step timed out");
 
-    expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
+    expect(mockedExecuteWithAgentSDK).not.toHaveBeenCalled();
     expect(codeCheck).not.toHaveBeenCalled();
-    expect(result.repairIterations).toEqual([]);
   });
 
   it("stops repair loop mid-iteration when abort signal fires", async () => {

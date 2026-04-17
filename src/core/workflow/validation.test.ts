@@ -833,6 +833,74 @@ describe("workflow validation", () => {
     expect(definitions[0]?.webhookRateLimit).toBeUndefined();
   });
 
+  describe("notify block", () => {
+    it("accepts the known flags only", () => {
+      const definitions = validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/deploy.ts", {
+            name: "deploy",
+            triggers: [{ webhook: true }],
+            steps: [{ id: "run", type: "emit", event: "deploy.done" }],
+            notify: { onFailure: false, onSuccess: true },
+          }),
+        ],
+        projectDir,
+      );
+      expect(definitions[0]?.notify).toEqual({ onFailure: false, onSuccess: true });
+    });
+
+    it("rejects unknown keys (drift guard: catches reintroduced dead fields)", () => {
+      expect(() =>
+        validateWorkflowDefinitions(
+          [
+            registerWorkflowDefinition("test/deploy.ts", {
+              name: "deploy",
+              triggers: [{ webhook: true }],
+              steps: [{ id: "run", type: "emit", event: "deploy.done" }],
+              // biome-ignore lint/suspicious/noExplicitAny: intentionally feeding an unknown key
+              notify: { onFailure: false, onCostAnomaly: true } as any,
+            }),
+          ],
+          projectDir,
+        ),
+      ).toThrow(/notify has unknown key\(s\): "onCostAnomaly"/);
+    });
+
+    it("rejects non-boolean values on known keys", () => {
+      expect(() =>
+        validateWorkflowDefinitions(
+          [
+            registerWorkflowDefinition("test/deploy.ts", {
+              name: "deploy",
+              triggers: [{ webhook: true }],
+              steps: [{ id: "run", type: "emit", event: "deploy.done" }],
+              // biome-ignore lint/suspicious/noExplicitAny: intentionally feeding a wrong-typed value
+              notify: { onFailure: "no" } as any,
+            }),
+          ],
+          projectDir,
+        ),
+      ).toThrow(/notify\.onFailure must be a boolean/);
+    });
+
+    it("rejects non-object notify values", () => {
+      expect(() =>
+        validateWorkflowDefinitions(
+          [
+            registerWorkflowDefinition("test/deploy.ts", {
+              name: "deploy",
+              triggers: [{ webhook: true }],
+              steps: [{ id: "run", type: "emit", event: "deploy.done" }],
+              // biome-ignore lint/suspicious/noExplicitAny: intentionally feeding a wrong shape
+              notify: [] as any,
+            }),
+          ],
+          projectDir,
+        ),
+      ).toThrow(/notify must be an object/);
+    });
+  });
+
   it("warns when a trigger step fires a child workflow with an outputSchema but waitFor omitted (default: queued)", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {

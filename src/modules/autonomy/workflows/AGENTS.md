@@ -98,6 +98,10 @@ The `shell` tool lives in the execution module and is not guaranteed to be avail
 workflow execution context. `type: "code"` checks run inline in the workflow process and have no
 tool-availability dependency.
 
+Do not add repair checks that force exact route, event, enum, or config catalogs
+into `docs/`. Those contracts should be enforced by source types and focused
+tests; durable docs should stay high-level.
+
 ## Dirty Failure Recovery
 
 If a workflow fails and leaves the repo dirty, the runtime now treats that as a

@@ -292,3 +292,44 @@ describe("kota knowledge export", () => {
 		exitSpy.mockRestore();
 	});
 });
+
+describe("kota knowledge search", () => {
+	let projectDir: string;
+	let origCwd: string;
+
+	beforeEach(() => {
+		projectDir = makeProjectDir();
+		origCwd = process.cwd();
+		process.chdir(projectDir);
+		resetKnowledgeStore();
+	});
+
+	afterEach(() => {
+		process.chdir(origCwd);
+		rmSync(projectDir, { recursive: true, force: true });
+		resetKnowledgeStore();
+	});
+
+	it("routes --semantic searches through the active provider semanticSearch", async () => {
+		const store = getKnowledgeStore(projectDir);
+		store.create({ title: "Semantic Note", content: "hello semantic knowledge" });
+		vi.spyOn(store, "supportsSemanticSearch").mockReturnValue(true);
+		const semanticSearch = vi.spyOn(store, "semanticSearch").mockResolvedValue(store.list());
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			await makeKnowledgeProgram().parseAsync([
+				"node", "kota", "knowledge", "search", "hello",
+				"--semantic",
+				"--limit", "4",
+			]);
+		} finally {
+			logSpy.mockRestore();
+		}
+
+		expect(semanticSearch).toHaveBeenCalledWith(
+			"hello",
+			4,
+			{ tag: undefined, type: undefined, status: undefined },
+		);
+	});
+});

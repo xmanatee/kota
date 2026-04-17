@@ -11,9 +11,9 @@ This directory contains the improver workflow definition and prompt.
 
 ## Evidence Attachment
 
-Improver is the autonomous distillation mechanism described in
-`docs/LEARNING.md`: systemic patterns seen in run evidence should graduate
-into durable `AGENTS.md` guidance at the narrowest applicable scope.
+Improver is the autonomous distillation mechanism for this repo: systemic
+patterns seen in run evidence should graduate into durable `AGENTS.md` guidance
+at the narrowest applicable scope.
 
 When an improver commit adds, changes, or retracts a rule based on recent
 runs, the commit message must cite the driving evidence — run IDs,

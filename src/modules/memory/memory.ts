@@ -29,6 +29,15 @@ export const memoryTool: Anthropic.Tool = {
         type: "string",
         description: "Search terms to find relevant memories (for 'search' action)",
       },
+      semantic: {
+        type: "boolean",
+        description:
+          "When true, require embedding-backed semantic ranking instead of keyword matching (for search).",
+      },
+      topK: {
+        type: "integer",
+        description: "Maximum number of search results to return. Default: 20.",
+      },
       tag: {
         type: "string",
         description: "Filter results to only memories with this tag (for 'search' action)",
@@ -71,11 +80,19 @@ export async function runMemory(
       if (!query) return { content: "Error: query is required for 'search'", is_error: true };
       const tag = input.tag as string | undefined;
       const since = input.since as string | undefined;
-      const results = store.search(query, { tag, since });
+      const topK = typeof input.topK === "number" && input.topK > 0 ? input.topK : 20;
+      if (input.semantic === true && !store.supportsSemanticSearch()) {
+        return {
+          content: "Error: semantic memory search requires an embedding-backed memory provider.",
+          is_error: true,
+        };
+      }
+      const results = input.semantic === true
+        ? await store.semanticSearch(query, topK, { tag, since })
+        : store.search(query, { tag, since }).slice(0, topK);
       if (results.length === 0) return { content: "No matching memories found." };
       return {
         content: results
-          .slice(0, 20)
           .map((m) => `[${m.id}] ${formatTimestamp(m.created)} (${m.tags.join(", ") || "untagged"}) ${m.content}`)
           .join("\n"),
       };

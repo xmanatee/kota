@@ -22,9 +22,10 @@ export interface MemoryProvider {
 		updates: { content?: string; tags?: string[] },
 	): boolean;
 	delete(id: string): boolean;
+	supportsSemanticSearch(): boolean;
 	/**
 	 * Rank entries by semantic similarity to a natural-language query.
-	 * Providers without embedding support fall back to keyword search.
+	 * Only embedding-backed providers should return results here.
 	 */
 	semanticSearch(
 		query: string,
@@ -65,9 +66,10 @@ export interface KnowledgeProvider {
 	search(query: string, filters?: SearchFilters): KnowledgeEntry[];
 	list(filters?: SearchFilters): KnowledgeEntry[];
 	count(type?: string): number;
+	supportsSemanticSearch(): boolean;
 	/**
 	 * Rank entries by semantic similarity to a natural-language query.
-	 * Providers without embedding support fall back to keyword search.
+	 * Only embedding-backed providers should return results here.
 	 */
 	semanticSearch(
 		query: string,

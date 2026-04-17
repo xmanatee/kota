@@ -86,7 +86,11 @@ export function resetAskOwnerDeps(): void {
   };
 }
 
-export async function runAskOwner(input: Record<string, unknown>): Promise<ToolResult> {
+export async function runAskOwner(
+  input: Record<string, unknown>,
+  deps: Partial<Deps> = {},
+): Promise<ToolResult> {
+  const activeDeps = { ...currentDeps, ...deps };
   const context = typeof input.context === "string" ? input.context : "";
   const question = typeof input.question === "string" ? input.question : "";
   const reason = typeof input.reason === "string" ? input.reason : "";
@@ -94,7 +98,7 @@ export async function runAskOwner(input: Record<string, unknown>): Promise<ToolR
   const timeoutSecondsRaw = typeof input.timeout_seconds === "number" ? input.timeout_seconds : null;
   const timeoutMs = timeoutSecondsRaw !== null ? Math.max(1, Math.floor(timeoutSecondsRaw)) * 1000 : DEFAULT_TIMEOUT_MS;
 
-  const queue = currentDeps.queue();
+  const queue = activeDeps.queue();
   const recent = queue.list().slice(-100);
   const review = reviewOwnerQuestion({ context, question, reason, proposedAnswers }, recent);
   if (!review.ok) {
@@ -105,15 +109,15 @@ export async function runAskOwner(input: Record<string, unknown>): Promise<ToolR
     context,
     question,
     reason,
-    source: currentDeps.source(),
+    source: activeDeps.source(),
     ...(proposedAnswers && proposedAnswers.length > 0 && { proposedAnswers }),
     timeoutMs,
     defaultResolution: "dismiss",
   });
 
-  const deadline = currentDeps.clock.now() + timeoutMs;
+  const deadline = activeDeps.clock.now() + timeoutMs;
   let current: PendingOwnerQuestion | null = item;
-  while (currentDeps.clock.now() < deadline) {
+  while (activeDeps.clock.now() < deadline) {
     current = queue.get(item.id);
     if (!current) {
       return { content: `Owner question [${item.id}] disappeared from queue`, is_error: true };
@@ -128,7 +132,7 @@ export async function runAskOwner(input: Record<string, unknown>): Promise<ToolR
     if (current.status === "expired") {
       return { content: `Owner question [${item.id}] expired without an answer — proceed with your best judgment based on available context.` };
     }
-    await currentDeps.clock.sleep(POLL_INTERVAL_MS);
+    await activeDeps.clock.sleep(POLL_INTERVAL_MS);
   }
 
   const final = queue.get(item.id);

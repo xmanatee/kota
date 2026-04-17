@@ -4,6 +4,17 @@ This directory contains the autonomous workflow runtime, validation, registry, a
 
 - Keep workflow protocols strict, restart-safe, and easy to reason about.
 - Put top-level autonomous execution semantics here, not in prompts or scheduler side channels.
+- Workflows are the single automation surface. Hooks, cron-like jobs, standing
+  orders, inbound webhooks, and autonomous loops should be expressed as typed
+  workflow definitions rather than parallel engines.
+- Keep trigger semantics narrow and explicit. Prefer semantic events over
+  workflow-name inventories or implicit routing metadata.
+- Runtime rails such as validation, retries, timeout handling, dispatch windows,
+  output truncation, and notification suppression belong in typed code and tests.
+  Do not duplicate their exact fields, enum values, or event names in docs.
+- Agent steps should receive a thin runtime envelope. Expose prior step output
+  only when the agent cannot cheaply recover the information through normal repo
+  context and tools.
 
 ## Internal Subdomains
 

@@ -46,7 +46,7 @@ export type KotaConfig = {
   /**
    * Foreign-language (out-of-process) modules.
    * Each entry declares a subprocess to spawn and communicate with via KEMP.
-   * See `docs/FOREIGN-MODULES.md` for the protocol specification.
+   * The protocol contract is owned by the core module types and tests.
    */
   foreignModules?: ForeignModuleConfig[];
 

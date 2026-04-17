@@ -163,7 +163,7 @@ describe("SemanticKnowledgeStore", () => {
 		expect(embAfter).not.toEqual(embBefore);
 	});
 
-	it("falls back to keyword search when the provider throws at query time", async () => {
+	it("surfaces query-time provider errors", async () => {
 		store.create({
 			title: "Budget doc",
 			content: "monitor spend and cost",
@@ -172,8 +172,9 @@ describe("SemanticKnowledgeStore", () => {
 		await store.flush();
 
 		provider.failNext = true;
-		const results = await store.semanticSearch("budget", 5);
-		expect(results.length).toBeGreaterThan(0);
+		await expect(store.semanticSearch("budget", 5)).rejects.toThrow(
+			"fake provider failure",
+		);
 		expect(errors.length).toBeGreaterThanOrEqual(1);
 	});
 

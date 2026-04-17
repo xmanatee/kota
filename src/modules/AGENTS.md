@@ -18,7 +18,7 @@ This directory contains the project-owned modules.
   loader uses declared dependencies for load ordering and unload safety.
   Type-only imports (`import type`) do not need a declared dependency.
   `src/module-deps.test.ts` enforces this.
-- When adding or modifying a notification channel module (Telegram, webhook,
-  Slack, email, or any future transport), update `docs/NOTIFICATIONS.md` to
-  document the operator config. That file is the canonical reference for how
-  operators wire up notification delivery.
+- When adding or modifying a notification channel module, keep the module's
+  local `AGENTS.md`, config type, and focused tests aligned. Exact event names,
+  payload fields, and subscription lists belong in code and tests, not a shared
+  docs catalog.

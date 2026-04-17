@@ -85,13 +85,12 @@ export class SemanticIndexManager<TEntry> {
 	/**
 	 * Rank `entries` by cosine similarity to `query`. Missing/stale entries
 	 * are embedded lazily before scoring. Returns the top `topK` entries
-	 * sorted by similarity, or falls back via `onFallback` on any error.
+	 * sorted by similarity. Embedding/query failures are surfaced to the caller.
 	 */
 	async rankBySimilarity(
 		query: string,
 		entries: TEntry[],
 		topK: number,
-		onFallback: () => TEntry[],
 	): Promise<TEntry[]> {
 		const limit = Math.max(0, topK);
 		if (limit === 0) return [];
@@ -114,7 +113,7 @@ export class SemanticIndexManager<TEntry> {
 			return scored.slice(0, limit).map((x) => x.entry);
 		} catch (err) {
 			this.onError(err);
-			return onFallback().slice(0, limit);
+			throw err;
 		}
 	}
 

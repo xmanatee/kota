@@ -1,3 +1,5 @@
+import type { McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
+
 export type SDKPermissionMode =
   | "default"
   | "acceptEdits"
@@ -31,6 +33,7 @@ export type SDKQueryOptions = {
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
   includePartialMessages?: boolean;
   settingSources?: SDKSettingSource[];
+  mcpServers?: Record<string, McpServerConfig>;
   pathToClaudeCodeExecutable?: string;
   allowDangerouslySkipPermissions?: boolean;
   abortController?: AbortController;

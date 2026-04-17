@@ -24,6 +24,7 @@
  */
 
 import type { ChannelDef } from "#core/channels/channel.js";
+import type { BusEvents } from "#core/events/event-bus.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import { formatEmail } from "./format.js";
 import { createMailer, type Mailer } from "./mailer.js";
@@ -53,9 +54,11 @@ const NOTIFICATION_EVENTS = [
   "module.crash.alert",
   "approval.requested",
   "owner.question.asked",
-] as const;
+] as const satisfies readonly (keyof BusEvents)[];
 
-const OPT_IN_EVENTS = ["workflow.build.committed"] as const;
+const OPT_IN_EVENTS = [
+  "workflow.build.committed",
+] as const satisfies readonly (keyof BusEvents)[];
 
 function getConfig(ctx: ModuleContext): EmailConfig | null {
   const config = ctx.getModuleConfig<EmailConfig>();

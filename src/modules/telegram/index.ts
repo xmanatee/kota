@@ -4,8 +4,9 @@
  * Contributes:
  * - `kota telegram` CLI command (interactive bot)
  * - `telegram-status` channel (daemon status poll — responds to /status)
- * - Notification subscriptions for workflow events (failure alerts, budget alerts,
- *   attention digests, cost limit alerts, approval requests, owner questions)
+ * - Notification subscriptions: workflow failure alerts, attention digests,
+ *   approval-step expirations, module crash alerts, approval requests,
+ *   owner questions, and opt-in builder commit notifications.
  *
  * The CLI command starts the full interactive TelegramBot.
  * The channel contribution registers a status-only poll with the daemon

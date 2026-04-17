@@ -11,7 +11,7 @@ thin adapter into the generic `SemanticIndexManager`.
   model, `fingerprint` + `embedding` per entry).
 - `semantic-index-manager.ts` — generic engine: background embed queue,
   staleness detection via `fingerprint`, cosine ranking, bulk reindex,
-  fail-open query fallback.
+  explicit query-time error propagation.
 
 Concrete wrappers (in `src/modules/<name>-semantic/`) supply a
 `SemanticStoreAdapter` and implement the store's public provider interface

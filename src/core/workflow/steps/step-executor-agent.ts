@@ -2,7 +2,9 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import {
   buildClaudeCodeSystemPrompt,
+  createOwnerQuestionMcpServers,
   executeWithAgentSDK,
+  KOTA_OWNER_QUESTIONS_MCP_TOOL,
 } from "#core/agent-sdk/index.js";
 import type { SDKMessage } from "#core/agent-sdk/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
@@ -130,6 +132,7 @@ export function buildAgentPrompt(
     "Use the workflow instructions in your system prompt.",
     "Work directly instead of narrating intent.",
     'Do not emit progress filler such as "Let me..." or "I will...".',
+    `For high-stakes decisions that are unsafe to resolve alone, use ${KOTA_OWNER_QUESTIONS_MCP_TOOL}.`,
     "If you leave a textual summary, keep it brief and factual.",
     "Write any run-specific artifacts under the run directory when useful.",
     "Finish this step fully, then stop.",
@@ -207,6 +210,16 @@ function writeToolTelemetryArtifact(
   writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf-8");
 }
 
+function includeOwnerQuestionTool(allowedTools: string[] | undefined): string[] | undefined {
+  if (!allowedTools) return undefined;
+  if (allowedTools.includes(KOTA_OWNER_QUESTIONS_MCP_TOOL)) return allowedTools;
+  return [...allowedTools, KOTA_OWNER_QUESTIONS_MCP_TOOL];
+}
+
+function excludeOwnerQuestionTool(disallowedTools: string[] | undefined): string[] | undefined {
+  return disallowedTools?.filter((tool) => tool !== KOTA_OWNER_QUESTIONS_MCP_TOOL);
+}
+
 export async function executeAgentStep(
   definition: WorkflowDefinition,
   step: WorkflowAgentStep,
@@ -265,8 +278,11 @@ export async function executeAgentStep(
         effort: step.effort,
         thinkingEnabled: step.thinkingEnabled,
         thinkingBudget: step.thinkingBudget,
-        allowedTools: step.allowedTools,
-        disallowedTools: step.disallowedTools,
+        allowedTools: includeOwnerQuestionTool(step.allowedTools),
+        disallowedTools: excludeOwnerQuestionTool(step.disallowedTools),
+        mcpServers: createOwnerQuestionMcpServers(
+          `workflow:${metadata.workflow}/${metadata.id}/${step.id}`,
+        ),
         permissionMode: step.permissionMode,
         persistSession: false,
         settingSources: step.settingSources,

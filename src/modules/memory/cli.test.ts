@@ -85,3 +85,41 @@ describe("kota memory add", () => {
 		expect(entry!.content).toBe("piped note");
 	});
 });
+
+describe("kota memory search", () => {
+	let storeDir: string;
+
+	beforeEach(() => {
+		storeDir = makeProjectDir();
+		resetMemoryStore();
+		getMemoryStore(storeDir);
+	});
+
+	afterEach(() => {
+		resetMemoryStore();
+		rmSync(storeDir, { recursive: true, force: true });
+	});
+
+	it("routes --semantic searches through the active provider semanticSearch", async () => {
+		const store = getMemoryStore(storeDir);
+		store.save("hello semantic memory");
+		vi.spyOn(store, "supportsSemanticSearch").mockReturnValue(true);
+		const semanticSearch = vi.spyOn(store, "semanticSearch").mockResolvedValue(store.list());
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			await makeMemoryProgram().parseAsync([
+				"node", "kota", "memory", "search", "hello",
+				"--semantic",
+				"--limit", "3",
+			]);
+		} finally {
+			logSpy.mockRestore();
+		}
+
+		expect(semanticSearch).toHaveBeenCalledWith(
+			"hello",
+			3,
+			{ tag: undefined, since: undefined },
+		);
+	});
+});

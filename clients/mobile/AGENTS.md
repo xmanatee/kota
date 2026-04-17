@@ -1,31 +1,21 @@
 # Mobile Client
 
-React Native (Expo) mobile client for the KOTA daemon. Targets iOS 16+ and Android 12+ (API 31+).
+React Native mobile client for the KOTA daemon.
 
 - All state comes from the daemon control API — no `.kota/` file parsing.
-- Authentication uses `Authorization: Bearer <token>` stored in the OS secure keychain via `expo-secure-store`.
-- Navigation: bottom tab bar with five tabs (Status, Runs, Approvals, Tasks, Chat) using React Navigation v7.
-- Live updates via SSE (`GET /events`); polling fallback if SSE is unavailable.
-- Settings (daemon URL + token) are accessible from the Status tab header.
-- QR setup: the Settings screen includes a "Scan QR Code" button that reads a QR code
-  produced by `kota daemon qr` to auto-fill and save the daemon URL and token.
+- Authentication secrets belong in the OS secure store.
+- Navigation should stay thin: screens call the daemon client/context and avoid
+  embedding daemon protocol details.
+- Live updates should use the daemon's live-update path, with centralized
+  polling only where the platform requires it.
+- Setup flows may read operator-provided daemon connection details, but parsing
+  and persistence belong in shared mobile helpers.
 
 ## Push Notification Deep Links
 
-The daemon sends Expo push notifications when `approval.requested` fires
-(`src/scheduler/push-tokens.ts`). The data payload includes a `screen` field
-that controls where the app navigates when the user taps the notification.
-
-| `screen` value | Navigates to | Extra fields |
-|---|---|---|
-| `"approvals"` | Approvals tab; `ApprovalDetail` if `approvalId` is present | `approvalId?: string` |
-| _(absent)_ | No navigation — app opens to current state | — |
-
-Notifications without a `screen` field open the app without navigating.
-
-To add a new notification destination: emit the appropriate `screen` value from
-the daemon, add the corresponding navigation case in `navigateToApproval` (or a
-new helper), and document the new row in this table.
+Push notification routing is owned by the daemon payload contract and the mobile
+navigation helpers. Keep new destinations covered by reducer/navigation tests
+instead of maintaining a prose table of payload constants.
 
 ## Adding Features
 

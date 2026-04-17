@@ -178,6 +178,13 @@ export async function runKnowledge(
 			const topKInput =
 				typeof input.topK === "number" && input.topK > 0 ? input.topK : 20;
 			const semantic = input.semantic === true;
+			if (semantic && !store.supportsSemanticSearch()) {
+				return {
+					content:
+						"Error: semantic knowledge search requires an embedding-backed knowledge provider.",
+					is_error: true,
+				};
+			}
 			const results = semantic
 				? await store.semanticSearch(query, topKInput, filters)
 				: store.search(query, filters);

@@ -51,8 +51,7 @@ export const knowledgeTool: Anthropic.Tool = {
 			semantic: {
 				type: "boolean",
 				description:
-					"When true, use embedding-backed semantic ranking instead of keyword matching (for search). " +
-					"Falls back to keyword search if semantic search is not configured or fails.",
+					"When true, require embedding-backed semantic ranking instead of keyword matching (for search).",
 			},
 			topK: {
 				type: "integer",

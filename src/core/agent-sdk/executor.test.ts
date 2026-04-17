@@ -163,6 +163,7 @@ describe("agent-sdk executor", () => {
         allowDangerouslySkipPermissions: true,
         allowedTools: ["Read", "Edit"],
         disallowedTools: ["Bash"],
+        mcpServers: undefined,
         persistSession: false,
         settingSources: ["project"],
         enableFileCheckpointing: true,
@@ -219,6 +220,16 @@ describe("agent-sdk executor", () => {
       permissionMode: "bypassPermissions",
       allowDangerouslySkipPermissions: true,
       pathToClaudeCodeExecutable: undefined,
+    });
+  });
+
+  it("buildQueryOptions forwards MCP server config", () => {
+    const mcpServers = {
+      local: { type: "stdio" as const, command: "node", args: ["server.js"] },
+    };
+
+    expect(buildQueryOptions({ cwd: "/tmp/project", effort: "xhigh", mcpServers })).toMatchObject({
+      mcpServers,
     });
   });
 

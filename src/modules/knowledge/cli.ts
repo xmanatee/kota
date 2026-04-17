@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import type { Command } from "commander";
-import { getKnowledgeStore } from "#core/memory/knowledge-store.js";
+import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import { getKnowledgeProvider } from "#core/modules/provider-registry.js";
 
 type RawImportEntry = { title?: unknown; body?: unknown; tags?: unknown };
@@ -36,9 +36,10 @@ export function registerKnowledgeCommands(program: Command): void {
 		.option("--type <type>", "Filter by type")
 		.option("--status <status>", "Filter by status")
 		.option("-n, --limit <n>", "Maximum entries to show", "20")
-		.action((opts: { tag?: string; type?: string; status?: string; limit: string }) => {
+		.action(async (opts: { tag?: string; type?: string; status?: string; limit: string }) => {
+			await ensureCliProvidersFor(["knowledge"]);
 			const limit = Math.max(1, parseInt(opts.limit, 10) || 20);
-			const store = getKnowledgeStore(process.cwd());
+			const store = getKnowledgeProvider(process.cwd());
 			const entries = store
 				.list({ tag: opts.tag, type: opts.type, status: opts.status })
 				.slice(0, limit);
@@ -62,17 +63,28 @@ export function registerKnowledgeCommands(program: Command): void {
 
 	kCmd
 		.command("search <query>")
-		.description("Search knowledge entries by keyword")
+		.description("Search knowledge entries")
 		.option("--tag <tag>", "Filter by tag")
 		.option("--type <type>", "Filter by type")
 		.option("--status <status>", "Filter by status")
-		.action((query: string, opts: { tag?: string; type?: string; status?: string }) => {
-			const store = getKnowledgeStore(process.cwd());
-			const results = store.search(query, {
+		.option("--semantic", "Use embedding-backed semantic ranking when configured")
+		.option("-n, --limit <n>", "Maximum entries to show", "20")
+		.action(async (query: string, opts: { tag?: string; type?: string; status?: string; semantic?: boolean; limit: string }) => {
+			await ensureCliProvidersFor(["knowledge"]);
+			const limit = Math.max(1, parseInt(opts.limit, 10) || 20);
+			const store = getKnowledgeProvider(process.cwd());
+			const filters = {
 				tag: opts.tag,
 				type: opts.type,
 				status: opts.status,
-			});
+			};
+			if (opts.semantic && !store.supportsSemanticSearch()) {
+				console.error("Semantic knowledge search requires an embedding-backed knowledge provider.");
+				process.exit(1);
+			}
+			const results = opts.semantic
+				? await store.semanticSearch(query, limit, filters)
+				: store.search(query, filters).slice(0, limit);
 			if (results.length === 0) {
 				console.log("No matching knowledge entries.");
 				return;
@@ -89,8 +101,9 @@ export function registerKnowledgeCommands(program: Command): void {
 	kCmd
 		.command("show <id>")
 		.description("Print a single knowledge entry")
-		.action((id: string) => {
-			const store = getKnowledgeStore(process.cwd());
+		.action(async (id: string) => {
+			await ensureCliProvidersFor(["knowledge"]);
+			const store = getKnowledgeProvider(process.cwd());
 			const entry = store.read(id);
 			if (!entry) {
 				console.error(`Knowledge entry "${id}" not found.`);
@@ -122,6 +135,7 @@ export function registerKnowledgeCommands(program: Command): void {
 		.option("--status <status>", "Entry status", "active")
 		.option("--scope <scope>", "Storage scope: project or global", "project")
 		.action(async (opts: { title: string; content?: string; type: string; tag: string[]; status: string; scope: string }) => {
+			await ensureCliProvidersFor(["knowledge"]);
 			if (opts.scope !== "project" && opts.scope !== "global") {
 				console.error(`Invalid scope "${opts.scope}". Use "project" or "global".`);
 				process.exit(1);
@@ -132,7 +146,7 @@ export function registerKnowledgeCommands(program: Command): void {
 				for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
 				content = Buffer.concat(chunks).toString("utf-8").trimEnd();
 			}
-			const store = getKnowledgeStore(process.cwd());
+			const store = getKnowledgeProvider(process.cwd());
 			const id = store.create({
 				title: opts.title,
 				content,
@@ -147,8 +161,9 @@ export function registerKnowledgeCommands(program: Command): void {
 	kCmd
 		.command("delete <id>")
 		.description("Delete a knowledge entry by ID")
-		.action((id: string) => {
-			const store = getKnowledgeStore(process.cwd());
+		.action(async (id: string) => {
+			await ensureCliProvidersFor(["knowledge"]);
+			const store = getKnowledgeProvider(process.cwd());
 			const ok = store.delete(id);
 			if (!ok) {
 				console.error(`Knowledge entry "${id}" not found.`);
@@ -165,7 +180,8 @@ export function registerKnowledgeCommands(program: Command): void {
 		.option("--tag <tag>", "Filter by tag")
 		.option("--scope <scope>", "Storage scope: project, global, or all", "project")
 		.option("--format <fmt>", "Output format: json or jsonl", "jsonl")
-		.action((opts: { type?: string; status?: string; tag?: string; scope: string; format: string }) => {
+		.action(async (opts: { type?: string; status?: string; tag?: string; scope: string; format: string }) => {
+			await ensureCliProvidersFor(["knowledge"]);
 			if (opts.scope !== "project" && opts.scope !== "global" && opts.scope !== "all") {
 				console.error(`Invalid scope "${opts.scope}". Use "project", "global", or "all".`);
 				process.exit(1);
@@ -174,7 +190,7 @@ export function registerKnowledgeCommands(program: Command): void {
 				console.error(`Invalid format "${opts.format}". Use "json" or "jsonl".`);
 				process.exit(1);
 			}
-			const store = getKnowledgeStore(process.cwd());
+			const store = getKnowledgeProvider(process.cwd());
 			const entries = store.list({
 				type: opts.type,
 				status: opts.status,
@@ -208,6 +224,7 @@ export function registerKnowledgeCommands(program: Command): void {
 				"No-op when no embedding provider is configured.",
 		)
 		.action(async () => {
+			await ensureCliProvidersFor(["knowledge"]);
 			const provider = getKnowledgeProvider(process.cwd());
 			const result = await provider.reindex();
 			if (result.skipped) {
@@ -229,7 +246,8 @@ export function registerKnowledgeCommands(program: Command): void {
 		.option("--type <type>", "Entry type for all imported entries", "note")
 		.option("--status <status>", "Entry status for all imported entries", "active")
 		.option("--scope <scope>", "Storage scope: project or global", "project")
-		.action((file: string, opts: { type: string; status: string; scope: string }) => {
+		.action(async (file: string, opts: { type: string; status: string; scope: string }) => {
+			await ensureCliProvidersFor(["knowledge"]);
 			if (opts.scope !== "project" && opts.scope !== "global") {
 				console.error(`Invalid scope "${opts.scope}". Use "project" or "global".`);
 				process.exit(1);
@@ -248,7 +266,7 @@ export function registerKnowledgeCommands(program: Command): void {
 				console.error(`Failed to parse file: ${err instanceof Error ? err.message : String(err)}`);
 				process.exit(1);
 			}
-			const store = getKnowledgeStore(process.cwd());
+			const store = getKnowledgeProvider(process.cwd());
 			let imported = 0;
 			let skipped = 0;
 			for (let i = 0; i < entries.length; i++) {

@@ -137,19 +137,18 @@ export class MemoryStore {
     return dirname(this.filePath);
   }
 
-  /**
-   * Default (keyword-based) semantic search. Providers with embedding support
-   * override this method to rank by cosine similarity.
-   */
-  async semanticSearch(
-    query: string,
-    topK: number,
-    options?: { tag?: string; since?: string },
-  ): Promise<Memory[]> {
-    return this.search(query, options).slice(0, Math.max(0, topK));
+  supportsSemanticSearch(): boolean {
+    return false;
   }
 
-  /** No-op reindex for the default keyword-only store. */
+  async semanticSearch(
+    _query: string,
+    _topK: number,
+    _options?: { tag?: string; since?: string },
+  ): Promise<Memory[]> {
+    throw new Error("Semantic memory search requires an embedding-backed memory provider.");
+  }
+
   async reindex(): Promise<ReindexResult> {
     return { indexed: 0, failed: 0, skipped: true };
   }

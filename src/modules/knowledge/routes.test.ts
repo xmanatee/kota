@@ -39,6 +39,7 @@ function makeProvider(entries: KnowledgeEntry[]): KnowledgeProvider {
     delete: vi.fn(() => true),
     search: vi.fn(() => entries),
     count: vi.fn(() => entries.length),
+    supportsSemanticSearch: vi.fn(() => true),
     semanticSearch: vi.fn(async (_q: string, topK: number) => entries.slice(0, topK)),
     reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
   };

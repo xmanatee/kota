@@ -7,10 +7,14 @@ const tryEmitMock = vi.hoisted(() => vi.fn());
 vi.mock("#core/events/event-bus.js", () => ({ tryEmit: tryEmitMock }));
 
 const executeWithAgentSDKMock = vi.hoisted(() => vi.fn());
-vi.mock("#core/agent-sdk/index.js", () => ({
-  buildClaudeCodeSystemPrompt: () => "system",
-  executeWithAgentSDK: executeWithAgentSDKMock,
-}));
+vi.mock("#core/agent-sdk/index.js", async () => {
+  const actual = await vi.importActual("../../agent-sdk/index.js");
+  return {
+    ...actual,
+    buildClaudeCodeSystemPrompt: () => "system",
+    executeWithAgentSDK: executeWithAgentSDKMock,
+  };
+});
 
 import type { WorkflowRunMetadata } from "../run-types.js";
 import type { WorkflowAgentStep, WorkflowDefinition } from "../types.js";

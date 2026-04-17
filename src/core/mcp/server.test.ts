@@ -1746,6 +1746,7 @@ describe("memory and knowledge resources", () => {
 			search: vi.fn(),
 			update: vi.fn(),
 			delete: vi.fn(),
+			supportsSemanticSearch: vi.fn(() => false),
 			semanticSearch: vi.fn(async () => []),
 			reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
 		});
@@ -1779,6 +1780,7 @@ describe("memory and knowledge resources", () => {
 			search: vi.fn(),
 			update: vi.fn(),
 			delete: vi.fn(),
+			supportsSemanticSearch: vi.fn(() => false),
 			semanticSearch: vi.fn(async () => []),
 			reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
 		});
@@ -1818,6 +1820,7 @@ describe("memory and knowledge resources", () => {
 			delete: vi.fn(),
 			search: vi.fn(),
 			count: vi.fn(),
+			supportsSemanticSearch: vi.fn(() => false),
 			semanticSearch: vi.fn(),
 			reindex: vi.fn(),
 		});
@@ -1855,6 +1858,7 @@ describe("memory and knowledge resources", () => {
 			delete: vi.fn(),
 			search: vi.fn(),
 			count: vi.fn(),
+			supportsSemanticSearch: vi.fn(() => false),
 			semanticSearch: vi.fn(),
 			reindex: vi.fn(),
 		});

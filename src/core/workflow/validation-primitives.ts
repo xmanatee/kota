@@ -187,3 +187,25 @@ export function expectOptionalFunction(
   }
   return value as (...args: never[]) => unknown;
 }
+
+/**
+ * Reject any keys on `value` that aren't in `allowedKeys`. Used to keep
+ * nested definition blocks strictly in sync with their TypeScript contract —
+ * silently ignoring unknown keys lets removed fields linger in the runtime
+ * parser after the type contract drops them.
+ */
+export function rejectUnknownKeys(
+  value: Record<string, unknown>,
+  allowedKeys: readonly string[],
+  field: string,
+  definitionPath: string,
+): void {
+  const allowed = new Set<string>(allowedKeys);
+  const unknown = Object.keys(value).filter((key) => !allowed.has(key));
+  if (unknown.length > 0) {
+    throw new WorkflowDefinitionError(
+      `${field} has unknown key(s): ${unknown.map((k) => `"${k}"`).join(", ")}`,
+      definitionPath,
+    );
+  }
+}

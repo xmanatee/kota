@@ -177,12 +177,16 @@ CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created);`,
 		}));
 	}
 
+	supportsSemanticSearch(): boolean {
+		return false;
+	}
+
 	async semanticSearch(
-		query: string,
-		topK: number,
-		options?: { tag?: string; since?: string },
+		_query: string,
+		_topK: number,
+		_options?: { tag?: string; since?: string },
 	): Promise<Memory[]> {
-		return this.search(query, options).slice(0, Math.max(0, topK));
+		throw new Error("Semantic memory search requires an embedding-backed memory provider.");
 	}
 
 	async reindex(): Promise<ReindexResult> {

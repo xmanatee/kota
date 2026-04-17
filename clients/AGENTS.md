@@ -3,20 +3,23 @@
 This directory contains native client apps that connect to the KOTA daemon control API.
 
 - Each client lives in its own subdirectory (e.g. `macos/`, `ios/`, `mobile/`).
-- Clients are thin: all live state comes from the daemon HTTP+JSON API (`GET /status`, `GET /approvals`, etc.) and SSE event stream (`GET /events`). No client parses `.kota/` files or starts its own KOTA runtime.
-- Authentication uses `Authorization: Bearer <token>` with the token read from `.kota/daemon-control.json`.
+- Clients are thin: all live state comes from the daemon HTTP+JSON API and SSE
+  event stream. No client parses `.kota/` files or starts its own KOTA runtime.
+- Authentication and daemon discovery must go through the client wrapper for
+  that platform, not ad hoc view code.
 - Clients are not modules. They do not contribute tools, workflows, channels, or agents.
 - Native platform technology is preferred (SwiftUI for macOS/iOS, Kotlin/Jetpack Compose for Android, or a cross-platform framework when targeting multiple platforms).
 
 ## Clients
 
-- `web/` — React app (Vite, TanStack Router/Query, Tailwind, shadcn/ui). Full-featured dashboard: chat, workflow management, task queue, approvals, run detail, knowledge, memory, audit, config. SSE-driven live updates. Built assets served by the daemon HTTP server.
-- `macos/` — SwiftUI `MenuBarExtra` app (macOS 13+). Surfaces daemon health, active workflow runs with inline step detail, approval management, and workflow triggering. Polls the daemon API every 5 seconds.
-- `mobile/` — React Native (Expo) app (iOS 16+, Android 12+). Four-tab interface: Status, Runs, Approvals, Tasks. SSE-driven live updates with polling fallback. Token stored in OS secure keychain.
+- `web/` — browser dashboard served by the daemon.
+- `macos/` — native menu bar client.
+- `mobile/` — mobile client.
 
 ## Adding a New Client
 
-- Create a subdirectory with a `README.md` and an `AGENTS.md`.
-- Build against the daemon control API documented in `docs/DAEMON-API.md`.
+- Create a subdirectory with an `AGENTS.md` that states ownership boundaries and
+  durable platform conventions.
+- Build against the daemon control API source and client wrapper types.
 - Do not require any daemon or server changes — the existing API should be sufficient.
 - If you discover a missing API capability, add a task to `data/inbox/` rather than patching the daemon from within the client.

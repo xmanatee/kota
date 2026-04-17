@@ -218,6 +218,7 @@ describeIfSqlite("SQLiteMemoryProvider", () => {
 		expect(typeof provider.list).toBe("function");
 		expect(typeof provider.update).toBe("function");
 		expect(typeof provider.delete).toBe("function");
+		expect(typeof provider.supportsSemanticSearch).toBe("function");
 		expect(typeof provider.semanticSearch).toBe("function");
 		expect(typeof provider.reindex).toBe("function");
 	});

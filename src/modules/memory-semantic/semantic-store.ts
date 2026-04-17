@@ -2,7 +2,7 @@
  * SemanticMemoryStore — MemoryProvider variant backed by the shared
  * embedding-index engine. CRUD delegates to the base store; writes enqueue
  * background embed work; queries lazily fill the index, cosine-rank the
- * results, and fall back to keyword search on any error.
+ * results, and surface embedding errors to the caller.
  *
  * Memory entries have no `updated` timestamp, so staleness is detected via a
  * content+tags hash fingerprint computed by the adapter.
@@ -99,15 +99,17 @@ export class SemanticMemoryStore implements MemoryProvider {
 		await this.manager.flush();
 	}
 
+	supportsSemanticSearch(): boolean {
+		return true;
+	}
+
 	async semanticSearch(
 		query: string,
 		topK: number,
 		options?: { tag?: string; since?: string },
 	): Promise<Memory[]> {
 		const filtered = this.base.search("", options);
-		return this.manager.rankBySimilarity(query, filtered, topK, () =>
-			this.base.search(query, options),
-		);
+		return this.manager.rankBySimilarity(query, filtered, topK);
 	}
 
 	async reindex(): Promise<ReindexResult> {

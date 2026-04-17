@@ -13,6 +13,7 @@
  * `retries` defaults to 3; `retryDelayMs` defaults to 1000.
  */
 
+import type { BusEvents } from "#core/events/event-bus.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { postWithRetry } from "#modules/notification/index.js";
 
@@ -21,10 +22,12 @@ const NOTIFICATION_EVENTS = [
   "workflow.attention.digest",
   "workflow.approval.expired",
   "module.crash.alert",
-] as const;
+] as const satisfies readonly (keyof BusEvents)[];
 
 /** Events that are off by default; subscribed only when explicitly listed in config `events`. */
-const OPT_IN_EVENTS = ["workflow.build.committed"] as const;
+const OPT_IN_EVENTS = [
+  "workflow.build.committed",
+] as const satisfies readonly (keyof BusEvents)[];
 
 type SlackConfig = {
   /** Slack Incoming Webhook URL. Required. */

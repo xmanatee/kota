@@ -2,7 +2,7 @@
  * SemanticKnowledgeStore — KnowledgeProvider variant backed by the shared
  * embedding-index engine. CRUD delegates to the base store; writes enqueue
  * background embed work; queries lazily fill the index, cosine-rank the
- * results, and fall back to keyword search on any error.
+ * results, and surface embedding errors to the caller.
  *
  * Staleness is detected via each entry's `updated` ISO timestamp, which the
  * base store already bumps on every write.
@@ -112,15 +112,17 @@ export class SemanticKnowledgeStore implements KnowledgeProvider {
 		await this.manager.flush();
 	}
 
+	supportsSemanticSearch(): boolean {
+		return true;
+	}
+
 	async semanticSearch(
 		query: string,
 		topK: number,
 		filters?: SearchFilters,
 	): Promise<KnowledgeEntry[]> {
 		const entries = this.base.list(filters);
-		return this.manager.rankBySimilarity(query, entries, topK, () =>
-			this.base.search(query, filters),
-		);
+		return this.manager.rankBySimilarity(query, entries, topK);
 	}
 
 	async reindex(): Promise<ReindexResult> {

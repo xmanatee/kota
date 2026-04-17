@@ -26,8 +26,34 @@ export class AgentStepRuntimeError extends Error {
   }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function abortError(signal: AbortSignal): Error {
+  if (signal.reason instanceof Error) return signal.reason;
+  const error = new Error("Operation aborted");
+  error.name = "AbortError";
+  return error;
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw abortError(signal);
+}
+
+function sleep(ms: number, abortSignal?: AbortSignal): Promise<void> {
+  if (!abortSignal) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+  throwIfAborted(abortSignal);
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      abortSignal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timeout);
+      abortSignal.removeEventListener("abort", onAbort);
+      reject(abortError(abortSignal));
+    };
+    abortSignal.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 export type WithRetryOptions = {
@@ -57,6 +83,7 @@ export async function withRetry<T>(
   let lastError: unknown;
   let delayMs = retry.initialDelayMs;
   for (let attempt = 1; attempt <= retry.maxAttempts; attempt++) {
+    throwIfAborted(abortSignal);
     try {
       return await fn();
     } catch (error) {
@@ -73,7 +100,7 @@ export async function withRetry<T>(
         log?.(
           `Attempt ${attempt}/${retry.maxAttempts} failed; retrying in ${delayMs}ms. Error: ${error instanceof Error ? error.message : String(error)}`,
         );
-        await sleep(delayMs);
+        await sleep(delayMs, abortSignal);
         delayMs = Math.round(delayMs * retry.backoffFactor);
       }
     }

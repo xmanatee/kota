@@ -117,7 +117,7 @@ export function registerDefaultProviders(cwd?: string): void {
 	registry.register("history", "default", getHistory());
 }
 
-/** Get the active memory provider, falling back to the default MemoryStore. */
+/** Get the active memory provider, or the default MemoryStore when no registry provider is active. */
 export function getMemoryProvider(): MemoryProvider {
 	if (registry) {
 		const provider = registry.get<MemoryProvider>("memory");
@@ -126,7 +126,7 @@ export function getMemoryProvider(): MemoryProvider {
 	return getMemoryStore();
 }
 
-/** Get the active knowledge provider, falling back to the default KnowledgeStore. */
+/** Get the active knowledge provider, or the default KnowledgeStore when no registry provider is active. */
 export function getKnowledgeProvider(cwd?: string): KnowledgeProvider {
 	if (registry) {
 		const provider = registry.get<KnowledgeProvider>("knowledge");
@@ -135,7 +135,7 @@ export function getKnowledgeProvider(cwd?: string): KnowledgeProvider {
 	return getKnowledgeStore(cwd);
 }
 
-/** Get the active task provider, falling back to the default TaskStore. */
+/** Get the active task provider, or the default TaskStore when no registry provider is active. */
 export function getTaskProvider(): TaskProvider {
 	if (registry) {
 		const provider = registry.get<TaskProvider>("task");
@@ -144,7 +144,7 @@ export function getTaskProvider(): TaskProvider {
 	return getTaskStore();
 }
 
-/** Get the active history provider, falling back to the default ConversationHistory. */
+/** Get the active history provider, or the default ConversationHistory when no registry provider is active. */
 export function getHistoryProvider(): HistoryProvider {
 	if (registry) {
 		const provider = registry.get<HistoryProvider>("history");

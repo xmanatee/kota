@@ -29,7 +29,7 @@ adding a parallel surface.
 - `store` = a typed persistence unit in the runtime state subsystem. Store types
   are: history (conversation records), memory (agent notes), knowledge
   (structured reference entries), working memory (session scratchpad), and run
-  artifacts (workflow execution evidence). See `docs/STORES.md`.
+  artifacts (workflow execution evidence).
 
 ## Single Way
 
@@ -70,12 +70,10 @@ queue state are shared daemon/runtime primitives and belong in `src/core/`.
   should react to that declared intent or to generic events, not to a
   hardcoded workflow-name list.
 - Notification callers emit typed bus events rather than calling transports
-  directly. Modules subscribe via `ModuleEventProxy.subscribe()` in their
-  `onLoad` hook and unsubscribe in `onUnload`.
-- Modules can register per-turn system-prompt state contributors via
-  `ctx.registerDynamicStateProvider(name, fn)` in `onLoad`. This is the
-  correct pattern for any module that needs to inject state into the agent's
-  context window without creating a direct core-to-module import.
+  directly. Modules subscribe and unsubscribe through their normal lifecycle.
+- Modules can register per-turn system-prompt state contributors through the
+  module context. This is the correct pattern for injecting module-owned state
+  without creating a direct core-to-module import.
 - Prefer typed code protocols over parallel DSLs.
 - Prefer strict protocols over permissive coercion. Internal malformed data
   should fail loudly; adapters at external boundaries should normalize once and
@@ -102,13 +100,10 @@ queue state are shared daemon/runtime primitives and belong in `src/core/`.
 - `channel` protocol: session routing, inbound/outbound transport, and operator
   identity.
 - `module` protocol: contribution bundle for the concepts above.
-- `foreign module` protocol: KEMP (KOTA External Module Protocol) — a
-  transport-agnostic newline-delimited JSON message protocol for modules
-  implemented outside the in-process TypeScript runtime. The protocol covers
-  capability declaration (`manifest`), tool invocation (`invoke`/`result`), and
-  lifecycle (`init`, `shutdown`). The stdio transport spawns a subprocess; the
-  protocol is the same over any stream. A foreign module is wrapped as a
-  normal `KotaModule` at load time. See `docs/FOREIGN-MODULES.md`.
+- `foreign module` protocol: an out-of-process module transport. Its exact
+  message names, transport fields, scaffold details, and recovery behavior
+  belong in the core module code, schema, examples, and focused tests rather
+  than in a durable prose catalog.
 
 ## Context Gathering
 
@@ -123,10 +118,9 @@ Prefer clear surfaces and self-directed investigation over injected worldview.
 
 ## Sessions And Channels
 
-`session` is core. `AgentSession` owns the conversation, context, tools, and
-lifecycle for every agent run — interactive or autonomous. Every path through
-KOTA runs in a session. The `SessionStateMachine` enforces explicit lifecycle
-states (idle → initializing → ready → thinking → acting → reflecting → closed).
+`session` is core. The session runtime owns the conversation, context, tools,
+and lifecycle for every agent run, interactive or autonomous. Every path
+through KOTA runs in a session with an explicit lifecycle.
 
 When the daemon is running, it is the source of truth for live sessions.
 `kota serve` registers and unregisters interactive sessions with the daemon so

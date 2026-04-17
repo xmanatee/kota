@@ -72,13 +72,33 @@ describe("formatEmail", () => {
     expect(msg.text).toContain("foo");
   });
 
+  it("formats workflow.approval.expired with workflow step fields", () => {
+    const msg = formatEmail("workflow.approval.expired", {
+      workflowName: "deploy",
+      runId: "run-123",
+      stepId: "approval",
+      resolution: "deny",
+      reason: "No response before timeout",
+      text: "Approval step timed out and auto-denied.",
+    });
+    expect(msg.subject).toBe("[KOTA] Approval Auto-Denied: deploy");
+    expect(msg.text).toContain("Approval step timed out and auto-denied.");
+    expect(msg.text).toContain("Step: approval");
+    expect(msg.text).toContain("Run: run-123");
+    expect(msg.text).toContain("No response before timeout");
+  });
+
   it("formats module.crash.alert", () => {
     const msg = formatEmail("module.crash.alert", {
-      module: "github-webhook",
+      name: "github-webhook",
+      restartCount: 3,
+      windowMs: 300_000,
       text: "Crashed 3 times in 5 minutes",
     });
     expect(msg.subject).toContain("Module Crash");
     expect(msg.subject).toContain("github-webhook");
+    expect(msg.text).toContain("Restarts: 3");
+    expect(msg.text).toContain("Window: 5m");
     expect(msg.text).toContain("Crashed 3 times");
   });
 

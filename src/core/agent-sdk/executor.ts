@@ -18,6 +18,7 @@ export type ExecutorOptions = {
   maxTurns?: number;
   allowedTools?: string[];
   disallowedTools?: string[];
+  mcpServers?: SDKQueryOptions["mcpServers"];
   permissionMode?: SDKPermissionMode;
   persistSession?: boolean;
   effort: SDKQueryOptions["effort"];
@@ -131,6 +132,7 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
     systemPrompt: options.systemPrompt,
     allowedTools: options.allowedTools,
     disallowedTools: options.disallowedTools,
+    mcpServers: options.mcpServers,
     permissionMode,
     cwd: options.cwd ?? process.cwd(),
     persistSession: options.persistSession,

@@ -2,10 +2,11 @@
 
 This directory owns the Slack notification module — routes KOTA notification events to a Slack Incoming Webhook.
 
-- No OAuth app or bot token required; only a webhook URL (`modules.slack.webhookUrl`).
-- `approval.requested` is always forwarded when the module is configured.
-- Default notification events: `workflow.failure.alert`, `workflow.attention.digest`.
-- `workflow.build.committed` is opt-in (must be listed in config `events`).
+- No OAuth app or bot token required; only a Slack Incoming Webhook URL.
+- Optional event filters must not suppress urgent owner/approval escalation
+  notifications.
+- Keep the subscription lists typed against the event bus so removed events fail
+  in code rather than drifting in docs.
 - Uses `postWithRetry` from the `notification` module for delivery with exponential-backoff retry.
 - Declares a dependency on the `notification` module.
 

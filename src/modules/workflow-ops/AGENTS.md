@@ -6,7 +6,7 @@ This module owns the `kota workflow` CLI surface and the workflow HTTP API route
 
 - `runs/` — Run inspection: list, show, diff, export, cost, stats, step-inspect, follow, logs, history.
 - `definitions/` — Definition inspection and validation: definitions, definition-log, deps, validate.
-- `execution/` — Execution and control: run, dry-run, trigger, triggers, control, gc, forecast.
+- `execution/` — Execution and control: run, dry-run, trigger, triggers, control, gc.
 - `routes/` — HTTP API: route wiring and handlers for `/api/workflow/*`.
 
 Shared utilities (`utils.ts`, `definitions-source.ts`) stay at the module root.

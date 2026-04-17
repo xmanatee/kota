@@ -18,6 +18,7 @@ import {
   expectOptionalInteger,
   expectOptionalString,
   expectRelativePath,
+  rejectUnknownKeys,
   WorkflowDefinitionError,
 } from "./validation-primitives.js";
 import {
@@ -340,23 +341,16 @@ export function validateWorkflowDefinitions(
       notify: (() => {
         if (definition.notify == null) return undefined;
         const n = definition.notify;
-        if (typeof n !== "object" || n === null) {
+        if (typeof n !== "object" || n === null || Array.isArray(n)) {
           throw new WorkflowDefinitionError("notify must be an object", definitionPath);
         }
-        const { onFailure, onSuccess, onCostAnomaly } = n as Record<string, unknown>;
-        if (onFailure !== undefined && typeof onFailure !== "boolean") {
-          throw new WorkflowDefinitionError("notify.onFailure must be a boolean", definitionPath);
-        }
-        if (onSuccess !== undefined && typeof onSuccess !== "boolean") {
-          throw new WorkflowDefinitionError("notify.onSuccess must be a boolean", definitionPath);
-        }
-        if (onCostAnomaly !== undefined && typeof onCostAnomaly !== "boolean") {
-          throw new WorkflowDefinitionError("notify.onCostAnomaly must be a boolean", definitionPath);
-        }
+        const raw = n as Record<string, unknown>;
+        rejectUnknownKeys(raw, ["onFailure", "onSuccess"], "notify", definitionPath);
+        const onFailure = expectOptionalBoolean(raw.onFailure, "notify.onFailure", definitionPath);
+        const onSuccess = expectOptionalBoolean(raw.onSuccess, "notify.onSuccess", definitionPath);
         return {
-          ...(onFailure !== undefined ? { onFailure: onFailure as boolean } : {}),
-          ...(onSuccess !== undefined ? { onSuccess: onSuccess as boolean } : {}),
-          ...(onCostAnomaly !== undefined ? { onCostAnomaly: onCostAnomaly as boolean } : {}),
+          ...(onFailure !== undefined ? { onFailure } : {}),
+          ...(onSuccess !== undefined ? { onSuccess } : {}),
         };
       })(),
       tags: (() => {

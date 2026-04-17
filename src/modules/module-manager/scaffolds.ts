@@ -139,7 +139,7 @@ function pythonMainPy(name: string, safeName: string): string {
 Communicates with KOTA over stdin/stdout using newline-delimited JSON (NDJSON).
 Add your tools to the TOOLS dict and implement their logic in the handlers below.
 
-Protocol reference: docs/FOREIGN-MODULES.md
+The protocol contract is encoded in KOTA's core foreign-module types and tests.
 """
 import json
 import sys
@@ -285,7 +285,8 @@ Expected output (one line):
 
 ## Protocol
 
-Full protocol reference: \`docs/FOREIGN-MODULES.md\` in the KOTA repository.
+Use \`main.py\` as the minimal scaffold shape. KOTA's core foreign-module types
+and tests are the source of truth for protocol changes.
 `;
 }
 

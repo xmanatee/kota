@@ -30,20 +30,30 @@ export function formatEmail(event: string, payload: Record<string, unknown>): Em
     }
 
     case "workflow.approval.expired": {
-      const id = payload.id as string | undefined;
-      const tool = payload.tool as string | undefined;
-      const subject = "[KOTA] Approval Expired";
-      const lines = ["A pending approval has expired."];
-      if (tool) lines.push(`Tool: ${tool}`);
-      if (id) lines.push(`ID: ${id}`);
+      const workflowName = payload.workflowName as string | undefined;
+      const runId = payload.runId as string | undefined;
+      const stepId = payload.stepId as string | undefined;
+      const resolution = payload.resolution as string | undefined;
+      const reason = payload.reason as string | undefined;
+      const text = payload.text as string | undefined;
+      const resolutionLabel = resolution === "approve" ? "Auto-Approved" : "Auto-Denied";
+      const subject = `[KOTA] Approval ${resolutionLabel}: ${workflowName ?? "unknown"}`;
+      const lines = [text ?? `Approval ${resolutionLabel.toLowerCase()} for ${workflowName ?? "unknown"}.`];
+      if (stepId) lines.push(`Step: ${stepId}`);
+      if (runId) lines.push(`Run: ${runId}`);
+      if (reason) lines.push(`Reason: ${reason}`);
       return { subject, text: lines.join("\n") };
     }
 
     case "module.crash.alert": {
-      const moduleName = payload.module as string | undefined;
+      const moduleName = payload.name as string | undefined;
+      const restartCount = payload.restartCount as number | undefined;
+      const windowMs = payload.windowMs as number | undefined;
       const subject = `[KOTA] Module Crash: ${moduleName ?? "unknown"}`;
       const lines = [`Module crashed repeatedly: ${moduleName ?? "unknown"}`];
       const text = payload.text as string | undefined;
+      if (restartCount !== undefined) lines.push(`Restarts: ${restartCount}`);
+      if (windowMs !== undefined) lines.push(`Window: ${Math.round(windowMs / 60_000)}m`);
       if (text) lines.push(`\n${text}`);
       return { subject, text: lines.join("\n") };
     }

@@ -177,20 +177,6 @@ function findDisallowedRootImports(
   return violations;
 }
 
-function checkServerReadmeSync(projectDir: string): string {
-  const candidates = [join(projectDir, "src/core/server"), join(projectDir, "src/server")];
-  const serverDir = candidates.find((d) => existsSync(join(d, "README.md")));
-  if (!serverDir) return "OK: no server README to check";
-  const readme = readFileSync(join(serverDir, "README.md"), "utf8");
-  const missing = readdirSync(serverDir)
-    .filter((f) => f.endsWith("-routes.ts") && f !== "server-routes.ts")
-    .filter((f) => !readme.includes(f));
-  if (missing.length) {
-    throw new Error(`Missing from server README.md: ${missing.join(", ")}`);
-  }
-  return "OK: server README covers all route files";
-}
-
 function checkMobileTypecheck(projectDir: string): string {
   const mobileDir = join(projectDir, "clients/mobile");
   if (!existsSync(join(mobileDir, "package.json"))) {
@@ -205,19 +191,6 @@ function checkMacosSwiftBuild(projectDir: string): string {
     return "OK: no macOS client present";
   }
   return runCheck("swift build", macosDir, 120_000);
-}
-
-function checkDaemonApiDocSync(projectDir: string): string {
-  const src = readFileSync(join(projectDir, "src/core/daemon/daemon-control.ts"), "utf8");
-  const doc = readFileSync(join(projectDir, "docs/DAEMON-API.md"), "utf8");
-  const routes = [...src.matchAll(/"(?:GET|POST|DELETE|PUT|PATCH) (\/[^"]+)":\s*"(?:read|control)"/g)].map(
-    (m) => m[1],
-  );
-  const undocumented = [...new Set(routes)].filter((p) => !doc.includes(p));
-  if (undocumented.length) {
-    throw new Error(`Missing from docs/DAEMON-API.md: ${undocumented.join(", ")}`);
-  }
-  return "OK: DAEMON-API.md covers all daemon control routes";
 }
 
 export function builderRepairChecks(): WorkflowRepairCheck[] {
@@ -263,12 +236,6 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       run: (ctx) => runCheck("pnpm test", ctx.projectDir, 300_000),
     },
     {
-      id: "server-readme-sync",
-      type: "code" as const,
-      phase: 1,
-      run: (ctx) => checkServerReadmeSync(ctx.projectDir),
-    },
-    {
       id: "mobile-typecheck",
       type: "code" as const,
       phase: 1,
@@ -279,12 +246,6 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       type: "code" as const,
       phase: 1,
       run: (ctx) => checkMacosSwiftBuild(ctx.projectDir),
-    },
-    {
-      id: "daemon-api-doc-sync",
-      type: "code" as const,
-      phase: 1,
-      run: (ctx) => checkDaemonApiDocSync(ctx.projectDir),
     },
     {
       id: "module-boundary",

@@ -145,6 +145,7 @@ describe("interface conformance", () => {
 		expect(typeof provider.list).toBe("function");
 		expect(typeof provider.update).toBe("function");
 		expect(typeof provider.delete).toBe("function");
+		expect(typeof provider.supportsSemanticSearch).toBe("function");
 		expect(typeof provider.semanticSearch).toBe("function");
 		expect(typeof provider.reindex).toBe("function");
 	});
@@ -160,6 +161,7 @@ describe("interface conformance", () => {
 		expect(typeof provider.search).toBe("function");
 		expect(typeof provider.list).toBe("function");
 		expect(typeof provider.count).toBe("function");
+		expect(typeof provider.supportsSemanticSearch).toBe("function");
 		expect(typeof provider.semanticSearch).toBe("function");
 		expect(typeof provider.reindex).toBe("function");
 	});
@@ -200,14 +202,14 @@ describe("interface conformance", () => {
 describe("convenience getters", () => {
 	afterEach(() => resetProviderRegistry());
 
-	it("getMemoryProvider falls back to MemoryStore when no registry", () => {
+	it("getMemoryProvider returns MemoryStore when no registry", () => {
 		resetProviderRegistry();
 		const provider = getMemoryProvider();
 		expect(typeof provider.save).toBe("function");
 		expect(typeof provider.search).toBe("function");
 	});
 
-	it("getKnowledgeProvider falls back to KnowledgeStore when no registry", () => {
+	it("getKnowledgeProvider returns KnowledgeStore when no registry", () => {
 		resetProviderRegistry();
 		const provider = getKnowledgeProvider("/tmp");
 		expect(typeof provider.create).toBe("function");
@@ -222,6 +224,7 @@ describe("convenience getters", () => {
 			list: () => [],
 			update: () => true,
 			delete: () => true,
+			supportsSemanticSearch: () => true,
 			semanticSearch: async () => [],
 			reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
 		};
@@ -243,6 +246,7 @@ describe("convenience getters", () => {
 			search: () => [],
 			list: () => [],
 			count: () => 42,
+			supportsSemanticSearch: () => true,
 			semanticSearch: async () => [],
 			reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
 		};
@@ -261,7 +265,7 @@ describe("convenience getters", () => {
 		expect(typeof provider.save).toBe("function");
 	});
 
-	it("getTaskProvider falls back to TaskStore when no registry", () => {
+	it("getTaskProvider returns TaskStore when no registry", () => {
 		resetProviderRegistry();
 		const provider = getTaskProvider();
 		expect(typeof provider.add).toBe("function");
@@ -296,7 +300,7 @@ describe("convenience getters", () => {
 		expect(typeof provider.add).toBe("function");
 	});
 
-	it("getHistoryProvider falls back to ConversationHistory when no registry", () => {
+	it("getHistoryProvider returns ConversationHistory when no registry", () => {
 		resetProviderRegistry();
 		const provider = getHistoryProvider();
 		expect(typeof provider.list).toBe("function");
@@ -377,6 +381,7 @@ describe("registerDefaultProviders", () => {
 			list: () => [],
 			update: () => true,
 			delete: () => true,
+			supportsSemanticSearch: () => true,
 			semanticSearch: async () => [],
 			reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
 		};

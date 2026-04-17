@@ -8,3 +8,6 @@ Kernel-owned configuration and secrets management.
 - `secret-providers.ts` — secret provider implementations (env file, JSON file, macOS keychain).
 
 These are core primitives. Do not add module-specific configuration logic here.
+Config fields, defaults, and enum values are code-owned contracts. Keep the
+TypeScript schema, JSON Schema generation, warnings, and focused tests as the
+source of truth instead of maintaining a parallel prose catalog.

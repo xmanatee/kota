@@ -103,6 +103,7 @@ describeIfSqlite("sqliteMemoryModule onLoad", () => {
 		expect(typeof provider.list).toBe("function");
 		expect(typeof provider.update).toBe("function");
 		expect(typeof provider.delete).toBe("function");
+		expect(typeof provider.supportsSemanticSearch).toBe("function");
 	});
 
 	it("save and list round-trip", () => {

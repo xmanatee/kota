@@ -246,19 +246,18 @@ export class KnowledgeStore {
 		return entries.filter((e) => e.type.toLowerCase() === t).length;
 	}
 
-	/**
-	 * Default (keyword-based) semantic search. Providers with real embedding
-	 * support override this method to rank by cosine similarity.
-	 */
-	async semanticSearch(
-		query: string,
-		topK: number,
-		filters?: SearchFilters,
-	): Promise<KnowledgeEntry[]> {
-		return this.search(query, filters).slice(0, Math.max(0, topK));
+	supportsSemanticSearch(): boolean {
+		return false;
 	}
 
-	/** No-op reindex for the default keyword-only store. */
+	async semanticSearch(
+		_query: string,
+		_topK: number,
+		_filters?: SearchFilters,
+	): Promise<KnowledgeEntry[]> {
+		throw new Error("Semantic knowledge search requires an embedding-backed knowledge provider.");
+	}
+
 	async reindex(): Promise<ReindexResult> {
 		return { indexed: 0, failed: 0, skipped: true };
 	}
