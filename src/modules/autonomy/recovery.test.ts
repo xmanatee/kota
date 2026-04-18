@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
-import { resetWorktreeForRecovery } from "./recovery.js";
+import { onNormalTrigger, onRecoveryTrigger, resetWorktreeForRecovery } from "./recovery.js";
 
 function initRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), "kota-recovery-"));
@@ -90,5 +90,15 @@ describe("resetWorktreeForRecovery", () => {
       encoding: "utf8",
     }).trim();
     expect(branch).toBe("feature/manual");
+  });
+});
+
+describe("recovery predicates skipLabel", () => {
+  it("onNormalTrigger carries the recovery-trigger-gate label", () => {
+    expect(onNormalTrigger.skipLabel).toBe("recovery-trigger-gate");
+  });
+
+  it("onRecoveryTrigger carries the recovery-only-step label", () => {
+    expect(onRecoveryTrigger.skipLabel).toBe("recovery-only-step");
   });
 });

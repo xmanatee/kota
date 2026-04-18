@@ -1,12 +1,12 @@
 ---
 id: task-record-workflow-step-skip-reasons-in-run-metadata
 title: Record workflow step skip reasons in run metadata
-status: ready
+status: done
 priority: p2
 area: observability
 summary: Capture a typed reason when a workflow step is skipped so operators can tell from run artifacts and workflow.completed payloads why a when predicate or recovery guard suppressed a step
 created_at: 2026-04-18T15:49:25.310Z
-updated_at: 2026-04-18T15:49:25.310Z
+updated_at: 2026-04-18T21:01:49.781Z
 ---
 
 ## Problem

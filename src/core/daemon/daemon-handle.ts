@@ -267,6 +267,7 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
             ...(s.error != null && { error: s.error }),
             ...(agentCost != null && { costUsd: agentCost }),
             ...(s.toolCalls != null && { toolCalls: s.toolCalls }),
+            ...(s.skipReason != null && { skipReason: s.skipReason }),
           };
         }),
       };

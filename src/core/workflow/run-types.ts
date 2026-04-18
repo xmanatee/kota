@@ -14,6 +14,17 @@ export type WorkflowRunStatus =
 
 export type WorkflowStepStatus = "success" | "failed" | "skipped";
 
+export type WorkflowStepSkipReasonKind =
+  | "when-predicate"
+  | "branch-arm-not-taken"
+  | "parent-skipped"
+  | "foreach-empty";
+
+export type WorkflowStepSkipReason = {
+  kind: WorkflowStepSkipReasonKind;
+  label?: string;
+};
+
 export type WorkflowActiveRun = {
   runId: string;
   workflow: string;
@@ -92,6 +103,7 @@ export type WorkflowStepResult = {
   toolCalls?: ToolCallSummaryEntry[];
   /** True when this step result was reused from a prior run (resume-from-step). */
   reused?: boolean;
+  skipReason?: WorkflowStepSkipReason;
 };
 
 export type WorkflowStepContext = {
@@ -129,9 +141,19 @@ export type WorkflowValueResolver<T> =
   | T
   | ((context: WorkflowStepContext) => T | Promise<T>);
 
-export type WorkflowPredicate = (
-  context: WorkflowStepContext,
-) => boolean | Promise<boolean>;
+export type WorkflowPredicate = {
+  (context: WorkflowStepContext): boolean | Promise<boolean>;
+  skipLabel?: string;
+};
+
+export function labeledPredicate(
+  label: string,
+  predicate: (context: WorkflowStepContext) => boolean | Promise<boolean>,
+): WorkflowPredicate {
+  const labeled = predicate as WorkflowPredicate;
+  labeled.skipLabel = label;
+  return labeled;
+}
 
 export type WorkflowRepairCheck = {
   /** Identifier for this check, shown in repair iteration output. */

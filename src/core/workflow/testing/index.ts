@@ -1,8 +1,10 @@
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type {
+  WorkflowPredicate,
   WorkflowRuntimeState,
   WorkflowStepContext,
   WorkflowStepResult,
+  WorkflowStepSkipReason,
 } from "#core/workflow/run-types.js";
 import { resolveValue } from "#core/workflow/steps/step-executor.js";
 import type {
@@ -20,9 +22,23 @@ export type HarnessStepResult = {
   status: "success" | "failed" | "skipped";
   output?: unknown;
   error?: string;
-  skipReason?: string;
+  skipReason?: WorkflowStepSkipReason;
   costUsd?: number;
 };
+
+const BRANCH_ARM_NOT_TAKEN: WorkflowStepSkipReason = {
+  kind: "branch-arm-not-taken",
+};
+const FOREACH_EMPTY: WorkflowStepSkipReason = { kind: "foreach-empty" };
+const PARENT_SKIPPED: WorkflowStepSkipReason = { kind: "parent-skipped" };
+
+function whenSkipReason(
+  when: WorkflowPredicate | undefined,
+): WorkflowStepSkipReason {
+  return when?.skipLabel
+    ? { kind: "when-predicate", label: when.skipLabel }
+    : { kind: "when-predicate" };
+}
 
 export type HarnessRunResult = {
   status: "success" | "failed";
@@ -82,7 +98,7 @@ function makeStepResult(
   status: "success" | "failed" | "skipped",
   output: unknown,
   error: string | undefined,
-  skipReason: string | undefined,
+  skipReason: WorkflowStepSkipReason | undefined,
 ): { harness: HarnessStepResult; internal: WorkflowStepResult } {
   const now = new Date().toISOString();
   const harness: HarnessStepResult = {
@@ -102,6 +118,7 @@ function makeStepResult(
     durationMs: 0,
     ...(output !== undefined ? { output } : {}),
     ...(error !== undefined ? { error } : {}),
+    ...(skipReason !== undefined ? { skipReason } : {}),
   };
   return { harness, internal };
 }
@@ -209,12 +226,31 @@ export class WorkflowTestHarness {
 
     const recordSkippedArm = (steps: WorkflowStepInput[]) => {
       for (const s of steps) {
-        const { harness, internal } = makeStepResult(s.id, s.type, "skipped", undefined, undefined, "branch not taken");
+        const { harness, internal } = makeStepResult(s.id, s.type, "skipped", undefined, undefined, BRANCH_ARM_NOT_TAKEN);
         allStepResults[s.id] = harness;
         stepResultsById[s.id] = internal;
         if (s.type === "branch") {
           recordSkippedArm(s.ifTrue);
           if (s.ifFalse) recordSkippedArm(s.ifFalse);
+        } else if (s.type === "parallel" || s.type === "foreach") {
+          recordSkippedArm(s.steps);
+        }
+      }
+    };
+
+    const recordSkippedChildren = (
+      steps: WorkflowStepInput[],
+      reason: WorkflowStepSkipReason,
+    ) => {
+      for (const s of steps) {
+        const { harness, internal } = makeStepResult(s.id, s.type, "skipped", undefined, undefined, reason);
+        allStepResults[s.id] = harness;
+        stepResultsById[s.id] = internal;
+        if (s.type === "branch") {
+          recordSkippedChildren(s.ifTrue, reason);
+          if (s.ifFalse) recordSkippedChildren(s.ifFalse, reason);
+        } else if (s.type === "parallel" || s.type === "foreach") {
+          recordSkippedChildren(s.steps, reason);
         }
       }
     };
@@ -228,8 +264,11 @@ export class WorkflowTestHarness {
         const context = buildContext();
         const shouldRun = branch.when ? Boolean(await branch.when(context)) : true;
         if (!shouldRun) {
-          const { harness, internal } = makeStepResult(branch.id, "branch", "skipped", undefined, undefined, "when predicate returned false");
+          const reason = whenSkipReason(branch.when);
+          const { harness, internal } = makeStepResult(branch.id, "branch", "skipped", undefined, undefined, reason);
           recordResult(harness, internal, undefined);
+          recordSkippedChildren(branch.ifTrue, PARENT_SKIPPED);
+          if (branch.ifFalse) recordSkippedChildren(branch.ifFalse, PARENT_SKIPPED);
           return;
         }
 
@@ -277,8 +316,10 @@ export class WorkflowTestHarness {
         const context = buildContext();
         const shouldRun = foreach.when ? Boolean(await foreach.when(context)) : true;
         if (!shouldRun) {
-          const { harness, internal } = makeStepResult(foreach.id, "foreach", "skipped", undefined, undefined, "when predicate returned false");
+          const reason = whenSkipReason(foreach.when);
+          const { harness, internal } = makeStepResult(foreach.id, "foreach", "skipped", undefined, undefined, reason);
           recordResult(harness, internal, undefined);
+          recordSkippedChildren(foreach.steps, PARENT_SKIPPED);
           return;
         }
 
@@ -300,6 +341,10 @@ export class WorkflowTestHarness {
         const itemResults: Array<{ index: number; status: "success" | "failed"; steps: Record<string, HarnessStepResult> }> = [];
         let foreachFailed = false;
 
+        if (items.length === 0) {
+          recordSkippedChildren(foreach.steps, FOREACH_EMPTY);
+        }
+
         const runIteration = async (index: number, item: unknown): Promise<void> => {
           const iterStepOutputsById: Record<string, unknown> = {};
           const iterHarnessResults: Record<string, HarnessStepResult> = {};
@@ -316,7 +361,8 @@ export class WorkflowTestHarness {
 
             const innerShouldRun = innerStep.when ? Boolean(await innerStep.when(iterContext)) : true;
             if (!innerShouldRun) {
-              const { harness: h } = makeStepResult(innerStep.id, innerStep.type, "skipped", undefined, undefined, "when predicate returned false");
+              const reason = whenSkipReason(innerStep.when);
+              const { harness: h } = makeStepResult(innerStep.id, innerStep.type, "skipped", undefined, undefined, reason);
               iterHarnessResults[innerStep.id] = h;
               continue;
             }
@@ -389,8 +435,10 @@ export class WorkflowTestHarness {
         const context = buildContext();
         const shouldRun = group.when ? Boolean(await group.when(context)) : true;
         if (!shouldRun) {
-          const { harness, internal } = makeStepResult(group.id, "parallel", "skipped", undefined, undefined, "when predicate returned false");
+          const reason = whenSkipReason(group.when);
+          const { harness, internal } = makeStepResult(group.id, "parallel", "skipped", undefined, undefined, reason);
           recordResult(harness, internal, undefined);
+          recordSkippedChildren(group.steps, PARENT_SKIPPED);
           return;
         }
 
@@ -424,7 +472,8 @@ export class WorkflowTestHarness {
       const context = buildContext();
       const shouldRun = step.when ? Boolean(await step.when(context)) : true;
       if (!shouldRun) {
-        const { harness, internal } = makeStepResult(step.id, step.type, "skipped", undefined, undefined, "when predicate returned false");
+        const reason = whenSkipReason(step.when);
+        const { harness, internal } = makeStepResult(step.id, step.type, "skipped", undefined, undefined, reason);
         recordResult(harness, internal, undefined);
         return;
       }

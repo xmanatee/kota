@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
-import type { WorkflowPredicate } from "#core/workflow/run-types.js";
+import { labeledPredicate, type WorkflowPredicate } from "#core/workflow/run-types.js";
 
 export type RecoveryResetResult = {
   stashed: boolean;
@@ -98,13 +98,17 @@ export function resetWorktreeForRecovery(
 /**
  * Predicate selecting steps that should run only on the recovery entry path.
  */
-export const onRecoveryTrigger: WorkflowPredicate = ({ trigger }) =>
-  trigger.event === "runtime.recovered";
+export const onRecoveryTrigger: WorkflowPredicate = labeledPredicate(
+  "recovery-only-step",
+  ({ trigger }) => trigger.event === "runtime.recovered",
+);
 
 /**
  * Predicate selecting steps that should run only on non-recovery entries.
  * Recovery-capable workflows use this to gate their normal work steps so the
  * workflow healed the worktree but did not execute heavy work.
  */
-export const onNormalTrigger: WorkflowPredicate = ({ trigger }) =>
-  trigger.event !== "runtime.recovered";
+export const onNormalTrigger: WorkflowPredicate = labeledPredicate(
+  "recovery-trigger-gate",
+  ({ trigger }) => trigger.event !== "runtime.recovered",
+);

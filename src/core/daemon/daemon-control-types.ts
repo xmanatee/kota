@@ -1,6 +1,6 @@
 import type { ConversationData, ConversationRecord } from "#core/memory/history-utils.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import type { ToolCallSummaryEntry, WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState } from "#core/workflow/run-types.js";
+import type { ToolCallSummaryEntry, WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState, WorkflowStepSkipReason } from "#core/workflow/run-types.js";
 import type { WorkflowAgentBackoffState } from "#core/workflow/types.js";
 import type { PendingApproval } from "./approval-queue.js";
 import type { DaemonState } from "./daemon-state.js";
@@ -107,6 +107,7 @@ export type WorkflowRunStepSummary = {
   error?: string;
   costUsd?: number;
   toolCalls?: ToolCallSummaryEntry[];
+  skipReason?: WorkflowStepSkipReason;
 };
 
 export type WorkflowRunDetail = WorkflowRunSummary & {

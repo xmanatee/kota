@@ -1,5 +1,6 @@
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { WorkflowStepSkipReason } from "#core/workflow/run-types.js";
 
 /** Known event payloads. Extend this map to add new typed events. */
 export type BusEvents = {
@@ -111,6 +112,7 @@ export type BusEvents = {
     definitionPath: string;
     /** Effective autonomy posture for this step. See {@link workflow.step.started}. */
     autonomyMode?: AutonomyMode;
+    skipReason?: WorkflowStepSkipReason;
   };
   "session.start": { sessionId: string; label?: string; channelIdentity?: ChannelUserIdentity };
   "session.end": {

@@ -95,7 +95,8 @@ describe("branch step – WorkflowTestHarness", () => {
     const result = await harness.run();
     expect(result.status).toBe("success");
     expect(result.steps["my-branch"].status).toBe("skipped");
-    expect(result.steps["true-step"]).toBeUndefined();
+    expect(result.steps["true-step"]?.status).toBe("skipped");
+    expect(result.steps["true-step"]?.skipReason).toEqual({ kind: "parent-skipped" });
   });
 
   it("propagates condition error as step failure", async () => {

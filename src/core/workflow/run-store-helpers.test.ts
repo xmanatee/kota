@@ -311,6 +311,46 @@ describe("assertWorkflowRunMetadata", () => {
       assertWorkflowRunMetadata(path, { ...validMetadata, status: "pending" }),
     ).toThrow(JsonFileError);
   });
+
+  it("requires skipped steps to carry a valid skipReason", () => {
+    const skipped = {
+      id: "skip",
+      type: "code",
+      status: "skipped",
+      startedAt: "2026-01-01T00:00:00.000Z",
+      completedAt: "2026-01-01T00:00:00.000Z",
+      durationMs: 0,
+    };
+
+    expect(() =>
+      assertWorkflowRunMetadata(path, { ...validMetadata, steps: [skipped] }),
+    ).toThrow(JsonFileError);
+    expect(() =>
+      assertWorkflowRunMetadata(path, {
+        ...validMetadata,
+        steps: [{ ...skipped, skipReason: { kind: "when-predicate" } }],
+      }),
+    ).not.toThrow();
+  });
+
+  it("rejects skipReason on non-skipped steps", () => {
+    expect(() =>
+      assertWorkflowRunMetadata(path, {
+        ...validMetadata,
+        steps: [
+          {
+            id: "ok",
+            type: "code",
+            status: "success",
+            startedAt: "2026-01-01T00:00:00.000Z",
+            completedAt: "2026-01-01T00:00:00.001Z",
+            durationMs: 1,
+            skipReason: { kind: "when-predicate" },
+          },
+        ],
+      }),
+    ).toThrow(JsonFileError);
+  });
 });
 
 // ---------------------------------------------------------------------------

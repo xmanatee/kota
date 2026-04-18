@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { ROOT_CONTEXT, type Span, SpanStatusCode, trace } from "@opentelemetry/api";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { WorkflowStepSkipReason } from "#core/workflow/run-types.js";
 
 const TRACER_NAME = "kota-workflow";
 
@@ -15,6 +16,7 @@ type StepCompletedPayload = {
   costUsd?: number;
   runDir: string;
   autonomyMode?: AutonomyMode;
+  skipReason?: WorkflowStepSkipReason;
 };
 
 type AgentStepOutput = {
@@ -105,6 +107,13 @@ export class WorkflowTracer {
 
     if (payload.costUsd != null) {
       span.setAttribute("workflow.step.cost_usd", payload.costUsd);
+    }
+
+    if (payload.skipReason) {
+      span.setAttribute("workflow.step.skip_reason", payload.skipReason.kind);
+      if (payload.skipReason.label) {
+        span.setAttribute("workflow.step.skip_label", payload.skipReason.label);
+      }
     }
 
     // Agent steps may resolve autonomyMode later than onStepStarted (the step

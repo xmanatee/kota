@@ -1,7 +1,7 @@
 import type { SDKMessage } from "#core/agent-sdk/types.js";
 import type { RepairCheckResult, RepairIteration } from "../repair-loop.js";
 import { buildRepairPrompt, runAgentRepairLoop } from "../repair-loop.js";
-import type { WorkflowRunMetadata, WorkflowStepContext } from "../run-types.js";
+import type { WorkflowRunMetadata, WorkflowStepContext, WorkflowStepSkipReason } from "../run-types.js";
 import type {
   WorkflowApprovalStep,
   WorkflowCodeStep,
@@ -56,6 +56,31 @@ export async function shouldRunStep(
 ): Promise<boolean> {
   if (!step.when) return true;
   return Boolean(await step.when(context));
+}
+
+export type StepRunDecision =
+  | { run: true }
+  | { run: false; skipReason: WorkflowStepSkipReason };
+
+/**
+ * Evaluate whether a step should run, returning either `{ run: true }` or a
+ * structured skip reason. Skip sites that need to persist a `skipReason` on
+ * the resulting `WorkflowStepResult` use this instead of {@link shouldRunStep}
+ * so the reason is constructed once, next to the predicate evaluation.
+ */
+export async function evaluateStepRunDecision(
+  step: WorkflowStep,
+  context: WorkflowStepContext,
+): Promise<StepRunDecision> {
+  if (!step.when) return { run: true };
+  const ok = Boolean(await step.when(context));
+  if (ok) return { run: true };
+  const label = step.when.skipLabel;
+  const skipReason: WorkflowStepSkipReason = {
+    kind: "when-predicate",
+    ...(label !== undefined ? { label } : {}),
+  };
+  return { run: false, skipReason };
 }
 
 export async function executeToolStep(

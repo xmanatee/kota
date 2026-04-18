@@ -6,8 +6,12 @@ import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { RepairSummary } from "#core/workflow/run-store-helpers.js";
 import { extractRepairSummary } from "#core/workflow/run-store-helpers.js";
-import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import type { WorkflowRunMetadata, WorkflowStepSkipReason } from "#core/workflow/run-types.js";
 import { formatDuration, statusIcon } from "../utils.js";
+
+export function formatSkipReason(reason: WorkflowStepSkipReason): string {
+  return reason.label ? `${reason.kind}:${reason.label}` : reason.kind;
+}
 
 export function formatWarningsSection(warnings: Array<{ type: string; message: string }>): string[] {
   return warnings.map((w) => `  [${w.type}] ${w.message}`);
@@ -148,6 +152,7 @@ export function registerRunShowCommand(wfCmd: Command): void {
             durationMs: s.durationMs,
             error: s.error,
             ...(s.costUsd != null && { costUsd: s.costUsd, output: { totalCostUsd: s.costUsd } }),
+            ...(s.skipReason !== undefined && { skipReason: s.skipReason }),
           })),
           ...(daemonRun.completedAt != null && { completedAt: daemonRun.completedAt }),
           ...(daemonRun.durationMs != null && { durationMs: daemonRun.durationMs }),
@@ -277,6 +282,9 @@ export function registerRunShowCommand(wfCmd: Command): void {
             if (step.error) {
               console.log(`      Error: ${step.error}`);
             }
+            if (step.status === "skipped" && step.skipReason) {
+              console.log(`      Skipped: ${formatSkipReason(step.skipReason)}`);
+            }
             const inner = (step.output as { steps?: Array<{ id: string; type: string; status: string; durationMs: number; costUsd?: number; error?: string; continueOnFailure?: boolean }> } | null)?.steps ?? [];
             for (const childStep of inner) {
               const childIcon = childStep.status === "failed" && childStep.continueOnFailure ? "⚠" : statusIcon(childStep.status as "success" | "failed" | "skipped");
@@ -299,6 +307,9 @@ export function registerRunShowCommand(wfCmd: Command): void {
           console.log(`  ${icon} ${step.id} [${step.type}] ${dur}${cost}${suffix}`);
           if (step.error) {
             console.log(`      Error: ${step.error}`);
+          }
+          if (step.status === "skipped" && step.skipReason) {
+            console.log(`      Skipped: ${formatSkipReason(step.skipReason)}`);
           }
           if (repairSummary) {
             console.log(`      ${formatRepairLine(repairSummary)}`);

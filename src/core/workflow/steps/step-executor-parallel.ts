@@ -2,7 +2,7 @@ import type { SDKMessage } from "#core/agent-sdk/types.js";
 import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
 import type { WorkflowStepContext, WorkflowStepResult } from "../run-types.js";
 import type { WorkflowDefinition, WorkflowParallelGroup, WorkflowRunTrigger } from "../types.js";
-import { executeCodeStep, shouldRunStep } from "./step-executor.js";
+import { evaluateStepRunDecision, executeCodeStep } from "./step-executor.js";
 import type { AgentStepConfig } from "./step-executor-agent.js";
 import { executeAgentStep } from "./step-executor-agent.js";
 
@@ -64,8 +64,9 @@ export async function executeParallelStepGroup(
 
   const childResults = await Promise.allSettled(
     step.steps.map(async (childStep) => {
-      if (!(await shouldRunStep(childStep, context))) {
-        return { childStep, skipped: true, output: null as unknown };
+      const runDecision = await evaluateStepRunDecision(childStep, context);
+      if (!runDecision.run) {
+        return { childStep, skipped: true as const, skipReason: runDecision.skipReason, output: null as unknown };
       }
 
       if (childStep.type === "agent") {
@@ -104,7 +105,7 @@ export async function executeParallelStepGroup(
               context.stepOutputs,
             );
             const output = await Promise.race([agentPromise, timeoutPromise]);
-            return { childStep, skipped: false, output };
+            return { childStep, skipped: false as const, output };
           } finally {
             clearTimeout(timeoutHandle);
             agentDeps.runAbortController.signal.removeEventListener("abort", forwardAbort);
@@ -115,7 +116,7 @@ export async function executeParallelStepGroup(
       }
 
       const output = await executeCodeStep(childStep, context);
-      return { childStep, skipped: false, output };
+      return { childStep, skipped: false as const, output };
     }),
   );
 
@@ -129,14 +130,16 @@ export async function executeParallelStepGroup(
     const result = childResults[i];
     if (result.status === "fulfilled") {
       if (result.value.skipped) {
-        innerResults.push({
+        const childSkipped: WorkflowStepResult = {
           id: childStep.id,
           type: childStep.type,
           status: "skipped",
           startedAt: childStartedAt,
           completedAt: childCompletedAt,
           durationMs: 0,
-        });
+          skipReason: result.value.skipReason,
+        };
+        innerResults.push(childSkipped);
       } else {
         innerResults.push({
           id: childStep.id,

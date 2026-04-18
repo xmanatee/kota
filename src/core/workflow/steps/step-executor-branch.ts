@@ -2,7 +2,7 @@ import type { EventBus } from "#core/events/event-bus.js";
 import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
 import { buildStepCompletedPayload, buildStepStartedPayload, resolveStepAutonomyMode } from "../event-payloads.js";
 import { buildSkippedResult, executeWorkflowStep, type StepAccumulators } from "../run-executor-step.js";
-import type { WorkflowStepContext, WorkflowStepResult } from "../run-types.js";
+import type { WorkflowStepContext, WorkflowStepResult, WorkflowStepSkipReason } from "../run-types.js";
 import type {
   WorkflowBranchStep,
   WorkflowDefinition,
@@ -10,7 +10,7 @@ import type {
   WorkflowRunTrigger,
   WorkflowStep,
 } from "../types.js";
-import { shouldRunStep } from "./step-executor.js";
+import { evaluateStepRunDecision } from "./step-executor.js";
 import type { AgentStepConfig } from "./step-executor-agent.js";
 import { executeForeachStepGroup, type ForeachGroupResult } from "./step-executor-foreach.js";
 import { executeParallelStepGroup, type ParallelAgentDeps } from "./step-executor-parallel.js";
@@ -45,7 +45,8 @@ async function executeArmSteps(
     const context = getContext();
     const stepStartedAt = Date.now();
 
-    if (!(await shouldRunStep(armStep, context))) {
+    const runDecision = await evaluateStepRunDecision(armStep, context);
+    if (!runDecision.run) {
       buildSkippedResult(
         armStep,
         stepStartedAt,
@@ -54,6 +55,7 @@ async function executeArmSteps(
         deps.bus,
         deps.run.metadata,
         deps.definition.defaultAutonomyMode,
+        runDecision.skipReason,
       );
       continue;
     }
@@ -213,6 +215,7 @@ export async function executeBranchStepGroup(
   const armSteps = conditionResult ? step.ifTrue : step.ifFalse;
   const skippedArm = conditionResult ? step.ifFalse : step.ifTrue;
   const skippedAt = new Date(stepStartedAt).toISOString();
+  const armNotTakenReason: WorkflowStepSkipReason = { kind: "branch-arm-not-taken" };
 
   // Mark skipped arm steps as skipped
   const skipArmSteps = (steps: WorkflowStep[]) => {
@@ -225,6 +228,7 @@ export async function executeBranchStepGroup(
         startedAt: skippedAt,
         completedAt: skippedAt,
         durationMs: 0,
+        skipReason: armNotTakenReason,
       };
       if (s.type === "branch") {
         skipArmSteps(s.ifTrue);
@@ -239,6 +243,7 @@ export async function executeBranchStepGroup(
             startedAt: skippedAt,
             completedAt: skippedAt,
             durationMs: 0,
+            skipReason: armNotTakenReason,
           };
         }
       }

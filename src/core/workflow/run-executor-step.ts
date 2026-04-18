@@ -4,7 +4,7 @@ import type { EventBus } from "#core/events/event-bus.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import { buildStepCompletedPayload, resolveStepAutonomyMode } from "./event-payloads.js";
-import type { ToolCallSummaryEntry, WorkflowRunMetadata, WorkflowRunWarning, WorkflowStepContext, WorkflowStepResult } from "./run-types.js";
+import type { ToolCallSummaryEntry, WorkflowRunMetadata, WorkflowRunWarning, WorkflowStepContext, WorkflowStepResult, WorkflowStepSkipReason } from "./run-types.js";
 import {
   type AgentStepConfig,
   AgentStepRuntimeError,
@@ -66,6 +66,8 @@ type StepDeps = {
   log: (message: string) => void;
 };
 
+const PARENT_SKIPPED_REASON: WorkflowStepSkipReason = { kind: "parent-skipped" };
+
 export function buildSkippedResult(
   step: WorkflowStep,
   stepStartedAt: number,
@@ -74,6 +76,7 @@ export function buildSkippedResult(
   bus: EventBus,
   runMetadata: WorkflowRunMetadata,
   defaultAutonomyMode: AutonomyMode | undefined,
+  skipReason: WorkflowStepSkipReason,
 ): WorkflowStepResult {
   const skipped: WorkflowStepResult = {
     id: step.id,
@@ -82,6 +85,7 @@ export function buildSkippedResult(
     startedAt: new Date(stepStartedAt).toISOString(),
     completedAt: new Date().toISOString(),
     durationMs: Date.now() - stepStartedAt,
+    skipReason,
   };
   recordStep(skipped);
   acc.stepOutputsById[step.id] = { skipped: true };
@@ -97,6 +101,7 @@ export function buildSkippedResult(
         startedAt: skippedAt,
         completedAt: skippedAt,
         durationMs: 0,
+        skipReason: PARENT_SKIPPED_REASON,
       };
       acc.stepOutputsById[childStep.id] = { skipped: true };
       acc.stepResultsById[childStep.id] = childSkipped;
@@ -113,6 +118,7 @@ export function buildSkippedResult(
           startedAt: skippedAt,
           completedAt: skippedAt,
           durationMs: 0,
+          skipReason: PARENT_SKIPPED_REASON,
         };
         if (armStep.type === "branch") {
           skipArmSteps(armStep.ifTrue);
@@ -133,6 +139,7 @@ export function buildSkippedResult(
         startedAt: skippedAt,
         completedAt: skippedAt,
         durationMs: 0,
+        skipReason: PARENT_SKIPPED_REASON,
       };
     }
   }

@@ -6,6 +6,7 @@ import type {
   WorkflowRunMetadata,
   WorkflowRunStatus,
   WorkflowRuntimeState,
+  WorkflowStepSkipReason,
 } from "./run-types.js";
 import type {
   WorkflowAgentBackoffState,
@@ -37,6 +38,48 @@ function isWorkflowRunStatus(value: unknown): value is WorkflowRunStatus {
     value === "interrupted" ||
     value === "completed-with-warnings"
   );
+}
+
+function isWorkflowStepSkipReason(value: unknown): value is WorkflowStepSkipReason {
+  return (
+    isPlainObject(value) &&
+    (
+      value.kind === "when-predicate" ||
+      value.kind === "branch-arm-not-taken" ||
+      value.kind === "parent-skipped" ||
+      value.kind === "foreach-empty"
+    ) &&
+    (value.label === undefined || typeof value.label === "string")
+  );
+}
+
+function assertWorkflowStepResult(path: string, value: unknown): void {
+  if (
+    !isPlainObject(value) ||
+    typeof value.id !== "string" ||
+    typeof value.type !== "string" ||
+    typeof value.startedAt !== "string" ||
+    typeof value.completedAt !== "string" ||
+    typeof value.durationMs !== "number"
+  ) {
+    throw new JsonFileError(path, "parse", "workflow run metadata has invalid step result");
+  }
+  if (
+    value.status !== "success" &&
+    value.status !== "failed" &&
+    value.status !== "skipped"
+  ) {
+    throw new JsonFileError(path, "parse", "workflow run metadata has invalid step status");
+  }
+  if (value.status === "skipped") {
+    if (!isWorkflowStepSkipReason(value.skipReason)) {
+      throw new JsonFileError(path, "parse", "skipped workflow step is missing a valid skipReason");
+    }
+    return;
+  }
+  if (value.skipReason !== undefined) {
+    throw new JsonFileError(path, "parse", "non-skipped workflow step must not include skipReason");
+  }
 }
 
 function isWorkflowAgentBackoffState(
@@ -229,6 +272,9 @@ export function assertWorkflowRunMetadata(
     !isWorkflowRunStatus(value.status)
   ) {
     throw new JsonFileError(path, "parse", "workflow run metadata has invalid status");
+  }
+  for (const step of value.steps) {
+    assertWorkflowStepResult(path, step);
   }
 }
 

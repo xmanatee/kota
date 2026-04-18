@@ -16,7 +16,7 @@ import { createStepContext } from "./steps/step-context.js";
 import {
   type AgentStepConfig,
   AgentStepRuntimeError,
-  shouldRunStep,
+  evaluateStepRunDecision,
 } from "./steps/step-executor.js";
 import { type BranchGroupResult, executeBranchStepGroup } from "./steps/step-executor-branch.js";
 import { executeForeachStepGroup, type ForeachGroupResult } from "./steps/step-executor-foreach.js";
@@ -113,8 +113,18 @@ export function executeWorkflowRun(
           resolveSkillsPrompt: deps.resolveSkillsPrompt,
         };
 
-        if (!(await shouldRunStep(step, context))) {
-          buildSkippedResult(step, stepStartedAt, acc, (r) => run.recordStep(r), deps.bus, run.metadata, definition.defaultAutonomyMode);
+        const runDecision = await evaluateStepRunDecision(step, context);
+        if (!runDecision.run) {
+          buildSkippedResult(
+            step,
+            stepStartedAt,
+            acc,
+            (r) => run.recordStep(r),
+            deps.bus,
+            run.metadata,
+            definition.defaultAutonomyMode,
+            runDecision.skipReason,
+          );
           continue;
         }
 

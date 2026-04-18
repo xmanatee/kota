@@ -51,6 +51,7 @@ export function buildStepCompletedPayload(
     runDir: metadata.runDir,
     definitionPath: metadata.definitionPath,
     ...(autonomyMode !== undefined ? { autonomyMode } : {}),
+    ...(result.skipReason !== undefined ? { skipReason: result.skipReason } : {}),
   };
 }
 
