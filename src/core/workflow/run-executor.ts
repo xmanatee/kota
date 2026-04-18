@@ -5,6 +5,7 @@ import {
   buildStepCompletedPayload,
   buildStepStartedPayload,
   buildWorkflowCompletedPayload,
+  buildWorkflowStartedPayload,
 } from "./event-payloads.js";
 import { validatePayloadSchema } from "./payload-validator.js";
 import { buildSkippedResult, DEFAULT_STEP_TIMEOUT_MS, executeWorkflowStep } from "./run-executor-step.js";
@@ -61,14 +62,10 @@ export function executeWorkflowRun(
     }, definition.runTimeoutMs);
   }
 
-  deps.bus.emit("workflow.started", {
-    workflow: definition.name,
-    runId: run.metadata.id,
-    triggerEvent: trigger.event,
-    definitionPath: run.metadata.definitionPath,
-    runDir: run.metadata.runDir,
-    startedAt: run.metadata.startedAt,
-  });
+  deps.bus.emit(
+    "workflow.started",
+    buildWorkflowStartedPayload(run.metadata, definition),
+  );
   deps.log(`Starting workflow "${definition.name}" (${run.metadata.id})`);
 
   const promise = (async (): Promise<WorkflowRunExecutionResult> => {
@@ -117,13 +114,13 @@ export function executeWorkflowRun(
         };
 
         if (!(await shouldRunStep(step, context))) {
-          buildSkippedResult(step, stepStartedAt, acc, (r) => run.recordStep(r), deps.bus, run.metadata);
+          buildSkippedResult(step, stepStartedAt, acc, (r) => run.recordStep(r), deps.bus, run.metadata, definition.defaultAutonomyMode);
           continue;
         }
 
         deps.bus.emit(
           "workflow.step.started",
-          buildStepStartedPayload(run.metadata, step),
+          buildStepStartedPayload(run.metadata, step, definition.defaultAutonomyMode),
         );
         deps.log(`Starting step "${step.id}" (${step.type}) in workflow "${definition.name}"`);
 
@@ -149,7 +146,7 @@ export function executeWorkflowRun(
           previousOutput = groupResult.output;
           deps.bus.emit(
             "workflow.step.completed",
-            buildStepCompletedPayload(run.metadata, groupResult),
+            buildStepCompletedPayload(run.metadata, groupResult, definition.defaultAutonomyMode),
           );
           deps.log(
             `Completed step "${step.id}" (parallel) in workflow "${definition.name}" [${groupResult.durationMs}ms]`,
@@ -212,7 +209,7 @@ export function executeWorkflowRun(
             run.recordStep(failed);
             stepOutputsById[step.id] = undefined;
             stepResultsById[step.id] = failed;
-            deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, failed));
+            deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, failed, definition.defaultAutonomyMode));
             deps.log(`Failed step "${step.id}" (branch) in workflow "${definition.name}": ${error.message}`);
             if (step.continueOnFailure) { hadWarnings = true; continue; }
             throw error;
@@ -226,7 +223,7 @@ export function executeWorkflowRun(
           stepResultsById[step.id] = branchResult;
           stepOutputs.push(branchResult.output);
           previousOutput = branchResult.output;
-          deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, branchResult));
+          deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, branchResult, definition.defaultAutonomyMode));
           deps.log(`Completed step "${step.id}" (branch) in workflow "${definition.name}" [${branchResult.durationMs}ms]`);
           if (branchFailed) {
             if (step.continueOnFailure) { hadWarnings = true; continue; }
@@ -294,7 +291,7 @@ export function executeWorkflowRun(
             run.recordStep(failed);
             stepOutputsById[step.id] = undefined;
             stepResultsById[step.id] = failed;
-            deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, failed));
+            deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, failed, definition.defaultAutonomyMode));
             deps.log(`Failed step "${step.id}" (foreach) in workflow "${definition.name}": ${error.message}`);
             if (step.continueOnFailure) { hadWarnings = true; continue; }
             throw error;
@@ -308,7 +305,7 @@ export function executeWorkflowRun(
           stepResultsById[step.id] = groupResult;
           stepOutputs.push(groupResult.output);
           previousOutput = groupResult.output;
-          deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, groupResult));
+          deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, groupResult, definition.defaultAutonomyMode));
           deps.log(`Completed step "${step.id}" (foreach) in workflow "${definition.name}" [${groupResult.durationMs}ms]`);
           if (groupFailed) {
             if (step.continueOnFailure) { hadWarnings = true; continue; }
@@ -348,7 +345,7 @@ export function executeWorkflowRun(
       });
       deps.bus.emit(
         "workflow.completed",
-        buildWorkflowCompletedPayload(completed, finalStatus, definition.tags),
+        buildWorkflowCompletedPayload(completed, finalStatus, definition.tags, undefined, definition.defaultAutonomyMode),
       );
       deps.log(`Completed workflow "${definition.name}" (${completed.id})`);
       return {
@@ -374,7 +371,7 @@ export function executeWorkflowRun(
       });
       deps.bus.emit(
         "workflow.completed",
-        buildWorkflowCompletedPayload(completed, status, definition.tags, agentBackoff?.kind),
+        buildWorkflowCompletedPayload(completed, status, definition.tags, agentBackoff?.kind, definition.defaultAutonomyMode),
       );
       deps.log(
         `${status === "interrupted" ? "Interrupted" : "Failed"} workflow "${definition.name}" (${completed.id}): ${err.message}`,

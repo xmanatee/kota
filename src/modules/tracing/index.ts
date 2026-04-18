@@ -110,6 +110,11 @@ function subscribeToEvents(
         payload as Parameters<NonNullable<typeof metricsEmitter>["onWorkflowCompleted"]>[0],
       );
     }),
+    ctx.events.subscribe("session.autonomy.changed", (payload) => {
+      metricsEmitter?.onSessionAutonomyChanged(
+        payload as Parameters<NonNullable<typeof metricsEmitter>["onSessionAutonomyChanged"]>[0],
+      );
+    }),
   );
 }
 

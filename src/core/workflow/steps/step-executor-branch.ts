@@ -1,6 +1,6 @@
 import type { EventBus } from "#core/events/event-bus.js";
 import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
-import { buildStepCompletedPayload, buildStepStartedPayload } from "../event-payloads.js";
+import { buildStepCompletedPayload, buildStepStartedPayload, resolveStepAutonomyMode } from "../event-payloads.js";
 import { buildSkippedResult, executeWorkflowStep, type StepAccumulators } from "../run-executor-step.js";
 import type { WorkflowStepContext, WorkflowStepResult } from "../run-types.js";
 import type {
@@ -53,11 +53,15 @@ async function executeArmSteps(
         (r) => deps.run.recordStep(r),
         deps.bus,
         deps.run.metadata,
+        deps.definition.defaultAutonomyMode,
       );
       continue;
     }
 
-    deps.bus.emit("workflow.step.started", buildStepStartedPayload(deps.run.metadata, armStep));
+    deps.bus.emit(
+      "workflow.step.started",
+      buildStepStartedPayload(deps.run.metadata, armStep, deps.definition.defaultAutonomyMode),
+    );
     deps.log(`Starting step "${armStep.id}" (${armStep.type}) in workflow "${deps.definition.name}"`);
 
     if (armStep.type === "parallel") {
@@ -79,7 +83,14 @@ async function executeArmSteps(
           child.status === "success" ? child.output : { skipped: true };
       }
       deps.acc.stepOutputs.push(groupResult.output);
-      deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(deps.run.metadata, groupResult));
+      deps.bus.emit(
+        "workflow.step.completed",
+        buildStepCompletedPayload(
+          deps.run.metadata,
+          groupResult,
+          resolveStepAutonomyMode(armStep, deps.definition.defaultAutonomyMode),
+        ),
+      );
       deps.log(`Completed step "${armStep.id}" (parallel) in workflow "${deps.definition.name}" [${groupResult.durationMs}ms]`);
       if (groupFailed) {
         if (armStep.continueOnFailure) { hadWarnings = true; continue; }
@@ -99,7 +110,14 @@ async function executeArmSteps(
       deps.acc.stepOutputsById[armStep.id] = nestedResult.branchResult.output;
       deps.acc.stepResultsById[armStep.id] = nestedResult.branchResult;
       deps.acc.stepOutputs.push(nestedResult.branchResult.output);
-      deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(deps.run.metadata, nestedResult.branchResult));
+      deps.bus.emit(
+        "workflow.step.completed",
+        buildStepCompletedPayload(
+          deps.run.metadata,
+          nestedResult.branchResult,
+          resolveStepAutonomyMode(armStep, deps.definition.defaultAutonomyMode),
+        ),
+      );
       if (nestedResult.branchFailed) {
         if (armStep.continueOnFailure) { hadWarnings = true; continue; }
         return { hadWarnings, failed: true, thrownError: nestedResult.thrownError };
@@ -125,7 +143,14 @@ async function executeArmSteps(
       deps.acc.stepOutputsById[armStep.id] = groupResult.output;
       deps.acc.stepResultsById[armStep.id] = groupResult;
       deps.acc.stepOutputs.push(groupResult.output);
-      deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(deps.run.metadata, groupResult));
+      deps.bus.emit(
+        "workflow.step.completed",
+        buildStepCompletedPayload(
+          deps.run.metadata,
+          groupResult,
+          resolveStepAutonomyMode(armStep, deps.definition.defaultAutonomyMode),
+        ),
+      );
       if (groupFailed) {
         if (armStep.continueOnFailure) { hadWarnings = true; continue; }
         return { hadWarnings, failed: true, thrownError };
@@ -173,7 +198,14 @@ export async function executeBranchStepGroup(
       error: `Branch condition error: ${error.message}`,
       ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
     };
-    deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(deps.run.metadata, failed));
+    deps.bus.emit(
+      "workflow.step.completed",
+      buildStepCompletedPayload(
+        deps.run.metadata,
+        failed,
+        resolveStepAutonomyMode(step, deps.definition.defaultAutonomyMode),
+      ),
+    );
     return { branchResult: failed, arm: "ifTrue", hadNewWarnings: false, branchFailed: true, thrownError: error };
   }
 

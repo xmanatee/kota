@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { Counter, Histogram, Meter } from "@opentelemetry/api";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 
 type WorkflowCompletedPayload = {
   workflow: string;
@@ -12,6 +13,7 @@ type WorkflowCompletedPayload = {
   runDir: string;
   tags: readonly string[];
   failureKind?: "rate_limit" | "auth" | "provider";
+  autonomyMode?: AutonomyMode;
 };
 
 type StepCompletedPayload = {
@@ -23,6 +25,13 @@ type StepCompletedPayload = {
   durationMs: number;
   costUsd?: number;
   runDir: string;
+  autonomyMode?: AutonomyMode;
+};
+
+type SessionAutonomyChangedPayload = {
+  sessionId: string;
+  from: AutonomyMode;
+  to: AutonomyMode;
 };
 
 type AgentStepOutput = {
@@ -54,6 +63,7 @@ export class WorkflowMetricsEmitter {
   private readonly agentTokens: Counter;
   private readonly repairLoopHits: Counter;
   private readonly failureClass: Counter;
+  private readonly sessionAutonomyTransitions: Counter;
 
   constructor(
     meter: Meter,
@@ -87,30 +97,41 @@ export class WorkflowMetricsEmitter {
     this.failureClass = meter.createCounter("kota.workflow.failure_class", {
       description: "Classified failure counts for workflow runs (rate_limit, auth, provider)",
     });
+    this.sessionAutonomyTransitions = meter.createCounter(
+      "kota.workflow.session_autonomy_transitions",
+      {
+        description:
+          "Session autonomy-mode transitions, labelled by autonomy.from and autonomy.to",
+      },
+    );
   }
 
   onWorkflowCompleted(payload: WorkflowCompletedPayload): void {
-    const baseAttrs = {
+    const baseAttrs: Record<string, string> = {
       "workflow.name": payload.workflow,
       "workflow.status": payload.status,
     };
+    if (payload.autonomyMode !== undefined) baseAttrs.autonomy_mode = payload.autonomyMode;
     this.runCounter.add(1, baseAttrs);
     this.runDuration.record(payload.durationMs, baseAttrs);
     if (payload.failureKind) {
-      this.failureClass.add(1, {
+      const failureAttrs: Record<string, string> = {
         "workflow.name": payload.workflow,
         "workflow.failure_kind": payload.failureKind,
-      });
+      };
+      if (payload.autonomyMode !== undefined) failureAttrs.autonomy_mode = payload.autonomyMode;
+      this.failureClass.add(1, failureAttrs);
     }
   }
 
   onStepCompleted(payload: StepCompletedPayload): void {
-    const attrs = {
+    const attrs: Record<string, string> = {
       "workflow.name": payload.workflow,
       "workflow.step.id": payload.stepId,
       "workflow.step.type": payload.stepType,
       "workflow.step.status": payload.status,
     };
+    if (payload.autonomyMode !== undefined) attrs.autonomy_mode = payload.autonomyMode;
     this.stepDuration.record(payload.durationMs, attrs);
     if (payload.costUsd != null) {
       this.stepCost.record(payload.costUsd, attrs);
@@ -124,30 +145,43 @@ export class WorkflowMetricsEmitter {
       this.stepCost.record(output.totalCostUsd, attrs);
     }
     if (output.inputTokens != null) {
-      this.agentTokens.add(output.inputTokens, {
+      const tokenAttrs: Record<string, string> = {
         "workflow.name": payload.workflow,
         "workflow.step.id": payload.stepId,
         "token.direction": "input",
-      });
+      };
+      if (payload.autonomyMode !== undefined) tokenAttrs.autonomy_mode = payload.autonomyMode;
+      this.agentTokens.add(output.inputTokens, tokenAttrs);
     }
     if (output.outputTokens != null) {
-      this.agentTokens.add(output.outputTokens, {
+      const tokenAttrs: Record<string, string> = {
         "workflow.name": payload.workflow,
         "workflow.step.id": payload.stepId,
         "token.direction": "output",
-      });
+      };
+      if (payload.autonomyMode !== undefined) tokenAttrs.autonomy_mode = payload.autonomyMode;
+      this.agentTokens.add(output.outputTokens, tokenAttrs);
     }
     if (output.repairIterations) {
       for (const iter of output.repairIterations) {
         for (const failure of iter.failures) {
-          this.repairLoopHits.add(1, {
+          const repairAttrs: Record<string, string> = {
             "workflow.name": payload.workflow,
             "workflow.step.id": payload.stepId,
             "repair.check_id": failure.id,
-          });
+          };
+          if (payload.autonomyMode !== undefined) repairAttrs.autonomy_mode = payload.autonomyMode;
+          this.repairLoopHits.add(1, repairAttrs);
         }
       }
     }
+  }
+
+  onSessionAutonomyChanged(payload: SessionAutonomyChangedPayload): void {
+    this.sessionAutonomyTransitions.add(1, {
+      "autonomy.from": payload.from,
+      "autonomy.to": payload.to,
+    });
   }
 
   private readAgentStepOutput(runDir: string, stepId: string): AgentStepOutput | undefined {

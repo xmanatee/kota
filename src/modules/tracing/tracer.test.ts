@@ -196,6 +196,95 @@ describe("WorkflowTracer", () => {
     expect(stepSpan!.status.code).toBe(SpanStatusCode.ERROR);
   });
 
+  it("tags workflow and step spans with autonomy_mode when payload carries it", () => {
+    const tracer = new WorkflowTracer(projectDir, new Map());
+    tracer.onWorkflowStarted({
+      workflow: "builder",
+      runId: "run-am",
+      triggerEvent: "autonomy.queue.available",
+      runDir: ".kota/runs/run-am",
+      startedAt: new Date().toISOString(),
+      autonomyMode: "autonomous",
+    });
+    tracer.onStepStarted({
+      workflow: "builder",
+      runId: "run-am",
+      stepId: "build",
+      stepType: "agent",
+      startedAt: new Date().toISOString(),
+      autonomyMode: "autonomous",
+    });
+    tracer.onStepCompleted({
+      workflow: "builder",
+      runId: "run-am",
+      stepId: "build",
+      stepType: "agent",
+      status: "success",
+      durationMs: 1000,
+      runDir: ".kota/runs/run-am",
+      autonomyMode: "supervised",
+    });
+    tracer.onWorkflowCompleted({
+      workflow: "builder",
+      runId: "run-am",
+      status: "success",
+      durationMs: 1100,
+      triggerEvent: "autonomy.queue.available",
+      tags: [],
+      autonomyMode: "autonomous",
+    });
+
+    const spans = exporter.getFinishedSpans();
+    const root = spans.find((s) => s.name === "workflow.run");
+    const stepSpan = spans.find((s) => s.name === "step.agent");
+    expect(root!.attributes.autonomy_mode).toBe("autonomous");
+    // Step span reflects the mode that was effective at completion (the
+    // payload's autonomy_mode), which may differ from onStepStarted when the
+    // operator changes mid-run.
+    expect(stepSpan!.attributes.autonomy_mode).toBe("supervised");
+  });
+
+  it("omits autonomy_mode attribute when the payload does not carry it", () => {
+    const tracer = new WorkflowTracer(projectDir, new Map());
+    tracer.onWorkflowStarted({
+      workflow: "builder",
+      runId: "run-no-am",
+      triggerEvent: "test",
+      runDir: ".kota/runs/run-no-am",
+      startedAt: new Date().toISOString(),
+    });
+    tracer.onStepStarted({
+      workflow: "builder",
+      runId: "run-no-am",
+      stepId: "s",
+      stepType: "code",
+      startedAt: new Date().toISOString(),
+    });
+    tracer.onStepCompleted({
+      workflow: "builder",
+      runId: "run-no-am",
+      stepId: "s",
+      stepType: "code",
+      status: "success",
+      durationMs: 1,
+      runDir: ".kota/runs/run-no-am",
+    });
+    tracer.onWorkflowCompleted({
+      workflow: "builder",
+      runId: "run-no-am",
+      status: "success",
+      durationMs: 2,
+      triggerEvent: "test",
+      tags: [],
+    });
+
+    const spans = exporter.getFinishedSpans();
+    const root = spans.find((s) => s.name === "workflow.run");
+    const stepSpan = spans.find((s) => s.name === "step.code");
+    expect(root!.attributes.autonomy_mode).toBeUndefined();
+    expect(stepSpan!.attributes.autonomy_mode).toBeUndefined();
+  });
+
   it("includes model attribute from lookup for agent steps", () => {
     const modelLookup = new Map([["builder:build", "claude-sonnet-4-6"]]);
     const tracer = new WorkflowTracer(projectDir, modelLookup);

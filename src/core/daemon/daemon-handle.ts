@@ -348,8 +348,9 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       const session = sessions.get(id);
       if (!session) return { ok: false, notFound: true };
       session.autonomyMode = mode;
-      bus.emit("session.autonomy-mode.changed", { id, autonomyMode: mode });
-      // Serve-registered sessions live in another process — this daemon copy is
+      // The typed `session.autonomy.changed` event is emitted from
+      // AgentSession.setAutonomyMode when the mode actually changes. Serve-
+      // registered sessions live in another process — this daemon copy is
       // metadata only. The daemon control server layers a setter for its own
       // chat pool on top; for serve-registered rows we report serveOwned so the
       // caller can forward the change or surface it to the operator.

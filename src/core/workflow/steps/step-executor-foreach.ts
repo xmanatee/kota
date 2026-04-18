@@ -1,7 +1,7 @@
 import type { SDKMessage } from "#core/agent-sdk/types.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
-import { buildStepCompletedPayload, buildStepStartedPayload } from "../event-payloads.js";
+import { buildStepCompletedPayload, buildStepStartedPayload, resolveStepAutonomyMode } from "../event-payloads.js";
 import { applyOutputSizeLimit, DEFAULT_STEP_TIMEOUT_MS } from "../run-executor-step.js";
 import type { WorkflowRunWarning, WorkflowStepContext, WorkflowStepResult } from "../run-types.js";
 import type {
@@ -76,7 +76,7 @@ async function executeInnerStep(
 
   deps.bus.emit(
     "workflow.step.started",
-    buildStepStartedPayload(deps.run.metadata, innerStep),
+    buildStepStartedPayload(deps.run.metadata, innerStep, deps.definition.defaultAutonomyMode),
   );
   deps.log(
     `Starting foreach item[${itemIndex}] step "${innerStep.id}" (${innerStep.type}) in workflow "${deps.definition.name}"`,
@@ -144,7 +144,14 @@ async function executeInnerStep(
     deps.acc.stepOutputsById[innerStep.id] = limitedOutput;
     deps.acc.stepResultsById[innerStep.id] = completed;
     deps.acc.stepOutputs.push(limitedOutput);
-    deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(deps.run.metadata, completed));
+    deps.bus.emit(
+      "workflow.step.completed",
+      buildStepCompletedPayload(
+        deps.run.metadata,
+        completed,
+        resolveStepAutonomyMode(innerStep, deps.definition.defaultAutonomyMode),
+      ),
+    );
     deps.log(
       `Completed foreach item[${itemIndex}] step "${innerStep.id}" in workflow "${deps.definition.name}" [${completed.durationMs}ms]`,
     );
@@ -162,7 +169,14 @@ async function executeInnerStep(
       ...(innerStep.continueOnFailure ? { continueOnFailure: true } : {}),
     };
     deps.acc.stepResultsById[innerStep.id] = failed;
-    deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(deps.run.metadata, failed));
+    deps.bus.emit(
+      "workflow.step.completed",
+      buildStepCompletedPayload(
+        deps.run.metadata,
+        failed,
+        resolveStepAutonomyMode(innerStep, deps.definition.defaultAutonomyMode),
+      ),
+    );
     deps.log(
       `Failed foreach item[${itemIndex}] step "${innerStep.id}" in workflow "${deps.definition.name}": ${err.message}`,
     );
@@ -195,7 +209,14 @@ export async function executeForeachStepGroup(
       error: `foreach items resolution error: ${error.message}`,
       ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
     };
-    deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(deps.run.metadata, failed));
+    deps.bus.emit(
+      "workflow.step.completed",
+      buildStepCompletedPayload(
+        deps.run.metadata,
+        failed,
+        resolveStepAutonomyMode(step, deps.definition.defaultAutonomyMode),
+      ),
+    );
     return {
       groupResult: failed,
       itemResults: [],

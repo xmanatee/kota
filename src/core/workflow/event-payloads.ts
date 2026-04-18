@@ -1,11 +1,28 @@
 import type { BusEvents } from "#core/events/event-bus.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowRunMetadata, WorkflowRunStatus, WorkflowStepResult } from "./run-types.js";
-import type { WorkflowAgentBackoffKind, WorkflowStep } from "./types.js";
+import type { WorkflowAgentBackoffKind, WorkflowDefinition, WorkflowStep } from "./types.js";
+
+/**
+ * Resolve the autonomy posture that should be attached to a step-level bus
+ * event. Agent steps carry an explicit `autonomyMode` (required by the
+ * validator). Other step types inherit the workflow's `defaultAutonomyMode`
+ * when present, and are otherwise un-tagged.
+ */
+export function resolveStepAutonomyMode(
+  step: WorkflowStep,
+  defaultAutonomyMode: AutonomyMode | undefined,
+): AutonomyMode | undefined {
+  if (step.type === "agent") return step.autonomyMode;
+  return defaultAutonomyMode;
+}
 
 export function buildStepStartedPayload(
   metadata: WorkflowRunMetadata,
   step: WorkflowStep,
+  defaultAutonomyMode: AutonomyMode | undefined,
 ): BusEvents["workflow.step.started"] {
+  const autonomyMode = resolveStepAutonomyMode(step, defaultAutonomyMode);
   return {
     workflow: metadata.workflow,
     runId: metadata.id,
@@ -14,12 +31,14 @@ export function buildStepStartedPayload(
     runDir: metadata.runDir,
     definitionPath: metadata.definitionPath,
     startedAt: new Date().toISOString(),
+    ...(autonomyMode !== undefined ? { autonomyMode } : {}),
   };
 }
 
 export function buildStepCompletedPayload(
   metadata: WorkflowRunMetadata,
   result: WorkflowStepResult,
+  autonomyMode: AutonomyMode | undefined,
 ): BusEvents["workflow.step.completed"] {
   return {
     workflow: metadata.workflow,
@@ -31,6 +50,24 @@ export function buildStepCompletedPayload(
     ...(result.costUsd != null ? { costUsd: result.costUsd } : {}),
     runDir: metadata.runDir,
     definitionPath: metadata.definitionPath,
+    ...(autonomyMode !== undefined ? { autonomyMode } : {}),
+  };
+}
+
+export function buildWorkflowStartedPayload(
+  metadata: WorkflowRunMetadata,
+  definition: Pick<WorkflowDefinition, "defaultAutonomyMode">,
+): BusEvents["workflow.started"] {
+  return {
+    workflow: metadata.workflow,
+    runId: metadata.id,
+    triggerEvent: metadata.trigger.event,
+    definitionPath: metadata.definitionPath,
+    runDir: metadata.runDir,
+    startedAt: metadata.startedAt,
+    ...(definition.defaultAutonomyMode !== undefined
+      ? { autonomyMode: definition.defaultAutonomyMode }
+      : {}),
   };
 }
 
@@ -39,6 +76,7 @@ export function buildWorkflowCompletedPayload(
   status: WorkflowRunStatus,
   tags: readonly string[] = [],
   failureKind?: WorkflowAgentBackoffKind,
+  autonomyMode?: AutonomyMode,
 ): BusEvents["workflow.completed"] {
   return {
     workflow: metadata.workflow,
@@ -50,5 +88,6 @@ export function buildWorkflowCompletedPayload(
     runDir: metadata.runDir,
     tags,
     ...(failureKind ? { failureKind } : {}),
+    ...(autonomyMode !== undefined ? { autonomyMode } : {}),
   };
 }

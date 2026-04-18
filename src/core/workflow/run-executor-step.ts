@@ -1,8 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { EventBus } from "#core/events/event-bus.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
-import { buildStepCompletedPayload } from "./event-payloads.js";
+import { buildStepCompletedPayload, resolveStepAutonomyMode } from "./event-payloads.js";
 import type { ToolCallSummaryEntry, WorkflowRunMetadata, WorkflowRunWarning, WorkflowStepContext, WorkflowStepResult } from "./run-types.js";
 import {
   type AgentStepConfig,
@@ -72,6 +73,7 @@ export function buildSkippedResult(
   recordStep: (result: WorkflowStepResult) => void,
   bus: EventBus,
   runMetadata: WorkflowRunMetadata,
+  defaultAutonomyMode: AutonomyMode | undefined,
 ): WorkflowStepResult {
   const skipped: WorkflowStepResult = {
     id: step.id,
@@ -134,7 +136,14 @@ export function buildSkippedResult(
       };
     }
   }
-  bus.emit("workflow.step.completed", buildStepCompletedPayload(runMetadata, skipped));
+  bus.emit(
+    "workflow.step.completed",
+    buildStepCompletedPayload(
+      runMetadata,
+      skipped,
+      resolveStepAutonomyMode(step, defaultAutonomyMode),
+    ),
+  );
   return skipped;
 }
 
@@ -245,7 +254,14 @@ export async function executeWorkflowStep(
     acc.stepResultsById[step.id] = completed;
     acc.stepOutputs.push(output);
 
-    deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, completed));
+    deps.bus.emit(
+      "workflow.step.completed",
+      buildStepCompletedPayload(
+        run.metadata,
+        completed,
+        resolveStepAutonomyMode(step, definition.defaultAutonomyMode),
+      ),
+    );
     const logDetails: string[] = [`${completed.durationMs}ms`];
     if (completed.type === "agent" && completed.output && typeof completed.output === "object") {
       const o = completed.output as { turns?: unknown; totalCostUsd?: unknown; subtype?: unknown };
@@ -284,7 +300,14 @@ export async function executeWorkflowStep(
     };
     run.recordStep(failed);
     acc.stepResultsById[step.id] = failed;
-    deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, failed));
+    deps.bus.emit(
+      "workflow.step.completed",
+      buildStepCompletedPayload(
+        run.metadata,
+        failed,
+        resolveStepAutonomyMode(step, definition.defaultAutonomyMode),
+      ),
+    );
     deps.log(
       `Failed step "${failed.id}" (${failed.type}) in workflow "${definition.name}": ${failed.error ?? "unknown error"}`,
     );

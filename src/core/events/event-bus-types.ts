@@ -1,4 +1,5 @@
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 
 /** Known event payloads. Extend this map to add new typed events. */
 export type BusEvents = {
@@ -55,6 +56,13 @@ export type BusEvents = {
     definitionPath: string;
     runDir: string;
     startedAt: string;
+    /**
+     * Workflow-level autonomy posture, taken from the definition's
+     * `defaultAutonomyMode`. Absent when the workflow does not declare one.
+     * Subscribers (tracing, metrics) use this to tag run-level spans and
+     * metrics so operator dashboards can slice by supervision posture.
+     */
+    autonomyMode?: AutonomyMode;
   };
   "workflow.completed": {
     workflow: string;
@@ -72,6 +80,8 @@ export type BusEvents = {
      * observe the failure class without parsing error strings.
      */
     failureKind?: "rate_limit" | "auth" | "provider";
+    /** Workflow-level autonomy posture. See {@link workflow.started}. */
+    autonomyMode?: AutonomyMode;
   };
   "workflow.step.started": {
     workflow: string;
@@ -81,6 +91,13 @@ export type BusEvents = {
     runDir: string;
     definitionPath: string;
     startedAt: string;
+    /**
+     * Effective autonomy posture for this step. For agent steps this is the
+     * step's declared `autonomyMode`. For other step types this is the
+     * workflow-level default, when declared. Absent only when neither is
+     * set.
+     */
+    autonomyMode?: AutonomyMode;
   };
   "workflow.step.completed": {
     workflow: string;
@@ -92,6 +109,8 @@ export type BusEvents = {
     costUsd?: number;
     runDir: string;
     definitionPath: string;
+    /** Effective autonomy posture for this step. See {@link workflow.step.started}. */
+    autonomyMode?: AutonomyMode;
   };
   "session.start": { sessionId: string; label?: string; channelIdentity?: ChannelUserIdentity };
   "session.end": {
@@ -105,6 +124,16 @@ export type BusEvents = {
     from: string;
     to: string;
     meta?: Record<string, unknown>;
+  };
+  /**
+   * An operator (or a client acting on operator behalf) changed a session's
+   * autonomy posture. Emitted only when the mode actually changes, so the
+   * transition counter observes distinct from → to transitions.
+   */
+  "session.autonomy.changed": {
+    sessionId: string;
+    from: AutonomyMode;
+    to: AutonomyMode;
   };
   "schedule.fire": {
     itemId: number;

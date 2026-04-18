@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { ROOT_CONTEXT, type Span, SpanStatusCode, trace } from "@opentelemetry/api";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 
 const TRACER_NAME = "kota-workflow";
 
@@ -13,6 +14,7 @@ type StepCompletedPayload = {
   durationMs: number;
   costUsd?: number;
   runDir: string;
+  autonomyMode?: AutonomyMode;
 };
 
 type AgentStepOutput = {
@@ -47,6 +49,7 @@ export class WorkflowTracer {
     triggerEvent: string;
     runDir: string;
     startedAt: string;
+    autonomyMode?: AutonomyMode;
   }): void {
     const tracer = trace.getTracer(TRACER_NAME);
     const span = tracer.startSpan("workflow.run", {
@@ -55,6 +58,7 @@ export class WorkflowTracer {
         "workflow.run_id": payload.runId,
         "workflow.trigger_event": payload.triggerEvent,
         "workflow.run_dir": payload.runDir,
+        ...(payload.autonomyMode !== undefined ? { autonomy_mode: payload.autonomyMode } : {}),
       },
       startTime: new Date(payload.startedAt),
     });
@@ -67,6 +71,7 @@ export class WorkflowTracer {
     stepId: string;
     stepType: string;
     startedAt: string;
+    autonomyMode?: AutonomyMode;
   }): void {
     const tracer = trace.getTracer(TRACER_NAME);
     const parentSpan = this.runSpans.get(payload.runId);
@@ -81,6 +86,7 @@ export class WorkflowTracer {
           "workflow.run_id": payload.runId,
           "workflow.step.id": payload.stepId,
           "workflow.step.type": payload.stepType,
+          ...(payload.autonomyMode !== undefined ? { autonomy_mode: payload.autonomyMode } : {}),
         },
         startTime: new Date(payload.startedAt),
       },
@@ -99,6 +105,14 @@ export class WorkflowTracer {
 
     if (payload.costUsd != null) {
       span.setAttribute("workflow.step.cost_usd", payload.costUsd);
+    }
+
+    // Agent steps may resolve autonomyMode later than onStepStarted (the step
+    // carries its own declaration); non-agent steps inherit the workflow
+    // default and are already tagged on the started span. Set on completion
+    // too so the span carries the same mode the payload reports.
+    if (payload.autonomyMode !== undefined) {
+      span.setAttribute("autonomy_mode", payload.autonomyMode);
     }
 
     if (payload.stepType === "agent") {
@@ -141,6 +155,7 @@ export class WorkflowTracer {
     durationMs: number;
     triggerEvent: string;
     tags: readonly string[];
+    autonomyMode?: AutonomyMode;
   }): void {
     const span = this.runSpans.get(payload.runId);
     if (!span) return;
@@ -149,6 +164,9 @@ export class WorkflowTracer {
     span.setAttribute("workflow.duration_ms", payload.durationMs);
     if (payload.tags.length > 0) {
       span.setAttribute("workflow.tags", payload.tags.join(","));
+    }
+    if (payload.autonomyMode !== undefined) {
+      span.setAttribute("autonomy_mode", payload.autonomyMode);
     }
 
     if (payload.status === "failed" || payload.status === "interrupted") {

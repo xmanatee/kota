@@ -279,4 +279,87 @@ describe("WorkflowMetricsEmitter", () => {
     expect(errors).toHaveLength(1);
     expect(errors[0].msg).toContain("build.json");
   });
+
+  it("tags run, step, and cost metrics with autonomy_mode when present", async () => {
+    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
+
+    emitter.onWorkflowCompleted({
+      workflow: "builder",
+      runId: "run-auto",
+      status: "success",
+      triggerEvent: "autonomy.queue.available",
+      durationMs: 1000,
+      definitionPath: "x",
+      runDir: ".kota/runs/run-auto",
+      tags: [],
+      autonomyMode: "autonomous",
+    });
+    emitter.onStepCompleted({
+      workflow: "builder",
+      runId: "run-auto",
+      stepId: "build",
+      stepType: "agent",
+      status: "success",
+      durationMs: 500,
+      costUsd: 0.1,
+      runDir: ".kota/runs/run-auto",
+      autonomyMode: "autonomous",
+    });
+
+    const metrics = await collectMetrics(provider, exporter);
+    const runs = findMetric(metrics, "kota.workflow.runs");
+    const runPoint = runs!.dataPoints.find((p) =>
+      attrsMatch(p.attributes, {
+        "workflow.name": "builder",
+        "workflow.status": "success",
+        autonomy_mode: "autonomous",
+      }),
+    );
+    expect(runPoint?.value).toBe(1);
+
+    const stepDuration = findMetric(metrics, "kota.workflow.step.duration");
+    const stepPoint = stepDuration!.dataPoints.find((p) =>
+      attrsMatch(p.attributes, {
+        "workflow.name": "builder",
+        "workflow.step.id": "build",
+        autonomy_mode: "autonomous",
+      }),
+    );
+    expect(stepPoint).toBeDefined();
+  });
+
+  it("records a transition data point on session autonomy change", async () => {
+    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
+
+    emitter.onSessionAutonomyChanged({
+      sessionId: "sess-1",
+      from: "autonomous",
+      to: "supervised",
+    });
+    emitter.onSessionAutonomyChanged({
+      sessionId: "sess-1",
+      from: "supervised",
+      to: "autonomous",
+    });
+
+    const metrics = await collectMetrics(provider, exporter);
+    const transitions = findMetric(metrics, "kota.workflow.session_autonomy_transitions");
+    expect(transitions).toBeDefined();
+    expect(transitions!.dataPointType).toBe(DataPointType.SUM);
+
+    const downgrade = transitions!.dataPoints.find((p) =>
+      attrsMatch(p.attributes, {
+        "autonomy.from": "autonomous",
+        "autonomy.to": "supervised",
+      }),
+    );
+    const upgrade = transitions!.dataPoints.find((p) =>
+      attrsMatch(p.attributes, {
+        "autonomy.from": "supervised",
+        "autonomy.to": "autonomous",
+      }),
+    );
+    expect(downgrade?.value).toBe(1);
+    expect(upgrade?.value).toBe(1);
+  });
 });

@@ -1,12 +1,12 @@
 ---
 id: task-emit-session-autonomy-mode-as-an-otlp-attribute-an
 title: Emit session autonomy mode as an OTLP attribute and metric
-status: ready
+status: done
 priority: p2
 area: observability
 summary: Autonomy mode is now a required session field but is invisible to OTLP telemetry; annotate traces/metrics with autonomy_mode so operator dashboards can slice workflow and tool-runner health by supervision posture
 created_at: 2026-04-18T06:12:33.728Z
-updated_at: 2026-04-18T06:12:33.728Z
+updated_at: 2026-04-18T06:58:31.885Z
 ---
 
 ## Problem

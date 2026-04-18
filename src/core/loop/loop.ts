@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
+import { tryEmit } from "#core/events/event-bus.js";
 import type { McpManager } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import type { ModelTiers } from "#core/model/model-router.js";
@@ -131,9 +132,16 @@ export class AgentSession {
   /**
    * Change the session's autonomy mode mid-flight. Operators invoke this
    * through the daemon control API or a channel-specific command; the new
-   * mode applies to the next tool call and onwards.
+   * mode applies to the next tool call and onwards. Emits
+   * `session.autonomy.changed` only when the mode actually changes so
+   * subscribers can count distinct transitions.
    */
-  setAutonomyMode(mode: AutonomyMode): void { this.autonomyMode = mode; }
+  setAutonomyMode(mode: AutonomyMode): void {
+    const from = this.autonomyMode;
+    if (from === mode) return;
+    this.autonomyMode = mode;
+    tryEmit("session.autonomy.changed", { sessionId: this.sessionId, from, to: mode });
+  }
 
   /** Clean up handlers and save final state. */
   close(errored = false): void {
