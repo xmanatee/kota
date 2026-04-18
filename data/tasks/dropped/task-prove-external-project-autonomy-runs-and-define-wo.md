@@ -1,12 +1,12 @@
 ---
 id: task-prove-external-project-autonomy-runs-and-define-wo
 title: Prove external-project autonomy runs and define workflow-contribution precedence
-status: ready
+status: dropped
 priority: p2
 area: architecture
 summary: Add an end-to-end test that boots the daemon against a fixture project distinct from KOTA's own tree and completes a trivial workflow step there, and define and enforce the precedence between module-shipped and project-local workflow contributions
 created_at: 2026-04-18T04:01:44.972Z
-updated_at: 2026-04-18T04:01:44.972Z
+updated_at: 2026-04-18T15:49:10.198Z
 ---
 
 ## Problem
@@ -83,3 +83,18 @@ contribute workflows, and no test exercises the foreign-project path.
 - The remaining-architectural-work note in the done
   external-projects task is either unnecessary because this task
   covered it, or a short follow-up referencing the closed gap.
+
+## Decomposed
+
+Builder run `2026-04-18T15-10-49-121Z-builder-jzr6ol` timed out at the
+35-minute step deadline on this task. The two `## Problem` follow-ups are
+independent enough to land separately; the precedence work depends on the
+foreign-project pathway being exercisable end-to-end. Split into:
+
+- `task-prove-external-project-autonomy-with-end-to-end-fi` — foreign
+  `projectDir` integration test that proves a workflow step runs against a
+  fixture project distinct from the KOTA tree.
+- `task-define-project-local-vs-module-shipped-workflow-pr` — define and
+  enforce the precedence rule between module-shipped and project-local
+  workflow contributions, with non-colliding and colliding-name
+  integration tests.
