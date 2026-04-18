@@ -6,6 +6,7 @@ import { truncateToolResult } from "#core/loop/context.js";
 import type { Transport } from "#core/loop/transport.js";
 import type { McpManager } from "#core/mcp/manager.js";
 import { confirmAction } from "#core/util/confirm.js";
+import { type AutonomyMode, resolveAutonomyGate } from "./autonomy-mode.js";
 import { assess, type GuardrailsConfig } from "./guardrails.js";
 import type { ToolResultBlock } from "./index.js";
 import { executeTool } from "./index.js";
@@ -61,22 +62,40 @@ export type ToolResultEntry = {
   is_error?: boolean;
 };
 
+export type ToolCallExecutionOptions = {
+  resultLimit: number;
+  verbose: boolean;
+  autonomyMode: AutonomyMode;
+  mcpManager?: McpManager;
+  transport?: Transport;
+  guardrailsConfig?: GuardrailsConfig;
+  sessionId?: string;
+  messages?: Anthropic.MessageParam[];
+};
+
 /**
  * Execute tool calls in parallel, with verbose logging and result truncation.
  * Routes MCP-namespaced tools through the McpManager when provided.
  * When guardrailsConfig is set, each tool call is assessed before execution.
+ * Autonomy mode is consulted first: passive denies any non-safe tool, supervised
+ * queues any non-safe tool for operator approval, and autonomous falls through
+ * to normal guardrail policy resolution.
  * When messages are provided, the last few turns are captured as context on queued approvals.
  */
 export async function executeToolCalls(
   toolBlocks: ToolUseBlock[],
-  resultLimit: number,
-  verbose: boolean,
-  mcpManager?: McpManager,
-  transport?: Transport,
-  guardrailsConfig?: GuardrailsConfig,
-  sessionId?: string,
-  messages?: Anthropic.MessageParam[],
+  options: ToolCallExecutionOptions,
 ): Promise<ToolResultEntry[]> {
+  const {
+    resultLimit,
+    verbose,
+    autonomyMode,
+    mcpManager,
+    transport,
+    guardrailsConfig,
+    sessionId,
+    messages,
+  } = options;
   const results = await Promise.all(
     toolBlocks.map(async (block) => {
       if (verbose && transport) {
@@ -87,9 +106,79 @@ export async function executeToolCalls(
       }
       const input = block.input as Record<string, unknown>;
 
+      // Assess risk once up front so autonomy-mode gating and guardrails share
+      // a single classification. Fall back to a neutral moderate assessment if
+      // the session has no guardrails config attached — autonomy-mode still
+      // needs a classification to gate non-safe tools.
+      const assessment = guardrailsConfig
+        ? assess(block.name, input, guardrailsConfig)
+        : assess(block.name, input);
+
+      // Autonomy-mode gating runs before policy resolution so passive and
+      // supervised sessions cannot be bypassed by a moderate tool whose policy
+      // happens to be "allow".
+      const autonomyDecision = resolveAutonomyGate(autonomyMode, assessment);
+      if (autonomyDecision.action === "deny") {
+        tryEmit("guardrail.assessed", {
+          tool: assessment.tool,
+          risk: assessment.risk,
+          policy: "deny",
+          reason: autonomyDecision.message,
+          ...(sessionId && { session: sessionId }),
+        });
+        if (transport) {
+          transport.emit({
+            type: "guardrail",
+            tool: assessment.tool,
+            risk: assessment.risk,
+            policy: "deny",
+            reason: autonomyDecision.message,
+          });
+        }
+        return {
+          tool_use_id: block.id,
+          content: autonomyDecision.message,
+          is_error: true,
+        };
+      }
+      if (autonomyDecision.action === "queue") {
+        const approvalContext = messages ? extractApprovalContext(messages) : undefined;
+        const queued = getApprovalQueue().enqueue(
+          block.name,
+          input,
+          assessment.risk,
+          autonomyDecision.reason,
+          sessionId,
+          guardrailsConfig?.approvalTimeoutMs,
+          undefined,
+          approvalContext,
+        );
+        tryEmit("guardrail.assessed", {
+          tool: assessment.tool,
+          risk: assessment.risk,
+          policy: "queue",
+          reason: autonomyDecision.reason,
+          ...(sessionId && { session: sessionId }),
+        });
+        if (transport) {
+          transport.emit({
+            type: "guardrail",
+            tool: assessment.tool,
+            risk: assessment.risk,
+            policy: "queue",
+            reason: autonomyDecision.reason,
+          });
+        }
+        return {
+          tool_use_id: block.id,
+          content: `Queued for approval [${queued.id}]: ${block.name} — ${autonomyDecision.reason}. ` +
+            "Use the approval tool to list and approve pending items.",
+          is_error: true,
+        };
+      }
+
       // Guardrails: assess risk and enforce policy before execution
       if (guardrailsConfig) {
-        const assessment = assess(block.name, input, guardrailsConfig);
         tryEmit("guardrail.assessed", {
           tool: assessment.tool,
           risk: assessment.risk,

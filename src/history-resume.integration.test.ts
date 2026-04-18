@@ -134,7 +134,7 @@ describe("history save → resume end-to-end", () => {
   it("saves conversation to history after send()", async () => {
     mockStreamMessage.mockResolvedValueOnce(textResponse("Hello back!"));
 
-    const session = new AgentSession();
+    const session = new AgentSession({ autonomyMode: "autonomous" });
     await session.send("Hello");
     session.close();
 
@@ -153,7 +153,7 @@ describe("history save → resume end-to-end", () => {
   it("resume restores conversation context and appends new messages", async () => {
     // Session 1: send a message
     mockStreamMessage.mockResolvedValueOnce(textResponse("I can help!"));
-    const session1 = new AgentSession();
+    const session1 = new AgentSession({ autonomyMode: "autonomous" });
     await session1.send("Help me");
     const convId = session1.getConversationId();
     session1.close();
@@ -163,7 +163,7 @@ describe("history save → resume end-to-end", () => {
 
     // Session 2: resume and send another message
     mockStreamMessage.mockResolvedValueOnce(textResponse("Sure, continuing!"));
-    const session2 = new AgentSession({ resumeConversation: convId! });
+    const session2 = new AgentSession({ autonomyMode: "autonomous", resumeConversation: convId! });
 
     // Verify old messages are restored
     const ctx = (session2 as any).context;
@@ -185,7 +185,7 @@ describe("history save → resume end-to-end", () => {
   });
 
   it("does not create empty history entry when closed without sending", () => {
-    const session = new AgentSession();
+    const session = new AgentSession({ autonomyMode: "autonomous" });
     session.close();
 
     const history = getHistory();
@@ -194,7 +194,7 @@ describe("history save → resume end-to-end", () => {
   });
 
   it("close() saves history for partial conversations (error recovery)", async () => {
-    const session = new AgentSession();
+    const session = new AgentSession({ autonomyMode: "autonomous" });
     // Simulate a partial send: user message added but API call failed
     const ctx = (session as any).context;
     ctx.addUserMessage("This should be saved on close");
@@ -220,7 +220,7 @@ describe("history save → resume end-to-end", () => {
       { tool_use_id: "tu_1", content: "file contents here" },
     ]);
 
-    const session = new AgentSession();
+    const session = new AgentSession({ autonomyMode: "autonomous" });
     await session.send("Read test.txt");
     session.close();
     resetHistory();
@@ -235,14 +235,14 @@ describe("history save → resume end-to-end", () => {
 
   it("resumed session does not create duplicate history entries", async () => {
     mockStreamMessage.mockResolvedValueOnce(textResponse("First"));
-    const session1 = new AgentSession();
+    const session1 = new AgentSession({ autonomyMode: "autonomous" });
     await session1.send("Start");
     const convId = session1.getConversationId();
     session1.close();
     resetHistory();
 
     mockStreamMessage.mockResolvedValueOnce(textResponse("Second"));
-    const session2 = new AgentSession({ resumeConversation: convId! });
+    const session2 = new AgentSession({ autonomyMode: "autonomous", resumeConversation: convId! });
     await session2.send("Continue");
     session2.close();
     resetHistory();
@@ -256,7 +256,7 @@ describe("history save → resume end-to-end", () => {
 
   it("noHistory option prevents history creation", async () => {
     mockStreamMessage.mockResolvedValueOnce(textResponse("Response"));
-    const session = new AgentSession({ noHistory: true });
+    const session = new AgentSession({ autonomyMode: "autonomous", noHistory: true });
     await session.send("Hello");
     session.close();
 
@@ -267,7 +267,7 @@ describe("history save → resume end-to-end", () => {
 
   it("resume with invalid ID starts fresh and creates new conversation", async () => {
     mockStreamMessage.mockResolvedValueOnce(textResponse("Fresh start"));
-    const session = new AgentSession({ resumeConversation: "nonexistent-id" });
+    const session = new AgentSession({ autonomyMode: "autonomous", resumeConversation: "nonexistent-id" });
     await session.send("Hello");
     session.close();
     resetHistory();
@@ -281,7 +281,7 @@ describe("history save → resume end-to-end", () => {
 
   it("conversation title auto-updates from first user message", async () => {
     mockStreamMessage.mockResolvedValueOnce(textResponse("Done"));
-    const session = new AgentSession();
+    const session = new AgentSession({ autonomyMode: "autonomous" });
     await session.send("Analyze the quarterly revenue data");
     session.close();
     resetHistory();
@@ -293,13 +293,13 @@ describe("history save → resume end-to-end", () => {
 
   it("multiple sessions create separate history entries", async () => {
     mockStreamMessage.mockResolvedValueOnce(textResponse("A"));
-    const s1 = new AgentSession();
+    const s1 = new AgentSession({ autonomyMode: "autonomous" });
     await s1.send("Task A");
     s1.close();
     resetHistory();
 
     mockStreamMessage.mockResolvedValueOnce(textResponse("B"));
-    const s2 = new AgentSession();
+    const s2 = new AgentSession({ autonomyMode: "autonomous" });
     await s2.send("Task B");
     s2.close();
     resetHistory();
@@ -315,7 +315,7 @@ describe("history save → resume end-to-end", () => {
   it("compaction state persists across resume", async () => {
     // Session 1: send a message, check compaction count
     mockStreamMessage.mockResolvedValueOnce(textResponse("Reply"));
-    const session1 = new AgentSession();
+    const session1 = new AgentSession({ autonomyMode: "autonomous" });
     await session1.send("Start");
     const convId = session1.getConversationId();
 
@@ -328,7 +328,7 @@ describe("history save → resume end-to-end", () => {
     resetHistory();
 
     // Session 2: resume, verify compaction count and input tokens are restored
-    const session2 = new AgentSession({ resumeConversation: convId! });
+    const session2 = new AgentSession({ autonomyMode: "autonomous", resumeConversation: convId! });
     const ctx2 = (session2 as any).context;
     const stats = ctx2.getStats();
     // Input tokens from session 1 should be restored

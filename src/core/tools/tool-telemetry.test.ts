@@ -183,10 +183,7 @@ describe("Integration: telemetry populated via executeToolCalls", () => {
     // Use a real tool (file_read with non-existent file → error)
     await executeToolCalls(
       [{ type: "tool_use", id: "t1", name: "file_read", input: { path: "/nonexistent/path.txt" } }],
-      5000,
-      true,
-      undefined,
-      transport,
+      { resultLimit: 5000, verbose: true, autonomyMode: "autonomous", transport },
     );
 
     const telemetry = getToolTelemetry();
@@ -220,10 +217,7 @@ describe("Integration: telemetry populated via executeToolCalls", () => {
     try {
       await executeToolCalls(
         [{ type: "tool_use", id: "t2", name: "file_read", input: { path: tmpFile } }],
-        5000,
-        false,
-        undefined,
-        transport,
+        { resultLimit: 5000, verbose: false, autonomyMode: "autonomous", transport },
       );
 
       const stats = getToolTelemetry().getToolStats("file_read");

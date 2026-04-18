@@ -427,6 +427,7 @@ describe("buildWorkflowSnapshot", () => {
               effort: "xhigh",
           permissionMode: "default",
           settingSources: [],
+          autonomyMode: "autonomous",
         },
       ],
     };

@@ -1,12 +1,12 @@
 ---
 id: task-session-level-autonomy-mode-to-decouple-operator-s
 title: Session-level autonomy mode to decouple operator supervision from tool-risk approvals
-status: backlog
+status: done
 priority: p2
 area: guardrails
 summary: Introduce a session-level autonomy mode (passive/supervised/autonomous) that operators set at session creation to gate or open up tool execution independently of tool-risk-based approvals
 created_at: 2026-04-18T00:40:53.094Z
-updated_at: 2026-04-18T00:40:53.094Z
+updated_at: 2026-04-18T03:58:41.238Z
 ---
 
 ## Problem

@@ -11,6 +11,7 @@ import { initModuleLogStore } from "#core/modules/module-log.js";
 import type { CreateSessionOptions, ModuleSession } from "#core/modules/module-types.js";
 import { initProviderRegistry, registerDefaultProviders } from "#core/modules/provider-registry.js";
 import { setConfigProvider, setModuleInfoProvider } from "#core/tools/agent-status.js";
+import { isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import { setDelegateConfig } from "#core/tools/delegate.js";
 import { getDefaultConfig as getDefaultGuardrails } from "#core/tools/guardrails.js";
 import { enableGroup } from "#core/tools/tool-groups.js";
@@ -33,6 +34,12 @@ export function initAgentSession(
 ): void {
   state.sessionId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   state.sessionLabel = options.label;
+  if (!isAutonomyMode(options.autonomyMode)) {
+    throw new Error(
+      "AgentSession requires an explicit autonomyMode (passive | supervised | autonomous)",
+    );
+  }
+  state.autonomyMode = options.autonomyMode;
   state.model = options.model || "claude-sonnet-4-6";
   state.editorModel = options.editorModel || state.model;
   state.maxTokens = options.maxTokens || 8192;

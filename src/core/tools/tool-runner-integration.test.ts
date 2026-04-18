@@ -4,10 +4,13 @@ import { executeTool } from "./index.js";
 import { getToolMiddleware, resetToolMiddleware } from "./tool-middleware.js";
 import { executeToolCalls } from "./tool-runner.js";
 
-// Mock only the leaf tool executor — let real retry middleware and truncateToolResult run
-vi.mock("./index.js", () => ({
-  executeTool: vi.fn(),
-}));
+// Mock only the leaf tool executor — let real retry middleware and truncateToolResult run.
+// Autonomy-mode gating calls `assess()` → `classifyRisk()` → `getCoreRegistrations()`,
+// so the registrations list must come through real.
+vi.mock(import("./index.js"), async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, executeTool: vi.fn() };
+});
 
 const mockExec = vi.mocked(executeTool);
 
@@ -42,8 +45,7 @@ describe("executeToolCalls × tool-retry middleware integration", () => {
 
     const results = await executeToolCalls(
       [block("shell", { command: "make", timeout_ms: 120_000 })],
-      50_000,
-      false,
+      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
     );
 
     expect(results[0].is_error).toBeUndefined();
@@ -61,8 +63,7 @@ describe("executeToolCalls × tool-retry middleware integration", () => {
 
     const results = await executeToolCalls(
       [block("shell", { command: "slow", timeout_ms: 200_000 })],
-      50_000,
-      false,
+      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
     );
 
     expect(results[0].is_error).toBe(true);
@@ -77,8 +78,7 @@ describe("executeToolCalls × tool-retry middleware integration", () => {
 
     const results = await executeToolCalls(
       [block("file_read", { path: "missing.ts" })],
-      50_000,
-      false,
+      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
     );
 
     expect(results[0].is_error).toBe(true);
@@ -94,8 +94,7 @@ describe("executeToolCalls × tool-retry middleware integration", () => {
 
     const promise = executeToolCalls(
       [block("web_fetch", { url: "https://example.com" })],
-      50_000,
-      false,
+      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
     );
     await vi.advanceTimersByTimeAsync(2000);
     const results = await promise;
@@ -113,8 +112,7 @@ describe("executeToolCalls × tool-retry middleware integration", () => {
 
     const promise = executeToolCalls(
       [block("http_request", { url: "https://down.com", method: "GET" })],
-      50_000,
-      false,
+      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
     );
     await vi.advanceTimersByTimeAsync(2000);
     const results = await promise;
@@ -133,8 +131,8 @@ describe("executeToolCalls × tool-retry middleware integration", () => {
 
     const results = await executeToolCalls(
       [block("file_read", { path: "photo.png" })],
-      10, // tiny limit — image blocks have no text to truncate
-      false,
+      // tiny limit — image blocks have no text to truncate
+      { resultLimit: 10, verbose: false, autonomyMode: "autonomous" },
     );
 
     expect(results[0].blocks![0]).toEqual(richBlocks[0]);
@@ -153,8 +151,8 @@ describe("executeToolCalls × tool-retry middleware integration", () => {
 
     const results = await executeToolCalls(
       [block("code_exec", { code: "import matplotlib" })],
-      500, // tight context budget limit
-      false,
+      // tight context budget limit
+      { resultLimit: 500, verbose: false, autonomyMode: "autonomous" },
     );
 
     // Text block should be truncated
@@ -180,8 +178,8 @@ describe("executeToolCalls × tool-retry middleware integration", () => {
 
     const results = await executeToolCalls(
       [block("code_exec", { code: "2+2" })],
-      50_000, // generous limit
-      false,
+      // generous limit
+      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
     );
 
     // Small text block passes through unchanged
@@ -205,8 +203,7 @@ describe("executeToolCalls × tool-retry middleware integration", () => {
         block("code_exec", { code: "plot()" }),
         block("file_read", { path: "data.csv" }),
       ],
-      500,
-      false,
+      { resultLimit: 500, verbose: false, autonomyMode: "autonomous" },
     );
 
     // Both results should be truncated
@@ -232,8 +229,7 @@ describe("executeToolCalls × tool-retry middleware integration", () => {
 
     const results = await executeToolCalls(
       [block("code_exec", { code: "crash()" })],
-      500,
-      false,
+      { resultLimit: 500, verbose: false, autonomyMode: "autonomous" },
     );
 
     // Content field truncated so FailureTracker signatures are bounded

@@ -18,13 +18,19 @@ let mockSendFn: ((message: string, transport: any) => Promise<string>) | undefin
 vi.mock("./core/loop/loop.js", () => {
   class MockAgentSession {
     private transport: any;
+    private autonomyMode: "passive" | "supervised" | "autonomous";
     send: (message: string) => Promise<string>;
     close = vi.fn();
     getCostSummary = () => "$0.001";
     getConversationId = () => null;
+    getAutonomyMode = () => this.autonomyMode;
+    setAutonomyMode = (mode: "passive" | "supervised" | "autonomous") => {
+      this.autonomyMode = mode;
+    };
 
     constructor(opts: any) {
       this.transport = opts?.transport;
+      this.autonomyMode = opts?.autonomyMode ?? "autonomous";
       this.send = async (message: string) => {
         if (mockSendFn) return mockSendFn(message, this.transport);
         this.transport?.emit({ type: "status", message: "[kota] Turn 1" });
@@ -127,6 +133,7 @@ beforeAll(async () => {
     moduleRoutes,
     webUiDir: existsSync(resolve("clients/web/dist")) ? resolve("clients/web/dist") : undefined,
     authToken: TEST_AUTH_TOKEN,
+    defaultAutonomyMode: "autonomous",
   });
   const port = await waitForPort(server);
   console.log = origLog;

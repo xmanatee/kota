@@ -180,10 +180,16 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
     }
 
     const resultLimit = state.context.getToolResultLimit();
-    const validResults = await executeToolCalls(
-      toolBlocks, resultLimit, state.verbose, state.mcpManager ?? undefined, state.transport,
-      state.guardrailsConfig, state.sessionId, state.context.getMessages(),
-    );
+    const validResults = await executeToolCalls(toolBlocks, {
+      resultLimit,
+      verbose: state.verbose,
+      autonomyMode: state.autonomyMode,
+      mcpManager: state.mcpManager ?? undefined,
+      transport: state.transport,
+      guardrailsConfig: state.guardrailsConfig,
+      sessionId: state.sessionId,
+      messages: state.context.getMessages(),
+    });
     state.context.addToolResults(validResults);
 
     processToolResults(state.verifyTracker, toolBlocks, validResults);

@@ -3,6 +3,7 @@ import type {
   SDKSettingSource,
 } from "#core/agent-sdk/types.js";
 import type { BusEvents } from "#core/events/event-bus.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
   WorkflowPredicate,
   WorkflowRepairLoopConfig,
@@ -144,6 +145,13 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
   allowedTools?: string[];
   disallowedTools?: string[];
   settingSources?: SDKSettingSource[];
+  /**
+   * Operator supervision mode for this step. Orthogonal to per-tool risk
+   * classification. When omitted the validator defaults to "autonomous"
+   * because autonomy workflows drive unattended work; channel-triggered
+   * workflows that want approval gating must set this explicitly.
+   */
+  autonomyMode?: AutonomyMode;
   retry?: WorkflowRetryConfig;
   repairLoop?: WorkflowRepairLoopConfig;
   /**
@@ -414,6 +422,8 @@ export type WorkflowAgentStep = WorkflowBaseStep & {
   allowedTools?: string[];
   disallowedTools?: string[];
   settingSources: SDKSettingSource[];
+  /** Operator supervision mode applied to this agent step. */
+  autonomyMode: AutonomyMode;
   retry?: WorkflowRetryConfig;
   repairLoop?: WorkflowRepairLoopConfig;
   outputFormat?: "json";

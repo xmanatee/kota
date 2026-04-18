@@ -12,6 +12,7 @@ import type { ModuleLoader } from "#core/modules/module-loader.js";
 import { discoverProjectModules } from "#core/modules/project-discovery.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { resetAgentStatusProviders } from "#core/tools/agent-status.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { loadSavedTools, resetCustomTools } from "#core/tools/custom-tool.js";
 import { setDelegateConfig } from "#core/tools/delegate.js";
 import type { GuardrailsConfig } from "#core/tools/guardrails.js";
@@ -56,6 +57,7 @@ export interface AgentLoopState {
   instructionContext: string;
   modelTiers: ModelTiers | undefined;
   channelIdentity: ChannelUserIdentity | undefined;
+  autonomyMode: AutonomyMode;
   moduleLoader: ModuleLoader;
   closed: boolean;
   sigintHandler: () => void;

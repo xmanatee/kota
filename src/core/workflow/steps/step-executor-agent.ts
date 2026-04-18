@@ -6,9 +6,10 @@ import {
   executeWithAgentSDK,
   KOTA_OWNER_QUESTIONS_MCP_TOOL,
 } from "#core/agent-sdk/index.js";
-import type { SDKMessage } from "#core/agent-sdk/types.js";
+import type { SDKMessage, SDKPermissionMode } from "#core/agent-sdk/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { ToolTelemetry } from "#core/tools/tool-telemetry.js";
 import { validatePayloadSchema } from "../payload-validator.js";
@@ -239,6 +240,37 @@ function excludeOwnerQuestionTool(disallowedTools: string[] | undefined): string
   return disallowedTools?.filter((tool) => tool !== KOTA_OWNER_QUESTIONS_MCP_TOOL);
 }
 
+/**
+ * SDK write-capable tools blocked when autonomyMode is "passive". The agent
+ * SDK runs in its own subprocess so KOTA's tool-runner autonomy gate cannot
+ * see those calls; we disallow the known write surface at the SDK level.
+ */
+const SDK_WRITE_TOOLS = [
+  "Edit",
+  "Write",
+  "NotebookEdit",
+  "Bash",
+] as const;
+
+function resolveSdkPermissions(
+  mode: AutonomyMode,
+  permissionMode: SDKPermissionMode,
+  disallowedTools: string[] | undefined,
+): { permissionMode: SDKPermissionMode; disallowedTools: string[] | undefined } {
+  if (mode === "autonomous") {
+    return { permissionMode, disallowedTools };
+  }
+  if (mode === "supervised") {
+    return { permissionMode: "default", disallowedTools };
+  }
+  const existing = disallowedTools ?? [];
+  const merged = [...existing];
+  for (const tool of SDK_WRITE_TOOLS) {
+    if (!merged.includes(tool)) merged.push(tool);
+  }
+  return { permissionMode: "default", disallowedTools: merged };
+}
+
 export async function executeAgentStep(
   definition: WorkflowDefinition,
   step: WorkflowAgentStep,
@@ -289,6 +321,11 @@ export async function executeAgentStep(
     const prompt = lastSchemaError
       ? `${agentPrompt.prompt}\n\n[Previous output failed schema validation: ${lastSchemaError}\nPlease include all required fields in your JSON block and try again.]`
       : agentPrompt.prompt;
+    const sdkPermissions = resolveSdkPermissions(
+      step.autonomyMode,
+      step.permissionMode,
+      excludeOwnerQuestionTool(step.disallowedTools),
+    );
     try {
       const result = await executeWithAgentSDK(prompt, {
         model: resolveAgentModel(step, agentConfig),
@@ -299,11 +336,11 @@ export async function executeAgentStep(
         thinkingEnabled: step.thinkingEnabled,
         thinkingBudget: step.thinkingBudget,
         allowedTools: includeOwnerQuestionTool(step.allowedTools),
-        disallowedTools: excludeOwnerQuestionTool(step.disallowedTools),
+        disallowedTools: sdkPermissions.disallowedTools,
         mcpServers: createOwnerQuestionMcpServers(
           `workflow:${metadata.workflow}/${metadata.id}/${step.id}`,
         ),
-        permissionMode: step.permissionMode,
+        permissionMode: sdkPermissions.permissionMode,
         persistSession: false,
         settingSources: step.settingSources,
         abortController,

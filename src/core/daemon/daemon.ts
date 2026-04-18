@@ -147,6 +147,7 @@ export class Daemon {
         eventBufferSize: config.config?.daemon?.eventBufferSize,
         makeAgent: (transport: Transport) =>
           new AgentSession({
+            autonomyMode: "supervised",
             model: daemonModel,
             verbose: daemonVerbose,
             transport,

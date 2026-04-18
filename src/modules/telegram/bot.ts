@@ -222,6 +222,7 @@ export class TelegramBot {
     };
     const proxy = new ProxyTransport();
     const loopOpts: LoopOptions = {
+      autonomyMode: "supervised",
       model: this.options.model ?? this.options.config?.model,
       verbose: this.options.verbose ?? this.options.config?.verbose,
       transport: proxy,

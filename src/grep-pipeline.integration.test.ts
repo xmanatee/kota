@@ -37,8 +37,7 @@ describe("grep modes through tool-runner pipeline", () => {
   it("files_only result survives truncation with file paths intact", async () => {
     const results = await executeToolCalls(
       [{ type: "tool_use", id: "t1", name: "grep", input: { pattern: "pandas", path: TEST_DIR, files_only: true } }],
-      5000,
-      false,
+      { resultLimit: 5000, verbose: false, autonomyMode: "autonomous" },
     );
     expect(results).toHaveLength(1);
     expect(results[0].is_error).toBeUndefined();
@@ -52,8 +51,7 @@ describe("grep modes through tool-runner pipeline", () => {
   it("count_only result preserves total summary after truncation", async () => {
     const results = await executeToolCalls(
       [{ type: "tool_use", id: "t2", name: "grep", input: { pattern: "pandas", path: TEST_DIR, count_only: true } }],
-      5000,
-      false,
+      { resultLimit: 5000, verbose: false, autonomyMode: "autonomous" },
     );
     expect(results).toHaveLength(1);
     expect(results[0].is_error).toBeUndefined();
@@ -66,8 +64,7 @@ describe("grep modes through tool-runner pipeline", () => {
   it("files_only with file_glob filters correctly through pipeline", async () => {
     const results = await executeToolCalls(
       [{ type: "tool_use", id: "t3", name: "grep", input: { pattern: "pandas", path: TEST_DIR, files_only: true, file_glob: "*.ts" } }],
-      5000,
-      false,
+      { resultLimit: 5000, verbose: false, autonomyMode: "autonomous" },
     );
     expect(results).toHaveLength(1);
     expect(results[0].is_error).toBeUndefined();
@@ -78,8 +75,7 @@ describe("grep modes through tool-runner pipeline", () => {
   it("grep error flows through tool-runner without retry (regex errors are not transient)", async () => {
     const results = await executeToolCalls(
       [{ type: "tool_use", id: "t4", name: "grep", input: { pattern: "[invalid", path: TEST_DIR } }],
-      5000,
-      false,
+      { resultLimit: 5000, verbose: false, autonomyMode: "autonomous" },
     );
     expect(results).toHaveLength(1);
     expect(results[0].is_error).toBe(true);

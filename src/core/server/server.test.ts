@@ -25,6 +25,8 @@ function mockAgent(): AgentSession {
     send: vi.fn(async () => "test response"),
     close: vi.fn(),
     getCostSummary: () => "$0.00",
+    getAutonomyMode: () => "autonomous",
+    setAutonomyMode: vi.fn(),
   } as unknown as AgentSession;
 }
 

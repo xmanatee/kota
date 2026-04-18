@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AutonomyMode } from "./autonomy-mode.js";
 import {
   executeToolCalls,
   extractApprovalContext,
   FailureTracker,
+  type ToolCallExecutionOptions,
   type ToolResultEntry,
 } from "./tool-runner.js";
 
@@ -43,6 +45,13 @@ const mockAssess = vi.mocked(assess);
 const mockConfirmAction = vi.mocked(confirmAction);
 const mockGetApprovalQueue = vi.mocked(getApprovalQueue);
 
+const safeAssessment = {
+  tool: "file_read",
+  risk: "safe" as const,
+  policy: "allow" as const,
+  reason: "read-only",
+};
+
 function toolBlock(
   name: string,
   input: Record<string, unknown> = {},
@@ -57,6 +66,17 @@ function ok(content = "done"): ToolResultEntry[] {
 
 function err(content = "error"): ToolResultEntry[] {
   return [{ tool_use_id: "t1", content, is_error: true }];
+}
+
+function runOptions(
+  overrides: Partial<ToolCallExecutionOptions> = {},
+): ToolCallExecutionOptions {
+  return {
+    resultLimit: 50000,
+    verbose: false,
+    autonomyMode: "autonomous" as AutonomyMode,
+    ...overrides,
+  };
 }
 
 describe("FailureTracker", () => {
@@ -76,7 +96,6 @@ describe("FailureTracker", () => {
     tracker.record(err("a"));
     tracker.record(err("b"));
     tracker.record(ok());
-    // After reset, 4 more diverse failures should still be "continue"
     for (let i = 0; i < 4; i++) {
       expect(tracker.record(err(`new-${i}`))).toBe("continue");
     }
@@ -94,7 +113,6 @@ describe("FailureTracker", () => {
     tracker.record(err("error A"));
     tracker.record(err("error B"));
     tracker.record(err("error C"));
-    // 3 failures but all different — no circuit break
     expect(tracker.record(err("error D"))).toBe("continue");
   });
 
@@ -110,7 +128,6 @@ describe("FailureTracker", () => {
   it("resets consecutive count after guidance injection", () => {
     const tracker = new FailureTracker();
     for (let i = 0; i < 5; i++) tracker.record(err(`err-${i}`));
-    // After inject_guidance, counter resets
     expect(tracker.record(err("f"))).toBe("continue");
   });
 
@@ -120,14 +137,13 @@ describe("FailureTracker", () => {
       { tool_use_id: "t1", content: "ok" },
       { tool_use_id: "t2", content: "bad", is_error: true },
     ];
-    expect(tracker.record(mixed)).toBe("continue"); // has errors, so failure
+    expect(tracker.record(mixed)).toBe("continue");
   });
 
   it("handles empty results as success (no errors)", () => {
     const tracker = new FailureTracker();
     tracker.record(err("a"));
     tracker.record(err("b"));
-    // Empty results = no errors = success = reset
     tracker.record([]);
     expect(tracker.record(err("c"))).toBe("continue");
   });
@@ -148,7 +164,6 @@ describe("FailureTracker", () => {
     ];
     tracker.record(twoErrors);
     tracker.record(twoErrors);
-    // Third identical batch triggers circuit break
     expect(tracker.record(twoErrors)).toBe("circuit_break");
   });
 });
@@ -157,14 +172,14 @@ describe("executeToolCalls", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockTruncate.mockImplementation((text: string) => text);
+    mockAssess.mockReturnValue(safeAssessment);
   });
 
   it("routes tool call to executeTool and returns result", async () => {
     mockExecuteTool.mockResolvedValue({ content: "file contents" });
     const results = await executeToolCalls(
       [toolBlock("file_read", { path: "/a.txt" })],
-      50000,
-      false,
+      runOptions(),
     );
     expect(mockExecuteTool).toHaveBeenCalledWith("file_read", {
       path: "/a.txt",
@@ -181,7 +196,7 @@ describe("executeToolCalls", () => {
       toolBlock("grep", { pattern: "TODO" }, "t1"),
       toolBlock("glob", { pattern: "*.ts" }, "t2"),
     ];
-    const results = await executeToolCalls(blocks, 50000, false);
+    const results = await executeToolCalls(blocks, runOptions());
     expect(results).toHaveLength(2);
     expect(results[0].tool_use_id).toBe("t1");
     expect(results[1].tool_use_id).toBe("t2");
@@ -195,9 +210,7 @@ describe("executeToolCalls", () => {
     };
     const results = await executeToolCalls(
       [toolBlock("mcp__server__tool", { q: "test" })],
-      50000,
-      false,
-      mcpManager as any,
+      runOptions({ mcpManager: mcpManager as never }),
     );
     expect(mcpManager.executeTool).toHaveBeenCalledWith(
       "mcp__server__tool",
@@ -215,9 +228,7 @@ describe("executeToolCalls", () => {
     };
     await executeToolCalls(
       [toolBlock("shell", { command: "ls" })],
-      50000,
-      false,
-      mcpManager as any,
+      runOptions({ mcpManager: mcpManager as never }),
     );
     expect(mockExecuteTool).toHaveBeenCalledWith("shell", { command: "ls" });
     expect(mcpManager.executeTool).not.toHaveBeenCalled();
@@ -230,8 +241,7 @@ describe("executeToolCalls", () => {
     });
     const results = await executeToolCalls(
       [toolBlock("shell", { command: "bad" })],
-      50000,
-      false,
+      runOptions(),
     );
     expect(results[0].content).toBe("permanent error");
     expect(results[0].is_error).toBe(true);
@@ -242,8 +252,7 @@ describe("executeToolCalls", () => {
     mockTruncate.mockReturnValue("truncated");
     const results = await executeToolCalls(
       [toolBlock("file_read")],
-      5000,
-      false,
+      runOptions({ resultLimit: 5000 }),
     );
     expect(mockTruncate).toHaveBeenCalledWith("long content", 5000);
     expect(results[0].content).toBe("truncated");
@@ -261,8 +270,7 @@ describe("executeToolCalls", () => {
     mockTruncate.mockImplementation((text: string) => `T:${text}`);
     const results = await executeToolCalls(
       [toolBlock("file_read")],
-      5000,
-      false,
+      runOptions({ resultLimit: 5000 }),
     );
     expect(results[0].blocks).toHaveLength(2);
     expect(results[0].blocks![0]).toEqual({ type: "text", text: "T:long text" });
@@ -294,11 +302,7 @@ describe("guardrails confirm gate", () => {
 
     const results = await executeToolCalls(
       [toolBlock("shell", { command: "git reset --hard HEAD~1" })],
-      50000,
-      false,
-      undefined,
-      undefined,
-      confirmConfig,
+      runOptions({ guardrailsConfig: confirmConfig }),
     );
 
     expect(results[0].is_error).toBe(true);
@@ -313,11 +317,7 @@ describe("guardrails confirm gate", () => {
 
     const results = await executeToolCalls(
       [toolBlock("shell", { command: "git reset --hard HEAD~1" })],
-      50000,
-      false,
-      undefined,
-      undefined,
-      confirmConfig,
+      runOptions({ guardrailsConfig: confirmConfig }),
     );
 
     expect(results[0].is_error).toBeUndefined();
@@ -330,11 +330,9 @@ describe("guardrails confirm gate", () => {
 
     const results = await executeToolCalls(
       [toolBlock("shell", { command: "rm -rf /" })],
-      50000,
-      false,
-      undefined,
-      undefined,
-      { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } },
+      runOptions({
+        guardrailsConfig: { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } },
+      }),
     );
 
     expect(results[0].is_error).toBe(true);
@@ -350,12 +348,10 @@ describe("guardrails confirm gate", () => {
 
     const results = await executeToolCalls(
       [toolBlock("shell", { command: "rm -rf /tmp/old" })],
-      50000,
-      false,
-      undefined,
-      undefined,
-      { policies: { safe: "allow", moderate: "allow", dangerous: "queue" } },
-      "session-1",
+      runOptions({
+        guardrailsConfig: { policies: { safe: "allow", moderate: "allow", dangerous: "queue" } },
+        sessionId: "session-1",
+      }),
     );
 
     expect(results[0].is_error).toBe(true);
@@ -380,11 +376,10 @@ describe("guardrails confirm gate", () => {
 
     await executeToolCalls(
       [toolBlock("shell", { command: "rm -rf /" })],
-      50000,
-      false,
-      undefined,
-      transport as any,
-      { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } },
+      runOptions({
+        transport: transport as never,
+        guardrailsConfig: { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } },
+      }),
     );
 
     expect(transport.emit).toHaveBeenCalledWith(
@@ -409,13 +404,11 @@ describe("guardrails confirm gate", () => {
 
     await executeToolCalls(
       [toolBlock("shell", { command: "rm -rf /tmp/old" })],
-      50000,
-      false,
-      undefined,
-      undefined,
-      { policies: { safe: "allow", moderate: "allow", dangerous: "queue" } },
-      "session-2",
-      messages,
+      runOptions({
+        guardrailsConfig: { policies: { safe: "allow", moderate: "allow", dangerous: "queue" } },
+        sessionId: "session-2",
+        messages,
+      }),
     );
 
     const enqueueArgs: unknown[] = mockEnqueue.mock.calls[0] as unknown[];
@@ -430,18 +423,94 @@ describe("guardrails confirm gate", () => {
 
     await executeToolCalls(
       [toolBlock("shell", { command: "rm -rf /" })],
-      50000,
-      false,
-      undefined,
-      undefined,
-      { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } },
-      "session-42",
+      runOptions({
+        guardrailsConfig: { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } },
+        sessionId: "session-42",
+      }),
     );
 
     expect(tryEmitMock).toHaveBeenCalledWith(
       "guardrail.assessed",
       expect.objectContaining({ tool: "shell", risk: "dangerous", policy: "deny", session: "session-42" }),
     );
+  });
+});
+
+describe("autonomy-mode gate", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTruncate.mockImplementation((text: string) => text);
+    mockGetApprovalQueue.mockReturnValue({ enqueue: vi.fn(() => ({ id: "abc123" })) } as any);
+  });
+
+  it("passive mode denies a non-safe tool before policy resolution", async () => {
+    mockAssess.mockReturnValue({
+      tool: "shell",
+      risk: "moderate",
+      policy: "allow",
+      reason: "writes a file",
+    });
+
+    const results = await executeToolCalls(
+      [toolBlock("shell", { command: "touch x" })],
+      runOptions({ autonomyMode: "passive" }),
+    );
+
+    expect(results[0].is_error).toBe(true);
+    expect(results[0].content).toContain("passive");
+    expect(mockExecuteTool).not.toHaveBeenCalled();
+  });
+
+  it("passive mode still allows safe tools to run", async () => {
+    mockAssess.mockReturnValue(safeAssessment);
+    mockExecuteTool.mockResolvedValue({ content: "ok" });
+
+    const results = await executeToolCalls(
+      [toolBlock("file_read", { path: "/a.txt" })],
+      runOptions({ autonomyMode: "passive" }),
+    );
+
+    expect(results[0].is_error).toBeUndefined();
+    expect(mockExecuteTool).toHaveBeenCalled();
+  });
+
+  it("supervised mode queues a non-safe tool through the approval queue", async () => {
+    const mockEnqueue = vi.fn(() => ({ id: "q-supervised" }));
+    mockGetApprovalQueue.mockReturnValue({ enqueue: mockEnqueue } as any);
+    mockAssess.mockReturnValue({
+      tool: "shell",
+      risk: "moderate",
+      policy: "allow",
+      reason: "writes a file",
+    });
+
+    const results = await executeToolCalls(
+      [toolBlock("shell", { command: "touch x" })],
+      runOptions({ autonomyMode: "supervised", sessionId: "s-1" }),
+    );
+
+    expect(results[0].is_error).toBe(true);
+    expect(results[0].content).toContain("Queued for approval");
+    expect(mockEnqueue).toHaveBeenCalled();
+    expect(mockExecuteTool).not.toHaveBeenCalled();
+  });
+
+  it("autonomous mode falls through to policy resolution", async () => {
+    mockAssess.mockReturnValue({
+      tool: "shell",
+      risk: "moderate",
+      policy: "allow",
+      reason: "writes a file",
+    });
+    mockExecuteTool.mockResolvedValue({ content: "ok" });
+
+    const results = await executeToolCalls(
+      [toolBlock("shell", { command: "touch x" })],
+      runOptions({ autonomyMode: "autonomous" }),
+    );
+
+    expect(results[0].is_error).toBeUndefined();
+    expect(mockExecuteTool).toHaveBeenCalled();
   });
 });
 
@@ -504,7 +573,7 @@ describe("extractApprovalContext", () => {
     const messages = [{ role: "assistant" as const, content: longText }];
     const ctx = extractApprovalContext(messages, 3, 100);
     expect(ctx).toBeDefined();
-    expect(ctx!.length).toBeLessThanOrEqual(101); // 100 chars + ellipsis
+    expect(ctx!.length).toBeLessThanOrEqual(101);
     expect(ctx).toMatch(/…$/);
   });
 });

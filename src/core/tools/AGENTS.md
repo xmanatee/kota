@@ -28,6 +28,25 @@ conveniences. New capabilities should prefer module-owned tools.
 - `repl-session` — shared REPL sessions used by custom-tool handlers and the execution module.
 - `module-factory/` — module lifecycle: `addLoadedModule`/`resetModuleFactory` called from loop-init.
 
+## Autonomy mode
+
+Session autonomy is an independent axis from per-tool risk classification. Each
+session declares an `autonomyMode` at construction (`passive`, `supervised`, or
+`autonomous`). The tool runner consults `resolveAutonomyGate` before the
+guardrail policy:
+
+- `passive` — denies any non-safe tool. Read-only sessions.
+- `supervised` — queues any non-safe tool for operator approval, regardless of
+  the guardrail policy. The approval queue is the operator's single point of
+  control.
+- `autonomous` — falls through to the normal guardrail policy.
+
+Autonomy mode is required at every session boundary (CLI, channels, server,
+workflow agent steps). It is not optional, and there is no silent fallback.
+Workflow agent steps map their mode to the SDK's `permissionMode` and, in
+passive mode, add write-capable tools (`Edit`, `Write`, `NotebookEdit`, `Bash`)
+to `disallowedTools` because the subprocess SDK cannot see the KOTA tool-runner.
+
 ## Logical clusters
 
 - Delegate: `delegate.ts`, `delegate-agent-sdk.ts`, `delegate-config.ts`,

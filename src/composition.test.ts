@@ -43,6 +43,7 @@ function createTestSession(
 	const [client, calls] = createMockClient(responses);
 	const transport = new BufferTransport();
 	const session = new AgentSession({
+		autonomyMode: "autonomous",
 		client,
 		transport,
 		model: "claude-haiku-4-5-20251001",

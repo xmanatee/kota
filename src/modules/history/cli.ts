@@ -174,6 +174,7 @@ export async function runPipeLoop(piped: string): Promise<void> {
     apiKey: config.modelProvider?.apiKey,
   });
   await runAgentLoop(piped, {
+    autonomyMode: "autonomous",
     model: resolved.model,
     maxTokens: config.maxTokens || 8192,
     verbose: config.verbose,

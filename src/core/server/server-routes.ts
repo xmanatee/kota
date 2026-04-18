@@ -6,6 +6,7 @@ import type { EventBus } from "#core/events/event-bus.js";
 import type { AgentSession } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { DaemonControlClient } from "./daemon-client.js";
 import { queryDaemonStatus } from "./daemon-routes.js";
 import { handleEventTrigger } from "./event-routes.js";
@@ -21,6 +22,7 @@ import {
   handleCreateSession,
   handleDeleteSession,
   handleListSessions,
+  handlePatchSession,
 } from "./session-routes.js";
 
 const MIME_TYPES: Record<string, string> = {
@@ -42,7 +44,9 @@ export type ServerContext = {
   hub: NotificationHub;
   bus: EventBus;
   moduleRoutes: RouteRegistration[];
-  makeAgent: (transport: Transport) => AgentSession;
+  makeAgent: (transport: Transport, autonomyMode: AutonomyMode) => AgentSession;
+  /** Autonomy mode applied when a request does not specify one. */
+  defaultAutonomyMode: AutonomyMode;
   daemonClient?: DaemonControlClient | null;
   /** Directory containing the built web UI static assets (index.html + assets/). */
   webUiDir?: string;
@@ -91,10 +95,11 @@ export function buildRequestHandler(ctx: ServerContext) {
     }
 
     if (req.method === "POST" && path === "/api/sessions") {
-      const sessionId = handleCreateSession(res, ctx.pool, ctx.makeAgent);
-      if (sessionId && ctx.daemonClient) {
-        void ctx.daemonClient.registerSession(sessionId, new Date().toISOString());
-      }
+      handleCreateSession(req, res, ctx.pool, ctx.makeAgent, ctx.defaultAutonomyMode, (id) => {
+        if (ctx.daemonClient) void ctx.daemonClient.registerSession(id, new Date().toISOString());
+      }).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
       return;
     }
 
@@ -102,7 +107,7 @@ export function buildRequestHandler(ctx: ServerContext) {
       const onSessionCreate = ctx.daemonClient
         ? (id: string) => { void ctx.daemonClient!.registerSession(id, new Date().toISOString()); }
         : undefined;
-      handleChat(req, res, ctx.pool, ctx.makeAgent, onSessionCreate).catch((err) => {
+      handleChat(req, res, ctx.pool, ctx.makeAgent, ctx.defaultAutonomyMode, onSessionCreate).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;
@@ -138,6 +143,14 @@ export function buildRequestHandler(ctx: ServerContext) {
       if (ctx.daemonClient) {
         void ctx.daemonClient.unregisterSession(sessionId);
       }
+      return;
+    }
+
+    const patchSessionMatch = path.match(/^\/api\/sessions\/([^/]+)$/);
+    if (req.method === "PATCH" && patchSessionMatch) {
+      handlePatchSession(req, res, ctx.pool, patchSessionMatch[1]).catch((err) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      });
       return;
     }
 

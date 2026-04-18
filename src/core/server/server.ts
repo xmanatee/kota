@@ -16,6 +16,7 @@ import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
 import { initModuleLogStore } from "#core/modules/module-log.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { DaemonControlClient } from "./daemon-client.js";
 import { NotificationHub } from "./server-notifications.js";
 import { buildRequestHandler } from "./server-routes.js";
@@ -28,6 +29,12 @@ export type ServerOptions = {
   config?: KotaConfig;
   noAuth?: boolean;
   /**
+   * Fallback autonomy mode applied to sessions when the request body does not
+   * specify one. There is no silent global default — callers must pass this
+   * explicitly.
+   */
+  defaultAutonomyMode: AutonomyMode;
+  /**
    * Override the generated auth token. Useful in tests to use a known value.
    * Has no effect when noAuth is true.
    */
@@ -38,7 +45,7 @@ export type ServerOptions = {
   webUiDir?: string;
 };
 
-export function startServer(options: ServerOptions = {}): Server {
+export function startServer(options: ServerOptions): Server {
   const port = options.port ?? 3000;
   const config = options.config ?? loadConfig();
   const pool = new SessionPool();
@@ -76,8 +83,9 @@ export function startServer(options: ServerOptions = {}): Server {
   const cleanupTimer = setInterval(() => pool.cleanup(), 5 * 60 * 1000);
   cleanupTimer.unref();
 
-  function makeAgent(transport: Transport): AgentSession {
+  function makeAgent(transport: Transport, autonomyMode: AutonomyMode): AgentSession {
     const loopOpts: LoopOptions = {
+      autonomyMode,
       model: options.model ?? config.model,
       verbose: options.verbose ?? config.verbose,
       transport,
@@ -94,6 +102,7 @@ export function startServer(options: ServerOptions = {}): Server {
     bus,
     moduleRoutes: options.moduleRoutes ?? [],
     makeAgent,
+    defaultAutonomyMode: options.defaultAutonomyMode,
     daemonClient,
     webUiDir: options.webUiDir,
     authToken,

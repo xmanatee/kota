@@ -413,6 +413,7 @@ describe("parallel step groups with agent steps", () => {
               effort: "xhigh",
       permissionMode: "bypassPermissions",
       settingSources: [],
+      autonomyMode: "autonomous",
       ...overrides,
     };
   }

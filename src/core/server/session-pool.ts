@@ -11,6 +11,7 @@ import type { ServerResponse } from "node:http";
 import type { ChannelSession } from "#core/channels/channel.js";
 import type { AgentSession } from "#core/loop/loop.js";
 import { type AgentEvent, ProxyTransport, type Transport } from "#core/loop/transport.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 
 /** Transport that writes AgentEvents as Server-Sent Events to an HTTP response. */
 export class SseTransport implements Transport {
@@ -93,11 +94,12 @@ export class SessionPool {
     return true;
   }
 
-  list(): Array<{ id: string; busy: boolean; lastActive: number }> {
+  list(): Array<{ id: string; busy: boolean; lastActive: number; autonomyMode: AutonomyMode }> {
     return [...this.sessions.values()].map((s) => ({
       id: s.id,
       busy: s.busy,
       lastActive: s.lastActive,
+      autonomyMode: s.agent.getAutonomyMode(),
     }));
   }
 

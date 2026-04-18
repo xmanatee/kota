@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
   WorkflowRepairLoopConfig,
   WorkflowStepContext,
@@ -207,6 +208,14 @@ export function validateAgentStep(
     );
   }
 
+  const autonomyMode: AutonomyMode = step.autonomyMode ?? "autonomous";
+  if (!isAutonomyMode(autonomyMode)) {
+    throw new WorkflowDefinitionError(
+      `${stepLabel}.autonomyMode must be one of passive, supervised, autonomous`,
+      definitionPath,
+    );
+  }
+
   return {
     id: expectName(step.id, `${stepLabel}.id`, definitionPath),
     type: "agent",
@@ -250,6 +259,7 @@ export function validateAgentStep(
       definitionPath,
     ),
     settingSources: settingSources as WorkflowAgentStep["settingSources"],
+    autonomyMode,
     when: expectOptionalFunction(
       step.when,
       `${stepLabel}.when`,

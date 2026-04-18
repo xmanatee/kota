@@ -30,7 +30,7 @@ describe("init → loop → context: session startup pipeline", () => {
     const { AgentSession } = await import("./core/loop/loop.js");
     const { SYSTEM_PROMPT } = await import("./core/agents/system-prompt.js");
 
-    const session = new AgentSession();
+    const session = new AgentSession({ autonomyMode: "autonomous" });
     // Access the static prompt through the public close path — verify via context
     // The system prompt must start with SYSTEM_PROMPT
     // We test indirectly: the context stores the combined prompt
@@ -43,7 +43,7 @@ describe("init → loop → context: session startup pipeline", () => {
   it("warmup section appears in the static prompt", async () => {
     const { AgentSession } = await import("./core/loop/loop.js");
 
-    const session = new AgentSession();
+    const session = new AgentSession({ autonomyMode: "autonomous" });
     const staticPrompt: string = (session as any).context.getStaticPrompt();
     // buildSessionWarmup always includes working directory
     expect(staticPrompt).toContain("**Working directory**:");
@@ -54,7 +54,7 @@ describe("init → loop → context: session startup pipeline", () => {
   it("system info (date, platform) appears in static prompt", async () => {
     const { AgentSession } = await import("./core/loop/loop.js");
 
-    const session = new AgentSession();
+    const session = new AgentSession({ autonomyMode: "autonomous" });
     const staticPrompt: string = (session as any).context.getStaticPrompt();
     expect(staticPrompt).toContain("**System**:");
     expect(staticPrompt).toMatch(/Date: \d{4}-\d{2}-\d{2}/);
@@ -66,7 +66,7 @@ describe("init → loop → context: session startup pipeline", () => {
     // Current directory is a Node.js project (has package.json)
     const { AgentSession } = await import("./core/loop/loop.js");
 
-    const session = new AgentSession();
+    const session = new AgentSession({ autonomyMode: "autonomous" });
     const staticPrompt: string = (session as any).context.getStaticPrompt();
     expect(staticPrompt).toContain("**Project**:");
     expect(staticPrompt).toContain("Node.js project");

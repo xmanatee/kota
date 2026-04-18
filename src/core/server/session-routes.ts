@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AgentSession } from "#core/loop/loop.js";
 import { NullTransport, type Transport } from "#core/loop/transport.js";
+import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
   jsonResponse,
   type ManagedSession,
@@ -9,6 +10,18 @@ import {
   SseTransport,
   setCors,
 } from "./session-pool.js";
+
+function resolveAutonomyMode(
+  body: Record<string, unknown>,
+  fallback: AutonomyMode,
+): { ok: true; mode: AutonomyMode } | { ok: false; error: string } {
+  const raw = body.autonomy_mode;
+  if (raw === undefined) return { ok: true, mode: fallback };
+  if (!isAutonomyMode(raw)) {
+    return { ok: false, error: "autonomy_mode must be one of: passive, supervised, autonomous" };
+  }
+  return { ok: true, mode: raw };
+}
 
 async function handleKotaChat(res: ServerResponse, session: ManagedSession, message: string): Promise<void> {
   setCors(res);
@@ -37,7 +50,8 @@ export async function handleChat(
   req: IncomingMessage,
   res: ServerResponse,
   pool: SessionPool,
-  makeAgent: (transport: Transport) => AgentSession,
+  makeAgent: (transport: Transport, autonomyMode: AutonomyMode) => AgentSession,
+  defaultAutonomyMode: AutonomyMode,
   onSessionCreate?: (id: string) => void,
 ): Promise<void> {
   let body: Record<string, unknown>;
@@ -54,6 +68,12 @@ export async function handleChat(
     return;
   }
 
+  const modeResult = resolveAutonomyMode(body, defaultAutonomyMode);
+  if (!modeResult.ok) {
+    jsonResponse(res, 400, { error: modeResult.error });
+    return;
+  }
+
   let session: ManagedSession;
   const sessionId = body.session_id as string | undefined;
   if (sessionId) {
@@ -65,7 +85,7 @@ export async function handleChat(
     session = existing;
   } else {
     try {
-      session = pool.create(makeAgent);
+      session = pool.create((t) => makeAgent(t, modeResult.mode));
       onSessionCreate?.(session.id);
     } catch (err) {
       jsonResponse(res, 503, { error: (err as Error).message });
@@ -86,19 +106,71 @@ export function handleListSessions(res: ServerResponse, pool: SessionPool): void
   jsonResponse(res, 200, { sessions: pool.list() });
 }
 
-export function handleCreateSession(
+export async function handleCreateSession(
+  req: IncomingMessage,
   res: ServerResponse,
   pool: SessionPool,
-  makeAgent: (transport: Transport) => AgentSession,
-): string | null {
+  makeAgent: (transport: Transport, autonomyMode: AutonomyMode) => AgentSession,
+  defaultAutonomyMode: AutonomyMode,
+  onSessionCreate?: (id: string) => void,
+): Promise<string | null> {
+  let body: Record<string, unknown> = {};
   try {
-    const session = pool.create(makeAgent);
-    jsonResponse(res, 201, { session_id: session.id });
+    body = await readBody(req);
+  } catch (err) {
+    jsonResponse(res, 400, { error: (err as Error).message });
+    return null;
+  }
+
+  const modeResult = resolveAutonomyMode(body, defaultAutonomyMode);
+  if (!modeResult.ok) {
+    jsonResponse(res, 400, { error: modeResult.error });
+    return null;
+  }
+
+  try {
+    const session = pool.create((t) => makeAgent(t, modeResult.mode));
+    onSessionCreate?.(session.id);
+    jsonResponse(res, 201, { session_id: session.id, autonomy_mode: modeResult.mode });
     return session.id;
   } catch (err) {
     jsonResponse(res, 503, { error: (err as Error).message });
     return null;
   }
+}
+
+export async function handlePatchSession(
+  req: IncomingMessage,
+  res: ServerResponse,
+  pool: SessionPool,
+  sessionId: string,
+): Promise<void> {
+  const session = pool.get(sessionId);
+  if (!session) {
+    jsonResponse(res, 404, { error: "Session not found" });
+    return;
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await readBody(req);
+  } catch (err) {
+    jsonResponse(res, 400, { error: (err as Error).message });
+    return;
+  }
+
+  const raw = body.autonomy_mode;
+  if (raw === undefined) {
+    jsonResponse(res, 400, { error: "autonomy_mode is required" });
+    return;
+  }
+  if (!isAutonomyMode(raw)) {
+    jsonResponse(res, 400, { error: "autonomy_mode must be one of: passive, supervised, autonomous" });
+    return;
+  }
+
+  session.agent.setAutonomyMode(raw);
+  jsonResponse(res, 200, { session_id: sessionId, autonomy_mode: raw });
 }
 
 export function handleDeleteSession(res: ServerResponse, pool: SessionPool, sessionId: string): void {

@@ -110,6 +110,7 @@ describe("buildDryRunPlan", () => {
               effort: "xhigh",
           permissionMode: "default",
           settingSources: ["project"],
+          autonomyMode: "autonomous",
         },
       ],
     });

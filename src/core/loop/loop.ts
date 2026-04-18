@@ -5,6 +5,7 @@ import type { McpManager } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import type { ModelTiers } from "#core/model/model-router.js";
 import type { ModuleLoader } from "#core/modules/module-loader.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { GuardrailsConfig } from "#core/tools/guardrails.js";
 import type { Context } from "./context.js";
 import type { CostTracker } from "./cost.js";
@@ -16,6 +17,11 @@ import { BufferTransport, type Transport } from "./transport.js";
 import type { VerifyTracker } from "./verify-tracker.js";
 
 export type LoopOptions = {
+  /**
+   * Operator supervision mode for this session. Required — sessions must be
+   * created with an explicit autonomy mode. See {@link AutonomyMode}.
+   */
+  autonomyMode: AutonomyMode;
   model?: string;
   editorModel?: string;
   maxTokens?: number;
@@ -81,10 +87,12 @@ export class AgentSession {
   private modelTiers?: ModelTiers;
   private stateMachine!: SessionStateMachine;
   private channelIdentity?: ChannelUserIdentity;
+  private autonomyMode!: AutonomyMode;
 
-  constructor(options: LoopOptions = {}) {
+  constructor(options: LoopOptions) {
     initAgentSession(this as unknown as AgentLoopState, options, (opts) => {
       const session = new AgentSession({
+        autonomyMode: this.autonomyMode,
         model: opts.model || this.model,
         config: options.config,
         transport: new BufferTransport(),
@@ -118,6 +126,15 @@ export class AgentSession {
 
   getChannelIdentity(): ChannelUserIdentity | undefined { return this.channelIdentity; }
 
+  getAutonomyMode(): AutonomyMode { return this.autonomyMode; }
+
+  /**
+   * Change the session's autonomy mode mid-flight. Operators invoke this
+   * through the daemon control API or a channel-specific command; the new
+   * mode applies to the next tool call and onwards.
+   */
+  setAutonomyMode(mode: AutonomyMode): void { this.autonomyMode = mode; }
+
   /** Clean up handlers and save final state. */
   close(errored = false): void {
     process.removeListener("SIGINT", this.sigintHandler);
@@ -128,7 +145,7 @@ export class AgentSession {
 /** Convenience wrapper: create a session, send one prompt, close. */
 export async function runAgentLoop(
   prompt: string,
-  options: LoopOptions = {},
+  options: LoopOptions,
 ): Promise<string> {
   const session = new AgentSession(options);
   let errored = false;

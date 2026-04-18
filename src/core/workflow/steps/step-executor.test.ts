@@ -51,6 +51,7 @@ function makeStep(
     effort: "xhigh",
     permissionMode: "bypassPermissions",
     settingSources: [],
+    autonomyMode: "autonomous",
     ...overrides,
   };
 }

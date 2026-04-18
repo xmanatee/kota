@@ -121,6 +121,9 @@ program
     }
 
     const options = {
+      // Interactive terminal run. Operator is local at a TTY; default to the
+      // existing pass-through behavior.
+      autonomyMode: "autonomous" as const,
       model,
       editorModel,
       maxTokens,

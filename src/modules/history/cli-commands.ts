@@ -89,6 +89,7 @@ export function registerHistoryCommands(program: Command) {
         apiKey: config.modelProvider?.apiKey,
       });
       await interactiveMode({
+        autonomyMode: "autonomous",
         model: resolved.model,
         verbose: opts.verbose || config.verbose,
         config,

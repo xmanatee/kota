@@ -60,6 +60,7 @@ function makeAgentStep(
     effort: "xhigh",
     permissionMode: "bypassPermissions",
     settingSources: [],
+    autonomyMode: "autonomous",
     ...overrides,
   };
 }

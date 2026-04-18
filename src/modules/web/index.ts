@@ -66,6 +66,7 @@ const webModule: KotaModule = {
           verbose: opts.verbose || ctx.config.verbose,
           config: ctx.config,
           noAuth: opts.auth === false,
+          defaultAutonomyMode: "supervised",
           moduleRoutes,
           webUiDir: existsSync(webUiDir) ? webUiDir : undefined,
         });

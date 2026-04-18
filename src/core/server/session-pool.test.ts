@@ -46,8 +46,16 @@ function mockRequest(body?: string): EventEmitter & { destroy: ReturnType<typeof
   return req;
 }
 
-function mockAgentSession(): { close: ReturnType<typeof vi.fn> } {
-  return { close: vi.fn() };
+function mockAgentSession(): {
+  close: ReturnType<typeof vi.fn>;
+  getAutonomyMode: () => "autonomous";
+  setAutonomyMode: ReturnType<typeof vi.fn>;
+} {
+  return {
+    close: vi.fn(),
+    getAutonomyMode: () => "autonomous" as const,
+    setAutonomyMode: vi.fn(),
+  };
 }
 
 function makePool(opts?: { maxSessions?: number; ttlMs?: number }) {

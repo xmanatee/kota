@@ -500,6 +500,64 @@ describe("workflow validation", () => {
     }
   });
 
+  it("rejects invalid autonomyMode in agent steps", () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "build",
+                type: "agent",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                model: "claude-opus-4-7",
+                effort: "xhigh",
+                autonomyMode: "bogus" as any,
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow("autonomyMode");
+  });
+
+  it("defaults autonomyMode to autonomous when omitted", () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    const definitions = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+              model: "claude-opus-4-7",
+              effort: "xhigh",
+            },
+          ],
+        }),
+      ],
+      projectDir,
+    );
+
+    const step = definitions[0]?.steps[0];
+    expect(step && "autonomyMode" in step ? step.autonomyMode : undefined).toBe("autonomous");
+  });
+
   it("rejects agent steps without a model field", () => {
     writeFileSync(
       join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),

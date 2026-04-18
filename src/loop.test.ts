@@ -171,7 +171,7 @@ describe("AgentSession", () => {
 
   describe("text-only response", () => {
     it("returns text from model", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage.mockResolvedValueOnce(textResponse("Hello!"));
 
       const result = await session.send("Hi");
@@ -181,7 +181,7 @@ describe("AgentSession", () => {
     });
 
     it("passes system prompt and messages to streamMessage", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage.mockResolvedValueOnce(textResponse("Hi"));
 
       await session.send("Hello");
@@ -196,7 +196,7 @@ describe("AgentSession", () => {
 
   describe("thinking mode", () => {
     it("passes thinking config when enabled", async () => {
-      session = new AgentSession({ thinkingEnabled: true, thinkingBudget: 5000 });
+      session = new AgentSession({ autonomyMode: "autonomous", thinkingEnabled: true, thinkingBudget: 5000 });
       mockStreamMessage.mockResolvedValueOnce(textResponse("thought"));
 
       await session.send("think");
@@ -209,7 +209,7 @@ describe("AgentSession", () => {
 
   describe("tool call loop", () => {
     it("executes one tool round then returns text", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage
         .mockResolvedValueOnce(
           toolResponse([{ id: "tu_1", name: "file_read", input: { path: "/tmp/test.txt" } }]),
@@ -225,7 +225,7 @@ describe("AgentSession", () => {
     });
 
     it("passes multiple tool blocks in parallel", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage
         .mockResolvedValueOnce(
           toolResponse([
@@ -247,7 +247,7 @@ describe("AgentSession", () => {
     });
 
     it("runs multiple rounds until text response", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage
         .mockResolvedValueOnce(
           toolResponse([{ id: "tu_1", name: "grep", input: { pattern: "x" } }]),
@@ -270,7 +270,7 @@ describe("AgentSession", () => {
 
   describe("observation masking timing", () => {
     it("calls maskOldObservations before LLM call each turn", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       const maskSpy = vi.spyOn(Context.prototype, "maskOldObservations");
       mockStreamMessage.mockResolvedValueOnce(textResponse("ok", 110_000));
 
@@ -282,7 +282,7 @@ describe("AgentSession", () => {
     });
 
     it("calls maskOldObservations once per turn in multi-turn loop", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       const maskSpy = vi.spyOn(Context.prototype, "maskOldObservations");
       mockStreamMessage
         .mockResolvedValueOnce(
@@ -301,7 +301,7 @@ describe("AgentSession", () => {
 
   describe("verify tracking", () => {
     it("records file_edit", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage
         .mockResolvedValueOnce(
           toolResponse([{ id: "tu_1", name: "file_edit", input: { path: "/src/main.ts" } }]),
@@ -315,7 +315,7 @@ describe("AgentSession", () => {
     });
 
     it("records file_write", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage
         .mockResolvedValueOnce(
           toolResponse([{ id: "tu_1", name: "file_write", input: { path: "/new.ts" } }]),
@@ -329,7 +329,7 @@ describe("AgentSession", () => {
     });
 
     it("records each file in multi_edit", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage
         .mockResolvedValueOnce(
           toolResponse([
@@ -350,7 +350,7 @@ describe("AgentSession", () => {
     });
 
     it("does not check shell commands when result is error", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage
         .mockResolvedValueOnce(
           toolResponse([{ id: "tu_1", name: "shell", input: { command: "npm test" } }]),
@@ -366,7 +366,7 @@ describe("AgentSession", () => {
     });
 
     it("records files from find_replace result", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage
         .mockResolvedValueOnce(
           toolResponse([{ id: "tu_1", name: "find_replace", input: { glob: "**/*.ts", pattern: "old", replacement: "new" } }]),
@@ -386,7 +386,7 @@ describe("AgentSession", () => {
     });
 
     it("records files from delegate execute result", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage
         .mockResolvedValueOnce(
           toolResponse([{ id: "tu_1", name: "delegate", input: { mode: "execute", task: "fix" } }]),
@@ -406,7 +406,7 @@ describe("AgentSession", () => {
     });
 
     it("does NOT record delegate explore (no modified files)", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage
         .mockResolvedValueOnce(
           toolResponse([{ id: "tu_1", name: "delegate", input: { mode: "explore", task: "research" } }]),
@@ -425,7 +425,7 @@ describe("AgentSession", () => {
     });
 
     it("does NOT record find_replace dry run", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage
         .mockResolvedValueOnce(
           toolResponse([{ id: "tu_1", name: "find_replace", input: { glob: "**/*.ts", pattern: "old", replacement: "new", dry_run: true } }]),
@@ -444,7 +444,7 @@ describe("AgentSession", () => {
     });
 
     it("does NOT record edit when tool result is an error", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage
         .mockResolvedValueOnce(
           toolResponse([{ id: "tu_1", name: "file_edit", input: { path: "/bad.ts" } }]),
@@ -460,7 +460,7 @@ describe("AgentSession", () => {
     });
 
     it("ticks after each tool round", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage
         .mockResolvedValueOnce(
           toolResponse([{ id: "tu_1", name: "grep", input: { pattern: "x" } }]),
@@ -476,7 +476,7 @@ describe("AgentSession", () => {
 
   describe("failure tracking", () => {
     it("injects guidance after 5 diverse failures", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       for (let i = 0; i < 5; i++) {
         mockStreamMessage.mockResolvedValueOnce(
           toolResponse([{ id: `tu_${i}`, name: "shell", input: { command: `cmd${i}` } }]),
@@ -494,7 +494,7 @@ describe("AgentSession", () => {
     });
 
     it("injects circuit break after 3 identical failures", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       for (let i = 0; i < 3; i++) {
         mockStreamMessage.mockResolvedValueOnce(
           toolResponse([{ id: `tu_${i}`, name: "shell", input: { command: "bad" } }]),
@@ -513,7 +513,7 @@ describe("AgentSession", () => {
 
   describe("architect mode", () => {
     it("runs architect then editor pass before main loop", async () => {
-      session = new AgentSession({ architectMode: true });
+      session = new AgentSession({ autonomyMode: "autonomous", architectMode: true });
       mockArchitectPass.mockResolvedValueOnce("Step 1: create file...");
       mockEditorLoop.mockResolvedValueOnce({ text: "Created file.ts", modifiedFiles: ["file.ts"] });
       mockStreamMessage.mockResolvedValueOnce(textResponse("verified"));
@@ -526,7 +526,7 @@ describe("AgentSession", () => {
     });
 
     it("skips editor pass when architect returns empty plan", async () => {
-      session = new AgentSession({ architectMode: true });
+      session = new AgentSession({ autonomyMode: "autonomous", architectMode: true });
       mockArchitectPass.mockResolvedValueOnce("");
       mockStreamMessage.mockResolvedValueOnce(textResponse("nothing to do"));
 
@@ -539,7 +539,7 @@ describe("AgentSession", () => {
   describe("session persistence", () => {
     it("saves session after tool rounds and at end", async () => {
       const tmpPath = `/tmp/kota-loop-test-${Date.now()}.json`;
-      session = new AgentSession({ sessionPath: tmpPath });
+      session = new AgentSession({ autonomyMode: "autonomous", sessionPath: tmpPath });
       mockStreamMessage
         .mockResolvedValueOnce(
           toolResponse([{ id: "tu_1", name: "grep", input: { pattern: "x" } }]),
@@ -557,7 +557,7 @@ describe("AgentSession", () => {
 
   describe("multiple sends", () => {
     it("maintains context across sends", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage
         .mockResolvedValueOnce(textResponse("Hi!"))
         .mockResolvedValueOnce(textResponse("Your name is Bob."));
@@ -579,21 +579,21 @@ describe("AgentSession", () => {
       const cleanup = vi.fn();
       registerCleanupHook("test-cleanup", cleanup);
 
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       session.close();
 
       expect(cleanup).toHaveBeenCalledTimes(1);
     });
 
     it("is idempotent", () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       session.close();
       session.close();
     });
 
     it("emits Done status on normal close", () => {
       const transport = new BufferTransport();
-      session = new AgentSession({ transport });
+      session = new AgentSession({ autonomyMode: "autonomous", transport });
       session.close();
 
       const statuses = transport.getStatusMessages();
@@ -602,7 +602,7 @@ describe("AgentSession", () => {
 
     it("suppresses Done status when errored=true", () => {
       const transport = new BufferTransport();
-      session = new AgentSession({ transport });
+      session = new AgentSession({ autonomyMode: "autonomous", transport });
       session.close(true);
 
       const statuses = transport.getStatusMessages();
@@ -615,7 +615,7 @@ describe("AgentSession", () => {
       const transport = new BufferTransport();
       mockStreamMessage.mockRejectedValueOnce(new Error("auth failed"));
 
-      await expect(runAgentLoop("test", { transport })).rejects.toThrow("auth failed");
+      await expect(runAgentLoop("test", { autonomyMode: "autonomous", transport })).rejects.toThrow("auth failed");
 
       const statuses = transport.getStatusMessages();
       expect(statuses.some((m: string) => m.includes("Done"))).toBe(false);
@@ -625,7 +625,7 @@ describe("AgentSession", () => {
       const transport = new BufferTransport();
       mockStreamMessage.mockResolvedValueOnce(textResponse("ok"));
 
-      await runAgentLoop("test", { transport });
+      await runAgentLoop("test", { autonomyMode: "autonomous", transport });
 
       const statuses = transport.getStatusMessages();
       expect(statuses.some((m: string) => m.includes("Done"))).toBe(true);
@@ -634,7 +634,7 @@ describe("AgentSession", () => {
 
   describe("cost tracking", () => {
     it("accumulates costs across turns", async () => {
-      session = new AgentSession();
+      session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage
         .mockResolvedValueOnce(
           toolResponse([{ id: "tu_1", name: "grep", input: { pattern: "x" } }], 1000),

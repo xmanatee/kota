@@ -10,10 +10,13 @@ import { createRetryMiddleware, resetRetryStats } from "#modules/tool-retry/tool
 import { getToolMiddleware, resetToolMiddleware } from "./tool-middleware.js";
 import { executeToolCalls } from "./tool-runner.js";
 
-// Mock executeTool and truncateToolResult, but NOT tool-retry
-vi.mock("./index.js", () => ({
-  executeTool: vi.fn(),
-}));
+// Mock executeTool and truncateToolResult, but NOT tool-retry.
+// Autonomy-mode gating calls `assess()` → `classifyRisk()` → `getCoreRegistrations()`,
+// so the registrations list must come through real.
+vi.mock(import("./index.js"), async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, executeTool: vi.fn() };
+});
 vi.mock("#core/loop/context.js", () => ({
   truncateToolResult: vi.fn((text: string) => text),
 }));
@@ -58,8 +61,7 @@ describe("tool-runner × tool-retry middleware integration", () => {
 
     const results = await executeToolCalls(
       [toolBlock("shell", { command: "npm test", timeout_ms: 120_000 })],
-      50_000,
-      false,
+      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
     );
 
     expect(callCount).toBe(2);
@@ -76,8 +78,7 @@ describe("tool-runner × tool-retry middleware integration", () => {
 
     const results = await executeToolCalls(
       [toolBlock("shell", { command: "slow", timeout_ms: 200_000 })],
-      50_000,
-      false,
+      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
     );
 
     // 200000 * 2 = 400000 > 300000 max → no retry
@@ -97,8 +98,7 @@ describe("tool-runner × tool-retry middleware integration", () => {
 
     const results = await executeToolCalls(
       [toolBlock("web_fetch", { url: "https://example.com" })],
-      50_000,
-      false,
+      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
     );
 
     expect(callCount).toBe(2);
@@ -115,8 +115,7 @@ describe("tool-runner × tool-retry middleware integration", () => {
 
     const results = await executeToolCalls(
       [toolBlock("web_search", { query: "test" })],
-      50_000,
-      false,
+      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
     );
 
     expect(mockExecuteTool).toHaveBeenCalledTimes(2);
@@ -133,8 +132,7 @@ describe("tool-runner × tool-retry middleware integration", () => {
 
     const results = await executeToolCalls(
       [toolBlock("file_read", { path: "/nope" })],
-      50_000,
-      false,
+      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
     );
 
     expect(mockExecuteTool).toHaveBeenCalledTimes(1);
@@ -154,8 +152,7 @@ describe("tool-runner × tool-retry middleware integration", () => {
 
     const results = await executeToolCalls(
       [toolBlock("http_request", { url: "https://api.example.com" })],
-      50_000,
-      false,
+      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
     );
 
     expect(callCount).toBe(2);
@@ -171,8 +168,7 @@ describe("tool-runner × tool-retry middleware integration", () => {
 
     const results = await executeToolCalls(
       [toolBlock("shell", { command: "foobar" })],
-      50_000,
-      false,
+      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
     );
 
     expect(mockExecuteTool).toHaveBeenCalledTimes(1);
@@ -187,8 +183,7 @@ describe("tool-runner × tool-retry middleware integration", () => {
 
     const results = await executeToolCalls(
       [toolBlock("web_fetch", { url: "https://example.com/missing" })],
-      50_000,
-      false,
+      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
     );
 
     expect(mockExecuteTool).toHaveBeenCalledTimes(1);

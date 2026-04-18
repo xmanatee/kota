@@ -60,6 +60,7 @@ const vercelAdapterModule: KotaModule = {
 
         const stream = new DataStreamTransport(res);
         const agent = new AgentSession({
+          autonomyMode: "supervised",
           model: (body.model as string) || ctx.config.model,
           verbose: ctx.verbose,
           transport: stream,
