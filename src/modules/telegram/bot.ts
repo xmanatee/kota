@@ -12,6 +12,7 @@ import type { KotaConfig } from "#core/config/config.js";
 import { getScheduler, initScheduler, resetScheduler } from "#core/daemon/scheduler.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
 import { NullTransport, ProxyTransport } from "#core/loop/transport.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
   callTelegramApi,
   ERROR_BACKOFF_MS,
@@ -32,6 +33,7 @@ export type TelegramBotOptions = {
   model?: string;
   verbose?: boolean;
   config?: KotaConfig;
+  autonomyMode: AutonomyMode;
   /** Whitelist of allowed chat IDs. Empty/undefined = allow all. */
   allowedChatIds?: number[];
 };
@@ -222,7 +224,7 @@ export class TelegramBot {
     };
     const proxy = new ProxyTransport();
     const loopOpts: LoopOptions = {
-      autonomyMode: "supervised",
+      autonomyMode: this.options.autonomyMode,
       model: this.options.model ?? this.options.config?.model,
       verbose: this.options.verbose ?? this.options.config?.verbose,
       transport: proxy,

@@ -4,6 +4,7 @@ import type {
   ModuleContext,
   RouteRegistration,
 } from "#core/modules/module-types.js";
+import { AUTONOMY_MODES } from "#core/tools/autonomy-mode.js";
 import {
   clearSessions,
   makeWebhookChannelHandler,
@@ -49,6 +50,26 @@ const webhookChannelModule: KotaModule = {
   version: "1.0.0",
   description:
     "Inbound webhook-to-session channel — external services POST JSON to create agent sessions",
+  configSchema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      secret: { type: "string", minLength: 1 },
+      defaultAgent: { type: "string", minLength: 1 },
+      defaultAutonomyMode: { type: "string", enum: AUTONOMY_MODES },
+      sources: {
+        type: "object",
+        additionalProperties: {
+          type: "object",
+          additionalProperties: false,
+          required: ["agent"],
+          properties: {
+            agent: { type: "string", minLength: 1 },
+          },
+        },
+      },
+    },
+  },
 
   channels: (ctx) => [makeChannelDef(ctx)],
 

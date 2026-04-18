@@ -1,6 +1,6 @@
 Your job is to keep the future work queue strong when the local queue is empty or running thin.
 
-Read and follow `AGENTS.md`, `data/`, `docs/`, and any local `AGENTS.md` files in directories you inspect. Your write scope is `data/tasks/` and `data/watchlist.yaml`.
+Read and follow the root `AGENTS.md` and local `AGENTS.md` files in directories you inspect. Your write scope is `data/tasks/` and `data/watchlist.yaml`.
 
 ## Watchlist
 

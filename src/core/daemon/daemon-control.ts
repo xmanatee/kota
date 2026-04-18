@@ -141,7 +141,7 @@ export type DaemonControlServerOptions = {
    * The factory receives the proxy transport and the session's autonomy mode.
    */
   makeAgent?: (transport: Transport, autonomyMode: AutonomyMode) => AgentSession;
-  /** Fallback autonomy mode applied when POST /sessions does not specify one. */
+  /** Autonomy mode used when POST /sessions does not specify one. */
   defaultAutonomyMode?: AutonomyMode;
   /** Options forwarded to the daemon chat session pool. */
   chatPool?: DaemonChatPoolOptions;
@@ -155,7 +155,7 @@ export class DaemonControlServer {
   private readonly eventBuffer: EventRingBuffer;
   private readonly chatPool: DaemonChatPool | null;
   private readonly makeAgent: ((transport: Transport, autonomyMode: AutonomyMode) => AgentSession) | null;
-  private readonly defaultAutonomyMode: AutonomyMode;
+  private readonly defaultAutonomyMode: AutonomyMode | undefined;
   private readonly chatSweepMs: number;
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -166,7 +166,7 @@ export class DaemonControlServer {
   ) {
     this.eventBuffer = new EventRingBuffer(options?.eventBufferSize ?? 500);
     this.makeAgent = options?.makeAgent ?? null;
-    this.defaultAutonomyMode = options?.defaultAutonomyMode ?? "supervised";
+    this.defaultAutonomyMode = options?.defaultAutonomyMode;
     this.chatPool = this.makeAgent ? new DaemonChatPool(options?.chatPool) : null;
     const ttlMs = options?.chatPool?.ttlMs ?? (5 * 60 * 1000);
     this.chatSweepMs = Math.min(ttlMs, 60_000);

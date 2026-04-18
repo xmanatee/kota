@@ -240,35 +240,69 @@ function excludeOwnerQuestionTool(disallowedTools: string[] | undefined): string
   return disallowedTools?.filter((tool) => tool !== KOTA_OWNER_QUESTIONS_MCP_TOOL);
 }
 
-/**
- * SDK write-capable tools blocked when autonomyMode is "passive". The agent
- * SDK runs in its own subprocess so KOTA's tool-runner autonomy gate cannot
- * see those calls; we disallow the known write surface at the SDK level.
- */
-const SDK_WRITE_TOOLS = [
-  "Edit",
-  "Write",
-  "NotebookEdit",
-  "Bash",
+const SDK_PASSIVE_ALLOWED_TOOLS = [
+  "Read",
+  "LS",
+  "Grep",
+  "Glob",
+  "NotebookRead",
+  "WebFetch",
+  "WebSearch",
+  "TodoRead",
+  "ListMcpResourcesTool",
+  "ReadMcpResourceTool",
 ] as const;
+
+const SDK_PASSIVE_ALLOWED_TOOL_SET = new Set<string>(SDK_PASSIVE_ALLOWED_TOOLS);
+
+function resolvePassiveAllowedTools(
+  allowedTools: string[] | undefined,
+  disallowedTools: string[] | undefined,
+): string[] {
+  const requested = allowedTools ?? [...SDK_PASSIVE_ALLOWED_TOOLS];
+  const unsafe = requested.filter(
+    (tool) =>
+      tool !== KOTA_OWNER_QUESTIONS_MCP_TOOL &&
+      !SDK_PASSIVE_ALLOWED_TOOL_SET.has(tool),
+  );
+  if (unsafe.length > 0) {
+    throw new Error(
+      `Passive agent steps may only allow read-only SDK tools; disallowed here: ${unsafe.join(", ")}`,
+    );
+  }
+  const disallowed = new Set(excludeOwnerQuestionTool(disallowedTools) ?? []);
+  return includeOwnerQuestionTool(
+    requested.filter((tool) => !disallowed.has(tool)),
+  ) as string[];
+}
 
 function resolveSdkPermissions(
   mode: AutonomyMode,
   permissionMode: SDKPermissionMode,
+  allowedTools: string[] | undefined,
   disallowedTools: string[] | undefined,
-): { permissionMode: SDKPermissionMode; disallowedTools: string[] | undefined } {
+): {
+  permissionMode: SDKPermissionMode;
+  allowedTools: string[] | undefined;
+  disallowedTools: string[] | undefined;
+} {
   if (mode === "autonomous") {
-    return { permissionMode, disallowedTools };
+    return {
+      permissionMode,
+      allowedTools: includeOwnerQuestionTool(allowedTools),
+      disallowedTools: excludeOwnerQuestionTool(disallowedTools),
+    };
   }
   if (mode === "supervised") {
-    return { permissionMode: "default", disallowedTools };
+    throw new Error(
+      "Workflow agent steps cannot use supervised autonomyMode because SDK tool calls cannot be routed through KOTA approvals",
+    );
   }
-  const existing = disallowedTools ?? [];
-  const merged = [...existing];
-  for (const tool of SDK_WRITE_TOOLS) {
-    if (!merged.includes(tool)) merged.push(tool);
-  }
-  return { permissionMode: "default", disallowedTools: merged };
+  return {
+    permissionMode: "default",
+    allowedTools: resolvePassiveAllowedTools(allowedTools, disallowedTools),
+    disallowedTools: undefined,
+  };
 }
 
 export async function executeAgentStep(
@@ -324,7 +358,8 @@ export async function executeAgentStep(
     const sdkPermissions = resolveSdkPermissions(
       step.autonomyMode,
       step.permissionMode,
-      excludeOwnerQuestionTool(step.disallowedTools),
+      step.allowedTools,
+      step.disallowedTools,
     );
     try {
       const result = await executeWithAgentSDK(prompt, {
@@ -335,7 +370,7 @@ export async function executeAgentStep(
         effort: step.effort,
         thinkingEnabled: step.thinkingEnabled,
         thinkingBudget: step.thinkingBudget,
-        allowedTools: includeOwnerQuestionTool(step.allowedTools),
+        allowedTools: sdkPermissions.allowedTools,
         disallowedTools: sdkPermissions.disallowedTools,
         mcpServers: createOwnerQuestionMcpServers(
           `workflow:${metadata.workflow}/${metadata.id}/${step.id}`,

@@ -328,18 +328,18 @@ describe("TelegramBot", () => {
   });
 
   it("constructs with options", () => {
-    const bot = new TelegramBot({ token: "test-token" });
+    const bot = new TelegramBot({ token: "test-token", autonomyMode: "supervised" });
     expect(bot.sessionCount).toBe(0);
   });
 
   it("stop clears sessions", () => {
-    const bot = new TelegramBot({ token: "test-token" });
+    const bot = new TelegramBot({ token: "test-token", autonomyMode: "supervised" });
     bot.stop();
     expect(bot.sessionCount).toBe(0);
   });
 
   it("start verifies token via getMe and initializes scheduler", async () => {
-    const bot = new TelegramBot({ token: "test-token" });
+    const bot = new TelegramBot({ token: "test-token", autonomyMode: "supervised" });
     fetchMock
       .mockResolvedValueOnce({
         json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "TestBot", username: "test_bot" } }),
@@ -359,7 +359,7 @@ describe("TelegramBot", () => {
   });
 
   it("stop cleans up scheduler timer", async () => {
-    const bot = new TelegramBot({ token: "test-token" });
+    const bot = new TelegramBot({ token: "test-token", autonomyMode: "supervised" });
     fetchMock
       .mockResolvedValueOnce({
         json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot", username: "bot" } }),

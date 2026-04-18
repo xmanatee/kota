@@ -1,23 +1,16 @@
 /**
  * Telegram module — makes KOTA accessible via Telegram messaging.
  *
- * Contributes:
- * - `kota telegram` CLI command (interactive bot)
- * - `telegram-status` channel (daemon status poll — responds to /status)
- * - Notification subscriptions: workflow failure alerts, attention digests,
- *   approval-step expirations, module crash alerts, approval requests,
- *   owner questions, and opt-in builder commit notifications.
- *
- * The CLI command starts the full interactive TelegramBot.
- * The channel contribution registers a status-only poll with the daemon
- * so operators can query workflow state via `/status` in Telegram.
- * The onLoad handler subscribes to domain bus events and forwards them to Telegram.
+ * Contributes the interactive bot command, status channel, and configured
+ * notification forwarding.
  */
 
 import { Command } from "commander";
 import type { ChannelDef } from "#core/channels/channel.js";
+import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { AUTONOMY_MODES, type AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { TelegramBot } from "./bot.js";
 import { type PendingMessage, startCallbackPoll } from "./callback-poll.js";
 import type { TelegramMessage } from "./client.js";
@@ -139,6 +132,8 @@ async function sendApprovalMessage(
 type TelegramConfig = {
   /** Subset of opt-in notification events to forward. Default: none. */
   events?: string[];
+  /** Autonomy mode applied to Telegram chat sessions. */
+  defaultAutonomyMode?: AutonomyMode;
 };
 
 function getCredentials(): { token: string; chatId: string } | null {
@@ -178,6 +173,18 @@ const telegramModule: KotaModule = {
   version: "1.0.0",
   description: "Telegram bot frontend for KOTA",
   dependencies: ["approval-queue", "autonomy"],
+  configSchema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      events: {
+        type: "array",
+        items: { type: "string", minLength: 1 },
+        uniqueItems: true,
+      },
+      defaultAutonomyMode: { type: "string", enum: AUTONOMY_MODES },
+    },
+  },
 
   channels: [telegramStatusChannel],
 
@@ -329,12 +336,20 @@ const telegramModule: KotaModule = {
               .filter(Number.isFinite)
           : undefined;
 
+        const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
+        const autonomyMode = resolveChannelAutonomyMode(
+          telegramConfig?.defaultAutonomyMode,
+          ctx.config,
+          "telegram",
+        );
+
         const bot = new TelegramBot({
           token,
           model: opts.model || ctx.config.model,
           verbose: opts.verbose || ctx.config.verbose,
           config: ctx.config,
           allowedChatIds,
+          autonomyMode,
         });
 
         process.on("SIGINT", () => {

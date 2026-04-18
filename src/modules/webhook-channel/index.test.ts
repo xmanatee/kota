@@ -6,10 +6,30 @@ import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { resolveModuleChannels } from "#core/modules/module-types.js";
-import { clearSessions } from "./handler.js";
+import {
+  clearSessions,
+  makeWebhookChannelHandler,
+  type WebhookSessionFactory,
+} from "./handler.js";
 import webhookChannelModule from "./index.js";
 
 // ─── Test helpers ────────────────────────────────────────────────────────────
+
+type CreatedWebhookSession = {
+  label: string;
+  autonomyMode: string;
+  send: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
+};
+
+function makeSessionFactory(created: CreatedWebhookSession[] = []): WebhookSessionFactory {
+  return vi.fn(({ label, autonomyMode }) => {
+    const send = vi.fn(async () => "agent response text");
+    const close = vi.fn();
+    created.push({ label, autonomyMode, send, close });
+    return { send, close };
+  });
+}
 
 function makeStubCtx(
   bus?: EventBus,
@@ -19,7 +39,7 @@ function makeStubCtx(
   return {
     cwd: "/tmp/test",
     verbose: false,
-    config: {} as ModuleContext["config"],
+    config: { serve: { defaultAutonomyMode: "supervised" } } as ModuleContext["config"],
     storage: new ModuleStorage("/tmp/test", "webhook-channel"),
     registerGroup: () => {},
     getRoutes: () => [],
@@ -104,9 +124,13 @@ async function invokeHandler(
   body: string,
   headers: Record<string, string> = {},
   url?: string,
+  sessionFactory: WebhookSessionFactory = makeSessionFactory(),
 ): Promise<FakeResponse> {
-  const routes = webhookChannelModule.routes!(ctx);
-  const handler = routes[0].handler;
+  const handler = makeWebhookChannelHandler(
+    ctx,
+    ctx.getModuleConfig() ?? {},
+    sessionFactory,
+  );
   const req = makeFakeRequest(body, headers, "POST", url);
   const res = makeFakeResponse();
   await handler(req, res as unknown as ServerResponse);
@@ -191,16 +215,23 @@ describe("handler — open mode", () => {
     expect(parsed.createdAt).toBeTruthy();
   });
 
-  it("calls ctx.createSession with a webhook label", async () => {
+  it("creates a session with a webhook label", async () => {
     const ctx = makeStubCtx();
+    const created: CreatedWebhookSession[] = [];
     const body = JSON.stringify({ message: "Test" });
-    await invokeHandler(ctx, body);
+    await invokeHandler(ctx, body, {}, undefined, makeSessionFactory(created));
 
-    expect(ctx.createSession).toHaveBeenCalledWith(
-      expect.objectContaining({
-        label: expect.stringContaining("webhook:"),
-      }),
-    );
+    expect(created[0].label).toContain("webhook:");
+    expect(created[0].autonomyMode).toBe("supervised");
+  });
+
+  it("uses the webhook-channel autonomy override when configured", async () => {
+    const ctx = makeStubCtx(undefined, { defaultAutonomyMode: "autonomous" });
+    const created: CreatedWebhookSession[] = [];
+    const body = JSON.stringify({ message: "Test" });
+    await invokeHandler(ctx, body, {}, undefined, makeSessionFactory(created));
+
+    expect(created[0].autonomyMode).toBe("autonomous");
   });
 
   it("rejects missing message field (HTTP 400)", async () => {
@@ -333,10 +364,10 @@ describe("handler — metadata and events", () => {
       message: "Deploy complete",
       metadata: { service: "api", env: "production" },
     });
-    await invokeHandler(ctx, body);
+    const created: CreatedWebhookSession[] = [];
+    await invokeHandler(ctx, body, {}, undefined, makeSessionFactory(created));
 
-    const session = (ctx.createSession as ReturnType<typeof vi.fn>).mock.results[0].value;
-    expect(session.send).toHaveBeenCalledWith(
+    expect(created[0].send).toHaveBeenCalledWith(
       expect.stringContaining("production"),
     );
   });

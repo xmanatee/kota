@@ -10,19 +10,33 @@
  * sends the full messages array on every request.
  */
 
+import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { AgentSession } from "#core/loop/loop.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { CORS_HEADERS, jsonResponse, readBody, setCors } from "#core/server/session-pool.js";
+import { AUTONOMY_MODES, type AutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
   DATA_STREAM_HEADERS,
   DataStreamTransport,
   extractLastUserMessage,
 } from "./data-stream.js";
 
+type VercelAdapterConfig = {
+  /** Autonomy mode applied to Vercel AI SDK chat sessions. */
+  defaultAutonomyMode?: AutonomyMode;
+};
+
 const vercelAdapterModule: KotaModule = {
   name: "vercel-adapter",
   version: "1.0.0",
   description: "Vercel AI SDK Data Stream Protocol integration for HTTP chat",
+  configSchema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      defaultAutonomyMode: { type: "string", enum: AUTONOMY_MODES },
+    },
+  },
 
   routes: (ctx) => [
     {
@@ -58,9 +72,16 @@ const vercelAdapterModule: KotaModule = {
         setCors(res);
         res.writeHead(200, { ...DATA_STREAM_HEADERS, ...CORS_HEADERS });
 
+        const adapterConfig = ctx.getModuleConfig<VercelAdapterConfig>();
+        const autonomyMode = resolveChannelAutonomyMode(
+          adapterConfig?.defaultAutonomyMode,
+          ctx.config,
+          "vercel-adapter",
+        );
+
         const stream = new DataStreamTransport(res);
         const agent = new AgentSession({
-          autonomyMode: "supervised",
+          autonomyMode,
           model: (body.model as string) || ctx.config.model,
           verbose: ctx.verbose,
           transport: stream,

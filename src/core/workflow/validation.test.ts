@@ -617,7 +617,7 @@ describe("workflow validation", () => {
               promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
               model: "claude-opus-4-7",
               effort: "xhigh",
-              autonomyMode: "supervised",
+              autonomyMode: "passive",
             },
           ],
         }),
@@ -626,7 +626,36 @@ describe("workflow validation", () => {
     );
 
     const step = definitions[0]?.steps[0];
-    expect(step && "autonomyMode" in step ? step.autonomyMode : undefined).toBe("supervised");
+    expect(step && "autonomyMode" in step ? step.autonomyMode : undefined).toBe("passive");
+  });
+
+  it("rejects supervised autonomyMode on workflow agent steps", () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "build",
+                type: "agent",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                model: "claude-opus-4-7",
+                effort: "xhigh",
+                autonomyMode: "supervised",
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow("autonomyMode cannot be supervised for workflow agent steps");
   });
 
   it("rejects invalid defaultAutonomyMode on workflow definitions", () => {

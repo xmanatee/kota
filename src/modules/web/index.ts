@@ -10,6 +10,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { Command } from "commander";
+import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { warnUnknownConfigKeys } from "#core/config/config-warnings.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { startServer } from "#core/server/server.js";
@@ -66,7 +67,11 @@ const webModule: KotaModule = {
           verbose: opts.verbose || ctx.config.verbose,
           config: ctx.config,
           noAuth: opts.auth === false,
-          defaultAutonomyMode: ctx.config.serve?.defaultAutonomyMode ?? "supervised",
+          defaultAutonomyMode: resolveChannelAutonomyMode(
+            undefined,
+            ctx.config,
+            "web server",
+          ),
           moduleRoutes,
           webUiDir: existsSync(webUiDir) ? webUiDir : undefined,
         });

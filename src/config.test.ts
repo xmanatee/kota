@@ -223,6 +223,48 @@ describe("loadConfig", () => {
     expect(config.scheduler?.agentConcurrency).toBeUndefined();
     expect(config.scheduler?.dispatchWindow).toBeDefined();
   });
+
+  it("loads serve and cli autonomy defaults", () => {
+    const configDir = join(tmpDir, ".kota");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, "config.json"),
+      JSON.stringify({
+        serve: { defaultAutonomyMode: "supervised" },
+        cli: { defaultAutonomyMode: "passive" },
+      }),
+    );
+
+    const config = loadConfig(tmpDir);
+    expect(config.serve?.defaultAutonomyMode).toBe("supervised");
+    expect(config.cli?.defaultAutonomyMode).toBe("passive");
+  });
+
+  it("rejects invalid serve autonomy defaults", () => {
+    const configDir = join(tmpDir, ".kota");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, "config.json"),
+      JSON.stringify({ serve: { defaultAutonomyMode: "banana" } }),
+    );
+
+    expect(() => loadConfig(tmpDir)).toThrow(
+      /config\.serve\.defaultAutonomyMode must be one of passive, supervised, autonomous/,
+    );
+  });
+
+  it("rejects invalid cli autonomy defaults", () => {
+    const configDir = join(tmpDir, ".kota");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, "config.json"),
+      JSON.stringify({ cli: { defaultAutonomyMode: "banana" } }),
+    );
+
+    expect(() => loadConfig(tmpDir)).toThrow(
+      /config\.cli\.defaultAutonomyMode must be one of passive, supervised, autonomous/,
+    );
+  });
 });
 
 describe("buildUserProfile", () => {

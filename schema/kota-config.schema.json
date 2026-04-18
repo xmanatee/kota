@@ -33,6 +33,21 @@
       },
       "type": "array"
     },
+    "cli": {
+      "additionalProperties": false,
+      "description": "CLI entrypoint settings (interactive REPL, `history resume`, piped input).",
+      "properties": {
+        "defaultAutonomyMode": {
+          "enum": [
+            "passive",
+            "supervised",
+            "autonomous"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "daemon": {
       "additionalProperties": false,
       "description": "Daemon lifecycle settings.",
@@ -350,7 +365,113 @@
         "type": "object"
       },
       "description": "Per-module configuration. Keys are module names, values are module-specific settings.",
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "slack-channel": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "botToken",
+            "appToken"
+          ],
+          "properties": {
+            "botToken": {
+              "type": "string",
+              "minLength": 1
+            },
+            "appToken": {
+              "type": "string",
+              "minLength": 1
+            },
+            "notifyChannel": {
+              "type": "string",
+              "minLength": 1
+            },
+            "defaultAutonomyMode": {
+              "type": "string",
+              "enum": [
+                "passive",
+                "supervised",
+                "autonomous"
+              ]
+            }
+          }
+        },
+        "telegram": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "events": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            },
+            "defaultAutonomyMode": {
+              "type": "string",
+              "enum": [
+                "passive",
+                "supervised",
+                "autonomous"
+              ]
+            }
+          }
+        },
+        "vercel-adapter": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "defaultAutonomyMode": {
+              "type": "string",
+              "enum": [
+                "passive",
+                "supervised",
+                "autonomous"
+              ]
+            }
+          }
+        },
+        "webhook-channel": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "secret": {
+              "type": "string",
+              "minLength": 1
+            },
+            "defaultAgent": {
+              "type": "string",
+              "minLength": 1
+            },
+            "defaultAutonomyMode": {
+              "type": "string",
+              "enum": [
+                "passive",
+                "supervised",
+                "autonomous"
+              ]
+            },
+            "sources": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "agent"
+                ],
+                "properties": {
+                  "agent": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "notifications": {
       "additionalProperties": false,

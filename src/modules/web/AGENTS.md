@@ -4,4 +4,5 @@ This directory owns the `web` repo module — HTTP API server with SSE streaming
 
 - Registers `kota serve` CLI command.
 - Actual server logic lives in `src/core/server/server.ts`; this module wires it into the CLI and collects module routes.
-
+- Web sessions use configured autonomy explicitly. Missing session-autonomy
+  config is a startup error, not a hidden fallback.

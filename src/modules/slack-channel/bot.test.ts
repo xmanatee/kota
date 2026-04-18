@@ -55,6 +55,7 @@ function makeBot(overrides?: Partial<ConstructorParameters<typeof SlackBot>[0]>)
     botToken: "xoxb-test",
     appToken: "xapp-test",
     notifyChannel: "C-NOTIFY",
+    autonomyMode: "supervised",
     ...overrides,
   });
 }

@@ -2,6 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { KOTA_OWNER_QUESTIONS_MCP_TOOL } from "#core/agent-sdk/index.js";
 
 const tryEmitMock = vi.hoisted(() => vi.fn());
 vi.mock("#core/events/event-bus.js", () => ({ tryEmit: tryEmitMock }));
@@ -409,5 +410,95 @@ describe("executeAgentStep — provider errors from SDK result", () => {
     expect((caught as AgentStepRuntimeError).kind).toBe("provider");
     expect((caught as AgentStepRuntimeError).retryable).toBe(false);
     expect(executeWithAgentSDKMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("executeAgentStep — SDK autonomy permissions", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-step-executor-permissions-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(join(projectDir, "prompt.md"), "do the thing");
+    tryEmitMock.mockReset();
+    executeWithAgentSDKMock.mockReset();
+    executeWithAgentSDKMock.mockResolvedValue({
+      text: "done",
+      streamedText: "",
+      sessionId: undefined,
+      turns: 1,
+      totalCostUsd: 0.01,
+      subtype: undefined,
+      isError: false,
+    });
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("limits passive agent steps to read-only SDK tools", async () => {
+    const step = makeAgentStep(projectDir, {
+      autonomyMode: "passive",
+      allowedTools: undefined,
+      disallowedTools: undefined,
+      permissionMode: "bypassPermissions",
+    });
+
+    await executeAgentStep(
+      makeDefinition(),
+      step,
+      makeMetadata(),
+      { event: "runtime.idle", payload: {} },
+      new AbortController(),
+      () => {},
+      () => {},
+      { projectDir, log: () => {} },
+    );
+
+    const options = executeWithAgentSDKMock.mock.calls[0][1] as {
+      permissionMode: string;
+      allowedTools: string[];
+      disallowedTools?: string[];
+    };
+    expect(options.permissionMode).toBe("default");
+    expect(options.disallowedTools).toBeUndefined();
+    expect(options.allowedTools).toEqual([
+      "Read",
+      "LS",
+      "Grep",
+      "Glob",
+      "NotebookRead",
+      "WebFetch",
+      "WebSearch",
+      "TodoRead",
+      "ListMcpResourcesTool",
+      "ReadMcpResourceTool",
+      KOTA_OWNER_QUESTIONS_MCP_TOOL,
+    ]);
+  });
+
+  it("rejects unsafe allowedTools on passive agent steps", async () => {
+    const step = makeAgentStep(projectDir, {
+      autonomyMode: "passive",
+      allowedTools: ["Read", "Bash"],
+    });
+
+    await expect(
+      executeAgentStep(
+        makeDefinition(),
+        step,
+        makeMetadata(),
+        { event: "runtime.idle", payload: {} },
+        new AbortController(),
+        () => {},
+        () => {},
+        { projectDir, log: () => {} },
+      ),
+    ).rejects.toThrow("Passive agent steps may only allow read-only SDK tools");
+    expect(executeWithAgentSDKMock).not.toHaveBeenCalled();
   });
 });

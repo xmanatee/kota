@@ -21,12 +21,13 @@ const MockedSlackBot = vi.mocked(SlackBot);
 function makeStubCtx(
   bus?: EventBus,
   moduleConfig?: Record<string, unknown>,
+  kotaConfig?: ModuleContext["config"],
 ): ModuleContext {
   const b = bus ?? new EventBus();
   return {
     cwd: "/tmp/test",
     verbose: false,
-    config: {} as ModuleContext["config"],
+    config: kotaConfig ?? ({ serve: { defaultAutonomyMode: "supervised" } } as ModuleContext["config"]),
     storage: new ModuleStorage("/tmp/test", "slack-channel"),
     registerGroup: () => {},
     getRoutes: () => [],
@@ -162,6 +163,45 @@ describe("slackChannelModule onLoad/onUnload", () => {
       "shell",
       "high",
       "Runs commands",
+    );
+  });
+
+  it("uses per-channel defaultAutonomyMode when set", () => {
+    const ctx = makeStubCtx(
+      undefined,
+      {
+        botToken: "xoxb-test",
+        appToken: "xapp-test",
+        defaultAutonomyMode: "autonomous",
+      },
+      { serve: { defaultAutonomyMode: "passive" } } as ModuleContext["config"],
+    );
+    slackChannelModule.onLoad!(ctx);
+    expect(MockedSlackBot).toHaveBeenCalledWith(
+      expect.objectContaining({ autonomyMode: "autonomous" }),
+    );
+  });
+
+  it("falls back to config.serve.defaultAutonomyMode when channel default is absent", () => {
+    const ctx = makeStubCtx(
+      undefined,
+      { botToken: "xoxb-test", appToken: "xapp-test" },
+      { serve: { defaultAutonomyMode: "passive" } } as ModuleContext["config"],
+    );
+    slackChannelModule.onLoad!(ctx);
+    expect(MockedSlackBot).toHaveBeenCalledWith(
+      expect.objectContaining({ autonomyMode: "passive" }),
+    );
+  });
+
+  it("throws loudly when neither channel nor serve autonomy is configured", () => {
+    const ctx = makeStubCtx(
+      undefined,
+      { botToken: "xoxb-test", appToken: "xapp-test" },
+      {} as ModuleContext["config"],
+    );
+    expect(() => slackChannelModule.onLoad!(ctx)).toThrow(
+      /slack-channel: autonomy mode is not configured/,
     );
   });
 

@@ -1,4 +1,5 @@
 import { JsonFileError } from "#core/util/json-file.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
   WorkflowQueuedRun,
   WorkflowRecoveryState,
@@ -20,6 +21,7 @@ export type WorkflowSnapshot = {
   description?: string;
   enabled: boolean;
   definitionPath: string;
+  defaultAutonomyMode?: AutonomyMode;
   triggers: WorkflowDefinition["triggers"];
   steps: Array<Record<string, unknown>>;
 };
@@ -251,6 +253,7 @@ function summarizeStep(step: WorkflowStep): Record<string, unknown> {
       effort: step.effort,
       maxTurns: step.maxTurns,
       permissionMode: step.permissionMode,
+      autonomyMode: step.autonomyMode,
       allowedTools: step.allowedTools,
       disallowedTools: step.disallowedTools,
       settingSources: step.settingSources,
@@ -320,6 +323,7 @@ export function buildWorkflowSnapshot(workflow: WorkflowDefinition): WorkflowSna
     description: workflow.description,
     enabled: workflow.enabled,
     definitionPath: workflow.definitionPath,
+    defaultAutonomyMode: workflow.defaultAutonomyMode,
     triggers: workflow.triggers,
     steps: workflow.steps.map(summarizeStep),
   };

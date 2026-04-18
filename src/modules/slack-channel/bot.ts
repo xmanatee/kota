@@ -11,6 +11,7 @@ import type { KotaConfig } from "#core/config/config.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
 import { NullTransport, ProxyTransport } from "#core/loop/transport.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
   callSlackApi,
   openSocketModeUrl,
@@ -28,6 +29,7 @@ export type SlackBotOptions = {
   model?: string;
   verbose?: boolean;
   config?: KotaConfig;
+  autonomyMode: AutonomyMode;
 };
 
 /** Formats an approval request as Block Kit blocks with Approve/Reject buttons. */
@@ -259,7 +261,7 @@ export class SlackBot {
 
     const proxy = new ProxyTransport();
     const loopOpts: LoopOptions = {
-      autonomyMode: "supervised",
+      autonomyMode: this.options.autonomyMode,
       model: this.options.model ?? this.options.config?.model,
       verbose: this.options.verbose ?? this.options.config?.verbose,
       transport: proxy,

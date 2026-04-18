@@ -2,7 +2,7 @@
 
 ## Repository Surfaces
 
-- `docs/` is for durable reference docs.
+- `docs/` is for durable, cross-cutting reference docs.
 - `data/inbox/` is for quick captures, rough ideas, and owner notes.
 - `data/tasks/` is the normalized live work queue and the source of truth for outstanding work after sorting.
 - Local `AGENTS.md` files explain directory purpose and boundaries.
@@ -15,11 +15,11 @@
 - Keep docs concise, high-level, and current.
 - Do not duplicate code, tests, prompts, or other docs unless duplication changes decisions.
 - Prefer one clear source of truth per topic.
-- If you change a documented protocol, API surface, CLI behavior, or config behavior, update the corresponding docs in the same run.
+- Update docs only when a high-level decision, boundary, or operator guideline changes.
 - Do not list functions, methods, file inventories, or directory contents in docs. Agents can discover those from the code.
 - Do not include migration notes, changelog entries, or transitional guidance in durable docs. Once a migration is complete, remove the notes.
 - Documentation should cover what cannot be easily inferred from reading the code: vision, conventions, methodology, guidelines derived from experience, and architectural decisions.
-- Scope documentation as close to its subject as possible. Prefer a local `AGENTS.md` or a scoped doc over a global one.
+- Scope documentation as close to its subject as possible. Prefer a local `AGENTS.md` over a global doc for directory-specific guidance.
 - Documentation should not compensate for unclear code. If behavior can be made
   obvious through names, types, layout, or tests, improve those instead of
   adding explanatory text.
@@ -28,7 +28,7 @@
 
 - Keep prompts concise and role-local.
 - A prompt should explain what that agent or workflow is trying to do, not restate nearby architecture docs or task policy.
-- Durable conventions and boundaries belong in `docs/` or local `AGENTS.md` files, not repeated across several prompts.
+- Durable conventions and boundaries belong in local `AGENTS.md` files by default, not repeated across several prompts.
 - If the same guidance appears in both a prompt and a nearby `AGENTS.md`, keep the durable version and trim the prompt.
 
 ## Engineering Rules

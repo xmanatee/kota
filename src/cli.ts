@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { expandAlias, loadConfig } from "#core/config/config.js";
 import { setSkipConfirmations } from "#core/util/confirm.js";
 import {
@@ -121,9 +122,11 @@ program
     }
 
     const options = {
-      // Interactive terminal run. Operator is local at a TTY; default to the
-      // existing pass-through behavior.
-      autonomyMode: "autonomous" as const,
+      autonomyMode: resolveChannelAutonomyMode(
+        config.cli?.defaultAutonomyMode,
+        config,
+        "cli run",
+      ),
       model,
       editorModel,
       maxTokens,

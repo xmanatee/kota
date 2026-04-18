@@ -11,3 +11,5 @@ This directory owns the `conversation_recall` management tool — lets the agent
 - Owns the `history` CLI commands (`kota history …`) in `cli-commands.ts` and
   CLI helpers (interactive REPL, pipe mode, option parsing) in `cli.ts`.
 - Does not own the memory or knowledge stores (those belong in `memory/` and `knowledge/`).
+- CLI-launched sessions use configured autonomy explicitly. Missing
+  session-autonomy config is a boundary error, not a hidden fallback.

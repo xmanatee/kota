@@ -25,6 +25,7 @@ export const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set<keyof KotaConfig>(
   "approvalTtlMs",
   "runsGc",
   "serve",
+  "cli",
   "log",
   "daemon",
   "notifications",

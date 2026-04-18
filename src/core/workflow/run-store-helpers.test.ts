@@ -399,6 +399,14 @@ describe("buildWorkflowSnapshot", () => {
     expect(snap.steps).toEqual([]);
   });
 
+  it("includes workflow defaultAutonomyMode when present", () => {
+    const snap = buildWorkflowSnapshot({
+      ...baseWorkflow,
+      defaultAutonomyMode: "autonomous",
+    });
+    expect(snap.defaultAutonomyMode).toBe("autonomous");
+  });
+
   it("omits description when not present", () => {
     const { description: _, ...wf } = baseWorkflow;
     const snap = buildWorkflowSnapshot(wf as WorkflowDefinition);
@@ -432,7 +440,12 @@ describe("buildWorkflowSnapshot", () => {
       ],
     };
     const snap = buildWorkflowSnapshot(wf);
-    expect(snap.steps[0]).toMatchObject({ id: "s1", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md" });
+    expect(snap.steps[0]).toMatchObject({
+      id: "s1",
+      type: "agent",
+      promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+      autonomyMode: "autonomous",
+    });
   });
 
   it("summarizes emit steps", () => {

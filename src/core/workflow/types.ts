@@ -352,7 +352,7 @@ export type WorkflowDefinitionInput = {
    */
   recoveryCapable?: boolean;
   /**
-   * Workflow-level fallback for every agent step's `autonomyMode`. When set, any
+   * Workflow-level default for every agent step's `autonomyMode`. When set, any
    * agent step in this workflow (including steps nested inside parallel, branch,
    * or foreach) that omits its own `autonomyMode` inherits this value. When
    * omitted, every agent step in the workflow must declare its own mode; the
@@ -525,7 +525,7 @@ export type WorkflowDefinition = {
   moduleRoot: string;
   recoveryCapable: boolean;
   /**
-   * Workflow-level fallback for agent-step autonomy mode. Populated by the
+   * Workflow-level default for agent-step autonomy mode. Populated by the
    * loader when the workflow definition sets `defaultAutonomyMode`; used only
    * by the validator when normalizing agent steps and not re-read at runtime.
    */

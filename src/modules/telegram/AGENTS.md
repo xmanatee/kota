@@ -5,6 +5,8 @@ This directory owns the Telegram integration — interactive bot access and noti
 - Contributes: `kota telegram` CLI command (interactive bot), `telegram-status` channel (daemon status poll via `/status`), and notification subscriptions for workflow events.
 - Optional event filters must not suppress urgent owner/approval escalation
   notifications.
+- Interactive sessions use configured autonomy explicitly. Missing
+  session-autonomy config is a startup error, not a hidden fallback.
 
 ## Boundaries
 

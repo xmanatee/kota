@@ -1,4 +1,5 @@
 import { createInterface } from "node:readline";
+import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { expandAlias, type KotaConfig, loadConfig } from "#core/config/config.js";
 import { getScheduler, resetScheduler } from "#core/daemon/scheduler.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "#core/loop/loop.js";
@@ -174,7 +175,11 @@ export async function runPipeLoop(piped: string): Promise<void> {
     apiKey: config.modelProvider?.apiKey,
   });
   await runAgentLoop(piped, {
-    autonomyMode: "autonomous",
+    autonomyMode: resolveChannelAutonomyMode(
+      config.cli?.defaultAutonomyMode,
+      config,
+      "cli pipe",
+    ),
     model: resolved.model,
     maxTokens: config.maxTokens || 8192,
     verbose: config.verbose,

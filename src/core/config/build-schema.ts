@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { discoverProjectModules } from "../modules/project-discovery.js";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
 const OUT = process.env.KOTA_SCHEMA_OUT ?? resolve(ROOT, "schema/kota-config.schema.json");
@@ -35,6 +36,27 @@ function resolveRefs(obj: unknown, defs: Record<string, unknown>): unknown {
 }
 
 const inlined = resolveRefs(kotaDef, generated.definitions) as Record<string, unknown>;
+
+function objectRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+const projectModules = await discoverProjectModules();
+const properties = objectRecord(inlined.properties);
+const modulesSchema = properties ? objectRecord(properties.modules) : null;
+if (modulesSchema) {
+  const moduleProperties = objectRecord(modulesSchema.properties) ?? {};
+  for (const mod of projectModules) {
+    if (mod.configSchema) moduleProperties[mod.name] = mod.configSchema;
+  }
+  if (Object.keys(moduleProperties).length > 0) {
+    modulesSchema.properties = Object.fromEntries(
+      Object.entries(moduleProperties).sort(([a], [b]) => a.localeCompare(b)),
+    );
+  }
+}
 
 const schema = {
   $schema: "http://json-schema.org/draft-07/schema#",

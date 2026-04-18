@@ -7,7 +7,7 @@ exist.
 ## Scope
 
 - Read the original task file identified in the assessment output.
-- Read `AGENTS.md`, `docs/`, and local `AGENTS.md` files in areas the task touches.
+- Read the root `AGENTS.md` and local `AGENTS.md` files in areas the task touches.
 - Understand why the task is too broad for a single builder run.
 - Split it into independently valuable subtasks with clear outcomes.
 

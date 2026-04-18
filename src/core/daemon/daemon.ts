@@ -153,7 +153,7 @@ export class Daemon {
             transport,
             config: daemonConfig,
           }),
-        defaultAutonomyMode: config.config?.serve?.defaultAutonomyMode ?? "supervised",
+        defaultAutonomyMode: config.config?.serve?.defaultAutonomyMode,
         chatPool: { ttlMs: config.config?.daemon?.sessionIdleTtlMs },
       },
     );
@@ -211,7 +211,13 @@ export class Daemon {
 
     if (this.config.probeModuleHealthChecks) {
       const probe = this.config.probeModuleHealthChecks;
-      const runProbe = () => { void probe().then((r) => { this.moduleHealthChecks = r; }).catch(() => {}); };
+      const runProbe = () => {
+        void probe()
+          .then((r) => { this.moduleHealthChecks = r; })
+          .catch((err: unknown) => {
+            this.log(`Module health probe failed: ${err instanceof Error ? err.message : String(err)}`);
+          });
+      };
       runProbe();
       this.healthCheckTimer = setInterval(runProbe, 30_000);
     }

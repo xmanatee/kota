@@ -4,10 +4,29 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { clearSessions } from "./handler.js";
-import webhookChannelModule from "./index.js";
+import {
+  clearSessions,
+  makeWebhookChannelHandler,
+  type WebhookSessionFactory,
+} from "./handler.js";
 
 // ─── Test helpers ────────────────────────────────────────────────────────────
+
+type CreatedWebhookSession = {
+  label: string;
+  autonomyMode: string;
+  send: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
+};
+
+function makeSessionFactory(created: CreatedWebhookSession[] = []): WebhookSessionFactory {
+  return vi.fn(({ label, autonomyMode }) => {
+    const send = vi.fn(async () => "agent response text");
+    const close = vi.fn();
+    created.push({ label, autonomyMode, send, close });
+    return { send, close };
+  });
+}
 
 function makeStubCtx(
   bus?: EventBus,
@@ -17,7 +36,7 @@ function makeStubCtx(
   return {
     cwd: "/tmp/test",
     verbose: false,
-    config: {} as ModuleContext["config"],
+    config: { serve: { defaultAutonomyMode: "supervised" } } as ModuleContext["config"],
     storage: new ModuleStorage("/tmp/test", "webhook-channel"),
     registerGroup: () => {},
     getRoutes: () => [],
@@ -101,9 +120,13 @@ async function invokeHandler(
   body: string,
   headers: Record<string, string> = {},
   url?: string,
+  sessionFactory: WebhookSessionFactory = makeSessionFactory(),
 ): Promise<FakeResponse> {
-  const routes = webhookChannelModule.routes!(ctx);
-  const handler = routes[0].handler;
+  const handler = makeWebhookChannelHandler(
+    ctx,
+    ctx.getModuleConfig() ?? {},
+    sessionFactory,
+  );
   const req = makeFakeRequest(body, headers, url);
   const res = makeFakeResponse();
   await handler(req, res as unknown as ServerResponse);
@@ -139,14 +162,18 @@ describe("source routing — path suffix", () => {
 
   it("includes source agent in session label", async () => {
     const ctx = makeStubCtx(undefined, SOURCES_CONFIG);
+    const created: CreatedWebhookSession[] = [];
     const body = JSON.stringify({ message: "Build passed" });
-    await invokeHandler(ctx, body, {}, "/api/channels/webhook/ci");
-
-    expect(ctx.createSession).toHaveBeenCalledWith(
-      expect.objectContaining({
-        label: "webhook:ci:reviewer",
-      }),
+    await invokeHandler(
+      ctx,
+      body,
+      {},
+      "/api/channels/webhook/ci",
+      makeSessionFactory(created),
     );
+
+    expect(created[0].label).toBe("webhook:ci:reviewer");
+    expect(created[0].autonomyMode).toBe("supervised");
   });
 });
 
@@ -303,9 +330,9 @@ describe("misconfigured source rejection", () => {
   });
 });
 
-// ─── Backward compatibility ─────────────────────────────────────────────────
+// ─── Direct requests without source routing ─────────────────────────────────
 
-describe("backward compatibility — no sources configured", () => {
+describe("direct requests — no sources configured", () => {
   it("works without sources config", async () => {
     const ctx = makeStubCtx();
     const body = JSON.stringify({ message: "Normal request" });

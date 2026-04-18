@@ -179,7 +179,7 @@ export async function handleCreateDaemonSession(
   req: IncomingMessage,
   res: ServerResponse,
   makeAgent: (transport: Transport, mode: AutonomyMode) => AgentSession,
-  defaultAutonomyMode: AutonomyMode,
+  defaultAutonomyMode: AutonomyMode | undefined,
 ): Promise<void> {
   let body: Record<string, unknown>;
   try {
@@ -190,13 +190,17 @@ export async function handleCreateDaemonSession(
   }
 
   const raw = body.autonomy_mode;
-  let mode: AutonomyMode = defaultAutonomyMode;
+  let mode = defaultAutonomyMode;
   if (raw !== undefined) {
     if (!isAutonomyMode(raw)) {
       jsonResponse(res, 400, { error: "autonomy_mode must be one of: passive, supervised, autonomous" });
       return;
     }
     mode = raw;
+  }
+  if (mode === undefined) {
+    jsonResponse(res, 400, { error: "autonomy_mode is required because no default autonomy mode is configured" });
+    return;
   }
 
   try {

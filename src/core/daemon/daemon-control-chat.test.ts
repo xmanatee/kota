@@ -232,6 +232,26 @@ describe("handleCreateDaemonSession", () => {
     expect(body.autonomy_mode).toBe("autonomous");
   });
 
+  it("requires autonomy_mode when no default is configured", async () => {
+    const pool = makePool();
+    const res = mockResponse();
+    const req = mockRequest("");
+    await handleCreateDaemonSession(pool, req as never, res as never, () => mockAgentSession() as never, undefined);
+    expect(res.writeHead).toHaveBeenCalledWith(400, expect.any(Object));
+    expect(pool.size).toBe(0);
+  });
+
+  it("accepts request autonomy_mode when no default is configured", async () => {
+    const pool = makePool();
+    const res = mockResponse();
+    const agent = mockAgentSession();
+    const req = mockRequest('{"autonomy_mode":"autonomous"}');
+    await handleCreateDaemonSession(pool, req as never, res as never, () => agent as never, undefined);
+    expect(res.writeHead).toHaveBeenCalledWith(201, expect.any(Object));
+    const body = JSON.parse(res._written[res._written.length - 1]) as { autonomy_mode: string };
+    expect(body.autonomy_mode).toBe("autonomous");
+  });
+
   it("returns 400 on invalid autonomy_mode", async () => {
     const pool = makePool();
     const res = mockResponse();
@@ -377,6 +397,40 @@ describe("DaemonControlServer chat endpoints", () => {
     expect(res.status).toBe(201);
     const body = await res.json() as { session_id: string };
     expect(body.session_id).toBeTruthy();
+  });
+
+  it("POST /sessions returns 400 without request mode when no default is configured", async () => {
+    const handle = makeHandle();
+    const serverWithoutDefault = new DaemonControlServer(handle, TEST_TOKEN, {
+      makeAgent: (_transport, mode) => mockAgentSession({ result: "ok" }, mode) as never,
+    });
+    const portWithoutDefault = await serverWithoutDefault.start();
+    try {
+      const res = await fetchWithToken(portWithoutDefault, "/sessions", { method: "POST" });
+      expect(res.status).toBe(400);
+    } finally {
+      await serverWithoutDefault.stop();
+    }
+  });
+
+  it("POST /sessions accepts request mode when no default is configured", async () => {
+    const handle = makeHandle();
+    const serverWithoutDefault = new DaemonControlServer(handle, TEST_TOKEN, {
+      makeAgent: (_transport, mode) => mockAgentSession({ result: "ok" }, mode) as never,
+    });
+    const portWithoutDefault = await serverWithoutDefault.start();
+    try {
+      const res = await fetchWithToken(portWithoutDefault, "/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autonomy_mode: "autonomous" }),
+      });
+      expect(res.status).toBe(201);
+      const body = await res.json() as { autonomy_mode: string };
+      expect(body.autonomy_mode).toBe("autonomous");
+    } finally {
+      await serverWithoutDefault.stop();
+    }
   });
 
   it("GET /sessions includes daemon sessions with source daemon", async () => {

@@ -1,7 +1,11 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
+import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
+import { AgentSession } from "#core/loop/loop.js";
+import { NullTransport } from "#core/loop/transport.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -12,6 +16,7 @@ export type SourceRoute = {
 export type WebhookChannelConfig = {
   secret?: string;
   defaultAgent?: string;
+  defaultAutonomyMode?: AutonomyMode;
   sources?: Record<string, SourceRoute>;
 };
 
@@ -124,12 +129,44 @@ type WebhookSession = {
   close: () => void;
 };
 
+export type WebhookSessionFactory = (options: {
+  label: string;
+  autonomyMode: AutonomyMode;
+  ctx: ModuleContext;
+}) => Pick<WebhookSession, "send" | "close">;
+
 const sessions = new Map<string, WebhookSession>();
 const sourceSessions = new Map<string, WebhookSession>();
 let nextSessionId = 1;
 
 function generateSessionId(): string {
   return `wh-${Date.now().toString(36)}-${(nextSessionId++).toString(36)}`;
+}
+
+function createAgentSession({
+  label,
+  autonomyMode,
+  ctx,
+}: {
+  label: string;
+  autonomyMode: AutonomyMode;
+  ctx: ModuleContext;
+}): Pick<WebhookSession, "send" | "close"> {
+  const agent = new AgentSession({
+    autonomyMode,
+    model: ctx.config.model,
+    verbose: ctx.verbose,
+    config: ctx.config,
+    transport: new NullTransport(),
+    label,
+    noHistory: false,
+    historySource: "action",
+    reflectionEnabled: false,
+  });
+  return {
+    send: (prompt) => agent.send(prompt),
+    close: () => agent.close(),
+  };
 }
 
 export function clearSessions(): void {
@@ -145,8 +182,14 @@ export function clearSessions(): void {
 export function makeWebhookChannelHandler(
   ctx: ModuleContext,
   config: WebhookChannelConfig,
+  createSession: WebhookSessionFactory = createAgentSession,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   const secret = config.secret ? resolveSecret(config.secret) : null;
+  const autonomyMode = resolveChannelAutonomyMode(
+    config.defaultAutonomyMode,
+    ctx.config,
+    "webhook-channel",
+  );
 
   return async (req, res) => {
     const body = await readRawBody(req);
@@ -189,9 +232,24 @@ export function makeWebhookChannelHandler(
         jsonResponse(res, 404, { error: `Unknown source: "${sourceId}"` });
         return;
       }
-      await handleSourceRequest(ctx, res, payload, sourceId, sourceConfig);
+      await handleSourceRequest(
+        ctx,
+        res,
+        payload,
+        sourceId,
+        sourceConfig,
+        autonomyMode,
+        createSession,
+      );
     } else {
-      await handleDirectRequest(ctx, config, res, payload);
+      await handleDirectRequest(
+        ctx,
+        config,
+        res,
+        payload,
+        autonomyMode,
+        createSession,
+      );
     }
   };
 }
@@ -204,15 +262,18 @@ async function handleSourceRequest(
   payload: WebhookPayload,
   sourceId: string,
   sourceConfig: SourceRoute,
+  autonomyMode: AutonomyMode,
+  createSession: WebhookSessionFactory,
 ): Promise<void> {
   let session = sourceSessions.get(sourceId);
   const resumed = !!session;
 
   if (!session) {
     const id = generateSessionId();
-    const moduleSession = ctx.createSession({
+    const moduleSession = createSession({
       label: `webhook:${sourceId}:${sourceConfig.agent}`,
-      noHistory: false,
+      autonomyMode,
+      ctx,
     });
     session = {
       id,
@@ -266,6 +327,8 @@ async function handleDirectRequest(
   config: WebhookChannelConfig,
   res: ServerResponse,
   payload: WebhookPayload,
+  autonomyMode: AutonomyMode,
+  createSession: WebhookSessionFactory,
 ): Promise<void> {
   const existingId = payload.sessionId;
   let session = existingId ? sessions.get(existingId) : undefined;
@@ -278,9 +341,10 @@ async function handleDirectRequest(
   if (!session) {
     const id = generateSessionId();
     const agentName = payload.agent ?? config.defaultAgent;
-    const moduleSession = ctx.createSession({
+    const moduleSession = createSession({
       label: `webhook:${id}${agentName ? `:${agentName}` : ""}`,
-      noHistory: false,
+      autonomyMode,
+      ctx,
     });
     session = {
       id,

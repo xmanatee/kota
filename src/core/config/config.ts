@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { type QuietHoursConfig, validateQuietHours } from "../daemon/notification-gate.js";
 import type { ModelTiers } from "../model/model-router.js";
 import type { ForeignModuleConfig } from "../modules/foreign-module.js";
-import type { AutonomyMode } from "../tools/autonomy-mode.js";
+import { type AutonomyMode, isAutonomyMode } from "../tools/autonomy-mode.js";
 import { type GuardrailsConfig, sanitizeGuardrailsConfig } from "../tools/guardrails.js";
 import { type DispatchWindow, validateDispatchWindow } from "../workflow/dispatch-window.js";
 
@@ -100,15 +100,13 @@ export type KotaConfig = {
     noAuth?: boolean;
     /** Show per-turn cost line in terminal output (default: true). Set to false to suppress. */
     showCost?: boolean;
-    /**
-     * Autonomy mode applied to new interactive sessions when the client does
-     * not specify one. Default: "supervised" (operator must approve any
-     * non-safe tool call). Must be `passive`, `supervised`, or `autonomous`.
-     *
-     * This is the only documented fallback for session autonomy mode. All
-     * other session boundaries (workflows, channels, tests) must declare the
-     * mode explicitly.
-     */
+    /** Autonomy mode applied to new interactive sessions when the client does not specify one. */
+    defaultAutonomyMode?: AutonomyMode;
+  };
+
+  /** CLI entrypoint settings (interactive REPL, `history resume`, piped input). */
+  cli?: {
+    /** Autonomy mode applied to CLI-launched sessions when no per-invocation override is provided. */
     defaultAutonomyMode?: AutonomyMode;
   };
 
@@ -385,6 +383,36 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     if (src.format === "text" || src.format === "json") out.log = { format: src.format };
   }
 
+  if (typeof raw.serve === "object" && raw.serve !== null && !Array.isArray(raw.serve)) {
+    const src = raw.serve as Record<string, unknown>;
+    const s: NonNullable<KotaConfig["serve"]> = {};
+    if (typeof src.noAuth === "boolean") s.noAuth = src.noAuth;
+    if (typeof src.showCost === "boolean") s.showCost = src.showCost;
+    if (src.defaultAutonomyMode !== undefined) {
+      if (!isAutonomyMode(src.defaultAutonomyMode)) {
+        throw new Error(
+          `config.serve.defaultAutonomyMode must be one of passive, supervised, autonomous (got ${JSON.stringify(src.defaultAutonomyMode)})`,
+        );
+      }
+      s.defaultAutonomyMode = src.defaultAutonomyMode;
+    }
+    if (Object.keys(s).length > 0) out.serve = s;
+  }
+
+  if (typeof raw.cli === "object" && raw.cli !== null && !Array.isArray(raw.cli)) {
+    const src = raw.cli as Record<string, unknown>;
+    const c: NonNullable<KotaConfig["cli"]> = {};
+    if (src.defaultAutonomyMode !== undefined) {
+      if (!isAutonomyMode(src.defaultAutonomyMode)) {
+        throw new Error(
+          `config.cli.defaultAutonomyMode must be one of passive, supervised, autonomous (got ${JSON.stringify(src.defaultAutonomyMode)})`,
+        );
+      }
+      c.defaultAutonomyMode = src.defaultAutonomyMode;
+    }
+    if (Object.keys(c).length > 0) out.cli = c;
+  }
+
   if (typeof raw.daemon === "object" && raw.daemon !== null && !Array.isArray(raw.daemon)) {
     const src = raw.daemon as Record<string, unknown>;
     const d: KotaConfig["daemon"] = {};
@@ -600,6 +628,10 @@ function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<K
       merged.failover = { ...a.failover, ...(val as NonNullable<KotaConfig["failover"]>) };
     } else if (key === "tracing" && typeof val === "object") {
       merged.tracing = { ...a.tracing, ...(val as NonNullable<KotaConfig["tracing"]>) };
+    } else if (key === "serve" && typeof val === "object") {
+      merged.serve = { ...a.serve, ...(val as NonNullable<KotaConfig["serve"]>) };
+    } else if (key === "cli" && typeof val === "object") {
+      merged.cli = { ...a.cli, ...(val as NonNullable<KotaConfig["cli"]>) };
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (merged as any)[key] = val;

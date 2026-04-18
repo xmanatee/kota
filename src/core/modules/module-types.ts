@@ -222,6 +222,9 @@ export type KotaModule = {
    */
   configKeys?: readonly ModuleConfigKey[];
 
+  /** JSON Schema fragment for this module's config under `config.modules`. */
+  configSchema?: Record<string, unknown>;
+
   /**
    * Tools this module provides. Registered during load.
    * Can be a static array or a factory that receives ModuleContext,

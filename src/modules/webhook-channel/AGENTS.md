@@ -8,5 +8,7 @@ POST a JSON payload to create or resume agent sessions.
 - Supports optional HMAC-SHA256 signature verification.
 - Supports source-based routing to different agents with per-source session continuity.
 - Separate from the outbound `webhook` notification module.
+- Inbound sessions use configured autonomy explicitly. Missing
+  session-autonomy config is a route-boundary error, not a hidden fallback.
 - `handler.ts` owns types, helpers, source resolution, and request handling.
 - `index.ts` owns the module definition and route registration.

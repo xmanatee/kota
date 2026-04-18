@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { loadConfig } from "#core/config/config.js";
 import { getHistory } from "#core/memory/history.js";
 import { createModelClient } from "#core/model/model-client.js";
@@ -89,7 +90,11 @@ export function registerHistoryCommands(program: Command) {
         apiKey: config.modelProvider?.apiKey,
       });
       await interactiveMode({
-        autonomyMode: "autonomous",
+        autonomyMode: resolveChannelAutonomyMode(
+          config.cli?.defaultAutonomyMode,
+          config,
+          "history resume",
+        ),
         model: resolved.model,
         verbose: opts.verbose || config.verbose,
         config,

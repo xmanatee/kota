@@ -1,23 +1,16 @@
 /**
  * Slack channel module — bidirectional Slack bot for KOTA using Socket Mode.
  *
- * Contributes a `slack-channel` ChannelDef that:
- * - Accepts DM messages from operators and routes them to per-user AgentSessions.
- * - Posts interactive Block Kit Approve/Reject messages when approval.requested fires.
- * - Handles button clicks to resolve pending approvals without leaving Slack.
+ * Contributes a channel that routes Slack DMs to per-user sessions and handles
+ * approval interactions.
  *
  * Separate from the existing `slack` notification module (one-way webhook).
- *
- * Config (kota.config under the "slackChannel" key):
- *   {
- *     botToken: string,      // xoxb- Bot Token
- *     appToken: string,      // xapp- App-Level Token (Socket Mode)
- *     notifyChannel?: string // Channel ID for approval notifications (optional)
- *   }
  */
 
 import type { ChannelDef } from "#core/channels/channel.js";
+import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { AUTONOMY_MODES, type AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { SlackBot } from "./bot.js";
 
 type SlackChannelConfig = {
@@ -27,6 +20,8 @@ type SlackChannelConfig = {
   appToken: string;
   /** Slack channel ID to post approval notifications to (optional). */
   notifyChannel?: string;
+  /** Autonomy mode applied to Slack DM sessions. */
+  defaultAutonomyMode?: AutonomyMode;
 };
 
 function getConfig(ctx: ModuleContext): SlackChannelConfig | null {
@@ -63,6 +58,17 @@ const slackChannelModule: KotaModule = {
   name: "slack-channel",
   version: "1.0.0",
   description: "Bidirectional Slack bot channel for KOTA (Socket Mode)",
+  configSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["botToken", "appToken"],
+    properties: {
+      botToken: { type: "string", minLength: 1 },
+      appToken: { type: "string", minLength: 1 },
+      notifyChannel: { type: "string", minLength: 1 },
+      defaultAutonomyMode: { type: "string", enum: AUTONOMY_MODES },
+    },
+  },
 
   channels: [slackChannelDef],
 
@@ -75,11 +81,18 @@ const slackChannelModule: KotaModule = {
       return;
     }
 
+    const autonomyMode = resolveChannelAutonomyMode(
+      config.defaultAutonomyMode,
+      ctx.config,
+      "slack-channel",
+    );
+
     bot = new SlackBot({
       botToken: config.botToken,
       appToken: config.appToken,
       notifyChannel: config.notifyChannel,
       config: ctx.config,
+      autonomyMode,
     });
 
     approvalUnsub = ctx.events.subscribe("approval.requested", (payload) => {

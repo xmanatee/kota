@@ -6,9 +6,16 @@ import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { createImproverSemanticCheck } from "#modules/autonomy/improver-semantic-gate.js";
 import { onRecoveryTrigger, resetWorktreeForRecovery } from "#modules/autonomy/recovery.js";
 import { aggregateRunOutcomes } from "#modules/autonomy/run-outcome-aggregation.js";
+import type { RunOutcomeAggregation } from "#modules/autonomy/run-outcome-aggregation.js";
 import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
 import { writeRunSummary } from "#modules/autonomy/run-summary.js";
 import { AUTONOMY_DISALLOWED_TOOLS, checkCommitMessageExists, checkNoScratchArtifacts, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
+import {
+  decideImproverEvidenceGate,
+  readImproverEvidenceGateState,
+  shouldRunImproverFromGate,
+  writeImproverEvidenceGateState,
+} from "./evidence-gate.js";
 
 // Measured improver cadence (~60-90m between runs on recent history) is
 // already bounded by this cooldown rather than trigger firing rate, so keep
@@ -24,6 +31,26 @@ export const agent: AgentDef = {
   tools: { permissionMode: "bypassPermissions" },
   settingSources: ["project"],
 };
+
+const gatherRunDataStep = typedCodeStep<RunOutcomeAggregation>({
+  id: "gather-run-data",
+  type: "code",
+  exposeOutputToAgent: true,
+  run: ({ projectDir }) => {
+    const store = new WorkflowRunStore(projectDir);
+    return aggregateRunOutcomes(store.runsDir);
+  },
+});
+
+const gateEvidenceStep = typedCodeStep<ReturnType<typeof decideImproverEvidenceGate>>({
+  id: "gate-evidence",
+  type: "code",
+  run: (ctx) =>
+    decideImproverEvidenceGate(
+      gatherRunDataStep.output(ctx),
+      readImproverEvidenceGateState(ctx.projectDir),
+    ),
+});
 
 const improverWorkflow: WorkflowDefinitionInput = {
   name: "improver",
@@ -49,26 +76,20 @@ const improverWorkflow: WorkflowDefinitionInput = {
   ],
   steps: [
     {
-      id: "gather-run-data",
-      type: "code",
-      exposeOutputToAgent: true,
-      run: () => {
-        const store = new WorkflowRunStore();
-        return aggregateRunOutcomes(store.runsDir);
-      },
-    },
-    {
       id: "clean-recovery-state",
       type: "code",
       when: onRecoveryTrigger,
       run: ({ projectDir }) =>
         resetWorktreeForRecovery({ projectDir, workflowName: "improver" }),
     },
+    gatherRunDataStep,
+    gateEvidenceStep,
     {
       id: "improve",
       type: "agent",
       agentName: agent.name,
       promptPath: agent.promptPath,
+      when: (ctx) => shouldRunImproverFromGate(gateEvidenceStep.output(ctx)),
       model: agent.model,
       effort: agent.effort,
       permissionMode: agent.tools?.permissionMode,
@@ -124,9 +145,19 @@ const improverWorkflow: WorkflowDefinitionInput = {
       },
     },
     {
-      id: "commit",
+      id: "record-evidence-fingerprint",
       type: "code",
       when: stepSucceeded("improve"),
+      run: (ctx) =>
+        writeImproverEvidenceGateState(
+          ctx.projectDir,
+          gateEvidenceStep.output(ctx),
+        ),
+    },
+    {
+      id: "commit",
+      type: "code",
+      when: stepSucceeded("record-evidence-fingerprint"),
       run: ({ projectDir, workflow }) =>
         commitWorkflowChanges(projectDir, workflow.runDirPath),
     },

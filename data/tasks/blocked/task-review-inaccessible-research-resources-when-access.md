@@ -45,12 +45,11 @@ reason based on actual content.
 - Blocked on network access for the 3 web articles/papers.
 - Do not infer content from URL shape, author, or surrounding context.
 - Do not create one task per URL.
-- Update `docs/RESOURCE-PACKET-DISPOSITION.md` and
-  `data/tasks/done/task-review-external-agent-architecture-references.md` when
-  resources are resolved.
+- Update the relevant task outcome or create follow-up work when resources are
+  resolved.
 
 ## Done When
 
 - All 8 URLs have been read and given honest dispositions.
-- `docs/RESOURCE-PACKET-DISPOSITION.md` is updated to reflect the honest state.
-- The older research task outcome is updated for the 3 web/paper resources.
+- The task record reflects the final disposition.
+- Follow-up tasks exist for any adopted or deferred work.

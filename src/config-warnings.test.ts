@@ -108,7 +108,7 @@ describe("KNOWN_CONFIG_KEYS", () => {
       "verbose", "skipConfirmations", "autoEnable", "user", "aliases", "reflection",
       "guardrails", "modules", "foreignModules", "providers", "modelProvider",
       "modelTiers", "agentModels", "approvalTtlMs",
-      "runsGc", "serve", "log", "daemon", "notifications", "workflow",
+      "runsGc", "serve", "cli", "log", "daemon", "notifications", "workflow",
       "moduleMonitoring",
     ];
     for (const key of expected) {
