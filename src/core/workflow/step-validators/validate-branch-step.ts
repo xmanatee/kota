@@ -18,12 +18,12 @@ export function validateBranchStep(
   step: WorkflowBranchStepInput,
   definitionPath: string,
   index: number,
-  projectDir: string,
+  moduleRoot: string,
   validateArmStep: (
     armStep: WorkflowStepInput,
     definitionPath: string,
     armIndex: number,
-    projectDir: string,
+    moduleRoot: string,
   ) => WorkflowStep,
   depth = 0,
 ): WorkflowBranchStep {
@@ -53,7 +53,7 @@ export function validateBranchStep(
     armLabel: string,
   ): WorkflowStep[] =>
     arm.map((armStep, armIndex) => {
-      const validated = validateArmStep(armStep, definitionPath, armIndex, projectDir);
+      const validated = validateArmStep(armStep, definitionPath, armIndex, moduleRoot);
       if (validated.type === "restart") {
         throw new WorkflowDefinitionError(
           `${armLabel}[${armIndex}] restart steps are not allowed inside branch arms`,

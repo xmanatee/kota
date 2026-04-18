@@ -128,7 +128,7 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
    * Execution does not resolve workflow steps through a global agent catalog.
    */
   agentName?: string;
-  /** Path to the prompt markdown file (relative to project root). */
+  /** Path to the prompt markdown file, relative to the owning module's root. */
   promptPath?: string;
   model: string;
   /**
@@ -329,6 +329,15 @@ export type WorkflowDefinitionInput = {
   enabled?: boolean;
   runTimeoutMs?: number;
   /**
+   * Absolute path to the root of the module that ships this workflow. Relative
+   * paths inside the definition (notably `promptPath`) are resolved against
+   * this root so a workflow can be contributed by a module whose source lives
+   * outside the daemon's current `projectDir` (e.g. KOTA's own autonomy
+   * workflows while the daemon is pointed at an external project).
+   * When omitted, the loader falls back to the daemon's project directory.
+   */
+  moduleRoot?: string;
+  /**
    * When true, this workflow is eligible for dirty-worktree recovery dispatch.
    * Only workflows that can commit, stash, or reset should declare this.
    */
@@ -388,6 +397,14 @@ export type WorkflowAgentStep = WorkflowBaseStep & {
   /** Name of the agent definition used, if the step was configured via agentName. */
   agentName?: string;
   promptPath: string;
+  /**
+   * Absolute filesystem root inherited from the enclosing workflow definition.
+   * `promptPath` is resolved against this root by the step executor and the
+   * repair loop so workflows contributed by KOTA's own modules keep reading
+   * their prompts from KOTA's install tree even when the daemon is running
+   * against an external project.
+   */
+  moduleRoot: string;
   model: string;
   effort: "low" | "medium" | "high" | "xhigh" | "max";
   maxTurns?: number;
@@ -479,6 +496,13 @@ export type WorkflowDefinition = {
   description?: string;
   enabled: boolean;
   runTimeoutMs?: number;
+  /**
+   * Absolute filesystem root of the module that ships this workflow. Populated
+   * by the loader (or the module itself) and used at runtime to resolve
+   * `promptPath` values against KOTA's own install tree even when the daemon
+   * is pointed at an external project directory.
+   */
+  moduleRoot: string;
   recoveryCapable: boolean;
   /**
    * Named concurrency group. Workflows in the same named group run at most one

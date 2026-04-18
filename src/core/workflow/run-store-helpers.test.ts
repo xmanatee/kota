@@ -383,6 +383,7 @@ const baseWorkflow: WorkflowDefinition = {
   recoveryCapable: false,
   tags: [],
   definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+  moduleRoot: "/test-module-root",
   triggers: [{ event: "runtime.idle", cooldownMs: 30000 }],
   steps: [],
 };
@@ -421,6 +422,7 @@ describe("buildWorkflowSnapshot", () => {
           id: "s1",
           type: "agent",
           promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+          moduleRoot: "/test-module-root",
           model: "claude-opus-4-7",
               effort: "xhigh",
           permissionMode: "default",

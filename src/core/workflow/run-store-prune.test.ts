@@ -177,6 +177,7 @@ const minimalWorkflow: WorkflowDefinition = {
   recoveryCapable: false,
   tags: [],
   definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+  moduleRoot: "/test-module-root",
   triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
   steps: [],
 };

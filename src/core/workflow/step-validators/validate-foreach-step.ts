@@ -21,7 +21,7 @@ export function validateForeachStep(
   step: WorkflowForeachStepInput,
   definitionPath: string,
   index: number,
-  projectDir: string,
+  moduleRoot: string,
 ): WorkflowForeachStep {
   if (step.items === undefined || step.items === null) {
     throw new WorkflowDefinitionError(
@@ -80,7 +80,7 @@ export function validateForeachStep(
     if (innerStep.type === "code") {
       return validateCodeStep(innerStep as WorkflowCodeStepInput, definitionPath, innerIndex) as WorkflowCodeStep;
     }
-    return validateAgentStep(innerStep as WorkflowAgentStepInput, definitionPath, innerIndex, projectDir) as WorkflowAgentStep;
+    return validateAgentStep(innerStep as WorkflowAgentStepInput, definitionPath, innerIndex, moduleRoot) as WorkflowAgentStep;
   });
 
   return {

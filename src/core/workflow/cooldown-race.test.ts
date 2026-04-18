@@ -205,6 +205,7 @@ describe("cooldown race condition", () => {
       const definition: WorkflowDefinition = {
         name: "explorer",
         definitionPath: "test/explorer.ts",
+        moduleRoot: "/test-module-root",
         enabled: true,
         recoveryCapable: false,
         tags: [],
@@ -258,6 +259,7 @@ describe("cooldown race condition", () => {
       const definition: WorkflowDefinition = {
         name: "explorer",
         definitionPath: "test/explorer.ts",
+        moduleRoot: "/test-module-root",
         enabled: true,
         recoveryCapable: false,
         tags: [],

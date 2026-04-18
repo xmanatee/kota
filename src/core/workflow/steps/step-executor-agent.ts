@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   buildClaudeCodeSystemPrompt,
   createOwnerQuestionMcpServers,
@@ -61,6 +61,25 @@ export function resolveAgentModel(
   );
 }
 
+/**
+ * Pick the startDir for system-prompt context discovery. When the module's
+ * prompt directory lives inside the project, we walk from there so
+ * closer-scoped `.kota.md`, `AGENTS.md`, and `CLAUDE.md` files win. When the
+ * module lives outside the project (e.g. KOTA running against an external
+ * project), the module's tree has nothing relevant to say about the project,
+ * so discovery starts from the project root instead.
+ */
+export function resolvePromptContextStartDir(
+  promptDir: string,
+  projectDir: string,
+): string {
+  const rel = relative(projectDir, promptDir);
+  if (rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))) {
+    return promptDir;
+  }
+  return projectDir;
+}
+
 function shouldExposeOutput(output: unknown): boolean {
   if (output === undefined) return false;
   if (
@@ -93,7 +112,7 @@ export function buildAgentPrompt(
   priorStepOutputs: Record<string, unknown>,
 ): { systemPromptAppend: string; prompt: string } {
   const promptBody = readFileSync(
-    resolve(projectDir, step.promptPath),
+    resolve(step.moduleRoot, step.promptPath),
     "utf-8",
   );
   const triggerPayloadKeys = Object.keys(trigger.payload);
@@ -239,7 +258,8 @@ export async function executeAgentStep(
     agentConfig.projectDir,
     priorStepOutputs,
   );
-  const promptDir = dirname(resolve(agentConfig.projectDir, step.promptPath));
+  const promptDir = dirname(resolve(step.moduleRoot, step.promptPath));
+  const contextStartDir = resolvePromptContextStartDir(promptDir, agentConfig.projectDir);
 
   let skillsPrompt: string | undefined;
   if (step.agentName && agentConfig.resolveAgentDef && agentConfig.resolveSkillsPrompt) {
@@ -252,7 +272,7 @@ export async function executeAgentStep(
   const systemPrompt = buildClaudeCodeSystemPrompt(
     agentConfig.config,
     agentPrompt.systemPromptAppend,
-    promptDir,
+    contextStartDir,
     agentConfig.projectDir,
     skillsPrompt,
   );

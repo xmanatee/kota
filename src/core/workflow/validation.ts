@@ -1,3 +1,4 @@
+import { isAbsolute } from "node:path";
 import { matchesFilter } from "./run-executor-utils.js";
 import type {
   RegisteredWorkflowDefinitionInput,
@@ -41,7 +42,7 @@ function validateStep(
   step: WorkflowStepInput,
   definitionPath: string,
   index: number,
-  projectDir: string,
+  moduleRoot: string,
 ): WorkflowStep {
   if (!step || typeof step !== "object") {
     throw new WorkflowDefinitionError(
@@ -52,7 +53,7 @@ function validateStep(
 
   if (step.type === "tool") return validateToolStep(step, definitionPath, index);
   if (step.type === "agent") {
-    return validateAgentStep(step, definitionPath, index, projectDir);
+    return validateAgentStep(step, definitionPath, index, moduleRoot);
   }
   if (step.type === "emit") return validateEmitStep(step, definitionPath, index);
   if (step.type === "restart") {
@@ -60,7 +61,7 @@ function validateStep(
   }
   if (step.type === "code") return validateCodeStep(step, definitionPath, index);
   if (step.type === "parallel") {
-    return validateParallelGroup(step as WorkflowParallelGroupInput, definitionPath, index, projectDir);
+    return validateParallelGroup(step as WorkflowParallelGroupInput, definitionPath, index, moduleRoot);
   }
   if (step.type === "trigger") {
     return validateTriggerStep(step as WorkflowTriggerStepInput, definitionPath, index);
@@ -70,8 +71,8 @@ function validateStep(
       step as WorkflowBranchStepInput,
       definitionPath,
       index,
-      projectDir,
-      (armStep, dp, armIndex, pd) => validateStep(armStep, dp, armIndex, pd),
+      moduleRoot,
+      (armStep, dp, armIndex, root) => validateStep(armStep, dp, armIndex, root),
     );
   }
   if (step.type === "foreach") {
@@ -79,7 +80,7 @@ function validateStep(
       step as WorkflowForeachStepInput,
       definitionPath,
       index,
-      projectDir,
+      moduleRoot,
     );
   }
   if (step.type === "approval") {
@@ -119,6 +120,13 @@ export function validateWorkflowDefinitions(
       `<workflow-${definitionIndex}>`,
     );
     const name = expectName(definition.name, "name", definitionPath);
+    const moduleRoot = definition.moduleRoot ?? projectDir;
+    if (typeof moduleRoot !== "string" || !isAbsolute(moduleRoot)) {
+      throw new WorkflowDefinitionError(
+        `moduleRoot must be an absolute path, got "${String(moduleRoot)}"`,
+        definitionPath,
+      );
+    }
     if (seenWorkflowNames.has(name)) {
       throw new WorkflowDefinitionError(
         `duplicate workflow name "${name}"`,
@@ -141,7 +149,7 @@ export function validateWorkflowDefinitions(
     }
 
     const steps = definition.steps.map((step, stepIndex) =>
-      validateStep(step, definitionPath, stepIndex, projectDir),
+      validateStep(step, definitionPath, stepIndex, moduleRoot),
     );
     const seenStepIds = new Set<string>();
     const collectStepIds = (flatSteps: WorkflowStep[]) => {
@@ -281,6 +289,7 @@ export function validateWorkflowDefinitions(
 
     const validated: WorkflowDefinition = {
       name,
+      moduleRoot,
       description: expectOptionalString(
         definition.description,
         "description",

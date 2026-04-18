@@ -138,6 +138,7 @@ describe("WorkflowRunStore causal chain", () => {
     recoveryCapable: false,
     tags: [],
     definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+    moduleRoot: "/test-module-root",
     triggers: [{ event: "workflow.completed", cooldownMs: 0 }],
     steps: [],
   };
@@ -204,6 +205,7 @@ const minimalWorkflow: WorkflowDefinition = {
   recoveryCapable: false,
   tags: [],
   definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+  moduleRoot: "/test-module-root",
   triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
   steps: [],
 };

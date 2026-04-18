@@ -28,6 +28,7 @@ function makeDefinition(name = "test-workflow"): WorkflowDefinition {
     recoveryCapable: false,
     tags: [],
     definitionPath: "src/modules/test/workflows/test/workflow.ts",
+    moduleRoot: "/test-module-root",
     triggers: [],
     steps: [],
   };
@@ -46,11 +47,15 @@ function makeMetadata(runId = "run-001"): WorkflowRunMetadata {
   };
 }
 
-function makeAgentStep(overrides: Partial<WorkflowAgentStep> = {}): WorkflowAgentStep {
+function makeAgentStep(
+  moduleRoot: string,
+  overrides: Partial<WorkflowAgentStep> = {},
+): WorkflowAgentStep {
   return {
     id: "build",
     type: "agent",
     promptPath: "prompt.md",
+    moduleRoot,
     model: "claude-opus-4-7",
     effort: "xhigh",
     permissionMode: "bypassPermissions",
@@ -89,7 +94,7 @@ describe("executeAgentStep — outputFormat: json", () => {
     });
 
     const definition = makeDefinition("test-workflow");
-    const step = makeAgentStep({ id: "analyze", outputFormat: "json" });
+    const step = makeAgentStep(projectDir, { id: "analyze", outputFormat: "json" });
     const metadata = makeMetadata("run-json-ok");
 
     const output = await executeAgentStep(
@@ -118,7 +123,7 @@ describe("executeAgentStep — outputFormat: json", () => {
     });
 
     const definition = makeDefinition("test-workflow");
-    const step = makeAgentStep({ id: "analyze", outputFormat: "json" });
+    const step = makeAgentStep(projectDir, { id: "analyze", outputFormat: "json" });
     const metadata = makeMetadata("run-json-missing");
 
     await expect(
@@ -147,7 +152,7 @@ describe("executeAgentStep — outputFormat: json", () => {
     });
 
     const definition = makeDefinition("test-workflow");
-    const step = makeAgentStep({ id: "analyze", outputFormat: "json" });
+    const step = makeAgentStep(projectDir, { id: "analyze", outputFormat: "json" });
     const metadata = makeMetadata("run-json-bad");
 
     await expect(
@@ -176,7 +181,7 @@ describe("executeAgentStep — outputFormat: json", () => {
     });
 
     const definition = makeDefinition("test-workflow");
-    const step = makeAgentStep({
+    const step = makeAgentStep(projectDir, {
       id: "analyze",
       outputFormat: "json",
       outputSchema: { type: "object", required: ["status", "count"], properties: { status: { type: "string" }, count: { type: "number" } } },
@@ -209,7 +214,7 @@ describe("executeAgentStep — outputFormat: json", () => {
     });
 
     const definition = makeDefinition("test-workflow");
-    const step = makeAgentStep({
+    const step = makeAgentStep(projectDir, {
       id: "analyze",
       outputFormat: "json",
       outputSchema: { type: "object", required: ["status", "count"], properties: { status: { type: "string" }, count: { type: "number" } } },
@@ -278,7 +283,7 @@ describe("executeAgentStep — schema validation feedback on retry", () => {
       };
     });
 
-    const step = makeAgentStep({
+    const step = makeAgentStep(projectDir, {
       id: "analyze",
       outputFormat: "json",
       outputSchema: {
@@ -318,7 +323,7 @@ describe("executeAgentStep — schema validation feedback on retry", () => {
       isError: false,
     });
 
-    const step = makeAgentStep({
+    const step = makeAgentStep(projectDir, {
       id: "analyze",
       outputFormat: "json",
       outputSchema: {
@@ -378,7 +383,7 @@ describe("executeAgentStep — provider errors from SDK result", () => {
       isError: true,
     });
 
-    const step = makeAgentStep({
+    const step = makeAgentStep(projectDir, {
       id: "build",
       retry: { maxAttempts: 3, initialDelayMs: 0, backoffFactor: 1 },
     });

@@ -19,7 +19,7 @@ export function validateParallelGroup(
   step: WorkflowParallelGroupInput,
   definitionPath: string,
   index: number,
-  projectDir: string,
+  moduleRoot: string,
 ): WorkflowParallelGroup {
   if (!Array.isArray(step.steps) || step.steps.length === 0) {
     throw new WorkflowDefinitionError(
@@ -45,7 +45,7 @@ export function validateParallelGroup(
         childStep as Parameters<typeof validateAgentStep>[0],
         definitionPath,
         index,
-        projectDir,
+        moduleRoot,
         childIndex,
       ) as WorkflowAgentStep;
     }

@@ -21,6 +21,7 @@ function makeDefinition(
     enabled: true,
     recoveryCapable: false,
     definitionPath: "src/modules/test/workflows/test/workflow.ts",
+    moduleRoot: "/test-module-root",
     triggers: [],
     steps,
     ...overrides,

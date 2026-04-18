@@ -131,7 +131,7 @@ export function validateAgentStep(
   step: WorkflowAgentStepInput,
   definitionPath: string,
   index: number,
-  projectDir: string,
+  moduleRoot: string,
   childIndex?: number,
 ): WorkflowAgentStep {
   const stepLabel = childIndex !== undefined
@@ -154,7 +154,7 @@ export function validateAgentStep(
       definitionPath,
     );
   }
-  if (!existsSync(resolve(projectDir, promptPath))) {
+  if (!existsSync(resolve(moduleRoot, promptPath))) {
     throw new WorkflowDefinitionError(
       `${stepLabel}.promptPath does not exist: ${promptPath}`,
       definitionPath,
@@ -212,6 +212,7 @@ export function validateAgentStep(
     type: "agent",
     agentName,
     promptPath,
+    moduleRoot,
     model,
     effort: effort as WorkflowAgentStep["effort"],
     timeoutMs: expectOptionalInteger(

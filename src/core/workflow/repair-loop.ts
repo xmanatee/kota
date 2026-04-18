@@ -7,7 +7,10 @@ import {
 import type { SDKMessage } from "#core/agent-sdk/types.js";
 import type { WorkflowRepairCheck, WorkflowStepContext } from "./run-types.js";
 import type { AgentStepConfig, WorkflowStepOutput } from "./steps/step-executor-agent.js";
-import { resolveAgentModel } from "./steps/step-executor-agent.js";
+import {
+  resolveAgentModel,
+  resolvePromptContextStartDir,
+} from "./steps/step-executor-agent.js";
 import type { WorkflowAgentStep } from "./types.js";
 
 export type RepairCheckResult = {
@@ -98,14 +101,15 @@ async function executeRepairAgentIteration(
   agentConfig: AgentStepConfig,
 ): Promise<{ text: string; turns?: number; totalCostUsd?: number }> {
   const promptBody = readFileSync(
-    resolve(agentConfig.projectDir, step.promptPath),
+    resolve(step.moduleRoot, step.promptPath),
     "utf-8",
   );
-  const promptDir = dirname(resolve(agentConfig.projectDir, step.promptPath));
+  const promptDir = dirname(resolve(step.moduleRoot, step.promptPath));
+  const contextStartDir = resolvePromptContextStartDir(promptDir, agentConfig.projectDir);
   const systemPrompt = buildClaudeCodeSystemPrompt(
     agentConfig.config,
     promptBody,
-    promptDir,
+    contextStartDir,
     agentConfig.projectDir,
   );
   const result = await executeWithAgentSDK(

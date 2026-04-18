@@ -13,6 +13,7 @@ const minimalWorkflow = (name: string): WorkflowDefinition => ({
   recoveryCapable: false,
   tags: [],
   definitionPath: `src/modules/test/workflows/${name}/workflow.ts`,
+  moduleRoot: "/test-module-root",
   triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
   steps: [],
 });

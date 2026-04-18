@@ -137,6 +137,7 @@ describe("WorkflowRunStore.recoverInterruptedRuns", () => {
     const workflow: WorkflowDefinition = {
       name: "builder",
       definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+      moduleRoot: "/test-module-root",
       description: "test",
       enabled: true,
       recoveryCapable: false,

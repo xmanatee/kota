@@ -38,11 +38,15 @@ vi.mock("#core/agent-sdk/index.js", async () => {
 
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 
-function makeStep(overrides: Partial<WorkflowAgentStep> = {}): WorkflowAgentStep {
+function makeStep(
+  moduleRoot: string,
+  overrides: Partial<WorkflowAgentStep> = {},
+): WorkflowAgentStep {
   return {
     id: "test-step",
     type: "agent",
     promptPath: "src/modules/test/workflows/test/prompt.md",
+    moduleRoot,
     model: "claude-opus-4-7",
     effort: "xhigh",
     permissionMode: "bypassPermissions",
@@ -57,6 +61,7 @@ function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDe
     enabled: true,
     recoveryCapable: false,
     definitionPath: "src/modules/test/workflows/test/workflow.ts",
+    moduleRoot: "/test-module-root",
     triggers: [],
     steps: [],
     ...overrides,
@@ -112,7 +117,7 @@ describe("executeAgentStep", () => {
 
     const result = await executeAgentStep(
       makeDefinition(),
-      makeStep(),
+      makeStep(projectDir),
       makeMetadata(),
       TRIGGER,
       new AbortController(),
@@ -129,7 +134,7 @@ describe("executeAgentStep", () => {
 
     await executeAgentStep(
       makeDefinition(),
-      makeStep(),
+      makeStep(projectDir),
       makeMetadata(),
       TRIGGER,
       new AbortController(),
@@ -147,7 +152,7 @@ describe("executeAgentStep", () => {
 
     await executeAgentStep(
       makeDefinition(),
-      makeStep({ allowedTools: ["Read"] }),
+      makeStep(projectDir, { allowedTools: ["Read"] }),
       makeMetadata(),
       TRIGGER,
       new AbortController(),
@@ -165,7 +170,7 @@ describe("executeAgentStep", () => {
 
     await executeAgentStep(
       makeDefinition(),
-      makeStep({ disallowedTools: ["Bash", KOTA_OWNER_QUESTIONS_MCP_TOOL] }),
+      makeStep(projectDir, { disallowedTools: ["Bash", KOTA_OWNER_QUESTIONS_MCP_TOOL] }),
       makeMetadata(),
       TRIGGER,
       new AbortController(),
@@ -189,7 +194,7 @@ describe("executeAgentStep", () => {
       });
     });
 
-    const step = makeStep();
+    const step = makeStep(projectDir);
     const rejectReason = new Error("external abort");
     setTimeout(() => abortController.abort(rejectReason), 10);
 
@@ -218,7 +223,7 @@ describe("executeAgentStep", () => {
       .mockResolvedValue(SUCCESS_RESULT);
 
     const logs: string[] = [];
-    const step = makeStep({
+    const step = makeStep(projectDir, {
       retry: { maxAttempts: 2, initialDelayMs: 1, backoffFactor: 2 },
     });
 
@@ -246,7 +251,7 @@ describe("executeAgentStep", () => {
     mockedExecuteWithAgentSDK.mockRejectedValue(providerError);
 
     const logs: string[] = [];
-    const step = makeStep({
+    const step = makeStep(projectDir, {
       retry: { maxAttempts: 3, initialDelayMs: 1, backoffFactor: 1 },
     });
 
@@ -272,7 +277,7 @@ describe("executeAgentStep", () => {
       new Error("agent produced nonsense"),
     );
 
-    const step = makeStep({
+    const step = makeStep(projectDir, {
       retry: { maxAttempts: 3, initialDelayMs: 1, backoffFactor: 1 },
     });
 
@@ -300,7 +305,7 @@ describe("executeAgentStep", () => {
       });
       mockedExecuteWithAgentSDK.mockRejectedValue(providerError);
 
-      const step = makeStep(); // no retry — default applies implicitly
+      const step = makeStep(projectDir); // no retry — default applies implicitly
 
       const promise = executeAgentStep(
         makeDefinition(),
@@ -338,7 +343,7 @@ describe("executeAgentStep", () => {
       throw reason instanceof Error ? reason : new Error("aborted");
     });
 
-    const step = makeStep({
+    const step = makeStep(projectDir, {
       retry: { maxAttempts: 2, initialDelayMs: 1, backoffFactor: 1 },
     });
 
@@ -392,7 +397,7 @@ describe("executeAgentStep", () => {
 
       await executeAgentStep(
         makeDefinition(),
-        makeStep(),
+        makeStep(projectDir),
         makeMetadata(),
         TRIGGER,
         new AbortController(),
@@ -415,7 +420,7 @@ describe("executeAgentStep", () => {
 
       await executeAgentStep(
         makeDefinition(),
-        makeStep(),
+        makeStep(projectDir),
         makeMetadata(),
         TRIGGER,
         new AbortController(),
@@ -448,7 +453,7 @@ describe("buildAgentPrompt", () => {
   it("omits the exposed step outputs section when nothing is exposed", () => {
     const { prompt } = buildAgentPrompt(
       makeDefinition(),
-      makeStep(),
+      makeStep(projectDir),
       makeMetadata(),
       TRIGGER,
       projectDir,
@@ -460,7 +465,7 @@ describe("buildAgentPrompt", () => {
   it("states that the agent should choose its own investigation path", () => {
     const { prompt } = buildAgentPrompt(
       makeDefinition(),
-      makeStep(),
+      makeStep(projectDir),
       makeMetadata(),
       TRIGGER,
       projectDir,
@@ -472,7 +477,7 @@ describe("buildAgentPrompt", () => {
   it("points high-stakes decisions at the owner-question MCP tool", () => {
     const { prompt } = buildAgentPrompt(
       makeDefinition(),
-      makeStep(),
+      makeStep(projectDir),
       makeMetadata(),
       TRIGGER,
       projectDir,
@@ -486,7 +491,7 @@ describe("buildAgentPrompt", () => {
       makeDefinition({
         steps: [{ id: "some-step", type: "code", run: async () => ({ ok: true }) }],
       }),
-      makeStep(),
+      makeStep(projectDir),
       makeMetadata(),
       TRIGGER,
       projectDir,
@@ -507,7 +512,7 @@ describe("buildAgentPrompt", () => {
           },
         ],
       }),
-      makeStep(),
+      makeStep(projectDir),
       makeMetadata(),
       TRIGGER,
       projectDir,
@@ -529,7 +534,7 @@ describe("buildAgentPrompt", () => {
           },
         ],
       }),
-      makeStep(),
+      makeStep(projectDir),
       makeMetadata(),
       TRIGGER,
       projectDir,
@@ -562,7 +567,7 @@ describe("buildAgentPrompt", () => {
           },
         ],
       }),
-      makeStep(),
+      makeStep(projectDir),
       makeMetadata(),
       TRIGGER,
       projectDir,
@@ -578,7 +583,7 @@ describe("buildAgentPrompt", () => {
   it("omits the trigger payload block when the payload is empty", () => {
     const { prompt } = buildAgentPrompt(
       makeDefinition(),
-      makeStep(),
+      makeStep(projectDir),
       makeMetadata(),
       TRIGGER,
       projectDir,
@@ -590,7 +595,7 @@ describe("buildAgentPrompt", () => {
   it("includes the trigger payload block when the payload has runtime facts", () => {
     const { prompt } = buildAgentPrompt(
       makeDefinition(),
-      makeStep(),
+      makeStep(projectDir),
       makeMetadata(),
       { event: "workflow.completed", payload: { runId: "run-123" } },
       projectDir,
@@ -726,7 +731,7 @@ describe("executeToolStep retry", () => {
 
 describe("buildRepairPrompt", () => {
   it("includes attempt info and failed check output", () => {
-    const step = makeStep({ id: "build" });
+    const step = makeStep("/test-module-root", { id: "build" });
     const failures = [{ id: "verify-lint", passed: false, output: "error: semicolon", severity: "error" as const }];
     const prompt = buildRepairPrompt(1, 3, failures, step);
     expect(prompt).toContain("repair attempt 1/3");
@@ -738,7 +743,7 @@ describe("buildRepairPrompt", () => {
   });
 
   it("includes all failures", () => {
-    const step = makeStep();
+    const step = makeStep("/test-module-root");
     const failures = [
       { id: "check-a", passed: false, output: "error A", severity: "error" as const },
       { id: "check-b", passed: false, output: "error B", severity: "error" as const },
@@ -802,7 +807,7 @@ describe("executeStep repair loop", () => {
 
     const runTool = vi.fn().mockResolvedValue({ content: "all good", is_error: false });
     const context = makeRepairContext(runTool);
-    const step = makeStep({
+    const step = makeStep(projectDir, {
       repairLoop: {
         maxRepairAttempts: 2,
         checks: [{ id: "check-lint", tool: "shell", input: { command: "npm run lint" } }],
@@ -837,7 +842,7 @@ describe("executeStep repair loop", () => {
       .mockResolvedValue({ content: "lint passed", is_error: false }); // second check passes
 
     const context = makeRepairContext(runTool);
-    const step = makeStep({
+    const step = makeStep(projectDir, {
       repairLoop: {
         maxRepairAttempts: 3,
         checks: [{ id: "check-lint", tool: "shell", input: { command: "npm run lint" } }],
@@ -881,7 +886,7 @@ describe("executeStep repair loop", () => {
       .mockRejectedValue(new Error("typecheck error: type mismatch")); // checks always fail
 
     const context = makeRepairContext(runTool);
-    const step = makeStep({
+    const step = makeStep(projectDir, {
       repairLoop: {
         maxRepairAttempts: 2,
         checks: [{ id: "check-typecheck", tool: "shell", input: { command: "npm run typecheck" } }],
@@ -915,7 +920,7 @@ describe("executeStep repair loop", () => {
       .fn()
       .mockRejectedValue(new Error("advisory warning"));
     const context = makeRepairContext(runTool);
-    const step = makeStep({
+    const step = makeStep(projectDir, {
       repairLoop: {
         maxRepairAttempts: 2,
         checks: [
@@ -961,7 +966,7 @@ describe("executeStep repair loop", () => {
       .mockReturnValue({ ok: true });
 
     const context = makeRepairContext(vi.fn());
-    const step = makeStep({
+    const step = makeStep(projectDir, {
       repairLoop: {
         maxRepairAttempts: 2,
         checks: [
@@ -1002,7 +1007,7 @@ describe("executeStep repair loop", () => {
       .mockResolvedValue({ content: "lint passed", is_error: false });
 
     const context = makeRepairContext(runTool);
-    const step = makeStep({
+    const step = makeStep(projectDir, {
       agentName: "builder",
       thinkingEnabled: true,
       thinkingBudget: 4096,
@@ -1065,7 +1070,7 @@ describe("executeStep repair loop", () => {
     const phase2Check = vi.fn().mockReturnValue("OK");
 
     const context = makeRepairContext(vi.fn());
-    const step = makeStep({
+    const step = makeStep(projectDir, {
       repairLoop: {
         maxRepairAttempts: 2,
         checks: [
@@ -1105,7 +1110,7 @@ describe("executeStep repair loop", () => {
     const abortController = new AbortController();
     abortController.abort(new Error("step timed out"));
 
-    const step = makeStep({
+    const step = makeStep(projectDir, {
       repairLoop: {
         maxRepairAttempts: 3,
         checks: [{ id: "check-build", type: "code", run: codeCheck }],
@@ -1145,7 +1150,7 @@ describe("executeStep repair loop", () => {
     });
 
     const context = makeRepairContext(vi.fn());
-    const step = makeStep({
+    const step = makeStep(projectDir, {
       repairLoop: {
         maxRepairAttempts: 3,
         checks: [{ id: "check-build", type: "code", run: codeCheck }],

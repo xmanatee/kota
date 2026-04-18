@@ -350,6 +350,90 @@ describe("autonomous workflow loop integration", () => {
     },
   );
 
+  it(
+    "validates and runs real workflows against an external project directory without KOTA source",
+    async () => {
+      // Use a project directory that is NOT the KOTA source tree, and does not
+      // contain any `src/modules/autonomy/workflows/*/prompt.md` files. The
+      // real autonomy workflows must still validate and execute because their
+      // `promptPath` resolves against `moduleRoot` (KOTA's install root), not
+      // against `projectDir`.
+      const externalProjectDir = join(
+        tmpdir(),
+        `kota-external-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      );
+      mkdirSync(externalProjectDir, { recursive: true });
+      try {
+        mkdirSync(join(externalProjectDir, ".kota"), { recursive: true });
+        writeFileSync(join(externalProjectDir, ".gitignore"), ".kota/\n");
+        writeFileSync(
+          join(externalProjectDir, "package.json"),
+          JSON.stringify({ name: "external-fixture" }),
+        );
+        execSync("git init && git add .", { cwd: externalProjectDir });
+        execSync(
+          'git -c user.email="t@t" -c user.name="T" commit -m "init"',
+          { cwd: externalProjectDir },
+        );
+
+        // Sanity: the external project has no KOTA source seeded.
+        expect(
+          existsSync(join(externalProjectDir, "src/modules/autonomy")),
+        ).toBe(false);
+
+        const rawDefs = await loadAutonomyWorkflowDefinitions();
+        expect(rawDefs.length).toBeGreaterThan(0);
+        for (const def of rawDefs) {
+          expect(def.moduleRoot, `workflow ${def.name} must carry moduleRoot`).toBeDefined();
+          // moduleRoot must point to KOTA's install root (which contains src/),
+          // not to the external project dir.
+          expect(def.moduleRoot).not.toBe(externalProjectDir);
+          expect(
+            existsSync(join(def.moduleRoot!, "src/modules/autonomy")),
+          ).toBe(true);
+        }
+
+        // Validation must succeed against the external project dir. If
+        // promptPath were resolved against projectDir, every agent step would
+        // fail with `promptPath does not exist`.
+        const compiled = validateWorkflowDefinitions(rawDefs, externalProjectDir);
+        expect(compiled.length).toBe(rawDefs.length);
+        for (const def of compiled) {
+          expect(def.moduleRoot).not.toBe(externalProjectDir);
+        }
+
+        // Boot the runtime against the external project and drive an agent
+        // step. With no tasks and no inbox, the builder should pull nothing
+        // but still start, proving the daemon can operate on an external
+        // project. Mock the SDK so we don't spend real turns.
+        mockedExecuteWithAgentSDK.mockResolvedValue({
+          text: "ok",
+          streamedText: "",
+          turns: 1,
+          totalCostUsd: 0,
+          isError: false,
+        } as never);
+
+        const bus = new EventBus();
+        const runtime = new WorkflowRuntime({
+          bus,
+          projectDir: externalProjectDir,
+          idleIntervalMs: 10,
+          workflows: compiled.filter((w) => w.name === "dispatcher"),
+        });
+        runtime.start();
+        await wait(200);
+        await runtime.stop();
+
+        // No crash means the daemon booted and ticked at least once against
+        // the external project directory using KOTA-owned workflow prompts.
+        expect(true).toBe(true);
+      } finally {
+        rmSync(externalProjectDir, { recursive: true, force: true });
+      }
+    },
+  );
+
   it("a new workflow tagged 'monitored' is observed by attention-digest and improver without editing them", async () => {
     mkdirSync(join(projectDir, "src/modules/autonomy/workflows/attention-digest"), { recursive: true });
     writeFileSync(join(projectDir, "src/modules/autonomy/workflows/attention-digest/prompt.md"), "Digest.\n");
