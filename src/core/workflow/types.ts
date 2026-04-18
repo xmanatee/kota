@@ -147,9 +147,10 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
   settingSources?: SDKSettingSource[];
   /**
    * Operator supervision mode for this step. Orthogonal to per-tool risk
-   * classification. When omitted the validator defaults to "autonomous"
-   * because autonomy workflows drive unattended work; channel-triggered
-   * workflows that want approval gating must set this explicitly.
+   * classification. Required in effect: the validator rejects an agent step
+   * that neither sets this nor inherits it from the enclosing workflow's
+   * `defaultAutonomyMode`. Declaring the mode is how a workflow states its
+   * supervision intent — there is no repo-wide default.
    */
   autonomyMode?: AutonomyMode;
   retry?: WorkflowRetryConfig;
@@ -351,6 +352,15 @@ export type WorkflowDefinitionInput = {
    */
   recoveryCapable?: boolean;
   /**
+   * Workflow-level fallback for every agent step's `autonomyMode`. When set, any
+   * agent step in this workflow (including steps nested inside parallel, branch,
+   * or foreach) that omits its own `autonomyMode` inherits this value. When
+   * omitted, every agent step in the workflow must declare its own mode; the
+   * validator rejects any step that leaves the mode undefined. Individual
+   * steps may still override this default with a stricter mode.
+   */
+  defaultAutonomyMode?: AutonomyMode;
+  /**
    * Named concurrency group for this workflow. Workflows in the same named group
    * run at most one at a time. Omit to use type-based defaults: agent-step
    * workflows use the default "agent" group (agentConcurrency cap), code-only
@@ -514,6 +524,12 @@ export type WorkflowDefinition = {
    */
   moduleRoot: string;
   recoveryCapable: boolean;
+  /**
+   * Workflow-level fallback for agent-step autonomy mode. Populated by the
+   * loader when the workflow definition sets `defaultAutonomyMode`; used only
+   * by the validator when normalizing agent steps and not re-read at runtime.
+   */
+  defaultAutonomyMode?: AutonomyMode;
   /**
    * Named concurrency group. Workflows in the same named group run at most one
    * at a time. Omit to use type-based defaults ("agent" or "code").

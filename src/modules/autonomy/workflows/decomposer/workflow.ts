@@ -140,6 +140,7 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
     "Decompose builder-timeout tasks into coherent task sequences.",
   tags: ["monitored"],
   recoveryCapable: true,
+  defaultAutonomyMode: "autonomous",
   triggers: [
     {
       event: "workflow.completed",

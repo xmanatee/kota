@@ -1,4 +1,5 @@
 import { isAbsolute } from "node:path";
+import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import { matchesFilter } from "./run-executor-utils.js";
 import type {
   RegisteredWorkflowDefinitionInput,
@@ -43,6 +44,7 @@ function validateStep(
   definitionPath: string,
   index: number,
   moduleRoot: string,
+  workflowDefaultAutonomyMode: AutonomyMode | undefined,
 ): WorkflowStep {
   if (!step || typeof step !== "object") {
     throw new WorkflowDefinitionError(
@@ -53,7 +55,13 @@ function validateStep(
 
   if (step.type === "tool") return validateToolStep(step, definitionPath, index);
   if (step.type === "agent") {
-    return validateAgentStep(step, definitionPath, index, moduleRoot);
+    return validateAgentStep(
+      step,
+      definitionPath,
+      index,
+      moduleRoot,
+      workflowDefaultAutonomyMode,
+    );
   }
   if (step.type === "emit") return validateEmitStep(step, definitionPath, index);
   if (step.type === "restart") {
@@ -61,7 +69,13 @@ function validateStep(
   }
   if (step.type === "code") return validateCodeStep(step, definitionPath, index);
   if (step.type === "parallel") {
-    return validateParallelGroup(step as WorkflowParallelGroupInput, definitionPath, index, moduleRoot);
+    return validateParallelGroup(
+      step as WorkflowParallelGroupInput,
+      definitionPath,
+      index,
+      moduleRoot,
+      workflowDefaultAutonomyMode,
+    );
   }
   if (step.type === "trigger") {
     return validateTriggerStep(step as WorkflowTriggerStepInput, definitionPath, index);
@@ -72,7 +86,9 @@ function validateStep(
       definitionPath,
       index,
       moduleRoot,
-      (armStep, dp, armIndex, root) => validateStep(armStep, dp, armIndex, root),
+      workflowDefaultAutonomyMode,
+      (armStep, dp, armIndex, root, armDefault) =>
+        validateStep(armStep, dp, armIndex, root, armDefault),
     );
   }
   if (step.type === "foreach") {
@@ -81,6 +97,7 @@ function validateStep(
       definitionPath,
       index,
       moduleRoot,
+      workflowDefaultAutonomyMode,
     );
   }
   if (step.type === "approval") {
@@ -148,8 +165,19 @@ export function validateWorkflowDefinitions(
       );
     }
 
+    const defaultAutonomyMode = definition.defaultAutonomyMode;
+    if (
+      defaultAutonomyMode !== undefined &&
+      !isAutonomyMode(defaultAutonomyMode)
+    ) {
+      throw new WorkflowDefinitionError(
+        `defaultAutonomyMode must be one of passive, supervised, autonomous`,
+        definitionPath,
+      );
+    }
+
     const steps = definition.steps.map((step, stepIndex) =>
-      validateStep(step, definitionPath, stepIndex, moduleRoot),
+      validateStep(step, definitionPath, stepIndex, moduleRoot, defaultAutonomyMode),
     );
     const seenStepIds = new Set<string>();
     const collectStepIds = (flatSteps: WorkflowStep[]) => {
@@ -311,6 +339,7 @@ export function validateWorkflowDefinitions(
         "recoveryCapable",
         definitionPath,
       ) ?? false,
+      defaultAutonomyMode,
       concurrencyGroup: expectOptionalString(
         definition.concurrencyGroup,
         "concurrencyGroup",

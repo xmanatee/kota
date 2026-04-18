@@ -1,3 +1,4 @@
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
   WorkflowAgentStep,
   WorkflowAgentStepInput,
@@ -22,6 +23,7 @@ export function validateForeachStep(
   definitionPath: string,
   index: number,
   moduleRoot: string,
+  workflowDefaultAutonomyMode: AutonomyMode | undefined,
 ): WorkflowForeachStep {
   if (step.items === undefined || step.items === null) {
     throw new WorkflowDefinitionError(
@@ -80,7 +82,13 @@ export function validateForeachStep(
     if (innerStep.type === "code") {
       return validateCodeStep(innerStep as WorkflowCodeStepInput, definitionPath, innerIndex) as WorkflowCodeStep;
     }
-    return validateAgentStep(innerStep as WorkflowAgentStepInput, definitionPath, innerIndex, moduleRoot) as WorkflowAgentStep;
+    return validateAgentStep(
+      innerStep as WorkflowAgentStepInput,
+      definitionPath,
+      innerIndex,
+      moduleRoot,
+      workflowDefaultAutonomyMode,
+    ) as WorkflowAgentStep;
   });
 
   return {

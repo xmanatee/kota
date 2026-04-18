@@ -1,3 +1,4 @@
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
   WorkflowBranchStep,
   WorkflowBranchStepInput,
@@ -19,11 +20,13 @@ export function validateBranchStep(
   definitionPath: string,
   index: number,
   moduleRoot: string,
+  workflowDefaultAutonomyMode: AutonomyMode | undefined,
   validateArmStep: (
     armStep: WorkflowStepInput,
     definitionPath: string,
     armIndex: number,
     moduleRoot: string,
+    workflowDefaultAutonomyMode: AutonomyMode | undefined,
   ) => WorkflowStep,
   depth = 0,
 ): WorkflowBranchStep {
@@ -53,7 +56,13 @@ export function validateBranchStep(
     armLabel: string,
   ): WorkflowStep[] =>
     arm.map((armStep, armIndex) => {
-      const validated = validateArmStep(armStep, definitionPath, armIndex, moduleRoot);
+      const validated = validateArmStep(
+        armStep,
+        definitionPath,
+        armIndex,
+        moduleRoot,
+        workflowDefaultAutonomyMode,
+      );
       if (validated.type === "restart") {
         throw new WorkflowDefinitionError(
           `${armLabel}[${armIndex}] restart steps are not allowed inside branch arms`,

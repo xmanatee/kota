@@ -92,6 +92,7 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
   name: "pr-reviewer",
   description: "Review KOTA-created pull requests and post structured feedback as a PR comment.",
   tags: ["monitored"],
+  defaultAutonomyMode: "autonomous",
   triggers: [
     {
       event: "github.pull_request",

@@ -133,6 +133,7 @@ export function validateAgentStep(
   definitionPath: string,
   index: number,
   moduleRoot: string,
+  workflowDefaultAutonomyMode: AutonomyMode | undefined,
   childIndex?: number,
 ): WorkflowAgentStep {
   const stepLabel = childIndex !== undefined
@@ -208,10 +209,17 @@ export function validateAgentStep(
     );
   }
 
-  const autonomyMode: AutonomyMode = step.autonomyMode ?? "autonomous";
-  if (!isAutonomyMode(autonomyMode)) {
+  if (step.autonomyMode !== undefined && !isAutonomyMode(step.autonomyMode)) {
     throw new WorkflowDefinitionError(
       `${stepLabel}.autonomyMode must be one of passive, supervised, autonomous`,
+      definitionPath,
+    );
+  }
+  const autonomyMode: AutonomyMode | undefined =
+    step.autonomyMode ?? workflowDefaultAutonomyMode;
+  if (autonomyMode === undefined) {
+    throw new WorkflowDefinitionError(
+      `${stepLabel}.autonomyMode is required — set autonomyMode on the step or declare defaultAutonomyMode on the workflow`,
       definitionPath,
     );
   }

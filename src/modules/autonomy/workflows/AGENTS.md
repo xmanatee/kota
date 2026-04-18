@@ -25,6 +25,22 @@ Timeouts, trigger validation, dirty-worktree recovery, and repair-loop checks
 are runtime rails, not prompt policy. Keep workflow code explicit and typed;
 keep prompts focused on the agent's role.
 
+### Autonomy Mode Declaration
+
+Every agent step must declare its session-level autonomy posture explicitly.
+The validator rejects agent steps that lack an autonomy mode — there is no
+silent default. Declare intent at whichever level keeps the workflow coherent:
+
+- Set `defaultAutonomyMode` on the workflow definition when every agent step
+  in the workflow shares the same posture (the common case for autonomy loops,
+  which run unattended as `"autonomous"`).
+- Set `autonomyMode` on an individual agent step only when that step needs to
+  diverge from the workflow default (e.g. a review step that needs human
+  supervision in an otherwise autonomous flow).
+
+`autonomyMode` is orthogonal to per-tool risk classification — it sets the
+session's supervision posture; tool-level guardrails still apply on top.
+
 ### Agent-Step Retry and Error Classification
 
 Every agent step inherits `DEFAULT_AGENT_STEP_RETRY` from

@@ -54,6 +54,7 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
     "Process quick inbox captures into normalized tasks, docs, or other durable project artifacts.",
   tags: ["monitored"],
   recoveryCapable: true,
+  defaultAutonomyMode: "autonomous",
   triggers: [
     {
       event: "autonomy.inbox.available",

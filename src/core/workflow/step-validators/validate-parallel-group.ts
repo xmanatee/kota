@@ -1,3 +1,4 @@
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
   WorkflowAgentStep,
   WorkflowCodeStep,
@@ -20,6 +21,7 @@ export function validateParallelGroup(
   definitionPath: string,
   index: number,
   moduleRoot: string,
+  workflowDefaultAutonomyMode: AutonomyMode | undefined,
 ): WorkflowParallelGroup {
   if (!Array.isArray(step.steps) || step.steps.length === 0) {
     throw new WorkflowDefinitionError(
@@ -46,6 +48,7 @@ export function validateParallelGroup(
         definitionPath,
         index,
         moduleRoot,
+        workflowDefaultAutonomyMode,
         childIndex,
       ) as WorkflowAgentStep;
     }

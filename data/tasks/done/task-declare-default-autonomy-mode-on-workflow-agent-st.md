@@ -1,12 +1,12 @@
 ---
 id: task-declare-default-autonomy-mode-on-workflow-agent-st
 title: Declare default autonomy mode on workflow agent steps
-status: ready
+status: done
 priority: p2
 area: workflow
 summary: Replace the silent autonomous default on WorkflowAgentStep with an explicit per-step or per-workflow declaration and make the validator reject agent steps that lack an autonomy mode, so workflows state supervision intent instead of inheriting the most permissive option
 created_at: 2026-04-18T04:01:42.463Z
-updated_at: 2026-04-18T04:01:42.463Z
+updated_at: 2026-04-18T04:50:25.592Z
 ---
 
 ## Problem

@@ -30,6 +30,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
   description:
     "Improve the autonomous development system itself using evidence from recent runs.",
   recoveryCapable: true,
+  defaultAutonomyMode: "autonomous",
   triggers: [
     // Any monitored workflow completion is a signal that aggregate run data
     // may have shifted — improver reads 24h/7d aggregates, not one specific

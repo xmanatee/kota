@@ -44,6 +44,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
   description: "Build KOTA by shipping one cohesive improvement per workflow run.",
   tags: ["monitored"],
   recoveryCapable: true,
+  defaultAutonomyMode: "autonomous",
   triggers: [
     {
       event: "autonomy.queue.available",

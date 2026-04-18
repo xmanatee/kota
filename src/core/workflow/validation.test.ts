@@ -51,6 +51,7 @@ describe("workflow validation", () => {
               promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
               model: "claude-opus-4-7",
               effort: "xhigh",
+              autonomyMode: "autonomous",
             },
           ],
         }),
@@ -147,6 +148,7 @@ describe("workflow validation", () => {
                 promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
                 model: "claude-opus-4-7",
                 effort: "xhigh",
+                autonomyMode: "autonomous",
                 repairLoop: {
                   maxRepairAttempts: 2,
                   checks: [
@@ -191,6 +193,7 @@ describe("workflow validation", () => {
               promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
               model: "claude-opus-4-7",
               effort: "xhigh",
+              autonomyMode: "autonomous",
               repairLoop: {
                 checks: [
                   {
@@ -266,6 +269,7 @@ describe("workflow validation", () => {
               promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
               model: "claude-opus-4-7",
               effort: "xhigh",
+              autonomyMode: "autonomous",
               timeoutMs: 45 * 60 * 1000,
             },
           ],
@@ -321,7 +325,8 @@ describe("workflow validation", () => {
                 type: "agent",
                 promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
                 model: "claude-opus-4-7",
-              effort: "xhigh",
+                effort: "xhigh",
+                autonomyMode: "autonomous",
               },
             ],
           }),
@@ -360,7 +365,8 @@ describe("workflow validation", () => {
                 type: "agent",
                 promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
                 model: "claude-opus-4-7",
-              effort: "xhigh",
+                effort: "xhigh",
+                autonomyMode: "autonomous",
               },
               {
                 id: "request-restart",
@@ -394,7 +400,8 @@ describe("workflow validation", () => {
                 type: "agent",
                 promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
                 model: "claude-opus-4-7",
-              effort: "xhigh",
+                effort: "xhigh",
+                autonomyMode: "autonomous",
               },
               {
                 id: "request-restart",
@@ -490,6 +497,7 @@ describe("workflow validation", () => {
                   promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
                   model,
                   effort: "xhigh" as const,
+                  autonomyMode: "autonomous",
                 },
               ],
             }),
@@ -529,7 +537,37 @@ describe("workflow validation", () => {
     ).toThrow("autonomyMode");
   });
 
-  it("defaults autonomyMode to autonomous when omitted", () => {
+  it("rejects agent steps that omit autonomyMode and have no workflow-level default", () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "build",
+                type: "agent",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                model: "claude-opus-4-7",
+                effort: "xhigh",
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(
+      "autonomyMode is required — set autonomyMode on the step or declare defaultAutonomyMode on the workflow",
+    );
+  });
+
+  it("applies workflow-level defaultAutonomyMode to agent steps that omit autonomyMode", () => {
     writeFileSync(
       join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
@@ -540,6 +578,7 @@ describe("workflow validation", () => {
         registerWorkflowDefinition("test/builder.ts", {
           name: "builder",
           triggers: [{ event: "runtime.idle" }],
+          defaultAutonomyMode: "autonomous",
           steps: [
             {
               id: "build",
@@ -554,8 +593,56 @@ describe("workflow validation", () => {
       projectDir,
     );
 
+    expect(definitions[0]?.defaultAutonomyMode).toBe("autonomous");
     const step = definitions[0]?.steps[0];
     expect(step && "autonomyMode" in step ? step.autonomyMode : undefined).toBe("autonomous");
+  });
+
+  it("allows per-step autonomyMode to override workflow defaultAutonomyMode", () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    const definitions = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          defaultAutonomyMode: "autonomous",
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+              model: "claude-opus-4-7",
+              effort: "xhigh",
+              autonomyMode: "supervised",
+            },
+          ],
+        }),
+      ],
+      projectDir,
+    );
+
+    const step = definitions[0]?.steps[0];
+    expect(step && "autonomyMode" in step ? step.autonomyMode : undefined).toBe("supervised");
+  });
+
+  it("rejects invalid defaultAutonomyMode on workflow definitions", () => {
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle" }],
+            defaultAutonomyMode: "bogus" as never,
+            steps: [{ id: "run", type: "emit", event: "builder.done" }],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow("defaultAutonomyMode must be one of passive, supervised, autonomous");
   });
 
   it("rejects agent steps without a model field", () => {
