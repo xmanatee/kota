@@ -227,6 +227,52 @@ describe("Daemon", () => {
     expect(process.listenerCount("SIGTERM")).toBe(initialSigtermCount);
   });
 
+  it("aborts active workflow runs immediately on foreground interrupt", async () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+    const captured: { signal?: AbortSignal } = {};
+    mockedExecuteWithAgentSDK.mockImplementation(
+      async (_prompt, options) =>
+        new Promise((_resolve, reject) => {
+          captured.signal = options?.abortController?.signal;
+          captured.signal?.addEventListener("abort", () => {
+            reject(captured.signal?.reason ?? new Error("aborted"));
+          });
+        }),
+    );
+
+    const daemon = makeDaemon({
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+              model: "claude-opus-4-7",
+              effort: "xhigh",
+              autonomyMode: "autonomous",
+            },
+          ],
+        }),
+      ],
+    });
+
+    const startPromise = daemon.start();
+    await wait(80);
+    expect(captured.signal).toBeDefined();
+
+    process.emit("SIGINT", "SIGINT");
+    await startPromise;
+
+    expect(captured.signal?.aborted).toBe(true);
+    expect(daemon.isRunning()).toBe(false);
+  });
+
   it("persists completed run state to disk", async () => {
     writeFileSync(
       join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),

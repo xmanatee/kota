@@ -148,6 +148,30 @@ describe("executeAgentStep", () => {
     expect(options?.mcpServers).toHaveProperty(KOTA_OWNER_QUESTIONS_MCP_SERVER);
   });
 
+  it("passes the daemon host-control guard to workflow agent steps", async () => {
+    mockedExecuteWithAgentSDK.mockResolvedValue(SUCCESS_RESULT);
+
+    await executeAgentStep(
+      makeDefinition(),
+      makeStep(projectDir),
+      makeMetadata(),
+      TRIGGER,
+      new AbortController(),
+      () => {},
+      () => {},
+      agentConfig,
+    );
+
+    const guard = mockedExecuteWithAgentSDK.mock.calls[0]?.[1]?.canUseTool;
+    expect(guard).toEqual(expect.any(Function));
+    await expect(
+      guard?.("Bash", { command: "pnpm kota daemon stop" }, {
+        signal: new AbortController().signal,
+        toolUseID: "tool-1",
+      }),
+    ).resolves.toMatchObject({ behavior: "deny", interrupt: true });
+  });
+
   it("keeps ask_owner available when an agent step has an allowedTools list", async () => {
     mockedExecuteWithAgentSDK.mockResolvedValue(SUCCESS_RESULT);
 

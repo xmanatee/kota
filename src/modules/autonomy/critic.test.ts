@@ -7,9 +7,13 @@ import { createCriticCheck } from "./critic.js";
 import { AUTONOMY_DISALLOWED_TOOLS } from "./shared.js";
 
 const mockExecuteWithAgentSDK = vi.hoisted(() => vi.fn());
+const mockCreateDaemonHostControlGuard = vi.hoisted(() => vi.fn(() => vi.fn(async () => ({ behavior: "allow" }))));
 
 vi.mock("#core/agent-sdk/index.js", () => {
-  return { executeWithAgentSDK: mockExecuteWithAgentSDK };
+  return {
+    createDaemonHostControlGuard: mockCreateDaemonHostControlGuard,
+    executeWithAgentSDK: mockExecuteWithAgentSDK,
+  };
 });
 
 vi.mock("node:child_process", async () => {
@@ -175,6 +179,7 @@ describe("createCriticCheck", () => {
     expect(options.allowedTools).toBeUndefined();
     expect(options.disallowedTools).toEqual(AUTONOMY_DISALLOWED_TOOLS);
     expect(options.effort).toBe("xhigh");
+    expect(options.canUseTool).toEqual(expect.any(Function));
   });
 
   it("recovers verdict from response with preamble text before JSON", async () => {

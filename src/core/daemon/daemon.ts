@@ -167,8 +167,8 @@ export class Daemon {
 
     // Register signal handlers before any awaits so callers can observe them immediately.
     const gracePeriodMs = this.config.shutdownGracePeriodMs ?? this.config.config?.daemon?.shutdownGracePeriodMs ?? DEFAULT_SHUTDOWN_GRACE_PERIOD_MS;
-    this.shutdownHandler = () => {
-      void this.stop(gracePeriodMs);
+    this.shutdownHandler = (signal?: NodeJS.Signals) => {
+      void this.stop(signal === "SIGINT" ? 1 : gracePeriodMs);
     };
     process.on("SIGINT", this.shutdownHandler);
     process.on("SIGTERM", this.shutdownHandler);

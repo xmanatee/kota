@@ -7,9 +7,13 @@ import { createImproverSemanticCheck } from "./improver-semantic-gate.js";
 import { AUTONOMY_DISALLOWED_TOOLS } from "./shared.js";
 
 const mockExecuteWithAgentSDK = vi.hoisted(() => vi.fn());
+const mockCreateDaemonHostControlGuard = vi.hoisted(() => vi.fn(() => vi.fn(async () => ({ behavior: "allow" }))));
 
 vi.mock("#core/agent-sdk/index.js", () => {
-  return { executeWithAgentSDK: mockExecuteWithAgentSDK };
+  return {
+    createDaemonHostControlGuard: mockCreateDaemonHostControlGuard,
+    executeWithAgentSDK: mockExecuteWithAgentSDK,
+  };
 });
 
 vi.mock("node:child_process", async () => {
@@ -229,6 +233,7 @@ describe("createImproverSemanticCheck", () => {
     expect(options.allowedTools).toBeUndefined();
     expect(options.disallowedTools).toEqual(AUTONOMY_DISALLOWED_TOOLS);
     expect(options.effort).toBe("xhigh");
+    expect(options.canUseTool).toEqual(expect.any(Function));
   });
 
   it("retries on transient SDK errors", async () => {

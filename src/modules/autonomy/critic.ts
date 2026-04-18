@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
+import { createDaemonHostControlGuard, executeWithAgentSDK } from "#core/agent-sdk/index.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import { AUTONOMY_DISALLOWED_TOOLS, sleep } from "./shared.js";
 import { findTaskReviewTarget } from "./task-review-target.js";
@@ -216,6 +216,7 @@ export async function invokeAgentJudge(
         disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
         permissionMode: "bypassPermissions",
         settingSources: ["project"],
+        canUseTool: createDaemonHostControlGuard(),
       }, {
         write: () => true,
       });

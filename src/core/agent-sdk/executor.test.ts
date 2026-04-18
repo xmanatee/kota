@@ -16,6 +16,10 @@ vi.mock("node:child_process", () => ({
 }));
 
 import {
+  createDaemonHostControlGuard,
+  isDaemonHostControlCommand,
+} from "./daemon-control-guard.js";
+import {
   buildQueryOptions,
   detectLocalClaudeCodeExecutable,
   executeWithAgentSDK,
@@ -178,8 +182,29 @@ describe("agent-sdk executor", () => {
         effort: "xhigh",
         thinking: undefined,
         spawnClaudeCodeProcess: expect.any(Function),
+        canUseTool: undefined,
       },
     });
+  });
+
+  it("identifies daemon-host control commands", () => {
+    expect(isDaemonHostControlCommand("pnpm kota daemon stop", 7315)).toBe(true);
+    expect(isDaemonHostControlCommand("node dist/cli.js daemon", 7315)).toBe(true);
+    expect(isDaemonHostControlCommand("kill -TERM 7315", 7315)).toBe(true);
+    expect(isDaemonHostControlCommand("kill -s TERM 7315", 7315)).toBe(true);
+    expect(isDaemonHostControlCommand("pnpm kota workflow abort", 7315)).toBe(true);
+    expect(isDaemonHostControlCommand("pnpm kota task move example done", 7315)).toBe(false);
+    expect(isDaemonHostControlCommand("pnpm build", 7315)).toBe(false);
+  });
+
+  it("denies Bash daemon-host control commands through SDK permissions", async () => {
+    const guard = createDaemonHostControlGuard(7315);
+    const options = { signal: new AbortController().signal, toolUseID: "tool-1" };
+
+    await expect(guard("Read", {}, options)).resolves.toEqual({ behavior: "allow" });
+    await expect(
+      guard("Bash", { command: "pnpm kota daemon stop" }, options),
+    ).resolves.toMatchObject({ behavior: "deny", interrupt: true });
   });
 
   it("detects a locally installed claude executable", () => {
@@ -228,6 +253,21 @@ describe("agent-sdk executor", () => {
       permissionMode: "bypassPermissions",
       allowDangerouslySkipPermissions: true,
       pathToClaudeCodeExecutable: undefined,
+    });
+  });
+
+  it("runs guarded calls through SDK permission callbacks instead of bypass mode", () => {
+    const canUseTool = vi.fn(async () => ({ behavior: "allow" as const }));
+
+    expect(buildQueryOptions({
+      cwd: "/tmp/project",
+      effort: "xhigh",
+      permissionMode: "bypassPermissions",
+      canUseTool,
+    })).toMatchObject({
+      permissionMode: "default",
+      allowDangerouslySkipPermissions: false,
+      canUseTool,
     });
   });
 

@@ -1,4 +1,5 @@
 import type {
+  CanUseTool,
   McpServerConfig,
   SpawnedProcess,
   SpawnOptions,
@@ -44,6 +45,7 @@ export type SDKQueryOptions = {
   enableFileCheckpointing?: boolean;
   thinking?: SDKThinkingConfig;
   spawnClaudeCodeProcess?: (options: SpawnOptions) => SpawnedProcess;
+  canUseTool?: CanUseTool;
 };
 
 export type SDKContentBlock = {

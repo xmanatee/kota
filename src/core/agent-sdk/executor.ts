@@ -30,6 +30,7 @@ export type ExecutorOptions = {
   onMessage?: (message: SDKMessage) => void | Promise<void>;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
+  canUseTool?: SDKQueryOptions["canUseTool"];
 };
 
 export const SDK_ABORT_FORCE_KILL_MS = 10_000;
@@ -167,7 +168,11 @@ export function spawnClaudeCodeProcessWithAbortKill(
 }
 
 export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
-  const permissionMode = options.permissionMode ?? "bypassPermissions";
+  const requestedPermissionMode = options.permissionMode ?? "bypassPermissions";
+  const permissionMode =
+    options.canUseTool && requestedPermissionMode === "bypassPermissions"
+      ? "default"
+      : requestedPermissionMode;
   const thinking = options.thinkingEnabled
     ? { type: "enabled" as const, budgetTokens: Math.max(1024, options.thinkingBudget ?? 10_000) }
     : undefined;
@@ -190,6 +195,7 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
     allowDangerouslySkipPermissions: permissionMode === "bypassPermissions",
     thinking,
     spawnClaudeCodeProcess: spawnClaudeCodeProcessWithAbortKill,
+    canUseTool: options.canUseTool,
   };
 }
 

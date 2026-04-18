@@ -363,7 +363,7 @@ const daemonModule: KotaModule = {
     cmd
       .command("stop")
       .description("Gracefully stop the running daemon (exits 0 on success)")
-      .option("--timeout <seconds>", "Seconds to wait for clean exit", "10")
+      .option("--timeout <seconds>", "Seconds to wait for clean exit", "90")
       .action(async (opts: { timeout: string }) => {
         const address = readOptionalJsonFile<DaemonControlAddress>(
           join(resolveProjectDir(), ".kota", "daemon-control.json"),

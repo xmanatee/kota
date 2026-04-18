@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import {
   buildClaudeCodeSystemPrompt,
+  createDaemonHostControlGuard,
   executeWithAgentSDK,
 } from "#core/agent-sdk/index.js";
 import type { SDKMessage } from "#core/agent-sdk/types.js";
@@ -129,6 +130,7 @@ async function executeRepairAgentIteration(
       settingSources: step.settingSources,
       abortController,
       onMessage: appendMessage,
+      canUseTool: createDaemonHostControlGuard(),
     },
     { write: () => true },
   );

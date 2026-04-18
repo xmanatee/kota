@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   buildClaudeCodeSystemPrompt,
+  createDaemonHostControlGuard,
   createOwnerQuestionMcpServers,
   executeWithAgentSDK,
   KOTA_OWNER_QUESTIONS_MCP_TOOL,
@@ -380,6 +381,7 @@ export async function executeAgentStep(
         settingSources: step.settingSources,
         abortController,
         onMessage: trackedMessage,
+        canUseTool: createDaemonHostControlGuard(),
       }, {
         write: () => true,
       });
