@@ -14,6 +14,7 @@ import type {
   WorkflowRunSummary,
 } from "#core/daemon/daemon-control.js";
 import type { ConversationData, ConversationRecord } from "#core/memory/history-utils.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 
 const FETCH_TIMEOUT_MS = 2_000;
@@ -377,16 +378,43 @@ export class DaemonControlClient {
     }
   }
 
-  async registerSession(id: string, createdAt: string): Promise<boolean> {
+  async registerSession(id: string, createdAt: string, autonomyMode: AutonomyMode): Promise<boolean> {
     try {
       const res = await fetchWithTimeout(`${this.baseUrl}/sessions/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...this.authHeaders() },
-        body: JSON.stringify({ id, createdAt }),
+        body: JSON.stringify({ id, createdAt, autonomyMode }),
       });
       return res.ok;
     } catch {
       return false;
+    }
+  }
+
+  async setSessionAutonomyMode(id: string, autonomyMode: AutonomyMode): Promise<{
+    ok: boolean;
+    notFound?: boolean;
+    autonomyMode?: AutonomyMode;
+    source?: string;
+    serveOwned?: boolean;
+  } | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/sessions/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...this.authHeaders() },
+        body: JSON.stringify({ autonomy_mode: autonomyMode }),
+      });
+      if (res.status === 404) return { ok: false, notFound: true };
+      if (!res.ok) return null;
+      const body = (await res.json()) as { autonomy_mode?: string; source?: string; serveOwned?: boolean };
+      return {
+        ok: true,
+        autonomyMode: (body.autonomy_mode ?? autonomyMode) as AutonomyMode,
+        source: body.source,
+        serveOwned: body.serveOwned,
+      };
+    } catch {
+      return null;
     }
   }
 

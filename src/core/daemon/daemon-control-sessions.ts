@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { DaemonControlHandle } from "./daemon-control-types.js";
 import { jsonResponse, readBody } from "./daemon-control-utils.js";
 
@@ -22,11 +23,16 @@ export function handleRegisterSession(
       }
       const id = body.id;
       const createdAt = body.createdAt;
+      const autonomyMode = body.autonomyMode;
       if (!id || typeof id !== "string" || !createdAt || typeof createdAt !== "string") {
         jsonResponse(res, 400, { error: "id and createdAt are required strings" });
         return;
       }
-      handle.registerSession(id, createdAt);
+      if (!isAutonomyMode(autonomyMode)) {
+        jsonResponse(res, 400, { error: "autonomyMode is required (passive, supervised, autonomous)" });
+        return;
+      }
+      handle.registerSession(id, createdAt, autonomyMode);
       jsonResponse(res, 200, { ok: true });
     })
     .catch(() => jsonResponse(res, 500, { error: "Internal error" }));

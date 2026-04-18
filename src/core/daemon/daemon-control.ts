@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AgentSession } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { handleApproveAllApprovals, handleApproveApproval, handleListApprovals, handleRejectAllApprovals, handleRejectApproval } from "./daemon-control-approvals.js";
 import {
   DaemonChatPool,
@@ -8,6 +9,7 @@ import {
   deleteDaemonSession,
   handleCreateDaemonSession,
   handleDaemonChat,
+  handlePatchDaemonSession,
 } from "./daemon-control-chat.js";
 import { handleDeleteHistory, handleGetHistory, handleListHistory } from "./daemon-control-history.js";
 import { handleMetrics } from "./daemon-control-metrics.js";
@@ -94,6 +96,7 @@ const ROUTE_SCOPES: Record<string, "read" | "control"> = {
   "POST /sessions": "control",
   "POST /sessions/register": "control",
   "POST /sessions/:id/chat": "control",
+  "PATCH /sessions/:id": "control",
   "DELETE /sessions/:id": "control",
   "GET /metrics": "read",
   "POST /push-tokens": "control",
@@ -135,9 +138,11 @@ export type DaemonControlServerOptions = {
   eventBufferSize?: number;
   /**
    * When provided, enables POST /sessions, POST /sessions/:id/chat for daemon-owned sessions.
-   * The factory receives the proxy transport and returns an AgentSession.
+   * The factory receives the proxy transport and the session's autonomy mode.
    */
-  makeAgent?: (transport: Transport) => AgentSession;
+  makeAgent?: (transport: Transport, autonomyMode: AutonomyMode) => AgentSession;
+  /** Fallback autonomy mode applied when POST /sessions does not specify one. */
+  defaultAutonomyMode?: AutonomyMode;
   /** Options forwarded to the daemon chat session pool. */
   chatPool?: DaemonChatPoolOptions;
 };
@@ -149,7 +154,8 @@ export class DaemonControlServer {
   private unsubscribeEvents: (() => void) | null = null;
   private readonly eventBuffer: EventRingBuffer;
   private readonly chatPool: DaemonChatPool | null;
-  private readonly makeAgent: ((transport: Transport) => AgentSession) | null;
+  private readonly makeAgent: ((transport: Transport, autonomyMode: AutonomyMode) => AgentSession) | null;
+  private readonly defaultAutonomyMode: AutonomyMode;
   private readonly chatSweepMs: number;
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -160,6 +166,7 @@ export class DaemonControlServer {
   ) {
     this.eventBuffer = new EventRingBuffer(options?.eventBufferSize ?? 500);
     this.makeAgent = options?.makeAgent ?? null;
+    this.defaultAutonomyMode = options?.defaultAutonomyMode ?? "supervised";
     this.chatPool = this.makeAgent ? new DaemonChatPool(options?.chatPool) : null;
     const ttlMs = options?.chatPool?.ttlMs ?? (5 * 60 * 1000);
     this.chatSweepMs = Math.min(ttlMs, 60_000);
@@ -363,9 +370,13 @@ export class DaemonControlServer {
 
     if (method === "GET" && path === "/sessions") {
       if (this.chatPool) {
-        const serveSessions = h.listSessions().map((s) => ({ ...s, source: "serve" as const }));
-        const daemonSessions = this.chatPool.list();
-        jsonResponse(res, 200, { sessions: [...serveSessions, ...daemonSessions] });
+        const daemonEntries = this.chatPool.list();
+        const daemonIds = new Set(daemonEntries.map((s) => s.id));
+        const serveSessions = h
+          .listSessions()
+          .filter((s) => !daemonIds.has(s.id))
+          .map((s) => ({ ...s, source: "serve" as const }));
+        jsonResponse(res, 200, { sessions: [...serveSessions, ...daemonEntries] });
       } else {
         handleListSessions(h, res);
       }
@@ -375,11 +386,25 @@ export class DaemonControlServer {
       if (!this.chatPool || !this.makeAgent) {
         jsonResponse(res, 503, { error: "Daemon chat sessions not available" });
       } else {
-        handleCreateDaemonSession(this.chatPool, res, this.makeAgent);
+        handleCreateDaemonSession(this.chatPool, req, res, this.makeAgent, this.defaultAutonomyMode).catch((err: Error) => {
+          if (!res.headersSent) jsonResponse(res, 500, { error: err.message });
+        });
       }
       return;
     }
     if (method === "POST" && path === "/sessions/register") { handleRegisterSession(h, req, res); return; }
+    if (method === "PATCH" && params.id && path.startsWith("/sessions/") && !path.endsWith("/chat")) {
+      handlePatchDaemonSession(
+        this.chatPool,
+        (id, mode) => h.setSessionAutonomyMode(id, mode),
+        req,
+        res,
+        params.id,
+      ).catch((err: Error) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: err.message });
+      });
+      return;
+    }
     if (method === "POST" && params.id && path.endsWith("/chat") && path.startsWith("/sessions/")) {
       if (!this.chatPool) {
         jsonResponse(res, 503, { error: "Daemon chat sessions not available" });

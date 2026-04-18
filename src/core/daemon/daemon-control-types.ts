@@ -1,4 +1,5 @@
 import type { ConversationData, ConversationRecord } from "#core/memory/history-utils.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ToolCallSummaryEntry, WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState } from "#core/workflow/run-types.js";
 import type { WorkflowAgentBackoffState } from "#core/workflow/types.js";
 import type { PendingApproval } from "./approval-queue.js";
@@ -138,6 +139,8 @@ export type InteractiveSession = {
   id: string;
   createdAt: string;
   lastActive: number;
+  /** Operator supervision mode the session runs under. */
+  autonomyMode: AutonomyMode;
   /** "serve" = registered from kota serve; "daemon" = owned by daemon control API. */
   source?: "daemon" | "serve";
 };
@@ -219,9 +222,24 @@ export type DaemonControlHandle = {
   // Metrics
   getWorkflowMetricCounts(): WorkflowMetricCounts;
   // Interactive sessions
-  registerSession(id: string, createdAt: string): void;
+  registerSession(id: string, createdAt: string, autonomyMode: AutonomyMode): void;
   unregisterSession(id: string): void;
   listSessions(): InteractiveSession[];
+  /**
+   * Change a registered session's autonomy mode. Returns `{ ok: true }` when
+   * the daemon owns an `AgentSession` it can mutate, or when it is able to
+   * propagate the update to a serve-registered session.
+   *
+   * For serve-registered sessions the daemon only holds advisory metadata; it
+   * updates that metadata immediately and returns `serveOwned: true` so the
+   * caller knows the authoritative change must reach the owning serve process
+   * (which re-registers the session on its own PATCH path).
+   */
+  setSessionAutonomyMode(id: string, mode: AutonomyMode): {
+    ok: boolean;
+    notFound?: boolean;
+    serveOwned?: boolean;
+  };
   // Push notifications
   registerPushToken(deviceId: string, token: string): void;
   // Webhook triggers

@@ -13,3 +13,8 @@ CLI commands.
   constants belong in the command implementation and tests, not docs catalogs.
 - The daemon runtime itself lives in core; this module wires it into the CLI and
   supervisor surface.
+- Session autonomy mode is part of that operator surface. This module owns the
+  `kota session` CLI: listing sessions with their current mode and changing a
+  running session's mode through the daemon control API. Validate mode values
+  before issuing the HTTP call. Do not embed mode-change flow into any other
+  subcommand (e.g. approval resolution) — mode is a session-level control.

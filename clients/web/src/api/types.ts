@@ -96,10 +96,13 @@ export type DaemonTaskStatusResponse = {
   };
 };
 
+export type AutonomyMode = "passive" | "supervised" | "autonomous";
+
 export type InteractiveSession = {
   id: string;
   createdAt: string;
   lastActive: number;
+  autonomyMode: AutonomyMode;
   source?: "daemon" | "serve";
 };
 

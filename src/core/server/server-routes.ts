@@ -96,7 +96,10 @@ export function buildRequestHandler(ctx: ServerContext) {
 
     if (req.method === "POST" && path === "/api/sessions") {
       handleCreateSession(req, res, ctx.pool, ctx.makeAgent, ctx.defaultAutonomyMode, (id) => {
-        if (ctx.daemonClient) void ctx.daemonClient.registerSession(id, new Date().toISOString());
+        if (!ctx.daemonClient) return;
+        const session = ctx.pool.get(id);
+        if (!session) return;
+        void ctx.daemonClient.registerSession(id, new Date().toISOString(), session.agent.getAutonomyMode());
       }).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
@@ -105,7 +108,11 @@ export function buildRequestHandler(ctx: ServerContext) {
 
     if (req.method === "POST" && path === "/api/chat") {
       const onSessionCreate = ctx.daemonClient
-        ? (id: string) => { void ctx.daemonClient!.registerSession(id, new Date().toISOString()); }
+        ? (id: string) => {
+            const session = ctx.pool.get(id);
+            if (!session) return;
+            void ctx.daemonClient!.registerSession(id, new Date().toISOString(), session.agent.getAutonomyMode());
+          }
         : undefined;
       handleChat(req, res, ctx.pool, ctx.makeAgent, ctx.defaultAutonomyMode, onSessionCreate).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });

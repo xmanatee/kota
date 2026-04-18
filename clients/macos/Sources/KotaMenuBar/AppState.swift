@@ -334,12 +334,17 @@ final class AppState: ObservableObject {
         await refresh()
     }
 
-    func createSession() async -> String? {
-        return try? await client.createSession()
+    func createSession(autonomyMode: AutonomyMode? = nil) async -> String? {
+        return try? await client.createSession(autonomyMode: autonomyMode)
     }
 
     func endSession(_ id: String) async {
         try? await client.deleteSession(id: id)
+        await refresh()
+    }
+
+    func setSessionAutonomyMode(id: String, mode: AutonomyMode) async {
+        _ = try? await client.setSessionAutonomyMode(id: id, mode: mode)
         await refresh()
     }
 

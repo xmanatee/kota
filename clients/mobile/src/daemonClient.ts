@@ -1,11 +1,13 @@
 import type {
   Approval,
+  AutonomyMode,
   DaemonStatus,
   HealthResponse,
   InteractiveSession,
   OwnerQuestion,
   RunDetail,
   RunSummary,
+  SetAutonomyModeResponse,
   TasksResponse,
 } from './types';
 
@@ -124,8 +126,31 @@ export class DaemonClient {
     return this.request<{ sessions: InteractiveSession[] }>('/sessions');
   }
 
-  createSession(): Promise<{ session_id: string }> {
-    return this.request<{ session_id: string }>('/sessions', { method: 'POST' });
+  createSession(
+    autonomyMode?: AutonomyMode,
+  ): Promise<{ session_id: string; autonomy_mode?: AutonomyMode }> {
+    return this.request<{ session_id: string; autonomy_mode?: AutonomyMode }>(
+      '/sessions',
+      {
+        method: 'POST',
+        body: JSON.stringify(
+          autonomyMode ? { autonomy_mode: autonomyMode } : {},
+        ),
+      },
+    );
+  }
+
+  setSessionAutonomyMode(
+    id: string,
+    mode: AutonomyMode,
+  ): Promise<SetAutonomyModeResponse> {
+    return this.request<SetAutonomyModeResponse>(
+      `/sessions/${encodeURIComponent(id)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ autonomy_mode: mode }),
+      },
+    );
   }
 
   async deleteSession(id: string): Promise<void> {

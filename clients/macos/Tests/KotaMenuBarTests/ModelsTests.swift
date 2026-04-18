@@ -197,12 +197,18 @@ final class ModelsTests: XCTestCase {
 
     func testSessionsResponseDecodes() throws {
         let json = """
-        {"sessions": [{"id": "s1", "createdAt": "t", "lastActive": 1700000000.5}]}
+        {"sessions": [
+            {"id": "s1", "createdAt": "t", "lastActive": 1700000000.5, "autonomyMode": "supervised"},
+            {"id": "s2", "createdAt": "t", "lastActive": 0, "autonomyMode": "autonomous", "source": "daemon"}
+        ]}
         """.data(using: .utf8)!
         let resp = try decoder.decode(SessionsResponse.self, from: json)
-        XCTAssertEqual(resp.sessions.count, 1)
+        XCTAssertEqual(resp.sessions.count, 2)
         XCTAssertEqual(resp.sessions[0].id, "s1")
-        XCTAssertEqual(resp.sessions[0].lastActive, 1700000000.5)
+        XCTAssertEqual(resp.sessions[0].autonomyMode, .supervised)
+        XCTAssertNil(resp.sessions[0].source)
+        XCTAssertEqual(resp.sessions[1].autonomyMode, .autonomous)
+        XCTAssertEqual(resp.sessions[1].source, "daemon")
     }
 
     func testDaemonHealthProperties() {
@@ -228,10 +234,33 @@ final class ModelsTests: XCTestCase {
 
     func testCreateSessionResponseDecodes() throws {
         let json = """
-        {"session_id": "sess-123"}
+        {"session_id": "sess-123", "autonomy_mode": "passive"}
         """.data(using: .utf8)!
         let resp = try decoder.decode(CreateSessionResponse.self, from: json)
         XCTAssertEqual(resp.session_id, "sess-123")
+        XCTAssertEqual(resp.autonomy_mode, .passive)
+    }
+
+    func testCreateSessionRequestEncodesModeWhenProvided() throws {
+        let req = CreateSessionRequest(autonomy_mode: .autonomous)
+        let data = try JSONEncoder().encode(req)
+        let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        XCTAssertEqual(obj?["autonomy_mode"] as? String, "autonomous")
+    }
+
+    func testSetAutonomyModeRequestAndResponseCodables() throws {
+        let reqData = try JSONEncoder().encode(SetAutonomyModeRequest(autonomy_mode: .supervised))
+        let reqObj = try JSONSerialization.jsonObject(with: reqData) as? [String: Any]
+        XCTAssertEqual(reqObj?["autonomy_mode"] as? String, "supervised")
+
+        let json = """
+        {"session_id": "s1", "autonomy_mode": "autonomous", "source": "daemon", "serveOwned": false}
+        """.data(using: .utf8)!
+        let resp = try decoder.decode(SetAutonomyModeResponse.self, from: json)
+        XCTAssertEqual(resp.session_id, "s1")
+        XCTAssertEqual(resp.autonomy_mode, .autonomous)
+        XCTAssertEqual(resp.source, "daemon")
+        XCTAssertEqual(resp.serveOwned, false)
     }
 
     // MARK: - Helpers

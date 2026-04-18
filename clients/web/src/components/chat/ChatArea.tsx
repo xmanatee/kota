@@ -1,6 +1,10 @@
 import { api } from "@/api/client";
+import { queryKeys, sessionsQuery } from "@/api/queries";
+import type { AutonomyMode } from "@/api/types";
+import { AutonomyModeSelect } from "@/components/autonomy/AutonomyModeControl";
 import { Button } from "@/components/ui/button";
 import { renderMarkdown } from "@/lib/utils";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
 
 type Message = { role: "user" | "assistant" | "error"; content: string };
@@ -12,11 +16,25 @@ export function ChatArea({
   sessionId: string | null;
   onSessionCreated: (id: string) => void;
 }) {
+  const queryClient = useQueryClient();
+  const { data: sessionsData } = useQuery(sessionsQuery);
+  const activeSession = sessionId
+    ? (sessionsData?.sessions.find((s) => s.id === sessionId) ?? null)
+    : null;
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [pendingMode, setPendingMode] = useState<AutonomyMode>("supervised");
   const messagesRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const setMode = useMutation({
+    mutationFn: ({ id, mode }: { id: string; mode: AutonomyMode }) =>
+      api.setSessionAutonomyMode(id, mode),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.sessions }),
+  });
 
   const scrollToBottom = useCallback(() => {
     if (messagesRef.current) {
@@ -43,9 +61,10 @@ export function ChatArea({
     let sid = sessionId;
     if (!sid) {
       try {
-        const res = await api.createSession();
+        const res = await api.createSession(pendingMode);
         sid = res.session_id;
         onSessionCreated(sid);
+        void queryClient.invalidateQueries({ queryKey: queryKeys.sessions });
       } catch {
         setMessages((prev) => [
           ...prev,
@@ -154,6 +173,26 @@ export function ChatArea({
 
   return (
     <div className="flex h-full flex-col">
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs">
+        <span className="text-muted-foreground">Autonomy:</span>
+        {activeSession ? (
+          <AutonomyModeSelect
+            value={activeSession.autonomyMode}
+            disabled={setMode.isPending}
+            onChange={(mode) =>
+              setMode.mutate({ id: activeSession.id, mode })
+            }
+          />
+        ) : (
+          <AutonomyModeSelect
+            value={pendingMode}
+            onChange={setPendingMode}
+          />
+        )}
+        {!activeSession && (
+          <span className="text-muted-foreground">(new session)</span>
+        )}
+      </div>
       <div ref={messagesRef} className="flex-1 overflow-y-auto p-4">
         {messages.length === 0 && (
           <div className="flex h-full items-center justify-center text-center">

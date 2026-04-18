@@ -12,6 +12,7 @@ import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AgentSession } from "#core/loop/loop.js";
 import { NullTransport, ProxyTransport, type Transport } from "#core/loop/transport.js";
+import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import { jsonResponse } from "./daemon-control-utils.js";
 
 /** An agent session owned by the daemon control server. */
@@ -22,6 +23,15 @@ type DaemonChatSession = {
   proxy: ProxyTransport;
   busy: boolean;
   lastActive: number;
+};
+
+export type DaemonChatListEntry = {
+  id: string;
+  createdAt: string;
+  busy: boolean;
+  lastActive: number;
+  autonomyMode: AutonomyMode;
+  source: "daemon";
 };
 
 const DEFAULT_MAX_SESSIONS = 10;
@@ -43,14 +53,14 @@ export class DaemonChatPool {
     this.ttlMs = opts.ttlMs ?? DEFAULT_TTL_MS;
   }
 
-  create(makeAgent: (transport: Transport) => AgentSession): DaemonChatSession {
+  create(makeAgent: (transport: Transport, mode: AutonomyMode) => AgentSession, mode: AutonomyMode): DaemonChatSession {
     if (this.sessions.size >= this.maxSessions) {
       const evicted = this.evictOldest();
       if (!evicted) throw new Error("Too many active sessions");
     }
     const id = randomUUID().slice(0, 8);
     const proxy = new ProxyTransport();
-    const agent = makeAgent(proxy);
+    const agent = makeAgent(proxy, mode);
     const now = new Date().toISOString();
     const session: DaemonChatSession = { id, createdAt: now, agent, proxy, busy: false, lastActive: Date.now() };
     this.sessions.set(id, session);
@@ -69,14 +79,27 @@ export class DaemonChatPool {
     return true;
   }
 
-  list(): Array<{ id: string; createdAt: string; busy: boolean; lastActive: number; source: "daemon" }> {
+  list(): DaemonChatListEntry[] {
     return [...this.sessions.values()].map((s) => ({
       id: s.id,
       createdAt: s.createdAt,
       busy: s.busy,
       lastActive: s.lastActive,
+      autonomyMode: s.agent.getAutonomyMode(),
       source: "daemon" as const,
     }));
+  }
+
+  /**
+   * Change the autonomy mode of a daemon-owned session. Returns false when no
+   * session with that id is owned by the pool, in which case callers should
+   * fall through to the broader session registry (serve-registered rows).
+   */
+  setAutonomyMode(id: string, mode: AutonomyMode): boolean {
+    const session = this.sessions.get(id);
+    if (!session) return false;
+    session.agent.setAutonomyMode(mode);
+    return true;
   }
 
   /** Evict sessions idle longer than TTL. Returns count removed. */
@@ -151,17 +174,94 @@ function writeSse(res: ServerResponse, eventName: string, data: unknown): void {
 }
 
 /** POST /sessions — create a new daemon-owned session. */
-export function handleCreateDaemonSession(
+export async function handleCreateDaemonSession(
   pool: DaemonChatPool,
+  req: IncomingMessage,
   res: ServerResponse,
-  makeAgent: (transport: Transport) => AgentSession,
-): void {
+  makeAgent: (transport: Transport, mode: AutonomyMode) => AgentSession,
+  defaultAutonomyMode: AutonomyMode,
+): Promise<void> {
+  let body: Record<string, unknown>;
   try {
-    const session = pool.create(makeAgent);
-    jsonResponse(res, 201, { session_id: session.id });
+    body = await readChatBody(req);
+  } catch (err) {
+    jsonResponse(res, 400, { error: (err as Error).message });
+    return;
+  }
+
+  const raw = body.autonomy_mode;
+  let mode: AutonomyMode = defaultAutonomyMode;
+  if (raw !== undefined) {
+    if (!isAutonomyMode(raw)) {
+      jsonResponse(res, 400, { error: "autonomy_mode must be one of: passive, supervised, autonomous" });
+      return;
+    }
+    mode = raw;
+  }
+
+  try {
+    const session = pool.create(makeAgent, mode);
+    jsonResponse(res, 201, { session_id: session.id, autonomy_mode: mode });
   } catch (err) {
     jsonResponse(res, 503, { error: (err as Error).message });
   }
+}
+
+/**
+ * PATCH /sessions/:id — change the autonomy mode of a running session.
+ *
+ * Daemon-owned sessions are mutated in place; serve-registered sessions only
+ * have advisory metadata in the daemon, so we report serveOwned so the caller
+ * knows to drive the authoritative update against the owning serve process.
+ */
+export async function handlePatchDaemonSession(
+  pool: DaemonChatPool | null,
+  setOnHandle: (id: string, mode: AutonomyMode) => { ok: boolean; notFound?: boolean; serveOwned?: boolean },
+  req: IncomingMessage,
+  res: ServerResponse,
+  sessionId: string,
+): Promise<void> {
+  let body: Record<string, unknown>;
+  try {
+    body = await readChatBody(req);
+  } catch (err) {
+    jsonResponse(res, 400, { error: (err as Error).message });
+    return;
+  }
+
+  const raw = body.autonomy_mode;
+  if (raw === undefined) {
+    jsonResponse(res, 400, { error: "autonomy_mode is required" });
+    return;
+  }
+  if (!isAutonomyMode(raw)) {
+    jsonResponse(res, 400, { error: "autonomy_mode must be one of: passive, supervised, autonomous" });
+    return;
+  }
+  const mode: AutonomyMode = raw;
+
+  if (pool && pool.setAutonomyMode(sessionId, mode)) {
+    const handleResult = setOnHandle(sessionId, mode);
+    jsonResponse(res, 200, {
+      session_id: sessionId,
+      autonomy_mode: mode,
+      source: "daemon",
+      ...(handleResult.ok ? {} : { registryUpdated: false }),
+    });
+    return;
+  }
+
+  const handleResult = setOnHandle(sessionId, mode);
+  if (handleResult.notFound) {
+    jsonResponse(res, 404, { error: "Session not found" });
+    return;
+  }
+  jsonResponse(res, 200, {
+    session_id: sessionId,
+    autonomy_mode: mode,
+    source: "serve",
+    serveOwned: handleResult.serveOwned === true,
+  });
 }
 
 /** POST /sessions/:id/chat — stream an agent response via SSE. */

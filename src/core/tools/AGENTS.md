@@ -47,6 +47,18 @@ Workflow agent steps map their mode to the SDK's `permissionMode` and, in
 passive mode, add write-capable tools (`Edit`, `Write`, `NotebookEdit`, `Bash`)
 to `disallowedTools` because the subprocess SDK cannot see the KOTA tool-runner.
 
+Mode is an operator control, orthogonal to the per-tool approval queue.
+Operators change a running session's mode through the daemon control API
+(PATCH /sessions/:id); the agent never sees mode-change events directly, only
+the effective tool gating on the next tool call. A mid-run switch from
+`autonomous` to `supervised` applies to the next tool call, not to calls
+already in flight — the loop reads the session's current mode fresh each tool
+batch.
+
+The default for a fresh interactive session comes from the
+`config.serve.defaultAutonomyMode` knob when clients do not request an
+explicit mode. There is no compile-time default anywhere else.
+
 ## Logical clusters
 
 - Delegate: `delegate.ts`, `delegate-agent-sdk.ts`, `delegate-config.ts`,

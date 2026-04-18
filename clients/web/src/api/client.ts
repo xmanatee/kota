@@ -1,10 +1,12 @@
 import type {
   AuditEntry,
+  AutonomyMode,
   ConversationData,
   ConversationRecord,
   DaemonLiveStatus,
   DaemonTaskStatusResponse,
   HealthStatus,
+  InteractiveSession,
   KnowledgeEntry,
   MemoryEntry,
   ModuleInfo,
@@ -229,12 +231,31 @@ export const api = {
     }),
 
   listSessions: () =>
-    apiJson<{
-      sessions: Array<{ id: string; createdAt: string; lastActive: number }>;
-    }>("/api/sessions"),
+    apiJson<{ sessions: InteractiveSession[] }>("/api/sessions"),
 
-  createSession: () =>
-    apiJson<{ session_id: string }>("/api/sessions", { method: "POST" }),
+  createSession: (autonomyMode?: AutonomyMode) =>
+    apiJson<{ session_id: string; autonomy_mode?: AutonomyMode }>(
+      "/api/sessions",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          autonomyMode ? { autonomy_mode: autonomyMode } : {},
+        ),
+      },
+    ),
+
+  setSessionAutonomyMode: (id: string, mode: AutonomyMode) =>
+    apiJson<{
+      session_id: string;
+      autonomy_mode: AutonomyMode;
+      source?: string;
+      serveOwned?: boolean;
+    }>(`/api/sessions/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ autonomy_mode: mode }),
+    }),
 
   deleteSession: (id: string) =>
     apiFetch(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" }),

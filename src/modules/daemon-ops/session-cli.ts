@@ -1,10 +1,17 @@
 import { Command } from "commander";
 import type { InteractiveSession } from "#core/daemon/daemon-control.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
+import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowActiveRun } from "#core/workflow/run-types.js";
 
 type SessionEntry =
-  | { kind: "interactive"; id: string; startedAt: string; lastActive: number }
+  | {
+      kind: "interactive";
+      id: string;
+      startedAt: string;
+      lastActive: number;
+      autonomyMode: AutonomyMode;
+    }
   | { kind: "workflow"; id: string; workflow: string; startedAt: string };
 
 function buildSessionList(
@@ -17,6 +24,7 @@ function buildSessionList(
       id: s.id,
       startedAt: s.createdAt,
       lastActive: s.lastActive,
+      autonomyMode: s.autonomyMode,
     })),
     ...activeRuns.map((r) => ({
       kind: "workflow" as const,
@@ -74,12 +82,16 @@ export function buildSessionCommand(): Command {
 
       const idWidth = Math.max(...sessions.map((s) => s.id.length), 2);
       const typeWidth = 11; // "interactive".length
-      console.log(`${"ID".padEnd(idWidth)}  ${"Type".padEnd(typeWidth)}  ${"Agent/Workflow".padEnd(20)}  Started`);
-      console.log("-".repeat(idWidth + typeWidth + 40));
+      const modeWidth = 10; // "supervised".length
+      console.log(
+        `${"ID".padEnd(idWidth)}  ${"Type".padEnd(typeWidth)}  ${"Mode".padEnd(modeWidth)}  ${"Agent/Workflow".padEnd(20)}  Started`,
+      );
+      console.log("-".repeat(idWidth + typeWidth + modeWidth + 44));
       for (const s of sessions) {
         const agent = s.kind === "workflow" ? s.workflow : "(interactive)";
+        const mode = s.kind === "interactive" ? s.autonomyMode : "-";
         console.log(
-          `${s.id.padEnd(idWidth)}  ${s.kind.padEnd(typeWidth)}  ${agent.padEnd(20)}  ${s.startedAt}`,
+          `${s.id.padEnd(idWidth)}  ${s.kind.padEnd(typeWidth)}  ${mode.padEnd(modeWidth)}  ${agent.padEnd(20)}  ${s.startedAt}`,
         );
       }
     });
@@ -108,14 +120,16 @@ export function buildSessionCommand(): Command {
           kind: "interactive",
           startedAt: interactive.createdAt,
           lastActive: new Date(interactive.lastActive).toISOString(),
+          autonomyMode: interactive.autonomyMode,
         };
         if (opts.json) {
           console.log(JSON.stringify(detail));
         } else {
-          console.log(`id:          ${detail.id}`);
-          console.log(`type:        interactive`);
-          console.log(`started:     ${detail.startedAt}`);
-          console.log(`last active: ${detail.lastActive}`);
+          console.log(`id:            ${detail.id}`);
+          console.log(`type:          interactive`);
+          console.log(`autonomy mode: ${detail.autonomyMode}`);
+          console.log(`started:       ${detail.startedAt}`);
+          console.log(`last active:   ${detail.lastActive}`);
         }
         return;
       }
@@ -141,6 +155,40 @@ export function buildSessionCommand(): Command {
 
       console.error(`Session "${id}" not found.`);
       process.exit(1);
+    });
+
+  sessionCmd
+    .command("set-mode <id> <mode>")
+    .description("Change the autonomy mode (passive, supervised, autonomous) of a running session")
+    .option("--json", "Output as JSON")
+    .action(async (id: string, mode: string, opts: { json?: boolean }) => {
+      if (!isAutonomyMode(mode)) {
+        console.error(`Invalid mode "${mode}". Expected one of: passive, supervised, autonomous.`);
+        process.exit(1);
+      }
+      const client = DaemonControlClient.fromStateDir();
+      if (!client) {
+        console.error("Daemon is offline.");
+        process.exit(1);
+      }
+      const result = await client.setSessionAutonomyMode(id, mode);
+      if (!result) {
+        console.error("Failed to reach the daemon.");
+        process.exit(1);
+      }
+      if (result.notFound) {
+        console.error(`Session "${id}" not found.`);
+        process.exit(1);
+      }
+      if (opts.json) {
+        console.log(JSON.stringify(result));
+        return;
+      }
+      console.log(`Session ${id} autonomy mode → ${result.autonomyMode}`);
+      if (result.source) console.log(`source: ${result.source}`);
+      if (result.serveOwned) {
+        console.log("note: session is owned by a kota serve process; daemon updated registration metadata only");
+      }
     });
 
   return sessionCmd;

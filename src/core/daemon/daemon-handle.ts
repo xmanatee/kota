@@ -7,6 +7,7 @@ import { getRepoInboxDir, getRepoTasksDir } from "#core/data/repo-tasks.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { getHistory } from "#core/memory/history.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
 import { getApprovalQueue } from "./approval-queue.js";
@@ -334,15 +335,26 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
     registerPushToken: (deviceId: string, token: string) => {
       registerPushToken(projectDir, deviceId, token);
     },
-    registerSession: (id: string, createdAt: string) => {
-      sessions.set(id, { id, createdAt, lastActive: Date.now() });
-      bus.emit("session.registered", { id, createdAt });
+    registerSession: (id: string, createdAt: string, autonomyMode: AutonomyMode) => {
+      sessions.set(id, { id, createdAt, lastActive: Date.now(), autonomyMode });
+      bus.emit("session.registered", { id, createdAt, autonomyMode });
     },
     unregisterSession: (id: string) => {
       sessions.delete(id);
       bus.emit("session.unregistered", { id });
     },
     listSessions: () => [...sessions.values()],
+    setSessionAutonomyMode: (id: string, mode: AutonomyMode) => {
+      const session = sessions.get(id);
+      if (!session) return { ok: false, notFound: true };
+      session.autonomyMode = mode;
+      bus.emit("session.autonomy-mode.changed", { id, autonomyMode: mode });
+      // Serve-registered sessions live in another process — this daemon copy is
+      // metadata only. The daemon control server layers a setter for its own
+      // chat pool on top; for serve-registered rows we report serveOwned so the
+      // caller can forward the change or surface it to the operator.
+      return { ok: true, serveOwned: session.source !== "daemon" };
+    },
     triggerWebhookRun: (name, signature, rawBody, payload, webhookTimestamp) => {
       const expectedSecret = config.config?.webhooks?.[name]?.secret;
       if (!expectedSecret) return { ok: false, unauthorized: true };

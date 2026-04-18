@@ -3,7 +3,12 @@ import type { InteractiveSession } from "./daemon-control.js";
 import { sweepExpiredSessions } from "./session-sweep.js";
 
 function makeSession(id: string, lastActive: number): InteractiveSession {
-  return { id, createdAt: new Date(lastActive).toISOString(), lastActive };
+  return {
+    id,
+    createdAt: new Date(lastActive).toISOString(),
+    lastActive,
+    autonomyMode: "supervised",
+  };
 }
 
 describe("sweepExpiredSessions", () => {

@@ -92,14 +92,19 @@ final class DaemonClient {
         return try await post("/workflow/trigger", body: body)
     }
 
-    func createSession() async throws -> String {
-        let body = "{}".data(using: .utf8)
+    func createSession(autonomyMode: AutonomyMode? = nil) async throws -> String {
+        let body = try JSONEncoder().encode(CreateSessionRequest(autonomy_mode: autonomyMode))
         let resp: CreateSessionResponse = try await post("/sessions", body: body)
         return resp.session_id
     }
 
     func deleteSession(id: String) async throws {
         try await delete("/sessions/\(id)")
+    }
+
+    func setSessionAutonomyMode(id: String, mode: AutonomyMode) async throws -> SetAutonomyModeResponse {
+        let body = try JSONEncoder().encode(SetAutonomyModeRequest(autonomy_mode: mode))
+        return try await patch("/sessions/\(id)", body: body)
     }
 
     /// Streams a chat response via SSE. The `onEvent` closure is called on the MainActor
@@ -180,6 +185,24 @@ final class DaemonClient {
         let (_, response) = try await URLSession.shared.data(for: request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw DaemonClientError.httpError(http.statusCode)
+        }
+    }
+
+    private func patch<T: Decodable>(_ path: String, body: Data) async throws -> T {
+        guard let conn = connection else { throw DaemonClientError.notConnected }
+        var request = URLRequest(url: conn.baseURL.appendingPathComponent(path))
+        request.httpMethod = "PATCH"
+        request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw DaemonClientError.httpError(http.statusCode)
+        }
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw DaemonClientError.decodingError(error)
         }
     }
 

@@ -95,12 +95,43 @@ describe('DaemonClient', () => {
     expect(init?.body).toBe(JSON.stringify({ reason: 'wrong' }));
   });
 
-  test('createSession posts to /sessions', async () => {
+  test('createSession posts to /sessions with empty body by default', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({ session_id: 'sess' }));
     const res = await client().createSession();
     expect(lastCall()[0]).toBe(`${baseUrl}/sessions`);
     expect(lastCall()[1]?.method).toBe('POST');
+    expect(lastCall()[1]?.body).toBe('{}');
     expect(res.session_id).toBe('sess');
+  });
+
+  test('createSession forwards autonomy mode when provided', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ session_id: 'sess', autonomy_mode: 'autonomous' }),
+    );
+    const res = await client().createSession('autonomous');
+    expect(lastCall()[1]?.body).toBe(
+      JSON.stringify({ autonomy_mode: 'autonomous' }),
+    );
+    expect(res.autonomy_mode).toBe('autonomous');
+  });
+
+  test('setSessionAutonomyMode PATCHes /sessions/:id', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({
+        session_id: 'sess',
+        autonomy_mode: 'supervised',
+        source: 'daemon',
+        serveOwned: false,
+      }),
+    );
+    const res = await client().setSessionAutonomyMode('sess/1', 'supervised');
+    expect(lastCall()[0]).toBe(`${baseUrl}/sessions/sess%2F1`);
+    expect(lastCall()[1]?.method).toBe('PATCH');
+    expect(lastCall()[1]?.body).toBe(
+      JSON.stringify({ autonomy_mode: 'supervised' }),
+    );
+    expect(res.autonomy_mode).toBe('supervised');
+    expect(res.source).toBe('daemon');
   });
 
   test('deleteSession tolerates 404', async () => {

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { type QuietHoursConfig, validateQuietHours } from "../daemon/notification-gate.js";
 import type { ModelTiers } from "../model/model-router.js";
 import type { ForeignModuleConfig } from "../modules/foreign-module.js";
+import type { AutonomyMode } from "../tools/autonomy-mode.js";
 import { type GuardrailsConfig, sanitizeGuardrailsConfig } from "../tools/guardrails.js";
 import { type DispatchWindow, validateDispatchWindow } from "../workflow/dispatch-window.js";
 
@@ -99,6 +100,16 @@ export type KotaConfig = {
     noAuth?: boolean;
     /** Show per-turn cost line in terminal output (default: true). Set to false to suppress. */
     showCost?: boolean;
+    /**
+     * Autonomy mode applied to new interactive sessions when the client does
+     * not specify one. Default: "supervised" (operator must approve any
+     * non-safe tool call). Must be `passive`, `supervised`, or `autonomous`.
+     *
+     * This is the only documented fallback for session autonomy mode. All
+     * other session boundaries (workflows, channels, tests) must declare the
+     * mode explicitly.
+     */
+    defaultAutonomyMode?: AutonomyMode;
   };
 
   /** Log output settings. */

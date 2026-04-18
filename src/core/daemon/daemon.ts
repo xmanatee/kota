@@ -145,14 +145,15 @@ export class Daemon {
       this.token,
       {
         eventBufferSize: config.config?.daemon?.eventBufferSize,
-        makeAgent: (transport: Transport) =>
+        makeAgent: (transport: Transport, autonomyMode) =>
           new AgentSession({
-            autonomyMode: "supervised",
+            autonomyMode,
             model: daemonModel,
             verbose: daemonVerbose,
             transport,
             config: daemonConfig,
           }),
+        defaultAutonomyMode: config.config?.serve?.defaultAutonomyMode ?? "supervised",
         chatPool: { ttlMs: config.config?.daemon?.sessionIdleTtlMs },
       },
     );

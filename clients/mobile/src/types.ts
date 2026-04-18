@@ -141,12 +141,22 @@ export interface SseEvent {
   timestamp?: string;
 }
 
+export type AutonomyMode = 'passive' | 'supervised' | 'autonomous';
+
 export interface InteractiveSession {
   id: string;
   createdAt: string;
   lastActive: number;
+  autonomyMode: AutonomyMode;
   source?: 'daemon' | 'serve';
   busy?: boolean;
+}
+
+export interface SetAutonomyModeResponse {
+  session_id: string;
+  autonomy_mode: AutonomyMode;
+  source?: string;
+  serveOwned?: boolean;
 }
 
 export type ChatStreamEventType = 'session' | 'text' | 'thinking' | 'thinking_start' | 'progress' | 'status' | 'cost' | 'error' | 'notification' | 'guardrail' | 'tool_metric' | 'state_change' | 'done';

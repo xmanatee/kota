@@ -1,12 +1,12 @@
 ---
 id: task-expose-session-autonomy-mode-in-operator-clients
 title: Expose session autonomy mode in operator clients
-status: ready
+status: done
 priority: p1
 area: guardrails
 summary: Let operators list and change the per-session autonomy mode (passive/supervised/autonomous) from the daemon-ops CLI, web client, and native clients so the newly landed core axis is usable end-to-end
 created_at: 2026-04-18T04:01:38.065Z
-updated_at: 2026-04-18T04:01:38.065Z
+updated_at: 2026-04-18T06:06:44.270Z
 ---
 
 ## Problem

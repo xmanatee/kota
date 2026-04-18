@@ -59,6 +59,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     registerSession: vi.fn(),
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),
+    setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
     triggerWebhookRun: vi.fn(() => ({ ok: false, notFound: true })),
     reloadConfig: vi.fn(async () => ({ workflows: 3, changedModules: [] as string[] })),
     registerPushToken: vi.fn(),
@@ -1188,7 +1189,7 @@ describe("DaemonControlServer", () => {
       };
       handle = makeHandle({
         getWorkflowMetricCounts: vi.fn(() => metricCounts),
-        listSessions: vi.fn(() => [{ id: "s1", createdAt: "2026-01-01T00:00:00Z", lastActive: 0 }]),
+        listSessions: vi.fn(() => [{ id: "s1", createdAt: "2026-01-01T00:00:00Z", lastActive: 0, autonomyMode: "supervised" as const }]),
         listApprovals: vi.fn(() => [{ id: "a1", tool: "Bash", input: {}, risk: "moderate" as const, reason: "test", createdAt: "2026-01-01T00:00:00Z", status: "pending" as const }]),
         getWorkflowLiveStatus: vi.fn(() => ({
           activeRuns: [], pendingRuns: [], queueLength: 0, completedRuns: 17, workflows: {}, paused: true,

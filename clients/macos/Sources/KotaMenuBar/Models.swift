@@ -151,10 +151,37 @@ struct RunSummary: Codable, Identifiable {
     }
 }
 
+// MARK: - Autonomy mode
+
+enum AutonomyMode: String, Codable, CaseIterable, Identifiable {
+    case passive
+    case supervised
+    case autonomous
+
+    var id: String { rawValue }
+    var label: String { rawValue.capitalized }
+}
+
 // MARK: - Chat session creation
 
 struct CreateSessionResponse: Codable {
     let session_id: String
+    let autonomy_mode: AutonomyMode?
+}
+
+struct CreateSessionRequest: Codable {
+    let autonomy_mode: AutonomyMode?
+}
+
+struct SetAutonomyModeRequest: Codable {
+    let autonomy_mode: AutonomyMode
+}
+
+struct SetAutonomyModeResponse: Codable {
+    let session_id: String
+    let autonomy_mode: AutonomyMode
+    let source: String?
+    let serveOwned: Bool?
 }
 
 // MARK: - Trigger
@@ -205,6 +232,8 @@ struct SessionSummary: Codable, Identifiable {
     let id: String
     let createdAt: String
     let lastActive: Double
+    let autonomyMode: AutonomyMode
+    let source: String?
 
     var elapsedDescription: String {
         let formatter = ISO8601DateFormatter()

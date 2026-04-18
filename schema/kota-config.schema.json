@@ -465,6 +465,14 @@
       "additionalProperties": false,
       "description": "HTTP server settings for `kota serve`.",
       "properties": {
+        "defaultAutonomyMode": {
+          "enum": [
+            "passive",
+            "supervised",
+            "autonomous"
+          ],
+          "type": "string"
+        },
         "noAuth": {
           "description": "Disable bearer-token auth (default: auth enabled). For localhost-only dev use.",
           "type": "boolean"

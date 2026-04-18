@@ -1,4 +1,5 @@
 import { sessionsQuery } from "@/api/queries";
+import { AutonomyModeBadge } from "@/components/autonomy/AutonomyModeControl";
 import { useQuery } from "@tanstack/react-query";
 
 export function SessionList({
@@ -24,11 +25,12 @@ export function SessionList({
           key={s.id}
           type="button"
           onClick={() => onSelect(s.id)}
-          className={`w-full truncate rounded px-2 py-1 text-left text-xs transition-colors hover:bg-accent ${
+          className={`flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-xs transition-colors hover:bg-accent ${
             activeSessionId === s.id ? "bg-accent text-accent-foreground" : ""
           }`}
         >
-          {s.id.slice(0, 12)}...
+          <AutonomyModeBadge mode={s.autonomyMode} />
+          <span className="truncate">{s.id.slice(0, 12)}...</span>
         </button>
       ))}
     </div>
