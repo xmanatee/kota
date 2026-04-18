@@ -35,6 +35,8 @@ import { WorkflowQueueManager } from "./workflow-queue.js";
 export type { WorkflowRuntimeConfig };
 export { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE, RELOAD_SIGNAL_FILE };
 
+export const WORKFLOW_STOP_ABORT_WAIT_MS = 15_000;
+
 export class WorkflowRuntime {
   private readonly projectDir: string;
   private readonly store: WorkflowRunStore;
@@ -177,7 +179,10 @@ export class WorkflowRuntime {
     this.emitIdleEvent();
   }
 
-  async stop(gracePeriodMs = 60_000): Promise<void> {
+  async stop(
+    gracePeriodMs = 60_000,
+    abortWaitMs = WORKFLOW_STOP_ABORT_WAIT_MS,
+  ): Promise<void> {
     this.stopping = true;
 
     if (this.idleTimer) {
@@ -194,11 +199,18 @@ export class WorkflowRuntime {
     if (this.activeRuns.size === 0) return;
 
     const promises = [...this.activeRuns.values()].map((r) => r.promise);
+    const waitForActiveRuns = Promise.all(promises).then(() => "completed" as const);
 
     if (gracePeriodMs === 0) {
-      await Promise.all(promises);
+      await waitForActiveRuns;
       return;
     }
+
+    let abortWaitTimer: ReturnType<typeof setTimeout> | undefined;
+    const abortWaitExpired = new Promise<"abort-timeout">((resolve) => {
+      abortWaitTimer = setTimeout(() => resolve("abort-timeout"), gracePeriodMs + abortWaitMs);
+      abortWaitTimer.unref();
+    });
 
     const graceTimer = setTimeout(() => {
       for (const { abortController } of this.activeRuns.values()) {
@@ -208,9 +220,15 @@ export class WorkflowRuntime {
     graceTimer.unref();
 
     try {
-      await Promise.all(promises);
+      const result = await Promise.race([waitForActiveRuns, abortWaitExpired]);
+      if (result === "abort-timeout") {
+        this.log(
+          `Workflow runtime stop gave up waiting for ${this.activeRuns.size} active run(s) after abort`,
+        );
+      }
     } finally {
       clearTimeout(graceTimer);
+      if (abortWaitTimer) clearTimeout(abortWaitTimer);
     }
   }
 

@@ -10,7 +10,15 @@ import {
   onRecoveryTrigger,
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
-import { AUTONOMY_DISALLOWED_TOOLS, checkCommitMessageExists, checkNoScratchArtifacts, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
+import {
+  AUTONOMY_DISALLOWED_TOOLS,
+  AUTONOMY_LONG_AGENT_TIMEOUT_MS,
+  checkCommitMessageExists,
+  checkNoScratchArtifacts,
+  runCheck,
+  stepCommitted,
+  stepSucceeded,
+} from "#modules/autonomy/shared.js";
 
 export const agent: AgentDef = {
   name: "decomposer",
@@ -22,8 +30,7 @@ export const agent: AgentDef = {
   settingSources: ["project"],
 };
 
-/** Minimum build-step duration (ms) to consider a failure timeout-shaped. */
-const TIMEOUT_THRESHOLD_MS = 45 * 60 * 1000;
+const TIMEOUT_THRESHOLD_MS = AUTONOMY_LONG_AGENT_TIMEOUT_MS;
 
 export type DecomposerAssessment = {
   reason: string;

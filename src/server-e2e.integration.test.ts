@@ -124,16 +124,17 @@ async function createSession(): Promise<string> {
 beforeAll(async () => {
   const origLog = console.log;
   console.log = () => {};
-  const loader = new ModuleLoader({} as any, false, { commandsOnly: true });
+  const testConfig = { serve: { defaultAutonomyMode: "autonomous" } } as any;
+  const loader = new ModuleLoader(testConfig, false, { commandsOnly: true });
   await loader.loadAll(projectModules);
   const moduleRoutes = loader.getRoutes();
   server = startServer({
     port: 0,
-    config: {} as any,
+    config: testConfig,
     moduleRoutes,
     webUiDir: existsSync(resolve("clients/web/dist")) ? resolve("clients/web/dist") : undefined,
     authToken: TEST_AUTH_TOKEN,
-    defaultAutonomyMode: "autonomous",
+    defaultAutonomyMode: testConfig.serve.defaultAutonomyMode,
   });
   const port = await waitForPort(server);
   console.log = origLog;

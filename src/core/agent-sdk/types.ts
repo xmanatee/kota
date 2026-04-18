@@ -1,4 +1,8 @@
-import type { McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  McpServerConfig,
+  SpawnedProcess,
+  SpawnOptions,
+} from "@anthropic-ai/claude-agent-sdk";
 
 export type SDKPermissionMode =
   | "default"
@@ -39,6 +43,7 @@ export type SDKQueryOptions = {
   abortController?: AbortController;
   enableFileCheckpointing?: boolean;
   thinking?: SDKThinkingConfig;
+  spawnClaudeCodeProcess?: (options: SpawnOptions) => SpawnedProcess;
 };
 
 export type SDKContentBlock = {

@@ -2254,6 +2254,49 @@ describe("WorkflowRuntime", () => {
       );
       expect(metadata.status).toBe("interrupted");
     });
+
+    it("does not wait forever when an aborted active run never settles", async () => {
+      writeFileSync(
+        join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+        "Build.\n",
+      );
+      const captured: { abortSignal?: AbortSignal } = {};
+      mockedExecuteWithAgentSDK.mockImplementation(
+        async (_prompt, options) =>
+          new Promise(() => {
+            const signal = options?.abortController?.signal;
+            if (signal) captured.abortSignal = signal;
+          }),
+      );
+
+      const runtime = new WorkflowRuntime({
+        bus: new EventBus(),
+        projectDir,
+        idleIntervalMs: 10,
+        workflows: [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+            steps: [
+              {
+                id: "build",
+                type: "agent",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                model: "claude-opus-4-7",
+                effort: "xhigh",
+                autonomyMode: "autonomous",
+              },
+            ],
+          }),
+        ],
+      });
+
+      runtime.start();
+      await wait(30);
+      await runtime.stop(20, 20);
+
+      expect(captured.abortSignal?.aborted).toBe(true);
+    });
   });
 
   describe("enable/disable workflow", () => {

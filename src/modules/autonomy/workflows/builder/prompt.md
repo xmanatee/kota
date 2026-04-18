@@ -25,5 +25,6 @@ Read and follow the root `AGENTS.md` and local `AGENTS.md` files in directories 
   in task files; the CLI handles all of that atomically and stages the result.
 - Before staging, run the narrowest validation that proves the change, and
   broaden it when the touched behavior warrants more coverage. Fix failures
-  before proceeding to `git add -A`.
+  before proceeding to `git add -A`. Do not duplicate the workflow repair
+  loop's broad gates once narrow proof is sufficient.
 - Leave the task state aligned with reality.

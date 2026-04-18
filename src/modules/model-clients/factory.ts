@@ -64,7 +64,11 @@ function createClientForProvider(
 	apiKey?: string,
 ): ModelClient {
 	if (providerName === "anthropic") {
-		return new AnthropicModelClient({ maxRetries: 5 });
+		const resolvedKey = resolveApiKey(providerName, apiKey);
+		return new AnthropicModelClient({
+			maxRetries: 5,
+			...(resolvedKey ? { apiKey: resolvedKey } : {}),
+		});
 	}
 
 	const preset = PROVIDER_PRESETS[providerName];

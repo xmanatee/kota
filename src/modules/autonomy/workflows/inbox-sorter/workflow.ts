@@ -9,7 +9,14 @@ import {
   onRecoveryTrigger,
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
-import { AUTONOMY_DISALLOWED_TOOLS, checkCommitMessageExists, checkNoScratchArtifacts, runCheck, stepSucceeded } from "#modules/autonomy/shared.js";
+import {
+  AUTONOMY_DISALLOWED_TOOLS,
+  AUTONOMY_LONG_AGENT_TIMEOUT_MS,
+  checkCommitMessageExists,
+  checkNoScratchArtifacts,
+  runCheck,
+  stepSucceeded,
+} from "#modules/autonomy/shared.js";
 
 export const agent: AgentDef = {
   name: "inbox-sorter",
@@ -83,9 +90,7 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-      // Inbox sorting can batch many captures; 45 min covers a full sweep
-      // while still bounding a stuck session above the 30-min global default.
-      timeoutMs: 45 * 60 * 1000,
+      timeoutMs: AUTONOMY_LONG_AGENT_TIMEOUT_MS,
       when: (ctx) => {
         if (ctx.trigger.event === "runtime.recovered") return false;
         return inspectInbox.output(ctx).needsAttention;

@@ -9,7 +9,15 @@ import { aggregateRunOutcomes } from "#modules/autonomy/run-outcome-aggregation.
 import type { RunOutcomeAggregation } from "#modules/autonomy/run-outcome-aggregation.js";
 import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
 import { writeRunSummary } from "#modules/autonomy/run-summary.js";
-import { AUTONOMY_DISALLOWED_TOOLS, checkCommitMessageExists, checkNoScratchArtifacts, runCheck, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
+import {
+  AUTONOMY_DISALLOWED_TOOLS,
+  AUTONOMY_LONG_AGENT_TIMEOUT_MS,
+  checkCommitMessageExists,
+  checkNoScratchArtifacts,
+  runCheck,
+  stepCommitted,
+  stepSucceeded,
+} from "#modules/autonomy/shared.js";
 import {
   decideImproverEvidenceGate,
   readImproverEvidenceGateState,
@@ -95,10 +103,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-      // Improver analysis at xhigh effort legitimately runs long; observed
-      // successful outliers reach ~35 min. 45 min gives headroom above the
-      // 30-min global default so real work isn't clipped at the cliff.
-      timeoutMs: 45 * 60 * 1000,
+      timeoutMs: AUTONOMY_LONG_AGENT_TIMEOUT_MS,
       repairLoop: {
         checks: [
           {

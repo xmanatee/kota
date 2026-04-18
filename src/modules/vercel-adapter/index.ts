@@ -69,15 +69,21 @@ const vercelAdapterModule: KotaModule = {
           return;
         }
 
+        const adapterConfig = ctx.getModuleConfig<VercelAdapterConfig>();
+        let autonomyMode: AutonomyMode;
+        try {
+          autonomyMode = resolveChannelAutonomyMode(
+            adapterConfig?.defaultAutonomyMode,
+            ctx.config,
+            "vercel-adapter",
+          );
+        } catch (err) {
+          jsonResponse(res, 400, { error: (err as Error).message });
+          return;
+        }
+
         setCors(res);
         res.writeHead(200, { ...DATA_STREAM_HEADERS, ...CORS_HEADERS });
-
-        const adapterConfig = ctx.getModuleConfig<VercelAdapterConfig>();
-        const autonomyMode = resolveChannelAutonomyMode(
-          adapterConfig?.defaultAutonomyMode,
-          ctx.config,
-          "vercel-adapter",
-        );
 
         const stream = new DataStreamTransport(res);
         const agent = new AgentSession({

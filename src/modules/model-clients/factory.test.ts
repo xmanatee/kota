@@ -126,6 +126,7 @@ describe("createModelClientImpl", () => {
 
 	describe("anthropic provider", () => {
 		it("creates AnthropicModelClient", () => {
+			delete process.env.ANTHROPIC_API_KEY;
 			const result = createModelClientImpl({ model: "claude-sonnet-4-6" });
 			expect(result.providerName).toBe("anthropic");
 			expect(result.model).toBe("claude-sonnet-4-6");
@@ -139,6 +140,19 @@ describe("createModelClientImpl", () => {
 			const result = createModelClientImpl({ model: "claude-sonnet-4-6" });
 			expect(result.providerName).toBe("anthropic");
 			expect(AnthropicModelClient).toHaveBeenCalled();
+		});
+
+		it("passes explicit Anthropic API key from config", () => {
+			const result = createModelClientImpl({
+				model: "claude-sonnet-4-6",
+				apiKey: "sk-ant-config",
+			});
+
+			expect(result.providerName).toBe("anthropic");
+			expect(AnthropicModelClient).toHaveBeenCalledWith({
+				maxRetries: 5,
+				apiKey: "sk-ant-config",
+			});
 		});
 	});
 

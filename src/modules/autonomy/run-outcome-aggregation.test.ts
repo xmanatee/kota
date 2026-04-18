@@ -55,7 +55,7 @@ describe("tallyRepairFailures", () => {
     ]);
     const tally = tallyRepairFailures([run]);
     expect(tally).toEqual([
-      { checkId: "critic-review", count: 1, recovered: 1, terminal: 0 },
+      { workflow: "builder", checkId: "critic-review", count: 1, recovered: 1, terminal: 0 },
     ]);
   });
 
@@ -67,8 +67,8 @@ describe("tallyRepairFailures", () => {
     ]);
     const tally = tallyRepairFailures([run]);
     expect(tally).toEqual([
-      { checkId: "typecheck", count: 1, recovered: 1, terminal: 0 },
-      { checkId: "lint", count: 1, recovered: 1, terminal: 0 },
+      { workflow: "builder", checkId: "typecheck", count: 1, recovered: 1, terminal: 0 },
+      { workflow: "builder", checkId: "lint", count: 1, recovered: 1, terminal: 0 },
     ]);
   });
 
@@ -82,18 +82,21 @@ describe("tallyRepairFailures", () => {
     const tally = tallyRepairFailures([run]);
     const byId = new Map(tally.map((t) => [t.checkId, t]));
     expect(byId.get("typecheck")).toEqual({
+      workflow: "builder",
       checkId: "typecheck",
       count: 1,
       recovered: 0,
       terminal: 1,
     });
     expect(byId.get("build-output")).toEqual({
+      workflow: "builder",
       checkId: "build-output",
       count: 1,
       recovered: 0,
       terminal: 1,
     });
     expect(byId.get("lint")).toEqual({
+      workflow: "builder",
       checkId: "lint",
       count: 1,
       recovered: 1,
@@ -121,17 +124,45 @@ describe("tallyRepairFailures", () => {
     ];
     const tally = tallyRepairFailures(runs);
     expect(tally[0]).toEqual({
+      workflow: "builder",
       checkId: "critic-review",
       count: 3,
       recovered: 2,
       terminal: 1,
     });
     expect(tally[1]).toEqual({
+      workflow: "builder",
       checkId: "typecheck",
       count: 1,
       recovered: 1,
       terminal: 0,
     });
+  });
+
+  it("keeps the same repair check separate by workflow", () => {
+    const improverRun = {
+      ...makeRun([
+        makeStep("improve", "failed", [
+          { attempt: 1, failures: [{ id: "test" }] },
+        ]),
+      ]),
+      id: "run-improver",
+      workflow: "improver",
+    };
+    const builderRun = makeRun([
+      makeStep("build", "success", [
+        { attempt: 1, failures: [{ id: "test" }] },
+      ]),
+    ]);
+
+    const tally = tallyRepairFailures([improverRun, builderRun]);
+
+    expect(tally).toEqual(
+      expect.arrayContaining([
+        { workflow: "improver", checkId: "test", count: 1, recovered: 0, terminal: 1 },
+        { workflow: "builder", checkId: "test", count: 1, recovered: 1, terminal: 0 },
+      ]),
+    );
   });
 
   it("ignores steps with no repair iterations", () => {

@@ -21,3 +21,5 @@ Use this data to prioritize improvements that address systemic patterns rather t
 ## Finish
 
 - Validate the exact autonomy behavior you changed while you work.
+- After targeted validation, stage the change and stop; the repair loop owns
+  the broad gates.

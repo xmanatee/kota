@@ -1,7 +1,9 @@
+import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SDKMessage } from "./types.js";
 
 const mockQuery = vi.fn();
+const mockSpawn = vi.fn();
 const mockSpawnSync = vi.fn();
 
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
@@ -9,6 +11,7 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 }));
 
 vi.mock("node:child_process", () => ({
+  spawn: (...args: unknown[]) => mockSpawn(...args),
   spawnSync: (...args: unknown[]) => mockSpawnSync(...args),
 }));
 
@@ -16,6 +19,8 @@ import {
   buildQueryOptions,
   detectLocalClaudeCodeExecutable,
   executeWithAgentSDK,
+  SDK_ABORT_FORCE_KILL_MS,
+  spawnClaudeCodeProcessWithAbortKill,
 } from "./executor.js";
 
 function makeIterable(messages: SDKMessage[]): AsyncIterable<SDKMessage> {
@@ -42,6 +47,7 @@ function makeWriter() {
 describe("agent-sdk executor", () => {
   beforeEach(() => {
     mockQuery.mockReset();
+    mockSpawn.mockReset();
     mockSpawnSync.mockReset();
     mockSpawnSync.mockReturnValue({ status: 1, stdout: "" });
     delete process.env.CLAUDE_CODE_EXECUTABLE;
@@ -170,6 +176,8 @@ describe("agent-sdk executor", () => {
         pathToClaudeCodeExecutable: "/usr/local/bin/claude",
         abortController: undefined,
         effort: "xhigh",
+        thinking: undefined,
+        spawnClaudeCodeProcess: expect.any(Function),
       },
     });
   });
@@ -290,5 +298,33 @@ describe("agent-sdk executor", () => {
     ).rejects.toThrow("Already aborted");
 
     expect(writer.text).toBe("");
+  });
+
+  it("force-kills a spawned Claude process when abort does not exit cleanly", () => {
+    vi.useFakeTimers();
+    const abortController = new AbortController();
+    const child = Object.assign(new EventEmitter(), {
+      stdin: {},
+      stdout: {},
+      stderr: null,
+      killed: false,
+      exitCode: null as number | null,
+      kill: vi.fn(),
+    });
+    mockSpawn.mockReturnValue(child);
+
+    const spawned = spawnClaudeCodeProcessWithAbortKill({
+      command: "claude",
+      args: ["--output-format", "stream-json"],
+      cwd: "/tmp/project",
+      env: {},
+      signal: abortController.signal,
+    });
+
+    abortController.abort(new Error("stop"));
+    vi.advanceTimersByTime(SDK_ABORT_FORCE_KILL_MS);
+
+    expect(spawned.kill).toHaveBeenCalledWith("SIGKILL");
+    vi.useRealTimers();
   });
 });

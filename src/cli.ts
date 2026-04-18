@@ -20,12 +20,27 @@ import {
   resolveConversationId,
   runPipeLoop,
 } from "./modules/history/cli.js";
-import { parseModelString } from "./modules/model-clients/factory.js";
+import { parseModelString, resolveApiKey } from "./modules/model-clients/factory.js";
 
 export { formatAuthError } from "./core/model/auth-error.js";
 export { parseIntOption } from "./modules/history/cli.js";
 
 const program = new Command();
+
+function ensureAnthropicApiKey(
+  providerName: string | undefined,
+  modelSpec: string,
+  explicitApiKey: string | undefined,
+): void {
+  const effectiveProvider = providerName || parseModelString(modelSpec).provider || "anthropic";
+  if (effectiveProvider !== "anthropic") return;
+  if (resolveApiKey("anthropic", explicitApiKey)) return;
+  const message = formatAuthError(
+    new Error("Could not resolve authentication method. Expected apiKey to be set."),
+  ) ?? "Error: ANTHROPIC_API_KEY environment variable is not set.";
+  console.error(message);
+  process.exit(1);
+}
 
 program
   .name("kota")
@@ -86,6 +101,7 @@ program
     }
 
     const modelSpec = opts.model || config.model || "claude-sonnet-4-6";
+    ensureAnthropicApiKey(providerName, modelSpec, config.modelProvider?.apiKey);
     const resolved = createModelClient({
       model: modelSpec,
       provider: providerName,

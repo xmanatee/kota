@@ -1,5 +1,6 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
+import type { SpawnedProcess, SpawnOptions } from "@anthropic-ai/claude-agent-sdk";
 import type {
   SDKMessage,
   SDKPermissionMode,
@@ -30,6 +31,8 @@ export type ExecutorOptions = {
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
 };
+
+export const SDK_ABORT_FORCE_KILL_MS = 10_000;
 
 export type ExecutorResult = {
   text: string;
@@ -121,6 +124,48 @@ export function detectLocalClaudeCodeExecutable(): string | undefined {
   return undefined;
 }
 
+export function spawnClaudeCodeProcessWithAbortKill(
+  options: SpawnOptions,
+): SpawnedProcess {
+  const stderrMode: "pipe" | "ignore" = options.env.DEBUG_CLAUDE_AGENT_SDK
+    ? "pipe"
+    : "ignore";
+  const child = spawn(options.command, options.args, {
+    cwd: options.cwd,
+    env: options.env as NodeJS.ProcessEnv,
+    signal: options.signal,
+    stdio: ["pipe", "pipe", stderrMode],
+    windowsHide: true,
+  });
+
+  if (child.stderr) {
+    child.stderr.on("data", (chunk) => process.stderr.write(chunk));
+  }
+
+  let forceKillTimer: ReturnType<typeof setTimeout> | undefined;
+  const clearForceKill = () => {
+    if (forceKillTimer) {
+      clearTimeout(forceKillTimer);
+      forceKillTimer = undefined;
+    }
+    options.signal.removeEventListener("abort", scheduleForceKill);
+  };
+  const scheduleForceKill = () => {
+    if (forceKillTimer) return;
+    forceKillTimer = setTimeout(() => {
+      if (child.exitCode === null) child.kill("SIGKILL");
+    }, SDK_ABORT_FORCE_KILL_MS);
+    forceKillTimer.unref();
+  };
+
+  if (options.signal.aborted) scheduleForceKill();
+  else options.signal.addEventListener("abort", scheduleForceKill, { once: true });
+  child.once("exit", clearForceKill);
+  child.once("error", clearForceKill);
+
+  return child as SpawnedProcess;
+}
+
 export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
   const permissionMode = options.permissionMode ?? "bypassPermissions";
   const thinking = options.thinkingEnabled
@@ -144,6 +189,7 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
     enableFileCheckpointing: options.enableFileCheckpointing,
     allowDangerouslySkipPermissions: permissionMode === "bypassPermissions",
     thinking,
+    spawnClaudeCodeProcess: spawnClaudeCodeProcessWithAbortKill,
   };
 }
 
@@ -160,6 +206,10 @@ export async function executeWithAgentSDK(
   let sessionId: string | undefined;
   let turns = 0;
   const abortSignal = options.abortController?.signal;
+  if (abortSignal?.aborted) {
+    const reason = abortSignal.reason;
+    throw reason instanceof Error ? reason : new Error("Agent execution aborted");
+  }
 
   for await (const message of sdkQuery({ prompt, options: queryOptions })) {
     if (abortSignal?.aborted) {

@@ -19,7 +19,13 @@ export type ImproverEvidenceGateDecision = {
 
 type ActionableSignals = {
   failures24h: Array<{ workflow: string; total: number; failures: number }>;
-  repairFailures24h: Array<{ checkId: string; count: number; recovered: number; terminal: number }>;
+  repairFailures24h: Array<{
+    workflow: string;
+    checkId: string;
+    count: number;
+    recovered: number;
+    terminal: number;
+  }>;
   durationOutliers: Array<{ runId: string; workflow: string; durationMs: number; medianMs: number }>;
 };
 
@@ -41,14 +47,28 @@ function isEvidenceGateState(value: unknown): value is EvidenceGateState {
 function actionableSignals(aggregation: RunOutcomeAggregation): ActionableSignals {
   return {
     failures24h: aggregation.failureRates24h
-      .filter((entry) => entry.failures > 0)
+      .filter((entry) => entry.workflow !== "improver" && entry.failures > 0)
       .map(({ workflow, total, failures }) => ({ workflow, total, failures })),
     repairFailures24h: aggregation.topRepairFailures24h
-      .filter((entry) => entry.terminal > 0 || entry.count >= 2)
-      .map(({ checkId, count, recovered, terminal }) => ({ checkId, count, recovered, terminal })),
-    durationOutliers: aggregation.durationOutliers.map(
-      ({ runId, workflow, durationMs, medianMs }) => ({ runId, workflow, durationMs, medianMs }),
-    ),
+      .filter(
+        (entry) =>
+          entry.workflow !== "improver" && (entry.terminal > 0 || entry.count >= 2),
+      )
+      .map(({ workflow, checkId, count, recovered, terminal }) => ({
+        workflow,
+        checkId,
+        count,
+        recovered,
+        terminal,
+      })),
+    durationOutliers: aggregation.durationOutliers
+      .filter((entry) => entry.workflow !== "improver")
+      .map(({ runId, workflow, durationMs, medianMs }) => ({
+        runId,
+        workflow,
+        durationMs,
+        medianMs,
+      })),
   };
 }
 

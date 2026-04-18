@@ -9,7 +9,12 @@ import {
   onRecoveryTrigger,
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
-import { AUTONOMY_DISALLOWED_TOOLS, stepCommitted, stepSucceeded } from "#modules/autonomy/shared.js";
+import {
+  AUTONOMY_DISALLOWED_TOOLS,
+  AUTONOMY_LONG_AGENT_TIMEOUT_MS,
+  stepCommitted,
+  stepSucceeded,
+} from "#modules/autonomy/shared.js";
 import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
 import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
 import { builderRepairChecks } from "./repair-checks.js";
@@ -80,9 +85,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-      // p99 of successful builder runs is ~26 min; 35 min gives safe headroom
-      // above the 30-min global default without letting stuck work run wild.
-      timeoutMs: 35 * 60 * 1000,
+      timeoutMs: AUTONOMY_LONG_AGENT_TIMEOUT_MS,
       when: (ctx) => {
         if (ctx.trigger.event === "runtime.recovered") return false;
         const { dirty, pullableCount } = inspectReadyQueue.output(ctx);

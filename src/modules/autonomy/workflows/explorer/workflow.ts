@@ -13,6 +13,7 @@ import {
 } from "#modules/autonomy/recovery.js";
 import {
   AUTONOMY_DISALLOWED_TOOLS,
+  AUTONOMY_LONG_AGENT_TIMEOUT_MS,
   checkCommitMessageExists,
   checkNoScratchArtifacts,
   runCheck,
@@ -172,9 +173,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-      // Explorer can do broad external research; 45 min covers realistic
-      // deep-dive sessions without letting stuck exploration run unbounded.
-      timeoutMs: 45 * 60 * 1000,
+      timeoutMs: AUTONOMY_LONG_AGENT_TIMEOUT_MS,
       when: (ctx) => {
         if (ctx.trigger.event === "runtime.recovered") return false;
         return inspectQueue.output(ctx).needsAttention;

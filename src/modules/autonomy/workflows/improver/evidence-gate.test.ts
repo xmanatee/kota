@@ -59,7 +59,7 @@ describe("improver evidence gate", () => {
   it("skips unchanged evidence after a completed improver pass records it", () => {
     const aggregation = emptyAggregation();
     aggregation.topRepairFailures24h = [
-      { checkId: "lint", count: 2, recovered: 2, terminal: 0 },
+      { workflow: "builder", checkId: "lint", count: 2, recovered: 2, terminal: 0 },
     ];
     const first = decideImproverEvidenceGate(aggregation, null);
     writeImproverEvidenceGateState(projectDir, first);
@@ -71,5 +71,26 @@ describe("improver evidence gate", () => {
     expect(second.reason).toBe(
       "actionable run evidence unchanged since the last completed improver pass",
     );
+  });
+
+  it("does not rerun only because the previous improver pass failed", () => {
+    const aggregation = emptyAggregation();
+    aggregation.failureRates24h = [
+      { workflow: "improver", total: 1, failures: 1, rate: 1 },
+    ];
+    aggregation.topRepairFailures24h = [
+      { workflow: "improver", checkId: "test", count: 1, recovered: 0, terminal: 1 },
+    ];
+    aggregation.durationOutliers = [
+      { runId: "run-improver", workflow: "improver", durationMs: 2_700_000, medianMs: 600_000 },
+    ];
+
+    const decision = decideImproverEvidenceGate(aggregation, null);
+
+    expect(decision).toEqual({
+      shouldRun: false,
+      reason: "no recent actionable run evidence",
+    });
+    expect(fingerprintImproverEvidence(aggregation)).toBeUndefined();
   });
 });

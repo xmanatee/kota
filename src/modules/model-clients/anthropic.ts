@@ -14,7 +14,7 @@ import type {
 export class AnthropicModelClient implements ModelClient {
 	readonly messages: ModelClient["messages"];
 
-	constructor(options?: { maxRetries?: number }) {
+	constructor(options?: { maxRetries?: number; apiKey?: string }) {
 		const sdk = new Anthropic(options);
 		this.messages = {
 			stream: (params: MessageStreamParams) =>

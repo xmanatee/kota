@@ -27,14 +27,12 @@ the other silently tripped a misconfigured predicate.
 
 ## Desired Outcome
 
-- Every skipped `WorkflowStepResult` carries a typed `skipReason`
-  drawn from a small enum that covers the real skip sources (the
-  step's own `when` predicate, a parent branch/parallel/foreach
-  collapsing, recovery-trigger gating, and anything else the runtime
-  already knows at skip time).
+- Every skipped `WorkflowStepResult` carries a code-owned typed
+  `skipReason` covering the real skip sources the runtime already
+  knows at skip time.
 - The reason survives into on-disk run metadata, the
-  `workflow.completed` event payload, and the control-API run views
-  that operator clients consume.
+  workflow completion payload, and the operator-facing run views that
+  clients consume.
 - Where a skip is caused by a named predicate helper (for example
   `onNormalTrigger`), that predicate can attach a short label so the
   artifact reads as "skipped: recovery-trigger-gate" rather than
@@ -44,9 +42,9 @@ the other silently tripped a misconfigured predicate.
 
 - Extend the existing `WorkflowStepResult` and run-metadata schemas;
   do not introduce a second parallel skip-reporting surface.
-- Keep the reason a closed typed enum at the core boundary, not a
-  free-form string. Predicate-attached labels are an optional, typed
-  descriptor on top of the enum, not a replacement.
+- Keep the reason a closed typed contract at the core boundary, not a
+  free-form string. Predicate-attached labels are optional typed
+  descriptors, not replacements.
 - No new operator-facing flag or toggle. Recording the reason is
   unconditional; absence of a reason on a skipped step is a runtime
   invariant violation.
@@ -58,12 +56,11 @@ the other silently tripped a misconfigured predicate.
 
 ## Done When
 
-- `WorkflowStepResult` includes a required `skipReason` field (typed
-  enum plus optional label) whenever `status === "skipped"`, and the
-  run-metadata writer persists it.
-- `workflow.completed` payloads and the control-API session/run
-  endpoints expose the reason per skipped step; at least one
-  operator client surface (CLI status or web run view) renders it.
+- `WorkflowStepResult` includes a required `skipReason` field whenever
+  a step is skipped, and the run-metadata writer persists it.
+- Workflow completion payloads and operator run views expose the
+  reason per skipped step; at least one operator client surface
+  renders it.
 - `onNormalTrigger` and any other skip predicates used in the
   autonomy workflows annotate their reason; tests assert the label
   appears in run metadata for recovery-triggered runs.

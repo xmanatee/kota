@@ -13,6 +13,7 @@ type WorkflowFailureRate = {
 };
 
 type RepairCheckTally = {
+  workflow: string;
   checkId: string;
   count: number;
   recovered: number;
@@ -59,7 +60,16 @@ function computeFailureRates(runs: RunSummary[]): WorkflowFailureRate[] {
 }
 
 export function tallyRepairFailures(runs: WorkflowRunMetadata[]): RepairCheckTally[] {
-  const totals = new Map<string, { count: number; recovered: number; terminal: number }>();
+  const totals = new Map<
+    string,
+    {
+      workflow: string;
+      checkId: string;
+      count: number;
+      recovered: number;
+      terminal: number;
+    }
+  >();
   for (const run of runs) {
     for (const step of run.steps) {
       const output = step.output as
@@ -82,19 +92,25 @@ export function tallyRepairFailures(runs: WorkflowRunMetadata[]): RepairCheckTal
       }
 
       for (const id of everFailed) {
-        const entry = totals.get(id) ?? { count: 0, recovered: 0, terminal: 0 };
+        const key = `${run.workflow}\0${id}`;
+        const entry = totals.get(key) ?? {
+          workflow: run.workflow,
+          checkId: id,
+          count: 0,
+          recovered: 0,
+          terminal: 0,
+        };
         entry.count++;
         if (terminalIds.has(id)) {
           entry.terminal++;
         } else {
           entry.recovered++;
         }
-        totals.set(id, entry);
+        totals.set(key, entry);
       }
     }
   }
-  return [...totals.entries()]
-    .map(([checkId, { count, recovered, terminal }]) => ({ checkId, count, recovered, terminal }))
+  return [...totals.values()]
     .sort((a, b) => b.count - a.count);
 }
 

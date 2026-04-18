@@ -36,14 +36,12 @@ proposal so the owner can pick.
 ## Desired Outcome
 
 - A concrete, self-contained proposal that compares both variants
-  against the current single-project daemon, at the level of typed
-  control-API surface, runtime state ownership, session/run/event/
-  owner-question attribution, and module-loading shape.
-- For each variant: which existing files and types are touched,
-  where a `projectId` has to be threaded, what happens to existing
-  single-project control-API consumers, and how channels (Slack
-  bot, Telegram bot, webhook, web chat, native clients) attach to
-  a given project's sessions.
+  against the current single-project daemon at the level of ownership
+  boundaries, attribution policy, client/operator behavior, and
+  migration risk.
+- For each variant: the durable architectural consequences, how
+  channels attach to a project's sessions, what class of consumers
+  is affected, and which impact areas need implementation tasks.
 - For each variant: an honest migration outline — what can land in
   one PR vs. what demands a multi-PR sequence, and what breaks for
   the existing KOTA-on-itself setup during the transition.
@@ -58,10 +56,10 @@ proposal so the owner can pick.
 - Keep the proposal scoped to multi-project runtime shape. Do not
   re-open unrelated architectural choices (module loading,
   workflow validation, guardrails) in the same document.
-- The proposal must live close to the code — in the relevant
-  `AGENTS.md` (daemon, modules, or a new narrow proposal section in
-  this task itself). Do not spawn a new top-level `docs/` RFC tree
-  or a parallel governance surface.
+- The durable guidance must live close to the code in the relevant
+  `AGENTS.md` scope. Keep exact file, type, endpoint, event, and
+  constant inventories out of durable prose; those belong in source
+  and focused validation.
 - Do not invent new terminology. Use the existing glossary
   (`agent`, `session`, `workflow`, `channel`, `module`, `store`,
   `daemon`).
@@ -72,13 +70,12 @@ proposal so the owner can pick.
 
 ## Done When
 
-- A written proposal exists in the repo (as an `AGENTS.md` section,
-  a scoped doc, or an explicit followup task body) that describes
-  both variants at the level of concrete type and surface changes.
-- For each variant the proposal enumerates: control-API endpoints
-  and events that change shape, daemon subsystems whose ownership
-  shifts, per-project attribution on sessions/runs/events/owner
-  questions, and channel-to-project attachment rules.
+- A written proposal exists in the relevant `AGENTS.md` scope and
+  describes both variants at the level of durable ownership and
+  behavior decisions.
+- For each variant the proposal identifies ownership shifts,
+  attribution policy, channel-to-project attachment rules, affected
+  client classes, and follow-up implementation task boundaries.
 - For each variant the proposal sketches a migration path with a
   first PR that is self-contained and does not regress
   KOTA-on-itself.
