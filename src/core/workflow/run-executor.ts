@@ -374,7 +374,7 @@ export function executeWorkflowRun(
       });
       deps.bus.emit(
         "workflow.completed",
-        buildWorkflowCompletedPayload(completed, status, definition.tags),
+        buildWorkflowCompletedPayload(completed, status, definition.tags, agentBackoff?.kind),
       );
       deps.log(
         `${status === "interrupted" ? "Interrupted" : "Failed"} workflow "${definition.name}" (${completed.id}): ${err.message}`,

@@ -194,10 +194,17 @@ export type KotaConfig = {
     maxStepOutputBytes?: number;
   };
 
-  /** OpenTelemetry tracing for workflow execution. Opt-in. */
+  /** OpenTelemetry tracing and metrics for workflow execution. Opt-in. */
   tracing?: {
     /** OTLP HTTP endpoint (e.g. "http://localhost:4318/v1/traces"). Required to enable tracing. */
     endpoint: string;
+    /**
+     * OTLP HTTP endpoint for metrics (e.g. "http://localhost:4318/v1/metrics").
+     * Defaults to `endpoint` so a single collector sees both signals.
+     */
+    metricsEndpoint?: string;
+    /** How often to flush metric batches to the exporter. Default: 30 000. */
+    metricsExportIntervalMs?: number;
     /** Sampling rate between 0 and 1. Default: 1.0 (sample everything). */
     samplingRate?: number;
     /** Service name reported in traces. Default: "kota". */
@@ -439,6 +446,15 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
     const src = raw.tracing as Record<string, unknown>;
     if (typeof src.endpoint === "string" && src.endpoint) {
       const t: NonNullable<KotaConfig["tracing"]> = { endpoint: src.endpoint };
+      if (typeof src.metricsEndpoint === "string" && src.metricsEndpoint) {
+        t.metricsEndpoint = src.metricsEndpoint;
+      }
+      if (
+        typeof src.metricsExportIntervalMs === "number" &&
+        src.metricsExportIntervalMs > 0
+      ) {
+        t.metricsExportIntervalMs = src.metricsExportIntervalMs;
+      }
       if (typeof src.samplingRate === "number" && src.samplingRate >= 0 && src.samplingRate <= 1) {
         t.samplingRate = src.samplingRate;
       }

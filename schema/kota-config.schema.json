@@ -487,11 +487,19 @@
     },
     "tracing": {
       "additionalProperties": false,
-      "description": "OpenTelemetry tracing for workflow execution. Opt-in.",
+      "description": "OpenTelemetry tracing and metrics for workflow execution. Opt-in.",
       "properties": {
         "endpoint": {
           "description": "OTLP HTTP endpoint (e.g. \"http://localhost:4318/v1/traces\"). Required to enable tracing.",
           "type": "string"
+        },
+        "metricsEndpoint": {
+          "description": "OTLP HTTP endpoint for metrics (e.g. \"http://localhost:4318/v1/metrics\"). Defaults to `endpoint` so a single collector sees both signals.",
+          "type": "string"
+        },
+        "metricsExportIntervalMs": {
+          "description": "How often to flush metric batches to the exporter. Default: 30 000.",
+          "type": "number"
         },
         "samplingRate": {
           "description": "Sampling rate between 0 and 1. Default: 1.0 (sample everything).",

@@ -1,12 +1,12 @@
 ---
 id: task-surface-project-selection-in-operator-clients-for-
 title: Surface project selection in operator clients for multi-project supervision
-status: ready
+status: blocked
 priority: p2
 area: architecture
 summary: Once the daemon can manage multiple project roots, native/web/CLI clients need a first-class project selector and per-project view so operators can supervise more than one repo at a time
 created_at: 2026-04-18T00:40:56.393Z
-updated_at: 2026-04-18T00:43:19.638Z
+updated_at: 2026-04-18T02:44:19.138Z
 ---
 
 ## Problem
@@ -34,4 +34,43 @@ The in-progress `task-enable-kota-to-operate-on-external-projects` work is makin
 - A session, run, or owner question is always attributable to one project in the API output, not ambiguous across projects.
 - Tests cover the project-switch control path and the per-project filtering of sessions/runs.
 - Docs in the relevant client and daemon-ops `AGENTS.md` describe the model at the conventions level, not as a catalog of endpoints.
+
+## Blocker
+
+This task is blocked until the multi-project runtime shape is decided and the
+work is decomposed.
+
+The daemon today is strictly single-project: `Daemon.projectDir` is consumed
+once at construction by scheduler, task-store, run-store, module-log-store,
+workflow runtime, notification gate, and every control-API endpoint. Two
+materially different architectures both satisfy the current wording:
+
+1. **Daemon hosts many project runtimes in parallel.** Every daemon-owned
+   subsystem becomes per-project; every bus event, session, run, and owner
+   question carries a `projectId`; control-API calls and SSE subscriptions
+   accept a project scope. Large core reshape, highest long-term capability.
+2. **One daemon per project plus a client-side registry that multiplexes
+   across daemons.** No core reshape; clients read a shared registry and
+   connect to the target project's daemon socket. Satisfies
+   "switch without restarting *a* daemon" only if "restart" means OS process
+   restart of the client-selected daemon.
+
+The current constraint "keep multi-project state in the daemon, not duplicated
+in each client" pushes toward variant 1 or a hybrid where the daemon owns a
+project registry file but only runs one project runtime and swaps it on
+switch.
+
+The owner was asked on 2026-04-18 to pick between these; the question timed
+out. The work also spans two full client surfaces (CLI daemon mode + web) and
+per-project attribution of session / run / owner-question outputs, which is
+more than a single builder run should carry at once.
+
+Unblock by:
+
+1. Owner picks the runtime architecture.
+2. Task is split into at least three follow-ups: (a) daemon-side project
+   identity + registry + typed control-API endpoints + per-project attribution
+   in existing API outputs; (b) CLI daemon-mode project selector and
+   project-scoped views; (c) web client project selector and project-scoped
+   views.
 

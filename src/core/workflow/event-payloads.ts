@@ -1,6 +1,6 @@
 import type { BusEvents } from "#core/events/event-bus.js";
 import type { WorkflowRunMetadata, WorkflowRunStatus, WorkflowStepResult } from "./run-types.js";
-import type { WorkflowStep } from "./types.js";
+import type { WorkflowAgentBackoffKind, WorkflowStep } from "./types.js";
 
 export function buildStepStartedPayload(
   metadata: WorkflowRunMetadata,
@@ -38,6 +38,7 @@ export function buildWorkflowCompletedPayload(
   metadata: WorkflowRunMetadata,
   status: WorkflowRunStatus,
   tags: readonly string[] = [],
+  failureKind?: WorkflowAgentBackoffKind,
 ): BusEvents["workflow.completed"] {
   return {
     workflow: metadata.workflow,
@@ -48,5 +49,6 @@ export function buildWorkflowCompletedPayload(
     definitionPath: metadata.definitionPath,
     runDir: metadata.runDir,
     tags,
+    ...(failureKind ? { failureKind } : {}),
   };
 }

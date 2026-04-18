@@ -1,17 +1,24 @@
+import { type Meter, metrics } from "@opentelemetry/api";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
+import { WorkflowMetricsEmitter } from "./metrics.js";
 import { buildModelLookup, WorkflowTracer } from "./tracer.js";
 
 type TracingConfig = {
   endpoint: string;
+  metricsEndpoint?: string;
+  metricsExportIntervalMs?: number;
   samplingRate?: number;
   serviceName?: string;
 };
 
-let shutdown: (() => Promise<void>) | undefined;
+const METER_NAME = "kota-workflow";
+
+let shutdownTraces: (() => Promise<void>) | undefined;
+let shutdownMetrics: (() => Promise<void>) | undefined;
 let unsubscribers: Array<() => void> = [];
 
-async function initProvider(config: TracingConfig): Promise<() => Promise<void>> {
+async function initTraceProvider(config: TracingConfig): Promise<() => Promise<void>> {
   const {
     NodeTracerProvider,
     BatchSpanProcessor,
@@ -45,7 +52,45 @@ async function initProvider(config: TracingConfig): Promise<() => Promise<void>>
   };
 }
 
-function subscribeToEvents(ctx: ModuleContext, tracer: WorkflowTracer): void {
+async function initMetricProvider(config: TracingConfig): Promise<{
+  meter: Meter;
+  shutdown: () => Promise<void>;
+}> {
+  const { MeterProvider, PeriodicExportingMetricReader } = await import(
+    "@opentelemetry/sdk-metrics"
+  );
+  const { OTLPMetricExporter } = await import(
+    "@opentelemetry/exporter-metrics-otlp-http"
+  );
+  const { resourceFromAttributes } = await import("@opentelemetry/resources");
+
+  const resource = resourceFromAttributes({
+    "service.name": config.serviceName ?? "kota",
+  });
+
+  const exporter = new OTLPMetricExporter({
+    url: config.metricsEndpoint ?? config.endpoint,
+  });
+  const reader = new PeriodicExportingMetricReader({
+    exporter,
+    exportIntervalMillis: config.metricsExportIntervalMs ?? 30_000,
+  });
+  const provider = new MeterProvider({ resource, readers: [reader] });
+  metrics.setGlobalMeterProvider(provider);
+
+  return {
+    meter: provider.getMeter(METER_NAME),
+    shutdown: async () => {
+      await provider.shutdown();
+    },
+  };
+}
+
+function subscribeToEvents(
+  ctx: ModuleContext,
+  tracer: WorkflowTracer,
+  metricsEmitter: WorkflowMetricsEmitter | undefined,
+): void {
   unsubscribers.push(
     ctx.events.subscribe("workflow.started", (payload) => {
       tracer.onWorkflowStarted(payload as Parameters<typeof tracer.onWorkflowStarted>[0]);
@@ -55,9 +100,15 @@ function subscribeToEvents(ctx: ModuleContext, tracer: WorkflowTracer): void {
     }),
     ctx.events.subscribe("workflow.step.completed", (payload) => {
       tracer.onStepCompleted(payload as Parameters<typeof tracer.onStepCompleted>[0]);
+      metricsEmitter?.onStepCompleted(
+        payload as Parameters<NonNullable<typeof metricsEmitter>["onStepCompleted"]>[0],
+      );
     }),
     ctx.events.subscribe("workflow.completed", (payload) => {
       tracer.onWorkflowCompleted(payload as Parameters<typeof tracer.onWorkflowCompleted>[0]);
+      metricsEmitter?.onWorkflowCompleted(
+        payload as Parameters<NonNullable<typeof metricsEmitter>["onWorkflowCompleted"]>[0],
+      );
     }),
   );
 }
@@ -95,7 +146,7 @@ const tracingModule: KotaModule = {
       return;
     }
 
-    shutdown = await initProvider(config);
+    shutdownTraces = await initTraceProvider(config);
 
     const workflows = ctx.getContributedWorkflows();
     const flatWorkflows = workflows.map((wf: RegisteredWorkflowDefinitionInput) => ({
@@ -107,16 +158,30 @@ const tracingModule: KotaModule = {
       ctx.log.debug(msg, err);
     });
 
-    subscribeToEvents(ctx, tracer);
-    ctx.log.info(`Tracing enabled → ${config.endpoint}`);
+    const metricsProvider = await initMetricProvider(config);
+    shutdownMetrics = metricsProvider.shutdown;
+    const metricsEmitter = new WorkflowMetricsEmitter(
+      metricsProvider.meter,
+      ctx.cwd,
+      (msg, err) => ctx.log.debug(msg, err),
+    );
+
+    subscribeToEvents(ctx, tracer, metricsEmitter);
+    ctx.log.info(
+      `Tracing enabled → ${config.endpoint} (metrics → ${config.metricsEndpoint ?? config.endpoint})`,
+    );
   },
 
   onUnload: async () => {
     for (const unsub of unsubscribers) unsub();
     unsubscribers = [];
-    if (shutdown) {
-      await shutdown();
-      shutdown = undefined;
+    if (shutdownTraces) {
+      await shutdownTraces();
+      shutdownTraces = undefined;
+    }
+    if (shutdownMetrics) {
+      await shutdownMetrics();
+      shutdownMetrics = undefined;
     }
   },
 };

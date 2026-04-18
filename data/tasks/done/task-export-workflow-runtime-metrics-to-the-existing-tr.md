@@ -1,12 +1,12 @@
 ---
 id: task-export-workflow-runtime-metrics-to-the-existing-tr
 title: Export workflow runtime metrics to the existing tracing backend
-status: backlog
+status: done
 priority: p2
 area: observability
 summary: Emit per-workflow/per-step metrics (duration, cost, repair-loop hits, failure class) alongside the existing OTLP traces so operator dashboards can render KOTA health without parsing run artifacts
 created_at: 2026-04-17T13:14:03.731Z
-updated_at: 2026-04-17T13:14:03.731Z
+updated_at: 2026-04-18T02:51:55.143Z
 ---
 
 ## Problem
