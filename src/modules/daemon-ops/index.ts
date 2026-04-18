@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { Command } from "commander";
+import { resolveProjectDir } from "#core/config/project-dir.js";
 import { Daemon, RESTART_EXIT_CODE } from "#core/daemon/daemon.js";
 import type { DaemonControlAddress, DaemonLiveStatus } from "#core/daemon/daemon-control.js";
 import type { KotaModule } from "#core/modules/module-types.js";
@@ -241,6 +242,10 @@ const daemonModule: KotaModule = {
       .description("Run KOTA as a long-running daemon with autonomous workflows")
       .option("-v, --verbose", "Show debug output")
       .option("--poll-interval <seconds>", "Scheduler poll interval in seconds", "30")
+      .option(
+        "--project-dir <path>",
+        "Project directory the daemon operates on (overrides KOTA_PROJECT_DIR env and cwd)",
+      )
       .option("--log-format <format>", "Log format: text (default) or json", (v) => {
         if (v !== "text" && v !== "json") {
           console.error(`Error: --log-format must be "text" or "json", got "${v}"`);
@@ -262,7 +267,10 @@ const daemonModule: KotaModule = {
           process.stdout.isTTY === true &&
           !logFormat;
 
+        const projectDir = resolveProjectDir(opts.projectDir);
+
         const daemon = new Daemon({
+          projectDir,
           verbose: opts.verbose || ctx.config.verbose,
           config: ctx.config,
           idleIntervalMs: 30_000,
@@ -309,7 +317,7 @@ const daemonModule: KotaModule = {
         const status = await client.getDaemonStatus();
         if (!status) {
           const address = readOptionalJsonFile<DaemonControlAddress>(
-            join(process.cwd(), ".kota", "daemon-control.json"),
+            join(resolveProjectDir(), ".kota", "daemon-control.json"),
           );
           const stale = address && typeof address.pid === "number" && !isProcessAlive(address.pid);
           if (opts.json) {
@@ -337,7 +345,7 @@ const daemonModule: KotaModule = {
       .description("Print the PID of the running daemon (exits non-zero if not running)")
       .action(() => {
         const address = readOptionalJsonFile<DaemonControlAddress>(
-          join(process.cwd(), ".kota", "daemon-control.json"),
+          join(resolveProjectDir(), ".kota", "daemon-control.json"),
         );
         if (!address || typeof address.pid !== "number") {
           console.error("Daemon is not running.");
@@ -358,7 +366,7 @@ const daemonModule: KotaModule = {
       .option("--timeout <seconds>", "Seconds to wait for clean exit", "10")
       .action(async (opts: { timeout: string }) => {
         const address = readOptionalJsonFile<DaemonControlAddress>(
-          join(process.cwd(), ".kota", "daemon-control.json"),
+          join(resolveProjectDir(), ".kota", "daemon-control.json"),
         );
         if (!address || typeof address.pid !== "number") {
           console.error("Daemon is not running.");
@@ -418,7 +426,7 @@ const daemonModule: KotaModule = {
       .description("Register the KOTA daemon as a user-level OS service (launchd on macOS, systemd on Linux)")
       .option("--dry-run", "Print the service unit without installing")
       .action((opts: { dryRun?: boolean }) => {
-        const projectDir = process.cwd();
+        const projectDir = resolveProjectDir();
 
         if (process.platform === "darwin") {
           const plistPath = getLaunchdPlistPath();

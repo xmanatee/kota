@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { resolveProjectDir } from "#core/config/project-dir.js";
 import type { PendingApproval } from "#core/daemon/approval-queue.js";
 import type {
   DaemonControlAddress,
@@ -32,7 +33,7 @@ export class DaemonControlClient {
   ) {}
 
   static fromStateDir(stateDir?: string): DaemonControlClient | null {
-    const dir = stateDir ?? join(process.cwd(), ".kota");
+    const dir = stateDir ?? join(resolveProjectDir(), ".kota");
     const address = readOptionalJsonFile<DaemonControlAddress>(join(dir, "daemon-control.json"));
     if (!address || typeof address.port !== "number") return null;
     return new DaemonControlClient(

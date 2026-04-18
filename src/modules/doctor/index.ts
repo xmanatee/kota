@@ -19,6 +19,7 @@ import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
+import { resolveProjectDir } from "#core/config/project-dir.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
@@ -449,7 +450,7 @@ function buildDoctorCommand(_ctx: ModuleContext): Command {
     .option("--fix", "Apply safe automatic repairs for fixable issues")
     .option("--skip-connectivity", "Skip provider API connectivity probes (for offline environments)")
     .action(async (opts: { json?: boolean; fix?: boolean; skipConnectivity?: boolean }) => {
-      const projectDir = process.cwd();
+      const projectDir = resolveProjectDir();
       const results = await runDoctorChecks(projectDir, { skipConnectivity: opts.skipConnectivity });
       const repairs = opts.fix ? runDoctorFixes(projectDir) : [];
 

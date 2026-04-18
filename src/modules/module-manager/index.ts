@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { Command } from "commander";
+import { resolveProjectDir } from "#core/config/project-dir.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
@@ -146,7 +147,7 @@ function buildModuleCommand(ctx: ModuleContext): Command {
       }
 
       const address = readOptionalJsonFile<DaemonControlAddress>(
-        join(process.cwd(), ".kota", "daemon-control.json"),
+        join(resolveProjectDir(), ".kota", "daemon-control.json"),
       );
       if (!address || typeof address.pid !== "number" || !isProcessAlive(address.pid)) {
         console.error("Daemon is not running. Module reload requires a running daemon.");

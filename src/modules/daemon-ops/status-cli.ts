@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { Command } from "commander";
+import { resolveProjectDir } from "#core/config/project-dir.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
@@ -87,7 +88,7 @@ export function buildStatusCommand(): Command {
   return new Command("status")
     .description("Show a concise operational snapshot: daemon, active runs, approvals, and cost")
     .action(async () => {
-      const projectDir = process.cwd();
+      const projectDir = resolveProjectDir();
       const snap = await gatherStatus(projectDir);
       console.log(formatStatusOutput(snap));
       if (snap.pendingApprovals > 0) process.exit(1);

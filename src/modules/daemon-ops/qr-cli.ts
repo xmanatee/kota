@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import { networkInterfaces } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
+import { resolveProjectDir } from "#core/config/project-dir.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control-types.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 
@@ -32,7 +33,7 @@ export function buildQrCommand(): Command {
   return new Command("qr")
     .description("Print a QR code encoding the daemon URL and auth token for mobile client setup")
     .action(async () => {
-      const stateDir = join(process.cwd(), ".kota");
+      const stateDir = join(resolveProjectDir(), ".kota");
       const address = readOptionalJsonFile<DaemonControlAddress>(
         join(stateDir, "daemon-control.json"),
       );
