@@ -7,7 +7,6 @@ import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import {
-  onNormalTrigger,
   onRecoveryTrigger,
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
@@ -36,6 +35,8 @@ export type DecomposerAssessment = {
   | { shouldDecompose: true; taskId: string; taskPath: string }
 );
 
+const TASK_STATES_FOR_DECOMPOSE = ["doing", "blocked", "ready"] as const;
+
 function findTaskInState(projectDir: string, state: string): { id: string; path: string } | null {
   const dir = join(projectDir, "data", "tasks", state);
   if (!existsSync(dir)) {
@@ -46,6 +47,70 @@ function findTaskInState(projectDir: string, state: string): { id: string; path:
   if (!taskFile) return null;
   const id = taskFile.replace(/\.md$/, "");
   return { id, path: join("data", "tasks", state, taskFile) };
+}
+
+function findTaskById(
+  projectDir: string,
+  taskId: string,
+): { id: string; path: string } | null {
+  for (const state of TASK_STATES_FOR_DECOMPOSE) {
+    const candidate = join(projectDir, "data", "tasks", state, `${taskId}.md`);
+    if (existsSync(candidate)) {
+      return { id: taskId, path: join("data", "tasks", state, `${taskId}.md`) };
+    }
+  }
+  return null;
+}
+
+// Pre-stash rename signal in the recovery payload's worktreeSummary:
+// "R  data/tasks/ready/task-X.md -> data/tasks/doing/task-X.md, ...".
+// The rename is reverted by the stash that runs before assess-failure, so the
+// task file lives back in ready/ — we extract the id from the summary itself.
+function extractTaskIdFromWorktreeSummary(summary: string): string | null {
+  const match = /data\/tasks\/(?:doing|blocked)\/(task-[a-z0-9-]+)\.md/i.exec(summary);
+  return match ? match[1] : null;
+}
+
+type ResolvedSource = {
+  runId: string;
+  runDir: string;
+  /** When present, pre-stash worktree rename signal used to identify the failed task. */
+  worktreeSummary: string | null;
+  /** True when the trigger gives us no usable source context (non-builder recovery). */
+  skip: boolean;
+};
+
+function resolveSourceRun(
+  triggerEvent: string,
+  payload: Record<string, unknown>,
+): ResolvedSource {
+  if (triggerEvent === "runtime.recovered") {
+    const sourceWorkflow = payload.sourceWorkflow;
+    if (sourceWorkflow !== "builder") {
+      return { runId: "", runDir: "", worktreeSummary: null, skip: true };
+    }
+    const sourceRunId = payload.sourceRunId;
+    if (typeof sourceRunId !== "string" || sourceRunId.length === 0) {
+      throw new Error(
+        "Decomposer recovery trigger payload must include sourceRunId when sourceWorkflow is builder",
+      );
+    }
+    const worktreeSummary =
+      typeof payload.worktreeSummary === "string" ? payload.worktreeSummary : null;
+    return {
+      runId: sourceRunId,
+      runDir: join(".kota", "runs", sourceRunId),
+      worktreeSummary,
+      skip: false,
+    };
+  }
+
+  const runDir = payload.runDir;
+  const runId = payload.runId;
+  if (typeof runDir !== "string" || typeof runId !== "string") {
+    throw new Error("Decomposer trigger payload must include runDir and runId");
+  }
+  return { runId, runDir, worktreeSummary: null, skip: false };
 }
 
 function isTimeoutShaped(metadata: WorkflowRunMetadata): boolean {
@@ -68,50 +133,62 @@ function isTimeoutShaped(metadata: WorkflowRunMetadata): boolean {
 
 function buildAssessment(
   projectDir: string,
+  triggerEvent: string,
   triggerPayload: Record<string, unknown>,
 ): DecomposerAssessment {
-  const runDir = triggerPayload.runDir as string | undefined;
-  const runId = triggerPayload.runId as string | undefined;
+  const source = resolveSourceRun(triggerEvent, triggerPayload);
 
-  if (!runDir || !runId) {
-    throw new Error("Decomposer trigger payload must include runDir and runId");
+  if (source.skip) {
+    return {
+      shouldDecompose: false,
+      reason: "Recovery source was not builder — nothing for decomposer to do",
+      failedRunId: "",
+      failedRunDir: "",
+      isTimeout: false,
+    };
   }
 
-  const metadataPath = join(projectDir, runDir, "metadata.json");
+  const metadataPath = join(projectDir, source.runDir, "metadata.json");
   const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
 
   if (!metadata) {
     return {
       shouldDecompose: false,
       reason: `Could not read run metadata at ${metadataPath}`,
-      failedRunId: runId,
-      failedRunDir: runDir,
+      failedRunId: source.runId,
+      failedRunDir: source.runDir,
       isTimeout: false,
     };
   }
 
-  const timeout = isTimeoutShaped(metadata);
-
-  if (!timeout) {
+  if (!isTimeoutShaped(metadata)) {
     return {
       shouldDecompose: false,
       reason: "Builder failure does not look timeout-shaped",
-      failedRunId: runId,
-      failedRunDir: runDir,
+      failedRunId: source.runId,
+      failedRunDir: source.runDir,
       isTimeout: false,
     };
   }
 
-  const doingTask = findTaskInState(projectDir, "doing");
-  const blockedTask = doingTask ? null : findTaskInState(projectDir, "blocked");
-  const task = doingTask ?? blockedTask;
+  // Recovery path: the failed builder's rename was reverted by the stash step,
+  // so the task file is back in ready/. Use the pre-stash worktreeSummary to
+  // identify which task, then look it up across task states.
+  const task = source.worktreeSummary
+    ? (() => {
+        const id = extractTaskIdFromWorktreeSummary(source.worktreeSummary);
+        return id ? findTaskById(projectDir, id) : null;
+      })()
+    : findTaskInState(projectDir, "doing") ?? findTaskInState(projectDir, "blocked");
 
   if (!task) {
     return {
       shouldDecompose: false,
-      reason: "No task found in doing/ or blocked/ to decompose",
-      failedRunId: runId,
-      failedRunDir: runDir,
+      reason: source.worktreeSummary
+        ? "Could not identify the failed task from the recovery payload worktree summary"
+        : "No task found in doing/ or blocked/ to decompose",
+      failedRunId: source.runId,
+      failedRunDir: source.runDir,
       isTimeout: true,
     };
   }
@@ -119,8 +196,8 @@ function buildAssessment(
   return {
     shouldDecompose: true,
     reason: `Builder timed out on ${task.id} — decomposing`,
-    failedRunId: runId,
-    failedRunDir: runDir,
+    failedRunId: source.runId,
+    failedRunDir: source.runDir,
     taskId: task.id,
     taskPath: task.path,
     isTimeout: true,
@@ -130,8 +207,8 @@ function buildAssessment(
 const assessFailure = typedCodeStep<DecomposerAssessment>({
   id: "assess-failure",
   type: "code",
-  when: onNormalTrigger,
-  run: ({ projectDir, trigger }) => buildAssessment(projectDir, trigger.payload),
+  run: ({ projectDir, trigger }) =>
+    buildAssessment(projectDir, trigger.event, trigger.payload),
 });
 
 const decomposerWorkflow: WorkflowDefinitionInput = {
@@ -172,10 +249,7 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-      when: (ctx) => {
-        if (ctx.trigger.event === "runtime.recovered") return false;
-        return assessFailure.output(ctx).shouldDecompose;
-      },
+      when: (ctx) => assessFailure.output(ctx).shouldDecompose,
       repairLoop: {
         checks: [
           {
