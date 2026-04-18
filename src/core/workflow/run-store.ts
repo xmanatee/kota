@@ -3,11 +3,11 @@ import { join, relative } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { createActiveRunHandle } from "./active-run-handle.js";
 import {
-  assertWorkflowRunMetadata,
   assertWorkflowRuntimeState,
   buildWorkflowSnapshot,
   ensureDir,
   formatRunId,
+  isPlainObject,
   STATE_FILE,
   writeJsonFile,
 } from "./run-store-helpers.js";
@@ -25,6 +25,25 @@ import type {
 } from "./types.js";
 
 export type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
+
+type RecoverableRunMetadata = Omit<WorkflowRunMetadata, "steps"> & {
+  steps: unknown[];
+};
+
+function isRecoverableRunMetadata(value: unknown): value is RecoverableRunMetadata {
+  return (
+    isPlainObject(value) &&
+    typeof value.id === "string" &&
+    typeof value.workflow === "string" &&
+    typeof value.definitionPath === "string" &&
+    isPlainObject(value.trigger) &&
+    typeof value.trigger.event === "string" &&
+    isPlainObject(value.trigger.payload) &&
+    typeof value.startedAt === "string" &&
+    typeof value.runDir === "string" &&
+    Array.isArray(value.steps)
+  );
+}
 
 export class WorkflowRunStore {
   readonly rootDir: string;
@@ -72,18 +91,15 @@ export class WorkflowRunStore {
     for (const { runId } of candidates) {
       const metadataPath = join(this.runsDir, runId, "metadata.json");
       const metadata = readOptionalJsonFile<unknown>(metadataPath);
-      if (metadata !== null) {
-        assertWorkflowRunMetadata(metadataPath, metadata);
-      }
-      if (!metadata || metadata.status !== "running") continue;
+      if (!isRecoverableRunMetadata(metadata) || metadata.status !== "running") continue;
 
       const now = new Date().toISOString();
-      const interrupted: WorkflowRunMetadata = {
+      const interrupted = {
         ...metadata,
         status: "interrupted",
         completedAt: now,
         durationMs: Date.now() - new Date(metadata.startedAt).getTime(),
-      };
+      } as WorkflowRunMetadata;
 
       writeJsonFile(metadataPath, interrupted);
       const errorPath = join(this.runsDir, runId, "error.txt");

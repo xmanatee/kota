@@ -78,6 +78,48 @@ describe("WorkflowRunStore.recoverInterruptedRuns", () => {
     expect(errorTxt).toContain("daemon restarted");
   });
 
+  it("recovers stale running metadata with incomplete step records", () => {
+    const id = "run-stale-with-old-step";
+    const runDir = join(runsDir, id);
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(
+      join(runDir, "metadata.json"),
+      JSON.stringify({
+        id,
+        workflow: "builder",
+        definitionPath: "src/modules/test/workflows/builder/workflow.ts",
+        trigger: { event: "runtime.idle", payload: {} },
+        startedAt: new Date(Date.now() - 60_000).toISOString(),
+        status: "running",
+        runDir: `.kota/runs/${id}`,
+        steps: [
+          {
+            id: "reset-for-recovery",
+            type: "code",
+            status: "skipped",
+            startedAt: "2026-04-18T20:28:58.300Z",
+            completedAt: "2026-04-18T20:28:58.300Z",
+            durationMs: 0,
+          },
+        ],
+      }),
+    );
+
+    const state = store.readState();
+    state.activeRuns = [{ runId: id, workflow: "builder", startedAt: new Date(Date.now() - 60_000).toISOString() }];
+    // biome-ignore lint/complexity/useLiteralKeys: accessing private method in test
+    store["writeState"](state);
+
+    const recovered = store.recoverInterruptedRuns();
+
+    expect(recovered).toHaveLength(1);
+    expect(recovered[0].status).toBe("interrupted");
+    expect(store.readState().activeRuns).toEqual([]);
+
+    const metadata = JSON.parse(readFileSync(join(runDir, "metadata.json"), "utf-8"));
+    expect(metadata.status).toBe("interrupted");
+  });
+
   it("does not recover runs that are not in activeRuns (fresh run in same boot)", () => {
     // A run on disk with status "running" but NOT in activeRuns — should not be touched
     writeRunMetadata(runsDir, "run-fresh", "builder", "running");

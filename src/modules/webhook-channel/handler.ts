@@ -185,13 +185,20 @@ export function makeWebhookChannelHandler(
   createSession: WebhookSessionFactory = createAgentSession,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   const secret = config.secret ? resolveSecret(config.secret) : null;
-  const autonomyMode = resolveChannelAutonomyMode(
-    config.defaultAutonomyMode,
-    ctx.config,
-    "webhook-channel",
-  );
 
   return async (req, res) => {
+    let autonomyMode: AutonomyMode;
+    try {
+      autonomyMode = resolveChannelAutonomyMode(
+        config.defaultAutonomyMode,
+        ctx.config,
+        "webhook-channel",
+      );
+    } catch (err) {
+      jsonResponse(res, 400, { error: (err as Error).message });
+      return;
+    }
+
     const body = await readRawBody(req);
 
     if (secret) {

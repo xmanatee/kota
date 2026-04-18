@@ -166,6 +166,13 @@ describe("webhookChannelModule metadata", () => {
     expect(routes[0].bypassAuth).toBe(true);
   });
 
+  it("registers routes even when session autonomy is not configured", () => {
+    const ctx = makeStubCtx();
+    ctx.config = {} as ModuleContext["config"];
+
+    expect(() => webhookChannelModule.routes!(ctx)).not.toThrow();
+  });
+
   it("registers per-source routes when sources configured", () => {
     const ctx = makeStubCtx(undefined, {
       sources: { github: { agent: "builder" }, ci: { agent: "reviewer" } },
@@ -232,6 +239,16 @@ describe("handler — open mode", () => {
     await invokeHandler(ctx, body, {}, undefined, makeSessionFactory(created));
 
     expect(created[0].autonomyMode).toBe("autonomous");
+  });
+
+  it("rejects requests when session autonomy is not configured", async () => {
+    const ctx = makeStubCtx();
+    ctx.config = {} as ModuleContext["config"];
+
+    const res = await invokeHandler(ctx, JSON.stringify({ message: "Test" }));
+
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body!).error).toContain("autonomy mode is not configured");
   });
 
   it("rejects missing message field (HTTP 400)", async () => {
