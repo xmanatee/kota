@@ -6,9 +6,25 @@
 resources:
   - url: https://github.com/openclaw/openclaw
     added: "2026-04-14"
+    snapshot:
+      fingerprint: sha256:3ff3731c01df0daba335c013163109c5
+      summary: "OpenClaw is a local-first personal AI assistant with a gateway-style control plane managing sessions, channels, tools, and events across many messaging platforms; emphasizes injected prompt files (AGENTS.md, SOUL.md, TOOLS.md), per-session Docker sandboxing for non-primary contexts, multi-agent routing with isolated workspaces, wake-word voice on macOS/iOS, continuous voice mode on Android, and an agent-controlled live canvas."
+      last_seen_at: "2026-04-18T00:43:33.664Z"
   - url: https://github.com/zeroclaw-labs/zeroclaw
     added: "2026-04-14"
+    snapshot:
+      fingerprint: sha256:51a7729c05d0012bba7f592aeebb4e54
+      summary: "ZeroClaw is a Rust reimplementation of the OpenClaw-style personal AI assistant, targeting $10 hardware with <5MB RAM and cold starts under a second; positions itself around a local gateway, 20+ messaging channels, per-session autonomy levels (ReadOnly/Supervised/Full), community-auditable skills, 70+ integrated tools, direct ESP32/STM32/Arduino/Raspberry Pi integration, and 20+ LLM backends with failover."
+      last_seen_at: "2026-04-18T00:43:33.665Z"
   - url: https://github.com/RightNow-AI/openfang
     added: "2026-04-14"
+    snapshot:
+      fingerprint: sha256:176eb7e3267c67c26ac799ec0fe846a0
+      summary: "OpenFang presents itself as a Rust 'agent operating system' that compiles to a single ~32MB binary and ships seven pre-built autonomous capability packs called 'Hands' (Clip, Lead, Collector, Predictor, Researcher, Twitter, Browser) alongside 14 modular crates (kernel, runtime, channels, memory, skills), WASM sandboxing, Merkle-chain audit trails, 40 channel adapters, 27 LLM providers, and a stated OpenClaw-migration engine."
+      last_seen_at: "2026-04-18T00:43:33.665Z"
   - url: https://github.com/badlogic/pi-mono
     added: "2026-04-14"
+    snapshot:
+      fingerprint: sha256:c4c36596e3dba94a654bce7537b4ebf1
+      summary: "Pi-mono is a TypeScript monorepo toolkit for building AI agents and managing LLM deployments, bundling a unified multi-provider LLM API, an agent runtime with state persistence, a coding agent CLI, a Slack bot that delegates to the coding agent, a terminal UI library, and web components for chat UIs; encourages public sharing of agent session logs to build training data."
+      last_seen_at: "2026-04-18T00:43:33.665Z"
