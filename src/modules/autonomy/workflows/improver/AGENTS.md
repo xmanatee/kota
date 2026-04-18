@@ -8,6 +8,10 @@ This directory contains the improver workflow definition and prompt.
 - Prefer lightweight validations and repair loops over brittle workflow-coded bookkeeping.
 - If tasks or prompts become too procedural, simplify them back
   to clear goals, constraints, and lightweight rails.
+- A no-op run is correct when the run-outcome data and recent runs show no
+  systemic pattern worth addressing. Make no changes and stop. The commit step
+  already no-ops on an empty diff, and the semantic gate skips without staged
+  changes. Do not invent preventive or speculative edits to avoid exiting clean.
 
 ## Evidence Attachment
 
