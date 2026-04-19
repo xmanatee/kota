@@ -1,9 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import type { KotaConfig } from "#core/config/config.js";
 import { loadConfig } from "#core/config/config.js";
-import { getRepoInboxDir, getRepoTasksDir } from "#core/data/repo-tasks.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { getHistory } from "#core/memory/history.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
@@ -14,7 +11,6 @@ import { getApprovalQueue } from "./approval-queue.js";
 import { computeModuleConfigDiff } from "./config-reload-diff.js";
 import type {
   DaemonControlHandle,
-  DaemonTaskStatusResponse,
   InteractiveSession,
   ModuleHealthCheckResult,
   WorkflowCostEntry,
@@ -272,7 +268,6 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         }),
       };
     },
-    getTaskStatus: () => readTaskStatus(projectDir),
     getWorkflowMetricCounts: (): WorkflowMetricCounts => {
       const now = Date.now();
       if (metricCountsCache && now - metricCountsCacheAt < 30_000) {
@@ -399,62 +394,3 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
   };
 }
 
-function readTaskStatus(projectDir: string): DaemonTaskStatusResponse {
-  const tasksDir = getRepoTasksDir(projectDir);
-  const inboxDir = getRepoInboxDir(projectDir);
-  const countedStates = ["inbox", "ready", "backlog", "doing", "blocked"] as const;
-  const detailStates = ["doing", "ready", "backlog", "blocked"] as const;
-
-  const listFiles = (state: string): string[] => {
-    const dir = join(tasksDir, state);
-    try {
-      return readdirSync(dir).filter((f) => f.endsWith(".md") && f !== "AGENTS.md");
-    } catch {
-      return [];
-    }
-  };
-
-  const parseFm = (content: string): Record<string, string> => {
-    const m = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-    if (!m) return {};
-    const fields: Record<string, string> = {};
-    for (const line of m[1].split(/\r?\n/)) {
-      const colon = line.indexOf(":");
-      if (colon === -1) continue;
-      fields[line.slice(0, colon).trim()] = line.slice(colon + 1).trim();
-    }
-    return fields;
-  };
-
-  const extractBody = (content: string): string => {
-    const bm = content.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n([\s\S]*)$/);
-    return bm ? bm[1].trim() : "";
-  };
-
-  const readState = (state: string): DaemonTaskStatusResponse["tasks"]["doing"] =>
-    listFiles(state).flatMap((file) => {
-      try {
-        const content = readFileSync(join(tasksDir, state, file), "utf-8");
-        const fm = parseFm(content);
-        if (!fm.id || !fm.title) return [];
-        return [{ id: fm.id, title: fm.title, priority: fm.priority ?? "", area: fm.area ?? "", summary: fm.summary ?? "", body: extractBody(content) }];
-      } catch {
-        return [];
-      }
-    });
-
-  const counts = Object.fromEntries(countedStates.map((s) => [
-    s,
-    s === "inbox"
-      ? (() => {
-          try {
-            return readdirSync(inboxDir).filter((f) => f.endsWith(".md") && f !== "AGENTS.md").length;
-          } catch {
-            return 0;
-          }
-        })()
-      : listFiles(s).length,
-  ])) as DaemonTaskStatusResponse["counts"];
-  const tasks = Object.fromEntries(detailStates.map((s) => [s, readState(s)])) as DaemonTaskStatusResponse["tasks"];
-  return { counts, tasks };
-}

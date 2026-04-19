@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { REPO_TASKS_DIR } from "#core/data/repo-tasks.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { type WorkflowRunSummary, writeRunSummary } from "#modules/autonomy/run-summary.js";
+import { REPO_TASKS_DIR } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 export type BuilderRunSummary = WorkflowRunSummary;
 

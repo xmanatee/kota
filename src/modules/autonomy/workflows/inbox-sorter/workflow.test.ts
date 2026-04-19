@@ -14,7 +14,7 @@ vi.mock("#core/util/repo-worktree.js", () => ({
   }),
 }));
 
-vi.mock("#core/data/repo-tasks.js", () => ({
+vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
   getRepoTaskQueueSnapshot: vi.fn(),
   REPO_INBOX_DIR: "data/inbox",
 }));
@@ -60,7 +60,7 @@ describe("inbox-sorter workflow", () => {
   });
 
   it("skips sorting when inbox is empty", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(0));
 
     const harness = new WorkflowTestHarness(inboxSorterWorkflow, {
@@ -89,7 +89,7 @@ describe("inbox-sorter workflow", () => {
       summary: ".DS_Store, tmp/scratch.txt",
       headSha: "abc1234",
     });
-    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1));
 
     const harness = new WorkflowTestHarness(inboxSorterWorkflow, {
@@ -115,7 +115,7 @@ describe("inbox-sorter workflow", () => {
       summary: "src/core/foo.ts",
       headSha: "abc1234",
     });
-    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1));
 
     const harness = new WorkflowTestHarness(inboxSorterWorkflow, {
@@ -128,7 +128,7 @@ describe("inbox-sorter workflow", () => {
 
   it("runs sorter and commit when inbox has entries", async () => {
     await mockCleanWorktree();
-    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(2));
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");

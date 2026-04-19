@@ -1,7 +1,7 @@
 import { join } from "node:path";
-import { countRepoTaskState } from "#core/data/repo-tasks.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
 import { loadRecentRuns, type RunSummary } from "#modules/autonomy/shared.js";
+import { countRepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 const DIGEST_EVERY_N_RUNS = 10;
 // KOTA_DIGEST_WARNINGS_COUNT: number of builder runs with warnings to trigger the check (default 3)

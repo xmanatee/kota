@@ -1,6 +1,4 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
-import type { RepoTaskQueueSnapshot } from "#core/data/repo-tasks.js";
-import { getRepoTaskQueueSnapshot } from "#core/data/repo-tasks.js";
 import { getRepoHeadSha, getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
@@ -16,6 +14,8 @@ import {
   stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
+import type { RepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { BranchStepResult, CleanupResult } from "./branch-per-task.js";
 import { cleanupMergedBranches, createPullRequest, createTaskBranch } from "./branch-per-task.js";
 import { builderRepairChecks } from "./repair-checks.js";

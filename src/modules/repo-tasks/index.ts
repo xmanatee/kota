@@ -1,8 +1,9 @@
 /**
- * Repo-tasks module — operator CLI for managing the KOTA task queue.
+ * Repo-tasks module — owns KOTA's task-queue domain.
  *
- * Owns the `kota task` subcommands. The underlying RepoTask types and state
- * constants live in repo-tasks.ts, co-located in this module.
+ * Ships the `kota task` CLI subcommands, the `/api/tasks` HTTP routes, and the
+ * domain model (state constants, path helpers, queue snapshot, task-status
+ * response shape) in `repo-tasks-domain.ts`.
  */
 
 import { Command } from "commander";

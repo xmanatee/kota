@@ -117,25 +117,6 @@ export type WorkflowRunDetail = WorkflowRunSummary & {
   warnings?: Array<{ type: string; message: string }>;
 };
 
-export type DaemonTaskDetail = {
-  id: string;
-  title: string;
-  priority: string;
-  area: string;
-  summary: string;
-  body: string;
-};
-
-export type DaemonTaskStatusResponse = {
-  counts: { inbox: number; ready: number; backlog: number; doing: number; blocked: number };
-  tasks: {
-    doing: DaemonTaskDetail[];
-    ready: DaemonTaskDetail[];
-    backlog: DaemonTaskDetail[];
-    blocked: DaemonTaskDetail[];
-  };
-};
-
 export type InteractiveSession = {
   id: string;
   createdAt: string;
@@ -215,8 +196,6 @@ export type DaemonControlHandle = {
   listOwnerQuestions(): PendingOwnerQuestion[];
   answerOwnerQuestion(id: string, answer: string): PendingOwnerQuestion | null;
   dismissOwnerQuestion(id: string, reason?: string): PendingOwnerQuestion | null;
-  // Tasks
-  getTaskStatus(): DaemonTaskStatusResponse;
   // Workflow runs
   listWorkflowRuns(workflow?: string, limit?: number, tag?: string, causedByRunId?: string): WorkflowRunSummary[];
   getWorkflowRun(id: string): WorkflowRunDetail | null;

@@ -2,35 +2,10 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
-import { getRepoInboxDir, getRepoTasksDir, type RepoTaskState } from "#core/data/repo-tasks.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
-import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
-
-type TaskDetail = {
-  id: string;
-  title: string;
-  priority: string;
-  area: string;
-  summary: string;
-  body: string;
-};
-
-type TasksResponse = {
-  counts: {
-    inbox: number;
-    ready: number;
-    backlog: number;
-    doing: number;
-    blocked: number;
-  };
-  tasks: {
-    doing: TaskDetail[];
-    ready: TaskDetail[];
-    backlog: TaskDetail[];
-    blocked: TaskDetail[];
-  };
-};
+import type { DaemonTaskDetail, DaemonTaskStatusResponse } from "./repo-tasks-domain.js";
+import { getRepoInboxDir, getRepoTasksDir, type RepoTaskState } from "./repo-tasks-domain.js";
 
 const COUNTED_STATES = ["inbox", "ready", "backlog", "doing", "blocked"] as const;
 const DETAIL_STATES = ["doing", "ready", "backlog", "blocked"] as const;
@@ -104,9 +79,9 @@ function extractBody(content: string): string {
   return match ? match[1].trim() : "";
 }
 
-function readStateTasks(tasksDir: string, state: string): TaskDetail[] {
+function readStateTasks(tasksDir: string, state: string): DaemonTaskDetail[] {
   const files = listTaskFiles(tasksDir, state);
-  const result: TaskDetail[] = [];
+  const result: DaemonTaskDetail[] = [];
   for (const file of files) {
     const content = tryReadUtf8(join(tasksDir, state, file));
     if (content === null) {
@@ -333,19 +308,10 @@ export async function handleTaskBodyUpdate(
   }
 }
 
-export async function handleTaskStatus(
+export function handleTaskStatus(
   res: ServerResponse,
-  client: DaemonControlClient | null = null,
   projectDir = process.cwd(),
-): Promise<void> {
-  if (client) {
-    const result = await client.getTaskStatus();
-    if (result) {
-      jsonResponse(res, 200, result);
-      return;
-    }
-  }
-
+): void {
   const tasksDir = getRepoTasksDir(projectDir);
   const inboxDir = getRepoInboxDir(projectDir);
   const counts = Object.fromEntries(
@@ -353,11 +319,11 @@ export async function handleTaskStatus(
       state,
       state === "inbox" ? countMarkdownFiles(inboxDir) : listTaskFiles(tasksDir, state).length,
     ]),
-  ) as TasksResponse["counts"];
+  ) as DaemonTaskStatusResponse["counts"];
   const tasks = Object.fromEntries(
     DETAIL_STATES.map((state) => [state, readStateTasks(tasksDir, state)]),
-  ) as TasksResponse["tasks"];
-  jsonResponse(res, 200, { counts, tasks } satisfies TasksResponse);
+  ) as DaemonTaskStatusResponse["tasks"];
+  jsonResponse(res, 200, { counts, tasks } satisfies DaemonTaskStatusResponse);
 }
 
 const TASK_STATE_PATTERN = /^\/api\/tasks\/([^/]+)\/state$/;
@@ -368,7 +334,7 @@ export function taskRoutes(): RouteRegistration[] {
     {
       method: "GET",
       path: "/api/tasks",
-      handler: (_req, res) => handleTaskStatus(res, DaemonControlClient.fromStateDir()),
+      handler: (_req, res) => handleTaskStatus(res),
     },
     {
       method: "POST",

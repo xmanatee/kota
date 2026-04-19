@@ -45,8 +45,6 @@ export type {
   DaemonLiveStatus,
   DaemonSseEvent,
   DaemonSseEventType,
-  DaemonTaskDetail,
-  DaemonTaskStatusResponse,
   HealthStatus,
   InteractiveSession,
   WorkflowCostEntry,
@@ -91,7 +89,6 @@ const ROUTE_SCOPES: Record<string, "read" | "control"> = {
   "GET /workflow/runs/:id": "read",
   "DELETE /workflow/runs/:id": "control",
   "POST /workflow/runs/:id/abort": "control",
-  "GET /tasks": "read",
   "GET /sessions": "read",
   "POST /sessions": "control",
   "POST /sessions/register": "control",
@@ -365,8 +362,6 @@ export class DaemonControlServer {
     if (method === "GET" && path === "/owner-questions") { handleListOwnerQuestions(h, res); return; }
     if (method === "POST" && params.id && path.startsWith("/owner-questions/") && path.endsWith("/answer")) { handleAnswerOwnerQuestion(h, req, res, params); return; }
     if (method === "POST" && params.id && path.startsWith("/owner-questions/") && path.endsWith("/dismiss")) { handleDismissOwnerQuestion(h, req, res, params); return; }
-
-    if (method === "GET" && path === "/tasks") { jsonResponse(res, 200, h.getTaskStatus()); return; }
 
     if (method === "GET" && path === "/sessions") {
       if (this.chatPool) {

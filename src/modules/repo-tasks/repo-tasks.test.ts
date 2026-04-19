@@ -10,7 +10,7 @@ import {
   REPO_INBOX_DIR,
   REPO_TASK_STATES,
   REPO_TASKS_DIR,
-} from "#core/data/repo-tasks.js";
+} from "./repo-tasks-domain.js";
 
 describe("repo task helpers", () => {
   let projectDir: string;

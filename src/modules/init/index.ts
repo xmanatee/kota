@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Command } from "commander";
-import { REPO_INBOX_DIR, REPO_TASK_STATES, REPO_TASKS_DIR } from "#core/data/repo-tasks.js";
 import type { KotaModule } from "#core/modules/module-types.js";
+import { REPO_INBOX_DIR, REPO_TASK_STATES, REPO_TASKS_DIR } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 const KOTA_CONFIG_TEMPLATE = `import type { KotaConfig } from "kota/module";
 
@@ -167,6 +167,7 @@ const initModule: KotaModule = {
   name: "init",
   version: "1.0.0",
   description: "Scaffolds a new KOTA project",
+  dependencies: ["repo-tasks"],
 
   commands: () => {
     const cmd = new Command("init")

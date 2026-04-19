@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleTaskBodyUpdate, handleTaskCreate, handleTaskStateChange, handleTaskStatus } from "./routes.js";
 
+
 function makeProjectDir(): string {
   const dir = join(
     tmpdir(),
@@ -43,13 +44,6 @@ function mockResponse() {
   return { res, result };
 }
 
-function mockClient(overrides: Partial<Record<string, unknown>> = {}) {
-  return {
-    getTaskStatus: vi.fn(async () => null),
-    ...overrides,
-  } as unknown as import("#core/server/daemon-client.js").DaemonControlClient;
-}
-
 function mockRequest(body: Record<string, unknown>): IncomingMessage {
   const data = Buffer.from(JSON.stringify(body));
   const handlers: Record<string, Array<(arg?: Buffer | Error) => void>> = {};
@@ -78,34 +72,10 @@ describe("task-routes", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  describe("daemon client proxy", () => {
-    it("returns daemon response when client succeeds", async () => {
-      const daemonResponse = {
-        counts: { inbox: 1, ready: 2, backlog: 3, doing: 0, blocked: 0 },
-        tasks: { doing: [], ready: [], backlog: [], blocked: [] },
-      };
-      const client = mockClient({ getTaskStatus: vi.fn(async () => daemonResponse) });
-      const { res, result } = mockResponse();
-      await handleTaskStatus(res, client, makeProjectDir());
-      expect(result.status).toBe(200);
-      expect((result.body as typeof daemonResponse).counts.ready).toBe(2);
-    });
-
-    it("falls back to direct read when client returns null", async () => {
-      const client = mockClient({ getTaskStatus: vi.fn(async () => null) });
-      const dir = makeProjectDir();
-      writeTaskFile(dir, "ready", "t1", { id: "task-t1", title: "T1", priority: "p2" });
-      const { res, result } = mockResponse();
-      await handleTaskStatus(res, client, dir);
-      expect(result.status).toBe(200);
-      expect((result.body as { counts: Record<string, number> }).counts.ready).toBe(1);
-    });
-  });
-
   describe("handleTaskStatus", () => {
     it("returns 200 with zero counts when tasks directory is missing", async () => {
       const { res, result } = mockResponse();
-      await handleTaskStatus(res, null, projectDir);
+      handleTaskStatus(res, projectDir);
       expect(result.status).toBe(200);
       const body = result.body as { counts: Record<string, number>; tasks: Record<string, unknown[]> };
       expect(body.counts).toMatchObject({ inbox: 0, ready: 0, backlog: 0, doing: 0, blocked: 0 });
@@ -120,7 +90,7 @@ describe("task-routes", () => {
       writeTaskFile(projectDir, "blocked", "task-d", { id: "task-d", title: "Task D", priority: "p2" });
 
       const { res, result } = mockResponse();
-      await handleTaskStatus(res, null, projectDir);
+      handleTaskStatus(res, projectDir);
       expect(result.status).toBe(200);
       const body = result.body as { counts: Record<string, number>; tasks: Record<string, unknown[]> };
       expect(body.counts.ready).toBe(2);
@@ -142,7 +112,7 @@ describe("task-routes", () => {
       });
 
       const { res, result } = mockResponse();
-      await handleTaskStatus(res, null, projectDir);
+      handleTaskStatus(res, projectDir);
       expect(result.status).toBe(200);
       const body = result.body as { counts: Record<string, number>; tasks: Record<string, unknown[]> };
       expect(body.counts.doing).toBe(1);
@@ -162,7 +132,7 @@ describe("task-routes", () => {
       writeTaskFile(projectDir, "blocked", "bl1", { id: "task-bl1", title: "Blocked task", priority: "p1" });
 
       const { res, result } = mockResponse();
-      await handleTaskStatus(res, null, projectDir);
+      handleTaskStatus(res, projectDir);
       const body = result.body as { tasks: Record<string, Array<Record<string, string>>> };
       expect(body.tasks.ready).toHaveLength(1);
       expect(body.tasks.ready[0].title).toBe("Ready task");
@@ -177,7 +147,7 @@ describe("task-routes", () => {
       writeTaskFile(projectDir, "ready", "real-task", { id: "task-real", title: "Real", priority: "p2" });
 
       const { res, result } = mockResponse();
-      await handleTaskStatus(res, null, projectDir);
+      handleTaskStatus(res, projectDir);
       const body = result.body as { counts: Record<string, number> };
       expect(body.counts.ready).toBe(1);
     });

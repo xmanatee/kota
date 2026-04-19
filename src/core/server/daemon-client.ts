@@ -6,7 +6,6 @@ import type {
   DaemonLiveStatus,
   DaemonSseEvent,
   DaemonSseEventType,
-  DaemonTaskStatusResponse,
   HealthStatus,
   WorkflowDefinitionSummary,
   WorkflowLiveStatus,
@@ -337,16 +336,6 @@ export class DaemonControlClient {
       });
       if (!res.ok) return null;
       return (await res.json()) as { approvals: PendingApproval[]; count: number };
-    } catch {
-      return null;
-    }
-  }
-
-  async getTaskStatus(): Promise<DaemonTaskStatusResponse | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/tasks`, { headers: this.authHeaders() });
-      if (!res.ok) return null;
-      return (await res.json()) as DaemonTaskStatusResponse;
     } catch {
       return null;
     }

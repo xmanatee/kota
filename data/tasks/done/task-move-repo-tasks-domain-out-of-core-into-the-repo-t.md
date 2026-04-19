@@ -1,12 +1,12 @@
 ---
 id: task-move-repo-tasks-domain-out-of-core-into-the-repo-t
 title: Move repo-tasks domain out of core into the repo-tasks module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Relocate src/core/data/repo-tasks.ts and the daemon-side readTaskStatus/DaemonTaskStatusResponse surface into the repo-tasks module so KOTA's task-queue domain lives with its owning module, removing a core-leak of state-names and inbox knowledge and extending the sqlite-memory / mcp-server / semantic-index extraction pattern
 created_at: 2026-04-19T17:37:20.188Z
-updated_at: 2026-04-19T17:37:20.188Z
+updated_at: 2026-04-19T18:45:52.096Z
 ---
 
 ## Problem

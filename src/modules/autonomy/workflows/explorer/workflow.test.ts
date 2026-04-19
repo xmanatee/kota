@@ -18,7 +18,7 @@ vi.mock("#core/util/repo-worktree.js", () => ({
   })),
 }));
 
-vi.mock("#core/data/repo-tasks.js", () => ({
+vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
   getRepoTaskQueueSnapshot: vi.fn(),
   isRepoTaskQueueSnapshot: vi.fn(() => true),
   isThinPullQueue: vi.fn((snapshot) => {
@@ -67,7 +67,7 @@ describe("explorer workflow", () => {
   });
 
   it("skips explore when inbox is non-empty", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
       makeSnapshot({ inboxCount: 1, ready: 0, backlog: 0 }),
     );
@@ -89,7 +89,7 @@ describe("explorer workflow", () => {
   });
 
   it("skips explore when ready or backlog already contains work", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
       makeSnapshot({ inboxCount: 0, ready: 1, backlog: 2 }),
     );
@@ -110,7 +110,7 @@ describe("explorer workflow", () => {
   });
 
   it("runs explore when only a one-item backlog tail remains and refresh is due", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
       makeSnapshot({ inboxCount: 0, ready: 0, backlog: 1, doing: 0 }),
     );
@@ -139,7 +139,7 @@ describe("explorer workflow", () => {
   });
 
   it("runs explore when a single ready task remains and refresh is due", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
       makeSnapshot({ inboxCount: 0, ready: 1, backlog: 0, doing: 0 }),
     );
@@ -168,7 +168,7 @@ describe("explorer workflow", () => {
   });
 
   it("skips explore when doing already contains work", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
       makeSnapshot({ inboxCount: 0, ready: 0, backlog: 0, doing: 1 }),
     );
@@ -189,7 +189,7 @@ describe("explorer workflow", () => {
   });
 
   it("skips explore when the queue is empty but the refresh window is not due", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());
 
     // Write a recent exploration timestamp
@@ -212,7 +212,7 @@ describe("explorer workflow", () => {
   });
 
   it("runs explore when the queue is empty and refresh is due", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
@@ -240,7 +240,7 @@ describe("explorer workflow", () => {
   });
 
   it("writes lastExplorationAt only when explore step runs", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());
 
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
@@ -260,7 +260,7 @@ describe("explorer workflow", () => {
   });
 
   it("does not write lastExplorationAt when explore step is skipped", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());
 
     // Write recent exploration → refresh not due, explore will skip
@@ -290,7 +290,7 @@ describe("explorer workflow", () => {
       headSha: "abc1234",
     });
 
-    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());
 
     const harness = new WorkflowTestHarness(explorerWorkflow, {
@@ -319,7 +319,7 @@ describe("explorer workflow", () => {
   });
 
   it("does not starve exploration when skipped runs repeatedly complete", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("#core/data/repo-tasks.js");
+    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
     vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());

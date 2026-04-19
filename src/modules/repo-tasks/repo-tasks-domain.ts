@@ -104,3 +104,22 @@ export function isThinPullQueue(snapshot: RepoTaskQueueSnapshot): boolean {
     (waitingCount > 0 || snapshot.counts.doing > 0)
   );
 }
+
+export type DaemonTaskDetail = {
+  id: string;
+  title: string;
+  priority: string;
+  area: string;
+  summary: string;
+  body: string;
+};
+
+export type DaemonTaskStatusResponse = {
+  counts: { inbox: number; ready: number; backlog: number; doing: number; blocked: number };
+  tasks: {
+    doing: DaemonTaskDetail[];
+    ready: DaemonTaskDetail[];
+    backlog: DaemonTaskDetail[];
+    blocked: DaemonTaskDetail[];
+  };
+};

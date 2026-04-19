@@ -52,7 +52,6 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     listOwnerQuestions: vi.fn(() => []),
     answerOwnerQuestion: vi.fn(() => null),
     dismissOwnerQuestion: vi.fn(() => null),
-    getTaskStatus: vi.fn(() => ({ counts: { inbox: 0, ready: 0, backlog: 0, doing: 0, blocked: 0 }, tasks: { doing: [], ready: [], backlog: [], blocked: [] } })),
     listWorkflowRuns: vi.fn(() => []),
     getWorkflowRun: vi.fn(() => null),
     getWorkflowMetricCounts: vi.fn((): WorkflowMetricCounts => ({ runCounts: [], costTotals: [], durationHistogram: [] })),
@@ -1112,46 +1111,6 @@ describe("DaemonControlServer", () => {
 
     it("returns 401 without token", async () => {
       const res = await fetchNoToken(port, "/owner-questions/oq-1/dismiss", { method: "POST" });
-      expect(res.status).toBe(401);
-    });
-  });
-
-  describe("GET /tasks", () => {
-    it("returns 200 with task status", async () => {
-      const res = await fetchWithToken(port, "/tasks");
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body).toMatchObject({
-        counts: { inbox: 0, ready: 0, backlog: 0, doing: 0, blocked: 0 },
-        tasks: { doing: [], ready: [], backlog: [], blocked: [] },
-      });
-      expect(handle.getTaskStatus).toHaveBeenCalled();
-    });
-
-    it("returns task data from handle", async () => {
-      const taskStatus = {
-        counts: { inbox: 0, ready: 1, backlog: 0, doing: 0, blocked: 0 },
-        tasks: {
-          doing: [],
-          ready: [{ id: "task-1", title: "Fix bug", priority: "p1", area: "core", summary: "A bug", body: "" }],
-          backlog: [],
-          blocked: [],
-        },
-      };
-      handle = makeHandle({ getTaskStatus: vi.fn(() => taskStatus) });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
-
-      const res = await fetchWithToken(port, "/tasks");
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.counts.ready).toBe(1);
-      expect(body.tasks.ready).toHaveLength(1);
-    });
-
-    it("returns 401 without token", async () => {
-      const res = await fetchNoToken(port, "/tasks");
       expect(res.status).toBe(401);
     });
   });

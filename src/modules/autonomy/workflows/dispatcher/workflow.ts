@@ -1,8 +1,8 @@
+import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   getRepoTaskQueueSnapshot,
   isThinPullQueue,
-} from "#core/data/repo-tasks.js";
-import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+} from "#modules/repo-tasks/repo-tasks-domain.js";
 
 // Not recovery-capable: dispatcher only reads repo state and emits events — it
 // never mutates tracked files, so it cannot leave dirt to heal and cannot help

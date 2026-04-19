@@ -111,7 +111,6 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     listOwnerQuestions: vi.fn(() => []),
     answerOwnerQuestion: vi.fn(() => null),
     dismissOwnerQuestion: vi.fn(() => null),
-    getTaskStatus: vi.fn(() => ({ counts: { inbox: 0, ready: 0, backlog: 0, doing: 0, blocked: 0 }, tasks: { doing: [], ready: [], backlog: [], blocked: [] } })),
     listWorkflowRuns: vi.fn(() => []),
     getWorkflowRun: vi.fn(() => null),
     getWorkflowMetricCounts: vi.fn((): WorkflowMetricCounts => ({ runCounts: [], costTotals: [], durationHistogram: [] })),
