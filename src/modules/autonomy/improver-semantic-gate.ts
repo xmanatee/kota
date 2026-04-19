@@ -10,6 +10,7 @@ import {
   invokeAgentJudge,
   parseVerdict,
 } from "./critic.js";
+import { AUTONOMY_AGENT_DEFAULTS } from "./shared.js";
 
 const GATE_MAX_TURNS = 10;
 const ARTIFACT_NAME = "semantic-gate-review.json";
@@ -57,9 +58,9 @@ Example:
 const gateConfig: AgentJudgeConfig = {
   label: "Semantic gate",
   systemPrompt: GATE_SYSTEM_PROMPT,
-  model: "claude-opus-4-7",
+  model: AUTONOMY_AGENT_DEFAULTS.model,
   maxTurns: GATE_MAX_TURNS,
-  effort: "xhigh",
+  effort: AUTONOMY_AGENT_DEFAULTS.effort,
 };
 
 function readCommitMessage(runDirPath: string): string {

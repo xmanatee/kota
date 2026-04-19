@@ -10,6 +10,7 @@ import {
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
 import {
+  AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_DISALLOWED_TOOLS,
   checkCommitMessageExists,
@@ -22,8 +23,7 @@ export const agent: AgentDef = {
   name: "inbox-sorter",
   role: "Turn quick inbox captures into the right durable project artifacts.",
   promptPath: "src/modules/autonomy/workflows/inbox-sorter/prompt.md",
-  model: "claude-opus-4-7",
-  effort: "xhigh",
+  ...AUTONOMY_AGENT_DEFAULTS,
   tools: { permissionMode: "bypassPermissions" },
   settingSources: ["project"],
 };

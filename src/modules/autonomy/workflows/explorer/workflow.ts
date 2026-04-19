@@ -12,6 +12,7 @@ import {
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
 import {
+  AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_DISALLOWED_TOOLS,
   checkCommitMessageExists,
@@ -37,8 +38,7 @@ export const agent: AgentDef = {
   name: "explorer",
   role: "Find strong external ideas and promising new directions when the local queue is empty or running thin.",
   promptPath: "src/modules/autonomy/workflows/explorer/prompt.md",
-  model: "claude-opus-4-7",
-  effort: "xhigh",
+  ...AUTONOMY_AGENT_DEFAULTS,
   tools: { permissionMode: "bypassPermissions" },
   settingSources: ["project"],
 };

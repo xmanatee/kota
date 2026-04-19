@@ -10,6 +10,7 @@ import {
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
 import {
+  AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_DISALLOWED_TOOLS,
   stepCommitted,
@@ -25,8 +26,7 @@ export const agent: AgentDef = {
   name: "builder",
   role: "Ship one cohesive improvement per run by resuming, pulling, or promoting one normalized task.",
   promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
-  model: "claude-opus-4-7",
-  effort: "xhigh",
+  ...AUTONOMY_AGENT_DEFAULTS,
   skills: "all",
   tools: { permissionMode: "bypassPermissions" },
   settingSources: ["project"],

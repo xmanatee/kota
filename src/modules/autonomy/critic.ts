@@ -3,7 +3,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createDaemonHostControlGuard, executeWithAgentSDK } from "#core/agent-sdk/index.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
-import { AUTONOMY_DISALLOWED_TOOLS, sleep } from "./shared.js";
+import { AUTONOMY_AGENT_DEFAULTS, AUTONOMY_DISALLOWED_TOOLS, sleep } from "./shared.js";
 import { findTaskReviewTarget } from "./task-review-target.js";
 
 export type CriticVerdict = {
@@ -12,8 +12,6 @@ export type CriticVerdict = {
   warnings: string[];
   summary: string;
 };
-
-const CRITIC_MODEL = "claude-opus-4-7";
 
 const CRITIC_SYSTEM_PROMPT = `You are a calibrated code review critic. Your job is to determine whether an agent's work genuinely and completely fulfills its assigned task.
 
@@ -264,9 +262,9 @@ export async function invokeAgentJudge(
 const criticConfig: AgentJudgeConfig = {
   label: "Critic agent",
   systemPrompt: CRITIC_SYSTEM_PROMPT,
-  model: CRITIC_MODEL,
+  model: AUTONOMY_AGENT_DEFAULTS.model,
   maxTurns: CRITIC_MAX_TURNS,
-  effort: "xhigh",
+  effort: AUTONOMY_AGENT_DEFAULTS.effort,
 };
 
 export function createCriticCheck(options?: {

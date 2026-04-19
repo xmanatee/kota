@@ -1,12 +1,12 @@
 ---
 id: task-centralize-autonomy-agent-model-and-effort-default
 title: Centralize autonomy agent model and effort defaults
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Stop hardcoding model and effort on every autonomy agent definition and source them from one typed default so model bumps and operator tuning happen in one place
 created_at: 2026-04-19T13:16:38.408Z
-updated_at: 2026-04-19T13:16:38.408Z
+updated_at: 2026-04-19T14:16:02.559Z
 ---
 
 ## Problem

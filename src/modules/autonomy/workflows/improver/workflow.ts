@@ -10,6 +10,7 @@ import { aggregateRunOutcomes } from "#modules/autonomy/run-outcome-aggregation.
 import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
 import { writeRunSummary } from "#modules/autonomy/run-summary.js";
 import {
+  AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_DISALLOWED_TOOLS,
   checkCommitMessageExists,
@@ -34,8 +35,7 @@ export const agent: AgentDef = {
   name: "improver",
   role: "Improve the autonomous development system itself using evidence from recent runs.",
   promptPath: "src/modules/autonomy/workflows/improver/prompt.md",
-  model: "claude-opus-4-7",
-  effort: "xhigh",
+  ...AUTONOMY_AGENT_DEFAULTS,
   tools: { permissionMode: "bypassPermissions" },
   settingSources: ["project"],
 };

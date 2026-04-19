@@ -2,6 +2,7 @@ import type { AgentDef } from "#core/agents/agent-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import {
+  AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_DISALLOWED_TOOLS,
   stepSucceeded,
@@ -11,8 +12,7 @@ export const agent: AgentDef = {
   name: "pr-reviewer",
   role: "Review KOTA-created pull requests for correctness relative to the task's Done When criteria.",
   promptPath: "src/modules/autonomy/workflows/pr-reviewer/prompt.md",
-  model: "claude-opus-4-7",
-  effort: "xhigh",
+  ...AUTONOMY_AGENT_DEFAULTS,
   tools: { permissionMode: "bypassPermissions" },
   settingSources: ["project"],
 };

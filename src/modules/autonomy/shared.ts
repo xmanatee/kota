@@ -1,6 +1,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
+import type { AgentDef } from "#core/agents/agent-types.js";
 import type {
   WorkflowPredicate,
   WorkflowRunMetadata,
@@ -38,6 +39,15 @@ export const READY_TASK_TARGET = 4;
 export const BACKLOG_TASK_TARGET = 8;
 export const AUTONOMY_DISALLOWED_TOOLS = ["Agent", "Task", "EnterWorktree", "ExitWorktree"];
 export const AUTONOMY_AGENT_HANG_TIMEOUT_MS = 3 * 60 * 60 * 1000;
+
+// Single source of truth for the autonomy fleet's model and effort level.
+// Every autonomy workflow agent and autonomy-internal judge (critic,
+// semantic gate) spreads this default; a workflow that genuinely needs to
+// diverge overrides the individual field after the spread.
+export const AUTONOMY_AGENT_DEFAULTS: Pick<AgentDef, "model" | "effort"> = {
+  model: "claude-opus-4-7",
+  effort: "xhigh",
+};
 
 export type RunSummary = {
   id: string;
