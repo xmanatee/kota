@@ -30,22 +30,58 @@ resources:
       last_seen_at: "2026-04-18T00:43:33.665Z"
   - url: https://github.com/anthropics/claude-code
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:44e86aa549655f14ceea7b69db7bf4cd
+      summary: "Claude Code is Anthropic's agentic terminal coding tool with CLI, VS Code, GitHub-tag, and dev-container channels; extends via a /plugins system with custom commands, agents, hooks, and .claude/commands user slash commands; distributes via native installers and a deprecated npm package."
+      last_seen_at: "2026-04-19T22:21:08.572Z"
   - url: https://github.com/openai/codex
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:ad3f4fb2fb06f557af145bdedfb8ff1b
+      summary: "Codex is OpenAI's Rust-built local coding agent with terminal, IDE-plugin, desktop, and web surfaces; uses ChatGPT-account or API-key auth, references AGENTS.md repo conventions, and integrates external tools via an MCP Registry."
+      last_seen_at: "2026-04-19T22:21:08.572Z"
   - url: https://github.com/google-gemini/gemini-cli
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:51e09fcfc835a9acb3ed70e30e1f3557
+      summary: "Gemini CLI is Google's TypeScript open-source terminal Gemini agent with built-in fs/shell/web tools, MCP-server extensibility, three account/auth tiers, a 'trusted folders' execution policy plus sandbox, slash-command interactive UX, and JSON / streaming-JSON non-interactive modes."
+      last_seen_at: "2026-04-19T22:21:08.572Z"
   - url: https://github.com/Aider-AI/aider
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:7315ced4656d522d01fb396c1c40412a
+      summary: "Aider is a git-aware terminal pair-programming CLI that builds a tree-sitter repo map, supports many LLM backends, auto-commits with sensible messages, runs lint/tests in-loop, and offers watch-mode IDE comments, voice-to-code, and a copy/paste-to-web-chat fallback."
+      last_seen_at: "2026-04-19T22:21:08.572Z"
   - url: https://github.com/block/goose
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:b38bb126730cd20add342444ed10007b
+      summary: "Goose is Block's Rust+TypeScript general AI agent with desktop, CLI, and API surfaces; supports 15+ LLM providers (incl. ACP credential reuse), 70+ MCP extensions, AAIF/Linux-Foundation governance, and brandable preconfigured distributions."
+      last_seen_at: "2026-04-19T22:21:08.572Z"
   - url: https://github.com/All-Hands-AI/OpenHands
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:2317a3a152df0b140a81a7ae25d2b92f
+      summary: "OpenHands is an MIT-licensed Python+React autonomous-dev agent framework with an SDK, REST agent server, web UI, Docker/Kubernetes deployments, multi-LLM backends, Slack/Jira/Linear integrations, and a benchmarked 77.6% on SWE-bench."
+      last_seen_at: "2026-04-19T22:21:08.572Z"
   - url: https://github.com/SWE-agent/SWE-agent
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:460930794db8bd613177ec8e6a14a6e6
+      summary: "SWE-agent is a Princeton/Stanford research coding agent with a YAML-configured Agent-Computer Interface, SWE-bench harness integration, an EnIGMA cybersecurity CTF mode, and a 100-line successor (mini-SWE-agent) reaching 65% on SWE-bench verified."
+      last_seen_at: "2026-04-19T22:21:08.572Z"
   - url: https://github.com/princeton-nlp/SWE-bench
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:7d50cc970580558044a2dee341510f2c
+      summary: "SWE-bench scores LLM patches against real GitHub issues using a Docker-based reproducible harness with structured prediction inputs and standardized result outputs; supports local Docker, Modal, or sb-cli execution and recommends 0.75*cpu workers."
+      last_seen_at: "2026-04-19T22:21:08.572Z"
   - url: https://github.com/letta-ai/letta
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:c89d647c67c17844b365886127f5f85b
+      summary: "Letta is an open-source Python platform for stateful agents organized around labeled `memory_blocks`; ships a CLI (Letta Code) with built-in skills/subagents and an SDK-backed agent API server, with Docker and migration tooling for self-hosted deployments."
+      last_seen_at: "2026-04-19T22:21:08.572Z"
   - url: https://github.com/microsoft/autogen
     added: "2026-04-19"
   - url: https://github.com/crewAIInc/crewAI
@@ -64,6 +100,10 @@ resources:
     added: "2026-04-19"
   - url: https://www.anthropic.com/engineering
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:d86d2a8e2e7ba5ae43be88ca1bc892b3
+      summary: "Anthropic engineering blog index lists recent posts on quantifying infra noise in coding evals, decoupling agent brains/hands at scale, Claude Code auto mode and sandboxing, harness design for long-running app development, multi-Claude parallel C-compiler builds, and several deep-dives on agent evaluations."
+      last_seen_at: "2026-04-19T22:21:08.572Z"
   - url: https://openai.com/research
     added: "2026-04-19"
   - url: https://deepmind.google/discover/blog/
