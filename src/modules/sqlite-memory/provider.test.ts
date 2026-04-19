@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { SQLiteMemoryProvider } from "./sqlite-memory.js";
+import { SQLiteMemoryProvider } from "./provider.js";
 
 // Check if sqlite3 is available
 let hasSqlite = false;

@@ -12,8 +12,8 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { SQLiteMemoryProvider } from "#core/memory/sqlite-memory.js";
 import type { HealthCheckResult, KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { SQLiteMemoryProvider } from "./provider.js";
 
 let storageDir: string | null = null;
 

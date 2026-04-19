@@ -1,12 +1,12 @@
 ---
 id: task-move-sqlitememoryprovider-implementation-into-the-
 title: Move SQLiteMemoryProvider implementation into the sqlite-memory module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Relocate the SQLite-backed memory provider impl from src/core/memory/sqlite-memory.ts into the sqlite-memory module so the provider lives where the only consumer does, per the core-boundary rule
 created_at: 2026-04-19T15:42:02.674Z
-updated_at: 2026-04-19T15:42:02.674Z
+updated_at: 2026-04-19T16:23:31.115Z
 ---
 
 ## Problem

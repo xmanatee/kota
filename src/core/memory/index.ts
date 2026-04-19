@@ -1,6 +1,6 @@
 /**
  * Memory subsystem — persistent memory, knowledge store, conversation history,
- * working memory, context compaction, and SQLite-backed memory provider.
+ * working memory, and context compaction.
  */
 
 export {
@@ -26,7 +26,6 @@ export {
 	serializeFrontMatter,
 	toSlug,
 } from "./knowledge-store.js";
-export { SQLiteMemoryProvider } from "./sqlite-memory.js";
 export { getMemoryStore, type Memory, MemoryStore } from "./store.js";
 export {
 	clearAll,

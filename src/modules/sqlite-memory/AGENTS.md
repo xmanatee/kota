@@ -1,8 +1,8 @@
 # SQLite Memory Module
 
-This directory owns the `sqlite-memory` repo module — alternative SQLite-backed memory provider.
+This directory owns the `sqlite-memory` repo module — an alternative SQLite-backed memory provider.
 
 - Registers a SQLite-backed memory provider when `providers.memory` is set to `"sqlite-memory"` in config.
 - Data is stored in `.kota/memory.db`.
-- Provider implementation lives in `src/core/memory/sqlite-memory.ts`.
-
+- The provider class and its test are module-owned and live in this directory. Core only owns the `MemoryProvider` contract and the provider registry.
+- Requires the `sqlite3` CLI on the host; health check probes it before reporting healthy.
