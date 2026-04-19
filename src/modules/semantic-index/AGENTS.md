@@ -1,8 +1,7 @@
-# Semantic Index Engine
+# Semantic Index Module
 
-Shared primitives for embedding-backed search over KOTA's file-based stores
-(knowledge, memory). Each concrete store ships its own module that plugs a
-thin adapter into the generic `SemanticIndexManager`.
+Shared embedding-index engine used by the provider modules that bolt semantic
+search onto KOTA's file-based stores (`memory-semantic`, `knowledge-semantic`).
 
 - `cosine.ts` — cosine similarity for dense vectors.
 - `embedding-provider.ts` — OpenAI-compatible HTTP embedding client plus
@@ -13,9 +12,9 @@ thin adapter into the generic `SemanticIndexManager`.
   staleness detection via `fingerprint`, cosine ranking, bulk reindex,
   explicit query-time error propagation.
 
-Concrete wrappers (in `src/modules/<name>-semantic/`) supply a
-`SemanticStoreAdapter` and implement the store's public provider interface
-around the manager.
+Consumer modules supply a `SemanticStoreAdapter` and implement the owning
+store's public provider interface around the manager. The module itself does
+not register a provider; it only ships the shared engine as a capability pack.
 
 The `fingerprint` is an opaque string set by the adapter. Knowledge uses the
 entry's `updated` ISO timestamp; memory uses a content-plus-tags hash. The

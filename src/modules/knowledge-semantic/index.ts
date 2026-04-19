@@ -6,11 +6,11 @@
  */
 
 import { getKnowledgeStore } from "#core/memory/knowledge-store.js";
+import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import {
 	createEmbeddingProvider,
 	readEmbeddingProviderConfig,
-} from "#core/memory/semantic/embedding-provider.js";
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+} from "#modules/semantic-index/embedding-provider.js";
 import { SemanticKnowledgeStore } from "./semantic-store.js";
 
 export const PROVIDER_NAME = "knowledge-semantic";
@@ -20,7 +20,7 @@ const knowledgeSemanticModule: KotaModule = {
 	version: "1.0.0",
 	description:
 		"Semantic search over the knowledge store via embedding-backed cosine ranking.",
-	dependencies: ["knowledge"],
+	dependencies: ["knowledge", "semantic-index"],
 
 	onLoad(ctx: ModuleContext) {
 		const config = readEmbeddingProviderConfig(ctx.getModuleConfig());

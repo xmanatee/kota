@@ -1,12 +1,12 @@
 ---
 id: task-extract-semantic-index-engine-out-of-core-into-a-s
 title: Extract semantic-index engine out of core into a shared module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Move the embedding-provider, cosine, semantic-index, and semantic-index-manager code from src/core/memory/semantic/ into a module-owned capability pack since only memory-semantic and knowledge-semantic consume it, keeping core small per the module-first rule
 created_at: 2026-04-19T12:18:05.500Z
-updated_at: 2026-04-19T12:18:05.500Z
+updated_at: 2026-04-19T13:08:19.361Z
 ---
 
 ## Problem

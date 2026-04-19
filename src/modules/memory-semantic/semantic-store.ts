@@ -9,14 +9,14 @@
  */
 
 import { createHash } from "node:crypto";
-import type { EmbeddingProvider } from "#core/memory/semantic/embedding-provider.js";
+import type { Memory, MemoryStore } from "#core/memory/store.js";
+import type { MemoryProvider } from "#core/modules/provider-types.js";
+import type { EmbeddingProvider } from "#modules/semantic-index/embedding-provider.js";
 import {
 	type ReindexResult,
 	SemanticIndexManager,
 	type SemanticStoreAdapter,
-} from "#core/memory/semantic/semantic-index-manager.js";
-import type { Memory, MemoryStore } from "#core/memory/store.js";
-import type { MemoryProvider } from "#core/modules/provider-types.js";
+} from "#modules/semantic-index/semantic-index-manager.js";
 
 export type SemanticMemoryStoreOptions = {
 	base: MemoryStore;

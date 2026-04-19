@@ -2,12 +2,12 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { EmbeddingProvider } from "#core/memory/semantic/embedding-provider.js";
+import { MemoryStore } from "#core/memory/store.js";
+import type { EmbeddingProvider } from "#modules/semantic-index/embedding-provider.js";
 import {
 	indexPathFor,
 	SemanticIndexFile,
-} from "#core/memory/semantic/semantic-index.js";
-import { MemoryStore } from "#core/memory/store.js";
+} from "#modules/semantic-index/semantic-index.js";
 import { SemanticMemoryStore } from "./semantic-store.js";
 
 const CONCEPTS: Record<string, number> = {

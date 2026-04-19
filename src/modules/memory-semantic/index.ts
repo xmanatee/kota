@@ -5,12 +5,12 @@
  * after providing the module config (provider/model/apiKey).
  */
 
+import { getMemoryStore } from "#core/memory/store.js";
+import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import {
 	createEmbeddingProvider,
 	readEmbeddingProviderConfig,
-} from "#core/memory/semantic/embedding-provider.js";
-import { getMemoryStore } from "#core/memory/store.js";
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+} from "#modules/semantic-index/embedding-provider.js";
 import { SemanticMemoryStore } from "./semantic-store.js";
 
 export const PROVIDER_NAME = "memory-semantic";
@@ -20,7 +20,7 @@ const memorySemanticModule: KotaModule = {
 	version: "1.0.0",
 	description:
 		"Semantic search over the memory store via embedding-backed cosine ranking.",
-	dependencies: ["memory"],
+	dependencies: ["memory", "semantic-index"],
 
 	onLoad(ctx: ModuleContext) {
 		const config = readEmbeddingProviderConfig(ctx.getModuleConfig());

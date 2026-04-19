@@ -3,11 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KnowledgeStore } from "#core/memory/knowledge-store.js";
-import type { EmbeddingProvider } from "#core/memory/semantic/embedding-provider.js";
+import type { EmbeddingProvider } from "#modules/semantic-index/embedding-provider.js";
 import {
 	indexPathFor,
 	SemanticIndexFile,
-} from "#core/memory/semantic/semantic-index.js";
+} from "#modules/semantic-index/semantic-index.js";
 import { SemanticKnowledgeStore } from "./semantic-store.js";
 
 const CONCEPTS: Record<string, number> = {

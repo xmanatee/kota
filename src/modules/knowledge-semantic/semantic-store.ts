@@ -13,13 +13,13 @@ import type {
 	KnowledgeEntry,
 	SearchFilters,
 } from "#core/memory/knowledge-store-helpers.js";
-import type { EmbeddingProvider } from "#core/memory/semantic/embedding-provider.js";
+import type { KnowledgeProvider } from "#core/modules/provider-types.js";
+import type { EmbeddingProvider } from "#modules/semantic-index/embedding-provider.js";
 import {
 	type ReindexResult,
 	SemanticIndexManager,
 	type SemanticStoreAdapter,
-} from "#core/memory/semantic/semantic-index-manager.js";
-import type { KnowledgeProvider } from "#core/modules/provider-types.js";
+} from "#modules/semantic-index/semantic-index-manager.js";
 
 export type SemanticKnowledgeStoreOptions = {
 	base: KnowledgeStore;
