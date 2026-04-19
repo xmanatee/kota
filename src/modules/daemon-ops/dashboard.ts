@@ -24,6 +24,8 @@ export type DashboardSnapshot = {
 const MAX_LOG_LINES = 20;
 const LOG_BUFFER_MAX = 200;
 const REFRESH_INTERVAL_MS = 1_000;
+const COLUMN_GAP = 2;
+const STATS_INDENT = "  ";
 
 function statusIndicator(status: WorkflowRunStatus): string {
 	switch (status) {
@@ -38,12 +40,39 @@ function statusIndicator(status: WorkflowRunStatus): string {
 	}
 }
 
+type StatCell = { label: string; value: string };
+type StatRow = readonly StatCell[];
+
+/**
+ * Lays out a 2D grid of label/value cells with per-column widths sized to the
+ * widest entry, guaranteeing at least COLUMN_GAP spaces between each value and
+ * the next label so adjacent fields can never collide regardless of cost/count
+ * magnitudes.
+ */
+export function formatStatsGrid(rows: readonly StatRow[]): string[] {
+	const colCount = rows.reduce((m, r) => Math.max(m, r.length), 0);
+	const labelWidth = Array.from({ length: colCount }, (_, i) =>
+		rows.reduce((m, r) => Math.max(m, r[i]?.label.length ?? 0), 0),
+	);
+	const valueWidth = Array.from({ length: colCount }, (_, i) =>
+		rows.reduce((m, r) => Math.max(m, r[i]?.value.length ?? 0), 0),
+	);
+	return rows.map((row) => {
+		const parts = row.map((cell, i) => {
+			const labelPad = labelWidth[i]! + COLUMN_GAP;
+			const isLast = i === row.length - 1;
+			const valuePad = isLast ? 0 : valueWidth[i]! + COLUMN_GAP;
+			return `${cell.label.padEnd(labelPad)}${cell.value.padEnd(valuePad)}`;
+		});
+		return `${STATS_INDENT}${parts.join("")}`;
+	});
+}
+
 export function renderDashboard(
 	snapshot: DashboardSnapshot,
 	logs: readonly string[],
 ): string {
 	const lines: string[] = [];
-	const rule = styleText("dim", "\u2500".repeat(52));
 
 	const status = snapshot.stopping
 		? styleText("yellow", "stopping")
@@ -54,24 +83,34 @@ export function renderDashboard(
 	lines.push(
 		`${styleText("bold", "KOTA Daemon")}  pid ${snapshot.pid}  up ${uptime}  ${status}`,
 	);
-	lines.push(rule);
 	lines.push("");
 
 	const costStr =
 		snapshot.totalCostUsd != null
 			? `$${snapshot.totalCostUsd.toFixed(2)}`
 			: "-";
-	const pausedStr = snapshot.dispatchPaused
-		? styleText("yellow", "yes")
-		: "no";
+	const pausedRaw = snapshot.dispatchPaused ? "yes" : "no";
 
-	lines.push(
-		`  Completed  ${String(snapshot.completedRuns).padEnd(8)}Sessions  ${snapshot.sessionCount}`,
-	);
-	lines.push(
-		`  Cost       ${costStr.padEnd(8)}Defs      ${snapshot.definitionCount}`,
-	);
-	lines.push(`  Paused     ${pausedStr}`);
+	const statRows: StatRow[] = [
+		[
+			{ label: "Completed", value: String(snapshot.completedRuns) },
+			{ label: "Sessions", value: String(snapshot.sessionCount) },
+		],
+		[
+			{ label: "Cost", value: costStr },
+			{ label: "Defs", value: String(snapshot.definitionCount) },
+		],
+		[{ label: "Paused", value: pausedRaw }],
+	];
+	const statLines = formatStatsGrid(statRows);
+	if (snapshot.dispatchPaused) {
+		const last = statLines.length - 1;
+		statLines[last] = statLines[last]!.replace(
+			/yes$/,
+			styleText("yellow", "yes"),
+		);
+	}
+	for (const line of statLines) lines.push(line);
 	lines.push("");
 
 	if (snapshot.activeRuns.length > 0) {
@@ -107,7 +146,11 @@ export function renderDashboard(
 	}
 
 	if (logs.length > 0) {
-		lines.push(rule);
+		const heading = "Activity ";
+		const fillWidth = Math.max(0, 52 - heading.length);
+		lines.push(
+			`${styleText("bold", heading)}${styleText("dim", "\u2500".repeat(fillWidth))}`,
+		);
 		const visible = logs.slice(-MAX_LOG_LINES);
 		for (const log of visible) {
 			lines.push(styleText("dim", `  ${log}`));

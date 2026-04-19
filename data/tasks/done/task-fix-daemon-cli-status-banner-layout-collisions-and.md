@@ -1,12 +1,12 @@
 ---
 id: task-fix-daemon-cli-status-banner-layout-collisions-and
 title: Fix daemon CLI status banner layout collisions and polish terminal presentation
-status: ready
+status: done
 priority: p2
 area: cli
 summary: Daemon CLI banner still shows collision bugs (e.g. $1930.84Defs), inconsistent indentation between sections, and mixes status summary with streaming log; research how peer CLIs present daemon state and tighten the KOTA presentation.
 created_at: 2026-04-19T19:40:19.661Z
-updated_at: 2026-04-19T22:20:29.276Z
+updated_at: 2026-04-19T23:26:28.353Z
 ---
 
 ## Problem

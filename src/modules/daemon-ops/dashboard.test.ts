@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	DaemonDashboard,
 	type DashboardSnapshot,
+	formatStatsGrid,
 	renderDashboard,
 } from "./dashboard.js";
 
@@ -44,6 +45,22 @@ describe("renderDashboard", () => {
 	it("shows definition count", () => {
 		const output = stripAnsi(renderDashboard(makeSnapshot(), []));
 		expect(output).toContain("Defs      5");
+	});
+
+	it("never collides cost value with the next label even at large amounts", () => {
+		const output = stripAnsi(
+			renderDashboard(makeSnapshot({ totalCostUsd: 1930.84 }), []),
+		);
+		expect(output).toContain("$1930.84");
+		expect(output).not.toMatch(/\$\d[\d.]*Defs/);
+		expect(output).toMatch(/Cost\s+\$1930\.84\s{2,}Defs/);
+	});
+
+	it("never collides completed run count with the next label at high counts", () => {
+		const output = stripAnsi(
+			renderDashboard(makeSnapshot({ completedRuns: 12345678 }), []),
+		);
+		expect(output).toMatch(/Completed\s+12345678\s{2,}Sessions/);
 	});
 
 	it("shows stopping status", () => {
@@ -110,6 +127,30 @@ describe("renderDashboard", () => {
 		expect(output).toContain("Control API on http://127.0.0.1:8080");
 	});
 
+	it("separates static status from streaming activity with a labeled rule", () => {
+		const output = stripAnsi(
+			renderDashboard(makeSnapshot(), ["Daemon starting..."]),
+		);
+		expect(output).toContain("Activity ");
+		const activityIdx = output.indexOf("Activity ");
+		expect(activityIdx).toBeGreaterThan(output.indexOf("KOTA Daemon"));
+		expect(activityIdx).toBeLessThan(output.indexOf("Daemon starting..."));
+	});
+
+	it("does not render decorative dashes that look like a second frame", () => {
+		const output = stripAnsi(renderDashboard(makeSnapshot(), []));
+		// A standalone full-width row of box-drawing characters would visually
+		// duplicate the dashboard frame. Header rules are allowed only as the
+		// activity separator (covered above).
+		const lines = output.split("\n");
+		for (const line of lines) {
+			const stripped = line.trim();
+			if (/^\u2500{20,}$/.test(stripped)) {
+				throw new Error(`unexpected decorative rule line: "${line}"`);
+			}
+		}
+	});
+
 	it("shows cost when available", () => {
 		const output = stripAnsi(
 			renderDashboard(makeSnapshot({ totalCostUsd: 12.5 }), []),
@@ -117,11 +158,51 @@ describe("renderDashboard", () => {
 		expect(output).toContain("$12.50");
 	});
 
+	it("renders paused indicator only as a single-cell row (no trailing column)", () => {
+		const output = stripAnsi(
+			renderDashboard(makeSnapshot({ dispatchPaused: true }), []),
+		);
+		expect(output).toMatch(/Paused\s+yes(\s|$)/m);
+	});
+
 	it("truncates logs to 20 lines", () => {
 		const logs = Array.from({ length: 30 }, (_, i) => `log line ${i}`);
 		const output = stripAnsi(renderDashboard(makeSnapshot(), logs));
 		expect(output).not.toContain("log line 0");
 		expect(output).toContain("log line 29");
+	});
+});
+
+describe("formatStatsGrid", () => {
+	it("guarantees at least two spaces between value and next label", () => {
+		const lines = formatStatsGrid([
+			[
+				{ label: "Cost", value: "$1930.84" },
+				{ label: "Defs", value: "5" },
+			],
+		]);
+		expect(lines[0]).toMatch(/\$1930\.84\s{2,}Defs/);
+	});
+
+	it("aligns labels and values across rows by widest entry per column", () => {
+		const lines = formatStatsGrid([
+			[
+				{ label: "Completed", value: "42" },
+				{ label: "Sessions", value: "2" },
+			],
+			[
+				{ label: "Cost", value: "$1.00" },
+				{ label: "Defs", value: "5" },
+			],
+		]);
+		const completedIdx = lines[0]!.indexOf("Sessions");
+		const defsIdx = lines[1]!.indexOf("Defs");
+		expect(completedIdx).toBe(defsIdx);
+	});
+
+	it("places single-cell rows without padding the only value", () => {
+		const lines = formatStatsGrid([[{ label: "Paused", value: "yes" }]]);
+		expect(lines[0]).toBe("  Paused  yes");
 	});
 });
 
