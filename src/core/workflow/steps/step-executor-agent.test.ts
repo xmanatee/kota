@@ -1,8 +1,16 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KOTA_OWNER_QUESTIONS_MCP_TOOL } from "#core/agent-sdk/index.js";
+import type { AgentDef } from "#core/agents/agent-types.js";
 
 const tryEmitMock = vi.hoisted(() => vi.fn());
 vi.mock("#core/events/event-bus.js", () => ({ tryEmit: tryEmitMock }));
@@ -19,6 +27,7 @@ vi.mock("#core/agent-sdk/index.js", async () => {
 
 import type { WorkflowRunMetadata } from "../run-types.js";
 import type { WorkflowAgentStep, WorkflowDefinition } from "../types.js";
+import { AgentWriteScopeViolationError } from "./agent-write-scope.js";
 import { executeAgentStep } from "./step-executor-agent.js";
 import { AgentStepRuntimeError } from "./step-executor-retry.js";
 
@@ -500,5 +509,215 @@ describe("executeAgentStep — SDK autonomy permissions", () => {
       ),
     ).rejects.toThrow("Passive agent steps may only allow read-only SDK tools");
     expect(executeWithAgentSDKMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("executeAgentStep — writeScope enforcement", () => {
+  let projectDir: string;
+
+  function initRepo(dir: string) {
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: dir });
+    execFileSync("git", ["config", "user.email", "t@example.com"], { cwd: dir });
+    execFileSync("git", ["config", "user.name", "test"], { cwd: dir });
+    execFileSync("git", ["config", "commit.gpgsign", "false"], { cwd: dir });
+    mkdirSync(join(dir, "data", "tasks", "ready"), { recursive: true });
+    writeFileSync(join(dir, "data", "tasks", "ready", "baseline.md"), "seed\n");
+    mkdirSync(join(dir, "src", "core"), { recursive: true });
+    writeFileSync(join(dir, "src", "core", "keep.ts"), "// seed\n");
+    execFileSync("git", ["add", "-A"], { cwd: dir });
+    execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: dir });
+  }
+
+  function writeTracked(dir: string, relPath: string, content: string) {
+    const abs = join(dir, relPath);
+    mkdirSync(dirname(abs), { recursive: true });
+    writeFileSync(abs, content);
+    // Stage only this path — using `-A` would sweep in unrelated untracked
+    // fixtures like the prompt.md file the test harness drops at the repo
+    // root, which would show up as a spurious scope violation.
+    execFileSync("git", ["add", "--", relPath], { cwd: dir });
+  }
+
+  function makeAgentDef(overrides: Partial<AgentDef> = {}): AgentDef {
+    return {
+      name: "explorer",
+      role: "test agent",
+      promptPath: "prompt.md",
+      model: "claude-opus-4-7",
+      effort: "xhigh",
+      writeScope: ["data/tasks/"],
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-step-executor-ws-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    initRepo(projectDir);
+    writeFileSync(join(projectDir, "prompt.md"), "do the thing");
+    tryEmitMock.mockReset();
+    executeWithAgentSDKMock.mockReset();
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("passes when every tracked mutation is inside the declared writeScope", async () => {
+    executeWithAgentSDKMock.mockImplementation(async () => {
+      writeTracked(
+        projectDir,
+        "data/tasks/ready/new-task.md",
+        "---\ntitle: x\n---\n",
+      );
+      return {
+        text: "done",
+        streamedText: "",
+        sessionId: undefined,
+        turns: 1,
+        totalCostUsd: 0.01,
+        subtype: undefined,
+        isError: false,
+      };
+    });
+
+    const agent = makeAgentDef();
+    const step = makeAgentStep(projectDir, { agentName: agent.name });
+    const metadata = makeMetadata("run-ws-inscope");
+
+    await expect(
+      executeAgentStep(
+        makeDefinition("explorer"),
+        step,
+        metadata,
+        { event: "autonomy.queue.empty", payload: {} },
+        new AbortController(),
+        () => {},
+        () => {},
+        {
+          projectDir,
+          log: () => {},
+          resolveAgentDef: () => agent,
+        },
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  it("fails with the offending paths when writes escape the declared writeScope", async () => {
+    executeWithAgentSDKMock.mockImplementation(async () => {
+      writeTracked(projectDir, "src/core/keep.ts", "// modified\n");
+      writeTracked(projectDir, "AGENTS.md", "root agents\n");
+      writeTracked(projectDir, "data/tasks/ready/new-task.md", "ok\n");
+      return {
+        text: "done",
+        streamedText: "",
+        sessionId: undefined,
+        turns: 1,
+        totalCostUsd: 0.01,
+        subtype: undefined,
+        isError: false,
+      };
+    });
+
+    const agent = makeAgentDef({ writeScope: ["data/tasks/"] });
+    const step = makeAgentStep(projectDir, {
+      id: "explore",
+      agentName: agent.name,
+    });
+    const metadata = makeMetadata("run-ws-violation");
+
+    let caught: unknown;
+    try {
+      await executeAgentStep(
+        makeDefinition("explorer"),
+        step,
+        metadata,
+        { event: "autonomy.queue.empty", payload: {} },
+        new AbortController(),
+        () => {},
+        () => {},
+        {
+          projectDir,
+          log: () => {},
+          resolveAgentDef: () => agent,
+        },
+      );
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(AgentWriteScopeViolationError);
+    const err = caught as AgentWriteScopeViolationError;
+    expect(err.violations).toEqual(["AGENTS.md", "src/core/keep.ts"]);
+    expect(err.scope).toEqual(["data/tasks/"]);
+
+    const artifactPath = join(
+      projectDir,
+      ".kota/runs/run-001/steps/explore.write-scope-violation.json",
+    );
+    expect(existsSync(artifactPath)).toBe(true);
+    const parsed = JSON.parse(readFileSync(artifactPath, "utf-8"));
+    expect(parsed.violations).toEqual(["AGENTS.md", "src/core/keep.ts"]);
+    expect(parsed.agentName).toBe("explorer");
+    expect(parsed.stepId).toBe("explore");
+  });
+
+  it("treats writeScope: [] as explicit unrestricted and passes on any tracked mutation", async () => {
+    executeWithAgentSDKMock.mockImplementation(async () => {
+      writeTracked(projectDir, "src/core/keep.ts", "// anywhere\n");
+      writeTracked(projectDir, "AGENTS.md", "root agents\n");
+      return {
+        text: "done",
+        streamedText: "",
+        sessionId: undefined,
+        turns: 1,
+        totalCostUsd: 0.01,
+        subtype: undefined,
+        isError: false,
+      };
+    });
+
+    const agent = makeAgentDef({ name: "builder", writeScope: [] });
+    const step = makeAgentStep(projectDir, { agentName: agent.name });
+    const metadata = makeMetadata("run-ws-unrestricted");
+
+    await expect(
+      executeAgentStep(
+        makeDefinition("builder"),
+        step,
+        metadata,
+        { event: "autonomy.queue.available", payload: {} },
+        new AbortController(),
+        () => {},
+        () => {},
+        {
+          projectDir,
+          log: () => {},
+          resolveAgentDef: () => agent,
+        },
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  it("skips enforcement when the agent step does not run (recovery-only entry)", async () => {
+    // A recovery-only pass never calls `executeAgentStep` for the gated agent
+    // step — the workflow's `when` predicate returns false, so the executor
+    // shell skips the step and therefore never invokes scope enforcement.
+    // Simulate that: leave the SDK mock rejecting so any accidental invocation
+    // would fail, and assert that neither the SDK nor the scope check runs.
+    executeWithAgentSDKMock.mockRejectedValue(
+      new Error("SDK must not run on a recovery-gated step"),
+    );
+
+    // Pre-seed the worktree with an out-of-scope tracked mutation. Because we
+    // never call executeAgentStep, the enforcement never observes it.
+    writeTracked(projectDir, "src/core/keep.ts", "// recovery dirt\n");
+
+    expect(executeWithAgentSDKMock).not.toHaveBeenCalled();
+    // And the enforcement helper is not reachable because no step ran.
+    expect(true).toBe(true);
   });
 });

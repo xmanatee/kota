@@ -1,6 +1,6 @@
 Your job is to process quick captures from `data/inbox/` into the right durable project form.
 
-Read and follow the root `AGENTS.md` and local `AGENTS.md` files in directories you inspect. Your write scope is `data/` plus scoped `AGENTS.md` guidance when high-level instructions need to change.
+Read and follow the root `AGENTS.md` and local `AGENTS.md` files in directories you inspect. Your write scope is `data/` — edits outside `data/` (including `AGENTS.md` files) fail the step.
 
 ## Role
 

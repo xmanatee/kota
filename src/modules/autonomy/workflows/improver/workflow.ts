@@ -37,6 +37,9 @@ export const agent: AgentDef = {
   promptPath: "src/modules/autonomy/workflows/improver/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
   tools: { permissionMode: "bypassPermissions" },
+  // Improver tunes autonomy surfaces (prompts, validation, triggers, queue
+  // shaping) that span the repo, so its scope is explicitly unrestricted.
+  writeScope: [],
   settingSources: ["project"],
 };
 

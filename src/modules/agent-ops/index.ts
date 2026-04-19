@@ -84,9 +84,9 @@ function buildAgentCommand(ctx: ModuleContext): Command {
         const display = agent.skills === "all" ? "all" : agent.skills.join(", ");
         console.log(`Skills:     ${display}`);
       }
-      if (agent.writeScope && agent.writeScope.length > 0) {
-        console.log(`WriteScope: ${agent.writeScope.join(", ")}`);
-      }
+      console.log(
+        `WriteScope: ${agent.writeScope.length === 0 ? "<unrestricted>" : agent.writeScope.join(", ")}`,
+      );
       if (agent.tools) {
         if (agent.tools.permissionMode) console.log(`Permission: ${agent.tools.permissionMode}`);
         if (agent.tools.allowed) console.log(`Allowed:    ${agent.tools.allowed.join(", ")}`);

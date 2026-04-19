@@ -29,6 +29,9 @@ export const agent: AgentDef = {
   ...AUTONOMY_AGENT_DEFAULTS,
   skills: "all",
   tools: { permissionMode: "bypassPermissions" },
+  // Builder ships arbitrary code changes — its scope is explicitly
+  // unrestricted rather than absence-means-unlimited.
+  writeScope: [],
   settingSources: ["project"],
 };
 

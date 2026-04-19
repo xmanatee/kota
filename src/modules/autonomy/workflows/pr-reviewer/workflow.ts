@@ -14,6 +14,10 @@ export const agent: AgentDef = {
   promptPath: "src/modules/autonomy/workflows/pr-reviewer/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
   tools: { permissionMode: "bypassPermissions" },
+  // pr-reviewer posts GitHub PR comments via `gh` and does not mutate tracked
+  // files in the local worktree. Declared unrestricted because its output
+  // surface is external, not repo writes.
+  writeScope: [],
   settingSources: ["project"],
 };
 

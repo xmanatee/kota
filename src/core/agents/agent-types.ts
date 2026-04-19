@@ -60,8 +60,18 @@ export type AgentDef = {
   skills?: string[] | "all";
   /** Tool access policy. */
   tools?: AgentToolPolicy;
-  /** Directories this agent may write to (relative to project root). Empty = unrestricted. */
-  writeScope?: string[];
+  /**
+   * Tracked-file paths this agent may mutate, relative to `projectDir`. Each
+   * entry is a path prefix (directory) or an exact file path. A trailing
+   * slash is optional — `"data/tasks/"` and `"data/tasks"` both match any
+   * path under `data/tasks/`.
+   *
+   * An empty array is the explicit "unrestricted" opt-in: every tracked-file
+   * mutation is allowed. Required on every agent because absence must not
+   * silently mean unrestricted; the workflow runtime enforces this at the
+   * end of an agent step.
+   */
+  writeScope: string[];
   /** Claude Code settings sources to apply when running. */
   settingSources?: SDKSettingSource[];
 };

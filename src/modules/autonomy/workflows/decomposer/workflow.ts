@@ -27,6 +27,7 @@ export const agent: AgentDef = {
   promptPath: "src/modules/autonomy/workflows/decomposer/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
   tools: { permissionMode: "bypassPermissions" },
+  writeScope: ["data/tasks/"],
   settingSources: ["project"],
 };
 

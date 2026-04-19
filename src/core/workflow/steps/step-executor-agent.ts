@@ -21,6 +21,12 @@ import type {
   WorkflowRunTrigger,
 } from "../types.js";
 import {
+  AgentWriteScopeViolationError,
+  findWriteScopeViolations,
+  listMutatedTrackedFiles,
+  writeWriteScopeViolationArtifact,
+} from "./agent-write-scope.js";
+import {
   AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
   DEFAULT_AGENT_STEP_RETRY,
@@ -328,12 +334,14 @@ export async function executeAgentStep(
   const promptDir = dirname(resolve(step.moduleRoot, step.promptPath));
   const contextStartDir = resolvePromptContextStartDir(promptDir, agentConfig.projectDir);
 
+  const agentDef =
+    step.agentName && agentConfig.resolveAgentDef
+      ? agentConfig.resolveAgentDef(step.agentName)
+      : undefined;
+
   let skillsPrompt: string | undefined;
-  if (step.agentName && agentConfig.resolveAgentDef && agentConfig.resolveSkillsPrompt) {
-    const agentDef = agentConfig.resolveAgentDef(step.agentName);
-    if (agentDef?.skills) {
-      skillsPrompt = agentConfig.resolveSkillsPrompt(agentDef.skills, step.agentName);
-    }
+  if (agentDef?.skills && agentConfig.resolveSkillsPrompt) {
+    skillsPrompt = agentConfig.resolveSkillsPrompt(agentDef.skills, step.agentName);
   }
 
   const systemPrompt = buildClaudeCodeSystemPrompt(
@@ -473,6 +481,31 @@ export async function executeAgentStep(
   });
 
   writeToolTelemetryArtifact(step.id, metadata, agentConfig.projectDir, stepTelemetry);
+
+  // Enforce declared writeScope against tracked-file mutations this step
+  // produced. Fails the step when the agent wrote outside its role.
+  if (agentDef && step.agentName) {
+    const violations = findWriteScopeViolations(
+      listMutatedTrackedFiles(agentConfig.projectDir),
+      agentDef.writeScope,
+    );
+    if (violations.length > 0) {
+      writeWriteScopeViolationArtifact({
+        stepId: step.id,
+        agentName: step.agentName,
+        scope: agentDef.writeScope,
+        violations,
+        metadata,
+        projectDir: agentConfig.projectDir,
+      });
+      throw new AgentWriteScopeViolationError({
+        stepId: step.id,
+        agentName: step.agentName,
+        scope: agentDef.writeScope,
+        violations,
+      });
+    }
+  }
 
   return output;
 }

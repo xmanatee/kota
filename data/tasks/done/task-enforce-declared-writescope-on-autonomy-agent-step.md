@@ -1,12 +1,12 @@
 ---
 id: task-enforce-declared-writescope-on-autonomy-agent-step
 title: Enforce declared writeScope on autonomy agent steps
-status: ready
+status: done
 priority: p2
 area: guardrails
 summary: Declare and enforce writeScope on autonomy agent definitions so the runtime blocks out-of-scope file mutations at the end of an agent step instead of relying on prompt guidance
 created_at: 2026-04-19T13:15:58.071Z
-updated_at: 2026-04-19T13:15:58.071Z
+updated_at: 2026-04-19T15:33:22.262Z
 ---
 
 ## Problem

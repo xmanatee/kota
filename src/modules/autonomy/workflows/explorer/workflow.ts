@@ -40,6 +40,7 @@ export const agent: AgentDef = {
   promptPath: "src/modules/autonomy/workflows/explorer/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
   tools: { permissionMode: "bypassPermissions" },
+  writeScope: ["data/tasks/", "data/watchlist.yaml"],
   settingSources: ["project"],
 };
 

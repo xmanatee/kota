@@ -25,6 +25,7 @@ export const agent: AgentDef = {
   promptPath: "src/modules/autonomy/workflows/inbox-sorter/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
   tools: { permissionMode: "bypassPermissions" },
+  writeScope: ["data/"],
   settingSources: ["project"],
 };
 
