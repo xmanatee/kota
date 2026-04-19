@@ -173,14 +173,21 @@ export class ModuleLoader {
 
     const workflows = await resolveModuleWorkflows(mod, ctx);
     if (workflows.length > 0) {
+      const source = this.moduleSources.get(mod.name) ?? "project";
       const resolvedWorkflows = workflows.map((def) => {
         const withPath =
           "definitionPath" in def
             ? def
             : { ...def, definitionPath: `modules/${mod.name}` };
-        return withPath.moduleRoot !== undefined
-          ? withPath
-          : { ...withPath, moduleRoot: this.cwd };
+        const withRoot =
+          withPath.moduleRoot !== undefined
+            ? withPath
+            : { ...withPath, moduleRoot: this.cwd };
+        return {
+          ...withRoot,
+          contributingModule: withRoot.contributingModule ?? mod.name,
+          moduleSource: withRoot.moduleSource ?? source,
+        };
       });
       this.moduleWorkflowDefs.set(mod.name, resolvedWorkflows);
       for (const def of resolvedWorkflows) {

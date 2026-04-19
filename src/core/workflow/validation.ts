@@ -124,11 +124,26 @@ export function registerWorkflowDefinition(
   };
 }
 
+function describeContribution(
+  def: Pick<
+    RegisteredWorkflowDefinitionInput,
+    "contributingModule" | "moduleSource" | "definitionPath"
+  >,
+): string {
+  if (def.contributingModule && def.moduleSource) {
+    return `module "${def.contributingModule}" (${def.moduleSource}) — ${def.definitionPath}`;
+  }
+  if (def.contributingModule) {
+    return `module "${def.contributingModule}" — ${def.definitionPath}`;
+  }
+  return def.definitionPath;
+}
+
 export function validateWorkflowDefinitions(
   definitions: readonly RegisteredWorkflowDefinitionInput[],
   projectDir = process.cwd(),
 ): WorkflowDefinition[] {
-  const seenWorkflowNames = new Set<string>();
+  const seenWorkflowNames = new Map<string, RegisteredWorkflowDefinitionInput>();
 
   return definitions.map((definition, definitionIndex) => {
     const definitionPath = expectRelativePath(
@@ -144,13 +159,17 @@ export function validateWorkflowDefinitions(
         definitionPath,
       );
     }
-    if (seenWorkflowNames.has(name)) {
+    const prior = seenWorkflowNames.get(name);
+    if (prior) {
       throw new WorkflowDefinitionError(
-        `duplicate workflow name "${name}"`,
+        `duplicate workflow name "${name}" contributed by ` +
+          `${describeContribution(prior)} and ${describeContribution(definition)} — ` +
+          "workflow names must be globally unique across every contributing module, " +
+          "regardless of whether they are shipped by a KOTA module or by the target project's .kota/modules tree",
         definitionPath,
       );
     }
-    seenWorkflowNames.add(name);
+    seenWorkflowNames.set(name, definition);
 
     if (!Array.isArray(definition.triggers) || definition.triggers.length === 0) {
       throw new WorkflowDefinitionError(

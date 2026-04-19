@@ -399,8 +399,26 @@ export type WorkflowDefinitionInput = {
   steps: WorkflowStepInput[];
 };
 
+export type WorkflowContributionSource = "project" | "installed" | "foreign";
+
 export type RegisteredWorkflowDefinitionInput = WorkflowDefinitionInput & {
   definitionPath: string;
+  /**
+   * Name of the module that contributed this workflow. Populated by the module
+   * loader when iterating contributions; absent for workflows registered
+   * directly (e.g. by tests or by the daemon config's `workflows` array).
+   */
+  contributingModule?: string;
+  /**
+   * Where the contributing module was discovered. Populated by the module
+   * loader in lockstep with `contributingModule`. Used by the validator to
+   * produce actionable error messages on name collisions.
+   *
+   * - `"project"` — KOTA's own `src/modules/*` tree.
+   * - `"installed"` — the target project's `<projectDir>/.kota/modules/*`.
+   * - `"foreign"` — a module registered via `foreignModules` in config.
+   */
+  moduleSource?: WorkflowContributionSource;
 };
 
 export type WorkflowToolStep = WorkflowBaseStep & {

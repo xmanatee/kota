@@ -1,12 +1,12 @@
 ---
 id: task-define-project-local-vs-module-shipped-workflow-pr
 title: Define project-local vs module-shipped workflow precedence and cover with tests
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Define and enforce a documented precedence between module-shipped workflow prompts and workflows a target project ships in its own tree, and cover both non-colliding contribution and name-collision cases with integration tests
 created_at: 2026-04-18T15:48:07.698Z
-updated_at: 2026-04-18T15:48:07.698Z
+updated_at: 2026-04-19T12:09:50.123Z
 ---
 
 ## Problem

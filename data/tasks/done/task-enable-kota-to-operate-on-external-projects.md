@@ -46,21 +46,10 @@ KOTA currently only develops and improves itself. The owner wants to run KOTA's 
 
 ## Remaining Architectural Work
 
-The blocking gap for a real external-project run is that
-`WorkflowAgentStep.promptPath` is resolved against `projectDir`
-(`src/core/workflow/steps/step-executor-agent.ts`). Ship-with-KOTA workflow
-prompts therefore cannot be found when the daemon is pointed at a target
-project that does not contain KOTA's own source tree. A coherent fix needs
-to:
+Closed. The follow-ups landed as:
 
-1. Carry the module's own install root alongside each contributed workflow
-   definition (the loader knows it; the step executor does not).
-2. Resolve `promptPath` against that module root rather than `projectDir`,
-   and thread the same root through the `Prompt file: …` line emitted in
-   `buildAgentPrompt`.
-3. Decide whether project-local workflow contributions (a future target
-   project shipping its own workflows) resolve `promptPath` against
-   `projectDir` instead; define the precedence and validate it.
-4. Add an end-to-end test that boots the daemon against a fixture project
-   directory distinct from KOTA's own source and verifies at least one
-   autonomous workflow completes a trivial step.
+- `task-prove-external-project-autonomy-with-end-to-end-fi` — end-to-end
+  fixture-project test that boots the daemon and runs an autonomy workflow.
+- `task-define-project-local-vs-module-shipped-workflow-pr` — precedence
+  rule between module-shipped and project-local workflow contributions,
+  with loader enforcement and integration coverage.
