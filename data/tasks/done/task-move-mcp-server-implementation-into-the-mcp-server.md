@@ -1,12 +1,12 @@
 ---
 id: task-move-mcp-server-implementation-into-the-mcp-server
 title: Move MCP server implementation into the mcp-server module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Relocate src/core/mcp/server.ts plus its prompts.ts, resources.ts, and server.test.ts into modules/mcp-server so the implementation lives with its only consumer, following the sqlite-memory and semantic-index extraction pattern
 created_at: 2026-04-19T16:29:05.920Z
-updated_at: 2026-04-19T16:29:05.920Z
+updated_at: 2026-04-19T17:29:41.589Z
 ---
 
 ## Problem

@@ -7,7 +7,7 @@ import mcpServerModule from "./index.js";
 const mockStart = vi.fn().mockResolvedValue(undefined);
 const mockStop = vi.fn();
 
-vi.mock("#core/mcp/server.js", () => ({
+vi.mock("./server.js", () => ({
 	McpServer: vi.fn(function (this: Record<string, unknown>) {
 		this.start = mockStart;
 		this.stop = mockStop;
@@ -110,7 +110,7 @@ describe("mcp-server commands", () => {
 
 describe("mcp-server command action", () => {
 	it("creates McpServer with correct options and starts it", async () => {
-		const { McpServer } = await import("#core/mcp/server.js");
+		const { McpServer } = await import("./server.js");
 		const MockedMcpServer = vi.mocked(McpServer);
 		MockedMcpServer.mockClear();
 		mockStart.mockClear();
@@ -128,7 +128,7 @@ describe("mcp-server command action", () => {
 	});
 
 	it("passes tool filter when --tools is provided", async () => {
-		const { McpServer } = await import("#core/mcp/server.js");
+		const { McpServer } = await import("./server.js");
 		const MockedMcpServer = vi.mocked(McpServer);
 		MockedMcpServer.mockClear();
 		mockStart.mockClear();
@@ -142,7 +142,7 @@ describe("mcp-server command action", () => {
 	});
 
 	it("passes custom name when --name is provided", async () => {
-		const { McpServer } = await import("#core/mcp/server.js");
+		const { McpServer } = await import("./server.js");
 		const MockedMcpServer = vi.mocked(McpServer);
 		MockedMcpServer.mockClear();
 		mockStart.mockClear();
@@ -164,7 +164,7 @@ describe("mcp-server command action", () => {
 			createModelClient: vi.fn(() => ({ client: { fake: true } })),
 		}));
 
-		const { McpServer } = await import("#core/mcp/server.js");
+		const { McpServer } = await import("./server.js");
 		const MockedMcpServer = vi.mocked(McpServer);
 		MockedMcpServer.mockClear();
 		mockStart.mockClear();
@@ -179,7 +179,7 @@ describe("mcp-server command action", () => {
 	});
 
 	it("trims whitespace from tool filter names", async () => {
-		const { McpServer } = await import("#core/mcp/server.js");
+		const { McpServer } = await import("./server.js");
 		const MockedMcpServer = vi.mocked(McpServer);
 		MockedMcpServer.mockClear();
 
