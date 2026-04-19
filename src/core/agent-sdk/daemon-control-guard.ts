@@ -44,9 +44,11 @@ export function isDaemonHostControlCommand(command: string, daemonPid = process.
 
 export function createDaemonHostControlGuard(daemonPid = process.pid): CanUseTool {
   return async (toolName, input): Promise<PermissionResult> => {
-    if (toolName !== "Bash") return { behavior: "allow" };
+    if (toolName !== "Bash") return { behavior: "allow", updatedInput: input };
     const command = typeof input.command === "string" ? input.command : "";
-    if (!isDaemonHostControlCommand(command, daemonPid)) return { behavior: "allow" };
+    if (!isDaemonHostControlCommand(command, daemonPid)) {
+      return { behavior: "allow", updatedInput: input };
+    }
     return {
       behavior: "deny",
       message: DENIAL_MESSAGE,

@@ -23,6 +23,7 @@ import {
   buildQueryOptions,
   detectLocalClaudeCodeExecutable,
   executeWithAgentSDK,
+  normalizePermissionResult,
   SDK_ABORT_FORCE_KILL_MS,
   spawnClaudeCodeProcessWithAbortKill,
 } from "./executor.js";
@@ -201,7 +202,18 @@ describe("agent-sdk executor", () => {
     const guard = createDaemonHostControlGuard(7315);
     const options = { signal: new AbortController().signal, toolUseID: "tool-1" };
 
-    await expect(guard("Read", {}, options)).resolves.toEqual({ behavior: "allow" });
+    await expect(
+      guard("Read", { file_path: "src/index.ts" }, options),
+    ).resolves.toEqual({
+      behavior: "allow",
+      updatedInput: { file_path: "src/index.ts" },
+    });
+    await expect(
+      guard("Bash", { command: "pnpm kota task move example done" }, options),
+    ).resolves.toEqual({
+      behavior: "allow",
+      updatedInput: { command: "pnpm kota task move example done" },
+    });
     await expect(
       guard("Bash", { command: "pnpm kota daemon stop" }, options),
     ).resolves.toMatchObject({ behavior: "deny", interrupt: true });
@@ -259,16 +271,48 @@ describe("agent-sdk executor", () => {
   it("runs guarded calls through SDK permission callbacks instead of bypass mode", () => {
     const canUseTool = vi.fn(async () => ({ behavior: "allow" as const }));
 
-    expect(buildQueryOptions({
+    const options = buildQueryOptions({
       cwd: "/tmp/project",
       effort: "xhigh",
       permissionMode: "bypassPermissions",
       canUseTool,
-    })).toMatchObject({
+    });
+
+    expect(options).toMatchObject({
       permissionMode: "default",
       allowDangerouslySkipPermissions: false,
+      canUseTool: expect.any(Function),
+    });
+  });
+
+  it("normalizes allow decisions to the SDK runtime permission contract", async () => {
+    const input = { command: "pnpm build" };
+    const canUseTool = vi.fn(async () => ({ behavior: "allow" as const }));
+    const options = buildQueryOptions({
+      cwd: "/tmp/project",
+      effort: "xhigh",
+      permissionMode: "bypassPermissions",
       canUseTool,
     });
+
+    await expect(
+      options.canUseTool?.("Bash", input, {
+        signal: new AbortController().signal,
+        toolUseID: "tool-1",
+      }),
+    ).resolves.toEqual({
+      behavior: "allow",
+      updatedInput: input,
+    });
+  });
+
+  it("preserves explicit permission input updates", () => {
+    expect(
+      normalizePermissionResult(
+        { behavior: "allow", updatedInput: { command: "echo changed" } },
+        { command: "echo original" },
+      ),
+    ).toEqual({ behavior: "allow", updatedInput: { command: "echo changed" } });
   });
 
   it("buildQueryOptions forwards MCP server config", () => {

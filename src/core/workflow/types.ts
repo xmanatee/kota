@@ -103,8 +103,8 @@ type WorkflowBaseStep = {
    * Maximum time in milliseconds this step is allowed to run. If the step does
    * not complete within this deadline the run fails with a timeout error and the
    * normal failure path executes (failed record, workflow.failure.alert emitted).
-   * When omitted, the executor applies DEFAULT_STEP_TIMEOUT_MS (30 minutes).
-   * Set to a larger value for known long-running steps.
+   * When omitted, the executor applies DEFAULT_STEP_TIMEOUT_MS as a hang rail.
+   * Set this only when a step has a clearer operational deadline.
    */
   timeoutMs?: number;
   /**

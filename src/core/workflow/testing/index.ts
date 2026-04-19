@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type {
   WorkflowPredicate,
@@ -55,6 +56,10 @@ export type HarnessTrigger = {
 
 export type HarnessOptions = {
   trigger?: HarnessTrigger;
+  /**
+   * Project directory passed to code steps. Omitted means the harness uses the
+   * OS temp directory rather than the caller's live repo.
+   */
   projectDir?: string;
   /**
    * Mock outputs for agent steps and (optionally) tool steps.
@@ -146,7 +151,7 @@ export class WorkflowTestHarness {
       event: this.#options.trigger?.event ?? "runtime.idle",
       payload: this.#options.trigger?.payload ?? {},
     };
-    const projectDir = this.#options.projectDir ?? process.cwd();
+    const projectDir = this.#options.projectDir ?? tmpdir();
     const stepMocks = this.#options.stepMocks ?? {};
     const runParallel = this.#options.parallel ?? false;
 

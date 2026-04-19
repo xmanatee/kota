@@ -1,6 +1,11 @@
 import { spawn, spawnSync } from "node:child_process";
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
-import type { SpawnedProcess, SpawnOptions } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  CanUseTool,
+  PermissionResult,
+  SpawnedProcess,
+  SpawnOptions,
+} from "@anthropic-ai/claude-agent-sdk";
 import type {
   SDKMessage,
   SDKPermissionMode,
@@ -195,8 +200,47 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
     allowDangerouslySkipPermissions: permissionMode === "bypassPermissions",
     thinking,
     spawnClaudeCodeProcess: spawnClaudeCodeProcessWithAbortKill,
-    canUseTool: options.canUseTool,
+    canUseTool: normalizeCanUseTool(options.canUseTool),
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function normalizePermissionResult(
+  result: PermissionResult,
+  input: Record<string, unknown>,
+): PermissionResult {
+  if (!isRecord(result)) {
+    throw new Error("SDK permission callback must return a permission decision object");
+  }
+  const behavior = result.behavior;
+
+  if (behavior === "allow") {
+    return {
+      ...result,
+      updatedInput: isRecord(result.updatedInput) ? result.updatedInput : input,
+    };
+  }
+
+  if (behavior === "deny") {
+    if (typeof result.message !== "string" || result.message.length === 0) {
+      throw new Error("SDK permission denial must include a non-empty message");
+    }
+    return result;
+  }
+
+  throw new Error(`Unsupported SDK permission behavior: ${String(behavior)}`);
+}
+
+function normalizeCanUseTool(canUseTool: CanUseTool | undefined): CanUseTool | undefined {
+  if (!canUseTool) return undefined;
+  return async (toolName, input, callbackOptions) =>
+    normalizePermissionResult(
+      await canUseTool(toolName, input, callbackOptions),
+      input,
+    );
 }
 
 export async function executeWithAgentSDK(

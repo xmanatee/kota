@@ -67,6 +67,8 @@ const TRIGGER_PAYLOAD = {
   runDir: ".kota/runs/run-failed-builder",
 };
 
+const HANG_TIMEOUT_BUILD_MS = 3 * 60 * 60 * 1000 + 5 * 60 * 1000;
+
 describe("decomposer workflow", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -75,7 +77,11 @@ describe("decomposer workflow", () => {
     // implementations set via mockImplementation).
     const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
     const fs = await import("node:fs");
-    vi.mocked(fs.existsSync).mockImplementation(actual.existsSync);
+    vi.mocked(fs.existsSync).mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.includes("data/tasks/")) return true;
+      return actual.existsSync(path as Parameters<typeof actual.existsSync>[0]);
+    });
     vi.mocked(fs.readdirSync).mockImplementation(actual.readdirSync);
     vi.mocked(fs.readFileSync).mockImplementation(actual.readFileSync);
   });
@@ -118,16 +124,16 @@ describe("decomposer workflow", () => {
     expect(result.steps.decompose).toBeUndefined();
   });
 
-  it("skips decompose when no task found in doing/ or blocked/", async () => {
+  it("skips decompose when no task is claimed in doing/", async () => {
     const { readOptionalJsonFile } = await import("#core/util/json-file.js");
     vi.mocked(readOptionalJsonFile).mockReturnValue(
-      makeFailedBuilderMetadata({ buildDurationMs: 55 * 60 * 1000 }),
+      makeFailedBuilderMetadata({ buildDurationMs: HANG_TIMEOUT_BUILD_MS }),
     );
 
     const fs = await import("node:fs");
     vi.mocked(fs.readdirSync).mockImplementation((path: unknown) => {
       const p = String(path);
-      if (p.includes("data/tasks/doing") || p.includes("data/tasks/blocked")) {
+      if (p.includes("data/tasks/doing")) {
         return ["AGENTS.md"] as unknown as ReturnType<typeof fs.readdirSync>;
       }
       return [] as unknown as ReturnType<typeof fs.readdirSync>;
@@ -144,7 +150,7 @@ describe("decomposer workflow", () => {
     expect(result.steps["assess-failure"].output).toMatchObject({
       shouldDecompose: false,
       isTimeout: true,
-      reason: expect.stringMatching(/no task found/i),
+      reason: expect.stringMatching(/no builder-claimed task/i),
     });
     expect(result.steps.decompose.status).toBe("skipped");
   });
@@ -152,7 +158,7 @@ describe("decomposer workflow", () => {
   it("runs decompose when timeout-shaped failure with task in doing/", async () => {
     const { readOptionalJsonFile } = await import("#core/util/json-file.js");
     vi.mocked(readOptionalJsonFile).mockReturnValue(
-      makeFailedBuilderMetadata({ buildDurationMs: 55 * 60 * 1000 }),
+      makeFailedBuilderMetadata({ buildDurationMs: HANG_TIMEOUT_BUILD_MS }),
     );
 
     const fs = await import("node:fs");
@@ -222,10 +228,10 @@ describe("decomposer workflow", () => {
     });
   });
 
-  it("falls back to blocked/ when doing/ is empty", async () => {
+  it("does not decompose an unrelated blocked task when doing/ is empty", async () => {
     const { readOptionalJsonFile } = await import("#core/util/json-file.js");
     vi.mocked(readOptionalJsonFile).mockReturnValue(
-      makeFailedBuilderMetadata({ buildDurationMs: 55 * 60 * 1000 }),
+      makeFailedBuilderMetadata({ buildDurationMs: HANG_TIMEOUT_BUILD_MS }),
     );
 
     const fs = await import("node:fs");
@@ -242,9 +248,6 @@ describe("decomposer workflow", () => {
       return [] as unknown as ReturnType<typeof fs.readdirSync>;
     });
 
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
-
     const harness = new WorkflowTestHarness(decomposerWorkflow, {
       trigger: { event: "workflow.completed", payload: TRIGGER_PAYLOAD },
       stepMocks: { decompose: { decomposed: true } },
@@ -253,10 +256,11 @@ describe("decomposer workflow", () => {
     const result = await harness.run();
 
     expect(result.steps["assess-failure"].output).toMatchObject({
-      shouldDecompose: true,
-      taskId: "task-stuck-work",
-      taskPath: "data/tasks/blocked/task-stuck-work.md",
+      shouldDecompose: false,
+      isTimeout: true,
+      reason: expect.stringMatching(/no builder-claimed task/i),
     });
+    expect(result.steps.decompose.status).toBe("skipped");
   });
 
   it("skips commit when decompose step is skipped", async () => {
@@ -280,7 +284,7 @@ describe("decomposer workflow", () => {
   it("runs request-restart when decompose succeeds and commit commits", async () => {
     const { readOptionalJsonFile } = await import("#core/util/json-file.js");
     vi.mocked(readOptionalJsonFile).mockReturnValue(
-      makeFailedBuilderMetadata({ buildDurationMs: 55 * 60 * 1000 }),
+      makeFailedBuilderMetadata({ buildDurationMs: HANG_TIMEOUT_BUILD_MS }),
     );
 
     const fs = await import("node:fs");
@@ -379,7 +383,7 @@ describe("decomposer workflow", () => {
   it("skips request-restart when nothing was committed", async () => {
     const { readOptionalJsonFile } = await import("#core/util/json-file.js");
     vi.mocked(readOptionalJsonFile).mockReturnValue(
-      makeFailedBuilderMetadata({ buildDurationMs: 55 * 60 * 1000 }),
+      makeFailedBuilderMetadata({ buildDurationMs: HANG_TIMEOUT_BUILD_MS }),
     );
 
     const fs = await import("node:fs");

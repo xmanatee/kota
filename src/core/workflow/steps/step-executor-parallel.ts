@@ -1,5 +1,6 @@
 import type { SDKMessage } from "#core/agent-sdk/types.js";
 import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
+import { DEFAULT_STEP_TIMEOUT_MS } from "../run-executor-step.js";
 import type { WorkflowStepContext, WorkflowStepResult } from "../run-types.js";
 import type { WorkflowDefinition, WorkflowParallelGroup, WorkflowRunTrigger } from "../types.js";
 import { evaluateStepRunDecision, executeCodeStep } from "./step-executor.js";
@@ -47,8 +48,6 @@ class Semaphore {
     }
   }
 }
-
-const DEFAULT_STEP_TIMEOUT_MS = 30 * 60 * 1000;
 
 export async function executeParallelStepGroup(
   step: WorkflowParallelGroup,

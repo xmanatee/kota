@@ -11,8 +11,8 @@ import {
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
 import {
+  AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_DISALLOWED_TOOLS,
-  AUTONOMY_LONG_AGENT_TIMEOUT_MS,
   checkCommitMessageExists,
   checkNoScratchArtifacts,
   runCheck,
@@ -30,7 +30,7 @@ export const agent: AgentDef = {
   settingSources: ["project"],
 };
 
-const TIMEOUT_THRESHOLD_MS = AUTONOMY_LONG_AGENT_TIMEOUT_MS;
+const TIMEOUT_THRESHOLD_MS = AUTONOMY_AGENT_HANG_TIMEOUT_MS;
 
 export type DecomposerAssessment = {
   reason: string;
@@ -42,7 +42,7 @@ export type DecomposerAssessment = {
   | { shouldDecompose: true; taskId: string; taskPath: string }
 );
 
-const TASK_STATES_FOR_DECOMPOSE = ["doing", "blocked", "ready"] as const;
+const TASK_STATES_FOR_IDENTIFIED_TASK = ["doing", "blocked", "ready"] as const;
 
 function findTaskInState(projectDir: string, state: string): { id: string; path: string } | null {
   const dir = join(projectDir, "data", "tasks", state);
@@ -60,7 +60,7 @@ function findTaskById(
   projectDir: string,
   taskId: string,
 ): { id: string; path: string } | null {
-  for (const state of TASK_STATES_FOR_DECOMPOSE) {
+  for (const state of TASK_STATES_FOR_IDENTIFIED_TASK) {
     const candidate = join(projectDir, "data", "tasks", state, `${taskId}.md`);
     if (existsSync(candidate)) {
       return { id: taskId, path: join("data", "tasks", state, `${taskId}.md`) };
@@ -186,14 +186,14 @@ function buildAssessment(
         const id = extractTaskIdFromWorktreeSummary(source.worktreeSummary);
         return id ? findTaskById(projectDir, id) : null;
       })()
-    : findTaskInState(projectDir, "doing") ?? findTaskInState(projectDir, "blocked");
+    : findTaskInState(projectDir, "doing");
 
   if (!task) {
     return {
       shouldDecompose: false,
       reason: source.worktreeSummary
         ? "Could not identify the failed task from the recovery payload worktree summary"
-        : "No task found in doing/ or blocked/ to decompose",
+        : "No builder-claimed task found in doing/ to decompose",
       failedRunId: source.runId,
       failedRunDir: source.runDir,
       isTimeout: true,
@@ -256,6 +256,7 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
+      timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => assessFailure.output(ctx).shouldDecompose,
       repairLoop: {
         checks: [

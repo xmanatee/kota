@@ -262,8 +262,8 @@ describe("step timeout", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("DEFAULT_STEP_TIMEOUT_MS is 30 minutes", () => {
-    expect(DEFAULT_STEP_TIMEOUT_MS).toBe(30 * 60 * 1000);
+  it("DEFAULT_STEP_TIMEOUT_MS is a hang rail, not a task-size limit", () => {
+    expect(DEFAULT_STEP_TIMEOUT_MS).toBe(3 * 60 * 60 * 1000);
   });
 
   it("fails the run when a step exceeds its timeoutMs", async () => {

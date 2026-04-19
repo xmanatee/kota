@@ -270,7 +270,7 @@ describe("workflow validation", () => {
               model: "claude-opus-4-7",
               effort: "xhigh",
               autonomyMode: "autonomous",
-              timeoutMs: 45 * 60 * 1000,
+              timeoutMs: 3 * 60 * 60 * 1000,
             },
           ],
         }),
@@ -280,7 +280,7 @@ describe("workflow validation", () => {
 
     expect(definitions[0]?.steps[0]).toMatchObject({
       id: "build",
-      timeoutMs: 45 * 60 * 1000,
+      timeoutMs: 3 * 60 * 60 * 1000,
     });
   });
 

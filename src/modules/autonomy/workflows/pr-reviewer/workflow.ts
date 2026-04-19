@@ -1,7 +1,11 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
-import { AUTONOMY_DISALLOWED_TOOLS, stepSucceeded } from "#modules/autonomy/shared.js";
+import {
+  AUTONOMY_AGENT_HANG_TIMEOUT_MS,
+  AUTONOMY_DISALLOWED_TOOLS,
+  stepSucceeded,
+} from "#modules/autonomy/shared.js";
 
 export const agent: AgentDef = {
   name: "pr-reviewer",
@@ -110,9 +114,7 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-      // PR review is a bounded task; 20 min is tighter than the global
-      // default and signals quickly when a review session is stuck.
-      timeoutMs: 20 * 60 * 1000,
+      timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => !assessPr.output(ctx).skip,
     },
     {

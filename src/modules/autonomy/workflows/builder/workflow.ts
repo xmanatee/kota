@@ -10,8 +10,8 @@ import {
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
 import {
+  AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_DISALLOWED_TOOLS,
-  AUTONOMY_LONG_AGENT_TIMEOUT_MS,
   stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
@@ -85,7 +85,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-      timeoutMs: AUTONOMY_LONG_AGENT_TIMEOUT_MS,
+      timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => {
         if (ctx.trigger.event === "runtime.recovered") return false;
         const { dirty, pullableCount } = inspectReadyQueue.output(ctx);

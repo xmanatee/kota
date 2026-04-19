@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 import {
   labeledPredicate,
@@ -14,6 +15,23 @@ function skipReasonOf(step: { skipReason?: WorkflowStepSkipReason }): WorkflowSt
 }
 
 describe("WorkflowTestHarness — typed skip reasons", () => {
+  it("defaults projectDir to the OS temp directory", async () => {
+    const workflow: WorkflowDefinitionInput = {
+      name: "test",
+      triggers: [],
+      steps: [
+        {
+          id: "record-project-dir",
+          type: "code",
+          run: ({ projectDir }) => projectDir,
+        },
+      ],
+    };
+
+    const result = await new WorkflowTestHarness(workflow).run();
+    expect(result.steps["record-project-dir"].output).toBe(tmpdir());
+  });
+
   it("tags a when-false leaf skip as when-predicate", async () => {
     const workflow: WorkflowDefinitionInput = {
       name: "test",

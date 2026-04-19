@@ -10,8 +10,8 @@ import type { RunOutcomeAggregation } from "#modules/autonomy/run-outcome-aggreg
 import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
 import { writeRunSummary } from "#modules/autonomy/run-summary.js";
 import {
+  AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_DISALLOWED_TOOLS,
-  AUTONOMY_LONG_AGENT_TIMEOUT_MS,
   checkCommitMessageExists,
   checkNoScratchArtifacts,
   runCheck,
@@ -103,7 +103,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
       permissionMode: agent.tools?.permissionMode,
       settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-      timeoutMs: AUTONOMY_LONG_AGENT_TIMEOUT_MS,
+      timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       repairLoop: {
         checks: [
           {

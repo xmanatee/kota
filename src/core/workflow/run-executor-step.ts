@@ -18,7 +18,7 @@ import type {
 } from "./types.js";
 
 /** Default step timeout when no timeoutMs is specified on the step definition. */
-export const DEFAULT_STEP_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+export const DEFAULT_STEP_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 
 export const DEFAULT_MAX_STEP_OUTPUT_BYTES = 256 * 1024; // 256 KB
 export const HARD_MAX_STEP_OUTPUT_BYTES = 10 * 1024 * 1024; // 10 MB
