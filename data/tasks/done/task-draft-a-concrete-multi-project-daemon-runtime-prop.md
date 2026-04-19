@@ -1,12 +1,12 @@
 ---
 id: task-draft-a-concrete-multi-project-daemon-runtime-prop
 title: Draft a concrete multi-project daemon runtime proposal
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Write a concrete architectural proposal comparing daemon-hosts-many-projects vs one-daemon-per-project-plus-client-registry with typed control-API, session, run, and event attribution shape so the owner can pick and unblock project selection in operator clients
 created_at: 2026-04-18T15:49:27.283Z
-updated_at: 2026-04-18T15:49:27.283Z
+updated_at: 2026-04-19T20:53:37.306Z
 ---
 
 ## Problem

@@ -37,40 +37,24 @@ The in-progress `task-enable-kota-to-operate-on-external-projects` work is makin
 
 ## Blocker
 
-This task is blocked until the multi-project runtime shape is decided and the
-work is decomposed.
+This task is blocked until the owner picks the multi-project runtime shape.
 
-The daemon today is strictly single-project: `Daemon.projectDir` is consumed
-once at construction by scheduler, task-store, run-store, module-log-store,
-workflow runtime, notification gate, and every control-API endpoint. Two
-materially different architectures both satisfy the current wording:
-
-1. **Daemon hosts many project runtimes in parallel.** Every daemon-owned
-   subsystem becomes per-project; every bus event, session, run, and owner
-   question carries a `projectId`; control-API calls and SSE subscriptions
-   accept a project scope. Large core reshape, highest long-term capability.
-2. **One daemon per project plus a client-side registry that multiplexes
-   across daemons.** No core reshape; clients read a shared registry and
-   connect to the target project's daemon socket. Satisfies
-   "switch without restarting *a* daemon" only if "restart" means OS process
-   restart of the client-selected daemon.
-
-The current constraint "keep multi-project state in the daemon, not duplicated
-in each client" pushes toward variant 1 or a hybrid where the daemon owns a
-project registry file but only runs one project runtime and swaps it on
-switch.
-
-The owner was asked on 2026-04-18 to pick between these; the question timed
-out. The work also spans two full client surfaces (CLI daemon mode + web) and
-per-project attribution of session / run / owner-question outputs, which is
-more than a single builder run should carry at once.
+A concrete side-by-side proposal now lives at the top of
+`src/core/daemon/AGENTS.md` under **Multi-Project Runtime Shape (Proposal)**.
+It compares the two variants at the durable-ownership level (daemon hosts many
+project runtimes vs. one daemon per project plus a client-side registry),
+acknowledges the hybrid, and sketches migration first-PR shape and risk for
+each. It also lists the follow-up decomposition (a/b/c) that either variant
+produces. The owner was asked on 2026-04-18 and timed out; re-asking once the
+proposal is in place is the remaining step.
 
 Unblock by:
 
-1. Owner picks the runtime architecture.
-2. Task is split into at least three follow-ups: (a) daemon-side project
-   identity + registry + typed control-API endpoints + per-project attribution
-   in existing API outputs; (b) CLI daemon-mode project selector and
-   project-scoped views; (c) web client project selector and project-scoped
-   views.
+1. Owner reads the proposal in `src/core/daemon/AGENTS.md` and picks a
+   variant.
+2. Task splits into at least the three follow-ups already sketched in the
+   proposal: (a) daemon-side project identity and attribution; (b) CLI
+   daemon-mode selector and project-scoped views; (c) web client selector and
+   project-scoped views. Native macOS and mobile parity land as their own
+   follow-ups.
 
