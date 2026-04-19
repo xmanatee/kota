@@ -1,12 +1,12 @@
 ---
 id: task-prove-external-project-autonomy-with-end-to-end-fi
 title: Prove external-project autonomy with end-to-end fixture test
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Add an integration test that boots the daemon against a fixture project distinct from KOTA's own tree and runs at least one autonomy workflow step there to completion, asserting file activity stays inside the fixture
 created_at: 2026-04-18T15:48:03.953Z
-updated_at: 2026-04-18T15:48:03.953Z
+updated_at: 2026-04-19T11:00:36.549Z
 ---
 
 ## Problem
