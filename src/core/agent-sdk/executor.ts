@@ -1,11 +1,11 @@
 import { spawn, spawnSync } from "node:child_process";
-import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type {
   CanUseTool,
   PermissionResult,
   SpawnedProcess,
   SpawnOptions,
 } from "@anthropic-ai/claude-agent-sdk";
+import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type {
   SDKMessage,
   SDKPermissionMode,

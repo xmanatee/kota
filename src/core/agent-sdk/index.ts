@@ -1,4 +1,8 @@
 export {
+  createDaemonHostControlGuard,
+  isDaemonHostControlCommand,
+} from "./daemon-control-guard.js";
+export {
   buildQueryOptions,
   detectLocalClaudeCodeExecutable,
   type ExecutorOptions,
@@ -12,10 +16,6 @@ export {
   KOTA_OWNER_QUESTIONS_MCP_SERVER,
   KOTA_OWNER_QUESTIONS_MCP_TOOL,
 } from "./kota-tools-mcp.js";
-export {
-  createDaemonHostControlGuard,
-  isDaemonHostControlCommand,
-} from "./daemon-control-guard.js";
 export { buildClaudeCodeSystemPrompt } from "./system-prompt.js";
 export type {
   SDKAssistantMessage,
