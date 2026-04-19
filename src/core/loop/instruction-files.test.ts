@@ -254,7 +254,7 @@ describe("loadInstructionContext", () => {
 		expect(result).toBe("");
 	});
 
-	it("truncates content exceeding 8000 chars", () => {
+	it("truncates a single physical file exceeding 8000 chars", () => {
 		const longContent = "x".repeat(9000);
 		writeFileSync(join(TEST_ROOT, "AGENTS.md"), longContent, "utf-8");
 		try {
@@ -262,6 +262,46 @@ describe("loadInstructionContext", () => {
 			expect(result).toContain("... (truncated)");
 		} finally {
 			rmSync(join(TEST_ROOT, "AGENTS.md"), { force: true });
+		}
+	});
+
+	it("does not truncate aggregated @-expanded content when each leaf file is small", () => {
+		mkdirSync(join(TEST_ROOT, "docs"), { recursive: true });
+		writeFileSync(
+			join(TEST_ROOT, "AGENTS.md"),
+			"# Root\n\n@docs/A.md\n\n@docs/B.md\n\n@docs/C.md",
+			"utf-8",
+		);
+		writeFileSync(join(TEST_ROOT, "docs", "A.md"), "a".repeat(5000), "utf-8");
+		writeFileSync(join(TEST_ROOT, "docs", "B.md"), "b".repeat(5000), "utf-8");
+		writeFileSync(join(TEST_ROOT, "docs", "C.md"), "c".repeat(5000), "utf-8");
+		try {
+			const result = loadInstructionContext(TEST_ROOT, TEST_ROOT);
+			expect(result).not.toContain("... (truncated)");
+			expect(result).toContain("a".repeat(5000));
+			expect(result).toContain("b".repeat(5000));
+			expect(result).toContain("c".repeat(5000));
+		} finally {
+			rmSync(join(TEST_ROOT, "AGENTS.md"), { force: true });
+			rmSync(join(TEST_ROOT, "docs"), { recursive: true, force: true });
+		}
+	});
+
+	it("truncates a large @-referenced leaf file at its own 8000-char cap", () => {
+		mkdirSync(join(TEST_ROOT, "docs"), { recursive: true });
+		writeFileSync(join(TEST_ROOT, "AGENTS.md"), "@docs/HUGE.md", "utf-8");
+		writeFileSync(
+			join(TEST_ROOT, "docs", "HUGE.md"),
+			"h".repeat(12_000),
+			"utf-8",
+		);
+		try {
+			const result = loadInstructionContext(TEST_ROOT, TEST_ROOT);
+			expect(result).toContain("... (truncated)");
+			expect((result.match(/h/g) ?? []).length).toBe(8_000);
+		} finally {
+			rmSync(join(TEST_ROOT, "AGENTS.md"), { force: true });
+			rmSync(join(TEST_ROOT, "docs"), { recursive: true, force: true });
 		}
 	});
 

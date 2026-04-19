@@ -5,9 +5,10 @@ import { resolveScopedSearch } from "#core/util/path-scope.js";
 const INSTRUCTION_FILENAMES = ["AGENTS.md", "CLAUDE.md"] as const;
 type InstructionType = "AGENTS" | "CLAUDE";
 
-const MAX_CONTENT_LENGTH = 8_000;
+const MAX_FILE_LENGTH = 8_000;
 const MAX_REF_DEPTH = 3;
 const REF_PATTERN = /^@(.+\.md)\s*$/gm;
+const TRUNCATION_MARKER = "\n... (truncated)";
 
 export type InstructionFile = {
 	path: string;
@@ -19,10 +20,17 @@ function typeFromFilename(filename: string): InstructionType {
 	return filename.startsWith("AGENTS") ? "AGENTS" : "CLAUDE";
 }
 
+function readInstructionFile(path: string): string {
+	const raw = readFileSync(path, "utf-8").trim();
+	if (raw.length <= MAX_FILE_LENGTH) return raw;
+	return `${raw.slice(0, MAX_FILE_LENGTH)}${TRUNCATION_MARKER}`;
+}
+
 /**
- * Resolve `@path/to/file` references in content.
- * Paths are resolved relative to the file's directory.
- * Max depth prevents infinite recursion.
+ * Resolve `@path/to/file` references in content. Each referenced file is
+ * read with the same per-file cap that applies to top-level instruction
+ * files, so aggregating a root AGENTS.md with several `@docs/*.md` refs
+ * cannot silently drop content from later refs.
  */
 export function resolveReferences(
 	content: string,
@@ -41,7 +49,7 @@ export function resolveReferences(
 		if (!existsSync(resolved)) return `<!-- not found: ${refPath} -->`;
 
 	try {
-		const refContent = readFileSync(resolved, "utf-8").trim();
+		const refContent = readInstructionFile(resolved);
 		if (!refContent) return "";
 		seen.add(resolved);
 		return resolveReferences(
@@ -74,7 +82,7 @@ export function findInstructionFiles(
 			const candidate = join(dir, filename);
 			if (!existsSync(candidate)) continue;
 
-			const raw = readFileSync(candidate, "utf-8").trim();
+			const raw = readInstructionFile(candidate);
 			if (!raw) continue;
 			const content = resolveReferences(raw, dir);
 			found.push({
@@ -105,13 +113,9 @@ export function loadInstructionContext(
 	const files = findInstructionFiles(startDir, rootDir);
 	if (files.length === 0) return "";
 
-	const sections = files.map((f) => {
-		let content = f.content;
-		if (content.length > MAX_CONTENT_LENGTH) {
-			content = `${content.slice(0, MAX_CONTENT_LENGTH)}\n... (truncated)`;
-		}
-		return `### ${f.type}: ${f.path}\n\n${content}`;
-	});
+	const sections = files.map(
+		(f) => `### ${f.type}: ${f.path}\n\n${f.content}`,
+	);
 
 	return (
 		"\n\n## Project Instructions (from AGENTS.md / CLAUDE.md)\n\n" +
