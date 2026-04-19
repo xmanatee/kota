@@ -207,6 +207,7 @@ export class ModuleTestHarness {
         this.#dynamicStateProviders.set(name, fn);
       },
       registerCleanupHook: () => {},
+      registerPreSendHook: () => {},
       resolveAgentDef: () => undefined,
       resolveSkillsPrompt: () => "",
       getRegisteredConfigKeys: () => new Set<string>(),

@@ -12,6 +12,7 @@ import type { Command } from "commander";
 import type { AgentDef, SkillDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
+import type { PreSendHook } from "#core/loop/pre-send-hooks.js";
 import type { ToolMiddlewareFn } from "#core/tools/tool-middleware.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -178,6 +179,14 @@ export type ModuleContext = {
   registerDynamicStateProvider: (name: string, fn: () => string) => void;
   /** Register synchronous cleanup that should run before a session closes. */
   registerCleanupHook: (fn: () => void) => void;
+  /**
+   * Register a per-send hook that runs once before the main agent iteration
+   * loop starts. Use this to contribute a planning/execution pass that
+   * precedes the normal agent turn (e.g. architect-mode two-pass flow).
+   * Each hook receives the session context and may return a result that the
+   * loop applies (modified files, assistant text, user follow-up, final text).
+   */
+  registerPreSendHook: (name: string, fn: PreSendHook) => void;
   /** Look up a registered agent definition by name. */
   resolveAgentDef: (name: string) => AgentDef | undefined;
   /** Build the skills prompt for a set of skill names or "all", optionally filtered by agent name. */

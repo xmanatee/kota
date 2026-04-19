@@ -26,6 +26,7 @@ function makeCtx(config?: Record<string, unknown>): ModuleContext {
     getModuleSummaries: vi.fn().mockReturnValue([]),
     registerDynamicStateProvider: vi.fn(),
     registerCleanupHook: vi.fn(),
+    registerPreSendHook: vi.fn(),
     resolveAgentDef: vi.fn().mockReturnValue(undefined),
     resolveSkillsPrompt: vi.fn().mockReturnValue(""),
     probeHealthChecks: async () => ({}),

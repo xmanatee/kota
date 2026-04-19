@@ -41,7 +41,9 @@ function createTestSession(
 		noHistory: true,
 		reflectionEnabled: false,
 		verbose: opts?.verbose ?? false,
-		architectMode: opts?.architectMode ?? false,
+		config: opts?.architectMode
+			? { modules: { architect: { enabled: true } } }
+			: undefined,
 	});
 	return { session, transport, calls };
 }

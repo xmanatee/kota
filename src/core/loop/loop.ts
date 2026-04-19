@@ -27,7 +27,6 @@ export type LoopOptions = {
   editorModel?: string;
   maxTokens?: number;
   verbose?: boolean;
-  architectMode?: boolean;
   sessionPath?: string;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
@@ -64,7 +63,6 @@ export class AgentSession {
   private maxTokens!: number;
   private effectiveMaxTokens!: number;
   private verbose!: boolean;
-  private architectMode!: boolean;
   private sessionPath?: string;
   private thinkingConfig?: Anthropic.Messages.ThinkingConfigParam;
   private verifyTracker!: VerifyTracker;

@@ -1,5 +1,4 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { runArchitectStep } from "#core/architect/runner.js";
 import { formatTaskHint, routeTask } from "#core/daemon/task-router.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import { streamMessage } from "#core/model/streaming.js";
@@ -12,6 +11,7 @@ import { collectDynamicState } from "./dynamic-state.js";
 import { getChangeTracker } from "./file-changes.js";
 import type { AgentLoopState } from "./loop-init.js";
 import { saveToHistoryImpl } from "./loop-init.js";
+import { runPreSendHooks } from "./pre-send-hooks.js";
 import { buildReflectionPrompt, getLastAssistantText, shouldReflect } from "./reflection.js";
 import { analyzeRequest, formatContextHint } from "./request-analyzer.js";
 import { processToolResults } from "./verify-tracker.js";
@@ -44,29 +44,26 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
 
   const mcpTools = state.mcpManager ? state.mcpManager.getTools() : [];
 
-  if (state.architectMode) {
-    const result = await runArchitectStep({
-      client: state.client,
-      model: state.model,
-      editorModel: state.editorModel,
-      maxTokens: state.maxTokens,
-      effectiveMaxTokens: state.effectiveMaxTokens,
-      systemContext: state.context.getSystemPrompt(),
-      messages: state.context.getMessages(),
-      costTracker: state.costTracker,
-      verbose: state.verbose,
-      thinkingConfig: state.thinkingConfig,
-      transport: state.transport,
-    });
-    if (result) {
-      lastResult = result.lastResult;
+  const preSendResults = await runPreSendHooks({
+    client: state.client,
+    model: state.model,
+    editorModel: state.editorModel,
+    maxTokens: state.maxTokens,
+    effectiveMaxTokens: state.effectiveMaxTokens,
+    systemContext: state.context.getSystemPrompt(),
+    messages: state.context.getMessages(),
+    costTracker: state.costTracker,
+    verbose: state.verbose,
+    thinkingConfig: state.thinkingConfig,
+    transport: state.transport,
+  });
+  for (const result of preSendResults) {
+    if (result.modifiedFiles) {
       for (const f of result.modifiedFiles) state.verifyTracker.recordEdit(f);
-      state.context.addAssistantText(result.summary);
-      state.context.addUserMessage(
-        "The architect/editor has made changes. " +
-        "Verify they are correct: run builds, tests, or type checks as appropriate.",
-      );
     }
+    if (result.assistantText) state.context.addAssistantText(result.assistantText);
+    if (result.userFollowup) state.context.addUserMessage(result.userFollowup);
+    if (result.lastResult !== undefined) lastResult = result.lastResult;
   }
 
   const failureTracker = new FailureTracker();

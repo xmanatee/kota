@@ -1,19 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerCleanupHook, resetCleanupHooks } from "#core/loop/cleanup-hooks.js";
+import {
+  registerPreSendHook,
+  resetPreSendHooks,
+} from "#core/loop/pre-send-hooks.js";
 
 // --- Hoisted mock variables (used inside vi.mock factories) ---
 
 const {
   mockStreamMessage,
   mockExecuteToolCalls,
-  mockArchitectPass,
-  mockEditorLoop,
   mockVerifyTracker,
 } = vi.hoisted(() => ({
   mockStreamMessage: vi.fn(),
   mockExecuteToolCalls: vi.fn(),
-  mockArchitectPass: vi.fn(),
-  mockEditorLoop: vi.fn(),
   mockVerifyTracker: {
     getState: vi.fn(() => ""),
     recordEdit: vi.fn(),
@@ -93,13 +93,6 @@ vi.mock("#core/loop/verify-tracker.js", async (importOriginal) => {
     detectVerifyCommands: vi.fn(() => []),
   };
 });
-vi.mock("./core/architect/architect.js", () => ({
-  runArchitectPass: mockArchitectPass,
-}));
-
-vi.mock("./core/architect/architect-editor.js", () => ({
-  runEditorLoop: mockEditorLoop,
-}));
 vi.mock("./core/modules/project-discovery.js", () => ({
   discoverProjectModules: vi.fn(async () => []),
 }));
@@ -159,6 +152,7 @@ describe("AgentSession", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetCleanupHooks();
+    resetPreSendHooks();
     vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -166,6 +160,7 @@ describe("AgentSession", () => {
   afterEach(() => {
     session?.close();
     resetCleanupHooks();
+    resetPreSendHooks();
     vi.restoreAllMocks();
   });
 
@@ -511,28 +506,38 @@ describe("AgentSession", () => {
     });
   });
 
-  describe("architect mode", () => {
-    it("runs architect then editor pass before main loop", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous", architectMode: true });
-      mockArchitectPass.mockResolvedValueOnce("Step 1: create file...");
-      mockEditorLoop.mockResolvedValueOnce({ text: "Created file.ts", modifiedFiles: ["file.ts"] });
+  describe("pre-send hooks", () => {
+    it("runs registered hook before main loop and applies its result", async () => {
+      const hook = vi.fn().mockResolvedValue({
+        lastResult: "pre-send output",
+        assistantText: "hook completed",
+        userFollowup: "verify the changes",
+        modifiedFiles: ["file.ts"],
+      });
+      registerPreSendHook("test-owner", "test-hook", hook);
+
+      session = new AgentSession({ autonomyMode: "autonomous" });
       mockStreamMessage.mockResolvedValueOnce(textResponse("verified"));
 
       const result = await session.send("implement feature");
 
+      expect(hook).toHaveBeenCalledTimes(1);
       expect(result).toBe("verified");
-      expect(mockArchitectPass).toHaveBeenCalledTimes(1);
-      expect(mockEditorLoop).toHaveBeenCalledTimes(1);
+      expect(mockVerifyTracker.recordEdit).toHaveBeenCalledWith("file.ts");
     });
 
-    it("skips editor pass when architect returns empty plan", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous", architectMode: true });
-      mockArchitectPass.mockResolvedValueOnce("");
-      mockStreamMessage.mockResolvedValueOnce(textResponse("nothing to do"));
+    it("skips applying result when hook returns null", async () => {
+      const hook = vi.fn().mockResolvedValue(null);
+      registerPreSendHook("test-owner", "test-hook", hook);
 
-      await session.send("do something");
+      session = new AgentSession({ autonomyMode: "autonomous" });
+      mockStreamMessage.mockResolvedValueOnce(textResponse("direct"));
 
-      expect(mockEditorLoop).not.toHaveBeenCalled();
+      const result = await session.send("do something");
+
+      expect(hook).toHaveBeenCalledTimes(1);
+      expect(result).toBe("direct");
+      expect(mockVerifyTracker.recordEdit).not.toHaveBeenCalled();
     });
   });
 

@@ -20,8 +20,9 @@ into.
 - `daemon/` — daemon host, control API, scheduler persistence, and live runtime
   state.
 - `events/` — typed event catalog and event bus.
-- `loop/` — `AgentSession`, turn execution, context assembly, transport, and
-  dynamic state.
+- `loop/` — `AgentSession`, turn execution, context assembly, transport,
+  dynamic state, and module-contributed pre-send hooks that run once before
+  the main turn loop.
 - `model/` — `ModelClient` interface, registry, adaptive routing, and streaming.
   Provider implementations live in `src/modules/model-clients/`.
 - `modules/` — module protocol, discovery, loading, lifecycle, storage, and

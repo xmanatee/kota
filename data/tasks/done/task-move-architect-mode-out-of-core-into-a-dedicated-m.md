@@ -1,12 +1,12 @@
 ---
 id: task-move-architect-mode-out-of-core-into-a-dedicated-m
 title: Move architect-mode out of core into a dedicated module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Architect-mode is a specific two-pass planning capability gated by a boolean flag; it has ~1000 LoC in src/core/architect/ with one touchpoint in loop-send. Move it to a module so core stays protocol-oriented and the capability is optional.
 created_at: 2026-04-19T18:55:53.085Z
-updated_at: 2026-04-19T18:55:53.085Z
+updated_at: 2026-04-19T20:06:49.098Z
 ---
 
 ## Problem

@@ -23,9 +23,6 @@
       "description": "TTL for pending approval items in milliseconds. Default: 86400000 (24 hours).",
       "type": "number"
     },
-    "architect": {
-      "type": "boolean"
-    },
     "autoEnable": {
       "description": "Tool groups to auto-enable at session start (e.g. [\"web\", \"code\"]).",
       "items": {

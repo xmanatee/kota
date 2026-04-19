@@ -48,7 +48,6 @@ describe("loadConfig", () => {
         model: 123,            // wrong type
         maxTokens: -5,         // negative
         thinkingBudget: 100,   // below minimum (1024)
-        architect: "yes",      // wrong type
         autoEnable: "web",     // not an array
         verbose: true,         // valid
       }),
@@ -58,7 +57,6 @@ describe("loadConfig", () => {
     expect(config.model).toBeUndefined();
     expect(config.maxTokens).toBeUndefined();
     expect(config.thinkingBudget).toBeUndefined();
-    expect(config.architect).toBeUndefined();
     expect(config.autoEnable).toBeUndefined();
     expect(config.verbose).toBe(true);
   });

@@ -2,6 +2,7 @@ import type { AgentDef, SkillDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import { removeCleanupHooks, resetCleanupHooks } from "#core/loop/cleanup-hooks.js";
 import { resetDynamicStateProviders } from "#core/loop/dynamic-state.js";
+import { removePreSendHooks, resetPreSendHooks } from "#core/loop/pre-send-hooks.js";
 import { deregisterModuleTools } from "#core/tools/index.js";
 import { getToolMiddleware } from "#core/tools/tool-middleware.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -59,6 +60,7 @@ export async function unloadModule(moduleName: string, state: LifecycleState): P
   state.moduleAgentDefs.delete(moduleName);
   state.modules.splice(idx, 1);
   removeCleanupHooks(moduleName);
+  removePreSendHooks(moduleName);
 
   if (state.verbose) console.error(`[kota] Module "${moduleName}" unloaded`);
   return true;
@@ -91,4 +93,5 @@ export async function unloadAllModules(state: LifecycleState): Promise<void> {
   getToolMiddleware().clear();
   resetCleanupHooks();
   resetDynamicStateProviders();
+  resetPreSendHooks();
 }

@@ -104,7 +104,7 @@ describe("warnUnknownConfigKeys", () => {
 describe("KNOWN_CONFIG_KEYS", () => {
   it("contains the core-owned keys", () => {
     const expected = [
-      "model", "editorModel", "maxTokens", "architect", "thinking", "thinkingBudget",
+      "model", "editorModel", "maxTokens", "thinking", "thinkingBudget",
       "verbose", "skipConfirmations", "autoEnable", "user", "aliases", "reflection",
       "guardrails", "modules", "foreignModules", "providers", "modelProvider",
       "modelTiers", "agentModels", "approvalTtlMs",

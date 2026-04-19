@@ -112,7 +112,17 @@ program
     const editorModel = opts.editorModel || config.editorModel;
     const maxTokens = parsedMaxTokens || config.maxTokens || 8192;
     const verbose = opts.verbose || config.verbose || false;
-    const architect = opts.architect || config.architect || false;
+    const architectEnabled =
+      opts.architect || (config.modules?.architect as { enabled?: boolean } | undefined)?.enabled || false;
+    if (architectEnabled) {
+      config.modules = {
+        ...config.modules,
+        architect: {
+          ...(config.modules?.architect ?? {}),
+          enabled: true,
+        },
+      };
+    }
     const thinkEnabled = opts.think || config.thinking || false;
     const thinkBudget = parsedThinkBudget
       ? Math.max(1024, parsedThinkBudget)
@@ -147,7 +157,6 @@ program
       editorModel,
       maxTokens,
       verbose,
-      architectMode: architect,
       sessionPath: opts.session,
       thinkingEnabled: thinkEnabled,
       thinkingBudget: thinkEnabled ? Math.max(1024, thinkBudget) : undefined,

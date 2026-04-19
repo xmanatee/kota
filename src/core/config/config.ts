@@ -17,7 +17,6 @@ export type KotaConfig = {
   model?: string;
   editorModel?: string;
   maxTokens?: number;
-  architect?: boolean;
   thinking?: boolean;
   thinkingBudget?: number;
   verbose?: boolean;
@@ -279,7 +278,6 @@ function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
   if (typeof raw.model === "string" && raw.model) out.model = raw.model;
   if (typeof raw.editorModel === "string" && raw.editorModel) out.editorModel = raw.editorModel;
   if (typeof raw.maxTokens === "number" && raw.maxTokens > 0) out.maxTokens = raw.maxTokens;
-  if (typeof raw.architect === "boolean") out.architect = raw.architect;
   if (typeof raw.thinking === "boolean") out.thinking = raw.thinking;
   if (typeof raw.thinkingBudget === "number" && raw.thinkingBudget >= 1024) out.thinkingBudget = raw.thinkingBudget;
   if (typeof raw.verbose === "boolean") out.verbose = raw.verbose;

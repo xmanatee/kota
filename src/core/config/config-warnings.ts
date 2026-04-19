@@ -6,7 +6,6 @@ export const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set<keyof KotaConfig>(
   "model",
   "editorModel",
   "maxTokens",
-  "architect",
   "thinking",
   "thinkingBudget",
   "verbose",

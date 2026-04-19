@@ -5,6 +5,7 @@ import { getSecretStore } from "#core/config/secrets.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { registerCleanupHook } from "#core/loop/cleanup-hooks.js";
 import { registerDynamicStateProvider } from "#core/loop/dynamic-state.js";
+import { registerPreSendHook as registerPreSendHookImpl } from "#core/loop/pre-send-hooks.js";
 import { getRegisteredTools } from "#core/tools/index.js";
 import { registerCustomGroup } from "#core/tools/tool-groups.js";
 import { getToolMiddleware } from "#core/tools/tool-middleware.js";
@@ -144,6 +145,9 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
     },
     registerCleanupHook: (fn) => {
       registerCleanupHook(moduleName ?? "_default", fn);
+    },
+    registerPreSendHook: (name, fn) => {
+      registerPreSendHookImpl(moduleName ?? "_default", name, fn);
     },
     resolveAgentDef,
     resolveSkillsPrompt,

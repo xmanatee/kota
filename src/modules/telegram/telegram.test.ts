@@ -48,6 +48,7 @@ function makeStubCtx(bus?: EventBus): ModuleContext {
     registerMiddleware: () => {},
     registerDynamicStateProvider: () => {},
     registerCleanupHook: () => {},
+    registerPreSendHook: () => {},
     resolveAgentDef: () => undefined,
     resolveSkillsPrompt: () => "",
     probeHealthChecks: async () => ({}),

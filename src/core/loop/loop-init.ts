@@ -34,7 +34,6 @@ export interface AgentLoopState {
   sessionId: string;
   sessionLabel: string | undefined;
   context: Context;
-  architectMode: boolean;
   client: ModelClient;
   model: string;
   editorModel: string;

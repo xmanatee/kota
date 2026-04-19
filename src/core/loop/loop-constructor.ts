@@ -44,7 +44,6 @@ export function initAgentSession(
   state.editorModel = options.editorModel || state.model;
   state.maxTokens = options.maxTokens || 8192;
   state.verbose = options.verbose || false;
-  state.architectMode = options.architectMode || false;
   state.sessionPath = options.sessionPath;
   const showCost = options.showCost ?? options.config?.serve?.showCost ?? true;
   state.transport = options.transport || new CliTransport(state.verbose, showCost);

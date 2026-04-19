@@ -29,6 +29,7 @@ const stubCtx: ModuleContext = {
   registerMiddleware: () => {},
   registerDynamicStateProvider: () => {},
   registerCleanupHook: () => {},
+  registerPreSendHook: () => {},
   resolveAgentDef: () => undefined,
   resolveSkillsPrompt: () => "",
   probeHealthChecks: async () => ({}),
