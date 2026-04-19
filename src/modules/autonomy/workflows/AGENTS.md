@@ -12,6 +12,19 @@ This directory contains the autonomy workflows and their co-located prompts.
   uses a named agent, export that agent from the same file.
 - These workflows are discovered from this directory by the autonomy module. Do not add a separate registry for them.
 
+## Finish Protocol
+
+When a workflow agent finishes its work:
+
+- Stage changes with `git add -A`.
+- Write a short commit message to `<run-directory>/commit-message.txt`.
+- Do not run `git commit` yourself. The workflow's commit step reads the
+  message file and commits after validation gates pass. Running `git commit`
+  directly bypasses the repair loop and fails the run.
+
+Prompts should not repeat these instructions. Workflow-specific finish guidance
+(e.g. validation before staging, conditional staging) stays in the prompt.
+
 ## Self-Trigger Loop Risk
 
 Any workflow with a `workflow.completed` trigger must narrow that trigger so it
@@ -44,48 +57,26 @@ session's supervision posture; tool-level guardrails still apply on top.
 ### Agent-Step Retry and Error Classification
 
 Every agent step inherits `DEFAULT_AGENT_STEP_RETRY` from
-`src/core/workflow/steps/step-executor-retry.ts` — do not re-declare the same
-block on each step. Add a per-step `retry:` override only when a step has a
-genuinely different requirement and justify it with a comment.
+`src/core/workflow/steps/step-executor-retry.ts`. Add a per-step `retry:`
+override only when a step has a genuinely different requirement and justify it
+with a comment.
 
-Errors that escape the step are classified by `classifyAgentRuntimeFailure`
-against structured signals in this order:
+Retries consume attempts only for classified transient failures (rate-limit,
+auth, provider 5xx/timeouts, socket errors) and JSON-schema validation errors.
+Runaway-agent subtypes (`error_max_turns`, `error_max_tokens`), malformed tool
+calls, and other deterministic mistakes are **unclassified**: the step fails on
+the first attempt without burning budget or triggering agent-dispatch backoff.
 
-1. `AbortError` is never classified — it propagates unchanged.
-2. SDK result subtype (`error_max_turns`, `error_max_tokens`) is a runaway
-   agent, not a provider problem. The step fails hard with no retry and no
-   agent-dispatch backoff.
-3. HTTP status on the thrown error: `429` → rate_limit (no retry, backoff),
-   `401`/`403` → auth (no retry, backoff), `5xx` or `408` → provider
-   (retryable, backoff on exhaustion).
-4. Node.js system error codes (`ECONNRESET`, `ECONNREFUSED`, `ENOTFOUND`,
-   `ETIMEDOUT`, `EPIPE`) → provider, retryable.
-5. The `API Error: <status>` marker the SDK encodes into its own error text
-   is parsed and reused as a status code.
-6. Narrow CLI rate-limit and auth text markers
-   (`rate limit`, `quota`, `you've/you have hit your limit`, `not logged in`,
-   `please run /login`, `unauthorized`, `authentication`).
-
-Anything else is **unclassified**: the agent-step retry predicate refuses
-to consume a retry attempt for it, so the step fails on the first attempt
-and the run aborts without triggering agent-dispatch backoff. Retries are
-reserved for classified transient failures and JSON-schema validation
-errors (the latter re-prompts the agent with the validation detail);
-unclassified problems — max-turns, max-tokens, agent logic mistakes,
-malformed tool calls — are deterministic and must not burn budget.
-
-Do not add broad fuzzy string matches to the classifier. Every new match
-must key on a structured field (status code, error code, SDK subtype) or a
-narrow, SDK-specific text marker.
+Classification is driven by structured signals (SDK result subtype, HTTP
+status, Node error codes, and narrow SDK-specific text markers). See
+`classifyAgentRuntimeFailure` for the full signal table. Do not add broad
+fuzzy string matches to the classifier.
 
 ## Unit Testing
 
-Each workflow should have a co-located `workflow.test.ts` for `when` predicate
-and skip/run logic when that logic is non-trivial. Focus on decisions the
-workflow makes, not on agent step content.
-
-If a workflow has no `when` predicates or non-trivial skip logic, a unit test adds little value;
-rely on the integration test below instead.
+Each workflow with non-trivial `when` predicate or skip/run logic should have a
+co-located `workflow.test.ts` covering those decisions — not agent step
+content. Workflows without such logic rely on the integration test below.
 
 ## Routing
 
@@ -148,30 +139,14 @@ in the recovery protocol. A workflow opts in by:
    dispatch — a network round-trip before the reset would leak side effects
    on every retry.
 
-A workflow that does not mutate tracked files may still declare
-`recoveryCapable: true` with a `runtime.recovered` trigger when it has a
-useful role on crash recovery (e.g. attention-digest notifies operators).
-The reset step can be omitted in that case, but the workflow must still be
-idempotent and have no pre-reset network effects.
-
-Workflows that neither mutate tracked files nor have a role on recovery
-leave `recoveryCapable` unset and add a short comment above the definition
-explaining why. Today that category covers `dispatcher` and `pr-reviewer`.
-
-When adding a new autonomy workflow, decide which bucket it falls into and
-wire the reset step accordingly. Do not silently inherit another workflow's
-recovery posture.
-
-## Finish Protocol
-
-When a workflow agent finishes its work:
-
-- Stage changes with `git add -A`.
-- Write a short commit message to `<run-directory>/commit-message.txt`.
-- Do not run `git commit` yourself.
-
-Prompts should not repeat these instructions. Workflow-specific finish guidance
-(e.g. validation before staging, conditional staging) stays in the prompt.
+A workflow that does not mutate tracked files but has a role on crash recovery
+(e.g. attention-digest notifying operators) may still declare
+`recoveryCapable: true` with a `runtime.recovered` trigger; the reset step can
+be omitted, but the workflow must stay idempotent with no pre-reset network
+effects. A workflow with neither role leaves `recoveryCapable` unset with a
+short comment explaining why (today: `dispatcher`, `pr-reviewer`). When adding
+a new autonomy workflow, decide which bucket it falls into deliberately — do
+not silently inherit another workflow's recovery posture.
 
 ## Integration Test
 
