@@ -28,3 +28,47 @@ resources:
       fingerprint: sha256:c4c36596e3dba94a654bce7537b4ebf1
       summary: "Pi-mono is a TypeScript monorepo toolkit for building AI agents and managing LLM deployments, bundling a unified multi-provider LLM API, an agent runtime with state persistence, a coding agent CLI, a Slack bot that delegates to the coding agent, a terminal UI library, and web components for chat UIs; encourages public sharing of agent session logs to build training data."
       last_seen_at: "2026-04-18T00:43:33.665Z"
+  - url: https://github.com/anthropics/claude-code
+    added: "2026-04-19"
+  - url: https://github.com/openai/codex
+    added: "2026-04-19"
+  - url: https://github.com/google-gemini/gemini-cli
+    added: "2026-04-19"
+  - url: https://github.com/Aider-AI/aider
+    added: "2026-04-19"
+  - url: https://github.com/block/goose
+    added: "2026-04-19"
+  - url: https://github.com/All-Hands-AI/OpenHands
+    added: "2026-04-19"
+  - url: https://github.com/SWE-agent/SWE-agent
+    added: "2026-04-19"
+  - url: https://github.com/princeton-nlp/SWE-bench
+    added: "2026-04-19"
+  - url: https://github.com/letta-ai/letta
+    added: "2026-04-19"
+  - url: https://github.com/microsoft/autogen
+    added: "2026-04-19"
+  - url: https://github.com/crewAIInc/crewAI
+    added: "2026-04-19"
+  - url: https://github.com/langchain-ai/langgraph
+    added: "2026-04-19"
+  - url: https://github.com/huggingface/smolagents
+    added: "2026-04-19"
+  - url: https://github.com/mannaandpoem/OpenManus
+    added: "2026-04-19"
+  - url: https://github.com/vercel/ai
+    added: "2026-04-19"
+  - url: https://github.com/noahshinn/reflexion
+    added: "2026-04-19"
+  - url: https://www.anthropic.com/research
+    added: "2026-04-19"
+  - url: https://www.anthropic.com/engineering
+    added: "2026-04-19"
+  - url: https://openai.com/research
+    added: "2026-04-19"
+  - url: https://deepmind.google/discover/blog/
+    added: "2026-04-19"
+  - url: https://research.google/blog/
+    added: "2026-04-19"
+  - url: https://vercel.com/blog/category/ai
+    added: "2026-04-19"

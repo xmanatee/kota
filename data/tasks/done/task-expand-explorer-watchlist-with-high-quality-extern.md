@@ -1,12 +1,12 @@
 ---
 id: task-expand-explorer-watchlist-with-high-quality-extern
 title: Expand explorer watchlist with high-quality external resources
-status: backlog
+status: done
 priority: p2
 area: autonomy
 summary: Current watchlist is shallow with only four entries; research and add well-maintained resources from peer projects (pi-mono, openclaw, zeroclaw, openfang), vendor research (Anthropic, Google, Vercel), and representative agent-research papers so explorer runs surface more external signal.
 created_at: 2026-04-19T19:40:24.397Z
-updated_at: 2026-04-19T19:40:24.397Z
+updated_at: 2026-04-19T22:10:28.254Z
 ---
 
 ## Problem
