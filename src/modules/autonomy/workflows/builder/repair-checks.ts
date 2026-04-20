@@ -11,11 +11,15 @@ function countDoneWhenItems(taskContent: string): number {
   return doneWhenMatch[1].split("\n").filter((l) => /^\s*-\s+\S/.test(l)).length;
 }
 
-// A "top-level" criterion/evidence item is a line that starts (no indent)
-// with a numbered marker (`1.`, `2)`) or a bullet (`-`, `*`). Sub-bullets
-// describing a single item do not count separately.
+// A "top-level" criterion/evidence item is a numbered marker at column 0
+// (`1.`, `2)`). Bullets (`-`, `*`) are treated as prose/notes so agents can
+// add "Design notes" or "Known limitations" sections without inflating the
+// criterion count. Six failures in 7d (hjpmjs, vxjzg3, qno619, and three
+// earlier) all had the same shape: numbered criteria followed by a notes
+// section with column-0 dashes, which the prior regex counted as extra
+// criteria and forced evidence-file padding during repair.
 function countTopLevelItems(text: string): number {
-  return text.split("\n").filter((line) => /^(?:\d+[.)]|[-*])\s+\S/.test(line)).length;
+  return text.split("\n").filter((line) => /^\d+[.)]\s+\S/.test(line)).length;
 }
 
 function countNonEmptyLines(text: string): number {
@@ -69,25 +73,23 @@ export function checkSuccessCriteriaVerified(runDirPath: string): string {
   const criteria = readFileSync(criteriaPath, "utf8");
   const verified = readFileSync(verifiedPath, "utf8");
 
-  // When criteria are written as structured top-level items (numbered or
-  // bulleted), compare structural item counts — a single criterion with
-  // sub-bullets should need one top-level evidence item, not one evidence
-  // line per sub-bullet. Two observed failures (builder-txyajb, builder-99rp7t)
-  // were agents padding evidence prose just to match inflated line counts.
-  // Fall back to non-empty line counts only when criteria is free-form.
+  // When criteria are written as numbered items, compare numbered-item counts.
+  // Bullets and prose are treated as notes and do not count as criteria, so
+  // agents can freely add "Design notes" or "Known limitations" sections
+  // without padding evidence to match. Fall back to non-empty line counts
+  // only when neither file uses numbered items.
   const criteriaItems = countTopLevelItems(criteria);
-  const useStructured = criteriaItems > 0;
+  const verifiedItems = countTopLevelItems(verified);
+  const useStructured = criteriaItems > 0 || verifiedItems > 0;
   const criteriaCount = useStructured ? criteriaItems : countNonEmptyLines(criteria);
-  const verifiedCount = useStructured
-    ? countTopLevelItems(verified)
-    : countNonEmptyLines(verified);
-  const unit = useStructured ? "top-level evidence item" : "evidence line";
+  const verifiedCount = useStructured ? verifiedItems : countNonEmptyLines(verified);
+  const unit = useStructured ? "numbered evidence item" : "evidence line";
 
   if (verifiedCount < criteriaCount) {
     const guidance = useStructured
-      ? "Each criterion must be addressed with one top-level evidence item " +
-        '(a line starting with "- ", "* ", "1.", etc.). Sub-bullets under an ' +
-        "item do not count separately."
+      ? "Each criterion must be addressed with one numbered evidence item " +
+        '(a line starting with "1.", "2.", etc. at column 0). Bullets and ' +
+        "prose under a criterion are treated as notes and do not count separately."
       : "Each criterion must be addressed with a corresponding evidence line.";
     throw new Error(
       `success-criteria-verified.txt has ${verifiedCount} ${unit}(s) ` +

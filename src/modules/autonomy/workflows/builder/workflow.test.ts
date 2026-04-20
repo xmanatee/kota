@@ -836,9 +836,9 @@ describe("checkSuccessCriteriaVerified", () => {
     expect(checkSuccessCriteriaVerified(dir)).toMatch(/OK/);
   });
 
-  it("counts structured top-level items — sub-bullets under a criterion do not require padding in evidence", () => {
+  it("counts numbered items — indented sub-bullets under a criterion do not require padding in evidence", () => {
     const dir = makeTmpDir();
-    // Two top-level criteria, each with three sub-bullets (8 non-empty lines).
+    // Two numbered criteria, each with three sub-bullets (8 non-empty lines).
     const criteria =
       "1. Tests pass end to end.\n" +
       "   - unit tests cover the new module\n" +
@@ -846,30 +846,29 @@ describe("checkSuccessCriteriaVerified", () => {
       "2. Docs describe the new endpoint.\n" +
       "   - README updated\n" +
       "   - AGENTS.md updated\n";
-    // Two top-level evidence items, condensed (5 non-empty lines — fewer than
-    // criteria non-empty lines but matching top-level item count).
+    // Two numbered evidence items, condensed.
     const verified =
       "1. Tests pass: pnpm test green with 42 added cases.\n" +
       "2. Docs updated: README and AGENTS.md both reflect the new endpoint.\n";
     writeFileSync(join(dir, "success-criteria.txt"), criteria);
     writeFileSync(join(dir, "success-criteria-verified.txt"), verified);
     expect(checkSuccessCriteriaVerified(dir)).toMatch(
-      /OK.*2 top-level evidence items for 2 criteria/,
+      /OK.*2 numbered evidence items for 2 criteria/,
     );
   });
 
-  it("fails when structured verified file has fewer top-level items than structured criteria", () => {
+  it("fails when structured verified file has fewer numbered items than structured criteria", () => {
     const dir = makeTmpDir();
     const criteria = "1. First criterion.\n2. Second criterion.\n3. Third criterion.\n";
     const verified = "1. First criterion verified.\n2. Second criterion verified.\n";
     writeFileSync(join(dir, "success-criteria.txt"), criteria);
     writeFileSync(join(dir, "success-criteria-verified.txt"), verified);
     expect(() => checkSuccessCriteriaVerified(dir)).toThrow(
-      /2 top-level evidence item.*3 criteria/,
+      /2 numbered evidence item.*3 criteria/,
     );
   });
 
-  it("fails when structured criteria is countered by free-form evidence (no top-level items)", () => {
+  it("fails when structured criteria is countered by free-form evidence (no numbered items)", () => {
     const dir = makeTmpDir();
     writeFileSync(
       join(dir, "success-criteria.txt"),
@@ -880,7 +879,30 @@ describe("checkSuccessCriteriaVerified", () => {
       "Everything was verified across the two criteria in one paragraph.\n",
     );
     expect(() => checkSuccessCriteriaVerified(dir)).toThrow(
-      /0 top-level evidence item.*2 criteria/,
+      /0 numbered evidence item.*2 criteria/,
+    );
+  });
+
+  it("treats column-0 bullets in a notes section as prose, not criteria", () => {
+    // Regression test for the durable 7d pattern (hjpmjs, vxjzg3, qno619):
+    // agents draft numbered criteria followed by a `Design notes` or
+    // `Known limitations` section with column-0 `- ` bullets. The check
+    // must count only the numbered items, not the notes bullets.
+    const dir = makeTmpDir();
+    const criteria =
+      "1. First numbered criterion.\n" +
+      "2. Second numbered criterion.\n" +
+      "\n" +
+      "Known limitations to flag for the critic:\n" +
+      "- Fixture coverage is intentionally minimal.\n" +
+      "- Cadence schedule is opinionated.\n";
+    const verified =
+      "1. First criterion — VERIFIED.\n" +
+      "2. Second criterion — VERIFIED.\n";
+    writeFileSync(join(dir, "success-criteria.txt"), criteria);
+    writeFileSync(join(dir, "success-criteria-verified.txt"), verified);
+    expect(checkSuccessCriteriaVerified(dir)).toMatch(
+      /OK.*2 numbered evidence items for 2 criteria/,
     );
   });
 });

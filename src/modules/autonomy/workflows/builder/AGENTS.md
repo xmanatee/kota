@@ -19,6 +19,12 @@ verify them before completion:
 - `success-criteria.txt`
 - `success-criteria-verified.txt`
 
+Number each criterion at column 0 (`1.`, `2.`, ...), one per Done-When item.
+The repair check counts numbered items only; column-0 bullets (`- `/`* `) and
+prose are treated as notes, so `Design notes` or `Known limitations` sections
+do not inflate the criterion count. Match the numbered-item count between the
+two files.
+
 Keep completion reviewable. If external resources or runtime behavior matter,
 leave enough ordinary context in the task state, docs, code, or run notes for a
 later reviewer to verify the result. If a required resource cannot be reached,
