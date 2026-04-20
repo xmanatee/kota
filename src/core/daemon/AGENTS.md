@@ -136,3 +136,70 @@ Once the owner picks, the blocked task
 - **(c) Web client selector.** Project-scoped routes and SSE subscription
   scoping in the web dashboard. Native macOS and mobile parity follows as
   their own tasks.
+
+## Recoverability
+
+The daemon is the source of truth for live runtime state. A single question
+governs every surface listed here: *if the daemon crashes mid-turn, does this
+state reconstruct from append-only artifacts, or is it lost?*
+
+Recoverable surfaces (append-only or file-backed; survive crash):
+
+- **Daemon state** (`.kota/daemon-state.json`) — `completedRuns`, last-run
+  fields, pid, startedAt. Written on every completion.
+- **Workflow runtime** — run store (`.kota/runs/`), persisted queue, recovery
+  record. Interrupted runs detected on startup and, when the worktree is
+  dirty, `runtime.recovered` is queued first.
+- **Scheduler** (`~/.kota/schedules-<hash>.json`) — persisted on every
+  `add`, `cancel`, and `markFired`.
+- **Approval queue** (`.kota/approvals/*.json`) — one file per approval,
+  rewritten on every status transition.
+- **Owner-question queue** (`.kota/owner-questions/*.json`) — one file per
+  question, rewritten on every status transition.
+- **Push-token store** (`.kota/push-tokens.json`) — rewritten on every
+  registration.
+- **Task store** (`data/tasks/`) — file-backed; unaffected by daemon crash.
+- **Conversation history** (`~/.kota/history/`) — messages persist per
+  `conversationId` via `ConversationHistory.save()`; the *conversation text*
+  survives even when the daemon session that produced it is lost.
+
+Deliberate losses (state is not reconstructible, and persistence is not worth
+the cost):
+
+- **Event ring buffer** (in-memory, 500 events) — clients must tolerate a
+  reconnect-window gap after daemon restart. SSE clients already reconnect;
+  durable event history lives in run artifacts and module-log store. Adding
+  write-through would duplicate every bus event to disk for a UI-catchup
+  benefit clients already handle.
+- **Notification-gate buffer** (held `workflow.attention.digest` events during
+  quiet hours) — low volume, single event type, automatically released at
+  window end. If the daemon crashes mid-window, the held digest is lost; the
+  next real alert re-surfaces attention. Persisting this buffer would add a
+  second store for a single event stream.
+- **Workflow metric cache** (`daemon-handle.ts` memoization) —
+  reconstructable by re-reading the run store on demand.
+- **Module health-check cache** — refreshed on the next probe cycle (30 s).
+- **SSE subscriptions and chat pool sweep timers** — transient; clients
+  reconnect.
+
+Gaps with live follow-ups (state is lost, loss is user-visible, and the fix
+requires more than a write-through):
+
+- **Daemon-owned chat sessions** (`DaemonChatPool`) — `AgentSession` +
+  `ProxyTransport` live in daemon memory; on crash, the in-flight turn is
+  abandoned and the session id cannot be reused by the client. Conversation
+  messages persist (when `historyEnabled`), but the session→conversationId
+  binding is not threaded through `makeAgent`, so there is no wake path.
+  Follow-up: `task-persist-daemon-chat-session-conversation-binding`.
+- **Serve-registered session registry** — the serve process registers each
+  session with the daemon once at creation (`server-routes.ts`). After a
+  daemon restart, the daemon's advisory registry is empty until the serve
+  process makes the next per-session call. The conversation in serve memory
+  survives, but daemon clients (e.g. `kota status`, web dashboard) cannot
+  see it. Follow-up: `task-reregister-serve-sessions-after-daemon-restart`.
+
+New daemon-owned runtime state must answer this question at design time.
+Default to writing through to run artifacts or emitting a typed bus event
+rather than holding state only in process memory. Do not introduce
+session-state write-through on every event if a coarser checkpoint preserves
+the wake-path guarantee.

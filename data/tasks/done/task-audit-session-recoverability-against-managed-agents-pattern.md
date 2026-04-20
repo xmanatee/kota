@@ -1,12 +1,12 @@
 ---
 id: task-audit-session-recoverability-against-managed-agents-pattern
 title: Audit session recoverability against managed-agents decoupling pattern
-status: backlog
+status: done
 priority: p3
 area: daemon
 summary: Anthropic's managed-agents post frames sessions as append-only event logs that survive harness crashes via a stateless wake() path. KOTA has run artifacts, event ring buffer, and workflow recovery, but session state lives in daemon memory. Audit what survives a daemon crash mid-turn and close the gaps where live state cannot be reconstructed.
 created_at: 2026-04-20T00:30:00.000Z
-updated_at: 2026-04-20T00:30:00.000Z
+updated_at: 2026-04-20T01:55:17.443Z
 ---
 
 ## Problem
