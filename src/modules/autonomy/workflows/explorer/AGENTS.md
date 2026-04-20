@@ -18,4 +18,9 @@ This directory contains the explorer workflow definition and prompt.
   move <id> ready` before finishing. Do not rely on the repair loop to move
   the task for you — the pattern consistently burns 15–25 minutes of repair
   work per occurrence.
+- When `strategicReadyCoverageGap` from `inspect-queue` is `true`, the
+  `ready/` queue is non-empty but holds only `p3` work. The run must create
+  or promote a `p0`/`p1`/`p2` task before finishing; the
+  `strategic-ready-coverage` phase-1 repair check will otherwise force a
+  full agent re-run. Same cost profile as the `task-queue-valid` trip above.
 - Other task-queue warnings stay advisory.

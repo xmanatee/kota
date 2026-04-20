@@ -23,6 +23,7 @@ import {
 import {
   assertArchitectureReadyCoverage,
   assertStrategicReadyCoverage,
+  hasStrategicReadyCoverageGap,
 } from "#modules/repo-tasks/task-queue-validation.js";
 import {
   readLastExplorationAt,
@@ -55,6 +56,7 @@ type ExplorerAssessment = {
   dirty: boolean;
   needsAttention: boolean;
   explorationRefreshDue: boolean;
+  strategicReadyCoverageGap: boolean;
 };
 
 function buildExplorerAssessment(
@@ -75,6 +77,7 @@ function buildExplorerAssessment(
     dirty,
     needsAttention: !dirty && (queueEmpty || queueThin) && explorationRefreshDue,
     explorationRefreshDue,
+    strategicReadyCoverageGap: hasStrategicReadyCoverageGap(projectDir),
   };
 }
 
