@@ -114,6 +114,10 @@ resources:
       last_seen_at: "2026-04-20T10:27:20.863Z"
   - url: https://github.com/FoundationAgents/OpenManus
     added: "2026-04-20"
+    snapshot:
+      fingerprint: sha256:ce23f40950540ddd9d2b58da83968f00
+      summary: "OpenManus is MetaGPT-originated general-purpose Python agent framework with MCP integration, multi-agent specialization (e.g. DataAnalysis), browser-automation via anthropic-computer-use/browser-use/crawl4ai, and TOML-configured LLM endpoints; pattern overlap with KOTA is high but no novel primitive beyond the already-adopted tool/module/MCP model."
+      last_seen_at: "2026-04-20T12:32:55.787Z"
   - url: https://github.com/vercel/ai
     added: "2026-04-19"
     snapshot:
@@ -142,7 +146,15 @@ resources:
     added: "2026-04-19"
   - url: https://deepmind.google/discover/blog/
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:7859bbd59191f54e50c27c60ba98afb6
+      summary: "DeepMind blog recent cadence mixes frontier model announcements (Gemini 3 Deep Think / Flash, Robotics-ER 1.6, D4RT) with safety/oversight and evaluation-methodology posts (Protecting from harmful manipulation, Measuring progress toward AGI cognitive framework, Gemma Scope 2 interpretability) — interpretability and evaluation threads are the durable autonomy-adjacent signal."
+      last_seen_at: "2026-04-20T12:32:55.787Z"
   - url: https://research.google/blog/
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:5d18aaf5ad4133091df1e7df3063384c
+      summary: "Google Research blog index recently leans into evaluation methodology (rater sufficiency, alignment of behavioral dispositions, synthetic-data design, user-simulator realism) plus purpose-built AI agents (academic figure/peer-review agents, XR Blocks Gemini prototyping) — relevant to KOTA autonomy-eval and agent-judge calibration work."
+      last_seen_at: "2026-04-20T12:32:55.787Z"
   - url: https://vercel.com/blog/category/ai
     added: "2026-04-19"
