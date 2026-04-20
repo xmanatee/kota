@@ -1,12 +1,12 @@
 ---
 id: task-distill-takeaways-from-openai-research-posts-into-
 title: Distill takeaways from OpenAI research posts into KOTA autonomy decisions
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Read the durable autonomy-adjacent OpenAI research posts already visible on the watchlist (instruction hierarchy, chain-of-thought monitorability, SWE-bench Verified retirement, Model Spec), and record only the decisions that change KOTA design in the autonomy AGENTS.md scope
 created_at: 2026-04-20T19:16:32.555Z
-updated_at: 2026-04-20T19:16:32.555Z
+updated_at: 2026-04-20T20:20:50.192Z
 ---
 
 ## Problem
