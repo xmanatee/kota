@@ -3,8 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getMemoryStore, resetMemoryStore } from "#core/memory/store.js";
+import {
+	initProviderRegistry,
+	resetProviderRegistry,
+} from "#core/modules/provider-registry.js";
 import { registerMemoryCommands } from "./cli.js";
+import { getMemoryStore, resetMemoryStore } from "./store.js";
 
 function makeProjectDir(): string {
 	const dir = join(
@@ -28,12 +32,14 @@ describe("kota memory add", () => {
 	beforeEach(() => {
 		storeDir = makeProjectDir();
 		resetMemoryStore();
-		// Pre-initialize singleton with test dir so CLI uses it
-		getMemoryStore(storeDir);
+		resetProviderRegistry();
+		const reg = initProviderRegistry();
+		reg.register("memory", "memory", getMemoryStore(storeDir));
 	});
 
 	afterEach(() => {
 		resetMemoryStore();
+		resetProviderRegistry();
 		rmSync(storeDir, { recursive: true, force: true });
 	});
 

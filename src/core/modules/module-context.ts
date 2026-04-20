@@ -15,7 +15,7 @@ import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js"
 import { getModuleLogStore } from "./module-log.js";
 import { ModuleStorage } from "./module-storage.js";
 import type { CreateSessionOptions, HealthCheckResult, ModuleContext, ModuleEventProxy, ModuleSession, ModuleSummary, RouteRegistration } from "./module-types.js";
-import { getProviderRegistry } from "./provider-registry.js";
+import { getProviderRegistry, initProviderRegistry } from "./provider-registry.js";
 
 export interface ModuleContextParams {
   cwd: string;
@@ -120,15 +120,11 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
       return sessionFactory(opts ?? {});
     },
     registerProvider: (type: string, provider: unknown): void => {
-      const reg = getProviderRegistry();
-      if (!reg) {
-        log.warn(`Cannot register provider for "${type}" — registry not initialized`);
-        return;
-      }
       if (!moduleName) {
         log.warn(`Cannot register provider without a module name`);
         return;
       }
+      const reg = getProviderRegistry() ?? initProviderRegistry();
       reg.register(type, moduleName, provider);
       log.info(`Registered as provider for "${type}"`);
     },

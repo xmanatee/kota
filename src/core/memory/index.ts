@@ -1,7 +1,7 @@
 /**
- * Memory subsystem — persistent memory, conversation history, working memory,
- * and context compaction. The file-based knowledge store is owned by the
- * `knowledge` module.
+ * Memory subsystem — conversation history, working memory, and context
+ * compaction. The file-based memory store is owned by the `memory` module;
+ * the file-based knowledge store is owned by the `knowledge` module.
  */
 
 export {
@@ -17,7 +17,6 @@ export {
 	getHistory,
 	resetHistory,
 } from "./history.js";
-export { getMemoryStore, type Memory, MemoryStore } from "./store.js";
 export {
 	clearAll,
 	getEntry,

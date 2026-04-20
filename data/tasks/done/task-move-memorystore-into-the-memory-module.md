@@ -1,12 +1,12 @@
 ---
 id: task-move-memorystore-into-the-memory-module
 title: Move MemoryStore into the memory module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Extract the file-based MemoryStore implementation from src/core/memory into the existing memory module, continuing the core-shrink/provider-module pattern already applied to knowledge and sqlite-memory
 created_at: 2026-04-20T17:32:05.580Z
-updated_at: 2026-04-20T17:32:05.580Z
+updated_at: 2026-04-20T18:21:53.564Z
 ---
 
 ## Problem

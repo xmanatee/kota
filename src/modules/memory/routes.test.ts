@@ -1,7 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
-import type { Memory } from "#core/memory/store.js";
-import type { MemoryProvider } from "#core/modules/provider-types.js";
+import type { Memory, MemoryProvider } from "#core/modules/provider-types.js";
 import { handleAddMemory, handleDeleteMemory, handleGetMemory, handleListMemory, handleUpdateMemory } from "./routes.js";
 
 function mockResponse() {

@@ -9,15 +9,15 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryStore } from "#core/memory/store.js";
+import { ModuleTestHarness } from "#core/modules/testing/index.js";
+import { MemoryStore } from "#modules/memory/store.js";
 
-vi.mock("#core/memory/store.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("#core/memory/store.js")>();
+vi.mock("#modules/memory/store.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("#modules/memory/store.js")>();
   return { ...actual, getMemoryStore: vi.fn() };
 });
 
-import { getMemoryStore } from "#core/memory/store.js";
-import { ModuleTestHarness } from "#core/modules/testing/index.js";
+import { getMemoryStore } from "#modules/memory/store.js";
 import memoryExtension from "./index.js";
 
 const mocked = vi.mocked(getMemoryStore);

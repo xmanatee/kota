@@ -9,8 +9,8 @@
  */
 
 import { createHash } from "node:crypto";
-import type { Memory, MemoryStore } from "#core/memory/store.js";
-import type { MemoryProvider } from "#core/modules/provider-types.js";
+import type { Memory, MemoryProvider } from "#core/modules/provider-types.js";
+import type { MemoryStore } from "#modules/memory/store.js";
 import type { EmbeddingProvider } from "#modules/semantic-index/embedding-provider.js";
 import {
 	type ReindexResult,

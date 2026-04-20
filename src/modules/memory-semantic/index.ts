@@ -5,8 +5,8 @@
  * after providing the module config (provider/model/apiKey).
  */
 
-import { getMemoryStore } from "#core/memory/store.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { getMemoryStore } from "#modules/memory/store.js";
 import {
 	createEmbeddingProvider,
 	readEmbeddingProviderConfig,

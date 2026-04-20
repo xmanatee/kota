@@ -21,6 +21,11 @@ import type {
   RouteRegistration,
   ToolDef,
 } from "#core/modules/module-types.js";
+import {
+  getProviderRegistry,
+  initProviderRegistry,
+  resetProviderRegistry,
+} from "#core/modules/provider-registry.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
 export type ModuleHarnessOptions = {
@@ -42,7 +47,6 @@ export class ModuleTestHarness {
     string,
     Array<(payload: Record<string, unknown>) => void>
   >();
-  readonly #providers = new Map<string, unknown>();
   readonly #tempDir: string;
   #loaded = false;
 
@@ -94,7 +98,8 @@ export class ModuleTestHarness {
   }
 
   /**
-   * Tear down all loaded modules in reverse order. Calls onUnload on each.
+   * Tear down all loaded modules in reverse order. Calls onUnload on each
+   * and resets the shared provider registry the harness wrote to.
    * After teardown, load() may be called again.
    */
   async teardown(): Promise<void> {
@@ -103,6 +108,7 @@ export class ModuleTestHarness {
         await mod.onUnload();
       }
     }
+    resetProviderRegistry();
     this.#loaded = false;
   }
 
@@ -197,10 +203,13 @@ export class ModuleTestHarness {
         throw new Error("createSession is not supported in ModuleTestHarness");
       },
       registerProvider: (type, provider) => {
-        this.#providers.set(type, provider);
+        const reg = getProviderRegistry() ?? initProviderRegistry();
+        reg.register(type, moduleName, provider);
       },
-      getProvider: <T>(type: string) =>
-        (this.#providers.get(type) as T | undefined) ?? null,
+      getProvider: <T>(type: string) => {
+        const reg = getProviderRegistry();
+        return reg?.get<T>(type) ?? null;
+      },
       callTool: async (name, input) => this.callTool(name, input),
       registerMiddleware: () => {},
       registerDynamicStateProvider: (name, fn) => {

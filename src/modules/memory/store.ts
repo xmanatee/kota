@@ -1,23 +1,20 @@
+/**
+ * Memory Store — file-based persistent agent notes.
+ *
+ * Entries are stored as a single JSON file under `.kota/memory.json`
+ * (or `~/.kota/memory.json` for the global default). Each entry carries an
+ * id, content string, tag list, and ISO creation timestamp. The store
+ * auto-prunes to the most recent `MAX_MEMORIES` entries on save.
+ */
+
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-
-export type Memory = {
-  id: string;
-  content: string;
-  tags: string[];
-  created: string;
-};
+import type { Memory, ReindexResult } from "#core/modules/provider-types.js";
 
 type MemoryFile = {
   memories: Memory[];
-};
-
-export type ReindexResult = {
-  indexed: number;
-  failed: number;
-  skipped?: boolean;
 };
 
 const MAX_MEMORIES = 100;
@@ -154,7 +151,7 @@ export class MemoryStore {
   }
 }
 
-// Singleton for the tool to use
+// Singleton for the memory tool, CLI, and routes to share.
 let store: MemoryStore | undefined;
 
 export function getMemoryStore(dir?: string): MemoryStore {

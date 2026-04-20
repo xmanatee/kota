@@ -2,7 +2,6 @@
 
 import { getTaskStore } from "#core/daemon/task-store.js";
 import { getHistory } from "#core/memory/history.js";
-import { getMemoryStore } from "#core/memory/store.js";
 import type {
 	HistoryProvider,
 	KnowledgeProvider,
@@ -110,18 +109,23 @@ export function resetProviderRegistry(): void {
 /** Register the in-process default stores for core-owned service types. */
 export function registerDefaultProviders(): void {
 	if (!registry) return;
-	registry.register("memory", "default", getMemoryStore());
 	registry.register("task", "default", getTaskStore());
 	registry.register("history", "default", getHistory());
 }
 
-/** Get the active memory provider, or the default MemoryStore when no registry provider is active. */
+/**
+ * Get the active memory provider from the registry. The `memory` module owns
+ * the default implementation — callers must ensure it has loaded (via the
+ * module runtime or `ensureCliProvidersFor(["memory"])`).
+ */
 export function getMemoryProvider(): MemoryProvider {
 	if (registry) {
 		const provider = registry.get<MemoryProvider>("memory");
 		if (provider) return provider;
 	}
-	return getMemoryStore();
+	throw new Error(
+		"No memory provider registered. Load the `memory` module before calling getMemoryProvider.",
+	);
 }
 
 /**

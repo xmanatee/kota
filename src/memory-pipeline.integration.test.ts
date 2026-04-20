@@ -1,8 +1,8 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { MemoryStore } from "./core/memory/store.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryStore } from "#modules/memory/store.js";
 import { runMemory } from "./modules/memory/memory.js";
 
 /**
@@ -11,19 +11,22 @@ import { runMemory } from "./modules/memory/memory.js";
  * especially the iter-339 features: tag filtering, since filtering, update.
  */
 
+vi.mock("#core/modules/provider-registry.js", () => ({
+  getMemoryProvider: vi.fn(),
+}));
+
+import { getMemoryProvider } from "#core/modules/provider-registry.js";
+
+const mockedProvider = vi.mocked(getMemoryProvider);
+
 // Use a real MemoryStore with a temp directory for each test
 let tempDir: string;
 let store: MemoryStore;
 
-import { vi } from "vitest";
-// We need to override getMemoryStore so runMemory uses our test store.
-// Since getMemoryStore is a module-level singleton, we mock it.
-import * as memoryModule from "./core/memory/store.js";
-
 beforeEach(() => {
   tempDir = mkdtempSync(join(tmpdir(), "kota-mem-pipeline-"));
   store = new MemoryStore(tempDir);
-  vi.spyOn(memoryModule, "getMemoryStore").mockReturnValue(store);
+  mockedProvider.mockReturnValue(store);
 });
 
 afterEach(() => {

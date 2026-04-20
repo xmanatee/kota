@@ -4,13 +4,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock memory module to isolate from real ~/.kota/memory.json
-vi.mock("./core/memory/store.js", () => ({
-  getMemoryStore: vi.fn(() => ({
-    list: () => [] as any[],
-    search: () => [] as any[],
-  })),
-}));
+// Mock memory provider to isolate from real ~/.kota/memory.json
+vi.mock("./core/modules/provider-registry.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./core/modules/provider-registry.js")>();
+  return {
+    ...actual,
+    getMemoryProvider: vi.fn(() => ({
+      list: () => [] as any[],
+      search: () => [] as any[],
+    })),
+  };
+});
 
 // Mock history module to control conversation data
 vi.mock("./core/memory/history.js", () => ({
@@ -37,10 +41,10 @@ import { detectEnvironment, detectProject, getDirectoryOverview } from "#core/ut
 import { getScheduler } from "./core/daemon/scheduler.js";
 import { getTaskStore } from "./core/daemon/task-store.js";
 import { getHistory } from "./core/memory/history.js";
-import { getMemoryStore } from "./core/memory/store.js";
+import { getMemoryProvider } from "./core/modules/provider-registry.js";
 import { buildSessionWarmup } from "./init.js";
 
-const mocked = vi.mocked(getMemoryStore);
+const mocked = vi.mocked(getMemoryProvider);
 const mockedHistory = vi.mocked(getHistory);
 const mockedTaskStore = vi.mocked(getTaskStore);
 const mockedScheduler = vi.mocked(getScheduler);
@@ -342,7 +346,7 @@ describe("buildSessionWarmup", () => {
     expect(result).toContain("5 minutes ago");
   });
 
-  it("survives getMemoryStore() throwing", () => {
+  it("survives getMemoryProvider() throwing", () => {
     mocked.mockImplementation(() => { throw new Error("corrupt storage"); });
     const result = buildSessionWarmup(dir);
     expect(result).toContain("Working directory");

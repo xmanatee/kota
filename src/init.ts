@@ -2,10 +2,10 @@ import { execSync } from "node:child_process";
 import { basename } from "node:path";
 import { detectEnvironment, detectProject, getDirectoryOverview } from "#core/util/project-detection.js";
 import { getScheduler } from "./core/daemon/scheduler.js";
-import { getMemoryStore } from "./core/memory/store.js";
 import {
   getHistoryProvider,
   getKnowledgeProvider,
+  getMemoryProvider,
   getTaskProvider,
 } from "./core/modules/provider-registry.js";
 
@@ -75,12 +75,12 @@ function getSystemContext(): string {
 /** Search persistent memory for entries relevant to the current project. */
 function recallMemories(cwd: string): string | null {
   try {
-    const store = getMemoryStore();
-    const memories = store.list();
+    const provider = getMemoryProvider();
+    const memories = provider.list();
     if (memories.length === 0) return null;
 
     const dirName = basename(cwd);
-    const results = store.search(dirName);
+    const results = provider.search(dirName);
     const shown = results.slice(0, 5);
     if (shown.length === 0) return null;
 

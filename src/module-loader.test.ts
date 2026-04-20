@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "./core/events/event-bus.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import type { KotaModule } from "./core/modules/module-types.js";
+import { resetProviderRegistry } from "./core/modules/provider-registry.js";
 import { clearCustomTools, executeTool, getAllTools } from "./core/tools/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "./core/tools/tool-groups.js";
 
@@ -739,12 +740,14 @@ describe("memory module integration", () => {
     clearCustomTools();
     clearCustomGroups();
     resetGroups();
+    resetProviderRegistry();
   });
 
   afterEach(() => {
     clearCustomTools();
     clearCustomGroups();
     resetGroups();
+    resetProviderRegistry();
   });
 
   it("registers the memory tool via module protocol", async () => {

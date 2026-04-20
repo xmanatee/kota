@@ -1,13 +1,12 @@
 # Memory Module
 
-This directory owns the `memory` management tool — persistent, searchable agent notes that survive across sessions.
+This directory owns persistent, searchable agent notes that survive across sessions.
 
-- Registers `memory` in the `management` tool group.
-- Contributes the `memory` skill (prompt guidance for saving, searching, and managing memory entries).
+- Owns the file-based `MemoryStore` implementation (`store.ts`) and registers it as the `default` memory provider at module load through the provider registry.
+- Contributes the `memory` tool in the `management` group, the `kota memory …` CLI commands, the `/api/memory` HTTP routes, and the `memory` skill.
 
 ## Boundaries
 
-- Does not own the memory storage implementation (that lives in `src/core/memory/`).
-- Does not own the `memory` CLI commands (`kota memory …`) — those live in `src/modules/memory/cli.ts`.
-- Does not own session-scoped working memory (that belongs in `working-memory/`) or structured knowledge entries (that belongs in `knowledge/`).
+- Does not own session-scoped working memory (that belongs in `src/core/memory/working-memory.ts`) or structured knowledge entries (that belongs in `src/modules/knowledge/`).
 - The alternative SQLite-backed memory provider is in `src/modules/sqlite-memory/`, not here.
+- The embedding-backed memory provider is in `src/modules/memory-semantic/`, which layers on top of this module's store.

@@ -1,7 +1,14 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Task, TaskPriority, TaskStatus } from "#core/daemon/task-store.js";
 import type { ConversationData, ConversationRecord } from "#core/memory/history.js";
-import type { Memory } from "#core/memory/store.js";
+
+/** A memory entry: a persisted agent note with content, tags, and timestamp. */
+export type Memory = {
+	id: string;
+	content: string;
+	tags: string[];
+	created: string;
+};
 
 /** A knowledge base entry: structured markdown with YAML front matter. */
 export type KnowledgeEntry = {

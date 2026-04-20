@@ -1,7 +1,8 @@
 import { statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { type ConversationRecord, getHistory } from "#core/memory/history.js";
-import { getMemoryStore, type Memory } from "#core/memory/store.js";
+import { getMemoryProvider } from "#core/modules/provider-registry.js";
+import type { Memory } from "#core/modules/provider-types.js";
 
 export type PathInfo = {
   path: string;
@@ -148,8 +149,8 @@ export function analyzeRequest(
   let conversations: ConversationRecord[] = [];
   if (terms.length > 0) {
     try {
-      const store = getMemoryStore();
-      memories = store.search(terms.join(" ")).slice(0, MAX_MEMORIES);
+      const provider = getMemoryProvider();
+      memories = provider.search(terms.join(" ")).slice(0, MAX_MEMORIES);
     } catch {
       // Memory store unavailable — skip
     }

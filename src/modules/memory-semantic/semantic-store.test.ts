@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryStore } from "#core/memory/store.js";
+import { MemoryStore } from "#modules/memory/store.js";
 import type { EmbeddingProvider } from "#modules/semantic-index/embedding-provider.js";
 import {
 	indexPathFor,
