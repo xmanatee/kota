@@ -324,6 +324,32 @@ export type BusEvents = {
     startedAt: string;
     completedAt: string;
   };
+  /**
+   * The cadence workflow compared a fresh eval-set aggregate against the
+   * persisted baseline and the gate fired. The payload carries everything
+   * an observer needs to explain the regression to an operator without
+   * reopening the run artifacts (baseline and candidate aggregates,
+   * host-class, noise band, drop, and a typed reason string from the gate).
+   */
+  "eval-harness.regression.detected": {
+    baseline: {
+      fixtureCount: number;
+      repeatCount: number;
+      passAtK: number;
+      passHatK: number;
+    };
+    candidate: {
+      fixtureCount: number;
+      repeatCount: number;
+      passAtK: number;
+      passHatK: number;
+    };
+    hostClass: string;
+    noiseBandPercentagePoints: number;
+    dropPercentagePoints: number;
+    runArtifactBaseDir: string;
+    reason: string;
+  };
 };
 
 /** An event as seen by wildcard listeners: type + payload. */

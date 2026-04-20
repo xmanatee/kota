@@ -16,8 +16,20 @@
 import type { KotaModule } from "#core/modules/module-types.js";
 import evalHarnessCadence from "./cadence-workflow.js";
 import { buildEvalCommand } from "./cli.js";
+import evalHarnessRegressionNotify from "./regression-notify-workflow.js";
 import { evalHarnessRoutes } from "./routes.js";
 
+export type {
+  BaselineAssessment,
+  CandidateAssessment,
+} from "./baseline-assessment.js";
+export { assessAgainstBaseline } from "./baseline-assessment.js";
+export type { PersistedBaseline } from "./baseline-store.js";
+export {
+  baselineFilePath,
+  loadBaseline,
+  saveBaseline,
+} from "./baseline-store.js";
 export type { EvalSetParams, EvalSetReport } from "./eval-set.js";
 export { runEvalSet } from "./eval-set.js";
 export type {
@@ -61,7 +73,7 @@ const evalHarnessModule: KotaModule = {
     "Autonomy eval harness: fixture-run contract, scoring, regression gate, fixture runner, CLI + HTTP route, and weekly cadence workflow.",
   commands: (ctx) => [buildEvalCommand(ctx.cwd)],
   routes: (ctx) => evalHarnessRoutes(ctx),
-  workflows: [evalHarnessCadence],
+  workflows: [evalHarnessCadence, evalHarnessRegressionNotify],
 };
 
 export default evalHarnessModule;

@@ -1,12 +1,12 @@
 ---
 id: task-persist-eval-harness-baseline-and-surface-gated-re
 title: Persist eval-harness baseline and surface gated regressions through attention-digest
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: The weekly eval-harness cadence emits aggregate pass@k/pass^k but nothing compares it to a prior baseline, nothing gates on regression, and no operator-facing surface sees the result; a drop in pass^k is invisible to operators today.
 created_at: 2026-04-20T10:24:47.959Z
-updated_at: 2026-04-20T10:24:47.959Z
+updated_at: 2026-04-20T11:13:54.089Z
 ---
 
 ## Problem

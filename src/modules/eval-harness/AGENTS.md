@@ -17,12 +17,12 @@ Every `FixtureRun` MUST carry:
 
 - **Resource profile** — host class, CPU allocation (guaranteed floor) and
   kill threshold (hard ceiling) as separate fields, and matching memory
-  fields. Collapsing allocation and kill threshold into a single "cap"
-  erases the signal operators need to interpret a drop.
-- **Repeat index and total** — every fixture runs k times per evaluation.
-  k=1 runs do not participate in regression gating.
-- **Timing envelope** — explicit budget plus observed duration, so a run
-  that hit its deadline is distinguishable from one that returned cleanly.
+  fields. Collapsing allocation and kill threshold erases the signal
+  operators need to interpret a drop.
+- **Repeat index and total** — every fixture runs k times; k=1 runs do not
+  participate in regression gating.
+- **Timing envelope** — explicit budget plus observed duration, so runs
+  that hit their deadline are distinguishable from clean returns.
 
 ## Pass@k vs Pass^k
 
@@ -39,22 +39,19 @@ Gate autonomy rollouts on `pass^k`; track capability trends on `pass@k`.
 
 ## Regression Gate Threshold
 
-A candidate autonomy change is gated only when ALL of the following hold:
+A candidate change is gated only when ALL of the following hold:
 
-1. `pass^k` drops from baseline to candidate by more than the noise band
-   (default `DEFAULT_NOISE_BAND_PP = 3` percentage points).
+1. `pass^k` drops beyond the noise band (default 3pp).
 2. Both runs used the same `k`, and `k >= MIN_REPEAT_COUNT_FOR_GATING` (3).
-3. The baseline and candidate resource profiles are comparable (same host
+3. Baseline and candidate resource profiles are comparable (same host
    class, identical allocation and kill thresholds).
 
-A drop inside the noise band, a repeat-count mismatch, or any resource
-profile drift resolves to `not-gated` with a typed `reason`. The reason is
-not an error signal — it is evidence that the comparison itself is not
-load-bearing.
+A drop inside the noise band, a repeat-count mismatch, or resource-profile
+drift resolves to `not-gated` with a typed `reason` — evidence that the
+comparison itself isn't load-bearing, not an error signal.
 
-Operators calibrating the band per host class should raise
-`noiseBandPercentagePoints` empirically based on observed variance on a
-quiescent host, and record the calibration alongside the run.
+Operators calibrate the band per host class empirically and record the
+calibration alongside the run.
 
 ## How To Add A Fixture
 
@@ -70,17 +67,14 @@ Fixtures live under `src/modules/eval-harness/fixtures/<id>/`:
   applies), states what failed, and explains why this fixture captures
   that failure. See existing fixtures for the expected shape.
 
-New fixtures MUST be sourced from a real `.kota/runs/` failure. This is a
-requirement, not a preference: fixtures assembled from hypothetical tasks
-reward cosmetic progress on capability the agent already has and miss the
-failure modes the harness exists to gate against (the demystifying-evals
-anti-pattern the harness module was created to close). The narrow
-exception is a smoke fixture whose explicit purpose is to fail loudly
-when harness plumbing itself regresses; that fixture's `notes.md` must
-state "no source run id" and justify why no failure mode is being
-encoded. A fixture without either a source run id or a written
-justification is a contribution error — hypothetical fixtures silently
-passing a green regression gate is the failure this discipline prevents.
+New fixtures MUST be sourced from a real `.kota/runs/` failure. Fixtures
+assembled from hypothetical tasks reward cosmetic progress on capability the
+agent already has and miss the failure modes the harness exists to gate
+against (the demystifying-evals anti-pattern this module was created to
+close). The narrow exception is a smoke fixture that fails loudly when
+harness plumbing itself regresses; its `notes.md` must state "no source run
+id" and justify why no failure mode is encoded. Neither source run id nor
+written justification is a contribution error.
 
 Predicates are intentionally small and deterministic (`predicates.ts`):
 `file-exists`, `file-absent`, `file-contains`, `shell-succeeds`,
@@ -106,6 +100,22 @@ entry points that reuse it:
 All three emit `eval-harness.set.completed` on the event bus. There is no
 parallel metrics store.
 
+## Baseline Persistence And Regression Surfacing
+
+The cadence (only the cadence) persists the last accepted aggregate as the
+next run's comparison baseline, in the KOTA state root, per-project and
+per-host-class, never in the repo. First run records and skips the gate.
+`not-gated` rolls the baseline forward — including reasons where the
+comparison isn't load-bearing — so regressions are always measured against
+the most recent accepted result. `gated` holds the baseline until the next
+run clears or an operator resets it manually.
+
+On `gated`, the cadence emits a typed regression event; a dedicated bridge
+workflow forwards it through the normal attention channel. Consumers MUST
+subscribe to the typed event, not filter `workflow.completed` by name. CLI
+and HTTP callers still own their own comparison — auto-resolution is
+cadence-only.
+
 ## Runner Lifecycle
 
 Each fixture run:
@@ -129,21 +139,20 @@ resource profile recorded per run, breaking the noise-band comparison.
 
 ## How To Read A Regression
 
-A `gated` decision means the change should not ship as-is. Reshape the
-change, re-run on the same host class, and compare. If the drop persists
-across independent runs with stable resource profiles, the regression is
-real. If a `not-gated` decision shows `resource-profile-drift` or
-`repeat-count-below-minimum`, rerun with the proper configuration before
-drawing conclusions — the current numbers simply do not support a gate
-either way.
+A `gated` decision means the change should not ship as-is. Reshape, rerun
+on the same host class, and compare. If the drop persists across independent
+runs with stable resource profiles, the regression is real. A `not-gated`
+decision with `resource-profile-drift` or `repeat-count-below-minimum`
+means the current numbers don't support a gate either way — rerun with
+correct configuration before drawing conclusions.
 
 ## Boundaries
 
-- Scoring, fixture-run contract, fixture runner, and gate decisions all
-  live in this module.
+- Scoring, fixture-run contract, fixture runner, gate decisions, and the
+  persisted cadence baseline all live in this module.
 - Do NOT add a parallel metrics store. Aggregate scores surface through
-  the `eval-harness.set.completed` event on the shared bus; per-run
-  evidence lives as run artifacts.
+  `eval-harness.set.completed`; regressions through the typed regression
+  event; per-run evidence as run artifacts; the baseline file holds one row.
 - No cost signals leak into agent-facing context (existing autonomy rule).
 - The subprocess executor reuses the existing `kota workflow trigger`
   surface — the module does not fork a parallel runtime for evaluation.
