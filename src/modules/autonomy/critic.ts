@@ -8,6 +8,7 @@ import {
   executeWithAgentSDK,
 } from "#core/agent-sdk/index.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
+import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
 import { AUTONOMY_AGENT_DEFAULTS, AUTONOMY_DISALLOWED_TOOLS, sleep } from "./shared.js";
 import {
   extractTaskProbe,
@@ -245,9 +246,19 @@ export async function invokeAgentJudge(
         write: () => true,
       });
     } catch (thrown) {
+      const message = thrown instanceof Error ? thrown.message : String(thrown);
       lastError = new Error(
-        `${config.label} threw (attempt ${attempt + 1}/${maxRetries}): ${thrown instanceof Error ? thrown.message : String(thrown)}`,
+        `${config.label} threw (attempt ${attempt + 1}/${maxRetries}): ${message}`,
       );
+      const code = thrown instanceof Error
+        ? (thrown as NodeJS.ErrnoException).code
+        : undefined;
+      const classification = classifyAgentRuntimeFailure({
+        message,
+        code,
+        errorName: thrown instanceof Error ? thrown.name : undefined,
+      });
+      if (!classification?.retryable) throw lastError;
       needsFormatReminder = false;
       continue;
     }
@@ -265,22 +276,34 @@ export async function invokeAgentJudge(
       }
     }
 
-    let failureDetail = response.text.trim() || response.subtype || "unknown error";
+    // isError=true path. Prefer to recover a parseable verdict from any
+    // emitted text before deciding whether to retry — an agent that hit
+    // max_turns may still have produced a valid JSON verdict before bailing.
     if (response.text.trim()) {
       try {
         parseVerdict(response.text);
         return response;
-      } catch (error) {
-        failureDetail = error instanceof Error ? error.message : String(error);
-        needsFormatReminder = true;
+      } catch {
+        // unparseable — fall through to classification
       }
-    } else {
-      needsFormatReminder = false;
     }
 
+    const failureDetail = response.text.trim() || response.subtype || "unknown error";
     lastError = new Error(
       `${config.label} failed (attempt ${attempt + 1}/${maxRetries}): ${failureDetail}`,
     );
+
+    // Runaway subtypes (error_max_turns, error_max_tokens) are deterministic
+    // budget exhaustion, not transient provider problems. Retrying burns
+    // budget without changing the turn/token ceiling. Fail fast on anything
+    // the classifier does not explicitly mark retryable — same policy the
+    // workflow step-executor applies to agent steps.
+    const classification = classifyAgentRuntimeFailure({
+      message: response.text,
+      subtype: response.subtype,
+    });
+    if (!classification?.retryable) throw lastError;
+    needsFormatReminder = false;
   }
   throw lastError!;
 }

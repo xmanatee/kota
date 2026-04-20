@@ -43,19 +43,11 @@ agent fail before producing a commit, rather than being caught post-hoc.
 
 ### Autonomy Mode Declaration
 
-Every agent step must declare its session-level autonomy posture explicitly.
-The validator rejects agent steps that lack an autonomy mode — there is no
-silent default. Declare intent at whichever level keeps the workflow coherent:
-
-- Set `defaultAutonomyMode` on the workflow definition when every agent step
-  in the workflow shares the same posture (the common case for autonomy loops,
-  which run unattended as `"autonomous"`).
-- Set `autonomyMode` on an individual agent step only when that step needs to
-  diverge from the workflow default (e.g. a review step that needs human
-  supervision in an otherwise autonomous flow).
-
-`autonomyMode` is orthogonal to per-tool risk classification — it sets the
-session's supervision posture; tool-level guardrails still apply on top.
+Every agent step must declare its autonomy posture explicitly — the validator
+rejects agent steps without one. Prefer `defaultAutonomyMode` on the workflow
+when every step shares the same posture; use per-step `autonomyMode` only to
+diverge. `autonomyMode` is orthogonal to per-tool risk classification: it sets
+the session's supervision posture, tool-level guardrails still apply.
 
 ### Agent-Step Retry and Error Classification
 
@@ -74,6 +66,13 @@ Classification is driven by structured signals (SDK result subtype, HTTP
 status, Node error codes, and narrow SDK-specific text markers). See
 `classifyAgentRuntimeFailure` for the full signal table. Do not add broad
 fuzzy string matches to the classifier.
+
+The same classifier governs the autonomy agent judges (`invokeAgentJudge`),
+so judges also fail fast on runaway subtypes instead of consuming their
+internal retry budget. Evidence: run
+`2026-04-20T06-22-02-604Z-builder-vxjzg3` logged twelve `error_max_turns`
+invocations across four repair iterations before this alignment (~$6 and
+~25 min wasted per stuck run).
 
 ## Unit Testing
 

@@ -287,7 +287,7 @@ describe("createCriticCheck", () => {
     expect(artifact.critical_issues).toHaveLength(1);
   });
 
-  it("retries up to 3 times on transient SDK errors before throwing", async () => {
+  it("retries up to 3 times on transient provider errors before throwing", async () => {
     vi.useFakeTimers();
     const dir = makeTmpDir();
     const doingDir = join(dir, "data/tasks/doing");
@@ -298,11 +298,11 @@ describe("createCriticCheck", () => {
     mkdirSync(runDir, { recursive: true });
 
     mockExecuteWithAgentSDK.mockResolvedValue({
-      text: "",
+      text: "Claude Code returned an error result: API Error: 500 internal",
       streamedText: "",
       turns: 5,
       isError: true,
-      subtype: "error_max_turns",
+      subtype: "error_during_execution",
     });
 
     const check = createCriticCheck({ runDirPath: runDir });
@@ -315,7 +315,57 @@ describe("createCriticCheck", () => {
     vi.useRealTimers();
   });
 
-  it("succeeds on second retry after initial transient failure", async () => {
+  it("fails fast on a runaway error_max_turns without burning retries", async () => {
+    const dir = makeTmpDir();
+    const doingDir = join(dir, "data/tasks/doing");
+    mkdirSync(doingDir, { recursive: true });
+    writeFileSync(
+      join(doingDir, "task-runaway.md"),
+      "---\ntitle: Test runaway\n---\nContent.",
+    );
+
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+
+    mockExecuteWithAgentSDK.mockResolvedValue({
+      text: "",
+      streamedText: "",
+      turns: 20,
+      isError: true,
+      subtype: "error_max_turns",
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    await expect(
+      (check as CodeCheck).run(makeContext(dir, runDir)),
+    ).rejects.toThrow(/Critic agent failed \(attempt 1\/3\)/);
+    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails fast when the SDK throws with no retryable signal", async () => {
+    const dir = makeTmpDir();
+    const doingDir = join(dir, "data/tasks/doing");
+    mkdirSync(doingDir, { recursive: true });
+    writeFileSync(
+      join(doingDir, "task-thrown.md"),
+      "---\ntitle: Test thrown\n---\nContent.",
+    );
+
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+
+    mockExecuteWithAgentSDK.mockRejectedValue(
+      new Error("Claude Code returned an error result: Reached maximum number of turns (20)"),
+    );
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    await expect(
+      (check as CodeCheck).run(makeContext(dir, runDir)),
+    ).rejects.toThrow(/Critic agent threw \(attempt 1\/3\)/);
+    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
+  });
+
+  it("succeeds on second retry after initial transient provider failure", async () => {
     vi.useFakeTimers();
     const dir = makeTmpDir();
     const doingDir = join(dir, "data/tasks/doing");
@@ -327,11 +377,11 @@ describe("createCriticCheck", () => {
 
     mockExecuteWithAgentSDK
       .mockResolvedValueOnce({
-        text: "",
+        text: "Claude Code returned an error result: API Error: 503 overloaded",
         streamedText: "",
         turns: 5,
         isError: true,
-        subtype: "error_max_turns",
+        subtype: "error_during_execution",
       })
       .mockResolvedValueOnce({
         text: JSON.stringify({

@@ -242,8 +242,40 @@ describe("createImproverSemanticCheck", () => {
     expect(options.canUseTool).toEqual(expect.any(Function));
   });
 
-  it("retries on transient SDK errors", async () => {
+  it("retries on transient provider SDK errors", async () => {
     vi.useFakeTimers();
+    const { execFileSync } = await import("node:child_process");
+    const dir = makeTmpDir();
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "commit-message.txt"), "Some change");
+
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const argStr = Array.isArray(args) ? args.join(" ") : "";
+      if (argStr.includes("--name-only")) return "file.ts\n";
+      if (argStr.includes("--stat")) return " file.ts | 1 +\n";
+      return "diff\n";
+    });
+
+    mockExecuteWithAgentSDK.mockResolvedValue({
+      text: "Claude Code returned an error result: API Error: 500 internal",
+      streamedText: "",
+      turns: 5,
+      isError: true,
+      subtype: "error_during_execution",
+    });
+
+    const check = createImproverSemanticCheck({ runDirPath: runDir });
+    const assertion = expect(
+      (check as CodeCheck).run(makeContext(dir, runDir)),
+    ).rejects.toThrow(/Semantic gate failed \(attempt 3\/3\)/);
+    await vi.runAllTimersAsync();
+    await assertion;
+    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(3);
+    vi.useRealTimers();
+  });
+
+  it("fails fast on error_max_turns without burning retries", async () => {
     const { execFileSync } = await import("node:child_process");
     const dir = makeTmpDir();
     const runDir = join(dir, ".kota/runs/test-run");
@@ -260,18 +292,15 @@ describe("createImproverSemanticCheck", () => {
     mockExecuteWithAgentSDK.mockResolvedValue({
       text: "",
       streamedText: "",
-      turns: 5,
+      turns: 10,
       isError: true,
       subtype: "error_max_turns",
     });
 
     const check = createImproverSemanticCheck({ runDirPath: runDir });
-    const assertion = expect(
+    await expect(
       (check as CodeCheck).run(makeContext(dir, runDir)),
-    ).rejects.toThrow(/Semantic gate failed \(attempt 3\/3\)/);
-    await vi.runAllTimersAsync();
-    await assertion;
-    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(3);
-    vi.useRealTimers();
+    ).rejects.toThrow(/Semantic gate failed \(attempt 1\/3\)/);
+    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
   });
 });
