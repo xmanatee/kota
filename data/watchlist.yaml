@@ -84,20 +84,40 @@ resources:
       last_seen_at: "2026-04-19T22:21:08.572Z"
   - url: https://github.com/microsoft/autogen
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:642820c56e8127cf31b3a899551958fb
+      summary: "AutoGen is Microsoft's now-maintenance-mode multi-agent framework with a Core/AgentChat/Extensions layering, cross-language (.NET + Python) runtime, and a no-code Studio GUI; ongoing investment is shifting to the successor Microsoft Agent Framework."
+      last_seen_at: "2026-04-20T09:13:55.826Z"
   - url: https://github.com/crewAIInc/crewAI
     added: "2026-04-19"
   - url: https://github.com/langchain-ai/langgraph
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:e5274ec59e494cd76a89952d867fff16
+      summary: "LangGraph is a Python orchestration framework for stateful agents that models runs as Pregel-style graphs with durable execution, automatic resume-through-failure, first-class human-in-the-loop state editing, and LangSmith deployment tooling."
+      last_seen_at: "2026-04-20T09:13:55.826Z"
   - url: https://github.com/huggingface/smolagents
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:4f1e0800cd4ff89641bc76754d5d410f
+      summary: "Smolagents is a ~1kLOC Python agent library whose headline idea is CodeAgent — actions written as executable Python instead of JSON tool calls — with reported ~30% fewer steps, multi-sandbox execution (E2B/Blaxel/Modal/Docker/WASM), and HF Hub sharing."
+      last_seen_at: "2026-04-20T09:13:55.826Z"
   - url: https://github.com/mannaandpoem/OpenManus
     added: "2026-04-19"
   - url: https://github.com/vercel/ai
     added: "2026-04-19"
   - url: https://github.com/noahshinn/reflexion
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:0265fa0a27e94e8462d8f675e300be5b
+      summary: "Reflexion introduces verbal-reinforcement self-reflection: the agent writes natural-language lessons from each failure to condition the next attempt, evaluated across HotPotQA, AlfWorld, LeetcodeHardGym, and WebShop with consistent baseline beats."
+      last_seen_at: "2026-04-20T09:13:55.826Z"
   - url: https://www.anthropic.com/research
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:084452ca7d9ab86806127273b950eede
+      summary: "Anthropic research index currently surfaces Automated Alignment Researchers, Trustworthy agents in practice, model-behavior-diff tooling, a diff tool for AI, and several agent / alignment / societal-impact pieces — several directly relevant to autonomy evaluator and oversight work."
+      last_seen_at: "2026-04-20T09:13:55.826Z"
   - url: https://www.anthropic.com/engineering
     added: "2026-04-19"
     snapshot:
