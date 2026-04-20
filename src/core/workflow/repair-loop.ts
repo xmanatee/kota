@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import {
   buildClaudeCodeSystemPrompt,
+  composeCanUseTools,
+  createAgentCommitGuard,
   createDaemonHostControlGuard,
   executeWithAgentSDK,
 } from "#core/agent-sdk/index.js";
@@ -130,7 +132,10 @@ async function executeRepairAgentIteration(
       settingSources: step.settingSources,
       abortController,
       onMessage: appendMessage,
-      canUseTool: createDaemonHostControlGuard(),
+      canUseTool: composeCanUseTools(
+        createDaemonHostControlGuard(),
+        createAgentCommitGuard(),
+      ),
     },
     { write: () => true },
   );

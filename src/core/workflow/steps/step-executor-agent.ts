@@ -2,6 +2,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   buildClaudeCodeSystemPrompt,
+  composeCanUseTools,
+  createAgentCommitGuard,
   createDaemonHostControlGuard,
   createOwnerQuestionMcpServers,
   executeWithAgentSDK,
@@ -389,7 +391,10 @@ export async function executeAgentStep(
         settingSources: step.settingSources,
         abortController,
         onMessage: trackedMessage,
-        canUseTool: createDaemonHostControlGuard(),
+        canUseTool: composeCanUseTools(
+          createDaemonHostControlGuard(),
+          createAgentCommitGuard(),
+        ),
       }, {
         write: () => true,
       });

@@ -34,9 +34,12 @@ validation layer enforces this at definition load time as a hard error.
 
 ## Runtime Rails
 
-Timeouts, trigger validation, dirty-worktree recovery, and repair-loop checks
-are runtime rails, not prompt policy. Keep workflow code explicit and typed;
-keep prompts focused on the agent's role.
+Timeouts, trigger validation, dirty-worktree recovery, direct-commit
+prevention, and repair-loop checks are runtime rails, not prompt policy.
+Keep workflow code explicit and typed; keep prompts focused on the agent's
+role. Direct-commit prevention lives at the SDK `canUseTool` boundary
+(`createAgentCommitGuard`) so rogue `git commit` calls from any workflow
+agent fail before producing a commit, rather than being caught post-hoc.
 
 ### Autonomy Mode Declaration
 

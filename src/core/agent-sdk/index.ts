@@ -1,4 +1,9 @@
 export {
+  createAgentCommitGuard,
+  isGitCommitCommand,
+} from "./agent-commit-guard.js";
+export { composeCanUseTools } from "./compose-can-use-tool.js";
+export {
   createDaemonHostControlGuard,
   isDaemonHostControlCommand,
 } from "./daemon-control-guard.js";

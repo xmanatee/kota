@@ -8,9 +8,15 @@ import { AUTONOMY_DISALLOWED_TOOLS } from "./shared.js";
 
 const mockExecuteWithAgentSDK = vi.hoisted(() => vi.fn());
 const mockCreateDaemonHostControlGuard = vi.hoisted(() => vi.fn(() => vi.fn(async () => ({ behavior: "allow" }))));
+const mockCreateAgentCommitGuard = vi.hoisted(() => vi.fn(() => vi.fn(async () => ({ behavior: "allow" }))));
+const mockComposeCanUseTools = vi.hoisted(
+  () => vi.fn((...guards: unknown[]) => guards[0]),
+);
 
 vi.mock("#core/agent-sdk/index.js", () => {
   return {
+    composeCanUseTools: mockComposeCanUseTools,
+    createAgentCommitGuard: mockCreateAgentCommitGuard,
     createDaemonHostControlGuard: mockCreateDaemonHostControlGuard,
     executeWithAgentSDK: mockExecuteWithAgentSDK,
   };
