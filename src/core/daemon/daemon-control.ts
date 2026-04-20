@@ -1,9 +1,10 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import type { AgentSession } from "#core/loop/loop.js";
-import type { Transport } from "#core/loop/transport.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import { handleApproveAllApprovals, handleApproveApproval, handleListApprovals, handleRejectAllApprovals, handleRejectApproval } from "./daemon-control-approvals.js";
 import {
+  type DaemonChatConversationResolver,
+  type DaemonChatMakeAgent,
   DaemonChatPool,
   type DaemonChatPoolOptions,
   deleteDaemonSession,
@@ -135,13 +136,25 @@ export type DaemonControlServerOptions = {
   eventBufferSize?: number;
   /**
    * When provided, enables POST /sessions, POST /sessions/:id/chat for daemon-owned sessions.
-   * The factory receives the proxy transport and the session's autonomy mode.
+   * The factory receives the proxy transport, the session's autonomy mode, and
+   * the conversation id the new AgentSession should resume from.
    */
-  makeAgent?: (transport: Transport, autonomyMode: AutonomyMode) => AgentSession;
+  makeAgent?: DaemonChatMakeAgent;
   /** Autonomy mode used when POST /sessions does not specify one. */
   defaultAutonomyMode?: AutonomyMode;
   /** Options forwarded to the daemon chat session pool. */
   chatPool?: DaemonChatPoolOptions;
+  /**
+   * Persisted session_id → conversationId binding. Required whenever
+   * {@link DaemonControlServerOptions.makeAgent} is supplied so daemon chat
+   * sessions survive a restart with a client-facing wake path.
+   */
+  chatBindings?: DaemonChatBindingStore;
+  /**
+   * Resolves / creates conversation ids for new and woken chat sessions.
+   * Required whenever {@link DaemonControlServerOptions.makeAgent} is supplied.
+   */
+  conversationResolver?: DaemonChatConversationResolver;
 };
 
 export class DaemonControlServer {
@@ -151,7 +164,9 @@ export class DaemonControlServer {
   private unsubscribeEvents: (() => void) | null = null;
   private readonly eventBuffer: EventRingBuffer;
   private readonly chatPool: DaemonChatPool | null;
-  private readonly makeAgent: ((transport: Transport, autonomyMode: AutonomyMode) => AgentSession) | null;
+  private readonly makeAgent: DaemonChatMakeAgent | null;
+  private readonly chatBindings: DaemonChatBindingStore | null;
+  private readonly conversationResolver: DaemonChatConversationResolver | null;
   private readonly defaultAutonomyMode: AutonomyMode | undefined;
   private readonly chatSweepMs: number;
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
@@ -164,7 +179,20 @@ export class DaemonControlServer {
     this.eventBuffer = new EventRingBuffer(options?.eventBufferSize ?? 500);
     this.makeAgent = options?.makeAgent ?? null;
     this.defaultAutonomyMode = options?.defaultAutonomyMode;
-    this.chatPool = this.makeAgent ? new DaemonChatPool(options?.chatPool) : null;
+    if (this.makeAgent) {
+      if (!options?.chatBindings || !options.conversationResolver) {
+        throw new Error(
+          "DaemonControlServer: makeAgent requires chatBindings and conversationResolver options",
+        );
+      }
+      this.chatBindings = options.chatBindings;
+      this.conversationResolver = options.conversationResolver;
+      this.chatPool = new DaemonChatPool(options?.chatPool);
+    } else {
+      this.chatBindings = null;
+      this.conversationResolver = null;
+      this.chatPool = null;
+    }
     const ttlMs = options?.chatPool?.ttlMs ?? (5 * 60 * 1000);
     this.chatSweepMs = Math.min(ttlMs, 60_000);
   }
@@ -378,10 +406,18 @@ export class DaemonControlServer {
       return;
     }
     if (method === "POST" && path === "/sessions") {
-      if (!this.chatPool || !this.makeAgent) {
+      if (!this.chatPool || !this.makeAgent || !this.chatBindings || !this.conversationResolver) {
         jsonResponse(res, 503, { error: "Daemon chat sessions not available" });
       } else {
-        handleCreateDaemonSession(this.chatPool, req, res, this.makeAgent, this.defaultAutonomyMode).catch((err: Error) => {
+        handleCreateDaemonSession(
+          this.chatPool,
+          this.chatBindings,
+          req,
+          res,
+          this.makeAgent,
+          this.defaultAutonomyMode,
+          this.conversationResolver,
+        ).catch((err: Error) => {
           if (!res.headersSent) jsonResponse(res, 500, { error: err.message });
         });
       }
@@ -411,7 +447,7 @@ export class DaemonControlServer {
       return;
     }
     if (method === "DELETE" && params.id && path.startsWith("/sessions/")) {
-      if (this.chatPool && deleteDaemonSession(this.chatPool, params.id)) {
+      if (this.chatPool && deleteDaemonSession(this.chatPool, params.id, this.chatBindings ?? undefined)) {
         res.writeHead(204);
         res.end();
       } else {

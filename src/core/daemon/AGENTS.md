@@ -162,6 +162,13 @@ Recoverable surfaces (append-only or file-backed; survive crash):
 - **Conversation history** (`~/.kota/history/`) — messages persist per
   `conversationId` via `ConversationHistory.save()`; the *conversation text*
   survives even when the daemon session that produced it is lost.
+- **Daemon chat session bindings** (`.kota/daemon-chat-bindings.json`) —
+  `sessionId → conversationId` map rewritten atomically on create/delete.
+  After a daemon restart, `POST /sessions` with the prior `session_id`
+  (or `conversation_id`) wakes a fresh `AgentSession` seeded from the
+  persisted conversation via `makeAgent(transport, mode, resumeConversation)`.
+  The in-flight turn at crash time is lost, but the client can continue the
+  conversation without losing history.
 
 Deliberate losses (state is not reconstructible, and persistence is not worth
 the cost):
@@ -185,12 +192,6 @@ the cost):
 Gaps with live follow-ups (state is lost, loss is user-visible, and the fix
 requires more than a write-through):
 
-- **Daemon-owned chat sessions** (`DaemonChatPool`) — `AgentSession` +
-  `ProxyTransport` live in daemon memory; on crash, the in-flight turn is
-  abandoned and the session id cannot be reused by the client. Conversation
-  messages persist (when `historyEnabled`), but the session→conversationId
-  binding is not threaded through `makeAgent`, so there is no wake path.
-  Follow-up: `task-persist-daemon-chat-session-conversation-binding`.
 - **Serve-registered session registry** — the serve process registers each
   session with the daemon once at creation (`server-routes.ts`). After a
   daemon restart, the daemon's advisory registry is empty until the serve

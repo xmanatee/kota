@@ -1,12 +1,12 @@
 ---
 id: task-persist-daemon-chat-session-conversation-binding
 title: Persist daemon chat session → conversation binding so clients can wake after daemon restart
-status: backlog
+status: done
 priority: p2
 area: daemon
 summary: Daemon-owned chat sessions in DaemonChatPool hold AgentSession plus ProxyTransport in process memory without binding the session id to the persisted conversation id; a daemon crash abandons the session with no client-facing wake path. Thread conversationId through the daemon makeAgent factory and persist the session→conversationId binding so clients can resume.
 created_at: 2026-04-20T01:45:45.000Z
-updated_at: 2026-04-20T01:45:45.000Z
+updated_at: 2026-04-20T03:05:20.194Z
 ---
 
 ## Problem

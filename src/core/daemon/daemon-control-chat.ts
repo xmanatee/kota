@@ -13,12 +13,21 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AgentSession } from "#core/loop/loop.js";
 import { NullTransport, ProxyTransport, type Transport } from "#core/loop/transport.js";
 import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import { jsonResponse } from "./daemon-control-utils.js";
+
+/** Factory signature for building an AgentSession inside the daemon. */
+export type DaemonChatMakeAgent = (
+  transport: Transport,
+  mode: AutonomyMode,
+  resumeConversation?: string,
+) => AgentSession;
 
 /** An agent session owned by the daemon control server. */
 type DaemonChatSession = {
   id: string;
   createdAt: string;
+  conversationId: string;
   agent: AgentSession;
   proxy: ProxyTransport;
   busy: boolean;
@@ -31,6 +40,7 @@ export type DaemonChatListEntry = {
   busy: boolean;
   lastActive: number;
   autonomyMode: AutonomyMode;
+  conversationId: string;
   source: "daemon";
 };
 
@@ -53,16 +63,39 @@ export class DaemonChatPool {
     this.ttlMs = opts.ttlMs ?? DEFAULT_TTL_MS;
   }
 
-  create(makeAgent: (transport: Transport, mode: AutonomyMode) => AgentSession, mode: AutonomyMode): DaemonChatSession {
+  /**
+   * Create or wake a daemon-owned session.
+   *
+   * When `sessionId` is provided the caller is asking the pool to adopt that
+   * id (wake after a binding lookup). The pool rejects the call if that id
+   * is already live. When absent, a fresh id is generated.
+   */
+  create(
+    makeAgent: DaemonChatMakeAgent,
+    mode: AutonomyMode,
+    conversationId: string,
+    sessionId?: string,
+  ): DaemonChatSession {
+    if (sessionId && this.sessions.has(sessionId)) {
+      throw new Error(`Session ${sessionId} already live`);
+    }
     if (this.sessions.size >= this.maxSessions) {
       const evicted = this.evictOldest();
       if (!evicted) throw new Error("Too many active sessions");
     }
-    const id = randomUUID().slice(0, 8);
+    const id = sessionId ?? randomUUID().slice(0, 8);
     const proxy = new ProxyTransport();
-    const agent = makeAgent(proxy, mode);
+    const agent = makeAgent(proxy, mode, conversationId);
     const now = new Date().toISOString();
-    const session: DaemonChatSession = { id, createdAt: now, agent, proxy, busy: false, lastActive: Date.now() };
+    const session: DaemonChatSession = {
+      id,
+      createdAt: now,
+      conversationId,
+      agent,
+      proxy,
+      busy: false,
+      lastActive: Date.now(),
+    };
     this.sessions.set(id, session);
     return session;
   }
@@ -86,6 +119,7 @@ export class DaemonChatPool {
       busy: s.busy,
       lastActive: s.lastActive,
       autonomyMode: s.agent.getAutonomyMode(),
+      conversationId: s.conversationId,
       source: "daemon" as const,
     }));
   }
@@ -173,13 +207,27 @@ function writeSse(res: ServerResponse, eventName: string, data: unknown): void {
   res.write(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
-/** POST /sessions — create a new daemon-owned session. */
+/**
+ * Context needed to resolve the conversationId for a new or woken session.
+ * Exists so the HTTP handler stays focused on protocol shape and defers
+ * history lookups / conversation creation to the daemon host.
+ */
+export type DaemonChatConversationResolver = {
+  /** True iff a conversation exists in history for this id. */
+  conversationExists(conversationId: string): boolean;
+  /** Create a new conversation record and return its id. */
+  createConversation(mode: AutonomyMode): string;
+};
+
+/** POST /sessions — create a new daemon-owned session, optionally waking a prior one. */
 export async function handleCreateDaemonSession(
   pool: DaemonChatPool,
+  bindings: DaemonChatBindingStore,
   req: IncomingMessage,
   res: ServerResponse,
-  makeAgent: (transport: Transport, mode: AutonomyMode) => AgentSession,
+  makeAgent: DaemonChatMakeAgent,
   defaultAutonomyMode: AutonomyMode | undefined,
+  resolver: DaemonChatConversationResolver,
 ): Promise<void> {
   let body: Record<string, unknown>;
   try {
@@ -203,9 +251,72 @@ export async function handleCreateDaemonSession(
     return;
   }
 
+  const requestedSessionId = typeof body.session_id === "string" ? body.session_id : undefined;
+  const requestedConversationId = typeof body.conversation_id === "string" ? body.conversation_id : undefined;
+
+  let wakeSessionId: string | undefined;
+  let conversationId: string | undefined;
+
+  if (requestedSessionId) {
+    const live = pool.get(requestedSessionId);
+    if (live) {
+      jsonResponse(res, 409, {
+        error: "Session already live",
+        session_id: live.id,
+        conversation_id: live.conversationId,
+      });
+      return;
+    }
+    const binding = bindings.getBySession(requestedSessionId);
+    if (!binding) {
+      jsonResponse(res, 404, { error: `No binding for session ${requestedSessionId}` });
+      return;
+    }
+    if (requestedConversationId && requestedConversationId !== binding.conversationId) {
+      jsonResponse(res, 409, {
+        error: `Session ${requestedSessionId} is bound to ${binding.conversationId}, not ${requestedConversationId}`,
+      });
+      return;
+    }
+    if (!resolver.conversationExists(binding.conversationId)) {
+      jsonResponse(res, 404, {
+        error: `Bound conversation ${binding.conversationId} not found in history`,
+      });
+      return;
+    }
+    wakeSessionId = requestedSessionId;
+    conversationId = binding.conversationId;
+  } else if (requestedConversationId) {
+    if (!resolver.conversationExists(requestedConversationId)) {
+      jsonResponse(res, 404, { error: `Conversation ${requestedConversationId} not found in history` });
+      return;
+    }
+    const existingBinding = bindings.getByConversation(requestedConversationId);
+    if (existingBinding) {
+      const live = pool.get(existingBinding.sessionId);
+      if (live) {
+        jsonResponse(res, 409, {
+          error: "Session already live for this conversation",
+          session_id: live.id,
+          conversation_id: live.conversationId,
+        });
+        return;
+      }
+      wakeSessionId = existingBinding.sessionId;
+    }
+    conversationId = requestedConversationId;
+  } else {
+    conversationId = resolver.createConversation(mode);
+  }
+
   try {
-    const session = pool.create(makeAgent, mode);
-    jsonResponse(res, 201, { session_id: session.id, autonomy_mode: mode });
+    const session = pool.create(makeAgent, mode, conversationId, wakeSessionId);
+    bindings.put(session.id, session.conversationId);
+    jsonResponse(res, 201, {
+      session_id: session.id,
+      autonomy_mode: mode,
+      conversation_id: session.conversationId,
+    });
   } catch (err) {
     jsonResponse(res, 503, { error: (err as Error).message });
   }
@@ -331,6 +442,12 @@ export async function handleDaemonChat(
 }
 
 /** DELETE /sessions/:id — close a daemon-owned session. Returns true if found. */
-export function deleteDaemonSession(pool: DaemonChatPool, id: string): boolean {
-  return pool.delete(id);
+export function deleteDaemonSession(
+  pool: DaemonChatPool,
+  id: string,
+  bindings?: DaemonChatBindingStore,
+): boolean {
+  const removed = pool.delete(id);
+  if (removed) bindings?.delete(id);
+  return removed;
 }
