@@ -25,4 +25,6 @@ When converting an inbox item to a normalized task, use `pnpm kota task create "
 ## Finish
 
 - Follow `data/tasks/AGENTS.md` for normalized task rules.
+- Then follow the finish protocol in `workflows/AGENTS.md` — in particular,
+  write `<run-directory>/commit-message.txt` after staging.
 - Lightweight validations run after you finish.

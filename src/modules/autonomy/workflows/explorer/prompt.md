@@ -59,3 +59,5 @@ Use `pnpm kota task create "<title>" --priority <p0-p3> --area <area> --state <s
 
 - Follow `data/tasks/AGENTS.md`.
 - If nothing should change, leave the queue untouched and stop.
+- Otherwise follow the finish protocol in `workflows/AGENTS.md` — in
+  particular, write `<run-directory>/commit-message.txt` after staging.
