@@ -48,6 +48,14 @@ decisions belong here.
 - **Eval fixtures come from real failures, not synthetic specs.** Seed the
   eval-harness module from `.kota/runs/` failures first.
 
+## Live-Run Evaluator Calibration
+
+Fixture `pass^k` catches generator drift; `evaluator-calibration.json`
+(per builder run, derived from existing artifacts) catches evaluator
+drift. Contradiction = later run within follow-up window touches
+overlapping source files. Monitor+notify split mirrors
+`eval-harness-regression-notify`. Import: `eval-harness` → `autonomy`.
+
 ## Peer Coordination Pattern Decisions
 
 Peer runtimes (crewAI, LangGraph, Vercel AI SDK, OpenHands/AutoGen) expose

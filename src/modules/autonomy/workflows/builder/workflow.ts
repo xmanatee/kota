@@ -4,6 +4,10 @@ import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import {
+  type EvaluatorCalibrationArtifact,
+  writeCalibrationArtifact,
+} from "#modules/autonomy/evaluator-calibration.js";
+import {
   onRecoveryTrigger,
   resetWorktreeForRecovery,
 } from "#modules/autonomy/recovery.js";
@@ -132,6 +136,12 @@ const builderWorkflow: WorkflowDefinitionInput = {
       type: "code",
       when: stepCommitted("commit"),
       run: (ctx) => writeBuilderRunSummary(ctx),
+    }),
+    typedCodeStep<EvaluatorCalibrationArtifact>({
+      id: "write-calibration-artifact",
+      type: "code",
+      when: stepSucceeded("write-run-summary"),
+      run: (ctx) => writeCalibrationArtifact(ctx),
     }),
     {
       id: "create-pr",

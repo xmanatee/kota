@@ -11,6 +11,12 @@ import { mkdirSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { Command } from "commander";
 import { EventBus } from "#core/events/event-bus.js";
+import {
+  aggregateCalibration,
+  DEFAULT_CALIBRATION_MIN_SAMPLE,
+  DEFAULT_CALIBRATION_THRESHOLD_RATE,
+  evaluateCalibrationGate,
+} from "#modules/autonomy/evaluator-calibration.js";
 import { runEvalSet } from "./eval-set.js";
 import { loadAllFixtures, loadFixture } from "./fixture.js";
 import type { ResourceProfile } from "./fixture-run.js";
@@ -150,6 +156,83 @@ export function buildEvalCommand(projectDir: string): Command {
       console.log(`artifacts: ${report.runArtifactBaseDir}`);
       if (report.aggregate.passHatK < 1) {
         process.exitCode = 1;
+      }
+    });
+
+  cmd
+    .command("calibration")
+    .description(
+      "Summarize live-run evaluator calibration across a rolling window of run artifacts.",
+    )
+    .option("--window-days <n>", "Window size in days (default 7)", "7")
+    .option(
+      "--follow-up-days <n>",
+      "Follow-up fingerprint window in days (default 3)",
+      "3",
+    )
+    .option(
+      "--threshold-rate <r>",
+      `Pass-verdict contradiction rate that triggers the gate (default ${DEFAULT_CALIBRATION_THRESHOLD_RATE})`,
+      `${DEFAULT_CALIBRATION_THRESHOLD_RATE}`,
+    )
+    .option(
+      "--min-sample <n>",
+      `Minimum pass verdicts before the gate can fire (default ${DEFAULT_CALIBRATION_MIN_SAMPLE})`,
+      `${DEFAULT_CALIBRATION_MIN_SAMPLE}`,
+    )
+    .option(
+      "--runs-dir <path>",
+      "Override runs directory (default <projectDir>/.kota/runs)",
+    )
+    .option("--json", "Emit the aggregate + decision as JSON for CI consumption")
+    .action((opts: {
+      windowDays: string;
+      followUpDays: string;
+      thresholdRate: string;
+      minSample: string;
+      runsDir?: string;
+      json?: boolean;
+    }) => {
+      const windowDays = Number.parseFloat(opts.windowDays);
+      const followUpDays = Number.parseFloat(opts.followUpDays);
+      const thresholdRate = Number.parseFloat(opts.thresholdRate);
+      const minSample = parsePositiveInt(opts.minSample, "min-sample");
+      if (!(windowDays > 0)) throw new Error("--window-days must be positive.");
+      if (!(followUpDays > 0)) throw new Error("--follow-up-days must be positive.");
+      if (!(thresholdRate >= 0 && thresholdRate <= 1)) {
+        throw new Error("--threshold-rate must be between 0 and 1.");
+      }
+
+      const runsDir = opts.runsDir ?? join(projectDir, ".kota", "runs");
+      const dayMs = 24 * 60 * 60 * 1000;
+      const aggregate = aggregateCalibration(runsDir, {
+        windowMs: windowDays * dayMs,
+        followUpWindowMs: followUpDays * dayMs,
+      });
+      const decision = evaluateCalibrationGate(aggregate, {
+        thresholdRate,
+        minSample,
+      });
+
+      if (opts.json) {
+        console.log(JSON.stringify({ aggregate, decision }, null, 2));
+      } else {
+        const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
+        console.log(`evaluator calibration (window ${windowDays}d):`);
+        console.log(
+          `  total runs=${aggregate.totalRuns}  pass=${aggregate.byVerdict.pass}  pass_with_warnings=${aggregate.byVerdict.pass_with_warnings}  fail=${aggregate.byVerdict.fail}  absent=${aggregate.byVerdict.absent}`,
+        );
+        console.log(
+          `  pass contradiction: ${aggregate.passContradictionCount}/${aggregate.byVerdict.pass} (${pct(aggregate.passContradictionRate)})`,
+        );
+        console.log(
+          `  pass_with_warnings follow-up: ${aggregate.passWithWarningsFollowUpCount}/${aggregate.byVerdict.pass_with_warnings} (${pct(aggregate.passWithWarningsFollowUpRate)})`,
+        );
+        console.log(`  gate: ${decision.status} — ${decision.reason}`);
+      }
+
+      if (decision.status === "gated") {
+        process.exitCode = 2;
       }
     });
 

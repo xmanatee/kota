@@ -325,6 +325,28 @@ export type BusEvents = {
     completedAt: string;
   };
   /**
+   * The live-run evaluator calibration monitor observed that the critic's
+   * pass-verdict contradiction rate crossed the configured threshold. The
+   * payload carries the aggregate window, the rates, and the threshold the
+   * gate enforced so observers can explain the drift to an operator without
+   * reopening the underlying calibration artifacts. Complements
+   * `eval-harness.regression.detected`: fixtures catch generator drift
+   * against fixed outcomes; this event catches evaluator drift on live runs.
+   */
+  "evaluator-calibration.regression.detected": {
+    windowStartMs: number;
+    windowEndMs: number;
+    totalRuns: number;
+    passVerdictCount: number;
+    passContradictionCount: number;
+    passContradictionRate: number;
+    passWithWarningsCount: number;
+    passWithWarningsFollowUpCount: number;
+    passWithWarningsFollowUpRate: number;
+    thresholdRate: number;
+    reason: string;
+  };
+  /**
    * The cadence workflow compared a fresh eval-set aggregate against the
    * persisted baseline and the gate fired. The payload carries everything
    * an observer needs to explain the regression to an operator without

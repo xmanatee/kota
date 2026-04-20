@@ -153,7 +153,12 @@ export function parseVerdict(text: string): CriticVerdict {
 }
 
 export function handleVerdict(verdict: CriticVerdict, runDir?: string, artifactName = "critic-review.json"): string {
-  if (runDir && (verdict.warnings.length > 0 || verdict.critical_issues.length > 0)) {
+  // Always persist the verdict so live-run calibration tracking can read it
+  // back later; operators inspecting a run that passed cleanly no longer need
+  // to infer the verdict from the step's repair-iteration output. Repeat
+  // critic invocations within one run overwrite the file so it reflects the
+  // final verdict.
+  if (runDir) {
     writeFileSync(
       join(runDir, artifactName),
       JSON.stringify(verdict, null, 2),

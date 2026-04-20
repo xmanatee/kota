@@ -1,12 +1,12 @@
 ---
 id: task-track-live-run-evaluator-verdict-calibration-to-ca
 title: Track live-run evaluator verdict calibration to catch silent generator/evaluator drift
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Autonomy eval-harness scores fixtures but no live-run metric tracks how often critic verdicts align with downstream evidence; add a calibration signal so silent evaluator drift is visible to operators
 created_at: 2026-04-20T12:24:24.279Z
-updated_at: 2026-04-20T12:26:12.513Z
+updated_at: 2026-04-20T13:43:42.999Z
 ---
 
 ## Problem

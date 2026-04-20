@@ -36,6 +36,7 @@ vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
   getRepoTaskQueueSnapshot: vi.fn(),
   isRepoTaskQueueSnapshot: vi.fn(() => true),
   REPO_TASK_STATES: ["backlog", "ready", "doing", "blocked", "done", "dropped"],
+  REPO_TASKS_DIR: "data/tasks",
 }));
 
 vi.mock("#modules/autonomy/commit.js", () => ({

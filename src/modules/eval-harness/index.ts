@@ -71,6 +71,7 @@ const evalHarnessModule: KotaModule = {
   version: "0.2.0",
   description:
     "Autonomy eval harness: fixture-run contract, scoring, regression gate, fixture runner, CLI + HTTP route, and weekly cadence workflow.",
+  dependencies: ["autonomy"],
   commands: (ctx) => [buildEvalCommand(ctx.cwd)],
   routes: (ctx) => evalHarnessRoutes(ctx),
   workflows: [evalHarnessCadence, evalHarnessRegressionNotify],
