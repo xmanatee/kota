@@ -321,6 +321,30 @@ const criticConfig: AgentJudgeConfig = {
   effort: AUTONOMY_AGENT_DEFAULTS.effort,
 };
 
+/**
+ * True when a thrown `invokeAgentJudge` error represents runaway budget
+ * exhaustion (max turns / max tokens) rather than a defect in the diff
+ * being reviewed. The repair-loop caller uses this to degrade the check
+ * to a warning: a repair agent cannot shrink the judge's turn budget by
+ * editing code, so iterating would be wasted work. Keyed on stable SDK
+ * signals (result subtype and canonical CLI error phrase).
+ */
+export function isJudgeRunawayError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  if (/error_max_turns|error_max_tokens/i.test(message)) return true;
+  if (/Reached maximum number of (?:turns|tokens)/i.test(message)) return true;
+  return false;
+}
+
+export function judgeUnavailableResult(label: string, err: unknown): string {
+  const detail = err instanceof Error ? err.message : String(err);
+  return (
+    `WARN: ${label} unavailable (${detail}). ` +
+    `Skipping gate for this run; the diff proceeds on mechanical checks only. ` +
+    `See evaluator-calibration.json (verdict=absent).`
+  );
+}
+
 export function createCriticCheck(options?: {
   runDirPath?: string;
 }): WorkflowRepairCheck {
@@ -373,7 +397,22 @@ export function createCriticCheck(options?: {
         diffContent,
       ].join("\n");
 
-      const response = await invokeAgentJudge(userMessage, ctx.projectDir, criticConfig);
+      let response;
+      try {
+        response = await invokeAgentJudge(userMessage, ctx.projectDir, criticConfig);
+      } catch (err) {
+        // Runaway judge (max turns / max tokens) is an evaluator-side
+        // problem the agent cannot fix by editing code. Returning a
+        // warning lets the build proceed on mechanical checks and
+        // prevents repair-loop thrashing. Evidence: run
+        // 2026-04-20T14-30-41-306Z-builder-gb9pnn wasted 3 repair
+        // iterations (~$3.73, ~45 min) on this exact path before the
+        // critic finally returned a verdict on its own.
+        if (isJudgeRunawayError(err)) {
+          return judgeUnavailableResult("critic", err);
+        }
+        throw err;
+      }
       if (response.isError) {
         const recovered = parseVerdict(response.text);
         return handleVerdict(recovered, runDir);

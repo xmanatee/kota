@@ -68,11 +68,13 @@ status, Node error codes, and narrow SDK-specific text markers). See
 fuzzy string matches to the classifier.
 
 The same classifier governs the autonomy agent judges (`invokeAgentJudge`),
-so judges also fail fast on runaway subtypes instead of consuming their
-internal retry budget. Evidence: run
-`2026-04-20T06-22-02-604Z-builder-vxjzg3` logged twelve `error_max_turns`
-invocations across four repair iterations before this alignment (~$6 and
-~25 min wasted per stuck run).
+so judges also fail fast on runaway subtypes. Judge-backed repair checks
+(critic, semantic gate) must additionally catch the runaway throw in their
+wrapper and return a warning — never re-raise into the repair loop, since
+editing code cannot shrink a judge's turn/token budget. Use
+`isJudgeRunawayError` + `judgeUnavailableResult` from `critic.ts`.
+Evidence: `2026-04-20T06-22-02-604Z-builder-vxjzg3` (judge retries) and
+`2026-04-20T14-30-41-306Z-builder-gb9pnn` (3 repair iterations, ~$3.73).
 
 ## Unit Testing
 

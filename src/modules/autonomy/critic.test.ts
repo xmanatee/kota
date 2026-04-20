@@ -315,7 +315,7 @@ describe("createCriticCheck", () => {
     vi.useRealTimers();
   });
 
-  it("fails fast on a runaway error_max_turns without burning retries", async () => {
+  it("returns a warning (not a failure) when the critic exhausts max_turns", async () => {
     const dir = makeTmpDir();
     const doingDir = join(dir, "data/tasks/doing");
     mkdirSync(doingDir, { recursive: true });
@@ -336,13 +336,16 @@ describe("createCriticCheck", () => {
     });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    await expect(
-      (check as CodeCheck).run(makeContext(dir, runDir)),
-    ).rejects.toThrow(/Critic agent failed \(attempt 1\/3\)/);
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    expect(result).toMatch(/critic unavailable/);
+    expect(result).toMatch(/evaluator-calibration/);
+    // Still fails fast at the invokeAgentJudge layer: only one SDK call.
     expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
+    // No critic-review.json written — calibration should surface verdict=absent.
+    expect(existsSync(join(runDir, "critic-review.json"))).toBe(false);
   });
 
-  it("fails fast when the SDK throws with no retryable signal", async () => {
+  it("returns a warning when the SDK throws with a runaway max-turns message", async () => {
     const dir = makeTmpDir();
     const doingDir = join(dir, "data/tasks/doing");
     mkdirSync(doingDir, { recursive: true });
@@ -356,6 +359,28 @@ describe("createCriticCheck", () => {
 
     mockExecuteWithAgentSDK.mockRejectedValue(
       new Error("Claude Code returned an error result: Reached maximum number of turns (20)"),
+    );
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    expect(result).toMatch(/critic unavailable/);
+    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
+  });
+
+  it("still rejects on unclassified SDK throws that are not runaway", async () => {
+    const dir = makeTmpDir();
+    const doingDir = join(dir, "data/tasks/doing");
+    mkdirSync(doingDir, { recursive: true });
+    writeFileSync(
+      join(doingDir, "task-unknown.md"),
+      "---\ntitle: Test unknown\n---\nContent.",
+    );
+
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+
+    mockExecuteWithAgentSDK.mockRejectedValue(
+      new Error("Claude Code returned an error result: something truly unexpected"),
     );
 
     const check = createCriticCheck({ runDirPath: runDir });
