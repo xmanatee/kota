@@ -181,7 +181,14 @@ describe("createCriticCheck", () => {
     const options = mockExecuteWithAgentSDK.mock.calls[0][1];
     expect(userMessage).toContain("If completeness is uncertain, inspect run artifacts yourself");
     expect(userMessage).toContain("Do not require a specific evidence artifact");
-    expect(userMessage).toContain(`${runDir}/steps/*.events.jsonl`);
+    // events.jsonl is intentionally NOT advertised: it is routinely 1–3 MB
+    // and burns the critic's 20-turn budget without adding signal.
+    // Regression guard — run 2026-04-20T06-22-02-604Z-builder-vxjzg3 ate
+    // 47 min across 3 budget-exhausted critic retries on a 1.3 MB events.jsonl.
+    expect(userMessage).not.toContain(`${runDir}/steps/*.events.jsonl`);
+    expect(userMessage).toContain(`${runDir}/steps/*.json`);
+    expect(userMessage).toContain("20-turn budget");
+    expect(userMessage).toContain("Do not open `steps/*.events.jsonl`");
     expect(options.allowedTools).toBeUndefined();
     expect(options.disallowedTools).toEqual(AUTONOMY_DISALLOWED_TOOLS);
     expect(options.effort).toBe("xhigh");
