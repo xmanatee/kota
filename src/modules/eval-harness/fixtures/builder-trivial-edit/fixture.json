@@ -1,0 +1,18 @@
+{
+  "id": "builder-trivial-edit",
+  "description": "Builder picks up a single ready task asking to add a tiny marker file. Fixture passes when the marker file exists and the task has moved out of ready/.",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 1500000,
+  "predicates": [
+    {
+      "kind": "file-exists",
+      "path": "data/markers/builder-eval-ok.txt"
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-add-builder-eval-marker.md"
+    }
+  ],
+  "tags": ["smoke", "autonomy"]
+}

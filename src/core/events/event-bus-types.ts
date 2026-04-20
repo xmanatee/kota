@@ -308,6 +308,22 @@ export type BusEvents = {
     reason: string;
     direction: "failover" | "recovery";
   };
+  /**
+   * Eval-harness eval-set run completed. The aggregate score lives on this
+   * event; the harness intentionally does not maintain a parallel metrics
+   * store. Operators wire telemetry exporters to this event to publish
+   * `pass@k` / `pass^k` trends.
+   */
+  "eval-harness.set.completed": {
+    fixtureCount: number;
+    repeatCount: number;
+    passAtK: number;
+    passHatK: number;
+    hostClass: string;
+    runArtifactBaseDir: string;
+    startedAt: string;
+    completedAt: string;
+  };
 };
 
 /** An event as seen by wildcard listeners: type + payload. */

@@ -1,0 +1,18 @@
+{
+  "id": "inbox-sorter-smoke",
+  "description": "Inbox-sorter receives one rough idea; fixture passes when the inbox is drained and at least one normalized task has been produced in data/tasks/.",
+  "role": "inbox-sorter",
+  "workflowName": "inbox-sorter",
+  "budgetMs": 900000,
+  "predicates": [
+    {
+      "kind": "file-absent",
+      "path": "data/inbox/rough-idea.md"
+    },
+    {
+      "kind": "shell-succeeds",
+      "command": "test \"$(find data/tasks -mindepth 1 -name 'task-*.md' -type f | wc -l | tr -d ' ')\" -ge 1"
+    }
+  ],
+  "tags": ["smoke", "autonomy"]
+}

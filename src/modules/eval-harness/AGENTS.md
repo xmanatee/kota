@@ -1,9 +1,10 @@
 # Eval Harness Module
 
-This module hosts KOTA's autonomy eval harness. Its current scope is the
-strict scoring and regression-gate contract; the fixture runner, CLI entry,
-and HTTP routes land in follow-up work under
-`task-build-an-outcome-eval-harness-for-autonomy-workflo`.
+This module hosts KOTA's autonomy eval harness: the strict scoring and
+regression-gate contract plus the fixture-running surface that applies it.
+The CLI (`kota eval`), HTTP route (`POST /api/eval/run`), and weekly
+cadence workflow all reuse one execution path, so the harness has a single
+observable runtime rather than three.
 
 ## Infrastructure Noise Rule
 
@@ -57,12 +58,62 @@ quiescent host, and record the calibration alongside the run.
 
 ## How To Add A Fixture
 
-Fixtures land under `src/modules/eval-harness/fixtures/` (directory added
-when the runner does). Each fixture contributes an initial repo state, an
-autonomy role to invoke, and a pass/fail predicate that inspects actual
-repo state (build/test/lint/file content), not the agent's self-report.
+Fixtures live under `src/modules/eval-harness/fixtures/<id>/`:
+
+- `fixture.json` — typed `FixtureSpecFile` (see `fixture.ts`): stable `id`
+  matching the directory name, human `description`, autonomy `role`,
+  `workflowName` to invoke, `budgetMs`, and a non-empty `predicates` array.
+- `initial/` — the initial repo state copied into each run's isolated
+  working directory. Include any `data/`, `.kota/`, or repo scaffolding the
+  target workflow needs to pick up the task.
+
 Synthesize the fixture from a real `.kota/runs/` failure when possible —
 hypothetical fixtures reintroduce the demystifying-evals anti-pattern.
+
+Predicates are intentionally small and deterministic (`predicates.ts`):
+`file-exists`, `file-absent`, `file-contains`, `shell-succeeds`,
+`shell-fails`. Predicates inspect the final fixture working directory;
+the agent's self-report is never part of the pass/fail signal. If a new
+predicate kind is needed, extend `FixturePredicate` and the evaluator —
+do not push verification logic into fixture authors.
+
+## How To Run
+
+The harness has one code path (`runEvalSet` → `runFixture`) and three
+entry points that reuse it:
+
+- **CLI**: `pnpm kota eval list` discovers fixtures; `pnpm kota eval run`
+  executes them with options for `--fixture <id>` (repeatable),
+  `--repeats`, and explicit resource-profile flags. Exits non-zero when
+  `pass^k < 1` so CI can gate on it.
+- **HTTP**: `POST /api/eval/run` accepts a typed JSON body with the same
+  fields and returns the aggregate scores plus the run-artifact base dir.
+- **Cadence workflow**: `eval-harness-cadence` runs weekly (`0 7 * * 0`)
+  under `autonomous` mode and writes `ran-at.json` to its run dir.
+
+All three emit `eval-harness.set.completed` on the event bus. There is no
+parallel metrics store.
+
+## Runner Lifecycle
+
+Each fixture run:
+
+1. Materializes the fixture's `initial/` into a fresh `mkdtempSync`
+   directory under the OS tmp dir, so runs never mutate the operator's
+   repo.
+2. Invokes the workflow through the pluggable `WorkflowExecutor`
+   (`runner.ts`). Production uses `createSubprocessExecutor`, which spawns
+   `kota workflow trigger <name>` with `HOME` and `KOTA_PROJECT_DIR`
+   pointed at the fixture working dir, then polls the fixture's
+   `.kota/runs/` for a terminal status matching the workflow name. Unit
+   tests inject in-process executors so tests never spend LLM time.
+3. Evaluates the fixture's predicates against the working directory and
+   emits a `fixture-run.json` artifact beside the working dir.
+4. The eval-set layer aggregates fixtures × repeats, writes
+   `eval-set-report.json`, and returns the typed report.
+
+Fixtures run sequentially by design — parallel replicas would corrupt the
+resource profile recorded per run, breaking the noise-band comparison.
 
 ## How To Read A Regression
 
@@ -76,11 +127,14 @@ either way.
 
 ## Boundaries
 
-- Scoring, fixture-run contract, and gate decisions live in this module.
+- Scoring, fixture-run contract, fixture runner, and gate decisions all
+  live in this module.
 - Do NOT add a parallel metrics store. Aggregate scores surface through
-  the existing telemetry surface; per-run evidence lives as run artifacts
-  under `.kota/runs/`.
+  the `eval-harness.set.completed` event on the shared bus; per-run
+  evidence lives as run artifacts.
 - No cost signals leak into agent-facing context (existing autonomy rule).
-- When the runner lands, it reuses the workflow runtime, autonomy modes,
-  run store, and guardrails — this module does not fork a parallel
-  runtime just for evaluation.
+- The subprocess executor reuses the existing `kota workflow trigger`
+  surface — the module does not fork a parallel runtime for evaluation.
+- Fixture working directories are materialized under `os.tmpdir()`, never
+  inside the operator's repo. Always go through `runFixture` /
+  `runEvalSet`; do not mutate a fixture's `initial/` at runtime.

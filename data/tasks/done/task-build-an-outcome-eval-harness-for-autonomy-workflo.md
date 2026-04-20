@@ -1,12 +1,12 @@
 ---
 id: task-build-an-outcome-eval-harness-for-autonomy-workflo
 title: Build an outcome-eval harness for autonomy workflow runs
-status: backlog
+status: done
 priority: p2
 area: autonomy
 summary: KOTA has rich autonomy workflow infrastructure but no benchmark that scores whether runs actually advance repo state correctly across a fixture set; introduce a SWE-bench-style harness that scores autonomy roles against tagged fixture tasks so regressions become visible.
 created_at: 2026-04-19T22:17:24.625Z
-updated_at: 2026-04-19T22:17:24.625Z
+updated_at: 2026-04-20T09:01:16.307Z
 ---
 
 ## Problem
