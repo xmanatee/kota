@@ -1,12 +1,12 @@
 ---
 id: task-study-peer-task-plus-process-coordination-patterns
 title: Study peer task-plus-process coordination patterns and land an explicit adopt-or-reject decision
-status: backlog
+status: done
 priority: p3
 area: architecture
 summary: Peer runtimes (crewAI, LangGraph, Vercel AI SDK, OpenHands, AutoGen successor) expose task-plus-process coordination primitives that KOTA does not; a written decision — adopt, reshape, or reject with rationale — keeps KOTA's workflow model deliberate rather than reactive.
 created_at: 2026-04-20T10:25:25.863Z
-updated_at: 2026-04-20T10:25:25.863Z
+updated_at: 2026-04-20T12:15:27.736Z
 ---
 
 ## Problem

@@ -17,48 +17,64 @@ This module owns the project autonomous development loop.
 
 Decision-level takeaways from Anthropic's Mar 2026 harness-design,
 infrastructure-noise, Claude-Code-auto-mode, managed-agents, and
-demystifying-evals posts, mapped against KOTA's current design. Post
-summaries live in run artifacts; only KOTA decisions belong here.
+demystifying-evals posts. Post summaries live in run artifacts; only KOTA
+decisions belong here.
 
-- **Generator / evaluator separation is already the right shape.**
-  Decomposer → builder → critic mirrors the planner/generator/evaluator
-  split. Do not collapse them into a single agent even as models improve.
-  When stripping scaffolding, strip repair-loop checks or semantic gates
-  first; keep the agent-role separation.
-- **Evaluator must be able to probe outcomes, not only inspect artifacts.**
-  The builder's critic today reads the diff and run artifacts. For tasks
-  whose outcome lives outside repo state (runtime service behavior, UI,
-  external API state), diff-only review is structurally blind. New tasks
-  whose success hinges on runtime behavior must either reduce their
-  success predicate to an inspectable artifact or carry a runtime probe
-  as part of the task contract.
-- **Infrastructure noise is not statistical noise.** Any KOTA eval
-  harness must separate guaranteed resource allocation from kill
-  thresholds, report resource profile per run, run each fixture multiple
-  times, and distinguish `pass@k` (capability) from `pass^k`
-  (consistency). A single-run score across a shared host is not a
-  leaderboard signal.
+- **Generator / evaluator separation is the right shape.** Decomposer →
+  builder → critic mirrors planner/generator/evaluator. Do not collapse as
+  models improve. When stripping scaffolding, strip repair-loop checks or
+  semantic gates first; keep the agent-role separation.
+- **Evaluator must probe outcomes, not only artifacts.** Diff-only review
+  is structurally blind for outcomes living outside repo state (runtime
+  service behavior, UI, external API). New tasks whose success hinges on
+  runtime behavior must reduce success to an inspectable artifact or carry
+  a runtime probe as part of the task contract.
+- **Infrastructure noise is not statistical noise.** Any KOTA eval harness
+  must separate guaranteed resource allocation from kill thresholds, report
+  resource profile per run, run each fixture multiple times, and distinguish
+  `pass@k` (capability) from `pass^k` (consistency).
 - **Context resets beat compaction for long autonomy loops.** Prefer
-  fresh-session handoffs through structured run artifacts over in-session
-  compaction when a workflow has distinct phases. The existing run-dir
-  handoff pattern is the correct shape; keep it.
+  fresh-session handoffs through run artifacts over in-session compaction
+  when a workflow has distinct phases. The run-dir handoff pattern is
+  correct; keep it.
 - **Untrusted content entering agent context is an injection surface.**
-  Explorer, web-access, read-document, and email ingest externally
-  authored content. Tool-risk gating classifies the *call*, not the
-  *payload*, so it cannot see a watchlist page that smuggles "ignore
-  previous instructions" through a safe fetch. The
-  `injection-defense` module screens the payload (see below) and is
-  the surface to extend when coverage or heuristics need to grow.
-- **Session state should be reconstructible from append-only logs.**
-  KOTA has run artifacts, event ring buffer, and `runtime.recovered` on
-  workflows. Sessions live in daemon memory. Any new daemon-owned
-  runtime state needs an answer for "what survives a daemon crash
-  mid-turn" before it ships; default to writing through to run artifacts
-  or the event bus rather than holding state only in process memory.
-- **Eval fixtures come from real failures, not synthetic specs.** When
-  the eval-harness module lands, seed it from `.kota/runs/` failures
-  first. A fixture set assembled from hypothetical tasks is the
-  anti-pattern the demystifying-evals post calls out.
+  Tool-risk gating classifies the *call*, not the *payload*. The
+  `injection-defense` module screens payloads (see below); extend it when
+  coverage or heuristics need to grow.
+- **Session state must be reconstructible from append-only logs.** Any new
+  daemon-owned runtime state needs an answer for "what survives a daemon
+  crash mid-turn"; default to writing through to run artifacts or the event
+  bus rather than holding state only in process memory.
+- **Eval fixtures come from real failures, not synthetic specs.** Seed the
+  eval-harness module from `.kota/runs/` failures first.
+
+## Peer Coordination Pattern Decisions
+
+Peer runtimes (crewAI, LangGraph, Vercel AI SDK, OpenHands/AutoGen) expose
+task-plus-process coordination primitives. None warrants adoption: KOTA's
+`workflow` + `agent` + `module` + bus-event model already covers the
+equivalent shape in typed code.
+
+- **crewAI Flows (`@router` / `or_` / `and_`).** Reject. A DSL layered on
+  workflows would create a second public automation surface beside `workflow`
+  and conflicts with KOTA's definition-driven routing (see
+  `workflows/AGENTS.md`) and the "typed protocols over parallel DSLs"
+  direction. Sequential, hierarchical, and conditional coordination already
+  exist as `trigger`, `parallel`, `branch`, and `foreach` step kinds.
+- **LangGraph Pregel graph.** Reject the DSL; the durability property is
+  already met by `.kota/runs/` artifacts, `runtime.recovered` +
+  `recoveryCapable`, `repairLoop` retry, and `foreach.retryFailedItems`.
+  A first-class graph primitive would reintroduce the workflow-name-inventory
+  anti-pattern `workflows/AGENTS.md` forbids.
+- **Vercel AI SDK server/client split.** Already adopted. `session` is a
+  tool-loop agent; `daemon` + `client` protocols enforce thin clients.
+- **OpenHands / AutoGen typed multi-agent handoffs.** Already adopted.
+  Handoffs travel over typed bus events (decomposer → builder → critic,
+  dispatcher fan-out on `runtime.idle`) and `trigger` steps; payload typing
+  is tracked by workflow `inputSchema` / `outputSchema`.
+
+Revisit if a peer runtime ships a primitive whose rationale cannot be
+captured by KOTA's existing protocols.
 
 ## Injection Defense
 
