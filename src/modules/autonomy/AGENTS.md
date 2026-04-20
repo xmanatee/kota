@@ -117,12 +117,6 @@ belong here.
   explicit at the autonomy-mode boundary so a user message or tool output
   cannot silently escalate the operator-set mode. Tracked as
   `task-document-instruction-hierarchy-chain-of-command-ma` (backlog).
-- **SWE-bench Verified retirement post — inaccessible.** OpenAI's research
-  index is CF-JS-gated; `WebFetch` and `curl` return HTTP 403 and there is
-  no mirror. Existing "fixtures come from real `.kota/runs/` failures, not
-  synthetic specs" stance (see `src/modules/eval-harness/AGENTS.md`) is
-  directionally consistent, but the post has not been read. Tracked as
-  `task-read-openai-swe-bench-verified-retirement-post-whe` (blocked).
 
 ## Agent Judge Runtime Contract
 
