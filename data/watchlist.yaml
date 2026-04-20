@@ -144,6 +144,10 @@ resources:
       last_seen_at: "2026-04-19T22:21:08.572Z"
   - url: https://openai.com/research
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:223b549c97f0f16e5c859441c18ef47e
+      summary: "OpenAI research index is CF-JS-gated but the public research sitemap currently lists instruction-hierarchy-challenge, why-we-no-longer-evaluate-swe-bench-verified, evaluating-chain-of-thought-monitorability, and the model spec posts as the durable autonomy-eval-adjacent threads."
+      last_seen_at: "2026-04-20T13:51:00.617Z"
   - url: https://deepmind.google/discover/blog/
     added: "2026-04-19"
     snapshot:
@@ -158,3 +162,4 @@ resources:
       last_seen_at: "2026-04-20T12:32:55.787Z"
   - url: https://vercel.com/blog/category/ai
     added: "2026-04-19"
+    status: inaccessible

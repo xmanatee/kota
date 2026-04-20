@@ -1,12 +1,12 @@
 ---
 id: task-add-user-slash-command-surface-to-chat-clients-bac
 title: Add user slash-command surface to chat clients backed by skills and workflows
-status: backlog
+status: ready
 priority: p2
 area: cli
 summary: Peer agents (Claude Code, Codex, gemini-cli) expose user slash commands as a primary interaction surface; KOTA's web and macOS chat clients currently lack one. Add a single daemon-owned slash-command catalog that registers from existing skills and trigger-able workflows, then surface it consistently across chat clients.
 created_at: 2026-04-19T22:17:36.848Z
-updated_at: 2026-04-19T22:17:36.848Z
+updated_at: 2026-04-20T13:50:01.593Z
 ---
 
 ## Problem
