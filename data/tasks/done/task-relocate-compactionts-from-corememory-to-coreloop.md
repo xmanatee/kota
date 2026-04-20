@@ -1,12 +1,12 @@
 ---
 id: task-relocate-compactionts-from-corememory-to-coreloop
 title: Relocate compaction.ts from core/memory to core/loop
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: compaction.ts operates on session context and is explicitly flagged in core/memory/AGENTS.md as belonging to the session loop, not stores; move it alongside loop/context.ts where it is already consumed
 created_at: 2026-04-20T18:26:14.766Z
-updated_at: 2026-04-20T18:33:00.000Z
+updated_at: 2026-04-20T19:10:47.845Z
 ---
 
 ## Problem

@@ -1,8 +1,8 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
+import { compactMessages, extractWorkingState } from "./core/loop/compaction.js";
 import { Context, truncateToolResult } from "./core/loop/context.js";
 import { buildToolCallMap, pruneMessages } from "./core/loop/message-pruning.js";
-import { compactMessages, extractWorkingState } from "./core/memory/compaction.js";
 import type { ModelClient } from "./core/model/model-client.js";
 
 type Message = Anthropic.MessageParam;
