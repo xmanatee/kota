@@ -1,12 +1,12 @@
 ---
 id: task-add-injection-defense-on-web-derived-content-for-autonomous-mode
 title: Add injection defense on web-derived content for autonomous mode
-status: backlog
+status: done
 priority: p2
 area: autonomy
 summary: KOTA's autonomous mode currently relies on tool RiskLevel and the approval queue; Anthropic's Claude Code auto-mode post adds a server-side prompt-injection probe on tool outputs before they enter agent context. Add an input-side defense for autonomy-ingested web content (explorer, web-access, read-document, email) so autonomous runs are harder to hijack through untrusted payloads.
 created_at: 2026-04-20T00:30:00.000Z
-updated_at: 2026-04-20T00:30:00.000Z
+updated_at: 2026-04-20T06:34:28.302Z
 ---
 
 ## Problem

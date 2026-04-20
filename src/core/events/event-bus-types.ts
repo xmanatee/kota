@@ -235,6 +235,21 @@ export type BusEvents = {
     reason: string;
     session?: string;
   };
+  /**
+   * Injection-defense module screened a tool result on an autonomous run.
+   * Emitted for every screened call — not just suspicious ones — so operators
+   * can audit both missed attacks and false-positive rate. `reasons` is
+   * non-empty only when `suspicious` is true; `autonomyMode` is the session
+   * posture that triggered screening.
+   */
+  "injection.defense.assessed": {
+    tool: string;
+    suspicious: boolean;
+    reasons: string[];
+    action: "annotate" | "skip";
+    autonomyMode: AutonomyMode;
+    session?: string;
+  };
   "approval.changed": {
     id: string;
     pendingCount: number;

@@ -44,11 +44,11 @@ summaries live in run artifacts; only KOTA decisions belong here.
   handoff pattern is the correct shape; keep it.
 - **Untrusted content entering agent context is an injection surface.**
   Explorer, web-access, read-document, and email ingest externally
-  authored content. `"autonomous"` autonomy mode still relies on
-  tool-level `RiskLevel` plus the approval queue. A dedicated
-  input-side defense on web-fetched content is worth evaluating before
-  autonomy scope broadens further; tool-risk gating alone does not
-  classify payload content.
+  authored content. Tool-risk gating classifies the *call*, not the
+  *payload*, so it cannot see a watchlist page that smuggles "ignore
+  previous instructions" through a safe fetch. The
+  `injection-defense` module screens the payload (see below) and is
+  the surface to extend when coverage or heuristics need to grow.
 - **Session state should be reconstructible from append-only logs.**
   KOTA has run artifacts, event ring buffer, and `runtime.recovered` on
   workflows. Sessions live in daemon memory. Any new daemon-owned
@@ -59,6 +59,29 @@ summaries live in run artifacts; only KOTA decisions belong here.
   the eval-harness module lands, seed it from `.kota/runs/` failures
   first. A fixture set assembled from hypothetical tasks is the
   anti-pattern the demystifying-evals post calls out.
+
+## Injection Defense
+
+The `injection-defense` module post-processes content-ingest tool output
+(`web_fetch`, `web_search`, `http_request`, `read_document`) before it
+reaches agent context. Contract:
+
+- Autonomous runs opt in by default. Supervised and passive sessions are
+  opt-in via `modules.injection-defense.targetModes`.
+- Suspicious payloads are **annotated**, never dropped: the middleware
+  prepends a banner naming the tool and reason tags, wraps the original
+  content between stable "untrusted content" markers, and leaves the
+  payload intact so legitimate information still gets through.
+- Every screened call emits `injection.defense.assessed` — suspicious or
+  not — so operators can audit both false positives and missed attacks.
+- The defense is **additive**. Tool-risk gating and the approval queue
+  still apply; a moderate tool does not become safer because its output
+  was screened.
+- New ingest channels should be added to `DEFAULT_TARGET_TOOLS` rather
+  than wrapping their output elsewhere. Detection heuristics live in
+  `detector.ts` and should stay cheap and structural; escalation to a
+  classifier, if ever needed, extends the middleware rather than
+  replacing it.
 
 ## Runtime Probes
 

@@ -236,7 +236,11 @@ export async function executeToolCalls(
       // (e.g. shell timeout doubling).
       const startMs = performance.now();
       const middleware = getToolMiddleware();
-      const call = { name: block.name, input };
+      const call = {
+        name: block.name,
+        input,
+        context: { autonomyMode, ...(sessionId && { sessionId }) },
+      };
       const baseFn = () =>
         mcpManager?.isMcpTool(call.name)
           ? mcpManager.executeTool(call.name, call.input)
