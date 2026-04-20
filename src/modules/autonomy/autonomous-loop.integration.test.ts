@@ -1,3 +1,8 @@
+// This test discovers the autonomy workflow set from
+// `src/modules/autonomy/workflows/`. When adding a new workflow there, ensure
+// its trigger and step behavior is safe against the sparse fixture seeded
+// below; the self-trigger loop guard is enforced separately by the workflow
+// validator at definition load time.
 import { execSync } from "node:child_process";
 import {
   existsSync,

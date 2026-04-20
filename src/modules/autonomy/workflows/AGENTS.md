@@ -150,9 +150,3 @@ effects. A workflow with neither role leaves `recoveryCapable` unset with a
 short comment explaining why (today: `dispatcher`, `pr-reviewer`). When adding
 a new autonomy workflow, decide which bucket it falls into deliberately — do
 not silently inherit another workflow's recovery posture.
-
-## Integration Test
-
-`autonomous-loop.integration.test.ts` discovers the autonomy workflow set from this directory. When adding a new workflow here:
-- Ensure its trigger and step behavior is safe against the sparse test fixture in that file.
-- Confirm the self-trigger loop guard above is satisfied.
