@@ -90,6 +90,10 @@ resources:
       last_seen_at: "2026-04-20T09:13:55.826Z"
   - url: https://github.com/crewAIInc/crewAI
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:719fea229d3a8d9a45ccd745975aab4a
+      summary: "CrewAI is a Python multi-agent framework organized around three primitives — Agents (role/goal/expertise), Tasks (typed work items), and Process (sequential/hierarchical coordination) — plus a Flows layer for event-driven workflows with conditional routing decorators; hybrid autonomous-plus-deterministic model positioned as distinct from free-form agent chat."
+      last_seen_at: "2026-04-20T10:27:20.863Z"
   - url: https://github.com/langchain-ai/langgraph
     added: "2026-04-19"
     snapshot:
@@ -104,8 +108,18 @@ resources:
       last_seen_at: "2026-04-20T09:13:55.826Z"
   - url: https://github.com/mannaandpoem/OpenManus
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:65e62fecfe395e58c1c47f1070df5ca5
+      summary: "mannaandpoem/OpenManus has been moved to FoundationAgents/OpenManus; the old URL now only carries navigation metadata and a redirect notice. Monitoring the old URL has no value; the durable project lives at the new repo and should be added as a separate watchlist entry."
+      last_seen_at: "2026-04-20T10:27:20.863Z"
+  - url: https://github.com/FoundationAgents/OpenManus
+    added: "2026-04-20"
   - url: https://github.com/vercel/ai
     added: "2026-04-19"
+    snapshot:
+      fingerprint: sha256:6fdc46fd91dcc88e07ef13dbbce30484
+      summary: "Vercel AI SDK is a provider-agnostic TypeScript toolkit with a ToolLoopAgent class, Zod-schema structured outputs, and a useChat hook; its durable pattern is strict separation of server-side agent tool loops from client-side UI rendering, aligning with KOTA's daemon-host-plus-client-surface split."
+      last_seen_at: "2026-04-20T10:27:20.863Z"
   - url: https://github.com/noahshinn/reflexion
     added: "2026-04-19"
     snapshot:
