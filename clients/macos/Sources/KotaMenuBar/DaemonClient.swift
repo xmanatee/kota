@@ -92,6 +92,15 @@ final class DaemonClient {
         return try await post("/workflow/trigger", body: body)
     }
 
+    func fetchSlashCommands() async throws -> SlashCommandsResponse {
+        try await get("/commands")
+    }
+
+    func invokeSlashCommand(name: String) async throws -> InvokeCommandResponse {
+        let body = try JSONEncoder().encode(InvokeCommandRequest(name: name))
+        return try await post("/commands/invoke", body: body)
+    }
+
     func createSession(autonomyMode: AutonomyMode? = nil) async throws -> String {
         let body = try JSONEncoder().encode(CreateSessionRequest(autonomy_mode: autonomyMode))
         let resp: CreateSessionResponse = try await post("/sessions", body: body)

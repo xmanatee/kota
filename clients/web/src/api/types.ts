@@ -224,6 +224,20 @@ export type CostSummary = {
   workflows: Array<{ workflow: string; costUsd: number }>;
 };
 
+export type SlashCommandSource = "workflow" | "skill";
+
+export type SlashCommand = {
+  name: string;
+  label: string;
+  description?: string;
+  source: SlashCommandSource;
+  module: string;
+};
+
+export type SlashCommandInvocation =
+  | { kind: "workflow"; queued: string; runId?: string }
+  | { kind: "skill"; prompt: string };
+
 export type DaemonSseEventType =
   | "workflow.started"
   | "workflow.completed"

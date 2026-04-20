@@ -1,13 +1,24 @@
 import { api } from "@/api/client";
-import { queryKeys, sessionsQuery } from "@/api/queries";
-import type { AutonomyMode } from "@/api/types";
+import { queryKeys, sessionsQuery, slashCommandsQuery } from "@/api/queries";
+import type { AutonomyMode, SlashCommand } from "@/api/types";
 import { AutonomyModeSelect } from "@/components/autonomy/AutonomyModeControl";
+import { SlashCommandPalette } from "@/components/chat/SlashCommandPalette";
 import { Button } from "@/components/ui/button";
 import { renderMarkdown } from "@/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
 
-type Message = { role: "user" | "assistant" | "error"; content: string };
+type Message = {
+  role: "user" | "assistant" | "error" | "system";
+  content: string;
+};
+
+function paletteQuery(input: string): string | null {
+  if (!input.startsWith("/")) return null;
+  const rest = input.slice(1);
+  if (rest.includes(" ") || rest.includes("\n")) return null;
+  return rest;
+}
 
 export function ChatArea({
   sessionId,
@@ -25,9 +36,15 @@ export function ChatArea({
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(true);
   const [pendingMode, setPendingMode] = useState<AutonomyMode>("supervised");
   const messagesRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const { data: commandsData } = useQuery(slashCommandsQuery);
+  const commands = commandsData?.commands ?? [];
+  const rawPaletteQuery = paletteQuery(input);
+  const showPalette = paletteOpen && rawPaletteQuery !== null;
 
   const setMode = useMutation({
     mutationFn: ({ id, mode }: { id: string; mode: AutonomyMode }) =>
@@ -49,6 +66,50 @@ export function ChatArea({
       el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
     }
   }, []);
+
+  const invokeCommand = useCallback(
+    async (cmd: SlashCommand) => {
+      setPaletteOpen(false);
+      if (cmd.source === "skill") {
+        try {
+          const result = await api.invokeSlashCommand(cmd.name);
+          if (result.kind === "skill") {
+            setInput(result.prompt);
+            requestAnimationFrame(() => {
+              autoResize();
+              textareaRef.current?.focus();
+            });
+          }
+        } catch (err) {
+          setMessages((prev) => [
+            ...prev,
+            { role: "error", content: `Failed to load ${cmd.label}: ${(err as Error).message}` },
+          ]);
+        }
+        return;
+      }
+      setInput("");
+      try {
+        const result = await api.invokeSlashCommand(cmd.name);
+        if (result.kind === "workflow") {
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "system",
+              content: `Queued workflow ${result.queued}${result.runId ? ` (run ${result.runId})` : ""}.`,
+            },
+          ]);
+        }
+      } catch (err) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "error", content: `Failed to invoke ${cmd.label}: ${(err as Error).message}` },
+        ]);
+      }
+      textareaRef.current?.focus();
+    },
+    [autoResize],
+  );
 
   async function sendMessage() {
     const text = input.trim();
@@ -165,6 +226,7 @@ export function ChatArea({
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
+    if (showPalette) return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       void sendMessage();
@@ -217,7 +279,9 @@ export function ChatArea({
                   ? "bg-primary text-primary-foreground"
                   : msg.role === "error"
                     ? "bg-destructive/10 text-destructive"
-                    : "bg-muted"
+                    : msg.role === "system"
+                      ? "bg-accent/20 text-muted-foreground italic"
+                      : "bg-muted"
               }`}
             >
               {msg.role === "assistant" ? (
@@ -237,7 +301,15 @@ export function ChatArea({
         ))}
       </div>
       <div className="border-t border-border p-3">
-        <div className="flex gap-2">
+        <div className="relative flex gap-2">
+          {showPalette ? (
+            <SlashCommandPalette
+              commands={commands}
+              query={rawPaletteQuery ?? ""}
+              onPick={(cmd) => void invokeCommand(cmd)}
+              onDismiss={() => setPaletteOpen(false)}
+            />
+          ) : null}
           <textarea
             ref={textareaRef}
             className="flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -245,7 +317,9 @@ export function ChatArea({
             rows={1}
             value={input}
             onChange={(e) => {
-              setInput(e.target.value);
+              const next = e.target.value;
+              setInput(next);
+              if (next.startsWith("/")) setPaletteOpen(true);
               autoResize();
             }}
             onKeyDown={handleKeyDown}

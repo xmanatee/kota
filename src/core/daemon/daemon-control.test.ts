@@ -1448,6 +1448,32 @@ describe("DaemonControlServer", () => {
     });
   });
 
+  describe("Slash commands", () => {
+    it("returns 503 from GET /commands when no catalog is registered", async () => {
+      const res = await fetchWithToken(port, "/commands");
+      expect(res.status).toBe(503);
+    });
+
+    it("returns 503 from POST /commands/invoke when no catalog is registered", async () => {
+      const res = await fetchWithToken(port, "/commands/invoke", {
+        method: "POST",
+        body: JSON.stringify({ name: "builder" }),
+        headers: { "Content-Type": "application/json" },
+      });
+      expect(res.status).toBe(503);
+    });
+
+    it("returns 401 without token for GET /commands", async () => {
+      const res = await fetchNoToken(port, "/commands");
+      expect(res.status).toBe(401);
+    });
+
+    it("returns 401 without token for POST /commands/invoke", async () => {
+      const res = await fetchNoToken(port, "/commands/invoke", { method: "POST" });
+      expect(res.status).toBe(401);
+    });
+  });
+
   describe("GET /api/events", () => {
     function pushEvents(h: DaemonControlHandle): (event: DaemonSseEvent) => void {
       const calls = (h.subscribeToEvents as ReturnType<typeof vi.fn>).mock.calls;

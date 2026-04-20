@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum ChatRole {
-    case user, assistant
+    case user, assistant, system, error
 }
 
 struct ChatMessage: Identifiable {
@@ -20,6 +20,8 @@ struct ChatView: View {
     @State private var isStreaming = false
     @State private var streamingContent = ""
     @State private var errorMessage: String?
+    @State private var slashCommands: [SlashCommand] = []
+    @State private var paletteDismissed = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -38,6 +40,28 @@ struct ChatView: View {
             inputView
         }
         .frame(width: 480, height: 520)
+        .task { await loadSlashCommands() }
+    }
+
+    private var paletteQuery: String? {
+        guard inputText.hasPrefix("/") else { return nil }
+        let rest = inputText.dropFirst()
+        if rest.contains(" ") || rest.contains("\n") { return nil }
+        return String(rest)
+    }
+
+    private var filteredCommands: [SlashCommand] {
+        guard let q = paletteQuery else { return [] }
+        if q.isEmpty { return slashCommands }
+        let lower = q.lowercased()
+        return slashCommands.filter {
+            $0.name.lowercased().contains(lower)
+                || ($0.description ?? "").lowercased().contains(lower)
+        }
+    }
+
+    private var showPalette: Bool {
+        !paletteDismissed && paletteQuery != nil && !filteredCommands.isEmpty
     }
 
     private var headerView: some View {
@@ -94,22 +118,66 @@ struct ChatView: View {
     }
 
     private var inputView: some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            TextField("Message…", text: $inputText, axis: .vertical)
-                .textFieldStyle(.roundedBorder)
-                .lineLimit(1...5)
-                .disabled(isStreaming)
-                .onSubmit { sendMessage() }
-
-            Button(action: sendMessage) {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(canSend ? Color.accentColor : Color.secondary)
+        VStack(alignment: .leading, spacing: 0) {
+            if showPalette {
+                slashCommandPalette
+                Divider()
             }
-            .buttonStyle(.plain)
-            .disabled(!canSend)
+            HStack(alignment: .bottom, spacing: 8) {
+                TextField("Message…", text: $inputText, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(1...5)
+                    .disabled(isStreaming)
+                    .onSubmit { sendMessage() }
+                    .onChange(of: inputText) { value in
+                        if value.hasPrefix("/") {
+                            paletteDismissed = false
+                        }
+                    }
+
+                Button(action: sendMessage) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(canSend ? Color.accentColor : Color.secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSend)
+            }
+            .padding(12)
         }
-        .padding(12)
+    }
+
+    private var slashCommandPalette: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(filteredCommands) { cmd in
+                    Button(action: { invokeSlashCommand(cmd) }) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack {
+                                Text(cmd.label)
+                                    .font(.system(.body, design: .monospaced))
+                                Spacer()
+                                Text("\(cmd.source) · \(cmd.module)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            if let desc = cmd.description, !desc.isEmpty {
+                                Text(desc)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    Divider()
+                }
+            }
+        }
+        .frame(maxHeight: 180)
     }
 
     private var canSend: Bool {
@@ -158,6 +226,39 @@ struct ChatView: View {
             dismiss()
         }
     }
+
+    private func loadSlashCommands() async {
+        do {
+            let resp = try await appState.client.fetchSlashCommands()
+            slashCommands = resp.commands
+        } catch {
+            // Palette is best-effort; keep chat usable even without commands.
+            slashCommands = []
+        }
+    }
+
+    private func invokeSlashCommand(_ cmd: SlashCommand) {
+        paletteDismissed = true
+        Task {
+            do {
+                let result = try await appState.client.invokeSlashCommand(name: cmd.name)
+                switch result {
+                case .skill(let prompt):
+                    inputText = prompt
+                case .workflow(let queued, let runId):
+                    inputText = ""
+                    let runSuffix = runId.map { " (run \($0))" } ?? ""
+                    messages.append(ChatMessage(
+                        id: UUID().uuidString,
+                        role: .system,
+                        content: "Queued workflow \(queued)\(runSuffix)."
+                    ))
+                }
+            } catch {
+                errorMessage = "Failed to invoke \(cmd.label): \(error.localizedDescription)"
+            }
+        }
+    }
 }
 
 struct MessageBubble: View {
@@ -168,17 +269,36 @@ struct MessageBubble: View {
             if message.role == .user { Spacer(minLength: 60) }
             Text(message.content)
                 .font(.system(size: 12))
+                .italic(isItalic)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(bubbleBackground)
-                .foregroundStyle(message.role == .user ? Color.white : Color.primary)
+                .foregroundStyle(foregroundColor)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .textSelection(.enabled)
-            if message.role == .assistant { Spacer(minLength: 60) }
+            if message.role != .user { Spacer(minLength: 60) }
         }
     }
 
     private var bubbleBackground: Color {
-        message.role == .user ? Color.accentColor : Color.secondary.opacity(0.15)
+        switch message.role {
+        case .user: return Color.accentColor
+        case .assistant: return Color.secondary.opacity(0.15)
+        case .system: return Color.secondary.opacity(0.08)
+        case .error: return Color.red.opacity(0.15)
+        }
+    }
+
+    private var foregroundColor: Color {
+        switch message.role {
+        case .user: return .white
+        case .error: return .red
+        case .system: return .secondary
+        case .assistant: return .primary
+        }
+    }
+
+    private var isItalic: Bool {
+        message.role == .system
     }
 }

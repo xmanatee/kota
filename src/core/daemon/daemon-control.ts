@@ -12,6 +12,7 @@ import {
   handleDaemonChat,
   handlePatchDaemonSession,
 } from "./daemon-control-chat.js";
+import { handleInvokeCommand, handleListCommands } from "./daemon-control-commands.js";
 import { handleDeleteHistory, handleGetHistory, handleListHistory } from "./daemon-control-history.js";
 import { handleMetrics } from "./daemon-control-metrics.js";
 import { handleAnswerOwnerQuestion, handleDismissOwnerQuestion, handleListOwnerQuestions } from "./daemon-control-owner-questions.js";
@@ -98,6 +99,8 @@ const ROUTE_SCOPES: Record<string, "read" | "control"> = {
   "DELETE /sessions/:id": "control",
   "GET /metrics": "read",
   "POST /push-tokens": "control",
+  "GET /commands": "read",
+  "POST /commands/invoke": "control",
 };
 
 function extractParams(pattern: string, path: string): Record<string, string> | null {
@@ -459,6 +462,9 @@ export class DaemonControlServer {
     if (method === "GET" && path === "/metrics") { handleMetrics(h, res); return; }
 
     if (method === "POST" && path === "/push-tokens") { handleRegisterPushToken(h, req, res); return; }
+
+    if (method === "GET" && path === "/commands") { handleListCommands(res); return; }
+    if (method === "POST" && path === "/commands/invoke") { handleInvokeCommand(h, req, res); return; }
 
     jsonResponse(res, 404, { error: "Not found" });
   }

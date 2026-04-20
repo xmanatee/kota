@@ -13,6 +13,8 @@ import type {
   PendingApproval,
   PendingOwnerQuestion,
   ScheduleEntry,
+  SlashCommand,
+  SlashCommandInvocation,
   WorkflowDefinitionSummary,
   WorkflowLiveStatus,
   WorkflowRunDetail,
@@ -278,6 +280,16 @@ export const api = {
   getAudit: () => apiJson<{ entries: AuditEntry[] }>("/api/audit"),
 
   getConfig: () => apiJson<Record<string, unknown>>("/api/config"),
+
+  listSlashCommands: () =>
+    apiJson<{ commands: SlashCommand[] }>("/api/commands"),
+
+  invokeSlashCommand: (name: string) =>
+    apiJson<SlashCommandInvocation>("/api/commands/invoke", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    }),
 };
 
 export { apiFetch, getAuthToken };
