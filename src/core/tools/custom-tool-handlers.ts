@@ -5,7 +5,7 @@
 
 import { existsSync, unlinkSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
-import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "#core/data/code-wrappers.js";
+import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "./code-wrappers.js";
 import {
   type CustomToolDef,
   getToolPath,

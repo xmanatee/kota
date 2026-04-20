@@ -26,6 +26,7 @@ conveniences. New capabilities should prefer module-owned tools.
 - `tool-groups`, `tool-middleware`, `tool-runner`, `tool-telemetry`, `tool-result`, `tool-adapters`, `tool-adapter-types`, `tool-adapters-zod` — tool execution pipeline.
 - `guardrails`, `guardrails-classify`, `audit-store` — risk assessment and audit storage.
 - `repl-session` — shared REPL sessions used by custom-tool handlers and the execution module.
+- `code-wrappers` — REPL wrapper scripts and shared constants for core tools and the execution module.
 - `module-factory/` — module lifecycle: `addLoadedModule`/`resetModuleFactory` called from loop-init.
 
 ## Autonomy mode

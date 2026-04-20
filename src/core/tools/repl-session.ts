@@ -1,7 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { DONE_MARKER, NODE_WRAPPER, PYTHON_WRAPPER, SENTINEL } from "#core/data/code-wrappers.js";
+import { DONE_MARKER, NODE_WRAPPER, PYTHON_WRAPPER, SENTINEL } from "./code-wrappers.js";
 
 export type Language = "python" | "node";
 const SETTLE_STDERR_GRACE_MS = 10;

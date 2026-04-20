@@ -1,12 +1,12 @@
 ---
 id: task-retire-srccoredata-by-moving-format-helpers-into-t
 title: Retire src/core/data/ by moving format helpers into their owning modules
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: core/data/ currently holds format-specific helpers (CSV/JSON preview, HTML extraction, plot capture) used almost entirely by modules; relocate each helper to its owning module so core stays protocol-oriented and core/data/ disappears.
 created_at: 2026-04-20T15:24:07.900Z
-updated_at: 2026-04-20T15:24:07.900Z
+updated_at: 2026-04-20T15:48:01.267Z
 ---
 
 ## Problem
