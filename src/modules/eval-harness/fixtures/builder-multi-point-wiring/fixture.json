@@ -1,0 +1,41 @@
+{
+  "id": "builder-multi-point-wiring",
+  "description": "Builder must fully wire a new value through every enumerated integration point in the task's Done When. Fixture passes only when every integration point — three marker files plus an index listing all three — is present.",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 1800000,
+  "predicates": [
+    {
+      "kind": "file-exists",
+      "path": "data/markers/alpha.txt"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/markers/beta.txt"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/markers/gamma.txt"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/markers/INDEX.md",
+      "needle": "alpha.txt"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/markers/INDEX.md",
+      "needle": "beta.txt"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/markers/INDEX.md",
+      "needle": "gamma.txt"
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-wire-three-markers-through-index.md"
+    }
+  ],
+  "tags": ["regression", "autonomy", "builder-discipline"]
+}

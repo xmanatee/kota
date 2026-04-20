@@ -1,0 +1,22 @@
+{
+  "id": "inbox-sorter-dedup-against-open-tasks",
+  "description": "Inbox contains a rough idea that duplicates an existing backlog task. Fixture passes only when the inbox is drained AND no new duplicate task was created AND the existing task is preserved.",
+  "role": "inbox-sorter",
+  "workflowName": "inbox-sorter",
+  "budgetMs": 900000,
+  "predicates": [
+    {
+      "kind": "file-absent",
+      "path": "data/inbox/rough-idea-cli-hint-suffixes.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/backlog/task-add-cli-error-message-hints.md"
+    },
+    {
+      "kind": "shell-succeeds",
+      "command": "test \"$(find data/tasks -mindepth 1 -name 'task-*.md' -type f | wc -l | tr -d ' ')\" -eq 1"
+    }
+  ],
+  "tags": ["regression", "autonomy", "inbox-sorter-discipline"]
+}

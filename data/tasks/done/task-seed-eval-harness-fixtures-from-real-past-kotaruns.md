@@ -1,12 +1,12 @@
 ---
 id: task-seed-eval-harness-fixtures-from-real-past-kotaruns
 title: Seed eval-harness fixtures from real past .kota/runs failures
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Grow the fixture set by synthesizing fixtures from real past autonomy-run failures in .kota/runs rather than hypothetical specs, closing the demystifying-evals anti-pattern the harness module already documents.
 created_at: 2026-04-20T09:11:49.532Z
-updated_at: 2026-04-20T09:11:49.532Z
+updated_at: 2026-04-20T10:06:27.420Z
 ---
 
 ## Problem

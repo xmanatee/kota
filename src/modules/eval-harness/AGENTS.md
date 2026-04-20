@@ -66,9 +66,21 @@ Fixtures live under `src/modules/eval-harness/fixtures/<id>/`:
 - `initial/` — the initial repo state copied into each run's isolated
   working directory. Include any `data/`, `.kota/`, or repo scaffolding the
   target workflow needs to pick up the task.
+- `notes.md` — required. Names the source run id (or explains why none
+  applies), states what failed, and explains why this fixture captures
+  that failure. See existing fixtures for the expected shape.
 
-Synthesize the fixture from a real `.kota/runs/` failure when possible —
-hypothetical fixtures reintroduce the demystifying-evals anti-pattern.
+New fixtures MUST be sourced from a real `.kota/runs/` failure. This is a
+requirement, not a preference: fixtures assembled from hypothetical tasks
+reward cosmetic progress on capability the agent already has and miss the
+failure modes the harness exists to gate against (the demystifying-evals
+anti-pattern the harness module was created to close). The narrow
+exception is a smoke fixture whose explicit purpose is to fail loudly
+when harness plumbing itself regresses; that fixture's `notes.md` must
+state "no source run id" and justify why no failure mode is being
+encoded. A fixture without either a source run id or a written
+justification is a contribution error — hypothetical fixtures silently
+passing a green regression gate is the failure this discipline prevents.
 
 Predicates are intentionally small and deterministic (`predicates.ts`):
 `file-exists`, `file-absent`, `file-contains`, `shell-succeeds`,
