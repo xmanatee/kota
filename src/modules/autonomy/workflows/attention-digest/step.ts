@@ -1,13 +1,22 @@
 import { join } from "node:path";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
 import { loadRecentRuns, type RunSummary } from "#modules/autonomy/shared.js";
-import { countRepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
+import {
+  countRepoTaskState,
+  listRepoTasksInState,
+  type RepoTaskRecord,
+} from "#modules/repo-tasks/repo-tasks-domain.js";
 
 const DIGEST_EVERY_N_RUNS = 10;
 // KOTA_DIGEST_WARNINGS_COUNT: number of builder runs with warnings to trigger the check (default 3)
 // KOTA_DIGEST_WARNINGS_WINDOW: how many recent builder runs to inspect (default 10)
 const DEFAULT_WARNINGS_COUNT = 3;
 const DEFAULT_WARNINGS_WINDOW = 10;
+// KOTA_DIGEST_BLOCKED_AGE_DAYS: a blocked task is "long-blocked" when its
+// updated_at is older than this many days (default 3)
+const DEFAULT_BLOCKED_AGE_DAYS = 3;
+const MAX_INDIVIDUAL_BLOCKED_ITEMS = 5;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 type AttentionItem = { label: string; detail: string };
 
@@ -55,6 +64,69 @@ function builderWarningsCheck(recentRuns: RunSummary[]): AttentionItem | null {
   return { label: "Repeated warnings", detail };
 }
 
+function hasOwnerBlocker(body: string): boolean {
+  const match = body.match(/(?:^|\n)##\s+Blocker\b[^\n]*\n([\s\S]*?)(?=\n##\s|$)/i);
+  if (!match) return false;
+  return /\bowner\b/i.test(match[1]);
+}
+
+type LongBlockedEntry = { record: RepoTaskRecord; ageDays: number };
+
+function findLongBlocked(
+  records: RepoTaskRecord[],
+  thresholdDays: number,
+  nowMs: number,
+): LongBlockedEntry[] {
+  const entries: LongBlockedEntry[] = [];
+  for (const record of records) {
+    const updatedMs = Date.parse(record.frontmatter.updatedAt);
+    if (Number.isNaN(updatedMs)) continue;
+    const ageDays = Math.floor((nowMs - updatedMs) / MS_PER_DAY);
+    if (ageDays >= thresholdDays) entries.push({ record, ageDays });
+  }
+  entries.sort((a, b) => b.ageDays - a.ageDays);
+  return entries;
+}
+
+function blockedAttentionItems(projectDir: string): AttentionItem[] {
+  const blockedCount = countRepoTaskState(projectDir, "blocked");
+  if (blockedCount === 0) return [];
+
+  const threshold =
+    Number(process.env.KOTA_DIGEST_BLOCKED_AGE_DAYS) || DEFAULT_BLOCKED_AGE_DAYS;
+  const records = listRepoTasksInState(projectDir, "blocked");
+  const longBlocked = findLongBlocked(records, threshold, Date.now());
+
+  const items: AttentionItem[] = [];
+  // Aggregate pressure remains visible unless every blocked task is already
+  // surfaced individually — otherwise operators would see the same tasks twice.
+  if (blockedCount >= 2 && longBlocked.length < blockedCount) {
+    items.push({
+      label: "Blocked backlog",
+      detail: `${blockedCount} blocked tasks`,
+    });
+  }
+
+  const shown = longBlocked.slice(0, MAX_INDIVIDUAL_BLOCKED_ITEMS);
+  for (const { record, ageDays } of shown) {
+    const label = hasOwnerBlocker(record.body)
+      ? "Owner decision pending"
+      : "Stale blocker";
+    items.push({
+      label,
+      detail: `${record.frontmatter.id} (blocked ${ageDays}d)`,
+    });
+  }
+  const tail = longBlocked.length - MAX_INDIVIDUAL_BLOCKED_ITEMS;
+  if (tail > 0) {
+    items.push({
+      label: "More long-blocked tasks",
+      detail: `${tail} additional blocked tasks past threshold`,
+    });
+  }
+  return items;
+}
+
 function detectAttentionItems(
   projectDir: string,
   recentRuns: RunSummary[],
@@ -80,13 +152,7 @@ function detectAttentionItems(
     });
   }
 
-  const blockedCount = countRepoTaskState(projectDir, "blocked");
-  if (blockedCount >= 2) {
-    items.push({
-      label: "Blocked backlog",
-      detail: `${blockedCount} blocked tasks`,
-    });
-  }
+  items.push(...blockedAttentionItems(projectDir));
 
   const readyCount = countRepoTaskState(projectDir, "ready");
   if (readyCount === 0) {

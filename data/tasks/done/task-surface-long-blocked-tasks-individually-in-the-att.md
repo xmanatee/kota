@@ -1,12 +1,12 @@
 ---
 id: task-surface-long-blocked-tasks-individually-in-the-att
 title: Surface long-blocked tasks individually in the attention digest
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Attention digest reports a bare count of blocked tasks; add per-task surfacing for entries blocked longer than a configured age so operators notice stale blockers that need owner input
 created_at: 2026-04-20T20:36:01.772Z
-updated_at: 2026-04-20T20:36:01.772Z
+updated_at: 2026-04-20T21:24:46.239Z
 ---
 
 ## Problem

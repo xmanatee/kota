@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getRepoHeadSha } from "#core/util/repo-worktree.js";
 
@@ -103,6 +103,59 @@ export function isThinPullQueue(snapshot: RepoTaskQueueSnapshot): boolean {
     waitingCount <= 2 &&
     (waitingCount > 0 || snapshot.counts.doing > 0)
   );
+}
+
+export type RepoTaskFrontmatter = {
+  id: string;
+  updatedAt: string;
+};
+
+export type RepoTaskRecord = {
+  frontmatter: RepoTaskFrontmatter;
+  body: string;
+};
+
+function parseFrontmatterBlock(content: string): Record<string, string> | null {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!match) return null;
+  const fields: Record<string, string> = {};
+  for (const line of match[1].split(/\r?\n/)) {
+    const colon = line.indexOf(":");
+    if (colon === -1) continue;
+    fields[line.slice(0, colon).trim()] = line.slice(colon + 1).trim();
+  }
+  return fields;
+}
+
+function extractBodyAfterFrontmatter(content: string): string {
+  const match = content.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n([\s\S]*)$/);
+  return match ? match[1] : "";
+}
+
+/**
+ * List task records in a given state with their frontmatter id/updated_at and
+ * body. Tasks missing either id or updated_at are skipped so callers can treat
+ * the result as strict.
+ */
+export function listRepoTasksInState(
+  projectDir: string,
+  state: RepoTaskState,
+): RepoTaskRecord[] {
+  const dir = getRepoTaskStateDir(projectDir, state);
+  if (!existsSync(dir)) return [];
+
+  const records: RepoTaskRecord[] = [];
+  for (const name of readdirSync(dir)) {
+    if (!name.endsWith(".md") || name === "AGENTS.md") continue;
+    const content = readFileSync(join(dir, name), "utf-8");
+    const fm = parseFrontmatterBlock(content);
+    if (!fm || !fm.id || !fm.updated_at) continue;
+    records.push({
+      frontmatter: { id: fm.id, updatedAt: fm.updated_at },
+      body: extractBodyAfterFrontmatter(content),
+    });
+  }
+  return records;
 }
 
 export type DaemonTaskDetail = {

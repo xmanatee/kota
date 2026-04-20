@@ -12,6 +12,23 @@ function makeTaskDir(projectDir: string, state: string, count: number): void {
   }
 }
 
+function writeBlockedTask(
+  projectDir: string,
+  id: string,
+  opts: { daysAgo: number; ownerBlocker?: boolean; body?: string },
+): void {
+  const dir = join(projectDir, "data", "tasks", "blocked");
+  mkdirSync(dir, { recursive: true });
+  const updatedAt = new Date(Date.now() - opts.daysAgo * 24 * 60 * 60 * 1000)
+    .toISOString();
+  const ownerSection = opts.ownerBlocker
+    ? "## Blocker\n\nWaiting on owner decision between options A and B.\n"
+    : "";
+  const extraBody = opts.body ?? "";
+  const content = `---\nid: ${id}\ntitle: ${id}\nstatus: blocked\npriority: p2\narea: autonomy\nsummary: test\ncreated_at: ${updatedAt}\nupdated_at: ${updatedAt}\n---\n\n## Problem\n\nTest.\n\n${ownerSection}${extraBody}`;
+  writeFileSync(join(dir, `${id}.md`), content, "utf-8");
+}
+
 function writeRunMetadata(
   runsDir: string,
   id: string,
@@ -197,11 +214,13 @@ describe("runAttentionDigestStep", () => {
     beforeEach(() => {
       delete process.env.KOTA_DIGEST_WARNINGS_COUNT;
       delete process.env.KOTA_DIGEST_WARNINGS_WINDOW;
+      delete process.env.KOTA_DIGEST_BLOCKED_AGE_DAYS;
     });
 
     afterEach(() => {
       delete process.env.KOTA_DIGEST_WARNINGS_COUNT;
       delete process.env.KOTA_DIGEST_WARNINGS_WINDOW;
+      delete process.env.KOTA_DIGEST_BLOCKED_AGE_DAYS;
     });
 
     it("emits digest when N builder runs have completed-with-warnings (default N=3, M=10)", () => {
@@ -276,6 +295,114 @@ describe("runAttentionDigestStep", () => {
       }
       runSteps(10);
       expect(emittedEvents).toHaveLength(0);
+    });
+  });
+
+  describe("long-blocked task surfacing", () => {
+    beforeEach(() => {
+      delete process.env.KOTA_DIGEST_BLOCKED_AGE_DAYS;
+    });
+
+    afterEach(() => {
+      delete process.env.KOTA_DIGEST_BLOCKED_AGE_DAYS;
+    });
+
+    it("does not surface a task that has not reached the threshold", () => {
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+      // Just under 3 days (default threshold) — floor(ageDays) = 2
+      writeBlockedTask(projectDir, "task-fresh-a", { daysAgo: 2.9 });
+      writeBlockedTask(projectDir, "task-fresh-b", { daysAgo: 1 });
+      runSteps(10);
+      expect(emittedEvents).toHaveLength(1);
+      const text = emittedEvents[0].payload.text as string;
+      expect(text).toContain("Blocked backlog");
+      expect(text).not.toContain("Stale blocker");
+      expect(text).not.toContain("Owner decision pending");
+    });
+
+    it("surfaces a task sitting exactly at the threshold", () => {
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+      // daysAgo=3 with default threshold=3 → floor(ageDays)=3 ≥ 3
+      writeBlockedTask(projectDir, "task-threshold", { daysAgo: 3 });
+      writeBlockedTask(projectDir, "task-fresh", { daysAgo: 1 });
+      runSteps(10);
+      const text = emittedEvents[0].payload.text as string;
+      expect(text).toContain("Stale blocker");
+      expect(text).toContain("task-threshold");
+      expect(text).toContain("blocked 3d");
+      expect(text).toContain("Blocked backlog");
+    });
+
+    it("surfaces a task one day past the threshold", () => {
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+      writeBlockedTask(projectDir, "task-stale-a", { daysAgo: 4 });
+      writeBlockedTask(projectDir, "task-fresh-b", { daysAgo: 1 });
+      runSteps(10);
+      const text = emittedEvents[0].payload.text as string;
+      expect(text).toContain("Stale blocker");
+      expect(text).toContain("task-stale-a");
+      expect(text).toContain("blocked 4d");
+      expect(text).toContain("Blocked backlog");
+    });
+
+    it("labels an owner-blocker task differently from a stale blocker", () => {
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+      writeBlockedTask(projectDir, "task-owner", {
+        daysAgo: 5,
+        ownerBlocker: true,
+      });
+      writeBlockedTask(projectDir, "task-stale", { daysAgo: 4 });
+      runSteps(10);
+      const text = emittedEvents[0].payload.text as string;
+      expect(text).toContain("Owner decision pending");
+      expect(text).toContain("task-owner");
+      expect(text).toContain("Stale blocker");
+      expect(text).toContain("task-stale");
+    });
+
+    it("suppresses the aggregate line when every blocked task is long-blocked", () => {
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+      writeBlockedTask(projectDir, "task-old-a", { daysAgo: 10 });
+      writeBlockedTask(projectDir, "task-old-b", { daysAgo: 5 });
+      runSteps(10);
+      const text = emittedEvents[0].payload.text as string;
+      expect(text).not.toContain("Blocked backlog");
+      expect(text).toContain("task-old-a");
+      expect(text).toContain("task-old-b");
+    });
+
+    it("caps individual items at five and summarizes the tail", () => {
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+      for (let i = 0; i < 7; i++) {
+        writeBlockedTask(projectDir, `task-old-${i}`, { daysAgo: 10 + i });
+      }
+      runSteps(10);
+      const text = emittedEvents[0].payload.text as string;
+      // Oldest five surface — task-old-6 (16d) down to task-old-2 (12d)
+      expect(text).toContain("task-old-6");
+      expect(text).toContain("task-old-2");
+      // Younger two collapsed into the tail summary
+      expect(text).not.toContain("task-old-1");
+      expect(text).not.toContain("task-old-0");
+      expect(text).toContain("More long-blocked tasks");
+      expect(text).toContain("2 additional blocked tasks past threshold");
+    });
+
+    it("respects KOTA_DIGEST_BLOCKED_AGE_DAYS override", () => {
+      process.env.KOTA_DIGEST_BLOCKED_AGE_DAYS = "1";
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+      writeBlockedTask(projectDir, "task-day-old", { daysAgo: 1 });
+      runSteps(10);
+      const text = emittedEvents[0].payload.text as string;
+      expect(text).toContain("Stale blocker");
+      expect(text).toContain("task-day-old");
     });
   });
 
