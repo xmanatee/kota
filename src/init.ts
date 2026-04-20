@@ -2,9 +2,12 @@ import { execSync } from "node:child_process";
 import { basename } from "node:path";
 import { detectEnvironment, detectProject, getDirectoryOverview } from "#core/util/project-detection.js";
 import { getScheduler } from "./core/daemon/scheduler.js";
-import { getKnowledgeStore } from "./core/memory/knowledge-store.js";
 import { getMemoryStore } from "./core/memory/store.js";
-import { getHistoryProvider, getTaskProvider } from "./core/modules/provider-registry.js";
+import {
+  getHistoryProvider,
+  getKnowledgeProvider,
+  getTaskProvider,
+} from "./core/modules/provider-registry.js";
 
 const GIT_TIMEOUT = 5000;
 
@@ -113,10 +116,10 @@ function recallSchedules(): string | null {
 }
 
 /** Recall recent knowledge entries relevant to the current project. */
-function recallKnowledge(cwd: string): string | null {
+function recallKnowledge(): string | null {
   try {
-    const store = getKnowledgeStore(cwd);
-    const entries = store.list({ scope: "project" });
+    const provider = getKnowledgeProvider();
+    const entries = provider.list({ scope: "project" });
     if (entries.length === 0) return null;
 
     const shown = entries.slice(0, 5);
@@ -193,7 +196,7 @@ export function buildSessionWarmup(cwd?: string): string {
   const schedules = recallSchedules();
   if (schedules) sections.push(`**Scheduled reminders**:\n${schedules}`);
 
-  const knowledge = recallKnowledge(dir);
+  const knowledge = recallKnowledge();
   if (knowledge) sections.push(`**Knowledge base**:\n${knowledge}`);
 
   const recentConvo = recallRecentConversation(dir);

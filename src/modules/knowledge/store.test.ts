@@ -2,12 +2,12 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { KnowledgeStore } from "./store.js";
 import {
-	KnowledgeStore,
 	parseFrontMatter,
 	serializeFrontMatter,
 	toSlug,
-} from "./knowledge-store.js";
+} from "./store-helpers.js";
 
 // --- Front matter parsing ---
 

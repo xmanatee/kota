@@ -39,7 +39,7 @@ export function registerKnowledgeCommands(program: Command): void {
 		.action(async (opts: { tag?: string; type?: string; status?: string; limit: string }) => {
 			await ensureCliProvidersFor(["knowledge"]);
 			const limit = Math.max(1, parseInt(opts.limit, 10) || 20);
-			const store = getKnowledgeProvider(process.cwd());
+			const store = getKnowledgeProvider();
 			const entries = store
 				.list({ tag: opts.tag, type: opts.type, status: opts.status })
 				.slice(0, limit);
@@ -72,7 +72,7 @@ export function registerKnowledgeCommands(program: Command): void {
 		.action(async (query: string, opts: { tag?: string; type?: string; status?: string; semantic?: boolean; limit: string }) => {
 			await ensureCliProvidersFor(["knowledge"]);
 			const limit = Math.max(1, parseInt(opts.limit, 10) || 20);
-			const store = getKnowledgeProvider(process.cwd());
+			const store = getKnowledgeProvider();
 			const filters = {
 				tag: opts.tag,
 				type: opts.type,
@@ -103,7 +103,7 @@ export function registerKnowledgeCommands(program: Command): void {
 		.description("Print a single knowledge entry")
 		.action(async (id: string) => {
 			await ensureCliProvidersFor(["knowledge"]);
-			const store = getKnowledgeProvider(process.cwd());
+			const store = getKnowledgeProvider();
 			const entry = store.read(id);
 			if (!entry) {
 				console.error(`Knowledge entry "${id}" not found.`);
@@ -146,7 +146,7 @@ export function registerKnowledgeCommands(program: Command): void {
 				for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
 				content = Buffer.concat(chunks).toString("utf-8").trimEnd();
 			}
-			const store = getKnowledgeProvider(process.cwd());
+			const store = getKnowledgeProvider();
 			const id = store.create({
 				title: opts.title,
 				content,
@@ -163,7 +163,7 @@ export function registerKnowledgeCommands(program: Command): void {
 		.description("Delete a knowledge entry by ID")
 		.action(async (id: string) => {
 			await ensureCliProvidersFor(["knowledge"]);
-			const store = getKnowledgeProvider(process.cwd());
+			const store = getKnowledgeProvider();
 			const ok = store.delete(id);
 			if (!ok) {
 				console.error(`Knowledge entry "${id}" not found.`);
@@ -190,7 +190,7 @@ export function registerKnowledgeCommands(program: Command): void {
 				console.error(`Invalid format "${opts.format}". Use "json" or "jsonl".`);
 				process.exit(1);
 			}
-			const store = getKnowledgeProvider(process.cwd());
+			const store = getKnowledgeProvider();
 			const entries = store.list({
 				type: opts.type,
 				status: opts.status,
@@ -225,7 +225,7 @@ export function registerKnowledgeCommands(program: Command): void {
 		)
 		.action(async () => {
 			await ensureCliProvidersFor(["knowledge"]);
-			const provider = getKnowledgeProvider(process.cwd());
+			const provider = getKnowledgeProvider();
 			const result = await provider.reindex();
 			if (result.skipped) {
 				console.log(
@@ -266,7 +266,7 @@ export function registerKnowledgeCommands(program: Command): void {
 				console.error(`Failed to parse file: ${err instanceof Error ? err.message : String(err)}`);
 				process.exit(1);
 			}
-			const store = getKnowledgeProvider(process.cwd());
+			const store = getKnowledgeProvider();
 			let imported = 0;
 			let skipped = 0;
 			for (let i = 0; i < entries.length; i++) {

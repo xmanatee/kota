@@ -3,8 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getKnowledgeStore, resetKnowledgeStore } from "#core/memory/knowledge-store.js";
+import {
+	initProviderRegistry,
+	resetProviderRegistry,
+} from "#core/modules/provider-registry.js";
 import { parseImportEntries, registerKnowledgeCommands } from "./cli.js";
+import { KnowledgeStore, resetKnowledgeStore } from "./store.js";
 
 function makeProjectDir(): string {
 	const dir = join(
@@ -25,18 +29,24 @@ function makeKnowledgeProgram(): Command {
 describe("kota knowledge add", () => {
 	let projectDir: string;
 	let origCwd: string;
+	let store: KnowledgeStore;
 
 	beforeEach(() => {
 		projectDir = makeProjectDir();
 		origCwd = process.cwd();
 		process.chdir(projectDir);
 		resetKnowledgeStore();
+		resetProviderRegistry();
+		const reg = initProviderRegistry();
+		store = new KnowledgeStore(projectDir);
+		reg.register("knowledge", "knowledge", store);
 	});
 
 	afterEach(() => {
 		process.chdir(origCwd);
 		rmSync(projectDir, { recursive: true, force: true });
 		resetKnowledgeStore();
+		resetProviderRegistry();
 	});
 
 	it("creates an entry with --content and prints the ID", async () => {
@@ -86,9 +96,6 @@ describe("kota knowledge add", () => {
 		} finally {
 			logSpy.mockRestore();
 		}
-		resetKnowledgeStore();
-		const { getKnowledgeStore } = await import("#core/memory/knowledge-store.js");
-		const store = getKnowledgeStore(projectDir);
 		const entry = store.read(id!);
 		expect(entry).not.toBeNull();
 		expect(entry!.type).toBe("reference");
@@ -136,9 +143,6 @@ describe("kota knowledge add", () => {
 			logSpy.mockRestore();
 			stdinSpy.mockRestore();
 		}
-		resetKnowledgeStore();
-		const { getKnowledgeStore } = await import("#core/memory/knowledge-store.js");
-		const store = getKnowledgeStore(projectDir);
 		const entry = store.read(id!);
 		expect(entry).not.toBeNull();
 		expect(entry!.content).toBe("piped body");
@@ -149,26 +153,30 @@ describe("kota knowledge add", () => {
 describe("kota knowledge export", () => {
 	let projectDir: string;
 	let origCwd: string;
+	let store: KnowledgeStore;
 
 	beforeEach(() => {
 		projectDir = makeProjectDir();
 		origCwd = process.cwd();
 		process.chdir(projectDir);
 		resetKnowledgeStore();
+		resetProviderRegistry();
+		const reg = initProviderRegistry();
+		store = new KnowledgeStore(projectDir);
+		reg.register("knowledge", "knowledge", store);
 	});
 
 	afterEach(() => {
 		process.chdir(origCwd);
 		rmSync(projectDir, { recursive: true, force: true });
 		resetKnowledgeStore();
+		resetProviderRegistry();
 	});
 
 	function seedEntries() {
-		const store = getKnowledgeStore(projectDir);
 		store.create({ title: "Alpha", content: "alpha body", type: "note", tags: ["a"], status: "active" });
 		store.create({ title: "Beta", content: "beta body", type: "reference", tags: ["b"], status: "archived" });
 		store.create({ title: "Gamma", content: "gamma body", type: "note", tags: ["a", "c"], status: "active" });
-		resetKnowledgeStore();
 	}
 
 	it("exports all entries as JSONL by default", async () => {
@@ -241,10 +249,12 @@ describe("kota knowledge export", () => {
 			expect(Array.isArray(entry.tags)).toBe(true);
 		}
 
-		resetKnowledgeStore();
 		const newDir = makeProjectDir();
 		process.chdir(newDir);
-		const store2 = getKnowledgeStore(newDir);
+		resetProviderRegistry();
+		const reg2 = initProviderRegistry();
+		const store2 = new KnowledgeStore(newDir);
+		reg2.register("knowledge", "knowledge", store2);
 		for (const entry of parsed) {
 			store2.create({
 				title: entry.title as string,
@@ -296,22 +306,27 @@ describe("kota knowledge export", () => {
 describe("kota knowledge search", () => {
 	let projectDir: string;
 	let origCwd: string;
+	let store: KnowledgeStore;
 
 	beforeEach(() => {
 		projectDir = makeProjectDir();
 		origCwd = process.cwd();
 		process.chdir(projectDir);
 		resetKnowledgeStore();
+		resetProviderRegistry();
+		const reg = initProviderRegistry();
+		store = new KnowledgeStore(projectDir);
+		reg.register("knowledge", "knowledge", store);
 	});
 
 	afterEach(() => {
 		process.chdir(origCwd);
 		rmSync(projectDir, { recursive: true, force: true });
 		resetKnowledgeStore();
+		resetProviderRegistry();
 	});
 
 	it("routes --semantic searches through the active provider semanticSearch", async () => {
-		const store = getKnowledgeStore(projectDir);
 		store.create({ title: "Semantic Note", content: "hello semantic knowledge" });
 		vi.spyOn(store, "supportsSemanticSearch").mockReturnValue(true);
 		const semanticSearch = vi.spyOn(store, "semanticSearch").mockResolvedValue(store.list());

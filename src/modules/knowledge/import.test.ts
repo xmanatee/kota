@@ -2,8 +2,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { KnowledgeStore, resetKnowledgeStore } from "./core/memory/knowledge-store.js";
-import { parseImportEntries } from "./modules/knowledge/cli.js";
+import { parseImportEntries } from "./cli.js";
+import { KnowledgeStore, resetKnowledgeStore } from "./store.js";
 
 describe("parseImportEntries", () => {
 	it("parses a JSON array", () => {

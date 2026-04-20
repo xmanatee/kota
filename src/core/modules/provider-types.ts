@@ -1,8 +1,30 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Task, TaskPriority, TaskStatus } from "#core/daemon/task-store.js";
 import type { ConversationData, ConversationRecord } from "#core/memory/history.js";
-import type { KnowledgeEntry, SearchFilters } from "#core/memory/knowledge-store.js";
 import type { Memory } from "#core/memory/store.js";
+
+/** A knowledge base entry: structured markdown with YAML front matter. */
+export type KnowledgeEntry = {
+	id: string;
+	title: string;
+	type: string;
+	tags: string[];
+	status: string;
+	created: string;
+	updated: string;
+	content: string;
+	/** Extra metadata fields not covered by the core schema. */
+	meta: Record<string, string>;
+};
+
+/** Filters for knowledge search and list operations. */
+export type SearchFilters = {
+	type?: string;
+	tag?: string;
+	status?: string;
+	since?: string;
+	scope?: "project" | "global" | "all";
+};
 
 /** Result of rebuilding the semantic search index. */
 export type ReindexResult = {

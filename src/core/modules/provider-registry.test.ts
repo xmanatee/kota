@@ -151,7 +151,7 @@ describe("interface conformance", () => {
 	});
 
 	it("KnowledgeProvider interface matches KnowledgeStore shape", async () => {
-		const { KnowledgeStore } = await import("#core/memory/knowledge-store.js");
+		const { KnowledgeStore } = await import("#modules/knowledge/store.js");
 		const store = new KnowledgeStore("/tmp/test-provider-conformance");
 		const provider: KnowledgeProvider = store;
 		expect(typeof provider.create).toBe("function");
@@ -209,11 +209,18 @@ describe("convenience getters", () => {
 		expect(typeof provider.search).toBe("function");
 	});
 
-	it("getKnowledgeProvider returns KnowledgeStore when no registry", () => {
+	it("getKnowledgeProvider throws when no provider registered", () => {
 		resetProviderRegistry();
-		const provider = getKnowledgeProvider("/tmp");
-		expect(typeof provider.create).toBe("function");
-		expect(typeof provider.search).toBe("function");
+		expect(() => getKnowledgeProvider()).toThrow(
+			/No knowledge provider registered/,
+		);
+	});
+
+	it("getKnowledgeProvider throws when registry exists but no knowledge provider registered", () => {
+		initProviderRegistry();
+		expect(() => getKnowledgeProvider()).toThrow(
+			/No knowledge provider registered/,
+		);
 	});
 
 	it("getMemoryProvider returns custom provider when registered", () => {
@@ -339,26 +346,23 @@ describe("convenience getters", () => {
 describe("registerDefaultProviders", () => {
 	afterEach(() => resetProviderRegistry());
 
-	it("registers default providers for all four service types", () => {
+	it("registers default providers for core-owned service types", () => {
 		const reg = initProviderRegistry();
-		registerDefaultProviders("/tmp");
+		registerDefaultProviders();
 		expect(reg.list("memory")).toEqual(["default"]);
-		expect(reg.list("knowledge")).toEqual(["default"]);
 		expect(reg.list("task")).toEqual(["default"]);
 		expect(reg.list("history")).toEqual(["default"]);
+		expect(reg.list("knowledge")).toEqual([]);
 		expect(reg.getActiveName("memory")).toBe("default");
-		expect(reg.getActiveName("knowledge")).toBe("default");
 		expect(reg.getActiveName("task")).toBe("default");
 		expect(reg.getActiveName("history")).toBe("default");
 	});
 
 	it("default providers are functional", () => {
 		initProviderRegistry();
-		registerDefaultProviders("/tmp");
+		registerDefaultProviders();
 		const mem = getMemoryProvider();
 		expect(typeof mem.save).toBe("function");
-		const know = getKnowledgeProvider();
-		expect(typeof know.create).toBe("function");
 		const task = getTaskProvider();
 		expect(typeof task.add).toBe("function");
 		const hist = getHistoryProvider();
@@ -373,7 +377,7 @@ describe("registerDefaultProviders", () => {
 
 	it("custom provider overrides default when setActive", () => {
 		const reg = initProviderRegistry();
-		registerDefaultProviders("/tmp");
+		registerDefaultProviders();
 
 		const custom: MemoryProvider = {
 			save: () => "from-custom",

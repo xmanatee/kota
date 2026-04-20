@@ -1,30 +1,12 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { KnowledgeEntry, SearchFilters } from "#core/modules/provider-types.js";
 import {
 	parseFlatFrontMatter,
 	serializeFlatFrontMatter,
 } from "#core/util/frontmatter.js";
 
-export type KnowledgeEntry = {
-	id: string;
-	title: string;
-	type: string;
-	tags: string[];
-	status: string;
-	created: string;
-	updated: string;
-	content: string;
-	/** Extra metadata fields not covered by the core schema. */
-	meta: Record<string, string>;
-};
-
-export type SearchFilters = {
-	type?: string;
-	tag?: string;
-	status?: string;
-	since?: string;
-	scope?: "project" | "global" | "all";
-};
+export type { KnowledgeEntry, SearchFilters };
 
 /** Parse a YAML front matter block into a flat key-value map. */
 export function parseFrontMatter(raw: string): {

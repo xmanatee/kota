@@ -5,8 +5,8 @@
  * in KOTA config after providing the module config (provider/model/apiKey).
  */
 
-import { getKnowledgeStore } from "#core/memory/knowledge-store.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { getKnowledgeStore } from "#modules/knowledge/store.js";
 import {
 	createEmbeddingProvider,
 	readEmbeddingProviderConfig,

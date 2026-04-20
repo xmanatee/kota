@@ -7,7 +7,7 @@ import {
 	findFileByIdInDir,
 	type KnowledgeEntry,
 	parseKnowledgeFile,
-} from "./knowledge-store-helpers.js";
+} from "./store-helpers.js";
 
 function makeEntry(overrides: Partial<KnowledgeEntry> = {}): KnowledgeEntry {
 	return {

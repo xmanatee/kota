@@ -1,12 +1,12 @@
 ---
 id: task-move-knowledgestore-into-the-knowledge-module
 title: Move KnowledgeStore into the knowledge module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Extract the file-based KnowledgeStore implementation from src/core/memory into the existing knowledge module, continuing the core-shrink/provider-module pattern already used for sqlite-memory and semantic-index
 created_at: 2026-04-20T15:59:24.805Z
-updated_at: 2026-04-20T15:59:24.805Z
+updated_at: 2026-04-20T17:20:28.695Z
 ---
 
 ## Problem

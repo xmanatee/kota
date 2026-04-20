@@ -1,16 +1,20 @@
 /**
  * Knowledge module — file-based structured data layer.
  *
- * Registers the `knowledge` tool in the `management` group and the `kota knowledge`
- * operator CLI commands.
+ * Owns the file-based KnowledgeStore implementation and registers it as the
+ * `default` knowledge provider. Contributes the `knowledge` tool in the
+ * `management` group, the `kota knowledge` operator CLI commands, and the
+ * `/api/knowledge` HTTP routes.
+ *
  * Storage: .kota/data/ (project) and ~/.kota/data/ (global).
  */
 
 import { Command } from "commander";
-import type { KotaModule } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import { registerKnowledgeCommands } from "./cli.js";
 import { knowledgeTool, runKnowledge } from "./knowledge.js";
 import { knowledgeRoutes } from "./routes.js";
+import { KnowledgeStore } from "./store.js";
 
 const knowledgeModule: KotaModule = {
 	name: "knowledge",
@@ -27,6 +31,10 @@ const knowledgeModule: KotaModule = {
 		},
 	],
 	skills: [{ name: "knowledge", promptPath: "src/modules/knowledge/knowledge.md" }],
+
+	onLoad: (ctx: ModuleContext) => {
+		ctx.registerProvider("knowledge", new KnowledgeStore(ctx.cwd));
+	},
 
 	commands: () => {
 		const root = new Command("__root__");

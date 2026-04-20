@@ -134,8 +134,8 @@ function readMemory(): unknown {
 	}));
 }
 
-function readKnowledge(projectDir: string): unknown {
-	const provider = getKnowledgeProvider(projectDir);
+function readKnowledge(): unknown {
+	const provider = getKnowledgeProvider();
 	const entries = provider.list();
 	return entries.map((e) => ({
 		id: e.id,
@@ -165,7 +165,7 @@ export function readKotaResource(
 		case "kota://memory":
 			return JSON.stringify(readMemory(), null, 2);
 		case "kota://knowledge":
-			return JSON.stringify(readKnowledge(projectDir), null, 2);
+			return JSON.stringify(readKnowledge(), null, 2);
 		default:
 			return null;
 	}

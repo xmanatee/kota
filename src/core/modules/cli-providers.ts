@@ -9,8 +9,6 @@ import {
   registerDefaultProviders,
 } from "./provider-registry.js";
 
-const loadPromises = new Map<string, Promise<void>>();
-
 function selectProviderModules(
   modules: readonly KotaModule[],
   providerNames: readonly string[],
@@ -35,45 +33,46 @@ export async function ensureCliProvidersFor(
   cwd = process.cwd(),
 ): Promise<void> {
   const config = loadConfig(cwd);
+
   const configuredEntries = types
     .map((type) => [type, config.providers?.[type]] as const)
     .filter((entry): entry is readonly [string, string] => Boolean(entry[1]));
-  if (configuredEntries.length === 0) return;
 
-  const existing = getProviderRegistry();
-  if (
-    existing &&
-    configuredEntries.every(([type, name]) => existing.getActiveName(type) === name)
-  ) {
+  // Ensure the registry has in-core defaults populated (memory, task, history).
+  if (!getProviderRegistry()) initProviderRegistry();
+  registerDefaultProviders();
+
+  const registry = getProviderRegistry();
+  const unconfiguredNeedingLoad = types.filter((type) => {
+    if (config.providers?.[type]) return false;
+    return !registry?.get(type);
+  });
+
+  if (configuredEntries.length === 0 && unconfiguredNeedingLoad.length === 0) {
     return;
   }
 
-  const key = configuredEntries
-    .map(([type, name]) => `${type}:${name}`)
-    .sort()
-    .join("|");
-  let loadPromise = loadPromises.get(key);
-  if (!loadPromise) {
-    loadPromise = (async () => {
-      if (!getProviderRegistry()) initProviderRegistry();
-      registerDefaultProviders(cwd);
-      const projectModules = await discoverProjectModules();
-      const modules = await discoverModules(cwd, false);
-      const selected = selectProviderModules(
-        [...projectModules, ...modules],
-        configuredEntries.map(([, name]) => name),
-      );
-      const loader = new ModuleLoader(
-        {
-          ...config,
-          providers: Object.fromEntries(configuredEntries),
-        },
-        false,
-      );
-      loader.setCwd(cwd);
-      await loader.loadAll(selected);
-    })();
-    loadPromises.set(key, loadPromise);
-  }
-  await loadPromise;
+  // Module names: configured overrides, plus service-type-named modules for
+  // unconfigured types that have no active default (e.g. knowledge).
+  const moduleNames = [
+    ...configuredEntries.map(([, name]) => name),
+    ...unconfiguredNeedingLoad,
+  ];
+
+  const providersForLoader = Object.fromEntries(configuredEntries);
+  const projectModules = await discoverProjectModules();
+  const modules = await discoverModules(cwd, false);
+  const selected = selectProviderModules(
+    [...projectModules, ...modules],
+    moduleNames,
+  );
+  const loader = new ModuleLoader(
+    {
+      ...config,
+      providers: providersForLoader,
+    },
+    false,
+  );
+  loader.setCwd(cwd);
+  await loader.loadAll(selected);
 }

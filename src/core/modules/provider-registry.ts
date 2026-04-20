@@ -2,7 +2,6 @@
 
 import { getTaskStore } from "#core/daemon/task-store.js";
 import { getHistory } from "#core/memory/history.js";
-import { getKnowledgeStore } from "#core/memory/knowledge-store.js";
 import { getMemoryStore } from "#core/memory/store.js";
 import type {
 	HistoryProvider,
@@ -108,11 +107,10 @@ export function resetProviderRegistry(): void {
 	registry = null;
 }
 
-/** Register the in-process default stores for all service types. */
-export function registerDefaultProviders(cwd?: string): void {
+/** Register the in-process default stores for core-owned service types. */
+export function registerDefaultProviders(): void {
 	if (!registry) return;
 	registry.register("memory", "default", getMemoryStore());
-	registry.register("knowledge", "default", getKnowledgeStore(cwd));
 	registry.register("task", "default", getTaskStore());
 	registry.register("history", "default", getHistory());
 }
@@ -126,13 +124,19 @@ export function getMemoryProvider(): MemoryProvider {
 	return getMemoryStore();
 }
 
-/** Get the active knowledge provider, or the default KnowledgeStore when no registry provider is active. */
-export function getKnowledgeProvider(cwd?: string): KnowledgeProvider {
+/**
+ * Get the active knowledge provider from the registry. The `knowledge` module
+ * owns the default implementation — callers must ensure it has loaded (via
+ * the module runtime or `ensureCliProvidersFor(["knowledge"])`).
+ */
+export function getKnowledgeProvider(): KnowledgeProvider {
 	if (registry) {
 		const provider = registry.get<KnowledgeProvider>("knowledge");
 		if (provider) return provider;
 	}
-	return getKnowledgeStore(cwd);
+	throw new Error(
+		"No knowledge provider registered. Load the `knowledge` module before calling getKnowledgeProvider.",
+	);
 }
 
 /** Get the active task provider, or the default TaskStore when no registry provider is active. */

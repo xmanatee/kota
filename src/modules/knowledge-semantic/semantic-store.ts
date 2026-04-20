@@ -8,12 +8,12 @@
  * base store already bumps on every write.
  */
 
-import type { KnowledgeStore } from "#core/memory/knowledge-store.js";
 import type {
 	KnowledgeEntry,
+	KnowledgeProvider,
 	SearchFilters,
-} from "#core/memory/knowledge-store-helpers.js";
-import type { KnowledgeProvider } from "#core/modules/provider-types.js";
+} from "#core/modules/provider-types.js";
+import type { KnowledgeStore } from "#modules/knowledge/store.js";
 import type { EmbeddingProvider } from "#modules/semantic-index/embedding-provider.js";
 import {
 	type ReindexResult,

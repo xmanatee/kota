@@ -20,26 +20,20 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type {
+	KnowledgeEntry,
+	ReindexResult,
+	SearchFilters,
+} from "#core/modules/provider-types.js";
 import {
 	applyFilters,
 	findFileByIdInDir,
-	type KnowledgeEntry,
 	listMdFiles,
 	parseFrontMatter,
 	parseKnowledgeFile,
-	type SearchFilters,
 	serializeFrontMatter,
 	toSlug,
-} from "./knowledge-store-helpers.js";
-
-export type { KnowledgeEntry, SearchFilters };
-export { parseFrontMatter, serializeFrontMatter, toSlug };
-
-export type ReindexResult = {
-	indexed: number;
-	failed: number;
-	skipped?: boolean;
-};
+} from "./store-helpers.js";
 
 export class KnowledgeStore {
 	private projectDir: string | null;
@@ -262,8 +256,6 @@ export class KnowledgeStore {
 		return { indexed: 0, failed: 0, skipped: true };
 	}
 }
-
-// --- Singleton ---
 
 let store: KnowledgeStore | undefined;
 

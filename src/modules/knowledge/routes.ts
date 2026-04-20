@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { KnowledgeEntry } from "#core/memory/knowledge-store-helpers.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import { getKnowledgeProvider } from "#core/modules/provider-registry.js";
+import type { KnowledgeEntry } from "#core/modules/provider-types.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 
 type KnowledgeListItem = {
@@ -28,12 +28,9 @@ function toListItem(entry: KnowledgeEntry): KnowledgeListItem {
   };
 }
 
-export function handleListKnowledge(
-  res: ServerResponse,
-  cwd = process.cwd(),
-): void {
+export function handleListKnowledge(res: ServerResponse): void {
   try {
-    const provider = getKnowledgeProvider(cwd);
+    const provider = getKnowledgeProvider();
     const all = provider.list({ scope: "all" });
     jsonResponse(res, 200, { entries: all.map(toListItem) } satisfies KnowledgeListResponse);
   } catch (err) {
@@ -41,13 +38,9 @@ export function handleListKnowledge(
   }
 }
 
-export function handleGetKnowledge(
-  res: ServerResponse,
-  id: string,
-  cwd = process.cwd(),
-): void {
+export function handleGetKnowledge(res: ServerResponse, id: string): void {
   try {
-    const provider = getKnowledgeProvider(cwd);
+    const provider = getKnowledgeProvider();
     const entry = provider.read(id);
     if (!entry) {
       jsonResponse(res, 404, { error: "Not found" });
@@ -62,7 +55,6 @@ export function handleGetKnowledge(
 export async function handleAddKnowledge(
   req: IncomingMessage,
   res: ServerResponse,
-  cwd = process.cwd(),
 ): Promise<void> {
   let body: Record<string, unknown>;
   try {
@@ -81,7 +73,7 @@ export async function handleAddKnowledge(
   const status = typeof body.status === "string" ? body.status : "active";
   const tags = Array.isArray(body.tags) ? (body.tags as unknown[]).filter((t): t is string => typeof t === "string") : [];
   try {
-    const provider = getKnowledgeProvider(cwd);
+    const provider = getKnowledgeProvider();
     const id = provider.create({ title, content, type, tags, status });
     jsonResponse(res, 201, { id });
   } catch (err) {
@@ -93,7 +85,6 @@ export async function handleUpdateKnowledge(
   req: IncomingMessage,
   res: ServerResponse,
   id: string,
-  cwd = process.cwd(),
 ): Promise<void> {
   let body: Record<string, unknown>;
   try {
@@ -110,7 +101,7 @@ export async function handleUpdateKnowledge(
     changes.tags = (body.tags as unknown[]).filter((t): t is string => typeof t === "string");
   }
   try {
-    const provider = getKnowledgeProvider(cwd);
+    const provider = getKnowledgeProvider();
     const existing = provider.read(id);
     if (!existing) {
       jsonResponse(res, 404, { error: "Not found" });
@@ -124,13 +115,9 @@ export async function handleUpdateKnowledge(
   }
 }
 
-export function handleDeleteKnowledge(
-  res: ServerResponse,
-  id: string,
-  cwd = process.cwd(),
-): void {
+export function handleDeleteKnowledge(res: ServerResponse, id: string): void {
   try {
-    const provider = getKnowledgeProvider(cwd);
+    const provider = getKnowledgeProvider();
     const ok = provider.delete(id);
     if (!ok) {
       jsonResponse(res, 404, { error: "Not found" });
