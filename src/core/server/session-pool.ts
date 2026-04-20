@@ -47,6 +47,8 @@ export class SseTransport implements Transport {
 export type ManagedSession = ChannelSession & {
   id: string;
   busy: boolean;
+  /** ISO-8601 timestamp captured when the session was created. */
+  createdAt: string;
 };
 
 const DEFAULT_MAX_SESSIONS = 10;
@@ -77,7 +79,15 @@ export class SessionPool {
     const id = randomUUID().slice(0, 8);
     const proxy = new ProxyTransport();
     const agent = agentFactory(proxy);
-    const session: ManagedSession = { id, agent, proxy, busy: false, lastActive: Date.now() };
+    const now = Date.now();
+    const session: ManagedSession = {
+      id,
+      agent,
+      proxy,
+      busy: false,
+      lastActive: now,
+      createdAt: new Date(now).toISOString(),
+    };
     this.sessions.set(id, session);
     return session;
   }
@@ -94,11 +104,12 @@ export class SessionPool {
     return true;
   }
 
-  list(): Array<{ id: string; busy: boolean; lastActive: number; autonomyMode: AutonomyMode }> {
+  list(): Array<{ id: string; busy: boolean; lastActive: number; createdAt: string; autonomyMode: AutonomyMode }> {
     return [...this.sessions.values()].map((s) => ({
       id: s.id,
       busy: s.busy,
       lastActive: s.lastActive,
+      createdAt: s.createdAt,
       autonomyMode: s.agent.getAutonomyMode(),
     }));
   }

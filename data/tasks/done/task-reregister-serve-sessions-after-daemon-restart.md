@@ -1,12 +1,12 @@
 ---
 id: task-reregister-serve-sessions-after-daemon-restart
 title: Re-register serve-owned sessions with the daemon after a daemon restart
-status: backlog
+status: done
 priority: p3
 area: daemon
 summary: The serve process registers each session with the daemon once at creation via POST /sessions/register; after a daemon restart the daemon's advisory registry is empty until the next per-session call. Serve sessions survive in the serve process, but daemon clients (status, web dashboard) cannot see them. Close the gap with a serve-side re-registration handshake.
 created_at: 2026-04-20T01:45:45.000Z
-updated_at: 2026-04-20T01:45:45.000Z
+updated_at: 2026-04-20T04:18:28.495Z
 ---
 
 ## Problem

@@ -47,7 +47,12 @@ export type ServerContext = {
   makeAgent: (transport: Transport, autonomyMode: AutonomyMode) => AgentSession;
   /** Autonomy mode applied when a request does not specify one. */
   defaultAutonomyMode: AutonomyMode;
-  daemonClient?: DaemonControlClient | null;
+  /**
+   * Live accessor for the current daemon control client. Returns null when
+   * no daemon is reachable. The indirection lets the server reconnect to a
+   * daemon that restarts while serve is alive without stale handles.
+   */
+  getDaemonClient?: () => DaemonControlClient | null;
   /** Directory containing the built web UI static assets (index.html + assets/). */
   webUiDir?: string;
   /** Bearer token required on all /api/* requests. Undefined means no auth. */
@@ -94,27 +99,23 @@ export function buildRequestHandler(ctx: ServerContext) {
       return;
     }
 
+    const registerSessionWithDaemon = (id: string): void => {
+      const client = ctx.getDaemonClient?.();
+      if (!client) return;
+      const session = ctx.pool.get(id);
+      if (!session) return;
+      void client.registerSession(id, session.createdAt, session.agent.getAutonomyMode());
+    };
+
     if (req.method === "POST" && path === "/api/sessions") {
-      handleCreateSession(req, res, ctx.pool, ctx.makeAgent, ctx.defaultAutonomyMode, (id) => {
-        if (!ctx.daemonClient) return;
-        const session = ctx.pool.get(id);
-        if (!session) return;
-        void ctx.daemonClient.registerSession(id, new Date().toISOString(), session.agent.getAutonomyMode());
-      }).catch((err) => {
+      handleCreateSession(req, res, ctx.pool, ctx.makeAgent, ctx.defaultAutonomyMode, registerSessionWithDaemon).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;
     }
 
     if (req.method === "POST" && path === "/api/chat") {
-      const onSessionCreate = ctx.daemonClient
-        ? (id: string) => {
-            const session = ctx.pool.get(id);
-            if (!session) return;
-            void ctx.daemonClient!.registerSession(id, new Date().toISOString(), session.agent.getAutonomyMode());
-          }
-        : undefined;
-      handleChat(req, res, ctx.pool, ctx.makeAgent, ctx.defaultAutonomyMode, onSessionCreate).catch((err) => {
+      handleChat(req, res, ctx.pool, ctx.makeAgent, ctx.defaultAutonomyMode, registerSessionWithDaemon).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;
@@ -147,8 +148,9 @@ export function buildRequestHandler(ctx: ServerContext) {
     if (req.method === "DELETE" && deleteSessionMatch) {
       const sessionId = deleteSessionMatch[1];
       handleDeleteSession(res, ctx.pool, sessionId);
-      if (ctx.daemonClient) {
-        void ctx.daemonClient.unregisterSession(sessionId);
+      const client = ctx.getDaemonClient?.();
+      if (client) {
+        void client.unregisterSession(sessionId);
       }
       return;
     }

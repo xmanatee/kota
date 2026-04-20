@@ -8,6 +8,7 @@
 
 import { randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
+import { join } from "node:path";
 import type { KotaConfig } from "#core/config/config.js";
 import { loadConfig } from "#core/config/config.js";
 import { getScheduler, initScheduler, resetScheduler } from "#core/daemon/scheduler.js";
@@ -17,7 +18,7 @@ import type { Transport } from "#core/loop/transport.js";
 import { initModuleLogStore } from "#core/modules/module-log.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import { DaemonControlClient } from "./daemon-client.js";
+import { DaemonLink } from "./daemon-link.js";
 import { NotificationHub } from "./server-notifications.js";
 import { buildRequestHandler } from "./server-routes.js";
 import { SessionPool } from "./session-pool.js";
@@ -53,8 +54,15 @@ export function startServer(options: ServerOptions): Server {
   const noAuth = options.noAuth ?? config.serve?.noAuth ?? false;
   const authToken = noAuth ? undefined : (options.authToken ?? randomBytes(32).toString("hex"));
 
-  const daemonClient = DaemonControlClient.fromStateDir();
-  const daemonRunning = daemonClient !== null;
+  const daemonLink = new DaemonLink({
+    stateDir: join(process.cwd(), ".kota"),
+    onReconnect: async (client) => {
+      for (const info of pool.list()) {
+        await client.registerSession(info.id, info.createdAt, info.autonomyMode);
+      }
+    },
+  });
+  const daemonRunning = daemonLink.current() !== null;
 
   const bus = initEventBus();
   // When the daemon is running, it owns the scheduler. Use an in-memory-only
@@ -103,7 +111,7 @@ export function startServer(options: ServerOptions): Server {
     moduleRoutes: options.moduleRoutes ?? [],
     makeAgent,
     defaultAutonomyMode: options.defaultAutonomyMode,
-    daemonClient,
+    getDaemonClient: () => daemonLink.current(),
     webUiDir: options.webUiDir,
     authToken,
   });
@@ -116,6 +124,7 @@ export function startServer(options: ServerOptions): Server {
     stopScheduler();
     resetScheduler();
     resetEventBus();
+    daemonLink.close();
     pool.closeAll();
   });
 

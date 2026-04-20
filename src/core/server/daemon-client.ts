@@ -36,6 +36,10 @@ export class DaemonControlClient {
     const dir = stateDir ?? join(resolveProjectDir(), ".kota");
     const address = readOptionalJsonFile<DaemonControlAddress>(join(dir, "daemon-control.json"));
     if (!address || typeof address.port !== "number") return null;
+    return DaemonControlClient.fromAddress(address);
+  }
+
+  static fromAddress(address: DaemonControlAddress): DaemonControlClient {
     return new DaemonControlClient(
       `http://127.0.0.1:${address.port}`,
       typeof address.token === "string" ? address.token : undefined,

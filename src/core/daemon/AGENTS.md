@@ -169,6 +169,15 @@ Recoverable surfaces (append-only or file-backed; survive crash):
   persisted conversation via `makeAgent(transport, mode, resumeConversation)`.
   The in-flight turn at crash time is lost, but the client can continue the
   conversation without losing history.
+- **Serve-registered session registry** — the daemon's registry is
+  in-memory and cleared on crash, but the serve process owns the
+  authoritative sessions. `DaemonLink` (`core/server/daemon-link.ts`)
+  watches `.kota/daemon-control.json`; when it observes a new daemon
+  identity (different `startedAt` or `token`), it rebuilds the daemon
+  client and re-registers every live session via
+  `POST /sessions/register`. Convergence happens within the fs-watch
+  latency, or the fallback poll interval (5 s) when fs-watch misses the
+  atomic rename.
 
 Deliberate losses (state is not reconstructible, and persistence is not worth
 the cost):
@@ -188,16 +197,6 @@ the cost):
 - **Module health-check cache** — refreshed on the next probe cycle (30 s).
 - **SSE subscriptions and chat pool sweep timers** — transient; clients
   reconnect.
-
-Gaps with live follow-ups (state is lost, loss is user-visible, and the fix
-requires more than a write-through):
-
-- **Serve-registered session registry** — the serve process registers each
-  session with the daemon once at creation (`server-routes.ts`). After a
-  daemon restart, the daemon's advisory registry is empty until the serve
-  process makes the next per-session call. The conversation in serve memory
-  survives, but daemon clients (e.g. `kota status`, web dashboard) cannot
-  see it. Follow-up: `task-reregister-serve-sessions-after-daemon-restart`.
 
 New daemon-owned runtime state must answer this question at design time.
 Default to writing through to run artifacts or emitting a typed bus event
