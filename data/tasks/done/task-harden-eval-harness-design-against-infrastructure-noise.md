@@ -1,12 +1,12 @@
 ---
 id: task-harden-eval-harness-design-against-infrastructure-noise
 title: Harden eval-harness design against infrastructure noise
-status: backlog
+status: done
 priority: p2
 area: autonomy
 summary: The planned autonomy-eval harness must treat infrastructure configuration as a first-class confounder — separate resource allocation from kill thresholds, repeat fixture runs, and report pass@k vs pass^k — otherwise benchmark drift from the host environment will dominate signal from KOTA-side changes.
 created_at: 2026-04-20T00:30:00.000Z
-updated_at: 2026-04-20T00:30:00.000Z
+updated_at: 2026-04-20T07:35:11.338Z
 ---
 
 ## Problem
