@@ -1,9 +1,11 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
 	findInstructionFiles,
 	loadInstructionContext,
+	MAX_FILE_LENGTH,
 	resolveReferences,
 } from "./instruction-files.js";
 
@@ -332,4 +334,35 @@ describe("loadInstructionContext", () => {
 			rmSync(join(CHILD, "AGENTS.md"), { force: true });
 		}
 	});
+});
+
+// Load-bearing rules at the bottom of an oversized instruction file are
+// silently truncated from every agent's system prompt (a 2026-04-19 builder
+// failure traced a direct-commit breach to exactly this). Enforce the cap as
+// a stable repo invariant so future growth fails loudly instead.
+describe("repo instruction files stay under the injection cap", () => {
+	const repoRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+		cwd: import.meta.dirname,
+		encoding: "utf-8",
+	}).trim();
+
+	const tracked = execFileSync(
+		"git",
+		["ls-files", "--", "*AGENTS.md", "*CLAUDE.md"],
+		{ cwd: repoRoot, encoding: "utf-8" },
+	)
+		.split("\n")
+		.filter(Boolean)
+		.map((rel) => join(repoRoot, rel));
+
+	it("finds the expected instruction files", () => {
+		expect(tracked.length).toBeGreaterThan(0);
+	});
+
+	for (const path of tracked) {
+		it(`${path.slice(repoRoot.length + 1)} stays under ${MAX_FILE_LENGTH} bytes`, () => {
+			const size = statSync(path).size;
+			expect(size, `${path} is ${size} bytes; truncation hides trailing rules`).toBeLessThanOrEqual(MAX_FILE_LENGTH);
+		});
+	}
 });

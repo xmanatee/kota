@@ -5,7 +5,7 @@ import { resolveScopedSearch } from "#core/util/path-scope.js";
 const INSTRUCTION_FILENAMES = ["AGENTS.md", "CLAUDE.md"] as const;
 type InstructionType = "AGENTS" | "CLAUDE";
 
-const MAX_FILE_LENGTH = 8_000;
+export const MAX_FILE_LENGTH = 8_000;
 const MAX_REF_DEPTH = 3;
 const REF_PATTERN = /^@(.+\.md)\s*$/gm;
 const TRUNCATION_MARKER = "\n... (truncated)";
