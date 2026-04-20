@@ -9,6 +9,12 @@ import {
 } from "#core/agent-sdk/index.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import { AUTONOMY_AGENT_DEFAULTS, AUTONOMY_DISALLOWED_TOOLS, sleep } from "./shared.js";
+import {
+  extractTaskProbe,
+  formatProbeBlock,
+  runTaskProbe,
+  type TaskProbeResult,
+} from "./task-probe.js";
 import { findTaskReviewTarget } from "./task-review-target.js";
 
 export type CriticVerdict = {
@@ -169,6 +175,18 @@ export function handleVerdict(verdict: CriticVerdict, runDir?: string, artifactN
   return parts.join(". ");
 }
 
+function runProbeIfDeclared(
+  taskContent: string,
+  projectDir: string,
+  runDir: string,
+): TaskProbeResult | null {
+  const probe = extractTaskProbe(taskContent);
+  if (!probe) return null;
+  const result = runTaskProbe(probe, projectDir);
+  writeFileSync(join(runDir, "runtime-probe.json"), JSON.stringify(result, null, 2));
+  return result;
+}
+
 const CRITIC_MAX_TURNS = 20;
 
 export type AgentJudgeConfig = {
@@ -293,6 +311,8 @@ export function createCriticCheck(options?: {
       const changedFiles = getChangedFiles(ctx.projectDir);
       const runDir = options?.runDirPath ?? ctx.workflow.runDirPath;
 
+      const probeResult = runProbeIfDeclared(taskContent, ctx.projectDir, runDir);
+
       const userMessage = [
         "## Task (what was asked)",
         taskContent,
@@ -315,6 +335,7 @@ export function createCriticCheck(options?: {
         `${runDir}/steps/*.input.md`,
         `${runDir}/steps/*.events.jsonl`,
         `${runDir}/steps/*.tool-telemetry.json`,
+        ...(probeResult ? ["", formatProbeBlock(probeResult)] : []),
         "",
         "## Diff summary",
         diffStat,

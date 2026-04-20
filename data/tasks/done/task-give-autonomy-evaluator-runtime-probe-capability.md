@@ -1,12 +1,12 @@
 ---
 id: task-give-autonomy-evaluator-runtime-probe-capability
 title: Give autonomy evaluator a runtime-probe path for non-artifact outcomes
-status: backlog
+status: done
 priority: p2
 area: autonomy
 summary: KOTA's builder critic reviews diff and run artifacts only; Anthropic's harness-design post shows evaluators need to probe the running system (e.g. Playwright MCP) when success lives outside repo state. Extend the critic path so tasks whose outcome is runtime behavior can declare a probe the critic runs before passing.
 created_at: 2026-04-20T00:30:00.000Z
-updated_at: 2026-04-20T00:30:00.000Z
+updated_at: 2026-04-20T05:20:23.421Z
 ---
 
 ## Problem

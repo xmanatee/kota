@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -419,6 +419,118 @@ describe("createCriticCheck", () => {
     await assertion;
     expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(3);
     vi.useRealTimers();
+  });
+
+  it("runs the task probe when declared, writes runtime-probe.json, and threads the result into the critic prompt", async () => {
+    const dir = makeTmpDir();
+    const doingDir = join(dir, "data/tasks/doing");
+    mkdirSync(doingDir, { recursive: true });
+    writeFileSync(
+      join(doingDir, "task-probed.md"),
+      [
+        "---",
+        "title: Probed task",
+        "---",
+        "## Problem",
+        "",
+        "## Runtime Probe",
+        "command: echo probe-output-marker",
+        "timeoutMs: 5000",
+        "",
+        "## Done When",
+        "- probe passes",
+      ].join("\n"),
+    );
+
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+
+    setApiResponse({
+      verdict: "pass",
+      critical_issues: [],
+      warnings: [],
+      summary: "Probe passed.",
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    expect(result).toMatch(/pass/);
+
+    const artifact = JSON.parse(readFileSync(join(runDir, "runtime-probe.json"), "utf8"));
+    expect(artifact.verdict).toBe("pass");
+    expect(artifact.exitCode).toBe(0);
+    expect(artifact.probe.command).toBe("echo probe-output-marker");
+    expect(artifact.output).toContain("probe-output-marker");
+
+    const userMessage = mockExecuteWithAgentSDK.mock.calls[0][0] as string;
+    expect(userMessage).toContain("## Runtime Probe Result");
+    expect(userMessage).toContain("Verdict: pass");
+    expect(userMessage).toContain("Command: echo probe-output-marker");
+    expect(userMessage).toContain("Treat a failed probe as a critical issue");
+  });
+
+  it("records a fail probe verdict and surfaces the failure in the critic prompt", async () => {
+    const dir = makeTmpDir();
+    const doingDir = join(dir, "data/tasks/doing");
+    mkdirSync(doingDir, { recursive: true });
+    writeFileSync(
+      join(doingDir, "task-probe-fail.md"),
+      [
+        "---",
+        "title: Failing probe task",
+        "---",
+        "## Runtime Probe",
+        "command: echo nope 1>&2 && exit 7",
+        "timeoutMs: 5000",
+      ].join("\n"),
+    );
+
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+
+    setApiResponse({
+      verdict: "fail",
+      critical_issues: ["Runtime probe failed"],
+      warnings: [],
+      summary: "Probe fail surfaced as critical.",
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    await expect((check as CodeCheck).run(makeContext(dir, runDir))).rejects.toThrow(/critical issue/);
+
+    const artifact = JSON.parse(readFileSync(join(runDir, "runtime-probe.json"), "utf8"));
+    expect(artifact.verdict).toBe("fail");
+    expect(artifact.exitCode).toBe(7);
+    expect(artifact.output).toContain("nope");
+
+    const userMessage = mockExecuteWithAgentSDK.mock.calls[0][0] as string;
+    expect(userMessage).toContain("Verdict: fail");
+    expect(userMessage).toContain("Exit code: 7");
+  });
+
+  it("does not write runtime-probe.json when the task has no probe section", async () => {
+    const dir = makeTmpDir();
+    const doingDir = join(dir, "data/tasks/doing");
+    mkdirSync(doingDir, { recursive: true });
+    writeFileSync(join(doingDir, "task-noprobe.md"), "---\ntitle: No probe\n---\nBody.");
+
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+
+    setApiResponse({
+      verdict: "pass",
+      critical_issues: [],
+      warnings: [],
+      summary: "No probe needed.",
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    expect(result).toMatch(/pass/);
+    expect(existsSync(join(runDir, "runtime-probe.json"))).toBe(false);
+
+    const userMessage = mockExecuteWithAgentSDK.mock.calls[0][0] as string;
+    expect(userMessage).not.toContain("## Runtime Probe Result");
   });
 
   it("passes with warnings and writes critic-review.json", async () => {
