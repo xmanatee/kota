@@ -10,7 +10,7 @@ import {
 	resetWorkingMemory,
 	setCompactionEnabled,
 	setEntry,
-} from "./working-memory.js";
+} from "./store.js";
 
 afterEach(() => {
 	resetWorkingMemory();

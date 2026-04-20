@@ -7,6 +7,6 @@ This directory owns persistent, searchable agent notes that survive across sessi
 
 ## Boundaries
 
-- Does not own session-scoped working memory (that belongs in `src/core/memory/working-memory.ts`) or structured knowledge entries (that belongs in `src/modules/knowledge/`).
+- Does not own session-scoped working memory (that belongs in `src/modules/working-memory/`) or structured knowledge entries (that belongs in `src/modules/knowledge/`).
 - The alternative SQLite-backed memory provider is in `src/modules/sqlite-memory/`, not here.
 - The embedding-backed memory provider is in `src/modules/memory-semantic/`, which layers on top of this module's store.

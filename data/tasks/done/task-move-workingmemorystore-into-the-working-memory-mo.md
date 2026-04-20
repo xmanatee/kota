@@ -1,12 +1,12 @@
 ---
 id: task-move-workingmemorystore-into-the-working-memory-mo
 title: Move WorkingMemoryStore into the working-memory module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Relocate the session-scoped WorkingMemoryStore from src/core/memory to the existing working-memory module, continuing the core-shrink pattern already applied to MemoryStore and KnowledgeStore so src/core/memory holds only the history store
 created_at: 2026-04-20T22:40:28.166Z
-updated_at: 2026-04-20T22:40:28.166Z
+updated_at: 2026-04-20T23:30:13.191Z
 ---
 
 ## Problem

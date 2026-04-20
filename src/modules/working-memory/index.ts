@@ -12,7 +12,10 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import type { WorkingMemoryEntry } from "#core/memory/working-memory.js";
+import type { ModuleStorage } from "#core/modules/module-storage.js";
+import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { ToolResult } from "#core/tools/index.js";
+import type { WorkingMemoryEntry } from "./store.js";
 import {
 	clearAll,
 	getEntry,
@@ -22,10 +25,7 @@ import {
 	loadEntries,
 	removeEntry,
 	setEntry,
-} from "#core/memory/working-memory.js";
-import type { ModuleStorage } from "#core/modules/module-storage.js";
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
-import type { ToolResult } from "#core/tools/index.js";
+} from "./store.js";
 
 const STORAGE_KEY = "entries";
 
