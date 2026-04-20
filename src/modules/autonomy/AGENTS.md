@@ -56,11 +56,11 @@ Contradiction = later run within follow-up window touches overlapping
 source files. Monitor+notify split mirrors `eval-harness-regression-notify`.
 Import: `eval-harness` → `autonomy`.
 
-## Peer Coordination Pattern Decisions
+## Peer Runtime Pattern Decisions
 
-Peer runtimes (crewAI, LangGraph, Vercel AI SDK, OpenHands/AutoGen) expose
-task-plus-process primitives. None warrants adoption: KOTA's `workflow` +
-`agent` + `module` + bus-event model already covers the shape in typed code.
+Verdicts on externally visible peer runtime patterns (coordination, memory,
+self-reflection) relative to KOTA's `workflow` + `agent` + `module` +
+bus-event + store model.
 
 - **crewAI Flows (`@router` / `or_` / `and_`).** Reject. A DSL on workflows
   creates a second public automation surface and conflicts with
@@ -77,6 +77,14 @@ task-plus-process primitives. None warrants adoption: KOTA's `workflow` +
   travel over typed bus events (decomposer → builder → critic, dispatcher
   fan-out on `runtime.idle`) and `trigger` steps; payload typing via
   workflow `inputSchema` / `outputSchema`.
+- **Letta labeled `memory_blocks`.** Reject. KOTA's typed stores (history,
+  memory, knowledge, working memory, run artifacts) with provider-registry
+  backends already cover labeled, agent-selectable persistence. Evidence:
+  `letta-ai/letta`.
+- **Reflexion verbal self-reflection.** Reject. Improver workflow + scoped
+  `AGENTS.md` guidance is KOTA's "learn from failure" primitive; a Reflexion
+  lesson log is the forbidden second lessons store (see file top). Evidence:
+  `noahshinn/reflexion`.
 
 Revisit if a peer ships a primitive whose rationale is not captured by
 KOTA's existing protocols.

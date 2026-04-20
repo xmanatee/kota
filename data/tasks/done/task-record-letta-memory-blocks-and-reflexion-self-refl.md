@@ -1,12 +1,12 @@
 ---
 id: task-record-letta-memory-blocks-and-reflexion-self-refl
 title: Record Letta memory-blocks and Reflexion self-reflection verdicts for KOTA
-status: ready
+status: done
 priority: p3
 area: autonomy
 summary: Extend the autonomy peer-coordination verdict record to cover Letta's labeled memory_blocks pattern and Reflexion's verbal self-reflection loop, so both externally visible patterns have an explicit adopt/reject rationale grounded in KOTA's existing primitives
 created_at: 2026-04-20T17:28:33.724Z
-updated_at: 2026-04-20T17:28:33.724Z
+updated_at: 2026-04-20T22:36:23.653Z
 ---
 
 ## Problem
