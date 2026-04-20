@@ -1,12 +1,12 @@
 ---
 id: task-distill-takeaways-from-anthropic-engineering-posts
 title: Distill takeaways from Anthropic engineering posts on harness and eval design
-status: backlog
+status: done
 priority: p2
 area: autonomy
 summary: Read the recent Anthropic engineering posts on harness design for long-running app development, infrastructure noise in agentic coding evals, Claude Code auto mode, and managed-agent decoupling, then write a single concise takeaways note in the relevant AGENTS.md scope and open concrete follow-up tasks for any KOTA-specific gaps it surfaces.
 created_at: 2026-04-19T22:17:34.179Z
-updated_at: 2026-04-19T22:17:34.179Z
+updated_at: 2026-04-20T00:38:05.491Z
 ---
 
 ## Problem
