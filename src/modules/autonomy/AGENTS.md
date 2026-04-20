@@ -92,3 +92,21 @@ directory's `AGENTS.md`:
   middleware contract.
 - `src/modules/autonomy/workflows/builder/AGENTS.md` — critic runtime-probe
   protocol for non-artifact outcomes.
+
+## Agent Judge Runtime Contract
+
+The shared agent-step retry classifier (see `src/core/workflow/steps/AGENTS.md`)
+also governs autonomy agent judges invoked via `invokeAgentJudge`, so judges
+fail fast on runaway subtypes (`error_max_turns`, `error_max_tokens`) instead
+of burning budget.
+
+Judge-backed repair checks (critic, improver semantic gate) must additionally
+catch the runaway throw in their wrapper and return a warning — never re-raise
+into the repair loop, since editing code cannot shrink a judge's turn/token
+budget. Use `isJudgeRunawayError` + `judgeUnavailableResult` exported from
+`critic.ts`. `invokeAgentJudge` itself still throws; only the repair-check
+wrappers degrade gracefully. Unclassified (non-runaway) SDK failures still
+reject the check.
+
+Evidence: `2026-04-20T06-22-02-604Z-builder-vxjzg3` (judge retries) and
+`2026-04-20T14-30-41-306Z-builder-gb9pnn` (3 repair iterations, ~$3.73).

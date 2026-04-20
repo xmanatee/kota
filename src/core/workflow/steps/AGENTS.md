@@ -32,3 +32,22 @@ existing `runtime.recovered` path.
 This enforcement lives in the core executor, not in per-workflow prompts or
 repair checks. Workflows declare scope honestly on their agent definitions
 and let the runtime reject out-of-scope writes uniformly.
+
+## Agent-Step Retry and Error Classification
+
+Every agent step inherits `DEFAULT_AGENT_STEP_RETRY` from
+`step-executor-retry.ts`. Add a per-step `retry:` override only when a step
+has a genuinely different requirement and justify it with a comment.
+
+Retries consume attempts only for classified transient failures (rate-limit,
+auth, provider 5xx/timeouts, socket errors) and JSON-schema validation errors.
+Runaway-agent subtypes (`error_max_turns`, `error_max_tokens`), malformed tool
+calls, and other deterministic mistakes are **unclassified**: the step fails on
+the first attempt without burning budget or triggering agent-dispatch backoff.
+
+Classification is driven by structured signals (SDK result subtype, HTTP
+status, Node error codes, and narrow SDK-specific text markers). See
+`classifyAgentRuntimeFailure` for the full signal table. Do not add broad
+fuzzy string matches to the classifier. The same classifier governs autonomy
+agent judges; see `src/modules/autonomy/AGENTS.md` for the judge-wrapper rule
+that protects repair loops from runaway-judge throws.

@@ -51,30 +51,13 @@ the session's supervision posture, tool-level guardrails still apply.
 
 ### Agent-Step Retry and Error Classification
 
-Every agent step inherits `DEFAULT_AGENT_STEP_RETRY` from
-`src/core/workflow/steps/step-executor-retry.ts`. Add a per-step `retry:`
-override only when a step has a genuinely different requirement and justify it
-with a comment.
+The retry classifier and its application to autonomy agent judges are
+documented in scoped `AGENTS.md` files:
 
-Retries consume attempts only for classified transient failures (rate-limit,
-auth, provider 5xx/timeouts, socket errors) and JSON-schema validation errors.
-Runaway-agent subtypes (`error_max_turns`, `error_max_tokens`), malformed tool
-calls, and other deterministic mistakes are **unclassified**: the step fails on
-the first attempt without burning budget or triggering agent-dispatch backoff.
-
-Classification is driven by structured signals (SDK result subtype, HTTP
-status, Node error codes, and narrow SDK-specific text markers). See
-`classifyAgentRuntimeFailure` for the full signal table. Do not add broad
-fuzzy string matches to the classifier.
-
-The same classifier governs the autonomy agent judges (`invokeAgentJudge`),
-so judges also fail fast on runaway subtypes. Judge-backed repair checks
-(critic, semantic gate) must additionally catch the runaway throw in their
-wrapper and return a warning — never re-raise into the repair loop, since
-editing code cannot shrink a judge's turn/token budget. Use
-`isJudgeRunawayError` + `judgeUnavailableResult` from `critic.ts`.
-Evidence: `2026-04-20T06-22-02-604Z-builder-vxjzg3` (judge retries) and
-`2026-04-20T14-30-41-306Z-builder-gb9pnn` (3 repair iterations, ~$3.73).
+- `src/core/workflow/steps/AGENTS.md` — `DEFAULT_AGENT_STEP_RETRY`, the
+  classified/unclassified signal table, and per-step override guidance.
+- `src/modules/autonomy/AGENTS.md` — judge-wrapper contract for repair
+  checks that invoke `invokeAgentJudge`.
 
 ## Unit Testing
 
