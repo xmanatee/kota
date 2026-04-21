@@ -1,4 +1,4 @@
-import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import { isAutonomyMode, type AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { JsonFileError } from "#core/util/json-file.js";
 import type {
   WorkflowQueuedRun,
@@ -37,6 +37,36 @@ function isWorkflowRunStatus(value: unknown): value is WorkflowRunStatus {
     value === "failed" ||
     value === "interrupted" ||
     value === "completed-with-warnings"
+  );
+}
+
+function isStringArray(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function isWorkflowCompletedQueuedPayload(value: Record<string, unknown>): boolean {
+  return (
+    typeof value.workflow === "string" &&
+    value.workflow.trim().length > 0 &&
+    typeof value.runId === "string" &&
+    value.runId.trim().length > 0 &&
+    isWorkflowRunStatus(value.status) &&
+    typeof value.triggerEvent === "string" &&
+    value.triggerEvent.trim().length > 0 &&
+    typeof value.durationMs === "number" &&
+    Number.isFinite(value.durationMs) &&
+    typeof value.definitionPath === "string" &&
+    value.definitionPath.trim().length > 0 &&
+    typeof value.runDir === "string" &&
+    value.runDir.trim().length > 0 &&
+    isStringArray(value.tags) &&
+    (
+      value.failureKind === undefined ||
+      value.failureKind === "rate_limit" ||
+      value.failureKind === "auth" ||
+      value.failureKind === "provider"
+    ) &&
+    (value.autonomyMode === undefined || isAutonomyMode(value.autonomyMode))
   );
 }
 
@@ -110,11 +140,19 @@ function isWorkflowRunTrigger(value: unknown): value is WorkflowRunTrigger {
   );
 }
 
+function isQueuedRunTrigger(value: unknown): value is WorkflowRunTrigger {
+  if (!isWorkflowRunTrigger(value)) return false;
+  if (value.event === "workflow.completed") {
+    return isWorkflowCompletedQueuedPayload(value.payload);
+  }
+  return true;
+}
+
 function isQueuedRun(value: unknown): value is WorkflowQueuedRun {
   return (
     isPlainObject(value) &&
     typeof value.workflowName === "string" &&
-    isWorkflowRunTrigger(value.trigger) &&
+    isQueuedRunTrigger(value.trigger) &&
     Number.isFinite(value.enqueuedAtMs) &&
     Number.isFinite(value.notBeforeMs)
   );

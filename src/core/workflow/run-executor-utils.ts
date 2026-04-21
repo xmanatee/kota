@@ -228,6 +228,44 @@ export function workflowUsesAgent(definition: WorkflowDefinition): boolean {
   return definition.steps.some((step) => step.type === "agent");
 }
 
+function cloneTriggerPayloadValue(
+  value: unknown,
+  ancestors = new WeakSet<object>(),
+): unknown {
+  if (value === null || typeof value !== "object") return value;
+
+  if (ancestors.has(value)) {
+    throw new Error("Workflow trigger payload cannot contain circular references");
+  }
+  ancestors.add(value);
+
+  if (Array.isArray(value)) {
+    const cloned = value.map((item) => cloneTriggerPayloadValue(item, ancestors));
+    ancestors.delete(value);
+    return cloned;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new Error(
+      "Workflow trigger payload must contain only plain objects, arrays, and primitive values",
+    );
+  }
+
+  const cloned: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    cloned[key] = cloneTriggerPayloadValue(item, ancestors);
+  }
+  ancestors.delete(value);
+  return cloned;
+}
+
+function cloneTriggerPayload(
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  return cloneTriggerPayloadValue(payload) as Record<string, unknown>;
+}
+
 export function enqueueMatchingWorkflows(
   envelope: BusEnvelope,
   definitions: readonly WorkflowDefinition[],
@@ -242,11 +280,9 @@ export function enqueueMatchingWorkflows(
     for (const trigger of definition.triggers) {
       if (trigger.event !== envelope.type) continue;
       if (!matchesFilter(trigger.filter, envelope.payload)) continue;
-      // Shallow-copy the payload so each queued run owns its own object
-      // reference — safeJsonStringify treats shared references as circular.
       enqueue(definition, trigger, {
         event: envelope.type,
-        payload: { ...envelope.payload },
+        payload: cloneTriggerPayload(envelope.payload),
       });
     }
   }

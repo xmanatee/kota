@@ -109,6 +109,61 @@ describe("assertWorkflowRuntimeState", () => {
     expect(() => assertWorkflowRuntimeState(path, state)).not.toThrow();
   });
 
+  it("accepts pending workflow completion runs with typed completion payloads", () => {
+    const state = {
+      ...validState,
+      pendingRuns: [
+        {
+          workflowName: "attention-digest",
+          trigger: {
+            event: "workflow.completed",
+            payload: {
+              workflow: "explorer",
+              runId: "run-1",
+              status: "interrupted",
+              triggerEvent: "autonomy.queue.thin",
+              durationMs: 1000,
+              definitionPath: "src/modules/autonomy/workflows/explorer/workflow.ts",
+              runDir: ".kota/runs/run-1",
+              tags: ["monitored"],
+              autonomyMode: "autonomous",
+            },
+          },
+          enqueuedAtMs: 1000,
+          notBeforeMs: 1000,
+        },
+      ],
+    };
+    expect(() => assertWorkflowRuntimeState(path, state)).not.toThrow();
+  });
+
+  it("throws when pending workflow completion tags are not an array", () => {
+    const state = {
+      ...validState,
+      pendingRuns: [
+        {
+          workflowName: "attention-digest",
+          trigger: {
+            event: "workflow.completed",
+            payload: {
+              workflow: "explorer",
+              runId: "run-1",
+              status: "interrupted",
+              triggerEvent: "autonomy.queue.thin",
+              durationMs: 1000,
+              definitionPath: "src/modules/autonomy/workflows/explorer/workflow.ts",
+              runDir: ".kota/runs/run-1",
+              tags: "[Circular]",
+            },
+          },
+          enqueuedAtMs: 1000,
+          notBeforeMs: 1000,
+        },
+      ],
+    };
+    expect(() => assertWorkflowRuntimeState(path, state)).toThrow(JsonFileError);
+  });
+
   it("throws when value is not a plain object", () => {
     expect(() => assertWorkflowRuntimeState(path, null)).toThrow(JsonFileError);
     expect(() => assertWorkflowRuntimeState(path, [])).toThrow(JsonFileError);
