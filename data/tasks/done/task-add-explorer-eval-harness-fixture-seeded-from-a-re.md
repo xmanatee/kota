@@ -1,12 +1,12 @@
 ---
 id: task-add-explorer-eval-harness-fixture-seeded-from-a-re
 title: Add explorer eval-harness fixture seeded from a real strategic-ready trip
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Extend eval-harness fixture coverage to the explorer workflow by encoding a real task-queue-valid or strategic-ready-coverage repair trip from .kota/runs as a runnable fixture, so the recurring 15-25 minute repair-loop cost is gated against future regression
 created_at: 2026-04-21T00:43:14.048Z
-updated_at: 2026-04-21T00:43:14.048Z
+updated_at: 2026-04-21T01:55:29.685Z
 ---
 
 ## Problem
