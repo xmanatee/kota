@@ -59,7 +59,7 @@ describe("kota eval calibration CLI", () => {
     const nowIso = new Date().toISOString();
     const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     seedCalibration(runsDir, "run-a", hourAgo, "pass", ["src/core/a.ts"]);
-    seedCalibration(runsDir, "run-b", nowIso, "pass", ["src/core/a.ts"]);
+    seedCalibration(runsDir, "run-b", nowIso, "fail", ["src/core/a.ts"]);
 
     const logs: string[] = [];
     vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
@@ -75,15 +75,15 @@ describe("kota eval calibration CLI", () => {
     const text = logs.join("\n");
     expect(text).toContain("evaluator calibration");
     expect(text).toContain("total runs=2");
-    expect(text).toContain("pass=2");
-    expect(text).toContain("pass contradiction: 1/2");
+    expect(text).toContain("pass=1");
+    expect(text).toContain("pass contradiction: 1/1");
   });
 
   it("sets exitCode=2 and emits JSON when gated", async () => {
     const nowIso = new Date().toISOString();
     const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     seedCalibration(runsDir, "run-a", hourAgo, "pass", ["src/core/a.ts"]);
-    seedCalibration(runsDir, "run-b", nowIso, "pass", ["src/core/a.ts"]);
+    seedCalibration(runsDir, "run-b", nowIso, "fail", ["src/core/a.ts"]);
 
     const logs: string[] = [];
     vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {

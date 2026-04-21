@@ -81,10 +81,10 @@ describe("evaluator-calibration-monitor workflow", () => {
 
   it("emits evaluator-calibration.regression.detected when the contradiction rate crosses the threshold", async () => {
     process.env.KOTA_EVALUATOR_CALIBRATION_THRESHOLD_RATE = "0.25";
-    process.env.KOTA_EVALUATOR_CALIBRATION_MIN_SAMPLE = "2";
+    process.env.KOTA_EVALUATOR_CALIBRATION_MIN_SAMPLE = "1";
 
-    // Two pass verdicts, the older one contradicted by a later run touching
-    // overlapping files. 50% contradiction rate clears the 25% threshold.
+    // One pass verdict contradicted by a later failing run on overlapping
+    // files. 100% contradiction rate clears the 25% threshold.
     const now = new Date();
     const hour = 60 * 60 * 1000;
     const older = new Date(now.getTime() - 5 * hour).toISOString();
@@ -95,7 +95,7 @@ describe("evaluator-calibration-monitor workflow", () => {
       sourceFilesChanged: ["src/core/a.ts"],
     });
     seedCalibration(runsDir, "run-newer", newer, {
-      verdict: "pass",
+      verdict: "fail",
       sourceFilesChanged: ["src/core/a.ts"],
     });
 

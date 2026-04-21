@@ -70,15 +70,20 @@ export type EvaluatorCalibrationAggregate = {
   byVerdict: Record<EvaluatorCalibrationVerdict, number>;
   /**
    * Pass verdicts contradicted by downstream evidence: a later builder run
-   * within the follow-up window touched overlapping source files. This is
-   * the primary operator-facing drift signal.
+   * within the follow-up window touched overlapping source files AND that
+   * later run itself carried a failure signal (critic verdict `fail`, or a
+   * non-empty `finalIterationFailures` — its repair loop did not converge).
+   * Overlap alone is not enough: healthy chains of related refactors
+   * repeatedly touch the same files while still passing, and that shape is
+   * not evaluator drift.
    */
   passContradictionCount: number;
   passContradictionRate: number;
   /**
-   * Pass-with-warnings verdicts correlated with a later follow-up run.
-   * Surfaces separately so operators can distinguish the critic's explicit
-   * hedge (pass_with_warnings) from a clean pass that went sideways.
+   * Pass-with-warnings verdicts correlated with any later overlapping run.
+   * Surfaces separately from pass-contradiction: the critic already hedged,
+   * so overlap alone (regardless of the later run's own outcome) is a useful
+   * operator signal here.
    */
   passWithWarningsFollowUpCount: number;
   passWithWarningsFollowUpRate: number;
@@ -289,10 +294,19 @@ function loadCalibrationArtifactsInWindow(
   return loaded;
 }
 
-function hasFollowUp(
+function hasFailureSignal(artifact: EvaluatorCalibrationArtifact): boolean {
+  if (artifact.verdict === "fail") return true;
+  if (artifact.finalIterationFailures.length > 0) return true;
+  return false;
+}
+
+type FollowUpFilter = (later: EvaluatorCalibrationArtifact) => boolean;
+
+function hasOverlappingFollowUp(
   base: LoadedArtifact,
   later: LoadedArtifact[],
   followUpWindowMs: number,
+  accept: FollowUpFilter,
 ): boolean {
   if (base.artifact.sourceFilesChanged.length === 0) return false;
   const baseFiles = new Set(base.artifact.sourceFilesChanged);
@@ -300,12 +314,16 @@ function hasFollowUp(
   for (const candidate of later) {
     if (candidate.completedAtMs <= base.completedAtMs) continue;
     if (candidate.completedAtMs > deadlineMs) break;
+    if (!accept(candidate.artifact)) continue;
     for (const file of candidate.artifact.sourceFilesChanged) {
       if (baseFiles.has(file)) return true;
     }
   }
   return false;
 }
+
+const acceptAnyFollowUp: FollowUpFilter = () => true;
+const acceptFailingFollowUp: FollowUpFilter = hasFailureSignal;
 
 function rate(numerator: number, denominator: number): number {
   return denominator === 0 ? 0 : numerator / denominator;
@@ -314,9 +332,11 @@ function rate(numerator: number, denominator: number): number {
 /**
  * Walk the run directory and compute a typed aggregate over a rolling window.
  * Follow-up fingerprinting walks forward from each base run up to
- * `followUpWindowMs` looking for overlapping source-file changes — this is a
- * heuristic, not proof, but it is cheap, deterministic, and derivable
- * without per-run annotation.
+ * `followUpWindowMs` looking for overlapping source-file changes. A pass is
+ * only counted as contradicted when the later overlapping run itself carries
+ * a failure signal — overlap alone is healthy iteration, not evaluator drift.
+ * Pass-with-warnings stays on the looser overlap signal since the critic
+ * already hedged on those runs.
  */
 export function aggregateCalibration(
   runsDir: string,
@@ -342,14 +362,17 @@ export function aggregateCalibration(
     const entry = artifacts[i];
     const { artifact } = entry;
     byVerdict[artifact.verdict]++;
+    const tail = artifacts.slice(i + 1);
 
     if (artifact.verdict === "pass") {
-      if (hasFollowUp(entry, artifacts.slice(i + 1), followUpWindowMs)) {
+      if (
+        hasOverlappingFollowUp(entry, tail, followUpWindowMs, acceptFailingFollowUp)
+      ) {
         passContradictionCount++;
       }
     }
     if (artifact.verdict === "pass_with_warnings") {
-      if (hasFollowUp(entry, artifacts.slice(i + 1), followUpWindowMs)) {
+      if (hasOverlappingFollowUp(entry, tail, followUpWindowMs, acceptAnyFollowUp)) {
         passWithWarningsFollowUpCount++;
       }
     }
@@ -372,9 +395,9 @@ export function aggregateCalibration(
 
 /**
  * Apply the configured gate to an aggregate. The gate fires only when the
- * critic's pass-verdict contradiction rate — critic said pass but the run
- * did not reach terminal success — exceeds the threshold AND the sample is
- * large enough to be trustworthy.
+ * pass-verdict contradiction rate — critic said pass on a run whose later
+ * overlapping-file follow-up itself failed — exceeds the threshold AND the
+ * sample is large enough to be trustworthy.
  */
 export function evaluateCalibrationGate(
   aggregate: EvaluatorCalibrationAggregate,

@@ -1,12 +1,12 @@
 ---
 id: task-calibrate-live-evaluator-follow-up-signal
 title: Calibrate live evaluator follow-up signal
-status: backlog
+status: done
 priority: p2
 area: eval-harness
 summary: Reshape aggregateCalibration contradiction metric so chains of related core-shrink edits don't inflate critic-failure counts
 created_at: 2026-04-21T15:50:58.809Z
-updated_at: 2026-04-21T15:50:58.809Z
+updated_at: 2026-04-21T16:56:13.809Z
 ---
 
 ## Problem

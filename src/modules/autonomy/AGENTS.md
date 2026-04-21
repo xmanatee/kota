@@ -52,9 +52,11 @@ decisions belong here.
 
 Fixture `pass^k` catches generator drift; `evaluator-calibration.json`
 (per builder run, from existing artifacts) catches evaluator drift.
-Contradiction = later run within follow-up window touches overlapping
-source files. Monitor+notify split mirrors `eval-harness-regression-notify`.
-Import: `eval-harness` → `autonomy`.
+Contradiction needs a later overlapping run that itself carries a failure
+signal — file-overlap alone would flag healthy refactor chains and train
+autonomy away from correct iteration. Pass-with-warnings stays on looser
+overlap because the critic already hedged. Monitor+notify split mirrors
+`eval-harness-regression-notify`. Import: `eval-harness` → `autonomy`.
 
 ## Peer Runtime Pattern Decisions
 
@@ -123,8 +125,7 @@ belong here.
   prompt state ≈ Developer; channel/session user message ≈ User; tool/web
   outputs ≈ untrusted (enforced by `injection-defense`). Make the mapping
   explicit at the autonomy-mode boundary so a user message or tool output
-  cannot silently escalate the operator-set mode. Tracked as
-  `task-document-instruction-hierarchy-chain-of-command-ma` (backlog).
+  cannot silently escalate the operator-set mode.
 
 ## Agent Judge Runtime Contract
 
@@ -138,8 +139,4 @@ catch the runaway throw in their wrapper and return a warning — never re-raise
 into the repair loop, since editing code cannot shrink a judge's turn/token
 budget. Use `isJudgeRunawayError` + `judgeUnavailableResult` exported from
 `critic.ts`. `invokeAgentJudge` itself still throws; only the repair-check
-wrappers degrade gracefully. Unclassified (non-runaway) SDK failures still
-reject the check.
-
-Evidence: `2026-04-20T06-22-02-604Z-builder-vxjzg3` (judge retries) and
-`2026-04-20T14-30-41-306Z-builder-gb9pnn` (3 repair iterations, ~$3.73).
+wrappers degrade gracefully. Unclassified SDK failures still reject the check.

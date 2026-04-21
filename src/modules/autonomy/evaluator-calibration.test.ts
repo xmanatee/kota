@@ -262,7 +262,7 @@ describe("aggregateCalibration", () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  it("flags pass-verdict contradiction when a later run touches overlapping source files", () => {
+  it("flags pass-verdict contradiction when a later overlapping run itself failed", () => {
     seedRun(runsDir, {
       runId: "2026-04-20T10-00-00-000Z-builder-a",
       completedAt: "2026-04-20T10:00:00.000Z",
@@ -272,7 +272,7 @@ describe("aggregateCalibration", () => {
     seedRun(runsDir, {
       runId: "2026-04-20T12-00-00-000Z-builder-b",
       completedAt: "2026-04-20T12:00:00.000Z",
-      verdict: "pass",
+      verdict: "fail",
       sourceFilesChanged: ["src/core/a.ts"],
     });
 
@@ -282,9 +282,70 @@ describe("aggregateCalibration", () => {
       nowMs: Date.parse("2026-04-20T12:30:00.000Z"),
     });
     expect(agg.totalRuns).toBe(2);
+    expect(agg.byVerdict.pass).toBe(1);
+    expect(agg.byVerdict.fail).toBe(1);
+    expect(agg.passContradictionCount).toBe(1);
+    expect(agg.passContradictionRate).toBeCloseTo(1, 5);
+  });
+
+  it("does not flag contradiction for healthy iteration chains where every overlapping run also passes", () => {
+    // Core-shrink style chain: three builder runs in a row touch the same
+    // files and all pass. Overlap alone would have counted two
+    // contradictions; the tightened definition counts zero because no later
+    // overlapping run carries a failure signal.
+    seedRun(runsDir, {
+      runId: "2026-04-20T09-00-00-000Z-builder-a",
+      completedAt: "2026-04-20T09:00:00.000Z",
+      verdict: "pass",
+      sourceFilesChanged: ["src/core/a.ts", "src/core/b.ts"],
+    });
+    seedRun(runsDir, {
+      runId: "2026-04-20T10-00-00-000Z-builder-b",
+      completedAt: "2026-04-20T10:00:00.000Z",
+      verdict: "pass",
+      sourceFilesChanged: ["src/core/a.ts"],
+    });
+    seedRun(runsDir, {
+      runId: "2026-04-20T11-00-00-000Z-builder-c",
+      completedAt: "2026-04-20T11:00:00.000Z",
+      verdict: "pass",
+      sourceFilesChanged: ["src/core/b.ts"],
+    });
+
+    const agg = aggregateCalibration(runsDir, {
+      windowMs: 7 * 24 * 60 * 60 * 1000,
+      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
+      nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
+    });
+    expect(agg.byVerdict.pass).toBe(3);
+    expect(agg.passContradictionCount).toBe(0);
+    expect(agg.passContradictionRate).toBe(0);
+  });
+
+  it("flags contradiction when the later overlapping run's repair loop did not converge", () => {
+    // The later overlapping run has a pass verdict but its build step left
+    // finalIterationFailures non-empty, so it carries a failure signal.
+    seedRun(runsDir, {
+      runId: "2026-04-20T10-00-00-000Z-builder-a",
+      completedAt: "2026-04-20T10:00:00.000Z",
+      verdict: "pass",
+      sourceFilesChanged: ["src/core/a.ts"],
+    });
+    seedRun(runsDir, {
+      runId: "2026-04-20T11-00-00-000Z-builder-b",
+      completedAt: "2026-04-20T11:00:00.000Z",
+      verdict: "pass",
+      sourceFilesChanged: ["src/core/a.ts"],
+      finalIterationFailures: ["typecheck"],
+    });
+
+    const agg = aggregateCalibration(runsDir, {
+      windowMs: 7 * 24 * 60 * 60 * 1000,
+      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
+      nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
+    });
     expect(agg.byVerdict.pass).toBe(2);
     expect(agg.passContradictionCount).toBe(1);
-    expect(agg.passContradictionRate).toBeCloseTo(0.5, 5);
   });
 
   it("correlates pass_with_warnings verdicts with a later follow-up run independently of pass contradiction", () => {
@@ -335,6 +396,8 @@ describe("aggregateCalibration", () => {
   });
 
   it("ignores follow-ups outside the follow-up window", () => {
+    // The later run carries a failure signal, so only the follow-up-window
+    // bound prevents it from counting as contradiction.
     seedRun(runsDir, {
       runId: "2026-04-15T10-00-00-000Z-builder-a",
       completedAt: "2026-04-15T10:00:00.000Z",
@@ -344,7 +407,7 @@ describe("aggregateCalibration", () => {
     seedRun(runsDir, {
       runId: "2026-04-19T10-00-00-000Z-builder-b",
       completedAt: "2026-04-19T10:00:00.000Z",
-      verdict: "pass",
+      verdict: "fail",
       sourceFilesChanged: ["src/core/a.ts"],
     });
 
@@ -353,7 +416,8 @@ describe("aggregateCalibration", () => {
       followUpWindowMs: 2 * 24 * 60 * 60 * 1000,
       nowMs: Date.parse("2026-04-20T00:00:00.000Z"),
     });
-    expect(agg.byVerdict.pass).toBe(2);
+    expect(agg.byVerdict.pass).toBe(1);
+    expect(agg.byVerdict.fail).toBe(1);
     expect(agg.passContradictionCount).toBe(0);
   });
 
