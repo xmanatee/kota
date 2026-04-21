@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { RunOutcomeAggregation } from "#modules/autonomy/run-outcome-aggregation.js";
 import {
   decideImproverEvidenceGate,
-  fingerprintImproverEvidence,
   readImproverEvidenceGateState,
   writeImproverEvidenceGateState,
 } from "./evidence-gate.js";
@@ -17,6 +16,7 @@ function emptyAggregation(): RunOutcomeAggregation {
     topRepairFailures24h: [],
     topRepairFailures7d: [],
     durationOutliers: [],
+    latestActionableRunAt: null,
   };
 }
 
@@ -35,32 +35,26 @@ describe("improver evidence gate", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("skips when recent aggregates contain no actionable signal", () => {
+  it("skips when no actionable run completed in the window", () => {
     const decision = decideImproverEvidenceGate(emptyAggregation(), null);
     expect(decision).toEqual({
       shouldRun: false,
       reason: "no recent actionable run evidence",
     });
-    expect(fingerprintImproverEvidence(emptyAggregation())).toBeUndefined();
   });
 
-  it("runs for new recent failure evidence", () => {
+  it("runs on first-seen actionable evidence", () => {
     const aggregation = emptyAggregation();
-    aggregation.failureRates24h = [
-      { workflow: "builder", total: 3, failures: 1, rate: 1 / 3 },
-    ];
-
+    aggregation.latestActionableRunAt = "2026-04-21T01:00:00.000Z";
     const decision = decideImproverEvidenceGate(aggregation, null);
     expect(decision.shouldRun).toBe(true);
     expect(decision.reason).toBe("new actionable run evidence");
-    expect(decision.actionableFingerprint).toBeTruthy();
+    expect(decision.latestActionableRunAt).toBe("2026-04-21T01:00:00.000Z");
   });
 
-  it("skips unchanged evidence after a completed improver pass records it", () => {
+  it("skips when the latest actionable run has not advanced since the last pass", () => {
     const aggregation = emptyAggregation();
-    aggregation.topRepairFailures24h = [
-      { workflow: "builder", checkId: "lint", count: 2, recovered: 2, terminal: 0 },
-    ];
+    aggregation.latestActionableRunAt = "2026-04-21T01:00:00.000Z";
     const first = decideImproverEvidenceGate(aggregation, null);
     writeImproverEvidenceGateState(projectDir, first);
 
@@ -69,28 +63,47 @@ describe("improver evidence gate", () => {
 
     expect(second.shouldRun).toBe(false);
     expect(second.reason).toBe(
-      "actionable run evidence unchanged since the last completed improver pass",
+      "no new actionable run evidence since the last improver pass",
     );
   });
 
-  it("does not rerun only because the previous improver pass failed", () => {
-    const aggregation = emptyAggregation();
-    aggregation.failureRates24h = [
-      { workflow: "improver", total: 1, failures: 1, rate: 1 },
-    ];
-    aggregation.topRepairFailures24h = [
-      { workflow: "improver", checkId: "test", count: 1, recovered: 0, terminal: 1 },
-    ];
-    aggregation.durationOutliers = [
-      { runId: "run-improver", workflow: "improver", durationMs: 2_700_000, medianMs: 600_000 },
-    ];
+  it("skips when older actionable runs aged out but no new run arrived", () => {
+    // Regression guard for the bug that motivated this gate redesign:
+    // raw-count fingerprints shifted whenever an old failure-bearing run
+    // aged out of the 24h window, firing a ~$2.50 no-op improver pass.
+    const beforeAging = emptyAggregation();
+    beforeAging.latestActionableRunAt = "2026-04-21T01:00:00.000Z";
+    const firstDecision = decideImproverEvidenceGate(beforeAging, null);
+    writeImproverEvidenceGateState(projectDir, firstDecision);
 
-    const decision = decideImproverEvidenceGate(aggregation, null);
+    // Later: the max-actionable run aged out and earlier ones are now the
+    // newest actionable evidence; timestamp does not advance.
+    const afterAging = emptyAggregation();
+    afterAging.latestActionableRunAt = "2026-04-20T22:00:00.000Z";
+    const state = readImproverEvidenceGateState(projectDir);
+    const secondDecision = decideImproverEvidenceGate(afterAging, state);
 
-    expect(decision).toEqual({
-      shouldRun: false,
-      reason: "no recent actionable run evidence",
-    });
-    expect(fingerprintImproverEvidence(aggregation)).toBeUndefined();
+    expect(secondDecision.shouldRun).toBe(false);
+    expect(secondDecision.reason).toBe(
+      "no new actionable run evidence since the last improver pass",
+    );
+  });
+
+  it("runs when a newer actionable run appears", () => {
+    const first = emptyAggregation();
+    first.latestActionableRunAt = "2026-04-21T01:00:00.000Z";
+    writeImproverEvidenceGateState(
+      projectDir,
+      decideImproverEvidenceGate(first, null),
+    );
+
+    const next = emptyAggregation();
+    next.latestActionableRunAt = "2026-04-21T02:30:00.000Z";
+    const decision = decideImproverEvidenceGate(
+      next,
+      readImproverEvidenceGateState(projectDir),
+    );
+    expect(decision.shouldRun).toBe(true);
+    expect(decision.latestActionableRunAt).toBe("2026-04-21T02:30:00.000Z");
   });
 });

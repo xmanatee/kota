@@ -34,6 +34,11 @@ export type RunOutcomeAggregation = {
   topRepairFailures24h: RepairCheckTally[];
   topRepairFailures7d: RepairCheckTally[];
   durationOutliers: DurationOutlier[];
+  // Max completedAt across actionable non-improver runs (failed, repair-tripping,
+  // or duration-outlier). Used by the improver evidence gate to distinguish
+  // "new actionable evidence arrived" from "old evidence aged out of the
+  // window" — the latter must not force another improver pass.
+  latestActionableRunAt: string | null;
 };
 
 function computeFailureRates(runs: RunSummary[]): WorkflowFailureRate[] {
@@ -166,6 +171,40 @@ function enrichOutliersWithSubjects(
   });
 }
 
+function runHasRepairTrip(run: WorkflowRunMetadata): boolean {
+  for (const step of run.steps) {
+    const output = step.output as
+      | { repairIterations?: Array<{ failures?: Array<{ id: string }> }> }
+      | undefined;
+    const iterations = output?.repairIterations ?? [];
+    for (const iter of iterations) {
+      if ((iter.failures ?? []).length > 0) return true;
+    }
+  }
+  return false;
+}
+
+function latestActionableCompletedAt(
+  all24h: WorkflowRunMetadata[],
+  outliers7d: DurationOutlier[],
+): string | null {
+  const outlierIds = new Set(
+    outliers7d.filter((o) => o.workflow !== "improver").map((o) => o.runId),
+  );
+  let latest: string | null = null;
+  for (const run of all24h) {
+    if (run.workflow === "improver") continue;
+    if (!run.completedAt) continue;
+    const isActionable =
+      run.status === "failed" ||
+      runHasRepairTrip(run) ||
+      outlierIds.has(run.id);
+    if (!isActionable) continue;
+    if (latest === null || run.completedAt > latest) latest = run.completedAt;
+  }
+  return latest;
+}
+
 export function aggregateRunOutcomes(runsDir: string): RunOutcomeAggregation {
   const now = Date.now();
   const cutoff24h = now - 24 * 60 * 60 * 1000;
@@ -177,14 +216,17 @@ export function aggregateRunOutcomes(runsDir: string): RunOutcomeAggregation {
   const summaries7d = all7d.map(summarizeRun);
   const summaries24h = all24h.map(summarizeRun);
 
+  const durationOutliers = enrichOutliersWithSubjects(
+    findDurationOutliers(all7d).slice(0, 10),
+    runsDir,
+  );
+
   return {
     failureRates24h: computeFailureRates(summaries24h),
     failureRates7d: computeFailureRates(summaries7d),
     topRepairFailures24h: tallyRepairFailures(all24h).slice(0, 10),
     topRepairFailures7d: tallyRepairFailures(all7d).slice(0, 10),
-    durationOutliers: enrichOutliersWithSubjects(
-      findDurationOutliers(all7d).slice(0, 10),
-      runsDir,
-    ),
+    durationOutliers,
+    latestActionableRunAt: latestActionableCompletedAt(all24h, durationOutliers),
   };
 }

@@ -295,15 +295,28 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
     agentDurationMs: number,
     commitSubject?: string,
     status: WorkflowRunMetadata["status"] = "success",
+    completedAt?: string,
+    repairFailureIds: string[] = [],
   ): void {
     const runDir = join(runsDir, id);
     mkdirSync(runDir, { recursive: true });
+    const agentStepOutput = repairFailureIds.length
+      ? {
+          repairIterations: [
+            {
+              attempt: 1,
+              failures: repairFailureIds.map((fid) => ({ id: fid })),
+            },
+          ],
+        }
+      : undefined;
     const metadata: WorkflowRunMetadata = {
       id,
       workflow,
       definitionPath: `src/modules/autonomy/workflows/${workflow}/workflow.ts`,
       trigger: { event: "runtime.idle", payload: {} },
       startedAt: new Date(Date.now() - 60_000).toISOString(),
+      completedAt: completedAt ?? new Date(Date.now() - 30_000).toISOString(),
       status,
       durationMs,
       runDir: id,
@@ -323,6 +336,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
           startedAt: "2026-04-16T00:00:00.050Z",
           completedAt: "2026-04-16T00:00:00.050Z",
           durationMs: agentDurationMs,
+          output: agentStepOutput,
         },
       ],
     };
@@ -393,5 +407,72 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       failures: 1,
       rate: 1 / 3,
     });
+  });
+
+  it("reports latestActionableRunAt as the newest completedAt across failed, repair-tripping, or outlier non-improver runs", () => {
+    writeRun(
+      "ok-builder",
+      "builder",
+      500_000,
+      499_000,
+      undefined,
+      "success",
+      "2026-04-21T01:00:00.000Z",
+    );
+    writeRun(
+      "failed-builder",
+      "builder",
+      600_000,
+      599_000,
+      undefined,
+      "failed",
+      "2026-04-21T02:00:00.000Z",
+    );
+    writeRun(
+      "repair-trip-builder",
+      "builder",
+      700_000,
+      699_000,
+      undefined,
+      "success",
+      "2026-04-21T03:00:00.000Z",
+      ["critic-review"],
+    );
+    writeRun(
+      "improver-failed",
+      "improver",
+      800_000,
+      799_000,
+      undefined,
+      "failed",
+      "2026-04-21T04:00:00.000Z",
+    );
+
+    const result = aggregateRunOutcomes(runsDir);
+    expect(result.latestActionableRunAt).toBe("2026-04-21T03:00:00.000Z");
+  });
+
+  it("returns null latestActionableRunAt when only clean non-improver runs exist", () => {
+    writeRun(
+      "ok-1",
+      "builder",
+      500_000,
+      499_000,
+      undefined,
+      "success",
+      "2026-04-21T01:00:00.000Z",
+    );
+    writeRun(
+      "ok-2",
+      "explorer",
+      600_000,
+      599_000,
+      undefined,
+      "success",
+      "2026-04-21T02:00:00.000Z",
+    );
+
+    const result = aggregateRunOutcomes(runsDir);
+    expect(result.latestActionableRunAt).toBeNull();
   });
 });
