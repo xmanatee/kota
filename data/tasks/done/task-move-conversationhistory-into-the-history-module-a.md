@@ -1,12 +1,12 @@
 ---
 id: task-move-conversationhistory-into-the-history-module-a
 title: Move ConversationHistory into the history module and retire src/core/memory
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Relocate ConversationHistory and its utils from src/core/memory into the existing history module, completing the store-relocation pattern applied to MemoryStore, KnowledgeStore, and WorkingMemoryStore; after the move src/core/memory holds no store and can be retired
 created_at: 2026-04-21T02:01:15.629Z
-updated_at: 2026-04-21T02:01:15.629Z
+updated_at: 2026-04-21T02:53:34.832Z
 ---
 
 ## Problem

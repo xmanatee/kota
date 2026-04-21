@@ -183,7 +183,7 @@ describe("interface conformance", () => {
 	});
 
 	it("HistoryProvider interface matches ConversationHistory shape", async () => {
-		const { ConversationHistory } = await import("#core/memory/history.js");
+		const { ConversationHistory } = await import("#modules/history/history.js");
 		const history = new ConversationHistory("/tmp/test-provider-conformance-history");
 		const provider: HistoryProvider = history;
 		expect(typeof provider.create).toBe("function");

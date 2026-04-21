@@ -2,11 +2,11 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { KotaConfig } from "#core/config/config.js";
 import { loadConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
-import { getHistory } from "#core/memory/history.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
+import { getHistory } from "#modules/history/history.js";
 import { getApprovalQueue } from "./approval-queue.js";
 import { computeModuleConfigDiff } from "./config-reload-diff.js";
 import type {

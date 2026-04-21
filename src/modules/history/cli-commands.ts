@@ -1,10 +1,10 @@
 import type { Command } from "commander";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { loadConfig } from "#core/config/config.js";
-import { getHistory } from "#core/memory/history.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { confirmAction } from "#core/util/confirm.js";
 import { interactiveMode, parseIntOption, resolveConversationId } from "./cli.js";
+import { getHistory } from "./history.js";
 
 /** Register the `history` subcommand and its children onto `program`. */
 export function registerHistoryCommands(program: Command) {

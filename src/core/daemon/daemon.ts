@@ -8,7 +8,6 @@ import { warnInvalidConcurrencyConfig, warnUnknownConfigKeys } from "#core/confi
 import { type EventBus, initEventBus } from "#core/events/event-bus.js";
 import { AgentSession } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
-import { getHistory } from "#core/memory/history.js";
 import { initModuleLogStore } from "#core/modules/module-log.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
@@ -17,6 +16,7 @@ import { isProcessAlive } from "#core/util/process-alive.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
+import { getHistory } from "#modules/history/history.js";
 import { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import { DaemonControlServer, type InteractiveSession } from "./daemon-control.js";
 import { buildDaemonHandle } from "./daemon-handle.js";

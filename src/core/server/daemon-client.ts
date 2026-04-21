@@ -12,9 +12,9 @@ import type {
   WorkflowRunDetail,
   WorkflowRunSummary,
 } from "#core/daemon/daemon-control.js";
-import type { ConversationData, ConversationRecord } from "#core/memory/history-utils.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import type { ConversationData, ConversationRecord } from "#modules/history/history-utils.js";
 
 const FETCH_TIMEOUT_MS = 2_000;
 

@@ -75,7 +75,7 @@ vi.mock("./core/modules/module-discovery.js", () => ({
 // --- Import after mocks ---
 
 import { AgentSession } from "./core/loop/loop.js";
-import { getHistory, resetHistory } from "./core/memory/history.js";
+import { getHistory, resetHistory } from "./modules/history/history.js";
 
 // --- Test helpers ---
 

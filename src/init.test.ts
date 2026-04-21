@@ -17,7 +17,7 @@ vi.mock("./core/modules/provider-registry.js", async (importOriginal) => {
 });
 
 // Mock history module to control conversation data
-vi.mock("./core/memory/history.js", () => ({
+vi.mock("./modules/history/history.js", () => ({
   getHistory: vi.fn(() => ({
     getMostRecent: () => null,
   })),
@@ -40,9 +40,9 @@ vi.mock("./core/daemon/scheduler.js", () => ({
 import { detectEnvironment, detectProject, getDirectoryOverview } from "#core/util/project-detection.js";
 import { getScheduler } from "./core/daemon/scheduler.js";
 import { getTaskStore } from "./core/daemon/task-store.js";
-import { getHistory } from "./core/memory/history.js";
 import { getMemoryProvider } from "./core/modules/provider-registry.js";
 import { buildSessionWarmup } from "./init.js";
+import { getHistory } from "./modules/history/history.js";
 
 const mocked = vi.mocked(getMemoryProvider);
 const mockedHistory = vi.mocked(getHistory);

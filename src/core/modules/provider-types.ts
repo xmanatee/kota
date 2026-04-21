@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Task, TaskPriority, TaskStatus } from "#core/daemon/task-store.js";
-import type { ConversationData, ConversationRecord } from "#core/memory/history.js";
+import type { ConversationData, ConversationRecord } from "#modules/history/history.js";
 
 /** A memory entry: a persisted agent note with content, tags, and timestamp. */
 export type Memory = {

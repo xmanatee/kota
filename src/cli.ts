@@ -7,7 +7,6 @@ import {
   executeWithAgentSDK,
 } from "./core/agent-sdk/index.js";
 import { runAgentLoop } from "./core/loop/loop.js";
-import { getHistory } from "./core/memory/history.js";
 import { formatAuthError } from "./core/model/auth-error.js";
 import { createModelClient } from "./core/model/model-client.js";
 import { discoverModules } from "./core/modules/module-discovery.js";
@@ -20,6 +19,7 @@ import {
   resolveConversationId,
   runPipeLoop,
 } from "./modules/history/cli.js";
+import { getHistory } from "./modules/history/history.js";
 import { parseModelString, resolveApiKey } from "./modules/model-clients/factory.js";
 
 export { formatAuthError } from "./core/model/auth-error.js";
