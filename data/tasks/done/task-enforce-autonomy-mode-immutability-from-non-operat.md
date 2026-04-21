@@ -1,12 +1,12 @@
 ---
 id: task-enforce-autonomy-mode-immutability-from-non-operat
 title: Enforce autonomy-mode immutability from non-operator paths with an integration test
-status: ready
+status: done
 priority: p2
 area: core
 summary: Add a typed test that proves session autonomyMode can only change via the daemon operator control surface — not via user messages, tool outputs, or module prompt state — to lock in the Model Spec chain-of-command mapping
 created_at: 2026-04-20T23:35:31.390Z
-updated_at: 2026-04-20T23:35:31.390Z
+updated_at: 2026-04-21T00:34:51.770Z
 ---
 
 ## Problem
