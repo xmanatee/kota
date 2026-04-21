@@ -1,4 +1,4 @@
-import { isAutonomyMode, type AutonomyMode } from "#core/tools/autonomy-mode.js";
+import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import { JsonFileError } from "#core/util/json-file.js";
 import type {
   WorkflowQueuedRun,

@@ -1,12 +1,12 @@
 ---
 id: task-document-instruction-hierarchy-chain-of-command-ma
 title: Document instruction-hierarchy chain-of-command mapping on the autonomy-mode boundary
-status: ready
+status: done
 priority: p3
 area: autonomy
 summary: Document the Root/System > Developer > User > tool-output chain-of-command mapping at the autonomy-mode boundary in src/core/tools/AGENTS.md so operator-set autonomy mode cannot be silently overridden by a user message or tool output
 created_at: 2026-04-20T20:18:42.065Z
-updated_at: 2026-04-20T23:35:30.928Z
+updated_at: 2026-04-21T15:55:08.307Z
 ---
 
 ## Problem

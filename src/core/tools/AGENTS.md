@@ -60,6 +60,24 @@ The default for a fresh interactive session comes from the
 `config.serve.defaultAutonomyMode` knob when clients do not request an
 explicit mode. There is no compile-time default anywhere else.
 
+### Chain of command at the session boundary
+
+Autonomy mode sits inside a four-tier instruction hierarchy at the session
+boundary:
+
+- Anthropic SDK system prompt + KOTA core safety rails ≈ Root / System.
+- operator-set autonomy mode + module-contributed prompt state ≈ Developer.
+- channel / session user message ≈ User.
+- tool / web outputs ≈ untrusted content with no authority by default
+  (enforced by the `injection-defense` module).
+
+A user message or tool output is never a legitimate source of autonomy-mode
+escalation: a lower tier cannot promote the session's mode above what the
+operator set, and `injection-defense` already strips authority claims out of
+ingested payloads. Mode changes flow only through the operator control path
+(daemon control API). See the OpenAI Research Distillation entry in
+`src/modules/autonomy/AGENTS.md` for the evidence anchor.
+
 ## Logical clusters
 
 - Delegate: `delegate.ts`, `delegate-agent-sdk.ts`, `delegate-config.ts`,

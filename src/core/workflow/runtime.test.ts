@@ -336,6 +336,7 @@ describe("WorkflowRuntime", () => {
       durationMs: 10,
       definitionPath: "test/builder.ts",
       runDir: ".kota/runs/run-failed",
+      tags: [],
     });
     bus.emit("workflow.completed", {
       workflow: "builder",
@@ -345,6 +346,7 @@ describe("WorkflowRuntime", () => {
       durationMs: 10,
       definitionPath: "test/builder.ts",
       runDir: ".kota/runs/run-interrupted",
+      tags: [],
     });
 
     await wait(120);
