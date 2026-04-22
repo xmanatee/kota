@@ -1,12 +1,12 @@
 ---
 id: task-use-kota-as-a-general-purpose-cli-coding-agent-acr
 title: Use KOTA as a general-purpose CLI coding agent across pluggable harnesses
-status: backlog
+status: ready
 priority: p2
 area: architecture
 summary: Make KOTA usable from the terminal as a claude-code/codex-grade coding agent that wraps the chosen harness without degrading interactive UX, AGENTS.md hierarchy, @-imports, hooks, plugins, or skills.
 created_at: 2026-04-22T16:46:51.631Z
-updated_at: 2026-04-22T16:46:51.631Z
+updated_at: 2026-04-22T18:52:32.582Z
 ---
 
 ## Problem
