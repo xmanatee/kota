@@ -8,6 +8,7 @@ import {
   ensureDir,
   formatRunId,
   isPlainObject,
+  migrateLegacyWorkflowState,
   STATE_FILE,
   writeJsonFile,
 } from "./run-store-helpers.js";
@@ -61,6 +62,7 @@ export class WorkflowRunStore {
   readState(): WorkflowRuntimeState {
     const state = readOptionalJsonFile<unknown>(this.statePath);
     if (state !== null) {
+      if (isPlainObject(state)) migrateLegacyWorkflowState(state);
       assertWorkflowRuntimeState(this.statePath, state);
     }
     return {
@@ -106,10 +108,12 @@ export class WorkflowRunStore {
       writeFileSync(errorPath, "Interrupted: daemon restarted while run was in progress.", "utf-8");
       state.workflows[metadata.workflow] = {
         ...state.workflows[metadata.workflow],
-        lastRunId: metadata.id,
-        lastStartedAt: metadata.startedAt,
-        lastCompletedAt: interrupted.completedAt,
-        lastStatus: "interrupted",
+        lastCompletion: {
+          runId: metadata.id,
+          startedAt: metadata.startedAt,
+          completedAt: interrupted.completedAt!,
+          status: "interrupted",
+        },
       };
       recovered.push(interrupted);
     }
@@ -306,8 +310,7 @@ export class WorkflowRunStore {
     state.activeRuns = [...(state.activeRuns ?? []), newActiveRun];
     state.workflows[workflow.name] = {
       ...state.workflows[workflow.name],
-      lastRunId: id,
-      lastStartedAt: metadata.startedAt,
+      lastStarted: { runId: id, startedAt: metadata.startedAt },
     };
     this.writeState(state);
 

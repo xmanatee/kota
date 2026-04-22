@@ -53,8 +53,22 @@ describe("cooldown race condition", () => {
         completedRuns: 10,
         pendingRuns: [],
         workflows: {
-          alpha: { lastCompletedAt: "2026-04-11T10:00:00.000Z" },
-          beta: { lastCompletedAt: "2026-04-11T10:00:00.000Z" },
+          alpha: {
+            lastCompletion: {
+              runId: "prior-alpha",
+              startedAt: "2026-04-11T09:30:00.000Z",
+              completedAt: "2026-04-11T10:00:00.000Z",
+              status: "success",
+            },
+          },
+          beta: {
+            lastCompletion: {
+              runId: "prior-beta",
+              startedAt: "2026-04-11T09:30:00.000Z",
+              completedAt: "2026-04-11T10:00:00.000Z",
+              status: "success",
+            },
+          },
         },
         activeRuns: [
           { runId: "run-alpha-1", workflow: "alpha", startedAt: "2026-04-11T11:00:00.000Z" },
@@ -117,7 +131,7 @@ describe("cooldown race condition", () => {
       });
 
       const stateAfterBeta = readState(statePath);
-      const betaCompletedAt = stateAfterBeta.workflows.beta?.lastCompletedAt;
+      const betaCompletedAt = stateAfterBeta.workflows.beta?.lastCompletion?.completedAt;
       expect(betaCompletedAt).toBeDefined();
 
       // Alpha finishes second — this used to overwrite beta's lastCompletedAt
@@ -130,21 +144,28 @@ describe("cooldown race condition", () => {
 
       const finalState = readState(statePath);
 
-      // Both workflows should have their own lastCompletedAt set
-      expect(finalState.workflows.alpha?.lastCompletedAt).toBeDefined();
-      expect(finalState.workflows.beta?.lastCompletedAt).toBe(betaCompletedAt);
+      // Both workflows should have their own completion set
+      expect(finalState.workflows.alpha?.lastCompletion?.completedAt).toBeDefined();
+      expect(finalState.workflows.beta?.lastCompletion?.completedAt).toBe(betaCompletedAt);
       expect(finalState.completedRuns).toBe(12); // 10 + 2
       expect(finalState.activeRuns).toEqual([]);
     });
 
-    it("only advances lastCompletedAt forward, never backward", () => {
+    it("only advances lastCompletion forward, never backward", () => {
       // Seed state where alpha already has a very recent completion
       const recentCompletion = new Date(Date.now() + 60_000).toISOString(); // future to guarantee it's "more recent"
       const initialState: WorkflowRuntimeState = {
         completedRuns: 5,
         pendingRuns: [],
         workflows: {
-          alpha: { lastCompletedAt: recentCompletion, lastStatus: "success" },
+          alpha: {
+            lastCompletion: {
+              runId: "run-alpha-newer",
+              startedAt: "2026-04-11T11:00:00.000Z",
+              completedAt: recentCompletion,
+              status: "success",
+            },
+          },
         },
         activeRuns: [
           { runId: "run-alpha-old", workflow: "alpha", startedAt: "2026-04-11T09:00:00.000Z" },
@@ -180,8 +201,8 @@ describe("cooldown race condition", () => {
       handle.finish({ status: "success", durationMs: 500 });
 
       const finalState = readState(statePath);
-      // lastCompletedAt should NOT have been overwritten with the older timestamp
-      expect(finalState.workflows.alpha?.lastCompletedAt).toBe(recentCompletion);
+      // lastCompletion should NOT have been overwritten with the older timestamp
+      expect(finalState.workflows.alpha?.lastCompletion?.completedAt).toBe(recentCompletion);
       // But completedRuns should still be incremented
       expect(finalState.completedRuns).toBe(6);
       // Active run should still be removed
@@ -197,7 +218,14 @@ describe("cooldown race condition", () => {
         completedRuns: 1,
         pendingRuns: [],
         workflows: {
-          explorer: { lastCompletedAt: justNow, lastStatus: "success" },
+          explorer: {
+            lastCompletion: {
+              runId: "run-explorer-prev",
+              startedAt: new Date(Date.now() - 60_000).toISOString(),
+              completedAt: justNow,
+              status: "success",
+            },
+          },
         },
       };
       writeState(statePath, initialState);
@@ -251,7 +279,14 @@ describe("cooldown race condition", () => {
         completedRuns: 1,
         pendingRuns: [],
         workflows: {
-          explorer: { lastCompletedAt: longAgo, lastStatus: "success" },
+          explorer: {
+            lastCompletion: {
+              runId: "run-explorer-prev",
+              startedAt: new Date(Date.now() - 3_660_000).toISOString(),
+              completedAt: longAgo,
+              status: "success",
+            },
+          },
         },
       };
       writeState(statePath, initialState);
@@ -301,8 +336,12 @@ describe("cooldown race condition", () => {
         pendingRuns: [],
         workflows: {
           explorer: {
-            lastCompletedAt: new Date().toISOString(),
-            lastStatus: "success",
+            lastCompletion: {
+              runId: "run-explorer-prev",
+              startedAt: new Date(Date.now() - 60_000).toISOString(),
+              completedAt: new Date().toISOString(),
+              status: "success",
+            },
           },
         },
       };

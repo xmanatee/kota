@@ -370,9 +370,16 @@ describe("explorer workflow", () => {
       trigger: { event: "autonomy.queue.empty", payload: {} },
       runtimeState: {
         workflows: {
-          // lastCompletedAt is recent (2 min ago) from a skipped run — this
-          // would have blocked refresh under the old logic
-          explorer: { lastCompletedAt: new Date(Date.now() - 2 * 60 * 1000).toISOString() },
+          // Recent completion (2 min ago) from a skipped run — this would
+          // have blocked refresh under the old logic
+          explorer: {
+            lastCompletion: {
+              runId: "run-explorer-skipped",
+              startedAt: new Date(Date.now() - 2 * 60 * 1000 - 10_000).toISOString(),
+              completedAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+              status: "success",
+            },
+          },
         },
       },
       stepMocks: { explore: { turns: [], totalCostUsd: 0.02 } },

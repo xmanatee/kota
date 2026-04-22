@@ -101,23 +101,25 @@ export function createActiveRunHandle(opts: {
       writeJsonFile(join(runDirPath, "metadata.json"), completed);
 
       // Re-read state immediately before writing to minimize the race window.
-      // Merge carefully: only advance lastCompletedAt forward so a concurrent
-      // finish() for another workflow cannot overwrite a more recent timestamp.
+      // Merge carefully: only advance lastCompletion forward so a concurrent
+      // finish() cannot overwrite a more recent completion with an older one.
       const freshState = readState();
       freshState.completedRuns += 1;
       freshState.totalCostUsd = (freshState.totalCostUsd ?? 0) + totalCostUsd;
       const existingWorkflow = freshState.workflows[workflowName];
-      const existingCompletedMs = existingWorkflow?.lastCompletedAt
-        ? new Date(existingWorkflow.lastCompletedAt).getTime()
+      const existingCompletedMs = existingWorkflow?.lastCompletion?.completedAt
+        ? new Date(existingWorkflow.lastCompletion.completedAt).getTime()
         : 0;
       const thisCompletedMs = new Date(completed.completedAt!).getTime();
       if (thisCompletedMs >= existingCompletedMs) {
         freshState.workflows[workflowName] = {
           ...existingWorkflow,
-          lastRunId: id,
-          lastStartedAt: metadata.startedAt,
-          lastCompletedAt: completed.completedAt,
-          lastStatus: update.status,
+          lastCompletion: {
+            runId: id,
+            startedAt: metadata.startedAt,
+            completedAt: completed.completedAt!,
+            status: update.status,
+          },
         };
       }
       freshState.activeRuns = (freshState.activeRuns ?? []).filter(

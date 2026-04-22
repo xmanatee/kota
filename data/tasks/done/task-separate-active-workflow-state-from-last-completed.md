@@ -1,12 +1,12 @@
 ---
 id: task-separate-active-workflow-state-from-last-completed
 title: Separate active workflow state from last-completed workflow state
-status: backlog
+status: done
 priority: p2
 area: core
 summary: Stop .kota/workflow-state.json from mixing an active run id under lastRunId with a previous run's lastCompletedAt/lastStatus so dashboards and monitors cannot trust stale completion fields during a live run
 created_at: 2026-04-21T15:52:42.723Z
-updated_at: 2026-04-21T15:52:42.723Z
+updated_at: 2026-04-22T03:59:48.189Z
 ---
 
 ## Problem

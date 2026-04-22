@@ -55,6 +55,31 @@ export type WorkflowRecoveryState = {
   updatedAt: string;
 };
 
+export type WorkflowRunRef = {
+  runId: string;
+  startedAt: string;
+};
+
+export type WorkflowCompletion = {
+  runId: string;
+  startedAt: string;
+  completedAt: string;
+  status: WorkflowRunStatus;
+};
+
+/**
+ * Per-workflow entry in persisted runtime state. `lastStarted` and
+ * `lastCompletion` are independent, each self-describing a single run.
+ * They may refer to the same run (idle after completion) or different runs
+ * (a new run has started before the previous completion rolled off) but
+ * fields within each slot always belong to one run.
+ */
+export type WorkflowStateEntry = {
+  lastStarted?: WorkflowRunRef;
+  lastCompletion?: WorkflowCompletion;
+  nextScheduledAt?: string;
+};
+
 export type WorkflowRuntimeState = {
   activeRuns?: WorkflowActiveRun[];
   completedRuns: number;
@@ -63,16 +88,7 @@ export type WorkflowRuntimeState = {
   agentBackoff?: WorkflowAgentBackoffState;
   recovery?: WorkflowRecoveryState;
   pendingRuns: WorkflowQueuedRun[];
-  workflows: Record<
-    string,
-    {
-      lastRunId?: string;
-      lastStartedAt?: string;
-      lastCompletedAt?: string;
-      lastStatus?: WorkflowRunStatus;
-      nextScheduledAt?: string;
-    }
-  >;
+  workflows: Record<string, WorkflowStateEntry>;
 };
 
 export type WorkflowContextInfo = {

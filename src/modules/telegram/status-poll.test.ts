@@ -22,7 +22,15 @@ function makeStatusInfo(overrides: Partial<StatusInfo> = {}): StatusInfo {
       completedRuns: 5,
       pendingRuns: [],
       workflows: {
-        builder: { lastStatus: "success", lastRunId: "run-abc" },
+        builder: {
+          lastStarted: { runId: "run-abc", startedAt: "2026-01-01T00:00:00Z" },
+          lastCompletion: {
+            runId: "run-abc",
+            startedAt: "2026-01-01T00:00:00Z",
+            completedAt: "2026-01-01T00:00:10Z",
+            status: "success",
+          },
+        },
       },
       ...overrides.runtimeState,
     },

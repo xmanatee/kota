@@ -1417,7 +1417,7 @@ describe("WorkflowRuntime", () => {
   });
 
   it("fires interval trigger immediately if last run was before the interval", async () => {
-    // Pre-seed state with a lastCompletedAt 2 hours ago (interval is 1 hour)
+    // Pre-seed state with a completion 2 hours ago (interval is 1 hour)
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     const twoHoursAgo = new Date(Date.now() - 2 * 3_600_000).toISOString();
     writeFileSync(
@@ -1427,8 +1427,12 @@ describe("WorkflowRuntime", () => {
         pendingRuns: [],
         workflows: {
           scheduled: {
-            lastCompletedAt: twoHoursAgo,
-            lastStatus: "success",
+            lastCompletion: {
+              runId: "run-scheduled-prev",
+              startedAt: new Date(Date.now() - 2 * 3_600_000 - 60_000).toISOString(),
+              completedAt: twoHoursAgo,
+              status: "success",
+            },
           },
         },
       }),

@@ -79,7 +79,16 @@ describe("workflow trigger command logic", () => {
       const state: WorkflowRuntimeState = {
         completedRuns: 1,
         pendingRuns: [],
-        workflows: { builder: { lastCompletedAt: lastCompleted, lastStatus: "success" } },
+        workflows: {
+          builder: {
+            lastCompletion: {
+              runId: "run-builder-prev",
+              startedAt: lastCompleted,
+              completedAt: lastCompleted,
+              status: "success",
+            },
+          },
+        },
       };
       const eligibleAt = getEligibleAtMs("builder", 0, state);
       expect(eligibleAt).toBeLessThanOrEqual(Date.now());
@@ -91,7 +100,16 @@ describe("workflow trigger command logic", () => {
       const state: WorkflowRuntimeState = {
         completedRuns: 1,
         pendingRuns: [],
-        workflows: { builder: { lastCompletedAt: lastCompleted, lastStatus: "success" } },
+        workflows: {
+          builder: {
+            lastCompletion: {
+              runId: "run-builder-prev",
+              startedAt: lastCompleted,
+              completedAt: lastCompleted,
+              status: "success",
+            },
+          },
+        },
       };
       const eligibleAt = getEligibleAtMs("builder", cooldownMs, state);
       expect(eligibleAt).toBeGreaterThan(Date.now());
@@ -103,7 +121,16 @@ describe("workflow trigger command logic", () => {
       const state: WorkflowRuntimeState = {
         completedRuns: 1,
         pendingRuns: [],
-        workflows: { builder: { lastCompletedAt: lastCompleted, lastStatus: "success" } },
+        workflows: {
+          builder: {
+            lastCompletion: {
+              runId: "run-builder-prev",
+              startedAt: lastCompleted,
+              completedAt: lastCompleted,
+              status: "success",
+            },
+          },
+        },
       };
       const eligibleAt = getEligibleAtMs("builder", cooldownMs, state);
       expect(eligibleAt).toBeLessThan(Date.now());

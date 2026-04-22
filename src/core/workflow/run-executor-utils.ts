@@ -42,7 +42,7 @@ export function getEligibleAtMs(
   cooldownMs: number,
   state: WorkflowRuntimeState,
 ): number {
-  const lastCompletedAt = state.workflows[workflowName]?.lastCompletedAt;
+  const lastCompletedAt = state.workflows[workflowName]?.lastCompletion?.completedAt;
   if (!lastCompletedAt || cooldownMs <= 0) return Date.now();
   return new Date(lastCompletedAt).getTime() + cooldownMs;
 }

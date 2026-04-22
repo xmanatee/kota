@@ -54,10 +54,13 @@ describe("assertWorkflowRuntimeState", () => {
       completedRuns: 5,
       workflows: {
         builder: {
-          lastRunId: "run-1",
-          lastStartedAt: "2026-01-01",
-          lastCompletedAt: "2026-01-01",
-          lastStatus: "success",
+          lastStarted: { runId: "run-1", startedAt: "2026-01-01" },
+          lastCompletion: {
+            runId: "run-1",
+            startedAt: "2026-01-01",
+            completedAt: "2026-01-01",
+            status: "success",
+          },
         },
       },
     };
@@ -217,38 +220,55 @@ describe("assertWorkflowRuntimeState", () => {
     ).toThrow(JsonFileError);
   });
 
-  it("throws when lastRunId is an empty string", () => {
+  it("throws when lastStarted runId is blank", () => {
     expect(() =>
       assertWorkflowRuntimeState(path, {
         ...validState,
-        workflows: { builder: { lastRunId: "  " } },
+        workflows: { builder: { lastStarted: { runId: "  ", startedAt: "2026-01-01" } } },
       }),
     ).toThrow(JsonFileError);
   });
 
-  it("throws when lastStartedAt is not a string", () => {
+  it("throws when lastStarted startedAt is missing", () => {
     expect(() =>
       assertWorkflowRuntimeState(path, {
         ...validState,
-        workflows: { builder: { lastStartedAt: 42 } },
+        workflows: { builder: { lastStarted: { runId: "run-1" } } },
       }),
     ).toThrow(JsonFileError);
   });
 
-  it("throws when lastCompletedAt is not a string", () => {
+  it("throws when lastCompletion is missing completedAt", () => {
     expect(() =>
       assertWorkflowRuntimeState(path, {
         ...validState,
-        workflows: { builder: { lastCompletedAt: false } },
+        workflows: {
+          builder: {
+            lastCompletion: {
+              runId: "run-1",
+              startedAt: "2026-01-01",
+              status: "success",
+            },
+          },
+        },
       }),
     ).toThrow(JsonFileError);
   });
 
-  it("throws when lastStatus is invalid", () => {
+  it("throws when lastCompletion.status is invalid", () => {
     expect(() =>
       assertWorkflowRuntimeState(path, {
         ...validState,
-        workflows: { builder: { lastStatus: "unknown" } },
+        workflows: {
+          builder: {
+            lastCompletion: {
+              runId: "run-1",
+              startedAt: "2026-01-01",
+              completedAt: "2026-01-01",
+              status: "unknown",
+            },
+          },
+        },
       }),
     ).toThrow(JsonFileError);
   });

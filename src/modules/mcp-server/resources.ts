@@ -96,9 +96,8 @@ function readWorkflowStatus(projectDir: string): unknown {
 	const perWorkflow: Record<string, unknown> = {};
 	for (const [name, ws] of Object.entries(state.workflows)) {
 		perWorkflow[name] = {
-			lastStatus: ws.lastStatus ?? null,
-			lastRunId: ws.lastRunId ?? null,
-			lastCompletedAt: ws.lastCompletedAt ?? null,
+			lastStarted: ws.lastStarted ?? null,
+			lastCompletion: ws.lastCompletion ?? null,
 			nextScheduledAt: ws.nextScheduledAt ?? null,
 		};
 	}

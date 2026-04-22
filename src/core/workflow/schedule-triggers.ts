@@ -44,7 +44,7 @@ export class ScheduleTriggerManager {
         let nextFireMs: number;
 
         if (trigger.intervalMs != null) {
-          const lastCompleted = state.workflows[definition.name]?.lastCompletedAt;
+          const lastCompleted = state.workflows[definition.name]?.lastCompletion?.completedAt;
           if (lastCompleted) {
             const due = new Date(lastCompleted).getTime() + trigger.intervalMs;
             nextFireMs = due > Date.now() ? due : Date.now();
@@ -137,7 +137,7 @@ export class ScheduleTriggerManager {
 
         let nextFireMs: number;
         if (trigger.intervalMs != null) {
-          const lastCompleted = state.workflows[definition.name]?.lastCompletedAt;
+          const lastCompleted = state.workflows[definition.name]?.lastCompletion?.completedAt;
           if (lastCompleted) {
             const due = new Date(lastCompleted).getTime() + trigger.intervalMs;
             nextFireMs = due > Date.now() ? due : Date.now();

@@ -121,13 +121,20 @@ function seedFixtureProject(projectDir: string): void {
       completedRuns: 1,
       pendingRuns: [],
       workflows: {
-        explorer: { lastCompletedAt: tenMinutesAgo },
+        explorer: {
+          lastCompletion: {
+            runId: "run-explorer-seed",
+            startedAt: tenMinutesAgo,
+            completedAt: tenMinutesAgo,
+            status: "success",
+          },
+        },
       },
     }),
   );
 
   // Explorer now measures refresh from a file-based timestamp instead of
-  // lastCompletedAt, so seed that too.
+  // its workflow-state completion, so seed that too.
   writeFileSync(
     join(projectDir, ".kota/explorer-state.json"),
     JSON.stringify({ lastExplorationAt: tenMinutesAgo }),

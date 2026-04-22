@@ -172,7 +172,8 @@ describe("WorkflowRunStore.recoverInterruptedRuns", () => {
     store.recoverInterruptedRuns();
 
     const afterState = store.readState();
-    expect(afterState.workflows.builder?.lastStatus).toBe("interrupted");
+    expect(afterState.workflows.builder?.lastCompletion?.status).toBe("interrupted");
+    expect(afterState.workflows.builder?.lastCompletion?.runId).toBe("run-stale-3");
   });
 
   it("creates new runs only under .kota/runs", () => {

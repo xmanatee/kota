@@ -35,12 +35,12 @@ export function buildStatusText({ runtimeState, dispatchPaused, runsDir }: Statu
   lines.push(`*Today's spend:* $${totalCost.toFixed(4)}`);
 
   const workflowEntries = Object.entries(runtimeState.workflows).filter(
-    ([, entry]) => entry.lastStatus != null,
+    ([, entry]) => entry.lastCompletion != null,
   );
   if (workflowEntries.length > 0) {
     lines.push("*Last status:*");
     for (const [name, entry] of workflowEntries) {
-      lines.push(`  ${name}: ${entry.lastStatus}`);
+      lines.push(`  ${name}: ${entry.lastCompletion!.status}`);
     }
   }
 

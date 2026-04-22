@@ -247,10 +247,13 @@ type StatusOptions = {
   workflows: Record<
     string,
     {
-      lastRunId?: string;
-      lastStartedAt?: string;
-      lastCompletedAt?: string;
-      lastStatus?: string;
+      lastStarted?: { runId: string; startedAt: string };
+      lastCompletion?: {
+        runId: string;
+        startedAt: string;
+        completedAt: string;
+        status: string;
+      };
       nextScheduledAt?: string;
     }
   >;
@@ -312,9 +315,10 @@ function printWorkflowStatus(opts: StatusOptions): void {
     console.log(`  ${"-".repeat(sepLen)}`);
     for (const name of wfNames) {
       const wf = opts.workflows[name];
-      const st = wf.lastStatus ? `${statusIcon(wf.lastStatus)} ${wf.lastStatus}` : "(none)";
-      const completed = wf.lastCompletedAt ? formatDate(wf.lastCompletedAt) : "(none)";
-      const runId = wf.lastRunId || "(none)";
+      const completion = wf.lastCompletion;
+      const st = completion ? `${statusIcon(completion.status)} ${completion.status}` : "(none)";
+      const completed = completion ? formatDate(completion.completedAt) : "(none)";
+      const runId = completion?.runId ?? wf.lastStarted?.runId ?? "(none)";
       if (hasScheduled) {
         const nextRun = wf.nextScheduledAt ? formatDate(wf.nextScheduledAt) : "(none)";
         console.log(
