@@ -1,12 +1,12 @@
 ---
 id: task-reduce-agent-progress-filler-in-run-logs
 title: Reduce agent progress filler in run logs
-status: backlog
+status: done
 priority: p3
 area: autonomy
 summary: Decide between prompt wording, output capture, or artifact summarization to bring the 'Now let me' / 'I will' filler density in recent runs down without suppressing useful final summaries
 created_at: 2026-04-21T15:52:22.620Z
-updated_at: 2026-04-21T15:52:22.620Z
+updated_at: 2026-04-22T04:23:22.178Z
 ---
 
 ## Problem
