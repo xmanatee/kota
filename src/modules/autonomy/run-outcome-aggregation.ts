@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { readRepairIterations } from "#core/workflow/repair-iteration-output.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
 import type { WorkflowRunSummary } from "./run-summary.js";
@@ -26,10 +27,6 @@ type DurationOutlier = {
   durationMs: number;
   medianMs: number;
   commitSubject?: string;
-};
-
-type RepairIteration = {
-  failures?: Array<{ id: string }>;
 };
 
 export type RunOutcomeAggregation = {
@@ -179,12 +176,6 @@ function runHasRepairTrip(run: WorkflowRunMetadata): boolean {
     }
   }
   return false;
-}
-
-function readRepairIterations(output: unknown): RepairIteration[] {
-  if (!output || typeof output !== "object") return [];
-  const iterations = (output as { repairIterations?: unknown }).repairIterations;
-  return Array.isArray(iterations) ? iterations : [];
 }
 
 function latestActionableCompletedAt(

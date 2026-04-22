@@ -252,6 +252,38 @@ describe("WorkflowMetricsEmitter", () => {
     expect(repairs).toBeUndefined();
   });
 
+  it("ignores scalar repair-iteration summaries", async () => {
+    const runDir = ".kota/runs/run-scalar-repairs";
+    const stepsDir = join(projectDir, runDir, "steps");
+    mkdirSync(stepsDir, { recursive: true });
+    writeFileSync(
+      join(stepsDir, "build.json"),
+      JSON.stringify({
+        id: "build",
+        type: "agent",
+        status: "success",
+        output: {
+          repairIterations: 2,
+        },
+      }),
+    );
+
+    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
+    emitter.onStepCompleted({
+      workflow: "builder",
+      runId: "run-scalar-repairs",
+      stepId: "build",
+      stepType: "agent",
+      status: "success",
+      durationMs: 100,
+      runDir,
+    });
+
+    const metrics = await collectMetrics(provider, exporter);
+    const repairs = findMetric(metrics, "kota.workflow.repair_loop.hits");
+    expect(repairs).toBeUndefined();
+  });
+
   it("reports enrichment errors for unparseable step output files", async () => {
     const runDir = ".kota/runs/run-broken";
     const stepsDir = join(projectDir, runDir, "steps");

@@ -19,12 +19,24 @@ function makeSnapshot(overrides: Partial<DashboardSnapshot> = {}): DashboardSnap
 		stopping: false,
 		completedRuns: 42,
 		activeRuns: [],
-		pendingRunCount: 0,
-		queueLength: 0,
+		pendingRuns: [],
 		dispatchPaused: false,
 		definitionCount: 5,
 		sessionCount: 2,
 		...overrides,
+	};
+}
+
+function pendingRun(
+	workflowName: string,
+	notBeforeMs = Date.now(),
+): DashboardSnapshot["pendingRuns"][number] {
+	return {
+		runId: `2026-04-21T17-01-09-667Z-${workflowName}-w8047d`,
+		workflowName,
+		trigger: { event: "workflow.completed", payload: {} },
+		enqueuedAtMs: Date.now() - 60_000,
+		notBeforeMs,
 	};
 }
 
@@ -102,7 +114,16 @@ describe("renderDashboard", () => {
 
 	it("shows pending run count", () => {
 		const output = stripAnsi(
-			renderDashboard(makeSnapshot({ pendingRunCount: 3 }), []),
+			renderDashboard(
+				makeSnapshot({
+					pendingRuns: [
+						pendingRun("builder"),
+						pendingRun("explorer"),
+						pendingRun("improver"),
+					],
+				}),
+				[],
+			),
 		);
 		expect(output).toContain("Pending");
 		expect(output).toContain("3");
@@ -112,15 +133,8 @@ describe("renderDashboard", () => {
 		const output = stripAnsi(
 			renderDashboard(
 				makeSnapshot({
-					pendingRunCount: 1,
 					pendingRuns: [
-						{
-							runId: "2026-04-21T17-01-09-667Z-improver-w8047d",
-							workflowName: "improver",
-							trigger: { event: "workflow.completed", payload: {} },
-							enqueuedAtMs: Date.now() - 60_000,
-							notBeforeMs: Date.now() - 1_000,
-						},
+						pendingRun("improver", Date.now() - 1_000),
 					],
 				}),
 				[],
@@ -262,9 +276,10 @@ describe("formatStatsGrid", () => {
 
 describe("DaemonDashboard", () => {
 	let stdoutSpy: ReturnType<typeof vi.spyOn>;
+	let stderrSpy: ReturnType<typeof vi.spyOn>;
 
 	beforeEach(() => {
-		vi.spyOn(process.stderr, "write").mockReturnValue(true);
+		stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
 		stdoutSpy = vi.spyOn(process.stdout, "write").mockReturnValue(true);
 	});
 
@@ -310,5 +325,22 @@ describe("DaemonDashboard", () => {
 		expect(writeAfterStart).not.toBe(writeBeforeStart);
 		dashboard.stop();
 		expect(process.stderr.write).toBe(writeBeforeStart);
+	});
+
+	it("reports dashboard render failures through the original stderr writer", () => {
+		const dashboard = new DaemonDashboard(() => {
+			throw new Error("snapshot unavailable");
+		});
+		dashboard.start();
+		try {
+			expect(stderrSpy).toHaveBeenCalledWith(
+				expect.stringContaining("[kota-dashboard] render failed"),
+			);
+			expect(stderrSpy).toHaveBeenCalledWith(
+				expect.stringContaining("snapshot unavailable"),
+			);
+		} finally {
+			dashboard.stop();
+		}
 	});
 });

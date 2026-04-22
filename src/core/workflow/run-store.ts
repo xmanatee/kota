@@ -1,4 +1,4 @@
-import { readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { createActiveRunHandle } from "./active-run-handle.js";
@@ -176,12 +176,8 @@ export class WorkflowRunStore {
     const minKeepPerWorkflow = opts?.minKeepPerWorkflow ?? 10;
     const dryRun = opts?.dryRun ?? false;
 
-    let dirs: string[];
-    try {
-      dirs = readdirSync(this.runsDir);
-    } catch {
-      return [];
-    }
+    if (!existsSync(this.runsDir)) return [];
+    const dirs = readdirSync(this.runsDir);
 
     const state = this.readState();
     const protectedIds = new Set<string>(opts?.protectedRunIds);
@@ -223,11 +219,7 @@ export class WorkflowRunStore {
 
     if (!dryRun) {
       for (const id of toDelete) {
-        try {
-          rmSync(join(this.runsDir, id), { recursive: true, force: true });
-        } catch {
-          // pruning errors must not crash callers
-        }
+        rmSync(join(this.runsDir, id), { recursive: true, force: true });
       }
     }
 
@@ -236,12 +228,8 @@ export class WorkflowRunStore {
 
   listRuns(opts?: { workflow?: string; tag?: string; limit?: number; causedByRunId?: string }): WorkflowRunMetadata[] {
     const limit = opts?.limit ?? 20;
-    let dirs: string[];
-    try {
-      dirs = readdirSync(this.runsDir).sort().reverse();
-    } catch {
-      return [];
-    }
+    if (!existsSync(this.runsDir)) return [];
+    const dirs = readdirSync(this.runsDir).sort().reverse();
     const runs: WorkflowRunMetadata[] = [];
     for (const dir of dirs) {
       // When filtering by causedByRunId, scan all dirs to avoid missing matches

@@ -30,9 +30,7 @@ export type DashboardSnapshot = {
 	lastCompletedAt?: string;
 	lastCompletedStatus?: WorkflowRunStatus;
 	activeRuns: Array<{ runId: string; workflow: string; startedAt: string }>;
-	pendingRunCount: number;
-	pendingRuns?: WorkflowQueuedRun[];
-	queueLength: number;
+	pendingRuns: WorkflowQueuedRun[];
 	dispatchPaused: boolean;
 	dispatchWindowBlocked?: boolean;
 	dispatchWindowOpensAt?: string;
@@ -169,8 +167,8 @@ export function renderDashboard(
 			? `$${snapshot.totalCostUsd.toFixed(2)}`
 			: "-";
 	const pausedRaw = snapshot.dispatchPaused ? "yes" : "no";
-	const pendingRuns = snapshot.pendingRuns ?? [];
-	const pendingCount = pendingRuns.length || snapshot.pendingRunCount;
+	const pendingRuns = snapshot.pendingRuns;
+	const pendingCount = pendingRuns.length;
 
 	const statRows: StatRow[] = [
 		[
@@ -285,7 +283,7 @@ export class DaemonDashboard {
 				const cleaned = text.replace(/^\[kota-daemon]\s*/, "");
 				this.logBuffer.push(cleaned);
 				if (this.logBuffer.length > LOG_BUFFER_MAX) {
-					this.logBuffer = this.logBuffer.slice(-MAX_LOG_LINES);
+					this.logBuffer = this.logBuffer.slice(-LOG_BUFFER_MAX);
 				}
 				this.render();
 			}
@@ -314,8 +312,15 @@ export class DaemonDashboard {
 			cursorTo(process.stdout, 0, 0);
 			clearScreenDown(process.stdout);
 			process.stdout.write(`${output}\n`);
-		} catch {
-			// Rendering failure must not crash the daemon
+		} catch (error) {
+			this.originalStderrWrite?.call(
+				process.stderr,
+				`[kota-dashboard] render failed: ${formatDashboardError(error)}\n`,
+			);
 		}
 	}
+}
+
+function formatDashboardError(error: unknown): string {
+	return error instanceof Error ? (error.stack ?? error.message) : String(error);
 }

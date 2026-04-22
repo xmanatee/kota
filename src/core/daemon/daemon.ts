@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { existsSync, rmSync, unlinkSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ChannelAdapter, ChannelDef } from "#core/channels/channel.js";
@@ -375,9 +375,7 @@ export class Daemon {
       lastCompletedAt: this.state.lastCompletedAt,
       lastCompletedStatus: this.state.lastCompletedStatus,
       activeRuns: wfState.activeRuns ?? [],
-      pendingRunCount: wfState.pendingRuns.length,
       pendingRuns: wfState.pendingRuns,
-      queueLength: wfState.queueLength,
       dispatchPaused: this.workflows.isDispatchPaused(),
       dispatchWindowBlocked: dispatchWindow.blocked,
       dispatchWindowOpensAt: dispatchWindow.opensAt,
@@ -409,7 +407,7 @@ export class Daemon {
 
     if (!isProcessAlive(pid)) {
       this.log(`Removing stale control file (pid ${pid} is not alive)`);
-      try { unlinkSync(controlPath); } catch { /* already gone */ }
+      rmSync(controlPath, { force: true });
       return;
     }
 
@@ -434,14 +432,14 @@ export class Daemon {
         // HTTP probe failed — PID is alive but not serving on this port.
         // Likely a stale file from PID reuse or the supervisor wrapper.
         this.log(`Control file references pid ${pid} (alive) but port ${port} is unreachable — removing stale control file`);
-        try { unlinkSync(controlPath); } catch { /* already gone */ }
+        rmSync(controlPath, { force: true });
         return;
       }
     }
 
     // No port in control file — unusual; treat as stale.
     this.log(`Control file references pid ${pid} (alive) but has no port — removing stale control file`);
-    try { unlinkSync(controlPath); } catch { /* already gone */ }
+    rmSync(controlPath, { force: true });
   }
 
   private maybeRestart(): void {

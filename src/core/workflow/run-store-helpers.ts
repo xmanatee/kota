@@ -1,5 +1,6 @@
 import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import { JsonFileError } from "#core/util/json-file.js";
+import { readRepairIterations } from "./repair-iteration-output.js";
 import type {
   WorkflowQueuedRun,
   WorkflowRecoveryState,
@@ -385,18 +386,13 @@ export type RepairSummary = {
 };
 
 export function extractRepairSummary(output: unknown): RepairSummary | null {
-  if (!isPlainObject(output)) return null;
-  const iterations = output.repairIterations;
-  if (!Array.isArray(iterations) || iterations.length === 0) return null;
+  const iterations = readRepairIterations(output);
+  if (iterations.length === 0) return null;
   let totalCostUsd = 0;
   const failedChecksByAttempt: string[][] = [];
   for (const iter of iterations) {
-    if (!isPlainObject(iter)) continue;
-    const failures = Array.isArray(iter.failures) ? iter.failures : [];
-    failedChecksByAttempt.push(
-      failures.filter(isPlainObject).map((f) => (typeof f.id === "string" ? f.id : "?")),
-    );
-    totalCostUsd += typeof iter.agentCostUsd === "number" ? iter.agentCostUsd : 0;
+    failedChecksByAttempt.push(iter.failures.map((f) => f.id));
+    totalCostUsd += iter.agentCostUsd ?? 0;
   }
   return { attempts: iterations.length, failedChecksByAttempt, totalCostUsd };
 }

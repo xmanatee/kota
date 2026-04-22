@@ -82,6 +82,21 @@ describe("applyOutputSizeLimit", () => {
     const notice = result.output as { truncated: boolean; originalBytes: number; message: string };
     expect(notice.originalBytes).toBe(Buffer.byteLength(JSON.stringify(largeOutput), "utf-8"));
   });
+
+  it("replaces non-serializable output with a structured warning notice", () => {
+    const output: Record<string, unknown> = {};
+    output.self = output;
+    const result = applyOutputSizeLimit(output, undefined);
+    expect(result.output).toMatchObject({
+      truncated: true,
+      originalBytes: 0,
+      message: expect.stringContaining("could not be serialized"),
+    });
+    expect(result.warning).toMatchObject({
+      type: "step-output-truncated",
+      message: expect.stringContaining("could not be serialized"),
+    });
+  });
 });
 
 describe("executeWorkflowStep — costUsd capture", () => {

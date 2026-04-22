@@ -38,8 +38,17 @@ export function applyOutputSizeLimit(
   let serialized: string;
   try {
     serialized = JSON.stringify(output);
-  } catch {
-    return { output };
+  } catch (error) {
+    const message = `Step output could not be serialized: ${error instanceof Error ? error.message : String(error)}`;
+    const notice: TruncationNotice = {
+      truncated: true,
+      originalBytes: 0,
+      message,
+    };
+    return {
+      output: notice,
+      warning: { type: "step-output-truncated", message },
+    };
   }
   const byteLength = Buffer.byteLength(serialized, "utf-8");
   if (byteLength <= limit) return { output };
@@ -162,6 +171,7 @@ function readToolCallSummary(
   stepId: string,
   runDir: string,
   projectDir: string,
+  log: (message: string) => void,
 ): ToolCallSummaryEntry[] | undefined {
   const path = join(resolve(projectDir, runDir), "steps", `${stepId}.tool-telemetry.json`);
   if (!existsSync(path)) return undefined;
@@ -172,7 +182,8 @@ function readToolCallSummary(
     return entries
       .sort((a, b) => b[1].calls - a[1].calls)
       .map(([tool, s]) => ({ tool, count: s.calls, totalMs: s.totalMs }));
-  } catch {
+  } catch (error) {
+    log(`Tool telemetry summary for step "${stepId}" could not be read: ${error instanceof Error ? error.message : String(error)}`);
     return undefined;
   }
 }
@@ -243,7 +254,7 @@ export async function executeWorkflowStep(
     }
 
     const toolCalls = step.type === "agent"
-      ? readToolCallSummary(step.id, run.metadata.runDir, agentConfig.projectDir)
+      ? readToolCallSummary(step.id, run.metadata.runDir, agentConfig.projectDir, deps.log)
       : undefined;
     const completed: WorkflowStepResult = {
       id: step.id,

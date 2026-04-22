@@ -38,6 +38,7 @@ export class WatchTriggerManager {
     private readonly isStopping: () => boolean,
     private readonly enqueueRun: EnqueueFn,
     private readonly maybeStartNext: () => void,
+    private readonly log: (message: string) => void = () => {},
   ) {}
 
   /**
@@ -135,8 +136,11 @@ export class WatchTriggerManager {
         return;
       }
       entry.watcherId = watcherId;
-    } catch {
+    } catch (error) {
       this.entries.delete(key);
+      this.log(
+        `File watch trigger for workflow "${definition.name}" failed to start: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 

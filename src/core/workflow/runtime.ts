@@ -115,6 +115,7 @@ export class WorkflowRuntime {
       () => this.stopping,
       (def, trigger, run) => this.wfQueue.enqueue(def, trigger, run),
       () => this.maybeStartNext(),
+      (msg) => this.log(msg),
     );
   }
 
@@ -125,8 +126,8 @@ export class WorkflowRuntime {
 
     try {
       this.store.pruneRuns();
-    } catch {
-      // pruning errors must not prevent startup
+    } catch (error) {
+      this.log(`Workflow run pruning failed: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     const interrupted = this.store.recoverInterruptedRuns();

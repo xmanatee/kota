@@ -1,14 +1,21 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { WorkflowNotifyConfig } from "./types.js";
 
 const MAX_ERROR_LENGTH = 300;
 
-function readErrorFile(projectDir: string, runDir: string): string {
+function readErrorFile(
+  projectDir: string,
+  runDir: string,
+  log: (message: string) => void,
+): string {
+  const path = resolve(projectDir, runDir, "error.txt");
+  if (!existsSync(path)) return "";
   try {
-    return readFileSync(resolve(projectDir, runDir, "error.txt"), "utf-8").trim();
-  } catch {
+    return readFileSync(path, "utf-8").trim();
+  } catch (error) {
+    log(`Workflow failure alert could not read ${path}: ${error instanceof Error ? error.message : String(error)}`);
     return "";
   }
 }
@@ -45,7 +52,7 @@ export type FailureAlertOptions = {
 export function subscribeWorkflowFailureAlert(
   bus: EventBus,
   projectDir: string,
-  _log?: (message: string) => void,
+  log: (message: string) => void = () => {},
   opts?: FailureAlertOptions,
 ): () => void {
   const cooldownMs = opts?.alertCooldownMs ?? 0;
@@ -64,7 +71,7 @@ export function subscribeWorkflowFailureAlert(
       lastAlertAt.set(payload.workflow, now);
     }
 
-    const errorSummary = readErrorFile(projectDir, payload.runDir);
+    const errorSummary = readErrorFile(projectDir, payload.runDir, log);
     const text = buildAlertText(
       payload.workflow,
       payload.runId,

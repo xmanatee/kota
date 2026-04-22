@@ -17,6 +17,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
+import { readRepairIterations } from "#core/workflow/repair-iteration-output.js";
 import type {
   WorkflowRunStatus,
   WorkflowStepContext,
@@ -123,28 +124,6 @@ function readCriticVerdict(runDir: string): CriticVerdict | null {
   };
 }
 
-type RepairIteration = {
-  failures: Array<{ id: string }>;
-};
-
-function extractRepairIterations(stepOutput: unknown): RepairIteration[] {
-  if (!stepOutput || typeof stepOutput !== "object") return [];
-  const raw = (stepOutput as { repairIterations?: unknown }).repairIterations;
-  if (!Array.isArray(raw)) return [];
-  const iterations: RepairIteration[] = [];
-  for (const iter of raw) {
-    if (!iter || typeof iter !== "object") continue;
-    const rawFailures = (iter as { failures?: unknown }).failures;
-    const failures = Array.isArray(rawFailures)
-      ? rawFailures
-          .filter((f): f is Record<string, unknown> => Boolean(f) && typeof f === "object")
-          .map((f) => ({ id: typeof f.id === "string" ? f.id : "?" }))
-      : [];
-    iterations.push({ failures });
-  }
-  return iterations;
-}
-
 const AGENTS_BOOKKEEPING_SUFFIX = "AGENTS.md";
 const TASK_PATH_PREFIX = `${REPO_TASKS_DIR}/`;
 
@@ -212,7 +191,7 @@ export function writeCalibrationArtifact(
   const criticalIssueCount = criticVerdict?.critical_issues.length ?? 0;
 
   const buildOutput = ctx.stepOutputs[agentStepId];
-  const iterations = extractRepairIterations(buildOutput);
+  const iterations = readRepairIterations(buildOutput);
   const lastIteration = iterations.at(-1);
   const finalIterationFailures = lastIteration
     ? lastIteration.failures.map((f) => f.id)
@@ -270,12 +249,8 @@ function loadCalibrationArtifactsInWindow(
   windowMs: number,
   nowMs: number,
 ): LoadedArtifact[] {
-  let entries: string[];
-  try {
-    entries = readdirSync(runsDir).sort();
-  } catch {
-    return [];
-  }
+  if (!existsSync(runsDir)) return [];
+  const entries = readdirSync(runsDir).sort();
   const cutoffMs = nowMs - windowMs;
   const loaded: LoadedArtifact[] = [];
   for (const entry of entries) {

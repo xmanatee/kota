@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { Counter, Histogram, Meter } from "@opentelemetry/api";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import { readRepairIterations } from "#core/workflow/repair-iteration-output.js";
 
 type WorkflowCompletedPayload = {
   workflow: string;
@@ -38,10 +39,6 @@ type AgentStepOutput = {
   totalCostUsd?: number;
   inputTokens?: number;
   outputTokens?: number;
-  repairIterations?: Array<{
-    attempt: number;
-    failures: Array<{ id: string; severity?: string }>;
-  }>;
 };
 
 type MetricsLogger = (msg: string, err: unknown) => void;
@@ -162,8 +159,9 @@ export class WorkflowMetricsEmitter {
       if (payload.autonomyMode !== undefined) tokenAttrs.autonomy_mode = payload.autonomyMode;
       this.agentTokens.add(output.outputTokens, tokenAttrs);
     }
-    if (output.repairIterations) {
-      for (const iter of output.repairIterations) {
+    const repairIterations = readRepairIterations(output);
+    if (repairIterations.length > 0) {
+      for (const iter of repairIterations) {
         for (const failure of iter.failures) {
           const repairAttrs: Record<string, string> = {
             "workflow.name": payload.workflow,
