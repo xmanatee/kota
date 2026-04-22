@@ -1,12 +1,12 @@
 ---
 id: task-introduce-a-rich-cli-rendering-abstraction-for-all
 title: Introduce a rich CLI rendering abstraction for all terminal output
-status: backlog
+status: doing
 priority: p2
 area: modules
 summary: Replace ad-hoc console printing with a dedicated rendering layer (library or module) used by daemon mode, CLI mode, and every surface, inspired by gemini-cli / codex / pi / opencode.
 created_at: 2026-04-22T16:46:53.748Z
-updated_at: 2026-04-22T16:46:53.748Z
+updated_at: 2026-04-22T18:23:24.268Z
 ---
 
 ## Problem
@@ -63,3 +63,42 @@ extend as new surfaces land.
 - Documentation at the module's `AGENTS.md` describes the primitive
   vocabulary, theming model, and TTY-vs-non-TTY behavior at the conventions
   level without enumerating every primitive.
+
+## Plan
+
+Phase 1 — land the module (this run):
+
+- Ship `src/modules/rendering/` with the typed primitive vocabulary, a
+  pure `render(node, ctx)` path, a `TerminalTransport` that handles
+  theme and width detection plus `NO_COLOR` / `KOTA_RENDERER_THEME`
+  overrides, and unit tests that assert output against all three
+  themes.
+- Record the "one KOTA-owned module, no Ink-style framework" research
+  decision in the run directory's `peer-cli-comparison.md`.
+- Migrate the two daemon-ops status surfaces (`status-cli` and
+  `formatDaemonStatus`) onto the module as the first consumers.
+- Write the module's `AGENTS.md` at the conventions level.
+- Emit a scenarios pack (`rendering-scenarios.md`) that renders status
+  banner, session turn, tool invocation, and run summary across all
+  three themes.
+
+Phase 2 — migrate remaining surfaces (follow-up runs):
+
+- Replace `dashboard.ts`'s `styleText` calls and hand-rolled stat grid
+  with rendering primitives.
+- Migrate workflow-ops readouts (`run-show`, `run-list`, `run-cost`,
+  `run-stats`, `run-diff`, `follow`, `logs`) onto the module.
+- Migrate module CLIs (repo-tasks, history, memory, knowledge, webhook,
+  owner-questions, guardrails-audit, approval-queue, eval-harness,
+  skill-ops, agent-ops, module-manager) onto the module.
+- Migrate interactive session streaming and `cli.ts` pipe-mode output.
+- Add a lint rule that blocks ad-hoc `console.log` inside every
+  migrated directory so the prohibition is mechanically enforced.
+
+Phase 3 — peer-CLI capture (operator-facilitated):
+
+- Run the scenarios pack through gemini-cli, codex, pi, and opencode on
+  an operator workstation and pair the outputs in
+  `.kota/runs/<run-id>/peer-cli/`. The scenarios script lives at
+  `scripts/render-scenarios.mjs` so both sides share one input set.
+

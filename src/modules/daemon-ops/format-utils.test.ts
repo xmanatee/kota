@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { abbreviateRunId, formatDuration, formatTimeAgo, formatUptime, padLabel, truncateLine } from "./format-utils.js";
+import { abbreviateRunId, formatDuration, formatTimeAgo, formatUptime } from "./format-utils.js";
 
 describe("formatUptime", () => {
   beforeEach(() => { vi.useFakeTimers(); });
@@ -72,34 +72,5 @@ describe("abbreviateRunId", () => {
 
   it("handles IDs with a single hyphen", () => {
     expect(abbreviateRunId("prefix-suffix")).toBe("suffix");
-  });
-});
-
-describe("truncateLine", () => {
-  it("returns line unchanged when under limit", () => {
-    expect(truncateLine("short", 80)).toBe("short");
-  });
-
-  it("truncates with ellipsis when over limit", () => {
-    const long = "a".repeat(100);
-    const result = truncateLine(long, 50);
-    expect(result.length).toBe(50);
-    expect(result.endsWith("\u2026")).toBe(true);
-  });
-
-  it("returns exact-length line unchanged", () => {
-    const exact = "a".repeat(80);
-    expect(truncateLine(exact, 80)).toBe(exact);
-  });
-});
-
-describe("padLabel", () => {
-  it("pads to default width of 12", () => {
-    expect(padLabel("Foo:")).toBe("Foo:        ");
-    expect(padLabel("Foo:").length).toBe(12);
-  });
-
-  it("pads to custom width", () => {
-    expect(padLabel("Foo:", 8)).toBe("Foo:    ");
   });
 });

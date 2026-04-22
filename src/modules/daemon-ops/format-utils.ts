@@ -32,16 +32,3 @@ export function abbreviateRunId(runId: string): string {
   }
   return runId.slice(-8);
 }
-
-export function terminalWidth(): number {
-  return process.stdout.columns || 80;
-}
-
-export function truncateLine(text: string, maxWidth: number): string {
-  if (text.length <= maxWidth) return text;
-  return `${text.slice(0, maxWidth - 1)}\u2026`;
-}
-
-export function padLabel(label: string, width = 12): string {
-  return label.padEnd(width);
-}

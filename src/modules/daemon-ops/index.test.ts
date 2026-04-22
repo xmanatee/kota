@@ -87,7 +87,11 @@ describe("daemonModule", () => {
   });
 
   it("depends on repo-tasks for the task queue snapshot", () => {
-    expect(daemonModule.dependencies).toEqual(["repo-tasks"]);
+    expect(daemonModule.dependencies).toContain("repo-tasks");
+  });
+
+  it("depends on the rendering module for status output", () => {
+    expect(daemonModule.dependencies).toContain("rendering");
   });
 
 });
@@ -259,7 +263,7 @@ describe("formatDaemonStatus", () => {
   it("shows managed status", () => {
     const status = makeLiveStatus();
     expect(formatDaemonStatus(status, true)).toContain("yes (OS service installed)");
-    expect(formatDaemonStatus(status, false)).toContain("Managed:    no");
+    expect(formatDaemonStatus(status, false)).toMatch(/Managed:\s+no/);
   });
 
   it("shows cost when available", () => {
@@ -294,6 +298,6 @@ describe("formatDaemonStatus", () => {
       },
     });
     const output = formatDaemonStatus(status, false);
-    expect(output).toContain("Paused:     yes");
+    expect(output).toMatch(/Paused:\s+yes/);
   });
 });

@@ -66,6 +66,7 @@ const workflowModule: KotaModule = {
   name: "workflow-ops",
   version: "1.0.0",
   description: "Workflow CLI surface — kota workflow list/show/run/control/validate/definitions/deps/logs/gc/export/diff/cost/stats",
+  dependencies: ["rendering"],
   commands: (ctx) => [buildWorkflowCommand(ctx)],
   routes: (ctx) => workflowRoutes(ctx),
 };

@@ -1,6 +1,8 @@
 import type { Command } from "commander";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { line, plain, stack } from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
 import { formatDate, formatDuration, listRuns, statusIcon } from "../utils.js";
 import type { HistoryStats } from "./workflow-history.js";
 import { computeHistoryStats, loadRunsInWindow } from "./workflow-history.js";
@@ -58,7 +60,7 @@ export function registerRunListCommands(wfCmd: Command): void {
       }
 
       if (page.length === 0) {
-        console.log("No runs found.");
+        print(line(plain("No runs found.")));
         return;
       }
 
@@ -69,12 +71,12 @@ export function registerRunListCommands(wfCmd: Command): void {
       const costWidth = 8;
       const dateWidth = 18;
 
-      console.log(
+      const header = line(plain(
         `${"ID".padEnd(idWidth)} ${"Workflow".padEnd(wfWidth)} ${"St".padEnd(stWidth)} ${"Duration".padEnd(durWidth)} ${"Cost".padEnd(costWidth)} ${"Started".padEnd(dateWidth)} Trigger`,
-      );
-      console.log("-".repeat(120));
+      ));
+      const rule = line(plain("-".repeat(120)));
 
-      for (const r of page) {
+      const rows = page.map((r) => {
         const id = r.id.padEnd(idWidth);
         const wf = r.workflow.padEnd(wfWidth);
         const st = statusIcon(r.status).padEnd(stWidth);
@@ -87,8 +89,10 @@ export function registerRunListCommands(wfCmd: Command): void {
           ? `${r.trigger.event} ← ${r.triggeredByRunId}`
           : r.trigger.event;
         const tagStr = r.tags && r.tags.length > 0 ? ` [${r.tags.join(",")}]` : "";
-        console.log(`${id} ${wf} ${st} ${dur} ${cost} ${started} ${trigger}${tagStr}`);
-      }
+        return line(plain(`${id} ${wf} ${st} ${dur} ${cost} ${started} ${trigger}${tagStr}`));
+      });
+
+      print(stack(header, rule, ...rows));
     });
 
   wfCmd
