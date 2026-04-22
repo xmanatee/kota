@@ -1,12 +1,12 @@
 ---
 id: task-make-agent-harness-pluggable-beyond-claude-agent-s
 title: Make agent harness pluggable beyond claude-agent-sdk
-status: backlog
+status: done
 priority: p1
 area: core
 summary: Allow swapping the agent harness (claude-agent-sdk, codex agent SDK, OpenAI-compatible loops) without preferring one.
 created_at: 2026-04-22T03:21:30.589Z
-updated_at: 2026-04-22T03:21:30.589Z
+updated_at: 2026-04-22T06:29:01.136Z
 ---
 
 ## Problem

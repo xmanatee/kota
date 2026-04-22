@@ -12,6 +12,9 @@ vi.mock("#core/agent-sdk/index.js", async () => {
   const actual = await vi.importActual("../agent-sdk/index.js");
   return { ...actual, executeWithAgentSDK: vi.fn() };
 });
+
+import "#modules/claude-agent-harness/index.js";
+
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 
 function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
@@ -414,6 +417,7 @@ describe("parallel step groups with agent steps", () => {
       permissionMode: "bypassPermissions",
       settingSources: [],
       autonomyMode: "autonomous",
+      harness: "claude-agent-sdk",
       ...overrides,
     };
   }

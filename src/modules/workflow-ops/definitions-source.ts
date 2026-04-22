@@ -12,5 +12,7 @@ export function getValidatedWorkflowDefinitions(
   ctx: ModuleContext,
   projectDir = process.cwd(),
 ): WorkflowDefinition[] {
-  return validateWorkflowDefinitions(getWorkflowDefinitions(ctx), projectDir);
+  return validateWorkflowDefinitions(getWorkflowDefinitions(ctx), projectDir, {
+    defaultAgentHarness: ctx.config.defaultAgentHarness,
+  });
 }

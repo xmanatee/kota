@@ -240,9 +240,12 @@ function checkConfigFile(configPath: string, label: string): CheckResult {
 
 async function checkWorkflowDefinitions(projectDir: string): Promise<CheckResult> {
   try {
-    const loader = await loadModuleMetadata(loadConfig(projectDir), projectDir, false);
+    const config = loadConfig(projectDir);
+    const loader = await loadModuleMetadata(config, projectDir, false);
     const defs = loader.getContributedWorkflows();
-    const validated = validateWorkflowDefinitions(defs, projectDir);
+    const validated = validateWorkflowDefinitions(defs, projectDir, {
+      defaultAgentHarness: config.defaultAgentHarness,
+    });
     return pass("Workflows: discoverable definitions", `${validated.length} valid`);
   } catch (err) {
     if (err instanceof WorkflowDefinitionError) {

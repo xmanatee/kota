@@ -160,7 +160,9 @@ function handleDirtyCompletion(
 
 export function loadDefinitions(state: WorkflowRuntimeDispatchState): WorkflowDefinition[] {
   const definitions = state.workflowInputs ?? [];
-  const validated = validateWorkflowDefinitions(definitions, state.projectDir);
+  const validated = validateWorkflowDefinitions(definitions, state.projectDir, {
+    defaultAgentHarness: state.config?.defaultAgentHarness,
+  });
   state.store.setDefinitionsLoadedAt(new Date().toISOString());
   return validated;
 }

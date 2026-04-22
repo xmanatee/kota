@@ -2,10 +2,8 @@ import { Command } from "commander";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { expandAlias, loadConfig } from "#core/config/config.js";
 import { setSkipConfirmations } from "#core/util/confirm.js";
-import {
-  buildClaudeCodeSystemPrompt,
-  executeWithAgentSDK,
-} from "./core/agent-sdk/index.js";
+import { resolveAgentHarness } from "./core/agent-harness/index.js";
+import { buildClaudeCodeSystemPrompt } from "./core/agent-sdk/index.js";
 import { runAgentLoop } from "./core/loop/loop.js";
 import { formatAuthError } from "./core/model/auth-error.js";
 import { createModelClient } from "./core/model/model-client.js";
@@ -83,7 +81,12 @@ program
         console.error("agent-sdk provider requires a prompt. Interactive mode is not supported.");
         process.exit(1);
       }
-      const result = await executeWithAgentSDK(prompt, {
+      // Operators can override the adapter via config.defaultAgentHarness;
+      // the --provider=agent-sdk shortcut historically meant claude-agent-sdk.
+      const harnessName = config.defaultAgentHarness ?? "claude-agent-sdk";
+      const harness = resolveAgentHarness(harnessName);
+      const result = await harness.run({
+        prompt,
         model,
         verbose: opts.verbose || config.verbose || false,
         cwd: process.cwd(),
@@ -194,7 +197,10 @@ async function checkPipeMode() {
       if (config.modelProvider?.type === "agent-sdk") {
         const modelSpec = config.model || "claude-sonnet-4-6";
         const { model } = parseModelString(modelSpec);
-        const result = await executeWithAgentSDK(piped, {
+        const harnessName = config.defaultAgentHarness ?? "claude-agent-sdk";
+        const harness = resolveAgentHarness(harnessName);
+        const result = await harness.run({
+          prompt: piped,
           model,
           verbose: config.verbose,
           cwd: process.cwd(),
@@ -219,13 +225,17 @@ async function checkPipeMode() {
 }
 
 async function main() {
+  // Discover project modules first so their registration side effects (model
+  // clients, agent harness adapters, etc.) run before any pipe path or action
+  // handler resolves something from a core registry.
+  const projectModules = await discoverProjectModules();
+  const modules = await discoverModules(undefined, false);
+
   const wasPiped = await checkPipeMode();
   if (wasPiped) return;
 
   const config = loadConfig();
   const loader = new ModuleLoader(config, false, { commandsOnly: true });
-  const projectModules = await discoverProjectModules();
-  const modules = await discoverModules(undefined, false);
   await loader.loadAll(projectModules, modules);
   for (const cmd of loader.getCommands()) {
     program.addCommand(cmd);

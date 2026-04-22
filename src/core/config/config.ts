@@ -71,6 +71,16 @@ export type KotaConfig = {
   agentModels?: Record<string, string>;
 
   /**
+   * Name of the agent harness adapter agent steps default to when a step does
+   * not declare its own `harness`. Must match a harness registered by a loaded
+   * module (e.g. `"claude-agent-sdk"` or `"thin"`). There is no implicit
+   * default — KOTA does not silently pick claude-agent-sdk when unset. Leave
+   * undefined only if every agent step in your workflows declares `harness`
+   * explicitly.
+   */
+  defaultAgentHarness?: string;
+
+  /**
    * Per-workflow webhook secrets for `POST /webhooks/:workflowName`.
    * Keys are workflow names; each entry must have a `secret` string.
    * Keep this in `.kota/config.json` (project-local, gitignored) to avoid

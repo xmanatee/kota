@@ -64,6 +64,10 @@
       },
       "type": "object"
     },
+    "defaultAgentHarness": {
+      "description": "Name of the agent harness adapter agent steps default to when a step does not declare its own `harness`. Must match a harness registered by a loaded module (e.g. `\"claude-agent-sdk\"` or `\"thin\"`). There is no implicit default — KOTA does not silently pick claude-agent-sdk when unset. Leave undefined only if every agent step in your workflows declares `harness` explicitly.",
+      "type": "string"
+    },
     "editorModel": {
       "type": "string"
     },

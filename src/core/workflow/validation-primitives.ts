@@ -8,6 +8,15 @@ export class WorkflowDefinitionError extends Error {
   }
 }
 
+export type WorkflowValidationOptions = {
+  /**
+   * Fallback harness name for agent steps that omit `harness`. When both the
+   * step and this field are undefined the validator rejects the step — there
+   * is no implicit default harness in code.
+   */
+  defaultAgentHarness?: string;
+};
+
 export function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }

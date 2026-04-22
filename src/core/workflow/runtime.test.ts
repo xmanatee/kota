@@ -26,6 +26,8 @@ vi.mock("#core/agent-sdk/index.js", async () => {
   };
 });
 
+import "#modules/claude-agent-harness/index.js";
+
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 
 function wait(ms: number): Promise<void> {
@@ -68,6 +70,7 @@ describe("WorkflowRuntime", () => {
 
     const bus = new EventBus();
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 10,
@@ -116,6 +119,7 @@ describe("WorkflowRuntime", () => {
     });
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 1000,
@@ -197,6 +201,7 @@ describe("WorkflowRuntime", () => {
     ]);
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 10,
@@ -236,6 +241,7 @@ describe("WorkflowRuntime", () => {
     });
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 10,
@@ -312,6 +318,7 @@ describe("WorkflowRuntime", () => {
     });
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 10,
@@ -362,6 +369,7 @@ describe("WorkflowRuntime", () => {
     });
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 1000,
@@ -443,6 +451,7 @@ describe("WorkflowRuntime", () => {
     });
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 10,
@@ -523,6 +532,7 @@ describe("WorkflowRuntime", () => {
     });
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus: new EventBus(),
       projectDir,
       idleIntervalMs: 10,
@@ -585,6 +595,7 @@ describe("WorkflowRuntime", () => {
 
     const logs: string[] = [];
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus: new EventBus(),
       projectDir,
       idleIntervalMs: 10,
@@ -642,6 +653,7 @@ describe("WorkflowRuntime", () => {
     });
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus: new EventBus(),
       projectDir,
       idleIntervalMs: 10,
@@ -723,6 +735,7 @@ describe("WorkflowRuntime", () => {
 
     const bus = new EventBus();
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 1000,
@@ -818,6 +831,7 @@ describe("WorkflowRuntime", () => {
 
     const firstBus = new EventBus();
     const firstRuntime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus: firstBus,
       projectDir,
       idleIntervalMs: 1000,
@@ -845,6 +859,7 @@ describe("WorkflowRuntime", () => {
     });
 
     const secondRuntime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus: secondBus,
       projectDir,
       idleIntervalMs: 1000,
@@ -867,6 +882,7 @@ describe("WorkflowRuntime", () => {
     );
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus: new EventBus(),
       projectDir,
       workflows: [],
@@ -883,6 +899,7 @@ describe("WorkflowRuntime", () => {
     });
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 10,
@@ -944,6 +961,7 @@ describe("WorkflowRuntime", () => {
     );
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus: new EventBus(),
       projectDir,
       idleIntervalMs: 10,
@@ -1020,6 +1038,7 @@ describe("WorkflowRuntime", () => {
     });
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 1_000,
@@ -1086,6 +1105,7 @@ describe("WorkflowRuntime", () => {
 
     const logs: string[] = [];
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 10_000,
@@ -1126,6 +1146,7 @@ describe("WorkflowRuntime", () => {
     });
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 10,
@@ -1198,6 +1219,7 @@ describe("WorkflowRuntime", () => {
     });
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 1_000,
@@ -1263,6 +1285,7 @@ describe("WorkflowRuntime", () => {
     });
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 10,
@@ -1317,6 +1340,7 @@ describe("WorkflowRuntime", () => {
     });
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 1_000,
@@ -1356,6 +1380,7 @@ describe("WorkflowRuntime", () => {
     });
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 10_000,
@@ -1386,6 +1411,7 @@ describe("WorkflowRuntime", () => {
     const bus = new EventBus();
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 10_000,
@@ -1446,6 +1472,7 @@ describe("WorkflowRuntime", () => {
     });
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 10_000,
@@ -1487,6 +1514,7 @@ describe("WorkflowRuntime", () => {
     );
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus: new EventBus(),
       projectDir,
       idleIntervalMs: 20,
@@ -1541,6 +1569,7 @@ describe("WorkflowRuntime", () => {
     writeFileSync(join(projectDir, ".kota", PAUSE_SIGNAL_FILE), "");
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 10,
@@ -1573,6 +1602,7 @@ describe("WorkflowRuntime", () => {
     writeFileSync(pausePath, "");
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 20,
@@ -1600,6 +1630,7 @@ describe("WorkflowRuntime", () => {
     const logs: string[] = [];
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 20,
@@ -1659,6 +1690,7 @@ describe("WorkflowRuntime", () => {
 
     const bus = new EventBus();
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 20,
@@ -1723,6 +1755,7 @@ describe("WorkflowRuntime", () => {
     ];
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 20,
@@ -1765,6 +1798,7 @@ describe("WorkflowRuntime", () => {
 
     // Start with a workflow that has an interval trigger
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus,
       projectDir,
       idleIntervalMs: 20,
@@ -1813,6 +1847,7 @@ describe("WorkflowRuntime", () => {
     );
 
     const runtime = new WorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk" },
       bus: new EventBus(),
       projectDir,
       idleIntervalMs: 10,
@@ -1905,6 +1940,7 @@ describe("WorkflowRuntime", () => {
       );
 
       const runtime = new WorkflowRuntime({
+        config: { defaultAgentHarness: "claude-agent-sdk" },
         bus,
         projectDir,
         idleIntervalMs: 10,
@@ -1959,6 +1995,7 @@ describe("WorkflowRuntime", () => {
       });
 
       const runtime = new WorkflowRuntime({
+        config: { defaultAgentHarness: "claude-agent-sdk" },
         bus,
         projectDir,
         idleIntervalMs: 10,
@@ -2035,6 +2072,7 @@ describe("WorkflowRuntime", () => {
       );
 
       const runtime = new WorkflowRuntime({
+        config: { defaultAgentHarness: "claude-agent-sdk" },
         bus,
         projectDir,
         idleIntervalMs: 10,
@@ -2113,6 +2151,7 @@ describe("WorkflowRuntime", () => {
       // agentConcurrency=1 (default): agent workflow fills the agent slot
       // codeConcurrency=4 (default): code-only workflow can still run
       const runtime = new WorkflowRuntime({
+        config: { defaultAgentHarness: "claude-agent-sdk" },
         bus,
         projectDir,
         idleIntervalMs: 10,
@@ -2161,6 +2200,7 @@ describe("WorkflowRuntime", () => {
       });
 
       const runtime = new WorkflowRuntime({
+        config: { defaultAgentHarness: "claude-agent-sdk" },
         bus,
         projectDir,
         idleIntervalMs: 10,
@@ -2205,6 +2245,7 @@ describe("WorkflowRuntime", () => {
   describe("graceful drain on stop", () => {
     it("stops cleanly with no active runs", async () => {
       const runtime = new WorkflowRuntime({
+        config: { defaultAgentHarness: "claude-agent-sdk" },
         bus: new EventBus(),
         projectDir,
         idleIntervalMs: 60_000,
@@ -2242,6 +2283,7 @@ describe("WorkflowRuntime", () => {
       );
 
       const runtime = new WorkflowRuntime({
+        config: { defaultAgentHarness: "claude-agent-sdk" },
         bus: new EventBus(),
         projectDir,
         idleIntervalMs: 10,
@@ -2290,6 +2332,7 @@ describe("WorkflowRuntime", () => {
       );
 
       const runtime = new WorkflowRuntime({
+        config: { defaultAgentHarness: "claude-agent-sdk" },
         bus: new EventBus(),
         projectDir,
         idleIntervalMs: 10,
@@ -2338,6 +2381,7 @@ describe("WorkflowRuntime", () => {
       );
 
       const runtime = new WorkflowRuntime({
+        config: { defaultAgentHarness: "claude-agent-sdk" },
         bus: new EventBus(),
         projectDir,
         idleIntervalMs: 10,
@@ -2371,6 +2415,7 @@ describe("WorkflowRuntime", () => {
     it("disableWorkflow sets enabled false, records source value, and cancels queued runs", async () => {
       const bus = new EventBus();
       const runtime = new WorkflowRuntime({
+        config: { defaultAgentHarness: "claude-agent-sdk" },
         bus,
         projectDir,
         idleIntervalMs: 50_000,
@@ -2408,6 +2453,7 @@ describe("WorkflowRuntime", () => {
     it("enableWorkflow re-enables a disabled workflow and triggers dispatch", async () => {
       const bus = new EventBus();
       const runtime = new WorkflowRuntime({
+        config: { defaultAgentHarness: "claude-agent-sdk" },
         bus,
         projectDir,
         idleIntervalMs: 50_000,
@@ -2438,6 +2484,7 @@ describe("WorkflowRuntime", () => {
     it("reloadWorkflowDefinitions clears runtime overrides", async () => {
       const bus = new EventBus();
       const runtime = new WorkflowRuntime({
+        config: { defaultAgentHarness: "claude-agent-sdk" },
         bus,
         projectDir,
         idleIntervalMs: 50_000,
@@ -2468,6 +2515,7 @@ describe("WorkflowRuntime", () => {
     it("disableWorkflow returns notFound for unknown workflow name", () => {
       const bus = new EventBus();
       const runtime = new WorkflowRuntime({
+        config: { defaultAgentHarness: "claude-agent-sdk" },
         bus,
         projectDir,
         idleIntervalMs: 50_000,
@@ -2514,7 +2562,10 @@ describe("WorkflowRuntime", () => {
         projectDir,
         idleIntervalMs: 50_000,
         workflows: [],
-        config: { scheduler: { dispatchWindow: { start: "03:00", end: "03:01", days: ["wed"] } } },
+        config: {
+          defaultAgentHarness: "claude-agent-sdk",
+          scheduler: { dispatchWindow: { start: "03:00", end: "03:01", days: ["wed"] } },
+        },
       });
       // If today is wednesday between 03:00 and 03:01 this would be open; fine for a unit test
       // We just verify the shape: if blocked, opensAt is an ISO string; if not blocked, no error.

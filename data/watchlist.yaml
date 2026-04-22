@@ -163,3 +163,6 @@ resources:
   - url: https://vercel.com/blog/category/ai
     added: "2026-04-19"
     status: inaccessible
+  - url: https://github.com/t3dotgg
+    added: "2026-04-22"
+    notes: "Theo Browne's GitHub user page — entry point for t3 code, his harness-agnostic coding agent. Watch the active repos here for harness boundary patterns relevant to KOTA agent-harness pluggability work. Replace with the specific repo URL once t3 code's canonical repo is confirmed."

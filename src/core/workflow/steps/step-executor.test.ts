@@ -36,6 +36,8 @@ vi.mock("#core/agent-sdk/index.js", async () => {
   };
 });
 
+import "#modules/claude-agent-harness/index.js";
+
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 
 function makeStep(
@@ -52,6 +54,7 @@ function makeStep(
     permissionMode: "bypassPermissions",
     settingSources: [],
     autonomyMode: "autonomous",
+    harness: "claude-agent-sdk",
     ...overrides,
   };
 }

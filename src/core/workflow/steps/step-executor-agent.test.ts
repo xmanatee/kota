@@ -25,6 +25,12 @@ vi.mock("#core/agent-sdk/index.js", async () => {
   };
 });
 
+// Registers the claude agent harness. After the harness refactor the step
+// executor dispatches through the registry; importing this module triggers
+// side-effect registration so `resolveAgentHarness("claude-agent-sdk")` works
+// and the adapter still routes through the mocked executeWithAgentSDK.
+import "#modules/claude-agent-harness/index.js";
+
 import type { WorkflowRunMetadata } from "../run-types.js";
 import type { WorkflowAgentStep, WorkflowDefinition } from "../types.js";
 import { AgentWriteScopeViolationError } from "./agent-write-scope.js";
@@ -71,6 +77,7 @@ function makeAgentStep(
     permissionMode: "bypassPermissions",
     settingSources: [],
     autonomyMode: "autonomous",
+    harness: "claude-agent-sdk",
     ...overrides,
   };
 }

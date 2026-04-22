@@ -1,9 +1,11 @@
 /**
- * Agent SDK delegate backend — routes delegate tasks through Claude Code's
- * full agent runtime via @anthropic-ai/claude-agent-sdk.
+ * Agent harness delegate backend — routes delegate tasks through a registered
+ * agent harness. The default is claude-agent-sdk for backwards-compat with the
+ * previous `backend: "agent-sdk"` selection, but operators can point at any
+ * registered harness by setting `harness` on the delegate config.
  */
 
-import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
+import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import {
   buildSubAgentPrompt,
   EXECUTE_PROMPT,
@@ -41,6 +43,14 @@ export type AgentSDKDelegateConfig = {
   costTracker?: CostTracker;
   transport?: Transport;
   model?: string;
+  /**
+   * Registered agent-harness name to run this delegate on. Falls through to
+   * `"claude-agent-sdk"` so the historical `backend: "agent-sdk"` delegate
+   * shape still lands on the Claude Agent SDK when the caller leaves this
+   * unset — callers that want the operator-configured default should read
+   * `config.defaultAgentHarness` before invoking.
+   */
+  harness?: string;
 };
 
 export async function runDelegateAgentSDK(
@@ -62,16 +72,18 @@ export async function runDelegateAgentSDK(
   const taskPreview =
     taskChars.length > 60 ? `${taskChars.slice(0, 57).join("")}...` : task;
 
+  const harnessName = config.harness ?? "claude-agent-sdk";
+  const harness = resolveAgentHarness(harnessName);
+
   if (transport) {
     transport.emit({
       type: "status",
-      message: `[kota] delegate(${mode}:agent-sdk) starting: ${taskPreview}`,
+      message: `[kota] delegate(${mode}:${harnessName}) starting: ${taskPreview}`,
     });
   }
-
-  const result = await executeWithAgentSDK(
-    task,
+  const result = await harness.run(
     {
+      prompt: task,
       model: config.model,
       systemPrompt,
       allowedTools,
@@ -85,7 +97,7 @@ export async function runDelegateAgentSDK(
             transport.emit({
               type: "progress",
               content: text,
-              source: `delegate(${mode}:agent-sdk)`,
+              source: `delegate(${mode}:${harnessName})`,
             });
             return true;
           },
@@ -106,15 +118,15 @@ export async function runDelegateAgentSDK(
   if (transport) {
     transport.emit({
       type: "status",
-      message: `[kota] delegate(${mode}:agent-sdk) done — ${result.turns} turn(s)${result.sessionId ? ` [${result.sessionId.slice(0, 8)}]` : ""}`,
+      message: `[kota] delegate(${mode}:${harnessName}) done — ${result.turns} turn(s)${result.sessionId ? ` [${result.sessionId.slice(0, 8)}]` : ""}`,
     });
   }
 
   const meta: DelegateMetadata = {
-    mode: `${mode}:agent-sdk`,
+    mode: `${mode}:${harnessName}`,
     turnsUsed: result.turns,
     turnsMax: undefined,
-    toolsUsed: ["agent-sdk"],
+    toolsUsed: [harnessName],
     completionReason,
     urlsFetched: [],
     searchQueries: [],

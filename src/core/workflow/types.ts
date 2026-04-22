@@ -131,6 +131,14 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
   agentName?: string;
   /** Path to the prompt markdown file, relative to the owning module's root. */
   promptPath?: string;
+  /**
+   * Name of the agent harness adapter this step should run on. Must match a
+   * harness registered with the core `agent-harness` registry. When omitted,
+   * the step inherits `KotaConfig.defaultAgentHarness`; the validator rejects
+   * any step that leaves the harness unset with no config default. There is
+   * no hidden fallback to `claude-agent-sdk`.
+   */
+  harness?: string;
   model: string;
   /**
    * How hard the model should think on each step. Required — KOTA workflows
@@ -432,6 +440,14 @@ export type WorkflowAgentStep = WorkflowBaseStep & {
   type: "agent";
   /** Name of the agent definition used, if the step was configured via agentName. */
   agentName?: string;
+  /**
+   * Registered agent harness name. Populated by the validator when the step
+   * declares `harness`, or by the validator from `KotaConfig.defaultAgentHarness`
+   * when it has config access. Left undefined when neither source carried a
+   * harness at validation time — the step executor then resolves from runtime
+   * config and fails loudly if still unset.
+   */
+  harness?: string;
   promptPath: string;
   /**
    * Absolute filesystem root inherited from the enclosing workflow definition.

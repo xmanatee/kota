@@ -14,6 +14,7 @@ import {
   expectOptionalFunction,
   expectOptionalInteger,
   WorkflowDefinitionError,
+  type WorkflowValidationOptions,
 } from "#core/workflow/validation-primitives.js";
 import { validateAgentStep } from "./validate-agent-step.js";
 import { validateCodeStep } from "./validate-code-step.js";
@@ -24,6 +25,7 @@ export function validateForeachStep(
   index: number,
   moduleRoot: string,
   workflowDefaultAutonomyMode: AutonomyMode | undefined,
+  options: WorkflowValidationOptions,
 ): WorkflowForeachStep {
   if (step.items === undefined || step.items === null) {
     throw new WorkflowDefinitionError(
@@ -88,6 +90,7 @@ export function validateForeachStep(
       innerIndex,
       moduleRoot,
       workflowDefaultAutonomyMode,
+      options,
     ) as WorkflowAgentStep;
   });
 

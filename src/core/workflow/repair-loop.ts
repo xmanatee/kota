@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import {
   buildClaudeCodeSystemPrompt,
   composeCanUseTools,
   createAgentCommitGuard,
   createDaemonHostControlGuard,
-  executeWithAgentSDK,
 } from "#core/agent-sdk/index.js";
 import type { SDKMessage } from "#core/agent-sdk/types.js";
 import type { WorkflowRepairCheck, WorkflowStepContext } from "./run-types.js";
@@ -115,9 +115,16 @@ async function executeRepairAgentIteration(
     contextStartDir,
     agentConfig.projectDir,
   );
-  const result = await executeWithAgentSDK(
-    repairPrompt,
+  const harnessName = step.harness ?? agentConfig.config?.defaultAgentHarness;
+  if (!harnessName) {
+    throw new Error(
+      `Repair agent for step "${step.id}" has no harness — set harness on the step or configure KotaConfig.defaultAgentHarness.`,
+    );
+  }
+  const harness = resolveAgentHarness(harnessName);
+  const result = await harness.run(
     {
+      prompt: repairPrompt,
       model: resolveAgentModel(step, agentConfig),
       cwd: agentConfig.projectDir,
       systemPrompt,

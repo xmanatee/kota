@@ -8,6 +8,8 @@ vi.mock("#core/agent-sdk/index.js", () => ({
   executeWithAgentSDK: (...args: unknown[]) => mockExecuteWithAgentSDK(...args),
 }));
 
+await import("#modules/claude-agent-harness/index.js");
+
 const { runDelegateAgentSDK } = await import("./delegate-agent-sdk.js");
 
 function mockTransport(): Transport & {

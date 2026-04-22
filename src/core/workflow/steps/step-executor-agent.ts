@@ -1,12 +1,12 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import {
   buildClaudeCodeSystemPrompt,
   composeCanUseTools,
   createAgentCommitGuard,
   createDaemonHostControlGuard,
   createOwnerQuestionMcpServers,
-  executeWithAgentSDK,
   KOTA_OWNER_QUESTIONS_MCP_TOOL,
 } from "#core/agent-sdk/index.js";
 import type { SDKMessage, SDKPermissionMode } from "#core/agent-sdk/types.js";
@@ -373,31 +373,43 @@ export async function executeAgentStep(
       step.disallowedTools,
     );
     try {
-      const result = await executeWithAgentSDK(prompt, {
-        model: resolveAgentModel(step, agentConfig),
-        cwd: agentConfig.projectDir,
-        systemPrompt,
-        maxTurns: step.maxTurns,
-        effort: step.effort,
-        thinkingEnabled: step.thinkingEnabled,
-        thinkingBudget: step.thinkingBudget,
-        allowedTools: sdkPermissions.allowedTools,
-        disallowedTools: sdkPermissions.disallowedTools,
-        mcpServers: createOwnerQuestionMcpServers(
-          `workflow:${metadata.workflow}/${metadata.id}/${step.id}`,
-        ),
-        permissionMode: sdkPermissions.permissionMode,
-        persistSession: false,
-        settingSources: step.settingSources,
-        abortController,
-        onMessage: trackedMessage,
-        canUseTool: composeCanUseTools(
-          createDaemonHostControlGuard(),
-          createAgentCommitGuard(),
-        ),
-      }, {
-        write: () => true,
-      });
+      const harnessName =
+        step.harness ?? agentConfig.config?.defaultAgentHarness;
+      if (!harnessName) {
+        throw new Error(
+          `Agent step "${step.id}" has no harness — set harness on the step or configure KotaConfig.defaultAgentHarness. The core does not pick a harness by default.`,
+        );
+      }
+      const harness = resolveAgentHarness(harnessName);
+      const result = await harness.run(
+        {
+          prompt,
+          model: resolveAgentModel(step, agentConfig),
+          cwd: agentConfig.projectDir,
+          systemPrompt,
+          maxTurns: step.maxTurns,
+          effort: step.effort,
+          thinkingEnabled: step.thinkingEnabled,
+          thinkingBudget: step.thinkingBudget,
+          allowedTools: sdkPermissions.allowedTools,
+          disallowedTools: sdkPermissions.disallowedTools,
+          mcpServers: createOwnerQuestionMcpServers(
+            `workflow:${metadata.workflow}/${metadata.id}/${step.id}`,
+          ),
+          permissionMode: sdkPermissions.permissionMode,
+          persistSession: false,
+          settingSources: step.settingSources,
+          abortController,
+          onMessage: trackedMessage,
+          canUseTool: composeCanUseTools(
+            createDaemonHostControlGuard(),
+            createAgentCommitGuard(),
+          ),
+        },
+        {
+          write: () => true,
+        },
+      );
       if (result.isError) {
         const reason = result.subtype ?? "error";
         const detail = result.text.trim() || "Agent step returned an error result";

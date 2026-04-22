@@ -11,6 +11,7 @@ import {
   expectOptionalFunction,
   expectOptionalInteger,
   WorkflowDefinitionError,
+  type WorkflowValidationOptions,
 } from "#core/workflow/validation-primitives.js";
 import { validateAgentStep } from "./validate-agent-step.js";
 
@@ -22,6 +23,7 @@ export function validateParallelGroup(
   index: number,
   moduleRoot: string,
   workflowDefaultAutonomyMode: AutonomyMode | undefined,
+  options: WorkflowValidationOptions,
 ): WorkflowParallelGroup {
   if (!Array.isArray(step.steps) || step.steps.length === 0) {
     throw new WorkflowDefinitionError(
@@ -49,6 +51,7 @@ export function validateParallelGroup(
         index,
         moduleRoot,
         workflowDefaultAutonomyMode,
+        options,
         childIndex,
       ) as WorkflowAgentStep;
     }

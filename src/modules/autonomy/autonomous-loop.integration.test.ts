@@ -31,6 +31,8 @@ vi.mock("#core/agent-sdk/index.js", async () => {
   };
 });
 
+import "#modules/claude-agent-harness/index.js";
+
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 
 function wait(ms: number): Promise<void> {
@@ -224,6 +226,7 @@ describe("autonomous workflow loop integration", () => {
       });
 
       const runtime = new WorkflowRuntime({
+        config: { defaultAgentHarness: "claude-agent-sdk" },
         bus,
         projectDir,
         idleIntervalMs: 10,
@@ -340,6 +343,7 @@ describe("autonomous workflow loop integration", () => {
 
       const bus = new EventBus();
       const runtime = new WorkflowRuntime({
+        config: { defaultAgentHarness: "claude-agent-sdk" },
         bus,
         projectDir,
         idleIntervalMs: 10,
@@ -408,7 +412,9 @@ describe("autonomous workflow loop integration", () => {
         // Validation must succeed against the external project dir. If
         // promptPath were resolved against projectDir, every agent step would
         // fail with `promptPath does not exist`.
-        const compiled = validateWorkflowDefinitions(rawDefs, externalProjectDir);
+        const compiled = validateWorkflowDefinitions(rawDefs, externalProjectDir, {
+          defaultAgentHarness: "claude-agent-sdk",
+        });
         expect(compiled.length).toBe(rawDefs.length);
         for (const def of compiled) {
           expect(def.moduleRoot).not.toBe(externalProjectDir);
@@ -454,6 +460,7 @@ describe("autonomous workflow loop integration", () => {
     const compiled = validateWorkflowDefinitions(
       rawDefs.filter((d) => d.name === "attention-digest" || d.name === "improver"),
       projectDir,
+      { defaultAgentHarness: "claude-agent-sdk" },
     );
 
     const attentionDigest = compiled.find((d) => d.name === "attention-digest")!;

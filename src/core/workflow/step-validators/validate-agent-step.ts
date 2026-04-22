@@ -19,6 +19,7 @@ import {
   expectRelativePath,
   isPlainObject,
   WorkflowDefinitionError,
+  type WorkflowValidationOptions,
 } from "#core/workflow/validation-primitives.js";
 
 const VALID_SETTING_SOURCES = new Set(["project", "local", "user"]);
@@ -134,6 +135,7 @@ export function validateAgentStep(
   index: number,
   moduleRoot: string,
   workflowDefaultAutonomyMode: AutonomyMode | undefined,
+  options: WorkflowValidationOptions,
   childIndex?: number,
 ): WorkflowAgentStep {
   const stepLabel = childIndex !== undefined
@@ -230,10 +232,18 @@ export function validateAgentStep(
     );
   }
 
+  const declaredHarness = expectOptionalString(
+    step.harness,
+    `${stepLabel}.harness`,
+    definitionPath,
+  );
+  const harness = declaredHarness ?? options.defaultAgentHarness;
+
   return {
     id: expectName(step.id, `${stepLabel}.id`, definitionPath),
     type: "agent",
     agentName,
+    harness,
     promptPath,
     moduleRoot,
     model,

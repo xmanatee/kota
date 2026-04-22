@@ -22,6 +22,7 @@ import {
   expectRelativePath,
   rejectUnknownKeys,
   WorkflowDefinitionError,
+  type WorkflowValidationOptions,
 } from "./validation-primitives.js";
 import {
   validateAgentStep,
@@ -37,6 +38,7 @@ import {
 } from "./validation-steps.js";
 import { validateTrigger } from "./validation-trigger.js";
 
+export type { WorkflowValidationOptions } from "./validation-primitives.js";
 export { WorkflowDefinitionError } from "./validation-primitives.js";
 
 function validateStep(
@@ -45,6 +47,7 @@ function validateStep(
   index: number,
   moduleRoot: string,
   workflowDefaultAutonomyMode: AutonomyMode | undefined,
+  options: WorkflowValidationOptions,
 ): WorkflowStep {
   if (!step || typeof step !== "object") {
     throw new WorkflowDefinitionError(
@@ -61,6 +64,7 @@ function validateStep(
       index,
       moduleRoot,
       workflowDefaultAutonomyMode,
+      options,
     );
   }
   if (step.type === "emit") return validateEmitStep(step, definitionPath, index);
@@ -75,6 +79,7 @@ function validateStep(
       index,
       moduleRoot,
       workflowDefaultAutonomyMode,
+      options,
     );
   }
   if (step.type === "trigger") {
@@ -88,7 +93,7 @@ function validateStep(
       moduleRoot,
       workflowDefaultAutonomyMode,
       (armStep, dp, armIndex, root, armDefault) =>
-        validateStep(armStep, dp, armIndex, root, armDefault),
+        validateStep(armStep, dp, armIndex, root, armDefault, options),
     );
   }
   if (step.type === "foreach") {
@@ -98,6 +103,7 @@ function validateStep(
       index,
       moduleRoot,
       workflowDefaultAutonomyMode,
+      options,
     );
   }
   if (step.type === "approval") {
@@ -142,6 +148,7 @@ function describeContribution(
 export function validateWorkflowDefinitions(
   definitions: readonly RegisteredWorkflowDefinitionInput[],
   projectDir = process.cwd(),
+  options: WorkflowValidationOptions = {},
 ): WorkflowDefinition[] {
   const seenWorkflowNames = new Map<string, RegisteredWorkflowDefinitionInput>();
 
@@ -196,7 +203,14 @@ export function validateWorkflowDefinitions(
     }
 
     const steps = definition.steps.map((step, stepIndex) =>
-      validateStep(step, definitionPath, stepIndex, moduleRoot, defaultAutonomyMode),
+      validateStep(
+        step,
+        definitionPath,
+        stepIndex,
+        moduleRoot,
+        defaultAutonomyMode,
+        options,
+      ),
     );
     const seenStepIds = new Set<string>();
     const collectStepIds = (flatSteps: WorkflowStep[]) => {

@@ -40,6 +40,7 @@ export function registerTriggerCommands(
       const definitions = validateWorkflowDefinitions(
         getWorkflowDefinitions(ctx),
         process.cwd(),
+        { defaultAgentHarness: ctx.config.defaultAgentHarness },
       );
 
       const definition = definitions.find((d) => d.name === name);
@@ -162,6 +163,7 @@ export function registerTriggerCommands(
       const definitions = validateWorkflowDefinitions(
         getWorkflowDefinitions(ctx),
         process.cwd(),
+        { defaultAgentHarness: ctx.config.defaultAgentHarness },
       );
       const definition = definitions.find((d) => d.name === original.workflow);
       if (!definition) {
@@ -225,6 +227,7 @@ export function registerTriggerCommands(
       const definitions = validateWorkflowDefinitions(
         getWorkflowDefinitions(ctx),
         process.cwd(),
+        { defaultAgentHarness: ctx.config.defaultAgentHarness },
       );
       const definition = definitions.find((d) => d.name === original.workflow);
       if (!definition) {
@@ -329,6 +332,7 @@ export function registerTriggerCommands(
       const definitions = validateWorkflowDefinitions(
         getWorkflowDefinitions(ctx),
         process.cwd(),
+        { defaultAgentHarness: ctx.config.defaultAgentHarness },
       );
       const definition = definitions.find((d) => d.name === original.workflow);
       if (!definition) {

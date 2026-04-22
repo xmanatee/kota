@@ -31,6 +31,15 @@ into.
 - `workflow/` — workflow definitions, validation, execution, runtime, and
   repair-loop mechanics.
 - `agent-sdk/` — Claude Agent SDK executor, system-prompt builder, and SDK
-  type re-exports.
+  type re-exports. Internal implementation detail of the
+  `claude-agent-harness` module; nothing else in core should call
+  `executeWithAgentSDK` directly.
+- `agent-harness/` — neutral `AgentHarness` protocol and registry. Workflow
+  agent steps, the repair loop, the agent-harness delegate backend, and the
+  CLI all dispatch through this registry. Adapters (claude-agent-sdk, thin,
+  any future codex / OpenAI-compat loop) ship as modules and register on
+  load. There is no implicit default — operators select with
+  `KotaConfig.defaultAgentHarness` or per-step `harness`, and the runtime
+  fails loudly when neither is set.
 - New non-test source should land in `src/core/<subtree>/` or `src/modules/<name>/`,
   not as another loose `src/*.ts` file.
