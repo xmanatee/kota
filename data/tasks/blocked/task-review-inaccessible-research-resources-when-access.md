@@ -6,7 +6,7 @@ priority: p3
 area: research
 summary: Grouped follow-up for 9 research URLs that were captured but never read due to auth walls or fetch failures
 created_at: 2026-04-14T00:29:07.947Z
-updated_at: 2026-04-14T00:29:07.947Z
+updated_at: 2026-04-22T17:57:16.377Z
 ---
 
 ## Problem
@@ -29,11 +29,10 @@ task that aims to unblock this class of resources.
 - https://x.com/tianle_cai/status/2042459055483207818
 - https://x.com/pedroh96/status/2046604993982009825
 
-### Web articles and papers (fetch failure)
+### Web articles and papers
 
-- https://glthr.com/XML-fundamental-to-Claude — title suggests Claude prompting patterns
-- https://www.bengubler.com/posts/2026-02-25-introducing-helm — unknown project
-- https://arxiv.org/abs/2511.18423 — unknown paper topic
+All three dispositioned in Status section below (two reference-only, one
+dropped as HTTP 404). No remaining blockers in this category.
 
 ## Desired Outcome
 
@@ -43,9 +42,9 @@ reason based on actual content.
 
 ## Constraints
 
-- Blocked on X/Twitter authentication or an alternative access method for the 5
-  social posts.
-- Blocked on network access for the 3 web articles/papers.
+- Blocked on X/Twitter authentication (operator-configured
+  `modules.browser.storageStatePath`) for the 6 social posts still in the
+  Resources block.
 - Do not infer content from URL shape, author, or surrounding context.
 - Do not create one task per URL.
 - Update the relevant task outcome or create follow-up work when resources are
@@ -53,38 +52,40 @@ reason based on actual content.
 
 ## Done When
 
-- All 8 URLs have been read and given honest dispositions.
-- The task record reflects the final disposition.
+- All 9 original URLs have been read and given honest dispositions.
+- The task record reflects the final disposition per URL.
 - Follow-up tasks exist for any adopted or deferred work.
 
-## Status (2026-04-22 retry)
+## Status (2026-04-22 17:57 UTC retry)
 
-A fresh retry through plain `WebFetch` unblocked two of the eight originally
-inaccessible resources. The remaining six stay blocked pending the new
-authenticated/rendered-browser mechanism in `src/modules/browser/`:
+Re-fetched every URL still in the Resources block. Dispositions:
 
-- **Accessible now:**
-  - `https://www.bengubler.com/posts/2026-02-25-introducing-helm` — read.
-    Disposition: reference-only. The helm framework describes a TypeScript
-    tool runtime with permission levels and SES code sandboxing. KOTA's
-    `src/core/tools/` already owns permission gating via `tool-risk` +
-    approval queue; in-process SES sandboxing is not a fit since tool
+- **Dispositioned web URLs (no longer blocking):**
+  - `https://www.bengubler.com/posts/2026-02-25-introducing-helm` — read in
+    earlier retry. Disposition: reference-only. helm's TypeScript tool
+    runtime with permission levels plus SES code sandboxing does not fit
+    KOTA: `src/core/tools/` already owns permission gating via `tool-risk`
+    + approval queue, and in-process SES sandboxing is not a fit since tool
     execution is already boundary-validated and expected to call into the
     full Node environment. No adoption; no follow-up task.
-  - `https://arxiv.org/abs/2511.18423` — read. General Agentic Memory (GAM)
-    proposes a just-in-time Memorizer+Researcher split. Disposition:
-    reference-only; echoes the existing Letta/typed-stores rejection in
-    `src/modules/autonomy/AGENTS.md`. No new decision added.
-- **Still inaccessible:**
-  - Five X/Twitter status URLs — still `HTTP 402` auth-wall on plain fetch.
-    The new `x_post_read` browser tool can read them once an operator
-    configures `modules.browser.storageStatePath` with an authenticated
-    profile. Until then the research-retry workflow records them as
-    still-blocked on every run.
-  - `https://glthr.com/XML-fundamental-to-Claude` — returns HTTP 404 (page
-    gone). Dropping this URL on the next retry is the honest outcome; no
-    rehosted mirror has been found.
+  - `https://arxiv.org/abs/2511.18423` — read in earlier retry. General
+    Agentic Memory (GAM) proposes a just-in-time Memorizer+Researcher
+    split. Disposition: reference-only; echoes the existing Letta/typed-
+    stores rejection in `src/modules/autonomy/AGENTS.md`. No new decision
+    added.
+  - `https://glthr.com/XML-fundamental-to-Claude` — confirmed `HTTP 404`
+    again today; no rehosted mirror found. Disposition: dropped. The URL
+    is removed from the Resources block because retrying further adds no
+    value.
+- **Still inaccessible (6 X/Twitter posts):**
+  - All six X/Twitter status URLs in the Resources block return `HTTP 402`
+    on plain `WebFetch` (confirmed 2026-04-22 17:57 UTC). The
+    `x_post_read` browser tool can read them once an operator configures
+    `modules.browser.storageStatePath` with an authenticated profile. No
+    such profile is configured in this repository today.
 
-The retry mechanism itself (scoped browser tools + research-retry workflow)
-shipped under `task-enable-autonomous-access-to-auth-walled-sources-so`.
-This task stays `blocked` pending operator-configured browser profile.
+The retry mechanism (scoped browser tools + research-retry workflow)
+already shipped under `task-enable-autonomous-access-to-auth-walled-sources-so`.
+This task stays `blocked` pending operator-configured browser profile;
+every research-retry run will re-confirm the six posts as auth-walled
+until then.
