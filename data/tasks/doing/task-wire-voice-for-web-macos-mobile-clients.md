@@ -1,12 +1,12 @@
 ---
 id: task-wire-voice-for-web-macos-mobile-clients
 title: Wire voice input and output in macOS and mobile clients
-status: ready
+status: doing
 priority: p2
 area: clients
 summary: Voice already ships in the CLI and the web client through `/api/voice/*`. The native macOS menu-bar app and the mobile client still need voice UI and platform audio plumbing on top of the same routes.
 created_at: 2026-04-22T21:27:58Z
-updated_at: 2026-04-22T22:01:26.043Z
+updated_at: 2026-04-22T22:09:36.182Z
 ---
 
 ## Problem
