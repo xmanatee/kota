@@ -328,6 +328,7 @@ describe("resolveModuleTools", () => {
     registerDynamicStateProvider: () => {},
     registerCleanupHook: () => {},
     registerPreSendHook: () => {},
+    registerHarnessHook: () => {},
     resolveAgentDef: () => undefined,
     resolveSkillsPrompt: () => "",
     probeHealthChecks: async () => ({}),

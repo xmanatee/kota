@@ -13,6 +13,7 @@ export const claudeAgentHarness: AgentHarness = {
   description:
     "Runs agent steps through Anthropic's @anthropic-ai/claude-agent-sdk loop with full tool access.",
   supportsMultiTurn: true,
+  supportedHookKinds: ["preRun", "postRun"] as const,
   async run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

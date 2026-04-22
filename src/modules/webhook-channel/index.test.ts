@@ -70,6 +70,7 @@ function makeStubCtx(
     registerDynamicStateProvider: () => {},
     registerCleanupHook: () => {},
     registerPreSendHook: () => {},
+    registerHarnessHook: () => {},
     resolveAgentDef: () => undefined,
     resolveSkillsPrompt: () => "",
     probeHealthChecks: async () => ({}),

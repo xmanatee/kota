@@ -53,6 +53,7 @@ function makeContext(moduleConfig?: WhisperModuleConfig): ModuleContext {
     registerDynamicStateProvider: () => {},
     registerCleanupHook: () => {},
     registerPreSendHook: () => {},
+    registerHarnessHook: () => {},
     resolveAgentDef: () => undefined,
     resolveSkillsPrompt: () => "",
     getRegisteredConfigKeys: () => new Set<string>(),

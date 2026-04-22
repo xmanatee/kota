@@ -1,3 +1,8 @@
+import {
+  type PostRunHook,
+  type PreRunHook,
+  registerHarnessHook as registerHarnessHookImpl,
+} from "#core/agent-harness/hooks.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
@@ -144,6 +149,24 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
     },
     registerPreSendHook: (name, fn) => {
       registerPreSendHookImpl(moduleName ?? "_default", name, fn);
+    },
+    registerHarnessHook: (registration) => {
+      const owner = moduleName ?? "_default";
+      if (registration.kind === "preRun") {
+        registerHarnessHookImpl({
+          kind: "preRun",
+          owner,
+          name: registration.name,
+          handler: registration.handler as PreRunHook,
+        });
+      } else {
+        registerHarnessHookImpl({
+          kind: "postRun",
+          owner,
+          name: registration.name,
+          handler: registration.handler as PostRunHook,
+        });
+      }
     },
     resolveAgentDef,
     resolveSkillsPrompt,

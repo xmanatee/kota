@@ -30,6 +30,7 @@ function makeContext(config: KotaConfig = { model: "test-model" } as KotaConfig)
     registerDynamicStateProvider: () => {},
     registerCleanupHook: () => {},
     registerPreSendHook: () => {},
+    registerHarnessHook: () => {},
     resolveAgentDef: () => undefined,
     resolveSkillsPrompt: () => "",
     probeHealthChecks: async () => ({}),

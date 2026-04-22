@@ -45,6 +45,7 @@ function makeStubCtx(storageDir: string): ModuleContext {
 		registerDynamicStateProvider: () => {},
 		registerCleanupHook: () => {},
 		registerPreSendHook: () => {},
+		registerHarnessHook: () => {},
 		resolveAgentDef: () => undefined,
 		resolveSkillsPrompt: () => "",
 		probeHealthChecks: async () => ({}),

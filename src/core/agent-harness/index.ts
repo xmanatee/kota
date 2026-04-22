@@ -1,3 +1,19 @@
+export type {
+  HarnessHookKind,
+  HarnessHookRegistration,
+  PostRunHook,
+  PostRunHookContext,
+  PreRunHook,
+  PreRunHookContext,
+} from "./hooks.js";
+export {
+  ALL_HARNESS_HOOK_KINDS,
+  hasHarnessHooks,
+  listHarnessHooks,
+  registerHarnessHook,
+  removeHarnessHooks,
+  resetHarnessHooks,
+} from "./hooks.js";
 export {
   clearAgentHarnessRegistryForTest,
   hasAgentHarness,
@@ -5,6 +21,7 @@ export {
   registerAgentHarness,
   resolveAgentHarness,
 } from "./registry.js";
+export { runAgentHarness } from "./runner.js";
 export type {
   AgentCanUseTool,
   AgentEffort,

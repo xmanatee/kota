@@ -1,12 +1,12 @@
 ---
 id: task-make-hook-and-plugin-surfaces-behave-identically-a
 title: Make hook and plugin surfaces behave identically across every registered agent harness
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Define a harness-neutral hook/plugin protocol so pre-send, post-tool, and cleanup hooks fire consistently across every registered agent harness.
 created_at: 2026-04-22T20:27:18.259Z
-updated_at: 2026-04-22T20:27:18.259Z
+updated_at: 2026-04-22T21:03:15.968Z
 ---
 
 ## Problem

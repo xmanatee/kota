@@ -85,6 +85,7 @@ describe("runHarnessRepl", () => {
       name: "one-shot",
       description: "single-turn only",
       supportsMultiTurn: false,
+      supportedHookKinds: ["preRun", "postRun"],
       run: async (): Promise<AgentHarnessResult> => ({
         text: "",
         streamedText: "",
@@ -112,6 +113,7 @@ describe("runHarnessRepl", () => {
       name: "stub",
       description: "stub for banner test",
       supportsMultiTurn: true,
+      supportedHookKinds: ["preRun", "postRun"],
       run: async (options): Promise<AgentHarnessResult> => {
         captured.push(options);
         return {
@@ -225,6 +227,7 @@ describe("runHarnessRepl", () => {
       name: "capture",
       description: "captures prompt",
       supportsMultiTurn: true,
+      supportedHookKinds: ["preRun", "postRun"],
       run: async (options): Promise<AgentHarnessResult> => {
         calls.push(options.prompt);
         return { text: "ack", streamedText: "ack", turns: 1, isError: false };
@@ -252,6 +255,7 @@ describe("runHarnessRepl", () => {
       name: "reset-test",
       description: "",
       supportsMultiTurn: true,
+      supportedHookKinds: ["preRun", "postRun"],
       run: async (options, writer?: AgentHarnessWriter) => {
         prompts.push(options.prompt);
         writer?.write("ok");
@@ -280,6 +284,7 @@ describe("runHarnessRepl", () => {
       name: "flaky",
       description: "",
       supportsMultiTurn: true,
+      supportedHookKinds: ["preRun", "postRun"],
       run: async () => {
         call += 1;
         if (call === 1) throw new Error("boom");

@@ -1,9 +1,10 @@
 import { createInterface, type Interface as ReadlineInterface } from "node:readline";
-import type {
-  AgentHarness,
-  AgentHarnessResult,
-  AgentHarnessRunOptions,
-  AgentHarnessWriter,
+import {
+  type AgentHarness,
+  type AgentHarnessResult,
+  type AgentHarnessRunOptions,
+  type AgentHarnessWriter,
+  runAgentHarness,
 } from "#core/agent-harness/index.js";
 import { expandUserPromptReferences } from "#core/prompt-input/index.js";
 import { blank, line, plain, span } from "#modules/rendering/primitives.js";
@@ -211,7 +212,8 @@ export async function runHarnessRepl(options: HarnessReplOptions): Promise<void>
     const composed = composeTranscriptPrompt(state.transcript, expanded);
 
     try {
-      const result = await options.harness.run(
+      const result = await runAgentHarness(
+        options.harness,
         {
           ...options.run,
           prompt: composed,

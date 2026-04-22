@@ -5,7 +5,7 @@
  * registered harness by setting `harness` on the delegate config.
  */
 
-import { resolveAgentHarness } from "#core/agent-harness/index.js";
+import { resolveAgentHarness, runAgentHarness } from "#core/agent-harness/index.js";
 import {
   buildSubAgentPrompt,
   EXECUTE_PROMPT,
@@ -81,7 +81,8 @@ export async function runDelegateAgentSDK(
       message: `[kota] delegate(${mode}:${harnessName}) starting: ${taskPreview}`,
     });
   }
-  const result = await harness.run(
+  const result = await runAgentHarness(
+    harness,
     {
       prompt: task,
       model: config.model,

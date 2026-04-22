@@ -5,7 +5,7 @@ import { expandUserPromptReferences } from "#core/prompt-input/index.js";
 import { setSkipConfirmations } from "#core/util/confirm.js";
 import { blank, line, span } from "#modules/rendering/primitives.js";
 import { TerminalTransport } from "#modules/rendering/transport.js";
-import { resolveAgentHarness } from "./core/agent-harness/index.js";
+import { resolveAgentHarness, runAgentHarness } from "./core/agent-harness/index.js";
 import { buildClaudeCodeSystemPrompt } from "./core/agent-sdk/index.js";
 import { runAgentLoop } from "./core/loop/loop.js";
 import { formatAuthError } from "./core/model/auth-error.js";
@@ -143,7 +143,7 @@ program
       }
       prompt = expandUserPromptReferences(prompt, process.cwd()).text;
       announceActiveHarness(harnessName, model);
-      const result = await harness.run({
+      const result = await runAgentHarness(harness, {
         prompt,
         model,
         cwd: process.cwd(),
@@ -254,7 +254,7 @@ async function checkPipeMode() {
         const harnessName = config.defaultAgentHarness ?? "claude-agent-sdk";
         announceActiveHarness(harnessName, model);
         const harness = resolveAgentHarness(harnessName);
-        const result = await harness.run({
+        const result = await runAgentHarness(harness, {
           prompt: expandUserPromptReferences(piped, process.cwd()).text,
           model,
           verbose: config.verbose,

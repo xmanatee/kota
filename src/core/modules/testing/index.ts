@@ -217,6 +217,7 @@ export class ModuleTestHarness {
       },
       registerCleanupHook: () => {},
       registerPreSendHook: () => {},
+      registerHarnessHook: () => {},
       resolveAgentDef: () => undefined,
       resolveSkillsPrompt: () => "",
       getRegisteredConfigKeys: () => new Set<string>(),

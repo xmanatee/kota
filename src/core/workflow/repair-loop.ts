@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { resolveAgentHarness } from "#core/agent-harness/index.js";
+import { resolveAgentHarness, runAgentHarness } from "#core/agent-harness/index.js";
 import {
   buildClaudeCodeSystemPrompt,
   composeCanUseTools,
@@ -116,7 +116,8 @@ async function executeRepairAgentIteration(
     agentConfig.projectDir,
   );
   const harness = resolveAgentHarness(step.harness);
-  const result = await harness.run(
+  const result = await runAgentHarness(
+    harness,
     {
       prompt: repairPrompt,
       model: resolveAgentModel(step, agentConfig),

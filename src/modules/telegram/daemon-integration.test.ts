@@ -319,6 +319,7 @@ describe("Telegram personal-assistant daemon integration", () => {
       registerDynamicStateProvider: () => {},
       registerCleanupHook: () => {},
       registerPreSendHook: () => {},
+      registerHarnessHook: () => {},
       resolveAgentDef: () => undefined,
       resolveSkillsPrompt: () => "",
       probeHealthChecks: async () => ({}),

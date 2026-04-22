@@ -6,6 +6,7 @@ import type {
   SDKSettingSource,
   SDKSystemPrompt,
 } from "#core/agent-sdk/types.js";
+import type { HarnessHookKind } from "./hooks.js";
 
 /**
  * Harness-neutral re-exports. Message, permission, and settings shapes live in
@@ -79,6 +80,15 @@ export type AgentHarness = {
    * this to `false` — the REPL entry point refuses to launch them.
    */
   readonly supportsMultiTurn: boolean;
+  /**
+   * Harness-boundary lifecycle hook kinds this adapter honors. The neutral
+   * entry point (`runAgentHarness`) dispatches every registered hook of a
+   * supported kind around this adapter's `run()`. If a module registers a
+   * hook whose kind is not in this list, the entry point throws before
+   * invoking `run()` — analogous to how `thin-agent-harness` rejects tool
+   * options it cannot host.
+   */
+  readonly supportedHookKinds: readonly HarnessHookKind[];
   run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

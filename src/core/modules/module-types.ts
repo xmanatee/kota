@@ -9,6 +9,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Command } from "commander";
+import type { PostRunHook, PreRunHook } from "#core/agent-harness/hooks.js";
 import type { AgentDef, SkillDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
@@ -185,8 +186,26 @@ export type ModuleContext = {
    * precedes the normal agent turn (e.g. architect-mode two-pass flow).
    * Each hook receives the session context and may return a result that the
    * loop applies (modified files, assistant text, user follow-up, final text).
+   *
+   * Note: this hook is classic-loop-specific — its context exposes the
+   * `AgentSession` ModelClient, message history, cost tracker, and transport.
+   * To run code at the harness boundary of every adapter (claude-agent-sdk,
+   * thin, or any future adapter), use `registerHarnessHook` instead.
    */
   registerPreSendHook: (name: string, fn: PreSendHook) => void;
+  /**
+   * Register a harness-neutral lifecycle hook. `preRun` fires before every
+   * `AgentHarness.run()` invocation; `postRun` fires after it returns. The
+   * neutral entry point validates the chosen adapter's `supportedHookKinds`
+   * and throws loudly if a registered hook targets a kind the adapter does
+   * not host, matching the rejection pattern for tool options in
+   * `thin-agent-harness`.
+   */
+  registerHarnessHook: (
+    registration:
+      | { kind: "preRun"; name: string; handler: PreRunHook }
+      | { kind: "postRun"; name: string; handler: PostRunHook },
+  ) => void;
   /** Look up a registered agent definition by name. */
   resolveAgentDef: (name: string) => AgentDef | undefined;
   /** Build the skills prompt for a set of skill names or "all", optionally filtered by agent name. */

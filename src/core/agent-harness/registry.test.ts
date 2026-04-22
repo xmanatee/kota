@@ -13,6 +13,7 @@ function stubHarness(name: string): AgentHarness {
     name,
     description: `stub ${name}`,
     supportsMultiTurn: true,
+    supportedHookKinds: ["preRun", "postRun"],
     run: async () => ({
       text: "",
       streamedText: "",

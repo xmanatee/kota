@@ -36,6 +36,31 @@ protocol live in modules — the core only owns the interface and the registry.
   `harness`, or inherit from `KotaConfig.defaultAgentHarness` at the top level.
   The operator picks which adapter is the default for their environment.
 
+## Lifecycle hooks (harness-neutral)
+
+`src/core/agent-harness/hooks.ts` owns the neutral lifecycle hook surface.
+Modules register `preRun` or `postRun` hooks through `ctx.registerHarnessHook`;
+callers invoke adapters through `runAgentHarness(harness, options, writer)`
+instead of calling `harness.run()` directly. The entry point dispatches every
+registered hook of a supported kind around the adapter's native run.
+
+- `preRun` fires before the adapter's `run()` with `{ harness, options }`.
+- `postRun` fires after the adapter's `run()` returns with
+  `{ harness, options, result }`.
+
+Adapters declare which kinds they can host through
+`AgentHarness.supportedHookKinds`. `runAgentHarness` inspects that list: if a
+module has registered a hook whose kind is not in the adapter's supported set,
+the entry point throws loudly before calling the adapter — same rule as
+`thin-agent-harness` rejecting tool options it cannot host.
+
+`src/core/loop/pre-send-hooks.ts` is a separate, classic-loop-scoped surface.
+Its `PreSendContext` exposes classic-loop primitives (ModelClient, message
+history, CostTracker, Transport) and only fires inside the classic
+`AgentSession` loop — the architect module is the canonical caller. New code
+that needs to observe or decorate every adapter's run should use the neutral
+harness hook, not the classic pre-send hook.
+
 ## Relation to `src/core/agent-sdk/`
 
 `src/core/agent-sdk/` still hosts guardrail utilities, the Claude Agent SDK
