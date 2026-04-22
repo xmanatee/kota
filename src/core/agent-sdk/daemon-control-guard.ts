@@ -49,10 +49,13 @@ export function createDaemonHostControlGuard(daemonPid = process.pid): CanUseToo
     if (!isDaemonHostControlCommand(command, daemonPid)) {
       return { behavior: "allow", updatedInput: input };
     }
+    // See agent-commit-guard.ts: `interrupt: true` aborts the whole SDK
+    // session via `abortController.abort()`, so a single denied command
+    // would kill the entire workflow. `deny` alone blocks the command and
+    // lets the agent see the denial in a tool_result and course-correct.
     return {
       behavior: "deny",
       message: DENIAL_MESSAGE,
-      interrupt: true,
       decisionClassification: "user_reject",
     };
   };

@@ -70,7 +70,7 @@ describe("createAgentCommitGuard", () => {
     });
   });
 
-  it("denies Bash `git commit` invocations with an interrupt", async () => {
+  it("denies Bash `git commit` invocations without aborting the session", async () => {
     const guard = createAgentCommitGuard();
     const result = await guard(
       "Bash",
@@ -79,9 +79,9 @@ describe("createAgentCommitGuard", () => {
     );
     expect(result).toMatchObject({
       behavior: "deny",
-      interrupt: true,
       decisionClassification: "user_reject",
     });
+    expect(result).not.toHaveProperty("interrupt");
     if (result.behavior === "deny") {
       expect(result.message).toMatch(/git commit/);
       expect(result.message).toMatch(/commit-message\.txt/);

@@ -214,9 +214,13 @@ describe("agent-sdk executor", () => {
       behavior: "allow",
       updatedInput: { command: "pnpm kota task move example done" },
     });
-    await expect(
-      guard("Bash", { command: "pnpm kota daemon stop" }, options),
-    ).resolves.toMatchObject({ behavior: "deny", interrupt: true });
+    const denied = await guard(
+      "Bash",
+      { command: "pnpm kota daemon stop" },
+      options,
+    );
+    expect(denied).toMatchObject({ behavior: "deny" });
+    expect(denied).not.toHaveProperty("interrupt");
   });
 
   it("detects a locally installed claude executable", () => {

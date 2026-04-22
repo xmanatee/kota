@@ -40,6 +40,13 @@ Keep workflow code explicit and typed; keep prompts focused on the agent's
 role. Direct-commit prevention lives at the SDK `canUseTool` boundary
 (`createAgentCommitGuard`) so rogue `git commit` calls from any workflow
 agent fail before producing a commit, rather than being caught post-hoc.
+The guard denies without `interrupt: true`: the Agent SDK translates
+`interrupt` into an `abortController.abort()` that tears down the whole
+session (`terminal_reason: "aborted_tools"` / ede_diagnostic), so a single
+denied command — including a `git commit` inside a legitimate tempdir
+reproducer — would discard all of the agent's progress. A bare `deny`
+still blocks the command and feeds the denial back as a tool_result so the
+agent can adapt. The same rule applies to `createDaemonHostControlGuard`.
 
 ### Autonomy Mode Declaration
 

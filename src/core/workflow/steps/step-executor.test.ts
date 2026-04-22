@@ -167,12 +167,12 @@ describe("executeAgentStep", () => {
 
     const guard = mockedExecuteWithAgentSDK.mock.calls[0]?.[1]?.canUseTool;
     expect(guard).toEqual(expect.any(Function));
-    await expect(
-      guard?.("Bash", { command: "pnpm kota daemon stop" }, {
-        signal: new AbortController().signal,
-        toolUseID: "tool-1",
-      }),
-    ).resolves.toMatchObject({ behavior: "deny", interrupt: true });
+    const denied = await guard?.("Bash", { command: "pnpm kota daemon stop" }, {
+      signal: new AbortController().signal,
+      toolUseID: "tool-1",
+    });
+    expect(denied).toMatchObject({ behavior: "deny" });
+    expect(denied).not.toHaveProperty("interrupt");
   });
 
   it("keeps ask_owner available when an agent step has an allowedTools list", async () => {

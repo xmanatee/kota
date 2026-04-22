@@ -28,10 +28,14 @@ export function createAgentCommitGuard(): CanUseTool {
     if (!isGitCommitCommand(command)) {
       return { behavior: "allow", updatedInput: input };
     }
+    // Deny without `interrupt: true`: the SDK translates `interrupt` into
+    // `abortController.abort()`, which terminates the entire session with
+    // `aborted_tools` / ede_diagnostic. A bare `deny` still prevents the
+    // commit and feeds the denial back to the agent as a tool_result, so the
+    // agent can adapt instead of losing the whole run.
     return {
       behavior: "deny",
       message: DENIAL_MESSAGE,
-      interrupt: true,
       decisionClassification: "user_reject",
     };
   };
