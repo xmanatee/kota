@@ -171,6 +171,53 @@ describe("commitWorkflowChanges", () => {
     });
   });
 
+  it("commits when the agent staged deletions with git rm (no remaining add targets)", () => {
+    const removed = join(projectDir, "data", "inbox", "note.md");
+    mkdirSync(join(projectDir, "data", "inbox"), { recursive: true });
+    writeFileSync(removed, "idea\n");
+    execSync("git add data/inbox/note.md", { cwd: projectDir });
+    execSync('git commit -q -m "add note"', { cwd: projectDir });
+    execSync("git rm data/inbox/note.md", { cwd: projectDir });
+    writeFileSync(join(runDirPath, "commit-message.txt"), "Sort inbox: drop stale note");
+
+    const result = commitWorkflowChanges(projectDir, runDirPath);
+    expect(result).toEqual({ committed: true, message: "Sort inbox: drop stale note" });
+
+    const tree = execSync("git show --name-status --format= HEAD", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    }).trim();
+    expect(tree).toBe("D\tdata/inbox/note.md");
+  });
+
+  it("commits mixed staged deletions plus unstaged additions in one commit", () => {
+    const original = join(projectDir, "data", "inbox", "raw.md");
+    mkdirSync(join(projectDir, "data", "inbox"), { recursive: true });
+    writeFileSync(original, "raw\n");
+    execSync("git add data/inbox/raw.md", { cwd: projectDir });
+    execSync('git commit -q -m "add raw"', { cwd: projectDir });
+    execSync("git rm data/inbox/raw.md", { cwd: projectDir });
+    const normalized = join(projectDir, "data", "tasks", "task-raw.md");
+    mkdirSync(join(projectDir, "data", "tasks"), { recursive: true });
+    writeFileSync(normalized, "normalized\n");
+    writeFileSync(join(runDirPath, "commit-message.txt"), "Sort inbox: graduate raw capture");
+
+    const result = commitWorkflowChanges(projectDir, runDirPath);
+    expect(result.committed).toBe(true);
+
+    const tree = execSync("git show --name-status --format= HEAD", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    })
+      .trim()
+      .split("\n")
+      .sort();
+    expect(tree).toEqual([
+      "A\tdata/tasks/task-raw.md",
+      "D\tdata/inbox/raw.md",
+    ]);
+  });
+
   it("rejects registered scratch worktrees before committing", () => {
     writeFileSync(join(projectDir, "change.txt"), "hello\n");
     writeFileSync(join(runDirPath, "commit-message.txt"), "Builder: change");

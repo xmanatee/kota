@@ -44,6 +44,28 @@ function checkNoScratchArtifactsInPaths(paths: readonly string[]): void {
 }
 
 /**
+ * Returns paths already staged as deletions (present in HEAD, absent from
+ * the index — the state `git rm <path>` leaves behind). Such paths appear in
+ * `git diff --name-only HEAD` but `git add -A -- <path>` rejects them with
+ * "pathspec did not match any files" because neither working tree nor index
+ * has an entry to match. They are already correctly staged, so the commit
+ * step does not need to re-add them.
+ */
+function listStagedDeletions(projectDir: string): Set<string> {
+  const stdout = execFileSync(
+    "git",
+    ["diff", "--cached", "--name-only", "--diff-filter=D"],
+    { cwd: projectDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+  );
+  const set = new Set<string>();
+  for (const line of stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.length > 0) set.add(trimmed);
+  }
+  return set;
+}
+
+/**
  * Stages and commits exactly the set of paths `listWorkflowMutatedPaths`
  * identifies as workflow-owned mutations. That matches the path set the
  * writeScope gate evaluated earlier in the run, so an untracked file the
@@ -72,10 +94,15 @@ export function commitWorkflowChanges(
     throw new Error(`Workflow commit message must not be empty: ${msgPath}`);
   }
 
-  execFileSync("git", ["add", "-A", "--", ...mutatedPaths], {
-    cwd: projectDir,
-    stdio: "pipe",
-  });
+  const alreadyStagedDeletions = listStagedDeletions(projectDir);
+  const pathsToStage = mutatedPaths.filter((p) => !alreadyStagedDeletions.has(p));
+
+  if (pathsToStage.length > 0) {
+    execFileSync("git", ["add", "-A", "--", ...pathsToStage], {
+      cwd: projectDir,
+      stdio: "pipe",
+    });
+  }
 
   try {
     runGit(projectDir, `git commit -F ${JSON.stringify(msgPath)}`);
