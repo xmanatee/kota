@@ -1,3 +1,0 @@
-Currently the whole setup works with anthopic agent sdk, but I'm not 100% confident it works with other setups... I want the anthropic agent-sdk to just be one of the options but it should generally support just setting llm URL (e.g. to openai or openrouter) as well as using codex agent sdk or using claude agent sdk... kinda similar to what t3 code does where it can use any harness under the hood without giving any preference.
-
-Also t3 code codebase should be added to explorer watchlist in case it's not there yet... it should be a great source of inspiration.
