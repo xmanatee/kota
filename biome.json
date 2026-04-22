@@ -55,6 +55,7 @@
         "src/modules/approval-queue/**",
         "src/modules/eval-harness/**",
         "src/modules/guardrails-audit/**",
+        "src/modules/harness-parity/**",
         "src/modules/history/cli.ts",
         "src/modules/history/cli-commands.ts",
         "src/modules/knowledge/**",

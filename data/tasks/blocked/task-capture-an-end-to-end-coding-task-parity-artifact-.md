@@ -1,12 +1,12 @@
 ---
 id: task-capture-an-end-to-end-coding-task-parity-artifact-
 title: Capture an end-to-end coding-task parity artifact under .kota/runs/ for each registered agent harness
-status: backlog
+status: blocked
 priority: p2
 area: architecture
 summary: Produce a run-dir artifact that shows KOTA completing a representative coding task end-to-end under each registered agent harness, recording any capability gap vs running the harness directly.
 created_at: 2026-04-22T20:27:49.498Z
-updated_at: 2026-04-22T20:27:49.498Z
+updated_at: 2026-04-22T21:19:48.379Z
 ---
 
 ## Problem
@@ -54,3 +54,49 @@ either converted into follow-up tasks or explained why they do not block
   or explained inline as non-blocking.
 - The scenarios pack is reachable from the CLI or an operator-runnable
   script, not only from ad-hoc invocation.
+
+## Plan
+
+Phase 1 — scenarios pack and operator-runnable CLI (this run):
+
+- [done] Ship `src/modules/harness-parity/` with the scenario schema,
+  runner, and CLI command. The runner reuses `runAgentHarness` — the
+  same entry point the main `kota run` path uses — so paired evidence
+  reflects operator reality rather than a parallel benchmarking
+  framework.
+- [done] Scenario fixture `fix-arithmetic-bug` ships with an `initial/`
+  tree and a shell-exit verification predicate (`node test.js`). The
+  same prompt and predicate are handed to every registered harness.
+- [done] Operator-runnable surface via `kota harness-parity list` /
+  `kota harness-parity run`, defaulting to every registered harness and
+  every discovered scenario. Artifacts land under
+  `.kota/runs/harness-parity-<stamp>/<scenario>/<harness>/`.
+- [done] Per-harness artifacts include `prompt.txt`, `trace.txt`,
+  `trace-summary.md`, `diff.patch`, `verification.json`, and
+  `run-meta.json`. A per-scenario `parity.json` summarizes outcomes
+  across harnesses for direct comparison.
+- [done] The module `AGENTS.md` documents the scenario layout, artifact
+  shape, capability-gap handling, and the explicit non-goals (no
+  scoring, no regression gating — eval-harness concerns).
+
+Phase 2 — operator-facilitated live capture (blocks the task):
+
+- Run `kota harness-parity run` against every registered harness on an
+  operator workstation with credentials authorized for live API calls.
+  Commit the resulting artifact tree under `.kota/runs/<run-id>/harness-parity/`
+  so Done-When bullet 2 can be honestly verified.
+- The autonomous builder ships the infrastructure but does not itself
+  capture paired artifacts: each live run consumes real API budget and a
+  nested claude-agent-sdk invocation from inside another claude-agent-sdk
+  session is operationally unsafe. Unblock by either committing live
+  evidence or by narrowing Done-When to drop the paired-artifact
+  requirement.
+- Anticipated capability gap (record inline if still true at capture
+  time): the `thin` harness is single-turn and text-only, so it cannot
+  apply file edits. The scenario predicate will fail against its
+  working directory while the adapter's streamed text may contain a
+  reference patch proposal. That gap is inherent to the harness's
+  declared contract and does not block "coding-agent parity" — it
+  delineates which registered harnesses are coding-capable rather than
+  text-only.
+
