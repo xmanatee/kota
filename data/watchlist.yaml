@@ -166,3 +166,9 @@ resources:
   - url: https://github.com/t3dotgg
     added: "2026-04-22"
     notes: "Theo Browne's GitHub user page — entry point for t3 code, his harness-agnostic coding agent. Watch the active repos here for harness boundary patterns relevant to KOTA agent-harness pluggability work. Replace with the specific repo URL once t3 code's canonical repo is confirmed."
+  - url: https://github.com/nousresearch/hermes-agent
+    added: "2026-04-22"
+    notes: "Nous Research's open-source personal-assistant runtime with agent-curated persistent memory, autonomous self-improving skills, FTS5 session search with LLM summarization, built-in cron scheduler, MCP integration, Agentskills.io skill interop, and 40+ tools across six terminal backends (local/Docker/SSH/Daytona/Singularity/Modal) — direct peer to KOTA's module+workflow+session model. Snapshot to be captured by the next explorer run."
+  - url: https://claude.com/blog
+    added: "2026-04-22"
+    notes: "Anthropic's Claude product blog — distinct surface from anthropic.com/engineering, lands Claude Code release notes and model-specific best-practices posts (e.g. 'Best practices for using Claude Opus 4.7 with Claude Code': delegate-don't-pair framing, xhigh as default effort, adaptive thinking over fixed budgets, batch prompts upfront). Relevant to autonomy-loop posture and harness defaults on claude-agent-sdk."
