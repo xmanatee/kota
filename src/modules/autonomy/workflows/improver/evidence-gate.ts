@@ -1,3 +1,4 @@
+import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { JsonFileError, readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
 import type { RunOutcomeAggregation } from "#modules/autonomy/run-outcome-aggregation.js";
@@ -31,14 +32,27 @@ function isEvidenceGateState(value: unknown): value is EvidenceGateState {
   );
 }
 
+function discardInvalidEvidenceGateState(path: string): null {
+  rmSync(path, { force: true });
+  return null;
+}
+
 export function readImproverEvidenceGateState(
   projectDir: string,
 ): EvidenceGateState | null {
   const path = statePath(projectDir);
-  const state = readOptionalJsonFile<unknown>(path);
+  let state: unknown;
+  try {
+    state = readOptionalJsonFile<unknown>(path);
+  } catch (error) {
+    if (error instanceof JsonFileError && error.operation === "parse") {
+      return discardInvalidEvidenceGateState(path);
+    }
+    throw error;
+  }
   if (state === null) return null;
   if (!isEvidenceGateState(state)) {
-    throw new JsonFileError(path, "parse", "invalid improver evidence gate state");
+    return discardInvalidEvidenceGateState(path);
   }
   return state;
 }

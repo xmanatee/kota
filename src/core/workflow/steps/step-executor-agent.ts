@@ -373,14 +373,7 @@ export async function executeAgentStep(
       step.disallowedTools,
     );
     try {
-      const harnessName =
-        step.harness ?? agentConfig.config?.defaultAgentHarness;
-      if (!harnessName) {
-        throw new Error(
-          `Agent step "${step.id}" has no harness — set harness on the step or configure KotaConfig.defaultAgentHarness. The core does not pick a harness by default.`,
-        );
-      }
-      const harness = resolveAgentHarness(harnessName);
+      const harness = resolveAgentHarness(step.harness);
       const result = await harness.run(
         {
           prompt,

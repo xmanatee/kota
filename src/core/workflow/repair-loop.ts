@@ -115,13 +115,7 @@ async function executeRepairAgentIteration(
     contextStartDir,
     agentConfig.projectDir,
   );
-  const harnessName = step.harness ?? agentConfig.config?.defaultAgentHarness;
-  if (!harnessName) {
-    throw new Error(
-      `Repair agent for step "${step.id}" has no harness — set harness on the step or configure KotaConfig.defaultAgentHarness.`,
-    );
-  }
-  const harness = resolveAgentHarness(harnessName);
+  const harness = resolveAgentHarness(step.harness);
   const result = await harness.run(
     {
       prompt: repairPrompt,

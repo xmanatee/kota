@@ -4,8 +4,24 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import autonomyModule from "#modules/autonomy/index.js";
 import type { RegisteredWorkflowDefinitionInput } from "./types.js";
-import { registerWorkflowDefinition, validateWorkflowDefinitions, WorkflowDefinitionError } from "./validation.js";
+import {
+  registerWorkflowDefinition,
+  validateWorkflowDefinitions as validateWorkflowDefinitionsCore,
+  WorkflowDefinitionError,
+  type WorkflowValidationOptions,
+} from "./validation.js";
 import { VALID_MODEL_IDS } from "./validation-steps.js";
+
+function validateWorkflowDefinitions(
+  definitions: readonly RegisteredWorkflowDefinitionInput[],
+  projectDir = process.cwd(),
+  options: WorkflowValidationOptions = {},
+) {
+  return validateWorkflowDefinitionsCore(definitions, projectDir, {
+    defaultAgentHarness: "claude-agent-sdk",
+    ...options,
+  });
+}
 
 async function loadAutonomyWorkflowDefinitions(): Promise<RegisteredWorkflowDefinitionInput[]> {
   const workflows = autonomyModule.workflows;
@@ -567,6 +583,37 @@ describe("workflow validation", () => {
     );
   });
 
+  it("rejects agent steps that omit harness and have no configured default harness", () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    expect(() =>
+      validateWorkflowDefinitionsCore(
+        [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle" }],
+            defaultAutonomyMode: "autonomous",
+            steps: [
+              {
+                id: "build",
+                type: "agent",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                model: "claude-opus-4-7",
+                effort: "xhigh",
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(
+      "harness is required — set harness on the step or configure KotaConfig.defaultAgentHarness",
+    );
+  });
+
   it("applies workflow-level defaultAutonomyMode to agent steps that omit autonomyMode", () => {
     writeFileSync(
       join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
@@ -701,7 +748,7 @@ describe("workflow validation", () => {
   });
 
   it("exposes the expected autonomy workflows without pinning the full set", async () => {
-    const definitions = validateWorkflowDefinitions(
+    const definitions = validateWorkflowDefinitionsCore(
       await loadAutonomyWorkflowDefinitions(),
       process.cwd(),
     );

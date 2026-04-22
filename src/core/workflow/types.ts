@@ -442,12 +442,10 @@ export type WorkflowAgentStep = WorkflowBaseStep & {
   agentName?: string;
   /**
    * Registered agent harness name. Populated by the validator when the step
-   * declares `harness`, or by the validator from `KotaConfig.defaultAgentHarness`
-   * when it has config access. Left undefined when neither source carried a
-   * harness at validation time — the step executor then resolves from runtime
-   * config and fails loudly if still unset.
+   * declares `harness`, or from `KotaConfig.defaultAgentHarness` when it has
+   * config access.
    */
-  harness?: string;
+  harness: string;
   promptPath: string;
   /**
    * Absolute filesystem root inherited from the enclosing workflow definition.

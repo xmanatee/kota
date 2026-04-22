@@ -238,6 +238,12 @@ export function validateAgentStep(
     definitionPath,
   );
   const harness = declaredHarness ?? options.defaultAgentHarness;
+  if (!harness) {
+    throw new WorkflowDefinitionError(
+      `${stepLabel}.harness is required — set harness on the step or configure KotaConfig.defaultAgentHarness`,
+      definitionPath,
+    );
+  }
 
   return {
     id: expectName(step.id, `${stepLabel}.id`, definitionPath),

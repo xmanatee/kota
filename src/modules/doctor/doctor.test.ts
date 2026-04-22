@@ -81,6 +81,20 @@ describe("kota doctor — offline path", () => {
     expect(daemon?.status).toBe("warn");
   });
 
+  it("does not treat daemon-state.json as a live daemon lock", async () => {
+    writeFileSync(
+      join(projectDir, ".kota", "daemon-state.json"),
+      JSON.stringify({
+        pid: 99999999,
+        startedAt: "2026-04-22T10:00:00.000Z",
+        completedRuns: 3,
+      }),
+    );
+    const results = await runDoctorChecks(projectDir);
+    const daemon = results.find((r) => r.label === "Daemon");
+    expect(daemon?.detail).toBe("No daemon-control.json found — daemon is not running");
+  });
+
   it("warns about missing project config", async () => {
     const results = await runDoctorChecks(projectDir);
     const cfg = results.find((r) => r.label.startsWith("Config: project"));
@@ -213,6 +227,21 @@ describe("kota doctor --fix", () => {
     const repairs = runDoctorFixes(projectDir);
     const strayRepairs = repairs.filter((r) => r.item.startsWith("Stray directory:"));
     expect(strayRepairs).toHaveLength(0);
+  });
+
+  it("preserves daemon-state.json because daemon-control.json owns liveness", () => {
+    const stateFile = join(projectDir, ".kota", "daemon-state.json");
+    writeFileSync(
+      stateFile,
+      JSON.stringify({
+        pid: 99999999,
+        startedAt: "2026-04-22T10:00:00.000Z",
+        completedRuns: 3,
+      }),
+    );
+    const repairs = runDoctorFixes(projectDir);
+    expect(repairs.some((r) => r.item.includes("daemon-state.json"))).toBe(false);
+    expect(existsSync(stateFile)).toBe(true);
   });
 
 });
