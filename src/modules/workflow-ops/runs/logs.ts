@@ -4,7 +4,9 @@ import type { Command } from "commander";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import { buildRunLogs, filterWithContext, followRunLogs } from "./workflow-logs.js";
+import { line, plain, span, stack } from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
+import { buildRunLogs, filterWithContext, followRunLogs, stepBanner } from "./workflow-logs.js";
 
 export function registerLogsCommand(wfCmd: Command): void {
   wfCmd
@@ -19,7 +21,7 @@ export function registerLogsCommand(wfCmd: Command): void {
       const store = new WorkflowRunStore();
 
       if (!runId && !opts.follow) {
-        console.error("Specify a run ID or use --follow to stream the active run.");
+        print(line(span("Specify a run ID or use --follow to stream the active run.", "error")));
         process.exit(1);
       }
 
@@ -30,12 +32,12 @@ export function registerLogsCommand(wfCmd: Command): void {
             const dirs = readdirSync(store.runsDir).sort().reverse();
             const match = dirs.find((d) => d.startsWith(runId));
             if (!match) {
-              console.error(`Run "${runId}" not found.`);
+              print(line(span(`Run "${runId}" not found.`, "error")));
               process.exit(1);
             }
             resolvedId = match;
           } catch {
-            console.error(`Run "${runId}" not found.`);
+            print(line(span(`Run "${runId}" not found.`, "error")));
             process.exit(1);
           }
         } else {
@@ -51,7 +53,7 @@ export function registerLogsCommand(wfCmd: Command): void {
       const metadataPath = join(store.runsDir, resolvedId!, "metadata.json");
       const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
       if (!metadata) {
-        console.error(`Run "${resolvedId}" not found.`);
+        print(line(span(`Run "${resolvedId}" not found.`, "error")));
         process.exit(1);
       }
 
@@ -68,19 +70,25 @@ export function registerLogsCommand(wfCmd: Command): void {
         : rawLogs;
 
       if (stepLogs.length === 0) {
-        console.log(opts.step
-          ? `No agent step "${opts.step}" found in run "${resolvedId}".`
-          : "No agent steps in this run.");
+        print(line(plain(
+          opts.step
+            ? `No agent step "${opts.step}" found in run "${resolvedId}".`
+            : "No agent steps in this run.",
+        )));
         return;
       }
 
       for (const { stepId, lines } of stepLogs) {
-        console.log(`\n── Step: ${stepId} ${"─".repeat(Math.max(0, 60 - stepId.length))}`);
+        const nodes = [
+          line(plain("")),
+          line(plain(stepBanner(stepId))),
+        ];
         if (lines.length === 0) {
-          console.log(grepPattern ? "  (no matching lines)" : "  (no events)");
+          nodes.push(line(plain(grepPattern ? "  (no matching lines)" : "  (no events)")));
         } else {
-          for (const line of lines) console.log(line);
+          for (const l of lines) nodes.push(line(plain(l)));
         }
+        print(stack(...nodes));
       }
     });
 }

@@ -1,9 +1,28 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
+import { setTerminalTransport, TerminalTransport } from "#modules/rendering/transport.js";
 import { filterWithContext, followRunLogs, formatAgentMessage, formatContentBlock, truncateContent } from "./workflow-logs.js";
+
+function captureTransport(): { getLines: () => string[]; restore: () => void } {
+  const chunks: string[] = [];
+  const stream = {
+    write(chunk: string): boolean {
+      chunks.push(chunk);
+      return true;
+    },
+    isTTY: false,
+    columns: 100,
+  };
+  setTerminalTransport(new TerminalTransport({ stream, theme: NO_COLOR_THEME, width: 100 }));
+  return {
+    getLines: () => chunks.join("").split("\n"),
+    restore: () => setTerminalTransport(null),
+  };
+}
 
 describe("filterWithContext", () => {
   const lines = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"];
@@ -196,84 +215,88 @@ describe("followRunLogs", () => {
     writeMetadata(makeMetadata("success"));
     writeEvents([assistantEvent]);
 
-    const lines: string[] = [];
-    const logSpy = vi.spyOn(console, "log").mockImplementation((...args) => { lines.push(args.join(" ")); });
-    await followRunLogs(runsDir, statePath, RUN_ID, undefined);
-    logSpy.mockRestore();
-
-    const output = lines.join("\n");
-    expect(output).toContain("Hello from agent");
-    expect(output).toContain(`Step: ${STEP_ID}`);
+    const capture = captureTransport();
+    try {
+      await followRunLogs(runsDir, statePath, RUN_ID, undefined);
+      const output = capture.getLines().join("\n");
+      expect(output).toContain("Hello from agent");
+      expect(output).toContain(`Step: ${STEP_ID}`);
+    } finally {
+      capture.restore();
+    }
   });
 
   it("polls a running run and exits when it completes", async () => {
     writeMetadata(makeMetadata("running"));
     writeEvents([assistantEvent]);
 
-    const lines: string[] = [];
-    const logSpy = vi.spyOn(console, "log").mockImplementation((...args) => { lines.push(args.join(" ")); });
-    const followPromise = followRunLogs(runsDir, statePath, RUN_ID, undefined, 200, 30);
-
-    await new Promise<void>((r) => setTimeout(r, 60));
-    writeMetadata(makeMetadata("success"));
-
-    await followPromise;
-    logSpy.mockRestore();
-
-    expect(lines.join("\n")).toContain("Hello from agent");
+    const capture = captureTransport();
+    try {
+      const followPromise = followRunLogs(runsDir, statePath, RUN_ID, undefined, 200, 30);
+      await new Promise<void>((r) => setTimeout(r, 60));
+      writeMetadata(makeMetadata("success"));
+      await followPromise;
+      expect(capture.getLines().join("\n")).toContain("Hello from agent");
+    } finally {
+      capture.restore();
+    }
   });
 
   it("waits for an active run when no run-id is given", async () => {
-    const lines: string[] = [];
-    const logSpy = vi.spyOn(console, "log").mockImplementation((...args) => { lines.push(args.join(" ")); });
-    const followPromise = followRunLogs(runsDir, statePath, undefined, undefined, 200, 30);
+    const capture = captureTransport();
+    try {
+      const followPromise = followRunLogs(runsDir, statePath, undefined, undefined, 200, 30);
 
-    await new Promise<void>((r) => setTimeout(r, 50));
+      await new Promise<void>((r) => setTimeout(r, 50));
 
-    writeMetadata(makeMetadata("running"));
-    writeEvents([assistantEvent]);
-    writeFileSync(
-      statePath,
-      JSON.stringify({ activeRuns: [{ runId: RUN_ID, workflow: "builder", startedAt: new Date().toISOString() }], completedRuns: 0, pendingRuns: [], workflows: {} }),
-      "utf-8",
-    );
+      writeMetadata(makeMetadata("running"));
+      writeEvents([assistantEvent]);
+      writeFileSync(
+        statePath,
+        JSON.stringify({ activeRuns: [{ runId: RUN_ID, workflow: "builder", startedAt: new Date().toISOString() }], completedRuns: 0, pendingRuns: [], workflows: {} }),
+        "utf-8",
+      );
 
-    await new Promise<void>((r) => setTimeout(r, 80));
-    writeMetadata(makeMetadata("success"));
+      await new Promise<void>((r) => setTimeout(r, 80));
+      writeMetadata(makeMetadata("success"));
 
-    await followPromise;
-    logSpy.mockRestore();
+      await followPromise;
 
-    const output = lines.join("\n");
-    expect(output).toContain("Waiting for an active run");
-    expect(output).toContain("Hello from agent");
+      const output = capture.getLines().join("\n");
+      expect(output).toContain("Waiting for an active run");
+      expect(output).toContain("Hello from agent");
+    } finally {
+      capture.restore();
+    }
   });
 
   it("does not double-print events seen in a previous poll", async () => {
     writeMetadata(makeMetadata("running"));
     writeEvents([assistantEvent]);
 
-    const lines: string[] = [];
-    const logSpy = vi.spyOn(console, "log").mockImplementation((...args) => { lines.push(args.join(" ")); });
-    const followPromise = followRunLogs(runsDir, statePath, RUN_ID, undefined, 200, 30);
+    const capture = captureTransport();
+    try {
+      const followPromise = followRunLogs(runsDir, statePath, RUN_ID, undefined, 200, 30);
 
-    await new Promise<void>((r) => setTimeout(r, 60));
+      await new Promise<void>((r) => setTimeout(r, 60));
 
-    writeFileSync(
-      join(runsDir, RUN_ID, "steps", `${STEP_ID}.events.jsonl`),
-      `${[assistantEvent, { type: "assistant", message: { content: [{ type: "text", text: "Second message" }] } }]
-        .map((e) => JSON.stringify(e))
-        .join("\n")}\n`,
-      "utf-8",
-    );
-    await new Promise<void>((r) => setTimeout(r, 60));
-    writeMetadata(makeMetadata("success"));
+      writeFileSync(
+        join(runsDir, RUN_ID, "steps", `${STEP_ID}.events.jsonl`),
+        `${[assistantEvent, { type: "assistant", message: { content: [{ type: "text", text: "Second message" }] } }]
+          .map((e) => JSON.stringify(e))
+          .join("\n")}\n`,
+        "utf-8",
+      );
+      await new Promise<void>((r) => setTimeout(r, 60));
+      writeMetadata(makeMetadata("success"));
 
-    await followPromise;
-    logSpy.mockRestore();
+      await followPromise;
 
-    const agentLines = lines.filter((l) => l.includes("[assistant]"));
-    expect(agentLines.length).toBe(2);
-    expect(agentLines.filter((l) => l.includes("Hello from agent")).length).toBe(1);
+      const agentLines = capture.getLines().filter((l) => l.includes("[assistant]"));
+      expect(agentLines.length).toBe(2);
+      expect(agentLines.filter((l) => l.includes("Hello from agent")).length).toBe(1);
+    } finally {
+      capture.restore();
+    }
   });
 });

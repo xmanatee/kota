@@ -1,9 +1,12 @@
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { stack } from "#modules/rendering/primitives.js";
+import { renderToString } from "#modules/rendering/transport.js";
+import { buildStepSummaryLines } from "./step-inspect.js";
 
 type StepRecord = WorkflowRunMetadata["steps"][number];
 
@@ -52,49 +55,36 @@ function writeRunFixture(
 }
 
 // ---------------------------------------------------------------------------
-// Unit tests for printSummary (via stdout capture)
+// Unit tests for buildStepSummaryLines
 // ---------------------------------------------------------------------------
 
-describe("printSummary via step-inspect module", () => {
-  let output: string[] = [];
-  let consoleSpy: ReturnType<typeof vi.spyOn>;
+describe("buildStepSummaryLines", () => {
+  function renderSummary(step: StepRecord): string {
+    return renderToString(stack(...buildStepSummaryLines(step)));
+  }
 
-  beforeEach(() => {
-    output = [];
-    consoleSpy = vi.spyOn(console, "log").mockImplementation((...args) => {
-      output.push(args.join(" "));
-    });
-  });
-
-  afterEach(() => {
-    consoleSpy.mockRestore();
-  });
-
-  it("prints agent step summary", async () => {
-    const { printSummary } = await import("./step-inspect.js");
+  it("renders agent step summary", () => {
     const step = makeStep();
-    printSummary(step);
-    expect(output.join("\n")).toContain("build");
-    expect(output.join("\n")).toContain("agent");
-    expect(output.join("\n")).toContain("$0.1230");
-    expect(output.join("\n")).toContain("Turns: 5");
-    expect(output.join("\n")).toContain("Did the work.");
+    const output = renderSummary(step);
+    expect(output).toContain("build");
+    expect(output).toContain("agent");
+    expect(output).toContain("$0.1230");
+    expect(output).toContain("Turns: 5");
+    expect(output).toContain("Did the work.");
   });
 
-  it("prints code step summary", async () => {
-    const { printSummary } = await import("./step-inspect.js");
+  it("renders code step summary", () => {
     const step = makeStep({ id: "prep", type: "code", output: { note: "ready" } });
-    printSummary(step);
-    expect(output.join("\n")).toContain("prep");
-    expect(output.join("\n")).toContain("code");
-    expect(output.join("\n")).toContain("note");
+    const output = renderSummary(step);
+    expect(output).toContain("prep");
+    expect(output).toContain("code");
+    expect(output).toContain("note");
   });
 
-  it("shows error when step failed", async () => {
-    const { printSummary } = await import("./step-inspect.js");
+  it("shows error when step failed", () => {
     const step = makeStep({ status: "failed", error: "typecheck failed", output: null });
-    printSummary(step);
-    expect(output.join("\n")).toContain("typecheck failed");
+    const output = renderSummary(step);
+    expect(output).toContain("typecheck failed");
   });
 });
 

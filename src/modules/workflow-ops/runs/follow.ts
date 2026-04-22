@@ -6,20 +6,26 @@ import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata, WorkflowRuntimeState } from "#core/workflow/run-types.js";
+import { type LineNode, line, plain, span, stack } from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
 import { formatDuration, statusIcon } from "../utils.js";
-import { buildRunLogs, followRunLogs } from "./workflow-logs.js";
+import { buildRunLogs, followRunLogs, stepBanner } from "./workflow-logs.js";
 
 function printRunSummary(metadata: WorkflowRunMetadata): void {
-  console.log(`\n${"─".repeat(64)}`);
-  console.log(`Run:      ${metadata.id}`);
-  console.log(`Workflow: ${metadata.workflow}`);
-  console.log(`Status:   ${statusIcon(metadata.status)} ${metadata.status}`);
+  const lines: LineNode[] = [
+    line(plain("")),
+    line(plain("─".repeat(64))),
+    line(plain(`Run:      ${metadata.id}`)),
+    line(plain(`Workflow: ${metadata.workflow}`)),
+    line(plain(`Status:   ${statusIcon(metadata.status)} ${metadata.status}`)),
+  ];
   if (metadata.durationMs != null) {
-    console.log(`Duration: ${formatDuration(metadata.durationMs)}`);
+    lines.push(line(plain(`Duration: ${formatDuration(metadata.durationMs)}`)));
   }
   if (metadata.totalCostUsd != null) {
-    console.log(`Cost:     $${metadata.totalCostUsd.toFixed(4)}`);
+    lines.push(line(plain(`Cost:     $${metadata.totalCostUsd.toFixed(4)}`)));
   }
+  print(stack(...lines));
 }
 
 function emitPendingStepOutput(
@@ -37,10 +43,11 @@ function emitPendingStepOutput(
     const lines = stepLogs[0].lines.slice(offset);
     if (lines.length > 0) {
       if (!emittedSteps.has(step.id)) {
-        console.log(`\n── Step: ${step.id} ${"─".repeat(Math.max(0, 60 - step.id.length))}`);
+        print(line(plain("")));
+        print(line(plain(stepBanner(step.id))));
         emittedSteps.add(step.id);
       }
-      for (const line of lines) console.log(line);
+      for (const l of lines) print(line(plain(l)));
       stepOutputOffset.set(step.id, offset + lines.length);
     }
   }
@@ -57,7 +64,7 @@ async function followWithSse(
     const wfStatus = await client.getWorkflowStatus();
     if (wfStatus && wfStatus.activeRuns.length > 0) {
       activeRunId = wfStatus.activeRuns[0].runId;
-      console.log(`Following run: ${activeRunId}`);
+      print(line(plain(`Following run: ${activeRunId}`)));
     }
   }
 
@@ -75,7 +82,8 @@ async function followWithSse(
     };
 
     process.once("SIGINT", () => {
-      console.log("\nDetached. Run continues in background.");
+      print(line(plain("")));
+      print(line(plain("Detached. Run continues in background.")));
       cleanup();
     });
 
@@ -86,7 +94,7 @@ async function followWithSse(
 
       if (event.type === "workflow.started" && !activeRunId) {
         activeRunId = eventRunId;
-        console.log(`Following run: ${activeRunId}`);
+        print(line(plain(`Following run: ${activeRunId}`)));
         return;
       }
 
@@ -101,7 +109,8 @@ async function followWithSse(
         const stepId = p.stepId as string;
         const status = p.status as string;
         const dur = typeof p.durationMs === "number" ? formatDuration(p.durationMs) : "";
-        console.log(`\n${statusIcon(status)} Step completed: ${stepId} [${status}] ${dur}`);
+        print(line(plain("")));
+        print(line(plain(`${statusIcon(status)} Step completed: ${stepId} [${status}] ${dur}`)));
       }
 
       if (event.type === "workflow.completed") {
@@ -114,7 +123,8 @@ async function followWithSse(
         } else {
           const status = p.status as string;
           const dur = typeof p.durationMs === "number" ? formatDuration(p.durationMs) : "";
-          console.log(`\nRun ${activeRunId}: ${statusIcon(status)} ${status} ${dur}`);
+          print(line(plain("")));
+          print(line(plain(`Run ${activeRunId}: ${statusIcon(status)} ${status} ${dur}`)));
         }
         cleanup();
       }
@@ -122,7 +132,6 @@ async function followWithSse(
 
     async function waitForRunThenStream(): Promise<void> {
       if (!activeRunId) {
-        // Poll until an active run appears
         const pollTimer = setInterval(async () => {
           if (done) {
             clearInterval(pollTimer);
@@ -131,7 +140,7 @@ async function followWithSse(
           const wfStatus = await client.getWorkflowStatus();
           if (wfStatus && wfStatus.activeRuns.length > 0) {
             activeRunId = wfStatus.activeRuns[0].runId;
-            console.log(`Following run: ${activeRunId}`);
+            print(line(plain(`Following run: ${activeRunId}`)));
             clearInterval(pollTimer);
             void streamEvents();
           }
@@ -165,32 +174,31 @@ export function registerFollowCommand(wfCmd: Command): void {
       const store = new WorkflowRunStore();
       const client = DaemonControlClient.fromStateDir();
 
-      // Resolve run ID prefix
       let resolvedId = runId;
       if (runId && !runId.includes("Z-")) {
         try {
           const dirs = readdirSync(store.runsDir).sort().reverse();
           const match = dirs.find((d) => d.startsWith(runId));
           if (!match) {
-            console.error(`Run "${runId}" not found.`);
+            print(line(span(`Run "${runId}" not found.`, "error")));
             process.exit(1);
           }
           resolvedId = match;
         } catch {
-          console.error(`Run "${runId}" not found.`);
+          print(line(span(`Run "${runId}" not found.`, "error")));
           process.exit(1);
         }
       }
 
-      // If a completed run is specified, print it synchronously and return
       if (resolvedId) {
         const metadataPath = join(store.runsDir, resolvedId, "metadata.json");
         const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
         if (metadata && metadata.status !== "running") {
           const stepLogs = buildRunLogs(store.runsDir, resolvedId, metadata);
           for (const { stepId, lines } of stepLogs) {
-            console.log(`\n── Step: ${stepId} ${"─".repeat(Math.max(0, 60 - stepId.length))}`);
-            for (const line of lines) console.log(line);
+            print(line(plain("")));
+            print(line(plain(stepBanner(stepId))));
+            for (const l of lines) print(line(plain(l)));
           }
           printRunSummary(metadata);
           return;
@@ -200,16 +208,15 @@ export function registerFollowCommand(wfCmd: Command): void {
       if (client) {
         await followWithSse(client, store, resolvedId);
       } else {
-        // Fall back to file-polling when no daemon
         if (!resolvedId) {
           const wfState = readOptionalJsonFile<WorkflowRuntimeState>(store.statePath);
           const firstActiveRunId = wfState?.activeRuns?.[0]?.runId;
           if (!firstActiveRunId) {
-            console.log("No active run found and daemon is not running.");
+            print(line(plain("No active run found and daemon is not running.")));
             return;
           }
           resolvedId = firstActiveRunId;
-          console.log(`Following run: ${resolvedId}`);
+          print(line(plain(`Following run: ${resolvedId}`)));
         }
         await followRunLogs(store.runsDir, store.statePath, resolvedId, undefined);
       }

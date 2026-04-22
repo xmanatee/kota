@@ -1,5 +1,7 @@
 import type { Command } from "commander";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { type LineNode, line, plain, stack } from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
 import { formatDuration } from "../utils.js";
 import { computeHistoryStats, loadRunsInWindow } from "./workflow-history.js";
 
@@ -34,6 +36,27 @@ export function computeStatsRows(
   });
 }
 
+export function buildStatsLines(rows: StatsRow[], days: number): LineNode[] {
+  const nameWidth = Math.max(...rows.map((r) => r.workflow.length), 8);
+  const header =
+    `${"Workflow".padEnd(nameWidth)}  ${"Runs".padStart(5)}  ${"Success".padStart(7)}  ${"Failed".padStart(6)}  ${"Avg Duration".padStart(12)}  ${"Total Cost".padStart(10)}`;
+  const lines: LineNode[] = [
+    line(plain(header)),
+    line(plain("-".repeat(header.length))),
+  ];
+
+  for (const row of rows) {
+    const avgDur = row.avgDurationMs != null ? formatDuration(Math.round(row.avgDurationMs)) : "—";
+    lines.push(line(plain(
+      `${row.workflow.padEnd(nameWidth)}  ${String(row.runs).padStart(5)}  ${String(row.successes).padStart(7)}  ${String(row.failures).padStart(6)}  ${avgDur.padStart(12)}  ${`$${row.totalCostUsd.toFixed(3)}`.padStart(10)}`,
+    )));
+  }
+
+  lines.push(line(plain("")));
+  lines.push(line(plain(`(${days}-day window)`)));
+  return lines;
+}
+
 export function registerStatsCommand(wfCmd: Command): void {
   wfCmd
     .command("stats")
@@ -53,23 +76,10 @@ export function registerStatsCommand(wfCmd: Command): void {
       }
 
       if (rows.length === 0) {
-        console.log(`No runs found in the last ${days} day${days === 1 ? "" : "s"}.`);
+        print(line(plain(`No runs found in the last ${days} day${days === 1 ? "" : "s"}.`)));
         return;
       }
 
-      const nameWidth = Math.max(...rows.map((r) => r.workflow.length), 8);
-      const header =
-        `${"Workflow".padEnd(nameWidth)}  ${"Runs".padStart(5)}  ${"Success".padStart(7)}  ${"Failed".padStart(6)}  ${"Avg Duration".padStart(12)}  ${"Total Cost".padStart(10)}`;
-      console.log(header);
-      console.log("-".repeat(header.length));
-
-      for (const row of rows) {
-        const avgDur = row.avgDurationMs != null ? formatDuration(Math.round(row.avgDurationMs)) : "—";
-        console.log(
-          `${row.workflow.padEnd(nameWidth)}  ${String(row.runs).padStart(5)}  ${String(row.successes).padStart(7)}  ${String(row.failures).padStart(6)}  ${avgDur.padStart(12)}  ${`$${row.totalCostUsd.toFixed(3)}`.padStart(10)}`,
-        );
-      }
-
-      console.log(`\n(${days}-day window)`);
+      print(stack(...buildStatsLines(rows, days)));
     });
 }

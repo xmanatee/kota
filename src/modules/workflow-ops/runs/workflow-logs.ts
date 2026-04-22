@@ -3,6 +3,8 @@ import { join } from "node:path";
 import type { SDKMessage } from "#core/agent-sdk/types.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata, WorkflowRuntimeState } from "#core/workflow/run-types.js";
+import { line, plain } from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
 
 const DEFAULT_MAX_LEN = 200;
 
@@ -10,6 +12,10 @@ export function truncateContent(text: string, max: number = DEFAULT_MAX_LEN): st
   const trimmed = text.trim();
   if (trimmed.length <= max) return trimmed;
   return `${trimmed.slice(0, max)}… [+${trimmed.length - max} chars]`;
+}
+
+export function stepBanner(stepId: string): string {
+  return `── Step: ${stepId} ${"─".repeat(Math.max(0, 60 - stepId.length))}`;
 }
 
 type ContentBlock = {
@@ -158,11 +164,12 @@ function emitNewStepEvents(
   const newEvents = allEvents.slice(state.linesEmitted);
   for (const event of newEvents) {
     if (!state.headerPrinted) {
-      console.log(`\n── Step: ${stepId} ${"─".repeat(Math.max(0, 60 - stepId.length))}`);
+      print(line(plain("")));
+      print(line(plain(stepBanner(stepId))));
       state.headerPrinted = true;
     }
-    for (const line of formatAgentMessage(event, maxLen)) {
-      console.log(line);
+    for (const l of formatAgentMessage(event, maxLen)) {
+      print(line(plain(l)));
     }
   }
   state.linesEmitted = allEvents.length;
@@ -176,15 +183,15 @@ export async function followRunLogs(
   maxLen = DEFAULT_MAX_LEN,
   pollIntervalMs = 500,
 ): Promise<void> {
-  // If a completed run is specified, print it synchronously and return.
   if (runId) {
     const metadataPath = join(runsDir, runId, "metadata.json");
     const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
     if (metadata && metadata.status !== "running") {
       const stepLogs = buildRunLogs(runsDir, runId, metadata, filterStep, maxLen);
       for (const { stepId, lines } of stepLogs) {
-        console.log(`\n── Step: ${stepId} ${"─".repeat(Math.max(0, 60 - stepId.length))}`);
-        for (const line of lines) console.log(line);
+        print(line(plain("")));
+        print(line(plain(stepBanner(stepId))));
+        for (const l of lines) print(line(plain(l)));
       }
       return;
     }
@@ -209,13 +216,13 @@ export async function followRunLogs(
         const firstActiveRunId = wfState?.activeRuns?.[0]?.runId;
         if (!firstActiveRunId) {
           if (!waitingPrinted) {
-            console.log("Waiting for an active run...");
+            print(line(plain("Waiting for an active run...")));
             waitingPrinted = true;
           }
           return;
         }
         activeRunId = firstActiveRunId;
-        console.log(`Following run: ${activeRunId}`);
+        print(line(plain(`Following run: ${activeRunId}`)));
       }
 
       const metadataPath = join(runsDir, activeRunId, "metadata.json");

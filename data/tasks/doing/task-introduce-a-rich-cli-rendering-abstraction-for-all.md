@@ -90,8 +90,13 @@ Phase 2 — migrate remaining surfaces (follow-up runs):
 - [done] Migrate `workflow-ops/runs/run-show` onto the module
   (including the chain-tree printer, now exposed as
   `buildChainLines`).
-- Migrate remaining workflow-ops readouts (`run-list`, `run-cost`,
-  `run-stats`, `run-diff`, `follow`, `logs`) onto the module.
+- [done] Migrate remaining workflow-ops readouts: `run-list`, `run-cost`,
+  `run-stats`, `run-diff`, `follow`, `logs`, `step-inspect`, and the
+  shared `workflow-logs` streaming paths. Pure helpers now return
+  `LineNode[]` / `RenderNode` so tests assert via
+  `renderToString`. Machine-parseable `--json` paths intentionally keep
+  their direct `console.log(JSON.stringify(...))` output per the module
+  contract on structured surfaces.
 - Migrate module CLIs (repo-tasks, history, memory, knowledge, webhook,
   owner-questions, guardrails-audit, approval-queue, eval-harness,
   skill-ops, agent-ops, module-manager) onto the module.

@@ -4,6 +4,15 @@ import type { Command } from "commander";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata, WorkflowStepResult } from "#core/workflow/run-types.js";
+import {
+  type LineNode,
+  line,
+  plain,
+  type RenderNode,
+  span,
+  stack,
+} from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
 import { formatDuration, statusIcon } from "../utils.js";
 
 type StepDiff = {
@@ -77,13 +86,13 @@ function fmtCost(cost: number | null): string {
   return cost === null ? "—" : `$${cost.toFixed(3)}`;
 }
 
-export function formatRunDiff(a: WorkflowRunMetadata, b: WorkflowRunMetadata): string {
+export function buildRunDiffLines(a: WorkflowRunMetadata, b: WorkflowRunMetadata): LineNode[] {
   const diffs = buildRunDiff(a, b);
   const hasCost = diffs.some((d) => d.costA !== null || d.costB !== null);
 
   const COL = { step: 20, status: 7, dur: 10, delta: 11, cost: 9, cdelta: 10 };
 
-  const header = [
+  const headerText = [
     pad("Step", COL.step),
     pad("Status", COL.status),
     pad("A Dur", COL.dur),
@@ -92,9 +101,9 @@ export function formatRunDiff(a: WorkflowRunMetadata, b: WorkflowRunMetadata): s
     ...(hasCost ? [pad("A Cost", COL.cost), pad("B Cost", COL.cost), pad("Δ Cost", COL.cdelta)] : []),
   ].join(" ").trimEnd();
 
-  const sep = "-".repeat(header.length);
+  const sep = "-".repeat(headerText.length);
 
-  const rows = diffs.map((d) => {
+  const rows: LineNode[] = diffs.map((d) => {
     const stepLabel = d.id.length > COL.step ? `${d.id.slice(0, COL.step - 1)}…` : d.id;
     const statusStr = `${fmtStatus(d.statusA)}→${fmtStatus(d.statusB)}`;
     const durA = d.durMsA === null ? "N/A" : formatDuration(d.durMsA);
@@ -113,17 +122,21 @@ export function formatRunDiff(a: WorkflowRunMetadata, b: WorkflowRunMetadata): s
         pad(fmtDelta(d.costA, d.costB, (n) => `$${Math.abs(n).toFixed(3)}`), COL.cdelta),
       ] : []),
     ];
-    return cols.join(" ").trimEnd();
+    return line(plain(cols.join(" ").trimEnd()));
   });
 
   return [
-    `Run A: ${a.id}  (${a.workflow})`,
-    `Run B: ${b.id}  (${b.workflow})`,
-    "",
-    header,
-    sep,
+    line(plain(`Run A: ${a.id}  (${a.workflow})`)),
+    line(plain(`Run B: ${b.id}  (${b.workflow})`)),
+    line(plain("")),
+    line(plain(headerText)),
+    line(plain(sep)),
     ...rows,
-  ].join("\n");
+  ];
+}
+
+export function formatRunDiff(a: WorkflowRunMetadata, b: WorkflowRunMetadata): RenderNode {
+  return stack(...buildRunDiffLines(a, b));
 }
 
 function resolveRunId(store: WorkflowRunStore, runId: string): string {
@@ -153,15 +166,15 @@ export function registerRunDiffCommand(wfCmd: Command): void {
       try {
         runA = loadRun(store, runIdA);
       } catch (err: unknown) {
-        console.error((err as Error).message);
+        print(line(span((err as Error).message, "error")));
         process.exit(1);
       }
       try {
         runB = loadRun(store, runIdB);
       } catch (err: unknown) {
-        console.error((err as Error).message);
+        print(line(span((err as Error).message, "error")));
         process.exit(1);
       }
-      console.log(formatRunDiff(runA, runB));
+      print(formatRunDiff(runA, runB));
     });
 }

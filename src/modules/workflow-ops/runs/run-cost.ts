@@ -1,6 +1,8 @@
 import type { Command } from "commander";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { blank, type LineNode, line, plain, stack } from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
 import { formatDate } from "../utils.js";
 import { loadRunsInWindow } from "./workflow-history.js";
 
@@ -45,35 +47,35 @@ export function computeWorkflowCostRows(runs: RunCostEntry[]): WorkflowCostRow[]
     .sort((a, b) => b.totalCostUsd - a.totalCostUsd);
 }
 
-function printSummaryTable(rows: WorkflowCostRow[]): void {
-  if (rows.length === 0) return;
+export function buildSummaryTableLines(rows: WorkflowCostRow[]): LineNode[] {
+  if (rows.length === 0) return [];
   const nameWidth = Math.max(...rows.map((r) => r.workflow.length), 8);
   const header =
     `${"Workflow".padEnd(nameWidth)}  ${"Total".padStart(10)}  ${"Runs".padStart(5)}  ${"Avg/run".padStart(9)}  ${"Max run".padStart(9)}`;
-  console.log(header);
-  console.log("-".repeat(header.length));
+  const lines: LineNode[] = [
+    line(plain(header)),
+    line(plain("-".repeat(header.length))),
+  ];
   for (const row of rows) {
     const name = row.workflow.padEnd(nameWidth);
     const total = `$${row.totalCostUsd.toFixed(4)}`.padStart(10);
     const count = String(row.runs).padStart(5);
     const avg = `$${row.averageCostUsd.toFixed(4)}`.padStart(9);
     const max = `$${row.maxRunCostUsd.toFixed(4)}`.padStart(9);
-    console.log(`${name}  ${total}  ${count}  ${avg}  ${max}`);
+    lines.push(line(plain(`${name}  ${total}  ${count}  ${avg}  ${max}`)));
   }
+  return lines;
 }
 
-function printRunBreakdown(runs: RunCostEntry[]): void {
+export function buildRunBreakdownLines(runs: RunCostEntry[]): LineNode[] {
   const finished = runs.filter((r) => r.status !== "running");
-  if (finished.length === 0) {
-    console.log("  (no completed runs)");
-    return;
-  }
+  if (finished.length === 0) return [line(plain("  (no completed runs)"))];
   const sorted = [...finished].sort((a, b) => (b.totalCostUsd ?? 0) - (a.totalCostUsd ?? 0));
-  for (const run of sorted) {
+  return sorted.map((run) => {
     const cost = run.totalCostUsd != null ? `$${run.totalCostUsd.toFixed(4)}` : "—";
     const when = formatDate(run.startedAt);
-    console.log(`  ${run.id}  ${cost.padStart(9)}  ${when}  ${run.status}`);
-  }
+    return line(plain(`  ${run.id}  ${cost.padStart(9)}  ${when}  ${run.status}`));
+  });
 }
 
 async function loadRuns(
@@ -133,16 +135,21 @@ export function registerCostCommand(wfCmd: Command): void {
       }
 
       if (rows.length === 0) {
-        console.log(`No runs found in the last ${days} day${days === 1 ? "" : "s"}.`);
+        print(line(plain(`No runs found in the last ${days} day${days === 1 ? "" : "s"}.`)));
         return;
       }
 
-      console.log(`Last ${days} day${days === 1 ? "" : "s"} — $${grandTotal.toFixed(4)} total across ${finished.length} run${finished.length === 1 ? "" : "s"}\n`);
-      printSummaryTable(rows);
+      const children: LineNode[] = [
+        line(plain(`Last ${days} day${days === 1 ? "" : "s"} — $${grandTotal.toFixed(4)} total across ${finished.length} run${finished.length === 1 ? "" : "s"}`)),
+      ];
+      print(stack(...children, blank(), ...buildSummaryTableLines(rows)));
 
       if (opts.workflow) {
-        console.log(`\nPer-run breakdown — ${opts.workflow}:`);
-        printRunBreakdown(runs);
+        print(stack(
+          blank(),
+          line(plain(`Per-run breakdown — ${opts.workflow}:`)),
+          ...buildRunBreakdownLines(runs),
+        ));
       }
     });
 }

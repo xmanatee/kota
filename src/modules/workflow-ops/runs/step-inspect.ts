@@ -4,54 +4,72 @@ import type { Command } from "commander";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { type LineNode, line, plain, span, stack } from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
 import { formatDuration, statusIcon } from "../utils.js";
 
 type StepRecord = WorkflowRunMetadata["steps"][number];
 
-export function printSummary(step: StepRecord): void {
+export function buildStepSummaryLines(step: StepRecord): LineNode[] {
   const icon = statusIcon(step.status);
   const dur = formatDuration(step.durationMs);
-  console.log(`Step:     ${step.id}`);
-  console.log(`Type:     ${step.type}`);
-  console.log(`Status:   ${icon} ${step.status}`);
-  console.log(`Duration: ${dur}`);
+  const lines: LineNode[] = [
+    line(plain(`Step:     ${step.id}`)),
+    line(plain(`Type:     ${step.type}`)),
+    line(plain(`Status:   ${icon} ${step.status}`)),
+    line(plain(`Duration: ${dur}`)),
+  ];
   if (step.startedAt) {
-    console.log(`Started:  ${new Date(step.startedAt).toLocaleString()}`);
+    lines.push(line(plain(`Started:  ${new Date(step.startedAt).toLocaleString()}`)));
   }
   if (step.completedAt) {
-    console.log(`Finished: ${new Date(step.completedAt).toLocaleString()}`);
+    lines.push(line(plain(`Finished: ${new Date(step.completedAt).toLocaleString()}`)));
   }
 
   if (step.error) {
-    console.log(`\nError:\n${step.error}`);
-    return;
+    lines.push(line(plain("")));
+    lines.push(line(plain("Error:")));
+    for (const errLine of step.error.split("\n")) {
+      lines.push(line(plain(errLine)));
+    }
+    return lines;
   }
 
   if (step.output === null || step.output === undefined) {
-    console.log("\nOutput: (none)");
-    return;
+    lines.push(line(plain("")));
+    lines.push(line(plain("Output: (none)")));
+    return lines;
   }
 
   const output = step.output as Record<string, unknown>;
-  console.log("\nOutput:");
+  lines.push(line(plain("")));
+  lines.push(line(plain("Output:")));
 
   if (step.type === "agent") {
     if (typeof output.totalCostUsd === "number") {
-      console.log(`  Cost:  $${(output.totalCostUsd as number).toFixed(4)}`);
+      lines.push(line(plain(`  Cost:  $${(output.totalCostUsd as number).toFixed(4)}`)));
     }
     if (typeof output.turns === "number") {
-      console.log(`  Turns: ${output.turns}`);
+      lines.push(line(plain(`  Turns: ${output.turns}`)));
     }
     if (typeof output.content === "string") {
       const content = output.content as string;
       const preview = content.length > 300 ? `${content.slice(0, 300)}…` : content;
-      console.log(`  Content:\n    ${preview.replace(/\n/g, "\n    ")}`);
+      lines.push(line(plain("  Content:")));
+      for (const contentLine of preview.split("\n")) {
+        lines.push(line(plain(`    ${contentLine}`)));
+      }
     }
   } else {
     const serialized = JSON.stringify(output);
     const trimmed = serialized.length > 400 ? `${serialized.slice(0, 400)}…` : serialized;
-    console.log(`  ${trimmed}`);
+    lines.push(line(plain(`  ${trimmed}`)));
   }
+  return lines;
+}
+
+export function printSummary(step: StepRecord): void {
+  print(stack(...buildStepSummaryLines(step)));
 }
 
 function resolveRunId(store: WorkflowRunStore, runId: string): string | null {
@@ -74,13 +92,13 @@ export function registerStepInspectCommand(wfCmd: Command): void {
       const resolvedId = resolveRunId(store, runId);
 
       if (!resolvedId) {
-        console.error(`Run "${runId}" not found.`);
+        print(line(span(`Run "${runId}" not found.`, "error")));
         process.exit(1);
       }
 
       const runDir = join(store.runsDir, resolvedId);
       if (!existsSync(runDir)) {
-        console.error(`Run "${resolvedId}" not found.`);
+        print(line(span(`Run "${resolvedId}" not found.`, "error")));
         process.exit(1);
       }
 
@@ -88,7 +106,7 @@ export function registerStepInspectCommand(wfCmd: Command): void {
       const step = readOptionalJsonFile<StepRecord>(stepPath);
 
       if (!step) {
-        console.error(`Step "${stepId}" not found in run "${resolvedId}".`);
+        print(line(span(`Step "${stepId}" not found in run "${resolvedId}".`, "error")));
         process.exit(1);
       }
 

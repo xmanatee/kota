@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { renderToString } from "#modules/rendering/transport.js";
 import { buildRunDiff, formatRunDiff } from "./run-diff.js";
+
+function renderDiff(a: WorkflowRunMetadata, b: WorkflowRunMetadata): string {
+  return renderToString(formatRunDiff(a, b));
+}
 
 function makeRun(
   id: string,
@@ -101,7 +106,7 @@ describe("formatRunDiff", () => {
     const b = makeRun("2026-01-01T00-00-01Z-builder-bbbb", "builder", [
       { id: "build", durationMs: 62100 },
     ]);
-    const output = formatRunDiff(a, b);
+    const output = renderDiff(a, b);
     for (const line of output.split("\n")) {
       expect(line.length).toBeLessThanOrEqual(80);
     }
@@ -110,7 +115,7 @@ describe("formatRunDiff", () => {
   it("includes run IDs in the header lines", () => {
     const a = makeRun("run-a", "builder", [{ id: "build" }]);
     const b = makeRun("run-b", "builder", [{ id: "build" }]);
-    const output = formatRunDiff(a, b);
+    const output = renderDiff(a, b);
     expect(output).toContain("run-a");
     expect(output).toContain("run-b");
   });
@@ -121,14 +126,14 @@ describe("formatRunDiff", () => {
       { id: "only-a" },
     ]);
     const b = makeRun("run-b", "builder", [{ id: "build" }]);
-    const output = formatRunDiff(a, b);
+    const output = renderDiff(a, b);
     expect(output).toContain("N/A");
   });
 
   it("shows cost columns when any step has cost", () => {
     const a = makeRun("run-a", "builder", [{ id: "build", costUsd: 0.01 }]);
     const b = makeRun("run-b", "builder", [{ id: "build", costUsd: 0.02 }]);
-    const output = formatRunDiff(a, b);
+    const output = renderDiff(a, b);
     expect(output).toContain("Cost");
     expect(output).toContain("$0.010");
     expect(output).toContain("$0.020");
@@ -137,7 +142,7 @@ describe("formatRunDiff", () => {
   it("omits cost columns when no step has cost", () => {
     const a = makeRun("run-a", "builder", [{ id: "build" }]);
     const b = makeRun("run-b", "builder", [{ id: "build" }]);
-    const output = formatRunDiff(a, b);
+    const output = renderDiff(a, b);
     expect(output).not.toContain("Cost");
     expect(output).not.toContain("$");
   });
@@ -145,7 +150,7 @@ describe("formatRunDiff", () => {
   it("shows regressed status as status-a arrow status-b", () => {
     const a = makeRun("run-a", "builder", [{ id: "build", status: "success" }]);
     const b = makeRun("run-b", "builder", [{ id: "build", status: "failed" }]);
-    const output = formatRunDiff(a, b);
+    const output = renderDiff(a, b);
     expect(output).toContain("✓→✗");
   });
 });
