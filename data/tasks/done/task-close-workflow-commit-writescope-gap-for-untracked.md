@@ -1,12 +1,12 @@
 ---
 id: task-close-workflow-commit-writescope-gap-for-untracked
 title: Close workflow commit writeScope gap for untracked files
-status: backlog
+status: done
 priority: p2
 area: core
 summary: Make workflow writeScope enforcement and the commit staging step share one path set so untracked files are either ownership-gated or excluded from workflow commits
 created_at: 2026-04-21T15:51:32.115Z
-updated_at: 2026-04-21T15:51:32.115Z
+updated_at: 2026-04-22T03:30:10.076Z
 ---
 
 ## Problem

@@ -237,6 +237,7 @@ const daemonModule: KotaModule = {
   name: "daemon-ops",
   version: "1.0.0",
   description: "Operator CLI and supervisor surface for the KOTA daemon runtime",
+  dependencies: ["repo-tasks"],
 
   commands: (ctx) => {
     const cmd = new Command("daemon")

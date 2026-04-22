@@ -524,6 +524,11 @@ describe("executeAgentStep — writeScope enforcement", () => {
     writeFileSync(join(dir, "data", "tasks", "ready", "baseline.md"), "seed\n");
     mkdirSync(join(dir, "src", "core"), { recursive: true });
     writeFileSync(join(dir, "src", "core", "keep.ts"), "// seed\n");
+    // Commit the prompt fixture so it sits in the clean baseline; the
+    // writeScope gate now sees every untracked path that `git add -A` would
+    // stage, and an uncommitted prompt.md would otherwise show up as a
+    // spurious violation for every test in this block.
+    writeFileSync(join(dir, "prompt.md"), "do the thing");
     execFileSync("git", ["add", "-A"], { cwd: dir });
     execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: dir });
   }
@@ -532,10 +537,6 @@ describe("executeAgentStep — writeScope enforcement", () => {
     const abs = join(dir, relPath);
     mkdirSync(dirname(abs), { recursive: true });
     writeFileSync(abs, content);
-    // Stage only this path — using `-A` would sweep in unrelated untracked
-    // fixtures like the prompt.md file the test harness drops at the repo
-    // root, which would show up as a spurious scope violation.
-    execFileSync("git", ["add", "--", relPath], { cwd: dir });
   }
 
   function makeAgentDef(overrides: Partial<AgentDef> = {}): AgentDef {
@@ -557,7 +558,6 @@ describe("executeAgentStep — writeScope enforcement", () => {
     );
     mkdirSync(projectDir, { recursive: true });
     initRepo(projectDir);
-    writeFileSync(join(projectDir, "prompt.md"), "do the thing");
     tryEmitMock.mockReset();
     executeWithAgentSDKMock.mockReset();
   });

@@ -34,21 +34,33 @@ export class AgentWriteScopeViolationError extends Error {
 }
 
 /**
- * Returns the tracked files that differ from HEAD in the project directory.
- * Covers both staged and unstaged modifications to tracked files and staged
- * additions of new files. Excludes untracked files (those are already gated
- * by the `no-scratch-artifacts` repair check).
+ * Returns the set of repo paths a workflow run would commit via `git add -A`.
+ * Covers tracked modifications, deletions, staged additions, and non-ignored
+ * untracked files. This is the single path set shared by writeScope
+ * enforcement and the workflow commit step, so an untracked out-of-scope
+ * file fails the ownership gate instead of sneaking into the commit.
  */
-export function listMutatedTrackedFiles(projectDir: string): string[] {
-  const output = execFileSync("git", ["diff", "--name-only", "HEAD"], {
+export function listWorkflowMutatedPaths(projectDir: string): string[] {
+  const tracked = execFileSync("git", ["diff", "--name-only", "HEAD"], {
     cwd: projectDir,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
-  return output
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
+  const untracked = execFileSync(
+    "git",
+    ["ls-files", "--others", "--exclude-standard"],
+    {
+      cwd: projectDir,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  const paths = new Set<string>();
+  for (const line of [...tracked.split("\n"), ...untracked.split("\n")]) {
+    const trimmed = line.trim();
+    if (trimmed.length > 0) paths.add(trimmed);
+  }
+  return [...paths].sort();
 }
 
 function normalizeScope(entry: string): string {

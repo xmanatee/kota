@@ -13,7 +13,7 @@ import type { WorkflowRunMetadata } from "../run-types.js";
 import {
   AgentWriteScopeViolationError,
   findWriteScopeViolations,
-  listMutatedTrackedFiles,
+  listWorkflowMutatedPaths,
   pathInScope,
   writeWriteScopeViolationArtifact,
 } from "./agent-write-scope.js";
@@ -82,13 +82,93 @@ describe("findWriteScopeViolations", () => {
   });
 });
 
-describe("listMutatedTrackedFiles", () => {
+describe("listWorkflowMutatedPaths", () => {
   let projectDir: string;
 
   beforeEach(() => {
     projectDir = join(
       tmpdir(),
       `kota-write-scope-git-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
+    execFileSync("git", ["config", "user.email", "t@example.com"], {
+      cwd: projectDir,
+    });
+    execFileSync("git", ["config", "user.name", "test"], { cwd: projectDir });
+    execFileSync("git", ["config", "commit.gpgsign", "false"], {
+      cwd: projectDir,
+    });
+    writeFileSync(join(projectDir, "seed.txt"), "seed\n");
+    writeFileSync(join(projectDir, ".gitignore"), "ignored.txt\n");
+    execFileSync("git", ["add", "-A"], { cwd: projectDir });
+    execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: projectDir });
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("returns [] when the tree is clean", () => {
+    expect(listWorkflowMutatedPaths(projectDir)).toEqual([]);
+  });
+
+  it("lists modifications to tracked files", () => {
+    writeFileSync(join(projectDir, "seed.txt"), "seed\nmore\n");
+    expect(listWorkflowMutatedPaths(projectDir)).toEqual(["seed.txt"]);
+  });
+
+  it("lists staged additions of new files", () => {
+    const newPath = join(projectDir, "data", "tasks", "ready", "task-x.md");
+    mkdirSync(dirname(newPath), { recursive: true });
+    writeFileSync(newPath, "hello\n");
+    execFileSync("git", ["add", "-A"], { cwd: projectDir });
+    expect(listWorkflowMutatedPaths(projectDir)).toEqual([
+      "data/tasks/ready/task-x.md",
+    ]);
+  });
+
+  it("lists untracked files that `git add -A` would stage", () => {
+    writeFileSync(join(projectDir, "scratch.txt"), "scratch\n");
+    expect(listWorkflowMutatedPaths(projectDir)).toEqual(["scratch.txt"]);
+  });
+
+  it("lists untracked files in new subdirectories", () => {
+    const nested = join(projectDir, "src", "core", "new.ts");
+    mkdirSync(dirname(nested), { recursive: true });
+    writeFileSync(nested, "export {};\n");
+    expect(listWorkflowMutatedPaths(projectDir)).toEqual(["src/core/new.ts"]);
+  });
+
+  it("excludes gitignored untracked files", () => {
+    writeFileSync(join(projectDir, "ignored.txt"), "shh\n");
+    expect(listWorkflowMutatedPaths(projectDir)).toEqual([]);
+  });
+
+  it("merges tracked mutations, staged additions, and untracked files", () => {
+    writeFileSync(join(projectDir, "seed.txt"), "seed\nmore\n");
+    const staged = join(projectDir, "data", "tasks", "ready", "task-x.md");
+    mkdirSync(dirname(staged), { recursive: true });
+    writeFileSync(staged, "hello\n");
+    execFileSync("git", ["add", "data/tasks/ready/task-x.md"], {
+      cwd: projectDir,
+    });
+    writeFileSync(join(projectDir, "scratch.txt"), "scratch\n");
+    expect(listWorkflowMutatedPaths(projectDir)).toEqual([
+      "data/tasks/ready/task-x.md",
+      "scratch.txt",
+      "seed.txt",
+    ]);
+  });
+});
+
+describe("writeScope enforcement over mutated paths", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-write-scope-enforce-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
     mkdirSync(projectDir, { recursive: true });
     execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
@@ -108,28 +188,24 @@ describe("listMutatedTrackedFiles", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("returns [] when the tree is clean", () => {
-    expect(listMutatedTrackedFiles(projectDir)).toEqual([]);
+  it("flags an untracked file written outside the declared writeScope", () => {
+    writeFileSync(join(projectDir, "stowaway.ts"), "export {};\n");
+    const violations = findWriteScopeViolations(
+      listWorkflowMutatedPaths(projectDir),
+      ["data/tasks/"],
+    );
+    expect(violations).toEqual(["stowaway.ts"]);
   });
 
-  it("lists modifications to tracked files", () => {
-    writeFileSync(join(projectDir, "seed.txt"), "seed\nmore\n");
-    expect(listMutatedTrackedFiles(projectDir)).toEqual(["seed.txt"]);
-  });
-
-  it("lists staged additions of new files", () => {
-    const newPath = join(projectDir, "data", "tasks", "ready", "task-x.md");
-    mkdirSync(dirname(newPath), { recursive: true });
-    writeFileSync(newPath, "hello\n");
-    execFileSync("git", ["add", "-A"], { cwd: projectDir });
-    expect(listMutatedTrackedFiles(projectDir)).toEqual([
-      "data/tasks/ready/task-x.md",
-    ]);
-  });
-
-  it("does not list untracked files", () => {
-    writeFileSync(join(projectDir, "scratch.txt"), "scratch\n");
-    expect(listMutatedTrackedFiles(projectDir)).toEqual([]);
+  it("accepts an untracked file inside the declared writeScope", () => {
+    const inScope = join(projectDir, "data", "tasks", "ready", "new.md");
+    mkdirSync(dirname(inScope), { recursive: true });
+    writeFileSync(inScope, "hello\n");
+    const violations = findWriteScopeViolations(
+      listWorkflowMutatedPaths(projectDir),
+      ["data/tasks/"],
+    );
+    expect(violations).toEqual([]);
   });
 });
 

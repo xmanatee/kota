@@ -86,8 +86,8 @@ describe("daemonModule", () => {
     expect(daemonModule.routes).toBeUndefined();
   });
 
-  it("has no dependencies", () => {
-    expect(daemonModule.dependencies).toBeUndefined();
+  it("depends on repo-tasks for the task queue snapshot", () => {
+    expect(daemonModule.dependencies).toEqual(["repo-tasks"]);
   });
 
 });

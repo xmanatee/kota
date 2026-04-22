@@ -118,6 +118,59 @@ describe("commitWorkflowChanges", () => {
     expect(status).toBe("?? change.txt");
   });
 
+  it("stages and commits untracked files swept in by listWorkflowMutatedPaths", () => {
+    const untracked = join(projectDir, "data", "notes", "new.md");
+    mkdirSync(join(projectDir, "data", "notes"), { recursive: true });
+    writeFileSync(untracked, "new\n");
+    writeFileSync(join(runDirPath, "commit-message.txt"), "Builder: add note");
+
+    const result = commitWorkflowChanges(projectDir, runDirPath);
+    expect(result.committed).toBe(true);
+
+    const tree = execSync("git show --name-only --format= HEAD", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    }).trim();
+    expect(tree).toBe("data/notes/new.md");
+  });
+
+  it("does not stage gitignored files even when they appear in the worktree", () => {
+    writeFileSync(join(projectDir, ".gitignore"), "ignored.log\n");
+    execSync("git add .gitignore && git commit -q -m 'ignore'", {
+      cwd: projectDir,
+    });
+    writeFileSync(join(projectDir, "ignored.log"), "noise\n");
+    writeFileSync(join(projectDir, "real.txt"), "hello\n");
+    writeFileSync(join(runDirPath, "commit-message.txt"), "Builder: add real");
+
+    const result = commitWorkflowChanges(projectDir, runDirPath);
+    expect(result.committed).toBe(true);
+
+    const tree = execSync("git show --name-only --format= HEAD", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    }).trim();
+    expect(tree.split("\n").sort()).toEqual(["real.txt"]);
+
+    const status = execSync("git status --short --ignored", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    }).trim();
+    expect(status).toBe("!! ignored.log");
+  });
+
+  it("returns committed=false when the only worktree residue is gitignored", () => {
+    writeFileSync(join(projectDir, ".gitignore"), "noise.log\n");
+    execSync("git add .gitignore && git commit -q -m 'ignore'", {
+      cwd: projectDir,
+    });
+    writeFileSync(join(projectDir, "noise.log"), "noise\n");
+
+    expect(commitWorkflowChanges(projectDir, runDirPath)).toEqual({
+      committed: false,
+    });
+  });
+
   it("rejects registered scratch worktrees before committing", () => {
     writeFileSync(join(projectDir, "change.txt"), "hello\n");
     writeFileSync(join(runDirPath, "commit-message.txt"), "Builder: change");

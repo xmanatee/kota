@@ -25,7 +25,7 @@ import type {
 import {
   AgentWriteScopeViolationError,
   findWriteScopeViolations,
-  listMutatedTrackedFiles,
+  listWorkflowMutatedPaths,
   writeWriteScopeViolationArtifact,
 } from "./agent-write-scope.js";
 import {
@@ -487,11 +487,12 @@ export async function executeAgentStep(
 
   writeToolTelemetryArtifact(step.id, metadata, agentConfig.projectDir, stepTelemetry);
 
-  // Enforce declared writeScope against tracked-file mutations this step
-  // produced. Fails the step when the agent wrote outside its role.
+  // Enforce declared writeScope against every path this step would commit
+  // (tracked mutations plus untracked files the staging step would sweep in).
+  // Fails the step when the agent wrote outside its role.
   if (agentDef && step.agentName) {
     const violations = findWriteScopeViolations(
-      listMutatedTrackedFiles(agentConfig.projectDir),
+      listWorkflowMutatedPaths(agentConfig.projectDir),
       agentDef.writeScope,
     );
     if (violations.length > 0) {

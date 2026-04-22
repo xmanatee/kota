@@ -1,6 +1,7 @@
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { listWorkflowMutatedPaths } from "#core/workflow/steps/agent-write-scope.js";
 import {
   checkNoRegisteredScratchWorktrees,
   findScratchArtifactPaths,
@@ -33,15 +34,8 @@ function unstageAfterFailedCommit(projectDir: string, commitError: unknown): voi
   }
 }
 
-function parseStatusPaths(status: string): string[] {
-  return status
-    .split("\n")
-    .filter(Boolean)
-    .flatMap((line) => line.slice(3).split(" -> "));
-}
-
-function checkNoScratchArtifactsInStatus(status: string): void {
-  const violations = findScratchArtifactPaths(parseStatusPaths(status));
+function checkNoScratchArtifactsInPaths(paths: readonly string[]): void {
+  const violations = findScratchArtifactPaths([...paths]);
   if (violations.length > 0) {
     throw new Error(
       `Scratch artifacts must not be committed:\n${violations.map((v) => `  ${v}`).join("\n")}`,
@@ -50,21 +44,25 @@ function checkNoScratchArtifactsInStatus(status: string): void {
 }
 
 /**
- * Stages all working tree changes and commits them.
+ * Stages and commits exactly the set of paths `listWorkflowMutatedPaths`
+ * identifies as workflow-owned mutations. That matches the path set the
+ * writeScope gate evaluated earlier in the run, so an untracked file the
+ * gate rejected cannot reappear at staging time.
+ *
  * Requires `<runDirPath>/commit-message.txt` when there is anything to commit.
- * Returns `{ committed: false }` when there is nothing to commit.
+ * Returns `{ committed: false }` when the mutated path set is empty.
  */
 export function commitWorkflowChanges(
   projectDir: string,
   runDirPath: string,
 ): CommitResult {
   checkNoRegisteredScratchWorktrees(projectDir);
-  const worktreeChanges = runGit(projectDir, "git status --porcelain=v1");
+  const mutatedPaths = listWorkflowMutatedPaths(projectDir);
 
-  if (!worktreeChanges) {
+  if (mutatedPaths.length === 0) {
     return { committed: false };
   }
-  checkNoScratchArtifactsInStatus(worktreeChanges);
+  checkNoScratchArtifactsInPaths(mutatedPaths);
 
   const msgPath = join(runDirPath, "commit-message.txt");
   if (!existsSync(msgPath)) {
@@ -74,7 +72,10 @@ export function commitWorkflowChanges(
     throw new Error(`Workflow commit message must not be empty: ${msgPath}`);
   }
 
-  execSync("git add -A", { cwd: projectDir, stdio: "pipe" });
+  execFileSync("git", ["add", "-A", "--", ...mutatedPaths], {
+    cwd: projectDir,
+    stdio: "pipe",
+  });
 
   try {
     runGit(projectDir, `git commit -F ${JSON.stringify(msgPath)}`);
