@@ -11,6 +11,7 @@ import {
   migrateLegacyWorkflowState,
   STATE_FILE,
   writeJsonFile,
+  writeStrictJsonFile,
 } from "./run-store-helpers.js";
 import type {
   WorkflowActiveRun,
@@ -79,7 +80,7 @@ export class WorkflowRunStore {
 
   private writeState(state: WorkflowRuntimeState): void {
     ensureDir(this.rootDir);
-    writeJsonFile(this.statePath, state);
+    writeStrictJsonFile(this.statePath, state);
   }
 
   recoverInterruptedRuns(): WorkflowRunMetadata[] {

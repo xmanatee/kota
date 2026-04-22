@@ -429,7 +429,13 @@ export function assertWorkflowRunMetadata(
   }
 }
 
-export { ensureDir, formatRunId, safeJsonStringify, writeJsonFile } from "./run-io.js";
+export {
+  ensureDir,
+  formatRunId,
+  safeJsonStringify,
+  writeJsonFile,
+  writeStrictJsonFile,
+} from "./run-io.js";
 
 function summarizeStep(step: WorkflowStep): Record<string, unknown> {
   if (step.type === "tool") {

@@ -41,6 +41,18 @@ export function writeJsonFile(path: string, value: unknown): void {
   writeJsonFileAtomic(path, value, (current) => safeJsonStringify(current, 2));
 }
 
+/**
+ * Strict JSON writer for internal protocol state that must round-trip as
+ * plain typed data. Uses native JSON.stringify, which throws TypeError on
+ * cycles — unlike {@link safeJsonStringify} which silently emits a
+ * "[Circular]" string. Callers persisting internal protocol data (queue
+ * state, trigger payloads) should use this so a cycle fails loudly at
+ * persist time instead of silently corrupting a downstream reader.
+ */
+export function writeStrictJsonFile(path: string, value: unknown): void {
+  writeJsonFileAtomic(path, value);
+}
+
 export function formatRunId(workflowName: string): string {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const suffix = Math.random().toString(36).slice(2, 8);

@@ -1,12 +1,12 @@
 ---
 id: task-preserve-workflowcompleted-payload-tags-without-ci
 title: Preserve workflow.completed payload tags without circular corruption
-status: backlog
+status: done
 priority: p2
 area: core
 summary: Stop queue persistence from serializing workflow.completed trigger payloads into lossy strings like trigger.payload.tags: '[Circular]' so downstream routing keeps typed arrays and objects after daemon restart
 created_at: 2026-04-21T15:52:00.549Z
-updated_at: 2026-04-21T15:52:00.549Z
+updated_at: 2026-04-22T04:10:40.638Z
 ---
 
 ## Problem
