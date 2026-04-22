@@ -4,17 +4,19 @@ title: Review inaccessible research resources when access is available
 status: blocked
 priority: p3
 area: research
-summary: Grouped follow-up for 8 research URLs that were captured but never read due to auth walls or fetch failures
+summary: Grouped follow-up for 9 research URLs that were captured but never read due to auth walls or fetch failures
 created_at: 2026-04-14T00:29:07.947Z
 updated_at: 2026-04-14T00:29:07.947Z
 ---
 
 ## Problem
 
-Eight research URLs from the April 2026 and March 2026 resource batches were
-captured but never read. Automated fetch returned HTTP 402 (X/Twitter auth
-wall) or failed due to rate limits / JS rendering. These resources cannot be
-honestly dispositioned without reading them.
+Nine research URLs from the March–April 2026 resource batches plus a later
+inbox capture were captured but never read. Automated fetch returned HTTP 402
+(X/Twitter auth wall) or failed due to rate limits / JS rendering. These
+resources cannot be honestly dispositioned without reading them.
+`task-enable-autonomous-access-to-auth-walled-sources-so` is the enabler
+task that aims to unblock this class of resources.
 
 ## Resources
 
@@ -25,6 +27,7 @@ honestly dispositioned without reading them.
 - https://x.com/NickSpisak_/status/2040448463540830705
 - https://x.com/johnrushx/status/2011029959079301373
 - https://x.com/tianle_cai/status/2042459055483207818
+- https://x.com/pedroh96/status/2046604993982009825
 
 ### Web articles and papers (fetch failure)
 
