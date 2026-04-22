@@ -18,6 +18,18 @@ import type { ConversationData, ConversationRecord } from "#modules/history/hist
 
 const FETCH_TIMEOUT_MS = 2_000;
 
+export type VoiceTranscribeResponse =
+  | { ok: true; text: string; language?: string }
+  | { ok: false; status: number; error: string; code?: string };
+
+export type VoiceSynthesizeResponse =
+  | { ok: true; audio: Buffer; mimeType: string; format: string }
+  | { ok: false; status: number; error: string; code?: string };
+
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
 function fetchWithTimeout(url: string, options?: RequestInit): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -441,6 +453,57 @@ export class DaemonControlClient {
     } catch {
       return null;
     }
+  }
+
+  async voiceTranscribe(input: {
+    audio: Uint8Array;
+    mimeType: string;
+    filename?: string;
+    languageHint?: string;
+  }): Promise<VoiceTranscribeResponse> {
+    const body = {
+      audioBase64: Buffer.from(input.audio).toString("base64"),
+      mimeType: input.mimeType,
+      ...(input.filename !== undefined && { filename: input.filename }),
+      ...(input.languageHint !== undefined && { languageHint: input.languageHint }),
+    };
+    const res = await fetch(`${this.baseUrl}/voice/transcribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.authHeaders() },
+      body: JSON.stringify(body),
+    });
+    const parsed = (await res.json()) as Record<string, unknown>;
+    if (!res.ok) {
+      return { ok: false, status: res.status, error: asString(parsed.error), code: asString(parsed.code) };
+    }
+    return {
+      ok: true,
+      text: String(parsed.text ?? ""),
+      ...(typeof parsed.language === "string" && { language: parsed.language }),
+    };
+  }
+
+  async voiceSynthesize(input: {
+    text: string;
+    voice?: string;
+    languageHint?: string;
+    format?: string;
+  }): Promise<VoiceSynthesizeResponse> {
+    const res = await fetch(`${this.baseUrl}/voice/synthesize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.authHeaders() },
+      body: JSON.stringify(input),
+    });
+    const parsed = (await res.json()) as Record<string, unknown>;
+    if (!res.ok) {
+      return { ok: false, status: res.status, error: asString(parsed.error), code: asString(parsed.code) };
+    }
+    return {
+      ok: true,
+      audio: Buffer.from(String(parsed.audioBase64 ?? ""), "base64"),
+      mimeType: String(parsed.mimeType ?? ""),
+      format: String(parsed.format ?? ""),
+    };
   }
 
   async *events(): AsyncGenerator<DaemonSseEvent> {

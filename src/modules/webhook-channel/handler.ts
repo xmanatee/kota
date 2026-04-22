@@ -107,7 +107,7 @@ export function resolveSourceId(
 ): string | null {
   const url = req.url ?? "/";
   const path = url.split("?")[0];
-  if (path.startsWith(BASE_PATH + "/")) {
+  if (path.startsWith(`${BASE_PATH}/`)) {
     const suffix = decodeURIComponent(path.slice(BASE_PATH.length + 1));
     if (suffix) return suffix;
   }

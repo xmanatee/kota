@@ -7,3 +7,9 @@ React app built with Vite, TanStack Router, TanStack Query, Tailwind CSS, and sh
 - Build output (`dist/`) is served by the daemon's HTTP server.
 - Run `pnpm build` to produce the static assets before starting the daemon.
 - During development, `pnpm dev` starts a Vite dev server that proxies API requests to `http://127.0.0.1:3000`.
+- Voice goes through `/api/voice/transcribe` and `/api/voice/synthesize` —
+  never through a vendor SDK in the browser. Microphone capture uses
+  `MediaRecorder`; playback uses `HTMLAudioElement`. Surface the daemon's
+  typed failure codes (`stt-unavailable`, `tts-unavailable`,
+  `tts-format-unsupported`) one-to-one in the UI so operators learn the same
+  vocabulary the CLI uses.

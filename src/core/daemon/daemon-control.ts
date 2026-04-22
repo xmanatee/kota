@@ -20,6 +20,7 @@ import { handleRegisterPushToken } from "./daemon-control-push-tokens.js";
 import { handleListSessions, handleRegisterSession, handleUnregisterSession } from "./daemon-control-sessions.js";
 import type { DaemonControlHandle, DaemonLiveStatus, DaemonSseEvent } from "./daemon-control-types.js";
 import { jsonResponse } from "./daemon-control-utils.js";
+import { handleVoiceSynthesize, handleVoiceTranscribe } from "./daemon-control-voice.js";
 import { handleWebhookRequest } from "./daemon-control-webhook.js";
 import {
   handleAbortWorkflow,
@@ -101,6 +102,8 @@ const ROUTE_SCOPES: Record<string, "read" | "control"> = {
   "POST /push-tokens": "control",
   "GET /commands": "read",
   "POST /commands/invoke": "control",
+  "POST /voice/transcribe": "control",
+  "POST /voice/synthesize": "control",
 };
 
 function extractParams(pattern: string, path: string): Record<string, string> | null {
@@ -465,6 +468,19 @@ export class DaemonControlServer {
 
     if (method === "GET" && path === "/commands") { handleListCommands(res); return; }
     if (method === "POST" && path === "/commands/invoke") { handleInvokeCommand(h, req, res); return; }
+
+    if (method === "POST" && path === "/voice/transcribe") {
+      handleVoiceTranscribe(req, res).catch((err: Error) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: err.message });
+      });
+      return;
+    }
+    if (method === "POST" && path === "/voice/synthesize") {
+      handleVoiceSynthesize(req, res).catch((err: Error) => {
+        if (!res.headersSent) jsonResponse(res, 500, { error: err.message });
+      });
+      return;
+    }
 
     jsonResponse(res, 404, { error: "Not found" });
   }

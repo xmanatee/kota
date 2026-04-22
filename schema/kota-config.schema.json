@@ -470,6 +470,79 @@
             }
           }
         },
+        "voice-openai-tts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "apiKey"
+          ],
+          "properties": {
+            "apiKey": {
+              "type": "string",
+              "minLength": 1
+            },
+            "baseUrl": {
+              "type": "string",
+              "minLength": 1
+            },
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "defaultVoice": {
+              "type": "string",
+              "minLength": 1
+            },
+            "defaultFormat": {
+              "type": "string",
+              "enum": [
+                "mp3",
+                "wav",
+                "ogg",
+                "opus",
+                "aac",
+                "flac",
+                "pcm"
+              ]
+            },
+            "timeoutMs": {
+              "type": "number",
+              "minimum": 1000
+            },
+            "maxRetries": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        },
+        "voice-whisper-local": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "binaryPath",
+            "modelPath"
+          ],
+          "properties": {
+            "binaryPath": {
+              "type": "string",
+              "minLength": 1
+            },
+            "modelPath": {
+              "type": "string",
+              "minLength": 1
+            },
+            "extraArgs": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "timeoutMs": {
+              "type": "number",
+              "minimum": 1000
+            }
+          }
+        },
         "webhook-channel": {
           "type": "object",
           "additionalProperties": false,

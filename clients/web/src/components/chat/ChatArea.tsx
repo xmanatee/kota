@@ -3,10 +3,11 @@ import { queryKeys, sessionsQuery, slashCommandsQuery } from "@/api/queries";
 import type { AutonomyMode, SlashCommand } from "@/api/types";
 import { AutonomyModeSelect } from "@/components/autonomy/AutonomyModeControl";
 import { SlashCommandPalette } from "@/components/chat/SlashCommandPalette";
+import { VoiceControls } from "@/components/chat/VoiceControls";
 import { Button } from "@/components/ui/button";
 import { renderMarkdown } from "@/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 type Message = {
   role: "user" | "assistant" | "error" | "system";
@@ -38,8 +39,22 @@ export function ChatArea({
   const [sending, setSending] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(true);
   const [pendingMode, setPendingMode] = useState<AutonomyMode>("supervised");
+  const [voiceError, setVoiceError] = useState<{
+    code: string;
+    message: string;
+  } | null>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const lastAssistantText = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const msg = messages[i];
+      if (msg && msg.role === "assistant" && msg.content.trim()) {
+        return msg.content;
+      }
+    }
+    return null;
+  }, [messages]);
 
   const { data: commandsData } = useQuery(slashCommandsQuery);
   const commands = commandsData?.commands ?? [];
@@ -83,7 +98,10 @@ export function ChatArea({
         } catch (err) {
           setMessages((prev) => [
             ...prev,
-            { role: "error", content: `Failed to load ${cmd.label}: ${(err as Error).message}` },
+            {
+              role: "error",
+              content: `Failed to load ${cmd.label}: ${(err as Error).message}`,
+            },
           ]);
         }
         return;
@@ -103,7 +121,10 @@ export function ChatArea({
       } catch (err) {
         setMessages((prev) => [
           ...prev,
-          { role: "error", content: `Failed to invoke ${cmd.label}: ${(err as Error).message}` },
+          {
+            role: "error",
+            content: `Failed to invoke ${cmd.label}: ${(err as Error).message}`,
+          },
         ]);
       }
       textareaRef.current?.focus();
@@ -241,15 +262,10 @@ export function ChatArea({
           <AutonomyModeSelect
             value={activeSession.autonomyMode}
             disabled={setMode.isPending}
-            onChange={(mode) =>
-              setMode.mutate({ id: activeSession.id, mode })
-            }
+            onChange={(mode) => setMode.mutate({ id: activeSession.id, mode })}
           />
         ) : (
-          <AutonomyModeSelect
-            value={pendingMode}
-            onChange={setPendingMode}
-          />
+          <AutonomyModeSelect value={pendingMode} onChange={setPendingMode} />
         )}
         {!activeSession && (
           <span className="text-muted-foreground">(new session)</span>
@@ -301,6 +317,26 @@ export function ChatArea({
         ))}
       </div>
       <div className="border-t border-border p-3">
+        {voiceError ? (
+          <div
+            role="alert"
+            data-testid="voice-error"
+            className="mb-2 flex items-start justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+          >
+            <span>
+              <span className="font-mono">[{voiceError.code}]</span>{" "}
+              {voiceError.message}
+            </span>
+            <button
+              type="button"
+              className="text-destructive/80 hover:text-destructive"
+              onClick={() => setVoiceError(null)}
+              aria-label="Dismiss voice error"
+            >
+              ×
+            </button>
+          </div>
+        ) : null}
         <div className="relative flex gap-2">
           {showPalette ? (
             <SlashCommandPalette
@@ -310,6 +346,20 @@ export function ChatArea({
               onDismiss={() => setPaletteOpen(false)}
             />
           ) : null}
+          <VoiceControls
+            speakableText={lastAssistantText}
+            onTranscript={(text) => {
+              setVoiceError(null);
+              setInput((prev) =>
+                prev.trim() ? `${prev.trim()} ${text}` : text,
+              );
+              requestAnimationFrame(() => {
+                autoResize();
+                textareaRef.current?.focus();
+              });
+            }}
+            onError={setVoiceError}
+          />
           <textarea
             ref={textareaRef}
             className="flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"

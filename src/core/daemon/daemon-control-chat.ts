@@ -355,7 +355,7 @@ export async function handlePatchDaemonSession(
   }
   const mode: AutonomyMode = raw;
 
-  if (pool && pool.setAutonomyMode(sessionId, mode)) {
+  if (pool?.setAutonomyMode(sessionId, mode)) {
     const handleResult = setOnHandle(sessionId, mode);
     jsonResponse(res, 200, {
       session_id: sessionId,

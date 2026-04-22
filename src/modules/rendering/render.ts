@@ -88,7 +88,7 @@ function renderStatusBanner(node: StatusBannerNode, ctx: RenderContext): string 
   const icon = style.icon;
   const label = style.label;
   const spans: TextSpan[] = [
-    { text: icon + " " + label + " ", role: statusRole(node.status), bold: true },
+    { text: `${icon} ${label} `, role: statusRole(node.status), bold: true },
     { text: node.message },
   ];
   const head = `${pad(ctx.indent)}${paintSpans(spans, ctx.theme)}`;
