@@ -6,7 +6,7 @@ priority: p3
 area: research
 summary: Grouped follow-up for 9 research URLs that were captured but never read due to auth walls or fetch failures
 created_at: 2026-04-14T00:29:07.947Z
-updated_at: 2026-04-22T18:53:30.728Z
+updated_at: 2026-04-22T19:08:00.000Z
 ---
 
 ## Problem
@@ -56,7 +56,7 @@ reason based on actual content.
 - The task record reflects the final disposition per URL.
 - Follow-up tasks exist for any adopted or deferred work.
 
-## Status (2026-04-22 18:53 UTC retry)
+## Status (2026-04-22 19:08 UTC retry)
 
 Re-fetched every URL still in the Resources block. Dispositions:
 
@@ -79,15 +79,15 @@ Re-fetched every URL still in the Resources block. Dispositions:
     further adds no value.
 - **Still inaccessible (6 X/Twitter posts):**
   - All six X/Twitter status URLs in the Resources block return `HTTP 402`
-    on plain `WebFetch` (re-confirmed 2026-04-22 18:53 UTC by re-fetching
-    `akshay_pachaar/2041146899319971922` and `pedroh96/2046604993982009825`
-    as representative spot checks; the four interior URLs remain auth-walled
-    under the same mechanism and were not re-hit to avoid burning vendor
-    rate limit). The `x_post_read` browser tool can read them once an
-    operator configures `modules.browser.storageStatePath` with an
-    authenticated profile. No such profile is configured in this repository
-    today, and the browser module additionally reports Playwright is not
-    installed at runtime (`.kota/modules/browser/logs.jsonl`), so the
+    on plain `WebFetch` (re-confirmed 2026-04-22 19:08 UTC by re-fetching
+    `arlanr/2041215978957389908` and `tianle_cai/2042459055483207818` as
+    representative spot checks rotated from the prior retry; the four other
+    URLs remain auth-walled under the same mechanism and were not re-hit to
+    avoid burning vendor rate limit). The `x_post_read` browser tool can
+    read them once an operator configures `modules.browser.storageStatePath`
+    with an authenticated profile. No such profile is configured in this
+    repository today, and the browser module additionally reports Playwright
+    is not installed at runtime (`.kota/modules/browser/logs.jsonl`), so the
     scoped browser tools would fail even if a profile path were set.
 
 The retry mechanism (scoped browser tools + research-retry workflow)
