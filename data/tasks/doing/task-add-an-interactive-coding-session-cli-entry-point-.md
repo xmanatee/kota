@@ -1,12 +1,12 @@
 ---
 id: task-add-an-interactive-coding-session-cli-entry-point-
 title: Add an interactive coding-session CLI entry point that works across every registered agent harness
-status: backlog
+status: doing
 priority: p2
 area: architecture
 summary: Wire interactive coding sessions (REPL) through every registered agent harness, not just the classic ModelClient loop.
 created_at: 2026-04-22T20:26:51.293Z
-updated_at: 2026-04-22T20:26:51.293Z
+updated_at: 2026-04-22T20:34:44.216Z
 ---
 
 ## Problem
