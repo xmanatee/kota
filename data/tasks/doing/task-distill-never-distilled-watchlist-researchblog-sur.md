@@ -1,12 +1,12 @@
 ---
 id: task-distill-never-distilled-watchlist-researchblog-sur
 title: Distill never-distilled watchlist research/blog surfaces into autonomy AGENTS decisions
-status: ready
+status: doing
 priority: p2
 area: research
 summary: Four autonomy-adjacent watchlist surfaces (claude.com/blog, anthropic.com/research, deepmind.google/discover/blog, research.google/blog) have snapshot summaries but no adopt/reject verdict in src/modules/autonomy/AGENTS.md, unlike Anthropic engineering and OpenAI research which were already distilled. Produce one distillation pass that turns each into decision-level entries or explicit non-adoption notes.
 created_at: 2026-04-22T22:34:29.619Z
-updated_at: 2026-04-22T22:34:29.619Z
+updated_at: 2026-04-22T22:35:56.568Z
 ---
 
 ## Problem
