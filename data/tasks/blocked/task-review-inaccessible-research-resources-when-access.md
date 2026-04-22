@@ -56,3 +56,35 @@ reason based on actual content.
 - All 8 URLs have been read and given honest dispositions.
 - The task record reflects the final disposition.
 - Follow-up tasks exist for any adopted or deferred work.
+
+## Status (2026-04-22 retry)
+
+A fresh retry through plain `WebFetch` unblocked two of the eight originally
+inaccessible resources. The remaining six stay blocked pending the new
+authenticated/rendered-browser mechanism in `src/modules/browser/`:
+
+- **Accessible now:**
+  - `https://www.bengubler.com/posts/2026-02-25-introducing-helm` — read.
+    Disposition: reference-only. The helm framework describes a TypeScript
+    tool runtime with permission levels and SES code sandboxing. KOTA's
+    `src/core/tools/` already owns permission gating via `tool-risk` +
+    approval queue; in-process SES sandboxing is not a fit since tool
+    execution is already boundary-validated and expected to call into the
+    full Node environment. No adoption; no follow-up task.
+  - `https://arxiv.org/abs/2511.18423` — read. General Agentic Memory (GAM)
+    proposes a just-in-time Memorizer+Researcher split. Disposition:
+    reference-only; echoes the existing Letta/typed-stores rejection in
+    `src/modules/autonomy/AGENTS.md`. No new decision added.
+- **Still inaccessible:**
+  - Five X/Twitter status URLs — still `HTTP 402` auth-wall on plain fetch.
+    The new `x_post_read` browser tool can read them once an operator
+    configures `modules.browser.storageStatePath` with an authenticated
+    profile. Until then the research-retry workflow records them as
+    still-blocked on every run.
+  - `https://glthr.com/XML-fundamental-to-Claude` — returns HTTP 404 (page
+    gone). Dropping this URL on the next retry is the honest outcome; no
+    rehosted mirror has been found.
+
+The retry mechanism itself (scoped browser tools + research-retry workflow)
+shipped under `task-enable-autonomous-access-to-auth-walled-sources-so`.
+This task stays `blocked` pending operator-configured browser profile.

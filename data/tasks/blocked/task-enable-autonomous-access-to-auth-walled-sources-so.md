@@ -1,12 +1,12 @@
 ---
 id: task-enable-autonomous-access-to-auth-walled-sources-so
 title: Enable autonomous access to auth-walled sources so blocked research tasks can unblock
-status: backlog
+status: blocked
 priority: p2
 area: architecture
 summary: Give autonomy a reliable path to read auth-walled or JS-gated sources (X/Twitter, openai.com/index, etc.) via authenticated browser automation plus a scoped X-post capture tool, so 'inaccessible source' tasks do not stay blocked indefinitely.
 created_at: 2026-04-22T16:47:00.746Z
-updated_at: 2026-04-22T16:47:00.746Z
+updated_at: 2026-04-22T17:53:08.203Z
 ---
 
 ## Problem
@@ -74,3 +74,49 @@ inaccessible retain honest blocked status.
 - The mechanism is documented at the narrowest applicable `AGENTS.md` (most
   likely under `src/modules/browser/` or a new sibling), not duplicated across
   docs.
+
+## Status (2026-04-22 build)
+
+Mechanism landed in this repo:
+
+- Authenticated browser profile: `modules.browser.storageStatePath`
+  (optional `persistProfile`) is threaded through a new
+  `playwright-loader.ts` + reshaped `lifecycle.ts` into
+  `browser.newContext({ storageState })`. Covered by five lifecycle tests
+  driving Playwright-intercepted mock auth-walled hosts.
+- Scoped X-post tool: `x_post_read` in `src/modules/browser/tools.ts` with
+  URL whitelist, auth-gate / rate-limit / login-redirect / missing-article /
+  timeout failure envelopes. Seven `index.test.ts` cases cover success and
+  each failure mode.
+- JS-gated article path: `rendered_article_read` with `<article>`/`<main>`
+  preference, fallback-body extraction, optional custom selector, timeout,
+  and Cloudflare-JS gate detection. Six `index.test.ts` cases.
+- Injection-defense extended: `browser_get_text`, `x_post_read`, and
+  `rendered_article_read` added to `DEFAULT_TARGET_TOOLS` with an asserting
+  test.
+- Autonomy workflow: `src/modules/autonomy/workflows/research-retry/`
+  (workflow.ts, candidates.ts, prompt.md, AGENTS.md, workflow.test.ts)
+  triggers on `autonomy.queue.available`, selects the oldest blocked task
+  with a `## Resources` URL section, and runs the agent with the candidate
+  info exposed via `exposeOutputToAgent`.
+- Named tasks repositioned with fresh honest status: the review task now
+  records two URLs as now-readable and dispositioned (helm article,
+  arxiv 2511.18423) and six as still auth-walled / 404; the OpenAI SWE-bench
+  post task records the still-403 state on plain fetch plus the
+  rendered-browser unblock path.
+- Docs: `src/modules/browser/AGENTS.md` covers the profile contract, the
+  three content-ingest tools, and failure modes;
+  `src/modules/autonomy/workflows/research-retry/AGENTS.md` covers the
+  workflow.
+
+### Remaining operator steps
+
+- Install Playwright as a peer (`pnpm add playwright`) in the target
+  environment. Until installed, rendered-browser tools fail fast with the
+  existing "Playwright is not installed" error.
+- Provision an authenticated X profile (run once with
+  `persistProfile: true`, log in interactively, then pin the file path).
+- Once both are in place, the research-retry workflow picks up the two
+  named research tasks on the next autonomy cycle and disposes the six
+  remaining auth-walled / gated URLs. This task can move to `done` after
+  a live-run artifact records the end-to-end flow.

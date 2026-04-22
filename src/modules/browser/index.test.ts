@@ -5,6 +5,12 @@ vi.mock("./lifecycle.js", () => ({
   isPlaywrightAvailable: vi.fn(() => true),
   closeBrowser: vi.fn(async () => {}),
   getPage: vi.fn(),
+  configureBrowserProfile: vi.fn(),
+  getConfiguredBrowserProfile: vi.fn(() => ({
+    storageStatePath: null,
+    persist: false,
+  })),
+  persistBrowserProfile: vi.fn(async () => {}),
 }));
 
 const { getPage, closeBrowser, isPlaywrightAvailable } = await import(
@@ -34,6 +40,8 @@ describe("browser module", () => {
     expect(names).toContain("browser_screenshot");
     expect(names).toContain("browser_evaluate");
     expect(names).toContain("browser_get_text");
+    expect(names).toContain("x_post_read");
+    expect(names).toContain("rendered_article_read");
     expect(names).toContain("browser_close");
   });
 
@@ -66,6 +74,7 @@ describe("browser module", () => {
     const ctx = {
       log: { info: vi.fn(), warn, error: vi.fn(), debug: vi.fn() },
       registerCleanupHook: vi.fn(),
+      getModuleConfig: vi.fn(() => ({})),
     } as never;
     mod.onLoad?.(ctx);
     expect(warn).toHaveBeenCalledWith(
@@ -79,6 +88,7 @@ describe("browser module", () => {
     const ctx = {
       log: { info: vi.fn(), warn, error: vi.fn(), debug: vi.fn() },
       registerCleanupHook: vi.fn(),
+      getModuleConfig: vi.fn(() => ({})),
     } as never;
     mod.onLoad?.(ctx);
     expect(warn).not.toHaveBeenCalled();
@@ -89,6 +99,7 @@ describe("browser module", () => {
     const ctx = {
       log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
       registerCleanupHook,
+      getModuleConfig: vi.fn(() => ({})),
     } as never;
     mod.onLoad?.(ctx);
     expect(registerCleanupHook).toHaveBeenCalledWith(expect.any(Function));
@@ -374,6 +385,179 @@ describe("browser tool runners", () => {
       const result = await runBrowserClose();
       expect(result.content).toBe("Browser closed.");
       expect(closeBrowser).toHaveBeenCalled();
+    });
+  });
+
+  describe("x_post_read", () => {
+    it("rejects invalid URLs", async () => {
+      const { runXPostRead } = await import("./tools.js");
+      const result = await runXPostRead({ url: "https://example.com/not-a-tweet" });
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("must be a fully-qualified X/Twitter status URL");
+    });
+
+    it("rejects missing URL", async () => {
+      const { runXPostRead } = await import("./tools.js");
+      const result = await runXPostRead({});
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("url is required");
+    });
+
+    it("detects redirect to login as auth-wall failure", async () => {
+      mockPage.url.mockReturnValue("https://x.com/i/flow/login?redirect_after_login=/foo/status/1");
+      mockPage.evaluate.mockResolvedValue("Log in to X\nSign up");
+      const { runXPostRead } = await import("./tools.js");
+      const result = await runXPostRead({
+        url: "https://x.com/foo/status/1234567890",
+      });
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("redirected to X login");
+      expect(result.content).toContain("storageStatePath");
+    });
+
+    it("detects rate-limit body text as a typed failure", async () => {
+      mockPage.url.mockReturnValue("https://x.com/foo/status/1234567890");
+      mockPage.evaluate.mockResolvedValue("Rate limit exceeded. Try again later.");
+      const { runXPostRead } = await import("./tools.js");
+      const result = await runXPostRead({
+        url: "https://x.com/foo/status/1234567890",
+      });
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("rate-limiting");
+    });
+
+    it("extracts post body plus replies on a successful read", async () => {
+      mockPage.url.mockReturnValue("https://x.com/foo/status/1234567890");
+      mockPage.evaluate.mockImplementation(async (expr: string) => {
+        if (expr.includes("slice(0, 2000)")) {
+          return "Nothing gating visible here — real tweet content renders below.";
+        }
+        return {
+          body: "The main tweet body.",
+          author: "Foo User @foo",
+          replies: ["First reply.", "Second reply.", "Third reply."],
+        };
+      });
+      const { runXPostRead } = await import("./tools.js");
+      const result = await runXPostRead({
+        url: "https://x.com/foo/status/1234567890",
+        max_replies: 2,
+      });
+      expect(result.is_error).toBeUndefined();
+      expect(result.content).toContain("The main tweet body.");
+      expect(result.content).toContain("Foo User @foo");
+      expect(result.content).toContain("Reply 1: First reply.");
+      expect(result.content).toContain("Reply 2: Second reply.");
+      expect(result.content).not.toContain("Reply 3:");
+    });
+
+    it("flags missing tweet article as a typed failure", async () => {
+      mockPage.url.mockReturnValue("https://x.com/foo/status/1234567890");
+      mockPage.evaluate.mockImplementation(async (expr: string) => {
+        if (expr.includes("slice(0, 2000)")) return "Some benign body text";
+        return { body: null, author: null, replies: [] };
+      });
+      const { runXPostRead } = await import("./tools.js");
+      const result = await runXPostRead({
+        url: "https://x.com/foo/status/1234567890",
+      });
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("did not render a tweet article");
+    });
+
+    it("surfaces timeout errors in a typed form", async () => {
+      mockPage.goto.mockRejectedValue(new Error("Navigation timeout of 5000 ms exceeded"));
+      const { runXPostRead } = await import("./tools.js");
+      const result = await runXPostRead({
+        url: "https://x.com/foo/status/1234567890",
+        timeout: 5000,
+      });
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("timeout");
+    });
+  });
+
+  describe("rendered_article_read", () => {
+    it("rejects missing or non-http URLs", async () => {
+      const { runRenderedArticleRead } = await import("./tools.js");
+      expect((await runRenderedArticleRead({})).is_error).toBe(true);
+      expect((await runRenderedArticleRead({ url: "ftp://ex.com" })).is_error).toBe(true);
+    });
+
+    it("returns rendered article text with url and title headers", async () => {
+      mockPage.url.mockReturnValue("https://openai.com/index/the-instruction-hierarchy/");
+      mockPage.title.mockResolvedValue("The Instruction Hierarchy");
+      const articleText = "The instruction hierarchy is a chain-of-command.".repeat(10);
+      mockPage.evaluate.mockImplementation(async (expr: string) => {
+        if (expr.includes("slice(0, 1500)")) {
+          return "Normal page body with content.";
+        }
+        return { text: articleText, usedSelector: "article" };
+      });
+      const { runRenderedArticleRead } = await import("./tools.js");
+      const result = await runRenderedArticleRead({
+        url: "https://openai.com/index/the-instruction-hierarchy/",
+      });
+      expect(result.is_error).toBeUndefined();
+      expect(result.content).toContain("Title: The Instruction Hierarchy");
+      expect(result.content).toContain("Extracted via: article");
+      expect(result.content).toContain("instruction hierarchy");
+    });
+
+    it("flags a Cloudflare / JS-render gate as a typed failure", async () => {
+      mockPage.url.mockReturnValue("https://example.com/jschallenge");
+      mockPage.evaluate.mockResolvedValue(
+        "Just a moment... Checking your browser before accessing example.com",
+      );
+      const { runRenderedArticleRead } = await import("./tools.js");
+      const result = await runRenderedArticleRead({
+        url: "https://example.com/jschallenge",
+      });
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("JS / Cloudflare challenge");
+    });
+
+    it("truncates excessively long article text", async () => {
+      mockPage.url.mockReturnValue("https://example.com/long");
+      mockPage.title.mockResolvedValue("Long");
+      const huge = "x".repeat(60_000);
+      mockPage.evaluate.mockImplementation(async (expr: string) => {
+        if (expr.includes("slice(0, 1500)")) return "Benign body";
+        return { text: huge, usedSelector: "article" };
+      });
+      const { runRenderedArticleRead } = await import("./tools.js");
+      const result = await runRenderedArticleRead({
+        url: "https://example.com/long",
+        max_length: 1000,
+      });
+      expect(result.content).toContain("[Truncated");
+      expect(result.content).toContain("showing first 1000");
+    });
+
+    it("surfaces timeout errors in a typed form", async () => {
+      mockPage.goto.mockRejectedValue(new Error("Timeout 30000ms exceeded."));
+      const { runRenderedArticleRead } = await import("./tools.js");
+      const result = await runRenderedArticleRead({
+        url: "https://example.com/slow",
+      });
+      expect(result.is_error).toBe(true);
+      expect(result.content).toContain("timeout");
+    });
+
+    it("honors a custom selector hint", async () => {
+      mockPage.url.mockReturnValue("https://example.com/x");
+      mockPage.title.mockResolvedValue("Scoped");
+      mockPage.evaluate.mockImplementation(async (expr: string) => {
+        if (expr.includes("slice(0, 1500)")) return "Benign";
+        expect(expr).toContain("#post-body");
+        return { text: "Scoped content within #post-body", usedSelector: "#post-body" };
+      });
+      const { runRenderedArticleRead } = await import("./tools.js");
+      const result = await runRenderedArticleRead({
+        url: "https://example.com/x",
+        selector: "#post-body",
+      });
+      expect(result.content).toContain("Extracted via: #post-body");
     });
   });
 });

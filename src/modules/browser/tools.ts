@@ -367,3 +367,277 @@ export async function runBrowserClose(): Promise<ToolResult> {
     return { content: `Close error: ${msg}`, is_error: true };
   }
 }
+
+const X_POST_URL_RE = /^https?:\/\/(?:www\.|mobile\.)?(?:x|twitter)\.com\/[^/]+\/status\/\d+/i;
+const DEFAULT_X_POST_TIMEOUT_MS = 20_000;
+const DEFAULT_X_POST_REPLY_COUNT = 5;
+
+export const xPostReadTool: Anthropic.Tool = {
+  name: "x_post_read",
+  description:
+    "Read an X (Twitter) post and its immediate reply thread. Navigates a " +
+    "headless browser to the post URL, waits for the tweet article to render, " +
+    "and extracts the post body plus up to max_replies reply texts. Requires " +
+    "an authenticated browser profile for posts behind the X auth wall — " +
+    "operators configure the profile via modules.browser.storageStatePath. " +
+    "Returns a typed failure when the post is auth-walled, rate-limited, " +
+    "or unreachable.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      url: {
+        type: "string",
+        description:
+          "Fully-qualified X/Twitter status URL (e.g. https://x.com/user/status/1234567890)",
+      },
+      max_replies: {
+        type: "number",
+        description: `Maximum reply count to include in the thread (default: ${DEFAULT_X_POST_REPLY_COUNT})`,
+      },
+      timeout: {
+        type: "number",
+        description: `Navigation and wait timeout in milliseconds (default: ${DEFAULT_X_POST_TIMEOUT_MS})`,
+      },
+    },
+    required: ["url"],
+  },
+};
+
+export async function runXPostRead(
+  input: Record<string, unknown>,
+): Promise<ToolResult> {
+  const url = typeof input.url === "string" ? input.url : "";
+  if (!url) return { content: "Error: url is required", is_error: true };
+  if (!X_POST_URL_RE.test(url)) {
+    return {
+      content:
+        "Error: url must be a fully-qualified X/Twitter status URL (https://x.com/<user>/status/<id>)",
+      is_error: true,
+    };
+  }
+  const timeout = normalizeTimeout(input.timeout, DEFAULT_X_POST_TIMEOUT_MS);
+  const maxReplies = normalizeCount(input.max_replies, DEFAULT_X_POST_REPLY_COUNT);
+  try {
+    const page = await getPage();
+    await page.goto(url, { waitUntil: "networkidle", timeout });
+    const finalUrl = page.url();
+    const authGateReason = await detectXAuthGate(page, finalUrl);
+    if (authGateReason) {
+      return {
+        content:
+          `Unable to read X post: ${authGateReason}. Configure an authenticated ` +
+          "browser profile via modules.browser.storageStatePath and retry.",
+        is_error: true,
+      };
+    }
+    const rendered = (await page.evaluate(X_POST_EXTRACT_SCRIPT)) as {
+      body: string | null;
+      author: string | null;
+      replies: string[];
+    };
+    if (!rendered.body) {
+      return {
+        content: "Unable to extract post body — the page did not render a tweet article.",
+        is_error: true,
+      };
+    }
+    const replyLines = rendered.replies.slice(0, maxReplies).map(
+      (reply, idx) => `Reply ${idx + 1}: ${reply}`,
+    );
+    const header = rendered.author ? `Author: ${rendered.author}\n` : "";
+    const body = `${header}URL: ${finalUrl}\n\nPost:\n${rendered.body}`;
+    const thread = replyLines.length > 0 ? `\n\nThread:\n${replyLines.join("\n\n")}` : "";
+    return { content: `${body}${thread}` };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const reason = msg.includes("timeout") || msg.includes("Timeout")
+      ? `x_post_read timeout after ${timeout}ms: ${msg}`
+      : `x_post_read error: ${msg}`;
+    return { content: reason, is_error: true };
+  }
+}
+
+function normalizeTimeout(raw: unknown, fallback: number): number {
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) return raw;
+  return fallback;
+}
+
+function normalizeCount(raw: unknown, fallback: number): number {
+  if (typeof raw === "number" && Number.isFinite(raw) && raw >= 0) return Math.floor(raw);
+  return fallback;
+}
+
+async function detectXAuthGate(
+  page: { url(): string; evaluate(expression: string): Promise<unknown> },
+  finalUrl: string,
+): Promise<string | null> {
+  if (/\/(login|i\/flow\/login|account\/access)(\?|$|\/)/.test(finalUrl)) {
+    return "redirected to X login — session is not authenticated";
+  }
+  const bodyText = (await page.evaluate(
+    "document.body ? document.body.innerText.slice(0, 2000) : ''",
+  )) as string;
+  if (/Log in to (?:X|Twitter)|Sign up|Something went wrong/i.test(bodyText)) {
+    return "X displayed an auth-wall / login prompt in place of the post";
+  }
+  if (/Rate limit exceeded|too many requests/i.test(bodyText)) {
+    return "X is rate-limiting the session";
+  }
+  return null;
+}
+
+const X_POST_EXTRACT_SCRIPT = `
+(() => {
+  const articles = Array.from(document.querySelectorAll('article[data-testid="tweet"]'));
+  if (articles.length === 0) return { body: null, author: null, replies: [] };
+  const first = articles[0];
+  const textEl = first.querySelector('[data-testid="tweetText"]');
+  const body = textEl ? textEl.textContent.trim() : null;
+  const userEl = first.querySelector('[data-testid="User-Name"]');
+  const author = userEl ? userEl.textContent.trim() : null;
+  const replies = [];
+  for (let i = 1; i < articles.length && replies.length < 20; i += 1) {
+    const reply = articles[i].querySelector('[data-testid="tweetText"]');
+    if (reply && reply.textContent.trim()) {
+      replies.push(reply.textContent.trim());
+    }
+  }
+  return { body, author, replies };
+})()
+`;
+
+const DEFAULT_ARTICLE_TIMEOUT_MS = 30_000;
+const DEFAULT_ARTICLE_MAX_LENGTH = 40_000;
+
+export const renderedArticleReadTool: Anthropic.Tool = {
+  name: "rendered_article_read",
+  description:
+    "Fetch a JS-rendered article page via the headless browser and return " +
+    "its readable body text. Designed for Cloudflare/JS-gated pages such as " +
+    "openai.com/index/* that reject plain HTTP fetches. Navigates, waits for " +
+    "network idle, prefers a readable <article>/main-content selector, and " +
+    "falls back to document body text. Returns a typed failure when the page " +
+    "is inaccessible, timed out, or still gated after JS render.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      url: {
+        type: "string",
+        description: "URL of the article to render",
+      },
+      selector: {
+        type: "string",
+        description:
+          "Optional CSS selector to scope extraction (default: prefer <article>, <main>, then body)",
+      },
+      timeout: {
+        type: "number",
+        description: `Navigation + render timeout in milliseconds (default: ${DEFAULT_ARTICLE_TIMEOUT_MS})`,
+      },
+      max_length: {
+        type: "number",
+        description: `Maximum returned text length in characters (default: ${DEFAULT_ARTICLE_MAX_LENGTH})`,
+      },
+    },
+    required: ["url"],
+  },
+};
+
+export async function runRenderedArticleRead(
+  input: Record<string, unknown>,
+): Promise<ToolResult> {
+  const url = typeof input.url === "string" ? input.url : "";
+  if (!url) return { content: "Error: url is required", is_error: true };
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    return {
+      content: "Error: url must start with http:// or https://",
+      is_error: true,
+    };
+  }
+  const timeout = normalizeTimeout(input.timeout, DEFAULT_ARTICLE_TIMEOUT_MS);
+  const maxLength = normalizeCount(input.max_length, DEFAULT_ARTICLE_MAX_LENGTH) || DEFAULT_ARTICLE_MAX_LENGTH;
+  const selectorHint = typeof input.selector === "string" && input.selector.length > 0
+    ? (input.selector as string)
+    : null;
+  try {
+    const page = await getPage();
+    await page.goto(url, { waitUntil: "networkidle", timeout });
+    const finalUrl = page.url();
+    const title = await page.title();
+    const gateReason = await detectRenderedGate(page);
+    if (gateReason) {
+      return {
+        content:
+          `Unable to render article at ${finalUrl}: ${gateReason}. The page may ` +
+          "require an authenticated browser profile or be inaccessible to automation.",
+        is_error: true,
+      };
+    }
+    const extract = (await page.evaluate(buildArticleExtractScript(selectorHint))) as {
+      text: string;
+      usedSelector: string;
+    };
+    const text = (extract.text ?? "").trim();
+    if (!text) {
+      return {
+        content: `Rendered page at ${finalUrl} produced no readable text.`,
+        is_error: true,
+      };
+    }
+    const header = `URL: ${finalUrl}\nTitle: ${title}\nExtracted via: ${extract.usedSelector}\n\n`;
+    if (text.length > maxLength) {
+      return {
+        content:
+          header +
+          text.slice(0, maxLength) +
+          `\n\n[Truncated — ${text.length} chars total, showing first ${maxLength}]`,
+      };
+    }
+    return { content: header + text };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const reason = msg.includes("timeout") || msg.includes("Timeout")
+      ? `rendered_article_read timeout after ${timeout}ms: ${msg}`
+      : `rendered_article_read error: ${msg}`;
+    return { content: reason, is_error: true };
+  }
+}
+
+async function detectRenderedGate(page: {
+  evaluate(expression: string): Promise<unknown>;
+}): Promise<string | null> {
+  const probe = (await page.evaluate(
+    "document.body ? document.body.innerText.slice(0, 1500) : ''",
+  )) as string;
+  if (/Just a moment\.\.\.|Checking your browser|Enable JavaScript/i.test(probe)) {
+    return "page is still behind a JS / Cloudflare challenge after network idle";
+  }
+  if (/Access Denied|403 Forbidden|Not Found/i.test(probe) && probe.length < 400) {
+    return "page returned an access denial";
+  }
+  return null;
+}
+
+function buildArticleExtractScript(selector: string | null): string {
+  if (selector) {
+    return `
+(() => {
+  const el = document.querySelector(${JSON.stringify(selector)});
+  if (!el) return { text: '', usedSelector: ${JSON.stringify(selector)} };
+  return { text: el.innerText || '', usedSelector: ${JSON.stringify(selector)} };
+})()
+`;
+  }
+  return `
+(() => {
+  const candidates = ['article', 'main', '[role="main"]'];
+  for (const sel of candidates) {
+    const el = document.querySelector(sel);
+    if (el && el.innerText && el.innerText.trim().length > 200) {
+      return { text: el.innerText, usedSelector: sel };
+    }
+  }
+  return { text: document.body ? document.body.innerText : '', usedSelector: 'body' };
+})()
+`;
+}

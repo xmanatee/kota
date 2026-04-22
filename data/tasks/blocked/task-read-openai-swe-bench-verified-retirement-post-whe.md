@@ -61,3 +61,14 @@ task is opened in `data/tasks/backlog/`.
   either gains a fourth decision-level takeaway or records the post as
   "read, no action".
 - Any KOTA-specific gap surfaced has a concrete follow-up task opened.
+
+## Status (2026-04-22 retry)
+
+A fresh retry via plain `WebFetch` still returns HTTP 403; `openai.com/index/*`
+remains Cloudflare/JS-gated. The scoped `rendered_article_read` tool shipped
+under `task-enable-autonomous-access-to-auth-walled-sources-so` drives
+Playwright through navigation + network-idle + readable-article extraction and
+is the intended unblock path, but requires Playwright to be installed as a
+peer (`pnpm add playwright`) in the operator's environment. The research-retry
+autonomy workflow will re-attempt this URL once the browser module runs with a
+configured environment; until then this task stays `blocked`.
