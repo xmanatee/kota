@@ -207,6 +207,7 @@ export function registerKnowledgeCommands(program: Command): void {
 				status: opts.status,
 				scope: opts.scope as "project" | "global",
 			});
+			// biome-ignore lint/suspicious/noConsole: bare id output consumed by scripts
 			console.log(id);
 		});
 
@@ -265,9 +266,11 @@ export function registerKnowledgeCommands(program: Command): void {
 				...(Object.keys(e.meta).length > 0 ? { meta: e.meta } : {}),
 			}));
 			if (opts.format === "json") {
+				// biome-ignore lint/suspicious/noConsole: structured JSON export stays on console
 				console.log(JSON.stringify(exported, null, 2));
 			} else {
 				for (const entry of exported) {
+					// biome-ignore lint/suspicious/noConsole: structured JSONL export stays on console
 					console.log(JSON.stringify(entry));
 				}
 			}

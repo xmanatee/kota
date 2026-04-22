@@ -105,6 +105,7 @@ export function registerMemoryCommands(program: Command): void {
 			}
 			const store = getMemoryProvider();
 			const id = store.save(content, opts.tag);
+			// biome-ignore lint/suspicious/noConsole: bare id output consumed by scripts
 			console.log(id);
 		});
 

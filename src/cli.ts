@@ -2,6 +2,8 @@ import { Command } from "commander";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { expandAlias, loadConfig } from "#core/config/config.js";
 import { setSkipConfirmations } from "#core/util/confirm.js";
+import { blank, line, span } from "#modules/rendering/primitives.js";
+import { TerminalTransport } from "#modules/rendering/transport.js";
 import { resolveAgentHarness } from "./core/agent-harness/index.js";
 import { buildClaudeCodeSystemPrompt } from "./core/agent-sdk/index.js";
 import { runAgentLoop } from "./core/loop/loop.js";
@@ -23,6 +25,18 @@ import { parseModelString, resolveApiKey } from "./modules/model-clients/factory
 export { formatAuthError } from "./core/model/auth-error.js";
 export { parseIntOption } from "./modules/history/cli.js";
 
+let stderrRenderer: TerminalTransport | null = null;
+function stderr(): TerminalTransport {
+  if (!stderrRenderer) stderrRenderer = new TerminalTransport({ stream: process.stderr });
+  return stderrRenderer;
+}
+
+let stdoutRenderer: TerminalTransport | null = null;
+function stdout(): TerminalTransport {
+  if (!stdoutRenderer) stdoutRenderer = new TerminalTransport({ stream: process.stdout });
+  return stdoutRenderer;
+}
+
 const program = new Command();
 
 function ensureAnthropicApiKey(
@@ -36,7 +50,7 @@ function ensureAnthropicApiKey(
   const message = formatAuthError(
     new Error("Could not resolve authentication method. Expected apiKey to be set."),
   ) ?? "Error: ANTHROPIC_API_KEY environment variable is not set.";
-  console.error(message);
+  stderr().write(line(span(message, "error")));
   process.exit(1);
 }
 
@@ -78,7 +92,9 @@ program
       let prompt = promptWords.join(" ");
       prompt = expandAlias(prompt, config.aliases);
       if (!prompt) {
-        console.error("agent-sdk provider requires a prompt. Interactive mode is not supported.");
+        stderr().write(
+          line(span("agent-sdk provider requires a prompt. Interactive mode is not supported.", "error")),
+        );
         process.exit(1);
       }
       // Operators can override the adapter via config.defaultAgentHarness;
@@ -99,7 +115,7 @@ program
         ),
       });
       if (!result.streamedText && result.text) process.stdout.write(result.text);
-      console.log();
+      stdout().write(blank());
       return;
     }
 
@@ -144,7 +160,7 @@ program
         if (recent) {
           resumeId = recent.id;
         } else {
-          console.error("No previous conversation found for this directory.");
+          stderr().write(line(span("No previous conversation found for this directory.", "error")));
           process.exit(1);
         }
       }
@@ -213,7 +229,7 @@ async function checkPipeMode() {
           ),
         });
         if (!result.streamedText && result.text) process.stdout.write(result.text);
-        console.log();
+        stdout().write(blank());
         return true;
       }
 
@@ -246,10 +262,7 @@ async function main() {
 
 main().catch((err) => {
   const authMsg = formatAuthError(err);
-  if (authMsg) {
-    console.error(authMsg);
-  } else {
-    console.error(`Fatal: ${err.message}`);
-  }
+  const message = authMsg ?? `Fatal: ${err.message}`;
+  stderr().write(line(span(message, "error")));
   process.exit(1);
 });

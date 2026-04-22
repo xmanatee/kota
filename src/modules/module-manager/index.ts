@@ -59,6 +59,7 @@ function buildModuleCommand(ctx: ModuleContext): Command {
     .action((opts: { json?: boolean }) => {
       const summaries = ctx.getModuleSummaries();
       if (opts.json) {
+        // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
         console.log(JSON.stringify(summaries, null, 2));
         return;
       }
@@ -111,6 +112,7 @@ function buildModuleCommand(ctx: ModuleContext): Command {
         process.exit(1);
       }
       if (opts.json) {
+        // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
         console.log(JSON.stringify(moduleSummary, null, 2));
         return;
       }

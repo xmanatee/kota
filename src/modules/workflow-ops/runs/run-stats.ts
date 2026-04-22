@@ -71,6 +71,7 @@ export function registerStatsCommand(wfCmd: Command): void {
       const rows = computeStatsRows(store.runsDir, cutoffMs, opts.workflow);
 
       if (opts.json) {
+        // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
         console.log(JSON.stringify(rows, null, 2));
         return;
       }

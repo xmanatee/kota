@@ -2,9 +2,13 @@
  * Transport layer — decouples agent I/O from any specific frontend.
  *
  * The agent emits typed events. A Transport decides how to render them.
- * CliTransport writes to stdout/stderr (current behavior).
+ * CliTransport renders events through the rendering module so theme,
+ * width, and TTY detection stay consistent with the rest of KOTA.
  * Other transports (Telegram, web, Discord) subscribe to the same events.
  */
+
+import { line, plain, span, toolCall } from "#modules/rendering/primitives.js";
+import { TerminalTransport } from "#modules/rendering/transport.js";
 
 /** Events emitted by the agent during execution. */
 export type AgentEvent =
@@ -26,72 +30,92 @@ export interface Transport {
 }
 
 /**
- * CLI transport — renders events to stdout/stderr.
- * Reproduces the original terminal behavior exactly.
+ * CLI transport — renders events through the rendering module's terminal
+ * transport so theme, width, and NO_COLOR/TTY gating are consistent with
+ * every other operator-facing surface.
+ *
+ * Streaming `text`, `thinking`, and `progress` events pass through as raw
+ * chunks because they accumulate mid-line; discrete events (status, cost,
+ * error, guardrail, tool metrics, state transitions) render as typed
+ * primitives.
  */
 export class CliTransport implements Transport {
   private verbose: boolean;
   private showCost: boolean;
+  private stdout: TerminalTransport;
+  private stderr: TerminalTransport;
 
   constructor(verbose = false, showCost = true) {
     this.verbose = verbose;
     this.showCost = showCost;
+    this.stdout = new TerminalTransport({ stream: process.stdout });
+    this.stderr = new TerminalTransport({ stream: process.stderr });
   }
 
   emit(event: AgentEvent): void {
     switch (event.type) {
       case "text":
-        process.stdout.write(event.content);
+        this.stdout.writeRaw(event.content);
         break;
       case "thinking":
-        if (this.verbose) process.stderr.write(event.content);
+        if (this.verbose) this.stderr.writeRaw(event.content);
         break;
       case "thinking_start":
         if (this.verbose) {
-          process.stderr.write("[thinking] ");
+          this.stderr.writeRaw("[thinking] ");
         } else {
-          process.stderr.write("[kota] Thinking...\n");
+          this.stderr.writeRaw("[kota] Thinking...\n");
         }
         break;
       case "progress":
-        process.stderr.write(event.content);
+        this.stderr.writeRaw(event.content);
         break;
       case "status":
-        console.error(event.message);
+        this.stderr.write(line(plain(event.message)));
         break;
       case "cost": {
         if (!this.showCost) break;
-        let msg: string;
-        if (event.turn !== undefined && event.turnCostUsd !== undefined && event.totalCostUsd !== undefined) {
-          msg = `[kota] Turn ${event.turn} — $${event.turnCostUsd.toFixed(4)} this turn · $${event.totalCostUsd.toFixed(4)} total — context: ${event.budgetPercent}%`;
-        } else {
-          msg = `[kota] ${event.summary} — context: ${event.budgetPercent}%`;
-        }
-        console.error(msg);
+        const msg =
+          event.turn !== undefined && event.turnCostUsd !== undefined && event.totalCostUsd !== undefined
+            ? `[kota] Turn ${event.turn} — $${event.turnCostUsd.toFixed(4)} this turn · $${event.totalCostUsd.toFixed(4)} total — context: ${event.budgetPercent}%`
+            : `[kota] ${event.summary} — context: ${event.budgetPercent}%`;
+        this.stderr.write(line(span(msg, "muted")));
         break;
       }
       case "error":
-        console.error(event.message);
+        this.stderr.write(line(span(event.message, "error")));
         break;
       case "notification":
-        console.error(`[reminder] ${event.description}`);
+        this.stderr.write(line(span(`[reminder] ${event.description}`, "accent")));
         break;
       case "guardrail":
         if (event.policy !== "allow") {
-          console.error(`[guardrail] ${event.tool}: ${event.policy} (${event.risk} — ${event.reason})`);
+          this.stderr.write(
+            line(
+              span(
+                `[guardrail] ${event.tool}: ${event.policy} (${event.risk} — ${event.reason})`,
+                "warn",
+              ),
+            ),
+          );
         } else if (this.verbose) {
-          console.error(`[guardrail] ${event.tool}: ${event.policy} (${event.risk})`);
+          this.stderr.write(
+            line(span(`[guardrail] ${event.tool}: ${event.policy} (${event.risk})`, "muted")),
+          );
         }
         break;
       case "tool_metric":
         if (this.verbose) {
-          const status = event.success ? "ok" : "FAIL";
-          console.error(`[kota] ${event.tool}: ${status} (${event.durationMs}ms)`);
+          this.stderr.write(
+            toolCall(event.tool, event.success ? "success" : "error", {
+              summary: `${event.durationMs}ms`,
+            }),
+          );
         }
         break;
       case "state_change":
         if (this.verbose) {
-          console.error(`[kota] State: ${event.from} → ${event.to}`);
+          this.stderr.write(line(span(`[kota] State: ${event.from} → ${event.to}`, "muted")));
         }
         break;
     }

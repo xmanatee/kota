@@ -154,6 +154,7 @@ export function registerOwnerQuestionCommands(program: Command): void {
     .command("count")
     .description("Print the number of pending owner questions")
     .action(() => {
+      // biome-ignore lint/suspicious/noConsole: bare count output consumed by scripts
       console.log(String(getOwnerQuestionQueue().count("pending")));
     });
 

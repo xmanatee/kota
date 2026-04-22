@@ -267,6 +267,7 @@ export function buildEvalCommand(projectDir: string): Command {
       });
 
       if (opts.json) {
+        // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
         console.log(JSON.stringify({ aggregate, decision }, null, 2));
       } else {
         const pct = (n: number) => `${(n * 100).toFixed(1)}%`;

@@ -347,6 +347,7 @@ export function registerApprovalCommands(program: Command): void {
 		.description("Print the number of pending approval items")
 		.action(() => {
 			const queue = getApprovalQueue();
+			// biome-ignore lint/suspicious/noConsole: bare count output consumed by scripts
 			console.log(String(queue.count("pending")));
 		});
 

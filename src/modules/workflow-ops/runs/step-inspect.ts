@@ -113,6 +113,7 @@ export function registerStepInspectCommand(wfCmd: Command): void {
       if (options.format === "summary") {
         printSummary(step);
       } else {
+        // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
         console.log(JSON.stringify(step, null, 2));
       }
     });

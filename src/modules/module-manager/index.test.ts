@@ -56,6 +56,7 @@ function makeProgram(): Command {
 function captureOutput(fn: () => void): { out: string; err: string } {
   const outLines: string[] = [];
   const errLines: string[] = [];
+  // biome-ignore lint/suspicious/noConsole: test harness captures console output via swap
   const logSpy = console.log;
   const errSpy = console.error;
   const stdoutWrite = process.stdout.write.bind(process.stdout);

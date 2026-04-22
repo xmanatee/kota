@@ -75,6 +75,7 @@ function buildSkillCommand(ctx: ModuleContext): Command {
         }
       }
       if (opts.json) {
+        // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
         console.log(JSON.stringify(skills, null, 2));
         return;
       }

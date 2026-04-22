@@ -12,9 +12,15 @@ import {
   span,
   stack,
 } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, TerminalTransport } from "#modules/rendering/transport.js";
 import { interactiveMode, parseIntOption, resolveConversationId } from "./cli.js";
 import { getHistory } from "./history.js";
+
+let stderrRenderer: TerminalTransport | null = null;
+function stderr(): TerminalTransport {
+  if (!stderrRenderer) stderrRenderer = new TerminalTransport({ stream: process.stderr });
+  return stderrRenderer;
+}
 
 /** Register the `history` subcommand and its children onto `program`. */
 export function registerHistoryCommands(program: Command) {
@@ -67,7 +73,7 @@ export function registerHistoryCommands(program: Command) {
       const fullId = resolveConversationId(history, idOrPrefix);
       const data = history.load(fullId);
       if (!data) {
-        console.error(`Conversation "${idOrPrefix}" not found.`);
+        stderr().write(line(span(`Conversation "${idOrPrefix}" not found.`, "error")));
         process.exit(1);
       }
 
@@ -141,7 +147,7 @@ export function registerHistoryCommands(program: Command) {
           span(" deleted.", "success"),
         ));
       } else {
-        console.error(`Conversation "${idOrPrefix}" not found.`);
+        stderr().write(line(span(`Conversation "${idOrPrefix}" not found.`, "error")));
         process.exit(1);
       }
     });

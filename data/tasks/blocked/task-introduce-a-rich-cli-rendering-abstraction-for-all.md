@@ -1,12 +1,12 @@
 ---
 id: task-introduce-a-rich-cli-rendering-abstraction-for-all
 title: Introduce a rich CLI rendering abstraction for all terminal output
-status: doing
+status: blocked
 priority: p2
 area: modules
 summary: Replace ad-hoc console printing with a dedicated rendering layer (library or module) used by daemon mode, CLI mode, and every surface, inspired by gemini-cli / codex / pi / opencode.
 created_at: 2026-04-22T16:46:53.748Z
-updated_at: 2026-04-22T18:39:25.889Z
+updated_at: 2026-04-22T19:55:19.438Z
 ---
 
 ## Problem
@@ -117,14 +117,31 @@ Phase 2 — migrate remaining surfaces (follow-up runs):
   on `console.log` per the module contract. Test fixtures that asserted
   `console.log` captures now intercept `process.stdout.write` so
   rendered output is observable.
-- Migrate interactive session streaming and `cli.ts` pipe-mode output.
-- Add a lint rule that blocks ad-hoc `console.log` inside every
-  migrated directory so the prohibition is mechanically enforced.
+- [done] Migrate interactive session streaming and `cli.ts` pipe-mode
+  output. `CliTransport` in `core/loop/transport.ts` now routes every
+  non-streaming event through two `TerminalTransport` instances (one
+  for stdout, one for stderr); streaming text/thinking/progress
+  continue to pass through as raw chunks via `writeRaw` so partial
+  chunks are not newline-wrapped. `history/cli.ts`'s REPL and
+  `history/cli-commands.ts`'s error paths, and `cli.ts`'s fatal and
+  prompt-validation paths, all emit typed `LineNode`s through a
+  stderr transport.
+- [done] Add a lint rule that blocks ad-hoc `console.log` inside every
+  migrated directory so the prohibition is mechanically enforced. A
+  `biome.json` override pins `suspicious/noConsole` to `error` for the
+  migrated paths with `allow: ["warn", "error"]`; structured JSON and
+  bare-id output paths carry per-line `biome-ignore` comments
+  explaining why they stay on `console.log`.
 
-Phase 3 — peer-CLI capture (operator-facilitated):
+Phase 3 — peer-CLI capture (operator-facilitated, blocks the task):
 
 - Run the scenarios pack through gemini-cli, codex, pi, and opencode on
   an operator workstation and pair the outputs in
   `.kota/runs/<run-id>/peer-cli/`. The scenarios script lives at
   `scripts/render-scenarios.mjs` so both sides share one input set.
+- Until those peer-CLI screenshots/transcripts land, the task's
+  Done-When bullet 3 cannot be honestly verified autonomously, so the
+  task stays in `blocked`. Unblock by either capturing the comparison
+  on operator hardware or by narrowing Done-When to drop the
+  comparison requirement.
 

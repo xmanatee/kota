@@ -49,6 +49,7 @@ function buildAgentCommand(ctx: ModuleContext): Command {
     .action((opts: { json?: boolean }) => {
       const agents = buildAgentEntries(ctx);
       if (opts.json) {
+        // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
         console.log(JSON.stringify(agents, null, 2));
         return;
       }
@@ -89,6 +90,7 @@ function buildAgentCommand(ctx: ModuleContext): Command {
         process.exit(1);
       }
       if (opts.json) {
+        // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
         console.log(JSON.stringify(agent, null, 2));
         return;
       }

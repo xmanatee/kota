@@ -45,5 +45,40 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "src/cli.ts",
+        "src/core/loop/transport.ts",
+        "src/modules/agent-ops/**",
+        "src/modules/approval-queue/**",
+        "src/modules/eval-harness/**",
+        "src/modules/guardrails-audit/**",
+        "src/modules/history/cli.ts",
+        "src/modules/history/cli-commands.ts",
+        "src/modules/knowledge/**",
+        "src/modules/memory/**",
+        "src/modules/module-manager/**",
+        "src/modules/owner-questions/**",
+        "src/modules/rendering/**",
+        "src/modules/repo-tasks/**",
+        "src/modules/skill-ops/**",
+        "src/modules/webhook/**",
+        "src/modules/workflow-ops/runs/**"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": {
+              "level": "error",
+              "options": {
+                "allow": ["warn", "error"]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

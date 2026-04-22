@@ -5,15 +5,26 @@ import { getScheduler, resetScheduler } from "#core/daemon/scheduler.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "#core/loop/loop.js";
 import { formatAuthError } from "#core/model/auth-error.js";
 import { createModelClient } from "#core/model/model-client.js";
+import { blank, line, plain, span } from "#modules/rendering/primitives.js";
+import { print, TerminalTransport } from "#modules/rendering/transport.js";
 import { type ConversationHistory, getHistory } from "./history.js";
 
 export { registerHistoryCommands } from "./cli-commands.js";
+
+let stderrRenderer: TerminalTransport | null = null;
+
+function stderrTransport(): TerminalTransport {
+  if (!stderrRenderer) stderrRenderer = new TerminalTransport({ stream: process.stderr });
+  return stderrRenderer;
+}
 
 /** Parse a CLI numeric option, exiting with a clear message on invalid input. */
 export function parseIntOption(value: string, name: string): number {
   const n = Number.parseInt(value, 10);
   if (!Number.isFinite(n) || n <= 0) {
-    console.error(`Error: --${name} must be a positive integer, got "${value}"`);
+    stderrTransport().write(
+      line(span(`Error: --${name} must be a positive integer, got "${value}"`, "error")),
+    );
     process.exit(1);
   }
   return n;
@@ -24,12 +35,12 @@ export function resolveConversationId(history: ConversationHistory, idOrPrefix: 
   try {
     const record = history.findByPrefix(idOrPrefix);
     if (!record) {
-      console.error(`Conversation "${idOrPrefix}" not found.`);
+      stderrTransport().write(line(span(`Conversation "${idOrPrefix}" not found.`, "error")));
       process.exit(1);
     }
     return record.id;
   } catch (err) {
-    console.error((err as Error).message);
+    stderrTransport().write(line(span((err as Error).message, "error")));
     process.exit(1);
   }
 }
@@ -48,27 +59,41 @@ function handleReplCommand(
   options: LoopOptions,
   resetSession: () => void,
 ): boolean {
+  const stderr = stderrTransport();
   switch (command) {
     case "/help": {
-      const lines = Object.entries(REPL_COMMANDS).map(([cmd, desc]) => `  ${cmd.padEnd(10)} ${desc}`);
-      lines.push("  exit       Quit interactive mode");
-      console.error(lines.join("\n"));
+      const items = Object.entries(REPL_COMMANDS).map(([cmd, desc]) =>
+        line(span(`  ${cmd.padEnd(10)}`, "accent"), plain(` ${desc}`)),
+      );
+      items.push(line(span("  exit      ", "accent"), plain(" Quit interactive mode")));
+      for (const item of items) stderr.write(item);
       return true;
     }
     case "/status": {
       const state = session.getState();
       const model = options.model || "claude-sonnet-4-6";
-      console.error(`Model: ${model}  State: ${state}  Cost: ${session.getCostSummary()}`);
+      stderr.write(
+        line(
+          span("Model: ", "muted"),
+          span(model, "info"),
+          plain("  "),
+          span("State: ", "muted"),
+          plain(state),
+          plain("  "),
+          span("Cost: ", "muted"),
+          plain(session.getCostSummary()),
+        ),
+      );
       return true;
     }
     case "/reset":
     case "/clear": {
       resetSession();
-      console.error("Conversation cleared.");
+      stderr.write(line(span("Conversation cleared.", "success")));
       return true;
     }
     case "/cost": {
-      console.error(session.getCostSummary());
+      stderr.write(line(plain(session.getCostSummary())));
       return true;
     }
     default:
@@ -83,6 +108,7 @@ function handleReplCommand(
  */
 export async function interactiveMode(options: LoopOptions, config?: KotaConfig) {
   let session = new AgentSession(options);
+  const stderr = stderrTransport();
 
   const resetSession = () => {
     session.close();
@@ -98,15 +124,19 @@ export async function interactiveMode(options: LoopOptions, config?: KotaConfig)
   const scheduler = getScheduler();
   const stopScheduler = scheduler.startTimer(30_000, (dueItems) => {
     for (const item of dueItems) {
-      console.error(`\n[kota] ⏰ Reminder: ${item.description}`);
+      stderr.write(blank());
+      stderr.write(line(span(`[kota] ⏰ Reminder: ${item.description}`, "accent")));
     }
   });
 
-  console.error("KOTA — interactive mode. Type /help for commands, or 'exit' to quit.\n");
+  stderr.write(
+    line(span("KOTA", "agent", true), plain(" — interactive mode. Type /help for commands, or 'exit' to quit.")),
+  );
+  stderr.write(blank());
   rl.prompt();
 
-  rl.on("line", async (line) => {
-    let input = line.trim();
+  rl.on("line", async (rawLine) => {
+    let input = rawLine.trim();
     if (!input) {
       rl.prompt();
       return;
@@ -120,7 +150,7 @@ export async function interactiveMode(options: LoopOptions, config?: KotaConfig)
     }
 
     if (handleReplCommand(input, session, options, resetSession)) {
-      console.log();
+      print(blank());
       rl.prompt();
       return;
     }
@@ -131,13 +161,11 @@ export async function interactiveMode(options: LoopOptions, config?: KotaConfig)
       await session.send(input);
     } catch (err) {
       const authMsg = formatAuthError(err as Error);
-      if (authMsg) {
-        console.error(authMsg);
-      } else {
-        console.error(`Error: ${(err as Error).message}`);
-      }
+      stderr.write(
+        line(span(authMsg ?? `Error: ${(err as Error).message}`, "error")),
+      );
     }
-    console.log();
+    print(blank());
     rl.prompt();
   });
 
@@ -145,7 +173,8 @@ export async function interactiveMode(options: LoopOptions, config?: KotaConfig)
     stopScheduler();
     resetScheduler();
     session.close();
-    console.error("\nGoodbye.");
+    stderr.write(blank());
+    stderr.write(line(span("Goodbye.", "muted")));
     process.exit(0);
   });
 }
@@ -161,7 +190,9 @@ export function resolveRunContinue(
   }
   const recent = history.getMostRecent(process.cwd());
   if (recent) return recent.id;
-  console.error("No previous conversation found for this directory.");
+  stderrTransport().write(
+    line(span("No previous conversation found for this directory.", "error")),
+  );
   process.exit(1);
 }
 
