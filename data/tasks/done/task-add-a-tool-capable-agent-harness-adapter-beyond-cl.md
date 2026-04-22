@@ -1,12 +1,12 @@
 ---
 id: task-add-a-tool-capable-agent-harness-adapter-beyond-cl
 title: Add a tool-capable agent harness adapter beyond claude-agent-sdk so harness parity is real
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Ship a second tool-capable AgentHarness adapter (on top of the model-clients OpenAI-compatible loop) so the pluggable-harness claim has more than one consumer with tools, and harness-parity evidence can cover a non-Anthropic tool-using path.
 created_at: 2026-04-22T23:10:24.740Z
-updated_at: 2026-04-22T23:10:24.740Z
+updated_at: 2026-04-22T23:30:20.362Z
 ---
 
 ## Problem

@@ -1,0 +1,386 @@
+/**
+ * `openai-tools` agent harness — a multi-turn tool-calling loop driven by any
+ * OpenAI-compatible ModelClient.
+ *
+ * The adapter reuses `model-clients` for wire translation and the core tool
+ * registry for execution, so a registered KOTA tool is callable from this
+ * harness exactly as it is from `claude-agent-sdk`. Guardrails (`canUseTool`,
+ * `allowedTools`, `disallowedTools`) are applied inside the loop; options that
+ * are claude-SDK-specific are rejected loudly at the boundary instead of being
+ * silently ignored.
+ */
+
+import type Anthropic from "@anthropic-ai/sdk";
+import type {
+  AgentCanUseTool,
+  AgentHarness,
+  AgentHarnessResult,
+  AgentHarnessRunOptions,
+  AgentHarnessWriter,
+} from "#core/agent-harness/index.js";
+import { createModelClient } from "#core/model/model-client.js";
+import { executeTool, getAllTools } from "#core/tools/index.js";
+
+export const OPENAI_TOOLS_AGENT_HARNESS_NAME = "openai-tools";
+
+const DEFAULT_MAX_TOKENS = 4096;
+const DEFAULT_MAX_TURNS = 25;
+
+function isToolUseBlock(
+  block: Anthropic.ContentBlock,
+): block is Anthropic.ToolUseBlock {
+  return block.type === "tool_use";
+}
+
+function isTextBlock(block: Anthropic.ContentBlock): block is Anthropic.TextBlock {
+  return block.type === "text";
+}
+
+function extractSystemText(prompt: AgentHarnessRunOptions["systemPrompt"]): string | undefined {
+  if (prompt === undefined) return undefined;
+  if (typeof prompt === "string") return prompt;
+  // The claude_code preset is a claude-agent-sdk scaffolding that we cannot
+  // reproduce, but operators wire the project's portable system text into the
+  // preset's `append` field. Use that text so `kota run -i --harness
+  // openai-tools` and other operator paths keep working without coupling the
+  // CLI to harness-specific prompt shapes. A preset without append carries no
+  // portable signal and is rejected loudly.
+  if (
+    prompt.type === "preset" &&
+    typeof prompt.append === "string" &&
+    prompt.append.trim().length > 0
+  ) {
+    return prompt.append;
+  }
+  throw new Error(
+    'The "openai-tools" agent harness cannot reproduce the claude_code preset systemPrompt. ' +
+      "Provide a string systemPrompt (or attach portable text via the preset's `append`) or run claude-agent-sdk.",
+  );
+}
+
+function rejectClaudeSpecificOptions(options: AgentHarnessRunOptions): void {
+  if (options.mcpServers && Object.keys(options.mcpServers).length > 0) {
+    throw new Error(
+      'The "openai-tools" agent harness does not host MCP servers. Drop mcpServers ' +
+        "or run the claude-agent-sdk harness which proxies them through the SDK.",
+    );
+  }
+  if (
+    options.permissionMode !== undefined &&
+    options.permissionMode !== "bypassPermissions"
+  ) {
+    throw new Error(
+      `The "openai-tools" agent harness has no native permission UX; permissionMode "${options.permissionMode}" is unsupported. ` +
+        "Use canUseTool / allowedTools / disallowedTools for gating, or run claude-agent-sdk.",
+    );
+  }
+  if (options.persistSession === true) {
+    throw new Error(
+      'The "openai-tools" agent harness does not persist sessions. ' +
+        "Drop persistSession or run claude-agent-sdk for native session resumption.",
+    );
+  }
+  if (options.settingSources && options.settingSources.length > 0) {
+    throw new Error(
+      'The "openai-tools" agent harness ignores claude-agent-sdk settingSources. ' +
+        "Drop settingSources or run claude-agent-sdk.",
+    );
+  }
+  if (options.enableFileCheckpointing === true) {
+    throw new Error(
+      'The "openai-tools" agent harness does not support file checkpointing. ' +
+        "Drop enableFileCheckpointing or run claude-agent-sdk.",
+    );
+  }
+  if (options.thinkingEnabled === true) {
+    throw new Error(
+      'The "openai-tools" agent harness does not host extended thinking. ' +
+        "Drop thinkingEnabled/thinkingBudget or run claude-agent-sdk.",
+    );
+  }
+  if (options.onMessage !== undefined) {
+    throw new Error(
+      'The "openai-tools" agent harness does not emit SDKMessage frames. ' +
+        "Drop onMessage or run claude-agent-sdk.",
+    );
+  }
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function looksLikeRawFallback(input: unknown): boolean {
+  if (!isPlainRecord(input)) return false;
+  const keys = Object.keys(input);
+  return keys.length === 1 && keys[0] === "_raw" && typeof input._raw === "string";
+}
+
+function validateToolUseBlock(
+  block: Anthropic.ToolUseBlock,
+): Record<string, unknown> {
+  if (typeof block.name !== "string" || block.name.length === 0) {
+    throw new Error(
+      `OpenAI model returned a malformed tool_call: missing tool name (id=${String(block.id)}).`,
+    );
+  }
+  if (looksLikeRawFallback(block.input)) {
+    throw new Error(
+      `OpenAI model returned malformed JSON arguments for tool "${block.name}" ` +
+        "(non-parseable JSON in tool_call.function.arguments).",
+    );
+  }
+  if (!isPlainRecord(block.input)) {
+    throw new Error(
+      `OpenAI model returned a malformed tool_call for "${block.name}": input must be a JSON object, got ${
+        block.input === null ? "null" : Array.isArray(block.input) ? "array" : typeof block.input
+      }.`,
+    );
+  }
+  return block.input;
+}
+
+function selectToolDefinitions(
+  allowed: readonly string[] | undefined,
+  disallowed: readonly string[] | undefined,
+): Anthropic.Tool[] {
+  const all = getAllTools();
+  const denySet = new Set(disallowed ?? []);
+  const allowSet = allowed && allowed.length > 0 ? new Set(allowed) : null;
+  return all.filter((tool) => {
+    if (denySet.has(tool.name)) return false;
+    if (allowSet && !allowSet.has(tool.name)) return false;
+    return true;
+  });
+}
+
+type DenialOutcome = {
+  block: Anthropic.Messages.ToolResultBlockParam;
+  interrupt: boolean;
+  message: string;
+};
+
+async function dispatchToolCall(
+  call: Anthropic.ToolUseBlock,
+  options: {
+    canUseTool: AgentCanUseTool | undefined;
+    allowedTools: readonly string[] | undefined;
+    disallowedTools: readonly string[] | undefined;
+    abortSignal: AbortSignal | undefined;
+  },
+): Promise<{ result: Anthropic.Messages.ToolResultBlockParam; denial?: DenialOutcome }> {
+  const validatedInput = validateToolUseBlock(call);
+
+  const denySet = new Set(options.disallowedTools ?? []);
+  if (denySet.has(call.name)) {
+    const denial: DenialOutcome = {
+      block: {
+        type: "tool_result",
+        tool_use_id: call.id,
+        content: `Tool "${call.name}" is in disallowedTools and cannot run.`,
+        is_error: true,
+      },
+      interrupt: false,
+      message: `disallowedTools blocked ${call.name}`,
+    };
+    return { result: denial.block, denial };
+  }
+
+  if (
+    options.allowedTools &&
+    options.allowedTools.length > 0 &&
+    !options.allowedTools.includes(call.name)
+  ) {
+    const denial: DenialOutcome = {
+      block: {
+        type: "tool_result",
+        tool_use_id: call.id,
+        content: `Tool "${call.name}" is not in allowedTools and cannot run.`,
+        is_error: true,
+      },
+      interrupt: false,
+      message: `allowedTools excluded ${call.name}`,
+    };
+    return { result: denial.block, denial };
+  }
+
+  let effectiveInput: Record<string, unknown> = validatedInput;
+  if (options.canUseTool) {
+    const abortController = new AbortController();
+    if (options.abortSignal) {
+      if (options.abortSignal.aborted) abortController.abort(options.abortSignal.reason);
+      else
+        options.abortSignal.addEventListener(
+          "abort",
+          () => abortController.abort(options.abortSignal?.reason),
+          { once: true },
+        );
+    }
+    const decision = await options.canUseTool(call.name, validatedInput, {
+      signal: abortController.signal,
+      suggestions: [],
+      toolUseID: call.id,
+    });
+    if (decision.behavior === "deny") {
+      const denial: DenialOutcome = {
+        block: {
+          type: "tool_result",
+          tool_use_id: call.id,
+          content: decision.message,
+          is_error: true,
+        },
+        interrupt: decision.interrupt === true,
+        message: decision.message,
+      };
+      return { result: denial.block, denial };
+    }
+    if (decision.behavior === "allow" && isPlainRecord(decision.updatedInput)) {
+      effectiveInput = decision.updatedInput;
+    }
+  }
+
+  const toolResult = await executeTool(call.name, effectiveInput);
+  return {
+    result: {
+      type: "tool_result",
+      tool_use_id: call.id,
+      content: toolResult.content,
+      is_error: toolResult.is_error === true,
+    },
+  };
+}
+
+function checkAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    const reason = signal.reason;
+    throw reason instanceof Error ? reason : new Error("Agent execution aborted");
+  }
+}
+
+export const openaiToolsAgentHarness: AgentHarness = {
+  name: OPENAI_TOOLS_AGENT_HARNESS_NAME,
+  description:
+    "Multi-turn tool-calling loop against an OpenAI-compatible ModelClient (OpenAI, Ollama, Groq, Together, LM Studio, vLLM, …). Honors canUseTool, allowedTools, disallowedTools.",
+  supportsMultiTurn: true,
+  supportedHookKinds: ["preRun", "postRun"] as const,
+  async run(
+    options: AgentHarnessRunOptions,
+    writer?: AgentHarnessWriter,
+  ): Promise<AgentHarnessResult> {
+    rejectClaudeSpecificOptions(options);
+    checkAborted(options.abortController?.signal);
+
+    if (!options.model) {
+      throw new Error(
+        'The "openai-tools" agent harness requires an explicit model on the step or config.',
+      );
+    }
+
+    const system = extractSystemText(options.systemPrompt);
+    const resolved = createModelClient({ model: options.model });
+    const tools = selectToolDefinitions(options.allowedTools, options.disallowedTools);
+    const maxTurns = options.maxTurns ?? DEFAULT_MAX_TURNS;
+
+    const messages: Anthropic.MessageParam[] = [
+      { role: "user", content: options.prompt },
+    ];
+
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let lastSessionId: string | undefined;
+    const streamedChunks: string[] = [];
+    let turnCount = 0;
+    let isError = false;
+    let lastSubtype: string | undefined;
+    let finalText = "";
+
+    for (let turn = 0; turn < maxTurns; turn += 1) {
+      checkAborted(options.abortController?.signal);
+
+      const stream = resolved.client.messages.stream({
+        model: resolved.model,
+        max_tokens: DEFAULT_MAX_TOKENS,
+        ...(system !== undefined ? { system } : {}),
+        messages,
+        ...(tools.length > 0 ? { tools } : {}),
+      });
+      stream.on("text", (delta) => {
+        streamedChunks.push(delta);
+        if (writer) writer.write(delta);
+      });
+
+      const finalMessage = await stream.finalMessage();
+      turnCount += 1;
+      inputTokens += finalMessage.usage?.input_tokens ?? 0;
+      outputTokens += finalMessage.usage?.output_tokens ?? 0;
+      if (finalMessage.id) lastSessionId = finalMessage.id;
+
+      const textBlocks = finalMessage.content.filter(isTextBlock);
+      const toolBlocks = finalMessage.content.filter(isToolUseBlock);
+      const turnText = textBlocks.map((block) => block.text).join("");
+      if (turnText.length > 0) finalText = turnText;
+
+      messages.push({ role: "assistant", content: finalMessage.content });
+
+      if (toolBlocks.length === 0 || finalMessage.stop_reason === "end_turn") {
+        return {
+          text: finalText,
+          streamedText: streamedChunks.join(""),
+          ...(lastSessionId !== undefined ? { sessionId: lastSessionId } : {}),
+          turns: turnCount,
+          inputTokens,
+          outputTokens,
+          isError,
+          ...(lastSubtype !== undefined ? { subtype: lastSubtype } : {}),
+        };
+      }
+
+      const resultBlocks: Anthropic.Messages.ToolResultBlockParam[] = [];
+      let interrupted: DenialOutcome | undefined;
+      for (const call of toolBlocks) {
+        const dispatched = await dispatchToolCall(call, {
+          canUseTool: options.canUseTool,
+          allowedTools: options.allowedTools,
+          disallowedTools: options.disallowedTools,
+          abortSignal: options.abortController?.signal,
+        });
+        resultBlocks.push(dispatched.result);
+        if (dispatched.denial?.interrupt && !interrupted) {
+          interrupted = dispatched.denial;
+        }
+      }
+
+      messages.push({ role: "user", content: resultBlocks });
+
+      if (interrupted) {
+        const message = `canUseTool interrupted the loop: ${interrupted.message}`;
+        finalText = message;
+        isError = true;
+        lastSubtype = "interrupted_by_can_use_tool";
+        return {
+          text: finalText,
+          streamedText: streamedChunks.join(""),
+          ...(lastSessionId !== undefined ? { sessionId: lastSessionId } : {}),
+          turns: turnCount,
+          inputTokens,
+          outputTokens,
+          isError,
+          subtype: lastSubtype,
+        };
+      }
+    }
+
+    isError = true;
+    lastSubtype = "max_turns_reached";
+    return {
+      text: finalText || `openai-tools harness reached maxTurns=${maxTurns} without ending.`,
+      streamedText: streamedChunks.join(""),
+      ...(lastSessionId !== undefined ? { sessionId: lastSessionId } : {}),
+      turns: turnCount,
+      inputTokens,
+      outputTokens,
+      isError,
+      subtype: lastSubtype,
+    };
+  },
+};
