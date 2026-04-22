@@ -41,5 +41,9 @@ into.
   load. There is no implicit default — operators select with
   `KotaConfig.defaultAgentHarness` or per-step `harness`, and the runtime
   fails loudly when neither is set.
+- `prompt-input/` — harness-neutral user-prompt preprocessing
+  (`@path` reference expansion). Every CLI path calls it before handing a
+  prompt to `AgentHarness.run`, so every adapter receives the same
+  already-expanded text.
 - New non-test source should land in `src/core/<subtree>/` or `src/modules/<name>/`,
   not as another loose `src/*.ts` file.

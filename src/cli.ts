@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { expandAlias, loadConfig } from "#core/config/config.js";
+import { expandUserPromptReferences } from "#core/prompt-input/index.js";
 import { setSkipConfirmations } from "#core/util/confirm.js";
 import { blank, line, span } from "#modules/rendering/primitives.js";
 import { TerminalTransport } from "#modules/rendering/transport.js";
@@ -38,6 +39,25 @@ function stdout(): TerminalTransport {
 }
 
 const program = new Command();
+
+/**
+ * Announce the active harness on the stderr banner before the first turn.
+ * Operators need to see which adapter is driving the session — claude-agent-sdk,
+ * thin, or the classic ModelClient loop — so switching harnesses via
+ * --provider or config.defaultAgentHarness is visible, not silent.
+ * Skipped when stderr is not a TTY so scripted pipelines stay quiet.
+ */
+function announceActiveHarness(harness: string, model: string): void {
+  if (!process.stderr.isTTY) return;
+  stderr().write(
+    line(
+      span("kota ", "muted"),
+      span(`[${harness}]`, "accent"),
+      span(" ", "muted"),
+      span(model, "info"),
+    ),
+  );
+}
 
 function ensureAnthropicApiKey(
   providerName: string | undefined,
@@ -97,9 +117,11 @@ program
         );
         process.exit(1);
       }
+      prompt = expandUserPromptReferences(prompt, process.cwd()).text;
       // Operators can override the adapter via config.defaultAgentHarness;
       // the --provider=agent-sdk shortcut historically meant claude-agent-sdk.
       const harnessName = config.defaultAgentHarness ?? "claude-agent-sdk";
+      announceActiveHarness(harnessName, model);
       const harness = resolveAgentHarness(harnessName);
       const result = await harness.run({
         prompt,
@@ -191,8 +213,11 @@ program
     prompt = expandAlias(prompt, config.aliases);
 
     if (opts.interactive || !prompt) {
+      announceActiveHarness("classic-loop", model);
       await interactiveMode(options, config);
     } else {
+      prompt = expandUserPromptReferences(prompt, process.cwd()).text;
+      announceActiveHarness("classic-loop", model);
       await runAgentLoop(prompt, options);
     }
   });
@@ -214,9 +239,10 @@ async function checkPipeMode() {
         const modelSpec = config.model || "claude-sonnet-4-6";
         const { model } = parseModelString(modelSpec);
         const harnessName = config.defaultAgentHarness ?? "claude-agent-sdk";
+        announceActiveHarness(harnessName, model);
         const harness = resolveAgentHarness(harnessName);
         const result = await harness.run({
-          prompt: piped,
+          prompt: expandUserPromptReferences(piped, process.cwd()).text,
           model,
           verbose: config.verbose,
           cwd: process.cwd(),
@@ -233,7 +259,7 @@ async function checkPipeMode() {
         return true;
       }
 
-      await runPipeLoop(piped);
+      await runPipeLoop(expandUserPromptReferences(piped, process.cwd()).text);
       return true;
     }
   }
