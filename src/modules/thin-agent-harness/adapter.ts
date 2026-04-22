@@ -56,6 +56,7 @@ export const thinAgentHarness: AgentHarness = {
   name: THIN_AGENT_HARNESS_NAME,
   description:
     "Single-turn text harness. Uses the core ModelClient registry for any Anthropic or OpenAI-compatible provider. No tool loop, no MCP.",
+  supportsMultiTurn: true,
   async run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

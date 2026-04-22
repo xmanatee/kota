@@ -70,6 +70,15 @@ export type AgentHarness = {
   readonly name: string;
   /** Short human-facing description of what this harness runs. */
   readonly description: string;
+  /**
+   * Whether this adapter can sustain a multi-turn interactive conversation.
+   * The interactive REPL composes a transcript across turns and delivers it
+   * through `run()`, so any adapter whose `run()` honors a textual prompt
+   * plus prior-turn context can set this to `true`. Adapters that are
+   * fundamentally single-shot (e.g. fire-and-forget webhook runners) set
+   * this to `false` — the REPL entry point refuses to launch them.
+   */
+  readonly supportsMultiTurn: boolean;
   run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

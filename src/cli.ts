@@ -13,6 +13,7 @@ import { createModelClient } from "./core/model/model-client.js";
 import { discoverModules } from "./core/modules/module-discovery.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import { discoverProjectModules } from "./core/modules/project-discovery.js";
+import { runHarnessRepl } from "./core/repl/index.js";
 import {
   interactiveMode,
   parseIntOption,
@@ -91,6 +92,7 @@ program
   .option("-v, --verbose", "Show debug output")
   .option("-a, --architect", "Enable Architect/Editor split (two-pass reasoning)")
   .option("-i, --interactive", "Interactive mode (REPL)")
+  .option("--harness <name>", "Agent harness adapter (e.g. claude-agent-sdk, thin). Overrides --provider and config.defaultAgentHarness for this run")
   .option("-s, --session <path>", "Session file for persistence/resume")
   .option("-y, --yes", "Skip confirmation prompts for destructive commands")
   .option("-t, --think", "Enable extended thinking for deeper reasoning")
@@ -106,35 +108,46 @@ program
     const config = loadConfig();
 
     const providerName = opts.provider || config.modelProvider?.type;
-    if (providerName === "agent-sdk") {
+    const explicitHarness = opts.harness as string | undefined;
+    if (explicitHarness || providerName === "agent-sdk") {
       const modelSpec = opts.model || config.model || "claude-sonnet-4-6";
       const { model } = parseModelString(modelSpec);
       let prompt = promptWords.join(" ");
       prompt = expandAlias(prompt, config.aliases);
-      if (!prompt) {
-        stderr().write(
-          line(span("agent-sdk provider requires a prompt. Interactive mode is not supported.", "error")),
-        );
-        process.exit(1);
+      // Operators can pick the adapter explicitly via --harness, fall back to
+      // config.defaultAgentHarness, and finally to claude-agent-sdk for the
+      // historical --provider=agent-sdk shortcut.
+      const harnessName =
+        explicitHarness ?? config.defaultAgentHarness ?? "claude-agent-sdk";
+      const harness = resolveAgentHarness(harnessName);
+      const systemPrompt = buildClaudeCodeSystemPrompt(
+        config,
+        undefined,
+        process.cwd(),
+        process.cwd(),
+      );
+      const runOverrides = {
+        verbose: opts.verbose || config.verbose || false,
+        effort: "xhigh" as const,
+        systemPrompt,
+      };
+      if (opts.interactive || !prompt) {
+        announceActiveHarness(harnessName, model);
+        await runHarnessRepl({
+          harness,
+          model,
+          cwd: process.cwd(),
+          run: runOverrides,
+        });
+        return;
       }
       prompt = expandUserPromptReferences(prompt, process.cwd()).text;
-      // Operators can override the adapter via config.defaultAgentHarness;
-      // the --provider=agent-sdk shortcut historically meant claude-agent-sdk.
-      const harnessName = config.defaultAgentHarness ?? "claude-agent-sdk";
       announceActiveHarness(harnessName, model);
-      const harness = resolveAgentHarness(harnessName);
       const result = await harness.run({
         prompt,
         model,
-        verbose: opts.verbose || config.verbose || false,
         cwd: process.cwd(),
-        effort: "xhigh",
-        systemPrompt: buildClaudeCodeSystemPrompt(
-          config,
-          undefined,
-          process.cwd(),
-          process.cwd(),
-        ),
+        ...runOverrides,
       });
       if (!result.streamedText && result.text) process.stdout.write(result.text);
       stdout().write(blank());

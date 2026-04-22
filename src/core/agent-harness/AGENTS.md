@@ -18,6 +18,12 @@ protocol live in modules — the core only owns the interface and the registry.
   middleware are passed into the harness through standard fields
   (`canUseTool`, `mcpServers`, tool allow/deny lists). Every adapter must
   apply them; callers should not assume an adapter can skip them.
+- `AgentHarness.supportsMultiTurn: boolean` declares whether the adapter can
+  host an interactive conversation. The REPL entry point composes a local
+  transcript and delivers it through `run()`, so any adapter that honors a
+  prompt plus prior-turn context sets this to `true`. Adapters that are
+  fundamentally single-shot (fire-and-forget runners, webhook returns) set
+  `false` — the REPL refuses to launch them rather than silently downgrading.
 
 ## Registry and selection
 

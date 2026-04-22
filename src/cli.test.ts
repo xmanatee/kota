@@ -83,6 +83,7 @@ describe("cli", () => {
     expect(out).toContain("--editor-model");
     expect(out).toContain("--max-tokens");
     expect(out).toContain("--verbose");
+    expect(out).toContain("--harness");
   });
 
   it("default model is claude-sonnet-4-6", () => {
