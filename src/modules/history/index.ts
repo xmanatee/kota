@@ -17,6 +17,7 @@ const historyModule: KotaModule = {
 	version: "1.0.0",
 	description:
 		"Conversation recall — search and read past conversations",
+	dependencies: ["rendering"],
 	tools: [
 		{
 			tool: conversationRecallTool,

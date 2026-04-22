@@ -15,6 +15,7 @@ const repoTasksModule: KotaModule = {
 	name: "repo-tasks",
 	version: "1.0.0",
 	description: "Operator CLI for the KOTA repo task queue",
+	dependencies: ["rendering"],
 
 	commands: () => {
 		const root = new Command("__root__");

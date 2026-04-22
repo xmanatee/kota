@@ -97,7 +97,18 @@ Phase 2 — migrate remaining surfaces (follow-up runs):
   `renderToString`. Machine-parseable `--json` paths intentionally keep
   their direct `console.log(JSON.stringify(...))` output per the module
   contract on structured surfaces.
-- Migrate module CLIs (repo-tasks, history, memory, knowledge, webhook,
+- [done] Migrate `repo-tasks` CLI (`task list`, `task move`, `task gc`,
+  `task create`, `task capture`) onto the module. `buildTaskListLines`
+  exposes the table as `LineNode[]` with role-aware priority/state
+  spans; confirmation output flows through `print(...)` so theme/width
+  adaptation applies. `repo-tasks` now declares `rendering` as a
+  dependency.
+- [done] Migrate `history` CLI (`history list`, `history show`,
+  `history delete`, `history clear`) onto the module. `history list`
+  uses a `LineNode` table; `history show` uses `kvBlock` for the
+  record summary and `AgentMessage`-adjacent styled lines for each
+  message; `history` now declares `rendering` as a dependency.
+- Migrate remaining module CLIs (memory, knowledge, webhook,
   owner-questions, guardrails-audit, approval-queue, eval-harness,
   skill-ops, agent-ops, module-manager) onto the module.
 - Migrate interactive session streaming and `cli.ts` pipe-mode output.

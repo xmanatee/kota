@@ -3,6 +3,16 @@ import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.
 import { loadConfig } from "#core/config/config.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { confirmAction } from "#core/util/confirm.js";
+import {
+  blank,
+  kvBlock,
+  type LineNode,
+  line,
+  plain,
+  span,
+  stack,
+} from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
 import { interactiveMode, parseIntOption, resolveConversationId } from "./cli.js";
 import { getHistory } from "./history.js";
 
@@ -25,18 +35,28 @@ export function registerHistoryCommands(program: Command) {
       });
 
       if (list.length === 0) {
-        console.log("No conversations found.");
+        print(line(plain("No conversations found.")));
         return;
       }
 
-      console.log(`${"ID".padEnd(17)} ${"Updated".padEnd(22)} ${"Msgs".padEnd(6)} Title`);
-      console.log("-".repeat(80));
-      for (const c of list) {
+      const header: LineNode = line(span(
+        `${"ID".padEnd(17)} ${"Updated".padEnd(22)} ${"Msgs".padEnd(6)} Title`,
+        "muted",
+        true,
+      ));
+      const rule: LineNode = line(span("-".repeat(80), "muted"));
+      const rows: LineNode[] = list.map((c) => {
         const updated = new Date(c.updatedAt).toLocaleString("en-US", {
           month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
         });
-        console.log(`${c.id.padEnd(17)} ${updated.padEnd(22)} ${String(c.messageCount).padEnd(6)} ${c.title}`);
-      }
+        return line(
+          span(c.id.padEnd(17), "accent"),
+          plain(` ${updated.padEnd(22)} `),
+          span(String(c.messageCount).padEnd(6), "muted"),
+          plain(` ${c.title}`),
+        );
+      });
+      print(stack(header, rule, ...rows));
     });
 
   historyCmd
@@ -51,23 +71,28 @@ export function registerHistoryCommands(program: Command) {
         process.exit(1);
       }
 
-      console.log(`Title:    ${data.record.title}`);
-      console.log(`Created:  ${new Date(data.record.createdAt).toLocaleString()}`);
-      console.log(`Updated:  ${new Date(data.record.updatedAt).toLocaleString()}`);
-      console.log(`Model:    ${data.record.model}`);
-      console.log(`Messages: ${data.record.messageCount}`);
-      console.log(`Dir:      ${data.record.cwd}`);
-      console.log();
+      print(kvBlock([
+        { label: "Title", value: data.record.title },
+        { label: "Created", value: new Date(data.record.createdAt).toLocaleString(), role: "muted" },
+        { label: "Updated", value: new Date(data.record.updatedAt).toLocaleString(), role: "muted" },
+        { label: "Model", value: data.record.model, role: "info" },
+        { label: "Messages", value: String(data.record.messageCount), role: "info" },
+        { label: "Dir", value: data.record.cwd, role: "muted" },
+      ]));
+      print(blank());
 
       for (const msg of data.messages) {
         if (msg.role === "user" && typeof msg.content === "string") {
-          console.log(`[user] ${msg.content.slice(0, 200)}`);
+          print(line(span("[user]", "accent", true), plain(` ${msg.content.slice(0, 200)}`)));
         } else if (msg.role === "assistant" && typeof msg.content === "string") {
-          console.log(`[assistant] ${msg.content.slice(0, 200)}`);
+          print(line(span("[assistant]", "agent", true), plain(` ${msg.content.slice(0, 200)}`)));
         } else if (msg.role === "assistant" && Array.isArray(msg.content)) {
           const textBlock = msg.content.find((b) => "type" in b && b.type === "text");
           if (textBlock && "text" in textBlock) {
-            console.log(`[assistant] ${String(textBlock.text).slice(0, 200)}`);
+            print(line(
+              span("[assistant]", "agent", true),
+              plain(` ${String(textBlock.text).slice(0, 200)}`),
+            ));
           }
         }
       }
@@ -110,7 +135,11 @@ export function registerHistoryCommands(program: Command) {
       const history = getHistory();
       const fullId = resolveConversationId(history, idOrPrefix);
       if (history.remove(fullId)) {
-        console.log(`Conversation ${fullId} deleted.`);
+        print(line(
+          plain("Conversation "),
+          span(fullId, "accent"),
+          span(" deleted.", "success"),
+        ));
       } else {
         console.error(`Conversation "${idOrPrefix}" not found.`);
         process.exit(1);
@@ -126,7 +155,7 @@ export function registerHistoryCommands(program: Command) {
       const list = history.list({ cwd: process.cwd(), limit: 1000 });
 
       if (list.length === 0) {
-        console.log("No conversations to delete.");
+        print(line(plain("No conversations to delete.")));
         return;
       }
 
@@ -135,7 +164,7 @@ export function registerHistoryCommands(program: Command) {
           `This will permanently delete ${list.length} conversation(s). Continue?`,
         );
         if (!confirmed) {
-          console.log("Cancelled.");
+          print(line(span("Cancelled.", "muted")));
           return;
         }
       }
@@ -144,6 +173,6 @@ export function registerHistoryCommands(program: Command) {
       for (const c of list) {
         if (history.remove(c.id)) count++;
       }
-      console.log(`Deleted ${count} conversation(s).`);
+      print(line(span(`Deleted ${count} conversation(s).`, "success")));
     });
 }

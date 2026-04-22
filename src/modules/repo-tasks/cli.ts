@@ -4,6 +4,15 @@ import { basename, join } from "node:path";
 import type { Command } from "commander";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import {
+	blank,
+	type LineNode,
+	line,
+	plain,
+	span,
+	stack,
+} from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
+import {
 	getRepoInboxDir,
 	getRepoTasksDir,
 	REPO_INBOX_DIR,
@@ -153,22 +162,11 @@ export function registerTaskCommands(program: Command): void {
 
 			const tasks = listTasksForStates(tasksDir, states);
 			if (tasks.length === 0) {
-				console.log("No tasks found.");
+				print(line(plain("No tasks found.")));
 				return;
 			}
 
-			const idWidth = Math.max(...tasks.map((t) => t.id.length), 4);
-			const prioWidth = 4;
-			const stateWidth = Math.max(...tasks.map((t) => t.state.length), 5);
-			console.log(
-				`${"ID".padEnd(idWidth)}  ${"Pri".padEnd(prioWidth)}  ${"State".padEnd(stateWidth)}  Title`,
-			);
-			console.log("-".repeat(idWidth + prioWidth + stateWidth + 12));
-			for (const t of tasks) {
-				console.log(
-					`${t.id.padEnd(idWidth)}  ${t.priority.padEnd(prioWidth)}  ${t.state.padEnd(stateWidth)}  ${t.title}`,
-				);
-			}
+			print(stack(...buildTaskListLines(tasks)));
 		});
 
 	taskCmd
@@ -181,7 +179,7 @@ export function registerTaskCommands(program: Command): void {
 				process.exit(1);
 			}
 			process.stdout.write(found.content);
-			if (!found.content.endsWith("\n")) console.log();
+			if (!found.content.endsWith("\n")) process.stdout.write("\n");
 		});
 
 	taskCmd
@@ -199,7 +197,7 @@ export function registerTaskCommands(program: Command): void {
 				process.exit(1);
 			}
 			if (found.state === targetState) {
-				console.log(`Task "${id}" is already in "${targetState}".`);
+				print(line(plain(`Task "${id}" is already in "${targetState}".`)));
 				return;
 			}
 
@@ -213,7 +211,13 @@ export function registerTaskCommands(program: Command): void {
 			writeFileSync(dstPath, updated, "utf-8");
 			execSync(`git add "${dstPath}"`, { cwd: process.cwd() });
 
-			console.log(`Moved "${id}" from "${found.state}" to "${targetState}".`);
+			print(line(
+				plain("Moved "),
+				span(`"${id}"`, "accent"),
+				plain(` from "${found.state}" to `),
+				span(`"${targetState}"`, "success"),
+				plain("."),
+			));
 		});
 
 	taskCmd
@@ -239,17 +243,20 @@ export function registerTaskCommands(program: Command): void {
 			});
 			const affected = opts.delete ? result.deleted : result.archived;
 			if (affected.length === 0) {
-				console.log("Nothing to archive.");
+				print(line(plain("Nothing to archive.")));
 				return;
 			}
 			const verb = opts.dryRun
 				? opts.delete ? "Would delete" : "Would archive"
 				: opts.delete ? "Deleted" : "Archived";
-			console.log(`${verb} ${affected.length} task${affected.length === 1 ? "" : "s"}:`);
-			for (const f of affected) {
-				console.log(`  ${f}`);
+			const header: LineNode = line(plain(
+				`${verb} ${affected.length} task${affected.length === 1 ? "" : "s"}:`,
+			));
+			const rows: LineNode[] = affected.map((f) => line(plain(`  ${f}`)));
+			print(stack(header, ...rows));
+			if (opts.dryRun) {
+				print(stack(blank(), line(span("(dry run — nothing was changed)", "muted"))));
 			}
-			if (opts.dryRun) console.log("\n(dry run — nothing was changed)");
 		});
 
 	taskCmd
@@ -312,8 +319,14 @@ export function registerTaskCommands(program: Command): void {
 
 			writeFileSync(filePath, serializeFlatFrontMatter(attrs, body), "utf-8");
 			execSync(`git add "${filePath}"`, { cwd: process.cwd() });
-			console.log(`Created task "${id}" in ${opts.state}/. Edit the file to fill in sections.`);
-			console.log(filePath);
+			print(stack(
+				line(
+					plain("Created task "),
+					span(`"${id}"`, "accent"),
+					plain(` in ${opts.state}/. Edit the file to fill in sections.`),
+				),
+				line(span(filePath, "muted")),
+			));
 		});
 
 	taskCmd
@@ -337,6 +350,58 @@ export function registerTaskCommands(program: Command): void {
 			}
 
 			writeFileSync(filePath, `# ${title}\n`, "utf-8");
-			console.log(`Created inbox capture "${id}" in ${REPO_INBOX_DIR}.`);
+			print(line(
+				plain("Created inbox capture "),
+				span(`"${id}"`, "accent"),
+				plain(` in ${REPO_INBOX_DIR}.`),
+			));
 		});
+}
+
+export function buildTaskListLines(
+	tasks: { id: string; priority: string; state: RepoTaskState; title: string }[],
+): LineNode[] {
+	const idWidth = Math.max(...tasks.map((t) => t.id.length), 4);
+	const prioWidth = 4;
+	const stateWidth = Math.max(...tasks.map((t) => t.state.length), 5);
+	const header = line(span(
+		`${"ID".padEnd(idWidth)}  ${"Pri".padEnd(prioWidth)}  ${"State".padEnd(stateWidth)}  Title`,
+		"muted",
+		true,
+	));
+	const rule = line(span("-".repeat(idWidth + prioWidth + stateWidth + 12), "muted"));
+	const rows: LineNode[] = tasks.map((t) => line(
+		plain(`${t.id.padEnd(idWidth)}  `),
+		span(t.priority.padEnd(prioWidth), priorityRole(t.priority)),
+		plain("  "),
+		span(t.state.padEnd(stateWidth), stateRole(t.state)),
+		plain(`  ${t.title}`),
+	));
+	return [header, rule, ...rows];
+}
+
+function priorityRole(priority: string): "error" | "warn" | "info" | "muted" {
+	switch (priority) {
+		case "p0":
+			return "error";
+		case "p1":
+			return "warn";
+		case "p2":
+			return "info";
+		default:
+			return "muted";
+	}
+}
+
+function stateRole(state: RepoTaskState): "success" | "warn" | "accent" | "muted" {
+	switch (state) {
+		case "doing":
+			return "accent";
+		case "ready":
+			return "success";
+		case "blocked":
+			return "warn";
+		default:
+			return "muted";
+	}
 }
