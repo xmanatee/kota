@@ -751,11 +751,13 @@ describe("memory module integration", () => {
   });
 
   it("registers the memory tool via module protocol", async () => {
+    const { default: renderingModule } = await import("./modules/rendering/index.js");
     const { default: memoryModule } = await import("./modules/memory/index.js");
     const loader = new ModuleLoader({});
 
+    await loader.load(renderingModule);
     await loader.load(memoryModule);
-    expect(loader.getLoadedModules()).toEqual(["memory"]);
+    expect(loader.getLoadedModules()).toEqual(["rendering", "memory"]);
     expect(loader.getToolCount()).toBe(1);
 
     // Memory tool should be in the management group
@@ -767,8 +769,10 @@ describe("memory module integration", () => {
   });
 
   it("memory tool is hidden until management group is enabled", async () => {
+    const { default: renderingModule } = await import("./modules/rendering/index.js");
     const { default: memoryModule } = await import("./modules/memory/index.js");
     const loader = new ModuleLoader({});
+    await loader.load(renderingModule);
     await loader.load(memoryModule);
 
     const before = filterTools(getAllTools());

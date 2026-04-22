@@ -2,11 +2,77 @@ import { readFileSync } from "node:fs";
 import type { Command } from "commander";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import { getKnowledgeProvider } from "#core/modules/provider-registry.js";
+import {
+	blank,
+	kvBlock,
+	type LineNode,
+	line,
+	plain,
+	span,
+	stack,
+} from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
 
 type RawImportEntry = { title?: unknown; body?: unknown; tags?: unknown };
 
 function formatDate(iso: string): string {
 	return iso.slice(0, 16).replace("T", " ");
+}
+
+type KnowledgeRow = {
+	id: string;
+	title: string;
+	type: string;
+	status: string;
+	updated: string;
+};
+
+function statusRole(status: string): "success" | "warn" | "muted" | "info" {
+	switch (status) {
+		case "active":
+			return "success";
+		case "archived":
+			return "muted";
+		case "draft":
+			return "warn";
+		default:
+			return "info";
+	}
+}
+
+export function buildKnowledgeListLines(entries: KnowledgeRow[]): LineNode[] {
+	const idWidth = Math.max(...entries.map((e) => e.id.length), 2);
+	const typeWidth = Math.max(...entries.map((e) => e.type.length), 4);
+	const statusWidth = Math.max(...entries.map((e) => e.status.length), 6);
+	const header = line(span(
+		`${"ID".padEnd(idWidth)}  ${"Type".padEnd(typeWidth)}  ${"Status".padEnd(statusWidth)}  ${"Updated".padEnd(16)}  Title`,
+		"muted",
+		true,
+	));
+	const rule = line(span("-".repeat(idWidth + typeWidth + statusWidth + 22 + 30), "muted"));
+	const rows: LineNode[] = entries.map((e) => line(
+		span(e.id.padEnd(idWidth), "accent"),
+		plain(`  ${e.type.padEnd(typeWidth)}  `),
+		span(e.status.padEnd(statusWidth), statusRole(e.status)),
+		plain(`  ${formatDate(e.updated).padEnd(16)}  ${e.title}`),
+	));
+	return [header, rule, ...rows];
+}
+
+export function buildKnowledgeSearchLines(entries: KnowledgeRow[]): LineNode[] {
+	const idWidth = Math.max(...entries.map((e) => e.id.length), 2);
+	const typeWidth = Math.max(...entries.map((e) => e.type.length), 4);
+	const header = line(span(
+		`${"ID".padEnd(idWidth)}  ${"Type".padEnd(typeWidth)}  Title`,
+		"muted",
+		true,
+	));
+	const rule = line(span("-".repeat(idWidth + typeWidth + 6 + 30), "muted"));
+	const rows: LineNode[] = entries.map((e) => line(
+		span(e.id.padEnd(idWidth), "accent"),
+		plain(`  ${e.type.padEnd(typeWidth)}  ${e.title}`),
+	));
+	return [header, rule, ...rows];
 }
 
 /** Parse a JSON or JSONL file into raw entry objects. */
@@ -44,21 +110,10 @@ export function registerKnowledgeCommands(program: Command): void {
 				.list({ tag: opts.tag, type: opts.type, status: opts.status })
 				.slice(0, limit);
 			if (entries.length === 0) {
-				console.log("No knowledge entries.");
+				print(line(plain("No knowledge entries.")));
 				return;
 			}
-			const idWidth = Math.max(...entries.map((e) => e.id.length), 2);
-			const typeWidth = Math.max(...entries.map((e) => e.type.length), 4);
-			const statusWidth = Math.max(...entries.map((e) => e.status.length), 6);
-			console.log(
-				`${"ID".padEnd(idWidth)}  ${"Type".padEnd(typeWidth)}  ${"Status".padEnd(statusWidth)}  ${"Updated".padEnd(16)}  Title`,
-			);
-			console.log("-".repeat(idWidth + typeWidth + statusWidth + 22 + 30));
-			for (const e of entries) {
-				console.log(
-					`${e.id.padEnd(idWidth)}  ${e.type.padEnd(typeWidth)}  ${e.status.padEnd(statusWidth)}  ${formatDate(e.updated)}  ${e.title}`,
-				);
-			}
+			print(stack(...buildKnowledgeListLines(entries)));
 		});
 
 	kCmd
@@ -86,16 +141,10 @@ export function registerKnowledgeCommands(program: Command): void {
 				? await store.semanticSearch(query, limit, filters)
 				: store.search(query, filters).slice(0, limit);
 			if (results.length === 0) {
-				console.log("No matching knowledge entries.");
+				print(line(plain("No matching knowledge entries.")));
 				return;
 			}
-			const idWidth = Math.max(...results.map((e) => e.id.length), 2);
-			const typeWidth = Math.max(...results.map((e) => e.type.length), 4);
-			console.log(`${"ID".padEnd(idWidth)}  ${"Type".padEnd(typeWidth)}  Title`);
-			console.log("-".repeat(idWidth + typeWidth + 6 + 30));
-			for (const e of results) {
-				console.log(`${e.id.padEnd(idWidth)}  ${e.type.padEnd(typeWidth)}  ${e.title}`);
-			}
+			print(stack(...buildKnowledgeSearchLines(results)));
 		});
 
 	kCmd
@@ -109,20 +158,23 @@ export function registerKnowledgeCommands(program: Command): void {
 				console.error(`Knowledge entry "${id}" not found.`);
 				process.exit(1);
 			}
-			console.log(`ID:      ${entry.id}`);
-			console.log(`Title:   ${entry.title}`);
-			console.log(`Type:    ${entry.type}`);
-			console.log(`Status:  ${entry.status}`);
-			console.log(`Tags:    ${entry.tags.join(", ") || "(none)"}`);
-			console.log(`Created: ${entry.created}`);
-			console.log(`Updated: ${entry.updated}`);
-			if (Object.keys(entry.meta).length > 0) {
-				for (const [k, v] of Object.entries(entry.meta)) {
-					console.log(`${k}: ${v}`);
-				}
-			}
-			console.log();
-			console.log(entry.content);
+			const meta = Object.entries(entry.meta).map(([k, v]) => ({
+				label: k,
+				value: String(v),
+				role: "muted" as const,
+			}));
+			print(kvBlock([
+				{ label: "ID", value: entry.id, role: "accent" },
+				{ label: "Title", value: entry.title },
+				{ label: "Type", value: entry.type, role: "info" },
+				{ label: "Status", value: entry.status, role: statusRole(entry.status) },
+				{ label: "Tags", value: entry.tags.join(", ") || "(none)", role: "muted" },
+				{ label: "Created", value: entry.created, role: "muted" },
+				{ label: "Updated", value: entry.updated, role: "muted" },
+				...meta,
+			]));
+			print(blank());
+			print(line(plain(entry.content)));
 		});
 
 	kCmd
@@ -169,7 +221,11 @@ export function registerKnowledgeCommands(program: Command): void {
 				console.error(`Knowledge entry "${id}" not found.`);
 				process.exit(1);
 			}
-			console.log(`Deleted knowledge entry ${id}.`);
+			print(line(
+				plain("Deleted knowledge entry "),
+				span(id, "accent"),
+				span(".", "success"),
+			));
 		});
 
 	kCmd
@@ -228,15 +284,20 @@ export function registerKnowledgeCommands(program: Command): void {
 			const provider = getKnowledgeProvider();
 			const result = await provider.reindex();
 			if (result.skipped) {
-				console.log(
+				print(line(plain(
 					"Semantic search not configured — nothing to reindex. " +
 						"Set `providers.knowledge` to an embedding-capable provider to enable.",
-				);
+				)));
 				return;
 			}
-			console.log(
-				`Reindexed ${result.indexed} entries (${result.failed} failed).`,
-			);
+			const failedRole = result.failed > 0 ? "error" : "muted";
+			print(line(
+				plain("Reindexed "),
+				span(String(result.indexed), "success"),
+				plain(" entries ("),
+				span(`${result.failed} failed`, failedRole),
+				plain(")."),
+			));
 			if (result.failed > 0) process.exit(1);
 		});
 
@@ -290,6 +351,12 @@ export function registerKnowledgeCommands(program: Command): void {
 				});
 				imported++;
 			}
-			console.log(`Imported ${imported} entries, skipped ${skipped} (missing title/body).`);
+			print(line(
+				plain("Imported "),
+				span(String(imported), "success"),
+				plain(" entries, skipped "),
+				span(String(skipped), skipped > 0 ? "warn" : "muted"),
+				plain(" (missing title/body)."),
+			));
 		});
 }

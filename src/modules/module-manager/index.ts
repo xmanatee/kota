@@ -7,8 +7,46 @@ import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
+import {
+  blank,
+  kvBlock,
+  type LineNode,
+  line,
+  plain,
+  type RenderNode,
+  span,
+  stack,
+} from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
 import { handleListModules } from "./routes.js";
 import { generateModuleScaffold, generatePythonScaffold } from "./scaffolds.js";
+
+function healthRole(status: string): "success" | "warn" | "error" | "muted" {
+  switch (status) {
+    case "healthy":
+      return "success";
+    case "degraded":
+      return "warn";
+    case "failed":
+      return "error";
+    default:
+      return "muted";
+  }
+}
+
+function buildSection(label: string, items: string[]): RenderNode | null {
+  if (items.length === 0) return null;
+  const header = line(
+    plain(""),
+    span(`${label} (${items.length}):`, "info", true),
+  );
+  const rows: LineNode[] = items.map((item) => line(
+    plain("  "),
+    span("•", "muted"),
+    plain(` ${item}`),
+  ));
+  return stack(blank(), header, ...rows);
+}
 
 function buildModuleCommand(ctx: ModuleContext): Command {
   const moduleCommand = new Command("module")
@@ -25,15 +63,15 @@ function buildModuleCommand(ctx: ModuleContext): Command {
         return;
       }
       if (summaries.length === 0) {
-        console.log("No modules loaded.");
+        print(line(plain("No modules loaded.")));
         return;
       }
       const nameWidth = Math.max(...summaries.map((s) => s.name.length), 4);
-      const header =
+      const headerLabel =
         `${"Name".padEnd(nameWidth)}  ${"Ver".padEnd(7)}  ${"Tools".padStart(5)}  ${"Wf".padStart(3)}  ${"Cmd".padStart(3)}  ${"Ch".padStart(3)}  ${"Sk".padStart(3)}  ${"Ag".padStart(3)}  Description`;
-      console.log(header);
-      console.log("-".repeat(header.length + 8));
-      for (const s of summaries) {
+      const header = line(span(headerLabel, "muted", true));
+      const rule = line(span("-".repeat(headerLabel.length + 8), "muted"));
+      const rows: LineNode[] = summaries.map((s) => {
         const ver = (s.version ?? "").padEnd(7);
         const tools = String(s.toolNames.length).padStart(5);
         const wf = String(s.workflowNames.length).padStart(3);
@@ -42,11 +80,22 @@ function buildModuleCommand(ctx: ModuleContext): Command {
         const sk = String(s.skillNames.length).padStart(3);
         const ag = String(s.agentNames.length).padStart(3);
         const desc = s.description ?? "";
-        console.log(
-          `${s.name.padEnd(nameWidth)}  ${ver}  ${tools}  ${wf}  ${cmd}  ${ch}  ${sk}  ${ag}  ${desc}`,
+        return line(
+          span(s.name.padEnd(nameWidth), "accent"),
+          plain(`  ${ver}  ${tools}  ${wf}  ${cmd}  ${ch}  ${sk}  ${ag}  `),
+          span(desc, "muted"),
         );
-      }
-      console.log(`\n${summaries.length} module(s) loaded.`);
+      });
+      print(stack(
+        header,
+        rule,
+        ...rows,
+        blank(),
+        line(
+          span(String(summaries.length), "accent"),
+          plain(" module(s) loaded."),
+        ),
+      ));
     });
 
   moduleCommand
@@ -65,30 +114,41 @@ function buildModuleCommand(ctx: ModuleContext): Command {
         console.log(JSON.stringify(moduleSummary, null, 2));
         return;
       }
-      console.log(`Module: ${moduleSummary.name}`);
-      if (moduleSummary.version) console.log(`Version:   ${moduleSummary.version}`);
-      if (moduleSummary.description) console.log(`Description: ${moduleSummary.description}`);
+      const entries: Array<{ label: string; value: string; role?: "accent" | "info" | "muted" | "success" | "warn" | "error" }> = [
+        { label: "Module", value: moduleSummary.name, role: "accent" },
+      ];
+      if (moduleSummary.version) entries.push({ label: "Version", value: moduleSummary.version, role: "muted" });
+      if (moduleSummary.description) entries.push({ label: "Description", value: moduleSummary.description });
       if (moduleSummary.dependencies.length > 0) {
-        console.log(`Depends on: ${moduleSummary.dependencies.join(", ")}`);
+        entries.push({ label: "Depends on", value: moduleSummary.dependencies.join(", "), role: "muted" });
       }
       if (moduleSummary.health) {
         const h = moduleSummary.health;
-        const restartPart = h.restartCount === 0 ? `(${h.restartCount} restarts)` : `(${h.restartCount} restarts, last: ${h.lastRestartAt ?? "unknown"})`;
-        console.log(`Health:    ${h.status}  ${restartPart}`);
+        const restartPart = h.restartCount === 0
+          ? `(${h.restartCount} restarts)`
+          : `(${h.restartCount} restarts, last: ${h.lastRestartAt ?? "unknown"})`;
+        entries.push({ label: "Health", value: `${h.status}  ${restartPart}`, role: healthRole(h.status) });
       }
       if (moduleSummary.commandError) {
-        console.log(`Command summary error: ${moduleSummary.commandError}`);
+        entries.push({ label: "Command summary error", value: moduleSummary.commandError, role: "error" });
       }
       if (moduleSummary.routeError) {
-        console.log(`Route summary error: ${moduleSummary.routeError}`);
+        entries.push({ label: "Route summary error", value: moduleSummary.routeError, role: "error" });
       }
-      printSection("Tools", moduleSummary.toolNames);
-      printSection("Workflows", moduleSummary.workflowNames);
-      printSection("Commands", moduleSummary.commandNames);
-      printSection("Routes", moduleSummary.routeSummaries);
-      printSection("Channels", moduleSummary.channelNames);
-      printSection("Skills", moduleSummary.skillNames);
-      printSection("Agents", moduleSummary.agentNames);
+      const sections: RenderNode[] = [];
+      for (const [label, items] of [
+        ["Tools", moduleSummary.toolNames],
+        ["Workflows", moduleSummary.workflowNames],
+        ["Commands", moduleSummary.commandNames],
+        ["Routes", moduleSummary.routeSummaries],
+        ["Channels", moduleSummary.channelNames],
+        ["Skills", moduleSummary.skillNames],
+        ["Agents", moduleSummary.agentNames],
+      ] as const) {
+        const section = buildSection(label, items);
+        if (section) sections.push(section);
+      }
+      print(stack(kvBlock(entries), ...sections));
     });
 
   moduleCommand
@@ -113,24 +173,37 @@ function buildModuleCommand(ctx: ModuleContext): Command {
 
       if (language === "python") {
         generatePythonScaffold(name, safeName, targetDir);
-        console.log(`Python module scaffold created at: ${targetDir}`);
-        console.log("");
-        console.log("Next steps:");
-        console.log(`  cd ${targetDir}`);
-        console.log("  python main.py       # smoke-test: pipe a handcrafted init message");
-        console.log("");
-        console.log("See README.md for how to register this module in .kota/config.json");
+        print(stack(
+          line(
+            span("Python module scaffold created at: ", "success"),
+            span(targetDir, "accent"),
+          ),
+          blank(),
+          line(span("Next steps:", "info", true)),
+          line(plain(`  cd ${targetDir}`)),
+          line(span("  python main.py       ", "muted"), plain("# smoke-test: pipe a handcrafted init message")),
+          blank(),
+          line(span("See README.md for how to register this module in .kota/config.json", "muted")),
+        ));
       } else {
         generateModuleScaffold(name, safeName, targetDir);
-        console.log(`Module scaffold created at: ${targetDir}`);
-        console.log("");
-        console.log("Next steps:");
-        console.log(`  cd ${targetDir}`);
-        console.log("  pnpm install         # install devDependencies");
-        console.log("  pnpm run typecheck   # verify types");
-        console.log("  pnpm build           # compile to dist/");
-        console.log("");
-        console.log(`To use without building, copy dist/index.js to .kota/modules/${safeName}/index.js`);
+        print(stack(
+          line(
+            span("Module scaffold created at: ", "success"),
+            span(targetDir, "accent"),
+          ),
+          blank(),
+          line(span("Next steps:", "info", true)),
+          line(plain(`  cd ${targetDir}`)),
+          line(span("  pnpm install         ", "muted"), plain("# install devDependencies")),
+          line(span("  pnpm run typecheck   ", "muted"), plain("# verify types")),
+          line(span("  pnpm build           ", "muted"), plain("# compile to dist/")),
+          blank(),
+          line(span(
+            `To use without building, copy dist/index.js to .kota/modules/${safeName}/index.js`,
+            "muted",
+          )),
+        ));
       }
     });
 
@@ -168,25 +241,29 @@ function buildModuleCommand(ctx: ModuleContext): Command {
 
       const reloaded = result.changedModules.includes(name);
       if (reloaded) {
-        console.log(`Module "${name}" reloaded from disk.`);
+        print(line(
+          plain("Module "),
+          span(`"${name}"`, "accent"),
+          span(" reloaded from disk.", "success"),
+        ));
       } else {
-        console.log(`Module "${name}" unchanged (no config diff detected). ${result.workflows} workflow(s) active.`);
+        print(line(
+          plain("Module "),
+          span(`"${name}"`, "accent"),
+          span(" unchanged ", "muted"),
+          plain(`(no config diff detected). ${result.workflows} workflow(s) active.`),
+        ));
       }
     });
 
   return moduleCommand;
 }
 
-function printSection(label: string, items: string[]): void {
-  if (items.length === 0) return;
-  console.log(`\n${label} (${items.length}):`);
-  for (const item of items) console.log(`  • ${item}`);
-}
-
 const moduleManagerModule: KotaModule = {
   name: "module-manager",
   version: "1.0.0",
   description: "Inspect and scaffold KOTA modules",
+  dependencies: ["rendering"],
 
   commands: (ctx: ModuleContext) => [buildModuleCommand(ctx)],
 

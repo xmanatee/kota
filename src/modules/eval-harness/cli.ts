@@ -17,6 +17,14 @@ import {
   DEFAULT_CALIBRATION_THRESHOLD_RATE,
   evaluateCalibrationGate,
 } from "#modules/autonomy/evaluator-calibration.js";
+import {
+  blank,
+  line,
+  plain,
+  span,
+  stack,
+} from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
 import { runEvalSet } from "./eval-set.js";
 import { FixtureProvenanceError, loadAllFixtures, loadFixture } from "./fixture.js";
 import type { ResourceProfile } from "./fixture-run.js";
@@ -97,14 +105,27 @@ export function buildEvalCommand(projectDir: string): Command {
       const fixtures = loadFixturesForCli(fixturesRoot, []);
       if (fixtures === null) return;
       if (fixtures.length === 0) {
-        console.log("No fixtures found.");
+        print(line(plain("No fixtures found.")));
         return;
       }
-      for (const f of fixtures) {
-        const tags = f.spec.tags && f.spec.tags.length > 0 ? ` [${f.spec.tags.join(", ")}]` : "";
-        console.log(`${f.spec.id}  (${f.spec.role} → ${f.spec.workflowName})${tags}`);
-        console.log(`  ${f.spec.description}`);
-      }
+      const rows = fixtures.flatMap((f) => {
+        const tags = f.spec.tags && f.spec.tags.length > 0
+          ? ` [${f.spec.tags.join(", ")}]`
+          : "";
+        return [
+          line(
+            span(f.spec.id, "accent", true),
+            plain("  ("),
+            span(f.spec.role, "info"),
+            plain(" → "),
+            span(f.spec.workflowName, "agent"),
+            plain(")"),
+            span(tags, "muted"),
+          ),
+          line(span(`  ${f.spec.description}`, "muted")),
+        ];
+      });
+      print(stack(...rows));
     });
 
   cmd
@@ -169,10 +190,22 @@ export function buildEvalCommand(projectDir: string): Command {
         completedAt: report.completedAt,
       });
 
-      console.log(
-        `eval-set done: ${fixtures.length} fixtures × ${repeats} runs → pass@k=${(report.aggregate.passAtK * 100).toFixed(1)}% pass^k=${(report.aggregate.passHatK * 100).toFixed(1)}%`,
-      );
-      console.log(`artifacts: ${report.runArtifactBaseDir}`);
+      const passAtK = report.aggregate.passAtK;
+      const passHatK = report.aggregate.passHatK;
+      const passRole = passHatK >= 1 ? "success" : passHatK > 0 ? "warn" : "error";
+      print(stack(
+        line(
+          plain("eval-set done: "),
+          span(String(fixtures.length), "accent"),
+          plain(" fixtures × "),
+          span(String(repeats), "accent"),
+          plain(" runs → pass@k="),
+          span(`${(passAtK * 100).toFixed(1)}%`, "info"),
+          plain(" pass^k="),
+          span(`${(passHatK * 100).toFixed(1)}%`, passRole),
+        ),
+        line(span(`artifacts: ${report.runArtifactBaseDir}`, "muted")),
+      ));
       if (report.aggregate.passHatK < 1) {
         process.exitCode = 1;
       }
@@ -237,17 +270,46 @@ export function buildEvalCommand(projectDir: string): Command {
         console.log(JSON.stringify({ aggregate, decision }, null, 2));
       } else {
         const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
-        console.log(`evaluator calibration (window ${windowDays}d):`);
-        console.log(
-          `  total runs=${aggregate.totalRuns}  pass=${aggregate.byVerdict.pass}  pass_with_warnings=${aggregate.byVerdict.pass_with_warnings}  fail=${aggregate.byVerdict.fail}  absent=${aggregate.byVerdict.absent}`,
-        );
-        console.log(
-          `  pass contradiction: ${aggregate.passContradictionCount}/${aggregate.byVerdict.pass} (${pct(aggregate.passContradictionRate)})`,
-        );
-        console.log(
-          `  pass_with_warnings follow-up: ${aggregate.passWithWarningsFollowUpCount}/${aggregate.byVerdict.pass_with_warnings} (${pct(aggregate.passWithWarningsFollowUpRate)})`,
-        );
-        console.log(`  gate: ${decision.status} — ${decision.reason}`);
+        const gateRole = decision.status === "gated"
+          ? "error"
+          : decision.status === "under-threshold"
+            ? "success"
+            : "warn";
+        print(stack(
+          line(
+            plain("evaluator calibration (window "),
+            span(`${windowDays}d`, "accent"),
+            plain("):"),
+          ),
+          line(
+            plain("  total runs="),
+            span(String(aggregate.totalRuns), "info"),
+            plain("  pass="),
+            span(String(aggregate.byVerdict.pass), "success"),
+            plain("  pass_with_warnings="),
+            span(String(aggregate.byVerdict.pass_with_warnings), "warn"),
+            plain("  fail="),
+            span(String(aggregate.byVerdict.fail), "error"),
+            plain("  absent="),
+            span(String(aggregate.byVerdict.absent), "muted"),
+          ),
+          line(
+            plain("  pass contradiction: "),
+            plain(`${aggregate.passContradictionCount}/${aggregate.byVerdict.pass} `),
+            span(`(${pct(aggregate.passContradictionRate)})`, "muted"),
+          ),
+          line(
+            plain("  pass_with_warnings follow-up: "),
+            plain(`${aggregate.passWithWarningsFollowUpCount}/${aggregate.byVerdict.pass_with_warnings} `),
+            span(`(${pct(aggregate.passWithWarningsFollowUpRate)})`, "muted"),
+          ),
+          blank(),
+          line(
+            plain("  gate: "),
+            span(decision.status, gateRole, true),
+            plain(` — ${decision.reason}`),
+          ),
+        ));
       }
 
       if (decision.status === "gated") {

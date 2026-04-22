@@ -1,9 +1,19 @@
 import { createInterface } from "node:readline";
 import type { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
-import type { ApprovalStatus } from "#core/daemon/approval-queue.js";
+import type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { executeTool } from "#core/tools/index.js";
+import {
+	blank,
+	type LineNode,
+	line,
+	plain,
+	type RenderNode,
+	span,
+	stack,
+} from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
 
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -36,6 +46,76 @@ function parseDuration(s: string): number | null {
 	return n * 86_400_000;
 }
 
+function riskRole(risk: string): "error" | "warn" | "info" | "muted" | "success" {
+	switch (risk) {
+		case "critical":
+		case "dangerous":
+			return "error";
+		case "moderate":
+			return "warn";
+		case "low":
+			return "info";
+		case "safe":
+			return "success";
+		default:
+			return "muted";
+	}
+}
+
+function statusRole(status: ApprovalStatus): "success" | "error" | "muted" | "warn" | "accent" {
+	switch (status) {
+		case "approved":
+			return "success";
+		case "rejected":
+			return "error";
+		case "expired":
+			return "warn";
+		case "pending":
+			return "accent";
+	}
+}
+
+function renderPendingItem(item: PendingApproval, opts?: { includeWhy?: boolean }): RenderNode {
+	const inputSummary = JSON.stringify(item.input).slice(0, 80);
+	const rows: LineNode[] = [
+		line(
+			span(`  [${item.id}]`, "accent", true),
+			plain(" "),
+			plain(item.tool),
+			plain("  "),
+			span(`(${formatAge(item.createdAt)})`, "muted"),
+		),
+		line(span("    Input:  ", "muted"), plain(inputSummary)),
+		line(span("    Risk:   ", "muted"), span(item.risk, riskRole(item.risk))),
+		line(span("    Reason: ", "muted"), plain(item.reason)),
+	];
+	if (item.source) rows.push(line(span("    Source: ", "muted"), plain(item.source)));
+	if (opts?.includeWhy && item.context) {
+		const lastLine = item.context.split("\n").filter(Boolean).at(-1) ?? "";
+		rows.push(line(span("    Why:    ", "muted"), plain(lastLine.slice(0, 120))));
+	}
+	return stack(...rows, blank());
+}
+
+function renderResolvedItem(item: PendingApproval): RenderNode {
+	const resolvedAgo = item.resolvedAt ? formatAge(item.resolvedAt) : "—";
+	const rows: LineNode[] = [
+		line(
+			span(`  [${item.id}]`, "accent", true),
+			plain(` ${item.tool}  status=`),
+			span(item.status, statusRole(item.status)),
+			plain(`  resolved=${resolvedAgo}`),
+		),
+		line(span("    Risk:   ", "muted"), span(item.risk, riskRole(item.risk))),
+	];
+	if (item.rejectionReason && item.rejectionReason !== "expired") {
+		rows.push(line(span("    Reason: ", "muted"), plain(item.rejectionReason)));
+	}
+	if (item.approvalNote) rows.push(line(span("    Note:   ", "muted"), plain(item.approvalNote)));
+	if (item.source) rows.push(line(span("    Source: ", "muted"), plain(item.source)));
+	return stack(...rows, blank());
+}
+
 export function registerApprovalCommands(program: Command): void {
 	const approvalCmd = program
 		.command("approval")
@@ -51,23 +131,17 @@ export function registerApprovalCommands(program: Command): void {
 			queue.expireStale(ttlMs);
 			const items = queue.list("pending");
 			if (items.length === 0) {
-				console.log("No pending approvals.");
+				print(line(plain("No pending approvals.")));
 				return;
 			}
-			console.log(`${items.length} pending approval(s):\n`);
-			for (const item of items) {
-				const inputSummary = JSON.stringify(item.input).slice(0, 80);
-				console.log(`  [${item.id}] ${item.tool}  (${formatAge(item.createdAt)})`);
-				console.log(`    Input:  ${inputSummary}`);
-				console.log(`    Risk:   ${item.risk}`);
-				console.log(`    Reason: ${item.reason}`);
-				if (item.source) console.log(`    Source: ${item.source}`);
-				if (item.context) {
-					const lastLine = item.context.split("\n").filter(Boolean).at(-1) ?? "";
-					console.log(`    Why:    ${lastLine.slice(0, 120)}`);
-				}
-				console.log();
-			}
+			print(stack(
+				line(
+					span(String(items.length), "accent", true),
+					plain(" pending approval(s):"),
+				),
+				blank(),
+				...items.map((item) => renderPendingItem(item, { includeWhy: true })),
+			));
 		});
 
 	approvalCmd
@@ -87,7 +161,13 @@ export function registerApprovalCommands(program: Command): void {
 				process.exit(1);
 			}
 			const noteSuffix = item.approvalNote ? ` — note: ${item.approvalNote}` : "";
-			console.log(`Approved and executed ${item.tool}:\n${result.content}${noteSuffix}`);
+			print(stack(
+				line(
+					span("Approved and executed ", "success"),
+					plain(`${item.tool}:`),
+				),
+				line(plain(`${result.content}${noteSuffix}`)),
+			));
 		});
 
 	approvalCmd
@@ -108,25 +188,23 @@ export function registerApprovalCommands(program: Command): void {
 
 			if (items.length === 0) {
 				const qualifier = opts.risk ? ` with risk level "${opts.risk}"` : "";
-				console.log(`No pending approvals${qualifier}.`);
+				print(line(plain(`No pending approvals${qualifier}.`)));
 				return;
 			}
 
-			console.log(`${items.length} pending approval(s) to be approved:\n`);
-			for (const item of items) {
-				const inputSummary = JSON.stringify(item.input).slice(0, 80);
-				console.log(`  [${item.id}] ${item.tool}  (${formatAge(item.createdAt)})`);
-				console.log(`    Input:  ${inputSummary}`);
-				console.log(`    Risk:   ${item.risk}`);
-				console.log(`    Reason: ${item.reason}`);
-				if (item.source) console.log(`    Source: ${item.source}`);
-				console.log();
-			}
+			print(stack(
+				line(
+					span(String(items.length), "accent", true),
+					plain(" pending approval(s) to be approved:"),
+				),
+				blank(),
+				...items.map((item) => renderPendingItem(item)),
+			));
 
 			if (!opts.yes) {
 				const confirmed = await promptConfirm(`Approve all ${items.length} item(s)? [y/N] `);
 				if (!confirmed) {
-					console.log("Aborted.");
+					print(line(span("Aborted.", "muted")));
 					return;
 				}
 			}
@@ -137,7 +215,11 @@ export function registerApprovalCommands(program: Command): void {
 			for (const item of items) {
 				const approved = queue.approve(item.id, opts.note);
 				if (!approved) {
-					console.log(`  Skipped [${item.id}] ${item.tool} — no longer pending.`);
+					print(line(
+						span("  Skipped ", "muted"),
+						span(`[${item.id}]`, "accent"),
+						plain(` ${item.tool} — no longer pending.`),
+					));
 					continue;
 				}
 				const result = await executeTool(item.tool, item.input);
@@ -146,12 +228,26 @@ export function registerApprovalCommands(program: Command): void {
 					failed++;
 				} else {
 					const noteSuffix = approved.approvalNote ? ` — note: ${approved.approvalNote}` : "";
-					console.log(`  Approved and executed ${item.tool} [${item.id}]${noteSuffix}`);
+					print(line(
+						span("  Approved and executed ", "success"),
+						plain(`${item.tool} `),
+						span(`[${item.id}]`, "accent"),
+						plain(noteSuffix),
+					));
 					succeeded++;
 				}
 			}
 
-			console.log(`\nDone: ${succeeded} approved, ${failed} failed.`);
+			print(stack(
+				blank(),
+				line(
+					plain("Done: "),
+					span(`${succeeded} approved`, succeeded > 0 ? "success" : "muted"),
+					plain(", "),
+					span(`${failed} failed`, failed > 0 ? "error" : "muted"),
+					plain("."),
+				),
+			));
 			if (failed > 0) process.exit(1);
 		});
 
@@ -167,7 +263,12 @@ export function registerApprovalCommands(program: Command): void {
 				process.exit(1);
 			}
 			const suffix = opts.reason ? ` — ${opts.reason}` : "";
-			console.log(`Rejected: ${item.tool} [${id}]${suffix}`);
+			print(line(
+				span("Rejected: ", "error"),
+				plain(`${item.tool} `),
+				span(`[${id}]`, "accent"),
+				plain(suffix),
+			));
 		});
 
 	approvalCmd
@@ -188,25 +289,23 @@ export function registerApprovalCommands(program: Command): void {
 
 			if (items.length === 0) {
 				const qualifier = opts.risk ? ` with risk level "${opts.risk}"` : "";
-				console.log(`No pending approvals${qualifier}.`);
+				print(line(plain(`No pending approvals${qualifier}.`)));
 				return;
 			}
 
-			console.log(`${items.length} pending approval(s) to be rejected:\n`);
-			for (const item of items) {
-				const inputSummary = JSON.stringify(item.input).slice(0, 80);
-				console.log(`  [${item.id}] ${item.tool}  (${formatAge(item.createdAt)})`);
-				console.log(`    Input:  ${inputSummary}`);
-				console.log(`    Risk:   ${item.risk}`);
-				console.log(`    Reason: ${item.reason}`);
-				if (item.source) console.log(`    Source: ${item.source}`);
-				console.log();
-			}
+			print(stack(
+				line(
+					span(String(items.length), "accent", true),
+					plain(" pending approval(s) to be rejected:"),
+				),
+				blank(),
+				...items.map((item) => renderPendingItem(item)),
+			));
 
 			if (!opts.yes) {
 				const confirmed = await promptConfirm(`Reject all ${items.length} item(s)? [y/N] `);
 				if (!confirmed) {
-					console.log("Aborted.");
+					print(line(span("Aborted.", "muted")));
 					return;
 				}
 			}
@@ -216,15 +315,31 @@ export function registerApprovalCommands(program: Command): void {
 			for (const item of items) {
 				const result = queue.reject(item.id, opts.reason);
 				if (!result) {
-					console.log(`  Skipped [${item.id}] ${item.tool} — no longer pending.`);
+					print(line(
+						span("  Skipped ", "muted"),
+						span(`[${item.id}]`, "accent"),
+						plain(` ${item.tool} — no longer pending.`),
+					));
 					continue;
 				}
 				const reasonSuffix = opts.reason ? ` — ${opts.reason}` : "";
-				console.log(`  Rejected ${item.tool} [${item.id}]${reasonSuffix}`);
+				print(line(
+					span("  Rejected ", "error"),
+					plain(`${item.tool} `),
+					span(`[${item.id}]`, "accent"),
+					plain(reasonSuffix),
+				));
 				rejected++;
 			}
 
-			console.log(`\nDone: ${rejected} rejected.`);
+			print(stack(
+				blank(),
+				line(
+					plain("Done: "),
+					span(`${rejected} rejected`, rejected > 0 ? "success" : "muted"),
+					plain("."),
+				),
+			));
 		});
 
 	approvalCmd
@@ -280,21 +395,17 @@ export function registerApprovalCommands(program: Command): void {
 				.slice(0, limit);
 
 			if (items.length === 0) {
-				console.log("No resolved approvals found.");
+				print(line(plain("No resolved approvals found.")));
 				return;
 			}
 
-			console.log(`${items.length} resolved approval(s):\n`);
-			for (const item of items) {
-				const resolvedAgo = item.resolvedAt ? formatAge(item.resolvedAt) : "—";
-				console.log(`  [${item.id}] ${item.tool}  status=${item.status}  resolved=${resolvedAgo}`);
-				console.log(`    Risk:   ${item.risk}`);
-				if (item.rejectionReason && item.rejectionReason !== "expired") {
-					console.log(`    Reason: ${item.rejectionReason}`);
-				}
-				if (item.approvalNote) console.log(`    Note:   ${item.approvalNote}`);
-				if (item.source) console.log(`    Source: ${item.source}`);
-				console.log();
-			}
+			print(stack(
+				line(
+					span(String(items.length), "accent", true),
+					plain(" resolved approval(s):"),
+				),
+				blank(),
+				...items.map(renderResolvedItem),
+			));
 		});
 }

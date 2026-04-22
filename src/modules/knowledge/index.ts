@@ -21,6 +21,7 @@ const knowledgeModule: KotaModule = {
 	version: "1.0.0",
 	description:
 		"Structured knowledge base — markdown files with YAML front matter",
+	dependencies: ["rendering"],
 	tools: [
 		{
 			tool: knowledgeTool,

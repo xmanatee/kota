@@ -1,9 +1,38 @@
 import type { Command } from "commander";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import { getMemoryProvider } from "#core/modules/provider-registry.js";
+import {
+	type LineNode,
+	line,
+	plain,
+	span,
+	stack,
+} from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
+
+type MemoryRow = { id: string; created: string; content: string };
 
 function formatDate(iso: string): string {
 	return iso.slice(0, 16).replace("T", " ");
+}
+
+export function buildMemoryListLines(rows: MemoryRow[]): LineNode[] {
+	const idWidth = Math.max(...rows.map((e) => e.id.length), 2);
+	const header = line(span(
+		`${"ID".padEnd(idWidth)}  ${"Date".padEnd(16)}  Content`,
+		"muted",
+		true,
+	));
+	const rule = line(span("-".repeat(idWidth + 20 + 40), "muted"));
+	const body: LineNode[] = rows.map((e) => {
+		const snippet = e.content.replace(/\n/g, " ").slice(0, 60);
+		return line(
+			span(e.id.padEnd(idWidth), "accent"),
+			plain(`  ${formatDate(e.created).padEnd(16)}  `),
+			plain(snippet),
+		);
+	});
+	return [header, rule, ...body];
 }
 
 export function registerMemoryCommands(program: Command): void {
@@ -21,16 +50,10 @@ export function registerMemoryCommands(program: Command): void {
 			const store = getMemoryProvider();
 			const entries = store.list().slice(0, limit);
 			if (entries.length === 0) {
-				console.log("No memory entries.");
+				print(line(plain("No memory entries.")));
 				return;
 			}
-			const idWidth = Math.max(...entries.map((e) => e.id.length), 2);
-			console.log(`${"ID".padEnd(idWidth)}  ${"Date".padEnd(16)}  Content`);
-			console.log("-".repeat(idWidth + 20 + 40));
-			for (const e of entries) {
-				const snippet = e.content.replace(/\n/g, " ").slice(0, 60);
-				console.log(`${e.id.padEnd(idWidth)}  ${formatDate(e.created)}  ${snippet}`);
-			}
+			print(stack(...buildMemoryListLines(entries)));
 		});
 
 	memCmd
@@ -52,16 +75,10 @@ export function registerMemoryCommands(program: Command): void {
 				? await store.semanticSearch(query, limit, { tag: opts.tag, since: opts.since })
 				: store.search(query, { tag: opts.tag, since: opts.since }).slice(0, limit);
 			if (results.length === 0) {
-				console.log("No matching memories.");
+				print(line(plain("No matching memories.")));
 				return;
 			}
-			const idWidth = Math.max(...results.map((e) => e.id.length), 2);
-			console.log(`${"ID".padEnd(idWidth)}  ${"Date".padEnd(16)}  Content`);
-			console.log("-".repeat(idWidth + 20 + 40));
-			for (const e of results) {
-				const snippet = e.content.replace(/\n/g, " ").slice(0, 60);
-				console.log(`${e.id.padEnd(idWidth)}  ${formatDate(e.created)}  ${snippet}`);
-			}
+			print(stack(...buildMemoryListLines(results)));
 		});
 
 	memCmd
@@ -102,7 +119,11 @@ export function registerMemoryCommands(program: Command): void {
 				console.error(`Memory "${id}" not found.`);
 				process.exit(1);
 			}
-			console.log(`Deleted memory ${id}.`);
+			print(line(
+				plain("Deleted memory "),
+				span(id, "accent"),
+				span(".", "success"),
+			));
 		});
 
 	memCmd
@@ -116,15 +137,20 @@ export function registerMemoryCommands(program: Command): void {
 			const provider = getMemoryProvider();
 			const result = await provider.reindex();
 			if (result.skipped) {
-				console.log(
+				print(line(plain(
 					"Semantic search not configured — nothing to reindex. " +
 						"Set `providers.memory` to an embedding-capable provider to enable.",
-				);
+				)));
 				return;
 			}
-			console.log(
-				`Reindexed ${result.indexed} entries (${result.failed} failed).`,
-			);
+			const failedRole = result.failed > 0 ? "error" : "muted";
+			print(line(
+				plain(`Reindexed `),
+				span(String(result.indexed), "success"),
+				plain(" entries ("),
+				span(`${result.failed} failed`, failedRole),
+				plain(")."),
+			));
 			if (result.failed > 0) process.exit(1);
 		});
 }

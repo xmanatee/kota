@@ -51,6 +51,10 @@ async function captureOutput(
   const logSpy = vi.spyOn(console, "log").mockImplementation((...args) => {
     outLines.push(`${args.join(" ")}\n`);
   });
+  const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((data) => {
+    outLines.push(String(data));
+    return true;
+  });
   const warnSpy = vi.spyOn(console, "warn").mockImplementation((...args) => {
     errLines.push(`${args.join(" ")}\n`);
   });
@@ -58,6 +62,7 @@ async function captureOutput(
     await fn();
   } finally {
     logSpy.mockRestore();
+    stdoutSpy.mockRestore();
     warnSpy.mockRestore();
   }
   return { out: outLines.join(""), err: errLines.join("") };

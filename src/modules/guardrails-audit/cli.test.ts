@@ -16,17 +16,28 @@ function makeEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
 }
 
 describe("audit-cli", () => {
-	let consoleSpy: ReturnType<typeof vi.spyOn>;
+	let outputLines: string[];
 	let querySpy: ReturnType<typeof vi.spyOn>;
 
 	beforeEach(() => {
-		consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+		outputLines = [];
+		vi.spyOn(console, "log").mockImplementation((...args) => {
+			outputLines.push(`${args.join(" ")}\n`);
+		});
+		vi.spyOn(process.stdout, "write").mockImplementation((data) => {
+			outputLines.push(String(data));
+			return true;
+		});
 		querySpy = vi.spyOn(AuditStore.prototype, "query").mockReturnValue([]);
 	});
 
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
+
+	function captured(): string {
+		return outputLines.join("");
+	}
 
 	async function run(args: string[]): Promise<void> {
 		const program = new Command();
@@ -39,13 +50,13 @@ describe("audit-cli", () => {
 		it("prints no entries message when store is empty", async () => {
 			querySpy.mockReturnValue([]);
 			await run(["audit", "list"]);
-			expect(consoleSpy).toHaveBeenCalledWith("No audit entries.");
+			expect(captured()).toContain("No audit entries.");
 		});
 
 		it("prints table with entries", async () => {
 			querySpy.mockReturnValue([makeEntry({ tool: "file_read", risk: "safe", policy: "allow" })]);
 			await run(["audit", "list"]);
-			const output = consoleSpy.mock.calls.map((c: unknown[]) => c[0] as string).join("\n");
+			const output = captured();
 			expect(output).toContain("file_read");
 			expect(output).toContain("safe");
 			expect(output).toContain("allow");
@@ -74,16 +85,14 @@ describe("audit-cli", () => {
 		it("displays session column", async () => {
 			querySpy.mockReturnValue([makeEntry({ session: "sess-abc123" })]);
 			await run(["audit", "list"]);
-			const output = consoleSpy.mock.calls.map((c: unknown[]) => c[0] as string).join("\n");
-			expect(output).toContain("sess-abc123");
+			expect(captured()).toContain("sess-abc123");
 		});
 
 		it("shows dash for missing session", async () => {
 			querySpy.mockReturnValue([makeEntry()]);
 			await run(["audit", "list"]);
-			const output = consoleSpy.mock.calls.map((c: unknown[]) => c[0] as string).join("\n");
 			// The row should have a dash in the session column
-			expect(output).toMatch(/-\s+bash/);
+			expect(captured()).toMatch(/-\s+bash/);
 		});
 	});
 });

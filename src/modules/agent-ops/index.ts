@@ -9,6 +9,17 @@
 import { Command } from "commander";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import {
+  type KVEntry,
+  kvBlock,
+  type LineNode,
+  line,
+  plain,
+  span,
+  stack,
+} from "#modules/rendering/primitives.js";
+
+import { print } from "#modules/rendering/transport.js";
 
 function buildAgentEntries(ctx: ModuleContext): Array<AgentDef & { source: string }> {
   const agentModels = ctx.config.agentModels ?? {};
@@ -42,21 +53,27 @@ function buildAgentCommand(ctx: ModuleContext): Command {
         return;
       }
       if (agents.length === 0) {
-        console.log("No agents available.");
+        print(line(plain("No agents available.")));
         return;
       }
       const nameWidth = Math.max(...agents.map((agent) => agent.name.length), 4);
       const modelWidth = Math.max(...agents.map((agent) => (agent.model ?? "").length), 5);
       const sourceWidth = Math.max(...agents.map((agent) => agent.source.length), 6);
-      console.log(
+      const header = line(span(
         `${"Name".padEnd(nameWidth)}  ${"Model".padEnd(modelWidth)}  ${"Source".padEnd(sourceWidth)}  Role`,
-      );
-      console.log("-".repeat(nameWidth + modelWidth + sourceWidth + 10));
-      for (const agent of agents) {
-        console.log(
-          `${agent.name.padEnd(nameWidth)}  ${(agent.model ?? "").padEnd(modelWidth)}  ${agent.source.padEnd(sourceWidth)}  ${agent.role}`,
-        );
-      }
+        "muted",
+        true,
+      ));
+      const rule = line(span("-".repeat(nameWidth + modelWidth + sourceWidth + 10), "muted"));
+      const rows: LineNode[] = agents.map((agent) => line(
+        span(agent.name.padEnd(nameWidth), "accent"),
+        plain("  "),
+        span((agent.model ?? "").padEnd(modelWidth), "info"),
+        plain("  "),
+        span(agent.source.padEnd(sourceWidth), "muted"),
+        plain(`  ${agent.role}`),
+      ));
+      print(stack(header, rule, ...rows));
     });
 
   agentCmd
@@ -75,23 +92,34 @@ function buildAgentCommand(ctx: ModuleContext): Command {
         console.log(JSON.stringify(agent, null, 2));
         return;
       }
-      console.log(`Name:       ${agent.name}`);
-      console.log(`Source:     ${agent.source}`);
-      console.log(`Role:       ${agent.role}`);
-      if (agent.model) console.log(`Model:      ${agent.model}`);
-      console.log(`Prompt:     ${agent.promptPath}`);
+      const entries: KVEntry[] = [
+        { label: "Name", value: agent.name, role: "accent" },
+        { label: "Source", value: agent.source, role: "muted" },
+        { label: "Role", value: agent.role, role: "info" },
+      ];
+      if (agent.model) entries.push({ label: "Model", value: agent.model, role: "info" });
+      entries.push({ label: "Prompt", value: agent.promptPath, role: "muted" });
       if (agent.skills) {
         const display = agent.skills === "all" ? "all" : agent.skills.join(", ");
-        console.log(`Skills:     ${display}`);
+        entries.push({ label: "Skills", value: display, role: "muted" });
       }
-      console.log(
-        `WriteScope: ${agent.writeScope.length === 0 ? "<unrestricted>" : agent.writeScope.join(", ")}`,
-      );
+      entries.push({
+        label: "WriteScope",
+        value: agent.writeScope.length === 0 ? "<unrestricted>" : agent.writeScope.join(", "),
+        role: "muted",
+      });
       if (agent.tools) {
-        if (agent.tools.permissionMode) console.log(`Permission: ${agent.tools.permissionMode}`);
-        if (agent.tools.allowed) console.log(`Allowed:    ${agent.tools.allowed.join(", ")}`);
-        if (agent.tools.disallowed) console.log(`Blocked:    ${agent.tools.disallowed.join(", ")}`);
+        if (agent.tools.permissionMode) {
+          entries.push({ label: "Permission", value: agent.tools.permissionMode, role: "info" });
+        }
+        if (agent.tools.allowed) {
+          entries.push({ label: "Allowed", value: agent.tools.allowed.join(", "), role: "success" });
+        }
+        if (agent.tools.disallowed) {
+          entries.push({ label: "Blocked", value: agent.tools.disallowed.join(", "), role: "error" });
+        }
       }
+      print(kvBlock(entries));
     });
 
   return agentCmd;
@@ -101,6 +129,7 @@ const agentsModule: KotaModule = {
   name: "agent-ops",
   version: "1.0.0",
   description: "Operator CLI for inspecting contributed agents",
+  dependencies: ["rendering"],
   commands: (ctx: ModuleContext) => [buildAgentCommand(ctx)],
 };
 

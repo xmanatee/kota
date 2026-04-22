@@ -1,6 +1,16 @@
 import type { Command } from "commander";
 import type { OwnerQuestionStatus, PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
 import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
+import {
+  blank,
+  type LineNode,
+  line,
+  plain,
+  type RenderNode,
+  span,
+  stack,
+} from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
 
 const VALID_STATUSES: OwnerQuestionStatus[] = ["pending", "answered", "dismissed", "expired"];
 
@@ -23,15 +33,57 @@ function parseDuration(s: string): number | null {
   return n * 86_400_000;
 }
 
-function printQuestion(item: PendingOwnerQuestion): void {
-  console.log(`  [${item.id}] ${formatAge(item.createdAt)}  source=${item.source}`);
-  console.log(`    Question: ${item.question}`);
-  console.log(`    Context:  ${item.context.length > 160 ? `${item.context.slice(0, 157)}...` : item.context}`);
-  console.log(`    Reason:   ${item.reason}`);
-  if (item.proposedAnswers && item.proposedAnswers.length > 0) {
-    console.log(`    Proposed: ${item.proposedAnswers.map((a, i) => `[${i + 1}] ${a}`).join("  ")}`);
+function statusRole(status: OwnerQuestionStatus): "success" | "warn" | "muted" | "accent" {
+  switch (status) {
+    case "answered":
+      return "success";
+    case "dismissed":
+      return "muted";
+    case "expired":
+      return "warn";
+    case "pending":
+      return "accent";
   }
-  console.log();
+}
+
+function renderPending(item: PendingOwnerQuestion): RenderNode {
+  const rows: LineNode[] = [
+    line(
+      span(`  [${item.id}]`, "accent", true),
+      plain(` ${formatAge(item.createdAt)}  `),
+      span(`source=${item.source}`, "muted"),
+    ),
+    line(span("    Question: ", "muted"), plain(item.question)),
+    line(span("    Context:  ", "muted"), plain(
+      item.context.length > 160 ? `${item.context.slice(0, 157)}...` : item.context,
+    )),
+    line(span("    Reason:   ", "muted"), plain(item.reason)),
+  ];
+  if (item.proposedAnswers && item.proposedAnswers.length > 0) {
+    rows.push(line(
+      span("    Proposed: ", "muted"),
+      plain(item.proposedAnswers.map((a, i) => `[${i + 1}] ${a}`).join("  ")),
+    ));
+  }
+  return stack(...rows, blank());
+}
+
+function renderResolved(item: PendingOwnerQuestion): RenderNode {
+  const resolvedAgo = item.resolvedAt ? formatAge(item.resolvedAt) : "—";
+  const rows: LineNode[] = [
+    line(
+      span(`  [${item.id}]`, "accent", true),
+      plain(" status="),
+      span(item.status, statusRole(item.status)),
+      plain(`  resolved=${resolvedAgo}`),
+    ),
+    line(span("    Question: ", "muted"), plain(item.question)),
+  ];
+  if (item.answer) rows.push(line(span("    Answer:   ", "muted"), plain(item.answer)));
+  if (item.dismissalReason && item.dismissalReason !== "expired") {
+    rows.push(line(span("    Reason:   ", "muted"), plain(item.dismissalReason)));
+  }
+  return stack(...rows, blank());
 }
 
 export function registerOwnerQuestionCommands(program: Command): void {
@@ -46,11 +98,17 @@ export function registerOwnerQuestionCommands(program: Command): void {
       const queue = getOwnerQuestionQueue();
       const items = queue.list("pending");
       if (items.length === 0) {
-        console.log("No pending owner questions.");
+        print(line(plain("No pending owner questions.")));
         return;
       }
-      console.log(`${items.length} pending owner question(s):\n`);
-      for (const item of items) printQuestion(item);
+      print(stack(
+        line(
+          span(String(items.length), "accent", true),
+          plain(" pending owner question(s):"),
+        ),
+        blank(),
+        ...items.map(renderPending),
+      ));
     });
 
   cmd
@@ -67,7 +125,11 @@ export function registerOwnerQuestionCommands(program: Command): void {
         console.error(`Error: owner question "${id}" not found or already resolved.`);
         process.exit(1);
       }
-      console.log(`Answered [${id}]: ${answer}`);
+      print(line(
+        span("Answered ", "success"),
+        span(`[${id}]`, "accent"),
+        plain(`: ${answer}`),
+      ));
     });
 
   cmd
@@ -81,7 +143,11 @@ export function registerOwnerQuestionCommands(program: Command): void {
         process.exit(1);
       }
       const suffix = opts.reason ? ` — ${opts.reason}` : "";
-      console.log(`Dismissed [${id}]${suffix}`);
+      print(line(
+        span("Dismissed ", "muted"),
+        span(`[${id}]`, "accent"),
+        plain(suffix),
+      ));
     });
 
   cmd
@@ -133,19 +199,16 @@ export function registerOwnerQuestionCommands(program: Command): void {
         .slice(0, limit);
 
       if (items.length === 0) {
-        console.log("No resolved owner questions found.");
+        print(line(plain("No resolved owner questions found.")));
         return;
       }
-      console.log(`${items.length} resolved owner question(s):\n`);
-      for (const item of items) {
-        const resolvedAgo = item.resolvedAt ? formatAge(item.resolvedAt) : "—";
-        console.log(`  [${item.id}] status=${item.status}  resolved=${resolvedAgo}`);
-        console.log(`    Question: ${item.question}`);
-        if (item.answer) console.log(`    Answer:   ${item.answer}`);
-        if (item.dismissalReason && item.dismissalReason !== "expired") {
-          console.log(`    Reason:   ${item.dismissalReason}`);
-        }
-        console.log();
-      }
+      print(stack(
+        line(
+          span(String(items.length), "accent", true),
+          plain(" resolved owner question(s):"),
+        ),
+        blank(),
+        ...items.map(renderResolved),
+      ));
     });
 }

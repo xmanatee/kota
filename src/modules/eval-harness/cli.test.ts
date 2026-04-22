@@ -65,6 +65,10 @@ describe("kota eval calibration CLI", () => {
     vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
       logs.push(args.map((a) => String(a)).join(" "));
     });
+    vi.spyOn(process.stdout, "write").mockImplementation((data) => {
+      logs.push(String(data));
+      return true;
+    });
 
     const cmd = buildEvalCommand(projectDir);
     await cmd.parseAsync(
@@ -119,6 +123,10 @@ describe("kota eval calibration CLI", () => {
     const logs: string[] = [];
     vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
       logs.push(args.map((a) => String(a)).join(" "));
+    });
+    vi.spyOn(process.stdout, "write").mockImplementation((data) => {
+      logs.push(String(data));
+      return true;
     });
 
     const cmd = buildEvalCommand(projectDir);

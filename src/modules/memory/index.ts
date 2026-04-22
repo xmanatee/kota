@@ -20,6 +20,7 @@ const memoryModule: KotaModule = {
   name: "memory",
   version: "1.0.0",
   description: "Persistent memory across sessions (save/search/list/update/delete)",
+  dependencies: ["rendering"],
   tools: [
     {
       tool: memoryTool,

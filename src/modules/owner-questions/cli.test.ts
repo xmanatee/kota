@@ -31,6 +31,24 @@ async function run(program: Command, ...args: string[]): Promise<void> {
   await program.parseAsync(["node", "cli", ...args]);
 }
 
+async function captureOutput(fn: () => Promise<void>): Promise<string> {
+  const lines: string[] = [];
+  const logSpy = vi.spyOn(console, "log").mockImplementation((...args) => {
+    lines.push(`${args.join(" ")}\n`);
+  });
+  const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((data) => {
+    lines.push(String(data));
+    return true;
+  });
+  try {
+    await fn();
+  } finally {
+    logSpy.mockRestore();
+    stdoutSpy.mockRestore();
+  }
+  return lines.join("");
+}
+
 function seed(queue: OwnerQuestionQueue) {
   return queue.enqueue({
     context: "Working on the escalation flow for autonomous runs.",
@@ -55,39 +73,38 @@ describe("owner-question CLI", () => {
   });
 
   it("list prints empty message when no pending questions", async () => {
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    await run(makeProgram(), "owner-question", "list");
-    expect(logSpy.mock.calls.flat().join(" ")).toContain("No pending owner questions");
-    logSpy.mockRestore();
+    const output = await captureOutput(async () => {
+      await run(makeProgram(), "owner-question", "list");
+    });
+    expect(output).toContain("No pending owner questions");
   });
 
   it("list prints pending questions", async () => {
     seed(testQueue);
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    await run(makeProgram(), "owner-question", "list");
-    const output = logSpy.mock.calls.flat().join("\n");
+    const output = await captureOutput(async () => {
+      await run(makeProgram(), "owner-question", "list");
+    });
     expect(output).toContain("1 pending owner question(s)");
     expect(output).toContain("session-42");
     expect(output).toContain("Should the timeout default");
-    logSpy.mockRestore();
   });
 
   it("count prints the pending count", async () => {
     seed(testQueue);
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    await run(makeProgram(), "owner-question", "count");
-    expect(logSpy.mock.calls.flat().join("")).toBe("1");
-    logSpy.mockRestore();
+    const output = await captureOutput(async () => {
+      await run(makeProgram(), "owner-question", "count");
+    });
+    expect(output.trim()).toBe("1");
   });
 
   it("answer marks a pending question answered", async () => {
     const item = seed(testQueue);
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    await run(makeProgram(), "owner-question", "answer", item.id, "10 minutes");
-    expect(logSpy.mock.calls.flat().join("\n")).toContain("10 minutes");
+    const output = await captureOutput(async () => {
+      await run(makeProgram(), "owner-question", "answer", item.id, "10 minutes");
+    });
+    expect(output).toContain("10 minutes");
     expect(testQueue.get(item.id)?.status).toBe("answered");
     expect(testQueue.get(item.id)?.answer).toBe("10 minutes");
-    logSpy.mockRestore();
   });
 
   it("answer errors on nonexistent id", async () => {
@@ -103,23 +120,22 @@ describe("owner-question CLI", () => {
 
   it("dismiss marks a pending question dismissed", async () => {
     const item = seed(testQueue);
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    await run(makeProgram(), "owner-question", "dismiss", item.id, "--reason", "scope change");
-    expect(logSpy.mock.calls.flat().join("\n")).toContain("scope change");
+    const output = await captureOutput(async () => {
+      await run(makeProgram(), "owner-question", "dismiss", item.id, "--reason", "scope change");
+    });
+    expect(output).toContain("scope change");
     expect(testQueue.get(item.id)?.status).toBe("dismissed");
     expect(testQueue.get(item.id)?.dismissalReason).toBe("scope change");
-    logSpy.mockRestore();
   });
 
   it("history shows resolved questions", async () => {
     const item = seed(testQueue);
     testQueue.answer(item.id, "10 minutes");
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    await run(makeProgram(), "owner-question", "history");
-    const output = logSpy.mock.calls.flat().join("\n");
+    const output = await captureOutput(async () => {
+      await run(makeProgram(), "owner-question", "history");
+    });
     expect(output).toContain("status=answered");
     expect(output).toContain("10 minutes");
-    logSpy.mockRestore();
   });
 
   it("history --status filters", async () => {
@@ -132,11 +148,10 @@ describe("owner-question CLI", () => {
       source: "session",
     });
     testQueue.dismiss(b.id, "not needed");
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    await run(makeProgram(), "owner-question", "history", "--status", "answered");
-    const output = logSpy.mock.calls.flat().join("\n");
+    const output = await captureOutput(async () => {
+      await run(makeProgram(), "owner-question", "history", "--status", "answered");
+    });
     expect(output).toContain("status=answered");
     expect(output).not.toContain("status=dismissed");
-    logSpy.mockRestore();
   });
 });

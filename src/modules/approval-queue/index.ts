@@ -18,6 +18,7 @@ const approvalQueueModule: KotaModule = {
 	name: "approval-queue",
 	version: "1.0.0",
 	description: "Approval queue state and operator CLI for tool-call approvals",
+	dependencies: ["rendering"],
 
 	commands: () => {
 		const root = new Command("__root__");

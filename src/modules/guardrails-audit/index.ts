@@ -28,6 +28,7 @@ const guardrailsAuditModule: KotaModule = {
 	name: "guardrails-audit",
 	version: "1.0.0",
 	description: "Guardrail audit trail — logs all tool assessments to .kota/audit.jsonl",
+	dependencies: ["rendering"],
 
 	tools,
 

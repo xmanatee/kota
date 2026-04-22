@@ -2,6 +2,15 @@ import { randomBytes } from "node:crypto";
 import type { Command } from "commander";
 import { loadConfig, updateProjectConfig } from "#core/config/config.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
+import {
+  blank,
+  type LineNode,
+  line,
+  plain,
+  span,
+  stack,
+} from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
 
 export function registerWebhookCommands(webhookCmd: Command): void {
   webhookCmd
@@ -18,19 +27,24 @@ export function registerWebhookCommands(webhookCmd: Command): void {
       );
 
       if (webhookDefs.length === 0) {
-        console.log("No workflows with webhook triggers found.");
+        print(line(plain("No workflows with webhook triggers found.")));
         return;
       }
 
       const nameWidth = Math.max(...webhookDefs.map((d) => d.name.length), 8);
-      console.log(`${"Workflow".padEnd(nameWidth)}  Secret`);
-      console.log("-".repeat(nameWidth + 10));
-      for (const def of webhookDefs) {
+      const header = line(span(
+        `${"Workflow".padEnd(nameWidth)}  Secret`,
+        "muted",
+        true,
+      ));
+      const rule = line(span("-".repeat(nameWidth + 10), "muted"));
+      const rows: LineNode[] = webhookDefs.map((def) => {
         const hasSecret = !!config.webhooks?.[def.name]?.secret;
-        console.log(
-          `${def.name.padEnd(nameWidth)}  ${hasSecret ? "✓ configured" : "✗ not configured"}`,
-        );
-      }
+        return hasSecret
+          ? line(plain(`${def.name.padEnd(nameWidth)}  `), span("✓ configured", "success"))
+          : line(plain(`${def.name.padEnd(nameWidth)}  `), span("✗ not configured", "warn"));
+      });
+      print(stack(header, rule, ...rows));
     });
 
   const secretCmd = webhookCmd
@@ -61,27 +75,34 @@ export function registerWebhookCommands(webhookCmd: Command): void {
         },
       }));
 
-      console.log(
-        `Secret for "${workflow}" (save this — it will not be shown again):`,
-      );
-      console.log(secret);
-      console.log();
-      console.log(
-        "Sign each request with HMAC-SHA256 and send the signature in X-Kota-Webhook-Signature:",
-      );
-      console.log();
-      console.log("  // Node.js");
-      console.log(
-        `  const sig = "sha256=" + require("crypto").createHmac("sha256", secret).update(rawBody).digest("hex");`,
-      );
-      console.log(`  // Set header: X-Kota-Webhook-Signature: <sig>`);
-      console.log();
-      console.log(
-        "  // Optional replay protection: set X-Kota-Webhook-Timestamp to the current Unix ms timestamp",
-      );
-      console.log(
-        `  //   X-Kota-Webhook-Timestamp: ${Date.now()} (requests older than 5 minutes are rejected)`,
-      );
+      print(stack(
+        line(
+          plain("Secret for "),
+          span(`"${workflow}"`, "accent"),
+          plain(" (save this — it will not be shown again):"),
+        ),
+        line(span(secret, "success", true)),
+        blank(),
+        line(span(
+          "Sign each request with HMAC-SHA256 and send the signature in X-Kota-Webhook-Signature:",
+          "muted",
+        )),
+        blank(),
+        line(span("  // Node.js", "muted")),
+        line(plain(
+          `  const sig = "sha256=" + require("crypto").createHmac("sha256", secret).update(rawBody).digest("hex");`,
+        )),
+        line(span(`  // Set header: X-Kota-Webhook-Signature: <sig>`, "muted")),
+        blank(),
+        line(span(
+          "  // Optional replay protection: set X-Kota-Webhook-Timestamp to the current Unix ms timestamp",
+          "muted",
+        )),
+        line(span(
+          `  //   X-Kota-Webhook-Timestamp: ${Date.now()} (requests older than 5 minutes are rejected)`,
+          "muted",
+        )),
+      ));
     });
 
   secretCmd
@@ -92,7 +113,11 @@ export function registerWebhookCommands(webhookCmd: Command): void {
     .action((workflow: string) => {
       const config = loadConfig();
       if (!config.webhooks?.[workflow]) {
-        console.log(`No webhook secret configured for "${workflow}".`);
+        print(line(
+          plain("No webhook secret configured for "),
+          span(`"${workflow}"`, "accent"),
+          plain("."),
+        ));
         return;
       }
 
@@ -106,6 +131,10 @@ export function registerWebhookCommands(webhookCmd: Command): void {
         return { ...raw, webhooks };
       });
 
-      console.log(`Removed webhook secret for "${workflow}".`);
+      print(line(
+        plain("Removed webhook secret for "),
+        span(`"${workflow}"`, "accent"),
+        span(".", "success"),
+      ));
     });
 }

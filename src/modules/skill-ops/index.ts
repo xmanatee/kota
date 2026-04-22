@@ -12,6 +12,14 @@ import { Command } from "commander";
 import type { SkillDef } from "#core/agents/agent-types.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
+import {
+  type LineNode,
+  line,
+  plain,
+  span,
+  stack,
+} from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
 
 type ImportedSkill = SkillDef & { source: string };
 
@@ -71,16 +79,24 @@ function buildSkillCommand(ctx: ModuleContext): Command {
         return;
       }
       if (skills.length === 0) {
-        console.log("No skills registered.");
+        print(line(plain("No skills registered.")));
         return;
       }
       const nameWidth = Math.max(...skills.map((s) => s.name.length), 4);
       const srcWidth = Math.max(...skills.map((s) => s.source.length), 6);
-      console.log(`${"Name".padEnd(nameWidth)}  ${"Source".padEnd(srcWidth)}  Description`);
-      console.log("-".repeat(nameWidth + srcWidth + 16));
-      for (const s of skills) {
-        console.log(`${s.name.padEnd(nameWidth)}  ${s.source.padEnd(srcWidth)}  ${s.description ?? ""}`);
-      }
+      const header = line(span(
+        `${"Name".padEnd(nameWidth)}  ${"Source".padEnd(srcWidth)}  Description`,
+        "muted",
+        true,
+      ));
+      const rule = line(span("-".repeat(nameWidth + srcWidth + 16), "muted"));
+      const rows: LineNode[] = skills.map((s) => line(
+        span(s.name.padEnd(nameWidth), "accent"),
+        plain("  "),
+        span(s.source.padEnd(srcWidth), "info"),
+        plain(`  ${s.description ?? ""}`),
+      ));
+      print(stack(header, rule, ...rows));
     });
 
   skillCmd
@@ -112,7 +128,12 @@ function buildSkillCommand(ctx: ModuleContext): Command {
       mkdirSync(dir, { recursive: true });
       const dest = join(dir, `${skillName}.md`);
       writeFileSync(dest, content, "utf8");
-      console.log(`Installed skill '${skillName}' → ${dest}`);
+      print(line(
+        span("Installed skill ", "success"),
+        span(`'${skillName}'`, "accent"),
+        plain(" → "),
+        span(dest, "muted"),
+      ));
     });
 
   return skillCmd;
@@ -122,6 +143,7 @@ const skillsModule: KotaModule = {
   name: "skill-ops",
   version: "1.0.0",
   description: "Operator CLI for inspecting and importing registered skills",
+  dependencies: ["rendering"],
   commands: (ctx: ModuleContext) => [buildSkillCommand(ctx)],
 };
 

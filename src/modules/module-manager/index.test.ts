@@ -58,13 +58,19 @@ function captureOutput(fn: () => void): { out: string; err: string } {
   const errLines: string[] = [];
   const logSpy = console.log;
   const errSpy = console.error;
+  const stdoutWrite = process.stdout.write.bind(process.stdout);
   console.log = (...args: unknown[]) => { outLines.push(`${args.join(" ")}\n`); };
   console.error = (...args: unknown[]) => { errLines.push(`${args.join(" ")}\n`); };
+  process.stdout.write = ((data: string | Uint8Array) => {
+    outLines.push(typeof data === "string" ? data : Buffer.from(data).toString("utf-8"));
+    return true;
+  }) as typeof process.stdout.write;
   try {
     fn();
   } finally {
     console.log = logSpy;
     console.error = errSpy;
+    process.stdout.write = stdoutWrite;
   }
   return { out: outLines.join(""), err: errLines.join("") };
 }

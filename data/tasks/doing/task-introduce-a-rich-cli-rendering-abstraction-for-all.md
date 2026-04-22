@@ -108,9 +108,15 @@ Phase 2 — migrate remaining surfaces (follow-up runs):
   uses a `LineNode` table; `history show` uses `kvBlock` for the
   record summary and `AgentMessage`-adjacent styled lines for each
   message; `history` now declares `rendering` as a dependency.
-- Migrate remaining module CLIs (memory, knowledge, webhook,
+- [done] Migrate remaining module CLIs (memory, knowledge, webhook,
   owner-questions, guardrails-audit, approval-queue, eval-harness,
-  skill-ops, agent-ops, module-manager) onto the module.
+  skill-ops, agent-ops, module-manager) onto the module. All listed
+  modules now declare `rendering` as a dependency, emit human-facing
+  output through `print(...)` primitives (`LineNode` tables, `kvBlock`
+  detail views, role-tagged spans), and keep `--json` / bare-id paths
+  on `console.log` per the module contract. Test fixtures that asserted
+  `console.log` captures now intercept `process.stdout.write` so
+  rendered output is observable.
 - Migrate interactive session streaming and `cli.ts` pipe-mode output.
 - Add a lint rule that blocks ad-hoc `console.log` inside every
   migrated directory so the prohibition is mechanically enforced.

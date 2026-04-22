@@ -24,6 +24,7 @@ const ownerQuestionsModule: KotaModule = {
   name: "owner-questions",
   version: "1.0.0",
   description: "Owner-question queue operator CLI and HTTP routes for agent escalations",
+  dependencies: ["rendering"],
 
   commands: () => {
     const root = new Command("__root__");
