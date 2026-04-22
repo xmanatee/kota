@@ -3,8 +3,8 @@ import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
-  AUTONOMY_AGENT_HARNESS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
+  AUTONOMY_AGENT_HARNESS,
   AUTONOMY_DISALLOWED_TOOLS,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";

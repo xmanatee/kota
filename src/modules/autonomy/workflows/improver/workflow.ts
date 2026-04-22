@@ -11,8 +11,8 @@ import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
 import { writeRunSummary } from "#modules/autonomy/run-summary.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
-  AUTONOMY_AGENT_HARNESS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
+  AUTONOMY_AGENT_HARNESS,
   AUTONOMY_DISALLOWED_TOOLS,
   checkCommitMessageExists,
   checkNoScratchArtifacts,

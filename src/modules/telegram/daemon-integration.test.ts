@@ -197,6 +197,7 @@ describe("Telegram personal-assistant daemon integration", () => {
               id: "build",
               type: "agent",
               promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+              harness: "claude-agent-sdk",
               model: "claude-opus-4-7",
               effort: "xhigh",
               autonomyMode: "autonomous",
