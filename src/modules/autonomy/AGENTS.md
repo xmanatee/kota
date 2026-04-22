@@ -13,12 +13,11 @@ This module owns the project autonomous development loop.
 - Workflow-specific prompts should stay role-focused. Shared policy and
   operating conventions belong in this module's `AGENTS.md` hierarchy.
 
-## Harness And Eval Decisions (Anthropic Engineering Takeaways)
+## Harness And Eval Decisions
 
-Decision-level takeaways from Anthropic's Mar 2026 harness-design,
-infrastructure-noise, Claude-Code-auto-mode, managed-agents, and
-demystifying-evals posts. Post summaries live in run artifacts; only KOTA
-decisions belong here.
+Decision-level takeaways from Anthropic's harness-design, infrastructure-noise,
+auto-mode, managed-agents, and demystifying-evals posts. Post summaries live in
+run artifacts; only KOTA decisions belong here.
 
 - **Generator / evaluator separation is the right shape.** Decomposer →
   builder → critic mirrors planner/generator/evaluator. Do not collapse as
@@ -50,13 +49,13 @@ decisions belong here.
 
 ## Live-Run Evaluator Calibration
 
-Fixture `pass^k` catches generator drift; `evaluator-calibration.json`
-(per builder run, from existing artifacts) catches evaluator drift.
-Contradiction needs a later overlapping run that itself carries a failure
-signal — file-overlap alone would flag healthy refactor chains and train
-autonomy away from correct iteration. Pass-with-warnings stays on looser
-overlap because the critic already hedged. Monitor+notify split mirrors
-`eval-harness-regression-notify`. Import: `eval-harness` → `autonomy`.
+Fixture `pass^k` catches generator drift; per-run evaluator calibration
+artifacts catch evaluator drift. Contradiction needs a later overlapping
+run that itself carries a failure signal — file-overlap alone would flag
+healthy refactor chains and train autonomy away from correct iteration.
+Pass-with-warnings stays on looser overlap because the critic already
+hedged. Monitor and notify split, mirroring the eval-harness regression
+notify pattern.
 
 ## Peer Runtime Pattern Decisions
 
@@ -64,28 +63,27 @@ Verdicts on externally visible peer runtime patterns (coordination, memory,
 self-reflection) relative to KOTA's `workflow` + `agent` + `module` +
 bus-event + store model.
 
-- **crewAI Flows (`@router` / `or_` / `and_`).** Reject. A DSL on workflows
-  creates a second public automation surface and conflicts with
-  definition-driven routing (`workflows/AGENTS.md`) and "typed protocols
-  over parallel DSLs". `trigger`, `parallel`, `branch`, `foreach` already
-  cover the coordination kinds.
+- **crewAI Flows (router/and/or DSL).** Reject. A DSL on workflows creates
+  a second public automation surface and conflicts with definition-driven
+  routing (`workflows/AGENTS.md`) and "typed protocols over parallel DSLs".
+  Existing step kinds already cover the coordination needs.
 - **LangGraph Pregel graph.** Reject the DSL; durability is met by
-  `.kota/runs/` artifacts, `runtime.recovered` + `recoveryCapable`,
-  `repairLoop` retry, and `foreach.retryFailedItems`. A graph primitive
-  would reintroduce the workflow-name-inventory anti-pattern.
+  `.kota/runs/` artifacts, recovery triggers, repair-loop retry, and
+  per-item retry on fan-out. A graph primitive would reintroduce the
+  workflow-name-inventory anti-pattern.
 - **Vercel AI SDK server/client split.** Adopted. `session` is the tool
   loop; `daemon` + `client` protocols enforce thin clients.
 - **OpenHands / AutoGen typed multi-agent handoffs.** Adopted. Handoffs
   travel over typed bus events (decomposer → builder → critic, dispatcher
-  fan-out on `runtime.idle`) and `trigger` steps; payload typing via
-  workflow `inputSchema` / `outputSchema`.
-- **Letta labeled `memory_blocks`.** Reject. KOTA's typed stores (history,
+  fan-out on idle) and `trigger` steps; payload typing via workflow
+  input/output schemas.
+- **Letta labeled memory blocks.** Reject. KOTA's typed stores (history,
   memory, knowledge, working memory, run artifacts) with provider-registry
   backends already cover labeled, agent-selectable persistence. Evidence:
   `letta-ai/letta`.
 - **Reflexion verbal self-reflection.** Reject. Improver workflow + scoped
   `AGENTS.md` guidance is KOTA's "learn from failure" primitive; a Reflexion
-  lesson log is the forbidden second lessons store (see file top). Evidence:
+  lesson log is the forbidden second lessons store. Evidence:
   `noahshinn/reflexion`.
 
 Revisit if a peer ships a primitive whose rationale is not captured by
@@ -106,37 +104,36 @@ Decision-level takeaways from the autonomy-eval-adjacent OpenAI threads on
 belong here.
 
 - **Instruction hierarchy is already KOTA's prompt model — keep it.**
-  arXiv 2404.13208 trains selective lower-tier override on conflict. KOTA
-  already separates SDK/module prompt state from channel/user messages, and
-  `injection-defense` wraps ingested tool/web content as untrusted. Reject
-  any pattern that lets module prompt state echo tool/web payloads as
-  authoritative, or lets a channel/user message sit above the operator-set
-  autonomy mode.
+  Selective lower-tier override on conflict (arXiv 2404.13208) maps onto
+  the SDK/module prompt-state vs. channel/user-message split, with
+  `injection-defense` wrapping ingested tool/web content as untrusted.
+  Reject any pattern that lets module prompt state echo tool/web payloads
+  as authoritative, or lets a channel/user message sit above the
+  operator-set autonomy mode.
 - **Critic input stays artifact-only because CoT monitorability is fragile.**
-  arXiv 2507.11473 treats reasoning-trace oversight as easily-degraded and
+  Reasoning-trace oversight (arXiv 2507.11473) is easily-degraded and
   liable to vanish silently under downstream training or harness choices.
   Keep critic and improver judges anchored on diff + repo state + run
   artifacts (+ optional runtime probe per `workflows/builder/AGENTS.md`),
   not raw thinking traces. Do not add a "judge from thinking" optimization.
 - **Model Spec chain-of-command maps onto KOTA roles.** Spec ranks
-  Root > System > Developer > User > Guideline, with tool outputs and quoted
-  content carrying no authority by default. KOTA mapping: SDK system prompt
-  + core safety rails ≈ Root/System; operator-set autonomy mode + module
-  prompt state ≈ Developer; channel/session user message ≈ User; tool/web
-  outputs ≈ untrusted (enforced by `injection-defense`). Make the mapping
-  explicit at the autonomy-mode boundary so a user message or tool output
-  cannot silently escalate the operator-set mode.
+  Root > System > Developer > User > Guideline, with tool outputs and
+  quoted content carrying no authority by default. KOTA mapping: SDK
+  system prompt + core safety rails ≈ Root/System; operator-set autonomy
+  mode + module prompt state ≈ Developer; channel/session user message ≈
+  User; tool/web outputs ≈ untrusted (enforced by `injection-defense`).
+  Make the mapping explicit at the autonomy-mode boundary so a user
+  message or tool output cannot silently escalate the operator-set mode.
 
 ## Agent Judge Runtime Contract
 
 The shared agent-step retry classifier (see `src/core/workflow/steps/AGENTS.md`)
-also governs autonomy agent judges invoked via `invokeAgentJudge`, so judges
-fail fast on runaway subtypes (`error_max_turns`, `error_max_tokens`) instead
-of burning budget.
+also governs autonomy agent judges, so judges fail fast on runaway turn or
+token subtypes instead of burning budget.
 
-Judge-backed repair checks (critic, improver semantic gate) must additionally
-catch the runaway throw in their wrapper and return a warning — never re-raise
-into the repair loop, since editing code cannot shrink a judge's turn/token
-budget. Use `isJudgeRunawayError` + `judgeUnavailableResult` exported from
-`critic.ts`. `invokeAgentJudge` itself still throws; only the repair-check
-wrappers degrade gracefully. Unclassified SDK failures still reject the check.
+Judge-backed repair checks (critic, improver semantic gate) must
+additionally catch the runaway throw in their wrapper and return a warning
+— never re-raise into the repair loop, since editing code cannot shrink a
+judge's turn or token budget. Only the repair-check wrappers degrade
+gracefully; the judge invocation primitive itself still throws.
+Unclassified SDK failures still reject the check.

@@ -1,12 +1,12 @@
 ---
 id: task-trim-agents-files-back-to-durable-decisions-and-bo
 title: Trim AGENTS files back to durable decisions and boundaries
-status: backlog
+status: done
 priority: p3
 area: architecture
 summary: Cut implementation inventories, fixture/route lists, and concrete run ids out of src/modules/eval-harness/AGENTS.md and src/modules/autonomy/AGENTS.md so durable docs hold decisions and code holds mechanics
 created_at: 2026-04-21T15:53:05.800Z
-updated_at: 2026-04-21T15:53:05.800Z
+updated_at: 2026-04-22T04:31:14.701Z
 ---
 
 ## Problem
