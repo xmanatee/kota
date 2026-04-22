@@ -13,11 +13,35 @@ export type TelegramUser = { id: number; first_name: string; username?: string }
 
 export type TelegramChat = { id: number; first_name?: string; username?: string; type: string };
 
+export type TelegramVoice = {
+  file_id: string;
+  duration: number;
+  mime_type?: string;
+  file_size?: number;
+};
+
+export type TelegramAudio = {
+  file_id: string;
+  duration: number;
+  mime_type?: string;
+  file_name?: string;
+  file_size?: number;
+};
+
+export type TelegramFile = {
+  file_id: string;
+  file_unique_id: string;
+  file_size?: number;
+  file_path?: string;
+};
+
 export type TelegramMessage = {
   message_id: number;
   from?: TelegramUser;
   chat: TelegramChat;
   text?: string;
+  voice?: TelegramVoice;
+  audio?: TelegramAudio;
   date: number;
 };
 
@@ -66,6 +90,43 @@ export async function callTelegramApi<T>(
   }
   if (!data.ok) throw new Error(`Telegram API ${method}: ${data.description}`);
   return data.result;
+}
+
+// --- File download ---
+
+/**
+ * Fetch the bytes of an uploaded Telegram file.
+ *
+ * Telegram serves uploaded media through a two-step flow: first `getFile`
+ * returns a relative `file_path`, then the bytes are fetched from the
+ * file host. Both steps share the bot token.
+ */
+export async function downloadTelegramFile(
+  token: string,
+  fileId: string,
+): Promise<{ bytes: Uint8Array; mimeType?: string; filePath: string }> {
+  const file = await callTelegramApi<TelegramFile>(token, "getFile", {
+    file_id: fileId,
+  });
+  if (!file.file_path) {
+    throw new Error(`Telegram getFile returned no file_path for ${fileId}`);
+  }
+  const url = `${TELEGRAM_API}/file/bot${token}/${file.file_path}`;
+  let res: Response;
+  try {
+    res = await fetch(url);
+  } catch (err) {
+    throw new Error(`Telegram file download network error: ${(err as Error).message}`);
+  }
+  if (!res.ok) {
+    throw new Error(`Telegram file download failed: HTTP ${res.status}`);
+  }
+  const buffer = await res.arrayBuffer();
+  return {
+    bytes: new Uint8Array(buffer),
+    mimeType: res.headers.get("content-type") ?? undefined,
+    filePath: file.file_path,
+  };
 }
 
 // --- Message splitting ---

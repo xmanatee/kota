@@ -14,14 +14,22 @@ import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
 import { NullTransport, ProxyTransport } from "#core/loop/transport.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
+  TranscriptionProviderUnavailableError,
+  transcribeAudio,
+} from "#modules/transcription/index.js";
+import {
   callTelegramApi,
+  downloadTelegramFile,
   ERROR_BACKOFF_MS,
   POLL_TIMEOUT_S,
   SCHEDULER_CHECK_MS,
   splitMessage,
+  type TelegramAudio,
+  type TelegramMessage,
   TelegramTransport,
   type TelegramUpdate,
   type TelegramUser,
+  type TelegramVoice,
 } from "./client.js";
 
 export { callTelegramApi, splitMessage, TelegramTransport };
@@ -123,10 +131,73 @@ export class TelegramBot {
 
     for (const update of updates) {
       this.offset = update.update_id + 1;
-      if (update.message?.text) {
+      if (!update.message) continue;
+      if (update.message.text) {
         this.handleMessage(update.message.chat.id, update.message.text, update.message.chat.first_name);
+        continue;
+      }
+      if (update.message.voice || update.message.audio) {
+        void this.handleVoiceMessage(update.message).catch((err) => {
+          console.error(
+            `[kota-telegram] Voice handling error in chat ${update.message?.chat.id}:`,
+            (err as Error).message,
+          );
+        });
       }
     }
+  }
+
+  private async handleVoiceMessage(message: TelegramMessage): Promise<void> {
+    const chatId = message.chat.id;
+    if (this.options.allowedChatIds?.length && !this.options.allowedChatIds.includes(chatId)) {
+      this.sendText(chatId, "Sorry, I'm not authorized to chat with you.");
+      return;
+    }
+
+    const media: TelegramVoice | TelegramAudio | undefined = message.voice ?? message.audio;
+    if (!media) return;
+    const defaultMime = message.voice ? "audio/ogg" : "audio/mpeg";
+    const mimeType = media.mime_type ?? defaultMime;
+    const filename = "file_name" in media && media.file_name ? media.file_name : undefined;
+
+    let download: Awaited<ReturnType<typeof downloadTelegramFile>>;
+    try {
+      download = await downloadTelegramFile(this.token, media.file_id);
+    } catch (err) {
+      this.sendText(
+        chatId,
+        `Couldn't download your voice message: ${(err as Error).message}`,
+      );
+      return;
+    }
+
+    let transcript: string;
+    try {
+      const result = await transcribeAudio({
+        audio: download.bytes,
+        mimeType: download.mimeType ?? mimeType,
+        filename,
+      });
+      transcript = result.text.trim();
+    } catch (err) {
+      if (err instanceof TranscriptionProviderUnavailableError) {
+        this.sendText(
+          chatId,
+          "Voice transcription isn't configured on this KOTA deployment. Please send your message as text.",
+        );
+        return;
+      }
+      this.sendText(chatId, `Voice transcription failed: ${(err as Error).message}`);
+      return;
+    }
+
+    if (!transcript) {
+      this.sendText(chatId, "I couldn't hear anything in that voice message. Please try again.");
+      return;
+    }
+
+    this.sendText(chatId, `\u{1F3A4} Transcribed: ${transcript}`);
+    this.handleMessage(chatId, transcript, message.chat.first_name);
   }
 
   private handleMessage(chatId: number, text: string, firstName?: string): void {

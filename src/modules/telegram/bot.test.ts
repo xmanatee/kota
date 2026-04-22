@@ -1,6 +1,34 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetScheduler, Scheduler } from "#core/daemon/scheduler.js";
+import {
+  initProviderRegistry,
+  resetProviderRegistry,
+} from "#core/modules/provider-registry.js";
+import {
+  TRANSCRIPTION_PROVIDER_TYPE,
+  type TranscriptionProvider,
+} from "#modules/transcription/index.js";
 import { callTelegramApi, splitMessage, TelegramBot, TelegramTransport } from "./bot.js";
+
+const agentSendMock = vi.fn(async () => undefined);
+
+vi.mock("#core/loop/loop.js", async () => {
+  const actual = await vi.importActual<typeof import("#core/loop/loop.js")>(
+    "#core/loop/loop.js",
+  );
+  class FakeAgentSession {
+    send = agentSendMock;
+    close = vi.fn();
+    getCostSummary = vi.fn().mockReturnValue("$0.00");
+    get isClosed(): boolean {
+      return false;
+    }
+  }
+  return {
+    ...actual,
+    AgentSession: FakeAgentSession as unknown as typeof actual.AgentSession,
+  };
+});
 
 // --- splitMessage ---
 
@@ -374,6 +402,194 @@ describe("TelegramBot", () => {
     await bot.start();
     // After stop, scheduler should be reset
     expect(bot.sessionCount).toBe(0);
+  });
+
+  it("routes inbound text messages into AgentSession.send (session loop)", async () => {
+    agentSendMock.mockClear();
+    const bot = new TelegramBot({ token: "tok", autonomyMode: "supervised" });
+    let delivered = false;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/getMe")) {
+        return {
+          json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
+        };
+      }
+      if (url.endsWith("/getUpdates")) {
+        if (!delivered) {
+          delivered = true;
+          return {
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                result: [
+                  {
+                    update_id: 1,
+                    message: {
+                      message_id: 1,
+                      chat: { id: 9, type: "private", first_name: "Op" },
+                      text: "ping",
+                      date: 0,
+                    },
+                  },
+                ],
+              }),
+          };
+        }
+        return {
+          json: () =>
+            new Promise((resolve) =>
+              setTimeout(() => {
+                bot.stop();
+                resolve({ ok: true, result: [] });
+              }, 100),
+            ),
+        };
+      }
+      return { json: () => Promise.resolve({ ok: true, result: true }) };
+    });
+
+    const startPromise = bot.start();
+
+    const deadline = Date.now() + 2_000;
+    while (Date.now() < deadline && agentSendMock.mock.calls.length === 0) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+
+    await startPromise;
+
+    expect(agentSendMock).toHaveBeenCalledWith("ping");
+  });
+});
+
+// --- Voice message handling ---
+
+describe("TelegramBot voice messages", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = installFetchMock();
+    resetProviderRegistry();
+  });
+
+  afterEach(() => {
+    restoreFetch();
+    resetScheduler();
+    resetProviderRegistry();
+  });
+
+  function collectSendMessageBodies(): { chat_id: number; text: string }[] {
+    return fetchMock.mock.calls
+      .filter((c: unknown[]) => typeof c[0] === "string" && (c[0] as string).endsWith("/sendMessage"))
+      .map((c: unknown[]) => {
+        const init = c[1] as { body: string };
+        return JSON.parse(init.body) as { chat_id: number; text: string };
+      });
+  }
+
+  async function waitForSendMessage(
+    predicate: (body: { chat_id: number; text: string }) => boolean,
+    timeoutMs = 1000,
+  ): Promise<{ chat_id: number; text: string }> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const hit = collectSendMessageBodies().find(predicate);
+      if (hit) return hit;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    throw new Error("Timed out waiting for matching sendMessage call");
+  }
+
+  function startBotAndQueueUpdate(
+    bot: TelegramBot,
+    update: unknown,
+  ): Promise<void> {
+    let deliveredOnce = false;
+    let stopping = false;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/getMe")) {
+        return {
+          json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
+        };
+      }
+      if (url.endsWith("/getUpdates")) {
+        if (deliveredOnce) {
+          if (!stopping) {
+            stopping = true;
+            // Give the async voice handler a moment to flush a sendMessage
+            setTimeout(() => bot.stop(), 200);
+          }
+          return {
+            json: () => new Promise((resolve) => setTimeout(() => resolve({ ok: true, result: [] }), 10)),
+          };
+        }
+        deliveredOnce = true;
+        return { json: () => Promise.resolve({ ok: true, result: [update] }) };
+      }
+      if (url.includes("/getFile")) {
+        return {
+          json: () =>
+            Promise.resolve({ ok: true, result: { file_id: "v1", file_unique_id: "u1", file_path: "voice/v1.ogg" } }),
+        };
+      }
+      if (url.includes("/file/bot")) {
+        return {
+          ok: true,
+          arrayBuffer: () => Promise.resolve(new Uint8Array([1, 2, 3, 4]).buffer),
+          headers: { get: () => "audio/ogg" },
+        };
+      }
+      return { json: () => Promise.resolve({ ok: true, result: true }) };
+    });
+    return bot.start();
+  }
+
+  it("transcribes voice messages and feeds the transcript into the chat", async () => {
+    const registry = initProviderRegistry();
+    const provider: TranscriptionProvider = {
+      name: "stub",
+      async transcribe(input) {
+        expect(input.audio.length).toBe(4);
+        expect(input.mimeType).toBe("audio/ogg");
+        return { text: "hello from voice" };
+      },
+    };
+    registry.register(TRANSCRIPTION_PROVIDER_TYPE, provider.name, provider);
+
+    const bot = new TelegramBot({ token: "tok", autonomyMode: "supervised" });
+
+    const startPromise = startBotAndQueueUpdate(bot, {
+      update_id: 1,
+      message: {
+        message_id: 10,
+        chat: { id: 42, type: "private", first_name: "Alice" },
+        date: 0,
+        voice: { file_id: "v1", duration: 2, mime_type: "audio/ogg" },
+      },
+    });
+
+    const transcribedEcho = await waitForSendMessage((m) => m.text.includes("Transcribed"));
+    expect(transcribedEcho.text).toContain("hello from voice");
+
+    await startPromise;
+  });
+
+  it("replies with a clear failure when no transcription provider is registered", async () => {
+    const bot = new TelegramBot({ token: "tok", autonomyMode: "supervised" });
+
+    const startPromise = startBotAndQueueUpdate(bot, {
+      update_id: 2,
+      message: {
+        message_id: 11,
+        chat: { id: 42, type: "private", first_name: "Alice" },
+        date: 0,
+        voice: { file_id: "v2", duration: 2, mime_type: "audio/ogg" },
+      },
+    });
+
+    const failureNotice = await waitForSendMessage((m) => m.text.toLowerCase().includes("transcription"));
+    expect(failureNotice.text).toContain("isn't configured");
+
+    await startPromise;
   });
 });
 

@@ -172,7 +172,7 @@ const telegramModule: KotaModule = {
   name: "telegram",
   version: "1.0.0",
   description: "Telegram bot frontend for KOTA",
-  dependencies: ["approval-queue", "autonomy"],
+  dependencies: ["approval-queue", "autonomy", "transcription"],
   configSchema: {
     type: "object",
     additionalProperties: false,

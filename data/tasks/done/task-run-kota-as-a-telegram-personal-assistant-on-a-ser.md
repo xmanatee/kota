@@ -1,12 +1,12 @@
 ---
 id: task-run-kota-as-a-telegram-personal-assistant-on-a-ser
 title: Run KOTA as a Telegram personal assistant on a server
-status: backlog
+status: done
 priority: p2
 area: channels
 summary: Confirm and close gaps so KOTA can run end-to-end as a personal assistant channeled through Telegram, including a voice-message transcription pipeline.
 created_at: 2026-04-22T03:21:32.088Z
-updated_at: 2026-04-22T03:21:32.088Z
+updated_at: 2026-04-22T04:56:51.720Z
 ---
 
 ## Problem

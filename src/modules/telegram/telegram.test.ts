@@ -85,7 +85,11 @@ describe("telegramModule", () => {
   });
 
   it("declares dependencies", () => {
-    expect(telegramModule.dependencies).toEqual(["approval-queue", "autonomy"]);
+    expect(telegramModule.dependencies).toEqual([
+      "approval-queue",
+      "autonomy",
+      "transcription",
+    ]);
   });
 
   it("contributes a telegram-status channel", () => {
