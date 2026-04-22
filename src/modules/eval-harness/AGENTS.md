@@ -8,17 +8,13 @@ observable runtime rather than three.
 
 ## Infrastructure Noise Rule
 
-Container resource configuration alone can swing benchmark scores by more
-than the gap used to rank competing models (Anthropic, "Quantifying
-infrastructure noise in agentic coding evals", Mar 2026). The harness
-treats that swing as a first-class confounder, not as statistical noise.
-
-Every `FixtureRun` MUST carry:
+Container resource config alone can swing benchmark scores past the gap
+used to rank models. The harness treats that swing as a first-class
+confounder, not statistical noise. Every `FixtureRun` MUST carry:
 
 - **Resource profile** — host class, CPU allocation (guaranteed floor) and
   kill threshold (hard ceiling) as separate fields, and matching memory
-  fields. Collapsing allocation and kill threshold erases the signal
-  operators need to interpret a drop.
+  fields. Collapsing allocation and kill erases the signal operators need.
 - **Repeat index and total** — every fixture runs k times; k=1 runs do not
   participate in regression gating.
 - **Timing envelope** — explicit budget plus observed duration, so runs
@@ -28,14 +24,12 @@ Every `FixtureRun` MUST carry:
 
 The harness always reports both:
 
-- `pass@k` — fraction of fixtures where at least one of the k runs passed
-  (capability: can the agent ever solve this?).
-- `pass^k` — fraction of fixtures where every run passed (consistency: does
-  the agent solve this reliably?).
+- `pass@k` — fraction of fixtures where at least one of k runs passed
+  (capability).
+- `pass^k` — fraction of fixtures where every run passed (consistency).
 
-`pass@k` answers "is the capability there?" and `pass^k` answers "can we
-ship this?". Averaging them, or reporting only one, loses the distinction.
 Gate autonomy rollouts on `pass^k`; track capability trends on `pass@k`.
+Averaging them, or reporting only one, loses the distinction.
 
 ## Regression Gate Threshold
 
@@ -55,26 +49,44 @@ calibration alongside the run.
 
 ## How To Add A Fixture
 
-Fixtures live under `src/modules/eval-harness/fixtures/<id>/`:
+A fixture lives under `src/modules/eval-harness/fixtures/<id>/`. The loader
+(`fixture.ts`) is the source of truth for fixture shape: it parses
+`fixture.json` into a typed `FixtureSpecFile`, requires `initial/`, and
+enforces provenance. A fixture that the loader rejects is a contribution
+error — fix the fixture, do not work around the loader.
 
-- `fixture.json` — typed `FixtureSpecFile` (see `fixture.ts`): stable `id`
-  matching the directory name, human `description`, autonomy `role`,
-  `workflowName` to invoke, `budgetMs`, and a non-empty `predicates` array.
-- `initial/` — the initial repo state copied into each run's isolated
-  working directory. Include any `data/`, `.kota/`, or repo scaffolding the
-  target workflow needs to pick up the task.
-- `notes.md` — required. Names the source run id (or explains why none
-  applies), states what failed, and explains why this fixture captures
-  that failure. See existing fixtures for the expected shape.
+### Provenance
 
-New fixtures MUST be sourced from a real `.kota/runs/` failure. Fixtures
-assembled from hypothetical tasks reward cosmetic progress on capability the
-agent already has and miss the failure modes the harness exists to gate
-against (the demystifying-evals anti-pattern this module was created to
-close). The narrow exception is a smoke fixture that fails loudly when
-harness plumbing itself regresses; its `notes.md` must state "no source run
-id" and justify why no failure mode is encoded. Neither source run id nor
-written justification is a contribution error.
+Provenance answers "why does this fixture exist?". The loader accepts
+exactly two shapes, declared as a typed `provenance` field on every
+`fixture.json`:
+
+- `{ kind: "real-failure", sourceRunId: <.kota/runs/ id> }` — the fixture
+  encodes a specific past autonomy failure. Use this for every fixture the
+  harness exists to regression-gate against. Fixtures assembled from
+  hypothetical tasks reward cosmetic progress on capability the agent
+  already has and miss the failure modes the harness exists to catch (the
+  demystifying-evals anti-pattern this module was created to close).
+- `{ kind: "smoke-fixture", justification: <text> }` — the fixture exists
+  to fail loudly when harness plumbing itself regresses. This is the narrow
+  exception to the real-failure rule; the written justification is the
+  contract that keeps it honest.
+
+Anything else — missing provenance, an unknown kind, a real-failure entry
+with no source run id, a smoke entry with no justification — fails loudly
+at load time as a typed `FixtureProvenanceError` that names the offending
+fixture directory. There is no undocumented fallback path.
+
+### Other fixture files
+
+`initial/` holds the initial repo state copied into each run's isolated
+working directory. Include any `data/`, `.kota/`, or repo scaffolding the
+target workflow needs to pick up the task.
+
+`notes.md` stays as the human-readable companion: it names the source run id
+or smoke-fixture rationale in prose, states what failed, and explains why
+this fixture captures that failure. The structured source of truth lives in
+`fixture.json`; `notes.md` exists for review context.
 
 Predicates are intentionally small and deterministic (`predicates.ts`):
 `file-exists`, `file-absent`, `file-contains`, `shell-succeeds`,
@@ -118,44 +130,34 @@ cadence-only.
 
 ## Runner Lifecycle
 
-Each fixture run:
-
-1. Materializes the fixture's `initial/` into a fresh `mkdtempSync`
-   directory under the OS tmp dir, so runs never mutate the operator's
-   repo.
-2. Invokes the workflow through the pluggable `WorkflowExecutor`
-   (`runner.ts`). Production uses `createSubprocessExecutor`, which spawns
-   `kota workflow trigger <name>` with `HOME` and `KOTA_PROJECT_DIR`
-   pointed at the fixture working dir, then polls the fixture's
-   `.kota/runs/` for a terminal status matching the workflow name. Unit
-   tests inject in-process executors so tests never spend LLM time.
-3. Evaluates the fixture's predicates against the working directory and
-   emits a `fixture-run.json` artifact beside the working dir.
-4. The eval-set layer aggregates fixtures × repeats, writes
-   `eval-set-report.json`, and returns the typed report.
+Each fixture run materializes `initial/` into a fresh `mkdtempSync` dir
+under the OS tmp dir (runs never mutate the operator's repo), invokes the
+workflow through the pluggable `WorkflowExecutor` (`runner.ts`; production
+= `createSubprocessExecutor` spawning `kota workflow trigger <name>` with
+`HOME` and `KOTA_PROJECT_DIR` pointed at the working dir; tests inject
+in-process executors), evaluates predicates, and emits `fixture-run.json`.
+The eval-set layer aggregates fixtures × repeats and writes
+`eval-set-report.json`.
 
 Fixtures run sequentially by design — parallel replicas would corrupt the
 resource profile recorded per run, breaking the noise-band comparison.
 
 ## How To Read A Regression
 
-A `gated` decision means the change should not ship as-is. Reshape, rerun
-on the same host class, and compare. If the drop persists across independent
-runs with stable resource profiles, the regression is real. A `not-gated`
-decision with `resource-profile-drift` or `repeat-count-below-minimum`
-means the current numbers don't support a gate either way — rerun with
-correct configuration before drawing conclusions.
+`gated` means the change should not ship as-is. Reshape, rerun on the same
+host class, and compare. If the drop persists across independent runs with
+stable resource profiles, the regression is real. `not-gated` with
+`resource-profile-drift` or `repeat-count-below-minimum` means the numbers
+don't support a gate either way — rerun with correct config first.
 
 ## Boundaries
 
-- Scoring, fixture-run contract, fixture runner, gate decisions, and the
-  persisted cadence baseline all live in this module.
+- Scoring, fixture-run contract, runner, gate decisions, and the persisted
+  cadence baseline all live in this module.
 - Do NOT add a parallel metrics store. Aggregate scores surface through
   `eval-harness.set.completed`; regressions through the typed regression
-  event; per-run evidence as run artifacts; the baseline file holds one row.
-- No cost signals leak into agent-facing context (existing autonomy rule).
-- The subprocess executor reuses the existing `kota workflow trigger`
-  surface — the module does not fork a parallel runtime for evaluation.
-- Fixture working directories are materialized under `os.tmpdir()`, never
-  inside the operator's repo. Always go through `runFixture` /
-  `runEvalSet`; do not mutate a fixture's `initial/` at runtime.
+  event; per-run evidence as run artifacts; baseline holds one row.
+- No cost signals leak into agent-facing context (autonomy rule).
+- Fixture working dirs materialize under `os.tmpdir()`, never inside the
+  operator's repo. Always go through `runFixture` / `runEvalSet`; do not
+  mutate a fixture's `initial/` at runtime.

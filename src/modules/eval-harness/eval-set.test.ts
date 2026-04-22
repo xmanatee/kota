@@ -31,6 +31,10 @@ function seedFixture(
       workflowName: "noop",
       budgetMs: 60_000,
       predicates: [predicate],
+      provenance: {
+        kind: "smoke-fixture",
+        justification: "minimal test fixture for eval-set unit tests",
+      },
     }),
   );
 }

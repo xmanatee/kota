@@ -18,5 +18,9 @@
       "path": "data/tasks/ready/task-ready-decoy-not-to-be-picked-up.md"
     }
   ],
-  "tags": ["regression", "autonomy", "builder-discipline"]
+  "tags": ["regression", "autonomy", "builder-discipline"],
+  "provenance": {
+    "kind": "real-failure",
+    "sourceRunId": "2026-04-18T07-43-01-839Z-builder-hczmv9"
+  }
 }

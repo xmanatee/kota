@@ -18,5 +18,9 @@
       "command": "test \"$(find data/tasks -mindepth 1 -name 'task-*.md' -type f | wc -l | tr -d ' ')\" -eq 1"
     }
   ],
-  "tags": ["regression", "autonomy", "inbox-sorter-discipline"]
+  "tags": ["regression", "autonomy", "inbox-sorter-discipline"],
+  "provenance": {
+    "kind": "real-failure",
+    "sourceRunId": "2026-04-15T21-20-03-042Z-inbox-sorter-j7lclg"
+  }
 }

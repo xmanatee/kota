@@ -36,6 +36,10 @@ function setupFixtureTree(): {
       workflowName: "noop",
       budgetMs: 60_000,
       predicates: [{ kind: "file-exists", path: "output.txt" }],
+      provenance: {
+        kind: "smoke-fixture",
+        justification: "minimal test fixture for runner unit tests",
+      },
     }),
   );
   writeFileSync(join(fixtureDir, "initial", "seed.txt"), "seed");

@@ -1,12 +1,12 @@
 ---
 id: task-validate-eval-harness-fixture-provenance-in-the-lo
 title: Validate eval-harness fixture provenance in the loader
-status: backlog
+status: done
 priority: p2
 area: eval-harness
 summary: Promote the 'real autonomy failure or justified smoke fixture' rule from social convention into an executable validation path in fixture.ts and the eval-harness CLI so contributions cannot ship undocumented fallback fixtures
 created_at: 2026-04-21T15:53:26.236Z
-updated_at: 2026-04-21T15:53:26.236Z
+updated_at: 2026-04-22T03:42:10.854Z
 ---
 
 ## Problem

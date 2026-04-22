@@ -37,5 +37,9 @@
       "path": "data/tasks/ready/task-wire-three-markers-through-index.md"
     }
   ],
-  "tags": ["regression", "autonomy", "builder-discipline"]
+  "tags": ["regression", "autonomy", "builder-discipline"],
+  "provenance": {
+    "kind": "real-failure",
+    "sourceRunId": "2026-04-13T13-59-56-234Z-builder-gofonh"
+  }
 }

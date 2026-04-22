@@ -18,9 +18,28 @@ import {
   evaluateCalibrationGate,
 } from "#modules/autonomy/evaluator-calibration.js";
 import { runEvalSet } from "./eval-set.js";
-import { loadAllFixtures, loadFixture } from "./fixture.js";
+import { FixtureProvenanceError, loadAllFixtures, loadFixture } from "./fixture.js";
 import type { ResourceProfile } from "./fixture-run.js";
 import { createSubprocessExecutor } from "./subprocess-executor.js";
+
+function loadFixturesForCli(
+  fixturesRoot: string,
+  ids: readonly string[],
+): ReturnType<typeof loadAllFixtures> | null {
+  try {
+    return ids.length > 0
+      ? ids.map((id) => loadFixture(fixturesRoot, id))
+      : loadAllFixtures(fixturesRoot);
+  } catch (err) {
+    if (err instanceof FixtureProvenanceError) {
+      console.error(`eval-harness fixture provenance error: ${err.message}`);
+      console.error(`  offending fixture directory: ${err.fixtureDir}`);
+      process.exitCode = 1;
+      return null;
+    }
+    throw err;
+  }
+}
 
 const DEFAULT_HOST_CLASS = "local-dev";
 const DEFAULT_CPU_ALLOC = 2;
@@ -75,7 +94,8 @@ export function buildEvalCommand(projectDir: string): Command {
     .command("list")
     .description("List all discovered fixtures under the eval-harness module.")
     .action(() => {
-      const fixtures = loadAllFixtures(fixturesRoot);
+      const fixtures = loadFixturesForCli(fixturesRoot, []);
+      if (fixtures === null) return;
       if (fixtures.length === 0) {
         console.log("No fixtures found.");
         return;
@@ -116,9 +136,8 @@ export function buildEvalCommand(projectDir: string): Command {
         memoryAllocation: opts.memoryAllocationMb,
         memoryKill: opts.memoryKillThresholdMb,
       });
-      const fixtures = opts.fixture.length > 0
-        ? opts.fixture.map((id) => loadFixture(fixturesRoot, id))
-        : loadAllFixtures(fixturesRoot);
+      const fixtures = loadFixturesForCli(fixturesRoot, opts.fixture);
+      if (fixtures === null) return;
       if (fixtures.length === 0) {
         console.error(`No fixtures to run under "${fixturesRoot}".`);
         process.exitCode = 1;

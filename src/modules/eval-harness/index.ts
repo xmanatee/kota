@@ -34,10 +34,11 @@ export type { EvalSetParams, EvalSetReport } from "./eval-set.js";
 export { runEvalSet } from "./eval-set.js";
 export type {
   FixtureAutonomyRole,
+  FixtureProvenance,
   FixtureSpecFile,
   LoadedFixture,
 } from "./fixture.js";
-export { loadAllFixtures, loadFixture } from "./fixture.js";
+export { FixtureProvenanceError, loadAllFixtures, loadFixture } from "./fixture.js";
 export type {
   FixtureRun,
   FixtureRunOutcome,
