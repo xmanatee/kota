@@ -13,121 +13,120 @@ This module owns the project autonomous development loop.
 - Workflow-specific prompts should stay role-focused. Shared policy and
   operating conventions belong in this module's `AGENTS.md` hierarchy.
 
-## Harness And Eval Decisions
+## Core Autonomy Decisions
 
-Decision-level takeaways from Anthropic's harness-design, infrastructure-noise,
-auto-mode, managed-agents, and demystifying-evals posts. Post summaries live in
-run artifacts; only KOTA decisions belong here.
+Load-bearing rules from harness, eval, and peer-runtime research. Post
+summaries live in run artifacts or `data/watchlist.yaml`; only KOTA
+decisions belong here.
 
-- **Generator / evaluator separation is the right shape.** Decomposer →
-  builder → critic mirrors planner/generator/evaluator. Do not collapse as
-  models improve. Strip repair-loop checks or semantic gates first; keep
-  the agent-role separation.
-- **Evaluator must probe outcomes, not only artifacts.** Diff-only review
-  is structurally blind for outcomes living outside repo state (runtime
-  service behavior, UI, external API). New tasks whose success hinges on
-  runtime behavior must reduce success to an inspectable artifact or carry
-  a runtime probe as part of the task contract.
-- **Infrastructure noise is not statistical noise.** Any KOTA eval harness
-  must separate guaranteed allocation from kill thresholds, report resource
-  profile per run, run each fixture multiple times, and distinguish `pass@k`
-  (capability) from `pass^k` (consistency).
-- **Context resets beat compaction for long autonomy loops.** Prefer
-  fresh-session handoffs through run artifacts over in-session compaction
-  when a workflow has distinct phases. The run-dir handoff pattern is
-  correct; keep it.
-- **Untrusted content entering agent context is an injection surface.**
-  Tool-risk gating classifies the *call*, not the *payload*. The
-  `injection-defense` module screens payloads — see its `AGENTS.md` for
-  the contract; extend when coverage or heuristics need to grow.
-- **Session state must be reconstructible from append-only logs.** New
-  daemon-owned runtime state needs an answer for "what survives a crash
-  mid-turn"; write through to run artifacts or the event bus rather than
-  holding state only in process memory.
-- **Eval fixtures come from real failures, not synthetic specs.** Seed the
-  eval-harness module from `.kota/runs/` failures first.
+- **Generator / evaluator separation.** Decomposer → builder → critic is
+  planner/generator/evaluator. Strip repair-loop checks first; keep the
+  role separation.
+- **Evaluator probes outcomes, not only artifacts.** Diff-only review is
+  blind to runtime service behavior, UI, external API. Such tasks reduce
+  success to an inspectable artifact or carry a runtime probe (see
+  `workflows/builder/AGENTS.md`).
+- **Critic input stays artifact-only.** Diff + repo state + run artifacts
+  (+ optional runtime probe). No raw thinking traces, interpretability
+  artifacts, or self-reported summaries — CoT monitorability is fragile
+  and self-reports reward-hack.
+- **Infrastructure noise is not statistical noise.** Eval harnesses
+  separate guaranteed allocation from kill thresholds, report resource
+  profile per run, run each fixture multiple times, and distinguish
+  `pass@k` from `pass^k`. Judge-repetition per fixture belongs here too.
+- **Context resets beat compaction.** Prefer fresh-session handoffs
+  through run artifacts over in-session compaction for workflows with
+  distinct phases.
+- **Untrusted content is an injection surface.** Tool-risk gating
+  classifies the call, not the payload. `injection-defense` screens
+  payloads — see its `AGENTS.md`.
+- **Session state reconstructible from append-only logs.** New daemon-
+  owned runtime state answers "what survives a crash mid-turn"; write
+  through to run artifacts or the event bus.
+- **Eval fixtures come from real failures.** Seed `eval-harness` from
+  `.kota/runs/` failures, not synthetic specs or simulated users.
 
 ## Live-Run Evaluator Calibration
 
 Fixture `pass^k` catches generator drift; per-run evaluator calibration
 artifacts catch evaluator drift. Contradiction needs a later overlapping
 run that itself carries a failure signal — file-overlap alone would flag
-healthy refactor chains and train autonomy away from correct iteration.
-Pass-with-warnings stays on looser overlap because the critic already
-hedged. Monitor and notify split, mirroring the eval-harness regression
-notify pattern.
+healthy refactor chains. Pass-with-warnings stays on looser overlap
+because the critic already hedged. Monitor and notify split, mirroring
+the eval-harness regression notify pattern.
 
-## Peer Runtime Pattern Decisions
+## External Pattern Decisions
 
-Verdicts on externally visible peer runtime patterns (coordination, memory,
-self-reflection) relative to KOTA's `workflow` + `agent` + `module` +
-bus-event + store model.
+Verdicts on peer patterns relative to KOTA's `workflow` + `agent` +
+`module` + bus-event + store model. Revisit only if a peer ships a
+primitive existing protocols cannot express.
 
-- **crewAI Flows / LangGraph Pregel (workflow DSLs).** Reject. A DSL on
-  workflows creates a second public automation surface and conflicts with
-  definition-driven routing. Durability is met by `.kota/runs/` artifacts,
-  recovery triggers, repair-loop retry, and per-item retry on fan-out.
-- **Vercel AI SDK server/client split.** Adopted. `session` is the tool
-  loop; `daemon` + `client` protocols enforce thin clients.
-- **OpenHands / AutoGen typed multi-agent handoffs.** Adopted. Handoffs
-  travel over typed bus events (decomposer → builder → critic, dispatcher
-  fan-out on idle) and `trigger` steps; payload typing via workflow I/O
-  schemas.
-- **Letta labeled memory blocks (`letta-ai/letta`).** Reject. KOTA's typed
-  stores with provider-registry backends already cover labeled,
-  agent-selectable persistence.
-- **Reflexion verbal self-reflection (`noahshinn/reflexion`).** Reject.
-  Improver workflow + scoped `AGENTS.md` is KOTA's "learn from failure"
-  primitive; a Reflexion lesson log is the forbidden second lessons store.
-- **Hermes Agent (`nousresearch/hermes-agent`).** Reject its runtime
-  self-promoted skills, community skill marketplace, and FTS5 +
-  LLM-summarized session search as new primitives. Reusable guidance must
-  flow through the `module` protocol (dependency declaration, load/unload
-  safety, trust/secrets scope); a runtime skill store duplicates the
-  Reflexion "second lessons store" already rejected. Long-horizon retrieval
-  belongs inside `history`/`memory` providers — index engine (SQLite FTS5,
-  pgvector, etc.) is a provider detail. MCP and external-service tools are
-  just `tool`; cron-style scheduling fits the `workflow` trigger protocol;
-  parallel subagent delegation is the OpenHands/AutoGen entry above.
+- **Workflow DSLs (crewAI Flows, LangGraph Pregel).** Reject. Definition-
+  driven routing + run artifacts + recovery triggers + repair loop cover
+  durability.
+- **Vercel AI SDK server/client split.** Adopted — `daemon` + `client`.
+- **Typed multi-agent handoffs (OpenHands, AutoGen).** Adopted via typed
+  bus events and `trigger` steps.
+- **Labeled memory blocks (Letta) / runtime skill stores (Hermes).**
+  Reject. Typed stores with provider backends cover labeled persistence;
+  runtime self-promoted skills are the forbidden second lessons store.
+- **Verbal self-reflection / strategy banks (Reflexion, ReasoningBank).**
+  Reject. Improver workflow + scoped `AGENTS.md` is the learn-from-
+  failure primitive. A second lessons store is forbidden.
+- **Routines / scheduled agents.** Already the `workflow` trigger
+  protocol; no second automation surface.
+- **Multi-agent coordination patterns.** generator-verifier, orchestrator-
+  subagent, agent teams, message bus, shared state all map onto existing
+  primitives (builder/critic, `delegate` + `composition`, dispatcher fan-
+  out, event bus, `composition.workspace` + stores).
+- **Parallel-agent desktop UIs.** Client-surface pattern; new clients
+  consume the daemon control API. No second runtime session host.
+- **Claude Managed Agents platform posture.** Reject. KOTA is local-first,
+  operator-controlled; outcome-iteration is already builder + critic +
+  repair loop.
+- **Advisor / executor-escalates.** Park. Would add a second cost-
+  sensitive routing surface under `agent-harness`; revisit only inside a
+  harness adapter if a concrete workflow benefits.
+- **AGI capability-level scoring (Levels of AGI).** Reject as an eval
+  primitive. `eval-harness` scores task outcomes, not capability classes.
+- **Harmful-manipulation toolkit / behavioral-disposition alignment.**
+  Reject. Threat models do not apply to a first-party operator daemon;
+  critic anchors on artifacts, not self-reports.
 
-Revisit if a peer ships a primitive whose rationale is not captured by
-KOTA's existing protocols.
+## Prompt Hierarchy And Harness Posture
 
-Scoped contracts for module-specific mechanisms live in the owning
-directory's `AGENTS.md`:
+- **Instruction hierarchy is KOTA's prompt model.** SDK system + core
+  safety rails ≈ Root/System; operator-set autonomy mode + module prompt
+  state ≈ Developer; channel/session user message ≈ User; tool/web
+  outputs ≈ untrusted (enforced by `injection-defense`). A user message
+  or tool output must not silently escalate the operator-set autonomy
+  mode.
+- **Trustworthy-agents four-layer injection defense maps onto existing
+  surfaces.** Model/harness ≈ SDK harness boundary; tools ≈
+  `src/core/tools/guardrails.ts` + risk classification; runtime ≈
+  `approval-queue` + autonomy mode + `injection-defense` middleware. Do
+  not import Plan-Mode "authorize strategies, not actions" wholesale; if
+  ever needed it belongs as a new autonomy mode, not a parallel approval
+  surface.
+- **Opus 4.7 harness defaults at the agent-step layer.** Delegate-don't-
+  pair (front-load intent, constraints, success criteria in one turn),
+  `xhigh` as default effort (not `max`), adaptive thinking rather than
+  fixed reasoning budgets, batch-upfront prompting. The task contract +
+  success-criteria files enforce this shape; keep agent steps from
+  reintroducing per-turn clarification loops or fixed reasoning caps.
+- **Tool-design hygiene.** High bar for new tools; prefer discoverable
+  surfaces (file read, grep, scoped `AGENTS.md`, module prompt state)
+  over a new tool. Reinforces `src/AGENTS.md` "prefer clear discoverable
+  surfaces over injected context summaries."
+
+## Scoped Contracts
+
+Module-specific mechanisms live in the owning directory's `AGENTS.md`:
 
 - `src/modules/injection-defense/AGENTS.md` — content-ingest screening
   middleware contract.
 - `src/modules/autonomy/workflows/builder/AGENTS.md` — critic runtime-probe
   protocol for non-artifact outcomes.
-
-## OpenAI Research Distillation
-
-Decision-level takeaways from the autonomy-eval-adjacent OpenAI threads on
-`data/watchlist.yaml`. Snapshot summaries belong there; only KOTA decisions
-belong here.
-
-- **Instruction hierarchy is already KOTA's prompt model — keep it.**
-  Selective lower-tier override on conflict (arXiv 2404.13208) maps onto
-  the SDK/module prompt-state vs. channel/user-message split, with
-  `injection-defense` wrapping ingested tool/web content as untrusted.
-  Reject any pattern that lets module prompt state echo tool/web payloads
-  as authoritative, or lets a channel/user message sit above the
-  operator-set autonomy mode.
-- **Critic input stays artifact-only because CoT monitorability is fragile.**
-  Reasoning-trace oversight (arXiv 2507.11473) is easily-degraded and
-  liable to vanish silently under downstream training or harness choices.
-  Keep critic and improver judges anchored on diff + repo state + run
-  artifacts (+ optional runtime probe per `workflows/builder/AGENTS.md`),
-  not raw thinking traces. Do not add a "judge from thinking" optimization.
-- **Model Spec chain-of-command maps onto KOTA roles.** Spec ranks
-  Root > System > Developer > User > Guideline, with tool outputs and
-  quoted content carrying no authority by default. KOTA mapping: SDK
-  system prompt + core safety rails ≈ Root/System; operator-set autonomy
-  mode + module prompt state ≈ Developer; channel/session user message ≈
-  User; tool/web outputs ≈ untrusted (enforced by `injection-defense`).
-  Make the mapping explicit at the autonomy-mode boundary so a user
-  message or tool output cannot silently escalate the operator-set mode.
 
 ## Agent Judge Runtime Contract
 
