@@ -1,12 +1,12 @@
 ---
 id: task-ship-whisper-transcription-provider-module
 title: Ship Whisper transcription provider module
-status: backlog
+status: done
 priority: p2
 area: modules
 summary: Ship an OpenAI Whisper TranscriptionProvider module so Telegram voice messages transcribe against a real production backend.
 created_at: 2026-04-22T04:52:43.271Z
-updated_at: 2026-04-22T04:52:43.271Z
+updated_at: 2026-04-22T05:11:32.768Z
 ---
 
 ## Problem

@@ -416,6 +416,35 @@
             }
           }
         },
+        "transcription-whisper": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "apiKey"
+          ],
+          "properties": {
+            "apiKey": {
+              "type": "string",
+              "minLength": 1
+            },
+            "baseUrl": {
+              "type": "string",
+              "minLength": 1
+            },
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeoutMs": {
+              "type": "number",
+              "minimum": 1000
+            },
+            "maxRetries": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        },
         "vercel-adapter": {
           "type": "object",
           "additionalProperties": false,
