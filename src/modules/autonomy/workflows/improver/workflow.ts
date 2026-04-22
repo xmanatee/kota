@@ -26,11 +26,6 @@ import {
   writeImproverEvidenceGateState,
 } from "./evidence-gate.js";
 
-// Measured improver cadence (~60-90m between runs on recent history) is
-// already bounded by this cooldown rather than trigger firing rate, so keep
-// 60m as the single pacing constant across triggers.
-export const IMPROVER_COOLDOWN_MS = 60 * 60 * 1000;
-
 export const agent: AgentDef = {
   name: "improver",
   role: "Improve the autonomous development system itself using evidence from recent runs.",
@@ -77,12 +72,10 @@ const improverWorkflow: WorkflowDefinitionInput = {
     {
       event: "workflow.completed",
       filter: { tags: ["monitored"] },
-      cooldownMs: IMPROVER_COOLDOWN_MS,
     },
     // Distinct trigger class: recovery re-entry after a daemon crash.
     {
       event: "runtime.recovered",
-      cooldownMs: IMPROVER_COOLDOWN_MS,
     },
   ],
   steps: [

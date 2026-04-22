@@ -1,7 +1,23 @@
 import { clearScreenDown, cursorTo } from "node:readline";
 import { styleText } from "node:util";
-import type { WorkflowRunStatus } from "#core/workflow/run-types.js";
-import { formatDuration, formatTimeAgo, formatUptime } from "./format-utils.js";
+import type { WorkflowQueuedRun, WorkflowRunStatus } from "#core/workflow/run-types.js";
+import type { WorkflowAgentBackoffState } from "#core/workflow/types.js";
+import { abbreviateRunId, formatDuration, formatTimeAgo, formatUptime } from "./format-utils.js";
+
+export type DashboardTaskQueue = {
+	counts: {
+		backlog: number;
+		ready: number;
+		doing: number;
+		blocked: number;
+		done: number;
+		dropped: number;
+	};
+	inboxCount: number;
+	openCount: number;
+	pullableCount: number;
+	actionableCount: number;
+};
 
 export type DashboardSnapshot = {
 	pid: number;
@@ -15,10 +31,15 @@ export type DashboardSnapshot = {
 	lastCompletedStatus?: WorkflowRunStatus;
 	activeRuns: Array<{ runId: string; workflow: string; startedAt: string }>;
 	pendingRunCount: number;
+	pendingRuns?: WorkflowQueuedRun[];
 	queueLength: number;
 	dispatchPaused: boolean;
+	dispatchWindowBlocked?: boolean;
+	dispatchWindowOpensAt?: string;
+	agentBackoff?: WorkflowAgentBackoffState;
 	definitionCount: number;
 	sessionCount: number;
+	taskQueue?: DashboardTaskQueue;
 };
 
 const MAX_LOG_LINES = 20;
@@ -38,6 +59,64 @@ function statusIndicator(status: WorkflowRunStatus): string {
 		case "completed-with-warnings":
 			return styleText("yellow", "warnings");
 	}
+}
+
+function formatWaitUntil(notBeforeMs: number): string {
+	const remainingMs = notBeforeMs - Date.now();
+	if (remainingMs <= 0) return styleText("green", "ready");
+	const seconds = Math.ceil(remainingMs / 1000);
+	const minutes = Math.floor(seconds / 60);
+	const hours = Math.floor(minutes / 60);
+	const duration =
+		hours > 0
+			? `${hours}h ${minutes % 60}m`
+			: minutes > 0
+				? `${minutes}m ${seconds % 60}s`
+				: `${seconds}s`;
+	return `in ${duration}`;
+}
+
+function pendingRunLine(run: WorkflowQueuedRun): string {
+	const wait = formatWaitUntil(run.notBeforeMs);
+	const id = run.runId ? abbreviateRunId(run.runId) : "-";
+	return `  ${styleText("yellow", "\u25cb")} ${run.workflowName}  ${wait}  ${styleText("dim", run.trigger.event)}  ${styleText("dim", id)}`;
+}
+
+function describeOperationalState(
+	snapshot: DashboardSnapshot,
+	pendingRuns: readonly WorkflowQueuedRun[],
+): string {
+	if (snapshot.dispatchPaused) return styleText("yellow", "dispatch paused");
+	if (snapshot.dispatchWindowBlocked) {
+		const opens = snapshot.dispatchWindowOpensAt
+			? ` until ${new Date(snapshot.dispatchWindowOpensAt).toLocaleTimeString()}`
+			: "";
+		return styleText("yellow", `outside dispatch window${opens}`);
+	}
+	if (snapshot.agentBackoff) {
+		return styleText(
+			"yellow",
+			`agent backoff ${snapshot.agentBackoff.kind} until ${new Date(snapshot.agentBackoff.until).toLocaleTimeString()}`,
+		);
+	}
+	if (snapshot.activeRuns.length > 0) {
+		const names = snapshot.activeRuns.map((run) => run.workflow).join(", ");
+		return styleText("green", `running ${names}`);
+	}
+	const readyPending = pendingRuns.filter((run) => run.notBeforeMs <= Date.now());
+	if (readyPending.length > 0) {
+		return styleText("green", `${readyPending.length} queued run${readyPending.length === 1 ? "" : "s"} ready`);
+	}
+	if (snapshot.taskQueue && (snapshot.taskQueue.inboxCount > 0 || snapshot.taskQueue.pullableCount > 0)) {
+		return "work available; waiting for idle dispatch";
+	}
+	if (pendingRuns.length > 0) {
+		const next = pendingRuns.reduce((best, run) =>
+			run.notBeforeMs < best.notBeforeMs ? run : best,
+		);
+		return `waiting for ${next.workflowName} ${formatWaitUntil(next.notBeforeMs)}`;
+	}
+	return "idle; waiting for work";
 }
 
 type StatCell = { label: string; value: string };
@@ -90,6 +169,8 @@ export function renderDashboard(
 			? `$${snapshot.totalCostUsd.toFixed(2)}`
 			: "-";
 	const pausedRaw = snapshot.dispatchPaused ? "yes" : "no";
+	const pendingRuns = snapshot.pendingRuns ?? [];
+	const pendingCount = pendingRuns.length || snapshot.pendingRunCount;
 
 	const statRows: StatRow[] = [
 		[
@@ -99,6 +180,10 @@ export function renderDashboard(
 		[
 			{ label: "Cost", value: costStr },
 			{ label: "Defs", value: String(snapshot.definitionCount) },
+		],
+		[
+			{ label: "Active", value: String(snapshot.activeRuns.length) },
+			{ label: "Pending", value: String(pendingCount) },
 		],
 		[{ label: "Paused", value: pausedRaw }],
 	];
@@ -113,6 +198,22 @@ export function renderDashboard(
 	for (const line of statLines) lines.push(line);
 	lines.push("");
 
+	lines.push(styleText("bold", "State"));
+	lines.push(`  ${describeOperationalState(snapshot, pendingRuns)}`);
+	lines.push("");
+
+	if (snapshot.taskQueue) {
+		const task = snapshot.taskQueue;
+		lines.push(styleText("bold", "Work"));
+		lines.push(
+			`  Inbox ${task.inboxCount}  Ready ${task.counts.ready}  Backlog ${task.counts.backlog}  Doing ${task.counts.doing}  Blocked ${task.counts.blocked}`,
+		);
+		lines.push(
+			`  Pullable ${task.pullableCount}  Actionable ${task.actionableCount}  Open ${task.openCount}`,
+		);
+		lines.push("");
+	}
+
 	if (snapshot.activeRuns.length > 0) {
 		lines.push(
 			styleText("bold", `Active (${snapshot.activeRuns.length})`),
@@ -126,10 +227,19 @@ export function renderDashboard(
 		lines.push("");
 	}
 
-	if (snapshot.pendingRunCount > 0) {
-		lines.push(
-			`${styleText("bold", "Pending")} ${snapshot.pendingRunCount}`,
-		);
+	if (pendingCount > 0) {
+		lines.push(`${styleText("bold", `Pending (${pendingCount})`)}`);
+		if (pendingRuns.length > 0) {
+			for (const run of pendingRuns
+				.slice()
+				.sort((a, b) => a.notBeforeMs - b.notBeforeMs)
+				.slice(0, 5)) {
+				lines.push(pendingRunLine(run));
+			}
+			if (pendingRuns.length > 5) {
+				lines.push(styleText("dim", `  +${pendingRuns.length - 5} more`));
+			}
+		}
 		lines.push("");
 	}
 

@@ -166,6 +166,68 @@ describe("WorkflowRuntime", () => {
     expect(runIds.length).toBe(2);
   });
 
+  it("emits idle while only non-idle queued work is delayed", async () => {
+    const bus = new EventBus();
+    const startedWorkflows: string[] = [];
+    bus.on("workflow.started", (payload) => {
+      startedWorkflows.push(payload.workflow);
+    });
+
+    const store = new WorkflowRunStore(projectDir);
+    store.setPendingRuns([
+      {
+        runId: "run-improver-delayed",
+        workflowName: "improver",
+        trigger: {
+          event: "workflow.completed",
+          payload: {
+            workflow: "builder",
+            runId: "run-builder-success",
+            status: "success",
+            triggerEvent: "autonomy.queue.available",
+            durationMs: 1000,
+            definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+            runDir: ".kota/runs/run-builder-success",
+            tags: ["monitored"],
+          },
+        },
+        enqueuedAtMs: Date.now() - 60_000,
+        notBeforeMs: Date.now() + 60_000,
+      },
+    ]);
+
+    const runtime = new WorkflowRuntime({
+      bus,
+      projectDir,
+      idleIntervalMs: 10,
+      workflows: [
+        registerWorkflowDefinition("test/improver.ts", {
+          name: "improver",
+          triggers: [
+            {
+              event: "workflow.completed",
+              filter: { tags: ["monitored"] },
+              cooldownMs: 30_000,
+            },
+          ],
+          steps: [{ id: "improve", type: "emit", event: "improver.done" }],
+        }),
+        registerWorkflowDefinition("test/dispatcher.ts", {
+          name: "dispatcher",
+          triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+          steps: [{ id: "dispatch", type: "emit", event: "dispatcher.done" }],
+        }),
+      ],
+    });
+
+    runtime.start();
+    await wait(80);
+    await runtime.stop();
+
+    expect(startedWorkflows).toContain("dispatcher");
+    expect(startedWorkflows).not.toContain("improver");
+  });
+
   it("supports an explorer -> builder -> improver pipeline", async () => {
     const bus = new EventBus();
     const seenWorkflows: string[] = [];

@@ -294,5 +294,57 @@ describe("cooldown race condition", () => {
       expect(picked).not.toBeNull();
       expect(picked!.runId).toBe("run-explorer-2");
     });
+
+    it("does not preserve stale queued delays after a trigger cooldown is removed", () => {
+      const initialState: WorkflowRuntimeState = {
+        completedRuns: 1,
+        pendingRuns: [],
+        workflows: {
+          explorer: {
+            lastCompletedAt: new Date().toISOString(),
+            lastStatus: "success",
+          },
+        },
+      };
+      writeState(statePath, initialState);
+
+      const definition: WorkflowDefinition = {
+        name: "explorer",
+        definitionPath: "test/explorer.ts",
+        moduleRoot: "/test-module-root",
+        enabled: true,
+        recoveryCapable: false,
+        tags: [],
+        triggers: [{ event: "queue.empty", cooldownMs: 0 }],
+        steps: [{ id: "explore", type: "emit", event: "explorer.done" }],
+      };
+
+      const queue = new WorkflowQueueManager({
+        store: {
+          readState: () => readState(statePath),
+          setPendingRuns: () => {},
+        } as any,
+        getActiveBackoff: () => null,
+        shouldSuppressBackoff: () => null,
+        workflowUsesAgent: () => false,
+        isActiveRun: () => false,
+        getDefinitions: () => [definition],
+        log: () => {},
+      });
+
+      queue.setRuns([
+        {
+          runId: "run-explorer-stale-delay",
+          workflowName: "explorer",
+          trigger: { event: "queue.empty", payload: {} },
+          enqueuedAtMs: Date.now() - 60_000,
+          notBeforeMs: Date.now() + 3_600_000,
+        },
+      ]);
+
+      const picked = queue.pick();
+      expect(picked).not.toBeNull();
+      expect(picked!.runId).toBe("run-explorer-stale-delay");
+    });
   });
 });

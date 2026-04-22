@@ -104,7 +104,61 @@ describe("renderDashboard", () => {
 		const output = stripAnsi(
 			renderDashboard(makeSnapshot({ pendingRunCount: 3 }), []),
 		);
-		expect(output).toContain("Pending 3");
+		expect(output).toContain("Pending");
+		expect(output).toContain("3");
+	});
+
+	it("shows pending run names, trigger events, and readiness", () => {
+		const output = stripAnsi(
+			renderDashboard(
+				makeSnapshot({
+					pendingRunCount: 1,
+					pendingRuns: [
+						{
+							runId: "2026-04-21T17-01-09-667Z-improver-w8047d",
+							workflowName: "improver",
+							trigger: { event: "workflow.completed", payload: {} },
+							enqueuedAtMs: Date.now() - 60_000,
+							notBeforeMs: Date.now() - 1_000,
+						},
+					],
+				}),
+				[],
+			),
+		);
+		expect(output).toContain("Pending (1)");
+		expect(output).toContain("improver");
+		expect(output).toContain("workflow.completed");
+		expect(output).toContain("ready");
+		expect(output).toContain("w8047d");
+	});
+
+	it("shows task queue context when present", () => {
+		const output = stripAnsi(
+			renderDashboard(
+				makeSnapshot({
+					taskQueue: {
+						inboxCount: 3,
+						openCount: 12,
+						pullableCount: 8,
+						actionableCount: 2,
+						counts: {
+							backlog: 6,
+							ready: 2,
+							doing: 0,
+							blocked: 3,
+							done: 100,
+							dropped: 4,
+						},
+					},
+				}),
+				[],
+			),
+		);
+		expect(output).toContain("Work");
+		expect(output).toContain("Inbox 3");
+		expect(output).toContain("Backlog 6");
+		expect(output).toContain("Actionable 2");
 	});
 
 	it("shows last completed workflow", () => {

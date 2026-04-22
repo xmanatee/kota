@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
-import improverWorkflow, { IMPROVER_COOLDOWN_MS } from "./workflow.js";
+import improverWorkflow from "./workflow.js";
 
 vi.mock("#modules/autonomy/commit.js", () => ({
   commitWorkflowChanges: vi.fn(),
@@ -60,11 +60,9 @@ describe("improver workflow", () => {
     );
   }
 
-  it("all triggers have cooldowns to prevent duplicate runs", () => {
+  it("uses evidence gating rather than trigger cooldowns for pacing", () => {
     for (const trigger of improverWorkflow.triggers) {
-      expect(trigger.cooldownMs, `${trigger.event} should have a cooldown`).toBe(
-        IMPROVER_COOLDOWN_MS,
-      );
+      expect(trigger.cooldownMs, `${trigger.event} should not delay evidence checks`).toBeUndefined();
     }
   });
 

@@ -11,6 +11,7 @@ import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { LogFormat } from "#core/util/log-format.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
+import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { DaemonDashboard } from "./dashboard.js";
 import { buildEventsCommand } from "./events-cli.js";
 import { abbreviateRunId, formatDuration, formatTimeAgo, formatUptime, padLabel, terminalWidth, truncateLine } from "./format-utils.js";
@@ -285,7 +286,10 @@ const daemonModule: KotaModule = {
         });
 
         if (useDashboard) {
-          const dashboard = new DaemonDashboard(() => daemon.getDashboardSnapshot());
+          const dashboard = new DaemonDashboard(() => ({
+            ...daemon.getDashboardSnapshot(),
+            taskQueue: getRepoTaskQueueSnapshot(projectDir),
+          }));
           dashboard.start();
           try {
             await daemon.start();

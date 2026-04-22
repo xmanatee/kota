@@ -287,8 +287,8 @@ describe("autonomous workflow loop integration", () => {
       // ── Improver triggered by any monitored completion ────────────────────
       // Improver now fires on any monitored completion (success or failure) —
       // it reads 24h/7d aggregates, not one specific run, so it's
-      // entity-agnostic by design. Cooldown (60m) is the real pacing gate,
-      // so only the first monitored completion per hour fires improver.
+      // entity-agnostic by design. The evidence gate is the pacing gate: it
+      // skips when recent run data has no new actionable signal.
       const improverRun = completedRuns.find((r) => r.workflow === "improver");
       expect(improverRun, "improver must be triggered by a monitored completion").toBeDefined();
       expect(improverRun?.triggerEvent).toBe("workflow.completed");

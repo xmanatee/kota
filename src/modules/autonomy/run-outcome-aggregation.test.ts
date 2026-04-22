@@ -179,6 +179,21 @@ describe("tallyRepairFailures", () => {
     ]);
     expect(tallyRepairFailures([run])).toEqual([]);
   });
+
+  it("ignores numeric repair iteration summaries that are not detailed repair-loop evidence", () => {
+    const run = makeRun([
+      {
+        id: "calibration",
+        type: "code",
+        status: "success",
+        startedAt: "2026-04-16T00:00:00.000Z",
+        completedAt: "2026-04-16T00:00:01.000Z",
+        durationMs: 1000,
+        output: { repairIterations: 1 },
+      },
+    ]);
+    expect(tallyRepairFailures([run])).toEqual([]);
+  });
 });
 
 function makeWorkflowRun(
@@ -474,5 +489,37 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
 
     const result = aggregateRunOutcomes(runsDir);
     expect(result.latestActionableRunAt).toBeNull();
+  });
+
+  it("does not treat numeric repair iteration summaries as repair trips", () => {
+    const runDir = join(runsDir, "summary-only-builder");
+    mkdirSync(runDir, { recursive: true });
+    const metadata: WorkflowRunMetadata = {
+      id: "summary-only-builder",
+      workflow: "builder",
+      definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+      trigger: { event: "runtime.idle", payload: {} },
+      startedAt: new Date(Date.now() - 60_000).toISOString(),
+      completedAt: "2026-04-21T03:00:00.000Z",
+      status: "success",
+      durationMs: 500_000,
+      runDir: "summary-only-builder",
+      steps: [
+        {
+          id: "write-calibration-artifact",
+          type: "code",
+          status: "success",
+          startedAt: "2026-04-21T03:00:00.000Z",
+          completedAt: "2026-04-21T03:00:00.001Z",
+          durationMs: 1,
+          output: { repairIterations: 1 },
+        },
+      ],
+    };
+    writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata));
+
+    const result = aggregateRunOutcomes(runsDir);
+    expect(result.latestActionableRunAt).toBeNull();
+    expect(result.topRepairFailures24h).toEqual([]);
   });
 });

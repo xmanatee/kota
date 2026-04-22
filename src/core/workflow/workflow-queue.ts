@@ -169,13 +169,17 @@ export class WorkflowQueueManager {
           const trigger = definition.triggers.find(
             (t) => t.event === item.trigger.event,
           );
-          if (trigger && trigger.cooldownMs > 0) {
-            const lastCompletedAt =
-              freshState.workflows[item.workflowName]?.lastCompletedAt;
-            if (lastCompletedAt) {
-              const freshEligibleAtMs =
-                new Date(lastCompletedAt).getTime() + trigger.cooldownMs;
-              effectiveNotBefore = Math.max(effectiveNotBefore, freshEligibleAtMs);
+          if (trigger) {
+            if (trigger.cooldownMs > 0) {
+              const lastCompletedAt =
+                freshState.workflows[item.workflowName]?.lastCompletedAt;
+              if (lastCompletedAt) {
+                const freshEligibleAtMs =
+                  new Date(lastCompletedAt).getTime() + trigger.cooldownMs;
+                effectiveNotBefore = Math.max(effectiveNotBefore, freshEligibleAtMs);
+              }
+            } else {
+              effectiveNotBefore = Math.min(effectiveNotBefore, now);
             }
           }
         }

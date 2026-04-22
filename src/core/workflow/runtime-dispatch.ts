@@ -177,7 +177,10 @@ export function emitIdleEvent(state: WorkflowRuntimeDispatchState): void {
     (msg) => state.log(msg),
   );
   maybeStartNext(state);
-  if (state.stopping || state.activeRuns.size > 0 || state.wfQueue.length > 0) return;
+  const idleTriggerAlreadyQueued = state.wfQueue
+    .getRuns()
+    .some((run) => run.trigger.event === "runtime.idle");
+  if (state.stopping || state.activeRuns.size > 0 || idleTriggerAlreadyQueued) return;
   const dispatchWindow = state.config?.scheduler?.dispatchWindow;
   if (dispatchWindow && !isWithinDispatchWindow(dispatchWindow)) return;
   state.runtimeConfig.bus.emit("runtime.idle", {

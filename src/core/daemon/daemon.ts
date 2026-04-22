@@ -363,6 +363,7 @@ export class Daemon {
 
   getDashboardSnapshot() {
     const wfState = this.workflows.getState();
+    const dispatchWindow = this.workflows.getDispatchWindowStatus();
     return {
       pid: this.state.pid,
       startedAt: this.state.startedAt,
@@ -375,8 +376,12 @@ export class Daemon {
       lastCompletedStatus: this.state.lastCompletedStatus,
       activeRuns: wfState.activeRuns ?? [],
       pendingRunCount: wfState.pendingRuns.length,
+      pendingRuns: wfState.pendingRuns,
       queueLength: wfState.queueLength,
       dispatchPaused: this.workflows.isDispatchPaused(),
+      dispatchWindowBlocked: dispatchWindow.blocked,
+      dispatchWindowOpensAt: dispatchWindow.opensAt,
+      agentBackoff: wfState.agentBackoff,
       definitionCount: this.workflows.getDefinitionCount(),
       sessionCount: this.sessions.size,
     };

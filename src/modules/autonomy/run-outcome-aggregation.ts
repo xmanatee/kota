@@ -28,6 +28,10 @@ type DurationOutlier = {
   commitSubject?: string;
 };
 
+type RepairIteration = {
+  failures?: Array<{ id: string }>;
+};
+
 export type RunOutcomeAggregation = {
   failureRates24h: WorkflowFailureRate[];
   failureRates7d: WorkflowFailureRate[];
@@ -77,12 +81,8 @@ export function tallyRepairFailures(runs: WorkflowRunMetadata[]): RepairCheckTal
   >();
   for (const run of runs) {
     for (const step of run.steps) {
-      const output = step.output as
-        | { repairIterations?: Array<{ failures?: Array<{ id: string }> }> }
-        | undefined;
-      if (!output?.repairIterations?.length) continue;
-
-      const iterations = output.repairIterations;
+      const iterations = readRepairIterations(step.output);
+      if (iterations.length === 0) continue;
       const stepSucceeded = step.status === "success";
       const lastIter = iterations[iterations.length - 1];
       const terminalIds = stepSucceeded
@@ -173,15 +173,18 @@ function enrichOutliersWithSubjects(
 
 function runHasRepairTrip(run: WorkflowRunMetadata): boolean {
   for (const step of run.steps) {
-    const output = step.output as
-      | { repairIterations?: Array<{ failures?: Array<{ id: string }> }> }
-      | undefined;
-    const iterations = output?.repairIterations ?? [];
+    const iterations = readRepairIterations(step.output);
     for (const iter of iterations) {
       if ((iter.failures ?? []).length > 0) return true;
     }
   }
   return false;
+}
+
+function readRepairIterations(output: unknown): RepairIteration[] {
+  if (!output || typeof output !== "object") return [];
+  const iterations = (output as { repairIterations?: unknown }).repairIterations;
+  return Array.isArray(iterations) ? iterations : [];
 }
 
 function latestActionableCompletedAt(
