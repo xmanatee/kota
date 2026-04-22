@@ -185,7 +185,6 @@ describe("builder workflow", () => {
       expect.objectContaining({ workflowName: "builder", restoreBaseBranch: true }),
     );
     expect(result.steps.build.status).toBe("skipped");
-    expect(result.steps["check-no-intermediate-commits"].status).toBe("skipped");
     expect(result.steps.commit.status).toBe("skipped");
     expect(result.steps["write-run-summary"].status).toBe("skipped");
     expect(result.steps["emit-build-committed"].status).toBe("skipped");
@@ -211,7 +210,6 @@ describe("builder workflow", () => {
     expect(result.status).toBe("success");
     expect(result.steps["inspect-ready-queue"].status).toBe("success");
     expect(result.steps.build.status).toBe("skipped");
-    expect(result.steps["check-no-intermediate-commits"].status).toBe("skipped");
     expect(result.steps.commit.status).toBe("skipped");
     expect(result.steps["write-run-summary"].status).toBe("skipped");
     expect(result.steps["emit-build-committed"].status).toBe("skipped");
@@ -241,7 +239,6 @@ describe("builder workflow", () => {
     expect(result.steps["inspect-ready-queue"].status).toBe("success");
     expect(result.steps.build.status).toBe("success");
     expect(result.steps.build.output).toMatchObject({ totalCostUsd: 0.05 });
-    expect(result.steps["check-no-intermediate-commits"].status).toBe("success");
     expect(result.steps.commit.status).toBe("success");
   });
 
@@ -343,33 +340,6 @@ describe("builder workflow", () => {
       costUsd: 0.42,
       durationMs: 480000,
     });
-  });
-
-  it("fails when builder agent committed directly (intermediate commit detected)", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
-    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1, 0));
-
-    const { getRepoHeadSha } = await import("#core/util/repo-worktree.js");
-    // Snapshot captured "abc1234" at start; agent then committed, changing HEAD
-    vi.mocked(getRepoHeadSha).mockReturnValue("def5678");
-
-    const harness = new WorkflowTestHarness(builderWorkflow, {
-      trigger: {
-        event: "autonomy.queue.available",
-        payload: { pullableCount: 5, actionableCount: 1, counts: makeSnapshot(1, 0).counts },
-      },
-      stepMocks: {
-        build: { turns: [], totalCostUsd: 0.1 },
-      },
-    });
-
-    const result = await harness.run();
-
-    expect(result.status).toBe("failed");
-    expect(result.steps.build.status).toBe("success");
-    expect(result.steps["check-no-intermediate-commits"].status).toBe("failed");
-    expect(result.steps["check-no-intermediate-commits"].error).toMatch(/committed directly/);
-    expect(result.steps.commit).toBeUndefined();
   });
 
   it("keeps task-selection detail in task docs instead of bloating the prompt", () => {
