@@ -63,28 +63,32 @@ Verdicts on externally visible peer runtime patterns (coordination, memory,
 self-reflection) relative to KOTA's `workflow` + `agent` + `module` +
 bus-event + store model.
 
-- **crewAI Flows (router/and/or DSL).** Reject. A DSL on workflows creates
-  a second public automation surface and conflicts with definition-driven
-  routing (`workflows/AGENTS.md`) and "typed protocols over parallel DSLs".
-  Existing step kinds already cover the coordination needs.
-- **LangGraph Pregel graph.** Reject the DSL; durability is met by
-  `.kota/runs/` artifacts, recovery triggers, repair-loop retry, and
-  per-item retry on fan-out. A graph primitive would reintroduce the
-  workflow-name-inventory anti-pattern.
+- **crewAI Flows / LangGraph Pregel (workflow DSLs).** Reject. A DSL on
+  workflows creates a second public automation surface and conflicts with
+  definition-driven routing. Durability is met by `.kota/runs/` artifacts,
+  recovery triggers, repair-loop retry, and per-item retry on fan-out.
 - **Vercel AI SDK server/client split.** Adopted. `session` is the tool
   loop; `daemon` + `client` protocols enforce thin clients.
 - **OpenHands / AutoGen typed multi-agent handoffs.** Adopted. Handoffs
   travel over typed bus events (decomposer → builder → critic, dispatcher
-  fan-out on idle) and `trigger` steps; payload typing via workflow
-  input/output schemas.
-- **Letta labeled memory blocks.** Reject. KOTA's typed stores (history,
-  memory, knowledge, working memory, run artifacts) with provider-registry
-  backends already cover labeled, agent-selectable persistence. Evidence:
-  `letta-ai/letta`.
-- **Reflexion verbal self-reflection.** Reject. Improver workflow + scoped
-  `AGENTS.md` guidance is KOTA's "learn from failure" primitive; a Reflexion
-  lesson log is the forbidden second lessons store. Evidence:
-  `noahshinn/reflexion`.
+  fan-out on idle) and `trigger` steps; payload typing via workflow I/O
+  schemas.
+- **Letta labeled memory blocks (`letta-ai/letta`).** Reject. KOTA's typed
+  stores with provider-registry backends already cover labeled,
+  agent-selectable persistence.
+- **Reflexion verbal self-reflection (`noahshinn/reflexion`).** Reject.
+  Improver workflow + scoped `AGENTS.md` is KOTA's "learn from failure"
+  primitive; a Reflexion lesson log is the forbidden second lessons store.
+- **Hermes Agent (`nousresearch/hermes-agent`).** Reject its runtime
+  self-promoted skills, community skill marketplace, and FTS5 +
+  LLM-summarized session search as new primitives. Reusable guidance must
+  flow through the `module` protocol (dependency declaration, load/unload
+  safety, trust/secrets scope); a runtime skill store duplicates the
+  Reflexion "second lessons store" already rejected. Long-horizon retrieval
+  belongs inside `history`/`memory` providers — index engine (SQLite FTS5,
+  pgvector, etc.) is a provider detail. MCP and external-service tools are
+  just `tool`; cron-style scheduling fits the `workflow` trigger protocol;
+  parallel subagent delegation is the OpenHands/AutoGen entry above.
 
 Revisit if a peer ships a primitive whose rationale is not captured by
 KOTA's existing protocols.

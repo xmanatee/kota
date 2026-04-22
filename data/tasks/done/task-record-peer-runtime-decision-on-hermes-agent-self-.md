@@ -1,12 +1,12 @@
 ---
 id: task-record-peer-runtime-decision-on-hermes-agent-self-
 title: Record peer-runtime decision on Hermes Agent self-improving skills and FTS5 session search
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Evaluate Hermes Agent's closed-loop autonomous skill generation, FTS5+LLM session search, and Agentskills.io skill interop against KOTA's module/workflow/session model and record an adopt/reject verdict in the autonomy peer-runtime decisions.
 created_at: 2026-04-22T19:39:08.593Z
-updated_at: 2026-04-22T19:39:08.593Z
+updated_at: 2026-04-22T20:02:09.234Z
 ---
 
 ## Problem
