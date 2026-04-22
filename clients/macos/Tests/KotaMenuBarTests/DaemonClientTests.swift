@@ -175,6 +175,126 @@ final class DaemonClientTests: XCTestCase {
         try await client.dismissOwnerQuestion(id: "oq-1", reason: "stale")
     }
 
+    func testVoiceTranscribeSuccessReturnsText() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/voice/transcribe")
+            XCTAssertEqual(request.httpMethod, "POST")
+            let body = request.readBody()
+            let obj = try? JSONSerialization.jsonObject(with: body!) as? [String: Any]
+            XCTAssertEqual(obj?["mimeType"] as? String, "audio/mp4")
+            XCTAssertEqual(obj?["filename"] as? String, "clip.m4a")
+            // base64 of [1,2,3] is AQID
+            XCTAssertEqual(obj?["audioBase64"] as? String, "AQID")
+            let respBody = #"{"text": "hello macos", "language": "en"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+        let result = try await client.voiceTranscribe(
+            audio: Data([1, 2, 3]),
+            mimeType: "audio/mp4",
+            filename: "clip.m4a"
+        )
+        switch result {
+        case .success(let text, let language):
+            XCTAssertEqual(text, "hello macos")
+            XCTAssertEqual(language, "en")
+        case .failure:
+            XCTFail("expected success")
+        }
+    }
+
+    func testVoiceTranscribeSurfacesTypedCodeOn503() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            let respBody = #"""
+            {"error": "No transcription provider is registered", "code": "stt-unavailable"}
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 503, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+        let result = try await client.voiceTranscribe(audio: Data([1]), mimeType: "audio/mp4")
+        switch result {
+        case .success:
+            XCTFail("expected failure")
+        case .failure(let failure):
+            XCTAssertEqual(failure.status, 503)
+            XCTAssertEqual(failure.code, "stt-unavailable")
+            XCTAssertEqual(failure.error, "No transcription provider is registered")
+        }
+    }
+
+    func testVoiceSynthesizeSuccessReturnsAudio() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/voice/synthesize")
+            XCTAssertEqual(request.httpMethod, "POST")
+            // base64 of [9,8,7,6] is CQgHBg==
+            let respBody = #"""
+            {"audioBase64": "CQgHBg==", "mimeType": "audio/mpeg", "format": "mp3"}
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+        let result = try await client.voiceSynthesize(text: "speak me")
+        switch result {
+        case .success(let audio, let mimeType, let format):
+            XCTAssertEqual(audio, Data([9, 8, 7, 6]))
+            XCTAssertEqual(mimeType, "audio/mpeg")
+            XCTAssertEqual(format, "mp3")
+        case .failure:
+            XCTFail("expected success")
+        }
+    }
+
+    func testVoiceSynthesizeSurfacesFormatUnsupported() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            let respBody = #"""
+            {"error": "Format flac not supported by provider", "code": "tts-format-unsupported", "supported": ["mp3", "wav"]}
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 400, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+        let result = try await client.voiceSynthesize(text: "x", format: "flac")
+        switch result {
+        case .success:
+            XCTFail("expected failure")
+        case .failure(let failure):
+            XCTAssertEqual(failure.status, 400)
+            XCTAssertEqual(failure.code, "tts-format-unsupported")
+            XCTAssertEqual(failure.supportedFormats, ["mp3", "wav"])
+        }
+    }
+
     func testTriggerWorkflowSendsBody() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }

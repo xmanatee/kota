@@ -296,6 +296,28 @@ enum InvokeCommandResponse: Decodable {
     }
 }
 
+// MARK: - Voice
+
+/// Failure shape for the daemon's voice endpoints. Mirrors the typed codes
+/// the voice module documents (`stt-unavailable`, `tts-unavailable`,
+/// `tts-format-unsupported`, `stt-failed`, `tts-failed`).
+struct VoiceFailure {
+    let status: Int
+    let error: String
+    let code: String?
+    let supportedFormats: [String]?
+}
+
+enum VoiceTranscribeResult {
+    case success(text: String, language: String?)
+    case failure(VoiceFailure)
+}
+
+enum VoiceSynthesizeResult {
+    case success(audio: Data, mimeType: String, format: String)
+    case failure(VoiceFailure)
+}
+
 // MARK: - Daemon connectivity state
 
 enum DaemonHealth {

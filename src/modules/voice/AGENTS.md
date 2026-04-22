@@ -39,6 +39,12 @@ control API, not through a per-client audio pipeline.
 - **Web client** (`clients/web`): microphone capture via `MediaRecorder`
   posts to `/api/voice/transcribe` and TTS replies stream back through
   `/api/voice/synthesize`; no vendor SDK in the browser.
+- **macOS menu-bar client** (`clients/macos`): `AVAudioRecorder` capture
+  and `AVAudioPlayer` playback through `DaemonClient.voiceTranscribe` /
+  `voiceSynthesize` against the daemon control API.
+- **Mobile client** (`clients/mobile`): `expo-av` capture and playback
+  through `DaemonClient.voiceTranscribe` / `voiceSynthesize` against the
+  daemon control API.
 
 ## Failure modes
 

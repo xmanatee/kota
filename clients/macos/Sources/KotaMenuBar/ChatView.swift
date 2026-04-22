@@ -20,8 +20,10 @@ struct ChatView: View {
     @State private var isStreaming = false
     @State private var streamingContent = ""
     @State private var errorMessage: String?
+    @State private var voiceErrorCode: String?
     @State private var slashCommands: [SlashCommand] = []
     @State private var paletteDismissed = false
+    @StateObject private var voiceState = VoiceState()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,12 +31,18 @@ struct ChatView: View {
             Divider()
             messagesView
             if let error = errorMessage {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .lineLimit(2)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 4)
+                HStack(spacing: 4) {
+                    if let code = voiceErrorCode {
+                        Text("[\(code)]")
+                            .font(.system(.caption, design: .monospaced))
+                    }
+                    Text(error)
+                        .font(.caption)
+                        .lineLimit(2)
+                }
+                .foregroundStyle(.red)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
             }
             Divider()
             inputView
@@ -124,6 +132,8 @@ struct ChatView: View {
                 Divider()
             }
             HStack(alignment: .bottom, spacing: 8) {
+                voiceButtons
+
                 TextField("Message…", text: $inputText, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(1...5)
@@ -144,6 +154,144 @@ struct ChatView: View {
                 .disabled(!canSend)
             }
             .padding(12)
+        }
+    }
+
+    private var voiceButtons: some View {
+        HStack(spacing: 4) {
+            Button(action: toggleRecording) {
+                Image(systemName: voiceState.isRecording ? "stop.circle.fill" : "mic.circle")
+                    .font(.title2)
+                    .foregroundStyle(voiceState.isRecording ? .red : .secondary)
+            }
+            .buttonStyle(.plain)
+            .disabled(voiceState.isUploading || voiceState.isSpeaking)
+            .help(voiceState.isRecording ? "Stop recording" : "Record voice")
+
+            Button(action: speakLatestReply) {
+                Image(systemName: voiceState.isSpeaking ? "speaker.wave.2.fill" : "speaker.wave.2")
+                    .font(.title2)
+                    .foregroundStyle(canSpeakLatest ? .secondary : Color.secondary.opacity(0.4))
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSpeakLatest)
+            .help(canSpeakLatest ? "Speak latest assistant reply" : "No reply to speak yet")
+        }
+    }
+
+    private var latestAssistantText: String? {
+        for message in messages.reversed() {
+            if message.role == .assistant, !message.content.trimmingCharacters(in: .whitespaces).isEmpty {
+                return message.content
+            }
+        }
+        return nil
+    }
+
+    private var canSpeakLatest: Bool {
+        latestAssistantText != nil
+            && !voiceState.isSpeaking
+            && !voiceState.isRecording
+            && !voiceState.isUploading
+    }
+
+    private func toggleRecording() {
+        if voiceState.isRecording {
+            stopRecordingAndTranscribe()
+        } else {
+            startRecording()
+        }
+    }
+
+    private func startRecording() {
+        clearVoiceError()
+        Task {
+            do {
+                try await voiceState.controller.startRecording()
+                voiceState.isRecording = true
+            } catch {
+                surfaceVoiceError(code: "stt-mic-denied", message: error.localizedDescription)
+            }
+        }
+    }
+
+    private func stopRecordingAndTranscribe() {
+        guard let captured = voiceState.controller.stopRecording() else {
+            voiceState.isRecording = false
+            surfaceVoiceError(code: "stt-empty-recording", message: "Recording produced no audio data.")
+            return
+        }
+        voiceState.isRecording = false
+        voiceState.isUploading = true
+        Task {
+            defer { voiceState.isUploading = false }
+            do {
+                let result = try await appState.client.voiceTranscribe(
+                    audio: captured.data,
+                    mimeType: captured.mimeType,
+                    filename: captured.filename
+                )
+                switch result {
+                case .success(let text, _):
+                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if trimmed.isEmpty {
+                        surfaceVoiceError(code: "stt-empty-transcript", message: "Voice provider returned no text.")
+                        return
+                    }
+                    if inputText.trimmingCharacters(in: .whitespaces).isEmpty {
+                        inputText = trimmed
+                    } else {
+                        inputText = "\(inputText.trimmingCharacters(in: .whitespaces)) \(trimmed)"
+                    }
+                case .failure(let failure):
+                    surfaceVoiceError(
+                        code: failure.code ?? "http-\(failure.status)",
+                        message: failure.error
+                    )
+                }
+            } catch DaemonClientError.notConnected {
+                surfaceVoiceError(code: "daemon-offline", message: "Daemon not connected")
+            } catch {
+                surfaceVoiceError(code: "stt-request-failed", message: error.localizedDescription)
+            }
+        }
+    }
+
+    private func speakLatestReply() {
+        guard let text = latestAssistantText else { return }
+        clearVoiceError()
+        voiceState.isSpeaking = true
+        Task {
+            defer { voiceState.isSpeaking = false }
+            do {
+                let result = try await appState.client.voiceSynthesize(text: text)
+                switch result {
+                case .success(let audio, let mimeType, _):
+                    try await voiceState.controller.play(audio: audio, mimeType: mimeType)
+                case .failure(let failure):
+                    let suffix = failure.supportedFormats.map { " Supported: \($0.joined(separator: ", "))" } ?? ""
+                    surfaceVoiceError(
+                        code: failure.code ?? "http-\(failure.status)",
+                        message: failure.error + suffix
+                    )
+                }
+            } catch DaemonClientError.notConnected {
+                surfaceVoiceError(code: "daemon-offline", message: "Daemon not connected")
+            } catch {
+                surfaceVoiceError(code: "tts-playback-failed", message: error.localizedDescription)
+            }
+        }
+    }
+
+    private func surfaceVoiceError(code: String, message: String) {
+        voiceErrorCode = code
+        errorMessage = message
+    }
+
+    private func clearVoiceError() {
+        if voiceErrorCode != nil {
+            voiceErrorCode = nil
+            errorMessage = nil
         }
     }
 
@@ -189,6 +337,7 @@ struct ChatView: View {
         guard !text.isEmpty, !isStreaming else { return }
         inputText = ""
         errorMessage = nil
+        voiceErrorCode = nil
         messages.append(ChatMessage(id: UUID().uuidString, role: .user, content: text))
         isStreaming = true
         streamingContent = ""

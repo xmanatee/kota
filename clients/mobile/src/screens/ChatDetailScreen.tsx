@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useDaemon } from '../context/DaemonContext';
+import { VoiceComposer, type VoiceError } from '../voice/VoiceComposer';
 
 interface ChatMessage {
   id: string;
@@ -97,6 +98,7 @@ export function ChatDetailScreen({
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [voiceError, setVoiceError] = useState<VoiceError | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const abortRef = useRef<(() => void) | null>(null);
   const msgCounterRef = useRef(0);
@@ -105,6 +107,16 @@ export function ChatDetailScreen({
     msgCounterRef.current += 1;
     return String(msgCounterRef.current);
   };
+
+  const latestAssistantText = (() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const msg = messages[i];
+      if (msg?.role === 'assistant' && !msg.streaming && msg.content.trim()) {
+        return msg.content;
+      }
+    }
+    return null;
+  })();
 
   useEffect(() => {
     return () => {
@@ -237,7 +249,33 @@ export function ChatDetailScreen({
         ))}
       </ScrollView>
 
+      {voiceError ? (
+        <View style={styles.voiceErrorBanner} testID="voice-error-banner">
+          <Text style={styles.voiceErrorCode}>[{voiceError.code}]</Text>
+          <Text style={styles.voiceErrorMessage} numberOfLines={3}>
+            {voiceError.message}
+          </Text>
+          <TouchableOpacity
+            onPress={() => setVoiceError(null)}
+            accessibilityLabel="Dismiss voice error"
+          >
+            <Text style={styles.voiceErrorDismiss}>×</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       <View style={styles.inputRow}>
+        {client ? (
+          <VoiceComposer
+            client={client}
+            speakableText={latestAssistantText}
+            onTranscript={(text) => {
+              setVoiceError(null);
+              setInput((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text));
+            }}
+            onError={setVoiceError}
+          />
+        ) : null}
         <TextInput
           style={[styles.textInput, streaming && styles.inputDisabled]}
           value={input}
@@ -328,6 +366,31 @@ const styles = StyleSheet.create({
     borderColor: '#c6c6c8',
   },
   inputDisabled: { opacity: 0.6 },
+  voiceErrorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#ffe5e5',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#ff3b30',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  voiceErrorCode: {
+    fontFamily: 'monospace',
+    fontSize: 12,
+    color: '#b00020',
+  },
+  voiceErrorMessage: {
+    flex: 1,
+    fontSize: 12,
+    color: '#b00020',
+  },
+  voiceErrorDismiss: {
+    fontSize: 18,
+    color: '#b00020',
+    paddingHorizontal: 8,
+  },
   sendBtn: {
     width: 36,
     height: 36,

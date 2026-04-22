@@ -165,3 +165,22 @@ export interface ChatStreamEvent {
   type: ChatStreamEventType;
   payload: Record<string, unknown>;
 }
+
+/**
+ * Voice success/failure shapes. Failure carries the daemon's typed `code`
+ * (`stt-unavailable`, `tts-unavailable`, `tts-format-unsupported`, …) so
+ * the mobile UI can render the same vocabulary the CLI and web client use.
+ */
+export type VoiceTranscribeResult =
+  | { ok: true; text: string; language?: string }
+  | { ok: false; status: number; error: string; code: string };
+
+export type VoiceSynthesizeResult =
+  | { ok: true; audio: Uint8Array; mimeType: string; format: string }
+  | {
+      ok: false;
+      status: number;
+      error: string;
+      code: string;
+      supported?: string[];
+    };
