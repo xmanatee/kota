@@ -54,3 +54,10 @@ Start the server-side stack by running `kota daemon` with the telegram
 module loaded. The daemon brings up the `telegram-status` and
 `telegram-interactive` channels automatically when the required env vars
 are present.
+
+A reproducible deploy artifact for a production Linux host lives in
+`deploy/telegram-assistant/`. It packages both a docker-compose path
+and a system-level systemd unit behind one `install.sh` and a matching
+`rollback.sh`. Keep `deploy-artifact.test.ts` aligned with that
+directory when required env vars, supervisor directives, or the
+install-script contract change.

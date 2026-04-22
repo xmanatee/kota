@@ -1,12 +1,12 @@
 ---
 id: task-publish-kota-telegram-production-deploy-artifact
 title: Publish KOTA Telegram production deploy artifact
-status: backlog
+status: blocked
 priority: p3
 area: ops
 summary: Publish a reproducible systemd/docker deploy artifact for KOTA-as-Telegram-personal-assistant so operators can stand one up without assembling services by hand.
 created_at: 2026-04-22T04:52:53.604Z
-updated_at: 2026-04-22T04:52:53.604Z
+updated_at: 2026-04-22T17:27:54.865Z
 ---
 
 ## Problem
@@ -47,3 +47,21 @@ artifact does not ship credentials.
 - A live-run or integration artifact under `.kota/runs/` records at
   least one end-to-end launch against a staging bot.
 
+## Status
+
+Core artifact landed in `deploy/telegram-assistant/` (Dockerfile,
+docker-compose.yml, system-level systemd unit, install.sh, rollback.sh,
+smoke-test.sh, README.md, .env.example), guarded by
+`src/modules/telegram/deploy-artifact.test.ts`. The `src/modules/telegram/AGENTS.md`
+operator-deployment section points at the artifact. Verification in
+`.kota/runs/2026-04-22T17-07-32-333Z-builder-2x05jt/deploy-verification.md`
+records docker-compose parse, shellcheck, and the new static test, and
+reuses `daemon-integration.test.ts` as the in-process integration
+artifact.
+
+Remaining block: "against a staging bot" requires real BotFather and
+Anthropic credentials that autonomy cannot populate. `smoke-test.sh` is
+the operator's reproducible post-install check; once an operator runs
+`install.sh` against a real bot token and captures the `smoke-test.sh`
+output under `.kota/runs/`, the last Done-When item resolves and the
+task can move to `done`.

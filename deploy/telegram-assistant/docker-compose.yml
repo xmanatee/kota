@@ -1,0 +1,47 @@
+# KOTA Telegram personal assistant — docker compose file.
+#
+# Usage:
+#   1. Copy .env.example to .env and populate the required secrets.
+#   2. docker compose --env-file .env up -d --build
+#
+# One daemon process owns both Telegram channels, the scheduler, and every
+# workflow. There is no second supervised bot process.
+
+services:
+  kota:
+    build:
+      context: ../../
+      dockerfile: deploy/telegram-assistant/Dockerfile
+    image: kota-telegram-assistant:latest
+    container_name: kota-telegram
+    restart: unless-stopped
+    stop_grace_period: 90s
+    init: true
+    read_only: false
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN is required}
+      TELEGRAM_ALERT_CHAT_ID: ${TELEGRAM_ALERT_CHAT_ID:?TELEGRAM_ALERT_CHAT_ID is required}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      KOTA_DAEMON_LOG_FORMAT: json
+    volumes:
+      - kota-state:/var/lib/kota
+    healthcheck:
+      test: ["CMD", "node", "/opt/kota/bin/kota.mjs", "daemon", "status"]
+      interval: 60s
+      timeout: 10s
+      start_period: 45s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  kota-state:
+    name: kota-telegram-state

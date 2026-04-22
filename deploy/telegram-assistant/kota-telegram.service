@@ -1,0 +1,68 @@
+[Unit]
+# System-level systemd unit for KOTA Telegram personal assistant.
+#
+# Installs as /etc/systemd/system/kota-telegram.service.
+# Unlike the user-level unit produced by `kota daemon install`, this
+# targets a long-lived server deploy: a dedicated user, an
+# EnvironmentFile for secrets, and process hardening.
+Description=KOTA Telegram personal assistant daemon
+Documentation=https://github.com/anthropic-experimental/kota deploy/telegram-assistant/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kota
+Group=kota
+WorkingDirectory=/var/lib/kota
+EnvironmentFile=/etc/kota/telegram-assistant.env
+Environment=NODE_ENV=production
+Environment=KOTA_PROJECT_DIR=/var/lib/kota
+Environment=KOTA_STATE_DIR=/var/lib/kota/.kota
+Environment=KOTA_DAEMON_LOG_FORMAT=json
+
+# The KOTA binary path is templated by install.sh based on the host.
+# Operators who install without the script must replace this with the
+# absolute path to `kota` (or `node /path/to/bin/kota.mjs`).
+ExecStart=/usr/local/bin/kota daemon --project-dir /var/lib/kota
+
+# The daemon's own supervisor exits with RESTART_EXIT_CODE on recovery;
+# systemd handles hard crashes via Restart=on-failure.
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=90s
+
+# Logging: stdout/stderr go to the journal as structured JSON.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kota-telegram
+
+# Process hardening.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectHostname=true
+ProtectClock=true
+ProtectProc=invisible
+ReadWritePaths=/var/lib/kota
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+
+# Resource guardrails. Tune to host.
+LimitNOFILE=65536
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target
