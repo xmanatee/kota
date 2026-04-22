@@ -1,12 +1,12 @@
 ---
 id: task-add-a-voice-module-with-stt-and-tts-usable-across-
 title: Add a voice module with STT and TTS usable across all client surfaces
-status: backlog
+status: ready
 priority: p2
 area: modules
 summary: Introduce a voice capability shared by the CLI client and every other client (web, macOS, mobile, Telegram), with pluggable STT (cloud + local Whisper) and TTS providers behind a single module boundary.
 created_at: 2026-04-22T16:47:02.731Z
-updated_at: 2026-04-22T16:47:02.731Z
+updated_at: 2026-04-22T21:27:33.307Z
 ---
 
 ## Problem
