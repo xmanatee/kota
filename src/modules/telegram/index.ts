@@ -1,11 +1,10 @@
 /**
  * Telegram module — makes KOTA accessible via Telegram messaging.
  *
- * Contributes the interactive bot command, status channel, and configured
- * notification forwarding.
+ * Contributes interactive and status channels hosted inside the daemon, and
+ * configured notification forwarding for workflow events.
  */
 
-import { Command } from "commander";
 import type { ChannelDef } from "#core/channels/channel.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
@@ -134,6 +133,8 @@ type TelegramConfig = {
   events?: string[];
   /** Autonomy mode applied to Telegram chat sessions. */
   defaultAutonomyMode?: AutonomyMode;
+  /** Whitelist of chat IDs allowed to open interactive sessions. Empty/undefined = allow all. */
+  allowedChatIds?: number[];
 };
 
 function getCredentials(): { token: string; chatId: string } | null {
@@ -163,6 +164,59 @@ const telegramStatusChannel: ChannelDef = {
   },
 };
 
+function makeTelegramInteractiveChannel(ctx: ModuleContext): ChannelDef {
+  return {
+    name: "telegram-interactive",
+    description: "Hosts the interactive Telegram bot as a daemon channel (one session per chat)",
+    create() {
+      const token = process.env.TELEGRAM_BOT_TOKEN;
+      if (!token) return null;
+
+      const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
+      const autonomyMode = resolveChannelAutonomyMode(
+        telegramConfig?.defaultAutonomyMode,
+        ctx.config,
+        "telegram",
+      );
+
+      const bot = new TelegramBot({
+        token,
+        model: ctx.config.model,
+        verbose: ctx.verbose || ctx.config.verbose,
+        config: ctx.config,
+        autonomyMode,
+        allowedChatIds: telegramConfig?.allowedChatIds,
+      });
+
+      const unsubscribeSchedule = ctx.events.subscribe("schedule.fire", (payload) => {
+        const description = typeof payload.description === "string"
+          ? payload.description
+          : JSON.stringify(payload);
+        bot.broadcastToChats(`⏰ Reminder: ${description}`);
+      });
+
+      let startPromise: Promise<void> | null = null;
+      return {
+        async start() {
+          startPromise = bot.start().catch((err) => {
+            ctx.log.error(
+              `telegram-interactive channel poll loop exited: ${(err as Error).message}`,
+            );
+          });
+        },
+        async stop() {
+          unsubscribeSchedule();
+          bot.stop();
+          if (startPromise) {
+            await startPromise;
+            startPromise = null;
+          }
+        },
+      };
+    },
+  };
+}
+
 let notificationUnsubs: (() => void)[] = [];
 let stopCallbackPoll: (() => void) | null = null;
 const pendingApprovalMessages = new Map<string, PendingMessage>();
@@ -183,10 +237,15 @@ const telegramModule: KotaModule = {
         uniqueItems: true,
       },
       defaultAutonomyMode: { type: "string", enum: AUTONOMY_MODES },
+      allowedChatIds: {
+        type: "array",
+        items: { type: "integer" },
+        uniqueItems: true,
+      },
     },
   },
 
-  channels: [telegramStatusChannel],
+  channels: (ctx) => [telegramStatusChannel, makeTelegramInteractiveChannel(ctx)],
 
   onLoad: (ctx) => {
     const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
@@ -292,76 +351,6 @@ const telegramModule: KotaModule = {
     pendingOwnerQuestionMessages.clear();
     for (const unsub of notificationUnsubs) unsub();
     notificationUnsubs = [];
-  },
-
-  commands: (ctx) => {
-    const cmd = new Command("telegram")
-      .description("Run KOTA as a Telegram bot")
-      .option(
-        "-t, --token <token>",
-        "Telegram bot token (or set TELEGRAM_BOT_TOKEN env var)",
-      )
-      .option("-m, --model <model>", "Model to use")
-      .option("-v, --verbose", "Show debug output")
-      .option(
-        "--allowed-chats <ids>",
-        "Comma-separated list of allowed chat IDs",
-      )
-      .action(async (opts) => {
-        if (!process.env.ANTHROPIC_API_KEY) {
-          console.error(
-            "Error: ANTHROPIC_API_KEY environment variable is not set.\n",
-          );
-          console.error("To get started:");
-          console.error(
-            "  1. Get your API key at https://console.anthropic.com/settings/keys",
-          );
-          console.error("  2. Export it in your shell:\n");
-          console.error("     export ANTHROPIC_API_KEY=sk-ant-...\n");
-          process.exit(1);
-        }
-
-        const token = opts.token || process.env.TELEGRAM_BOT_TOKEN;
-        if (!token) {
-          console.error(
-            "Telegram bot token required. Use --token or set TELEGRAM_BOT_TOKEN.",
-          );
-          process.exit(1);
-        }
-
-        const allowedChatIds = opts.allowedChats
-          ? opts.allowedChats
-              .split(",")
-              .map((id: string) => Number.parseInt(id.trim(), 10))
-              .filter(Number.isFinite)
-          : undefined;
-
-        const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
-        const autonomyMode = resolveChannelAutonomyMode(
-          telegramConfig?.defaultAutonomyMode,
-          ctx.config,
-          "telegram",
-        );
-
-        const bot = new TelegramBot({
-          token,
-          model: opts.model || ctx.config.model,
-          verbose: opts.verbose || ctx.config.verbose,
-          config: ctx.config,
-          allowedChatIds,
-          autonomyMode,
-        });
-
-        process.on("SIGINT", () => {
-          console.log("\n[kota-telegram] Shutting down...");
-          bot.stop();
-          process.exit(0);
-        });
-
-        await bot.start();
-      });
-
-    return [cmd];
   },
 };
 

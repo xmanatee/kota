@@ -1,12 +1,12 @@
 ---
 id: task-host-telegram-interactive-bot-inside-the-daemon
 title: Host Telegram interactive bot inside the daemon
-status: backlog
+status: done
 priority: p2
 area: channels
 summary: Move the kota telegram interactive bot off its standalone CLI process into a daemon-contributed channel so one daemon owns both scheduler and Telegram conversation lifecycle.
 created_at: 2026-04-22T04:52:38.995Z
-updated_at: 2026-04-22T04:52:38.995Z
+updated_at: 2026-04-22T05:53:48.187Z
 ---
 
 ## Problem

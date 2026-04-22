@@ -29,9 +29,10 @@ artifact does not ship credentials.
 - Infrastructure-as-code: shell script, docker-compose, systemd unit,
   or similar. No manual step-by-step runbook.
 - Credentials via environment/secrets, never checked in.
-- The artifact runs both `kota serve` and `kota telegram` under the
-  same supervisor so they share the scheduler, until the interactive
-  bot moves into the daemon channel (`task-host-telegram-interactive-bot-inside-the-daemon`).
+- The artifact runs `kota daemon` under a supervisor. The daemon hosts
+  the telegram-status and telegram-interactive channels alongside the
+  scheduler and workflows in one process; there is no second bot
+  process.
 - The artifact must degrade gracefully when `transcription` is not
   configured; voice messages should still produce a clear user-facing
   failure.

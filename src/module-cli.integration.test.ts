@@ -244,7 +244,6 @@ describe("module error resilience", () => {
 
     // Real module commands should still be available
     expect(commandNames).toContain("serve");
-    expect(commandNames).toContain("telegram");
     expect(commandNames).toContain("daemon");
     expect(commandNames).toContain("tools");
 
@@ -286,7 +285,6 @@ describe("CLI module commands (compiled binary)", () => {
     const { stdout } = runCli("--help");
     // Commands from modules
     expect(stdout).toContain("serve");
-    expect(stdout).toContain("telegram");
     expect(stdout).toContain("daemon");
     expect(stdout).toContain("tools");
     // Built-in commands
@@ -295,12 +293,10 @@ describe("CLI module commands (compiled binary)", () => {
   });
 
   it("module commands have working --help", () => {
-    for (const cmd of ["serve", "telegram"]) {
-      const { stdout, exitCode } = runCli(cmd, "--help");
-      expect(exitCode).toBe(0);
-      expect(stdout).toContain("--model");
-      expect(stdout).toContain("--verbose");
-    }
+    const { stdout, exitCode } = runCli("serve", "--help");
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("--model");
+    expect(stdout).toContain("--verbose");
     // daemon uses a fixed model for autonomous workflows — no --model flag
     const { stdout: daemonHelp, exitCode: daemonExit } = runCli("daemon", "--help");
     expect(daemonExit).toBe(0);

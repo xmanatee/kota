@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resetScheduler, Scheduler } from "#core/daemon/scheduler.js";
+import { Scheduler } from "#core/daemon/scheduler.js";
 import {
   initProviderRegistry,
   resetProviderRegistry,
@@ -352,7 +352,6 @@ describe("TelegramBot", () => {
 
   afterEach(() => {
     restoreFetch();
-    resetScheduler();
   });
 
   it("constructs with options", () => {
@@ -366,7 +365,7 @@ describe("TelegramBot", () => {
     expect(bot.sessionCount).toBe(0);
   });
 
-  it("start verifies token via getMe and initializes scheduler", async () => {
+  it("start verifies token via getMe", async () => {
     const bot = new TelegramBot({ token: "test-token", autonomyMode: "supervised" });
     fetchMock
       .mockResolvedValueOnce({
@@ -386,22 +385,66 @@ describe("TelegramBot", () => {
     );
   });
 
-  it("stop cleans up scheduler timer", async () => {
-    const bot = new TelegramBot({ token: "test-token", autonomyMode: "supervised" });
-    fetchMock
-      .mockResolvedValueOnce({
-        json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot", username: "bot" } }),
-      })
-      .mockImplementation(() => {
-        bot.stop();
-        return Promise.resolve({
-          json: () => Promise.resolve({ ok: true, result: [] }),
-        });
-      });
+  it("broadcastToChats delivers a message to every active session", async () => {
+    const bot = new TelegramBot({ token: "tok", autonomyMode: "supervised" });
+    // Drive a text message through the poll loop to create a session, then stop.
+    let delivered = false;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/getMe")) {
+        return {
+          json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
+        };
+      }
+      if (url.endsWith("/getUpdates")) {
+        if (!delivered) {
+          delivered = true;
+          return {
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                result: [
+                  {
+                    update_id: 1,
+                    message: {
+                      message_id: 1,
+                      chat: { id: 77, type: "private", first_name: "Op" },
+                      text: "hi",
+                      date: 0,
+                    },
+                  },
+                ],
+              }),
+          };
+        }
+        return {
+          json: () =>
+            new Promise((resolve) =>
+              setTimeout(() => {
+                bot.stop();
+                resolve({ ok: true, result: [] });
+              }, 50),
+            ),
+        };
+      }
+      return { json: () => Promise.resolve({ ok: true, result: true }) };
+    });
 
-    await bot.start();
-    // After stop, scheduler should be reset
-    expect(bot.sessionCount).toBe(0);
+    const startPromise = bot.start();
+    const deadline = Date.now() + 1_500;
+    while (Date.now() < deadline && bot.sessionCount === 0) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    bot.broadcastToChats("ping");
+    await startPromise;
+
+    const sentToChat77 = fetchMock.mock.calls.some((call) => {
+      const url = call[0] as string;
+      if (!url.endsWith("/sendMessage")) return false;
+      const init = call[1] as { body: string };
+      const body = JSON.parse(init.body) as { chat_id: number; text: string };
+      return body.chat_id === 77 && body.text === "ping";
+    });
+    expect(sentToChat77).toBe(true);
   });
 
   it("routes inbound text messages into AgentSession.send (session loop)", async () => {
@@ -473,7 +516,6 @@ describe("TelegramBot voice messages", () => {
 
   afterEach(() => {
     restoreFetch();
-    resetScheduler();
     resetProviderRegistry();
   });
 
@@ -604,7 +646,6 @@ describe("TelegramBot scheduler integration", () => {
 
   afterEach(() => {
     restoreFetch();
-    resetScheduler();
   });
 
   it("Scheduler fires due reminders to callback", () => {

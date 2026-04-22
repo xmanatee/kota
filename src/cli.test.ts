@@ -222,12 +222,6 @@ describe("subcommand help", () => {
     expect(out).toContain("--verbose");
   });
 
-  it("telegram --help lists token and allowed-chats options", () => {
-    const out = run("telegram", "--help");
-    expect(out).toContain("--token");
-    expect(out).toContain("--allowed-chats");
-  });
-
   it("tools --help lists install, list, remove, update", () => {
     const out = run("tools", "--help");
     expect(out).toContain("install");

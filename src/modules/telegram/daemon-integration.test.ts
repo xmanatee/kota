@@ -1,11 +1,10 @@
 /**
  * End-to-end integration test for the Telegram personal-assistant path.
  *
- * Demonstrates that a Telegram channel running inside the daemon and a
- * scheduled workflow firing on the same daemon process coexist in one
- * process, exercising the key requirement of the Telegram personal-assistant
- * setup: a single daemon owns both inbound Telegram traffic and scheduled
- * work.
+ * Demonstrates that Telegram channels running inside the daemon coexist with
+ * scheduled workflows and in-process workflow runtime. Covers both the status
+ * poll channel and the interactive bot channel to prove a single daemon owns
+ * both inbound Telegram traffic and scheduled work.
  */
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -24,8 +23,32 @@ import {
   resetScheduler,
 } from "#core/daemon/scheduler.js";
 import { resetEventBus } from "#core/events/event-bus.js";
+import { ModuleStorage } from "#core/modules/module-storage.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
+import { resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
+import telegramModule from "./index.js";
 import { startTelegramStatusPoll } from "./status-poll.js";
+
+const agentSendMock = vi.fn(async () => undefined);
+
+vi.mock("#core/loop/loop.js", async () => {
+  const actual = await vi.importActual<typeof import("#core/loop/loop.js")>(
+    "#core/loop/loop.js",
+  );
+  class FakeAgentSession {
+    send = agentSendMock;
+    close = vi.fn();
+    getCostSummary = vi.fn().mockReturnValue("$0.00");
+    get isClosed(): boolean {
+      return false;
+    }
+  }
+  return {
+    ...actual,
+    AgentSession: FakeAgentSession as unknown as typeof actual.AgentSession,
+  };
+});
 
 vi.mock("#core/agent-sdk/index.js", async () => {
   const actual = await vi.importActual("#core/agent-sdk/index.js");
@@ -209,6 +232,128 @@ describe("Telegram personal-assistant daemon integration", () => {
 
     expect(sawStatusReply).toBe(true);
     expect(sawSchedulerFire).toBe(true);
+  });
+
+  it("routes an inbound Telegram text message to AgentSession.send inside the daemon", async () => {
+    agentSendMock.mockReset();
+    resetProviderRegistry();
+
+    const chatId = 4_242_424;
+    let delivered = false;
+    const fetchMock = vi.fn(async (url: string) => {
+      if (!url.includes("/bot")) throw new Error(`unexpected url: ${url}`);
+      if (url.endsWith("/getMe")) {
+        return {
+          json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "TestBot" } }),
+        } as unknown as Response;
+      }
+      if (url.endsWith("/getUpdates")) {
+        if (!delivered) {
+          delivered = true;
+          return {
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                result: [
+                  {
+                    update_id: 7,
+                    message: {
+                      message_id: 7,
+                      chat: { id: chatId, type: "private", first_name: "Op" },
+                      text: "hello from the daemon",
+                      date: fixedTime(),
+                    },
+                  },
+                ],
+              }),
+          } as unknown as Response;
+        }
+        // Throttle subsequent empty polls so bot's loop does not spin hot.
+        return {
+          json: () =>
+            new Promise((resolve) =>
+              setTimeout(() => resolve({ ok: true, result: [] }), 100),
+            ),
+        } as unknown as Response;
+      }
+      return {
+        json: () => Promise.resolve({ ok: true, result: true }),
+      } as unknown as Response;
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    // Resolve the interactive channel from the real telegram module through a
+    // stub context, with the live bus so bot scheduler broadcasts can flow.
+    process.env.TELEGRAM_BOT_TOKEN = "test-token";
+    process.env.TELEGRAM_ALERT_CHAT_ID = String(chatId);
+    const savedAnthropicKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "sk-test";
+    const { initEventBus } = await import("#core/events/event-bus.js");
+    const bus = initEventBus();
+
+    const stubCtx: ModuleContext = {
+      cwd: projectDir,
+      verbose: false,
+      config: { model: "claude-sonnet-4-6" } as ModuleContext["config"],
+      storage: new ModuleStorage(projectDir, "telegram"),
+      registerGroup: () => {},
+      getRoutes: () => [],
+      getContributedWorkflows: () => [],
+      getContributedChannels: () => [],
+      getModuleSummaries: () => [],
+      getModuleConfig: () =>
+        ({ defaultAutonomyMode: "supervised" }) as never,
+      log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+      getSecret: () => null,
+      listTools: () => [],
+      events: {
+        emit: (event, payload) => bus.emit(event as never, payload as never),
+        subscribe: (event, handler) => bus.on(event, handler as never),
+      },
+      createSession: () => ({ send: async () => "", close: () => {} }),
+      registerProvider: () => {},
+      getProvider: () => null,
+      callTool: async () => ({ content: "" }),
+      registerMiddleware: () => {},
+      registerDynamicStateProvider: () => {},
+      registerCleanupHook: () => {},
+      registerPreSendHook: () => {},
+      resolveAgentDef: () => undefined,
+      resolveSkillsPrompt: () => "",
+      probeHealthChecks: async () => ({}),
+      getRegisteredConfigKeys: () => new Set<string>(),
+    };
+
+    if (typeof telegramModule.channels !== "function") {
+      throw new Error("expected telegramModule.channels to be a factory");
+    }
+    const resolved = telegramModule.channels(stubCtx);
+    const channels = Array.isArray(resolved) ? resolved : await resolved;
+    const interactive = channels.find((c) => c.name === "telegram-interactive");
+    if (!interactive) throw new Error("telegram-interactive channel missing");
+
+    const daemon = makeDaemon({
+      channels: [interactive],
+      pollIntervalMs: 100,
+    });
+
+    const startPromise = daemon.start();
+
+    try {
+      const deadline = Date.now() + 3_000;
+      while (Date.now() < deadline && agentSendMock.mock.calls.length === 0) {
+        await wait(25);
+      }
+
+      expect(agentSendMock).toHaveBeenCalledWith("hello from the daemon");
+    } finally {
+      await daemon.stop();
+      await startPromise;
+      if (savedAnthropicKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = savedAnthropicKey;
+      delete process.env.TELEGRAM_BOT_TOKEN;
+      delete process.env.TELEGRAM_ALERT_CHAT_ID;
+    }
   });
 
 });

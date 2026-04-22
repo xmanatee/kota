@@ -413,6 +413,13 @@
                 "supervised",
                 "autonomous"
               ]
+            },
+            "allowedChatIds": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "uniqueItems": true
             }
           }
         },

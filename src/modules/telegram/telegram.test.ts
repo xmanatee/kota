@@ -63,20 +63,8 @@ describe("telegramModule", () => {
     expect(telegramModule.description).toContain("Telegram");
   });
 
-  it("registers a 'telegram' CLI command", () => {
-    const cmds = telegramModule.commands!(makeStubCtx());
-    expect(cmds).toHaveLength(1);
-    expect(cmds[0].name()).toBe("telegram");
-  });
-
-  it("telegram command has expected options", () => {
-    const cmds = telegramModule.commands!(makeStubCtx());
-    const cmd = cmds[0];
-    const optNames = cmd.options.map((o) => o.long);
-    expect(optNames).toContain("--token");
-    expect(optNames).toContain("--model");
-    expect(optNames).toContain("--verbose");
-    expect(optNames).toContain("--allowed-chats");
+  it("does not register a standalone CLI command", () => {
+    expect(telegramModule.commands).toBeUndefined();
   });
 
   it("does not register tools or routes", () => {
@@ -92,16 +80,12 @@ describe("telegramModule", () => {
     ]);
   });
 
-  it("contributes a telegram-status channel", () => {
-    const channels = telegramModule.channels;
-    expect(channels).toBeDefined();
-    expect(Array.isArray(channels)).toBe(true);
-    expect(channels).toHaveLength(1);
-    if (!Array.isArray(channels)) {
-      throw new Error("expected telegram channels contribution to be static");
-    }
-    expect(channels[0].name).toBe("telegram-status");
-    expect(channels[0].description).toBeTruthy();
+  it("contributes telegram-status and telegram-interactive channels", async () => {
+    const channels = await resolveModuleChannels(telegramModule, makeStubCtx());
+    const names = channels.map((c) => c.name);
+    expect(names).toContain("telegram-status");
+    expect(names).toContain("telegram-interactive");
+    expect(channels).toHaveLength(2);
   });
 
   it("telegram-status channel returns null when env vars are missing", async () => {
@@ -110,7 +94,9 @@ describe("telegramModule", () => {
     delete process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.TELEGRAM_ALERT_CHAT_ID;
     try {
-      const [channel] = await resolveModuleChannels(telegramModule, makeStubCtx());
+      const channels = await resolveModuleChannels(telegramModule, makeStubCtx());
+      const channel = channels.find((c) => c.name === "telegram-status");
+      if (!channel) throw new Error("telegram-status channel missing");
       const adapter = channel.create({
         projectDir: "/tmp",
         log: () => {},
@@ -124,6 +110,28 @@ describe("telegramModule", () => {
     } finally {
       if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
       if (savedChatId !== undefined) process.env.TELEGRAM_ALERT_CHAT_ID = savedChatId;
+    }
+  });
+
+  it("telegram-interactive channel returns null when token is missing", async () => {
+    const savedToken = process.env.TELEGRAM_BOT_TOKEN;
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    try {
+      const channels = await resolveModuleChannels(telegramModule, makeStubCtx());
+      const channel = channels.find((c) => c.name === "telegram-interactive");
+      if (!channel) throw new Error("telegram-interactive channel missing");
+      const adapter = channel.create({
+        projectDir: "/tmp",
+        log: () => {},
+        getWorkflowStatus: () => ({
+          runtimeState: { completedRuns: 0, pendingRuns: [], workflows: {} },
+          dispatchPaused: false,
+          runsDir: "/tmp/.kota/runs",
+        }),
+      });
+      expect(adapter).toBeNull();
+    } finally {
+      if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
     }
   });
 });

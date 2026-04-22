@@ -5,7 +5,6 @@ export const MAX_MESSAGE_LENGTH = 4096;
 export const TYPING_INTERVAL_MS = 4000;
 export const POLL_TIMEOUT_S = 30;
 export const ERROR_BACKOFF_MS = 5000;
-export const SCHEDULER_CHECK_MS = 30_000;
 
 // --- Telegram API types (minimal subset) ---
 
