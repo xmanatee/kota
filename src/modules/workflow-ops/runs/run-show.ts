@@ -7,6 +7,18 @@ import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { RepairSummary } from "#core/workflow/run-store-helpers.js";
 import { extractRepairSummary } from "#core/workflow/run-store-helpers.js";
 import type { WorkflowRunMetadata, WorkflowStepSkipReason } from "#core/workflow/run-types.js";
+import {
+  blank,
+  json,
+  type LineNode,
+  line,
+  plain,
+  type RenderNode,
+  span,
+  stack,
+  type TextSpan,
+} from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
 import { formatDuration, statusIcon } from "../utils.js";
 
 export function formatSkipReason(reason: WorkflowStepSkipReason): string {
@@ -85,16 +97,160 @@ async function buildChainTree(
   return node;
 }
 
-export function printChainTree(node: ChainNode, currentId: string, prefix: string, isLast: boolean, isRoot: boolean): void {
+export function buildChainLines(
+  node: ChainNode,
+  currentId: string,
+  prefix: string,
+  isLast: boolean,
+  isRoot: boolean,
+): LineNode[] {
   const connector = isRoot ? "" : isLast ? "└─ " : "├─ ";
   const dur = node.durationMs != null ? ` (${formatDuration(node.durationMs)})` : "";
   const marker = node.id === currentId ? " ← current" : "";
   const icon = statusIcon(node.status);
-  console.log(`${prefix}${connector}${icon} ${node.workflow}/${node.id}${dur}${marker}`);
+  const lines: LineNode[] = [
+    line(plain(`${prefix}${connector}${icon} ${node.workflow}/${node.id}${dur}${marker}`)),
+  ];
   const childPrefix = isRoot ? prefix : prefix + (isLast ? "   " : "│  ");
   for (let i = 0; i < node.children.length; i++) {
-    printChainTree(node.children[i]!, currentId, childPrefix, i === node.children.length - 1, false);
+    lines.push(
+      ...buildChainLines(
+        node.children[i]!,
+        currentId,
+        childPrefix,
+        i === node.children.length - 1,
+        false,
+      ),
+    );
   }
+  return lines;
+}
+
+export function printChainTree(
+  node: ChainNode,
+  currentId: string,
+  prefix: string,
+  isLast: boolean,
+  isRoot: boolean,
+): void {
+  print(stack(...buildChainLines(node, currentId, prefix, isLast, isRoot)));
+}
+
+function labeledKVLine(label: string, value: string, labelWidth: number): LineNode {
+  return line(plain(`${`${label}:`.padEnd(labelWidth)} ${value}`));
+}
+
+function buildRunHeader(metadata: WorkflowRunMetadata, showPayload: boolean): RenderNode {
+  const labelWidth = 9;
+  const lines: LineNode[] = [
+    line(plain(`Run:      ${metadata.id}`)),
+    line(plain(`Workflow: ${metadata.workflow}`)),
+    line(plain("Status:   "), plain(`${statusIcon(metadata.status)} ${metadata.status}`)),
+  ];
+  if (metadata.retryOf) lines.push(line(plain(`Retry of: ${metadata.retryOf}`)));
+  if (metadata.resumedFromRunId) {
+    lines.push(labeledKVLine("Resumed from", metadata.resumedFromRunId, labelWidth));
+  }
+  lines.push(line(plain(`Trigger:  ${metadata.trigger.event}`)));
+  if (metadata.tags && metadata.tags.length > 0) {
+    lines.push(line(plain(`Tags:     ${metadata.tags.join(", ")}`)));
+  }
+  lines.push(line(plain(`Started:  ${new Date(metadata.startedAt).toLocaleString()}`)));
+  if (metadata.completedAt) {
+    lines.push(line(plain(`Finished: ${new Date(metadata.completedAt).toLocaleString()}`)));
+  }
+  if (metadata.durationMs != null) {
+    lines.push(line(plain(`Duration: ${formatDuration(metadata.durationMs)}`)));
+  }
+  if (metadata.totalCostUsd != null) {
+    lines.push(line(plain(`Cost:     $${metadata.totalCostUsd.toFixed(4)}`)));
+  }
+  const nodes: RenderNode[] = [...lines];
+  if (
+    showPayload &&
+    metadata.trigger.payload &&
+    Object.keys(metadata.trigger.payload).length > 0
+  ) {
+    nodes.push(json(metadata.trigger.payload, "Payload:"));
+  }
+  return stack(...nodes);
+}
+
+function buildStepSpans(step: WorkflowRunMetadata["steps"][number]): {
+  header: LineNode;
+  detail: LineNode[];
+} {
+  const dur = formatDuration(step.durationMs);
+  const iconStr =
+    step.status === "failed" && step.continueOnFailure ? "⚠" : statusIcon(step.status);
+  const reusedSuffix = (step as { reused?: boolean }).reused ? " (reused)" : "";
+  const suffix =
+    step.status === "failed" && step.continueOnFailure ? " (continued)" : reusedSuffix;
+  const detail: LineNode[] = [];
+
+  if (step.type === "parallel") {
+    const header = line(plain(`  ${iconStr} ${step.id} [parallel] ${dur}${suffix}`));
+    if (step.error) detail.push(line(plain(`      Error: ${step.error}`)));
+    if (step.status === "skipped" && step.skipReason) {
+      detail.push(line(plain(`      Skipped: ${formatSkipReason(step.skipReason)}`)));
+    }
+    const inner = (step.output as {
+      steps?: Array<{
+        id: string;
+        type: string;
+        status: string;
+        durationMs: number;
+        costUsd?: number;
+        error?: string;
+        continueOnFailure?: boolean;
+      }>;
+    } | null)?.steps ?? [];
+    for (const childStep of inner) {
+      const childIcon =
+        childStep.status === "failed" && childStep.continueOnFailure
+          ? "⚠"
+          : statusIcon(childStep.status);
+      const childSuffix =
+        childStep.status === "failed" && childStep.continueOnFailure ? " (continued)" : "";
+      const childCost = childStep.costUsd != null ? ` $${childStep.costUsd.toFixed(3)}` : " —";
+      detail.push(
+        line(
+          plain(
+            `    ║ ${childIcon} ${childStep.id} [${childStep.type}] ${formatDuration(childStep.durationMs)}${childCost}${childSuffix}`,
+          ),
+        ),
+      );
+      if (childStep.error) {
+        detail.push(line(plain(`          Error: ${childStep.error}`)));
+      }
+    }
+    return { header, detail };
+  }
+
+  const repairSummary = extractRepairSummary(step.output);
+  const baseCost = step.costUsd ?? null;
+  const totalStepCost =
+    baseCost !== null
+      ? baseCost + (repairSummary?.totalCostUsd ?? 0)
+      : (repairSummary?.totalCostUsd ?? null);
+  const cost = totalStepCost !== null ? ` $${totalStepCost.toFixed(3)}` : " —";
+  const header = line(plain(`  ${iconStr} ${step.id} [${step.type}] ${dur}${cost}${suffix}`));
+  if (step.error) detail.push(line(plain(`      Error: ${step.error}`)));
+  if (step.status === "skipped" && step.skipReason) {
+    detail.push(line(plain(`      Skipped: ${formatSkipReason(step.skipReason)}`)));
+  }
+  if (repairSummary) detail.push(line(plain(`      ${formatRepairLine(repairSummary)}`)));
+  if (step.output !== undefined && step.output !== null) {
+    const outputSummary = JSON.stringify(step.output);
+    const trimmed =
+      outputSummary.length > 120 ? `${outputSummary.slice(0, 120)}…` : outputSummary;
+    detail.push(line(plain(`      Output: ${trimmed}`)));
+  }
+  return { header, detail };
+}
+
+function errorSpans(message: string): TextSpan[] {
+  return [span(message, "error")];
 }
 
 export function registerRunShowCommand(wfCmd: Command): void {
@@ -117,12 +273,12 @@ export function registerRunShowCommand(wfCmd: Command): void {
           const dirs = readdirSync(store.runsDir).sort().reverse();
           const match = dirs.find((d) => d.startsWith(runId));
           if (!match) {
-            console.error(`Run "${runId}" not found.`);
+            print(line(...errorSpans(`Run "${runId}" not found.`)));
             process.exit(1);
           }
           resolvedId = match;
         } catch {
-          console.error(`Run "${runId}" not found.`);
+          print(line(...errorSpans(`Run "${runId}" not found.`)));
           process.exit(1);
         }
       }
@@ -167,7 +323,7 @@ export function registerRunShowCommand(wfCmd: Command): void {
         const metadataPath = join(store.runsDir, resolvedId, "metadata.json");
         const diskMeta = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
         if (!diskMeta) {
-          console.error(`Run "${resolvedId}" not found.`);
+          print(line(...errorSpans(`Run "${resolvedId}" not found.`)));
           process.exit(1);
         }
         metadata = diskMeta;
@@ -176,13 +332,13 @@ export function registerRunShowCommand(wfCmd: Command): void {
       if (stepId !== undefined) {
         const step = metadata.steps.find((s) => s.id === stepId);
         if (!step) {
-          console.error(`Step "${stepId}" not found in run "${resolvedId}".`);
+          print(line(...errorSpans(`Step "${stepId}" not found in run "${resolvedId}".`)));
           process.exit(1);
         }
         if (step.error) {
-          console.log(step.error);
+          print(line(plain(step.error)));
         } else {
-          console.log(JSON.stringify(step.output, null, 2));
+          print(json(step.output));
         }
         return;
       }
@@ -202,7 +358,7 @@ export function registerRunShowCommand(wfCmd: Command): void {
         }
         const tree = await buildChainTree(rootId, daemonClient, store, 0, MAX_DEPTH);
         if (!tree) {
-          console.error(`Could not load chain for run "${resolvedId}".`);
+          print(line(...errorSpans(`Could not load chain for run "${resolvedId}".`)));
           process.exit(1);
         }
         printChainTree(tree, resolvedId, "", true, true);
@@ -212,114 +368,58 @@ export function registerRunShowCommand(wfCmd: Command): void {
       const errorPath = join(store.runsDir, resolvedId, "error.txt");
       const errorText = existsSync(errorPath) ? readFileSync(errorPath, "utf-8") : null;
 
-      console.log(`Run:      ${metadata.id}`);
-      console.log(`Workflow: ${metadata.workflow}`);
-      console.log(`Status:   ${statusIcon(metadata.status)} ${metadata.status}`);
-      if (metadata.retryOf) {
-        console.log(`Retry of: ${metadata.retryOf}`);
-      }
-      if (metadata.resumedFromRunId) {
-        console.log(`Resumed from: ${metadata.resumedFromRunId}`);
-      }
-      console.log(`Trigger:  ${metadata.trigger.event}`);
-      if (showPayload && metadata.trigger.payload && Object.keys(metadata.trigger.payload).length > 0) {
-        console.log(`Payload:\n${JSON.stringify(metadata.trigger.payload, null, 2).split("\n").map((l) => `  ${l}`).join("\n")}`);
-      }
-      if (metadata.tags && metadata.tags.length > 0) {
-        console.log(`Tags:     ${metadata.tags.join(", ")}`);
-      }
-      console.log(`Started:  ${new Date(metadata.startedAt).toLocaleString()}`);
-      if (metadata.completedAt) {
-        console.log(`Finished: ${new Date(metadata.completedAt).toLocaleString()}`);
-      }
-      if (metadata.durationMs != null) {
-        console.log(`Duration: ${formatDuration(metadata.durationMs)}`);
-      }
-      if (metadata.totalCostUsd != null) {
-        console.log(`Cost:     $${metadata.totalCostUsd.toFixed(4)}`);
-      }
+      const children: RenderNode[] = [buildRunHeader(metadata, showPayload === true)];
       if (errorText !== null) {
-        console.log(`\nError:\n${errorText}`);
+        children.push(blank());
+        children.push(line(plain("Error:")));
+        for (const errorLine of errorText.split("\n")) {
+          children.push(line(plain(errorLine)));
+        }
       }
       if (metadata.warnings && metadata.warnings.length > 0) {
-        console.log(`\nWarnings:`);
-        for (const line of formatWarningsSection(metadata.warnings)) {
-          console.log(line);
+        children.push(blank());
+        children.push(line(plain("Warnings:")));
+        for (const warningLine of formatWarningsSection(metadata.warnings)) {
+          children.push(line(plain(warningLine)));
         }
       }
 
       // Show downstream runs triggered by this run
       let triggeredRuns: { id: string; workflow: string; status: string }[] = [];
       if (daemonRun) {
-        const downstreamResult = daemonClient ? await daemonClient.listWorkflowRuns(undefined, 50, undefined, resolvedId) : null;
+        const downstreamResult = daemonClient
+          ? await daemonClient.listWorkflowRuns(undefined, 50, undefined, resolvedId)
+          : null;
         if (downstreamResult) {
-          triggeredRuns = downstreamResult.runs.map((r) => ({ id: r.id, workflow: r.workflow, status: r.status }));
+          triggeredRuns = downstreamResult.runs.map((r) => ({
+            id: r.id,
+            workflow: r.workflow,
+            status: r.status,
+          }));
         }
       } else {
-        triggeredRuns = store.listRuns({ causedByRunId: resolvedId, limit: 50 }).map((r) => ({
-          id: r.id,
-          workflow: r.workflow,
-          status: r.status,
-        }));
+        triggeredRuns = store
+          .listRuns({ causedByRunId: resolvedId, limit: 50 })
+          .map((r) => ({ id: r.id, workflow: r.workflow, status: r.status }));
       }
       if (triggeredRuns.length > 0) {
-        console.log(`\nTriggered runs (${triggeredRuns.length}):`);
+        children.push(blank());
+        children.push(line(plain(`Triggered runs (${triggeredRuns.length}):`)));
         for (const r of triggeredRuns) {
-          console.log(`  ${statusIcon(r.status)} ${r.id} [${r.workflow}]`);
+          children.push(line(plain(`  ${statusIcon(r.status)} ${r.id} [${r.workflow}]`)));
         }
       }
 
       if (metadata.steps.length > 0) {
-        console.log(`\nSteps (${metadata.steps.length}):`);
+        children.push(blank());
+        children.push(line(plain(`Steps (${metadata.steps.length}):`)));
         for (const step of metadata.steps) {
-          const dur = formatDuration(step.durationMs);
-          const icon = step.status === "failed" && step.continueOnFailure ? "⚠" : statusIcon(step.status);
-          const reusedSuffix = (step as { reused?: boolean }).reused ? " (reused)" : "";
-          const suffix = step.status === "failed" && step.continueOnFailure ? " (continued)" : reusedSuffix;
-
-          if (step.type === "parallel") {
-            console.log(`  ${icon} ${step.id} [parallel] ${dur}${suffix}`);
-            if (step.error) {
-              console.log(`      Error: ${step.error}`);
-            }
-            if (step.status === "skipped" && step.skipReason) {
-              console.log(`      Skipped: ${formatSkipReason(step.skipReason)}`);
-            }
-            const inner = (step.output as { steps?: Array<{ id: string; type: string; status: string; durationMs: number; costUsd?: number; error?: string; continueOnFailure?: boolean }> } | null)?.steps ?? [];
-            for (const childStep of inner) {
-              const childIcon = childStep.status === "failed" && childStep.continueOnFailure ? "⚠" : statusIcon(childStep.status as "success" | "failed" | "skipped");
-              const childSuffix = childStep.status === "failed" && childStep.continueOnFailure ? " (continued)" : "";
-              const childCost = childStep.costUsd != null ? ` $${childStep.costUsd.toFixed(3)}` : " —";
-              console.log(`    ║ ${childIcon} ${childStep.id} [${childStep.type}] ${formatDuration(childStep.durationMs)}${childCost}${childSuffix}`);
-              if (childStep.error) {
-                console.log(`          Error: ${childStep.error}`);
-              }
-            }
-            continue;
-          }
-
-          const repairSummary = extractRepairSummary(step.output);
-          const baseCost = step.costUsd ?? null;
-          const totalStepCost = baseCost !== null
-            ? baseCost + (repairSummary?.totalCostUsd ?? 0)
-            : repairSummary?.totalCostUsd ?? null;
-          const cost = totalStepCost !== null ? ` $${totalStepCost.toFixed(3)}` : " —";
-          console.log(`  ${icon} ${step.id} [${step.type}] ${dur}${cost}${suffix}`);
-          if (step.error) {
-            console.log(`      Error: ${step.error}`);
-          }
-          if (step.status === "skipped" && step.skipReason) {
-            console.log(`      Skipped: ${formatSkipReason(step.skipReason)}`);
-          }
-          if (repairSummary) {
-            console.log(`      ${formatRepairLine(repairSummary)}`);
-          }
-          if (step.output !== undefined && step.output !== null) {
-            const outputSummary = JSON.stringify(step.output);
-            const trimmed = outputSummary.length > 120 ? `${outputSummary.slice(0, 120)}…` : outputSummary;
-            console.log(`      Output: ${trimmed}`);
-          }
+          const { header, detail } = buildStepSpans(step);
+          children.push(header);
+          for (const d of detail) children.push(d);
         }
       }
+
+      print(stack(...children));
     });
 }

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { renderToString } from "#modules/rendering/transport.js";
 import {
 	DaemonDashboard,
 	type DashboardSnapshot,
@@ -9,6 +10,10 @@ import {
 function stripAnsi(str: string): string {
 	// biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape stripping requires matching the ESC control char
 	return str.replace(/\x1b\[[0-9;]*m/g, "");
+}
+
+function renderGridLines(lines: ReturnType<typeof formatStatsGrid>): string[] {
+	return lines.map((node) => stripAnsi(renderToString(node)));
 }
 
 function makeSnapshot(overrides: Partial<DashboardSnapshot> = {}): DashboardSnapshot {
@@ -243,33 +248,39 @@ describe("renderDashboard", () => {
 
 describe("formatStatsGrid", () => {
 	it("guarantees at least two spaces between value and next label", () => {
-		const lines = formatStatsGrid([
-			[
-				{ label: "Cost", value: "$1930.84" },
-				{ label: "Defs", value: "5" },
-			],
-		]);
+		const lines = renderGridLines(
+			formatStatsGrid([
+				[
+					{ label: "Cost", value: "$1930.84" },
+					{ label: "Defs", value: "5" },
+				],
+			]),
+		);
 		expect(lines[0]).toMatch(/\$1930\.84\s{2,}Defs/);
 	});
 
 	it("aligns labels and values across rows by widest entry per column", () => {
-		const lines = formatStatsGrid([
-			[
-				{ label: "Completed", value: "42" },
-				{ label: "Sessions", value: "2" },
-			],
-			[
-				{ label: "Cost", value: "$1.00" },
-				{ label: "Defs", value: "5" },
-			],
-		]);
+		const lines = renderGridLines(
+			formatStatsGrid([
+				[
+					{ label: "Completed", value: "42" },
+					{ label: "Sessions", value: "2" },
+				],
+				[
+					{ label: "Cost", value: "$1.00" },
+					{ label: "Defs", value: "5" },
+				],
+			]),
+		);
 		const completedIdx = lines[0]!.indexOf("Sessions");
 		const defsIdx = lines[1]!.indexOf("Defs");
 		expect(completedIdx).toBe(defsIdx);
 	});
 
 	it("places single-cell rows without padding the only value", () => {
-		const lines = formatStatsGrid([[{ label: "Paused", value: "yes" }]]);
+		const lines = renderGridLines(
+			formatStatsGrid([[{ label: "Paused", value: "yes" }]]),
+		);
 		expect(lines[0]).toBe("  Paused  yes");
 	});
 });

@@ -1,7 +1,18 @@
 import { clearScreenDown, cursorTo } from "node:readline";
-import { styleText } from "node:util";
 import type { WorkflowQueuedRun, WorkflowRunStatus } from "#core/workflow/run-types.js";
 import type { WorkflowAgentBackoffState } from "#core/workflow/types.js";
+import {
+	blank,
+	type LineNode,
+	line,
+	plain,
+	type RenderNode,
+	type SemanticRole,
+	span,
+	stack,
+	type TextSpan,
+} from "#modules/rendering/primitives.js";
+import { renderToString } from "#modules/rendering/transport.js";
 import { abbreviateRunId, formatDuration, formatTimeAgo, formatUptime } from "./format-utils.js";
 
 export type DashboardTaskQueue = {
@@ -45,23 +56,28 @@ const LOG_BUFFER_MAX = 200;
 const REFRESH_INTERVAL_MS = 1_000;
 const COLUMN_GAP = 2;
 const STATS_INDENT = "  ";
+const ACTIVITY_HEADER_WIDTH = 52;
 
-function statusIndicator(status: WorkflowRunStatus): string {
+type StatusTextRole = { text: string; role: SemanticRole };
+
+function statusRunText(status: WorkflowRunStatus): StatusTextRole {
 	switch (status) {
 		case "success":
-			return styleText("green", "success");
+			return { text: "success", role: "success" };
 		case "failed":
-			return styleText("red", "failed");
+			return { text: "failed", role: "error" };
 		case "interrupted":
-			return styleText("yellow", "interrupted");
+			return { text: "interrupted", role: "warn" };
 		case "completed-with-warnings":
-			return styleText("yellow", "warnings");
+			return { text: "warnings", role: "warn" };
 	}
 }
 
-function formatWaitUntil(notBeforeMs: number): string {
+type WaitDescriptor = { text: string; role?: SemanticRole };
+
+function describeWaitUntil(notBeforeMs: number): WaitDescriptor {
 	const remainingMs = notBeforeMs - Date.now();
-	if (remainingMs <= 0) return styleText("green", "ready");
+	if (remainingMs <= 0) return { text: "ready", role: "success" };
 	const seconds = Math.ceil(remainingMs / 1000);
 	const minutes = Math.floor(seconds / 60);
 	const hours = Math.floor(minutes / 60);
@@ -71,53 +87,73 @@ function formatWaitUntil(notBeforeMs: number): string {
 			: minutes > 0
 				? `${minutes}m ${seconds % 60}s`
 				: `${seconds}s`;
-	return `in ${duration}`;
+	return { text: `in ${duration}` };
 }
 
-function pendingRunLine(run: WorkflowQueuedRun): string {
-	const wait = formatWaitUntil(run.notBeforeMs);
+function pendingRunLine(run: WorkflowQueuedRun): LineNode {
+	const wait = describeWaitUntil(run.notBeforeMs);
 	const id = run.runId ? abbreviateRunId(run.runId) : "-";
-	return `  ${styleText("yellow", "\u25cb")} ${run.workflowName}  ${wait}  ${styleText("dim", run.trigger.event)}  ${styleText("dim", id)}`;
+	const spans: TextSpan[] = [
+		plain("  "),
+		span("○", "warn"),
+		plain(` ${run.workflowName}  `),
+	];
+	spans.push(wait.role ? span(wait.text, wait.role) : plain(wait.text));
+	spans.push(plain("  "));
+	spans.push(span(run.trigger.event, "muted"));
+	spans.push(plain("  "));
+	spans.push(span(id, "muted"));
+	return line(...spans);
 }
 
 function describeOperationalState(
 	snapshot: DashboardSnapshot,
 	pendingRuns: readonly WorkflowQueuedRun[],
-): string {
-	if (snapshot.dispatchPaused) return styleText("yellow", "dispatch paused");
+): TextSpan[] {
+	if (snapshot.dispatchPaused) return [span("dispatch paused", "warn")];
 	if (snapshot.dispatchWindowBlocked) {
 		const opens = snapshot.dispatchWindowOpensAt
 			? ` until ${new Date(snapshot.dispatchWindowOpensAt).toLocaleTimeString()}`
 			: "";
-		return styleText("yellow", `outside dispatch window${opens}`);
+		return [span(`outside dispatch window${opens}`, "warn")];
 	}
 	if (snapshot.agentBackoff) {
-		return styleText(
-			"yellow",
-			`agent backoff ${snapshot.agentBackoff.kind} until ${new Date(snapshot.agentBackoff.until).toLocaleTimeString()}`,
-		);
+		return [
+			span(
+				`agent backoff ${snapshot.agentBackoff.kind} until ${new Date(snapshot.agentBackoff.until).toLocaleTimeString()}`,
+				"warn",
+			),
+		];
 	}
 	if (snapshot.activeRuns.length > 0) {
 		const names = snapshot.activeRuns.map((run) => run.workflow).join(", ");
-		return styleText("green", `running ${names}`);
+		return [span(`running ${names}`, "success")];
 	}
 	const readyPending = pendingRuns.filter((run) => run.notBeforeMs <= Date.now());
 	if (readyPending.length > 0) {
-		return styleText("green", `${readyPending.length} queued run${readyPending.length === 1 ? "" : "s"} ready`);
+		return [
+			span(
+				`${readyPending.length} queued run${readyPending.length === 1 ? "" : "s"} ready`,
+				"success",
+			),
+		];
 	}
 	if (snapshot.taskQueue && (snapshot.taskQueue.inboxCount > 0 || snapshot.taskQueue.pullableCount > 0)) {
-		return "work available; waiting for idle dispatch";
+		return [plain("work available; waiting for idle dispatch")];
 	}
 	if (pendingRuns.length > 0) {
 		const next = pendingRuns.reduce((best, run) =>
 			run.notBeforeMs < best.notBeforeMs ? run : best,
 		);
-		return `waiting for ${next.workflowName} ${formatWaitUntil(next.notBeforeMs)}`;
+		const wait = describeWaitUntil(next.notBeforeMs);
+		const head = plain(`waiting for ${next.workflowName} `);
+		const tail = wait.role ? span(wait.text, wait.role) : plain(wait.text);
+		return [head, tail];
 	}
-	return "idle; waiting for work";
+	return [plain("idle; waiting for work")];
 }
 
-type StatCell = { label: string; value: string };
+type StatCell = { label: string; value: string; valueRole?: SemanticRole };
 type StatRow = readonly StatCell[];
 
 /**
@@ -126,7 +162,7 @@ type StatRow = readonly StatCell[];
  * the next label so adjacent fields can never collide regardless of cost/count
  * magnitudes.
  */
-export function formatStatsGrid(rows: readonly StatRow[]): string[] {
+export function formatStatsGrid(rows: readonly StatRow[]): LineNode[] {
 	const colCount = rows.reduce((m, r) => Math.max(m, r.length), 0);
 	const labelWidth = Array.from({ length: colCount }, (_, i) =>
 		rows.reduce((m, r) => Math.max(m, r[i]?.label.length ?? 0), 0),
@@ -135,41 +171,31 @@ export function formatStatsGrid(rows: readonly StatRow[]): string[] {
 		rows.reduce((m, r) => Math.max(m, r[i]?.value.length ?? 0), 0),
 	);
 	return rows.map((row) => {
-		const parts = row.map((cell, i) => {
+		const spans: TextSpan[] = [plain(STATS_INDENT)];
+		row.forEach((cell, i) => {
 			const labelPad = labelWidth[i]! + COLUMN_GAP;
 			const isLast = i === row.length - 1;
 			const valuePad = isLast ? 0 : valueWidth[i]! + COLUMN_GAP;
-			return `${cell.label.padEnd(labelPad)}${cell.value.padEnd(valuePad)}`;
+			spans.push(plain(cell.label.padEnd(labelPad)));
+			const valueText = cell.value.padEnd(valuePad);
+			if (cell.valueRole) {
+				spans.push(span(cell.value, cell.valueRole));
+				const extra = valueText.length - cell.value.length;
+				if (extra > 0) spans.push(plain(" ".repeat(extra)));
+			} else {
+				spans.push(plain(valueText));
+			}
 		});
-		return `${STATS_INDENT}${parts.join("")}`;
+		return line(...spans);
 	});
 }
 
-export function renderDashboard(
-	snapshot: DashboardSnapshot,
-	logs: readonly string[],
-): string {
-	const lines: string[] = [];
-
-	const status = snapshot.stopping
-		? styleText("yellow", "stopping")
-		: snapshot.running
-			? styleText("green", "running")
-			: styleText("red", "stopped");
-	const uptime = formatUptime(snapshot.startedAt);
-	lines.push(
-		`${styleText("bold", "KOTA Daemon")}  pid ${snapshot.pid}  up ${uptime}  ${status}`,
-	);
-	lines.push("");
-
+function renderStatRows(snapshot: DashboardSnapshot, pendingCount: number): LineNode[] {
 	const costStr =
-		snapshot.totalCostUsd != null
-			? `$${snapshot.totalCostUsd.toFixed(2)}`
-			: "-";
-	const pausedRaw = snapshot.dispatchPaused ? "yes" : "no";
-	const pendingRuns = snapshot.pendingRuns;
-	const pendingCount = pendingRuns.length;
-
+		snapshot.totalCostUsd != null ? `$${snapshot.totalCostUsd.toFixed(2)}` : "-";
+	const pausedCell: StatCell = snapshot.dispatchPaused
+		? { label: "Paused", value: "yes", valueRole: "warn" }
+		: { label: "Paused", value: "no" };
 	const statRows: StatRow[] = [
 		[
 			{ label: "Completed", value: String(snapshot.completedRuns) },
@@ -183,89 +209,135 @@ export function renderDashboard(
 			{ label: "Active", value: String(snapshot.activeRuns.length) },
 			{ label: "Pending", value: String(pendingCount) },
 		],
-		[{ label: "Paused", value: pausedRaw }],
+		[pausedCell],
 	];
-	const statLines = formatStatsGrid(statRows);
-	if (snapshot.dispatchPaused) {
-		const last = statLines.length - 1;
-		statLines[last] = statLines[last]!.replace(
-			/yes$/,
-			styleText("yellow", "yes"),
-		);
-	}
-	for (const line of statLines) lines.push(line);
-	lines.push("");
+	return formatStatsGrid(statRows);
+}
 
-	lines.push(styleText("bold", "State"));
-	lines.push(`  ${describeOperationalState(snapshot, pendingRuns)}`);
-	lines.push("");
+function statusHeaderSpan(snapshot: DashboardSnapshot): TextSpan {
+	if (snapshot.stopping) return span("stopping", "warn");
+	if (snapshot.running) return span("running", "success");
+	return span("stopped", "error");
+}
+
+export function buildDashboardNode(
+	snapshot: DashboardSnapshot,
+	logs: readonly string[],
+): RenderNode {
+	const children: RenderNode[] = [];
+	const uptime = formatUptime(snapshot.startedAt);
+	children.push(
+		line(
+			span("KOTA Daemon", undefined, true),
+			plain(`  pid ${snapshot.pid}  up ${uptime}  `),
+			statusHeaderSpan(snapshot),
+		),
+	);
+	children.push(blank());
+
+	for (const statLine of renderStatRows(snapshot, snapshot.pendingRuns.length)) {
+		children.push(statLine);
+	}
+	children.push(blank());
+
+	children.push(line(span("State", undefined, true)));
+	children.push(line(plain("  "), ...describeOperationalState(snapshot, snapshot.pendingRuns)));
+	children.push(blank());
 
 	if (snapshot.taskQueue) {
 		const task = snapshot.taskQueue;
-		lines.push(styleText("bold", "Work"));
-		lines.push(
-			`  Inbox ${task.inboxCount}  Ready ${task.counts.ready}  Backlog ${task.counts.backlog}  Doing ${task.counts.doing}  Blocked ${task.counts.blocked}`,
+		children.push(line(span("Work", undefined, true)));
+		children.push(
+			line(
+				plain(
+					`  Inbox ${task.inboxCount}  Ready ${task.counts.ready}  Backlog ${task.counts.backlog}  Doing ${task.counts.doing}  Blocked ${task.counts.blocked}`,
+				),
+			),
 		);
-		lines.push(
-			`  Pullable ${task.pullableCount}  Actionable ${task.actionableCount}  Open ${task.openCount}`,
+		children.push(
+			line(
+				plain(
+					`  Pullable ${task.pullableCount}  Actionable ${task.actionableCount}  Open ${task.openCount}`,
+				),
+			),
 		);
-		lines.push("");
+		children.push(blank());
 	}
 
 	if (snapshot.activeRuns.length > 0) {
-		lines.push(
-			styleText("bold", `Active (${snapshot.activeRuns.length})`),
-		);
+		children.push(line(span(`Active (${snapshot.activeRuns.length})`, undefined, true)));
 		for (const run of snapshot.activeRuns) {
 			const dur = formatDuration(run.startedAt);
-			lines.push(
-				`  ${styleText("green", "\u25cf")} ${run.workflow}  ${styleText("dim", dur)}`,
+			children.push(
+				line(
+					plain("  "),
+					span("●", "success"),
+					plain(` ${run.workflow}  `),
+					span(dur, "muted"),
+				),
 			);
 		}
-		lines.push("");
+		children.push(blank());
 	}
 
+	const pendingCount = snapshot.pendingRuns.length;
 	if (pendingCount > 0) {
-		lines.push(`${styleText("bold", `Pending (${pendingCount})`)}`);
-		if (pendingRuns.length > 0) {
-			for (const run of pendingRuns
-				.slice()
-				.sort((a, b) => a.notBeforeMs - b.notBeforeMs)
-				.slice(0, 5)) {
-				lines.push(pendingRunLine(run));
-			}
-			if (pendingRuns.length > 5) {
-				lines.push(styleText("dim", `  +${pendingRuns.length - 5} more`));
-			}
+		children.push(line(span(`Pending (${pendingCount})`, undefined, true)));
+		const sorted = snapshot.pendingRuns
+			.slice()
+			.sort((a, b) => a.notBeforeMs - b.notBeforeMs);
+		for (const run of sorted.slice(0, 5)) {
+			children.push(pendingRunLine(run));
 		}
-		lines.push("");
+		if (pendingCount > 5) {
+			children.push(line(span(`  +${pendingCount - 5} more`, "muted")));
+		}
+		children.push(blank());
 	}
 
 	if (snapshot.lastCompletedWorkflow && snapshot.lastCompletedAt) {
-		lines.push(styleText("bold", "Last"));
+		children.push(line(span("Last", undefined, true)));
 		const ago = formatTimeAgo(snapshot.lastCompletedAt);
-		const st = snapshot.lastCompletedStatus
-			? statusIndicator(snapshot.lastCompletedStatus)
-			: "";
-		lines.push(
-			`  ${snapshot.lastCompletedWorkflow}  ${st}  ${styleText("dim", ago)}`,
+		const statusSpan = snapshot.lastCompletedStatus
+			? span(
+					statusRunText(snapshot.lastCompletedStatus).text,
+					statusRunText(snapshot.lastCompletedStatus).role,
+				)
+			: plain("");
+		children.push(
+			line(
+				plain(`  ${snapshot.lastCompletedWorkflow}  `),
+				statusSpan,
+				plain("  "),
+				span(ago, "muted"),
+			),
 		);
-		lines.push("");
+		children.push(blank());
 	}
 
 	if (logs.length > 0) {
 		const heading = "Activity ";
-		const fillWidth = Math.max(0, 52 - heading.length);
-		lines.push(
-			`${styleText("bold", heading)}${styleText("dim", "\u2500".repeat(fillWidth))}`,
+		const fillWidth = Math.max(0, ACTIVITY_HEADER_WIDTH - heading.length);
+		children.push(
+			line(
+				span(heading, undefined, true),
+				span("─".repeat(fillWidth), "muted"),
+			),
 		);
 		const visible = logs.slice(-MAX_LOG_LINES);
 		for (const log of visible) {
-			lines.push(styleText("dim", `  ${log}`));
+			children.push(line(span(`  ${log}`, "muted")));
 		}
 	}
 
-	return lines.join("\n");
+	return stack(...children);
+}
+
+export function renderDashboard(
+	snapshot: DashboardSnapshot,
+	logs: readonly string[],
+): string {
+	return renderToString(buildDashboardNode(snapshot, logs));
 }
 
 export class DaemonDashboard {

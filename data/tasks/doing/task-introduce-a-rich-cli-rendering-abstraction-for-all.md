@@ -6,7 +6,7 @@ priority: p2
 area: modules
 summary: Replace ad-hoc console printing with a dedicated rendering layer (library or module) used by daemon mode, CLI mode, and every surface, inspired by gemini-cli / codex / pi / opencode.
 created_at: 2026-04-22T16:46:53.748Z
-updated_at: 2026-04-22T18:23:24.268Z
+updated_at: 2026-04-22T18:39:25.889Z
 ---
 
 ## Problem
@@ -84,9 +84,13 @@ Phase 1 — land the module (this run):
 
 Phase 2 — migrate remaining surfaces (follow-up runs):
 
-- Replace `dashboard.ts`'s `styleText` calls and hand-rolled stat grid
-  with rendering primitives.
-- Migrate workflow-ops readouts (`run-show`, `run-list`, `run-cost`,
+- [done] Replace `dashboard.ts`'s `styleText` calls and hand-rolled
+  stat grid with rendering primitives. `formatStatsGrid` now emits
+  typed `LineNode[]` carrying role-aware value spans.
+- [done] Migrate `workflow-ops/runs/run-show` onto the module
+  (including the chain-tree printer, now exposed as
+  `buildChainLines`).
+- Migrate remaining workflow-ops readouts (`run-list`, `run-cost`,
   `run-stats`, `run-diff`, `follow`, `logs`) onto the module.
 - Migrate module CLIs (repo-tasks, history, memory, knowledge, webhook,
   owner-questions, guardrails-audit, approval-queue, eval-harness,

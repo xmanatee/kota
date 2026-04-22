@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { extractRepairSummary } from "#core/workflow/run-store-helpers.js";
-import { type ChainNode, formatRepairLine, formatWarningsSection, printChainTree } from "./run-show.js";
+import { renderToString } from "#modules/rendering/transport.js";
+import { buildChainLines, type ChainNode, formatRepairLine, formatWarningsSection } from "./run-show.js";
 
 // ---------------------------------------------------------------------------
 // formatWarningsSection
@@ -170,31 +171,24 @@ describe("formatRepairLine", () => {
 // printChainTree
 // ---------------------------------------------------------------------------
 
-describe("printChainTree", () => {
-  function captureOutput(fn: () => void): string[] {
-    const lines: string[] = [];
-    vi.spyOn(console, "log").mockImplementation((...args) => lines.push(args.join(" ")));
-    try {
-      fn();
-    } finally {
-      vi.restoreAllMocks();
-    }
-    return lines;
+describe("buildChainLines", () => {
+  function renderLines(nodes: ReturnType<typeof buildChainLines>): string[] {
+    return nodes.map((node) => renderToString(node));
   }
 
-  it("prints a single root node marked as current", () => {
+  it("renders a single root node marked as current", () => {
     const node: ChainNode = { id: "run-1", workflow: "builder", status: "success", durationMs: 60000, children: [] };
-    const lines = captureOutput(() => printChainTree(node, "run-1", "", true, true));
+    const lines = renderLines(buildChainLines(node, "run-1", "", true, true));
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("builder/run-1");
     expect(lines[0]).toContain("← current");
     expect(lines[0]).toContain("1m");
   });
 
-  it("prints parent and child with correct connectors", () => {
+  it("renders parent and child with correct connectors", () => {
     const child: ChainNode = { id: "run-2", workflow: "notifier", status: "success", durationMs: 8000, children: [] };
     const root: ChainNode = { id: "run-1", workflow: "builder", status: "success", durationMs: 252000, children: [child] };
-    const lines = captureOutput(() => printChainTree(root, "run-2", "", true, true));
+    const lines = renderLines(buildChainLines(root, "run-2", "", true, true));
     expect(lines).toHaveLength(2);
     expect(lines[0]).toContain("builder/run-1");
     expect(lines[0]).not.toContain("← current");
@@ -207,7 +201,7 @@ describe("printChainTree", () => {
     const child1: ChainNode = { id: "c1", workflow: "wf-a", status: "success", children: [] };
     const child2: ChainNode = { id: "c2", workflow: "wf-b", status: "failed", children: [] };
     const root: ChainNode = { id: "root", workflow: "builder", status: "success", children: [child1, child2] };
-    const lines = captureOutput(() => printChainTree(root, "root", "", true, true));
+    const lines = renderLines(buildChainLines(root, "root", "", true, true));
     expect(lines).toHaveLength(3);
     expect(lines[1]).toContain("├─");
     expect(lines[2]).toContain("└─");
@@ -215,7 +209,7 @@ describe("printChainTree", () => {
 
   it("marks no node as current when currentId does not match", () => {
     const node: ChainNode = { id: "run-1", workflow: "builder", status: "success", children: [] };
-    const lines = captureOutput(() => printChainTree(node, "nonexistent", "", true, true));
+    const lines = renderLines(buildChainLines(node, "nonexistent", "", true, true));
     expect(lines[0]).not.toContain("← current");
   });
 });
