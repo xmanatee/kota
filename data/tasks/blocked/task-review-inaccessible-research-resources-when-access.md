@@ -6,7 +6,7 @@ priority: p3
 area: research
 summary: Grouped follow-up for 9 research URLs that were captured but never read due to auth walls or fetch failures
 created_at: 2026-04-14T00:29:07.947Z
-updated_at: 2026-04-22T17:57:16.377Z
+updated_at: 2026-04-22T18:18:52.914Z
 ---
 
 ## Problem
@@ -56,7 +56,7 @@ reason based on actual content.
 - The task record reflects the final disposition per URL.
 - Follow-up tasks exist for any adopted or deferred work.
 
-## Status (2026-04-22 17:57 UTC retry)
+## Status (2026-04-22 18:18 UTC retry)
 
 Re-fetched every URL still in the Resources block. Dispositions:
 
@@ -74,18 +74,21 @@ Re-fetched every URL still in the Resources block. Dispositions:
     stores rejection in `src/modules/autonomy/AGENTS.md`. No new decision
     added.
   - `https://glthr.com/XML-fundamental-to-Claude` — confirmed `HTTP 404`
-    again today; no rehosted mirror found. Disposition: dropped. The URL
-    is removed from the Resources block because retrying further adds no
-    value.
+    again in the 17:57 UTC retry; no rehosted mirror found. Disposition:
+    dropped. The URL is removed from the Resources block because retrying
+    further adds no value.
 - **Still inaccessible (6 X/Twitter posts):**
   - All six X/Twitter status URLs in the Resources block return `HTTP 402`
-    on plain `WebFetch` (confirmed 2026-04-22 17:57 UTC). The
+    on plain `WebFetch` (re-confirmed 2026-04-22 18:18 UTC). The
     `x_post_read` browser tool can read them once an operator configures
     `modules.browser.storageStatePath` with an authenticated profile. No
-    such profile is configured in this repository today.
+    such profile is configured in this repository today, and the browser
+    module additionally reports Playwright is not installed at runtime
+    (`.kota/modules/browser/logs.jsonl`), so the scoped browser tools
+    would fail even if a profile path were set.
 
 The retry mechanism (scoped browser tools + research-retry workflow)
 already shipped under `task-enable-autonomous-access-to-auth-walled-sources-so`.
-This task stays `blocked` pending operator-configured browser profile;
-every research-retry run will re-confirm the six posts as auth-walled
-until then.
+This task stays `blocked` pending (a) Playwright install and
+(b) operator-configured browser profile; every research-retry run will
+re-confirm the six posts as auth-walled until both are in place.
