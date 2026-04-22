@@ -1,12 +1,12 @@
 ---
 id: task-record-resolved-agent-harness-id-in-every-workflow
 title: Record resolved agent harness id in every workflow run artifact
-status: ready
+status: doing
 priority: p2
 area: architecture
 summary: When a workflow agent step runs, record which AgentHarness adapter actually resolved (not just the static step config) alongside model and effort in the run artifact, so the pluggable-harness claim has ambient runtime evidence rather than relying only on harness-parity scenario captures.
 created_at: 2026-04-22T23:45:03.435Z
-updated_at: 2026-04-22T23:45:03.435Z
+updated_at: 2026-04-22T23:47:18.496Z
 ---
 
 ## Problem

@@ -66,16 +66,16 @@ in the Resources block.
 
 - **Still inaccessible (6 X/Twitter posts):**
   - All six URLs return `HTTP 402` on plain `WebFetch` (re-confirmed
-    2026-04-23 by re-fetching `akshay_pachaar/2041146899319971922` and
-    `NickSpisak_/2040448463540830705` as representative spot checks
-    rotated from the prior retry; the four other URLs remain auth-walled
+    2026-04-23 by re-fetching `arlanr/2041215978957389908` and
+    `pedroh96/2046604993982009825` as representative spot checks rotated
+    from the prior retry pair; the four other URLs remain auth-walled
     under the same mechanism and were not re-hit to avoid burning vendor
     rate limit). The `x_post_read` browser tool can read them once an
     operator configures `modules.browser.storageStatePath` with an
     authenticated profile. No such profile is configured in this
     repository today, and the browser module additionally reports
     Playwright is not installed at runtime (`.kota/modules/browser/logs.jsonl`,
-    latest warnings at 2026-04-22 23:01 UTC), so the scoped browser tools
+    latest warnings at 2026-04-22 23:31 UTC), so the scoped browser tools
     would fail even if a profile path were set.
 
 The retry mechanism (scoped browser tools + research-retry workflow)
