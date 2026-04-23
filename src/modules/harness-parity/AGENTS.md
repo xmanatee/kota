@@ -37,7 +37,7 @@ Per harness run the module writes:
 
 ## Scenario Coverage
 
-The shipped scenarios span two coverage points by design, not by accident:
+The shipped scenarios span three coverage points by design, not by accident:
 
 - A minimal smoke scenario that any tool-calling harness can clear in a
   single round trip. Its job is to prove the parity plumbing — scenario
@@ -49,11 +49,19 @@ The shipped scenarios span two coverage points by design, not by accident:
   job is to probe the capability the "general-purpose coding agent
   across pluggable harnesses" claim actually rests on. A text-only
   adapter (`thin`) cannot clear it — that failure is evidence, not a bug.
+- A failure-and-revise scenario whose expected value is derived at test
+  time from an opaque transform and only surfaces in the assertion
+  failure output. Its job is to probe tool-result fidelity across turns:
+  a harness that silently truncates, drops, or fails to carry tool-result
+  bytes back into the agent's next turn cannot clear it, because the
+  agent's only path to the expected value runs through the failure
+  message. This is the property every real debugging workflow rests on.
 
-Keep both coverage points alive. Adding a third scenario is fine, but do
-not delete the smoke fixture just because the multi-file one exists: the
-smoke fixture is the first thing to fail when plumbing regresses, and
-isolating the blast radius matters.
+Keep all three coverage points alive. Adding a fourth scenario is fine,
+but do not delete any of the existing fixtures: the smoke fixture is the
+first thing to fail when plumbing regresses, the multi-file fixture
+probes multi-turn coding capability, and the failure-and-revise fixture
+probes tool-result carry-over. Each isolates a different blast radius.
 
 ## Capability Gap Handling
 

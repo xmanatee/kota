@@ -17,8 +17,8 @@ import type { ScheduleTriggerManager } from "./schedule-triggers.js";
 import type {
   RegisteredWorkflowDefinitionInput,
   WorkflowDefinition,
-  WorkflowStep,
   WorkflowRunTrigger,
+  WorkflowStep,
 } from "./types.js";
 import { validateWorkflowDefinitions } from "./validation.js";
 import type { WorkflowQueueManager } from "./workflow-queue.js";

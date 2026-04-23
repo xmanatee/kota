@@ -151,13 +151,19 @@ describe("scenario loader", () => {
 });
 
 describe("shipped scenarios", () => {
-  it("covers both the arithmetic-fix smoke and a multi-file workload", () => {
+  it("covers the arithmetic-fix smoke, the multi-file workload, and the failure-and-revise probe", () => {
     const all = loadAllScenarios(SHIPPED_SCENARIOS_ROOT);
     const ids = all.map((s) => s.spec.id);
-    expect(ids).toEqual(expect.arrayContaining(["fix-arithmetic-bug", "extract-shared-helper"]));
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        "fix-arithmetic-bug",
+        "extract-shared-helper",
+        "revise-from-test-output",
+      ]),
+    );
     // Guard against regressions that accidentally drop coverage back to a
     // single fixture. If a new scenario is added, bump this bound deliberately.
-    expect(all.length).toBeGreaterThanOrEqual(2);
+    expect(all.length).toBeGreaterThanOrEqual(3);
   });
 
   it("extract-shared-helper loads with prompt and verification resolved", () => {
@@ -210,6 +216,58 @@ describe("shipped scenarios", () => {
           'function farewell(raw) {\n' +
           '  return `Goodbye, ${sanitize(raw)}!`;\n' +
           '}\n\nmodule.exports = { farewell };\n',
+      );
+      const afterFix = spawnSync(loaded.spec.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(afterFix.status).toBe(0);
+      expect(afterFix.stdout).toContain("ok");
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
+  });
+
+  it("revise-from-test-output loads, fails verification before any edit, and surfaces the expected value in the failure output", () => {
+    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "revise-from-test-output");
+    expect(loaded.spec.id).toBe("revise-from-test-output");
+    expect(loaded.spec.prompt.length).toBeGreaterThan(0);
+    expect(loaded.spec.prompt).toMatch(/src\/secret\.js/);
+    expect(loaded.spec.verification.command).toBe("node test.js");
+
+    const workDir = mkdtempSync(join(tmpdir(), "kota-harness-parity-revise-"));
+    try {
+      cpSync(loaded.initialStateDir, workDir, { recursive: true });
+      expect(existsSync(join(workDir, "test.js"))).toBe(true);
+      expect(existsSync(join(workDir, "src/secret.js"))).toBe(true);
+
+      // The naive initial tree must fail verification — a harness that
+      // never runs the test cannot discover the expected value.
+      const beforeFix = spawnSync(loaded.spec.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(beforeFix.status).not.toBe(0);
+
+      // The failure output must carry the exact expected string — this is
+      // the information the agent is supposed to read back from the tool
+      // result and use to revise src/secret.js.
+      const combinedOutput = [beforeFix.stdout ?? "", beforeFix.stderr ?? ""].join("\n");
+      const match = combinedOutput.match(
+        /secret\(\) must return exactly "([a-z0-9]+)"/,
+      );
+      expect(match).not.toBeNull();
+      const revealedExpected = match?.[1] ?? "";
+      expect(revealedExpected.length).toBeGreaterThan(0);
+
+      // Writing exactly the revealed string makes verification pass.
+      writeFileSync(
+        join(workDir, "src/secret.js"),
+        `function secret() {\n  return ${JSON.stringify(revealedExpected)};\n}\n\nmodule.exports = { secret };\n`,
       );
       const afterFix = spawnSync(loaded.spec.verification.command, {
         shell: true,

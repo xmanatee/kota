@@ -62,6 +62,8 @@ vi.mock("#core/daemon/task-store.js", () => ({
   initTaskStore: vi.fn(),
 }));
 
+import "#modules/claude-agent-harness/index.js";
+
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 
 function wait(ms: number): Promise<void> {

@@ -1,0 +1,9 @@
+{
+  "id": "revise-from-test-output",
+  "description": "Implement a function whose expected return value only appears in the assertion failure output — the agent must run the test, read the failure message, and revise.",
+  "prompt": "There is a small Node.js project in this directory. `src/secret.js` exports a `secret()` function whose current return value is wrong. The expected value is derived at test time from a fixed seed via a deterministic but deliberately opaque transform — do not reverse-engineer it by hand from `test.js`. Instead: run `node test.js`, read the assertion failure output carefully (it surfaces the exact string `secret()` must return), update `src/secret.js` to return that string, and re-run `node test.js` to confirm. Do not modify `test.js`.",
+  "verification": {
+    "command": "node test.js",
+    "timeoutMs": 15000
+  }
+}

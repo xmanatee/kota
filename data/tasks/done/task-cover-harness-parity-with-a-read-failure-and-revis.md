@@ -1,12 +1,12 @@
 ---
 id: task-cover-harness-parity-with-a-read-failure-and-revis
 title: Cover harness-parity with a read-failure-and-revise scenario
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Add one harness-parity scenario where the agent must run the verification command, observe a failing output, and then change approach — so tool-result fidelity across turns is actually probed, not just straight-line patch-and-verify.
 created_at: 2026-04-23T13:03:58.699Z
-updated_at: 2026-04-23T13:03:58.699Z
+updated_at: 2026-04-23T13:12:37.528Z
 ---
 
 ## Problem

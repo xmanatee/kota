@@ -49,7 +49,7 @@ decisions belong here.
   owned runtime state answers "what survives a crash mid-turn"; write
   through to run artifacts or the event bus.
 - **Eval fixtures come from real failures.** Seed `eval-harness` from
-  `.kota/runs/` failures, not synthetic specs or simulated users.
+  `.kota/runs/` failures, not synthetic specs.
 
 ## Live-Run Evaluator Calibration
 
