@@ -140,8 +140,8 @@ resources:
     added: "2026-04-19"
     snapshot:
       fingerprint: sha256:d86d2a8e2e7ba5ae43be88ca1bc892b3
-      summary: "Anthropic engineering blog index lists recent posts on quantifying infra noise in coding evals, decoupling agent brains/hands at scale, Claude Code auto mode and sandboxing, harness design for long-running app development, multi-Claude parallel C-compiler builds, and several deep-dives on agent evaluations."
-      last_seen_at: "2026-04-19T22:21:08.572Z"
+      summary: "Anthropic engineering blog — four autonomy-adjacent posts distilled 2026-04-23 alongside the previously distilled infra-noise post: 'Scaling Managed Agents: Decoupling the brain from the hands' (reject platform; KOTA already decouples locally via daemon + session + workflow + run artifacts), 'Claude Code auto mode: a safer way to skip permissions' (read; autonomy mode + approval-queue + injection-defense + tool-risk guardrails already realize the input-probe/output-classifier split), 'Harness design for long-running application development' (read, reinforces planner/generator/evaluator + reset-over-compact + pre-code sprint contracts already in decomposer + builder + critic + success-criteria files), 'Building a C compiler with a team of parallel Claudes' (reject; parallel-builder teams with git-lock task claims and oracle partitioning would be a second coordination surface beside workflow dispatch)."
+      last_seen_at: "2026-04-23T20:33:06.521Z"
   - url: https://openai.com/research
     added: "2026-04-19"
     snapshot:

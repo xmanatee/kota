@@ -1,12 +1,12 @@
 ---
 id: task-distill-undistilled-anthropic-engineering-posts-in
 title: Distill undistilled Anthropic engineering posts into autonomy decisions
-status: ready
+status: done
 priority: p2
 area: research
 summary: Read the Anthropic engineering posts not yet folded into autonomy AGENTS.md (agent brains/hands decoupling, Claude Code auto mode and sandboxing, harness design for long-running app development, multi-Claude parallel builds) and record decision-level takeaways or 'read, no action' rejections.
 created_at: 2026-04-23T20:30:03.587Z
-updated_at: 2026-04-23T20:30:03.587Z
+updated_at: 2026-04-23T20:39:52.834Z
 ---
 
 ## Problem

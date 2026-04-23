@@ -2,9 +2,8 @@
 
 This module owns the project autonomous development loop.
 
-- Keep the autonomous workflows inside this module; shared helpers used only by
-  them belong here too.
-- Do not recreate a parallel workflow catalog in core just to surface these.
+- Keep the autonomous workflows and their helpers inside this module; do
+  not recreate a parallel workflow catalog in core.
 - Durable autonomous learning belongs in scoped `AGENTS.md` at the narrowest
   useful directory. Evidence belongs in run artifacts and git history; do not
   create a second lessons store or inject stale summaries into prompts.
@@ -51,10 +50,9 @@ summaries live in run artifacts or `data/watchlist.yaml`.
 
 Fixture `pass^k` catches generator drift; per-run calibration artifacts
 catch evaluator drift. Contradiction needs a later overlapping run that
-itself carries a failure signal — file-overlap alone would flag healthy
-refactor chains. Pass-with-warnings stays on looser overlap because the
-critic already hedged. Monitor and notify split, mirroring the
-eval-harness regression notify pattern.
+itself fails — file-overlap alone flags healthy refactor chains. Pass-
+with-warnings uses looser overlap because the critic already hedged.
+Monitor/notify split mirrors the eval-harness regression pattern.
 
 ## External Pattern Decisions
 
@@ -80,10 +78,19 @@ existing protocols cannot express.
   `composition.workspace` + stores).
 - **Parallel-agent desktop UIs.** Client-surface pattern; new clients use
   the daemon control API. No second runtime session host.
-- **Claude Managed Agents platform posture.** Reject. KOTA is local-first;
-  outcome-iteration is already builder + critic + repair loop.
-- **Opus 4.7 Claude Code best practices.** Read; reinforces harness-
-  defaults bullet, extended to cover judicious-subagent default.
+- **Managed Agents / brain-hands decoupling.** Reject the platform. The
+  daemon + session + workflow + run-artifact split already implements
+  brain/hands decoupling locally; credentials-never-in-sandbox is
+  `guardrails.ts` + `injection-defense`.
+- **Claude Code auto mode + sandboxing.** Read. Autonomy mode +
+  `approval-queue` + `injection-defense` + tool-risk guardrails already
+  realize the input-probe/output-classifier split.
+- **Harness design for long-running apps.** Read, reinforces existing
+  posture — planner/generator/evaluator, reset-over-compact, and pre-code
+  sprint contracts are decomposer + builder + critic + `success-criteria*.txt`.
+- **Multi-Claude parallel builds.** Reject. Parallel-builder teams with
+  git-lock task claims and oracle partitioning would be a second
+  coordination surface; autonomy runs one-task-WIP through builder/critic.
 - **Claude Code 1M context + session management.** Reject at the workflow
   layer. Continue / rewind / `/compact` / `/clear` / subagent is an
   interactive-session primitive; KOTA's workflow + fresh-session-per-step
@@ -91,14 +98,9 @@ existing protocols cannot express.
 - **Production MCP agent integration.** Read; reinforces tool-design
   hygiene and `mcp-server`'s stance that MCP is a transport over KOTA
   capabilities, not a second registry.
-- **Advisor / executor-escalates.** Park. Adds a second cost-sensitive
-  routing surface; revisit only inside a harness adapter if a concrete
-  workflow benefits.
-- **AGI capability-level scoring (Levels of AGI).** Reject as an eval
-  primitive. `eval-harness` scores task outcomes, not capability classes.
-- **Harmful-manipulation / behavioral-disposition alignment.** Reject.
-  Threat models do not apply to a first-party operator daemon; critic
-  anchors on artifacts, not self-reports.
+- **AGI capability scoring / behavioral-disposition alignment.** Reject.
+  `eval-harness` scores task outcomes, not capability classes; threat
+  models do not apply to a first-party operator daemon.
 
 ## Prompt Hierarchy And Harness Posture
 
@@ -115,13 +117,11 @@ existing protocols cannot express.
   needed it is a new autonomy mode, not a parallel approval surface.
 - **Opus 4.7 harness defaults at the agent-step layer.** Delegate-don't-
   pair (front-load intent, constraints, success criteria in one turn),
-  `xhigh` default effort (not `max`), adaptive thinking rather than fixed
-  reasoning budgets, batch-upfront prompting, and judicious subagent
-  spawning (explicit builder→critic workflow steps, not auto fan-out —
-  4.7 delegates less by default, so routing stays in the workflow
-  definition). The task contract + success-criteria files enforce this;
-  agent steps must not reintroduce per-turn clarification loops or fixed
-  reasoning caps.
+  `xhigh` default effort, adaptive thinking over fixed reasoning budgets,
+  batch-upfront prompting, and judicious subagent spawning (explicit
+  builder→critic workflow steps, not auto fan-out — 4.7 delegates less by
+  default). Task contract + success-criteria files enforce this; agent
+  steps must not reintroduce clarification loops or fixed reasoning caps.
 - **Tool-design hygiene.** High bar for new tools; prefer discoverable
   surfaces (read, grep, scoped `AGENTS.md`, module prompt state).
 
@@ -133,12 +133,10 @@ existing protocols cannot express.
 
 ## Agent Judge Runtime Contract
 
-The shared agent-step retry classifier (see `src/core/workflow/steps/AGENTS.md`)
-also governs autonomy agent judges, so judges fail fast on runaway turn/token
-subtypes instead of burning budget.
-
-Judge-backed repair checks (critic, improver semantic gate) must catch the
-runaway throw in their wrapper and return a warning — never re-raise into the
-repair loop, since editing code cannot shrink a judge's budget. Only the
-repair-check wrappers degrade gracefully; the judge primitive still throws.
-Unclassified SDK failures still reject the check.
+The shared agent-step retry classifier (see
+`src/core/workflow/steps/AGENTS.md`) governs autonomy judges, so they
+fail fast on runaway turn/token subtypes. Judge-backed repair checks
+(critic, improver semantic gate) catch the runaway throw in their
+wrapper and return a warning — editing code cannot shrink a judge's
+budget — while the judge primitive still throws. Unclassified SDK
+failures still reject the check.
