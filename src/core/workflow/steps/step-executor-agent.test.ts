@@ -9,6 +9,10 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  type AgentHarness,
+  registerAgentHarness,
+} from "#core/agent-harness/index.js";
 import { KOTA_OWNER_QUESTIONS_MCP_TOOL } from "#core/agent-sdk/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 
@@ -115,7 +119,7 @@ describe("executeAgentStep — outputFormat: json", () => {
     const step = makeAgentStep(projectDir, { id: "analyze", outputFormat: "json" });
     const metadata = makeMetadata("run-json-ok");
 
-    const output = await executeAgentStep(
+    const result = await executeAgentStep(
       definition,
       step,
       metadata,
@@ -126,7 +130,9 @@ describe("executeAgentStep — outputFormat: json", () => {
       { projectDir, log: () => {} },
     );
 
-    expect(output).toEqual({ status: "ok", count: 3 });
+    expect(result.output).toEqual({ status: "ok", count: 3 });
+    expect(result.harness).toBe("claude-agent-sdk");
+    expect(result.model).toBe("claude-opus-4-7");
   });
 
   it("fails the step when outputFormat is json but no fenced block is present", async () => {
@@ -239,7 +245,7 @@ describe("executeAgentStep — outputFormat: json", () => {
     });
     const metadata = makeMetadata("run-json-schema-ok");
 
-    const output = await executeAgentStep(
+    const result = await executeAgentStep(
       definition,
       step,
       metadata,
@@ -250,7 +256,7 @@ describe("executeAgentStep — outputFormat: json", () => {
       { projectDir, log: () => {} },
     );
 
-    expect(output).toEqual({ status: "done", count: 5 });
+    expect(result.output).toEqual({ status: "done", count: 5 });
   });
 });
 
@@ -312,7 +318,7 @@ describe("executeAgentStep — schema validation feedback on retry", () => {
       retry: { maxAttempts: 2, initialDelayMs: 0, backoffFactor: 1 },
     });
 
-    const output = await executeAgentStep(
+    const result = await executeAgentStep(
       makeDefinition(),
       step,
       makeMetadata(),
@@ -323,7 +329,7 @@ describe("executeAgentStep — schema validation feedback on retry", () => {
       { projectDir, log: () => {} },
     );
 
-    expect(output).toEqual({ status: "ok", count: 3 });
+    expect(result.output).toEqual({ status: "ok", count: 3 });
     expect(capturedPrompts).toHaveLength(2);
     expect(capturedPrompts[0]).not.toContain("Previous output failed schema validation");
     expect(capturedPrompts[1]).toContain("Previous output failed schema validation");
@@ -726,5 +732,116 @@ describe("executeAgentStep — writeScope enforcement", () => {
     expect(executeWithAgentSDKMock).not.toHaveBeenCalled();
     // And the enforcement helper is not reachable because no step ran.
     expect(true).toBe(true);
+  });
+});
+
+describe("executeAgentStep — records resolved harness and model", () => {
+  let projectDir: string;
+
+  // A distinct harness registered under a second name lets us prove the step
+  // result records the name the *registry* returned, not just the optional
+  // `step.harness` config field.
+  const testHarnessCalls: Array<{ model?: string }> = [];
+  const testHarness: AgentHarness = {
+    name: "step-executor-test-harness",
+    description: "test-only adapter that captures invocation args",
+    supportsMultiTurn: true,
+    supportedHookKinds: [],
+    async run(options) {
+      testHarnessCalls.push({ model: options.model });
+      return {
+        text: "done",
+        streamedText: "",
+        sessionId: undefined,
+        turns: 1,
+        totalCostUsd: 0.01,
+        subtype: undefined,
+        isError: false,
+      };
+    },
+  };
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-step-executor-harness-id-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(join(projectDir, "prompt.md"), "do the thing");
+    testHarnessCalls.length = 0;
+    registerAgentHarness(testHarness);
+    tryEmitMock.mockReset();
+    executeWithAgentSDKMock.mockReset();
+    executeWithAgentSDKMock.mockResolvedValue({
+      text: "done",
+      streamedText: "",
+      sessionId: undefined,
+      turns: 1,
+      totalCostUsd: 0.01,
+      subtype: undefined,
+      isError: false,
+    });
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("records the registry-returned name when the step resolves via the registered default", async () => {
+    const step = makeAgentStep(projectDir);
+    const result = await executeAgentStep(
+      makeDefinition(),
+      step,
+      makeMetadata("run-harness-default"),
+      { event: "runtime.idle", payload: {} },
+      new AbortController(),
+      () => {},
+      () => {},
+      { projectDir, log: () => {} },
+    );
+    expect(result.harness).toBe("claude-agent-sdk");
+    expect(result.model).toBe("claude-opus-4-7");
+  });
+
+  it("records the exact harness name when the step explicitly overrides", async () => {
+    const step = makeAgentStep(projectDir, {
+      harness: "step-executor-test-harness",
+    });
+    const result = await executeAgentStep(
+      makeDefinition(),
+      step,
+      makeMetadata("run-harness-override"),
+      { event: "runtime.idle", payload: {} },
+      new AbortController(),
+      () => {},
+      () => {},
+      { projectDir, log: () => {} },
+    );
+    expect(result.harness).toBe("step-executor-test-harness");
+    expect(testHarnessCalls).toHaveLength(1);
+  });
+
+  it("records the model an agentModels override resolves to", async () => {
+    const step = makeAgentStep(projectDir, { agentName: "builder" });
+    const result = await executeAgentStep(
+      makeDefinition(),
+      step,
+      makeMetadata("run-harness-agent-model"),
+      { event: "runtime.idle", payload: {} },
+      new AbortController(),
+      () => {},
+      () => {},
+      {
+        projectDir,
+        log: () => {},
+        config: {
+          model: "fallback-model",
+          agentModels: { builder: "claude-sonnet-4-6" },
+        } as never,
+      },
+    );
+    expect(result.model).toBe("claude-sonnet-4-6");
+    // The harness received the same resolved model, not the static step.model.
+    expect(executeWithAgentSDKMock.mock.calls[0]?.[1]?.model).toBe("claude-sonnet-4-6");
   });
 });

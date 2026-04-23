@@ -130,7 +130,9 @@ describe("executeAgentStep", () => {
       agentConfig,
     );
 
-    expect(result).toMatchObject({ content: "done", turns: 1 });
+    expect(result.output).toMatchObject({ content: "done", turns: 1 });
+    expect(result.harness).toBe("claude-agent-sdk");
+    expect(result.model).toBe("claude-opus-4-7");
   });
 
   it("exposes ask_owner to agent steps through the SDK MCP bridge", async () => {
@@ -266,7 +268,7 @@ describe("executeAgentStep", () => {
       { ...agentConfig, log: (msg) => logs.push(msg) },
     );
 
-    expect(result).toMatchObject({ content: "done" });
+    expect(result.output).toMatchObject({ content: "done" });
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
     expect(logs).toHaveLength(1);
     expect(logs[0]).toContain("Attempt 1/2 failed");
@@ -856,7 +858,11 @@ describe("executeStep repair loop", () => {
 
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
     expect(runTool).toHaveBeenCalledTimes(1);
-    expect(result).toMatchObject({ content: "done", repairIterations: [] });
+    expect(result).toMatchObject({
+      output: { content: "done", repairIterations: [] },
+      harness: "claude-agent-sdk",
+      model: "claude-opus-4-7",
+    });
   });
 
   it("repair success: agent fixes issue on first repair attempt", async () => {
@@ -877,7 +883,7 @@ describe("executeStep repair loop", () => {
       },
     });
 
-    const result = await executeStep(
+    const wrapped = await executeStep(
       makeDefinition(),
       step,
       makeMetadata(),
@@ -887,7 +893,8 @@ describe("executeStep repair loop", () => {
       () => {},
       () => {},
       agentConfig,
-    ) as Record<string, unknown>;
+    ) as { output: Record<string, unknown>; harness: string; model: string };
+    const result = wrapped.output;
 
     // Initial agent + repair agent = 2 calls
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
@@ -897,6 +904,8 @@ describe("executeStep repair loop", () => {
     expect(result.content).toBe("fixed");
     expect(result.turns).toBe(3); // 1 initial + 2 repair
     expect(result.totalCostUsd).toBeCloseTo(0.03); // 0.01 + 0.02
+    expect(wrapped.harness).toBe("claude-agent-sdk");
+    expect(wrapped.model).toBe("claude-opus-4-7");
 
     const iterations = result.repairIterations as Array<Record<string, unknown>>;
     expect(iterations).toHaveLength(1);
@@ -962,7 +971,7 @@ describe("executeStep repair loop", () => {
       },
     });
 
-    const result = await executeStep(
+    const wrapped = await executeStep(
       makeDefinition(),
       step,
       makeMetadata(),
@@ -972,7 +981,8 @@ describe("executeStep repair loop", () => {
       () => {},
       () => {},
       agentConfig,
-    ) as Record<string, unknown>;
+    ) as { output: Record<string, unknown> };
+    const result = wrapped.output;
 
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
     expect(runTool).toHaveBeenCalledTimes(1);
@@ -1007,7 +1017,7 @@ describe("executeStep repair loop", () => {
       },
     });
 
-    const result = await executeStep(
+    const wrapped = await executeStep(
       makeDefinition(),
       step,
       makeMetadata(),
@@ -1017,7 +1027,8 @@ describe("executeStep repair loop", () => {
       () => {},
       () => {},
       agentConfig,
-    ) as Record<string, unknown>;
+    ) as { output: Record<string, unknown> };
+    const result = wrapped.output;
 
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
     expect(codeCheck).toHaveBeenCalledTimes(2);
@@ -1108,7 +1119,7 @@ describe("executeStep repair loop", () => {
       },
     });
 
-    const result = await executeStep(
+    const wrapped = await executeStep(
       makeDefinition(),
       step,
       makeMetadata(),
@@ -1118,7 +1129,8 @@ describe("executeStep repair loop", () => {
       () => {},
       () => {},
       agentConfig,
-    ) as Record<string, unknown>;
+    ) as { output: Record<string, unknown> };
+    const result = wrapped.output;
 
     // Phase 1 failed initially → phase 2 (critic) should NOT have run on first check
     // After repair, phase 1 passes → phase 2 runs
@@ -1185,7 +1197,7 @@ describe("executeStep repair loop", () => {
       },
     });
 
-    const result = await executeStep(
+    const wrapped = await executeStep(
       makeDefinition(),
       step,
       makeMetadata(),
@@ -1195,7 +1207,8 @@ describe("executeStep repair loop", () => {
       () => {},
       () => {},
       agentConfig,
-    ) as Record<string, unknown>;
+    ) as { output: Record<string, unknown> };
+    const result = wrapped.output;
 
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
     expect(codeCheck).toHaveBeenCalledTimes(1);

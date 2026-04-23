@@ -45,6 +45,19 @@ export type WorkflowStepOutput =
   | null
   | undefined;
 
+/**
+ * Wrapper returned by agent-step execution. `output` is the caller-visible
+ * step output (unchanged contract); `harness` and `model` are the resolved
+ * runtime identifiers threaded out so the run executor can promote them onto
+ * the top-level `WorkflowStepResult`. Agent steps are the only step type
+ * with these fields — non-agent steps return `WorkflowStepOutput` directly.
+ */
+export type AgentStepResult = {
+  output: WorkflowStepOutput;
+  harness: string;
+  model: string;
+};
+
 export type AgentStepConfig = {
   model?: string;
   config?: KotaConfig;
@@ -324,7 +337,10 @@ export async function executeAgentStep(
   writeInputs: (systemPromptAppend: string | undefined, prompt: string) => void,
   agentConfig: AgentStepConfig,
   priorStepOutputs: Record<string, unknown> = {},
-): Promise<WorkflowStepOutput> {
+): Promise<AgentStepResult> {
+  const resolvedHarness = resolveAgentHarness(step.harness);
+  const resolvedModel = resolveAgentModel(step, agentConfig);
+
   const agentPrompt = buildAgentPrompt(
     definition,
     step,
@@ -373,12 +389,11 @@ export async function executeAgentStep(
       step.disallowedTools,
     );
     try {
-      const harness = resolveAgentHarness(step.harness);
       const result = await runAgentHarness(
-        harness,
+        resolvedHarness,
         {
           prompt,
-          model: resolveAgentModel(step, agentConfig),
+          model: resolvedModel,
           cwd: agentConfig.projectDir,
           systemPrompt,
           maxTurns: step.maxTurns,
@@ -518,7 +533,7 @@ export async function executeAgentStep(
     }
   }
 
-  return output;
+  return { output, harness: resolvedHarness.name, model: resolvedModel };
 }
 
 export class JsonSchemaValidationError extends Error {

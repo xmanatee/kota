@@ -120,6 +120,18 @@ export type WorkflowStepResult = {
   /** True when this step result was reused from a prior run (resume-from-step). */
   reused?: boolean;
   skipReason?: WorkflowStepSkipReason;
+  /**
+   * Agent-step only. The adapter name the harness registry actually returned
+   * for this step (the result of `resolveAgentHarness(step.harness)`), not the
+   * optional raw `step.harness` config. Absent on non-agent steps.
+   */
+  harness?: string;
+  /**
+   * Agent-step only. The model identifier the harness ran with — the result
+   * of `resolveAgentModel(step, agentConfig)`, including any `agentModels`
+   * override. Absent on non-agent steps.
+   */
+  model?: string;
 };
 
 export type WorkflowStepContext = {

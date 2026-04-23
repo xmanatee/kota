@@ -14,7 +14,7 @@ import type {
   WorkflowToolStep,
   WorkflowTriggerStep,
 } from "../types.js";
-import type { AgentStepConfig, WorkflowStepOutput } from "./step-executor-agent.js";
+import type { AgentStepConfig, AgentStepResult, WorkflowStepOutput } from "./step-executor-agent.js";
 import {
   AgentStepRuntimeError,
   buildAgentPrompt,
@@ -27,6 +27,7 @@ import { executeTriggerStep } from "./step-executor-trigger.js";
 
 export type {
   AgentStepConfig,
+  AgentStepResult,
   RepairCheckResult,
   RepairIteration,
   WorkflowStepOutput,
@@ -167,7 +168,7 @@ export async function executeStep(
   appendMessage: (message: SDKMessage) => void,
   writeInputs: (systemPromptAppend: string | undefined, prompt: string) => void,
   agentConfig: AgentStepConfig,
-): Promise<WorkflowStepOutput> {
+): Promise<WorkflowStepOutput | AgentStepResult> {
   if (step.type === "tool") return executeToolStep(step, context);
   if (step.type === "agent") {
     const result = await executeAgentStep(

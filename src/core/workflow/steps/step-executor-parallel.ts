@@ -1,7 +1,7 @@
 import type { SDKMessage } from "#core/agent-sdk/types.js";
 import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
 import { DEFAULT_STEP_TIMEOUT_MS } from "../run-executor-step.js";
-import type { WorkflowStepContext, WorkflowStepResult } from "../run-types.js";
+import type { WorkflowStepContext, WorkflowStepResult, WorkflowStepSkipReason } from "../run-types.js";
 import type { WorkflowDefinition, WorkflowParallelGroup, WorkflowRunTrigger } from "../types.js";
 import { evaluateStepRunDecision, executeCodeStep } from "./step-executor.js";
 import type { AgentStepConfig } from "./step-executor-agent.js";
@@ -13,6 +13,21 @@ export type ParallelGroupResult = {
   hadNewWarnings: boolean;
   groupFailed: boolean;
 };
+
+type ParallelChildOutcome =
+  | {
+      childStep: WorkflowParallelGroup["steps"][number];
+      skipped: true;
+      skipReason: WorkflowStepSkipReason;
+      output: unknown;
+    }
+  | {
+      childStep: WorkflowParallelGroup["steps"][number];
+      skipped: false;
+      output: unknown;
+      harness?: string;
+      model?: string;
+    };
 
 /** Deps required only when the parallel group contains agent steps. */
 export type ParallelAgentDeps = {
@@ -103,8 +118,14 @@ export async function executeParallelStepGroup(
               agentDeps.agentConfig,
               context.stepOutputs,
             );
-            const output = await Promise.race([agentPromise, timeoutPromise]);
-            return { childStep, skipped: false as const, output };
+            const agentResult = await Promise.race([agentPromise, timeoutPromise]);
+            return {
+              childStep,
+              skipped: false as const,
+              output: agentResult.output,
+              harness: agentResult.harness,
+              model: agentResult.model,
+            };
           } finally {
             clearTimeout(timeoutHandle);
             agentDeps.runAbortController.signal.removeEventListener("abort", forwardAbort);
@@ -117,7 +138,7 @@ export async function executeParallelStepGroup(
       const output = await executeCodeStep(childStep, context);
       return { childStep, skipped: false as const, output };
     }),
-  );
+  ) as Array<PromiseSettledResult<ParallelChildOutcome>>;
 
   let groupFailed = false;
   let hadNewWarnings = false;
@@ -140,6 +161,7 @@ export async function executeParallelStepGroup(
         };
         innerResults.push(childSkipped);
       } else {
+        const { harness, model } = result.value;
         innerResults.push({
           id: childStep.id,
           type: childStep.type,
@@ -148,6 +170,8 @@ export async function executeParallelStepGroup(
           completedAt: childCompletedAt,
           durationMs: 0,
           output: result.value.output,
+          ...(harness != null ? { harness } : {}),
+          ...(model != null ? { model } : {}),
         });
       }
     } else {

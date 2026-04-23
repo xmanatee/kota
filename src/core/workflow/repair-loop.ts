@@ -9,7 +9,7 @@ import {
 } from "#core/agent-sdk/index.js";
 import type { SDKMessage } from "#core/agent-sdk/types.js";
 import type { WorkflowRepairCheck, WorkflowStepContext } from "./run-types.js";
-import type { AgentStepConfig, WorkflowStepOutput } from "./steps/step-executor-agent.js";
+import type { AgentStepConfig, AgentStepResult } from "./steps/step-executor-agent.js";
 import {
   resolveAgentModel,
   resolvePromptContextStartDir,
@@ -183,22 +183,28 @@ async function runChecksPhased(
 
 export async function runAgentRepairLoop(
   step: WorkflowAgentStep,
-  initialResult: WorkflowStepOutput,
+  initialResult: AgentStepResult,
   context: WorkflowStepContext,
   abortController: AbortController,
   appendMessage: (message: SDKMessage) => void,
   agentConfig: AgentStepConfig,
-): Promise<WorkflowStepOutput> {
+): Promise<AgentStepResult> {
   const { checks, maxRepairAttempts } = step.repairLoop!;
   const iterations: RepairIteration[] = [];
-  const base = (initialResult && typeof initialResult === "object") ? initialResult as Record<string, unknown> : {};
+  const base = (initialResult.output && typeof initialResult.output === "object") ? initialResult.output as Record<string, unknown> : {};
   let totalTurns = typeof base.turns === "number" ? base.turns : 0;
   let totalCostUsd = typeof base.totalCostUsd === "number" ? base.totalCostUsd : 0;
   let lastContent = typeof base.content === "string" ? base.content : "";
   let warnings = [] as RepairCheckResult[];
 
+  const wrap = (output: Record<string, unknown>): AgentStepResult => ({
+    output,
+    harness: initialResult.harness,
+    model: initialResult.model,
+  });
+
   if (abortController.signal.aborted) {
-    return { ...base, content: lastContent, turns: totalTurns, totalCostUsd, repairIterations: iterations, repairWarnings: warnings };
+    return wrap({ ...base, content: lastContent, turns: totalTurns, totalCostUsd, repairIterations: iterations, repairWarnings: warnings });
   }
 
   const { failures: initialFailures, warnings: initialWarnings } = await runChecksPhased(checks, context);
@@ -242,12 +248,12 @@ export async function runAgentRepairLoop(
     }
   }
 
-  return {
+  return wrap({
     ...base,
     content: lastContent,
     turns: totalTurns,
     totalCostUsd,
     repairIterations: iterations,
     repairWarnings: warnings,
-  };
+  });
 }

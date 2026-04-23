@@ -7,6 +7,7 @@ import { buildStepCompletedPayload, resolveStepAutonomyMode } from "./event-payl
 import type { ToolCallSummaryEntry, WorkflowRunMetadata, WorkflowRunWarning, WorkflowStepContext, WorkflowStepResult, WorkflowStepSkipReason } from "./run-types.js";
 import {
   type AgentStepConfig,
+  type AgentStepResult,
   AgentStepRuntimeError,
   executeStep,
 } from "./steps/step-executor.js";
@@ -235,7 +236,13 @@ export async function executeWorkflowStep(
       (systemPromptAppend, prompt) => run.writeAgentInputs(step.id, systemPromptAppend, prompt),
       agentConfig,
     );
-    const rawOutput = await Promise.race([stepPromise, timeoutPromise]);
+    const rawResult = await Promise.race([stepPromise, timeoutPromise]);
+    // Agent steps return an AgentStepResult wrapper so the resolved harness
+    // and model can be promoted to top-level fields on the step result; every
+    // other step type returns its output directly.
+    const isAgentResult = step.type === "agent";
+    const agentResult = isAgentResult ? (rawResult as AgentStepResult) : undefined;
+    const rawOutput = isAgentResult ? (rawResult as AgentStepResult).output : rawResult;
     const stepCostUsd =
       step.type === "agent" &&
       rawOutput != null &&
@@ -266,6 +273,7 @@ export async function executeWorkflowStep(
       ...(stepCostUsd != null ? { costUsd: stepCostUsd } : {}),
       output,
       ...(toolCalls != null ? { toolCalls } : {}),
+      ...(agentResult ? { harness: agentResult.harness, model: agentResult.model } : {}),
     };
     run.recordStep(completed);
     acc.stepOutputsById[step.id] = output;

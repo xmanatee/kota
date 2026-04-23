@@ -46,6 +46,12 @@ export function buildStepSummaryLines(step: StepRecord): LineNode[] {
   lines.push(line(plain("Output:")));
 
   if (step.type === "agent") {
+    if (step.harness) {
+      lines.push(line(plain(`  Harness: ${step.harness}`)));
+    }
+    if (step.model) {
+      lines.push(line(plain(`  Model:   ${step.model}`)));
+    }
     if (typeof output.totalCostUsd === "number") {
       lines.push(line(plain(`  Cost:  $${(output.totalCostUsd as number).toFixed(4)}`)));
     }

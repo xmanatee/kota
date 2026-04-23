@@ -239,6 +239,12 @@ function buildStepSpans(step: WorkflowRunMetadata["steps"][number]): {
   if (step.status === "skipped" && step.skipReason) {
     detail.push(line(plain(`      Skipped: ${formatSkipReason(step.skipReason)}`)));
   }
+  if (step.type === "agent" && (step.harness || step.model)) {
+    const parts: string[] = [];
+    if (step.harness) parts.push(step.harness);
+    if (step.model) parts.push(step.model);
+    detail.push(line(plain(`      Harness: ${parts.join(" / ")}`)));
+  }
   if (repairSummary) detail.push(line(plain(`      ${formatRepairLine(repairSummary)}`)));
   if (step.output !== undefined && step.output !== null) {
     const outputSummary = JSON.stringify(step.output);

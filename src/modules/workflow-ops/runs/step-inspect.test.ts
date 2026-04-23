@@ -73,6 +73,16 @@ describe("buildStepSummaryLines", () => {
     expect(output).toContain("Did the work.");
   });
 
+  it("surfaces the resolved harness and model on agent steps", () => {
+    const step = makeStep({
+      harness: "claude-agent-sdk",
+      model: "claude-opus-4-7",
+    });
+    const output = renderSummary(step);
+    expect(output).toContain("Harness: claude-agent-sdk");
+    expect(output).toContain("Model:   claude-opus-4-7");
+  });
+
   it("renders code step summary", () => {
     const step = makeStep({ id: "prep", type: "code", output: { note: "ready" } });
     const output = renderSummary(step);

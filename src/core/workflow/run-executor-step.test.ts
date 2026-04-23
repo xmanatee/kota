@@ -147,7 +147,11 @@ describe("executeWorkflowStep — costUsd capture", () => {
 
   it("captures costUsd from agent step output onto WorkflowStepResult", async () => {
     const agentOutput = { content: "done", totalCostUsd: 0.42, turns: 3 };
-    executeStepMock.mockResolvedValueOnce(agentOutput);
+    executeStepMock.mockResolvedValueOnce({
+      output: agentOutput,
+      harness: "claude-agent-sdk",
+      model: "claude-opus-4-7",
+    });
 
     const step = { id: "build", type: "agent" as const, promptPath: "prompt.md", permissionMode: "bypassPermissions" as const, settingSources: [] };
     const acc = makeAcc();
@@ -157,6 +161,8 @@ describe("executeWorkflowStep — costUsd capture", () => {
     );
 
     expect(result.completed.costUsd).toBe(0.42);
+    expect(result.completed.harness).toBe("claude-agent-sdk");
+    expect(result.completed.model).toBe("claude-opus-4-7");
     expect(bus.emit).toHaveBeenCalledWith(
       "workflow.step.completed",
       expect.objectContaining({ costUsd: 0.42 }),
@@ -176,7 +182,11 @@ describe("executeWorkflowStep — costUsd capture", () => {
   });
 
   it("does not set costUsd when agent output lacks totalCostUsd", async () => {
-    executeStepMock.mockResolvedValueOnce({ content: "done" });
+    executeStepMock.mockResolvedValueOnce({
+      output: { content: "done" },
+      harness: "claude-agent-sdk",
+      model: "claude-opus-4-7",
+    });
     const step = { id: "build", type: "agent" as const, promptPath: "prompt.md", permissionMode: "bypassPermissions" as const, settingSources: [] };
     const acc = makeAcc();
     const result = await executeWorkflowStep(

@@ -33,6 +33,18 @@ This enforcement lives in the core executor, not in per-workflow prompts or
 repair checks. Workflows declare scope honestly on their agent definitions
 and let the runtime reject out-of-scope writes uniformly.
 
+## Resolved Harness And Model On Agent Step Results
+
+Every successful agent step records the harness identifier the registry
+actually returned (`resolveAgentHarness(step.harness).name`) and the model
+the adapter ran with (`resolveAgentModel(step, agentConfig)`) on the
+top-level `WorkflowStepResult`. These fields are populated only for agent
+steps — non-agent step results omit them. The static `workflow.json` step
+config keeps `model`/`effort` for pre-run introspection; consumers
+surfacing harness identity (CLI run readouts, tracing) should prefer the
+runtime values on the step result over re-deriving them from the static
+config.
+
 ## Agent-Step Retry and Error Classification
 
 Every agent step inherits `DEFAULT_AGENT_STEP_RETRY` from

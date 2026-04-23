@@ -12,7 +12,7 @@ import type {
   WorkflowRunTrigger,
 } from "../types.js";
 import { evaluateStepRunDecision, executeCodeStep, resolveValue } from "./step-executor.js";
-import type { AgentStepConfig } from "./step-executor-agent.js";
+import type { AgentStepConfig, AgentStepResult } from "./step-executor-agent.js";
 import { executeAgentStep } from "./step-executor-agent.js";
 
 export type ForeachItemResult = {
@@ -86,6 +86,7 @@ async function executeInnerStep(
 
   try {
     let output: unknown;
+    let agentResult: AgentStepResult | undefined;
 
     if (innerStep.type === "agent") {
       const timeoutMs = innerStep.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
@@ -103,7 +104,7 @@ async function executeInnerStep(
       });
 
       try {
-        output = await Promise.race([
+        agentResult = await Promise.race([
           executeAgentStep(
             deps.definition,
             innerStep,
@@ -118,6 +119,7 @@ async function executeInnerStep(
           ),
           timeoutPromise,
         ]);
+        output = agentResult.output;
       } finally {
         clearTimeout(timeoutHandle);
         deps.runAbortController.signal.removeEventListener("abort", forwardAbort);
@@ -142,6 +144,7 @@ async function executeInnerStep(
       completedAt: new Date().toISOString(),
       durationMs: Date.now() - stepStartedAt,
       output: limitedOutput,
+      ...(agentResult ? { harness: agentResult.harness, model: agentResult.model } : {}),
     };
     deps.acc.stepOutputsById[innerStep.id] = limitedOutput;
     deps.acc.stepResultsById[innerStep.id] = completed;
