@@ -1,0 +1,9 @@
+{
+  "id": "extract-shared-helper",
+  "description": "Extract duplicated input-sanitization logic from two callers into a shared Node.js helper module and wire both callers through it so a co-located assertion script passes.",
+  "prompt": "There is a small Node.js project in this directory. Two modules, `src/greet.js` and `src/farewell.js`, share the same input-sanitization logic, and `src/farewell.js` is currently an unfinished stub. Extract the sanitization into a shared helper at `src/sanitize.js` that exports a `sanitize(raw)` function, then update `src/greet.js` and `src/farewell.js` to delegate to it. Read all three files before editing: `src/greet.js`, `src/farewell.js`, and `test.js`. Run `node test.js` to confirm the fix. Do not change `test.js`.",
+  "verification": {
+    "command": "node test.js",
+    "timeoutMs": 30000
+  }
+}

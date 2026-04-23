@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -7,6 +8,8 @@ import {
   loadScenario,
   ScenarioLoadError,
 } from "./scenario.js";
+
+const SHIPPED_SCENARIOS_ROOT = join(import.meta.dirname, "scenarios");
 
 function writeScenario(
   scenariosRoot: string,
@@ -144,5 +147,80 @@ describe("scenario loader", () => {
   it("returns [] when scenariosRoot does not exist", () => {
     rmSync(scenariosRoot, { recursive: true, force: true });
     expect(loadAllScenarios(scenariosRoot)).toEqual([]);
+  });
+});
+
+describe("shipped scenarios", () => {
+  it("covers both the arithmetic-fix smoke and a multi-file workload", () => {
+    const all = loadAllScenarios(SHIPPED_SCENARIOS_ROOT);
+    const ids = all.map((s) => s.spec.id);
+    expect(ids).toEqual(expect.arrayContaining(["fix-arithmetic-bug", "extract-shared-helper"]));
+    // Guard against regressions that accidentally drop coverage back to a
+    // single fixture. If a new scenario is added, bump this bound deliberately.
+    expect(all.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("extract-shared-helper loads with prompt and verification resolved", () => {
+    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "extract-shared-helper");
+    expect(loaded.spec.id).toBe("extract-shared-helper");
+    expect(loaded.spec.prompt.length).toBeGreaterThan(0);
+    expect(loaded.spec.prompt).toMatch(/src\/sanitize\.js/);
+    expect(loaded.spec.verification.command).toBe("node test.js");
+    expect(loaded.spec.verification.timeoutMs).toBeGreaterThan(0);
+    expect(existsSync(loaded.initialStateDir)).toBe(true);
+    expect(statSync(loaded.initialStateDir).isDirectory()).toBe(true);
+  });
+
+  it("extract-shared-helper materializes into a fresh tmpdir and is solvable by hand", () => {
+    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "extract-shared-helper");
+    const workDir = mkdtempSync(join(tmpdir(), "kota-harness-parity-shipped-"));
+    try {
+      cpSync(loaded.initialStateDir, workDir, { recursive: true });
+      expect(existsSync(join(workDir, "test.js"))).toBe(true);
+      expect(existsSync(join(workDir, "src/greet.js"))).toBe(true);
+      expect(existsSync(join(workDir, "src/farewell.js"))).toBe(true);
+
+      // Verification fails before the fix — sanitize.js does not exist and
+      // farewell() throws. The capability-gap path relies on that.
+      const beforeFix = spawnSync(loaded.spec.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(beforeFix.status).not.toBe(0);
+
+      // Apply the expected fix by hand and re-run: verification must pass.
+      writeFileSync(
+        join(workDir, "src/sanitize.js"),
+        'function sanitize(raw) {\n' +
+          '  return String(raw).trim().replace(/[^a-zA-Z0-9 ]/g, "");\n' +
+          '}\n\nmodule.exports = { sanitize };\n',
+      );
+      writeFileSync(
+        join(workDir, "src/greet.js"),
+        'const { sanitize } = require("./sanitize.js");\n\n' +
+          'function greet(raw) {\n' +
+          '  return `Hello, ${sanitize(raw)}!`;\n' +
+          '}\n\nmodule.exports = { greet };\n',
+      );
+      writeFileSync(
+        join(workDir, "src/farewell.js"),
+        'const { sanitize } = require("./sanitize.js");\n\n' +
+          'function farewell(raw) {\n' +
+          '  return `Goodbye, ${sanitize(raw)}!`;\n' +
+          '}\n\nmodule.exports = { farewell };\n',
+      );
+      const afterFix = spawnSync(loaded.spec.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(afterFix.status).toBe(0);
+      expect(afterFix.stdout).toContain("ok");
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
   });
 });

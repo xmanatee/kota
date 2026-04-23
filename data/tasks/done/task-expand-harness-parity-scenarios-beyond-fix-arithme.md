@@ -1,12 +1,12 @@
 ---
 id: task-expand-harness-parity-scenarios-beyond-fix-arithme
 title: Expand harness-parity scenarios beyond fix-arithmetic-bug to probe real coding workloads
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Add at least one multi-file multi-turn coding scenario to src/modules/harness-parity/scenarios/ with deterministic shell verification, so harness parity evidence covers more than a 3-line single-file edit and the openai-tools adapter is exercised against a realistic tool-loop coding task.
 created_at: 2026-04-23T00:28:36.141Z
-updated_at: 2026-04-23T00:28:36.141Z
+updated_at: 2026-04-23T00:49:53.029Z
 ---
 
 ## Problem

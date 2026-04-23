@@ -35,6 +35,26 @@ Per harness run the module writes:
   stdout/stderr.
 - `run-meta.json` — structured record including any adapter error.
 
+## Scenario Coverage
+
+The shipped scenarios span two coverage points by design, not by accident:
+
+- A minimal smoke scenario that any tool-calling harness can clear in a
+  single round trip. Its job is to prove the parity plumbing — scenario
+  load, working-dir materialization, adapter invocation, verification,
+  diff capture — survives end-to-end without masking trivial wiring bugs.
+- A multi-file, multi-turn scenario that requires reading several files,
+  deriving correct content from what was read, writing more than one
+  file, and running the verification command through the tool loop. Its
+  job is to probe the capability the "general-purpose coding agent
+  across pluggable harnesses" claim actually rests on. A text-only
+  adapter (`thin`) cannot clear it — that failure is evidence, not a bug.
+
+Keep both coverage points alive. Adding a third scenario is fine, but do
+not delete the smoke fixture just because the multi-file one exists: the
+smoke fixture is the first thing to fail when plumbing regresses, and
+isolating the blast radius matters.
+
 ## Capability Gap Handling
 
 Harnesses differ in capability. A text-only adapter (e.g. `thin`) cannot
