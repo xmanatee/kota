@@ -29,8 +29,8 @@ protocol live in modules — the core only owns the interface and the registry.
   `composeCanUseTools`, `createWorkflowAgentGuards`). Callers that need the
   standard workflow-agent stack reach for `createWorkflowAgentGuards()` so
   the same behavior applies across claude-agent-sdk, openai-tools, and any
-  future tool-loop adapter — guards are not re-imported from
-  `src/core/agent-sdk/`.
+  future tool-loop adapter — guards are not re-imported from the
+  claude-agent-harness module.
 
 ## Owner-questions capability
 
@@ -109,9 +109,14 @@ history, CostTracker, Transport) and only fires inside the classic
 that needs to observe or decorate every adapter's run should use the neutral
 harness hook, not the classic pre-send hook.
 
-## Relation to `src/core/agent-sdk/`
+## SDK wire-type declarations
 
-`src/core/agent-sdk/` still hosts guardrail utilities, the Claude Agent SDK
-executor primitive, system-prompt builder, and MCP bridge. It is the internal
-implementation of the Claude harness module; other adapters do not depend on
-it.
+`sdk-types.ts` owns the `SDKMessage`, `SDKPermissionMode`, `SDKSettingSource`,
+`SDKSystemPrompt`, and `SDKQueryOptions` declarations. The shapes originated
+with the Claude Agent SDK but the protocol treats them as neutral wire types;
+every adapter normalizes into them at its boundary. The workflow runtime, run
+stores, and step executors import `SDKMessage` directly from this file. The
+neutral `types.ts` in the same directory re-exports the subset the protocol
+surface needs under harness-neutral names (`AgentMessage`,
+`AgentPermissionMode`, etc.). The Claude Agent SDK executor primitive and
+owner-questions MCP bridge live in `src/modules/claude-agent-harness/`.

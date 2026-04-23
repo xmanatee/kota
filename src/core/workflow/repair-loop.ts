@@ -5,7 +5,7 @@ import {
   resolveAgentHarness,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
-import type { SDKMessage } from "#core/agent-sdk/types.js";
+import type { SDKMessage } from "#core/agent-harness/sdk-types.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
 import type { WorkflowRepairCheck, WorkflowStepContext } from "./run-types.js";
 import type { AgentStepConfig, AgentStepResult } from "./steps/step-executor-agent.js";

@@ -4,9 +4,9 @@ import type { Transport } from "#core/loop/transport.js";
 
 const mockExecuteWithAgentSDK = vi.fn();
 
-vi.mock("#core/agent-sdk/index.js", async () => {
-  const actual = await vi.importActual<typeof import("#core/agent-sdk/index.js")>(
-    "#core/agent-sdk/index.js",
+vi.mock("#modules/claude-agent-harness/executor.js", async () => {
+  const actual = await vi.importActual<typeof import("#modules/claude-agent-harness/executor.js")>(
+    "#modules/claude-agent-harness/executor.js",
   );
   return {
     ...actual,

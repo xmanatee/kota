@@ -1,12 +1,12 @@
 ---
 id: task-move-claude-sdk-executor-out-of-srccoreagent-sdk-i
 title: Move Claude-SDK executor out of src/core/agent-sdk/ into the claude-agent-harness module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: executor.ts + kota-tools-mcp.ts are only called by the claude-agent-harness adapter yet live in src/core/agent-sdk/. Move them into the claude-agent-harness module so the core kernel no longer hosts Claude-SDK-specific runtime while keeping the harness-neutral SDKMessage/SDKPermissionMode types in core where workflow runtime still references them.
 created_at: 2026-04-23T21:39:14.037Z
-updated_at: 2026-04-23T21:39:14.037Z
+updated_at: 2026-04-23T21:47:07.802Z
 ---
 
 ## Problem

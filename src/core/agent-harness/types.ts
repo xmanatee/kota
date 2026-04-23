@@ -1,18 +1,18 @@
 import type { CanUseTool, PermissionResult } from "@anthropic-ai/claude-agent-sdk";
+import type { HarnessHookKind } from "./hooks.js";
 import type {
   SDKMessage,
   SDKPermissionMode,
   SDKQueryOptions,
   SDKSettingSource,
-} from "#core/agent-sdk/types.js";
-import type { HarnessHookKind } from "./hooks.js";
+} from "./sdk-types.js";
 
 /**
  * Harness-neutral re-exports. Message, permission, and settings shapes live in
- * `src/core/agent-sdk/types.ts` because they originated with the Claude Agent
- * SDK, but the protocol treats them as neutral wire types every harness adapter
- * must read or produce. Non-claude adapters convert between their native
- * payloads and these shapes at the boundary.
+ * `./sdk-types.ts` because they originated with the Claude Agent SDK, but the
+ * protocol treats them as neutral wire types every harness adapter must read
+ * or produce. Non-claude adapters convert between their native payloads and
+ * these shapes at the boundary.
  */
 export type AgentMessage = SDKMessage;
 export type AgentPermissionMode = SDKPermissionMode;

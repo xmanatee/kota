@@ -11,7 +11,6 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { executeWithAgentSDK } from "#core/agent-sdk/index.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import {
   Daemon,
@@ -27,6 +26,7 @@ import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
+import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import telegramModule from "./index.js";
 import { startTelegramStatusPoll } from "./status-poll.js";
 
@@ -50,8 +50,8 @@ vi.mock("#core/loop/loop.js", async () => {
   };
 });
 
-vi.mock("#core/agent-sdk/index.js", async () => {
-  const actual = await vi.importActual("#core/agent-sdk/index.js");
+vi.mock("#modules/claude-agent-harness/executor.js", async () => {
+  const actual = await vi.importActual("#modules/claude-agent-harness/executor.js");
   return {
     ...actual,
     executeWithAgentSDK: vi.fn(),

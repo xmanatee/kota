@@ -5,7 +5,7 @@ import {
   resolveAgentHarness,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
-import type { SDKMessage, SDKPermissionMode } from "#core/agent-sdk/types.js";
+import type { SDKMessage, SDKPermissionMode } from "#core/agent-harness/sdk-types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";

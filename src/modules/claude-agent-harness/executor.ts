@@ -12,7 +12,7 @@ import type {
   SDKQueryOptions,
   SDKResultMessage,
   SDKSystemPrompt,
-} from "./types.js";
+} from "#core/agent-harness/sdk-types.js";
 
 export type ExecutorWriter = { write(text: string): boolean };
 

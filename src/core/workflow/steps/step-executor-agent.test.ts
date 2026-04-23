@@ -13,15 +13,15 @@ import {
   type AgentHarness,
   registerAgentHarness,
 } from "#core/agent-harness/index.js";
-import { KOTA_OWNER_QUESTIONS_MCP_TOOL } from "#core/agent-sdk/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
+import { KOTA_OWNER_QUESTIONS_MCP_TOOL } from "#modules/claude-agent-harness/kota-tools-mcp.js";
 
 const tryEmitMock = vi.hoisted(() => vi.fn());
 vi.mock("#core/events/event-bus.js", () => ({ tryEmit: tryEmitMock }));
 
 const executeWithAgentSDKMock = vi.hoisted(() => vi.fn());
-vi.mock("#core/agent-sdk/index.js", async () => {
-  const actual = await vi.importActual("../../agent-sdk/index.js");
+vi.mock("#modules/claude-agent-harness/executor.js", async () => {
+  const actual = await vi.importActual("../../../modules/claude-agent-harness/executor.js");
   return {
     ...actual,
     executeWithAgentSDK: executeWithAgentSDKMock,

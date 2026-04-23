@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { SDKMessage } from "#core/agent-sdk/types.js";
+import type { SDKMessage } from "#core/agent-harness/sdk-types.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata, WorkflowRuntimeState } from "#core/workflow/run-types.js";
 import { line, plain } from "#modules/rendering/primitives.js";

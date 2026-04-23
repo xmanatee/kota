@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SDKMessage } from "./types.js";
+import type { SDKMessage } from "#core/agent-harness/sdk-types.js";
 
 const mockQuery = vi.fn();
 const mockSpawn = vi.fn();

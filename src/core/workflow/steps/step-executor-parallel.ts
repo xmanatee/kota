@@ -1,4 +1,4 @@
-import type { SDKMessage } from "#core/agent-sdk/types.js";
+import type { SDKMessage } from "#core/agent-harness/sdk-types.js";
 import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
 import { DEFAULT_STEP_TIMEOUT_MS } from "../run-executor-step.js";
 import type { WorkflowStepContext, WorkflowStepResult, WorkflowStepSkipReason } from "../run-types.js";

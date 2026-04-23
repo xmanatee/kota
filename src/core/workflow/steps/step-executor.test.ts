@@ -2,11 +2,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import {
-  executeWithAgentSDK,
   KOTA_OWNER_QUESTIONS_MCP_SERVER,
   KOTA_OWNER_QUESTIONS_MCP_TOOL,
-} from "#core/agent-sdk/index.js";
+} from "#modules/claude-agent-harness/kota-tools-mcp.js";
 import type { WorkflowRunMetadata, WorkflowStepContext } from "../run-types.js";
 import type {
   WorkflowAgentStep,
@@ -28,8 +28,8 @@ import {
 } from "./step-executor.js";
 import { classifyAgentRuntimeFailure } from "./step-executor-retry.js";
 
-vi.mock("#core/agent-sdk/index.js", async () => {
-  const actual = await vi.importActual("../../agent-sdk/index.js");
+vi.mock("#modules/claude-agent-harness/executor.js", async () => {
+  const actual = await vi.importActual("../../../modules/claude-agent-harness/executor.js");
   return {
     ...actual,
     executeWithAgentSDK: vi.fn(),

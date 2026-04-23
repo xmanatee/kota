@@ -1,7 +1,7 @@
 import type {
   SDKPermissionMode,
   SDKSettingSource,
-} from "#core/agent-sdk/types.js";
+} from "#core/agent-harness/sdk-types.js";
 import type { BusEvents } from "#core/events/event-bus.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {

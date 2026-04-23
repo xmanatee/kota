@@ -1,4 +1,4 @@
-import type { SDKMessage } from "#core/agent-sdk/types.js";
+import type { SDKMessage } from "#core/agent-harness/sdk-types.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
 import { buildStepCompletedPayload, buildStepStartedPayload, resolveStepAutonomyMode } from "../event-payloads.js";

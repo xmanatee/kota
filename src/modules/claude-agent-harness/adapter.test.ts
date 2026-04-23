@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const executeWithAgentSDKMock = vi.fn();
 
-vi.mock("#core/agent-sdk/index.js", async (importActual) => {
-  const actual = await importActual<typeof import("#core/agent-sdk/index.js")>();
+vi.mock("./executor.js", async (importActual) => {
+  const actual = await importActual<typeof import("./executor.js")>();
   return {
     ...actual,
     executeWithAgentSDK: (...args: unknown[]) =>

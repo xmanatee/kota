@@ -5,13 +5,13 @@ import type {
   AgentHarnessWriter,
   AgentMcpServers,
 } from "#core/agent-harness/index.js";
+import type { SDKSystemPrompt } from "#core/agent-harness/sdk-types.js";
+import { executeWithAgentSDK } from "./executor.js";
 import {
   createOwnerQuestionMcpServers,
-  executeWithAgentSDK,
   KOTA_OWNER_QUESTIONS_MCP_SERVER,
   KOTA_OWNER_QUESTIONS_MCP_TOOL,
-} from "#core/agent-sdk/index.js";
-import type { SDKSystemPrompt } from "#core/agent-sdk/types.js";
+} from "./kota-tools-mcp.js";
 
 export const CLAUDE_AGENT_HARNESS_NAME = "claude-agent-sdk";
 

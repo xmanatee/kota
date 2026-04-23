@@ -30,17 +30,16 @@ into.
 - `tools/` — core tool runtime and the remaining truly core-hosted tools.
 - `workflow/` — workflow definitions, validation, execution, runtime, and
   repair-loop mechanics.
-- `agent-sdk/` — Claude Agent SDK executor, system-prompt builder, and SDK
-  type re-exports. Internal implementation detail of the
-  `claude-agent-harness` module; nothing else in core should call
-  `executeWithAgentSDK` directly.
-- `agent-harness/` — neutral `AgentHarness` protocol and registry. Workflow
-  agent steps, the repair loop, the agent-harness delegate backend, and the
-  CLI all dispatch through this registry. Adapters (claude-agent-sdk, thin,
-  any future codex / OpenAI-compat loop) ship as modules and register on
-  load. There is no implicit default — operators select with
-  `KotaConfig.defaultAgentHarness` or per-step `harness`, and the runtime
-  fails loudly when neither is set.
+- `agent-harness/` — neutral `AgentHarness` protocol and registry plus the
+  `SDK*` wire-type declarations (`sdk-types.ts`) the workflow runtime, run
+  stores, and step executors consume. Workflow agent steps, the repair loop,
+  the agent-harness delegate backend, and the CLI all dispatch through this
+  registry. Adapters (claude-agent-sdk, thin, any future codex / OpenAI-compat
+  loop) ship as modules and register on load. There is no implicit default —
+  operators select with `KotaConfig.defaultAgentHarness` or per-step
+  `harness`, and the runtime fails loudly when neither is set. The Claude
+  Agent SDK executor primitive and owner-questions MCP bridge live inside
+  `src/modules/claude-agent-harness/`, not here.
 - `prompt-input/` — harness-neutral user-prompt preprocessing
   (`@path` reference expansion). Every CLI path calls it before handing a
   prompt to `AgentHarness.run`, so every adapter receives the same

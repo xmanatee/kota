@@ -1,6 +1,6 @@
 import { appendFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { SDKMessage } from "#core/agent-sdk/types.js";
+import type { SDKMessage } from "#core/agent-harness/sdk-types.js";
 import { safeJsonStringify, writeJsonFile } from "./run-store-helpers.js";
 import type {
   WorkflowRunMetadata,
