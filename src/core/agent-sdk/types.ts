@@ -1,5 +1,6 @@
 import type {
   CanUseTool,
+  Options as ClaudeAgentSdkOptions,
   McpServerConfig,
   SpawnedProcess,
   SpawnOptions,
@@ -13,13 +14,14 @@ export type SDKPermissionMode =
 
 export type SDKSettingSource = "project" | "local" | "user";
 
-export type SDKSystemPrompt =
-  | string
-  | {
-      type: "preset";
-      preset: "claude_code";
-      append?: string;
-    };
+/**
+ * Claude-agent-sdk's native `systemPrompt` wire type (string, string[], or the
+ * `claude_code` preset envelope). Re-exported from the SDK so KOTA never
+ * re-declares the `"claude_code"` literal. Only the claude-agent-harness
+ * adapter constructs values of this shape; every other adapter consumes a
+ * plain `AgentSystemPrompt` string.
+ */
+export type SDKSystemPrompt = NonNullable<ClaudeAgentSdkOptions["systemPrompt"]>;
 
 export type SDKThinkingConfig =
   | { type: "adaptive" }

@@ -4,22 +4,12 @@ import type {
   AgentHarnessResult,
   AgentHarnessRunOptions,
   AgentHarnessWriter,
-  AgentSystemPrompt,
 } from "#core/agent-harness/index.js";
 import { createModelClient } from "#core/model/model-client.js";
 
 export const THIN_AGENT_HARNESS_NAME = "thin";
 
 const DEFAULT_MAX_TOKENS = 4096;
-
-function extractSystemText(prompt: AgentSystemPrompt | undefined): string | undefined {
-  if (prompt === undefined) return undefined;
-  if (typeof prompt === "string") return prompt;
-  throw new Error(
-    'The "thin" agent harness only accepts a string systemPrompt. ' +
-      "Preset system prompts are claude-agent-sdk specific and cannot be honored here.",
-  );
-}
 
 function rejectUnsupportedToolOptions(options: AgentHarnessRunOptions): void {
   if (options.allowedTools && options.allowedTools.length > 0) {
@@ -79,7 +69,7 @@ export const thinAgentHarness: AgentHarness = {
       );
     }
 
-    const system = extractSystemText(options.systemPrompt);
+    const system = options.systemPrompt;
     const resolved = createModelClient({ model });
     const response = await resolved.client.messages.create({
       model: resolved.model,

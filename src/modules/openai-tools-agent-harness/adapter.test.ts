@@ -500,22 +500,11 @@ describe("openaiToolsAgentHarness — unsupported options rejection", () => {
     ).rejects.toThrow(/extended thinking/);
   });
 
-  it("rejects a bare claude_code preset systemPrompt that has no portable append text", async () => {
-    await expect(
-      openaiToolsAgentHarness.run({
-        prompt: "x",
-        model: "openai/gpt-4o-mini",
-        effort: "xhigh",
-        systemPrompt: { type: "preset", preset: "claude_code" },
-      }),
-    ).rejects.toThrow(/cannot reproduce the claude_code preset/);
-  });
-
-  it("uses the preset's append text as the system prompt so operator CLI paths keep working", async () => {
+  it("forwards the portable system-prompt string straight to the model client", async () => {
     queueStream(
       makeStubStream({
         final: {
-          id: "msg_preset_append",
+          id: "msg_system_string",
           stop_reason: "end_turn",
           content: [
             { type: "text", text: "ok", citations: null } as Anthropic.ContentBlock,
@@ -528,11 +517,7 @@ describe("openaiToolsAgentHarness — unsupported options rejection", () => {
       prompt: "x",
       model: "openai/gpt-4o-mini",
       effort: "xhigh",
-      systemPrompt: {
-        type: "preset",
-        preset: "claude_code",
-        append: "## Project context\n\nProject is named KOTA.",
-      },
+      systemPrompt: "## Project context\n\nProject is named KOTA.",
     });
     expect(streamCallSnapshots[0].system).toBe(
       "## Project context\n\nProject is named KOTA.",

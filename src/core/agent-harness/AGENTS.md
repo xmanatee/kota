@@ -12,6 +12,12 @@ protocol live in modules — the core only owns the interface and the registry.
 - A harness must not silently coerce unsupported options. If an adapter cannot
   honor a requested option (for example a tools list against a text-only
   harness), it should fail loudly at the boundary.
+- `AgentHarnessRunOptions.systemPrompt` is a plain string of portable KOTA
+  system-prompt content composed by `buildKotaSystemPrompt` in
+  `src/core/loop/`. Harness-neutral callers never build claude-SDK wire
+  shapes; adapters that want to wrap the text in a native envelope (e.g. the
+  claude-agent-sdk `claude_code` preset) do the wrapping inside the adapter.
+  `AgentSystemPrompt = string` is the contract every adapter consumes.
 - Streaming text goes through the optional `writer` so operators see live
   output regardless of which harness runs.
 - Tool risk gating, commit guards, daemon control guards, and injection-defense

@@ -110,7 +110,11 @@ describe("delegate-agent-sdk", () => {
     expect(options.allowedTools).toContain("Grep");
     expect(options.allowedTools).not.toContain("Edit");
     expect(options.allowedTools).not.toContain("Write");
-    expect(options.systemPrompt).toContain("Use AGENTS.md");
+    // The claude adapter wraps the harness-neutral string systemPrompt into
+    // its native SDK envelope before handing it to executeWithAgentSDK. The
+    // adapter's own tests cover the exact wire shape; here we only assert the
+    // portable instruction text was threaded through.
+    expect(options.systemPrompt.append).toContain("Use AGENTS.md");
   });
 
   it("passes execute-mode options to the shared executor", async () => {

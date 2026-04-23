@@ -4,7 +4,6 @@ import type {
   SDKPermissionMode,
   SDKQueryOptions,
   SDKSettingSource,
-  SDKSystemPrompt,
 } from "#core/agent-sdk/types.js";
 import type { HarnessHookKind } from "./hooks.js";
 
@@ -18,7 +17,13 @@ import type { HarnessHookKind } from "./hooks.js";
 export type AgentMessage = SDKMessage;
 export type AgentPermissionMode = SDKPermissionMode;
 export type AgentSettingSource = SDKSettingSource;
-export type AgentSystemPrompt = SDKSystemPrompt;
+/**
+ * Portable system-prompt text every harness-neutral caller delivers. Adapters
+ * that wrap prompts in a native envelope (e.g. the claude-agent-sdk
+ * `claude_code` preset) do the wrapping inside the adapter; the protocol
+ * surface is a plain string.
+ */
+export type AgentSystemPrompt = string;
 export type AgentCanUseTool = CanUseTool;
 export type AgentPermissionResult = PermissionResult;
 export type AgentMcpServers = SDKQueryOptions["mcpServers"];

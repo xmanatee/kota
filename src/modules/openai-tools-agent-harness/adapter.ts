@@ -38,28 +38,6 @@ function isTextBlock(block: Anthropic.ContentBlock): block is Anthropic.TextBloc
   return block.type === "text";
 }
 
-function extractSystemText(prompt: AgentHarnessRunOptions["systemPrompt"]): string | undefined {
-  if (prompt === undefined) return undefined;
-  if (typeof prompt === "string") return prompt;
-  // The claude_code preset is a claude-agent-sdk scaffolding that we cannot
-  // reproduce, but operators wire the project's portable system text into the
-  // preset's `append` field. Use that text so `kota run -i --harness
-  // openai-tools` and other operator paths keep working without coupling the
-  // CLI to harness-specific prompt shapes. A preset without append carries no
-  // portable signal and is rejected loudly.
-  if (
-    prompt.type === "preset" &&
-    typeof prompt.append === "string" &&
-    prompt.append.trim().length > 0
-  ) {
-    return prompt.append;
-  }
-  throw new Error(
-    'The "openai-tools" agent harness cannot reproduce the claude_code preset systemPrompt. ' +
-      "Provide a string systemPrompt (or attach portable text via the preset's `append`) or run claude-agent-sdk.",
-  );
-}
-
 function rejectClaudeSpecificOptions(options: AgentHarnessRunOptions): void {
   if (options.mcpServers && Object.keys(options.mcpServers).length > 0) {
     throw new Error(
@@ -299,7 +277,7 @@ async function runOpenaiToolsLoop(
       );
     }
 
-    const system = extractSystemText(options.systemPrompt);
+    const system = options.systemPrompt;
     const resolved = createModelClient({ model: options.model });
     const tools = selectToolDefinitions(
       options.allowedTools,

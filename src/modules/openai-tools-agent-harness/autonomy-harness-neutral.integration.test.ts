@@ -123,7 +123,14 @@ describe("autonomy agent steps and judges on openai-tools", () => {
       `kota-openai-harness-step-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
     mkdirSync(projectDir, { recursive: true });
-    writeFileSync(join(projectDir, "prompt.md"), "build the thing");
+    writeFileSync(join(projectDir, "prompt.md"), "Stay focused on the build.");
+    // Seed a project instruction file so the harness-neutral system-prompt
+    // builder composes a non-empty portable text and we can prove it reached
+    // the adapter as a string rather than a claude-preset envelope.
+    writeFileSync(
+      join(projectDir, "AGENTS.md"),
+      "# Project AGENTS\n\nPortable project rules live here.",
+    );
     mkdirSync(join(projectDir, ".kota/runs/run-openai-ok"), { recursive: true });
     mkdirSync(join(projectDir, ".kota/runs/run-openai-ok/steps"), { recursive: true });
 
@@ -153,6 +160,16 @@ describe("autonomy agent steps and judges on openai-tools", () => {
     // option leaked through; reaching this assertion means the boundary
     // stayed neutral.
     expect(streamArgs.model).toBe("openai/gpt-4o-mini");
+    // System prompt must reach the adapter as a plain string carrying the
+    // portable instruction and autonomous-agent-instructions sections — not a
+    // claude-SDK preset envelope.
+    expect(typeof streamArgs.system).toBe("string");
+    const systemText = streamArgs.system as string;
+    expect(systemText).not.toContain('"preset"');
+    expect(systemText).toContain("Project AGENTS");
+    expect(systemText).toContain("Portable project rules live here.");
+    expect(systemText).toContain("## Autonomous Agent Instructions");
+    expect(systemText).toContain("Stay focused on the build.");
   });
 
   it("runs the autonomy critic judge through the openai-tools harness", async () => {
@@ -214,5 +231,12 @@ describe("autonomy agent steps and judges on openai-tools", () => {
 
     expect(result).toMatch(/pass/);
     expect(streamMock).toHaveBeenCalledTimes(1);
+    // Judge systemPrompt must reach the adapter as a plain string — the
+    // critic's role prompt — with no claude-preset envelope leaking through.
+    const judgeStreamArgs = streamMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(typeof judgeStreamArgs.system).toBe("string");
+    const judgeSystemText = judgeStreamArgs.system as string;
+    expect(judgeSystemText).not.toContain('"preset"');
+    expect(judgeSystemText).toContain("calibrated code review critic");
   });
 });

@@ -5,10 +5,10 @@ import {
   resolveAgentHarness,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
-import { buildClaudeCodeSystemPrompt } from "#core/agent-sdk/index.js";
 import type { SDKMessage, SDKPermissionMode } from "#core/agent-sdk/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
+import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { ToolTelemetry } from "#core/tools/tool-telemetry.js";
@@ -376,16 +376,14 @@ export async function executeAgentStep(
     skillsPrompt = agentConfig.resolveSkillsPrompt(agentDef.skills, step.agentName);
   }
 
-  const systemPrompt = buildClaudeCodeSystemPrompt(
+  const systemPrompt = buildKotaSystemPrompt(
     agentConfig.config,
     agentPrompt.systemPromptAppend,
     contextStartDir,
     agentConfig.projectDir,
     skillsPrompt,
   );
-  const systemPromptAppend =
-    typeof systemPrompt === "string" ? systemPrompt : systemPrompt.append;
-  writeInputs(systemPromptAppend, agentPrompt.prompt);
+  writeInputs(systemPrompt, agentPrompt.prompt);
 
   // Tool telemetry and caller-facing message capture hang off `onMessage`,
   // which only claude-agent-sdk-style adapters can emit. Harnesses that do

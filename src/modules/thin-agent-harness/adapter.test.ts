@@ -66,17 +66,6 @@ describe("thinAgentHarness", () => {
     });
   });
 
-  it("rejects preset system prompts (claude-specific)", async () => {
-    await expect(
-      thinAgentHarness.run({
-        prompt: "x",
-        model: "claude-haiku-4-5-20251001",
-        effort: "xhigh",
-        systemPrompt: { type: "preset", preset: "claude_code" },
-      }),
-    ).rejects.toThrow(/only accepts a string systemPrompt/);
-  });
-
   it("rejects tool-loop options because the harness has no tool surface", async () => {
     await expect(
       thinAgentHarness.run({

@@ -24,10 +24,12 @@ vi.mock("#core/agent-sdk/index.js", async () => {
   const actual = await vi.importActual("../../agent-sdk/index.js");
   return {
     ...actual,
-    buildClaudeCodeSystemPrompt: () => "system",
     executeWithAgentSDK: executeWithAgentSDKMock,
   };
 });
+vi.mock("#core/loop/system-prompt.js", () => ({
+  buildKotaSystemPrompt: () => "system",
+}));
 
 // Registers the claude agent harness. After the harness refactor the step
 // executor dispatches through the registry; importing this module triggers

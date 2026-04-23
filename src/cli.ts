@@ -6,8 +6,8 @@ import { setSkipConfirmations } from "#core/util/confirm.js";
 import { blank, line, span } from "#modules/rendering/primitives.js";
 import { TerminalTransport } from "#modules/rendering/transport.js";
 import { resolveAgentHarness, runAgentHarness } from "./core/agent-harness/index.js";
-import { buildClaudeCodeSystemPrompt } from "./core/agent-sdk/index.js";
 import { runAgentLoop } from "./core/loop/loop.js";
+import { buildKotaSystemPrompt } from "./core/loop/system-prompt.js";
 import { formatAuthError } from "./core/model/auth-error.js";
 import { createModelClient } from "./core/model/model-client.js";
 import { discoverModules } from "./core/modules/module-discovery.js";
@@ -120,7 +120,7 @@ program
       const harnessName =
         explicitHarness ?? config.defaultAgentHarness ?? "claude-agent-sdk";
       const harness = resolveAgentHarness(harnessName);
-      const systemPrompt = buildClaudeCodeSystemPrompt(
+      const systemPrompt = buildKotaSystemPrompt(
         config,
         undefined,
         process.cwd(),
@@ -260,7 +260,7 @@ async function checkPipeMode() {
           verbose: config.verbose,
           cwd: process.cwd(),
           effort: "xhigh",
-          systemPrompt: buildClaudeCodeSystemPrompt(
+          systemPrompt: buildKotaSystemPrompt(
             config,
             undefined,
             process.cwd(),

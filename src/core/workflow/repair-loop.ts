@@ -5,8 +5,8 @@ import {
   resolveAgentHarness,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
-import { buildClaudeCodeSystemPrompt } from "#core/agent-sdk/index.js";
 import type { SDKMessage } from "#core/agent-sdk/types.js";
+import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
 import type { WorkflowRepairCheck, WorkflowStepContext } from "./run-types.js";
 import type { AgentStepConfig, AgentStepResult } from "./steps/step-executor-agent.js";
 import {
@@ -108,7 +108,7 @@ async function executeRepairAgentIteration(
   );
   const promptDir = dirname(resolve(step.moduleRoot, step.promptPath));
   const contextStartDir = resolvePromptContextStartDir(promptDir, agentConfig.projectDir);
-  const systemPrompt = buildClaudeCodeSystemPrompt(
+  const systemPrompt = buildKotaSystemPrompt(
     agentConfig.config,
     promptBody,
     contextStartDir,

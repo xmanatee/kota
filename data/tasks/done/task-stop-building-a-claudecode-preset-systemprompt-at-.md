@@ -1,12 +1,12 @@
 ---
 id: task-stop-building-a-claudecode-preset-systemprompt-at-
 title: Stop building a claude_code-preset systemPrompt at the harness-neutral seams
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Portable system-prompt content should flow through harness-neutral code as a string so the step executor, repair loop, and CLI entry do not mint claude-SDK-shaped preset objects that every other adapter has to unwrap.
 created_at: 2026-04-23T02:19:35.583Z
-updated_at: 2026-04-23T02:19:35.583Z
+updated_at: 2026-04-23T02:41:14.361Z
 ---
 
 ## Problem
