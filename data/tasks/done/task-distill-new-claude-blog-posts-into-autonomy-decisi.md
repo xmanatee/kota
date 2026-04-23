@@ -1,12 +1,12 @@
 ---
 id: task-distill-new-claude-blog-posts-into-autonomy-decisi
 title: Distill new Claude blog posts into autonomy decisions
-status: ready
+status: done
 priority: p2
 area: research
 summary: Read the new Claude blog posts on Opus 4.7 best practices, session management plus 1M context, and production-MCP agent integration; fold decision-level takeaways into src/modules/autonomy/AGENTS.md or record as 'read, no action'.
 created_at: 2026-04-23T13:38:04.133Z
-updated_at: 2026-04-23T13:38:04.133Z
+updated_at: 2026-04-23T13:44:52.135Z
 ---
 
 ## Problem
