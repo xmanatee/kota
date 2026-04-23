@@ -214,6 +214,12 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       run: (ctx) => runCheck("pnpm build", ctx.projectDir),
     },
     {
+      id: "workflow-validate",
+      type: "code" as const,
+      phase: 1,
+      run: (ctx) => runCheck("node dist/cli.js workflow validate", ctx.projectDir),
+    },
+    {
       id: "task-queue-valid",
       type: "code" as const,
       phase: 1,

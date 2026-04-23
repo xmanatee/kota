@@ -1,8 +1,8 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
-import { validateWorkflowDefinitions, WorkflowDefinitionError } from "#core/workflow/validation.js";
-import { getWorkflowDefinitions } from "../definitions-source.js";
+import { WorkflowDefinitionError } from "#core/workflow/validation.js";
+import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
 import { buildDryRunPlan, formatDryRunResult } from "./dry-run.js";
 
 export function registerRunCommand(wfCmd: Command, ctx: ModuleContext): void {
@@ -61,10 +61,7 @@ export function registerRunCommand(wfCmd: Command, ctx: ModuleContext): void {
 
       let definitions;
       try {
-        definitions = validateWorkflowDefinitions(
-          getWorkflowDefinitions(ctx),
-          process.cwd(),
-        );
+        definitions = getValidatedWorkflowDefinitions(ctx);
       } catch (err) {
         if (err instanceof WorkflowDefinitionError) {
           console.error(`Definition error: ${err.message}`);

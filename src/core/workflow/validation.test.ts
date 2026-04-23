@@ -751,7 +751,6 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitionsCore(
       await loadAutonomyWorkflowDefinitions(),
       process.cwd(),
-      { defaultAgentHarness: "claude-agent-sdk" },
     );
 
     const names = definitions.map((definition) => definition.name);

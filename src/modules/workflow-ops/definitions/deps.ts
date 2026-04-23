@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { getWorkflowDefinitions } from "../definitions-source.js";
+import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
 import {
   assembleWorkflowGraph,
   formatCompact,
@@ -23,7 +23,13 @@ export function registerDepsCommand(
       "table",
     )
     .action((opts: { format: string }) => {
-      const definitions = getWorkflowDefinitions(ctx);
+      let definitions;
+      try {
+        definitions = getValidatedWorkflowDefinitions(ctx);
+      } catch (err) {
+        console.error(String(err instanceof Error ? err.message : err));
+        process.exit(1);
+      }
       if (definitions.length === 0) {
         console.log("No workflow definitions loaded.");
         return;

@@ -189,121 +189,116 @@ export class Daemon {
 
     try {
       await this.ensureSingleInstance();
-    } catch (err) {
-      // Clean up the signal handlers and running state set above.
-      this.running = false;
-      if (this.shutdownHandler) {
-        process.removeListener("SIGINT", this.shutdownHandler);
-        process.removeListener("SIGTERM", this.shutdownHandler);
-        this.shutdownHandler = null;
+      this.workflows.validateDefinitions();
+
+      this.log("Daemon starting...");
+      warnUnknownConfigKeys(this.projectDir, (msg) => this.log(msg), this.config.moduleConfigKeys);
+      warnInvalidConcurrencyConfig(this.projectDir, (msg) => this.log(msg));
+
+      const controlPort = await this.controlServer.start();
+      writeJsonFileAtomic(join(this.stateDir, CONTROL_FILE), {
+        port: controlPort,
+        pid: process.pid,
+        startedAt: this.state.startedAt,
+        token: this.token,
+      });
+      this.log(`Control API on http://127.0.0.1:${controlPort}`);
+
+      const idleTtlMs = this.config.sessionIdleTtlMs ?? 5 * 60_000;
+      const sweepMs = this.config.sessionSweepIntervalMs ?? 60_000;
+      this.sessionSweepTimer = setInterval(() => {
+        const expired = sweepExpiredSessions(this.sessions, Date.now(), idleTtlMs);
+        for (const id of expired) {
+          this.bus.emit("session.unregistered", { id });
+        }
+      }, sweepMs);
+
+      if (this.config.probeModuleHealthChecks) {
+        const probe = this.config.probeModuleHealthChecks;
+        const runProbe = () => {
+          void probe()
+            .then((r) => { this.moduleHealthChecks = r; })
+            .catch((err: unknown) => {
+              this.log(`Module health probe failed: ${err instanceof Error ? err.message : String(err)}`);
+            });
+        };
+        runProbe();
+        this.healthCheckTimer = setInterval(runProbe, 30_000);
       }
+
+      const pollMs = this.config.pollIntervalMs ?? DEFAULT_POLL_INTERVAL;
+      const runsDir = join(this.stateDir, "runs");
+
+      this.unsubscribe = subscribeDaemon({
+        bus: this.bus,
+        projectDir: this.projectDir,
+        pollIntervalMs: pollMs,
+        approvalTtlMs: this.config.config?.approvalTtlMs,
+        alertCooldownMs: this.config.config?.notifications?.alertCooldownMs,
+        moduleCrashAlertOpts: this.config.config?.moduleMonitoring,
+        getWorkflowNotify: (name) => this.workflows.getDefinitions().find((d) => d.name === name)?.notify,
+        onDueItems: (items) => this.handleDueItems(items),
+        onWorkflowCompleted: (payload) => {
+          this.state.completedRuns += 1;
+          this.state.lastCompletedWorkflow = payload.workflow;
+          this.state.lastCompletedAt = new Date().toISOString();
+          this.state.lastCompletedStatus = payload.status;
+          this.saveState();
+          this.maybeRestart();
+        },
+        onRestartRequested: (reason) => this.requestRestart(reason),
+        onLog: (message) => this.log(message),
+      });
+
+      const quietHours = this.config.config?.notifications?.quietHours;
+      if (quietHours) {
+        this.notificationGate = new NotificationGate(this.bus, quietHours);
+        this.log(`Notification gate active: quiet hours ${quietHours.start}–${quietHours.end}`);
+      }
+
+      this.workflows.start();
+
+      const operator = process.env.KOTA_OPERATOR;
+      const channelCtx = {
+        projectDir: this.projectDir,
+        log: (message: string) => this.log(message),
+        getWorkflowStatus: () => ({
+          runtimeState: this.workflows.getState(),
+          dispatchPaused: this.workflows.isDispatchPaused(),
+          runsDir,
+        }),
+        operator,
+        identity: operator ? { operator } : undefined,
+      };
+      for (const def of this.config.channels ?? []) {
+        const adapter = def.create(channelCtx);
+        if (adapter) {
+          this.activeChannels.push(adapter);
+          await adapter.start();
+          this.log(`Channel started: ${def.name}`);
+        }
+      }
+
+      this.saveState();
+      this.log(
+        `Daemon ready (pid ${process.pid}): ${this.workflows.getDefinitionCount()} workflows, ` +
+          `${getScheduler().count()} scheduled items, poll ${pollMs / 1000}s`,
+      );
+
+      await new Promise<void>((resolve) => {
+        const keepAlive = setInterval(() => {
+          if (!this.running) {
+            clearInterval(keepAlive);
+            resolve();
+          } else {
+            this.maybeRestart();
+          }
+        }, 1_000);
+      });
+    } catch (err) {
+      await this.cleanupFailedStart();
       throw err;
     }
-
-    this.log("Daemon starting...");
-    warnUnknownConfigKeys(this.projectDir, (msg) => this.log(msg), this.config.moduleConfigKeys);
-    warnInvalidConcurrencyConfig(this.projectDir, (msg) => this.log(msg));
-    this.saveState();
-
-    const controlPort = await this.controlServer.start();
-    writeJsonFileAtomic(join(this.stateDir, CONTROL_FILE), {
-      port: controlPort,
-      pid: process.pid,
-      startedAt: this.state.startedAt,
-      token: this.token,
-    });
-    this.log(`Control API on http://127.0.0.1:${controlPort}`);
-
-    const idleTtlMs = this.config.sessionIdleTtlMs ?? 5 * 60_000;
-    const sweepMs = this.config.sessionSweepIntervalMs ?? 60_000;
-    this.sessionSweepTimer = setInterval(() => {
-      const expired = sweepExpiredSessions(this.sessions, Date.now(), idleTtlMs);
-      for (const id of expired) {
-        this.bus.emit("session.unregistered", { id });
-      }
-    }, sweepMs);
-
-    if (this.config.probeModuleHealthChecks) {
-      const probe = this.config.probeModuleHealthChecks;
-      const runProbe = () => {
-        void probe()
-          .then((r) => { this.moduleHealthChecks = r; })
-          .catch((err: unknown) => {
-            this.log(`Module health probe failed: ${err instanceof Error ? err.message : String(err)}`);
-          });
-      };
-      runProbe();
-      this.healthCheckTimer = setInterval(runProbe, 30_000);
-    }
-
-    const pollMs = this.config.pollIntervalMs ?? DEFAULT_POLL_INTERVAL;
-    const runsDir = join(this.stateDir, "runs");
-
-    this.unsubscribe = subscribeDaemon({
-      bus: this.bus,
-      projectDir: this.projectDir,
-      pollIntervalMs: pollMs,
-      approvalTtlMs: this.config.config?.approvalTtlMs,
-      alertCooldownMs: this.config.config?.notifications?.alertCooldownMs,
-      moduleCrashAlertOpts: this.config.config?.moduleMonitoring,
-      getWorkflowNotify: (name) => this.workflows.getDefinitions().find((d) => d.name === name)?.notify,
-      onDueItems: (items) => this.handleDueItems(items),
-      onWorkflowCompleted: (payload) => {
-        this.state.completedRuns += 1;
-        this.state.lastCompletedWorkflow = payload.workflow;
-        this.state.lastCompletedAt = new Date().toISOString();
-        this.state.lastCompletedStatus = payload.status;
-        this.saveState();
-        this.maybeRestart();
-      },
-      onRestartRequested: (reason) => this.requestRestart(reason),
-      onLog: (message) => this.log(message),
-    });
-
-    const quietHours = this.config.config?.notifications?.quietHours;
-    if (quietHours) {
-      this.notificationGate = new NotificationGate(this.bus, quietHours);
-      this.log(`Notification gate active: quiet hours ${quietHours.start}–${quietHours.end}`);
-    }
-
-    this.workflows.start();
-
-    const operator = process.env.KOTA_OPERATOR;
-    const channelCtx = {
-      projectDir: this.projectDir,
-      log: (message: string) => this.log(message),
-      getWorkflowStatus: () => ({
-        runtimeState: this.workflows.getState(),
-        dispatchPaused: this.workflows.isDispatchPaused(),
-        runsDir,
-      }),
-      operator,
-      identity: operator ? { operator } : undefined,
-    };
-    for (const def of this.config.channels ?? []) {
-      const adapter = def.create(channelCtx);
-      if (adapter) {
-        this.activeChannels.push(adapter);
-        await adapter.start();
-        this.log(`Channel started: ${def.name}`);
-      }
-    }
-
-    this.log(
-      `Daemon ready (pid ${process.pid}): ${this.workflows.getDefinitionCount()} workflows, ` +
-        `${getScheduler().count()} scheduled items, poll ${pollMs / 1000}s`,
-    );
-
-    await new Promise<void>((resolve) => {
-      const keepAlive = setInterval(() => {
-        if (!this.running) {
-          clearInterval(keepAlive);
-          resolve();
-        } else {
-          this.maybeRestart();
-        }
-      }, 1_000);
-    });
   }
 
   async stop(gracePeriodMs = DEFAULT_SHUTDOWN_GRACE_PERIOD_MS): Promise<void> {
@@ -478,6 +473,41 @@ export class Daemon {
   private saveState(): void {
     const path = join(this.stateDir, STATE_FILE);
     writeJsonFileAtomic(path, this.state);
+  }
+
+  private async cleanupFailedStart(): Promise<void> {
+    if (this.sessionSweepTimer !== null) {
+      clearInterval(this.sessionSweepTimer);
+      this.sessionSweepTimer = null;
+    }
+    if (this.healthCheckTimer !== null) {
+      clearInterval(this.healthCheckTimer);
+      this.healthCheckTimer = null;
+    }
+    for (const adapter of this.activeChannels) {
+      await adapter.stop();
+    }
+    this.activeChannels = [];
+    await this.workflows.stop(1, 1_000);
+    await this.controlServer.stop();
+
+    const controlPath = join(this.stateDir, CONTROL_FILE);
+    if (existsSync(controlPath)) rmSync(controlPath);
+
+    this.unsubscribe?.();
+    this.unsubscribe = null;
+
+    this.notificationGate?.dispose();
+    this.notificationGate = null;
+
+    if (this.shutdownHandler) {
+      process.removeListener("SIGINT", this.shutdownHandler);
+      process.removeListener("SIGTERM", this.shutdownHandler);
+      this.shutdownHandler = null;
+    }
+
+    this.running = false;
+    this.stopping = false;
   }
 
   private log(message: string): void {

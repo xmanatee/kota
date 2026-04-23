@@ -79,11 +79,10 @@ callers must not pass it blindly.
 - Call sites resolve a harness per run: workflow steps declare
   `harness`, or inherit from `KotaConfig.defaultAgentHarness` at the top level.
   The operator picks which adapter is the default for their environment.
-- Autonomy workflows, autonomy judges, and the delegate subagent backend all
-  route through this resolution. None of them carry their own module-local
-  default that could silently re-pin the fleet to a specific adapter. Judges
-  that live inside an agent step's repair loop read the parent step's
-  resolved `step.harness` rather than reaching for a parallel config loader.
+- Shipped product workflows may still declare an explicit harness when the repo
+  must boot without operator-local config. Judges that live inside an agent
+  step's repair loop read the parent step's resolved `step.harness` rather than
+  reaching for a parallel config loader.
 
 ## Lifecycle hooks (harness-neutral)
 

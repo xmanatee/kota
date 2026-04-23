@@ -4,6 +4,7 @@ import { typedCodeStep } from "#core/workflow/types.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
+  AUTONOMY_AGENT_HARNESS,
   AUTONOMY_DISALLOWED_TOOLS,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
@@ -113,6 +114,7 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
       type: "agent",
       agentName: agent.name,
       promptPath: agent.promptPath,
+      harness: AUTONOMY_AGENT_HARNESS,
       model: agent.model,
       effort: agent.effort,
       permissionMode: agent.tools?.permissionMode,

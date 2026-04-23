@@ -8,8 +8,7 @@ import { getEligibleAtMs } from "#core/workflow/run-executor-utils.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { formatRunId } from "#core/workflow/run-store-helpers.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
-import { getWorkflowDefinitions } from "../definitions-source.js";
+import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
 
 export function registerTriggerCommands(
   wfCmd: Command,
@@ -37,11 +36,7 @@ export function registerTriggerCommands(
       }
 
       const store = new WorkflowRunStore();
-      const definitions = validateWorkflowDefinitions(
-        getWorkflowDefinitions(ctx),
-        process.cwd(),
-        { defaultAgentHarness: ctx.config.defaultAgentHarness },
-      );
+      const definitions = getValidatedWorkflowDefinitions(ctx);
 
       const definition = definitions.find((d) => d.name === name);
       if (!definition) {
@@ -160,11 +155,7 @@ export function registerTriggerCommands(
         process.exit(1);
       }
 
-      const definitions = validateWorkflowDefinitions(
-        getWorkflowDefinitions(ctx),
-        process.cwd(),
-        { defaultAgentHarness: ctx.config.defaultAgentHarness },
-      );
+      const definitions = getValidatedWorkflowDefinitions(ctx);
       const definition = definitions.find((d) => d.name === original.workflow);
       if (!definition) {
         console.error(`Workflow "${original.workflow}" is no longer defined.`);
@@ -224,11 +215,7 @@ export function registerTriggerCommands(
         process.exit(1);
       }
 
-      const definitions = validateWorkflowDefinitions(
-        getWorkflowDefinitions(ctx),
-        process.cwd(),
-        { defaultAgentHarness: ctx.config.defaultAgentHarness },
-      );
+      const definitions = getValidatedWorkflowDefinitions(ctx);
       const definition = definitions.find((d) => d.name === original.workflow);
       if (!definition) {
         console.error(`Workflow "${original.workflow}" is no longer defined.`);
@@ -329,11 +316,7 @@ export function registerTriggerCommands(
         process.exit(1);
       }
 
-      const definitions = validateWorkflowDefinitions(
-        getWorkflowDefinitions(ctx),
-        process.cwd(),
-        { defaultAgentHarness: ctx.config.defaultAgentHarness },
-      );
+      const definitions = getValidatedWorkflowDefinitions(ctx);
       const definition = definitions.find((d) => d.name === original.workflow);
       if (!definition) {
         console.error(`Workflow "${original.workflow}" is no longer defined.`);

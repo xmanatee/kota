@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowStepInput } from "#core/workflow/types.js";
-import { getWorkflowDefinitions } from "../definitions-source.js";
+import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
 import { formatDuration } from "../utils.js";
 
 function describeInputSchema(schema: Record<string, unknown>): string | null {
@@ -62,7 +62,13 @@ export function registerDefinitionsCommand(
     .option("-n, --name <name>", "Show full detail for a single definition")
     .option("--json", "Output as JSON")
     .action((opts: { name?: string; json?: boolean }) => {
-      const definitions = getWorkflowDefinitions(ctx);
+      let definitions;
+      try {
+        definitions = getValidatedWorkflowDefinitions(ctx);
+      } catch (err) {
+        console.error(String(err instanceof Error ? err.message : err));
+        process.exit(1);
+      }
 
       if (opts.name) {
         const def = definitions.find((d) => d.name === opts.name);

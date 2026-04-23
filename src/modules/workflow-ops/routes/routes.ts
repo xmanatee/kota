@@ -2,7 +2,7 @@ import type { ModuleContext, RouteRegistration } from "#core/modules/module-type
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
+import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
 import { assembleWorkflowGraph } from "../graph/index.js";
 import {
   handleWorkflowAbort,
@@ -41,7 +41,7 @@ export function workflowRoutes(ctx?: ModuleContext): RouteRegistration[] {
       method: "GET",
       path: "/api/workflow/graph",
       handler: (_req, res) => {
-        const definitions = ctx?.getContributedWorkflows() ?? [];
+        const definitions = ctx ? getValidatedWorkflowDefinitions(ctx, ctx.cwd) : [];
         const graph = assembleWorkflowGraph(definitions);
         jsonResponse(res, 200, graph);
       },
@@ -111,7 +111,7 @@ export function workflowRoutes(ctx?: ModuleContext): RouteRegistration[] {
       path: "/api/workflow/dry-run",
       handler: (req, res) => {
         const definitions = ctx
-          ? validateWorkflowDefinitions(ctx.getContributedWorkflows(), ctx.cwd)
+          ? getValidatedWorkflowDefinitions(ctx, ctx.cwd)
           : [];
         const availableToolNames = new Set(ctx?.listTools() ?? []);
         return handleWorkflowDryRun(req, res, { definitions, availableToolNames });

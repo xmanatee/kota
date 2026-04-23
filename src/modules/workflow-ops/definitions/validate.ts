@@ -4,29 +4,74 @@ import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js"
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "#core/workflow/validation.js";
 import { getWorkflowDefinitions } from "../definitions-source.js";
 
-type ValidationResult = { name: string; valid: boolean; error?: string };
+type ValidationResult = {
+  name: string;
+  valid: boolean;
+  scope: "definition" | "global";
+  error?: string;
+};
+
+type ValidateDefinitionsOptions = {
+  workflow?: string;
+  projectDir?: string;
+  defaultAgentHarness?: string;
+};
 
 export function validateDefinitions(
   definitions: readonly RegisteredWorkflowDefinitionInput[],
-  workflowFilter?: string,
+  options: ValidateDefinitionsOptions = {},
 ): ValidationResult[] {
   const allDefs = [...definitions];
-  const defs = workflowFilter ? allDefs.filter((d) => d.name === workflowFilter) : allDefs;
+  const defs = options.workflow
+    ? allDefs.filter((d) => d.name === options.workflow)
+    : allDefs;
 
-  if (workflowFilter && defs.length === 0) {
+  if (options.workflow && defs.length === 0) {
     const known = allDefs.map((d) => d.name).join(", ");
-    throw new Error(`Unknown workflow "${workflowFilter}". Known: ${known}`);
+    throw new Error(`Unknown workflow "${options.workflow}". Known: ${known}`);
   }
 
-  return defs.map((def) => {
+  const definitionResults = defs.map((def) => {
     try {
-      validateWorkflowDefinitions([def]);
-      return { name: def.name, valid: true };
+      validateWorkflowDefinitions(
+        [def],
+        options.projectDir,
+        { defaultAgentHarness: options.defaultAgentHarness },
+      );
+      return { name: def.name, valid: true, scope: "definition" as const };
     } catch (err) {
       const message = err instanceof WorkflowDefinitionError ? err.message : String(err);
-      return { name: def.name, valid: false, error: message };
+      return {
+        name: def.name,
+        valid: false,
+        scope: "definition" as const,
+        error: message,
+      };
     }
   });
+
+  const results: ValidationResult[] = [];
+  if (!options.workflow) {
+    try {
+      validateWorkflowDefinitions(
+        allDefs,
+        options.projectDir,
+        { defaultAgentHarness: options.defaultAgentHarness },
+      );
+    } catch (err) {
+      if (definitionResults.every((result) => result.valid)) {
+        const message = err instanceof WorkflowDefinitionError ? err.message : String(err);
+        results.push({
+          name: "<global>",
+          valid: false,
+          scope: "global",
+          error: message,
+        });
+      }
+    }
+  }
+
+  return results.concat(definitionResults);
 }
 
 export function registerValidateCommand(
@@ -41,7 +86,11 @@ export function registerValidateCommand(
     .action((opts: { workflow?: string; json?: boolean }) => {
       let results: ValidationResult[];
       try {
-        results = validateDefinitions(getWorkflowDefinitions(ctx), opts.workflow);
+        results = validateDefinitions(getWorkflowDefinitions(ctx), {
+          workflow: opts.workflow,
+          projectDir: ctx.cwd,
+          defaultAgentHarness: ctx.config.defaultAgentHarness,
+        });
       } catch (err) {
         console.error(String(err instanceof Error ? err.message : err));
         process.exit(1);
@@ -62,11 +111,18 @@ export function registerValidateCommand(
         }
       }
 
-      const failCount = results.filter((r) => !r.valid).length;
-      if (results.length > 1) {
-        console.log(`\n${results.length - failCount}/${results.length} definitions valid.`);
+      const definitionResults = results.filter((r) => r.scope === "definition");
+      const definitionFailures = definitionResults.filter((r) => !r.valid).length;
+      const globalFailures = results.filter((r) => r.scope === "global" && !r.valid).length;
+      if (definitionResults.length > 1) {
+        console.log(
+          `\n${definitionResults.length - definitionFailures}/${definitionResults.length} definitions valid.`,
+        );
+      }
+      if (globalFailures > 0) {
+        console.log(`${globalFailures} global validation issue(s).`);
       }
 
-      if (failCount > 0) process.exit(1);
+      if (results.some((r) => !r.valid)) process.exit(1);
     });
 }

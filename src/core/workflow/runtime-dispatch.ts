@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
@@ -16,6 +17,7 @@ import type { ScheduleTriggerManager } from "./schedule-triggers.js";
 import type {
   RegisteredWorkflowDefinitionInput,
   WorkflowDefinition,
+  WorkflowStep,
   WorkflowRunTrigger,
 } from "./types.js";
 import { validateWorkflowDefinitions } from "./validation.js";
@@ -46,6 +48,41 @@ export interface WorkflowRuntimeDispatchState {
   resolveAgentDef?: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   log(message: string): void;
+}
+
+export function compileDefinitions(
+  state: Pick<WorkflowRuntimeDispatchState, "workflowInputs" | "projectDir" | "config">,
+): WorkflowDefinition[] {
+  return validateWorkflowDefinitions(state.workflowInputs ?? [], state.projectDir, {
+    defaultAgentHarness: state.config?.defaultAgentHarness,
+  });
+}
+
+function assertRegisteredHarnessesInSteps(steps: readonly WorkflowStep[]): void {
+  for (const step of steps) {
+    if (step.type === "agent") {
+      resolveAgentHarness(step.harness);
+      continue;
+    }
+    if (step.type === "parallel" || step.type === "foreach") {
+      assertRegisteredHarnessesInSteps(step.steps);
+      continue;
+    }
+    if (step.type === "branch") {
+      assertRegisteredHarnessesInSteps(step.ifTrue);
+      assertRegisteredHarnessesInSteps(step.ifFalse);
+    }
+  }
+}
+
+export function resolveDefinitions(
+  state: Pick<WorkflowRuntimeDispatchState, "workflowInputs" | "projectDir" | "config">,
+): WorkflowDefinition[] {
+  const definitions = compileDefinitions(state);
+  for (const definition of definitions) {
+    assertRegisteredHarnessesInSteps(definition.steps);
+  }
+  return definitions;
 }
 
 /**
@@ -159,10 +196,7 @@ function handleDirtyCompletion(
 }
 
 export function loadDefinitions(state: WorkflowRuntimeDispatchState): WorkflowDefinition[] {
-  const definitions = state.workflowInputs ?? [];
-  const validated = validateWorkflowDefinitions(definitions, state.projectDir, {
-    defaultAgentHarness: state.config?.defaultAgentHarness,
-  });
+  const validated = resolveDefinitions(state);
   state.store.setDefinitionsLoadedAt(new Date().toISOString());
   return validated;
 }

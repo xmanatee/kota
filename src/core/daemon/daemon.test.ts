@@ -213,6 +213,36 @@ describe("Daemon", () => {
     expect(() => makeDaemon({ workflows: [] })).toThrow(/daemon-state\.json/);
   });
 
+  it("fails before publishing control state when workflow definitions are invalid", async () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+    const daemon = makeDaemon({
+      workflows: [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+              model: "claude-opus-4-7",
+              effort: "xhigh",
+              autonomyMode: "autonomous",
+              harness: "missing-harness",
+            },
+          ],
+        }),
+      ],
+    });
+
+    await expect(daemon.start()).rejects.toThrow('Unknown agent harness "missing-harness"');
+    expect(existsSync(join(stateDir, "daemon-control.json"))).toBe(false);
+    expect(daemon.isRunning()).toBe(false);
+  });
+
   it("removes signal handlers on stop", async () => {
     const initialSigintCount = process.listenerCount("SIGINT");
     const initialSigtermCount = process.listenerCount("SIGTERM");

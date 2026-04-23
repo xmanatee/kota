@@ -39,6 +39,9 @@ export const READY_TASK_TARGET = 4;
 export const BACKLOG_TASK_TARGET = 8;
 export const AUTONOMY_DISALLOWED_TOOLS = ["Agent", "Task", "EnterWorktree", "ExitWorktree"];
 export const AUTONOMY_AGENT_HANG_TIMEOUT_MS = 3 * 60 * 60 * 1000;
+// Shipped autonomy workflows must boot in a fresh clone with no operator-local
+// `.kota/config.json`, so their harness stays explicit in code.
+export const AUTONOMY_AGENT_HARNESS = "claude-agent-sdk";
 
 // Single source of truth for the autonomy fleet's model and effort level.
 // Every autonomy workflow agent and autonomy-internal judge (critic,

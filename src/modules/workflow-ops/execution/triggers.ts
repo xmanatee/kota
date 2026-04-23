@@ -3,7 +3,7 @@ import type { WorkflowDefinitionTriggerSummary } from "#core/daemon/daemon-contr
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
-import { getWorkflowDefinitions } from "../definitions-source.js";
+import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
 
 type WatchTriggerRow = {
   workflow: string;
@@ -44,6 +44,15 @@ export function registerTriggersCommand(
   wfCmd: Command,
   ctx: ModuleContext,
 ): void {
+  const getDefinitionsOrExit = () => {
+    try {
+      return getValidatedWorkflowDefinitions(ctx);
+    } catch (err) {
+      console.error(String(err instanceof Error ? err.message : err));
+      process.exit(1);
+    }
+  };
+
   wfCmd
     .command("triggers")
     .description("Show active file-watch triggers")
@@ -59,10 +68,10 @@ export function registerTriggersCommand(
           rows = collectFromSummary(result.definitions);
           source = "daemon";
         } else {
-          rows = collectFromDefinitions(getWorkflowDefinitions(ctx));
+          rows = collectFromDefinitions(getDefinitionsOrExit());
         }
       } else {
-        rows = collectFromDefinitions(getWorkflowDefinitions(ctx));
+        rows = collectFromDefinitions(getDefinitionsOrExit());
       }
 
       if (opts.json) {

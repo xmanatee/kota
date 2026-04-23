@@ -14,6 +14,7 @@ import {
   emitIdleEvent,
   loadDefinitions,
   maybeStartNext,
+  resolveDefinitions,
   runWorkflow,
   type WorkflowRuntimeDispatchState,
 } from "./runtime-dispatch.js";
@@ -290,6 +291,11 @@ export class WorkflowRuntime {
     );
     this.definitionSourceEnabled.clear();
     this.definitions = defs;
+    return { count: defs.length };
+  }
+
+  validateDefinitions(): { count: number } {
+    const defs = resolveDefinitions(this as unknown as WorkflowRuntimeDispatchState);
     return { count: defs.length };
   }
 
