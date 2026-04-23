@@ -549,8 +549,6 @@ describe("buildWorkflowSnapshot", () => {
           moduleRoot: "/test-module-root",
           model: "claude-opus-4-7",
           effort: "xhigh",
-          permissionMode: "default",
-          settingSources: [],
           autonomyMode: "autonomous",
         },
       ],

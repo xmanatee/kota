@@ -111,9 +111,6 @@ function buildAgentCommand(ctx: ModuleContext): Command {
         role: "muted",
       });
       if (agent.tools) {
-        if (agent.tools.permissionMode) {
-          entries.push({ label: "Permission", value: agent.tools.permissionMode, role: "info" });
-        }
         if (agent.tools.allowed) {
           entries.push({ label: "Allowed", value: agent.tools.allowed.join(", "), role: "success" });
         }

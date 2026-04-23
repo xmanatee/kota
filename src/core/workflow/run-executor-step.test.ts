@@ -153,7 +153,7 @@ describe("executeWorkflowStep — costUsd capture", () => {
       model: "claude-opus-4-7",
     });
 
-    const step = { id: "build", type: "agent" as const, promptPath: "prompt.md", permissionMode: "bypassPermissions" as const, settingSources: [] };
+    const step = { id: "build", type: "agent" as const, promptPath: "prompt.md" };
     const acc = makeAcc();
     const result = await executeWorkflowStep(
       definition as any, step as any, run, trigger, context as any,
@@ -187,7 +187,7 @@ describe("executeWorkflowStep — costUsd capture", () => {
       harness: "claude-agent-sdk",
       model: "claude-opus-4-7",
     });
-    const step = { id: "build", type: "agent" as const, promptPath: "prompt.md", permissionMode: "bypassPermissions" as const, settingSources: [] };
+    const step = { id: "build", type: "agent" as const, promptPath: "prompt.md" };
     const acc = makeAcc();
     const result = await executeWorkflowStep(
       definition as any, step as any, run, trigger, context as any,

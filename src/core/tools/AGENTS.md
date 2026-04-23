@@ -44,9 +44,14 @@ guardrail policy:
 
 Autonomy mode is required at every session boundary (CLI, channels, server,
 workflow agent steps). It is not optional, and there is no silent fallback.
-Workflow agent steps map their mode to the SDK's `permissionMode` and, in
-passive mode, add write-capable tools (`Edit`, `Write`, `NotebookEdit`, `Bash`)
-to `disallowedTools` because the subprocess SDK cannot see the KOTA tool-runner.
+Workflow agent steps map their mode through the neutral harness-run options
+(`AgentHarnessRunOptions.permissionMode`, `allowedTools`, `disallowedTools`).
+Passive mode forces `permissionMode: "default"` and restricts tools to a
+read-only list because the subprocess SDK cannot see the KOTA tool-runner.
+Autonomous mode leaves `permissionMode` undefined on the neutral boundary and
+the claude-agent-sdk adapter applies its default (`"bypassPermissions"`); a
+step may override that default per-harness through its `claudeAgentSdk`
+carve-out (see `src/core/agent-harness/AGENTS.md`).
 
 Mode is an operator control, orthogonal to the per-tool approval queue.
 Operators change a running session's mode through the daemon control API

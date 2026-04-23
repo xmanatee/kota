@@ -1,12 +1,12 @@
 ---
 id: task-move-claude-sdk-shaped-step-fields-permissionmode-
 title: Move claude-SDK-shaped step fields (permissionMode, settingSources) off the neutral workflow agent-step type
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: WorkflowAgentStep still types permissionMode and settingSources directly from @anthropic-ai/claude-agent-sdk wire types (SDKPermissionMode, SDKSettingSource); pass them through a harness-specific options carve-out so the neutral step protocol no longer advertises claude-only fields.
 created_at: 2026-04-23T22:13:58.727Z
-updated_at: 2026-04-23T22:13:58.727Z
+updated_at: 2026-04-23T22:34:11.223Z
 ---
 
 ## Problem

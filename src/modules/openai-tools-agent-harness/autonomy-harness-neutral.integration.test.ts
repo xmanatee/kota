@@ -64,8 +64,9 @@ function makeMetadata(): WorkflowRunMetadata {
 }
 
 function makeAgentStep(moduleRoot: string): WorkflowAgentStep {
-  // Intentionally no settingSources — that is a claude-SDK concept the
-  // openai-tools adapter rejects at the boundary when non-empty.
+  // Intentionally no claudeAgentSdk block — those per-harness options are
+  // only valid on the claude-agent-sdk harness and the openai-tools adapter
+  // rejects any claude-specific wire options that leak through its boundary.
   return {
     id: "build",
     type: "agent",
@@ -73,7 +74,6 @@ function makeAgentStep(moduleRoot: string): WorkflowAgentStep {
     moduleRoot,
     model: "openai/gpt-4o-mini",
     effort: "xhigh",
-    permissionMode: "bypassPermissions",
     autonomyMode: "autonomous",
     harness: OPENAI_TOOLS_AGENT_HARNESS_NAME,
   };

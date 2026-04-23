@@ -6,7 +6,11 @@ import type {
   WorkflowStepContext,
   WorkflowValueResolver,
 } from "#core/workflow/run-types.js";
-import type { WorkflowAgentStep, WorkflowAgentStepInput } from "#core/workflow/types.js";
+import type {
+  WorkflowAgentStep,
+  WorkflowAgentStepInput,
+  WorkflowClaudeSdkStepOptions,
+} from "#core/workflow/types.js";
 import {
   expectName,
   expectNonEmptyString,
@@ -18,12 +22,27 @@ import {
   expectOptionalStringArray,
   expectRelativePath,
   isPlainObject,
+  rejectUnknownKeys,
   WorkflowDefinitionError,
   type WorkflowValidationOptions,
 } from "#core/workflow/validation-primitives.js";
 
-const VALID_SETTING_SOURCES = new Set(["project", "local", "user"]);
-const VALID_PERMISSION_MODES = new Set([
+/**
+ * Name of the claude-agent-sdk harness adapter. Duplicated here rather than
+ * imported from the module so the core validator stays module-free; the string
+ * stays in sync with the `CLAUDE_AGENT_HARNESS_NAME` export in
+ * `src/modules/claude-agent-harness/adapter.ts`.
+ */
+const CLAUDE_AGENT_SDK_HARNESS_NAME = "claude-agent-sdk";
+
+/**
+ * String-literal shape of the claude-agent-sdk per-step options. Must stay in
+ * lockstep with `WorkflowClaudeSdkStepOptions` in `#core/workflow/types.js`
+ * and, transitively, the claude-agent-sdk wire types. Declared here so the
+ * validator enforces the enum without importing claude wire types.
+ */
+const VALID_CLAUDE_SDK_SETTING_SOURCES = new Set(["project", "local", "user"]);
+const VALID_CLAUDE_SDK_PERMISSION_MODES = new Set([
   "default",
   "acceptEdits",
   "dontAsk",
@@ -165,41 +184,6 @@ export function validateAgentStep(
     );
   }
 
-  // permissionMode defaults to bypassPermissions when not specified.
-  const permissionMode =
-    expectOptionalString(
-      step.permissionMode,
-      `${stepLabel}.permissionMode`,
-      definitionPath,
-    ) ?? "bypassPermissions";
-  if (!VALID_PERMISSION_MODES.has(permissionMode)) {
-    throw new WorkflowDefinitionError(
-      `${stepLabel}.permissionMode must be one of ${Array.from(VALID_PERMISSION_MODES).join(", ")}`,
-      definitionPath,
-    );
-  }
-
-  // settingSources is a claude-agent-sdk concept. The claude adapter applies
-  // its own default (["project"]) when the field is unset, so leaving it
-  // undefined here keeps non-claude harnesses from rejecting an implicit
-  // claude option at the boundary. Explicit values are honored (and rejected
-  // loudly by adapters that cannot host them).
-  const settingSources = expectOptionalStringArray(
-    step.settingSources,
-    `${stepLabel}.settingSources`,
-    definitionPath,
-  );
-  if (settingSources) {
-    for (const source of settingSources) {
-      if (!VALID_SETTING_SOURCES.has(source)) {
-        throw new WorkflowDefinitionError(
-          `${stepLabel}.settingSources entries must be one of ${Array.from(VALID_SETTING_SOURCES).join(", ")}`,
-          definitionPath,
-        );
-      }
-    }
-  }
-
   const model = expectNonEmptyString(step.model, `${stepLabel}.model`, definitionPath);
   if (!VALID_MODEL_IDS.has(model)) {
     throw new WorkflowDefinitionError(
@@ -250,6 +234,13 @@ export function validateAgentStep(
     );
   }
 
+  const claudeAgentSdk = validateClaudeSdkStepOptions(
+    step.claudeAgentSdk,
+    harness,
+    stepLabel,
+    definitionPath,
+  );
+
   return {
     id: expectName(step.id, `${stepLabel}.id`, definitionPath),
     type: "agent",
@@ -282,7 +273,6 @@ export function validateAgentStep(
       definitionPath,
       1024,
     ),
-    permissionMode: permissionMode as WorkflowAgentStep["permissionMode"],
     allowedTools: expectOptionalStringArray(
       step.allowedTools,
       `${stepLabel}.allowedTools`,
@@ -293,7 +283,7 @@ export function validateAgentStep(
       `${stepLabel}.disallowedTools`,
       definitionPath,
     ),
-    settingSources: settingSources as WorkflowAgentStep["settingSources"],
+    claudeAgentSdk,
     autonomyMode,
     when: expectOptionalFunction(
       step.when,
@@ -333,6 +323,78 @@ function validateOutputFormat(
     );
   }
   return "json";
+}
+
+/**
+ * Validate a `claudeAgentSdk` per-step block. Only the `claude-agent-sdk`
+ * harness accepts a non-empty block; any other harness rejects it loudly so
+ * the step protocol cannot advertise claude-SDK-typed overrides on a harness
+ * that cannot honor them. Empty blocks (`{}`) normalize to `undefined`.
+ */
+function validateClaudeSdkStepOptions(
+  value: unknown,
+  harness: string,
+  stepLabel: string,
+  definitionPath: string,
+): WorkflowClaudeSdkStepOptions | undefined {
+  if (value === undefined) return undefined;
+  if (!isPlainObject(value)) {
+    throw new WorkflowDefinitionError(
+      `${stepLabel}.claudeAgentSdk must be an object`,
+      definitionPath,
+    );
+  }
+  rejectUnknownKeys(
+    value,
+    ["permissionMode", "settingSources"],
+    `${stepLabel}.claudeAgentSdk`,
+    definitionPath,
+  );
+  const permissionMode = expectOptionalString(
+    value.permissionMode,
+    `${stepLabel}.claudeAgentSdk.permissionMode`,
+    definitionPath,
+  );
+  if (
+    permissionMode !== undefined &&
+    !VALID_CLAUDE_SDK_PERMISSION_MODES.has(permissionMode)
+  ) {
+    throw new WorkflowDefinitionError(
+      `${stepLabel}.claudeAgentSdk.permissionMode must be one of ${Array.from(VALID_CLAUDE_SDK_PERMISSION_MODES).join(", ")}`,
+      definitionPath,
+    );
+  }
+  const settingSources = expectOptionalStringArray(
+    value.settingSources,
+    `${stepLabel}.claudeAgentSdk.settingSources`,
+    definitionPath,
+  );
+  if (settingSources) {
+    for (const source of settingSources) {
+      if (!VALID_CLAUDE_SDK_SETTING_SOURCES.has(source)) {
+        throw new WorkflowDefinitionError(
+          `${stepLabel}.claudeAgentSdk.settingSources entries must be one of ${Array.from(VALID_CLAUDE_SDK_SETTING_SOURCES).join(", ")}`,
+          definitionPath,
+        );
+      }
+    }
+  }
+  if (permissionMode === undefined && settingSources === undefined) return undefined;
+  if (harness !== CLAUDE_AGENT_SDK_HARNESS_NAME) {
+    throw new WorkflowDefinitionError(
+      `${stepLabel}.claudeAgentSdk is only accepted when harness is "${CLAUDE_AGENT_SDK_HARNESS_NAME}" (got "${harness}"). ` +
+        `Other harnesses reject claude-agent-sdk wire options at their boundary.`,
+      definitionPath,
+    );
+  }
+  return {
+    ...(permissionMode !== undefined
+      ? { permissionMode: permissionMode as NonNullable<WorkflowClaudeSdkStepOptions["permissionMode"]> }
+      : {}),
+    ...(settingSources !== undefined
+      ? { settingSources: settingSources as NonNullable<WorkflowClaudeSdkStepOptions["settingSources"]> }
+      : {}),
+  };
 }
 
 function validateOutputSchema(

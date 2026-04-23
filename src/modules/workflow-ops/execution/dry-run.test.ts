@@ -109,8 +109,6 @@ describe("buildDryRunPlan", () => {
           moduleRoot: "/test-module-root",
           model: "claude-opus-4-7",
           effort: "xhigh",
-          permissionMode: "default",
-          settingSources: ["project"],
           autonomyMode: "autonomous",
         },
       ],

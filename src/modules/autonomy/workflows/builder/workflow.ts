@@ -33,11 +33,9 @@ export const agent: AgentDef = {
   promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
   skills: "all",
-  tools: { permissionMode: "bypassPermissions" },
   // Builder ships arbitrary code changes — its scope is explicitly
   // unrestricted rather than absence-means-unlimited.
   writeScope: [],
-  settingSources: ["project"],
 };
 
 type InspectResult = RepoTaskQueueSnapshot & { dirty: boolean };
@@ -91,8 +89,6 @@ const builderWorkflow: WorkflowDefinitionInput = {
       harness: AUTONOMY_AGENT_HARNESS,
       model: agent.model,
       effort: agent.effort,
-      permissionMode: agent.tools?.permissionMode,
-      settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => {

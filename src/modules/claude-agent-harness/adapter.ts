@@ -16,6 +16,12 @@ import {
 export const CLAUDE_AGENT_HARNESS_NAME = "claude-agent-sdk";
 
 const DEFAULT_SETTING_SOURCES: NonNullable<AgentHarnessRunOptions["settingSources"]> = ["project"];
+// Workflow agent steps ran by this adapter skip the SDK permission prompt
+// unless the step explicitly opts into a stricter mode via
+// `WorkflowClaudeSdkStepOptions.permissionMode`. Declared inside the adapter
+// so the neutral step protocol stays claude-SDK-free.
+const DEFAULT_PERMISSION_MODE: NonNullable<AgentHarnessRunOptions["permissionMode"]> =
+  "bypassPermissions";
 
 function mergeOwnerQuestionsMcpServer(
   existing: AgentMcpServers | undefined,
@@ -57,7 +63,7 @@ export const claudeAgentHarness: AgentHarness = {
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,
   ): Promise<AgentHarnessResult> {
-    const { prompt, askOwner, settingSources, systemPrompt, ...rest } = options;
+    const { prompt, askOwner, settingSources, permissionMode, systemPrompt, ...rest } = options;
     const mcpServers = askOwner
       ? mergeOwnerQuestionsMcpServer(rest.mcpServers, askOwner.source)
       : rest.mcpServers;
@@ -70,6 +76,11 @@ export const claudeAgentHarness: AgentHarness = {
         // Claude-SDK default: load project settings. Explicit caller values
         // (including an empty array meaning "load nothing") win.
         settingSources: settingSources ?? DEFAULT_SETTING_SOURCES,
+        // Workflow steps omit permissionMode on the neutral step shape; the
+        // adapter applies the workflow-agent default here so autonomy
+        // definitions do not re-state the field. Explicit caller values
+        // (including `"default"` from passive autonomy mode) still win.
+        permissionMode: permissionMode ?? DEFAULT_PERMISSION_MODE,
       },
       writer,
     );

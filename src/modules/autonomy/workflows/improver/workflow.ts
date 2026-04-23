@@ -32,11 +32,9 @@ export const agent: AgentDef = {
   role: "Improve the autonomous development system itself using evidence from recent runs.",
   promptPath: "src/modules/autonomy/workflows/improver/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
-  tools: { permissionMode: "bypassPermissions" },
   // Improver tunes autonomy surfaces (prompts, validation, triggers, queue
   // shaping) that span the repo, so its scope is explicitly unrestricted.
   writeScope: [],
-  settingSources: ["project"],
 };
 
 const gatherRunDataStep = typedCodeStep<RunOutcomeAggregation>({
@@ -98,8 +96,6 @@ const improverWorkflow: WorkflowDefinitionInput = {
       when: (ctx) => shouldRunImproverFromGate(gateEvidenceStep.output(ctx)),
       model: agent.model,
       effort: agent.effort,
-      permissionMode: agent.tools?.permissionMode,
-      settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       repairLoop: {

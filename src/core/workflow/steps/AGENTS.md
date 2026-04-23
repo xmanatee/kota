@@ -33,6 +33,23 @@ This enforcement lives in the core executor, not in per-workflow prompts or
 repair checks. Workflows declare scope honestly on their agent definitions
 and let the runtime reject out-of-scope writes uniformly.
 
+## Claude-SDK Per-Step Overrides
+
+The neutral `WorkflowAgentStep` shape has no `permissionMode` or
+`settingSources` fields. Both are claude-agent-sdk wire concepts — the
+adapter in `src/modules/claude-agent-harness/` owns them and applies the
+workflow-agent defaults (`"bypassPermissions"` / `["project"]`) at runtime
+when the caller passes `undefined`. Steps that need a non-default claude
+posture declare the carve-out explicitly:
+
+```ts
+{ type: "agent", harness: "claude-agent-sdk", claudeAgentSdk: { permissionMode: "acceptEdits" }, ... }
+```
+
+The validator rejects `claudeAgentSdk` on any other harness, and the
+openai-tools/thin adapters continue to reject claude wire options at their
+neutral boundary.
+
 ## Resolved Harness And Model On Agent Step Results
 
 Every successful agent step records the harness identifier the registry

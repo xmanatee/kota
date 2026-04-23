@@ -21,10 +21,14 @@ them directly; nothing else in core imports the executor or MCP bridge.
 - Owner-questions surface is adapter-owned: when `askOwner` is present, the
   adapter merges `createOwnerQuestionMcpServers(source)` into the SDK's
   `mcpServers` map. Callers never inject that MCP server themselves.
-- `settingSources` defaults to `["project"]` inside the adapter when the
-  caller passes `undefined`. This preserves the prior autonomy behavior
-  (loading the project's Claude Code settings) without forcing every step
-  definition to restate the field; an explicit caller value still wins.
+- `settingSources` defaults to `["project"]` and `permissionMode` defaults to
+  `"bypassPermissions"` inside the adapter when the caller passes
+  `undefined`. Autonomy workflow steps rely on these defaults by omitting
+  the `claudeAgentSdk` carve-out entirely. An explicit value on the neutral
+  `AgentHarnessRunOptions` (including `"default"` forced by passive autonomy
+  mode) still wins. Per-step overrides live on the workflow step's
+  `claudeAgentSdk` block (see `src/core/agent-harness/AGENTS.md`); this
+  adapter is the only place that reads those values.
 - Declared capabilities: `askOwnerToolName =
   "mcp__kota_owner_questions__ask_owner"`, `emitsAgentMessageStream = true`.
 - The claude-SDK `PermissionResult` TS type marks `updatedInput` optional on

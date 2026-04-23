@@ -25,9 +25,7 @@ export const agent: AgentDef = {
   role: "Turn quick inbox captures into the right durable project artifacts.",
   promptPath: "src/modules/autonomy/workflows/inbox-sorter/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
-  tools: { permissionMode: "bypassPermissions" },
   writeScope: ["data/"],
-  settingSources: ["project"],
 };
 
 type InboxSorterAssessment = {
@@ -90,8 +88,6 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
       harness: AUTONOMY_AGENT_HARNESS,
       model: agent.model,
       effort: agent.effort,
-      permissionMode: agent.tools?.permissionMode,
-      settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => {

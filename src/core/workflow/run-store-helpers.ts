@@ -455,11 +455,10 @@ function summarizeStep(step: WorkflowStep): Record<string, unknown> {
       model: step.model,
       effort: step.effort,
       maxTurns: step.maxTurns,
-      permissionMode: step.permissionMode,
       autonomyMode: step.autonomyMode,
       allowedTools: step.allowedTools,
       disallowedTools: step.disallowedTools,
-      settingSources: step.settingSources,
+      ...(step.claudeAgentSdk ? { claudeAgentSdk: step.claudeAgentSdk } : {}),
       ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
       ...(step.exposeOutputToAgent ? { exposeOutputToAgent: true } : {}),
     };

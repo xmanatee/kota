@@ -41,9 +41,7 @@ export const agent: AgentDef = {
   role: "Find strong external ideas and promising new directions when the local queue is empty or running thin.",
   promptPath: "src/modules/autonomy/workflows/explorer/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
-  tools: { permissionMode: "bypassPermissions" },
   writeScope: ["data/tasks/", "data/watchlist.yaml"],
-  settingSources: ["project"],
 };
 
 export const EXPLORATION_REFRESH_MS = 30 * 60 * 1000;
@@ -176,8 +174,6 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       harness: AUTONOMY_AGENT_HARNESS,
       model: agent.model,
       effort: agent.effort,
-      permissionMode: agent.tools?.permissionMode,
-      settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => {

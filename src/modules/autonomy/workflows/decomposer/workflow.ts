@@ -27,9 +27,7 @@ export const agent: AgentDef = {
   role: "Decompose builder-timeout tasks into coherent task sequences.",
   promptPath: "src/modules/autonomy/workflows/decomposer/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
-  tools: { permissionMode: "bypassPermissions" },
   writeScope: ["data/tasks/"],
-  settingSources: ["project"],
 };
 
 const TIMEOUT_THRESHOLD_MS = AUTONOMY_AGENT_HANG_TIMEOUT_MS;
@@ -256,8 +254,6 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       harness: AUTONOMY_AGENT_HARNESS,
       model: agent.model,
       effort: agent.effort,
-      permissionMode: agent.tools?.permissionMode,
-      settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => assessFailure.output(ctx).shouldDecompose,

@@ -36,9 +36,7 @@ export const agent: AgentDef = {
   promptPath: "src/modules/autonomy/workflows/research-retry/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
   skills: "all",
-  tools: { permissionMode: "bypassPermissions" },
   writeScope: ["data/tasks/", "data/inbox/", "src/modules/autonomy/"],
-  settingSources: ["project"],
 };
 
 type CandidateSummary = {
@@ -174,8 +172,6 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
       harness: AUTONOMY_AGENT_HARNESS,
       model: agent.model,
       effort: agent.effort,
-      permissionMode: agent.tools?.permissionMode,
-      settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => {

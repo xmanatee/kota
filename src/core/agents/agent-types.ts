@@ -8,9 +8,12 @@
  * defaults, skill set, and tool policy. Built-in and module-contributed
  * agents use the same model rather than ad hoc prompt conventions scattered
  * across workflow files.
+ *
+ * Claude-agent-sdk-specific per-run options (permissionMode, settingSources)
+ * live on the step's `claudeAgentSdk` carve-out in `#core/workflow/types.js`
+ * and are only interpreted by the claude-agent-sdk harness. They are not a
+ * property of the agent itself — an agent may run on any registered harness.
  */
-
-import type { SDKPermissionMode, SDKSettingSource } from "#core/agent-harness/sdk-types.js";
 
 /**
  * A named, file-backed piece of reusable agent guidance.
@@ -34,7 +37,6 @@ export type SkillDef = {
 export type AgentToolPolicy = {
   allowed?: string[];
   disallowed?: string[];
-  permissionMode?: SDKPermissionMode;
 };
 
 /**
@@ -72,6 +74,4 @@ export type AgentDef = {
    * end of an agent step.
    */
   writeScope: string[];
-  /** Claude Code settings sources to apply when running. */
-  settingSources?: SDKSettingSource[];
 };

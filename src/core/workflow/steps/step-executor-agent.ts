@@ -1,11 +1,12 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import type { AgentPermissionMode } from "#core/agent-harness/index.js";
 import {
   createWorkflowAgentGuards,
   resolveAgentHarness,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
-import type { SDKMessage, SDKPermissionMode } from "#core/agent-harness/sdk-types.js";
+import type { SDKMessage } from "#core/agent-harness/sdk-types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
@@ -312,17 +313,21 @@ function resolvePassiveAllowedTools(
 
 function resolveAgentPermissions(
   mode: AutonomyMode,
-  permissionMode: SDKPermissionMode,
+  permissionMode: AgentPermissionMode | undefined,
   allowedTools: string[] | undefined,
   disallowedTools: string[] | undefined,
   askOwnerToolName: string | null,
 ): {
-  permissionMode: SDKPermissionMode;
+  permissionMode: AgentPermissionMode | undefined;
   allowedTools: string[] | undefined;
   disallowedTools: string[] | undefined;
 } {
   if (mode === "autonomous") {
     return {
+      // Undefined flows through to the harness neutral options; the claude
+      // adapter fills in its own default ("bypassPermissions") when unset.
+      // Other adapters either ignore the field or reject non-bypass values at
+      // their boundary.
       permissionMode,
       allowedTools: includeAskOwnerTool(allowedTools, askOwnerToolName),
       disallowedTools: excludeAskOwnerTool(disallowedTools, askOwnerToolName),
@@ -403,7 +408,7 @@ export async function executeAgentStep(
       : agentPrompt.prompt;
     const permissions = resolveAgentPermissions(
       step.autonomyMode,
-      step.permissionMode,
+      step.claudeAgentSdk?.permissionMode,
       step.allowedTools,
       step.disallowedTools,
       resolvedHarness.askOwnerToolName,
@@ -429,7 +434,7 @@ export async function executeAgentStep(
                 }
               : undefined,
           permissionMode: permissions.permissionMode,
-          settingSources: step.settingSources,
+          settingSources: step.claudeAgentSdk?.settingSources,
           abortController,
           ...(trackedMessage !== undefined ? { onMessage: trackedMessage } : {}),
           canUseTool: createWorkflowAgentGuards(),

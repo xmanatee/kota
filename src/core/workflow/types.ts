@@ -1,7 +1,3 @@
-import type {
-  SDKPermissionMode,
-  SDKSettingSource,
-} from "#core/agent-harness/sdk-types.js";
 import type { BusEvents } from "#core/events/event-bus.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
@@ -30,6 +26,22 @@ export type WorkflowAgentBackoffState = {
 export type WorkflowAgentBackoffSignal = {
   kind: WorkflowAgentBackoffKind;
   reason: string;
+};
+
+/**
+ * Per-step passthrough for `claude-agent-sdk`-specific options. Only the
+ * `claude-agent-sdk` harness reads these values; every other harness rejects a
+ * step that carries a non-empty `claudeAgentSdk` block at definition load time.
+ *
+ * Leaving this field unset is the common path: the claude adapter applies its
+ * own defaults (`permissionMode: "bypassPermissions"`, `settingSources:
+ * ["project"]`) at runtime. The string-literal unions are kept in lockstep
+ * with the claude-agent-sdk wire types (`SDKPermissionMode`, `SDKSettingSource`)
+ * so the neutral workflow types.ts does not import claude-SDK wire shapes.
+ */
+export type WorkflowClaudeSdkStepOptions = {
+  permissionMode?: "default" | "acceptEdits" | "dontAsk" | "bypassPermissions";
+  settingSources?: Array<"project" | "local" | "user">;
 };
 
 export type WorkflowFilterScalar = string | number | boolean;
@@ -149,10 +161,15 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
   maxTurns?: number;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
-  permissionMode?: SDKPermissionMode;
   allowedTools?: string[];
   disallowedTools?: string[];
-  settingSources?: SDKSettingSource[];
+  /**
+   * Per-step passthrough for `claude-agent-sdk`-specific options. Only the
+   * `claude-agent-sdk` harness reads these values; other harnesses reject a
+   * step that carries a non-empty block at definition load time. Leave unset
+   * to inherit the claude adapter's defaults.
+   */
+  claudeAgentSdk?: WorkflowClaudeSdkStepOptions;
   /**
    * Operator supervision mode for this step. Orthogonal to per-tool risk
    * classification. Required in effect: the validator rejects an agent step
@@ -460,10 +477,10 @@ export type WorkflowAgentStep = WorkflowBaseStep & {
   maxTurns?: number;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
-  permissionMode: SDKPermissionMode;
   allowedTools?: string[];
   disallowedTools?: string[];
-  settingSources?: SDKSettingSource[];
+  /** Per-step claude-SDK passthrough (see {@link WorkflowClaudeSdkStepOptions}). */
+  claudeAgentSdk?: WorkflowClaudeSdkStepOptions;
   /** Operator supervision mode applied to this agent step. */
   autonomyMode: AutonomyMode;
   retry?: WorkflowRetryConfig;

@@ -414,8 +414,6 @@ describe("parallel step groups with agent steps", () => {
       moduleRoot: projectDir,
       model: "claude-opus-4-7",
               effort: "xhigh",
-      permissionMode: "bypassPermissions",
-      settingSources: [],
       autonomyMode: "autonomous",
       harness: "claude-agent-sdk",
       ...overrides,

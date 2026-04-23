@@ -80,8 +80,6 @@ function makeAgentStep(
     moduleRoot,
     model: "claude-opus-4-7",
     effort: "xhigh",
-    permissionMode: "bypassPermissions",
-    settingSources: [],
     autonomyMode: "autonomous",
     harness: "claude-agent-sdk",
     ...overrides,
@@ -469,7 +467,6 @@ describe("executeAgentStep — SDK autonomy permissions", () => {
       autonomyMode: "passive",
       allowedTools: undefined,
       disallowedTools: undefined,
-      permissionMode: "bypassPermissions",
     });
 
     await executeAgentStep(

@@ -14,12 +14,10 @@ export const agent: AgentDef = {
   role: "Review KOTA-created pull requests for correctness relative to the task's Done When criteria.",
   promptPath: "src/modules/autonomy/workflows/pr-reviewer/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
-  tools: { permissionMode: "bypassPermissions" },
   // pr-reviewer posts GitHub PR comments via `gh` and does not mutate tracked
   // files in the local worktree. Declared unrestricted because its output
   // surface is external, not repo writes.
   writeScope: [],
-  settingSources: ["project"],
 };
 
 type PrWebhookPayload = {
@@ -117,8 +115,6 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
       harness: AUTONOMY_AGENT_HARNESS,
       model: agent.model,
       effort: agent.effort,
-      permissionMode: agent.tools?.permissionMode,
-      settingSources: agent.settingSources,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => !assessPr.output(ctx).skip,

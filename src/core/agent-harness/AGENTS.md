@@ -120,3 +120,21 @@ neutral `types.ts` in the same directory re-exports the subset the protocol
 surface needs under harness-neutral names (`AgentMessage`,
 `AgentPermissionMode`, etc.). The Claude Agent SDK executor primitive and
 owner-questions MCP bridge live in `src/modules/claude-agent-harness/`.
+
+## Per-step harness-specific options
+
+Neutral workflow step shapes do not carry claude-SDK-only fields. A step
+that needs a non-default claude posture declares a typed carve-out:
+
+```ts
+{ type: "agent", harness: "claude-agent-sdk",
+  claudeAgentSdk: { permissionMode: "acceptEdits", settingSources: ["project"] } }
+```
+
+`claudeAgentSdk` is the single passthrough for this adapter. The validator
+rejects the block on any other harness. Leaving it unset is the common
+path: the claude adapter applies the defaults
+(`permissionMode: "bypassPermissions"`, `settingSources: ["project"]`) when
+the caller passes `undefined` on `AgentHarnessRunOptions`. Other adapters
+continue to reject claude-specific neutral options at their boundary. New
+claude-only knobs belong here, not on the neutral step or neutral options.
