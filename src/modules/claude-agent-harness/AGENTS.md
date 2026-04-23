@@ -3,11 +3,14 @@
 Adapter module that registers the `claude-agent-sdk` harness with the core
 agent-harness registry. This module owns every Claude-Agent-SDK-specific piece
 of runtime: the `executeWithAgentSDK` primitive (`executor.ts`), the owner-
-questions MCP bridge (`kota-tools-mcp.ts`), and the adapter that translates
-neutral `AgentHarnessRunOptions` into SDK wire shape. The neutral SDK wire-type
-declarations (`SDKMessage`, `SDKPermissionMode`, etc.) live in
-`src/core/agent-harness/sdk-types.ts` because the workflow runtime consumes
-them directly; nothing else in core imports the executor or MCP bridge.
+questions MCP bridge (`kota-tools-mcp.ts`), the claude-shaped query/option
+declarations (`sdk-types.ts` — `SDKQueryOptions`, `SDKSystemPrompt`,
+`SDKThinkingConfig`, `SDKQueryParams`, `SDKQueryFn`, `SDKModule`), and the
+adapter that translates neutral `AgentHarnessRunOptions` into SDK wire shape.
+The harness-neutral wire-frame declarations (`SDKMessage`, `SDKPermissionMode`,
+`SDKSettingSource`) live in `src/core/agent-harness/sdk-types.ts` because the
+workflow runtime consumes them directly; nothing else in core imports
+`@anthropic-ai/claude-agent-sdk`.
 
 - Registration happens as a side effect of importing this module (mirrors
   `src/modules/model-clients/`). Tests that exercise paths depending on the

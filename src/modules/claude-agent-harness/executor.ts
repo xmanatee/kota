@@ -1,7 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import type {
-  CanUseTool,
-  PermissionResult,
+  McpServerConfig,
   SpawnedProcess,
   SpawnOptions,
 } from "@anthropic-ai/claude-agent-sdk";
@@ -9,10 +8,16 @@ import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type {
   SDKMessage,
   SDKPermissionMode,
-  SDKQueryOptions,
   SDKResultMessage,
-  SDKSystemPrompt,
 } from "#core/agent-harness/sdk-types.js";
+import type {
+  AgentCanUseTool,
+  AgentEffort,
+  AgentMcpServers,
+  AgentPermissionResult,
+  AgentSettingSource,
+} from "#core/agent-harness/types.js";
+import type { SDKQueryOptions, SDKSystemPrompt } from "./sdk-types.js";
 
 export type ExecutorWriter = { write(text: string): boolean };
 
@@ -24,18 +29,18 @@ export type ExecutorOptions = {
   maxTurns?: number;
   allowedTools?: string[];
   disallowedTools?: string[];
-  mcpServers?: SDKQueryOptions["mcpServers"];
+  mcpServers?: AgentMcpServers;
   permissionMode?: SDKPermissionMode;
   persistSession?: boolean;
-  effort: SDKQueryOptions["effort"];
-  settingSources?: SDKQueryOptions["settingSources"];
+  effort: AgentEffort;
+  settingSources?: AgentSettingSource[];
   pathToClaudeCodeExecutable?: string;
   abortController?: AbortController;
   enableFileCheckpointing?: boolean;
   onMessage?: (message: SDKMessage) => void | Promise<void>;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
-  canUseTool?: SDKQueryOptions["canUseTool"];
+  canUseTool?: AgentCanUseTool;
 };
 
 export const SDK_ABORT_FORCE_KILL_MS = 10_000;
@@ -181,13 +186,20 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
   const thinking = options.thinkingEnabled
     ? { type: "enabled" as const, budgetTokens: Math.max(1024, options.thinkingBudget ?? 10_000) }
     : undefined;
+  // The neutral `AgentMcpServers` shape declares the in-process `sdk`-typed
+  // server's `instance` as `unknown`; this adapter is the only producer (via
+  // `createSdkMcpServer` in `kota-tools-mcp.ts`), so the runtime value is
+  // always the SDK's `McpServer` and the cast is safe at this boundary.
+  const mcpServers = options.mcpServers as
+    | Record<string, McpServerConfig>
+    | undefined;
   return {
     model: options.model,
     maxTurns: options.maxTurns,
     systemPrompt: options.systemPrompt,
     allowedTools: options.allowedTools,
     disallowedTools: options.disallowedTools,
-    mcpServers: options.mcpServers,
+    mcpServers,
     permissionMode,
     cwd: options.cwd ?? process.cwd(),
     persistSession: options.persistSession,
@@ -209,9 +221,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function normalizePermissionResult(
-  result: PermissionResult,
+  result: AgentPermissionResult,
   input: Record<string, unknown>,
-): PermissionResult {
+): AgentPermissionResult {
   if (!isRecord(result)) {
     throw new Error("SDK permission callback must return a permission decision object");
   }
@@ -234,13 +246,19 @@ export function normalizePermissionResult(
   throw new Error(`Unsupported SDK permission behavior: ${String(behavior)}`);
 }
 
-function normalizeCanUseTool(canUseTool: CanUseTool | undefined): CanUseTool | undefined {
+function normalizeCanUseTool(
+  canUseTool: AgentCanUseTool | undefined,
+): SDKQueryOptions["canUseTool"] | undefined {
   if (!canUseTool) return undefined;
-  return async (toolName, input, callbackOptions) =>
+  // The neutral `AgentCanUseTool` is structurally compatible with the SDK's
+  // `CanUseTool` (same callsite contract — `(toolName, input, context) =>
+  // Promise<PermissionResult>`); the adapter is the only place that bridges
+  // the two type names, so the cast happens here once.
+  return (async (toolName, input, callbackOptions) =>
     normalizePermissionResult(
       await canUseTool(toolName, input, callbackOptions),
       input,
-    );
+    )) as SDKQueryOptions["canUseTool"];
 }
 
 export async function executeWithAgentSDK(

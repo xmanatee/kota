@@ -54,20 +54,15 @@ field injected by call sites.
   The claude adapter relies on its MCP server wrapper (which accepts
   `source` explicitly) for the same effect.
 
-## Message streaming capability
+## Capability flags
 
-`AgentHarness.emitsAgentMessageStream: boolean` declares whether the adapter
-emits `SDKMessage`-shaped frames to an `onMessage` callback. Callers check
-this flag before subscribing — e.g. the step-executor only wires the tool
-telemetry tracker when the adapter streams messages. Adapters that do not
-emit such frames (openai-tools, thin) reject `onMessage` at the boundary;
-callers must not pass it blindly.
-- `AgentHarness.supportsMultiTurn: boolean` declares whether the adapter can
-  host an interactive conversation. The REPL entry point composes a local
-  transcript and delivers it through `run()`, so any adapter that honors a
-  prompt plus prior-turn context sets this to `true`. Adapters that are
-  fundamentally single-shot (fire-and-forget runners, webhook returns) set
-  `false` — the REPL refuses to launch them rather than silently downgrading.
+- `emitsAgentMessageStream: boolean` — whether the adapter emits `SDKMessage`
+  frames to `onMessage`. Callers check before subscribing; adapters without a
+  stream (openai-tools, thin) reject `onMessage` at the boundary.
+- `supportsMultiTurn: boolean` — whether the REPL can launch this adapter.
+  Adapters that honor a prompt plus prior-turn context set `true`;
+  fundamentally single-shot runners set `false` so the REPL refuses to
+  launch them rather than silently downgrading.
 
 ## Registry and selection
 
@@ -111,15 +106,24 @@ harness hook, not the classic pre-send hook.
 
 ## SDK wire-type declarations
 
-`sdk-types.ts` owns the `SDKMessage`, `SDKPermissionMode`, `SDKSettingSource`,
-`SDKSystemPrompt`, and `SDKQueryOptions` declarations. The shapes originated
-with the Claude Agent SDK but the protocol treats them as neutral wire types;
-every adapter normalizes into them at its boundary. The workflow runtime, run
-stores, and step executors import `SDKMessage` directly from this file. The
-neutral `types.ts` in the same directory re-exports the subset the protocol
-surface needs under harness-neutral names (`AgentMessage`,
-`AgentPermissionMode`, etc.). The Claude Agent SDK executor primitive and
-owner-questions MCP bridge live in `src/modules/claude-agent-harness/`.
+`sdk-types.ts` owns only the neutral wire frames adapters normalize into:
+`SDKMessage` (and variants), `SDKPermissionMode`, `SDKSettingSource`. The
+shapes originated with the Claude Agent SDK but the protocol treats them
+as neutral; nothing in core imports the claude-agent-sdk package.
+
+`types.ts` re-exports those frames under harness-neutral names
+(`AgentMessage`, `AgentPermissionMode`, …) and declares the rest of the
+neutral surface as KOTA-owned shapes — `AgentEffort`,
+`AgentMcpServerConfig` (a `stdio | sse | http | sdk` discriminated union
+whose `sdk` variant carries opaque `instance: unknown`; non-claude
+adapters reject non-empty `mcpServers` at the boundary), and
+`AgentCanUseTool` / `AgentPermissionResult` (structurally aligned with the
+SDK so guards flow through the claude adapter with one cast).
+
+Claude-SDK-specific query shapes (`SDKQueryOptions`, `SDKSystemPrompt`,
+`SDKThinkingConfig`, `SDKQueryParams`, `SDKQueryFn`, `SDKModule`), the
+executor primitive, and the owner-questions MCP bridge live in
+`src/modules/claude-agent-harness/`.
 
 ## Per-step harness-specific options
 

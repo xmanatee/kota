@@ -1,12 +1,12 @@
 ---
 id: task-move-claude-sdk-only-sdkqueryoptions-out-of-coreag
 title: Move claude-SDK-only SDKQueryOptions out of core/agent-harness into the claude-agent-harness module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: SDKQueryOptions (and its imports Options/McpServerConfig/SpawnedProcess/SpawnOptions from @anthropic-ai/claude-agent-sdk) live in src/core/agent-harness/sdk-types.ts only to derive AgentMcpServers and AgentEffort in core/types.ts. Its sole non-test consumer is the claude adapter. Move the claude-SDK-shaped options to the claude-agent-harness module; keep only harness-neutral wire types (SDKMessage, SDKPermissionMode, SDKSettingSource) in core.
 created_at: 2026-04-23T22:47:06.648Z
-updated_at: 2026-04-23T22:47:06.648Z
+updated_at: 2026-04-23T23:01:46.058Z
 ---
 
 ## Problem

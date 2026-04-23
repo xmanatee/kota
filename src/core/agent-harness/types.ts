@@ -1,9 +1,7 @@
-import type { CanUseTool, PermissionResult } from "@anthropic-ai/claude-agent-sdk";
 import type { HarnessHookKind } from "./hooks.js";
 import type {
   SDKMessage,
   SDKPermissionMode,
-  SDKQueryOptions,
   SDKSettingSource,
 } from "./sdk-types.js";
 
@@ -24,10 +22,111 @@ export type AgentSettingSource = SDKSettingSource;
  * surface is a plain string.
  */
 export type AgentSystemPrompt = string;
-export type AgentCanUseTool = CanUseTool;
-export type AgentPermissionResult = PermissionResult;
-export type AgentMcpServers = SDKQueryOptions["mcpServers"];
-export type AgentEffort = NonNullable<SDKQueryOptions["effort"]>;
+
+/**
+ * KOTA's portable agent-effort enum. Adapters map these literals onto their
+ * provider's native reasoning/effort wire shape (see
+ * `src/modules/model-clients/reasoning.ts`). Five literals, ordered low-to-max.
+ */
+export type AgentEffort = "low" | "medium" | "high" | "xhigh" | "max";
+
+/**
+ * Harness-neutral classification of a permission decision, surfaced to UIs
+ * that record why a tool call was allowed or rejected. Mirrors the
+ * claude-agent-sdk's `PermissionDecisionClassification` literals so adapters
+ * can pass values through without translation.
+ */
+export type AgentPermissionDecisionClassification =
+  | "user_temporary"
+  | "user_permanent"
+  | "user_reject";
+
+export type AgentPermissionResult =
+  | {
+      behavior: "allow";
+      updatedInput?: Record<string, unknown>;
+      updatedPermissions?: unknown[];
+      toolUseID?: string;
+      decisionClassification?: AgentPermissionDecisionClassification;
+    }
+  | {
+      behavior: "deny";
+      message: string;
+      interrupt?: boolean;
+      toolUseID?: string;
+      decisionClassification?: AgentPermissionDecisionClassification;
+    };
+
+/**
+ * Context object the harness hands to a `canUseTool` callback for one tool
+ * call. Adapters that route through the claude-agent-sdk hand the SDK's
+ * native context object straight through; structurally compatible with this
+ * neutral shape.
+ */
+export type AgentCanUseToolContext = {
+  signal: AbortSignal;
+  suggestions?: unknown[];
+  blockedPath?: string;
+  decisionReason?: string;
+  title?: string;
+  displayName?: string;
+  description?: string;
+  toolUseID: string;
+  agentID?: string;
+};
+
+export type AgentCanUseTool = (
+  toolName: string,
+  input: Record<string, unknown>,
+  context: AgentCanUseToolContext,
+) => Promise<AgentPermissionResult>;
+
+/**
+ * One MCP server entry the harness should host for the agent. KOTA-owned
+ * discriminated union covering the variants the claude-agent-sdk actually
+ * accepts today (`stdio | sse | http | sdk`). Non-claude adapters reject any
+ * non-empty `mcpServers` field at their boundary; the claude adapter passes
+ * the entries through to the SDK with a typed cast.
+ *
+ * The `sdk` variant carries an in-process MCP server `instance` typed as
+ * `unknown` because the underlying server class is a claude-agent-sdk
+ * internal — only the claude adapter constructs values of this shape via
+ * `createSdkMcpServer`, and only the SDK consumes them.
+ */
+export type AgentMcpStdioServerConfig = {
+  type?: "stdio";
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+};
+
+export type AgentMcpSseServerConfig = {
+  type: "sse";
+  url: string;
+  headers?: Record<string, string>;
+  tools?: unknown[];
+};
+
+export type AgentMcpHttpServerConfig = {
+  type: "http";
+  url: string;
+  headers?: Record<string, string>;
+  tools?: unknown[];
+};
+
+export type AgentMcpSdkServerConfig = {
+  type: "sdk";
+  name: string;
+  instance: unknown;
+};
+
+export type AgentMcpServerConfig =
+  | AgentMcpStdioServerConfig
+  | AgentMcpSseServerConfig
+  | AgentMcpHttpServerConfig
+  | AgentMcpSdkServerConfig;
+
+export type AgentMcpServers = Record<string, AgentMcpServerConfig>;
 
 /**
  * Declares that a run should expose the `ask_owner` tool to the agent so it

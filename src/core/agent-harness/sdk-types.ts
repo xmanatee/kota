@@ -1,10 +1,14 @@
-import type {
-  CanUseTool,
-  Options as ClaudeAgentSdkOptions,
-  McpServerConfig,
-  SpawnedProcess,
-  SpawnOptions,
-} from "@anthropic-ai/claude-agent-sdk";
+/**
+ * Harness-neutral wire-frame and policy types every agent harness adapter
+ * normalizes into. The shapes originated with the Claude Agent SDK but the
+ * protocol treats them as neutral: workflow runtime, run stores, and step
+ * executors consume them directly; non-claude adapters convert their native
+ * payloads into these shapes at the boundary.
+ *
+ * Claude-SDK-specific query/option shapes (`SDKQueryOptions`, `SDKSystemPrompt`,
+ * `SDKThinkingConfig`, `SDKQueryParams`, `SDKQueryFn`, `SDKModule`) live inside
+ * `src/modules/claude-agent-harness/` because only that adapter builds them.
+ */
 
 export type SDKPermissionMode =
   | "default"
@@ -13,42 +17,6 @@ export type SDKPermissionMode =
   | "bypassPermissions";
 
 export type SDKSettingSource = "project" | "local" | "user";
-
-/**
- * Claude-agent-sdk's native `systemPrompt` wire type (string, string[], or the
- * `claude_code` preset envelope). Re-exported from the SDK so KOTA never
- * re-declares the `"claude_code"` literal. Only the claude-agent-harness
- * adapter constructs values of this shape; every other adapter consumes a
- * plain `AgentSystemPrompt` string.
- */
-export type SDKSystemPrompt = NonNullable<ClaudeAgentSdkOptions["systemPrompt"]>;
-
-export type SDKThinkingConfig =
-  | { type: "adaptive" }
-  | { type: "enabled"; budgetTokens?: number }
-  | { type: "disabled" };
-
-export type SDKQueryOptions = {
-  model?: string;
-  maxTurns?: number;
-  systemPrompt?: SDKSystemPrompt;
-  allowedTools?: string[];
-  disallowedTools?: string[];
-  permissionMode?: SDKPermissionMode;
-  cwd?: string;
-  persistSession?: boolean;
-  effort?: "low" | "medium" | "high" | "xhigh" | "max";
-  includePartialMessages?: boolean;
-  settingSources?: SDKSettingSource[];
-  mcpServers?: Record<string, McpServerConfig>;
-  pathToClaudeCodeExecutable?: string;
-  allowDangerouslySkipPermissions?: boolean;
-  abortController?: AbortController;
-  enableFileCheckpointing?: boolean;
-  thinking?: SDKThinkingConfig;
-  spawnClaudeCodeProcess?: (options: SpawnOptions) => SpawnedProcess;
-  canUseTool?: CanUseTool;
-};
 
 export type SDKContentBlock = {
   type: string;
@@ -92,14 +60,3 @@ export type SDKMessage =
   | SDKResultMessage
   | SDKStatusMessage
   | (SDKMessageWithSession & Record<string, unknown> & { type: string });
-
-export type SDKQueryParams = {
-  prompt: string;
-  options?: SDKQueryOptions;
-};
-
-export type SDKQueryFn = (params: SDKQueryParams) => AsyncIterable<SDKMessage>;
-
-export type SDKModule = {
-  query: SDKQueryFn;
-};
