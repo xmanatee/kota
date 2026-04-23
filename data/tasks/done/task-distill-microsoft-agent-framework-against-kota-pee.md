@@ -1,12 +1,12 @@
 ---
 id: task-distill-microsoft-agent-framework-against-kota-pee
 title: Distill Microsoft Agent Framework against KOTA peer-runtime primitives
-status: ready
+status: done
 priority: p2
 area: research
 summary: Microsoft Agent Framework is the first-party successor to AutoGen (maintenance-mode) and the single watchlist gap in Microsoft-ecosystem peer-runtime coverage; fetch the repo, capture a snapshot, and record decision-level adopt/reject verdicts against KOTA primitives in src/modules/autonomy/AGENTS.md.
 created_at: 2026-04-23T21:05:25.157Z
-updated_at: 2026-04-23T21:05:25.157Z
+updated_at: 2026-04-23T21:11:01.282Z
 ---
 
 ## Problem

@@ -23,8 +23,7 @@ Load-bearing rules from harness, eval, and peer-runtime research. Post
 summaries live in run artifacts or `data/watchlist.yaml`.
 
 - **Generator / evaluator separation.** Decomposer → builder → critic is
-  planner/generator/evaluator. Strip repair-loop checks first; keep the
-  role separation.
+  planner/generator/evaluator. Strip repair-loop checks first; keep roles.
 - **Evaluator probes outcomes, not just artifacts.** Diff-only review is
   blind to runtime behavior. Such tasks reduce success to an inspectable
   artifact or carry a runtime probe (see `workflows/builder/AGENTS.md`).
@@ -32,9 +31,9 @@ summaries live in run artifacts or `data/watchlist.yaml`.
   (+ optional runtime probe). No thinking traces or self-reports — CoT
   monitorability is fragile and self-reports reward-hack.
 - **Infrastructure noise is not statistical noise.** Eval harnesses split
-  guaranteed allocation from kill thresholds, report resource profile per
-  run, run each fixture multiple times, and distinguish `pass@k` from
-  `pass^k`. Judge-repetition per fixture belongs here too.
+  guaranteed allocation from kill thresholds, report resource profile,
+  run each fixture multiple times, and distinguish `pass@k` from `pass^k`.
+  Judge-repetition per fixture belongs here too.
 - **Context resets beat compaction.** Prefer fresh-session handoffs via
   run artifacts over in-session compaction for distinct-phase workflows.
 - **Untrusted content is an injection surface.** Tool-risk gating
@@ -44,7 +43,7 @@ summaries live in run artifacts or `data/watchlist.yaml`.
   runtime state answers "what survives a crash mid-turn"; write through
   to run artifacts or the event bus.
 - **Eval fixtures come from real failures.** Seed `eval-harness` from
-  `.kota/runs/`, not synthetic specs.
+  `.kota/runs/`, not synthetic.
 
 ## Live-Run Evaluator Calibration
 
@@ -57,11 +56,11 @@ Monitor/notify split mirrors the eval-harness regression pattern.
 ## External Pattern Decisions
 
 Verdicts on peer patterns vs KOTA's `workflow` + `agent` + `module` +
-bus-event + store model. Revisit only if a peer ships a primitive
-existing protocols cannot express.
+bus-event + store model. Revisit only if a peer ships a primitive our
+protocols cannot express.
 
 - **Workflow DSLs (crewAI Flows, LangGraph Pregel).** Reject. Definition-
-  driven routing + run artifacts + recovery + repair loop cover durability.
+  driven routing + run artifacts + recovery cover durability.
 - **Vercel AI SDK split.** Adopted — `daemon` + `client`.
 - **Typed multi-agent handoffs (OpenHands, AutoGen).** Adopted via bus
   events and `trigger` steps.
@@ -69,38 +68,41 @@ existing protocols cannot express.
   Reject. Typed stores cover labeled persistence; runtime self-promoted
   skills are the forbidden second lessons store.
 - **Verbal self-reflection / strategy banks (Reflexion, ReasoningBank).**
-  Reject. Improver workflow + scoped `AGENTS.md` is the learn-from-failure
-  primitive.
+  Reject. Improver + scoped `AGENTS.md` is the learn-from-failure primitive.
 - **Routines / scheduled agents.** Already the `workflow` trigger.
 - **Multi-agent coordination patterns.** generator-verifier, orchestrator-
-  subagent, teams, message bus, shared state all map onto existing
-  primitives (builder/critic, `delegate` + `composition`, dispatcher, bus,
+  subagent, teams, message bus, shared state map onto existing primitives
+  (builder/critic, `delegate` + `composition`, dispatcher, bus,
   `composition.workspace` + stores).
 - **Parallel-agent desktop UIs.** Client-surface pattern; new clients use
-  the daemon control API. No second runtime session host.
-- **Managed Agents / brain-hands decoupling.** Reject the platform. The
-  daemon + session + workflow + run-artifact split already implements
-  brain/hands decoupling locally; credentials-never-in-sandbox is
-  `guardrails.ts` + `injection-defense`.
+  the daemon control API. No second runtime host.
+- **Managed Agents / brain-hands decoupling.** Reject. Daemon + session
+  + workflow + run-artifact already implements brain/hands decoupling;
+  credentials-never-in-sandbox is `guardrails.ts` + `injection-defense`.
 - **Claude Code auto mode + sandboxing.** Read. Autonomy mode +
-  `approval-queue` + `injection-defense` + tool-risk guardrails already
-  realize the input-probe/output-classifier split.
+  `approval-queue` + `injection-defense` + tool-risk guardrails realize
+  the input-probe/output-classifier split.
 - **Harness design for long-running apps.** Read, reinforces existing
-  posture — planner/generator/evaluator, reset-over-compact, and pre-code
+  posture — planner/generator/evaluator + reset-over-compact + pre-code
   sprint contracts are decomposer + builder + critic + `success-criteria*.txt`.
 - **Multi-Claude parallel builds.** Reject. Parallel-builder teams with
-  git-lock task claims and oracle partitioning would be a second
-  coordination surface; autonomy runs one-task-WIP through builder/critic.
+  git-lock claims would be a second coordination surface; autonomy runs
+  one-task-WIP through builder/critic.
 - **Claude Code 1M context + session management.** Reject at the workflow
-  layer. Continue / rewind / `/compact` / `/clear` / subagent is an
-  interactive-session primitive; KOTA's workflow + fresh-session-per-step
-  + run-artifact handoff already realizes reset-over-compact.
-- **Production MCP agent integration.** Read; reinforces tool-design
-  hygiene and `mcp-server`'s stance that MCP is a transport over KOTA
-  capabilities, not a second registry.
+  layer. Continue/rewind/compact/clear is an interactive-session primitive;
+  workflow + fresh-session-per-step + run-artifact handoff already realizes
+  reset-over-compact.
+- **Production MCP agent integration.** Read; reinforces `mcp-server`'s
+  stance that MCP is a transport over KOTA capabilities, not a second
+  registry.
 - **AGI capability scoring / behavioral-disposition alignment.** Reject.
-  `eval-harness` scores task outcomes, not capability classes; threat
-  models do not apply to a first-party operator daemon.
+  `eval-harness` scores task outcomes; threat models do not apply to a
+  first-party operator daemon.
+- **Microsoft Agent Framework (AutoGen successor).** Reject. Graph-
+  executor DSL + Cosmos checkpoint/time-travel fall under the rejected
+  workflow-DSL slot; sequential/concurrent/group-chat/handoff/magentic
+  orchestrations map onto bus events + `trigger` steps; Python+.NET API
+  parity is the `daemon` + `client` split.
 
 ## Prompt Hierarchy And Harness Posture
 
@@ -117,13 +119,13 @@ existing protocols cannot express.
   needed it is a new autonomy mode, not a parallel approval surface.
 - **Opus 4.7 harness defaults at the agent-step layer.** Delegate-don't-
   pair (front-load intent, constraints, success criteria in one turn),
-  `xhigh` default effort, adaptive thinking over fixed reasoning budgets,
-  batch-upfront prompting, and judicious subagent spawning (explicit
-  builder→critic workflow steps, not auto fan-out — 4.7 delegates less by
-  default). Task contract + success-criteria files enforce this; agent
-  steps must not reintroduce clarification loops or fixed reasoning caps.
+  `xhigh` default effort, adaptive thinking, batch-upfront prompting,
+  and judicious subagent spawning (explicit builder→critic workflow
+  steps, not auto fan-out — 4.7 delegates less by default). Task contract
+  + success-criteria files enforce this; steps must not reintroduce
+  clarification loops or fixed reasoning caps.
 - **Tool-design hygiene.** High bar for new tools; prefer discoverable
-  surfaces (read, grep, scoped `AGENTS.md`, module prompt state).
+  surfaces (read, grep, scoped `AGENTS.md`, prompt state).
 
 ## Scoped Contracts
 
@@ -134,9 +136,8 @@ existing protocols cannot express.
 ## Agent Judge Runtime Contract
 
 The shared agent-step retry classifier (see
-`src/core/workflow/steps/AGENTS.md`) governs autonomy judges, so they
-fail fast on runaway turn/token subtypes. Judge-backed repair checks
-(critic, improver semantic gate) catch the runaway throw in their
-wrapper and return a warning — editing code cannot shrink a judge's
-budget — while the judge primitive still throws. Unclassified SDK
-failures still reject the check.
+`src/core/workflow/steps/AGENTS.md`) governs autonomy judges. Judge-
+backed repair checks (critic, improver semantic gate) catch runaway
+turn/token throws in their wrapper and return a warning — editing code
+cannot shrink a judge's budget — while the primitive still throws.
+Unclassified SDK failures reject the check.

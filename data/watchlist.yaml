@@ -180,3 +180,7 @@ resources:
   - url: https://github.com/microsoft/agent-framework
     added: "2026-04-23"
     notes: "Microsoft Agent Framework is the first-party successor to AutoGen (maintenance-mode). The AutoGen watchlist snapshot explicitly names it as the active investment target, so peer-runtime coverage of the Microsoft ecosystem is currently stale. Snapshot and distill on the next explorer cycle."
+    snapshot:
+      fingerprint: sha256:dc8e033b206bc91d5ff47e6134e84d9a
+      summary: "Microsoft Agent Framework is Microsoft's first-party AutoGen + Semantic-Kernel successor, a Python + .NET SDK built on Agent + graph-based Workflow (executor/edge) primitives with sequential/concurrent/group-chat/handoff/magentic orchestrations, Cosmos-DB-backed checkpoint + time-travel, human-in-the-loop request/response gates, a YAML declarative workflow DSL, middleware, OpenTelemetry observability, DevUI, and AutoGen + Semantic-Kernel migration guides."
+      last_seen_at: "2026-04-23T21:10:25.405Z"
