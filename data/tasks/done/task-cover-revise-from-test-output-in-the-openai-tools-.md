@@ -1,12 +1,12 @@
 ---
 id: task-cover-revise-from-test-output-in-the-openai-tools-
 title: Cover revise-from-test-output in the openai-tools scenario-loop integration test
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Add a stubbed multi-turn integration test that drives the openai-tools harness through the revise-from-test-output scenario so tool-result fidelity regressions in the hand-composed tool_result path are caught locally, not only in an operator-facilitated live capture.
 created_at: 2026-04-23T14:15:21.574Z
-updated_at: 2026-04-23T14:15:21.574Z
+updated_at: 2026-04-23T20:23:09.438Z
 ---
 
 ## Problem
