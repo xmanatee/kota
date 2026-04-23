@@ -114,11 +114,21 @@ program
       const { model } = parseModelString(modelSpec);
       let prompt = promptWords.join(" ");
       prompt = expandAlias(prompt, config.aliases);
-      // Operators can pick the adapter explicitly via --harness, fall back to
-      // config.defaultAgentHarness, and finally to claude-agent-sdk for the
-      // historical --provider=agent-sdk shortcut.
-      const harnessName =
-        explicitHarness ?? config.defaultAgentHarness ?? "claude-agent-sdk";
+      // Operators pick the adapter explicitly via --harness or from
+      // config.defaultAgentHarness. No silent pin: if neither is set, fail
+      // loudly via the registry rather than quietly resolving to claude.
+      const harnessName = explicitHarness ?? config.defaultAgentHarness;
+      if (!harnessName) {
+        stderr().write(
+          line(
+            span(
+              "No agent harness configured: set --harness <name> or config.defaultAgentHarness. No implicit default.",
+              "error",
+            ),
+          ),
+        );
+        process.exit(1);
+      }
       const harness = resolveAgentHarness(harnessName);
       const systemPrompt = buildKotaSystemPrompt(
         config,
@@ -251,7 +261,18 @@ async function checkPipeMode() {
       if (config.modelProvider?.type === "agent-sdk") {
         const modelSpec = config.model || "claude-sonnet-4-6";
         const { model } = parseModelString(modelSpec);
-        const harnessName = config.defaultAgentHarness ?? "claude-agent-sdk";
+        const harnessName = config.defaultAgentHarness;
+        if (!harnessName) {
+          stderr().write(
+            line(
+              span(
+                'No agent harness configured: set config.defaultAgentHarness when modelProvider.type is "agent-sdk". No implicit default.',
+                "error",
+              ),
+            ),
+          );
+          process.exit(1);
+        }
         announceActiveHarness(harnessName, model);
         const harness = resolveAgentHarness(harnessName);
         const result = await runAgentHarness(harness, {

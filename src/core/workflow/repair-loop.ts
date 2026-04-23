@@ -64,11 +64,12 @@ export function buildRepairPrompt(
 async function runRepairCheck(
   check: WorkflowRepairCheck,
   context: WorkflowStepContext,
+  parentStep: WorkflowAgentStep,
 ): Promise<RepairCheckResult> {
   const severity = check.severity ?? "error";
   try {
     if (check.type === "code") {
-      const output = await check.run(context);
+      const output = await check.run(context, parentStep);
       return {
         id: check.id,
         passed: true,
@@ -152,6 +153,7 @@ async function executeRepairAgentIteration(
 async function runChecksPhased(
   checks: WorkflowRepairCheck[],
   context: WorkflowStepContext,
+  parentStep: WorkflowAgentStep,
 ): Promise<{ failures: RepairCheckResult[]; warnings: RepairCheckResult[] }> {
   const phases = new Map<number, WorkflowRepairCheck[]>();
   for (const check of checks) {
@@ -164,7 +166,9 @@ async function runChecksPhased(
   const allResults: RepairCheckResult[] = [];
   for (const phase of sortedPhases) {
     const phaseChecks = phases.get(phase)!;
-    const results = await Promise.all(phaseChecks.map((c) => runRepairCheck(c, context)));
+    const results = await Promise.all(
+      phaseChecks.map((c) => runRepairCheck(c, context, parentStep)),
+    );
     allResults.push(...results);
     const hasErrors = results.some((r) => !r.passed && r.severity === "error");
     if (hasErrors) break;
@@ -202,7 +206,7 @@ export async function runAgentRepairLoop(
     return wrap({ ...base, content: lastContent, turns: totalTurns, totalCostUsd, repairIterations: iterations, repairWarnings: warnings });
   }
 
-  const { failures: initialFailures, warnings: initialWarnings } = await runChecksPhased(checks, context);
+  const { failures: initialFailures, warnings: initialWarnings } = await runChecksPhased(checks, context, step);
   let failures = initialFailures;
   warnings = initialWarnings;
 
@@ -231,7 +235,7 @@ export async function runAgentRepairLoop(
 
     if (abortController.signal.aborted) break;
 
-    const phased = await runChecksPhased(checks, context);
+    const phased = await runChecksPhased(checks, context, step);
     failures = phased.failures;
     warnings = phased.warnings;
 

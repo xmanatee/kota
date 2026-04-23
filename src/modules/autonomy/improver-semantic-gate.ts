@@ -57,7 +57,9 @@ Schema:
 Example:
 {"verdict":"pass","critical_issues":[],"warnings":[],"summary":"Diff tightens validation thresholds with direct run-trace evidence."}`;
 
-const gateConfig: AgentJudgeConfig = {
+type GateBaseConfig = Omit<AgentJudgeConfig, "harness">;
+
+const gateBaseConfig: GateBaseConfig = {
   label: "Semantic gate",
   systemPrompt: GATE_SYSTEM_PROMPT,
   model: AUTONOMY_AGENT_DEFAULTS.model,
@@ -73,11 +75,20 @@ function readCommitMessage(runDirPath: string): string {
 
 export function createImproverSemanticCheck(options?: {
   runDirPath?: string;
+  /**
+   * Force a specific harness name. Production callers leave this unset so the
+   * check dispatches through the parent agent step's resolved harness (which
+   * the validator populated from `config.defaultAgentHarness`). Tests use it
+   * to drive the gate over a specific adapter directly.
+   */
+  harnessName?: string;
 }): WorkflowRepairCheck {
   return {
     id: "semantic-quality-gate",
     type: "code" as const,
-    run: async (ctx) => {
+    run: async (ctx, parentStep) => {
+      const harnessName = options?.harnessName ?? parentStep.harness;
+      const gateConfig: AgentJudgeConfig = { ...gateBaseConfig, harness: harnessName };
       const diffStat = getStagedDiff(ctx.projectDir);
       const changedFiles = getChangedFiles(ctx.projectDir);
 

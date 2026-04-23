@@ -12,6 +12,9 @@ This module owns the project autonomous development loop.
   Retract or narrow guidance when code, behavior, or ownership changes.
 - Workflow-specific prompts should stay role-focused. Shared policy and
   operating conventions belong in this module's `AGENTS.md` hierarchy.
+- Harness selection inherits from `KotaConfig.defaultAgentHarness`. No module
+  constant re-pins the fleet. Judges inside a repair loop inherit the parent
+  step's resolved harness, not a module-local fallback.
 
 ## Core Autonomy Decisions
 

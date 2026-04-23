@@ -200,34 +200,42 @@ describe("autonomy agent steps and judges on openai-tools", () => {
         ),
     });
 
-    // Call the critic with an explicit harness override so the autonomy
-    // default (claude-agent-sdk) does not short-circuit the test. This is
-    // also how the integration test proves the judge wrapper dispatches
-    // through the registry rather than hardcoding the SDK.
+    // Call the critic with no explicit harness override — instead, thread the
+    // parent step's resolved harness (the same value the validator would have
+    // populated from `config.defaultAgentHarness`). This is the production
+    // resolution path: the judge inherits the harness its enclosing agent
+    // step runs on.
     const check = createCriticCheck({
       runDirPath: runDir,
-      harnessName: OPENAI_TOOLS_AGENT_HARNESS_NAME,
       model: "openai/gpt-4o-mini",
     });
 
-    const result = await (check as { run: (ctx: unknown) => Promise<string> }).run({
-      projectDir,
-      workflow: {
-        name: "builder",
-        runId: "run-critic",
-        runDirPath: runDir,
-        definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+    const parentStep = makeAgentStep(projectDir);
+    const result = await (
+      check as {
+        run: (ctx: unknown, step: unknown) => Promise<string>;
+      }
+    ).run(
+      {
+        projectDir,
+        workflow: {
+          name: "builder",
+          runId: "run-critic",
+          runDirPath: runDir,
+          definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+        },
+        trigger: { event: "autonomy.queue.available", payload: {} },
+        stepOutputs: {},
+        stepResults: {},
+        runTool: vi.fn(),
+        emit: vi.fn(),
+        requestRestart: vi.fn(),
+        readPrompt: vi.fn(),
+        triggerWorkflow: vi.fn(),
+        readRuntimeState: vi.fn(),
       },
-      trigger: { event: "autonomy.queue.available", payload: {} },
-      stepOutputs: {},
-      stepResults: {},
-      runTool: vi.fn(),
-      emit: vi.fn(),
-      requestRestart: vi.fn(),
-      readPrompt: vi.fn(),
-      triggerWorkflow: vi.fn(),
-      readRuntimeState: vi.fn(),
-    });
+      parentStep,
+    );
 
     expect(result).toMatch(/pass/);
     expect(streamMock).toHaveBeenCalledTimes(1);

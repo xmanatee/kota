@@ -206,6 +206,23 @@ describe("parseIntOption", () => {
   });
 });
 
+describe("agent-harness resolution", () => {
+  // The CLI's harness branch (explicit --harness or --provider=agent-sdk /
+  // config.modelProvider.type=agent-sdk) must not silently pin to
+  // claude-agent-sdk when `config.defaultAgentHarness` is unset. These tests
+  // prove the loud-failure contract promised by `KotaConfig.defaultAgentHarness`
+  // and `src/core/agent-harness/AGENTS.md`.
+  it("fails loudly when --provider=agent-sdk is used without a configured harness", () => {
+    const { stderr, exitCode } = runFull(
+      ["run", "--provider", "agent-sdk", "hello"],
+      { env: { ANTHROPIC_API_KEY: "sk-ant-test", HOME: "/tmp/kota-test-no-config" } },
+    );
+    expect(exitCode).toBe(1);
+    expect(stderr).toMatch(/No agent harness configured/);
+    expect(stderr).toMatch(/defaultAgentHarness/);
+  });
+});
+
 describe("--continue validation", () => {
   it("exits with error when no previous conversation exists", () => {
     const { exitCode } = runFull(["run", "--continue", "hello"], {

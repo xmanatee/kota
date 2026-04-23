@@ -92,6 +92,13 @@ export async function runDelegate(
   const resolvedBackend = delegateConfig.backend ?? modelRoute?.backend ?? "thin";
   if (resolvedBackend === "agent-sdk") {
     const { runDelegateAgentSDK } = await import("./delegate-agent-sdk.js");
+    if (!delegateConfig.harness) {
+      return {
+        content:
+          "Error: delegate(agent-sdk backend) requires a harness. Set config.defaultAgentHarness so it flows through DelegateConfig.harness. No implicit default.",
+        is_error: true,
+      };
+    }
     return runDelegateAgentSDK(task, mode, {
       cwd: delegateConfig.cwd,
       projectContext: delegateConfig.projectContext,
@@ -99,6 +106,7 @@ export async function runDelegate(
       costTracker: delegateConfig.costTracker,
       transport: delegateConfig.transport,
       model: selectedModel,
+      harness: delegateConfig.harness,
     });
   }
 

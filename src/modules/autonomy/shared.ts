@@ -38,7 +38,6 @@ export function runCheck(command: string, cwd: string, timeoutMs = 120_000): str
 export const READY_TASK_TARGET = 4;
 export const BACKLOG_TASK_TARGET = 8;
 export const AUTONOMY_DISALLOWED_TOOLS = ["Agent", "Task", "EnterWorktree", "ExitWorktree"];
-export const AUTONOMY_AGENT_HARNESS = "claude-agent-sdk";
 export const AUTONOMY_AGENT_HANG_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 
 // Single source of truth for the autonomy fleet's model and effort level.

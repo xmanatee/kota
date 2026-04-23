@@ -87,7 +87,15 @@ function getOptionsArg(call: unknown[]): Record<string, unknown> {
   return call[1] as Record<string, unknown>;
 }
 
-type CodeCheck = { run: (ctx: never) => Promise<unknown> };
+type CodeCheck = {
+  run: (ctx: never, parentStep: never) => Promise<unknown>;
+};
+
+// Minimal parent step to satisfy the repair-check run signature. The critic
+// reads `parentStep.harness` as the default judge harness when the factory
+// leaves `harnessName` unset — these tests mock `resolveAgentHarness`, so any
+// registered name works.
+const TEST_PARENT_STEP = { harness: 'claude-agent-sdk' } as never;
 
 describe("createCriticCheck", () => {
   beforeEach(() => {
@@ -109,7 +117,7 @@ describe("createCriticCheck", () => {
     });
 
     const check = createCriticCheck();
-    const result = await (check as CodeCheck).run(makeContext(dir));
+    const result = await (check as CodeCheck).run(makeContext(dir), TEST_PARENT_STEP);
     expect(result).toMatch(/pass/);
     expect(mockRunAgentHarness).toHaveBeenCalledOnce();
   });
@@ -117,7 +125,7 @@ describe("createCriticCheck", () => {
   it("skips when no task in doing/ and no staged done/ task", async () => {
     const dir = makeTmpDir();
     const check = createCriticCheck();
-    const result = await (check as CodeCheck).run(makeContext(dir));
+    const result = await (check as CodeCheck).run(makeContext(dir), TEST_PARENT_STEP);
     expect(result).toMatch(/skipping critic review/);
   });
 
@@ -149,7 +157,7 @@ describe("createCriticCheck", () => {
     });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
 
     expect(result).toMatch(/pass/);
     expect(mockRunAgentHarness).toHaveBeenCalledOnce();
@@ -175,7 +183,7 @@ describe("createCriticCheck", () => {
     });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
 
     expect(result).toMatch(/pass/);
     expect(mockRunAgentHarness).toHaveBeenCalledOnce();
@@ -196,7 +204,7 @@ describe("createCriticCheck", () => {
     });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    await (check as CodeCheck).run(makeContext(dir, runDir));
+    await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
 
     const userMessage = getPromptArg(mockRunAgentHarness.mock.calls[0]);
     const options = getOptionsArg(mockRunAgentHarness.mock.calls[0]);
@@ -235,7 +243,7 @@ describe("createCriticCheck", () => {
     });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
     expect(result).toMatch(/pass/);
   });
 
@@ -258,7 +266,7 @@ describe("createCriticCheck", () => {
     });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
     expect(result).toMatch(/pass_with_warnings/);
   });
 
@@ -280,7 +288,7 @@ describe("createCriticCheck", () => {
 
     const check = createCriticCheck({ runDirPath: runDir });
     await expect(
-      (check as CodeCheck).run(makeContext(dir, runDir)),
+      (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP),
     ).rejects.toThrow(/2 critical issue/);
   });
 
@@ -301,7 +309,7 @@ describe("createCriticCheck", () => {
     });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    await expect((check as CodeCheck).run(makeContext(dir, runDir))).rejects.toThrow();
+    await expect((check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP)).rejects.toThrow();
 
     const artifact = JSON.parse(readFileSync(join(runDir, "critic-review.json"), "utf8"));
     expect(artifact.verdict).toBe("fail");
@@ -328,7 +336,7 @@ describe("createCriticCheck", () => {
 
     const check = createCriticCheck({ runDirPath: runDir });
     const assertion = expect(
-      (check as CodeCheck).run(makeContext(dir, runDir)),
+      (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP),
     ).rejects.toThrow(/Critic agent failed \(attempt 3\/3\)/);
     await vi.runAllTimersAsync();
     await assertion;
@@ -357,7 +365,7 @@ describe("createCriticCheck", () => {
     });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
     expect(result).toMatch(/critic unavailable/);
     expect(result).toMatch(/evaluator-calibration/);
     // Still fails fast at the invokeAgentJudge layer: only one SDK call.
@@ -383,7 +391,7 @@ describe("createCriticCheck", () => {
     );
 
     const check = createCriticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
     expect(result).toMatch(/critic unavailable/);
     expect(mockRunAgentHarness).toHaveBeenCalledTimes(1);
   });
@@ -406,7 +414,7 @@ describe("createCriticCheck", () => {
 
     const check = createCriticCheck({ runDirPath: runDir });
     await expect(
-      (check as CodeCheck).run(makeContext(dir, runDir)),
+      (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP),
     ).rejects.toThrow(/Critic agent threw \(attempt 1\/3\)/);
     expect(mockRunAgentHarness).toHaveBeenCalledTimes(1);
   });
@@ -442,7 +450,7 @@ describe("createCriticCheck", () => {
       });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    const promise = (check as CodeCheck).run(makeContext(dir, runDir));
+    const promise = (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
     await vi.runAllTimersAsync();
     const result = await promise;
     expect(result).toMatch(/pass/);
@@ -483,7 +491,7 @@ describe("createCriticCheck", () => {
       });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    const promise = (check as CodeCheck).run(makeContext(dir, runDir));
+    const promise = (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
     await vi.runAllTimersAsync();
     const result = await promise;
 
@@ -516,7 +524,7 @@ describe("createCriticCheck", () => {
 
     const check = createCriticCheck({ runDirPath: runDir });
     const assertion = expect(
-      (check as CodeCheck).run(makeContext(dir, runDir)),
+      (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP),
     ).rejects.toThrow(/returned unparseable response/);
     await vi.runAllTimersAsync();
     await assertion;
@@ -556,7 +564,7 @@ describe("createCriticCheck", () => {
     });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
     expect(result).toMatch(/pass/);
 
     const artifact = JSON.parse(readFileSync(join(runDir, "runtime-probe.json"), "utf8"));
@@ -599,7 +607,7 @@ describe("createCriticCheck", () => {
     });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    await expect((check as CodeCheck).run(makeContext(dir, runDir))).rejects.toThrow(/critical issue/);
+    await expect((check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP)).rejects.toThrow(/critical issue/);
 
     const artifact = JSON.parse(readFileSync(join(runDir, "runtime-probe.json"), "utf8"));
     expect(artifact.verdict).toBe("fail");
@@ -628,7 +636,7 @@ describe("createCriticCheck", () => {
     });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
     expect(result).toMatch(/pass/);
     expect(existsSync(join(runDir, "runtime-probe.json"))).toBe(false);
 
@@ -653,7 +661,7 @@ describe("createCriticCheck", () => {
     });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
 
     expect(result).toMatch(/pass_with_warnings/);
     expect(result).toMatch(/1 warning/);

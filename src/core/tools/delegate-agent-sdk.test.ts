@@ -58,6 +58,7 @@ describe("delegate-agent-sdk", () => {
     const transport = mockTransport();
     const result = await runDelegateAgentSDK("fix auth bug", "execute", {
       transport,
+      harness: "claude-agent-sdk",
     });
 
     expect(result.is_error).toBeUndefined();
@@ -78,7 +79,10 @@ describe("delegate-agent-sdk", () => {
 
     const addRawCost = vi.fn();
     const costTracker = { addRawCost } as unknown as CostTracker;
-    await runDelegateAgentSDK("task", "execute", { costTracker });
+    await runDelegateAgentSDK("task", "execute", {
+      costTracker,
+      harness: "claude-agent-sdk",
+    });
 
     expect(addRawCost).toHaveBeenCalledWith(0.15);
   });
@@ -96,6 +100,7 @@ describe("delegate-agent-sdk", () => {
       cwd: "/tmp/project",
       model: "claude-haiku-4-5-20251001",
       instructionContext: "## Project Instructions\nUse AGENTS.md",
+      harness: "claude-agent-sdk",
     });
 
     const [, options] = mockExecuteWithAgentSDK.mock.calls[0];
@@ -128,6 +133,7 @@ describe("delegate-agent-sdk", () => {
 
     await runDelegateAgentSDK("fix the type error", "execute", {
       cwd: "/tmp/project",
+      harness: "claude-agent-sdk",
     });
 
     const [, options] = mockExecuteWithAgentSDK.mock.calls[0];
@@ -147,7 +153,9 @@ describe("delegate-agent-sdk", () => {
       isError: true,
     });
 
-    const result = await runDelegateAgentSDK("huge refactor", "execute", {});
+    const result = await runDelegateAgentSDK("huge refactor", "execute", {
+      harness: "claude-agent-sdk",
+    });
     expect(result.content).toContain("hit turn limit");
   });
 
@@ -162,12 +170,30 @@ describe("delegate-agent-sdk", () => {
     });
 
     const transport = mockTransport();
-    await runDelegateAgentSDK("task", "explore", { transport });
+    await runDelegateAgentSDK("task", "explore", {
+      transport,
+      harness: "claude-agent-sdk",
+    });
 
     const statusMessages = transport.messages.filter((message) => message.type === "status");
     expect(statusMessages.length).toBeGreaterThanOrEqual(2);
     expect(statusMessages[0].message).toContain("starting");
     expect(statusMessages[0].message).toContain("agent-sdk");
     expect(statusMessages[statusMessages.length - 1].message).toContain("done");
+  });
+
+  it("fails loudly when no harness is supplied — no implicit default", async () => {
+    // The agent-sdk backend must not silently re-pin subagents to
+    // claude-agent-sdk when the caller omits `harness`. This proves the
+    // behavior change: with `harness` undefined the call throws a loud,
+    // operator-oriented error instead of quietly dispatching to claude.
+    await expect(
+      runDelegateAgentSDK("task", "explore", {
+        // @ts-expect-error — prove runtime rejection when the required field
+        // is missing (the signature itself already forbids this).
+        harness: undefined,
+      }),
+    ).rejects.toThrow(/requires a harness/);
+    expect(mockExecuteWithAgentSDK).not.toHaveBeenCalled();
   });
 });

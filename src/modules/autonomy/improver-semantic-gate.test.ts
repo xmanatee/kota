@@ -87,7 +87,15 @@ function setGateResponse(verdict: CriticVerdict) {
   });
 }
 
-type CodeCheck = { run: (ctx: never) => Promise<unknown> };
+type CodeCheck = {
+  run: (ctx: never, parentStep: never) => Promise<unknown>;
+};
+
+// Minimal parent step to satisfy the repair-check run signature. The semantic
+// gate reads `parentStep.harness` as the default judge harness when the
+// factory leaves `harnessName` unset — these tests mock
+// `resolveAgentHarness`, so any registered name works.
+const TEST_PARENT_STEP = { harness: 'claude-agent-sdk' } as never;
 
 describe("createImproverSemanticCheck", () => {
   beforeEach(() => {
@@ -97,7 +105,7 @@ describe("createImproverSemanticCheck", () => {
   it("skips when there are no staged changes", async () => {
     const dir = makeTmpDir();
     const check = createImproverSemanticCheck();
-    const result = await (check as CodeCheck).run(makeContext(dir));
+    const result = await (check as CodeCheck).run(makeContext(dir), TEST_PARENT_STEP);
     expect(result).toMatch(/no staged changes/);
     expect(mockRunAgentHarness).not.toHaveBeenCalled();
   });
@@ -128,7 +136,7 @@ describe("createImproverSemanticCheck", () => {
     });
 
     const check = createImproverSemanticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
     expect(result).toMatch(/pass/);
     expect(mockRunAgentHarness).toHaveBeenCalledOnce();
 
@@ -164,7 +172,7 @@ describe("createImproverSemanticCheck", () => {
 
     const check = createImproverSemanticCheck({ runDirPath: runDir });
     await expect(
-      (check as CodeCheck).run(makeContext(dir, runDir)),
+      (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP),
     ).rejects.toThrow(/critical issue/);
   });
 
@@ -190,7 +198,7 @@ describe("createImproverSemanticCheck", () => {
     });
 
     const check = createImproverSemanticCheck({ runDirPath: runDir });
-    await expect((check as CodeCheck).run(makeContext(dir, runDir))).rejects.toThrow();
+    await expect((check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP)).rejects.toThrow();
 
     const artifact = JSON.parse(readFileSync(join(runDir, "semantic-gate-review.json"), "utf8"));
     expect(artifact.verdict).toBe("fail");
@@ -219,7 +227,7 @@ describe("createImproverSemanticCheck", () => {
     });
 
     const check = createImproverSemanticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
 
     expect(result).toMatch(/pass_with_warnings/);
     const artifact = JSON.parse(readFileSync(join(runDir, "semantic-gate-review.json"), "utf8"));
@@ -248,7 +256,7 @@ describe("createImproverSemanticCheck", () => {
     });
 
     const check = createImproverSemanticCheck({ runDirPath: runDir });
-    await (check as CodeCheck).run(makeContext(dir, runDir));
+    await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
 
     const prompt = getPromptArg(mockRunAgentHarness.mock.calls[0]);
     expect(prompt).toContain("Unique commit message for test");
@@ -288,7 +296,7 @@ describe("createImproverSemanticCheck", () => {
 
     const check = createImproverSemanticCheck({ runDirPath: runDir });
     const assertion = expect(
-      (check as CodeCheck).run(makeContext(dir, runDir)),
+      (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP),
     ).rejects.toThrow(/Semantic gate failed \(attempt 3\/3\)/);
     await vi.runAllTimersAsync();
     await assertion;
@@ -319,7 +327,7 @@ describe("createImproverSemanticCheck", () => {
     });
 
     const check = createImproverSemanticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir));
+    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
     expect(result).toMatch(/semantic gate unavailable/);
     expect(mockRunAgentHarness).toHaveBeenCalledTimes(1);
   });
@@ -344,7 +352,7 @@ describe("createImproverSemanticCheck", () => {
 
     const check = createImproverSemanticCheck({ runDirPath: runDir });
     await expect(
-      (check as CodeCheck).run(makeContext(dir, runDir)),
+      (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP),
     ).rejects.toThrow(/Semantic gate threw \(attempt 1\/3\)/);
     expect(mockRunAgentHarness).toHaveBeenCalledTimes(1);
   });

@@ -1,8 +1,8 @@
 /**
  * Agent harness delegate backend — routes delegate tasks through a registered
- * agent harness. The default is claude-agent-sdk for backwards-compat with the
- * previous `backend: "agent-sdk"` selection, but operators can point at any
- * registered harness by setting `harness` on the delegate config.
+ * agent harness. The harness name must be supplied by the caller (normally
+ * pulled from `config.defaultAgentHarness` when wiring the delegate config);
+ * there is no silent fallback that re-pins subagents to claude-agent-sdk.
  */
 
 import { resolveAgentHarness, runAgentHarness } from "#core/agent-harness/index.js";
@@ -44,13 +44,12 @@ export type AgentSDKDelegateConfig = {
   transport?: Transport;
   model?: string;
   /**
-   * Registered agent-harness name to run this delegate on. Falls through to
-   * `"claude-agent-sdk"` so the historical `backend: "agent-sdk"` delegate
-   * shape still lands on the Claude Agent SDK when the caller leaves this
-   * unset — callers that want the operator-configured default should read
-   * `config.defaultAgentHarness` before invoking.
+   * Registered agent-harness name to run this delegate on. Required — the
+   * caller must plumb it through from `config.defaultAgentHarness` (see
+   * `setDelegateConfig` callers in the loop modules). If unset, the delegate
+   * fails loudly rather than silently re-pinning subagents to claude.
    */
-  harness?: string;
+  harness: string;
 };
 
 export async function runDelegateAgentSDK(
@@ -72,7 +71,12 @@ export async function runDelegateAgentSDK(
   const taskPreview =
     taskChars.length > 60 ? `${taskChars.slice(0, 57).join("")}...` : task;
 
-  const harnessName = config.harness ?? "claude-agent-sdk";
+  if (!config.harness) {
+    throw new Error(
+      "delegate(agent-sdk backend) requires a harness name. Set config.defaultAgentHarness so it flows through DelegateConfig.harness. No implicit default.",
+    );
+  }
+  const harnessName = config.harness;
   const harness = resolveAgentHarness(harnessName);
 
   if (transport) {

@@ -31,6 +31,12 @@ export type DelegateConfig = {
   mcpManager?: McpManager;
   /** Override backend selection: "thin" (default KOTA loop) or "agent-sdk" (Claude Code runtime). */
   backend?: DelegateBackend;
+  /**
+   * Registered agent-harness name for the `"agent-sdk"` backend. Callers
+   * populate this from `KotaConfig.defaultAgentHarness`; the delegate backend
+   * throws if the field is missing when routed down the agent-harness path.
+   */
+  harness?: string;
 };
 
 let delegateConfig: DelegateConfig = { model: "claude-opus-4-7" };

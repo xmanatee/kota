@@ -8,12 +8,7 @@ import {
 } from "#core/agent-harness/index.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
-import {
-  AUTONOMY_AGENT_DEFAULTS,
-  AUTONOMY_AGENT_HARNESS,
-  AUTONOMY_DISALLOWED_TOOLS,
-  sleep,
-} from "./shared.js";
+import { AUTONOMY_AGENT_DEFAULTS, AUTONOMY_DISALLOWED_TOOLS, sleep } from "./shared.js";
 import {
   extractTaskProbe,
   formatProbeBlock,
@@ -206,11 +201,12 @@ export type AgentJudgeConfig = {
   maxTurns: number;
   effort: "low" | "medium" | "high" | "xhigh" | "max";
   /**
-   * Harness name to resolve through the registry. Autonomy judges default to
-   * the autonomy fleet's harness; tests may override to exercise alternate
-   * adapters.
+   * Registered agent-harness name to dispatch this judge through. Required —
+   * judges stay harness-neutral, so every caller must pass the harness it
+   * resolved (normally the parent agent step's `step.harness`, which the
+   * validator filled from `config.defaultAgentHarness`).
    */
-  harness?: string;
+  harness: string;
   maxRetries?: number;
   retryBaseDelayMs?: number;
 };
@@ -232,7 +228,7 @@ export async function invokeAgentJudge(
 ): Promise<{ text: string; isError: boolean; subtype?: string }> {
   const maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
   const retryBaseDelayMs = config.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS;
-  const harness = resolveAgentHarness(config.harness ?? AUTONOMY_AGENT_HARNESS);
+  const harness = resolveAgentHarness(config.harness);
   let lastError: Error | undefined;
   let needsFormatReminder = false;
 
@@ -325,7 +321,9 @@ export async function invokeAgentJudge(
   throw lastError!;
 }
 
-const criticConfig: AgentJudgeConfig = {
+type CriticBaseConfig = Omit<AgentJudgeConfig, "harness">;
+
+const criticBaseConfig: CriticBaseConfig = {
   label: "Critic agent",
   systemPrompt: CRITIC_SYSTEM_PROMPT,
   model: AUTONOMY_AGENT_DEFAULTS.model,
@@ -359,20 +357,26 @@ export function judgeUnavailableResult(label: string, err: unknown): string {
 
 export function createCriticCheck(options?: {
   runDirPath?: string;
-  /** Harness registry name to resolve. Defaults to the autonomy fleet harness. */
+  /**
+   * Force a specific harness name. Production callers leave this unset so the
+   * check dispatches through the parent agent step's resolved harness (which
+   * the validator populated from `config.defaultAgentHarness`). Tests use it
+   * to drive the critic over a specific adapter directly.
+   */
   harnessName?: string;
   /** Override the critic model. Defaults to AUTONOMY_AGENT_DEFAULTS.model. */
   model?: string;
 }): WorkflowRepairCheck {
-  const resolvedConfig: AgentJudgeConfig = {
-    ...criticConfig,
-    ...(options?.harnessName !== undefined ? { harness: options.harnessName } : {}),
+  const baseConfig: CriticBaseConfig = {
+    ...criticBaseConfig,
     ...(options?.model !== undefined ? { model: options.model } : {}),
   };
   return {
     id: "critic-review",
     type: "code" as const,
-    run: async (ctx) => {
+    run: async (ctx, parentStep) => {
+      const harnessName = options?.harnessName ?? parentStep.harness;
+      const resolvedConfig: AgentJudgeConfig = { ...baseConfig, harness: harnessName };
       const target = findTaskReviewTarget(ctx.projectDir);
       if (!target) {
         return "OK: no task in doing/ — skipping critic review";

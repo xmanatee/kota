@@ -143,6 +143,9 @@ export function initAgentSession(
     instructionContext: instructionContext || undefined,
     costTracker: state.costTracker,
     transport: state.transport,
+    ...(options.config?.defaultAgentHarness !== undefined
+      ? { harness: options.config.defaultAgentHarness }
+      : {}),
   });
 
   state.moduleLoader = new ModuleLoader(options.config || {}, state.verbose);

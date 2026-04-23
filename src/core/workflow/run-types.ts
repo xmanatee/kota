@@ -2,6 +2,7 @@ import type { ToolResult } from "#core/tools/index.js";
 import type {
   WorkflowAgentBackoffSignal,
   WorkflowAgentBackoffState,
+  WorkflowAgentStep,
   WorkflowRunTrigger,
   WorkflowStep,
 } from "./types.js";
@@ -203,7 +204,18 @@ export type WorkflowRepairCheck = {
     }
   | {
       type: "code";
-      run: (context: WorkflowStepContext) => Promise<unknown> | unknown;
+      /**
+       * Called once per repair iteration. `parentStep` is the agent step whose
+       * repair loop owns this check; critic- and judge-backed checks read
+       * `parentStep.harness` so they dispatch through the same registered
+       * adapter the step itself resolved from `config.defaultAgentHarness`.
+       * Mechanical checks can ignore the second argument — TypeScript permits
+       * fewer-arg function assignments.
+       */
+      run: (
+        context: WorkflowStepContext,
+        parentStep: WorkflowAgentStep,
+      ) => Promise<unknown> | unknown;
     }
 );
 

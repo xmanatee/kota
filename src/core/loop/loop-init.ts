@@ -13,7 +13,7 @@ import { resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { resetAgentStatusProviders } from "#core/tools/agent-status.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { loadSavedTools, resetCustomTools } from "#core/tools/custom-tool.js";
-import { setDelegateConfig } from "#core/tools/delegate.js";
+import { getDelegateConfig, setDelegateConfig } from "#core/tools/delegate-config.js";
 import type { GuardrailsConfig } from "#core/tools/guardrails.js";
 import { addLoadedModule, resetModuleFactory } from "#core/tools/module-factory/index.js";
 import { resetGroups } from "#core/tools/tool-groups.js";
@@ -68,6 +68,10 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
     state.mcpManager = new McpManager();
     await state.mcpManager.initialize(config);
     if (state.mcpManager.getToolCount() > 0) {
+      // Preserve any harness name the loop constructor already wired in from
+      // `config.defaultAgentHarness` — re-calling setDelegateConfig here must
+      // not silently drop it.
+      const previousHarness = getDelegateConfig().harness;
       setDelegateConfig({
         model: state.editorModel,
         modelTiers: state.modelTiers,
@@ -78,6 +82,7 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
         costTracker: state.costTracker,
         transport: state.transport,
         mcpManager: state.mcpManager,
+        ...(previousHarness !== undefined ? { harness: previousHarness } : {}),
       });
       if (state.verbose) {
         state.transport.emit({

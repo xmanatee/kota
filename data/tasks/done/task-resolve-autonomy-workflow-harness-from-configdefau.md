@@ -1,12 +1,12 @@
 ---
 id: task-resolve-autonomy-workflow-harness-from-configdefau
 title: Resolve autonomy workflow harness from config.defaultAgentHarness instead of the hardcoded constant
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Every autonomy workflow and judge hardcodes AUTONOMY_AGENT_HARNESS="claude-agent-sdk", and the CLI plus the agent-sdk delegate silently fall back to the same name — so operators cannot actually switch autonomy via config.defaultAgentHarness the way the config contract advertises.
 created_at: 2026-04-23T02:53:25.868Z
-updated_at: 2026-04-23T02:53:25.868Z
+updated_at: 2026-04-23T03:18:16.577Z
 ---
 
 ## Problem
