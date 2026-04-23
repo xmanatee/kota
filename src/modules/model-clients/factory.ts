@@ -11,15 +11,30 @@ import type { ModelClient, ProviderFactoryOptions, ResolvedProvider } from "#cor
 import { AnthropicModelClient } from "./anthropic.js";
 import { FailoverModelClient } from "./failover-client.js";
 import { OpenAIModelClient } from "./openai/client.js";
+import {
+	anthropicThinkingTranslator,
+	type EffortTranslator,
+	openaiReasoningEffortTranslator,
+} from "./reasoning.js";
 
-/** Known provider presets: base URL and env var for the API key. */
+/**
+ * Known provider presets. `effortTranslator` is the per-preset reasoning
+ * mapping; presets without one throw loudly when a caller sets `effort`
+ * rather than silently dropping it to the provider's default budget.
+ */
 export const PROVIDER_PRESETS: Record<
 	string,
-	{ baseUrl: string; apiKeyEnv: string }
+	{ baseUrl: string; apiKeyEnv: string; effortTranslator?: EffortTranslator }
 > = {
 	openai: {
 		baseUrl: "https://api.openai.com/v1",
 		apiKeyEnv: "OPENAI_API_KEY",
+		effortTranslator: openaiReasoningEffortTranslator,
+	},
+	"anthropic-oai": {
+		baseUrl: "https://api.anthropic.com/v1",
+		apiKeyEnv: "ANTHROPIC_API_KEY",
+		effortTranslator: anthropicThinkingTranslator,
 	},
 	ollama: { baseUrl: "http://localhost:11434/v1", apiKeyEnv: "" },
 	groq: {
@@ -82,7 +97,14 @@ function createClientForProvider(
 	}
 
 	const resolvedKey = resolveApiKey(providerName, apiKey);
-	return new OpenAIModelClient({ baseUrl: resolvedBaseUrl, apiKey: resolvedKey });
+	return new OpenAIModelClient({
+		baseUrl: resolvedBaseUrl,
+		apiKey: resolvedKey,
+		presetName: providerName,
+		...(preset?.effortTranslator
+			? { effortTranslator: preset.effortTranslator }
+			: {}),
+	});
 }
 
 let activeFailoverClient: FailoverModelClient | null = null;

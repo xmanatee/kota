@@ -12,6 +12,7 @@ import type {
 	MessageStreamParams,
 	ModelClient,
 } from "#core/model/model-client.js";
+import { buildMissingReasoningError, type EffortTranslator } from "../reasoning.js";
 import { OpenAIStream } from "./stream.js";
 import { buildAnthropicMessage, mapFinishReason, safeJsonParse, toOpenAIMessages, toOpenAITools } from "./translations.js";
 import type { OAIResponse } from "./types.js";
@@ -19,6 +20,19 @@ import type { OAIResponse } from "./types.js";
 export type OpenAIClientOptions = {
 	baseUrl: string;
 	apiKey: string;
+	/**
+	 * Operator-facing name of the preset this client was built for — used in
+	 * error messages when the caller sets `effort` against a preset that has
+	 * no reasoning mapping.
+	 */
+	presetName: string;
+	/**
+	 * Reasoning-effort translator for this preset, or `undefined` if the
+	 * preset cannot express reasoning. When `undefined`, any non-undefined
+	 * `effort` on a stream call throws loudly rather than silently producing
+	 * a call at the provider's default reasoning budget.
+	 */
+	effortTranslator?: EffortTranslator;
 };
 
 /** ModelClient backed by any OpenAI-compatible API (OpenAI, Ollama, Groq, etc.). */
@@ -26,10 +40,14 @@ export class OpenAIModelClient implements ModelClient {
 	readonly messages: ModelClient["messages"];
 	private baseUrl: string;
 	private apiKey: string;
+	private presetName: string;
+	private effortTranslator: EffortTranslator | undefined;
 
 	constructor(options: OpenAIClientOptions) {
 		this.baseUrl = options.baseUrl.replace(/\/+$/, "");
 		this.apiKey = options.apiKey;
+		this.presetName = options.presetName;
+		this.effortTranslator = options.effortTranslator;
 
 		this.messages = {
 			stream: (params: MessageStreamParams) => this.doStream(params),
@@ -114,6 +132,12 @@ export class OpenAIModelClient implements ModelClient {
 		}
 		if (stream) {
 			body.stream_options = { include_usage: true };
+		}
+		if ("effort" in params && params.effort !== undefined) {
+			if (!this.effortTranslator) {
+				throw buildMissingReasoningError(this.presetName, params.effort);
+			}
+			Object.assign(body, this.effortTranslator.apply(params.effort));
 		}
 		return body;
 	}

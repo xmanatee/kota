@@ -97,6 +97,7 @@ describe("PROVIDER_PRESETS", () => {
 		expect(Object.keys(PROVIDER_PRESETS)).toEqual(
 			expect.arrayContaining([
 				"openai",
+				"anthropic-oai",
 				"ollama",
 				"groq",
 				"together",
@@ -109,6 +110,19 @@ describe("PROVIDER_PRESETS", () => {
 		expect(PROVIDER_PRESETS.ollama.baseUrl).toBe(
 			"http://localhost:11434/v1",
 		);
+	});
+
+	it("openai and anthropic-oai presets declare reasoning translators; ollama does not", () => {
+		expect(PROVIDER_PRESETS.openai.effortTranslator?.wireSurface).toBe(
+			"openai-reasoning-effort",
+		);
+		expect(PROVIDER_PRESETS["anthropic-oai"].effortTranslator?.wireSurface).toBe(
+			"anthropic-thinking",
+		);
+		expect(PROVIDER_PRESETS.ollama.effortTranslator).toBeUndefined();
+		expect(PROVIDER_PRESETS.groq.effortTranslator).toBeUndefined();
+		expect(PROVIDER_PRESETS.together.effortTranslator).toBeUndefined();
+		expect(PROVIDER_PRESETS.lmstudio.effortTranslator).toBeUndefined();
 	});
 });
 
@@ -164,29 +178,64 @@ describe("createModelClientImpl", () => {
 			expect(OpenAIModelClient).toHaveBeenCalledWith({
 				baseUrl: "http://localhost:11434/v1",
 				apiKey: "",
+				presetName: "ollama",
 			});
 		});
 
-		it("parses openai/gpt-4o with OPENAI_API_KEY", () => {
+		it("parses openai/gpt-4o with OPENAI_API_KEY and attaches the o-series reasoning translator", () => {
 			process.env.OPENAI_API_KEY = "sk-test";
 			const result = createModelClientImpl({ model: "openai/gpt-4o" });
 			expect(result.providerName).toBe("openai");
 			expect(result.model).toBe("gpt-4o");
-			expect(OpenAIModelClient).toHaveBeenCalledWith({
+			const call = (OpenAIModelClient as unknown as { mock: { calls: unknown[][] } })
+				.mock.calls[0][0] as {
+				baseUrl: string;
+				apiKey: string;
+				presetName: string;
+				effortTranslator?: { wireSurface: string };
+			};
+			expect(call).toMatchObject({
 				baseUrl: "https://api.openai.com/v1",
 				apiKey: "sk-test",
+				presetName: "openai",
 			});
+			expect(call.effortTranslator?.wireSurface).toBe("openai-reasoning-effort");
 		});
 
-		it("parses groq/llama-70b with GROQ_API_KEY", () => {
+		it("parses anthropic-oai/claude-sonnet-4-6 and attaches the thinking translator", () => {
+			process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+			const result = createModelClientImpl({
+				model: "anthropic-oai/claude-sonnet-4-6",
+			});
+			expect(result.providerName).toBe("anthropic-oai");
+			expect(result.model).toBe("claude-sonnet-4-6");
+			const call = (OpenAIModelClient as unknown as { mock: { calls: unknown[][] } })
+				.mock.calls[0][0] as {
+				effortTranslator?: { wireSurface: string };
+				presetName: string;
+			};
+			expect(call.presetName).toBe("anthropic-oai");
+			expect(call.effortTranslator?.wireSurface).toBe("anthropic-thinking");
+		});
+
+		it("parses groq/llama-70b with GROQ_API_KEY and leaves the reasoning translator unset", () => {
 			process.env.GROQ_API_KEY = "gsk-test";
 			const result = createModelClientImpl({ model: "groq/llama-70b" });
 			expect(result.providerName).toBe("groq");
 			expect(result.model).toBe("llama-70b");
-			expect(OpenAIModelClient).toHaveBeenCalledWith({
+			const call = (OpenAIModelClient as unknown as { mock: { calls: unknown[][] } })
+				.mock.calls[0][0] as {
+				baseUrl: string;
+				apiKey: string;
+				presetName: string;
+				effortTranslator?: { wireSurface: string };
+			};
+			expect(call).toMatchObject({
 				baseUrl: "https://api.groq.com/openai/v1",
 				apiKey: "gsk-test",
+				presetName: "groq",
 			});
+			expect(call.effortTranslator).toBeUndefined();
 		});
 	});
 
@@ -199,10 +248,9 @@ describe("createModelClientImpl", () => {
 			});
 			expect(result.providerName).toBe("openai");
 			expect(result.model).toBe("llama3");
-			expect(OpenAIModelClient).toHaveBeenCalledWith({
-				baseUrl: "https://api.openai.com/v1",
-				apiKey: "sk-test",
-			});
+			const call = (OpenAIModelClient as unknown as { mock: { calls: unknown[][] } })
+				.mock.calls[0][0] as { presetName: string };
+			expect(call.presetName).toBe("openai");
 		});
 
 		it("works with plain model name", () => {
@@ -224,10 +272,11 @@ describe("createModelClientImpl", () => {
 			expect(OpenAIModelClient).toHaveBeenCalledWith({
 				baseUrl: "http://custom:8080/v1",
 				apiKey: "",
+				presetName: "ollama",
 			});
 		});
 
-		it("enables unknown provider with custom URL", () => {
+		it("enables unknown provider with custom URL and no reasoning translator", () => {
 			process.env.OPENAI_API_KEY = "sk-test";
 			const result = createModelClientImpl({
 				model: "my-model",
@@ -236,10 +285,19 @@ describe("createModelClientImpl", () => {
 			});
 			expect(result.providerName).toBe("vllm");
 			expect(result.model).toBe("my-model");
-			expect(OpenAIModelClient).toHaveBeenCalledWith({
+			const call = (OpenAIModelClient as unknown as { mock: { calls: unknown[][] } })
+				.mock.calls[0][0] as {
+				baseUrl: string;
+				apiKey: string;
+				presetName: string;
+				effortTranslator?: unknown;
+			};
+			expect(call).toMatchObject({
 				baseUrl: "http://gpu-server:8000/v1",
 				apiKey: "sk-test",
+				presetName: "vllm",
 			});
+			expect(call.effortTranslator).toBeUndefined();
 		});
 	});
 

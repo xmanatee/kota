@@ -303,6 +303,7 @@ export const openaiToolsAgentHarness: AgentHarness = {
         ...(system !== undefined ? { system } : {}),
         messages,
         ...(tools.length > 0 ? { tools } : {}),
+        effort: options.effort,
       });
       stream.on("text", (delta) => {
         streamedChunks.push(delta);

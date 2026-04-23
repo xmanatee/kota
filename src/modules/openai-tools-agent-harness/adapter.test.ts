@@ -546,6 +546,44 @@ describe("openaiToolsAgentHarness — unsupported options rejection", () => {
   });
 });
 
+describe("openaiToolsAgentHarness — reasoning-effort passthrough", () => {
+  it("forwards effort verbatim to the resolved ModelClient stream call", async () => {
+    queueStream(
+      makeStubStream({
+        final: {
+          id: "msg_effort",
+          stop_reason: "end_turn",
+          content: [
+            { type: "text", text: "ok", citations: null } as Anthropic.ContentBlock,
+          ],
+        },
+      }),
+    );
+    await openaiToolsAgentHarness.run({
+      prompt: "x",
+      model: "openai/gpt-4o-mini",
+      effort: "xhigh",
+    });
+    expect(messagesStreamMock.mock.calls[0][0]).toMatchObject({ effort: "xhigh" });
+  });
+
+  it("propagates a preset's missing-reasoning rejection from the underlying ModelClient", async () => {
+    messagesStreamMock.mockImplementationOnce(() => {
+      throw new Error(
+        'Model preset "ollama" has no reasoning-effort mapping; effort="xhigh" cannot be honored. ' +
+          "claude-agent-sdk",
+      );
+    });
+    await expect(
+      openaiToolsAgentHarness.run({
+        prompt: "x",
+        model: "ollama/llama3",
+        effort: "xhigh",
+      }),
+    ).rejects.toThrow(/"ollama".*claude-agent-sdk/s);
+  });
+});
+
 describe("openaiToolsAgentHarness — limits", () => {
   it("returns isError when maxTurns is reached without the model ending the turn", async () => {
     const looping = (id: string) =>

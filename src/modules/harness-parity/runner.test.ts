@@ -90,11 +90,19 @@ describe("harness-parity runner", () => {
     expect(artifact.changedFiles).toContain("add.js");
     expect(artifact.harnessName).toBe("fixing");
     expect(artifact.isError).toBe(false);
+    expect(artifact.effort).toBe("xhigh");
 
     const meta = JSON.parse(
       readFileSync(join(artifact.artifactDir, "run-meta.json"), "utf-8"),
     );
     expect(meta.verification.passed).toBe(true);
+    expect(meta.effort).toBe("xhigh");
+
+    const summary = readFileSync(
+      join(artifact.artifactDir, "trace-summary.md"),
+      "utf-8",
+    );
+    expect(summary).toContain("- effort: xhigh");
 
     const trace = readFileSync(join(artifact.artifactDir, "trace.txt"), "utf-8");
     expect(trace).toContain("ran with prompt");
@@ -177,6 +185,8 @@ describe("harness-parity runner", () => {
     expect(parity.artifacts).toHaveLength(2);
     expect(parity.artifacts[0].verificationPassed).toBe(true);
     expect(parity.artifacts[1].verificationPassed).toBe(false);
+    expect(parity.artifacts[0].effort).toBe("xhigh");
+    expect(parity.artifacts[1].effort).toBe("xhigh");
   });
 
   it("leaves the scenario initial/ tree untouched", async () => {

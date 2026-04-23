@@ -1,12 +1,12 @@
 ---
 id: task-wire-agent-step-effort-through-the-openai-tools-ha
 title: Wire agent-step effort through the openai-tools harness instead of silently dropping it
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Pipe effort through the openai-tools adapter to reasoning-capable providers so autonomy steps running on openai-tools do not silently drop step.effort.
 created_at: 2026-04-23T01:04:50.337Z
-updated_at: 2026-04-23T01:04:50.337Z
+updated_at: 2026-04-23T01:20:37.851Z
 ---
 
 ## Problem

@@ -74,8 +74,26 @@ rather than silently ignoring them:
   coupling the CLI to harness-specific prompt shapes
 
 Operators that need any of these run the `claude-agent-sdk` harness
-instead. `effort` is accepted but is currently a no-op for OpenAI-
-compatible providers.
+instead.
+
+## Reasoning Effort Passthrough
+
+The adapter forwards `AgentHarnessRunOptions.effort` verbatim to the
+resolved `ModelClient.messages.stream` call. Translation from the KOTA
+`AgentEffort` enum to the provider's wire shape lives on the preset, not
+on the adapter — see `src/modules/model-clients/reasoning.ts` for the
+mapping functions.
+
+- Reasoning-capable presets translate `effort` at the wire boundary:
+  `openai` emits `reasoning.effort`, `anthropic-oai` and the native
+  `anthropic` provider emit `thinking: { type: "enabled", budget_tokens }`.
+- Presets without a reasoning mapping (`ollama`, `groq`, `together`,
+  `lmstudio`, and any operator-provided `--base-url` without a preset
+  entry) throw loudly naming the preset and pointing at `claude-agent-sdk`
+  rather than silently running at the provider's default reasoning budget.
+- `thinkingEnabled: true` / `thinkingBudget` remain rejected up-front. The
+  `effort` field is the canonical KOTA reasoning control; the claude-
+  specific `thinking` toggle belongs to the `claude-agent-sdk` harness.
 
 ## Multi-Turn Context
 

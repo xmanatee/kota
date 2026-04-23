@@ -363,7 +363,7 @@ describe("OpenAIModelClient", () => {
 	it("satisfies ModelClient interface", () => {
 		const client: ModelClient = new OpenAIModelClient({
 			baseUrl: "http://localhost:11434/v1",
-			apiKey: "test",
+			apiKey: "test", presetName: "ollama",
 		});
 		expect(client.messages.stream).toBeDefined();
 		expect(client.messages.create).toBeDefined();
@@ -386,7 +386,7 @@ describe("OpenAIModelClient", () => {
 
 			const client = new OpenAIModelClient({
 				baseUrl: "http://localhost:11434/v1",
-				apiKey: "test-key",
+				apiKey: "test-key", presetName: "ollama",
 			});
 
 			const result = await client.messages.create({
@@ -443,7 +443,7 @@ describe("OpenAIModelClient", () => {
 
 			const client = new OpenAIModelClient({
 				baseUrl: "https://api.openai.com/v1",
-				apiKey: "sk-test",
+				apiKey: "sk-test", presetName: "openai",
 			});
 
 			const result = await client.messages.create({
@@ -466,7 +466,7 @@ describe("OpenAIModelClient", () => {
 
 			const client = new OpenAIModelClient({
 				baseUrl: "http://localhost/v1",
-				apiKey: "",
+				apiKey: "", presetName: "test",
 			});
 
 			await expect(
@@ -491,7 +491,7 @@ describe("OpenAIModelClient", () => {
 
 			const client = new OpenAIModelClient({
 				baseUrl: "http://localhost/v1",
-				apiKey: "k",
+				apiKey: "k", presetName: "test",
 			});
 
 			const stream = client.messages.stream({
@@ -536,7 +536,7 @@ describe("OpenAIModelClient", () => {
 
 			const client = new OpenAIModelClient({
 				baseUrl: "http://localhost:11434/v1///",
-				apiKey: "",
+				apiKey: "", presetName: "test",
 			});
 
 			await client.messages.create({
@@ -565,7 +565,7 @@ describe("OpenAIModelClient", () => {
 
 			const client = new OpenAIModelClient({
 				baseUrl: "http://localhost/v1",
-				apiKey: "",
+				apiKey: "", presetName: "test",
 			});
 
 			await client.messages.create({
@@ -610,7 +610,7 @@ describe("OpenAIModelClient", () => {
 
 			const client = new OpenAIModelClient({
 				baseUrl: "http://localhost/v1",
-				apiKey: "key",
+				apiKey: "key", presetName: "test",
 			});
 
 			const textChunks: string[] = [];
@@ -698,7 +698,7 @@ describe("OpenAIModelClient", () => {
 
 			const client = new OpenAIModelClient({
 				baseUrl: "http://localhost/v1",
-				apiKey: "key",
+				apiKey: "key", presetName: "test",
 			});
 
 			const stream = client.messages.stream({
@@ -728,7 +728,7 @@ describe("OpenAIModelClient", () => {
 
 			const client = new OpenAIModelClient({
 				baseUrl: "http://localhost/v1",
-				apiKey: "key",
+				apiKey: "key", presetName: "test",
 			});
 
 			const stream = client.messages.stream({
@@ -750,7 +750,7 @@ describe("OpenAIModelClient", () => {
 
 			const client = new OpenAIModelClient({
 				baseUrl: "http://localhost/v1",
-				apiKey: "",
+				apiKey: "", presetName: "test",
 			});
 
 			const stream = client.messages.stream({
@@ -779,7 +779,7 @@ describe("OpenAIModelClient", () => {
 
 			const client = new OpenAIModelClient({
 				baseUrl: "http://localhost/v1",
-				apiKey: "",
+				apiKey: "", presetName: "test",
 			});
 
 			const stream = client.messages.stream({

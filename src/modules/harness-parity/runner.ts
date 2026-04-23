@@ -12,11 +12,14 @@ import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
+  AgentEffort,
   AgentHarness,
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
 import { runAgentHarness } from "#core/agent-harness/index.js";
 import type { LoadedScenario, ScenarioVerification } from "./scenario.js";
+
+const DEFAULT_EFFORT: AgentEffort = "xhigh";
 
 const TRACE_TAIL_LIMIT = 32_000;
 const DIFF_TAIL_LIMIT = 200_000;
@@ -56,6 +59,12 @@ export type HarnessParityArtifact = {
   scenarioId: string;
   harnessName: string;
   model: string;
+  /**
+   * Reasoning posture the harness actually ran under. Paired artifacts
+   * show this alongside `harness` and `model` so an operator comparing
+   * adapters can see which reasoning surface (if any) was engaged.
+   */
+  effort: AgentEffort;
   startedAt: string;
   durationMs: number;
   turns: number;
@@ -215,6 +224,7 @@ export async function runScenarioOnHarness(
 
   let runError: Error | null = null;
   let runResult: Awaited<ReturnType<typeof runAgentHarness>> | null = null;
+  const effort: AgentEffort = DEFAULT_EFFORT;
   try {
     runResult = await runAgentHarness(
       harness,
@@ -222,7 +232,7 @@ export async function runScenarioOnHarness(
         prompt: scenario.spec.prompt,
         model: callOptions.model,
         cwd: workingDir,
-        effort: "xhigh",
+        effort,
         ...(callOptions.systemPrompt !== undefined
           ? { systemPrompt: callOptions.systemPrompt }
           : {}),
@@ -258,6 +268,7 @@ export async function runScenarioOnHarness(
     scenarioId: scenario.spec.id,
     harnessName: harness.name,
     model: callOptions.model,
+    effort,
     startedAt: startedAt.toISOString(),
     durationMs,
     turns: runResult?.turns ?? 0,
@@ -314,6 +325,7 @@ function buildTraceSummary(
   lines.push(`# ${artifact.harnessName} — ${artifact.scenarioId}`);
   lines.push("");
   lines.push(`- model: ${artifact.model}`);
+  lines.push(`- effort: ${artifact.effort}`);
   lines.push(`- startedAt: ${artifact.startedAt}`);
   lines.push(`- durationMs: ${artifact.durationMs}`);
   lines.push(`- turns: ${artifact.turns}`);
@@ -387,6 +399,7 @@ export async function runScenarioAcrossHarnesses(params: {
         model: params.callOptions.model,
         artifacts: artifacts.map((a) => ({
           harnessName: a.harnessName,
+          effort: a.effort,
           durationMs: a.durationMs,
           turns: a.turns,
           verificationPassed: a.verification.passed,

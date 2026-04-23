@@ -7,6 +7,9 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
+import type { AgentEffort } from "#core/agent-harness/types.js";
+
+export type { AgentEffort };
 
 /** Minimal stream interface matching the Anthropic SDK's MessageStream subset KOTA uses. */
 export interface MessageStream {
@@ -23,6 +26,14 @@ export type MessageStreamParams = {
 	messages: Anthropic.MessageParam[];
 	tools?: Anthropic.Tool[];
 	thinking?: Anthropic.Messages.ThinkingConfigParam;
+	/**
+	 * Declared reasoning posture for this call. Providers that expose a
+	 * reasoning control translate this verbatim at the wire boundary
+	 * (e.g. OpenAI o-series → `reasoning.effort`, Anthropic → `thinking`).
+	 * Providers without a declared mapping throw loudly when this is set
+	 * rather than silently falling back to the default reasoning budget.
+	 */
+	effort?: AgentEffort;
 };
 
 /** Parameters for non-streaming message creation. */
