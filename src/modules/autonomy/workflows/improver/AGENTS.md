@@ -12,6 +12,14 @@ This directory contains the improver workflow definition and prompt.
   systemic pattern worth addressing. Make no changes and stop. The commit step
   already no-ops on an empty diff, and the semantic gate skips without staged
   changes. Do not invent preventive or speculative edits to avoid exiting clean.
+- The evidence gate (`latestActionableRunAt` in `run-outcome-aggregation`)
+  counts a non-improver run as actionable only when it failed terminally or
+  was a duration outlier. Recovered repair trips on successful runs are
+  intentionally excluded — self-healing already worked, and the repair-check
+  aggregate (`topRepairFailures`) still surfaces the pattern when improver
+  next wakes on a genuine signal. Do not re-broaden actionability to recovered
+  repair trips: doing so drove a ~52% no-op rate on agent runs (39/75 measured
+  runs, ~$117 of wasted agent spend).
 
 ## Evidence Attachment
 

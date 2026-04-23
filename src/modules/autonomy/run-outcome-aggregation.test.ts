@@ -424,7 +424,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
     });
   });
 
-  it("reports latestActionableRunAt as the newest completedAt across failed, repair-tripping, or outlier non-improver runs", () => {
+  it("reports latestActionableRunAt as the newest completedAt across failed or outlier non-improver runs and ignores recovered repair trips", () => {
     writeRun(
       "ok-builder",
       "builder",
@@ -443,6 +443,9 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       "failed",
       "2026-04-21T02:00:00.000Z",
     );
+    // Successful run with a recovered repair trip is not actionable on its
+    // own — the self-healing worked, and the topRepairFailures aggregate
+    // still surfaces the class when improver wakes on a genuine signal.
     writeRun(
       "repair-trip-builder",
       "builder",
@@ -464,7 +467,33 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
     );
 
     const result = aggregateRunOutcomes(runsDir);
-    expect(result.latestActionableRunAt).toBe("2026-04-21T03:00:00.000Z");
+    expect(result.latestActionableRunAt).toBe("2026-04-21T02:00:00.000Z");
+  });
+
+  it("returns null latestActionableRunAt when only successful runs with recovered repair trips exist", () => {
+    writeRun(
+      "repair-trip-1",
+      "builder",
+      500_000,
+      499_000,
+      undefined,
+      "success",
+      "2026-04-21T01:00:00.000Z",
+      ["test"],
+    );
+    writeRun(
+      "repair-trip-2",
+      "builder",
+      600_000,
+      599_000,
+      undefined,
+      "success",
+      "2026-04-21T02:00:00.000Z",
+      ["critic-review"],
+    );
+
+    const result = aggregateRunOutcomes(runsDir);
+    expect(result.latestActionableRunAt).toBeNull();
   });
 
   it("returns null latestActionableRunAt when only clean non-improver runs exist", () => {

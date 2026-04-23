@@ -35,10 +35,16 @@ export type RunOutcomeAggregation = {
   topRepairFailures24h: RepairCheckTally[];
   topRepairFailures7d: RepairCheckTally[];
   durationOutliers: DurationOutlier[];
-  // Max completedAt across actionable non-improver runs (failed, repair-tripping,
-  // or duration-outlier). Used by the improver evidence gate to distinguish
+  // Max completedAt across actionable non-improver runs (failed or
+  // duration-outlier). Used by the improver evidence gate to distinguish
   // "new actionable evidence arrived" from "old evidence aged out of the
   // window" — the latter must not force another improver pass.
+  //
+  // Recovered repair trips are intentionally excluded: the self-healing
+  // already worked and the aggregate (topRepairFailures) still surfaces the
+  // pattern when improver next wakes on a genuine failure or outlier. Using
+  // repair-trip completion to advance the gate produced a ~52% no-op rate
+  // on agent runs — see improver AGENTS.md evidence entry.
   latestActionableRunAt: string | null;
 };
 
@@ -168,16 +174,6 @@ function enrichOutliersWithSubjects(
   });
 }
 
-function runHasRepairTrip(run: WorkflowRunMetadata): boolean {
-  for (const step of run.steps) {
-    const iterations = readRepairIterations(step.output);
-    for (const iter of iterations) {
-      if ((iter.failures ?? []).length > 0) return true;
-    }
-  }
-  return false;
-}
-
 function latestActionableCompletedAt(
   all24h: WorkflowRunMetadata[],
   outliers7d: DurationOutlier[],
@@ -189,10 +185,7 @@ function latestActionableCompletedAt(
   for (const run of all24h) {
     if (run.workflow === "improver") continue;
     if (!run.completedAt) continue;
-    const isActionable =
-      run.status === "failed" ||
-      runHasRepairTrip(run) ||
-      outlierIds.has(run.id);
+    const isActionable = run.status === "failed" || outlierIds.has(run.id);
     if (!isActionable) continue;
     if (latest === null || run.completedAt > latest) latest = run.completedAt;
   }
