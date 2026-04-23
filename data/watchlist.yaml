@@ -174,6 +174,6 @@ resources:
     added: "2026-04-22"
     notes: "Anthropic's Claude product blog — distinct surface from anthropic.com/engineering, lands Claude Code release notes and model-specific best-practices posts (e.g. 'Best practices for using Claude Opus 4.7 with Claude Code': delegate-don't-pair framing, xhigh as default effort, adaptive thinking over fixed budgets, batch prompts upfront). Relevant to autonomy-loop posture and harness defaults on claude-agent-sdk."
     snapshot:
-      fingerprint: sha256:9e730b29ad0ccf46b2032e434ea50b54
-      summary: "Claude product blog surface (distinct from anthropic.com/engineering) currently lands Claude Code parallel-agents / subagents posts, agent-coordination strategy pieces, Claude Managed Agents productionization guidance, tool-design-for-agents notes, and enterprise deployment articles — relevant to autonomy-loop posture, harness defaults, and multi-agent coordination decisions."
-      last_seen_at: "2026-04-22T18:53:11.453Z"
+      fingerprint: sha256:eb3abefd5ebf10b5a89bb88f2b08a17c
+      summary: "Claude product blog surface extended with three autonomy-adjacent posts not yet reflected in KOTA decisions: Opus 4.7 best practices (xhigh default, adaptive thinking, delegate-don't-pair), session management + 1M context (continue/rewind/compact/clear/subagent decision matrix, context-rot framing), and production-MCP agent integration. Distillation task seeded this run."
+      last_seen_at: "2026-04-23T13:39:28.847Z"
