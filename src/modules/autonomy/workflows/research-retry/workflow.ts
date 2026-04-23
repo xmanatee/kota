@@ -19,6 +19,15 @@ import {
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
 import { listResearchRetryCandidates, type ResearchRetryCandidate } from "./candidates.js";
+import {
+  checkResearchRetryCapability,
+  evaluateCandidate,
+  type MarkAttemptResult,
+  type ResearchRetryCapability,
+  type ResearchRetryMarker,
+  type ResearchRetrySkipReason,
+  writeMarkerForCandidate,
+} from "./precondition.js";
 
 export const agent: AgentDef = {
   name: "research-retry",
@@ -32,11 +41,36 @@ export const agent: AgentDef = {
   settingSources: ["project"],
 };
 
+type CandidateSummary = {
+  id: string;
+  updatedAt: string;
+  urls: string[];
+};
+
+type ExaminedCandidate = {
+  id: string;
+  fingerprint: string;
+  marker: ResearchRetryMarker | null;
+  skipReason: ResearchRetrySkipReason;
+};
+
 type InspectResult = {
   dirty: boolean;
-  candidate: ResearchRetryCandidate | null;
   candidateCount: number;
+  capability: ResearchRetryCapability;
+  candidate: CandidateSummary | null;
+  fingerprint: string | null;
+  marker: ResearchRetryMarker | null;
+  examined: ExaminedCandidate[];
 };
+
+function summarizeCandidate(candidate: ResearchRetryCandidate): CandidateSummary {
+  return {
+    id: candidate.id,
+    updatedAt: candidate.updatedAt,
+    urls: candidate.urls,
+  };
+}
 
 const inspectCandidates = typedCodeStep<InspectResult>({
   id: "inspect-candidates",
@@ -46,12 +80,60 @@ const inspectCandidates = typedCodeStep<InspectResult>({
   run: ({ projectDir }) => {
     const worktree = getRepoWorktreeStatus(projectDir);
     const dirty = worktree.available && worktree.trackedDirty;
+    const capability = checkResearchRetryCapability(projectDir);
     const candidates = listResearchRetryCandidates(projectDir);
+
+    const examined: ExaminedCandidate[] = [];
+    for (const candidate of candidates) {
+      const evaluation = evaluateCandidate({
+        urls: candidate.urls,
+        body: candidate.body,
+        capability,
+      });
+      if (evaluation.skipReason === null) {
+        return {
+          dirty,
+          candidateCount: candidates.length,
+          capability,
+          candidate: summarizeCandidate(candidate),
+          fingerprint: evaluation.fingerprint,
+          marker: evaluation.marker,
+          examined,
+        };
+      }
+      examined.push({
+        id: candidate.id,
+        fingerprint: evaluation.fingerprint,
+        marker: evaluation.marker,
+        skipReason: evaluation.skipReason,
+      });
+    }
+
     return {
       dirty,
-      candidate: candidates[0] ?? null,
       candidateCount: candidates.length,
+      capability,
+      candidate: null,
+      fingerprint: null,
+      marker: null,
+      examined,
     };
+  },
+});
+
+const markAttempt = typedCodeStep<MarkAttemptResult>({
+  id: "mark-attempt",
+  type: "code",
+  when: stepSucceeded("retry"),
+  run: (ctx) => {
+    const inspection = inspectCandidates.output(ctx);
+    if (!inspection.candidate) {
+      return { written: false, reason: "no candidate selected" };
+    }
+    return writeMarkerForCandidate({
+      projectDir: ctx.projectDir,
+      candidateId: inspection.candidate.id,
+    });
   },
 });
 
@@ -121,6 +203,7 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
         ],
       },
     },
+    markAttempt,
     {
       id: "commit",
       type: "code",

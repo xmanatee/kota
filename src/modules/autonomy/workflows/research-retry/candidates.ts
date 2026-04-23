@@ -4,12 +4,14 @@ import { listRepoTasksInState } from "#modules/repo-tasks/repo-tasks-domain.js";
  * A blocked research task's retry candidacy. A task qualifies when it is
  * in the `blocked` state and its body contains a `## Resources` section —
  * the convention used by research-area tasks to list URLs the task needs
- * to read.
+ * to read. The body is included so the workflow can read its retry-marker
+ * fingerprint without a second filesystem round-trip.
  */
 export type ResearchRetryCandidate = {
   id: string;
   updatedAt: string;
   urls: string[];
+  body: string;
 };
 
 const RESOURCES_HEADING_RE = /^##\s+Resources\s*$/m;
@@ -46,6 +48,7 @@ export function listResearchRetryCandidates(projectDir: string): ResearchRetryCa
       id: record.frontmatter.id,
       updatedAt: record.frontmatter.updatedAt,
       urls,
+      body: record.body,
     });
   }
   candidates.sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
