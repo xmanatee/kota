@@ -4,9 +4,16 @@ import type { Transport } from "#core/loop/transport.js";
 
 const mockExecuteWithAgentSDK = vi.fn();
 
-vi.mock("#core/agent-sdk/index.js", () => ({
-  executeWithAgentSDK: (...args: unknown[]) => mockExecuteWithAgentSDK(...args),
-}));
+vi.mock("#core/agent-sdk/index.js", async () => {
+  const actual = await vi.importActual<typeof import("#core/agent-sdk/index.js")>(
+    "#core/agent-sdk/index.js",
+  );
+  return {
+    ...actual,
+    executeWithAgentSDK: (...args: unknown[]) =>
+      mockExecuteWithAgentSDK(...args),
+  };
+});
 
 await import("#modules/claude-agent-harness/index.js");
 

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createAgentCommitGuard, isGitCommitCommand } from "./agent-commit-guard.js";
+import {
+  composeCanUseTools,
+  createAgentCommitGuard,
+  createWorkflowAgentGuards,
+  isGitCommitCommand,
+} from "./guards.js";
+import type { AgentCanUseTool, AgentPermissionResult } from "./types.js";
 
 describe("isGitCommitCommand", () => {
   it("detects direct `git commit` variants", () => {
@@ -96,5 +102,88 @@ describe("createAgentCommitGuard", () => {
       options,
     );
     expect(result.behavior).toBe("deny");
+  });
+});
+
+describe("composeCanUseTools", () => {
+  const options = { signal: new AbortController().signal, toolUseID: "id-1" };
+
+  function allowGuard(update?: Record<string, unknown>): AgentCanUseTool {
+    return async (_name, input): Promise<AgentPermissionResult> => ({
+      behavior: "allow",
+      updatedInput: update ?? input,
+    });
+  }
+
+  function denyGuard(message: string): AgentCanUseTool {
+    return async (): Promise<AgentPermissionResult> => ({
+      behavior: "deny",
+      message,
+    });
+  }
+
+  it("returns an allow result with final input when every guard allows", async () => {
+    const a = allowGuard();
+    const b = allowGuard();
+    const composed = composeCanUseTools(a, b);
+    await expect(composed("Read", { x: 1 }, options)).resolves.toEqual({
+      behavior: "allow",
+      updatedInput: { x: 1 },
+    });
+  });
+
+  it("short-circuits on the first deny", async () => {
+    const denying = denyGuard("nope");
+    const later = allowGuard({ mutated: true });
+    const composed = composeCanUseTools(denying, later);
+    const result = await composed("Read", { x: 1 }, options);
+    expect(result.behavior).toBe("deny");
+    if (result.behavior === "deny") expect(result.message).toBe("nope");
+  });
+
+  it("threads updated inputs through subsequent guards", async () => {
+    const observed: Array<Record<string, unknown>> = [];
+    const rewrite = allowGuard({ rewritten: true });
+    const observe: AgentCanUseTool = async (_name, input) => {
+      observed.push(input);
+      return { behavior: "allow", updatedInput: input };
+    };
+    const composed = composeCanUseTools(rewrite, observe);
+    await composed("Read", { original: true }, options);
+    expect(observed).toEqual([{ rewritten: true }]);
+  });
+
+  it("degenerates to allow with original input when composed with no guards", async () => {
+    const composed = composeCanUseTools();
+    await expect(composed("Read", { x: 2 }, options)).resolves.toEqual({
+      behavior: "allow",
+      updatedInput: { x: 2 },
+    });
+  });
+});
+
+describe("createWorkflowAgentGuards", () => {
+  const options = { signal: new AbortController().signal, toolUseID: "id-1" };
+
+  it("denies `git commit` invocations", async () => {
+    const guard = createWorkflowAgentGuards();
+    const result = await guard("Bash", { command: "git commit -m msg" }, options);
+    expect(result.behavior).toBe("deny");
+  });
+
+  it("denies daemon-control commands", async () => {
+    const guard = createWorkflowAgentGuards();
+    const result = await guard(
+      "Bash",
+      { command: "pnpm kota daemon stop" },
+      options,
+    );
+    expect(result.behavior).toBe("deny");
+  });
+
+  it("allows benign commands", async () => {
+    const guard = createWorkflowAgentGuards();
+    const result = await guard("Bash", { command: "git status" }, options);
+    expect(result.behavior).toBe("allow");
   });
 });

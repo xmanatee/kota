@@ -1,12 +1,12 @@
 ---
 id: task-make-autonomy-agent-steps-and-judges-harness-neutr
 title: Make autonomy agent steps and judges harness-neutral
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Route workflow agent steps and autonomy judges through the harness registry without claude-specific mcpServers/settingSources so operators can switch defaultAgentHarness to openai-tools without silent breakage.
 created_at: 2026-04-23T01:39:52.033Z
-updated_at: 2026-04-23T01:39:52.033Z
+updated_at: 2026-04-23T02:13:21.923Z
 ---
 
 ## Problem

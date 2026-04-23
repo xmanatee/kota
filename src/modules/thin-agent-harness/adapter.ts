@@ -58,6 +58,10 @@ export const thinAgentHarness: AgentHarness = {
     "Single-turn text harness. Uses the core ModelClient registry for any Anthropic or OpenAI-compatible provider. No tool loop, no MCP.",
   supportsMultiTurn: true,
   supportedHookKinds: ["preRun", "postRun"] as const,
+  // A text-only runner has no tool loop, so owner-questions cannot be hosted.
+  // `runAgentHarness` throws at the boundary if `askOwner` is requested.
+  askOwnerToolName: null,
+  emitsAgentMessageStream: false,
   async run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

@@ -463,7 +463,7 @@ export type WorkflowAgentStep = WorkflowBaseStep & {
   permissionMode: SDKPermissionMode;
   allowedTools?: string[];
   disallowedTools?: string[];
-  settingSources: SDKSettingSource[];
+  settingSources?: SDKSettingSource[];
   /** Operator supervision mode applied to this agent step. */
   autonomyMode: AutonomyMode;
   retry?: WorkflowRetryConfig;

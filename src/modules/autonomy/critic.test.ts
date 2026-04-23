@@ -6,19 +6,31 @@ import type { CriticVerdict } from "./critic.js";
 import { createCriticCheck } from "./critic.js";
 import { AUTONOMY_DISALLOWED_TOOLS } from "./shared.js";
 
-const mockExecuteWithAgentSDK = vi.hoisted(() => vi.fn());
-const mockCreateDaemonHostControlGuard = vi.hoisted(() => vi.fn(() => vi.fn(async () => ({ behavior: "allow" }))));
-const mockCreateAgentCommitGuard = vi.hoisted(() => vi.fn(() => vi.fn(async () => ({ behavior: "allow" }))));
-const mockComposeCanUseTools = vi.hoisted(
-  () => vi.fn((...guards: unknown[]) => guards[0]),
+const mockRunAgentHarness = vi.hoisted(() => vi.fn());
+const mockResolveAgentHarness = vi.hoisted(() =>
+  vi.fn(() => ({
+    name: "claude-agent-sdk",
+    description: "mock",
+    supportsMultiTurn: true,
+    supportedHookKinds: ["preRun", "postRun"],
+    askOwnerToolName: "mcp__kota_owner_questions__ask_owner",
+    emitsAgentMessageStream: true,
+    run: vi.fn(),
+  })),
+);
+const mockCreateWorkflowAgentGuards = vi.hoisted(
+  () => vi.fn(() => vi.fn(async () => ({ behavior: "allow" }))),
 );
 
-vi.mock("#core/agent-sdk/index.js", () => {
+vi.mock("#core/agent-harness/index.js", async () => {
+  const actual = await vi.importActual<typeof import("#core/agent-harness/index.js")>(
+    "#core/agent-harness/index.js",
+  );
   return {
-    composeCanUseTools: mockComposeCanUseTools,
-    createAgentCommitGuard: mockCreateAgentCommitGuard,
-    createDaemonHostControlGuard: mockCreateDaemonHostControlGuard,
-    executeWithAgentSDK: mockExecuteWithAgentSDK,
+    ...actual,
+    createWorkflowAgentGuards: mockCreateWorkflowAgentGuards,
+    resolveAgentHarness: mockResolveAgentHarness,
+    runAgentHarness: mockRunAgentHarness,
   };
 });
 
@@ -58,12 +70,21 @@ function makeContext(projectDir: string, runDirPath?: string) {
 }
 
 function setApiResponse(verdict: CriticVerdict) {
-  mockExecuteWithAgentSDK.mockResolvedValue({
+  mockRunAgentHarness.mockResolvedValue({
     text: JSON.stringify(verdict),
     streamedText: "",
     turns: 1,
     isError: false,
   });
+}
+
+function getPromptArg(call: unknown[]): string {
+  const options = call[1] as { prompt: string };
+  return options.prompt;
+}
+
+function getOptionsArg(call: unknown[]): Record<string, unknown> {
+  return call[1] as Record<string, unknown>;
 }
 
 type CodeCheck = { run: (ctx: never) => Promise<unknown> };
@@ -90,7 +111,7 @@ describe("createCriticCheck", () => {
     const check = createCriticCheck();
     const result = await (check as CodeCheck).run(makeContext(dir));
     expect(result).toMatch(/pass/);
-    expect(mockExecuteWithAgentSDK).toHaveBeenCalledOnce();
+    expect(mockRunAgentHarness).toHaveBeenCalledOnce();
   });
 
   it("skips when no task in doing/ and no staged done/ task", async () => {
@@ -131,9 +152,9 @@ describe("createCriticCheck", () => {
     const result = await (check as CodeCheck).run(makeContext(dir, runDir));
 
     expect(result).toMatch(/pass/);
-    expect(mockExecuteWithAgentSDK).toHaveBeenCalledOnce();
+    expect(mockRunAgentHarness).toHaveBeenCalledOnce();
     // Verify the task content was passed to the API
-    const userMessage = mockExecuteWithAgentSDK.mock.calls[0][0];
+    const userMessage = getPromptArg(mockRunAgentHarness.mock.calls[0]);
     expect(userMessage).toContain("Moved task");
   });
 
@@ -157,7 +178,7 @@ describe("createCriticCheck", () => {
     const result = await (check as CodeCheck).run(makeContext(dir, runDir));
 
     expect(result).toMatch(/pass/);
-    expect(mockExecuteWithAgentSDK).toHaveBeenCalledOnce();
+    expect(mockRunAgentHarness).toHaveBeenCalledOnce();
   });
 
   it("gives the critic optional run-trace affordances without requiring a fixed evidence file", async () => {
@@ -177,8 +198,8 @@ describe("createCriticCheck", () => {
     const check = createCriticCheck({ runDirPath: runDir });
     await (check as CodeCheck).run(makeContext(dir, runDir));
 
-    const userMessage = mockExecuteWithAgentSDK.mock.calls[0][0];
-    const options = mockExecuteWithAgentSDK.mock.calls[0][1];
+    const userMessage = getPromptArg(mockRunAgentHarness.mock.calls[0]);
+    const options = getOptionsArg(mockRunAgentHarness.mock.calls[0]);
     expect(userMessage).toContain("If completeness is uncertain, inspect run artifacts yourself");
     expect(userMessage).toContain("Do not require a specific evidence artifact");
     // events.jsonl is intentionally NOT advertised: it is routinely 1–3 MB
@@ -205,7 +226,7 @@ describe("createCriticCheck", () => {
     mkdirSync(runDir, { recursive: true });
 
     // Simulate model returning preamble text before JSON block
-    mockExecuteWithAgentSDK.mockResolvedValue({
+    mockRunAgentHarness.mockResolvedValue({
       text: 'Based on my review of the changes:\n\n```json\n{"verdict":"pass","critical_issues":[],"warnings":[],"summary":"Looks good."}\n```',
       streamedText: "",
       turns: 1,
@@ -228,7 +249,7 @@ describe("createCriticCheck", () => {
     mkdirSync(runDir, { recursive: true });
 
     // Simulate model returning preamble then bare JSON (no fences)
-    mockExecuteWithAgentSDK.mockResolvedValue({
+    mockRunAgentHarness.mockResolvedValue({
       text: 'Here is my assessment:\n\n{"verdict":"pass_with_warnings","critical_issues":[],"warnings":["Minor issue"],"summary":"Mostly complete."}',
       streamedText: "",
       turns: 1,
@@ -297,7 +318,7 @@ describe("createCriticCheck", () => {
     const runDir = join(dir, ".kota/runs/test-run");
     mkdirSync(runDir, { recursive: true });
 
-    mockExecuteWithAgentSDK.mockResolvedValue({
+    mockRunAgentHarness.mockResolvedValue({
       text: "Claude Code returned an error result: API Error: 500 internal",
       streamedText: "",
       turns: 5,
@@ -311,7 +332,7 @@ describe("createCriticCheck", () => {
     ).rejects.toThrow(/Critic agent failed \(attempt 3\/3\)/);
     await vi.runAllTimersAsync();
     await assertion;
-    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(3);
+    expect(mockRunAgentHarness).toHaveBeenCalledTimes(3);
     vi.useRealTimers();
   });
 
@@ -327,7 +348,7 @@ describe("createCriticCheck", () => {
     const runDir = join(dir, ".kota/runs/test-run");
     mkdirSync(runDir, { recursive: true });
 
-    mockExecuteWithAgentSDK.mockResolvedValue({
+    mockRunAgentHarness.mockResolvedValue({
       text: "",
       streamedText: "",
       turns: 20,
@@ -340,7 +361,7 @@ describe("createCriticCheck", () => {
     expect(result).toMatch(/critic unavailable/);
     expect(result).toMatch(/evaluator-calibration/);
     // Still fails fast at the invokeAgentJudge layer: only one SDK call.
-    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
+    expect(mockRunAgentHarness).toHaveBeenCalledTimes(1);
     // No critic-review.json written — calibration should surface verdict=absent.
     expect(existsSync(join(runDir, "critic-review.json"))).toBe(false);
   });
@@ -357,14 +378,14 @@ describe("createCriticCheck", () => {
     const runDir = join(dir, ".kota/runs/test-run");
     mkdirSync(runDir, { recursive: true });
 
-    mockExecuteWithAgentSDK.mockRejectedValue(
+    mockRunAgentHarness.mockRejectedValue(
       new Error("Claude Code returned an error result: Reached maximum number of turns (20)"),
     );
 
     const check = createCriticCheck({ runDirPath: runDir });
     const result = await (check as CodeCheck).run(makeContext(dir, runDir));
     expect(result).toMatch(/critic unavailable/);
-    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
+    expect(mockRunAgentHarness).toHaveBeenCalledTimes(1);
   });
 
   it("still rejects on unclassified SDK throws that are not runaway", async () => {
@@ -379,7 +400,7 @@ describe("createCriticCheck", () => {
     const runDir = join(dir, ".kota/runs/test-run");
     mkdirSync(runDir, { recursive: true });
 
-    mockExecuteWithAgentSDK.mockRejectedValue(
+    mockRunAgentHarness.mockRejectedValue(
       new Error("Claude Code returned an error result: something truly unexpected"),
     );
 
@@ -387,7 +408,7 @@ describe("createCriticCheck", () => {
     await expect(
       (check as CodeCheck).run(makeContext(dir, runDir)),
     ).rejects.toThrow(/Critic agent threw \(attempt 1\/3\)/);
-    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
+    expect(mockRunAgentHarness).toHaveBeenCalledTimes(1);
   });
 
   it("succeeds on second retry after initial transient provider failure", async () => {
@@ -400,7 +421,7 @@ describe("createCriticCheck", () => {
     const runDir = join(dir, ".kota/runs/test-run");
     mkdirSync(runDir, { recursive: true });
 
-    mockExecuteWithAgentSDK
+    mockRunAgentHarness
       .mockResolvedValueOnce({
         text: "Claude Code returned an error result: API Error: 503 overloaded",
         streamedText: "",
@@ -425,7 +446,7 @@ describe("createCriticCheck", () => {
     await vi.runAllTimersAsync();
     const result = await promise;
     expect(result).toMatch(/pass/);
-    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
+    expect(mockRunAgentHarness).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
   });
 
@@ -439,7 +460,7 @@ describe("createCriticCheck", () => {
     const runDir = join(dir, ".kota/runs/test-run");
     mkdirSync(runDir, { recursive: true });
 
-    mockExecuteWithAgentSDK
+    mockRunAgentHarness
       .mockResolvedValueOnce({
         text:
           "The implementation appears complete and addresses all four \"Done When\" criteria:\n\n" +
@@ -467,9 +488,9 @@ describe("createCriticCheck", () => {
     const result = await promise;
 
     expect(result).toMatch(/pass/);
-    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
-    const firstPrompt = mockExecuteWithAgentSDK.mock.calls[0][0] as string;
-    const secondPrompt = mockExecuteWithAgentSDK.mock.calls[1][0] as string;
+    expect(mockRunAgentHarness).toHaveBeenCalledTimes(2);
+    const firstPrompt = getPromptArg(mockRunAgentHarness.mock.calls[0]) as string;
+    const secondPrompt = getPromptArg(mockRunAgentHarness.mock.calls[1]) as string;
     expect(firstPrompt).not.toContain("Format reminder");
     expect(secondPrompt).toContain("Format reminder");
     expect(secondPrompt).toContain("did not contain valid JSON");
@@ -486,7 +507,7 @@ describe("createCriticCheck", () => {
     const runDir = join(dir, ".kota/runs/test-run");
     mkdirSync(runDir, { recursive: true });
 
-    mockExecuteWithAgentSDK.mockResolvedValue({
+    mockRunAgentHarness.mockResolvedValue({
       text: "This change looks good to me, shipping it.",
       streamedText: "",
       turns: 1,
@@ -499,7 +520,7 @@ describe("createCriticCheck", () => {
     ).rejects.toThrow(/returned unparseable response/);
     await vi.runAllTimersAsync();
     await assertion;
-    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(3);
+    expect(mockRunAgentHarness).toHaveBeenCalledTimes(3);
     vi.useRealTimers();
   });
 
@@ -544,7 +565,7 @@ describe("createCriticCheck", () => {
     expect(artifact.probe.command).toBe("echo probe-output-marker");
     expect(artifact.output).toContain("probe-output-marker");
 
-    const userMessage = mockExecuteWithAgentSDK.mock.calls[0][0] as string;
+    const userMessage = getPromptArg(mockRunAgentHarness.mock.calls[0]) as string;
     expect(userMessage).toContain("## Runtime Probe Result");
     expect(userMessage).toContain("Verdict: pass");
     expect(userMessage).toContain("Command: echo probe-output-marker");
@@ -585,7 +606,7 @@ describe("createCriticCheck", () => {
     expect(artifact.exitCode).toBe(7);
     expect(artifact.output).toContain("nope");
 
-    const userMessage = mockExecuteWithAgentSDK.mock.calls[0][0] as string;
+    const userMessage = getPromptArg(mockRunAgentHarness.mock.calls[0]) as string;
     expect(userMessage).toContain("Verdict: fail");
     expect(userMessage).toContain("Exit code: 7");
   });
@@ -611,7 +632,7 @@ describe("createCriticCheck", () => {
     expect(result).toMatch(/pass/);
     expect(existsSync(join(runDir, "runtime-probe.json"))).toBe(false);
 
-    const userMessage = mockExecuteWithAgentSDK.mock.calls[0][0] as string;
+    const userMessage = getPromptArg(mockRunAgentHarness.mock.calls[0]) as string;
     expect(userMessage).not.toContain("## Runtime Probe Result");
   });
 

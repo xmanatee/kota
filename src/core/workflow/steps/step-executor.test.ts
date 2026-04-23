@@ -488,6 +488,7 @@ describe("buildAgentPrompt", () => {
       TRIGGER,
       projectDir,
       {},
+      KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );
     expect(prompt).not.toContain("Exposed step outputs:");
   });
@@ -500,6 +501,7 @@ describe("buildAgentPrompt", () => {
       TRIGGER,
       projectDir,
       {},
+      KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );
     expect(prompt).toContain("There is intentionally no fixed checklist here.");
   });
@@ -512,6 +514,7 @@ describe("buildAgentPrompt", () => {
       TRIGGER,
       projectDir,
       {},
+      KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );
     expect(prompt).toContain(KOTA_OWNER_QUESTIONS_MCP_TOOL);
   });
@@ -526,6 +529,7 @@ describe("buildAgentPrompt", () => {
       TRIGGER,
       projectDir,
       { "some-step": { counts: { ready: 2 } } },
+      KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );
     expect(prompt).not.toContain("Exposed step outputs:");
   });
@@ -547,6 +551,7 @@ describe("buildAgentPrompt", () => {
       TRIGGER,
       projectDir,
       { "some-step": { skipped: true } },
+      KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );
     expect(prompt).not.toContain("Exposed step outputs:");
   });
@@ -569,6 +574,7 @@ describe("buildAgentPrompt", () => {
       TRIGGER,
       projectDir,
       { "inspect-ready-queue": output },
+      KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );
     expect(prompt).toContain("Exposed step outputs:");
     expect(prompt).toContain('<step id="inspect-ready-queue">');
@@ -602,6 +608,7 @@ describe("buildAgentPrompt", () => {
       TRIGGER,
       projectDir,
       outputs,
+      KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );
     const inspectIdx = prompt.indexOf('<step id="inspect-queue">');
     const claimIdx = prompt.indexOf('<step id="claim-task">');
@@ -618,6 +625,7 @@ describe("buildAgentPrompt", () => {
       TRIGGER,
       projectDir,
       {},
+      KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );
     expect(prompt).not.toContain("Trigger payload:");
   });
@@ -630,6 +638,7 @@ describe("buildAgentPrompt", () => {
       { event: "workflow.completed", payload: { runId: "run-123" } },
       projectDir,
       {},
+      KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );
     expect(prompt).toContain("Trigger payload:");
     expect(prompt).toContain('"runId": "run-123"');

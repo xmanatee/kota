@@ -36,12 +36,25 @@ function assertAdapterHonorsRegisteredHooks(harness: AgentHarness): void {
   }
 }
 
+function assertAdapterCanHostRequestedCapabilities(
+  harness: AgentHarness,
+  options: AgentHarnessRunOptions,
+): void {
+  if (options.askOwner && harness.askOwnerToolName === null) {
+    throw new Error(
+      `Agent harness "${harness.name}" cannot host the owner-questions surface (askOwnerToolName is null). ` +
+        "Drop askOwner or run a harness that declares support — never run owner-questions silently disabled.",
+    );
+  }
+}
+
 export async function runAgentHarness(
   harness: AgentHarness,
   options: AgentHarnessRunOptions,
   writer?: AgentHarnessWriter,
 ): Promise<AgentHarnessResult> {
   assertAdapterHonorsRegisteredHooks(harness);
+  assertAdapterCanHostRequestedCapabilities(harness, options);
 
   for (const hook of listHarnessHooks("preRun")) {
     await hook.handler({ harness, options });

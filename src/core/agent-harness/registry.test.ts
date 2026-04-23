@@ -14,6 +14,8 @@ function stubHarness(name: string): AgentHarness {
     description: `stub ${name}`,
     supportsMultiTurn: true,
     supportedHookKinds: ["preRun", "postRun"],
+    askOwnerToolName: null,
+    emitsAgentMessageStream: false,
     run: async () => ({
       text: "",
       streamedText: "",

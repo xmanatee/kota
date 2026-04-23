@@ -1,4 +1,4 @@
-import type { CanUseTool } from "@anthropic-ai/claude-agent-sdk";
+import type { CanUseTool, PermissionResult } from "@anthropic-ai/claude-agent-sdk";
 import type {
   SDKMessage,
   SDKPermissionMode,
@@ -20,8 +20,21 @@ export type AgentPermissionMode = SDKPermissionMode;
 export type AgentSettingSource = SDKSettingSource;
 export type AgentSystemPrompt = SDKSystemPrompt;
 export type AgentCanUseTool = CanUseTool;
+export type AgentPermissionResult = PermissionResult;
 export type AgentMcpServers = SDKQueryOptions["mcpServers"];
 export type AgentEffort = NonNullable<SDKQueryOptions["effort"]>;
+
+/**
+ * Declares that a run should expose the `ask_owner` tool to the agent so it
+ * can escalate high-stakes decisions to the repo owner. Every adapter that
+ * can host a tool loop must honor this; adapters that cannot (text-only
+ * runners) reject it at the boundary. `source` is threaded into the owner
+ * question queue so operators can trace which agent run raised which
+ * question.
+ */
+export type AgentAskOwnerOptions = {
+  source: string;
+};
 
 export type AgentHarnessWriter = { write(text: string): boolean };
 
@@ -45,6 +58,13 @@ export type AgentHarnessRunOptions = {
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
   canUseTool?: AgentCanUseTool;
+  /**
+   * Harness-neutral request to expose the owner-questions escalation tool to
+   * the agent. Adapters that can host a tool loop honor it using their native
+   * mechanism (MCP server, direct registry call). `runAgentHarness` rejects
+   * requests against adapters whose `askOwnerToolName` is `null`.
+   */
+  askOwner?: AgentAskOwnerOptions;
 };
 
 export type AgentHarnessResult = {
@@ -89,6 +109,24 @@ export type AgentHarness = {
    * options it cannot host.
    */
   readonly supportedHookKinds: readonly HarnessHookKind[];
+  /**
+   * The runtime tool name the agent will see in its catalog when
+   * `AgentHarnessRunOptions.askOwner` is set. `null` means this adapter
+   * cannot host the owner-questions surface; `runAgentHarness` rejects any
+   * run that asks for it against such an adapter. Callers that construct an
+   * agent prompt use this field to reference the correct tool name across
+   * harnesses (e.g. `mcp__kota_owner_questions__ask_owner` on claude,
+   * `ask_owner` on openai-tools).
+   */
+  readonly askOwnerToolName: string | null;
+  /**
+   * Whether this adapter emits `SDKMessage`-shaped frames to an `onMessage`
+   * callback. Claude-Agent-SDK sets this to `true`; the openai-tools and
+   * thin adapters have no such stream and reject `onMessage` at the
+   * boundary. Callers consult this flag to decide whether to subscribe —
+   * branching on a declared capability rather than the adapter name.
+   */
+  readonly emitsAgentMessageStream: boolean;
   run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

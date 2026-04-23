@@ -19,9 +19,11 @@ import type {
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
 import { createModelClient } from "#core/model/model-client.js";
+import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
 import { executeTool, getAllTools } from "#core/tools/index.js";
 
 export const OPENAI_TOOLS_AGENT_HARNESS_NAME = "openai-tools";
+export const OPENAI_TOOLS_ASK_OWNER_TOOL_NAME = "ask_owner";
 
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_MAX_TURNS = 25;
@@ -143,10 +145,16 @@ function validateToolUseBlock(
 function selectToolDefinitions(
   allowed: readonly string[] | undefined,
   disallowed: readonly string[] | undefined,
+  includeAskOwner: boolean,
 ): Anthropic.Tool[] {
   const all = getAllTools();
   const denySet = new Set(disallowed ?? []);
   const allowSet = allowed && allowed.length > 0 ? new Set(allowed) : null;
+  // Owner-questions must reach the agent when the caller requested them,
+  // even if a restrictive allowedTools list would have filtered the tool out.
+  // The registry already excludes `ask_owner` from `disallowed` when the
+  // caller wants it, but the allowedTools path needs an explicit allowance.
+  if (includeAskOwner && allowSet) allowSet.add(OPENAI_TOOLS_ASK_OWNER_TOOL_NAME);
   return all.filter((tool) => {
     if (denySet.has(tool.name)) return false;
     if (allowSet && !allowSet.has(tool.name)) return false;
@@ -263,10 +271,25 @@ export const openaiToolsAgentHarness: AgentHarness = {
     "Multi-turn tool-calling loop against an OpenAI-compatible ModelClient (OpenAI, Ollama, Groq, Together, LM Studio, vLLM, …). Honors canUseTool, allowedTools, disallowedTools.",
   supportsMultiTurn: true,
   supportedHookKinds: ["preRun", "postRun"] as const,
+  askOwnerToolName: OPENAI_TOOLS_ASK_OWNER_TOOL_NAME,
+  emitsAgentMessageStream: false,
   async run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,
   ): Promise<AgentHarnessResult> {
+    if (options.askOwner) {
+      return runWithAskOwnerSource(options.askOwner.source, () =>
+        runOpenaiToolsLoop(options, writer),
+      );
+    }
+    return runOpenaiToolsLoop(options, writer);
+  },
+};
+
+async function runOpenaiToolsLoop(
+  options: AgentHarnessRunOptions,
+  writer?: AgentHarnessWriter,
+): Promise<AgentHarnessResult> {
     rejectClaudeSpecificOptions(options);
     checkAborted(options.abortController?.signal);
 
@@ -278,7 +301,11 @@ export const openaiToolsAgentHarness: AgentHarness = {
 
     const system = extractSystemText(options.systemPrompt);
     const resolved = createModelClient({ model: options.model });
-    const tools = selectToolDefinitions(options.allowedTools, options.disallowedTools);
+    const tools = selectToolDefinitions(
+      options.allowedTools,
+      options.disallowedTools,
+      options.askOwner !== undefined,
+    );
     const maxTurns = options.maxTurns ?? DEFAULT_MAX_TURNS;
 
     const messages: Anthropic.MessageParam[] = [
@@ -383,5 +410,4 @@ export const openaiToolsAgentHarness: AgentHarness = {
       isError,
       subtype: lastSubtype,
     };
-  },
-};
+}

@@ -520,7 +520,7 @@ describe("executeAgentStep — SDK autonomy permissions", () => {
         () => {},
         { projectDir, log: () => {} },
       ),
-    ).rejects.toThrow("Passive agent steps may only allow read-only SDK tools");
+    ).rejects.toThrow("Passive agent steps may only allow read-only tools");
     expect(executeWithAgentSDKMock).not.toHaveBeenCalled();
   });
 });
@@ -747,6 +747,8 @@ describe("executeAgentStep — records resolved harness and model", () => {
     description: "test-only adapter that captures invocation args",
     supportsMultiTurn: true,
     supportedHookKinds: [],
+    askOwnerToolName: null,
+    emitsAgentMessageStream: false,
     async run(options) {
       testHarnessCalls.push({ model: options.model });
       return {

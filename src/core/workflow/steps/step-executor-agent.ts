@@ -1,14 +1,11 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { resolveAgentHarness, runAgentHarness } from "#core/agent-harness/index.js";
 import {
-  buildClaudeCodeSystemPrompt,
-  composeCanUseTools,
-  createAgentCommitGuard,
-  createDaemonHostControlGuard,
-  createOwnerQuestionMcpServers,
-  KOTA_OWNER_QUESTIONS_MCP_TOOL,
-} from "#core/agent-sdk/index.js";
+  createWorkflowAgentGuards,
+  resolveAgentHarness,
+  runAgentHarness,
+} from "#core/agent-harness/index.js";
+import { buildClaudeCodeSystemPrompt } from "#core/agent-sdk/index.js";
 import type { SDKMessage, SDKPermissionMode } from "#core/agent-sdk/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
@@ -133,6 +130,7 @@ export function buildAgentPrompt(
   trigger: WorkflowRunTrigger,
   projectDir: string,
   priorStepOutputs: Record<string, unknown>,
+  askOwnerToolName: string | null,
 ): { systemPromptAppend: string; prompt: string } {
   const promptBody = readFileSync(
     resolve(step.moduleRoot, step.promptPath),
@@ -174,7 +172,13 @@ export function buildAgentPrompt(
     "Use the workflow instructions in your system prompt.",
     "Work directly instead of narrating intent.",
     'Do not emit progress filler such as "Let me..." or "I will...".',
-    `For high-stakes decisions that are unsafe to resolve alone, use ${KOTA_OWNER_QUESTIONS_MCP_TOOL}.`,
+  );
+  if (askOwnerToolName !== null) {
+    lines.push(
+      `For high-stakes decisions that are unsafe to resolve alone, use ${askOwnerToolName}.`,
+    );
+  }
+  lines.push(
     "If you leave a textual summary, keep it brief and factual.",
     "Write any run-specific artifacts under the run directory when useful.",
     "Finish this step fully, then stop.",
@@ -252,17 +256,25 @@ function writeToolTelemetryArtifact(
   writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf-8");
 }
 
-function includeOwnerQuestionTool(allowedTools: string[] | undefined): string[] | undefined {
+function includeAskOwnerTool(
+  allowedTools: string[] | undefined,
+  askOwnerToolName: string | null,
+): string[] | undefined {
   if (!allowedTools) return undefined;
-  if (allowedTools.includes(KOTA_OWNER_QUESTIONS_MCP_TOOL)) return allowedTools;
-  return [...allowedTools, KOTA_OWNER_QUESTIONS_MCP_TOOL];
+  if (askOwnerToolName === null) return allowedTools;
+  if (allowedTools.includes(askOwnerToolName)) return allowedTools;
+  return [...allowedTools, askOwnerToolName];
 }
 
-function excludeOwnerQuestionTool(disallowedTools: string[] | undefined): string[] | undefined {
-  return disallowedTools?.filter((tool) => tool !== KOTA_OWNER_QUESTIONS_MCP_TOOL);
+function excludeAskOwnerTool(
+  disallowedTools: string[] | undefined,
+  askOwnerToolName: string | null,
+): string[] | undefined {
+  if (!disallowedTools || askOwnerToolName === null) return disallowedTools;
+  return disallowedTools.filter((tool) => tool !== askOwnerToolName);
 }
 
-const SDK_PASSIVE_ALLOWED_TOOLS = [
+const PASSIVE_ALLOWED_TOOLS = [
   "Read",
   "LS",
   "Grep",
@@ -275,34 +287,35 @@ const SDK_PASSIVE_ALLOWED_TOOLS = [
   "ReadMcpResourceTool",
 ] as const;
 
-const SDK_PASSIVE_ALLOWED_TOOL_SET = new Set<string>(SDK_PASSIVE_ALLOWED_TOOLS);
+const PASSIVE_ALLOWED_TOOL_SET = new Set<string>(PASSIVE_ALLOWED_TOOLS);
 
 function resolvePassiveAllowedTools(
   allowedTools: string[] | undefined,
   disallowedTools: string[] | undefined,
+  askOwnerToolName: string | null,
 ): string[] {
-  const requested = allowedTools ?? [...SDK_PASSIVE_ALLOWED_TOOLS];
+  const requested = allowedTools ?? [...PASSIVE_ALLOWED_TOOLS];
   const unsafe = requested.filter(
-    (tool) =>
-      tool !== KOTA_OWNER_QUESTIONS_MCP_TOOL &&
-      !SDK_PASSIVE_ALLOWED_TOOL_SET.has(tool),
+    (tool) => tool !== askOwnerToolName && !PASSIVE_ALLOWED_TOOL_SET.has(tool),
   );
   if (unsafe.length > 0) {
     throw new Error(
-      `Passive agent steps may only allow read-only SDK tools; disallowed here: ${unsafe.join(", ")}`,
+      `Passive agent steps may only allow read-only tools; disallowed here: ${unsafe.join(", ")}`,
     );
   }
-  const disallowed = new Set(excludeOwnerQuestionTool(disallowedTools) ?? []);
-  return includeOwnerQuestionTool(
+  const disallowed = new Set(excludeAskOwnerTool(disallowedTools, askOwnerToolName) ?? []);
+  return includeAskOwnerTool(
     requested.filter((tool) => !disallowed.has(tool)),
+    askOwnerToolName,
   ) as string[];
 }
 
-function resolveSdkPermissions(
+function resolveAgentPermissions(
   mode: AutonomyMode,
   permissionMode: SDKPermissionMode,
   allowedTools: string[] | undefined,
   disallowedTools: string[] | undefined,
+  askOwnerToolName: string | null,
 ): {
   permissionMode: SDKPermissionMode;
   allowedTools: string[] | undefined;
@@ -311,18 +324,18 @@ function resolveSdkPermissions(
   if (mode === "autonomous") {
     return {
       permissionMode,
-      allowedTools: includeOwnerQuestionTool(allowedTools),
-      disallowedTools: excludeOwnerQuestionTool(disallowedTools),
+      allowedTools: includeAskOwnerTool(allowedTools, askOwnerToolName),
+      disallowedTools: excludeAskOwnerTool(disallowedTools, askOwnerToolName),
     };
   }
   if (mode === "supervised") {
     throw new Error(
-      "Workflow agent steps cannot use supervised autonomyMode because SDK tool calls cannot be routed through KOTA approvals",
+      "Workflow agent steps cannot use supervised autonomyMode because tool calls cannot be routed through KOTA approvals",
     );
   }
   return {
     permissionMode: "default",
-    allowedTools: resolvePassiveAllowedTools(allowedTools, disallowedTools),
+    allowedTools: resolvePassiveAllowedTools(allowedTools, disallowedTools, askOwnerToolName),
     disallowedTools: undefined,
   };
 }
@@ -348,6 +361,7 @@ export async function executeAgentStep(
     trigger,
     agentConfig.projectDir,
     priorStepOutputs,
+    resolvedHarness.askOwnerToolName,
   );
   const promptDir = dirname(resolve(step.moduleRoot, step.promptPath));
   const contextStartDir = resolvePromptContextStartDir(promptDir, agentConfig.projectDir);
@@ -373,8 +387,15 @@ export async function executeAgentStep(
     typeof systemPrompt === "string" ? systemPrompt : systemPrompt.append;
   writeInputs(systemPromptAppend, agentPrompt.prompt);
 
+  // Tool telemetry and caller-facing message capture hang off `onMessage`,
+  // which only claude-agent-sdk-style adapters can emit. Harnesses that do
+  // not stream SDKMessage frames (openai-tools, thin) reject `onMessage` at
+  // the boundary, so we branch on the adapter-declared capability rather
+  // than the adapter name.
   const stepTelemetry = new ToolTelemetry();
-  const trackedMessage = makeToolTelemetryTracker(stepTelemetry, appendMessage);
+  const trackedMessage = resolvedHarness.emitsAgentMessageStream
+    ? makeToolTelemetryTracker(stepTelemetry, appendMessage)
+    : undefined;
 
   let lastSchemaError: string | undefined;
 
@@ -382,11 +403,12 @@ export async function executeAgentStep(
     const prompt = lastSchemaError
       ? `${agentPrompt.prompt}\n\n[Previous output failed schema validation: ${lastSchemaError}\nPlease include all required fields in your JSON block and try again.]`
       : agentPrompt.prompt;
-    const sdkPermissions = resolveSdkPermissions(
+    const permissions = resolveAgentPermissions(
       step.autonomyMode,
       step.permissionMode,
       step.allowedTools,
       step.disallowedTools,
+      resolvedHarness.askOwnerToolName,
     );
     try {
       const result = await runAgentHarness(
@@ -400,20 +422,19 @@ export async function executeAgentStep(
           effort: step.effort,
           thinkingEnabled: step.thinkingEnabled,
           thinkingBudget: step.thinkingBudget,
-          allowedTools: sdkPermissions.allowedTools,
-          disallowedTools: sdkPermissions.disallowedTools,
-          mcpServers: createOwnerQuestionMcpServers(
-            `workflow:${metadata.workflow}/${metadata.id}/${step.id}`,
-          ),
-          permissionMode: sdkPermissions.permissionMode,
-          persistSession: false,
+          allowedTools: permissions.allowedTools,
+          disallowedTools: permissions.disallowedTools,
+          askOwner:
+            resolvedHarness.askOwnerToolName !== null
+              ? {
+                  source: `workflow:${metadata.workflow}/${metadata.id}/${step.id}`,
+                }
+              : undefined,
+          permissionMode: permissions.permissionMode,
           settingSources: step.settingSources,
           abortController,
-          onMessage: trackedMessage,
-          canUseTool: composeCanUseTools(
-            createDaemonHostControlGuard(),
-            createAgentCommitGuard(),
-          ),
+          ...(trackedMessage !== undefined ? { onMessage: trackedMessage } : {}),
+          canUseTool: createWorkflowAgentGuards(),
         },
         {
           write: () => true,
@@ -505,7 +526,9 @@ export async function executeAgentStep(
       (err instanceof AgentStepRuntimeError && err.retryable),
   });
 
-  writeToolTelemetryArtifact(step.id, metadata, agentConfig.projectDir, stepTelemetry);
+  if (resolvedHarness.emitsAgentMessageStream) {
+    writeToolTelemetryArtifact(step.id, metadata, agentConfig.projectDir, stepTelemetry);
+  }
 
   // Enforce declared writeScope against every path this step would commit
   // (tracked mutations plus untracked files the staging step would sweep in).

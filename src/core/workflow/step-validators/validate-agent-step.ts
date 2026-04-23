@@ -179,19 +179,24 @@ export function validateAgentStep(
     );
   }
 
-  // settingSources default to ["project"].
-  const settingSources =
-    expectOptionalStringArray(
-      step.settingSources,
-      `${stepLabel}.settingSources`,
-      definitionPath,
-    ) ?? ["project"];
-  for (const source of settingSources) {
-    if (!VALID_SETTING_SOURCES.has(source)) {
-      throw new WorkflowDefinitionError(
-        `${stepLabel}.settingSources entries must be one of ${Array.from(VALID_SETTING_SOURCES).join(", ")}`,
-        definitionPath,
-      );
+  // settingSources is a claude-agent-sdk concept. The claude adapter applies
+  // its own default (["project"]) when the field is unset, so leaving it
+  // undefined here keeps non-claude harnesses from rejecting an implicit
+  // claude option at the boundary. Explicit values are honored (and rejected
+  // loudly by adapters that cannot host them).
+  const settingSources = expectOptionalStringArray(
+    step.settingSources,
+    `${stepLabel}.settingSources`,
+    definitionPath,
+  );
+  if (settingSources) {
+    for (const source of settingSources) {
+      if (!VALID_SETTING_SOURCES.has(source)) {
+        throw new WorkflowDefinitionError(
+          `${stepLabel}.settingSources entries must be one of ${Array.from(VALID_SETTING_SOURCES).join(", ")}`,
+          definitionPath,
+        );
+      }
     }
   }
 

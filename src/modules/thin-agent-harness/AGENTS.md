@@ -13,3 +13,7 @@ completion loop that uses the core ModelClient registry.
 - Requires the `model-clients` module for `createModelClient` to resolve.
 - System prompt must be a plain string. The Claude Agent SDK preset form is
   not portable.
+- Declared capabilities: `askOwnerToolName = null` (no tool loop means the
+  owner-questions surface cannot be hosted; `runAgentHarness` throws if a
+  caller sets `askOwner` against this adapter) and
+  `emitsAgentMessageStream = false`.

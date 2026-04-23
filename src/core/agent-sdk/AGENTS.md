@@ -1,10 +1,12 @@
 # Agent SDK
 
 This directory hosts the packaged Claude Agent SDK executor, system-prompt
-builder, MCP bridge, and guard helpers. It is the internal implementation of
-the `claude-agent-harness` module — nothing else in core should import
-`executeWithAgentSDK` directly. New harness adapters live in their own
-modules and dispatch through the `agent-harness` registry.
+builder, and MCP bridge. It is the internal implementation of the
+`claude-agent-harness` module — nothing else in core should import
+`executeWithAgentSDK` directly. Harness-neutral pieces (commit guard,
+daemon-host guard, `composeCanUseTools`) live in
+`src/core/agent-harness/guards.ts` so every adapter that honors `canUseTool`
+can share them without importing a claude-specific module.
 
 - Keep the executor, types, and prompt integration aligned with the actual
   Claude Agent SDK contract.
@@ -17,3 +19,9 @@ modules and dispatch through the `agent-harness` registry.
   without `updatedInput` breaks every tool call. Route all callbacks through
   `normalizePermissionResult` / `normalizeCanUseTool` (applied automatically
   by `buildQueryOptions`); do not pass a raw `canUseTool` to `sdkQuery`.
+- Owner-questions wiring lives inside the claude harness adapter: when
+  `AgentHarnessRunOptions.askOwner` is set, the adapter merges
+  `createOwnerQuestionMcpServers(source)` into the SDK's `mcpServers`. The
+  step-executor and autonomy judges never inject `mcpServers` or
+  `settingSources` directly — those fields are claude-adapter options that
+  other adapters reject loudly at the boundary.

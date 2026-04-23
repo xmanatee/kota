@@ -7,6 +7,7 @@
  * irreversible changes). The review gate enforces a structural quality bar
  * before a question is enqueued.
  */
+import { AsyncLocalStorage } from "node:async_hooks";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { OwnerQuestionQueue, PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
 import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
@@ -15,6 +16,17 @@ import type { ToolResult } from "./index.js";
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const POLL_INTERVAL_MS = 2000;
+
+// Async-local storage so concurrent agent runs (e.g. parallel workflow step
+// groups) can each pin their own source string without clobbering a shared
+// global. Adapters call `runWithAskOwnerSource(source, () => harness.run(...))`
+// around their tool loop; `runAskOwner` reads the innermost bound value
+// before falling back to deps or env.
+const askOwnerSourceContext = new AsyncLocalStorage<string>();
+
+export function runWithAskOwnerSource<T>(source: string, fn: () => Promise<T>): Promise<T> {
+  return askOwnerSourceContext.run(source, fn);
+}
 
 export const askOwnerTool: Anthropic.Tool = {
   name: "ask_owner",
@@ -68,10 +80,19 @@ type Deps = {
   source: () => string;
 };
 
+function envFallbackSource(): string {
+  return (
+    askOwnerSourceContext.getStore() ??
+    process.env.KOTA_SESSION_ID ??
+    process.env.KOTA_RUN_ID ??
+    "agent"
+  );
+}
+
 let currentDeps: Deps = {
   queue: () => getOwnerQuestionQueue(),
   clock: defaultClock,
-  source: () => process.env.KOTA_SESSION_ID ?? process.env.KOTA_RUN_ID ?? "agent",
+  source: envFallbackSource,
 };
 
 export function setAskOwnerDeps(deps: Partial<Deps>): void {
@@ -82,7 +103,7 @@ export function resetAskOwnerDeps(): void {
   currentDeps = {
     queue: () => getOwnerQuestionQueue(),
     clock: defaultClock,
-    source: () => process.env.KOTA_SESSION_ID ?? process.env.KOTA_RUN_ID ?? "agent",
+    source: envFallbackSource,
   };
 }
 

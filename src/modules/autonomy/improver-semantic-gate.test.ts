@@ -6,21 +6,42 @@ import type { CriticVerdict } from "./critic.js";
 import { createImproverSemanticCheck } from "./improver-semantic-gate.js";
 import { AUTONOMY_DISALLOWED_TOOLS } from "./shared.js";
 
-const mockExecuteWithAgentSDK = vi.hoisted(() => vi.fn());
-const mockCreateDaemonHostControlGuard = vi.hoisted(() => vi.fn(() => vi.fn(async () => ({ behavior: "allow" }))));
-const mockCreateAgentCommitGuard = vi.hoisted(() => vi.fn(() => vi.fn(async () => ({ behavior: "allow" }))));
-const mockComposeCanUseTools = vi.hoisted(
-  () => vi.fn((...guards: unknown[]) => guards[0]),
+const mockRunAgentHarness = vi.hoisted(() => vi.fn());
+const mockResolveAgentHarness = vi.hoisted(() =>
+  vi.fn(() => ({
+    name: "claude-agent-sdk",
+    description: "mock",
+    supportsMultiTurn: true,
+    supportedHookKinds: ["preRun", "postRun"],
+    askOwnerToolName: "mcp__kota_owner_questions__ask_owner",
+    emitsAgentMessageStream: true,
+    run: vi.fn(),
+  })),
+);
+const mockCreateWorkflowAgentGuards = vi.hoisted(
+  () => vi.fn(() => vi.fn(async () => ({ behavior: "allow" }))),
 );
 
-vi.mock("#core/agent-sdk/index.js", () => {
+vi.mock("#core/agent-harness/index.js", async () => {
+  const actual = await vi.importActual<typeof import("#core/agent-harness/index.js")>(
+    "#core/agent-harness/index.js",
+  );
   return {
-    composeCanUseTools: mockComposeCanUseTools,
-    createAgentCommitGuard: mockCreateAgentCommitGuard,
-    createDaemonHostControlGuard: mockCreateDaemonHostControlGuard,
-    executeWithAgentSDK: mockExecuteWithAgentSDK,
+    ...actual,
+    createWorkflowAgentGuards: mockCreateWorkflowAgentGuards,
+    resolveAgentHarness: mockResolveAgentHarness,
+    runAgentHarness: mockRunAgentHarness,
   };
 });
+
+function getPromptArg(call: unknown[]): string {
+  const options = call[1] as { prompt: string };
+  return options.prompt;
+}
+
+function getOptionsArg(call: unknown[]): Record<string, unknown> {
+  return call[1] as Record<string, unknown>;
+}
 
 vi.mock("node:child_process", async () => {
   const actual = await vi.importActual("node:child_process");
@@ -58,7 +79,7 @@ function makeContext(projectDir: string, runDirPath?: string) {
 }
 
 function setGateResponse(verdict: CriticVerdict) {
-  mockExecuteWithAgentSDK.mockResolvedValue({
+  mockRunAgentHarness.mockResolvedValue({
     text: JSON.stringify(verdict),
     streamedText: "",
     turns: 1,
@@ -78,7 +99,7 @@ describe("createImproverSemanticCheck", () => {
     const check = createImproverSemanticCheck();
     const result = await (check as CodeCheck).run(makeContext(dir));
     expect(result).toMatch(/no staged changes/);
-    expect(mockExecuteWithAgentSDK).not.toHaveBeenCalled();
+    expect(mockRunAgentHarness).not.toHaveBeenCalled();
   });
 
   it("passes a valid autonomy improvement diff", async () => {
@@ -109,9 +130,9 @@ describe("createImproverSemanticCheck", () => {
     const check = createImproverSemanticCheck({ runDirPath: runDir });
     const result = await (check as CodeCheck).run(makeContext(dir, runDir));
     expect(result).toMatch(/pass/);
-    expect(mockExecuteWithAgentSDK).toHaveBeenCalledOnce();
+    expect(mockRunAgentHarness).toHaveBeenCalledOnce();
 
-    const prompt = mockExecuteWithAgentSDK.mock.calls[0][0];
+    const prompt = getPromptArg(mockRunAgentHarness.mock.calls[0]);
     expect(prompt).toContain("Increase critic retry count");
     expect(prompt).toContain("src/modules/autonomy/critic.ts");
   });
@@ -229,13 +250,13 @@ describe("createImproverSemanticCheck", () => {
     const check = createImproverSemanticCheck({ runDirPath: runDir });
     await (check as CodeCheck).run(makeContext(dir, runDir));
 
-    const prompt = mockExecuteWithAgentSDK.mock.calls[0][0];
+    const prompt = getPromptArg(mockRunAgentHarness.mock.calls[0]);
     expect(prompt).toContain("Unique commit message for test");
     expect(prompt).toContain("improver workflow run");
     expect(prompt).toContain(`${runDir}/metadata.json`);
     expect(prompt).toContain(`${runDir}/steps/*.events.jsonl`);
 
-    const options = mockExecuteWithAgentSDK.mock.calls[0][1];
+    const options = getOptionsArg(mockRunAgentHarness.mock.calls[0]);
     expect(options.allowedTools).toBeUndefined();
     expect(options.disallowedTools).toEqual(AUTONOMY_DISALLOWED_TOOLS);
     expect(options.effort).toBe("xhigh");
@@ -257,7 +278,7 @@ describe("createImproverSemanticCheck", () => {
       return "diff\n";
     });
 
-    mockExecuteWithAgentSDK.mockResolvedValue({
+    mockRunAgentHarness.mockResolvedValue({
       text: "Claude Code returned an error result: API Error: 500 internal",
       streamedText: "",
       turns: 5,
@@ -271,7 +292,7 @@ describe("createImproverSemanticCheck", () => {
     ).rejects.toThrow(/Semantic gate failed \(attempt 3\/3\)/);
     await vi.runAllTimersAsync();
     await assertion;
-    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(3);
+    expect(mockRunAgentHarness).toHaveBeenCalledTimes(3);
     vi.useRealTimers();
   });
 
@@ -289,7 +310,7 @@ describe("createImproverSemanticCheck", () => {
       return "diff\n";
     });
 
-    mockExecuteWithAgentSDK.mockResolvedValue({
+    mockRunAgentHarness.mockResolvedValue({
       text: "",
       streamedText: "",
       turns: 10,
@@ -300,7 +321,7 @@ describe("createImproverSemanticCheck", () => {
     const check = createImproverSemanticCheck({ runDirPath: runDir });
     const result = await (check as CodeCheck).run(makeContext(dir, runDir));
     expect(result).toMatch(/semantic gate unavailable/);
-    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
+    expect(mockRunAgentHarness).toHaveBeenCalledTimes(1);
   });
 
   it("still rejects on unclassified SDK throws that are not runaway", async () => {
@@ -317,7 +338,7 @@ describe("createImproverSemanticCheck", () => {
       return "diff\n";
     });
 
-    mockExecuteWithAgentSDK.mockRejectedValue(
+    mockRunAgentHarness.mockRejectedValue(
       new Error("Claude Code returned an error result: something truly unexpected"),
     );
 
@@ -325,6 +346,6 @@ describe("createImproverSemanticCheck", () => {
     await expect(
       (check as CodeCheck).run(makeContext(dir, runDir)),
     ).rejects.toThrow(/Semantic gate threw \(attempt 1\/3\)/);
-    expect(mockExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
+    expect(mockRunAgentHarness).toHaveBeenCalledTimes(1);
   });
 });

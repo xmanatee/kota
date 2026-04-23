@@ -86,6 +86,8 @@ describe("runHarnessRepl", () => {
       description: "single-turn only",
       supportsMultiTurn: false,
       supportedHookKinds: ["preRun", "postRun"],
+      askOwnerToolName: null,
+      emitsAgentMessageStream: false,
       run: async (): Promise<AgentHarnessResult> => ({
         text: "",
         streamedText: "",
@@ -114,6 +116,8 @@ describe("runHarnessRepl", () => {
       description: "stub for banner test",
       supportsMultiTurn: true,
       supportedHookKinds: ["preRun", "postRun"],
+      askOwnerToolName: null,
+      emitsAgentMessageStream: false,
       run: async (options): Promise<AgentHarnessResult> => {
         captured.push(options);
         return {
@@ -228,6 +232,8 @@ describe("runHarnessRepl", () => {
       description: "captures prompt",
       supportsMultiTurn: true,
       supportedHookKinds: ["preRun", "postRun"],
+      askOwnerToolName: null,
+      emitsAgentMessageStream: false,
       run: async (options): Promise<AgentHarnessResult> => {
         calls.push(options.prompt);
         return { text: "ack", streamedText: "ack", turns: 1, isError: false };
@@ -256,6 +262,8 @@ describe("runHarnessRepl", () => {
       description: "",
       supportsMultiTurn: true,
       supportedHookKinds: ["preRun", "postRun"],
+      askOwnerToolName: null,
+      emitsAgentMessageStream: false,
       run: async (options, writer?: AgentHarnessWriter) => {
         prompts.push(options.prompt);
         writer?.write("ok");
@@ -285,6 +293,8 @@ describe("runHarnessRepl", () => {
       description: "",
       supportsMultiTurn: true,
       supportedHookKinds: ["preRun", "postRun"],
+      askOwnerToolName: null,
+      emitsAgentMessageStream: false,
       run: async () => {
         call += 1;
         if (call === 1) throw new Error("boom");

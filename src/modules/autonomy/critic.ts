@@ -2,14 +2,18 @@ import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  composeCanUseTools,
-  createAgentCommitGuard,
-  createDaemonHostControlGuard,
-  executeWithAgentSDK,
-} from "#core/agent-sdk/index.js";
+  createWorkflowAgentGuards,
+  resolveAgentHarness,
+  runAgentHarness,
+} from "#core/agent-harness/index.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
-import { AUTONOMY_AGENT_DEFAULTS, AUTONOMY_DISALLOWED_TOOLS, sleep } from "./shared.js";
+import {
+  AUTONOMY_AGENT_DEFAULTS,
+  AUTONOMY_AGENT_HARNESS,
+  AUTONOMY_DISALLOWED_TOOLS,
+  sleep,
+} from "./shared.js";
 import {
   extractTaskProbe,
   formatProbeBlock,
@@ -201,6 +205,12 @@ export type AgentJudgeConfig = {
   model: string;
   maxTurns: number;
   effort: "low" | "medium" | "high" | "xhigh" | "max";
+  /**
+   * Harness name to resolve through the registry. Autonomy judges default to
+   * the autonomy fleet's harness; tests may override to exercise alternate
+   * adapters.
+   */
+  harness?: string;
   maxRetries?: number;
   retryBaseDelayMs?: number;
 };
@@ -222,6 +232,7 @@ export async function invokeAgentJudge(
 ): Promise<{ text: string; isError: boolean; subtype?: string }> {
   const maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
   const retryBaseDelayMs = config.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS;
+  const harness = resolveAgentHarness(config.harness ?? AUTONOMY_AGENT_HARNESS);
   let lastError: Error | undefined;
   let needsFormatReminder = false;
 
@@ -234,22 +245,23 @@ export async function invokeAgentJudge(
 
     let response: { text: string; isError: boolean; subtype?: string };
     try {
-      response = await executeWithAgentSDK(promptForAttempt, {
-        model: config.model,
-        cwd,
-        systemPrompt: config.systemPrompt,
-        maxTurns: config.maxTurns,
-        effort: config.effort,
-        disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-        permissionMode: "bypassPermissions",
-        settingSources: ["project"],
-        canUseTool: composeCanUseTools(
-          createDaemonHostControlGuard(),
-          createAgentCommitGuard(),
-        ),
-      }, {
-        write: () => true,
-      });
+      response = await runAgentHarness(
+        harness,
+        {
+          prompt: promptForAttempt,
+          model: config.model,
+          cwd,
+          systemPrompt: config.systemPrompt,
+          maxTurns: config.maxTurns,
+          effort: config.effort,
+          disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
+          permissionMode: "bypassPermissions",
+          canUseTool: createWorkflowAgentGuards(),
+        },
+        {
+          write: () => true,
+        },
+      );
     } catch (thrown) {
       const message = thrown instanceof Error ? thrown.message : String(thrown);
       lastError = new Error(
@@ -347,7 +359,16 @@ export function judgeUnavailableResult(label: string, err: unknown): string {
 
 export function createCriticCheck(options?: {
   runDirPath?: string;
+  /** Harness registry name to resolve. Defaults to the autonomy fleet harness. */
+  harnessName?: string;
+  /** Override the critic model. Defaults to AUTONOMY_AGENT_DEFAULTS.model. */
+  model?: string;
 }): WorkflowRepairCheck {
+  const resolvedConfig: AgentJudgeConfig = {
+    ...criticConfig,
+    ...(options?.harnessName !== undefined ? { harness: options.harnessName } : {}),
+    ...(options?.model !== undefined ? { model: options.model } : {}),
+  };
   return {
     id: "critic-review",
     type: "code" as const,
@@ -399,7 +420,7 @@ export function createCriticCheck(options?: {
 
       let response;
       try {
-        response = await invokeAgentJudge(userMessage, ctx.projectDir, criticConfig);
+        response = await invokeAgentJudge(userMessage, ctx.projectDir, resolvedConfig);
       } catch (err) {
         // Runaway judge (max turns / max tokens) is an evaluator-side
         // problem the agent cannot fix by editing code. Returning a

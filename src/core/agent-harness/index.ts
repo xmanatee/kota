@@ -1,3 +1,11 @@
+export {
+  composeCanUseTools,
+  createAgentCommitGuard,
+  createDaemonHostControlGuard,
+  createWorkflowAgentGuards,
+  isDaemonHostControlCommand,
+  isGitCommitCommand,
+} from "./guards.js";
 export type {
   HarnessHookKind,
   HarnessHookRegistration,
@@ -23,6 +31,7 @@ export {
 } from "./registry.js";
 export { runAgentHarness } from "./runner.js";
 export type {
+  AgentAskOwnerOptions,
   AgentCanUseTool,
   AgentEffort,
   AgentHarness,
@@ -32,6 +41,7 @@ export type {
   AgentMcpServers,
   AgentMessage,
   AgentPermissionMode,
+  AgentPermissionResult,
   AgentSettingSource,
   AgentSystemPrompt,
 } from "./types.js";

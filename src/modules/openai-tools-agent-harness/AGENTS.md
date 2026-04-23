@@ -74,7 +74,21 @@ rather than silently ignoring them:
   coupling the CLI to harness-specific prompt shapes
 
 Operators that need any of these run the `claude-agent-sdk` harness
-instead.
+instead. Callers avoid tripping these rejections by consulting the
+adapter-declared capabilities (`emitsAgentMessageStream`,
+`askOwnerToolName`) before wiring a claude-specific option path.
+
+## Declared Capabilities
+
+- `askOwnerToolName = "ask_owner"` — the tool is hosted directly through
+  the core tool registry, not via MCP. When `AgentHarnessRunOptions.askOwner`
+  is set, the adapter wraps its loop in `runWithAskOwnerSource(source, ...)`
+  so `runAskOwner` reads the correct source from the async-local storage
+  context without the adapter referencing the tool's runner directly.
+- `emitsAgentMessageStream = false` — the adapter does not produce
+  `SDKMessage` frames, so callers must not subscribe through `onMessage`.
+  The step-executor guards its tool telemetry wrapper on this flag so
+  openai-tools runs do not trigger the `onMessage` rejection.
 
 ## Reasoning Effort Passthrough
 

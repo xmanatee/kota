@@ -38,6 +38,8 @@ function makeHarness(
     description: `test harness ${name}`,
     supportsMultiTurn: true,
     supportedHookKinds: ["preRun", "postRun"] as const,
+    askOwnerToolName: null,
+    emitsAgentMessageStream: false,
     async run(options, writer) {
       const cwd = options.cwd ?? process.cwd();
       await behavior(cwd);
@@ -136,6 +138,8 @@ describe("harness-parity runner", () => {
       description: "broken",
       supportsMultiTurn: true,
       supportedHookKinds: ["preRun", "postRun"] as const,
+      askOwnerToolName: null,
+    emitsAgentMessageStream: false,
       async run() {
         throw new Error("adapter exploded");
       },

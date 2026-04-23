@@ -1,12 +1,11 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { resolveAgentHarness, runAgentHarness } from "#core/agent-harness/index.js";
 import {
-  buildClaudeCodeSystemPrompt,
-  composeCanUseTools,
-  createAgentCommitGuard,
-  createDaemonHostControlGuard,
-} from "#core/agent-sdk/index.js";
+  createWorkflowAgentGuards,
+  resolveAgentHarness,
+  runAgentHarness,
+} from "#core/agent-harness/index.js";
+import { buildClaudeCodeSystemPrompt } from "#core/agent-sdk/index.js";
 import type { SDKMessage } from "#core/agent-sdk/types.js";
 import type { WorkflowRepairCheck, WorkflowStepContext } from "./run-types.js";
 import type { AgentStepConfig, AgentStepResult } from "./steps/step-executor-agent.js";
@@ -130,14 +129,10 @@ async function executeRepairAgentIteration(
       allowedTools: step.allowedTools,
       disallowedTools: step.disallowedTools,
       permissionMode: step.permissionMode,
-      persistSession: false,
       settingSources: step.settingSources,
       abortController,
       onMessage: appendMessage,
-      canUseTool: composeCanUseTools(
-        createDaemonHostControlGuard(),
-        createAgentCommitGuard(),
-      ),
+      canUseTool: createWorkflowAgentGuards(),
     },
     { write: () => true },
   );

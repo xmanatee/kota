@@ -18,7 +18,7 @@ vi.mock("node:child_process", () => ({
 import {
   createDaemonHostControlGuard,
   isDaemonHostControlCommand,
-} from "./daemon-control-guard.js";
+} from "#core/agent-harness/guards.js";
 import {
   buildQueryOptions,
   detectLocalClaudeCodeExecutable,

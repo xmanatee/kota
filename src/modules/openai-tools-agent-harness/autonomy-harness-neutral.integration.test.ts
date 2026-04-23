@@ -1,0 +1,218 @@
+/**
+ * Integration test: prove that an autonomy agent step executed via the
+ * workflow step-executor, and an autonomy judge executed via the critic
+ * repair check, both flow through the `openai-tools` harness without
+ * triggering the adapter's claude-specific rejection list (mcpServers,
+ * non-`bypass` permissionMode, settingSources).
+ *
+ * This is the regression guard for the "harness-neutral autonomy" contract:
+ * switching `defaultAgentHarness` to `"openai-tools"` must not leak claude
+ * options through the step-executor or the judge wrapper.
+ */
+
+import { mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type Anthropic from "@anthropic-ai/sdk";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { registerModelClientFactory } from "#core/model/model-client.js";
+import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import type { WorkflowAgentStep, WorkflowDefinition } from "#core/workflow/types.js";
+
+// Silence git shell-outs inside the critic: the temp project directories used
+// here are not git repos, but the critic unconditionally shells out to
+// `git diff --cached`. Mocking at the module level (hoisted) lets vi swap the
+// execFileSync binding before any import in the critic module resolves it.
+const execFileSyncMock = vi.hoisted(() => vi.fn(() => ""));
+vi.mock("node:child_process", async () => {
+  const actual = await vi.importActual<typeof import("node:child_process")>(
+    "node:child_process",
+  );
+  return { ...actual, execFileSync: execFileSyncMock };
+});
+
+import { createCriticCheck } from "#modules/autonomy/critic.js";
+import "../claude-agent-harness/index.js";
+import "./index.js";
+import { executeAgentStep } from "#core/workflow/steps/step-executor-agent.js";
+import { OPENAI_TOOLS_AGENT_HARNESS_NAME } from "./index.js";
+
+function makeDefinition(): WorkflowDefinition {
+  return {
+    name: "builder",
+    enabled: true,
+    recoveryCapable: false,
+    tags: [],
+    definitionPath: "src/modules/test/workflows/test/workflow.ts",
+    moduleRoot: "/test-module-root",
+    triggers: [],
+    steps: [],
+  };
+}
+
+function makeMetadata(): WorkflowRunMetadata {
+  return {
+    id: "run-openai-ok",
+    workflow: "builder",
+    runDir: ".kota/runs/run-openai-ok",
+    definitionPath: "src/modules/test/workflows/test/workflow.ts",
+    trigger: { event: "autonomy.queue.available", payload: {} },
+    startedAt: new Date().toISOString(),
+    status: "running",
+    steps: [],
+  };
+}
+
+function makeAgentStep(moduleRoot: string): WorkflowAgentStep {
+  // Intentionally no settingSources — that is a claude-SDK concept the
+  // openai-tools adapter rejects at the boundary when non-empty.
+  return {
+    id: "build",
+    type: "agent",
+    promptPath: "prompt.md",
+    moduleRoot,
+    model: "openai/gpt-4o-mini",
+    effort: "xhigh",
+    permissionMode: "bypassPermissions",
+    autonomyMode: "autonomous",
+    harness: OPENAI_TOOLS_AGENT_HARNESS_NAME,
+  };
+}
+
+function stubTextResponse(text: string): Anthropic.Message {
+  return {
+    id: "msg-ok",
+    type: "message",
+    role: "assistant",
+    model: "openai/gpt-4o-mini",
+    content: [{ type: "text", text, citations: null }],
+    stop_reason: "end_turn",
+    stop_sequence: null,
+    usage: {
+      input_tokens: 1,
+      output_tokens: 1,
+      cache_creation_input_tokens: null,
+      cache_read_input_tokens: null,
+      server_tool_use: null,
+      service_tier: null,
+    },
+  };
+}
+
+describe("autonomy agent steps and judges on openai-tools", () => {
+  const streamMock = vi.fn();
+  const createMock = vi.fn();
+
+  beforeEach(() => {
+    streamMock.mockReset();
+    createMock.mockReset();
+    registerModelClientFactory(({ model }) => ({
+      client: { messages: { create: createMock, stream: streamMock } },
+      model,
+      providerName: "test",
+    }));
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("runs a representative workflow agent step without the openai-tools adapter rejecting claude-specific options", async () => {
+    const projectDir = join(
+      tmpdir(),
+      `kota-openai-harness-step-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(join(projectDir, "prompt.md"), "build the thing");
+    mkdirSync(join(projectDir, ".kota/runs/run-openai-ok"), { recursive: true });
+    mkdirSync(join(projectDir, ".kota/runs/run-openai-ok/steps"), { recursive: true });
+
+    streamMock.mockReturnValue({
+      on(event: string, cb: (delta: string) => void) {
+        if (event === "text") cb("done");
+        return this;
+      },
+      finalMessage: async () => stubTextResponse("done"),
+    });
+
+    const result = await executeAgentStep(
+      makeDefinition(),
+      makeAgentStep(projectDir),
+      makeMetadata(),
+      { event: "autonomy.queue.available", payload: {} },
+      new AbortController(),
+      () => {},
+      () => {},
+      { projectDir, log: () => {} },
+    );
+
+    expect(result.harness).toBe(OPENAI_TOOLS_AGENT_HARNESS_NAME);
+    expect(streamMock).toHaveBeenCalledTimes(1);
+    const streamArgs = streamMock.mock.calls[0][0] as Record<string, unknown>;
+    // The openai-tools adapter would throw loudly if any claude-specific
+    // option leaked through; reaching this assertion means the boundary
+    // stayed neutral.
+    expect(streamArgs.model).toBe("openai/gpt-4o-mini");
+  });
+
+  it("runs the autonomy critic judge through the openai-tools harness", async () => {
+    const projectDir = join(
+      tmpdir(),
+      `kota-openai-harness-critic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    const doingDir = join(projectDir, "data/tasks/doing");
+    mkdirSync(doingDir, { recursive: true });
+    writeFileSync(
+      join(doingDir, "task-openai-judge.md"),
+      "---\ntitle: Openai judge\n---\nContent.",
+    );
+    const runDir = join(projectDir, ".kota/runs/run-critic");
+    mkdirSync(runDir, { recursive: true });
+
+    streamMock.mockReturnValue({
+      on(event: string, cb: (delta: string) => void) {
+        if (event === "text")
+          cb(
+            '{"verdict":"pass","critical_issues":[],"warnings":[],"summary":"ok"}',
+          );
+        return this;
+      },
+      finalMessage: async () =>
+        stubTextResponse(
+          '{"verdict":"pass","critical_issues":[],"warnings":[],"summary":"ok"}',
+        ),
+    });
+
+    // Call the critic with an explicit harness override so the autonomy
+    // default (claude-agent-sdk) does not short-circuit the test. This is
+    // also how the integration test proves the judge wrapper dispatches
+    // through the registry rather than hardcoding the SDK.
+    const check = createCriticCheck({
+      runDirPath: runDir,
+      harnessName: OPENAI_TOOLS_AGENT_HARNESS_NAME,
+      model: "openai/gpt-4o-mini",
+    });
+
+    const result = await (check as { run: (ctx: unknown) => Promise<string> }).run({
+      projectDir,
+      workflow: {
+        name: "builder",
+        runId: "run-critic",
+        runDirPath: runDir,
+        definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+      },
+      trigger: { event: "autonomy.queue.available", payload: {} },
+      stepOutputs: {},
+      stepResults: {},
+      runTool: vi.fn(),
+      emit: vi.fn(),
+      requestRestart: vi.fn(),
+      readPrompt: vi.fn(),
+      triggerWorkflow: vi.fn(),
+      readRuntimeState: vi.fn(),
+    });
+
+    expect(result).toMatch(/pass/);
+    expect(streamMock).toHaveBeenCalledTimes(1);
+  });
+});

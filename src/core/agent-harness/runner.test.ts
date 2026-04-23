@@ -23,6 +23,8 @@ function harnessStub(
       description: `stub ${name}`,
       supportsMultiTurn: true,
       supportedHookKinds,
+      askOwnerToolName: null,
+      emitsAgentMessageStream: false,
       run,
     },
     run,
