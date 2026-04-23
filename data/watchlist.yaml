@@ -177,3 +177,6 @@ resources:
       fingerprint: sha256:eb3abefd5ebf10b5a89bb88f2b08a17c
       summary: "Claude product blog — three autonomy-adjacent posts distilled 2026-04-23: Opus 4.7 best practices (reinforces harness defaults bullet; extended to cover judicious subagent default), session management + 1M context (rejected at autonomy-workflow layer — interactive-session primitive, already covered by KOTA workflow reset-over-compact), and production-MCP agent integration (reinforces tool-design hygiene and mcp-server transport-over-capabilities stance). No new KOTA surfaces opened."
       last_seen_at: "2026-04-23T13:39:48.068Z"
+  - url: https://github.com/microsoft/agent-framework
+    added: "2026-04-23"
+    notes: "Microsoft Agent Framework is the first-party successor to AutoGen (maintenance-mode). The AutoGen watchlist snapshot explicitly names it as the active investment target, so peer-runtime coverage of the Microsoft ecosystem is currently stale. Snapshot and distill on the next explorer cycle."
