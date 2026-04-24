@@ -36,17 +36,19 @@ export const REPLAY_AGENT_HARNESS_NAME_ENV = "KOTA_EVAL_HARNESS_REPLAY_ROOT";
  *
  * KOTA issues two shapes of agent call through `claude-agent-sdk`: workflow
  * step executions (generator path) and workflow judge calls (evaluator path,
- * today only `createCriticCheck`). Each shape has a stable prompt fingerprint
- * the adapter uses to pick the right recording without coupling to a private
- * systemPrompt constant:
+ * today the builder critic and the improver semantic gate). Each shape has a
+ * stable prompt fingerprint the adapter uses to pick the right recording
+ * without coupling to a private systemPrompt constant:
  *
  *  - **step**: prompt built by `buildAgentPrompt` in
  *    `src/core/workflow/steps/step-executor-agent.ts`; starts with the fixed
  *    header and declares `Workflow:`, `Step:`, `Run directory:`.
- *  - **judge**: prompt built by `createCriticCheck` in
- *    `src/modules/autonomy/critic.ts`; starts with `## Task (what was asked)`
- *    and declares `Run directory:` inside a `## Review context` block. The
- *    recording key is the judge's repair-check id (`critic-review`).
+ *  - **judge**: user-message prompts built inside autonomy judges. Each judge
+ *    has a unique leading header and a `Run directory:` line inside a
+ *    `## Review context` block. Known judges and their recording keys live in
+ *    `JUDGE_PROMPT_HEADERS` below; the header is matched first, and the
+ *    matching recording key is the judge's repair-check id so each fixture
+ *    stores at most one recording per agent call it replays.
  */
 type ParsedPromptContext =
   | { kind: "step"; workflow: string; stepId: string; runDir: string }
@@ -54,8 +56,34 @@ type ParsedPromptContext =
 
 const STEP_PROMPT_HEADER =
   "Execute one KOTA workflow step in this repository.";
-const JUDGE_PROMPT_HEADER = "## Task (what was asked)";
-const CRITIC_RECORDING_ID = "critic-review";
+
+/**
+ * Judge-prompt routing table. Entries are matched in order against the
+ * trimmed prompt; the first header to match picks the recording id. Adding a
+ * new judge is a one-line entry here plus a recording file at
+ * `<fixtureDir>/recordings/<recordingId>.json`.
+ *
+ *  - `critic-review` — `createCriticCheck` in
+ *    `src/modules/autonomy/critic.ts`. User message starts with
+ *    `## Task (what was asked)`.
+ *  - `semantic-gate-review` — `createImproverSemanticCheck` in
+ *    `src/modules/autonomy/improver-semantic-gate.ts`. User message starts
+ *    with `## Commit message`. The recording id matches the `ARTIFACT_NAME`
+ *    the gate writes (`semantic-gate-review.json`), so the recorder's
+ *    `--judge <label>` mode can author the recording end-to-end.
+ */
+const JUDGE_PROMPT_HEADERS: ReadonlyArray<{ header: string; recordingId: string }> = [
+  { header: "## Task (what was asked)", recordingId: "critic-review" },
+  { header: "## Commit message", recordingId: "semantic-gate-review" },
+];
+
+function matchJudgeHeader(prompt: string): string | null {
+  const trimmed = prompt.trimStart();
+  for (const { header, recordingId } of JUDGE_PROMPT_HEADERS) {
+    if (trimmed.startsWith(header)) return recordingId;
+  }
+  return null;
+}
 
 /**
  * Identify which recording a prompt should replay. Step prompts are keyed by
@@ -75,19 +103,21 @@ function parsePromptContext(prompt: string): ParsedPromptContext {
     }
     return { kind: "step", workflow, stepId, runDir };
   }
-  if (prompt.trimStart().startsWith(JUDGE_PROMPT_HEADER)) {
+  const recordingId = matchJudgeHeader(prompt);
+  if (recordingId !== null) {
     const runDir = /^Run directory:\s*(.+)$/m.exec(prompt)?.[1]?.trim();
     if (!runDir) {
       const preview = prompt.slice(0, 400);
       throw new Error(
-        `eval-harness replay adapter detected a critic prompt without a "Run directory:" line (first 400 chars: ${JSON.stringify(preview)}); the critic user-message shape built in src/modules/autonomy/critic.ts is load-bearing for replay.`,
+        `eval-harness replay adapter detected a judge prompt for recording "${recordingId}" without a "Run directory:" line (first 400 chars: ${JSON.stringify(preview)}); every autonomy judge prompt declares its run directory inside the "## Review context" block.`,
       );
     }
-    return { kind: "judge", stepId: CRITIC_RECORDING_ID, runDir };
+    return { kind: "judge", stepId: recordingId, runDir };
   }
   const preview = prompt.slice(0, 400);
+  const knownHeaders = JUDGE_PROMPT_HEADERS.map((e) => `"${e.header}"`).join(", ");
   throw new Error(
-    `eval-harness replay adapter does not recognize this agent-prompt shape (first 400 chars: ${JSON.stringify(preview)}). Known shapes: workflow-step prompts built by buildAgentPrompt (leading with "${STEP_PROMPT_HEADER}"), and workflow-judge prompts built by createCriticCheck (leading with "${JUDGE_PROMPT_HEADER}").`,
+    `eval-harness replay adapter does not recognize this agent-prompt shape (first 400 chars: ${JSON.stringify(preview)}). Known shapes: workflow-step prompts built by buildAgentPrompt (leading with "${STEP_PROMPT_HEADER}"), and workflow-judge prompts (leading with one of: ${knownHeaders}).`,
   );
 }
 

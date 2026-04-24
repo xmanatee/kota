@@ -22,6 +22,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { LoadedFixture } from "./fixture.js";
 import type { FixtureRun, FixtureRunOutcome, ResourceProfile } from "./fixture-run.js";
+import { applyFixtureTemplates } from "./fixture-templating.js";
 import type { FixturePredicate, PredicateEvalResult } from "./predicates.js";
 import { evaluatePredicates } from "./predicates.js";
 
@@ -132,6 +133,11 @@ function materializeFixtureWorkingDir(fixture: LoadedFixture): string {
     join(tmpdir(), `kota-eval-${fixture.spec.id}-`),
   );
   cpSync(fixture.initialStateDir, workingDir, { recursive: true });
+  // Rewrite `{{NOW_MINUS_HOURS:N}}` / `{{NOW_MINUS_MINUTES:N}}` placeholders so
+  // fixtures that depend on a sliding time window (e.g. improver reading a
+  // "failed in the last 24h" run under .kota/runs/) stay deterministic
+  // without a second setup surface. No-op for fixtures without templates.
+  applyFixtureTemplates(workingDir, Date.now());
   if (fixture.agentStepRecordings.length > 0) {
     initFixtureGit(workingDir);
   }

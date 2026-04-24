@@ -74,6 +74,15 @@ export type ExtractRecordingParams = {
   sourceRunId: string;
   stepId: string;
   fixtureDir: string;
+  /**
+   * Optional override for the source commit SHA. Older source runs committed
+   * successfully but did not persist the SHA to `steps/commit.json`; an
+   * operator who knows the SHA can pass it explicitly so the recorder's
+   * diff walk proceeds without recomputing it. `committed=true` is still
+   * enforced from the step artifact so a non-committing run can never be
+   * recorded.
+   */
+  explicitCommitSha?: string;
 };
 
 export type ExtractRecordingResult = {
@@ -218,7 +227,11 @@ export function extractAgentStepRecording(
   }
   const response = extractResponse(artifact, params.stepId);
   const workflowName = readWorkflowName(params.projectDir, params.sourceRunId);
-  const sourceCommitSha = resolveSourceCommitSha(params.projectDir, params.sourceRunId);
+  const sourceCommitSha = resolveSourceCommitSha(
+    params.projectDir,
+    params.sourceRunId,
+    params.explicitCommitSha,
+  );
 
   const { ops: commitOps, skippedOutsideProject: skippedFromCommit } =
     extractCommitDiffOperations(

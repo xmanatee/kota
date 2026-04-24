@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "workflowName": "improver",
+  "stepId": "semantic-gate-review",
+  "sourceRunId": "2026-04-24T17-23-37-109Z-improver-tqqgmc",
+  "response": {
+    "text": "{\n  \"verdict\": \"pass\",\n  \"critical_issues\": [],\n  \"warnings\": [],\n  \"summary\": \"Adds a dry-run stageability check to all autonomy workflows' repair loops, directly addressing a documented failure pattern that cost ~$43 and ~75 agent-minutes across two builder runs.\"\n}",
+    "subtype": "success",
+    "turns": 1,
+    "totalCostUsd": 0,
+    "inputTokens": 0,
+    "outputTokens": 0
+  },
+  "fileOperations": []
+}

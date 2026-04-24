@@ -1,0 +1,64 @@
+{
+  "id": "improver-agent-call-replay",
+  "description": "End-to-end replay of improver's `improve` agent step plus the semantic-quality-gate judge. Seeds a recent-timestamp failed builder run so the evidence gate fires, forwards a fixed `_runId` so predicates can inspect `.kota/runs/<id>/metadata.json` deterministically, and routes both the agent step and the semantic-gate judge through the eval-harness replay adapter so the agent-call branch regression-gates without paying for a real LLM run. Derived from source run 2026-04-24T17-23-37-109Z-improver-tqqgmc — the real improver run that committed c76400c0 (Catch commit-step ignore conflicts in the repair loop, not after agent runs).",
+  "role": "improver",
+  "workflowName": "improver",
+  "budgetMs": 180000,
+  "triggerPayload": {
+    "_runId": "fixture-improver-agent-call-replay-2026-04-24",
+    "workflow": "builder",
+    "runId": "fxt-failed-builder-seed",
+    "status": "failed",
+    "triggerEvent": "autonomy.queue.available",
+    "durationMs": 300000,
+    "definitionPath": "src/modules/autonomy/workflows/builder/workflow.ts",
+    "runDir": ".kota/runs/fxt-failed-builder-seed",
+    "tags": ["monitored"],
+    "autonomyMode": "autonomous"
+  },
+  "predicates": [
+    {
+      "kind": "file-exists",
+      "path": ".kota/runs/fixture-improver-agent-call-replay-2026-04-24/metadata.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-improver-agent-call-replay-2026-04-24/metadata.json",
+      "needle": "\"id\": \"improve\",\n      \"type\": \"agent\",\n      \"status\": \"success\""
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-improver-agent-call-replay-2026-04-24/metadata.json",
+      "needle": "\"id\": \"record-evidence-fingerprint\",\n      \"type\": \"code\",\n      \"status\": \"success\""
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-improver-agent-call-replay-2026-04-24/metadata.json",
+      "needle": "\"id\": \"commit\",\n      \"type\": \"code\",\n      \"status\": \"success\""
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-improver-agent-call-replay-2026-04-24/metadata.json",
+      "needle": "\"committed\": true"
+    },
+    {
+      "kind": "file-exists",
+      "path": ".kota/improver-evidence-gate.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": "src/modules/autonomy/commit.ts",
+      "needle": "export function checkCommitStageable"
+    },
+    {
+      "kind": "file-contains",
+      "path": "src/modules/autonomy/workflows/improver/workflow.ts",
+      "needle": "checkCommitStageable"
+    }
+  ],
+  "tags": ["autonomy", "agent-call-replay"],
+  "provenance": {
+    "kind": "real-failure",
+    "sourceRunId": "2026-04-24T17-23-37-109Z-improver-tqqgmc"
+  }
+}

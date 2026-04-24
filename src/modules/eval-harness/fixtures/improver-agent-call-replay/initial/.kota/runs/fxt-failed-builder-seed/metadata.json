@@ -1,0 +1,46 @@
+{
+  "id": "fxt-failed-builder-seed",
+  "workflow": "builder",
+  "definitionPath": "src/modules/autonomy/workflows/builder/workflow.ts",
+  "trigger": {
+    "event": "autonomy.queue.available",
+    "payload": {
+      "pullableCount": 1,
+      "actionableCount": 1
+    }
+  },
+  "startedAt": "{{NOW_MINUS_HOURS:1}}",
+  "completedAt": "{{NOW_MINUS_MINUTES:55}}",
+  "status": "failed",
+  "durationMs": 300000,
+  "runDir": ".kota/runs/fxt-failed-builder-seed",
+  "steps": [
+    {
+      "id": "inspect-ready-queue",
+      "type": "code",
+      "status": "success",
+      "startedAt": "{{NOW_MINUS_HOURS:1}}",
+      "completedAt": "{{NOW_MINUS_HOURS:1}}",
+      "durationMs": 5
+    },
+    {
+      "id": "build",
+      "type": "agent",
+      "status": "failed",
+      "startedAt": "{{NOW_MINUS_HOURS:1}}",
+      "completedAt": "{{NOW_MINUS_MINUTES:55}}",
+      "durationMs": 300000,
+      "error": "Fixture seed: builder failed at critic-review repair check.",
+      "output": {
+        "repairIterations": [
+          {
+            "iteration": 1,
+            "failures": [
+              { "id": "critic-review", "message": "seeded failure" }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

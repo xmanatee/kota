@@ -87,17 +87,21 @@ a reason the predicate/payload changes do not resolve.
   partial-wiring "missed one Done When", and the resume-doing-before-
   pull-ready pickup discipline); a replay-backed fixture gates the
   workflow-layer substrate, which is complementary, not overlapping.
-- **improver** — retired. 153 success / 953 non-success runs with real
-  failure shapes. The workflow reads the whole `.kota/runs/` aggregate
-  and edits KOTA source, prompts, and tests. The agent-step replay
-  adapter would cover the agent call itself, but a real fixture would
-  still need to materialize a realistic subset of the KOTA source tree
-  (enough for `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test`,
-  and `workflow validate` to succeed) plus a representative run-history
-  sample. That bootstrap is an order of magnitude larger than any
-  existing fixture's `initial/` tree and requires an explicit "clone
-  from KOTA source" harness capability to stay honest about fixture
-  isolation; replay alone does not unblock improver.
+- **improver (agent-call path)** — now covered by
+  `improver-agent-call-replay`. The recorded-agent-step replay adapter
+  exercises both improver's `improve` agent step and its
+  `semantic-quality-gate` judge from source run
+  `2026-04-24T17-23-37-109Z-improver-tqqgmc` without paying for any
+  LLM. The retirement reason that previously blocked an improver
+  fixture ("requires an explicit 'clone from KOTA source' harness
+  capability") was stale relative to today's scaffold pattern: the
+  fixture's `initial/package.json` stubs the repair-loop shell-outs as
+  `"true"` no-ops (same pattern `builder-agent-call-replay` uses), its
+  `.kota/runs/` seed rides the new fixture-templating pass so the
+  evidence gate always sees a recent actionable run, and the two
+  recordings (`improve.json` + `semantic-gate-review.json`) are
+  authored end-to-end by the recorder CLI. Real `pnpm
+  build`/`typecheck`/`lint`/`test` enforcement stays in KOTA's own CI.
 - **research-retry** — retired. 56 runs, all status=success. The
   workflow retries blocked research tasks using authenticated-browser
   and rendered-browser tools contributed by the browser module. The

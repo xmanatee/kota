@@ -108,41 +108,46 @@ numbers don't support a gate either way — rerun with correct config first.
 
 ## Recorded Agent-Step Replay
 
-Fixtures that exercise an agent-call branch ship a recording under
-`<fixtureDir>/recordings/<stepId>.json`. Each recording captures a real
-past `steps/<stepId>.json` response envelope plus the post-agent file
-operations. The subprocess executor forwards the fixture directory as
-`KOTA_EVAL_HARNESS_REPLAY_ROOT`; the module's top-level registration
-sees the env var and overrides the `claude-agent-sdk` harness slot with
-a replay adapter for that subprocess. Production selection is unchanged.
+Agent-call fixtures ship one recording per agent call under
+`<fixtureDir>/recordings/<id>.json`. The subprocess executor forwards
+the fixture directory as `KOTA_EVAL_HARNESS_REPLAY_ROOT`; the module
+overrides the `claude-agent-sdk` slot with a replay adapter for that
+subprocess. Production selection is unchanged.
 
-The replay adapter substitutes `{{runDir}}` inside recorded paths,
-writes every operation to the fixture working directory, and stages
-them through `git add -A` so downstream repair-loop checks observe the
-same working-tree shape the real agent produced.
-
-The loader pins provenance: every recording's `sourceRunId` must match
-the fixture's `real-failure` provenance. `pnpm kota eval
-record-agent-step` is the single authoring surface and operates in two
-mutually exclusive modes:
+The adapter substitutes `{{runDir}}` inside recorded paths, writes
+operations to the fixture working dir, and `git add -A`s them so
+downstream repair checks see the same tree the real agent produced.
+Every recording's `sourceRunId` must match the fixture's
+`real-failure` provenance. `pnpm kota eval record-agent-step` is the
+single authoring surface:
 
 - `--step <id>` resolves the source commit SHA from
-  `steps/commit.json` and walks the diff, so Edit edits, `pnpm kota
-  task move/create`, and `git mv` round-trip as `fileOperations`
-  without hand transcription. Run-directory artifacts come from the
+  `steps/commit.json` and walks the diff; repo-tree mutations
+  round-trip as `fileOperations`. Run-dir artifacts come from the
   Write-event scan and stay templated to `{{runDir}}`. A
   non-committing source run is a hard error.
 - `--judge <label>` reads the source run's `<runDir>/<label>.json`
-  verdict (what `handleVerdict` persists) and wraps it as
-  `response.text` with empty `fileOperations` — judges have no tool
-  access. A missing labeled artifact fails loudly naming run id and
-  label. Two fixture recordings (workflow-step + judge) sit side by
-  side in `<fixtureDir>/recordings/`.
+  verdict and wraps it as `response.text` with empty
+  `fileOperations` — judges have no tool access.
+- `--source-commit-sha <sha>` is an explicit escape hatch for source
+  runs whose `steps/commit.json` pre-dates the SHA capture. The
+  committed=true contract is still enforced.
 
 Two prompt shapes route through the same adapter: workflow-step
-prompts keyed by the `Step:` marker, and judge prompts (today the
-critic) keyed to the fixed id `critic-review`. Judge recordings skip
+prompts keyed by the `Step:` marker, and judge prompts keyed by their
+leading header. Known judge headers → recording ids:
+
+- `## Task (what was asked)` → `critic-review`.
+- `## Commit message` → `semantic-gate-review`.
+
+A new judge adds its header + recording-id to the replay-adapter table
+and authors its recording via `--judge <label>`. Judge recordings skip
 the workflow-name match because their prompt never names a workflow.
+
+Fixtures that depend on a time-sliding window (e.g. improver reading
+runs under `.kota/runs/`) use the runner's fixture-templating pass:
+`{{NOW_MINUS_HOURS:N}}` and `{{NOW_MINUS_MINUTES:N}}` are rewritten to
+ISO timestamps `N` units before `Date.now()` at materialization.
 
 ## Boundaries
 

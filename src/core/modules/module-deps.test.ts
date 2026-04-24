@@ -16,6 +16,11 @@ function listModuleDirs(): string[] {
 function collectTsFiles(dir: string): string[] {
   const results: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    // Eval-harness fixtures snapshot repo `.ts` sources via
+    // `git show <commit>^:<path>` for replay, so their `initial/` trees
+    // hide stale imports that are not part of the runtime module. Skip
+    // them here the same way vitest `exclude` does.
+    if (entry.isDirectory() && entry.name === "fixtures") continue;
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
       results.push(...collectTsFiles(full));

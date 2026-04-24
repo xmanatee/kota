@@ -1,12 +1,12 @@
 ---
 id: task-seed-improver-agent-call-replay-fixture-using-reco
 title: Seed improver agent-call replay fixture using recorder auto-extraction
-status: ready
+status: done
 priority: p1
 area: modules
 summary: Apply the builder-agent-call-replay pattern to improver: one replay fixture covering both the improve agent step and the semantic-gate-review judge, authored entirely through pnpm kota eval record-agent-step with no hand-authored recordings.
 created_at: 2026-04-24T21:49:36.813Z
-updated_at: 2026-04-24T21:49:36.813Z
+updated_at: 2026-04-24T22:11:14.871Z
 ---
 
 ## Problem

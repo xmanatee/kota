@@ -235,6 +235,52 @@ describe("createReplayAgentHarness", () => {
     expect(JSON.parse(result.text).verdict).toBe("pass");
   });
 
+  it("replays an improver semantic-gate prompt against the semantic-gate-review recording", async () => {
+    const gateRecording: AgentStepRecording = {
+      version: 1,
+      workflowName: "improver",
+      stepId: "semantic-gate-review",
+      sourceRunId: "2026-04-24T17-23-37-109Z-improver-tqqgmc",
+      response: {
+        text: JSON.stringify({
+          verdict: "pass",
+          critical_issues: [],
+          warnings: [],
+          summary: "Gate replay.",
+        }),
+        subtype: "success",
+        turns: 1,
+        totalCostUsd: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+      },
+      fileOperations: [],
+    };
+    writeFileSync(
+      recordingPathForStep(fixtureDir, "semantic-gate-review"),
+      JSON.stringify(gateRecording),
+    );
+    const harness = createReplayAgentHarness(fixtureDir);
+    const gatePrompt = [
+      "## Commit message",
+      "A real improver commit",
+      "",
+      "## Changed files",
+      "src/foo.ts",
+      "",
+      "## Review context",
+      "Project root: /tmp/project",
+      "Run directory: .kota/runs/replay-test-run",
+    ].join("\n");
+    const result = await harness.run({
+      prompt: gatePrompt,
+      cwd,
+      effort: "xhigh",
+    });
+    expect(result.isError).toBe(false);
+    expect(JSON.parse(result.text).verdict).toBe("pass");
+  });
+
   it("skips the workflow-name match on judge prompts even when the recording declares a different workflow", async () => {
     // Declaring a workflow name on judge recordings is allowed for
     // traceability; the adapter does not enforce a match because the judge

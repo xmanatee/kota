@@ -16,6 +16,15 @@ export default defineConfig({
   },
   test: {
     include: ["src/**/*.test.ts"],
+    // Eval-harness fixture `initial/` trees are verbatim snapshots of repo
+    // source (pulled via `git show <commit>^:<path>` by the recorder). They
+    // are not part of the KOTA codebase; running them as tests picks up
+    // stale imports and violates architecture contracts.
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "src/modules/eval-harness/fixtures/**/initial/**",
+    ],
     // Many tests spawn subprocesses (Python REPL, CLI binary, MCP servers).
     // Capping at 4 prevents resource starvation under full parallel load.
     maxForks: 4,

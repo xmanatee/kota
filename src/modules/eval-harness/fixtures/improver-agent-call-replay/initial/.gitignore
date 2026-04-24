@@ -1,0 +1,13 @@
+# Mirror the repo-root .kota/ ignore so a workflow's tmpdir-git inside this
+# fixture sees realistic gitignore behavior (run artifacts under .kota/runs/
+# stay untracked, matching production). Excluding .kota/ as a whole would
+# block the outer repo from staging the fixture seed at
+# .kota/runs/fxt-failed-builder-seed/, because git refuses to re-include
+# files inside an excluded parent directory. Excluding only the contents
+# (.kota/*) leaves the directory itself includable, then we selectively
+# re-include the seed subtree.
+.kota/*
+!.kota/runs/
+.kota/runs/*
+!.kota/runs/fxt-failed-builder-seed/
+node_modules/

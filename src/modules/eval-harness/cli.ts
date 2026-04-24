@@ -230,7 +230,11 @@ export function buildEvalCommand(projectDir: string): Command {
       "--fixture <id>",
       "Target fixture id under src/modules/eval-harness/fixtures/",
     )
-    .action((opts: { runId: string; step?: string; judge?: string; fixture: string }) => {
+    .option(
+      "--source-commit-sha <sha>",
+      "Override for the source commit SHA; use when steps/commit.json reports committed=true but pre-dates the SHA capture. Ignored with --judge (judges have no commit).",
+    )
+    .action((opts: { runId: string; step?: string; judge?: string; fixture: string; sourceCommitSha?: string }) => {
       const fixtureDir = join(fixturesRoot, opts.fixture);
       if (!opts.step === !opts.judge) {
         throw new Error(
@@ -265,6 +269,9 @@ export function buildEvalCommand(projectDir: string): Command {
         sourceRunId: opts.runId,
         stepId: opts.step!,
         fixtureDir,
+        ...(opts.sourceCommitSha !== undefined && {
+          explicitCommitSha: opts.sourceCommitSha,
+        }),
       });
       print(stack(
         line(
