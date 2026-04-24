@@ -106,6 +106,37 @@ stable resource profiles, the regression is real. `not-gated` with a
 resource-profile-drift or repeat-count-below-minimum reason means the
 numbers don't support a gate either way — rerun with correct config first.
 
+## Recorded Agent-Step Replay
+
+Fixtures that exercise an agent-call branch ship a recording under
+`<fixtureDir>/recordings/<stepId>.json`. Each recording captures a real
+past `.kota/runs/<id>/steps/<stepId>.json` response envelope plus the
+post-agent file operations the real run produced. The subprocess
+executor forwards the fixture directory as
+`KOTA_EVAL_HARNESS_REPLAY_ROOT`; the eval-harness module's top-level
+registration sees the env var and overrides the `claude-agent-sdk`
+harness slot with a replay adapter for that subprocess. Production
+selection is unchanged — operator and daemon runs never set the env.
+
+The replay adapter substitutes `{{runDir}}` inside recorded paths with
+the current run directory parsed from the agent prompt, writes every
+file operation to the fixture working directory, and stages the results
+through `git add -A` so downstream repair-loop checks
+(`task-queue-valid`, `commit-stageable`) observe the same working-tree
+shape the real agent produced with `pnpm kota task {create,move}`.
+
+The loader pins provenance: a fixture with any recording must declare
+`real-failure` provenance, and every recording's `sourceRunId` must
+match the fixture's `provenance.sourceRunId`. Mismatches, unknown
+operation kinds, and unsupported recording versions fail at
+`loadFixture` with a typed error naming the offending file. The
+`pnpm kota eval record-agent-step --run-id <id> --step <step> --fixture
+<id>` CLI extracts a recording from a real run's step artifact,
+auto-filling the response envelope and Write-tool side effects; Edit
+and Bash mutations (task moves, task creates) are the fixture author's
+responsibility to encode as additional `fileOperations`, with the
+source run id kept pinned.
+
 ## Boundaries
 
 - Scoring, fixture-run contract, runner, gate decisions, and the persisted
@@ -117,3 +148,7 @@ numbers don't support a gate either way — rerun with correct config first.
 - Fixture working dirs materialize under the OS tmpdir, never inside the
   operator's repo. Always go through the harness entry points; do not
   mutate a fixture's initial state at runtime.
+- The replay adapter is module-owned. Do not add a parallel fixture-
+  scoped mock layer under `src/core/agent-harness/`; the replay adapter
+  registers through the standard registry and is swapped in via the
+  normal env-var seam the subprocess executor already owns.

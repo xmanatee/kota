@@ -16,6 +16,7 @@
  * produce an answer".
  */
 
+import { spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -36,6 +37,15 @@ export type WorkflowExecutionRequest = {
    * load-bearing. Forwarded verbatim by the executor — no defaulting.
    */
   triggerPayload?: Record<string, unknown>;
+  /**
+   * Absolute path to the fixture directory when its `recordings/` tree has
+   * at least one agent-step recording. The subprocess executor forwards
+   * this via `KOTA_EVAL_HARNESS_REPLAY_ROOT` so the eval-harness module
+   * installs its replay adapter in place of the claude-agent-sdk
+   * registration inside the child. Absent for smoke fixtures whose
+   * workflows never invoke an agent step.
+   */
+  replayRecordingsRoot?: string;
 };
 
 /** Outcome a WorkflowExecutor reports back to the runner. */
@@ -70,6 +80,48 @@ export type FixtureRunReport = {
   executionOutcome: WorkflowExecutionOutcome;
 };
 
+function runGitSync(cwd: string, args: string[]): void {
+  const result = spawnSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.status !== 0) {
+    const detail = [result.stdout, result.stderr]
+      .filter((s) => s && s.length > 0)
+      .join("\n")
+      .trim();
+    throw new Error(
+      `git ${args.join(" ")} failed in ${cwd}${detail ? `: ${detail}` : ""}`,
+    );
+  }
+}
+
+/**
+ * Initialize a git repo inside the fixture working directory so workflows
+ * whose steps shell out to git (writeScope enforcement, commit step) see
+ * a coherent repo. Seeds an initial commit of the fixture's `initial/`
+ * tree so every later mutation shows up as a proper diff against HEAD,
+ * matching how workflows inspect state in a real repo.
+ */
+function initFixtureGit(workingDir: string): void {
+  runGitSync(workingDir, ["init", "--quiet", "--initial-branch=main"]);
+  runGitSync(workingDir, ["config", "user.email", "eval-harness@kota.local"]);
+  runGitSync(workingDir, ["config", "user.name", "KOTA Eval Harness"]);
+  runGitSync(workingDir, ["config", "commit.gpgsign", "false"]);
+  runGitSync(workingDir, ["add", "-A"]);
+  // `git commit` refuses an empty tree; fixtures always seed at least
+  // `initial/…`, but allow an empty commit just in case so the invariant
+  // "HEAD exists" holds universally for later diffs.
+  runGitSync(workingDir, [
+    "commit",
+    "--allow-empty",
+    "-m",
+    "eval-harness fixture initial state",
+    "--quiet",
+  ]);
+}
+
 /**
  * Materialize the fixture's initial state into a fresh working directory.
  * The directory is created under the OS tmp dir by default so harness runs
@@ -80,6 +132,9 @@ function materializeFixtureWorkingDir(fixture: LoadedFixture): string {
     join(tmpdir(), `kota-eval-${fixture.spec.id}-`),
   );
   cpSync(fixture.initialStateDir, workingDir, { recursive: true });
+  if (fixture.agentStepRecordings.length > 0) {
+    initFixtureGit(workingDir);
+  }
   return workingDir;
 }
 
@@ -148,6 +203,9 @@ export async function runFixture(
       budgetMs: params.fixture.spec.budgetMs,
       ...(params.fixture.spec.triggerPayload !== undefined && {
         triggerPayload: params.fixture.spec.triggerPayload,
+      }),
+      ...(params.fixture.agentStepRecordings.length > 0 && {
+        replayRecordingsRoot: params.fixture.fixtureDir,
       }),
     });
   } catch (err) {

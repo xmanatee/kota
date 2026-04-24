@@ -1,0 +1,7 @@
+{
+  "name": "kota-eval-harness-fixture",
+  "private": true,
+  "scripts": {
+    "validate-tasks": "node \"$KOTA_DIST_DIR/validate-queue.js\""
+  }
+}

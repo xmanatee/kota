@@ -17,7 +17,8 @@
 
 import { spawn } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { REPLAY_AGENT_HARNESS_NAME_ENV } from "./replay-harness.js";
 import type {
   WorkflowExecutionOutcome,
   WorkflowExecutionRequest,
@@ -81,11 +82,23 @@ export function createSubprocessExecutor(
     async execute(request: WorkflowExecutionRequest): Promise<WorkflowExecutionOutcome> {
       const startMs = Date.now();
 
+      // Derive the KOTA dist directory from the binary path so fixture
+      // scripts (e.g. a minimal `package.json` whose "validate-tasks"
+      // entry forwards to the real validator) can resolve it without
+      // hard-coding the operator's checkout path. `bin/kota.mjs` lives
+      // one directory above `dist/`.
+      const kotaRoot = dirname(dirname(resolve(options.kotaBinaryPath)));
+      const kotaDistDir = join(kotaRoot, "dist");
+
       const env = {
         ...process.env,
         ...(options.extraEnv ?? {}),
         HOME: request.workingDir,
         KOTA_PROJECT_DIR: request.workingDir,
+        KOTA_DIST_DIR: kotaDistDir,
+        ...(request.replayRecordingsRoot !== undefined && {
+          [REPLAY_AGENT_HARNESS_NAME_ENV]: request.replayRecordingsRoot,
+        }),
       };
 
       const execArgs = [
@@ -103,7 +116,13 @@ export function createSubprocessExecutor(
         stdio: ["ignore", "pipe", "pipe"],
       });
       child.stdout.resume();
-      child.stderr.resume();
+      // Forward child stderr to the parent so module-load diagnostics and
+      // workflow-step errors surface in `pnpm kota eval run` output. Parent
+      // logs include the same information the daemon would; piping through
+      // here keeps fixture failures debuggable without reading tmp dirs.
+      child.stderr.on("data", (chunk) => {
+        process.stderr.write(chunk);
+      });
 
       let timedOut = false;
       const budgetTimer = setTimeout(() => {

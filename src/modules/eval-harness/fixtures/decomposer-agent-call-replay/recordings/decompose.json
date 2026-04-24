@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "workflowName": "decomposer",
+  "stepId": "decompose",
+  "sourceRunId": "2026-04-18T15-45-49-339Z-decomposer-zloyo6",
+  "response": {
+    "text": "Decomposed task-fixture-agent-call-replay-target into two ready-queue subtasks (external-project E2E fixture test + workflow-contribution precedence rule). Original moved to dropped/ with a `## Decomposed` section. `pnpm run validate-tasks` passes. Replay of source run 2026-04-18T15-45-49-339Z-decomposer-zloyo6.",
+    "subtype": "success",
+    "turns": 47,
+    "totalCostUsd": 2.1795807500000004,
+    "inputTokens": 52,
+    "outputTokens": 18480,
+    "sessionId": "da0e7371-f14f-4a29-80d5-99fa595e31fc"
+  },
+  "fileOperations": [
+    {
+      "op": "delete",
+      "path": "data/tasks/doing/task-fixture-agent-call-replay-target.md"
+    },
+    {
+      "op": "write",
+      "path": "data/tasks/dropped/task-fixture-agent-call-replay-target.md",
+      "content": "---\nid: task-fixture-agent-call-replay-target\ntitle: Fixture target task for decomposer agent-call replay\nstatus: dropped\npriority: p2\narea: architecture\nsummary: Models a wide-scope builder-timeout task so the decomposer fixture can exercise the agent-call branch end-to-end under replay. Mirrors the real builder-timeout shape that produced source run 2026-04-18T15-45-49-339Z-decomposer-zloyo6, without pulling in the original task's external ties.\ncreated_at: 2026-04-24T14:00:00.000Z\nupdated_at: 2026-04-24T17:00:05.000Z\n---\n\n## Problem\n\nFixture seed task. A prior builder run (seeded as\n`2026-04-24T14-00-00-000Z-builder-agcf01` in this fixture's\n`.kota/runs/`) claimed this task and timed out after three hours.\nThe decomposer workflow is expected to pick this task out of `doing/`\nand split it into two smaller ready-queue tasks.\n\n## Desired Outcome\n\nNot applicable. The fixture predicates verify the post-decomposer\nstate: this file moves to `dropped/` with a `## Decomposed` section,\ntwo new subtasks appear in `ready/`, and the decomposer workflow\ncommits successfully under replay without any real LLM call.\n\n## Constraints\n\nThis task file is fixture state. Do not refactor the body — the\nrecorded decompose response references the task id and the predicates\nrely on the known post-state.\n\nFIXTURE-CANARY-decomposer-agent-call-replay-target\n\n## Done When\n\nNever; this task exists only to exercise the decomposer agent-call\nbranch under replay.\n\n## Decomposed\n\nReplaced by two ready-queue subtasks (external-project E2E fixture\ntest and workflow-contribution precedence rule) during decomposer\nreplay of source run 2026-04-18T15-45-49-339Z-decomposer-zloyo6.\n"
+    },
+    {
+      "op": "write",
+      "path": "data/tasks/ready/task-fixture-replay-subtask-external-project-e2e.md",
+      "content": "---\nid: task-fixture-replay-subtask-external-project-e2e\ntitle: External-project autonomy end-to-end fixture test\nstatus: ready\npriority: p2\narea: architecture\nsummary: Add an integration test that boots the daemon against a disposable tmp fixture projectDir and runs a trivial autonomy workflow step to completion, asserting reads and writes land inside the fixture directory rather than KOTA's own tree.\ncreated_at: 2026-04-24T17:00:05.000Z\nupdated_at: 2026-04-24T17:00:05.000Z\n---\n\n## Problem\n\nKOTA's existing integration tests all run against KOTA's own repo.\nThe external-projects work landed the core pieces (DaemonConfig.projectDir,\nresolveProjectDir, per-module install root) but left no end-to-end\nevidence that a workflow step actually runs inside a foreign\nprojectDir.\n\n## Desired Outcome\n\nAn integration test boots the daemon with a projectDir that is a\ndisposable fixture directory distinct from KOTA's source and runs\nat least one autonomy workflow step to completion. Reads and writes\nmust stay inside the fixture directory.\n\n## Constraints\n\n- Reuse the existing daemon and workflow runtime startup paths.\n- Build the fixture project in os.tmpdir() and clean up on teardown.\n- Do not weaken module install-root resolution for shipped prompts.\n\n## Done When\n\n- A new integration test targets a fixture projectDir outside KOTA's\n  tree and runs a workflow step to completion.\n- File activity observed during the run stays inside the fixture.\n- The done external-projects task's remaining-architectural-work note\n  either becomes unnecessary because this task covered it, or is\n  reshaped into a follow-up referencing the closed gap.\n"
+    },
+    {
+      "op": "write",
+      "path": "data/tasks/ready/task-fixture-replay-subtask-workflow-precedence.md",
+      "content": "---\nid: task-fixture-replay-subtask-workflow-precedence\ntitle: Workflow-contribution precedence rule for project-local vs module-shipped workflows\nstatus: ready\npriority: p2\narea: architecture\nsummary: Define and enforce precedence between module-shipped workflow contributions and workflows a target project ships under .kota/modules/. Cover with integration tests exercising both a non-colliding project-local workflow and a colliding name.\ncreated_at: 2026-04-24T17:00:05.000Z\nupdated_at: 2026-04-24T17:00:05.000Z\n---\n\n## Problem\n\nThe module loader resolves promptPath against the module install root.\nA target project shipping its own workflow under .kota/modules/ has\nno documented rule for how its prompt path is resolved, whether it\ncan override a module-shipped workflow name, or what happens on name\ncollision.\n\n## Desired Outcome\n\n- The loader applies a documented precedence rule between\n  project-local and module-shipped workflow contributions.\n- Integration tests exercise a non-colliding project-local workflow\n  and a colliding name.\n- Precedence is described in a short paragraph in the relevant\n  AGENTS.md (src/core/workflow or src/modules/AGENTS.md).\n\n## Constraints\n\n- Project-local workflow prompts resolve against projectDir.\n- Module-shipped workflow prompts continue to resolve against the\n  module's own install root.\n- If the resolved precedence forbids project-local override of\n  module-shipped names, the loader fails loudly at load time rather\n  than silently picking one.\n\n## Done When\n\n- The loader enforces a documented precedence rule.\n- Integration tests cover both the non-colliding and colliding cases.\n- The precedence rule is documented in AGENTS.md in one paragraph.\n"
+    },
+    {
+      "op": "write",
+      "path": "{{runDir}}/commit-message.txt",
+      "content": "Decompose task-fixture-agent-call-replay-target into external-project E2E and workflow-precedence subtasks\n\nReplay of source run 2026-04-18T15-45-49-339Z-decomposer-zloyo6.\n"
+    },
+    {
+      "op": "write",
+      "path": "{{runDir}}/notes.md",
+      "content": "Replay notes for decomposer-agent-call-replay fixture.\n\nSource run: 2026-04-18T15-45-49-339Z-decomposer-zloyo6.\nThe response envelope, turn count, and token usage are lifted verbatim from that source step artifact. The file operations materialize the final post-agent state the real run produced (original task moved to dropped/ with a `## Decomposed` section, two ready-queue subtasks created).\n"
+    }
+  ]
+}

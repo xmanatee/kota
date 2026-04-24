@@ -13,12 +13,49 @@
  * There is no parallel metrics store.
  */
 
+import { registerAgentHarness } from "#core/agent-harness/index.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import evalHarnessCadence from "./cadence-workflow.js";
 import { buildEvalCommand } from "./cli.js";
 import evalHarnessRegressionNotify from "./regression-notify-workflow.js";
+import {
+  createReplayAgentHarness,
+  resolveReplayRootFromEnv,
+} from "./replay-harness.js";
 import { evalHarnessRoutes } from "./routes.js";
 
+// Register the replay adapter at import time when the env-gated seam is
+// armed. This has to happen outside `onLoad` because the CLI surface loads
+// modules in `commandsOnly` mode (onLoad skipped), and the subprocess
+// executor invokes `kota workflow exec` through that same CLI surface.
+// Module discovery imports project modules in alphabetical directory order
+// — `claude-agent-harness` < `eval-harness` — so this registration runs
+// after the claude adapter's import-time `registerAgentHarness` and the
+// `Map.set` override lands cleanly. Production paths leave the env unset
+// and skip registration.
+(() => {
+  const replayRoot = resolveReplayRootFromEnv();
+  if (replayRoot === null) return;
+  registerAgentHarness(createReplayAgentHarness(replayRoot));
+  // Parent eval-harness CLI forwards child stderr to the operator, so this
+  // diagnostic surfaces in `pnpm kota eval run` output when replay is on.
+  console.error(
+    `[eval-harness] replay adapter active; claude-agent-sdk overridden from ${replayRoot}`,
+  );
+})();
+
+export type {
+  AgentStepFileOperation,
+  AgentStepRecording,
+  AgentStepRecordingResponse,
+} from "./agent-step-recording.js";
+export {
+  AgentStepRecordingError,
+  loadAgentStepRecordings,
+  parseAgentStepRecording,
+  recordingPathForStep,
+  recordingsDirForFixture,
+} from "./agent-step-recording.js";
 export type {
   BaselineAssessment,
   CandidateAssessment,
@@ -38,7 +75,7 @@ export type {
   FixtureSpecFile,
   LoadedFixture,
 } from "./fixture.js";
-export { FixtureProvenanceError, loadAllFixtures, loadFixture } from "./fixture.js";
+export { FixtureProvenanceError, FixtureRecordingProvenanceError, loadAllFixtures, loadFixture } from "./fixture.js";
 export type {
   FixtureRun,
   FixtureRunOutcome,
@@ -54,6 +91,11 @@ export {
 } from "./noise-band.js";
 export type { FixturePredicate, PredicateEvalResult } from "./predicates.js";
 export { evaluatePredicate, evaluatePredicates } from "./predicates.js";
+export {
+  createReplayAgentHarness,
+  REPLAY_AGENT_HARNESS_NAME_ENV,
+  resolveReplayRootFromEnv,
+} from "./replay-harness.js";
 export type {
   FixtureRunReport,
   RunFixtureParams,
@@ -72,7 +114,12 @@ const evalHarnessModule: KotaModule = {
   version: "0.2.0",
   description:
     "Autonomy eval harness: fixture-run contract, scoring, regression gate, fixture runner, CLI + HTTP route, and weekly cadence workflow.",
-  dependencies: ["autonomy", "rendering"],
+  // Depend on claude-agent-harness so its top-level registerAgentHarness
+  // runs first; the replay adapter below then overwrites the
+  // "claude-agent-sdk" slot when KOTA_EVAL_HARNESS_REPLAY_ROOT is set. The
+  // subprocess executor is the only production caller that sets that env,
+  // so operator and daemon runs are unaffected.
+  dependencies: ["autonomy", "rendering", "claude-agent-harness"],
   commands: (ctx) => [buildEvalCommand(ctx.cwd)],
   routes: (ctx) => evalHarnessRoutes(ctx),
   workflows: [evalHarnessCadence, evalHarnessRegressionNotify],

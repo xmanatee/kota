@@ -1,12 +1,12 @@
 ---
 id: task-bootstrap-deterministic-agent-step-replay-for-eval
 title: Bootstrap deterministic agent-step replay for eval-harness agent-call paths
-status: ready
+status: done
 priority: p1
 area: modules
 summary: Add a recorded-response agent-step fake at the harness subprocess boundary so autonomy fixtures can regression-gate agent-call paths (decomposer, builder, critic) without paying real LLM token costs per replay.
 created_at: 2026-04-24T15:31:35.687Z
-updated_at: 2026-04-24T15:31:35.687Z
+updated_at: 2026-04-24T18:10:06.755Z
 ---
 
 ## Problem

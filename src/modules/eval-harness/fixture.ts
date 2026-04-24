@@ -12,6 +12,12 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import {
+  type AgentStepRecording,
+  AgentStepRecordingError,
+  loadAgentStepRecordings,
+  recordingsDirForFixture,
+} from "./agent-step-recording.js";
 import type { FixturePredicate } from "./predicates.js";
 
 /** The role the fixture is scored against. Matches autonomy workflow names. */
@@ -108,6 +114,14 @@ export type LoadedFixture = {
   fixtureDir: string;
   /** Absolute path to this fixture's `initial/` directory. */
   initialStateDir: string;
+  /**
+   * Recorded agent-step responses discovered under `<fixtureDir>/recordings/`.
+   * Empty when the fixture does not exercise any agent-call path. The loader
+   * pre-validates every recording before the runner executes so a malformed
+   * or provenance-mismatched recording fails eagerly rather than inside a
+   * fixture subprocess.
+   */
+  agentStepRecordings: readonly AgentStepRecording[];
 };
 
 const MAX_BUDGET_MS = 60 * 60 * 1000;
@@ -275,6 +289,45 @@ function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSpecFile 
 }
 
 /**
+ * Thrown when a fixture declares real-failure provenance but its agent-step
+ * recordings cite a different source run id, or vice versa. Keeps the
+ * recording-is-real-evidence invariant loud at load time.
+ */
+export class FixtureRecordingProvenanceError extends Error {
+  readonly fixtureDir: string;
+  constructor(fixtureDir: string, reason: string) {
+    super(
+      `Fixture at "${fixtureDir}" has inconsistent agent-step recording provenance: ${reason}`,
+    );
+    this.name = "FixtureRecordingProvenanceError";
+    this.fixtureDir = fixtureDir;
+  }
+}
+
+function validateRecordingProvenance(
+  fixtureDir: string,
+  spec: FixtureSpecFile,
+  recordings: readonly AgentStepRecording[],
+): void {
+  if (recordings.length === 0) return;
+  if (spec.provenance.kind !== "real-failure") {
+    throw new FixtureRecordingProvenanceError(
+      fixtureDir,
+      `agent-step recordings are present but fixture provenance kind is "${spec.provenance.kind}". Agent-call fixtures must declare "real-failure" provenance so every recording points at a real source run id.`,
+    );
+  }
+  const expected = spec.provenance.sourceRunId;
+  for (const recording of recordings) {
+    if (recording.sourceRunId !== expected) {
+      throw new FixtureRecordingProvenanceError(
+        fixtureDir,
+        `recording for step "${recording.stepId}" cites sourceRunId "${recording.sourceRunId}" but fixture provenance.sourceRunId is "${expected}".`,
+      );
+    }
+  }
+}
+
+/**
  * Load a single fixture by id from the fixtures root. Fails loudly when the
  * directory layout is wrong — silent skips would hide eval coverage gaps.
  */
@@ -299,7 +352,19 @@ export function loadFixture(fixturesRoot: string, id: string): LoadedFixture {
       `Fixture "${id}" missing required initial/ directory at "${initialStateDir}".`,
     );
   }
-  return { spec, fixtureDir, initialStateDir };
+  let agentStepRecordings: readonly AgentStepRecording[];
+  try {
+    agentStepRecordings = loadAgentStepRecordings(fixtureDir);
+  } catch (err) {
+    if (err instanceof AgentStepRecordingError) {
+      throw new Error(
+        `Fixture "${id}" has invalid agent-step recording (${recordingsDirForFixture(fixtureDir)}): ${err.message}`,
+      );
+    }
+    throw err;
+  }
+  validateRecordingProvenance(fixtureDir, spec, agentStepRecordings);
+  return { spec, fixtureDir, initialStateDir, agentStepRecordings };
 }
 
 /**

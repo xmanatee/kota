@@ -28,6 +28,7 @@ import { print } from "#modules/rendering/transport.js";
 import { runEvalSet } from "./eval-set.js";
 import { FixtureProvenanceError, loadAllFixtures, loadFixture } from "./fixture.js";
 import type { ResourceProfile } from "./fixture-run.js";
+import { extractAgentStepRecording } from "./recorder.js";
 import { createSubprocessExecutor } from "./subprocess-executor.js";
 
 function loadFixturesForCli(
@@ -209,6 +210,70 @@ export function buildEvalCommand(projectDir: string): Command {
       if (report.aggregate.passHatK < 1) {
         process.exitCode = 1;
       }
+    });
+
+  cmd
+    .command("record-agent-step")
+    .description(
+      "Extract an agent-step recording from a real .kota/runs/<id>/steps/<step>/ artifact into a fixture.",
+    )
+    .requiredOption("--run-id <id>", "Source run id under .kota/runs/")
+    .requiredOption("--step <id>", "Agent step id to extract (e.g. decompose)")
+    .requiredOption(
+      "--fixture <id>",
+      "Target fixture id under src/modules/eval-harness/fixtures/",
+    )
+    .action((opts: { runId: string; step: string; fixture: string }) => {
+      const fixtureDir = join(fixturesRoot, opts.fixture);
+      const result = extractAgentStepRecording({
+        projectDir,
+        sourceRunId: opts.runId,
+        stepId: opts.step,
+        fixtureDir,
+      });
+      print(stack(
+        line(
+          plain("wrote recording: "),
+          span(result.recordingPath, "accent"),
+        ),
+        line(
+          plain("  workflow="),
+          span(result.recording.workflowName, "info"),
+          plain("  step="),
+          span(result.recording.stepId, "info"),
+          plain("  source="),
+          span(result.recording.sourceRunId, "muted"),
+        ),
+        line(
+          plain("  response turns="),
+          span(String(result.recording.response.turns), "info"),
+          plain(" totalCostUsd="),
+          span(result.recording.response.totalCostUsd.toFixed(6), "info"),
+        ),
+        line(
+          plain("  file operations extracted: "),
+          span(String(result.recording.fileOperations.length), "accent"),
+        ),
+        ...(result.skippedWritesOutsideProject.length > 0
+          ? [
+              line(
+                span(
+                  `  skipped ${result.skippedWritesOutsideProject.length} Write tool call(s) whose file_path falls outside the project (audit if relevant):`,
+                  "warn",
+                ),
+              ),
+              ...result.skippedWritesOutsideProject.map((p) =>
+                line(span(`    ${p}`, "muted")),
+              ),
+            ]
+          : []),
+        line(
+          span(
+            "  Edit/Bash side effects are not auto-captured — fill in the recording manually for any mutation outside the extracted Write set.",
+            "muted",
+          ),
+        ),
+      ));
     });
 
   cmd
