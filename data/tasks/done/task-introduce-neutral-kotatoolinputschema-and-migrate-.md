@@ -1,12 +1,12 @@
 ---
 id: task-introduce-neutral-kotatoolinputschema-and-migrate-
 title: Introduce neutral KotaToolInputSchema and migrate core tool-schema builders
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Stage 1 of the neutral message-protocol plan in src/core/agent-harness/anthropic-type-audit.md: introduce KotaToolInputSchema in src/core/agent-harness/types.ts and migrate the five core tool-schema builders so the input_schema role no longer reads as Anthropic.Tool.InputSchema.
 created_at: 2026-04-24T04:14:50.974Z
-updated_at: 2026-04-24T04:14:50.974Z
+updated_at: 2026-04-24T04:20:11.940Z
 ---
 
 ## Problem

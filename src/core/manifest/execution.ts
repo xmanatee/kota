@@ -2,7 +2,7 @@
  * Manifest execution — converts manifests to KotaModule objects.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
 import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "#core/tools/code-wrappers.js";
 import type { Language } from "#core/tools/repl-session.js";
@@ -49,7 +49,7 @@ export function manifestToModule(manifest: ModuleManifest): KotaModule {
 			input_schema: (t.parameters || {
 				type: "object" as const,
 				properties: {},
-			}) as Anthropic.Tool["input_schema"],
+			}) as KotaToolInputSchema,
 		},
 		runner: buildToolRunner(t),
 		group: t.group,

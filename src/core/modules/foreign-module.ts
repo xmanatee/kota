@@ -29,7 +29,7 @@
  *   triggering `invoke`.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
 
 // ─── Outbound (KOTA → Module) ────────────────────────────────────────────────
 
@@ -86,11 +86,11 @@ export type KempManifest = {
   name: string;
   version?: string;
   description?: string;
-  /** Tools provided by this module. Same schema as Anthropic.Tool. */
+  /** Tools provided by this module. Input schemas use the neutral protocol type. */
   tools: Array<{
     name: string;
     description: string;
-    input_schema: Anthropic.Tool["input_schema"];
+    input_schema: KotaToolInputSchema;
   }>;
 };
 

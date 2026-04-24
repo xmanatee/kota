@@ -2,12 +2,12 @@
  * Schema and result utilities for tool adapters.
  *
  * - normalizeResult: Convert arbitrary tool return values to KOTA's ToolResult format.
- * - buildInputSchema: Build a valid Anthropic input_schema from external parameters.
+ * - buildInputSchema: Build a valid tool input_schema from external parameters.
  * - extractJsonSchema: Extract a JSON Schema from Vercel AI SDK / Zod / raw JSON Schema params.
  * - zodDefToJsonSchema: Recursively convert a Zod schema's _def to JSON Schema.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "./tool-result.js";
 
 /** Convert arbitrary tool return values to KOTA's ToolResult format. */
@@ -39,11 +39,11 @@ export function normalizeResult(value: unknown): ToolResult {
 }
 
 /**
- * Build a valid Anthropic input_schema from external parameters.
- * Anthropic requires type:"object" — external schemas may have wrong type or
- * be missing `properties`. This ensures the result is always valid.
+ * Build a valid neutral tool input_schema from external parameters. The
+ * shape requires `type: "object"` — external schemas may have the wrong
+ * type or be missing `properties`, so the result is always normalized.
  */
-export function buildInputSchema(params?: Record<string, unknown>): Anthropic.Tool.InputSchema {
+export function buildInputSchema(params?: Record<string, unknown>): KotaToolInputSchema {
   const base = params ?? {};
   return {
     ...base,

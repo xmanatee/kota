@@ -5,6 +5,7 @@
 
 import { existsSync, unlinkSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
 import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "./code-wrappers.js";
 import {
   type CustomToolDef,
@@ -62,7 +63,7 @@ export function handleCreate(
   const toolDef: Anthropic.Tool = {
     name,
     description,
-    input_schema: parameters as Anthropic.Tool.InputSchema,
+    input_schema: parameters as KotaToolInputSchema,
   };
 
   register(toolDef, buildRunner(def));
