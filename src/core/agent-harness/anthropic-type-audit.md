@@ -15,10 +15,12 @@ core contract forces a conversion at that seam.
 
 ## Import inventory
 
-The inventory below captures the Stage-0 state. Stages 1 and 2 have landed —
-`Anthropic.Tool.InputSchema` and `Anthropic.Tool` are no longer referenced by
-any file under `src/core/`. The rows tagged **tools (...)** therefore no
-longer hold; they remain for historical reference.
+The inventory below captures the Stage-0 state. Stages 1, 2, and 3 have landed
+— `Anthropic.Tool.InputSchema`, `Anthropic.Tool`, and
+`Anthropic.Messages.ThinkingConfigParam` are no longer referenced by any file
+under `src/core/`. The rows tagged **tools (...)** and the thinking-shape
+entries on loop/model-client files therefore no longer hold; they remain for
+historical reference.
 
 38 files under `src/core/` currently import `type Anthropic from "@anthropic-ai/sdk"`:
 
@@ -231,23 +233,28 @@ input type:
 
 After this stage, role (1) is gone from core.
 
-### Stage 3 — `KotaThinkingConfig`
+### Stage 3 — `KotaThinkingConfig` (landed)
 
-Introduce `KotaThinkingConfig = { type: "enabled"; budget_tokens: number } |
-{ type: "disabled" }` (structurally matching `ThinkingConfigParam`). Migrate:
+`KotaThinkingConfig = { type: "enabled"; budget_tokens: number } |
+{ type: "disabled" }` lives in `src/core/agent-harness/message-protocol.ts`
+alongside `KotaTool` and is re-exported from the agent-harness index. No file
+under `src/core/` references `Anthropic.Messages.ThinkingConfigParam` any
+more — `AgentSession.thinkingConfig`, `AgentLoopState.thinkingConfig`,
+`PreSendContext.thinkingConfig`, `StreamConfig.thinkingConfig`, and
+`MessageStreamParams.thinking` all speak `KotaThinkingConfig`. The `loop.ts`
+and `loop-init.ts` files drop their `type Anthropic` import entirely.
 
-- `src/core/loop/loop.ts`, `loop-init.ts`, `loop-send.ts` — private field and flow types.
-- `src/core/loop/pre-send-hooks.ts` — `PreSendContext.thinkingConfig: KotaThinkingConfig | undefined`.
-- `src/core/model/streaming.ts` — `StreamConfig.thinkingConfig: KotaThinkingConfig | undefined`.
-- `src/core/model/model-client.ts` — `MessageStreamParams.thinking?: KotaThinkingConfig`.
+Adapter-side: `model-clients/anthropic.ts` gains an explicit
+`kotaToAnthropicThinkingConfig()` helper that performs the field-for-field
+variant mapping at the seam — no `as` cast past the helper. The openai
+client does not read the thinking shape; its reasoning control remains
+`effort`-driven through the preset's `EffortTranslator`. The `architect`
+module migrated its internal `thinking?: KotaThinkingConfig` field in the
+same PR so the `PreSendContext` thread stays type-safe; architect still
+hands the value directly to the Anthropic SDK because its own streaming
+currently happens through the `ModelClient.messages.stream()` seam.
 
-Adapter-side: the anthropic model client converts `KotaThinkingConfig` →
-`Anthropic.Messages.ThinkingConfigParam` (field-for-field). The openai client's
-reasoning translation keys off `KotaThinkingConfig` instead of the Anthropic
-shape it currently reads in `src/modules/model-clients/openai/client.ts`.
-
-This stage is small; its main value is unblocking Stage 4 by freeing loop
-files from one of the two Anthropic shapes they reference.
+After this stage, role (3) is gone from core.
 
 ### Stage 4 — `KotaMessage` + block types
 
@@ -348,22 +355,19 @@ Module-side fixtures that still target the Anthropic wire
 
 ## Follow-up tasks
 
-Stages 1 and 2 have landed. Explorer can seed each remaining stage as its
+Stages 1, 2, and 3 have landed. Explorer can seed each remaining stage as its
 own task, in the order listed:
 
-1. **Introduce neutral `KotaThinkingConfig` and migrate loop +
-   model-client surfaces** — implements Stage 3. Scope: six files listed under
-   Stage 3 plus the anthropic and openai model-client translations.
-2. **Introduce neutral `KotaMessage` protocol and migrate the loop,
+1. **Introduce neutral `KotaMessage` protocol and migrate the loop,
    compaction, masking, pruning, reflection, delegate, and history-provider
    surfaces** — implements Stage 4. Scope: ten core files plus loop-level
    tests and the anthropic/openai/claude-agent-harness translation seams.
-3. **Introduce neutral `KotaModelResponse` and `KotaMessageStream` and complete
+2. **Introduce neutral `KotaModelResponse` and `KotaMessageStream` and complete
    the model-client migration** — implements Stage 5. Scope: `model-client.ts`,
    `streaming.ts`, `mock-client.ts`, the five loop consumers of the assistant
    response, `delegate-turn.ts`, and every `ModelClient` implementation in
    `src/modules/model-clients/*`.
-4. **Enforce the neutral-protocol boundary in core with an import guard** —
+3. **Enforce the neutral-protocol boundary in core with an import guard** —
    implements Stage 6. Scope: the `no-anthropic-imports-in-core` test, the
    `src/core/agent-harness/AGENTS.md` upgrade, and the one-line adapter-seam
    statements in module-side `AGENTS.md`.

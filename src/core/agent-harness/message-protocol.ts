@@ -32,3 +32,15 @@ export type KotaTool = {
   description: string;
   input_schema: KotaToolInputSchema;
 };
+
+/**
+ * Neutral reasoning / thinking configuration. Structurally compatible with
+ * Anthropic's `ThinkingConfigParam` so adapters that target the Anthropic SDK
+ * translate field-for-field at their seam; core consumes only
+ * `KotaThinkingConfig`. Optional presence is expressed at the field site
+ * (`thinking?: KotaThinkingConfig`), not by a nullable branch inside the
+ * union.
+ */
+export type KotaThinkingConfig =
+  | { type: "enabled"; budget_tokens: number }
+  | { type: "disabled" };

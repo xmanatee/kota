@@ -7,7 +7,7 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { KotaThinkingConfig, KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { AgentEffort } from "#core/agent-harness/types.js";
 
 export type { AgentEffort };
@@ -26,7 +26,7 @@ export type MessageStreamParams = {
 	system?: Anthropic.Messages.TextBlockParam[] | string;
 	messages: Anthropic.MessageParam[];
 	tools?: KotaTool[];
-	thinking?: Anthropic.Messages.ThinkingConfigParam;
+	thinking?: KotaThinkingConfig;
 	/**
 	 * Declared reasoning posture for this call. Providers that expose a
 	 * reasoning control translate this verbatim at the wire boundary

@@ -1,4 +1,4 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaThinkingConfig } from "#core/agent-harness/message-protocol.js";
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import { getEventBus, tryEmit } from "#core/events/event-bus.js";
 import { runCleanupHooks } from "#core/loop/cleanup-hooks.js";
@@ -39,7 +39,7 @@ export interface AgentLoopState {
   editorModel: string;
   maxTokens: number;
   effectiveMaxTokens: number;
-  thinkingConfig: Anthropic.Messages.ThinkingConfigParam | undefined;
+  thinkingConfig: KotaThinkingConfig | undefined;
   verbose: boolean;
   transport: Transport;
   verifyTracker: VerifyTracker;

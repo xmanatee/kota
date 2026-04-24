@@ -2,6 +2,7 @@
 // Runs the architect/editor two-pass pipeline when architect mode is enabled.
 
 import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaThinkingConfig } from "#core/agent-harness/message-protocol.js";
 import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
 import type { ModelClient } from "#core/model/model-client.js";
@@ -18,7 +19,7 @@ export type ArchitectStepConfig = {
   messages: Anthropic.Messages.MessageParam[];
   costTracker: CostTracker;
   verbose: boolean;
-  thinkingConfig?: Anthropic.Messages.ThinkingConfigParam;
+  thinkingConfig?: KotaThinkingConfig;
   transport?: Transport;
 };
 

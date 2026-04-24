@@ -3,7 +3,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
-import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { KotaThinkingConfig, KotaTool } from "#core/agent-harness/message-protocol.js";
 import type {
 	MessageCreateParams,
 	MessageStream,
@@ -24,6 +24,22 @@ export function kotaToAnthropicTool(tool: KotaTool): Anthropic.Tool {
 		description: tool.description,
 		input_schema: tool.input_schema,
 	};
+}
+
+/**
+ * Translate a neutral `KotaThinkingConfig` to Anthropic's `ThinkingConfigParam`
+ * shape with an explicit field-for-field mapping. The two shapes overlap
+ * structurally, but this helper is the seam: every place that hands a
+ * thinking config to the Anthropic SDK goes through it, not a pass-through
+ * cast. The discriminated union collapses to the matching SDK variant.
+ */
+export function kotaToAnthropicThinkingConfig(
+	config: KotaThinkingConfig,
+): Anthropic.Messages.ThinkingConfigParam {
+	if (config.type === "enabled") {
+		return { type: "enabled", budget_tokens: config.budget_tokens };
+	}
+	return { type: "disabled" };
 }
 
 /** ModelClient wrapping the Anthropic SDK. */
@@ -47,11 +63,17 @@ export class AnthropicModelClient implements ModelClient {
 
 function toAnthropicStreamParams(
 	params: MessageStreamParams,
-): Omit<MessageStreamParams, "tools"> & { tools?: Anthropic.Tool[] } {
+): Omit<MessageStreamParams, "tools" | "thinking"> & {
+	tools?: Anthropic.Tool[];
+	thinking?: Anthropic.Messages.ThinkingConfigParam;
+} {
 	const withEffort = applyAnthropicEffort(params);
-	const { tools, ...rest } = withEffort;
-	if (!tools) return rest;
-	return { ...rest, tools: tools.map(kotaToAnthropicTool) };
+	const { tools, thinking, ...rest } = withEffort;
+	return {
+		...rest,
+		...(tools ? { tools: tools.map(kotaToAnthropicTool) } : {}),
+		...(thinking ? { thinking: kotaToAnthropicThinkingConfig(thinking) } : {}),
+	};
 }
 
 /**
@@ -68,6 +90,6 @@ function applyAnthropicEffort(params: MessageStreamParams): MessageStreamParams 
 	const { effort: _effort, ...rest } = params;
 	return {
 		...rest,
-		thinking: patch.thinking as Anthropic.Messages.ThinkingConfigParam,
+		thinking: patch.thinking as KotaThinkingConfig,
 	};
 }

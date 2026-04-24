@@ -15,6 +15,7 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaThinkingConfig } from "#core/agent-harness/message-protocol.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import type { CostTracker } from "./cost.js";
 import type { Transport } from "./transport.js";
@@ -29,7 +30,7 @@ export type PreSendContext = {
   messages: Anthropic.Messages.MessageParam[];
   costTracker: CostTracker;
   verbose: boolean;
-  thinkingConfig?: Anthropic.Messages.ThinkingConfigParam;
+  thinkingConfig?: KotaThinkingConfig;
   transport: Transport;
 };
 

@@ -1,4 +1,4 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaThinkingConfig } from "#core/agent-harness/message-protocol.js";
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { tryEmit } from "#core/events/event-bus.js";
@@ -64,7 +64,7 @@ export class AgentSession {
   private effectiveMaxTokens!: number;
   private verbose!: boolean;
   private sessionPath?: string;
-  private thinkingConfig?: Anthropic.Messages.ThinkingConfigParam;
+  private thinkingConfig?: KotaThinkingConfig;
   private verifyTracker!: VerifyTracker;
   private mcpManager: McpManager | null = null;
   private moduleLoader!: ModuleLoader;
