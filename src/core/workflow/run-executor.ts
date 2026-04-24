@@ -48,10 +48,10 @@ export function executeWorkflowRun(
   definition: WorkflowDefinition,
   trigger: WorkflowRunTrigger,
   deps: RunExecutorDeps,
+  abortController: AbortController = new AbortController(),
 ): { promise: Promise<WorkflowRunExecutionResult>; abortController: AbortController } {
   const run = deps.store.createRun(definition, trigger);
   const startedAt = Date.now();
-  const abortController = new AbortController();
 
   let runTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
   if (definition.runTimeoutMs !== undefined) {

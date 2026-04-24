@@ -320,19 +320,38 @@ export async function runWorkflow(
   trigger: WorkflowRunTrigger,
 ): Promise<void> {
   const preRunFingerprint = getRepoWorktreeStatus(state.projectDir).fingerprint;
-  const { promise, abortController } = executeWorkflowRun(definition, trigger, {
-    projectDir: state.projectDir,
-    bus: state.runtimeConfig.bus,
-    store: state.store,
-    model: state.model,
-    config: state.config,
-    log: (message) => state.log(message),
-    triggerWorkflow: (workflowName, payload, waitFor, signal) =>
-      triggerWorkflowFromStep(state, workflowName, payload, waitFor, signal),
-    resolveAgentDef: state.resolveAgentDef,
-    resolveSkillsPrompt: state.resolveSkillsPrompt,
-  });
-  state.activeRuns.set(definition.name, { promise, abortController });
+  // Claim the concurrency slot synchronously BEFORE executeWorkflowRun runs.
+  // executeWorkflowRun emits `workflow.started` on the bus synchronously; the
+  // wildcard handler re-enters `maybeStartNext` on the same call stack. Until
+  // this workflow is present in `activeRuns`, the cap check sees zero active
+  // agent runs and a second agent workflow can dispatch past the cap.
+  const abortController = new AbortController();
+  const reservation: {
+    promise: Promise<WorkflowRunExecutionResult>;
+    abortController: AbortController;
+  } = {
+    promise: Promise.resolve() as unknown as Promise<WorkflowRunExecutionResult>,
+    abortController,
+  };
+  state.activeRuns.set(definition.name, reservation);
+  const { promise } = executeWorkflowRun(
+    definition,
+    trigger,
+    {
+      projectDir: state.projectDir,
+      bus: state.runtimeConfig.bus,
+      store: state.store,
+      model: state.model,
+      config: state.config,
+      log: (message) => state.log(message),
+      triggerWorkflow: (workflowName, payload, waitFor, signal) =>
+        triggerWorkflowFromStep(state, workflowName, payload, waitFor, signal),
+      resolveAgentDef: state.resolveAgentDef,
+      resolveSkillsPrompt: state.resolveSkillsPrompt,
+    },
+    abortController,
+  );
+  reservation.promise = promise;
 
   try {
     const result = await promise;

@@ -22,6 +22,7 @@ import type {
 } from "../types.js";
 import {
   AgentWriteScopeViolationError,
+  diffMutatedPaths,
   findWriteScopeViolations,
   listWorkflowMutatedPaths,
   writeWriteScopeViolationArtifact,
@@ -402,6 +403,15 @@ export async function executeAgentStep(
 
   let lastSchemaError: string | undefined;
 
+  // Snapshot mutated paths before the agent runs so the post-step writeScope
+  // attribution can exclude paths a prior or concurrent step mutated. Without
+  // this snapshot, a whole-repo `git diff HEAD` at the end of the step would
+  // blame this step for every dirty path in the worktree, including writes
+  // another workflow made.
+  const preStepMutatedPaths = agentDef && step.agentName
+    ? listWorkflowMutatedPaths(agentConfig.projectDir)
+    : undefined;
+
   const runAttempt = async (): Promise<WorkflowStepOutput> => {
     const prompt = lastSchemaError
       ? `${agentPrompt.prompt}\n\n[Previous output failed schema validation: ${lastSchemaError}\nPlease include all required fields in your JSON block and try again.]`
@@ -536,10 +546,17 @@ export async function executeAgentStep(
 
   // Enforce declared writeScope against every path this step would commit
   // (tracked mutations plus untracked files the staging step would sweep in).
-  // Fails the step when the agent wrote outside its role.
-  if (agentDef && step.agentName) {
+  // Fails the step when the agent wrote outside its role. Attribution is
+  // scoped to paths newly mutated during this step so another concurrent or
+  // prior step cannot contaminate the blame list.
+  if (agentDef && step.agentName && preStepMutatedPaths !== undefined) {
+    const postStepMutatedPaths = listWorkflowMutatedPaths(agentConfig.projectDir);
+    const stepMutatedPaths = diffMutatedPaths(
+      preStepMutatedPaths,
+      postStepMutatedPaths,
+    );
     const violations = findWriteScopeViolations(
-      listWorkflowMutatedPaths(agentConfig.projectDir),
+      stepMutatedPaths,
       agentDef.writeScope,
     );
     if (violations.length > 0) {

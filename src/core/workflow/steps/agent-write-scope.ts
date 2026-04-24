@@ -63,6 +63,30 @@ export function listWorkflowMutatedPaths(projectDir: string): string[] {
   return [...paths].sort();
 }
 
+/**
+ * Attribute only paths this step actually mutated.
+ *
+ * `pre` is the mutated-path set captured before the step ran; `post` is
+ * the set after. A path present in `pre` is carried over from a prior
+ * (or concurrent) step and is not attributable to this step, even if
+ * its content changed. A path present only in `post` is new in this
+ * step and belongs to it.
+ *
+ * Content-only re-writes of pre-existing dirty paths are conservatively
+ * excluded. In practice prior steps do not pre-mutate files the agent
+ * would also touch, and declaring whole-repo diffs as this step's fault
+ * is the worse failure mode — it cross-blames between concurrent
+ * workflows and loses the invariant that a step's write-scope violation
+ * names paths that step wrote.
+ */
+export function diffMutatedPaths(
+  pre: readonly string[],
+  post: readonly string[],
+): string[] {
+  const preSet = new Set(pre);
+  return post.filter((path) => !preSet.has(path)).sort();
+}
+
 function normalizeScope(entry: string): string {
   return entry.endsWith("/") ? entry.slice(0, -1) : entry;
 }

@@ -2002,6 +2002,87 @@ describe("WorkflowRuntime", () => {
       expect(runIds.length).toBe(2);
     });
 
+    it("serializes two different agent-step workflows with agentConcurrency=1", async () => {
+      const bus = new EventBus();
+      let inFlightCount = 0;
+      let maxInFlight = 0;
+      const releases: Array<() => void> = [];
+
+      mockedExecuteWithAgentSDK.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            inFlightCount++;
+            maxInFlight = Math.max(maxInFlight, inFlightCount);
+            releases.push(() => {
+              inFlightCount--;
+              resolve({
+                text: "done",
+                streamedText: "",
+                turns: 1,
+                subtype: "success",
+                isError: false,
+              });
+            });
+          }),
+      );
+
+      writeFileSync(
+        join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+        "Build.\n",
+      );
+      mkdirSync(join(projectDir, "src", "modules", "test", "workflows", "formatter"), { recursive: true });
+      writeFileSync(
+        join(projectDir, "src", "modules", "test", "workflows", "formatter", "prompt.md"),
+        "Format.\n",
+      );
+
+      const runtime = new WorkflowRuntime({
+        config: { defaultAgentHarness: "claude-agent-sdk" },
+        bus,
+        projectDir,
+        idleIntervalMs: 10,
+        // agentConcurrency defaults to 1
+        workflows: [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+            steps: [
+              { id: "build", type: "agent", promptPath: "src/modules/autonomy/workflows/builder/prompt.md", model: "claude-opus-4-7", effort: "xhigh", autonomyMode: "autonomous" },
+            ],
+          }),
+          registerWorkflowDefinition("test/formatter.ts", {
+            name: "formatter",
+            triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
+            steps: [
+              { id: "format", type: "agent", promptPath: "src/modules/test/workflows/formatter/prompt.md", model: "claude-opus-4-7", effort: "xhigh", autonomyMode: "autonomous" },
+            ],
+          }),
+        ],
+      });
+
+      runtime.start();
+      await wait(40);
+
+      // Exactly one agent step active under the cap while the first is pending.
+      expect(maxInFlight).toBe(1);
+      expect(inFlightCount).toBe(1);
+
+      // Release the first run; only after that should the second one start.
+      releases.shift()!();
+      await wait(40);
+      expect(maxInFlight).toBe(1);
+      expect(inFlightCount).toBe(1);
+
+      // Release the second run.
+      releases.shift()!();
+      await wait(40);
+      await runtime.stop();
+
+      const runsDir = join(projectDir, ".kota", "runs");
+      const runIds = readdirSync(runsDir);
+      expect(runIds.length).toBe(2);
+    });
+
     it("serializes the same workflow when agentConcurrency=2", async () => {
       const bus = new EventBus();
       const completedWorkflows: string[] = [];

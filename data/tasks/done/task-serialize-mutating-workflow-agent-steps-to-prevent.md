@@ -1,12 +1,12 @@
 ---
 id: task-serialize-mutating-workflow-agent-steps-to-prevent
 title: Serialize mutating workflow agent steps to prevent concurrent-write writeScope blame
-status: ready
+status: done
 priority: p1
 area: runtime
 summary: Two agent-step workflows ran concurrently despite agentConcurrency=1 default, causing a writeScope check to attribute one workflow's edits to another and failing the innocent run. Recurring class of bug: a prior instance was patched by dropping the builder no-intermediate-commits check. The underlying scheduler and attribution layers still allow concurrent mutating agent steps to collide.
 created_at: 2026-04-24T14:50:39.184Z
-updated_at: 2026-04-24T14:50:39.184Z
+updated_at: 2026-04-24T15:09:01.279Z
 ---
 
 ## Problem

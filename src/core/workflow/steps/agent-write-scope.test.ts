@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { WorkflowRunMetadata } from "../run-types.js";
 import {
   AgentWriteScopeViolationError,
+  diffMutatedPaths,
   findWriteScopeViolations,
   listWorkflowMutatedPaths,
   pathInScope,
@@ -159,6 +160,59 @@ describe("listWorkflowMutatedPaths", () => {
       "scratch.txt",
       "seed.txt",
     ]);
+  });
+});
+
+describe("diffMutatedPaths", () => {
+  it("returns [] when pre and post match exactly", () => {
+    expect(
+      diffMutatedPaths(
+        ["data/tasks/ready/a.md", "scratch.txt"],
+        ["data/tasks/ready/a.md", "scratch.txt"],
+      ),
+    ).toEqual([]);
+  });
+
+  it("attributes only paths newly mutated during the step", () => {
+    expect(
+      diffMutatedPaths(
+        ["src/modules/autonomy/AGENTS.md"],
+        [
+          "src/modules/autonomy/AGENTS.md",
+          "data/tasks/ready/new-task.md",
+        ],
+      ),
+    ).toEqual(["data/tasks/ready/new-task.md"]);
+  });
+
+  it("excludes prior-step or concurrent mutations from this step's attribution", () => {
+    // Pre-existing tracked modification that this step did not touch. A
+    // concurrent workflow's agent step can produce the same shape by writing
+    // between this step's pre-snapshot and post-snapshot.
+    expect(
+      diffMutatedPaths(
+        [],
+        ["src/modules/autonomy/AGENTS.md"],
+      ),
+    ).toEqual(["src/modules/autonomy/AGENTS.md"]);
+
+    // Same file, but recorded as already mutated before this step started →
+    // attributes it to a prior/concurrent step, not this one.
+    expect(
+      diffMutatedPaths(
+        ["src/modules/autonomy/AGENTS.md"],
+        ["src/modules/autonomy/AGENTS.md"],
+      ),
+    ).toEqual([]);
+  });
+
+  it("sorts the attributed paths", () => {
+    expect(
+      diffMutatedPaths(
+        [],
+        ["zebra.txt", "apple.txt", "mango.txt"],
+      ),
+    ).toEqual(["apple.txt", "mango.txt", "zebra.txt"]);
   });
 });
 
