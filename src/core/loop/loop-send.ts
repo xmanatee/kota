@@ -1,4 +1,7 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type {
+  KotaTextBlock,
+  KotaToolUseBlock,
+} from "#core/agent-harness/message-protocol.js";
 import { formatTaskHint, routeTask } from "#core/daemon/task-router.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import { streamMessage } from "#core/model/streaming.js";
@@ -91,7 +94,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
       });
     }
 
-    const system: Anthropic.Messages.TextBlockParam[] = [
+    const system: KotaTextBlock[] = [
       { type: "text", text: state.context.getStaticPrompt(), cache_control: { type: "ephemeral" } },
     ];
     const changesSummary = getChangeTracker()?.getSummary() ?? "";
@@ -152,7 +155,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
     state.context.addAssistantMessage(response);
 
     const toolBlocks = response.content.filter(
-      (b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use",
+      (b): b is KotaToolUseBlock => b.type === "tool_use",
     );
 
     if (toolBlocks.length === 0) {

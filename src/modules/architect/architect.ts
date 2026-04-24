@@ -1,5 +1,7 @@
-import type Anthropic from "@anthropic-ai/sdk";
-import type { KotaThinkingConfig } from "#core/agent-harness/message-protocol.js";
+import type {
+  KotaMessage,
+  KotaThinkingConfig,
+} from "#core/agent-harness/message-protocol.js";
 import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
 import type { ModelClient } from "#core/model/model-client.js";
@@ -23,7 +25,7 @@ export type ArchitectOptions = {
   model: string;
   maxTokens: number;
   systemContext: string;
-  messages: Anthropic.Messages.MessageParam[];
+  messages: KotaMessage[];
   costTracker?: CostTracker;
   verbose?: boolean;
   thinking?: KotaThinkingConfig;

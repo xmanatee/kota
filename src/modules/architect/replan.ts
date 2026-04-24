@@ -7,6 +7,11 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
+import type {
+	KotaMessage,
+	KotaToolResultBlock,
+	KotaToolUseBlock,
+} from "#core/agent-harness/message-protocol.js";
 import type { CostTracker } from "#core/loop/cost.js";
 import type { ModelClient } from "#core/model/model-client.js";
 
@@ -128,7 +133,7 @@ export function parseReplanDecision(response: string): ReplanDecision {
 }
 
 export function buildExecutionSummary(
-	messages: Anthropic.Messages.MessageParam[],
+	messages: KotaMessage[],
 	maxEntries: number = 10,
 ): string {
 	const entries: string[] = [];
@@ -139,11 +144,11 @@ export function buildExecutionSummary(
 
 		for (const block of msg.content) {
 			if (block.type === "tool_use") {
-				const tu = block as Anthropic.Messages.ToolUseBlockParam;
+				const tu = block as KotaToolUseBlock;
 				entries.push(`→ ${tu.name}(${JSON.stringify(tu.input).slice(0, 100)})`);
 			}
 			if (block.type === "tool_result") {
-				const tr = block as Anthropic.Messages.ToolResultBlockParam;
+				const tr = block as KotaToolResultBlock;
 				const content = typeof tr.content === "string"
 					? tr.content.slice(0, 150)
 					: JSON.stringify(tr.content).slice(0, 150);
@@ -162,7 +167,7 @@ export type ReplanOptions = {
 	model: string;
 	maxTokens: number;
 	originalPlan: string;
-	messages: Anthropic.Messages.MessageParam[];
+	messages: KotaMessage[];
 	trigger: ReplanTrigger;
 	costTracker?: CostTracker;
 };

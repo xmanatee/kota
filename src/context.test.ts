@@ -1,5 +1,9 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { beforeEach, describe, expect, it } from "vitest";
+import type {
+  KotaContentBlock,
+  KotaMessage,
+  KotaToolResultBlock,
+} from "#core/agent-harness/message-protocol.js";
 import { CONTEXT_WINDOW, Context, truncateToolResult } from "./core/loop/context.js";
 import type { ModelClient } from "./core/model/model-client.js";
 
@@ -129,7 +133,7 @@ describe("Context", () => {
         ctx.addAssistantText("thinking...");
         // Add assistant message with tool_use block
         const toolUseId = `tool_${i}`;
-        const assistantContent: Anthropic.Messages.ContentBlockParam[] = [
+        const assistantContent: KotaContentBlock[] = [
           {
             type: "tool_use",
             id: toolUseId,
@@ -221,7 +225,7 @@ describe("Context", () => {
       ]);
       const msgs = ctx.getMessages();
       expect(msgs).toHaveLength(1);
-      const content = msgs[0].content as Anthropic.Messages.ToolResultBlockParam[];
+      const content = msgs[0].content as KotaToolResultBlock[];
       expect(content).toHaveLength(2);
       expect(content[0].tool_use_id).toBe("id1");
       expect(content[1].is_error).toBe(true);
@@ -235,7 +239,7 @@ describe("Context", () => {
           blocks: [{ type: "text", text: "rich content" }],
         },
       ]);
-      const content = ctx.getMessages()[0].content as Anthropic.Messages.ToolResultBlockParam[];
+      const content = ctx.getMessages()[0].content as KotaToolResultBlock[];
       // When blocks are provided, they should be used instead of string content
       expect(content[0].content).toEqual([{ type: "text", text: "rich content" }]);
     });
@@ -383,7 +387,7 @@ describe("Context", () => {
     }
 
     /** Verify all messages alternate user/assistant roles (Anthropic API requirement). */
-    function assertValidAlternation(messages: Anthropic.MessageParam[]): void {
+    function assertValidAlternation(messages: KotaMessage[]): void {
       expect(messages.length).toBeGreaterThan(0);
       expect(messages[0].role).toBe("user"); // must start with user
       for (let i = 1; i < messages.length; i++) {
@@ -555,9 +559,9 @@ describe("Context", () => {
       // Verify pruned messages still have valid structure
       for (const msg of ctx.getMessages()) {
         if (msg.role === "user" && Array.isArray(msg.content)) {
-          for (const block of msg.content as Anthropic.Messages.ContentBlockParam[]) {
+          for (const block of msg.content as KotaContentBlock[]) {
             if (block.type === "tool_result") {
-              const tr = block as Anthropic.Messages.ToolResultBlockParam;
+              const tr = block as KotaToolResultBlock;
               // Content should be either original or a summary string
               expect(typeof tr.content === "string" || Array.isArray(tr.content)).toBe(true);
             }
@@ -629,9 +633,9 @@ describe("Context", () => {
       let hasSummary = false;
       for (const msg of snap.messages) {
         if (Array.isArray(msg.content)) {
-          for (const block of msg.content as Anthropic.Messages.ContentBlockParam[]) {
+          for (const block of msg.content as KotaContentBlock[]) {
             if (block.type === "tool_result") {
-              const tr = block as Anthropic.Messages.ToolResultBlockParam;
+              const tr = block as KotaToolResultBlock;
               if (typeof tr.content === "string" && tr.content.includes("Previously read")) {
                 hasSummary = true;
               }

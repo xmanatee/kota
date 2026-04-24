@@ -17,7 +17,10 @@ import type {
   AgentHarnessResult,
   AgentHarnessRunOptions,
   AgentHarnessWriter,
+  KotaMessage,
   KotaTool,
+  KotaToolResultBlock,
+  KotaToolUseBlock,
 } from "#core/agent-harness/index.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
@@ -98,7 +101,7 @@ function looksLikeRawFallback(input: unknown): boolean {
 }
 
 function validateToolUseBlock(
-  block: Anthropic.ToolUseBlock,
+  block: KotaToolUseBlock,
 ): Record<string, unknown> {
   if (typeof block.name !== "string" || block.name.length === 0) {
     throw new Error(
@@ -142,20 +145,20 @@ function selectToolDefinitions(
 }
 
 type DenialOutcome = {
-  block: Anthropic.Messages.ToolResultBlockParam;
+  block: KotaToolResultBlock;
   interrupt: boolean;
   message: string;
 };
 
 async function dispatchToolCall(
-  call: Anthropic.ToolUseBlock,
+  call: KotaToolUseBlock,
   options: {
     canUseTool: AgentCanUseTool | undefined;
     allowedTools: readonly string[] | undefined;
     disallowedTools: readonly string[] | undefined;
     abortSignal: AbortSignal | undefined;
   },
-): Promise<{ result: Anthropic.Messages.ToolResultBlockParam; denial?: DenialOutcome }> {
+): Promise<{ result: KotaToolResultBlock; denial?: DenialOutcome }> {
   const validatedInput = validateToolUseBlock(call);
 
   const denySet = new Set(options.disallowedTools ?? []);
@@ -287,7 +290,7 @@ async function runOpenaiToolsLoop(
     );
     const maxTurns = options.maxTurns ?? DEFAULT_MAX_TURNS;
 
-    const messages: Anthropic.MessageParam[] = [
+    const messages: KotaMessage[] = [
       { role: "user", content: options.prompt },
     ];
 
@@ -327,7 +330,12 @@ async function runOpenaiToolsLoop(
       const turnText = textBlocks.map((block) => block.text).join("");
       if (turnText.length > 0) finalText = turnText;
 
-      messages.push({ role: "assistant", content: finalMessage.content });
+      // `finalMessage` is still `Anthropic.Message` until Stage 5 swaps it to
+      // `KotaModelResponse`; its content is structurally a `KotaContentBlock[]`.
+      messages.push({
+        role: "assistant",
+        content: finalMessage.content as unknown as KotaMessage["content"],
+      });
 
       if (toolBlocks.length === 0 || finalMessage.stop_reason === "end_turn") {
         return {
@@ -342,7 +350,7 @@ async function runOpenaiToolsLoop(
         };
       }
 
-      const resultBlocks: Anthropic.Messages.ToolResultBlockParam[] = [];
+      const resultBlocks: KotaToolResultBlock[] = [];
       let interrupted: DenialOutcome | undefined;
       for (const call of toolBlocks) {
         const dispatched = await dispatchToolCall(call, {

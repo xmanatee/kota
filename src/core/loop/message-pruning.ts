@@ -1,7 +1,10 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type {
+  KotaMessage,
+  KotaToolResultBlock,
+  KotaToolUseBlock,
+} from "#core/agent-harness/message-protocol.js";
 
-type Message = Anthropic.MessageParam;
-type ContentBlock = Anthropic.Messages.ContentBlockParam;
+type Message = KotaMessage;
 
 /** Read-only tools whose results can safely be pruned (reproducible by re-running). */
 const PRUNEABLE_TOOLS = new Set([
@@ -38,9 +41,9 @@ export function buildToolCallMap(messages: Message[]): Map<string, ToolCallInfo>
   for (const msg of messages) {
     if (msg.role !== "assistant" || typeof msg.content === "string") continue;
     if (!Array.isArray(msg.content)) continue;
-    for (const block of msg.content as ContentBlock[]) {
+    for (const block of msg.content) {
       if (block.type === "tool_use") {
-        const tu = block as Anthropic.Messages.ToolUseBlockParam;
+        const tu = block as KotaToolUseBlock;
         map.set(tu.id, {
           name: tu.name,
           input: tu.input as Record<string, unknown>,
@@ -121,9 +124,9 @@ export function pruneMessages(messages: Message[], options?: PruneOptions): Prun
     if (msg.role !== "user" || typeof msg.content === "string") continue;
     if (!Array.isArray(msg.content)) continue;
 
-    for (const block of msg.content as ContentBlock[]) {
+    for (const block of msg.content) {
       if (block.type !== "tool_result") continue;
-      const tr = block as Anthropic.Messages.ToolResultBlockParam;
+      const tr = block as KotaToolResultBlock;
 
       if (tr.is_error) continue;
 

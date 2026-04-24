@@ -1,8 +1,14 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type {
+  KotaContentBlock,
+  KotaMessage,
+  KotaTextBlock,
+  KotaToolResultBlock,
+  KotaToolUseBlock,
+} from "#core/agent-harness/message-protocol.js";
 import type { ModelClient } from "#core/model/model-client.js";
 
-type Message = Anthropic.MessageParam;
-type ContentBlock = Anthropic.Messages.ContentBlockParam;
+type Message = KotaMessage;
+type ContentBlock = KotaContentBlock;
 
 type WorkingState = {
   filesModified: string[];
@@ -28,11 +34,9 @@ export function extractWorkingState(messages: Message[]): WorkingState {
     for (const block of msg.content as ContentBlock[]) {
       if (block.type === "tool_use") {
         toolCalls++;
-        const input = (block as Anthropic.Messages.ToolUseBlockParam).input as Record<
-          string,
-          unknown
-        >;
-        const name = (block as Anthropic.Messages.ToolUseBlockParam).name;
+        const tu = block as KotaToolUseBlock;
+        const input = tu.input as Record<string, unknown>;
+        const name = tu.name;
 
         if (name === "file_edit" || name === "file_write") {
           const path = (input.file_path || input.path) as string | undefined;
@@ -54,7 +58,7 @@ export function extractWorkingState(messages: Message[]): WorkingState {
       }
 
       if (block.type === "tool_result") {
-        const tr = block as Anthropic.Messages.ToolResultBlockParam;
+        const tr = block as KotaToolResultBlock;
         if (tr.is_error && typeof tr.content === "string") {
           errors.push(tr.content.length > 200 ? `${tr.content.slice(0, 200)}...` : tr.content);
         }
@@ -105,12 +109,12 @@ function buildConversationText(messages: Message[]): string {
     const parts: string[] = [];
     for (const block of msg.content as ContentBlock[]) {
       if (block.type === "text") {
-        parts.push((block as Anthropic.Messages.TextBlockParam).text.slice(0, 400));
+        parts.push((block as KotaTextBlock).text.slice(0, 400));
       } else if (block.type === "tool_use") {
-        const tu = block as Anthropic.Messages.ToolUseBlockParam;
+        const tu = block as KotaToolUseBlock;
         parts.push(`${tu.name}(${JSON.stringify(tu.input).slice(0, 120)})`);
       } else if (block.type === "tool_result") {
-        const tr = block as Anthropic.Messages.ToolResultBlockParam;
+        const tr = block as KotaToolResultBlock;
         const status = tr.is_error ? "ERR" : "OK";
         let preview: string;
         if (typeof tr.content === "string") {

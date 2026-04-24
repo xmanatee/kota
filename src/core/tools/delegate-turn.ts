@@ -1,5 +1,12 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type {
+  KotaContentBlock,
+  KotaMessage,
+  KotaTextBlock,
+  KotaTool,
+  KotaToolResultBlockContent,
+  KotaToolUseBlock,
+} from "#core/agent-harness/message-protocol.js";
 import { truncateToolResult } from "#core/loop/context.js";
 import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
@@ -21,8 +28,8 @@ import { getToolMiddleware } from "./tool-middleware.js";
 
 export type TurnLoopOptions = {
   client: ModelClient;
-  messages: Anthropic.Messages.MessageParam[];
-  systemBlocks: Anthropic.Messages.TextBlockParam[];
+  messages: KotaMessage[];
+  systemBlocks: KotaTextBlock[];
   tools: KotaTool[];
   runners: Record<string, (input: Record<string, unknown>) => Promise<ToolResult>>;
   mcpMgr: McpManager | undefined;
@@ -128,7 +135,7 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
 
     const toolNames = response.content
       .filter((b) => b.type === "tool_use")
-      .map((b) => (b as Anthropic.Messages.ToolUseBlock).name);
+      .map((b) => (b as KotaToolUseBlock).name);
     for (const name of toolNames) toolsUsed.add(name);
     const toolsSummary = toolNames.length > 0 ? ` — ${toolNames.join(", ")}` : "";
     if (transport) transport.emit({ type: "status", message: `[kota] delegate(${mode}) turn ${turn + 1}/${maxTurns}${toolsSummary}` });
@@ -144,7 +151,12 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
       if (block.type === "text") lastText = block.text;
     }
 
-    messages.push({ role: "assistant", content: response.content });
+    // Stage 5 replaces `Anthropic.Message` with `KotaModelResponse` here; its
+    // `content` is already structurally compatible with `KotaContentBlock[]`.
+    messages.push({
+      role: "assistant",
+      content: response.content as unknown as KotaContentBlock[],
+    });
 
     const toolBlocks = response.content.filter((b) => b.type === "tool_use");
     if (toolBlocks.length === 0) {
@@ -230,7 +242,7 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
         type: "tool_result" as const,
         tool_use_id: r.tool_use_id,
         content: r.blocks
-          ? (r.blocks as Anthropic.Messages.ToolResultBlockParam["content"])
+          ? (r.blocks as KotaToolResultBlockContent)
           : r.content,
         is_error: r.is_error,
       })),

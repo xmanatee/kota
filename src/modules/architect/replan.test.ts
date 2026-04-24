@@ -1,5 +1,5 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
+import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import {
 	buildExecutionSummary,
@@ -211,7 +211,7 @@ describe("buildExecutionSummary", () => {
 	});
 
 	it("extracts tool_use and tool_result pairs", () => {
-		const messages: Anthropic.Messages.MessageParam[] = [
+		const messages: KotaMessage[] = [
 			{
 				role: "assistant",
 				content: [{ type: "tool_use", id: "t1", name: "file_read", input: { path: "a.ts" } }],
@@ -227,7 +227,7 @@ describe("buildExecutionSummary", () => {
 	});
 
 	it("marks errors with ERROR prefix", () => {
-		const messages: Anthropic.Messages.MessageParam[] = [
+		const messages: KotaMessage[] = [
 			{
 				role: "user",
 				content: [{ type: "tool_result", tool_use_id: "t1", content: "not found", is_error: true }],
@@ -238,7 +238,7 @@ describe("buildExecutionSummary", () => {
 	});
 
 	it("limits entries to maxEntries", () => {
-		const messages: Anthropic.Messages.MessageParam[] = [];
+		const messages: KotaMessage[] = [];
 		for (let i = 0; i < 20; i++) {
 			messages.push({
 				role: "assistant",
@@ -256,7 +256,7 @@ describe("buildExecutionSummary", () => {
 	});
 
 	it("skips string-content messages", () => {
-		const messages: Anthropic.Messages.MessageParam[] = [
+		const messages: KotaMessage[] = [
 			{ role: "user", content: "Execute the plan" },
 		];
 		expect(buildExecutionSummary(messages)).toBe("");
@@ -264,7 +264,7 @@ describe("buildExecutionSummary", () => {
 
 	it("truncates long tool inputs", () => {
 		const longInput = { path: "x".repeat(200) };
-		const messages: Anthropic.Messages.MessageParam[] = [
+		const messages: KotaMessage[] = [
 			{
 				role: "assistant",
 				content: [{ type: "tool_use", id: "t1", name: "file_read", input: longInput }],

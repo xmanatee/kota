@@ -1,11 +1,11 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
+import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
 import {
   generatePlaceholder,
   maskObservations,
 } from "./observation-masking.js";
 
-type Message = Anthropic.MessageParam;
+type Message = KotaMessage;
 
 /** Helper: build an assistant message with a tool_use block. */
 function toolUse(id: string, name: string, input: Record<string, unknown>): Message {

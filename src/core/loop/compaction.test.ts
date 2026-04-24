@@ -1,8 +1,8 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
+import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
 import { extractWorkingState } from "./compaction.js";
 
-type Message = Anthropic.MessageParam;
+type Message = KotaMessage;
 
 function toolUse(name: string, input: Record<string, unknown>, id = "t1"): Message {
   return {

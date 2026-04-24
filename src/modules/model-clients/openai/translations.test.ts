@@ -1,9 +1,17 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
-import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type {
+	KotaImageBlock,
+	KotaMessage,
+	KotaTextBlock,
+	KotaTool,
+	KotaToolResultBlock,
+	KotaToolUseBlock,
+} from "#core/agent-harness/message-protocol.js";
 import {
 	buildAnthropicMessage,
 	extractToolResultContent,
+	kotaMessageToOpenAiMessage,
 	mapFinishReason,
 	safeJsonParse,
 	systemToText,
@@ -34,16 +42,17 @@ describe("safeJsonParse", () => {
 });
 
 describe("extractToolResultContent", () => {
-	it("returns empty prefix-only string for undefined content", () => {
-		const block = {
-			type: "tool_result" as const,
+	it("returns empty prefix-only string for empty-string content", () => {
+		const block: KotaToolResultBlock = {
+			type: "tool_result",
 			tool_use_id: "t1",
-		} as Anthropic.Messages.ToolResultBlockParam;
+			content: "",
+		};
 		expect(extractToolResultContent(block)).toBe("");
 	});
 
 	it("handles content array with text blocks", () => {
-		const block: Anthropic.Messages.ToolResultBlockParam = {
+		const block: KotaToolResultBlock = {
 			type: "tool_result",
 			tool_use_id: "t1",
 			content: [
@@ -55,7 +64,7 @@ describe("extractToolResultContent", () => {
 	});
 
 	it("handles content array with is_error", () => {
-		const block: Anthropic.Messages.ToolResultBlockParam = {
+		const block: KotaToolResultBlock = {
 			type: "tool_result",
 			tool_use_id: "t1",
 			is_error: true,
@@ -65,11 +74,14 @@ describe("extractToolResultContent", () => {
 	});
 
 	it("filters non-text blocks from content array", () => {
-		const block: Anthropic.Messages.ToolResultBlockParam = {
+		const block: KotaToolResultBlock = {
 			type: "tool_result",
 			tool_use_id: "t1",
 			content: [
-				{ type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } } as unknown as Anthropic.Messages.TextBlockParam,
+				{
+					type: "image",
+					source: { type: "base64", media_type: "image/png", data: "abc" },
+				},
 				{ type: "text", text: "visible" },
 			],
 		};
@@ -77,7 +89,7 @@ describe("extractToolResultContent", () => {
 	});
 
 	it("returns prefix only for empty content array", () => {
-		const block: Anthropic.Messages.ToolResultBlockParam = {
+		const block: KotaToolResultBlock = {
 			type: "tool_result",
 			tool_use_id: "t1",
 			content: [],
@@ -133,11 +145,97 @@ describe("toOpenAIMessages edge cases", () => {
 			{
 				role: "assistant",
 				content: [
-					{ type: "thinking", thinking: "deep thought" } as unknown as Anthropic.ContentBlockParam,
+					{ type: "thinking", thinking: "deep thought", signature: "" },
 				],
 			},
 		]);
 		expect(result).toEqual([{ role: "assistant", content: null }]);
+	});
+});
+
+describe("kotaMessageToOpenAiMessage round-trip coverage", () => {
+	it("translates a user text message into one OpenAI entry", () => {
+		const msg: KotaMessage = { role: "user", content: "hello" };
+		expect(kotaMessageToOpenAiMessage(msg)).toEqual([
+			{ role: "user", content: "hello" },
+		]);
+	});
+
+	it("translates an assistant text block into one OpenAI entry", () => {
+		const textBlock: KotaTextBlock = { type: "text", text: "response" };
+		const msg: KotaMessage = { role: "assistant", content: [textBlock] };
+		expect(kotaMessageToOpenAiMessage(msg)).toEqual([
+			{ role: "assistant", content: "response" },
+		]);
+	});
+
+	it("translates an assistant tool_use block into a tool_calls entry", () => {
+		const useBlock: KotaToolUseBlock = {
+			type: "tool_use",
+			id: "t1",
+			name: "lookup",
+			input: { key: "foo" },
+		};
+		const msg: KotaMessage = { role: "assistant", content: [useBlock] };
+		expect(kotaMessageToOpenAiMessage(msg)).toEqual([
+			{
+				role: "assistant",
+				content: null,
+				tool_calls: [
+					{
+						id: "t1",
+						type: "function",
+						function: { name: "lookup", arguments: JSON.stringify({ key: "foo" }) },
+					},
+				],
+			},
+		]);
+	});
+
+	it("translates a tool_result with string content into a tool entry", () => {
+		const resultBlock: KotaToolResultBlock = {
+			type: "tool_result",
+			tool_use_id: "t1",
+			content: "result body",
+		};
+		const msg: KotaMessage = { role: "user", content: [resultBlock] };
+		expect(kotaMessageToOpenAiMessage(msg)).toEqual([
+			{ role: "tool", tool_call_id: "t1", content: "result body" },
+		]);
+	});
+
+	it("translates a tool_result with block content, joining text and dropping images", () => {
+		const textA: KotaTextBlock = { type: "text", text: "first" };
+		const textB: KotaTextBlock = { type: "text", text: "second" };
+		const image: KotaImageBlock = {
+			type: "image",
+			source: { type: "base64", media_type: "image/png", data: "abc" },
+		};
+		const resultBlock: KotaToolResultBlock = {
+			type: "tool_result",
+			tool_use_id: "t1",
+			content: [textA, image, textB],
+		};
+		const msg: KotaMessage = { role: "user", content: [resultBlock] };
+		expect(kotaMessageToOpenAiMessage(msg)).toEqual([
+			{ role: "tool", tool_call_id: "t1", content: "first\nsecond" },
+		]);
+	});
+
+	it("translates a tool_result with image-only content into a prefix-only tool entry", () => {
+		const image: KotaImageBlock = {
+			type: "image",
+			source: { type: "base64", media_type: "image/png", data: "abc" },
+		};
+		const resultBlock: KotaToolResultBlock = {
+			type: "tool_result",
+			tool_use_id: "t1",
+			content: [image],
+		};
+		const msg: KotaMessage = { role: "user", content: [resultBlock] };
+		expect(kotaMessageToOpenAiMessage(msg)).toEqual([
+			{ role: "tool", tool_call_id: "t1", content: "" },
+		]);
 	});
 });
 

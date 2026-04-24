@@ -1,11 +1,17 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
+import type {
+  KotaContentBlock,
+  KotaMessage,
+  KotaTextBlock,
+  KotaToolResultBlock,
+  KotaToolUseBlock,
+} from "#core/agent-harness/message-protocol.js";
 import { compactMessages, extractWorkingState } from "./core/loop/compaction.js";
 import { Context, truncateToolResult } from "./core/loop/context.js";
 import { buildToolCallMap, pruneMessages } from "./core/loop/message-pruning.js";
 import type { ModelClient } from "./core/model/model-client.js";
 
-type Message = Anthropic.MessageParam;
+type Message = KotaMessage;
 
 /** Helper: build an assistant message with a tool_use block. */
 function toolUse(id: string, name: string, input: Record<string, unknown>): Message {
@@ -133,9 +139,9 @@ describe("context-pipeline cross-module integration", () => {
     const toolMap = buildToolCallMap(msgs);
     for (const msg of msgs) {
       if (msg.role !== "user" || typeof msg.content === "string") continue;
-      for (const block of msg.content as Anthropic.Messages.ContentBlockParam[]) {
+      for (const block of msg.content as KotaContentBlock[]) {
         if (block.type !== "tool_result") continue;
-        const tr = block as Anthropic.Messages.ToolResultBlockParam;
+        const tr = block as KotaToolResultBlock;
         const info = toolMap.get(tr.tool_use_id);
         if (info?.name === "file_read" && (info.input as { path?: string }).path === "src/auth.ts") {
           // Should be replaced with a summary, not the original 3000-char content
@@ -155,9 +161,9 @@ describe("context-pipeline cross-module integration", () => {
     const toolMap = buildToolCallMap(msgs);
     for (const msg of msgs) {
       if (msg.role !== "user" || typeof msg.content === "string") continue;
-      for (const block of msg.content as Anthropic.Messages.ContentBlockParam[]) {
+      for (const block of msg.content as KotaContentBlock[]) {
         if (block.type !== "tool_result") continue;
-        const tr = block as Anthropic.Messages.ToolResultBlockParam;
+        const tr = block as KotaToolResultBlock;
         const info = toolMap.get(tr.tool_use_id);
         if (info && (info.name === "file_edit" || info.name === "file_write" || info.name === "multi_edit")) {
           // Write results should NOT contain "Previously" summary markers
@@ -173,9 +179,9 @@ describe("context-pipeline cross-module integration", () => {
 
     for (const msg of msgs) {
       if (msg.role !== "user" || typeof msg.content === "string") continue;
-      for (const block of msg.content as Anthropic.Messages.ContentBlockParam[]) {
+      for (const block of msg.content as KotaContentBlock[]) {
         if (block.type !== "tool_result") continue;
-        const tr = block as Anthropic.Messages.ToolResultBlockParam;
+        const tr = block as KotaToolResultBlock;
         if (tr.is_error) {
           // Error content should be preserved, not replaced with summary
           expect(tr.content).toContain("FAIL");
@@ -385,8 +391,8 @@ describe("context-pipeline cross-module integration", () => {
     expect(stats.charsSaved).toBe(5000); // estimated image savings
 
     // The pruned image result should now be a text summary
-    const imgResult = (msgs[2] as { role: string; content: Anthropic.Messages.ToolResultBlockParam[] })
-      .content[0] as Anthropic.Messages.ToolResultBlockParam;
+    const imgResult = (msgs[2] as { role: string; content: KotaToolResultBlock[] })
+      .content[0] as KotaToolResultBlock;
     expect(typeof imgResult.content).toBe("string");
     expect(imgResult.content).toContain("Previously viewed image");
     expect(imgResult.content).toContain("docs/arch.png");
@@ -406,8 +412,8 @@ describe("context-pipeline cross-module integration", () => {
     const stats = pruneMessages(msgs, { keepRecent: 5, minLength: 1500 });
     expect(stats.prunedCount).toBe(1);
 
-    const delegateResult = (msgs[1] as { role: string; content: Anthropic.Messages.ToolResultBlockParam[] })
-      .content[0] as Anthropic.Messages.ToolResultBlockParam;
+    const delegateResult = (msgs[1] as { role: string; content: KotaToolResultBlock[] })
+      .content[0] as KotaToolResultBlock;
     expect(delegateResult.content).toContain("Previous delegate");
     expect(delegateResult.content).toContain("Explore the authentication module");
   });
@@ -455,9 +461,9 @@ describe("context-pipeline cross-module integration", () => {
     for (let i = 10; i < 20; i++) {
       const msg = msgs[i];
       if (msg.role === "user" && Array.isArray(msg.content)) {
-        for (const block of msg.content as Anthropic.Messages.ContentBlockParam[]) {
+        for (const block of msg.content as KotaContentBlock[]) {
           if (block.type === "tool_result") {
-            const tr = block as Anthropic.Messages.ToolResultBlockParam;
+            const tr = block as KotaToolResultBlock;
             // Kept messages should have original content, not summary
             if (typeof tr.content === "string" && tr.content.length > 100) {
               expect(tr.content).not.toContain("Previously");
@@ -496,8 +502,8 @@ describe("context-pipeline cross-module integration", () => {
     expect(stats.charsSaved).toBeGreaterThan(3000);
 
     // The pruned result should now be a text summary
-    const result = (msgs[1] as { role: string; content: Anthropic.Messages.ToolResultBlockParam[] })
-      .content[0] as Anthropic.Messages.ToolResultBlockParam;
+    const result = (msgs[1] as { role: string; content: KotaToolResultBlock[] })
+      .content[0] as KotaToolResultBlock;
     expect(typeof result.content).toBe("string");
     expect(result.content).toContain("Previously read");
     expect(result.content).toContain("src/big-module.ts");
@@ -529,8 +535,8 @@ describe("context-pipeline cross-module integration", () => {
     const stats = pruneMessages(msgs, { keepRecent: 10, minLength: 1500 });
     expect(stats.prunedCount).toBe(1);
 
-    const result = (msgs[1] as { role: string; content: Anthropic.Messages.ToolResultBlockParam[] })
-      .content[0] as Anthropic.Messages.ToolResultBlockParam;
+    const result = (msgs[1] as { role: string; content: KotaToolResultBlock[] })
+      .content[0] as KotaToolResultBlock;
     expect(typeof result.content).toBe("string");
     expect(result.content).toContain("Previous delegate");
     expect(result.content).toContain("Analyze the codebase");
@@ -589,8 +595,8 @@ describe("context-pipeline cross-module integration", () => {
     expect(stats.prunedCount).toBe(0);
 
     // Verify the result is still intact
-    const result = (msgs[2] as { role: string; content: Anthropic.Messages.ToolResultBlockParam[] })
-      .content[0] as Anthropic.Messages.ToolResultBlockParam;
+    const result = (msgs[2] as { role: string; content: KotaToolResultBlock[] })
+      .content[0] as KotaToolResultBlock;
     expect(Array.isArray(result.content)).toBe(true);
   });
 
@@ -621,8 +627,8 @@ describe("context-pipeline cross-module integration", () => {
     expect(stats.prunedCount).toBeGreaterThanOrEqual(1);
 
     // Verify the pruned content is now a summary
-    const firstResult = (msgs[1] as { role: string; content: Anthropic.Messages.ToolResultBlockParam[] })
-      .content[0] as Anthropic.Messages.ToolResultBlockParam;
+    const firstResult = (msgs[1] as { role: string; content: KotaToolResultBlock[] })
+      .content[0] as KotaToolResultBlock;
     expect(firstResult.content).toContain("Previously read");
     expect(firstResult.content).toContain("big-file.ts");
   });

@@ -7,7 +7,12 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import type { KotaThinkingConfig, KotaTool } from "#core/agent-harness/message-protocol.js";
+import type {
+	KotaMessage,
+	KotaTextBlock,
+	KotaThinkingConfig,
+	KotaTool,
+} from "#core/agent-harness/message-protocol.js";
 import type { AgentEffort } from "#core/agent-harness/types.js";
 
 export type { AgentEffort };
@@ -23,8 +28,8 @@ export interface MessageStream {
 export type MessageStreamParams = {
 	model: string;
 	max_tokens: number;
-	system?: Anthropic.Messages.TextBlockParam[] | string;
-	messages: Anthropic.MessageParam[];
+	system?: KotaTextBlock[] | string;
+	messages: KotaMessage[];
 	tools?: KotaTool[];
 	thinking?: KotaThinkingConfig;
 	/**
@@ -42,7 +47,7 @@ export type MessageCreateParams = {
 	model: string;
 	max_tokens: number;
 	system?: string;
-	messages: Anthropic.MessageParam[];
+	messages: KotaMessage[];
 };
 
 /** Abstract LLM client — swap providers without changing agent code. */

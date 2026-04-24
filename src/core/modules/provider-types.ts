@@ -1,4 +1,4 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
 import type { Task, TaskPriority, TaskStatus } from "#core/daemon/task-store.js";
 import type { ConversationData, ConversationRecord } from "#modules/history/history.js";
 
@@ -147,7 +147,7 @@ export interface HistoryProvider {
 	create(model: string, cwd: string, source?: "user" | "action"): string;
 	save(
 		id: string,
-		messages: Anthropic.MessageParam[],
+		messages: KotaMessage[],
 		compactionCount: number,
 		lastInputTokens: number,
 	): void;

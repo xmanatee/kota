@@ -4,6 +4,7 @@ import type {
   AgentHarnessResult,
   AgentHarnessRunOptions,
   AgentHarnessWriter,
+  KotaMessage,
 } from "#core/agent-harness/index.js";
 import { createModelClient } from "#core/model/model-client.js";
 
@@ -71,11 +72,14 @@ export const thinAgentHarness: AgentHarness = {
 
     const system = options.systemPrompt;
     const resolved = createModelClient({ model });
+    const messages: KotaMessage[] = [
+      { role: "user", content: options.prompt },
+    ];
     const response = await resolved.client.messages.create({
       model: resolved.model,
       max_tokens: DEFAULT_MAX_TOKENS,
       ...(system !== undefined ? { system } : {}),
-      messages: [{ role: "user", content: options.prompt }],
+      messages,
     });
 
     const text = extractText(response);

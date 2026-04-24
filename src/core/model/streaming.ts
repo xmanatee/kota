@@ -1,5 +1,10 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { KotaThinkingConfig, KotaTool } from "#core/agent-harness/message-protocol.js";
+import type {
+  KotaMessage,
+  KotaTextBlock,
+  KotaThinkingConfig,
+  KotaTool,
+} from "#core/agent-harness/message-protocol.js";
 import type { Transport } from "#core/loop/transport.js";
 import type { ModelClient } from "./model-client.js";
 
@@ -28,8 +33,8 @@ export type StreamConfig = {
   client: ModelClient;
   model: string;
   maxTokens: number;
-  system: Anthropic.Messages.TextBlockParam[];
-  messages: Anthropic.MessageParam[];
+  system: KotaTextBlock[];
+  messages: KotaMessage[];
   tools: KotaTool[];
   thinkingConfig?: KotaThinkingConfig;
   transport: Transport;

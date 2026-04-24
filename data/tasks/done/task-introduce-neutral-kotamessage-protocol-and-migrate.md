@@ -1,12 +1,12 @@
 ---
 id: task-introduce-neutral-kotamessage-protocol-and-migrate
 title: Introduce neutral KotaMessage protocol and migrate core loop + delegate + history surfaces
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Implement Stage 4 of the Anthropic SDK type-surface audit: add neutral KotaMessage / KotaContentBlock / KotaTextBlock / KotaToolUseBlock / KotaToolResultBlock / KotaImageBlock and migrate the core loop, compaction, masking, pruning, reflection, tool-runner, delegate, and history-provider surfaces off Anthropic message types.
 created_at: 2026-04-24T05:51:05.434Z
-updated_at: 2026-04-24T05:51:05.434Z
+updated_at: 2026-04-24T06:15:41.200Z
 ---
 
 ## Problem

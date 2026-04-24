@@ -5,8 +5,7 @@
  * Enables the agent to remember prior interactions and reference past context.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
-import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { KotaMessage, KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getHistoryProvider } from "#core/modules/provider-registry.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type { ConversationRecord } from "./history.js";
@@ -55,21 +54,17 @@ function formatRecord(r: ConversationRecord): string {
 }
 
 /** Extract displayable text from a message's content. */
-function extractMessageText(
-	content: Anthropic.MessageParam["content"],
-): string {
+function extractMessageText(content: KotaMessage["content"]): string {
 	if (typeof content === "string") return content;
 	if (!Array.isArray(content)) return "";
 	const parts: string[] = [];
 	for (const block of content) {
-		if ("type" in block) {
-			if (block.type === "text" && "text" in block) {
-				parts.push(block.text as string);
-			} else if (block.type === "tool_use" && "name" in block) {
-				parts.push(`[tool: ${block.name}]`);
-			} else if (block.type === "tool_result") {
-				parts.push("[tool result]");
-			}
+		if (block.type === "text") {
+			parts.push(block.text);
+		} else if (block.type === "tool_use") {
+			parts.push(`[tool: ${block.name}]`);
+		} else if (block.type === "tool_result") {
+			parts.push("[tool result]");
 		}
 	}
 	return parts.join(" ");

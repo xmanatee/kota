@@ -1,5 +1,10 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
+import type {
+  KotaContentBlock,
+  KotaMessage,
+  KotaToolResultBlockContent,
+} from "#core/agent-harness/message-protocol.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import type { ToolResultBlock } from "#core/tools/index.js";
 import { getTodoState } from "#core/tools/index.js";
@@ -7,7 +12,7 @@ import { compactMessages } from "./compaction.js";
 import { type PruneStats, pruneMessages } from "./message-pruning.js";
 import { type MaskStats, maskObservations } from "./observation-masking.js";
 
-type Message = Anthropic.MessageParam;
+type Message = KotaMessage;
 
 type SessionData = {
   messages: Message[];
@@ -90,9 +95,11 @@ export class Context {
   }
 
   addAssistantMessage(message: Anthropic.Message): void {
+    // Stage 5 replaces `Anthropic.Message` here with `KotaModelResponse`; its
+    // `content` is already structurally compatible with `KotaContentBlock[]`.
     this.messages.push({
       role: "assistant",
-      content: message.content,
+      content: message.content as unknown as KotaContentBlock[],
     });
   }
 
@@ -114,7 +121,7 @@ export class Context {
         type: "tool_result" as const,
         tool_use_id: r.tool_use_id,
         content: r.blocks
-          ? (r.blocks as Anthropic.Messages.ToolResultBlockParam["content"])
+          ? (r.blocks as KotaToolResultBlockContent)
           : r.content,
         is_error: r.is_error,
       })),

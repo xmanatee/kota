@@ -1,8 +1,11 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
+import type {
+  KotaMessage,
+  KotaToolResultBlockContent,
+} from "#core/agent-harness/message-protocol.js";
 import { buildToolCallMap, generateSummary, pruneMessages } from "./core/loop/message-pruning.js";
 
-type Message = Anthropic.MessageParam;
+type Message = KotaMessage;
 
 function toolUse(name: string, input: Record<string, unknown>, id: string): Message {
   return {
@@ -247,7 +250,7 @@ describe("pruneMessages", () => {
   });
 
   it("prunes image-bearing results regardless of size", () => {
-    const imageContent: Anthropic.Messages.ToolResultBlockParam["content"] = [
+    const imageContent: KotaToolResultBlockContent = [
       { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
     ];
     const messages: Message[] = [

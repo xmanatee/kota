@@ -190,7 +190,7 @@ describe("toOpenAIMessages", () => {
 			{
 				role: "assistant",
 				content: [
-					{ type: "thinking", thinking: "hmm..." } as unknown as Anthropic.ContentBlockParam,
+					{ type: "thinking", thinking: "hmm...", signature: "" },
 					{ type: "text", text: "answer" },
 				],
 			},

@@ -14,8 +14,10 @@
  * loop begins.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
-import type { KotaThinkingConfig } from "#core/agent-harness/message-protocol.js";
+import type {
+  KotaMessage,
+  KotaThinkingConfig,
+} from "#core/agent-harness/message-protocol.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import type { CostTracker } from "./cost.js";
 import type { Transport } from "./transport.js";
@@ -27,7 +29,7 @@ export type PreSendContext = {
   maxTokens: number;
   effectiveMaxTokens: number;
   systemContext: string;
-  messages: Anthropic.Messages.MessageParam[];
+  messages: KotaMessage[];
   costTracker: CostTracker;
   verbose: boolean;
   thinkingConfig?: KotaThinkingConfig;

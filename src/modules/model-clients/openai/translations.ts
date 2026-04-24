@@ -1,83 +1,101 @@
 /**
- * Bidirectional format translation between Anthropic and OpenAI message formats.
+ * Bidirectional format translation between KOTA's neutral message protocol
+ * and OpenAI chat-completion shapes.
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type {
+	KotaMessage,
+	KotaTextBlock,
+	KotaTool,
+	KotaToolResultBlock,
+} from "#core/agent-harness/message-protocol.js";
 import type { OAIMessage, OAITool, OAIToolCall } from "./types.js";
 
-/** Extract plain text from the system param (string or TextBlockParam[]). */
+/** Extract plain text from the system param (string or KotaTextBlock[]). */
 export function systemToText(
-	system: Anthropic.Messages.TextBlockParam[] | string | undefined,
+	system: KotaTextBlock[] | string | undefined,
 ): string | undefined {
 	if (!system) return undefined;
 	if (typeof system === "string") return system;
 	return system.map((b) => b.text).join("\n\n");
 }
 
-/** Convert Anthropic messages + system to OpenAI message array. */
+/**
+ * Convert a single neutral `KotaMessage` to the OpenAI chat-completion
+ * message array for that transcript entry. A `KotaMessage` with blended
+ * text and `tool_result` blocks expands into multiple OpenAI entries, so
+ * the helper returns an array; callers flatten with `toOpenAIMessages`.
+ */
+export function kotaMessageToOpenAiMessage(msg: KotaMessage): OAIMessage[] {
+	if (msg.role === "user") {
+		if (typeof msg.content === "string") {
+			return [{ role: "user", content: msg.content }];
+		}
+		const entries: OAIMessage[] = [];
+		const textParts: string[] = [];
+		for (const block of msg.content) {
+			if (block.type === "text") {
+				textParts.push(block.text);
+			} else if (block.type === "tool_result") {
+				if (textParts.length > 0) {
+					entries.push({ role: "user", content: textParts.join("\n") });
+					textParts.length = 0;
+				}
+				entries.push({
+					role: "tool",
+					tool_call_id: block.tool_use_id,
+					content: extractToolResultContent(block),
+				});
+			}
+		}
+		if (textParts.length > 0) {
+			entries.push({ role: "user", content: textParts.join("\n") });
+		}
+		return entries;
+	}
+
+	if (typeof msg.content === "string") {
+		return [{ role: "assistant", content: msg.content }];
+	}
+	const textParts: string[] = [];
+	const toolCalls: OAIToolCall[] = [];
+	for (const block of msg.content) {
+		if (block.type === "text") {
+			textParts.push(block.text);
+		} else if (block.type === "tool_use") {
+			toolCalls.push({
+				id: block.id,
+				type: "function",
+				function: {
+					name: block.name,
+					arguments: JSON.stringify(block.input),
+				},
+			});
+		}
+		// thinking and image blocks have no OpenAI assistant-message analog
+	}
+	const entry: OAIMessage = {
+		role: "assistant",
+		content: textParts.length > 0 ? textParts.join("\n") : null,
+	};
+	if (toolCalls.length > 0) {
+		(entry as { tool_calls?: OAIToolCall[] }).tool_calls = toolCalls;
+	}
+	return [entry];
+}
+
+/** Convert neutral KOTA messages + system to OpenAI message array. */
 export function toOpenAIMessages(
-	system: Anthropic.Messages.TextBlockParam[] | string | undefined,
-	messages: Anthropic.MessageParam[],
+	system: KotaTextBlock[] | string | undefined,
+	messages: KotaMessage[],
 ): OAIMessage[] {
 	const result: OAIMessage[] = [];
 	const sysText = systemToText(system);
 	if (sysText) result.push({ role: "system", content: sysText });
 
 	for (const msg of messages) {
-		if (msg.role === "user") {
-			if (typeof msg.content === "string") {
-				result.push({ role: "user", content: msg.content });
-				continue;
-			}
-			const textParts: string[] = [];
-			for (const block of msg.content) {
-				if (block.type === "text") {
-					textParts.push(block.text);
-				} else if (block.type === "tool_result") {
-					if (textParts.length > 0) {
-						result.push({ role: "user", content: textParts.join("\n") });
-						textParts.length = 0;
-					}
-					result.push({
-						role: "tool",
-						tool_call_id: block.tool_use_id,
-						content: extractToolResultContent(block),
-					});
-				}
-			}
-			if (textParts.length > 0) {
-				result.push({ role: "user", content: textParts.join("\n") });
-			}
-		} else if (msg.role === "assistant") {
-			if (typeof msg.content === "string") {
-				result.push({ role: "assistant", content: msg.content });
-				continue;
-			}
-			const textParts: string[] = [];
-			const toolCalls: OAIToolCall[] = [];
-			for (const block of msg.content) {
-				if (block.type === "text") {
-					textParts.push(block.text);
-				} else if (block.type === "tool_use") {
-					toolCalls.push({
-						id: block.id,
-						type: "function",
-						function: {
-							name: block.name,
-							arguments: JSON.stringify(block.input),
-						},
-					});
-				}
-				// thinking blocks are skipped (OpenAI has no equivalent)
-			}
-			const entry: OAIMessage = {
-				role: "assistant",
-				content: textParts.length > 0 ? textParts.join("\n") : null,
-			};
-			if (toolCalls.length > 0) {
-				(entry as { tool_calls?: OAIToolCall[] }).tool_calls = toolCalls;
-			}
+		for (const entry of kotaMessageToOpenAiMessage(msg)) {
 			result.push(entry);
 		}
 	}
@@ -85,16 +103,12 @@ export function toOpenAIMessages(
 }
 
 /** Extract text content from a tool result block. */
-export function extractToolResultContent(
-	block: Anthropic.Messages.ToolResultBlockParam,
-): string {
+export function extractToolResultContent(block: KotaToolResultBlock): string {
 	const prefix = block.is_error ? "[ERROR] " : "";
 	if (typeof block.content === "string") return prefix + block.content;
 	if (!block.content) return `${prefix}`;
 	const texts = block.content
-		.filter(
-			(b): b is Anthropic.Messages.TextBlockParam => b.type === "text",
-		)
+		.filter((b): b is KotaTextBlock => b.type === "text")
 		.map((b) => b.text);
 	return prefix + texts.join("\n");
 }

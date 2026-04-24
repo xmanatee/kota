@@ -23,9 +23,19 @@ export {
   resetHarnessHooks,
 } from "./hooks.js";
 export type {
+  KotaCacheControl,
+  KotaContentBlock,
+  KotaImageBlock,
+  KotaMessage,
+  KotaRole,
+  KotaTextBlock,
+  KotaThinkingBlock,
   KotaThinkingConfig,
   KotaTool,
   KotaToolInputSchema,
+  KotaToolResultBlock,
+  KotaToolResultBlockContent,
+  KotaToolUseBlock,
 } from "./message-protocol.js";
 export {
   clearAgentHarnessRegistryForTest,

@@ -1,7 +1,10 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type {
+  KotaMessage,
+  KotaTextBlock,
+  KotaToolUseBlock,
+} from "#core/agent-harness/message-protocol.js";
 
-type Message = Anthropic.MessageParam;
-type ContentBlock = Anthropic.Messages.ContentBlockParam;
+type Message = KotaMessage;
 
 /**
  * Self-reflection: a lightweight evaluation step before the agent delivers
@@ -57,10 +60,10 @@ export function analyzeToolUsage(messages: Message[]): ToolUsageSummary {
     if (typeof msg.content === "string") continue;
     if (!Array.isArray(msg.content)) continue;
 
-    for (const block of msg.content as ContentBlock[]) {
+    for (const block of msg.content) {
       if (block.type === "tool_use") {
         toolCallCount++;
-        const tu = block as Anthropic.Messages.ToolUseBlockParam;
+        const tu = block as KotaToolUseBlock;
         if (CODE_EDIT_TOOLS.has(tu.name)) editedFiles = true;
         if (RESEARCH_TOOLS.has(tu.name)) didResearch = true;
         if (COMPUTE_TOOLS.has(tu.name)) didCompute = true;
@@ -82,9 +85,9 @@ export function getLastAssistantText(messages: Message[]): string {
     if (msg.role !== "assistant") continue;
     if (typeof msg.content === "string") return msg.content;
     if (Array.isArray(msg.content)) {
-      const textParts = (msg.content as ContentBlock[])
+      const textParts = msg.content
         .filter((b) => b.type === "text")
-        .map((b) => (b as Anthropic.Messages.TextBlockParam).text);
+        .map((b) => (b as KotaTextBlock).text);
       return textParts.join("\n");
     }
   }
@@ -97,9 +100,9 @@ function getUserGoal(messages: Message[]): string {
     if (msg.role !== "user") continue;
     if (typeof msg.content === "string") return msg.content;
     if (Array.isArray(msg.content)) {
-      const textParts = (msg.content as ContentBlock[])
+      const textParts = msg.content
         .filter((b) => b.type === "text")
-        .map((b) => (b as Anthropic.Messages.TextBlockParam).text);
+        .map((b) => (b as KotaTextBlock).text);
       if (textParts.length > 0) return textParts.join("\n");
     }
   }

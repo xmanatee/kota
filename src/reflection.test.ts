@@ -1,5 +1,5 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
+import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
 import {
   analyzeToolUsage,
   buildReflectionPrompt,
@@ -8,7 +8,7 @@ import {
   shouldReflect,
 } from "./core/loop/reflection.js";
 
-type Message = Anthropic.MessageParam;
+type Message = KotaMessage;
 
 // --- helpers ---
 

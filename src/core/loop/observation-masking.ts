@@ -1,7 +1,10 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type {
+  KotaMessage,
+  KotaToolResultBlock,
+  KotaToolUseBlock,
+} from "#core/agent-harness/message-protocol.js";
 
-type Message = Anthropic.MessageParam;
-type ContentBlock = Anthropic.Messages.ContentBlockParam;
+type Message = KotaMessage;
 
 /**
  * Observation masking: replace old tool outputs with compact placeholders.
@@ -40,9 +43,9 @@ function buildToolCallMap(messages: Message[]): Map<string, ToolCallInfo> {
   for (const msg of messages) {
     if (msg.role !== "assistant" || typeof msg.content === "string") continue;
     if (!Array.isArray(msg.content)) continue;
-    for (const block of msg.content as ContentBlock[]) {
+    for (const block of msg.content) {
       if (block.type === "tool_use") {
-        const tu = block as Anthropic.Messages.ToolUseBlockParam;
+        const tu = block as KotaToolUseBlock;
         map.set(tu.id, {
           name: tu.name,
           input: tu.input as Record<string, unknown>,
@@ -147,7 +150,7 @@ export function generatePlaceholder(
 }
 
 /** Extract text content from a tool_result block. */
-function extractText(tr: Anthropic.Messages.ToolResultBlockParam): string {
+function extractText(tr: KotaToolResultBlock): string {
   if (typeof tr.content === "string") return tr.content;
   if (Array.isArray(tr.content)) {
     return (tr.content as Array<{ type: string; text?: string }>)
@@ -159,13 +162,13 @@ function extractText(tr: Anthropic.Messages.ToolResultBlockParam): string {
 }
 
 /** Check if content is already masked. */
-function isAlreadyMasked(tr: Anthropic.Messages.ToolResultBlockParam): boolean {
+function isAlreadyMasked(tr: KotaToolResultBlock): boolean {
   const text = typeof tr.content === "string" ? tr.content : extractText(tr);
   return text.startsWith(MASKED_PREFIX);
 }
 
 /** Check if content contains an image block. */
-function hasImageContent(tr: Anthropic.Messages.ToolResultBlockParam): boolean {
+function hasImageContent(tr: KotaToolResultBlock): boolean {
   return (
     Array.isArray(tr.content) &&
     (tr.content as Array<{ type: string }>).some((b) => b.type === "image")
@@ -199,9 +202,9 @@ export function maskObservations(
     if (msg.role !== "user" || typeof msg.content === "string") continue;
     if (!Array.isArray(msg.content)) continue;
 
-    for (const block of msg.content as ContentBlock[]) {
+    for (const block of msg.content) {
       if (block.type !== "tool_result") continue;
-      const tr = block as Anthropic.Messages.ToolResultBlockParam;
+      const tr = block as KotaToolResultBlock;
 
       if (isAlreadyMasked(tr)) continue;
 

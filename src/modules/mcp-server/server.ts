@@ -10,7 +10,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface, type Interface } from "node:readline";
 import type Anthropic from "@anthropic-ai/sdk";
-import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { KotaMessage, KotaTool } from "#core/agent-harness/message-protocol.js";
 import { loadConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { getEventBus } from "#core/events/event-bus.js";
@@ -660,7 +660,7 @@ export class McpServer {
 		const systemPrompt = typeof params.systemPrompt === "string" ? params.systemPrompt : undefined;
 
 		// Convert MCP message format to Anthropic format
-		const messages: Anthropic.MessageParam[] = rawMessages.map((m) => {
+		const messages: KotaMessage[] = rawMessages.map((m) => {
 			const role = m.role === "assistant" ? "assistant" : "user";
 			const content: string =
 				m.content.type === "text" && m.content.text != null

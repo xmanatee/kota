@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
 
-export type Message = Anthropic.MessageParam;
+export type Message = KotaMessage;
 
 export type ConversationRecord = {
   id: string;
@@ -48,8 +48,8 @@ export function generateId(): string {
 export function extractText(content: Message["content"]): string | null {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
-    const textBlock = content.find((b) => "type" in b && b.type === "text");
-    if (textBlock && "text" in textBlock) return textBlock.text as string;
+    const textBlock = content.find((b) => b.type === "text");
+    if (textBlock && "text" in textBlock) return textBlock.text;
   }
   return null;
 }
@@ -72,7 +72,7 @@ export function countMessages(messages: Message[]): number {
     if (m.role === "user") {
       if (typeof m.content === "string") return true;
       if (Array.isArray(m.content)) {
-        return m.content.some((b) => "type" in b && b.type === "text");
+        return m.content.some((b) => b.type === "text");
       }
     }
     return false;

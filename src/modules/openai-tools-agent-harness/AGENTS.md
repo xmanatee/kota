@@ -18,8 +18,10 @@ presets, plus any explicit `--base-url` against a compatible endpoint.
 
 Each turn:
 
-1. The adapter sends the running `Anthropic.MessageParam[]` plus the
-   filtered tool list through `ModelClient.messages.stream`.
+1. The adapter sends the running `KotaMessage[]` plus the filtered tool
+   list through `ModelClient.messages.stream`; `model-clients/openai`
+   translates the neutral transcript to OpenAI chat-completion shapes at
+   its seam.
 2. Streamed `text` deltas flow to the optional `AgentHarnessWriter` so
    operators see live output.
 3. The final `Anthropic.Message` is split into text and `tool_use` blocks.
@@ -112,7 +114,7 @@ mapping functions.
 ## Multi-Turn Context
 
 The harness drives a fresh stream per turn but feeds the entire
-`Anthropic.MessageParam[]` history each call, so prior assistant text and
+`KotaMessage[]` history each call, so prior assistant text and
 tool_result blocks persist across turns. The harness-neutral REPL
 composes a transcript prompt and delivers it through `run()`, so
 interactive sessions work without the adapter owning native conversation

@@ -1,4 +1,9 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type {
+  KotaContentBlock,
+  KotaMessage,
+  KotaTextBlock,
+} from "#core/agent-harness/message-protocol.js";
 import { truncateToolResult } from "#core/loop/context.js";
 import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
@@ -47,10 +52,10 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
   if (verbose && transport) transport.emit({ type: "status", message: "[kota] Editor pass — executing plan..." });
 
   const editorTools = getAllTools().filter((t) => EDITOR_TOOL_SET.has(t.name));
-  const systemBlocks: Anthropic.Messages.TextBlockParam[] = [
+  const systemBlocks: KotaTextBlock[] = [
     { type: "text", text: EDITOR_SYSTEM, cache_control: { type: "ephemeral" } },
   ];
-  const messages: Anthropic.Messages.MessageParam[] = [
+  const messages: KotaMessage[] = [
     { role: "user", content: plan },
   ];
   let lastText = "";
@@ -103,7 +108,10 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
     if (costTracker) costTracker.addUsage(model, response.usage);
     if (verbose && transport) transport.emit({ type: "status", message: `[kota] Editor turn ${turn + 1}/${MAX_EDITOR_TURNS}` });
 
-    messages.push({ role: "assistant", content: response.content });
+    messages.push({
+      role: "assistant",
+      content: response.content as unknown as KotaContentBlock[],
+    });
 
     const toolBlocks = response.content.filter((b) => b.type === "tool_use");
     if (toolBlocks.length === 0) { completedNaturally = true; break; }

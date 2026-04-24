@@ -1,5 +1,8 @@
-import type Anthropic from "@anthropic-ai/sdk";
-import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type {
+  KotaMessage,
+  KotaTextBlock,
+  KotaTool,
+} from "#core/agent-harness/message-protocol.js";
 import {
   buildSubAgentPrompt,
   EXECUTE_PROMPT,
@@ -143,8 +146,8 @@ export async function runDelegate(
   const client = delegateConfig.client ?? createModelClient({ model: delegateConfig.model }).client;
   const costTracker = delegateConfig.costTracker;
   const transport = delegateConfig.transport;
-  const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: task }];
-  const systemBlocks: Anthropic.Messages.TextBlockParam[] = [
+  const messages: KotaMessage[] = [{ role: "user", content: task }];
+  const systemBlocks: KotaTextBlock[] = [
     { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
   ];
 

@@ -1,4 +1,7 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type {
+  KotaMessage,
+  KotaTextBlock,
+} from "#core/agent-harness/message-protocol.js";
 import { getSecretStore } from "#core/config/secrets.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { tryEmit } from "#core/events/event-bus.js";
@@ -28,7 +31,7 @@ const CONTEXT_TURNS = 3;
  * string for operator context. Skips tool-result-only messages.
  */
 export function extractApprovalContext(
-  messages: Anthropic.MessageParam[],
+  messages: KotaMessage[],
   turns = CONTEXT_TURNS,
   maxChars = CONTEXT_MAX_CHARS,
 ): string | undefined {
@@ -41,7 +44,7 @@ export function extractApprovalContext(
       text = msg.content;
     } else if (Array.isArray(msg.content)) {
       text = msg.content
-        .filter((b): b is Anthropic.Messages.TextBlockParam => b.type === "text")
+        .filter((b): b is KotaTextBlock => b.type === "text")
         .map((b) => b.text)
         .join(" ");
     }
@@ -70,7 +73,7 @@ export type ToolCallExecutionOptions = {
   transport?: Transport;
   guardrailsConfig?: GuardrailsConfig;
   sessionId?: string;
-  messages?: Anthropic.MessageParam[];
+  messages?: KotaMessage[];
 };
 
 /**
