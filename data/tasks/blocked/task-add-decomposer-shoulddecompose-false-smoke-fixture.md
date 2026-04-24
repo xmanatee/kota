@@ -1,12 +1,12 @@
 ---
 id: task-add-decomposer-shoulddecompose-false-smoke-fixture
 title: Add decomposer shouldDecompose-false smoke fixture exercising triggerPayload plumbing
-status: ready
+status: blocked
 priority: p2
 area: autonomy
 summary: Seed a smoke fixture for decomposer that replays a non-timeout-shaped builder run via triggerPayload, asserting the assess-failure gate correctly chose shouldDecompose: false and skipped the agent step — establishing end-to-end regression coverage of decomposer's decision gate plus the triggerPayload subprocess-executor plumbing without any agent-call cost.
 created_at: 2026-04-24T12:21:41.524Z
-updated_at: 2026-04-24T12:21:41.524Z
+updated_at: 2026-04-24T14:00:00.750Z
 ---
 
 ## Problem
@@ -116,3 +116,33 @@ decision without an agent call).
   `FixtureProvenanceError`.
 - `src/modules/eval-harness/AGENTS.md` still documents only the shape
   contract and provenance rule — no per-fixture inventory.
+
+## Blocker
+
+Blocked on infrastructure gap: `pnpm kota eval run` cannot finish any
+workflow fixture end-to-end today. The subprocess-executor spawns
+`kota workflow trigger <name> --force --payload ...`, which only enqueues
+a pending run into `WorkflowRunStore`. Without a daemon running in the
+fixture's isolated `HOME`/`KOTA_PROJECT_DIR` (tmpdir), nothing executes
+the pending run, so the runner always returns `timeout` after `budgetMs`
+with zero `.kota/runs/` entries produced. Reproduced on the already-
+shipped `dispatcher-emits-on-ready-queue` smoke fixture: the
+`pnpm kota eval run --fixture dispatcher-emits-on-ready-queue --repeats 1`
+invocation at `.kota/eval-runs/2026-04-24T13-24-59-975Z/` times out at
+60s with 0 emitted events, and every prior attempt at this decomposer
+fixture under `.kota/eval-runs/` (`2026-04-24T13-00-04-083Z` etc.)
+exhibited the same shape ("decomposer runs: 0").
+
+The task's Done When #4 ("Running the fixture end-to-end via
+`pnpm kota eval run` ... finishes within the declared `budgetMs` ...
+all predicates pass") and Done When #5 (critic-verified flipped-gate
+regression that requires the fixture to actually run) are therefore
+unreachable. The task's Constraints also explicitly forbid extending
+`subprocess-executor.ts` as part of this work. The honest fix is a
+separate enabler that makes the subprocess-executor actually execute
+queued runs (e.g. by spawning a per-fixture daemon, draining pending
+runs inline, or adding a single-pass run command).
+
+Unblock when `task-fix-eval-harness-subprocess-executor-daemon` ships
+and any smoke fixture (dispatcher or otherwise) actually passes
+end-to-end under the default host class.
