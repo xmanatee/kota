@@ -80,7 +80,7 @@ function rejectClaudeSpecificOptions(options: AgentHarnessRunOptions): void {
   }
   if (options.onMessage !== undefined) {
     throw new Error(
-      'The "openai-tools" agent harness does not emit SDKMessage frames. ' +
+      'The "openai-tools" agent harness does not emit AgentMessage frames. ' +
         "Drop onMessage or run claude-agent-sdk.",
     );
   }

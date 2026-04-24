@@ -1,20 +1,62 @@
 import type { HarnessHookKind } from "./hooks.js";
-import type {
-  SDKMessage,
-  SDKPermissionMode,
-  SDKSettingSource,
-} from "./sdk-types.js";
 
 /**
- * Harness-neutral re-exports. Message, permission, and settings shapes live in
- * `./sdk-types.ts` because they originated with the Claude Agent SDK, but the
- * protocol treats them as neutral wire types every harness adapter must read
- * or produce. Non-claude adapters convert between their native payloads and
- * these shapes at the boundary.
+ * Harness-neutral wire-frame and policy types every agent harness adapter
+ * normalizes into. The shapes originated with the Claude Agent SDK but the
+ * protocol treats them as neutral: workflow runtime, run stores, and step
+ * executors consume them directly; non-claude adapters convert their native
+ * payloads into these shapes at the boundary.
  */
-export type AgentMessage = SDKMessage;
-export type AgentPermissionMode = SDKPermissionMode;
-export type AgentSettingSource = SDKSettingSource;
+export type AgentPermissionMode =
+  | "default"
+  | "acceptEdits"
+  | "dontAsk"
+  | "bypassPermissions";
+
+export type AgentSettingSource = "project" | "local" | "user";
+
+export type AgentContentBlock = {
+  type: string;
+  text?: string;
+};
+
+export type AgentMessageWithSession = {
+  session_id?: string;
+  sessionId?: string;
+};
+
+export type AgentAssistantMessage = AgentMessageWithSession & {
+  type: "assistant";
+  message?: {
+    content?: AgentContentBlock[];
+  };
+  content?: AgentContentBlock[];
+};
+
+export type AgentResultMessage = AgentMessageWithSession & {
+  type: "result";
+  subtype?: string;
+  result?: string;
+  total_cost_usd?: number;
+  num_turns?: number;
+  is_error?: boolean;
+  usage?: { input_tokens: number; output_tokens: number };
+};
+
+export type AgentStatusMessage = AgentMessageWithSession & {
+  type: string;
+  subtype?: string;
+  message?: string | { content?: AgentContentBlock[] };
+  description?: string;
+  output?: string[];
+  tool_name?: string;
+};
+
+export type AgentMessage =
+  | AgentAssistantMessage
+  | AgentResultMessage
+  | AgentStatusMessage
+  | (AgentMessageWithSession & Record<string, unknown> & { type: string });
 /**
  * Portable system-prompt text every harness-neutral caller delivers. Adapters
  * that wrap prompts in a native envelope (e.g. the claude-agent-sdk
@@ -224,11 +266,12 @@ export type AgentHarness = {
    */
   readonly askOwnerToolName: string | null;
   /**
-   * Whether this adapter emits `SDKMessage`-shaped frames to an `onMessage`
-   * callback. Claude-Agent-SDK sets this to `true`; the openai-tools and
-   * thin adapters have no such stream and reject `onMessage` at the
-   * boundary. Callers consult this flag to decide whether to subscribe —
-   * branching on a declared capability rather than the adapter name.
+   * Whether this adapter emits `AgentMessage`-shaped frames to an
+   * `onMessage` callback. Claude-Agent-SDK sets this to `true`; the
+   * openai-tools and thin adapters have no such stream and reject
+   * `onMessage` at the boundary. Callers consult this flag to decide
+   * whether to subscribe — branching on a declared capability rather than
+   * the adapter name.
    */
   readonly emitsAgentMessageStream: boolean;
   /**

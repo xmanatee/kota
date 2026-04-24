@@ -1,12 +1,12 @@
 ---
 id: task-rename-core-agent-harness-wire-types-from-sdk-to-n
 title: Rename core agent-harness wire types from SDK* to neutral Agent* names
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Drop the lingering SDK* prefix from core agent-harness wire-frame types so core stops referring to Claude-SDK names for shapes it treats as neutral, finishing the recent claude-SDK extraction sweep.
 created_at: 2026-04-24T02:36:11.988Z
-updated_at: 2026-04-24T02:36:11.988Z
+updated_at: 2026-04-24T02:44:47.976Z
 ---
 
 ## Problem

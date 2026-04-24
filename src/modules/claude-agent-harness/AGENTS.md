@@ -7,10 +7,10 @@ questions MCP bridge (`kota-tools-mcp.ts`), the claude-shaped query/option
 declarations (`sdk-types.ts` — `SDKQueryOptions`, `SDKSystemPrompt`,
 `SDKThinkingConfig`, `SDKQueryParams`, `SDKQueryFn`, `SDKModule`), and the
 adapter that translates neutral `AgentHarnessRunOptions` into SDK wire shape.
-The harness-neutral wire-frame declarations (`SDKMessage`, `SDKPermissionMode`,
-`SDKSettingSource`) live in `src/core/agent-harness/sdk-types.ts` because the
-workflow runtime consumes them directly; nothing else in core imports
-`@anthropic-ai/claude-agent-sdk`.
+The harness-neutral wire-frame declarations (`AgentMessage`,
+`AgentPermissionMode`, `AgentSettingSource`) live in
+`src/core/agent-harness/types.ts` because the workflow runtime consumes them
+directly; nothing else in core imports `@anthropic-ai/claude-agent-sdk`.
 
 - Registration happens as a side effect of importing this module (mirrors
   `src/modules/model-clients/`). Tests that exercise paths depending on the

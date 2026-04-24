@@ -6,15 +6,13 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type {
-  SDKMessage,
-  SDKPermissionMode,
-  SDKResultMessage,
-} from "#core/agent-harness/sdk-types.js";
-import type {
   AgentCanUseTool,
   AgentEffort,
   AgentMcpServers,
+  AgentMessage,
+  AgentPermissionMode,
   AgentPermissionResult,
+  AgentResultMessage,
   AgentSettingSource,
 } from "#core/agent-harness/types.js";
 import type { SDKQueryOptions, SDKSystemPrompt } from "./sdk-types.js";
@@ -30,14 +28,14 @@ export type ExecutorOptions = {
   allowedTools?: string[];
   disallowedTools?: string[];
   mcpServers?: AgentMcpServers;
-  permissionMode?: SDKPermissionMode;
+  permissionMode?: AgentPermissionMode;
   persistSession?: boolean;
   effort: AgentEffort;
   settingSources?: AgentSettingSource[];
   pathToClaudeCodeExecutable?: string;
   abortController?: AbortController;
   enableFileCheckpointing?: boolean;
-  onMessage?: (message: SDKMessage) => void | Promise<void>;
+  onMessage?: (message: AgentMessage) => void | Promise<void>;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
   canUseTool?: AgentCanUseTool;
@@ -65,7 +63,7 @@ function extractTextBlocks(blocks?: Array<{ type?: string; text?: string }>): st
     .join("");
 }
 
-export function extractText(message: SDKMessage): string {
+export function extractText(message: AgentMessage): string {
   if (message.type === "assistant") {
     if (message.message && typeof message.message === "object") {
       return extractTextBlocks(
@@ -90,11 +88,11 @@ export function extractText(message: SDKMessage): string {
   return "";
 }
 
-export function getSessionId(message: SDKMessage): string | undefined {
+export function getSessionId(message: AgentMessage): string | undefined {
   return message.session_id || message.sessionId;
 }
 
-function formatStatusMessage(message: SDKMessage): string | null {
+function formatStatusMessage(message: AgentMessage): string | null {
   if (
     message.type === "auth_status" &&
     "output" in message &&
@@ -270,7 +268,7 @@ export async function executeWithAgentSDK(
   const queryOptions = buildQueryOptions(options);
 
   const streamedChunks: string[] = [];
-  let resultMessage: SDKResultMessage | undefined;
+  let resultMessage: AgentResultMessage | undefined;
   let sessionId: string | undefined;
   let turns = 0;
   const abortSignal = options.abortController?.signal;

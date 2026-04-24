@@ -2,10 +2,10 @@
  * Claude-agent-sdk-shaped wire types used only inside this adapter.
  *
  * The neutral wire frames every harness adapter normalizes into
- * (`SDKMessage`, `SDKPermissionMode`, `SDKSettingSource`) live in
- * `#core/agent-harness/sdk-types.js`. Everything declared here is the
- * shape the `@anthropic-ai/claude-agent-sdk` `query` function expects and
- * is therefore module-local — no other adapter or core code imports it.
+ * (`AgentMessage`, `AgentPermissionMode`, `AgentSettingSource`) live in
+ * `#core/agent-harness/types.js`. Everything declared here is the shape
+ * the `@anthropic-ai/claude-agent-sdk` `query` function expects and is
+ * therefore module-local — no other adapter or core code imports it.
  */
 
 import type {
@@ -16,10 +16,10 @@ import type {
   SpawnOptions,
 } from "@anthropic-ai/claude-agent-sdk";
 import type {
-  SDKMessage,
-  SDKPermissionMode,
-  SDKSettingSource,
-} from "#core/agent-harness/sdk-types.js";
+  AgentMessage,
+  AgentPermissionMode,
+  AgentSettingSource,
+} from "#core/agent-harness/types.js";
 
 /**
  * Claude-agent-sdk's native `systemPrompt` wire type (string, string[], or the
@@ -41,12 +41,12 @@ export type SDKQueryOptions = {
   systemPrompt?: SDKSystemPrompt;
   allowedTools?: string[];
   disallowedTools?: string[];
-  permissionMode?: SDKPermissionMode;
+  permissionMode?: AgentPermissionMode;
   cwd?: string;
   persistSession?: boolean;
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
   includePartialMessages?: boolean;
-  settingSources?: SDKSettingSource[];
+  settingSources?: AgentSettingSource[];
   mcpServers?: Record<string, McpServerConfig>;
   pathToClaudeCodeExecutable?: string;
   allowDangerouslySkipPermissions?: boolean;
@@ -62,7 +62,7 @@ export type SDKQueryParams = {
   options?: SDKQueryOptions;
 };
 
-export type SDKQueryFn = (params: SDKQueryParams) => AsyncIterable<SDKMessage>;
+export type SDKQueryFn = (params: SDKQueryParams) => AsyncIterable<AgentMessage>;
 
 export type SDKModule = {
   query: SDKQueryFn;

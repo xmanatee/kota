@@ -56,7 +56,7 @@ field injected by call sites.
 
 ## Capability flags
 
-- `emitsAgentMessageStream: boolean` — whether the adapter emits `SDKMessage`
+- `emitsAgentMessageStream: boolean` — whether the adapter emits `AgentMessage`
   frames to `onMessage`. Callers check before subscribing; adapters without a
   stream (openai-tools, thin) reject `onMessage` at the boundary.
 - `supportsMultiTurn: boolean` — whether the REPL can launch this adapter.
@@ -104,21 +104,21 @@ history, CostTracker, Transport) and only fires inside the classic
 that needs to observe or decorate every adapter's run should use the neutral
 harness hook, not the classic pre-send hook.
 
-## SDK wire-type declarations
+## Neutral wire-type declarations
 
-`sdk-types.ts` owns only the neutral wire frames adapters normalize into:
-`SDKMessage` (and variants), `SDKPermissionMode`, `SDKSettingSource`. The
-shapes originated with the Claude Agent SDK but the protocol treats them
-as neutral; nothing in core imports the claude-agent-sdk package.
-
-`types.ts` re-exports those frames under harness-neutral names
-(`AgentMessage`, `AgentPermissionMode`, …) and declares the rest of the
-neutral surface as KOTA-owned shapes — `AgentEffort`,
+`types.ts` declares the neutral wire frames every harness adapter
+normalizes into — `AgentMessage` (with variants `AgentAssistantMessage`,
+`AgentResultMessage`, `AgentStatusMessage`, `AgentContentBlock`,
+`AgentMessageWithSession`), `AgentPermissionMode`, `AgentSettingSource` —
+plus the rest of the neutral surface: `AgentEffort`,
 `AgentMcpServerConfig` (a `stdio | sse | http | sdk` discriminated union
 whose `sdk` variant carries opaque `instance: unknown`; non-claude
 adapters reject non-empty `mcpServers` at the boundary), and
-`AgentCanUseTool` / `AgentPermissionResult` (structurally aligned with the
-SDK so guards flow through the claude adapter with one cast).
+`AgentCanUseTool` / `AgentPermissionResult` (structurally aligned with
+the Claude SDK so guards flow through the claude adapter with one cast).
+These shapes originated with the Claude Agent SDK but the protocol
+treats them as neutral; nothing in core imports the claude-agent-sdk
+package.
 
 Claude-SDK-specific query shapes (`SDKQueryOptions`, `SDKSystemPrompt`,
 `SDKThinkingConfig`, `SDKQueryParams`, `SDKQueryFn`, `SDKModule`), the

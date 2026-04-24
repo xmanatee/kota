@@ -67,7 +67,7 @@ rather than silently ignoring them:
 - `settingSources`
 - `enableFileCheckpointing: true`
 - `thinkingEnabled: true`
-- `onMessage` (no SDKMessage frames are emitted)
+- `onMessage` (no AgentMessage frames are emitted)
 - A bare `claude_code` preset `systemPrompt` (no `append`); when the preset
   carries an `append` body the adapter uses that portable text so operator
   CLI paths (`kota run -i --harness openai-tools`) keep working without
@@ -86,7 +86,7 @@ adapter-declared capabilities (`emitsAgentMessageStream`,
   so `runAskOwner` reads the correct source from the async-local storage
   context without the adapter referencing the tool's runner directly.
 - `emitsAgentMessageStream = false` — the adapter does not produce
-  `SDKMessage` frames, so callers must not subscribe through `onMessage`.
+  `AgentMessage` frames, so callers must not subscribe through `onMessage`.
   The step-executor guards its tool telemetry wrapper on this flag so
   openai-tools runs do not trigger the `onMessage` rejection.
 

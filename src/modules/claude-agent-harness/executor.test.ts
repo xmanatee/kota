@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SDKMessage } from "#core/agent-harness/sdk-types.js";
+import type { AgentMessage } from "#core/agent-harness/types.js";
 
 const mockQuery = vi.fn();
 const mockSpawn = vi.fn();
@@ -28,7 +28,7 @@ import {
   spawnClaudeCodeProcessWithAbortKill,
 } from "./executor.js";
 
-function makeIterable(messages: SDKMessage[]): AsyncIterable<SDKMessage> {
+function makeIterable(messages: AgentMessage[]): AsyncIterable<AgentMessage> {
   return {
     async *[Symbol.asyncIterator]() {
       for (const message of messages) yield message;

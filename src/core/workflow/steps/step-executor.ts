@@ -1,4 +1,4 @@
-import type { SDKMessage } from "#core/agent-harness/sdk-types.js";
+import type { AgentMessage } from "#core/agent-harness/types.js";
 import type { RepairCheckResult, RepairIteration } from "../repair-loop.js";
 import { buildRepairPrompt, runAgentRepairLoop } from "../repair-loop.js";
 import type { WorkflowRunMetadata, WorkflowStepContext, WorkflowStepSkipReason } from "../run-types.js";
@@ -165,7 +165,7 @@ export async function executeStep(
   trigger: WorkflowRunTrigger,
   context: WorkflowStepContext,
   abortController: AbortController,
-  appendMessage: (message: SDKMessage) => void,
+  appendMessage: (message: AgentMessage) => void,
   writeInputs: (systemPromptAppend: string | undefined, prompt: string) => void,
   agentConfig: AgentStepConfig,
 ): Promise<WorkflowStepOutput | AgentStepResult> {

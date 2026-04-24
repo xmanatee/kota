@@ -1,6 +1,6 @@
 import { appendFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { SDKMessage } from "#core/agent-harness/sdk-types.js";
+import type { AgentMessage } from "#core/agent-harness/types.js";
 import { safeJsonStringify, writeJsonFile } from "./run-store-helpers.js";
 import type {
   WorkflowRunMetadata,
@@ -19,7 +19,7 @@ export type FinishUpdate = {
 
 export type ActiveWorkflowRunHandle = {
   metadata: WorkflowRunMetadata;
-  appendAgentMessage(stepId: string, message: SDKMessage): void;
+  appendAgentMessage(stepId: string, message: AgentMessage): void;
   writeAgentInputs(
     stepId: string,
     systemPromptAppend: string | undefined,

@@ -5,7 +5,7 @@ import {
   resolveAgentHarness,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
-import type { SDKMessage } from "#core/agent-harness/sdk-types.js";
+import type { AgentMessage } from "#core/agent-harness/types.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
 import type { WorkflowRepairCheck, WorkflowStepContext } from "./run-types.js";
 import type { AgentStepConfig, AgentStepResult } from "./steps/step-executor-agent.js";
@@ -100,7 +100,7 @@ async function executeRepairAgentIteration(
   step: WorkflowAgentStep,
   repairPrompt: string,
   abortController: AbortController,
-  appendMessage: (message: SDKMessage) => void,
+  appendMessage: (message: AgentMessage) => void,
   agentConfig: AgentStepConfig,
 ): Promise<{ text: string; turns?: number; totalCostUsd?: number }> {
   const promptBody = readFileSync(
@@ -186,7 +186,7 @@ export async function runAgentRepairLoop(
   initialResult: AgentStepResult,
   context: WorkflowStepContext,
   abortController: AbortController,
-  appendMessage: (message: SDKMessage) => void,
+  appendMessage: (message: AgentMessage) => void,
   agentConfig: AgentStepConfig,
 ): Promise<AgentStepResult> {
   const { checks, maxRepairAttempts } = step.repairLoop!;

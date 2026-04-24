@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { SDKMessage } from "#core/agent-harness/sdk-types.js";
+import type { AgentMessage } from "#core/agent-harness/types.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata, WorkflowRuntimeState } from "#core/workflow/run-types.js";
 import { line, plain } from "#modules/rendering/primitives.js";
@@ -48,7 +48,7 @@ export function formatContentBlock(block: ContentBlock, maxLen: number = DEFAULT
   }
 }
 
-export function formatAgentMessage(msg: SDKMessage, maxLen: number = DEFAULT_MAX_LEN): string[] {
+export function formatAgentMessage(msg: AgentMessage, maxLen: number = DEFAULT_MAX_LEN): string[] {
   const lines: string[] = [];
 
   if (msg.type === "assistant") {
@@ -86,7 +86,7 @@ export function formatAgentMessage(msg: SDKMessage, maxLen: number = DEFAULT_MAX
   return lines;
 }
 
-export function readStepEvents(eventsPath: string): SDKMessage[] {
+export function readStepEvents(eventsPath: string): AgentMessage[] {
   if (!existsSync(eventsPath)) return [];
   let raw: string;
   try {
@@ -98,10 +98,10 @@ export function readStepEvents(eventsPath: string): SDKMessage[] {
     .split("\n")
     .filter((l) => l.trim())
     .map((l) => {
-      try { return JSON.parse(l) as SDKMessage; }
+      try { return JSON.parse(l) as AgentMessage; }
       catch { return null; }
     })
-    .filter((m): m is SDKMessage => m !== null);
+    .filter((m): m is AgentMessage => m !== null);
 }
 
 export function filterWithContext(

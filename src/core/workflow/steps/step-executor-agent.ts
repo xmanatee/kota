@@ -6,7 +6,7 @@ import {
   resolveAgentHarness,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
-import type { SDKMessage } from "#core/agent-harness/sdk-types.js";
+import type { AgentMessage } from "#core/agent-harness/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
@@ -195,10 +195,10 @@ export function buildAgentPrompt(
 
 function makeToolTelemetryTracker(
   telemetry: ToolTelemetry,
-  onMessage: (message: SDKMessage) => void,
-): (message: SDKMessage) => void {
+  onMessage: (message: AgentMessage) => void,
+): (message: AgentMessage) => void {
   const pending = new Map<string, { name: string; startMs: number }>();
-  return (message: SDKMessage) => {
+  return (message: AgentMessage) => {
     onMessage(message);
     if (message.type === "assistant") {
       const raw = message as unknown as { message?: { content?: unknown[] }; content?: unknown[] };
@@ -351,7 +351,7 @@ export async function executeAgentStep(
   metadata: WorkflowRunMetadata,
   trigger: WorkflowRunTrigger,
   abortController: AbortController,
-  appendMessage: (message: SDKMessage) => void,
+  appendMessage: (message: AgentMessage) => void,
   writeInputs: (systemPromptAppend: string | undefined, prompt: string) => void,
   agentConfig: AgentStepConfig,
   priorStepOutputs: Record<string, unknown> = {},
@@ -392,7 +392,7 @@ export async function executeAgentStep(
 
   // Tool telemetry and caller-facing message capture hang off `onMessage`,
   // which only claude-agent-sdk-style adapters can emit. Harnesses that do
-  // not stream SDKMessage frames (openai-tools, thin) reject `onMessage` at
+  // not stream AgentMessage frames (openai-tools, thin) reject `onMessage` at
   // the boundary, so we branch on the adapter-declared capability rather
   // than the adapter name.
   const stepTelemetry = new ToolTelemetry();
