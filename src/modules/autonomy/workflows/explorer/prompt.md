@@ -53,11 +53,10 @@ Write a JSON file at `<run-directory>/watchlist-updates.json`:
 
 ## Creating Tasks
 
-Use `pnpm kota task create "<title>" --priority <p0-p3> --area <area> --state <state> --summary "<summary>"` to scaffold new task files. This guarantees all required frontmatter and body sections exist. Then edit the file to fill in `## Problem`, `## Desired Outcome`, `## Constraints`, and `## Done When`.
+Use `pnpm kota task create "<title>" --priority <p0-p3> --area <area> --state <state> --summary "<summary>"` to scaffold new task files, then follow `data/tasks/AGENTS.md`.
 
 ## Finish
 
-- Follow `data/tasks/AGENTS.md`.
 - If nothing should change, leave the queue untouched and stop.
 - Otherwise follow the finish protocol in `workflows/AGENTS.md` — in
   particular, write `<run-directory>/commit-message.txt` after staging.

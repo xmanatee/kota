@@ -8,3 +8,5 @@ This directory is for quick captures that have not been sorted yet.
 - Frontmatter is optional here. A short plain-text note is valid if it is understandable.
 - Full task normalization happens only if something graduates into `data/tasks/`.
 - Do not treat this directory as a long-term backlog or work queue.
+- When an entry graduates, preserve its source, urgency, and owner wording in
+  the destination artifact. Do not smooth away the reason the capture exists.

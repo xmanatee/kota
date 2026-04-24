@@ -24,6 +24,10 @@ const REQUIRED_SECTIONS = [
 	"## Constraints",
 	"## Done When",
 ] as const;
+const OPEN_REQUIRED_SECTIONS = [
+	"## Source / Intent",
+	"## Acceptance Evidence",
+] as const;
 
 function listTaskFiles(state: (typeof STATE_DIRS)[number]): string[] {
 	return readdirSync(join(TASK_ROOT, state))
@@ -101,6 +105,15 @@ describe("repo task files", () => {
 
 				for (const section of REQUIRED_SECTIONS) {
 					expect(body).toContain(section);
+				}
+
+				if (!["done", "dropped"].includes(state)) {
+					for (const section of OPEN_REQUIRED_SECTIONS) {
+						expect(body).toContain(section);
+					}
+					if (["p0", "p1", "p2"].includes(String(attrs.priority))) {
+						expect(body).toContain("## Initiative");
+					}
 				}
 			}
 		}

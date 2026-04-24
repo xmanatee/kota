@@ -20,9 +20,19 @@ This directory is the normalized live work queue after ideas leave
   and `priority` must be `p0`, `p1`, `p2`, or `p3`.
 - Body sections are required: `## Problem`, `## Desired Outcome`,
   `## Constraints`, `## Done When`.
+- Open tasks also require `## Source / Intent` and
+  `## Acceptance Evidence`. `p0`/`p1`/`p2` open tasks require
+  `## Initiative`.
 - `## Plan` is optional and should stay high-level.
 - Tasks describe what must become true and why it matters; builders own the
   implementation plan.
+- Preserve owner wording, runtime evidence, research source, and urgency in
+  `## Source / Intent`; do not normalize away the reason the task exists.
+- `## Initiative` names the larger product, architecture, or autonomy outcome
+  so strategic work does not degrade into isolated micro-commits.
+- `## Acceptance Evidence` names the transcript, screenshot, fixture, command,
+  artifact, or demo that proves the task's outcome. User-facing CLI/UI work
+  needs rendered-output evidence, not only implementation tests.
 - Keep required research links visible when they are central to the work.
 
 ## Queue Rules
@@ -35,6 +45,11 @@ This directory is the normalized live work queue after ideas leave
   architecture debt remains.
 - Do not let open work degrade into only `p3` maintenance.
 - Before creating a task, scan open tasks and related inbox items for overlap.
+- Prefer coherent batches or one substantive task over isolated mechanical
+  move/import/test-only work. If cleanup is needed, attach it to the broader
+  initiative it enables.
+- Owner-facing regressions, broken operator output, repeated expensive
+  failures, and stale blocked owner requests are strong queue-shaping signals.
 - Use `pnpm kota task move <id> <state>` to move tasks between state directories.
   This auto-updates the `status` frontmatter, sets `updated_at`, runs `git mv`,
   and stages the result. Do not manually move task files or edit status

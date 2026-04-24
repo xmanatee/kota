@@ -55,6 +55,29 @@ either converted into follow-up tasks or explained why they do not block
 - The scenarios pack is reachable from the CLI or an operator-runnable
   script, not only from ad-hoc invocation.
 
+## Source / Intent
+
+Owner direction from the Claude/Codex-alternative inbox work asked KOTA to be
+usable as a serious coding-agent wrapper across harnesses, not only as a
+Claude-specific automation loop. This task preserves that product claim as an
+evidence requirement instead of letting provider-neutral plumbing count as
+parity by itself.
+
+## Initiative
+
+General-purpose coding agent parity: KOTA should prove real coding-task
+completion through every registered harness, with any harness-specific gap
+recorded as an explicit capability boundary.
+
+## Acceptance Evidence
+
+- Operator-runnable harness-parity scenario output under `.kota/runs/` pairs
+  each registered harness with prompt, trace summary, diff, and verification.
+- Any failed or text-only harness outcome names the capability gap and links to
+  a follow-up task or an explicit non-blocking rationale.
+- The CLI command that captures the artifact is documented enough for an
+  operator to rerun the parity check without ad-hoc setup.
+
 ## Plan
 
 Phase 1 — scenarios pack and operator-runnable CLI (this run):
@@ -99,4 +122,3 @@ Phase 2 — operator-facilitated live capture (blocks the task):
   declared contract and does not block "coding-agent parity" — it
   delineates which registered harnesses are coding-capable rather than
   text-only.
-

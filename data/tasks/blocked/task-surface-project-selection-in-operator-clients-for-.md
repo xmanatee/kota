@@ -35,6 +35,28 @@ The in-progress `task-enable-kota-to-operate-on-external-projects` work is makin
 - Tests cover the project-switch control path and the per-project filtering of sessions/runs.
 - Docs in the relevant client and daemon-ops `AGENTS.md` describe the model at the conventions level, not as a catalog of endpoints.
 
+## Source / Intent
+
+Owner direction asked KOTA to operate beyond the KOTA repo and supervise
+external projects. This task preserves the client/operator side of that
+requirement so project-aware daemon internals do not ship without an
+understandable supervision surface.
+
+## Initiative
+
+Multi-project operator supervision: either one daemon hosts project-scoped
+runtimes or clients supervise multiple single-project daemons, but sessions,
+runs, questions, and approvals must always be attributable to one project.
+
+## Acceptance Evidence
+
+- The chosen runtime shape is recorded in this task before implementation
+  resumes.
+- API and client tests prove sessions/runs/questions are filtered or attributed
+  by project without cross-project leakage.
+- CLI daemon-mode and web-client views show the active project and expose the
+  same project-selection model.
+
 ## Blocker
 
 This task is blocked until the owner picks the multi-project runtime shape.
@@ -147,4 +169,3 @@ if operator demand for simultaneous views is unclear.
 - **(c) Web client selector.** Project-scoped routes and SSE subscription
   scoping in the web dashboard. Native macOS and mobile parity follows as
   their own tasks.
-

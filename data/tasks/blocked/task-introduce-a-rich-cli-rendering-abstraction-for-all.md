@@ -64,6 +64,30 @@ extend as new surfaces land.
   vocabulary, theming model, and TTY-vs-non-TTY behavior at the conventions
   level without enumerating every primitive.
 
+## Source / Intent
+
+Owner captures repeatedly called out daemon and CLI output as broken, ugly, and
+not comparable to professional coding CLIs. The intent is not merely to add a
+rendering helper; it is to make every human-facing terminal surface feel
+coherent, inspectable, and product-grade.
+
+## Initiative
+
+Product-grade terminal UX: KOTA terminal output should have one rendering
+system, one visual language, and transcript-level regression evidence across
+daemon, session, workflow, and module command surfaces.
+
+## Acceptance Evidence
+
+- Rendering scenario transcripts under `.kota/runs/` or an equivalent checked
+  fixture show daemon status, session turn, tool invocation, and run summary at
+  representative terminal widths.
+- The daemon output pasted by the owner is represented as a regression case:
+  no repeated full blocks, no blank `Work` section, no merged cost/defs cells,
+  and clear separation between state and activity.
+- Migrated directories have a mechanical guard against ad-hoc user-facing
+  console output, while structured JSON paths remain explicit exceptions.
+
 ## Plan
 
 Phase 1 — land the module (this run):
@@ -144,4 +168,3 @@ Phase 3 — peer-CLI capture (operator-facilitated, blocks the task):
   task stays in `blocked`. Unblock by either capturing the comparison
   on operator hardware or by narrowing Done-When to drop the
   comparison requirement.
-

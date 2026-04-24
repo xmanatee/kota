@@ -47,6 +47,28 @@ artifact does not ship credentials.
 - A live-run or integration artifact under `.kota/runs/` records at
   least one end-to-end launch against a staging bot.
 
+## Source / Intent
+
+Owner direction asked for KOTA to run like a real personal assistant on a
+server, including Telegram and scheduled/channel-driven workflows. This task
+keeps the deployment proof visible instead of letting a local implementation
+count as production readiness.
+
+## Initiative
+
+Deployable personal assistant runtime: KOTA should run under a normal
+supervisor with channel modules, daemon workflows, and secrets wired in a
+repeatable operator flow.
+
+## Acceptance Evidence
+
+- Static tests and deploy artifact checks prove the artifact is internally
+  consistent.
+- A `.kota/runs/` launch artifact from a staging bot records the final
+  end-to-end proof before this blocked task can move to done.
+- Rollback and secret-input behavior are documented in the deploy artifact or
+  nearest module instructions.
+
 ## Status
 
 Core artifact landed in `deploy/telegram-assistant/` (Dockerfile,

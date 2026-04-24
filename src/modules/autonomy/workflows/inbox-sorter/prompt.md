@@ -20,11 +20,10 @@ Read and follow the root `AGENTS.md` and local `AGENTS.md` files in directories 
 
 ## Creating Tasks
 
-When converting an inbox item to a normalized task, use `pnpm kota task create "<title>" --priority <p0-p3> --area <area> --state <state> --summary "<summary>"` to scaffold the file. This guarantees all required frontmatter and body sections exist. Then edit the file to fill in `## Problem`, `## Desired Outcome`, `## Constraints`, and `## Done When`.
+When converting an inbox item to a normalized task, use `pnpm kota task create "<title>" --priority <p0-p3> --area <area> --state <state> --summary "<summary>"` to scaffold the file, then follow `data/inbox/AGENTS.md` and `data/tasks/AGENTS.md`.
 
 ## Finish
 
-- Follow `data/tasks/AGENTS.md` for normalized task rules.
 - Then follow the finish protocol in `workflows/AGENTS.md` — in particular,
   write `<run-directory>/commit-message.txt` after staging.
 - Lightweight validations run after you finish.

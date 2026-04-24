@@ -56,6 +56,26 @@ reason based on actual content.
 - The task record reflects the final disposition per URL.
 - Follow-up tasks exist for any adopted or deferred work.
 
+## Source / Intent
+
+This grouped task came from owner and watchlist research captures that were
+previously fetched unsuccessfully. It exists to prevent "still auth-walled"
+from becoming repeated commit noise while keeping the unread resources visible
+until a real access path exists.
+
+## Initiative
+
+Honest research disposition: external resources should be adopted, deferred,
+referenced, or dropped only after their content is actually read.
+
+## Acceptance Evidence
+
+- Each URL has a final disposition in this task with the access method and
+  outcome recorded.
+- Any adopted or deferred idea has a normalized follow-up task linked or named.
+- Research-retry stops producing unchanged reconfirmation commits for the same
+  inaccessible evidence.
+
 ## Status (2026-04-23 retry)
 
 Web URL dispositions recorded in earlier retries remain unchanged

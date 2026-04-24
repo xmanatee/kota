@@ -3,7 +3,14 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { REPO_INBOX_DIR, REPO_TASK_STATES, REPO_TASKS_DIR } from "./repo-tasks-domain.js";
+import {
+  REPO_INBOX_DIR,
+  REPO_TASK_STATES,
+  REPO_TASKS_DIR,
+  TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER,
+  TASK_INITIATIVE_PLACEHOLDER,
+  TASK_SOURCE_INTENT_PLACEHOLDER,
+} from "./repo-tasks-domain.js";
 import {
   assertArchitectureReadyCoverage,
   assertStrategicReadyCoverage,
@@ -29,11 +36,29 @@ function writeTask(
   const dir = join(projectDir, REPO_TASKS_DIR, state);
   mkdirSync(dir, { recursive: true });
   const title = overrides.title ?? taskId;
+  const priority = overrides.priority ?? "p2";
+  const openQualitySections = ["ready", "backlog", "doing", "blocked"].includes(state)
+    ? `
+## Source / Intent
+
+Owner or research source asks for this because it changes a meaningful operator or architecture outcome.
+
+${["p0", "p1", "p2"].includes(priority)
+  ? `## Initiative
+
+Strategic quality initiative that groups this task with a larger product or architecture outcome.
+
+`
+  : ""}## Acceptance Evidence
+
+- Validation command or artifact proves the outcome.
+`
+    : "";
   const body = `---
 id: ${taskId}
 title: ${title}
 status: ${overrides.status ?? state}
-priority: ${overrides.priority ?? "p2"}
+priority: ${priority}
 area: ${overrides.area ?? "workflow"}
 summary: ${overrides.summary ?? "Summary."}
 created_at: ${overrides.created_at ?? "2026-03-28T00:00:00Z"}
@@ -55,6 +80,7 @@ Constraints.
 ## Done When
 
 Done.
+${openQualitySections}
 `;
   writeFileSync(join(dir, `${taskId}.md`), body);
 }
@@ -195,6 +221,156 @@ Just some text with no required sections.
     const result = validateTaskQueue(projectDir);
     const sectionErrors = result.findings.filter((f) => f.code === "task-missing-required-section");
     expect(sectionErrors.length).toBe(4); // Problem, Desired Outcome, Constraints, Done When
+  });
+
+  it("requires open tasks to preserve source intent and acceptance evidence", () => {
+    const dir = join(projectDir, REPO_TASKS_DIR, "ready");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "task-weak-open.md"),
+      `---
+id: task-weak-open
+title: Weak open task
+status: ready
+priority: p3
+area: test
+summary: Missing quality sections.
+created_at: 2026-03-28T00:00:00Z
+updated_at: 2026-03-28T00:00:00Z
+---
+
+## Problem
+
+Problem.
+
+## Desired Outcome
+
+Outcome.
+
+## Constraints
+
+Constraints.
+
+## Done When
+
+Done.
+`,
+    );
+    execSync("git add data && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "open-task-missing-quality-section")).toBe(true);
+    expect(result.findings.some((f) => f.code === "open-task-weak-source-intent")).toBe(true);
+    expect(result.findings.some((f) => f.code === "open-task-missing-acceptance-evidence")).toBe(true);
+  });
+
+  it("requires strategic open tasks to name their initiative", () => {
+    const dir = join(projectDir, REPO_TASKS_DIR, "ready");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "task-strategic-no-initiative.md"),
+      `---
+id: task-strategic-no-initiative
+title: Strategic without initiative
+status: ready
+priority: p1
+area: architecture
+summary: Strategic task missing initiative.
+created_at: 2026-03-28T00:00:00Z
+updated_at: 2026-03-28T00:00:00Z
+---
+
+## Problem
+
+Problem.
+
+## Desired Outcome
+
+Outcome.
+
+## Constraints
+
+Constraints.
+
+## Done When
+
+Done.
+
+## Source / Intent
+
+Owner or research source asks for this because it changes a meaningful operator or architecture outcome.
+
+## Acceptance Evidence
+
+- Validation command or artifact proves the outcome.
+`,
+    );
+    execSync("git add data && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "strategic-task-missing-initiative")).toBe(true);
+  });
+
+  it("does not accept task-create scaffold placeholders as completed quality sections", () => {
+    const dir = join(projectDir, REPO_TASKS_DIR, "ready");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "task-placeholder-quality.md"),
+      `---
+id: task-placeholder-quality
+title: Placeholder quality
+status: ready
+priority: p2
+area: architecture
+summary: Placeholder sections should not pass.
+created_at: 2026-03-28T00:00:00Z
+updated_at: 2026-03-28T00:00:00Z
+---
+
+## Problem
+
+Problem.
+
+## Desired Outcome
+
+Outcome.
+
+## Constraints
+
+Constraints.
+
+## Done When
+
+Done.
+
+## Source / Intent
+
+${TASK_SOURCE_INTENT_PLACEHOLDER}
+
+## Initiative
+
+${TASK_INITIATIVE_PLACEHOLDER}
+
+## Acceptance Evidence
+
+${TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER}
+`,
+    );
+    execSync("git add data && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "open-task-weak-source-intent")).toBe(true);
+    expect(result.findings.some((f) => f.code === "strategic-task-weak-initiative")).toBe(true);
+    expect(result.findings.some((f) => f.code === "open-task-missing-acceptance-evidence")).toBe(true);
   });
 
   it("reports tasks missing a subset of required body sections", () => {

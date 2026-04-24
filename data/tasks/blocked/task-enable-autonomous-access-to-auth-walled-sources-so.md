@@ -75,6 +75,29 @@ inaccessible retain honest blocked status.
   likely under `src/modules/browser/` or a new sibling), not duplicated across
   docs.
 
+## Source / Intent
+
+Owner inbox captures included X/Twitter and gated research links that should
+not remain permanently blocked or be silently dropped. This task exists because
+source-access failures must become a recoverable capability gap, not recurring
+research-retry churn.
+
+## Initiative
+
+Recoverable research access: KOTA should honestly distinguish inaccessible
+sources from resolved sources and should automatically progress blocked
+research once the operator provides the required browser capability.
+
+## Acceptance Evidence
+
+- Browser-module tests exercise successful rendered/authenticated reads and
+  unreachable/rate-limited failures through the injection-defense boundary.
+- Research-retry run artifacts show at least one previously blocked task being
+  retried through the browser path and either completed or kept blocked with
+  fresh evidence.
+- Operator setup requirements are recorded in the narrow module/workflow
+  instructions, with no committed credentials or silent fallback path.
+
 ## Status (2026-04-22 build)
 
 Mechanism landed in this repo:

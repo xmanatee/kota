@@ -62,6 +62,26 @@ task is opened in `data/tasks/backlog/`.
   "read, no action".
 - Any KOTA-specific gap surfaced has a concrete follow-up task opened.
 
+## Source / Intent
+
+This task came from research distillation work that could not honestly read a
+Cloudflare-gated OpenAI source. It preserves the missing source as a real
+blocked input so KOTA does not infer conclusions from surrounding summaries.
+
+## Initiative
+
+Evidence-grounded autonomy research: KOTA's eval-harness decisions should be
+based on read primary sources, and gated primary sources should stay blocked
+until a rendered-browser path can read them.
+
+## Acceptance Evidence
+
+- The article body is captured through a valid browser/read path or equivalent
+  operator-provided source text.
+- `src/modules/autonomy/AGENTS.md` records a concise decision-level takeaway or
+  an explicit "read, no action" note.
+- Any concrete KOTA gap from the post is converted into a normalized task.
+
 ## Status (2026-04-22 retry)
 
 A fresh retry via plain `WebFetch` still returns HTTP 403; `openai.com/index/*`

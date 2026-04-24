@@ -6,6 +6,15 @@ export const REPO_DATA_DIR = "data";
 export const REPO_TASKS_DIR = join(REPO_DATA_DIR, "tasks");
 export const REPO_INBOX_DIR = join(REPO_DATA_DIR, "inbox");
 
+export const TASK_SOURCE_INTENT_PLACEHOLDER =
+  "Preserve the owner request, inbox capture, research source, or runtime evidence that caused this task. Keep urgency and product intent intact.";
+
+export const TASK_INITIATIVE_PLACEHOLDER =
+  "Name the broader product, architecture, or autonomy outcome this task advances. For p3 maintenance, write `N/A - scoped maintenance`.";
+
+export const TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER =
+  "- Describe the command, artifact, transcript, screenshot, fixture, or demo that will prove the task is actually done.";
+
 export const REPO_TASK_STATES = [
   "backlog",
   "ready",

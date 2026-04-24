@@ -6,6 +6,9 @@ import {
   getRepoTaskStateDir,
   REPO_TASK_STATES,
   REPO_TASKS_DIR,
+  TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER,
+  TASK_INITIATIVE_PLACEHOLDER,
+  TASK_SOURCE_INTENT_PLACEHOLDER,
   type RepoTaskState,
 } from "./repo-tasks-domain.js";
 
@@ -82,9 +85,27 @@ const SPEC_SECTION_HEADINGS = [
   "Done When",
 ] as const;
 
+const ACTIVE_REQUIRED_SECTIONS = [
+  "## Source / Intent",
+  "## Acceptance Evidence",
+] as const;
+
+const STRATEGIC_REQUIRED_SECTIONS = [
+  "## Initiative",
+] as const;
+
+const ACTIVE_QUALITY_SECTION_HEADINGS = [
+  "Source / Intent",
+  "Initiative",
+  "Acceptance Evidence",
+] as const;
+
 function stripSpecSections(raw: string): string {
   let out = raw.replace(/^---\n[\s\S]*?\n---\n?/, "");
-  for (const heading of SPEC_SECTION_HEADINGS) {
+  for (const heading of [
+    ...SPEC_SECTION_HEADINGS,
+    ...ACTIVE_QUALITY_SECTION_HEADINGS,
+  ]) {
     const pattern = new RegExp(`## ${heading}\\n[\\s\\S]*?(?=\\n## |\\s*$)`, "g");
     out = out.replace(pattern, "");
   }
@@ -198,6 +219,36 @@ function readTaskPriority(entry: TaskFileEntry): string | null {
 
 function isStrategicPriority(priority: string | null): boolean {
   return priority === "p0" || priority === "p1" || priority === "p2";
+}
+
+function isOpenTaskState(state: RepoTaskState): boolean {
+  return state === "ready" || state === "backlog" || state === "doing" || state === "blocked";
+}
+
+function extractSection(raw: string, heading: string): string | null {
+  const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = raw.match(new RegExp(`^## ${escapedHeading}\\s*\\n([\\s\\S]*?)(?=^## |\\s*$)`, "m"));
+  if (!match) return null;
+  const body = match[1].trim();
+  return body.length > 0 ? body : null;
+}
+
+function hasSubstantiveSection(raw: string, heading: string): boolean {
+  const section = extractSection(raw, heading);
+  if (!section) return false;
+  if (section.includes(TASK_SOURCE_INTENT_PLACEHOLDER) || section.includes(TASK_INITIATIVE_PLACEHOLDER)) {
+    return false;
+  }
+  return section.replace(/[-*\s]/g, "").length >= 12;
+}
+
+function hasAcceptanceEvidence(raw: string): boolean {
+  const section = extractSection(raw, "Acceptance Evidence");
+  if (!section) return false;
+  if (section.includes(TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER)) {
+    return false;
+  }
+  return /(?:^|\n)\s*-\s+\S/.test(section) || /\b(?:transcript|screenshot|fixture|test|command|artifact|validation|demo|snapshot)\b/i.test(section);
 }
 
 export function listRootLevelBuiltInModuleFiles(projectDir: string): string[] {
@@ -400,6 +451,63 @@ export function validateTaskQueue(
       }
     }
 
+    if (isOpenTaskState(entry.state)) {
+      for (const section of ACTIVE_REQUIRED_SECTIONS) {
+        if (!entry.raw.includes(section)) {
+          findings.push({
+            code: "open-task-missing-quality-section",
+            severity: "error",
+            message: `${entry.path} is open work but is missing required section: ${section}. ` +
+              "Open tasks must preserve source intent and define acceptance evidence before builders pull them.",
+            paths: [entry.path],
+          });
+        }
+      }
+
+      if (!hasSubstantiveSection(entry.raw, "Source / Intent")) {
+        findings.push({
+          code: "open-task-weak-source-intent",
+          severity: "error",
+          message: `${entry.path} needs a substantive ## Source / Intent section. ` +
+            "Preserve the owner/request/research source and the urgency or product reason behind the work.",
+          paths: [entry.path],
+        });
+      }
+
+      if (!hasAcceptanceEvidence(entry.raw)) {
+        findings.push({
+          code: "open-task-missing-acceptance-evidence",
+          severity: "error",
+          message: `${entry.path} needs concrete ## Acceptance Evidence bullets or artifact references. ` +
+            "The task must say how completion will be demonstrated, not only what code may change.",
+          paths: [entry.path],
+        });
+      }
+
+      const priority = readTaskPriority(entry);
+      if (isStrategicPriority(priority)) {
+        for (const section of STRATEGIC_REQUIRED_SECTIONS) {
+          if (!entry.raw.includes(section)) {
+            findings.push({
+              code: "strategic-task-missing-initiative",
+              severity: "error",
+              message: `${entry.path} is ${priority} open work but is missing required section: ${section}. ` +
+                "Strategic work must name the larger outcome so it does not become an isolated tiny task.",
+              paths: [entry.path],
+            });
+          }
+        }
+        if (!hasSubstantiveSection(entry.raw, "Initiative")) {
+          findings.push({
+            code: "strategic-task-weak-initiative",
+            severity: "error",
+            message: `${entry.path} needs a substantive ## Initiative section that names the broader outcome/campaign.`,
+            paths: [entry.path],
+          });
+        }
+      }
+    }
+
     if (hasDishonestSourceAccessCompletion(entry)) {
       findings.push({
         code: "done-task-inaccessible-source",
@@ -562,4 +670,3 @@ export function assertTaskQueueRecommendations(
   }
   return result;
 }
-
