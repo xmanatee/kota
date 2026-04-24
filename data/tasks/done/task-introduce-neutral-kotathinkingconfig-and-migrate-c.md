@@ -1,12 +1,12 @@
 ---
 id: task-introduce-neutral-kotathinkingconfig-and-migrate-c
 title: Introduce neutral KotaThinkingConfig and migrate core thinking-config surfaces
-status: doing
+status: done
 priority: p2
 area: architecture
 summary: Implement Stage 3 of the Anthropic SDK type-surface audit: add a neutral KotaThinkingConfig and replace every Anthropic.Messages.ThinkingConfigParam reference inside src/core/ with it, translating at the model-client adapter seams.
 created_at: 2026-04-24T05:18:59.557Z
-updated_at: 2026-04-24T05:20:34.720Z
+updated_at: 2026-04-24T05:45:15.282Z
 ---
 
 ## Problem
