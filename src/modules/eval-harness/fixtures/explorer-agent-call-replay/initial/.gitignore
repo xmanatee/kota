@@ -1,0 +1,9 @@
+# Mirror the repo-root .kota/ ignore so a workflow's tmpdir-git inside this
+# fixture sees realistic gitignore behavior (run artifacts under .kota/runs/
+# stay untracked, matching production). The explorer-state file is the only
+# .kota/ entry the fixture seeds, and the explorer writes through it during
+# the run; keep it tracked via selective re-inclusion so the initial commit
+# captures it and later rewrites land as diffs against HEAD.
+.kota/*
+!.kota/explorer-state.json
+node_modules/

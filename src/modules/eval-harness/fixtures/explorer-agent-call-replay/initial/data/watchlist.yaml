@@ -1,0 +1,12 @@
+header: |
+  # Fixture watchlist. A single seen entry is enough to prove the explorer's
+  # inspect-watchlist step parses the file and exposes its entries. The real
+  # watchlist content is immaterial because the replay adapter ignores
+  # agent inputs.
+resources:
+  - url: https://example.invalid/fixture-peer
+    added: "2026-04-14"
+    snapshot:
+      fingerprint: "sha256:fixturefixturefixturefixturefixturefixturefixturefixturefixt"
+      summary: "Fixture-only peer entry so the explorer inspect-watchlist step finds one parseable seen entry."
+      last_seen_at: "2026-04-18T00:00:00.000Z"

@@ -1,0 +1,73 @@
+{
+  "id": "explorer-agent-call-replay",
+  "description": "End-to-end replay of explorer's `explore` agent step plus the surrounding record-exploration, apply-watchlist-updates, and commit steps. Seeds an empty task queue with a templated last-exploration timestamp so `explorationRefreshDue` fires and needsAttention is true, forwards a fixed `_runId` so predicates can inspect `.kota/runs/<id>/metadata.json` deterministically, and routes the agent step through the eval-harness replay adapter so the agent-call branch regression-gates without paying for a real LLM run. Derived from source run 2026-04-24T22-26-19-626Z-explorer-tocx88 — the real explorer run that committed a04e3432 (Seed empty queue with p1 task to gate replay fixtures from pnpm test).",
+  "role": "explorer",
+  "workflowName": "explorer",
+  "budgetMs": 180000,
+  "triggerPayload": {
+    "_runId": "fixture-explorer-agent-call-replay-2026-04-24",
+    "triggerEvent": "autonomy.queue.thin",
+    "pullableCount": 0,
+    "counts": {
+      "backlog": 0,
+      "ready": 0,
+      "doing": 0,
+      "blocked": 0,
+      "done": 0,
+      "dropped": 0
+    }
+  },
+  "predicates": [
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/ready/task-gate-shipped-replay-fixtures-from-pnpm-test-so-wor.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/ready/task-gate-shipped-replay-fixtures-from-pnpm-test-so-wor.md",
+      "needle": "priority: p1"
+    },
+    {
+      "kind": "shell-succeeds",
+      "command": "grep -l -E '^priority: p[0-2]$' data/tasks/ready/task-*.md 2>/dev/null | grep -q ."
+    },
+    {
+      "kind": "file-exists",
+      "path": ".kota/runs/fixture-explorer-agent-call-replay-2026-04-24/commit-message.txt"
+    },
+    {
+      "kind": "file-exists",
+      "path": ".kota/runs/fixture-explorer-agent-call-replay-2026-04-24/metadata.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-explorer-agent-call-replay-2026-04-24/metadata.json",
+      "needle": "\"id\": \"explore\",\n      \"type\": \"agent\",\n      \"status\": \"success\""
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-explorer-agent-call-replay-2026-04-24/metadata.json",
+      "needle": "\"id\": \"record-exploration\",\n      \"type\": \"code\",\n      \"status\": \"success\""
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-explorer-agent-call-replay-2026-04-24/metadata.json",
+      "needle": "\"id\": \"apply-watchlist-updates\",\n      \"type\": \"code\",\n      \"status\": \"success\""
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-explorer-agent-call-replay-2026-04-24/metadata.json",
+      "needle": "\"id\": \"commit\",\n      \"type\": \"code\",\n      \"status\": \"success\""
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-explorer-agent-call-replay-2026-04-24/metadata.json",
+      "needle": "\"committed\": true"
+    }
+  ],
+  "tags": ["autonomy", "agent-call-replay"],
+  "provenance": {
+    "kind": "real-failure",
+    "sourceRunId": "2026-04-24T22-26-19-626Z-explorer-tocx88"
+  }
+}

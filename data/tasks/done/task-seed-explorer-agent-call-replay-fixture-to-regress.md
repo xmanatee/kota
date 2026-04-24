@@ -1,12 +1,12 @@
 ---
 id: task-seed-explorer-agent-call-replay-fixture-to-regress
 title: Seed explorer agent-call replay fixture to regression-gate watchlist and queue-validation paths cheaply
-status: ready
+status: done
 priority: p1
 area: modules
 summary: Apply the builder/decomposer/improver agent-call-replay pattern to explorer: one replay fixture covering the explore agent step end-to-end, authored entirely through pnpm kota eval record-agent-step, so the workflow-layer substrate (repair checks, watchlist-updates plumbing, record-exploration, commit step) is gated on every pnpm test without paying for a live LLM.
 created_at: 2026-04-24T23:08:48.426Z
-updated_at: 2026-04-24T23:08:48.426Z
+updated_at: 2026-04-24T23:21:22.794Z
 ---
 
 ## Problem
