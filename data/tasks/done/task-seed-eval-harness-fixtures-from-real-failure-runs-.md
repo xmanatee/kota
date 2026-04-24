@@ -1,12 +1,12 @@
 ---
 id: task-seed-eval-harness-fixtures-from-real-failure-runs-
 title: Seed eval-harness fixtures from real-failure runs for workflows with no fixture coverage
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Expand eval-harness coverage beyond builder/explorer/inbox-sorter by adding regression fixtures — each sourced from a concrete past failure run — for workflows currently without any fixture (decomposer, dispatcher, research-retry, pr-reviewer, improver, attention-digest, evaluator-calibration-*).
 created_at: 2026-04-24T11:38:44.990Z
-updated_at: 2026-04-24T11:38:44.990Z
+updated_at: 2026-04-24T11:56:12.115Z
 ---
 
 ## Problem
