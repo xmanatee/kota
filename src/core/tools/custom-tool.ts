@@ -8,8 +8,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type Anthropic from "@anthropic-ai/sdk";
-import type { KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
+import type { KotaTool, KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
 import { DEFAULT_TIMEOUT } from "./code-wrappers.js";
 import { buildRunner, handleCreate, handleList, handleRemove, type ToolResult } from "./custom-tool-handlers.js";
 import {
@@ -20,7 +19,7 @@ import {
 
 // Avoid circular dependency: index.ts imports from us, so we accept
 // registerTool/deregisterTool via injection instead of importing them.
-type RegisterFn = (tool: Anthropic.Tool, runner: (input: Record<string, unknown>) => Promise<ToolResult>, moduleName?: string) => void;
+type RegisterFn = (tool: KotaTool, runner: (input: Record<string, unknown>) => Promise<ToolResult>, moduleName?: string) => void;
 type DeregisterFn = (name: string) => boolean;
 
 let _register: RegisterFn;
@@ -42,7 +41,7 @@ const customDefs = new Map<string, CustomToolDef>();
 
 // ─── Tool definition ──────────────────────────────────────────────────
 
-export const customToolTool: Anthropic.Tool = {
+export const customToolTool: KotaTool = {
   name: "custom_tool",
   description:
     "Create, list, or remove custom tools that run Python or Node.js code. " +
@@ -131,7 +130,7 @@ export function loadSavedTools(): number {
 
       if (typeof def.parameters === "string") continue;
 
-      const toolDef: Anthropic.Tool = {
+      const toolDef: KotaTool = {
         name: def.name,
         description: def.description,
         input_schema: def.parameters as KotaToolInputSchema,

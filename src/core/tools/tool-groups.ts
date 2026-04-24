@@ -1,4 +1,4 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 
 export const TOOL_GROUPS: Record<string, string[]> = {};
 
@@ -122,7 +122,7 @@ function rebuildKnownNames(): void {
   }
 }
 
-export function filterTools(tools: readonly Anthropic.Tool[]): Anthropic.Tool[] {
+export function filterTools(tools: readonly KotaTool[]): KotaTool[] {
   const active = getActiveToolNames();
   // Include active project tools + any custom-registered tools (not in any group/core)
   const filtered = tools.filter((t) => active.has(t.name) || !KNOWN_TOOL_NAMES.has(t.name));
@@ -165,7 +165,7 @@ const CORE_LIST = [...CORE_TOOL_NAMES]
   .join(", ");
 
 /** Build enable_tools with current group info (includes plugin groups). */
-function buildEnableToolsTool(): Anthropic.Tool {
+function buildEnableToolsTool(): KotaTool {
   const desc = Object.entries(TOOL_GROUPS)
     .map(([name, tools]) => `- ${name}: ${tools.join(", ")}`)
     .join("\n");
@@ -188,7 +188,7 @@ function buildEnableToolsTool(): Anthropic.Tool {
 }
 
 /** Exported singleton tool schema rebuilt from the current group table. */
-export const enableToolsTool: Anthropic.Tool = buildEnableToolsTool();
+export const enableToolsTool: KotaTool = buildEnableToolsTool();
 
 export async function runEnableTools(
   input: Record<string, unknown>,

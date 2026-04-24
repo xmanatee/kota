@@ -1,9 +1,9 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import { getCoreRegistrations, getModuleToolRisk, getRegisteredTools, type ToolRegistration, type ToolResult } from "./index.js";
 import { getEnabledGroups, TOOL_GROUPS } from "./tool-groups.js";
 
-export const agentStatusTool: Anthropic.Tool = {
+export const agentStatusTool: KotaTool = {
 	name: "agent_status",
 	description:
 		"Introspect the agent's runtime state: available tools, loaded modules, " +

@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { platform } from "node:os";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
-export const clipboardTool: Anthropic.Tool = {
+export const clipboardTool: KotaTool = {
 	name: "clipboard",
 	description:
 		"Read from or write to the system clipboard. Use to grab what the user copied " +

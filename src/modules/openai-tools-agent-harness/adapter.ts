@@ -17,6 +17,7 @@ import type {
   AgentHarnessResult,
   AgentHarnessRunOptions,
   AgentHarnessWriter,
+  KotaTool,
 } from "#core/agent-harness/index.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
@@ -124,7 +125,7 @@ function selectToolDefinitions(
   allowed: readonly string[] | undefined,
   disallowed: readonly string[] | undefined,
   includeAskOwner: boolean,
-): Anthropic.Tool[] {
+): KotaTool[] {
   const all = getAllTools();
   const denySet = new Set(disallowed ?? []);
   const allowSet = allowed && allowed.length > 0 ? new Set(allowed) : null;

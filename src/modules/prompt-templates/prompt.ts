@@ -1,4 +1,4 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { PromptStore } from "./prompt-template.js";
 
@@ -22,7 +22,7 @@ export function setPromptStore(s: PromptStore): void {
 	store = s;
 }
 
-export const promptTool: Anthropic.Tool = {
+export const promptTool: KotaTool = {
 	name: "prompt_template",
 	description:
 		"Manage reusable prompt templates stored as markdown files with YAML front matter. " +

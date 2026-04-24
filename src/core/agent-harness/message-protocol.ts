@@ -19,3 +19,16 @@ export type KotaToolInputSchema = {
   required?: string[];
   [key: string]: unknown;
 };
+
+/**
+ * Neutral tool-definition shape. A tool is a name, a description, and a
+ * JSON-Schema `input_schema`. Harness adapters that target an SDK whose tool
+ * type is the same JSON shape (Anthropic SDK, OpenAI chat-completions tools)
+ * pass this value through or translate it at their seam; core consumes only
+ * `KotaTool`.
+ */
+export type KotaTool = {
+  name: string;
+  description: string;
+  input_schema: KotaToolInputSchema;
+};

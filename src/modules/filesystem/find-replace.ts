@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import type Anthropic from "@anthropic-ai/sdk";
 import { glob } from "glob";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { recordModification } from "#core/file-tracking/file-tracker.js";
 import { trackFileChange } from "#core/loop/file-changes.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
@@ -9,7 +9,7 @@ import { lintFile } from "./lint.js";
 const MAX_FILES = 50;
 const MAX_GLOB = 1000;
 
-export const findReplaceTool: Anthropic.Tool = {
+export const findReplaceTool: KotaTool = {
   name: "find_replace",
   description:
     "Find and replace text across multiple files matching a glob pattern. " +

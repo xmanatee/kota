@@ -1,8 +1,8 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { runDelegate } from "#core/tools/delegate.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
-export const batchTool: Anthropic.Tool = {
+export const batchTool: KotaTool = {
 	name: "batch",
 	description:
 		"Run multiple independent tasks in parallel via sub-agents. " +

@@ -2,10 +2,10 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { extname, join, resolve } from "node:path";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
-export const viewImageTool: Anthropic.Tool = {
+export const viewImageTool: KotaTool = {
 	name: "view_image",
 	description:
 		"Read a local image file and return it for visual analysis. " +

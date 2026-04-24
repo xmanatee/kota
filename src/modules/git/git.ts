@@ -1,8 +1,8 @@
 import { execFile } from "node:child_process";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
-export const gitTool: Anthropic.Tool = {
+export const gitTool: KotaTool = {
 	name: "git",
 	description:
 		"Git version control operations with safety guardrails and token-efficient output. " +

@@ -1,12 +1,12 @@
 ---
 id: task-introduce-neutral-kotatool-and-migrate-core-tool-d
 title: Introduce neutral KotaTool and migrate core tool-definition and registry
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Stage 2 of the neutral message-protocol plan in src/core/agent-harness/anthropic-type-audit.md. Introduce KotaTool in src/core/agent-harness/types.ts and migrate the full tool-definition / registry / MCP / manifest surface in core from Anthropic.Tool to KotaTool, flipping the five module-side adapter seams (claude-agent-harness, model-clients/anthropic, model-clients/openai, openai-tools-agent-harness, thin-agent-harness, mcp-server) to consume KotaTool inputs.
 created_at: 2026-04-24T04:46:29.155Z
-updated_at: 2026-04-24T04:46:29.155Z
+updated_at: 2026-04-24T05:06:42.946Z
 ---
 
 ## Problem

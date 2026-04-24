@@ -119,13 +119,11 @@ Claude-SDK-specific query shapes (`SDKQueryOptions`, `SDKSystemPrompt`,
 executor primitive, and the owner-questions MCP bridge live in
 `src/modules/claude-agent-harness/`.
 
-The target is stronger than "nothing in core imports the claude-agent-
-sdk": *nothing in core should treat the Anthropic SDK type surface as
-its internal protocol*. Today the loop, tool registry, `ModelClient`,
-compaction/masking/pruning/reflection, manifest, KEMP, and delegate
-still type contracts on `Anthropic.MessageParam`/`Anthropic.Tool`. See
-`anthropic-type-audit.md` for the import inventory, staged plan, and
-follow-up tasks.
+The target is stronger than "core doesn't import the claude-agent-
+sdk": *nothing in core treats the Anthropic SDK type surface as its
+internal protocol*. Tool shapes are now `KotaTool` /
+`KotaToolInputSchema` in `message-protocol.ts`; message/thinking
+shapes follow in later stages. See `anthropic-type-audit.md`.
 
 ## Per-step harness-specific options
 

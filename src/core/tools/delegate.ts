@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import {
   buildSubAgentPrompt,
   EXECUTE_PROMPT,
@@ -30,7 +31,7 @@ export { setDelegateConfig } from "./delegate-config.js";
 export type { CompletionReason, DelegateMetadata } from "./delegate-format.js";
 export { buildDelegateResult, buildSourcesSection, collectImageBlocks, extractModifiedFiles, formatMetadata } from "./delegate-format.js";
 
-export const delegateTool: Anthropic.Tool = {
+export const delegateTool: KotaTool = {
   name: "delegate",
   description:
     "Delegate a task to a sub-agent with its own context. " +

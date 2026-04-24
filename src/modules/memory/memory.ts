@@ -1,8 +1,8 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getMemoryProvider } from "#core/modules/provider-registry.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
-export const memoryTool: Anthropic.Tool = {
+export const memoryTool: KotaTool = {
   name: "memory",
   description:
     "Persistent memory across sessions (save/search/list/update/delete). " +

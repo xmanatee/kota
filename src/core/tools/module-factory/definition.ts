@@ -1,10 +1,10 @@
 /**
- * Module Factory — tool definition (Anthropic tool schema).
+ * Module Factory — tool definition.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 
-export const moduleFactoryTool: Anthropic.Tool = {
+export const moduleFactoryTool: KotaTool = {
 	name: "module_factory",
 	description:
 		"Create, list, remove, inspect, or query logs from custom modules. " +

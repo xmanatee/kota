@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { McpClient, type McpToolSchema } from "./client.js";
 
@@ -34,14 +34,18 @@ export function parseToolName(name: string): { server: string; tool: string } | 
   return { server: parts[1], tool: parts.slice(2).join(SEPARATOR) };
 }
 
-/** Convert an MCP tool schema to Anthropic Tool format with namespaced name. */
-function toAnthropicTool(serverName: string, tool: McpToolSchema): Anthropic.Tool {
+/** Convert an MCP tool schema to a neutral KotaTool with namespaced name. */
+function toKotaTool(serverName: string, tool: McpToolSchema): KotaTool {
   return {
     name: namespaceTool(serverName, tool.name),
     description: tool.description
       ? `[${serverName}] ${tool.description}`
       : `[${serverName}] ${tool.name}`,
-    input_schema: tool.inputSchema,
+    input_schema: {
+      type: "object",
+      properties: tool.inputSchema.properties ?? {},
+      ...(tool.inputSchema.required && { required: tool.inputSchema.required }),
+    },
   };
 }
 
@@ -52,7 +56,7 @@ function toAnthropicTool(serverName: string, tool: McpToolSchema): Anthropic.Too
 export class McpManager {
   private clients = new Map<string, McpClient>();
   private toolMap = new Map<string, McpToolEntry>();
-  private anthropicTools: Anthropic.Tool[] = [];
+  private kotaTools: KotaTool[] = [];
 
   /** Load MCP config from .kota/mcp.json in the given directory. */
   static loadConfig(cwd?: string): McpConfig | null {
@@ -103,7 +107,7 @@ export class McpManager {
       for (const tool of tools) {
         const nsName = namespaceTool(name, tool.name);
         this.toolMap.set(nsName, { client, originalName: tool.name });
-        this.anthropicTools.push(toAnthropicTool(name, tool));
+        this.kotaTools.push(toKotaTool(name, tool));
       }
 
       console.error(
@@ -112,9 +116,9 @@ export class McpManager {
     }
   }
 
-  /** Get all MCP tools in Anthropic Tool format. */
-  getTools(): Anthropic.Tool[] {
-    return this.anthropicTools;
+  /** Get all MCP tools as neutral KotaTool entries. */
+  getTools(): KotaTool[] {
+    return this.kotaTools;
   }
 
   /** Check if a tool name belongs to an MCP server. */
@@ -148,7 +152,7 @@ export class McpManager {
     await Promise.all(closers);
     this.clients.clear();
     this.toolMap.clear();
-    this.anthropicTools = [];
+    this.kotaTools = [];
   }
 
   /** Get number of connected servers. */

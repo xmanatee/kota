@@ -1,9 +1,9 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, join } from "node:path";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
-export const filesOverviewTool: Anthropic.Tool = {
+export const filesOverviewTool: KotaTool = {
   name: "files_overview",
   description:
     "Scan a directory and return a structured overview: file counts by type, sizes, and content previews (headings for markdown, columns for CSV, keys for JSON). More informative than glob (paths only) but cheaper than reading each file individually.",

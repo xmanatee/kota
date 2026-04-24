@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, describe, expect, it, type Mock, vi } from "vitest";
+import type { KotaTool } from "./core/agent-harness/message-protocol.js";
 import type { ModelClient } from "./core/model/model-client.js";
 import {
 	buildAnthropicMessage,
@@ -199,8 +200,8 @@ describe("toOpenAIMessages", () => {
 });
 
 describe("toOpenAITools", () => {
-	it("converts Anthropic tools to OpenAI format", () => {
-		const tools: Anthropic.Tool[] = [
+	it("converts KotaTool list to OpenAI format", () => {
+		const tools: KotaTool[] = [
 			{
 				name: "search",
 				description: "Search the web",
@@ -225,14 +226,6 @@ describe("toOpenAITools", () => {
 				},
 			},
 		]);
-	});
-
-	it("handles empty description", () => {
-		const tools = [
-			{ name: "noop", input_schema: { type: "object" as const } },
-		] as Anthropic.Tool[];
-		const result = toOpenAITools(tools);
-		expect(result[0].function.description).toBe("");
 	});
 });
 

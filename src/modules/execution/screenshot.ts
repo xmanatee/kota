@@ -2,10 +2,10 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
-export const screenshotTool: Anthropic.Tool = {
+export const screenshotTool: KotaTool = {
 	name: "screenshot",
 	description:
 		"Capture a screenshot of the screen for visual analysis. " +

@@ -12,14 +12,14 @@
 
 import { existsSync } from "node:fs";
 import { extname, resolve } from "node:path";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import {
 	extractText,
 	installHint,
 } from "./read-document-extractors.js";
 
-export const readDocumentTool: Anthropic.Tool = {
+export const readDocumentTool: KotaTool = {
 	name: "read_document",
 	description:
 		"Extract text content from document files (PDF, DOCX, RTF, ODT). " +

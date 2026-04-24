@@ -1,6 +1,6 @@
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "#core/tools/code-wrappers.js";
 import { cleanupSessions, findPythonBinary, type Language, type REPLSession, sessions } from "#core/tools/repl-session.js";
 import { which } from "#core/tools/runtime-check.js";
@@ -11,7 +11,7 @@ export { cleanupSessions };
 
 const execFileP = promisify(execFileCb);
 
-export const codeExecTool: Anthropic.Tool = {
+export const codeExecTool: KotaTool = {
   name: "code_exec",
   description:
     "Execute code in a persistent REPL session. Variables, imports, and state persist " +

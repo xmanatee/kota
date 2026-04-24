@@ -7,9 +7,9 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type Anthropic from "@anthropic-ai/sdk";
 import type { Command } from "commander";
 import type { PostRunHook, PreRunHook } from "#core/agent-harness/hooks.js";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { AgentDef, SkillDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
@@ -94,7 +94,7 @@ export type CreateSessionOptions = {
 
 /** A tool definition contributed by a module. */
 export type ToolDef = {
-  tool: Anthropic.Tool;
+  tool: KotaTool;
   runner: (input: Record<string, unknown>) => Promise<ToolResult>;
   /** Tool group for progressive disclosure. Ungrouped tools are always available. */
   group?: string;

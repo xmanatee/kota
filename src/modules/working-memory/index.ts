@@ -11,7 +11,7 @@
  * Inspired by Letta/MemGPT's core memory blocks.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ModuleStorage } from "#core/modules/module-storage.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { ToolResult } from "#core/tools/index.js";
@@ -55,7 +55,7 @@ function loadPersistent(storage: ModuleStorage): number {
 
 type Action = "write" | "read" | "list" | "remove" | "clear";
 
-const workingMemoryTool: Anthropic.Tool = {
+const workingMemoryTool: KotaTool = {
 	name: "working_memory",
 	description:
 		"Manage your working memory — named entries visible in your system prompt every turn. " +

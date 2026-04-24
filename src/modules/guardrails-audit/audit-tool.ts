@@ -5,11 +5,11 @@
  * or denied, and why. Read-only, always available in the management group.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getAuditStore } from "#core/tools/audit-store.js";
 import type { ToolResult } from "#core/tools/index.js";
 
-export const auditTool: Anthropic.Tool = {
+export const auditTool: KotaTool = {
 	name: "audit",
 	description:
 		"Query the guardrail audit trail — review past tool-call risk assessments " +

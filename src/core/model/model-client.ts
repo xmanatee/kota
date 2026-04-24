@@ -7,6 +7,7 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { AgentEffort } from "#core/agent-harness/types.js";
 
 export type { AgentEffort };
@@ -24,7 +25,7 @@ export type MessageStreamParams = {
 	max_tokens: number;
 	system?: Anthropic.Messages.TextBlockParam[] | string;
 	messages: Anthropic.MessageParam[];
-	tools?: Anthropic.Tool[];
+	tools?: KotaTool[];
 	thinking?: Anthropic.Messages.ThinkingConfigParam;
 	/**
 	 * Declared reasoning posture for this call. Providers that expose a

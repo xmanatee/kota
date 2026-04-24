@@ -1,13 +1,13 @@
 import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { recordModification } from "#core/file-tracking/file-tracker.js";
 import { trackFileChange } from "#core/loop/file-changes.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { printWriteSummary } from "./diff.js";
 import { lintFile } from "./lint.js";
 
-export const fileWriteTool: Anthropic.Tool = {
+export const fileWriteTool: KotaTool = {
   name: "file_write",
   description:
     "Create a new file or overwrite an existing file. " +

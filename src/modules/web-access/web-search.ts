@@ -1,4 +1,4 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import {
   type BraveSearchResponse,
@@ -9,7 +9,7 @@ import {
   type SearchResult,
 } from "./web-search-helpers.js";
 
-export const webSearchTool: Anthropic.Tool = {
+export const webSearchTool: KotaTool = {
   name: "web_search",
   description:
     "Search the web. Returns titles, URLs, and snippets for the top results. " +

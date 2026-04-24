@@ -8,7 +8,7 @@ import { ModuleLoader } from "#core/modules/module-loader.js";
 import { getToolMcpAnnotations } from "#core/tools/guardrails-classify.js";
 import { clearCustomTools, registerTool } from "#core/tools/index.js";
 import filesystemModule from "#modules/filesystem/index.js";
-import { anthropicToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
+import { kotaToolToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
 
 vi.mock("#core/modules/provider-registry.js", () => ({
 	getMemoryProvider: vi.fn(() => ({ list: () => [] })),
@@ -748,8 +748,8 @@ describe("resources", () => {
 	});
 });
 
-describe("anthropicToMcp", () => {
-	it("converts Anthropic tool to MCP format", () => {
+describe("kotaToolToMcp", () => {
+	it("converts KotaTool to MCP format", () => {
 		const tool = {
 			name: "test_tool",
 			description: "A test tool",
@@ -760,7 +760,7 @@ describe("anthropicToMcp", () => {
 			},
 		};
 
-		const mcp = anthropicToMcp(tool);
+		const mcp = kotaToolToMcp(tool);
 
 		expect(mcp.name).toBe("test_tool");
 		expect(mcp.description).toBe("A test tool");
@@ -771,16 +771,6 @@ describe("anthropicToMcp", () => {
 		});
 		// MCP uses inputSchema (camelCase), not input_schema (snake_case)
 		expect(mcp).not.toHaveProperty("input_schema");
-	});
-
-	it("handles missing description", () => {
-		const tool = {
-			name: "no_desc",
-			input_schema: { type: "object" as const, properties: {} },
-		};
-
-		const mcp = anthropicToMcp(tool);
-		expect(mcp.description).toBe("");
 	});
 });
 

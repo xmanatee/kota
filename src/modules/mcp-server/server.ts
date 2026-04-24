@@ -10,6 +10,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface, type Interface } from "node:readline";
 import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { loadConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { getEventBus } from "#core/events/event-bus.js";
@@ -115,7 +116,7 @@ export class McpServer {
 	private subscriptions = new Set<string>();
 	private busUnsubs: (() => void)[] = [];
 	private moduleRunners = new Map<string, (input: Record<string, unknown>) => Promise<ToolResult>>();
-	private moduleToolList: Anthropic.Tool[] = [];
+	private moduleToolList: KotaTool[] = [];
 	private clientSupportsElicitation = false;
 	private pendingElicitations = new Map<
 		number | string,
@@ -181,7 +182,7 @@ export class McpServer {
 	}
 
 	/** Get the tools this server exposes (respecting filter). Merges project and module tools. */
-	getExposedTools(): Anthropic.Tool[] {
+	getExposedTools(): KotaTool[] {
 		const builtinNames = new Set(getAllTools().map((t) => t.name));
 		const all = [
 			...getAllTools(),
@@ -511,7 +512,7 @@ export class McpServer {
 		}
 
 		const tools = this.getExposedTools().map((t) => {
-			const mcp = anthropicToMcp(t);
+			const mcp = kotaToolToMcp(t);
 			const annotations = getToolMcpAnnotations(t.name);
 			return annotations ? { ...mcp, annotations } : mcp;
 		});
@@ -781,15 +782,15 @@ export class McpServer {
 	}
 }
 
-/** Convert Anthropic tool format to MCP tool format. */
-export function anthropicToMcp(tool: Anthropic.Tool): {
+/** Convert a neutral KotaTool to MCP tool format. */
+export function kotaToolToMcp(tool: KotaTool): {
 	name: string;
 	description: string;
 	inputSchema: Record<string, unknown>;
 } {
 	return {
 		name: tool.name,
-		description: tool.description ?? "",
+		description: tool.description,
 		inputSchema: tool.input_schema as Record<string, unknown>,
 	};
 }

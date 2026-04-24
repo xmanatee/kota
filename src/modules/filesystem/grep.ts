@@ -1,8 +1,8 @@
 import { execSync } from "node:child_process";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
-export const grepTool: Anthropic.Tool = {
+export const grepTool: KotaTool = {
   name: "grep",
   description:
     "Search file contents using regex patterns. Returns matching lines with file paths and line numbers. " +

@@ -1,4 +1,4 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { Task, TaskPriority } from "#core/daemon/task-store.js";
 import { getTaskProvider } from "#core/modules/provider-registry.js";
 import type { ToolResult } from "./index.js";
@@ -6,7 +6,7 @@ import type { ToolResult } from "./index.js";
 export type Priority = TaskPriority;
 export type TodoItem = Task;
 
-export const todoTool: Anthropic.Tool = {
+export const todoTool: KotaTool = {
   name: "todo",
   description:
     "Track tasks across sessions. Tasks persist on disk — resume work " +

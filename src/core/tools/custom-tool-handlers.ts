@@ -4,8 +4,7 @@
  */
 
 import { existsSync, unlinkSync } from "node:fs";
-import type Anthropic from "@anthropic-ai/sdk";
-import type { KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
+import type { KotaTool, KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
 import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "./code-wrappers.js";
 import {
   type CustomToolDef,
@@ -19,7 +18,7 @@ import { sessions } from "./repl-session.js";
 
 export type ToolResult = { content: string; is_error?: boolean };
 
-type RegisterFn = (tool: Anthropic.Tool, runner: (input: Record<string, unknown>) => Promise<ToolResult>, moduleName?: string) => void;
+type RegisterFn = (tool: KotaTool, runner: (input: Record<string, unknown>) => Promise<ToolResult>, moduleName?: string) => void;
 type DeregisterFn = (name: string) => boolean;
 
 // ─── Create ───────────────────────────────────────────────────────────
@@ -60,7 +59,7 @@ export function handleCreate(
 
   const def: CustomToolDef = { name, description, parameters, code, language, timeoutMs: DEFAULT_TIMEOUT };
 
-  const toolDef: Anthropic.Tool = {
+  const toolDef: KotaTool = {
     name,
     description,
     input_schema: parameters as KotaToolInputSchema,

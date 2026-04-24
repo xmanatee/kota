@@ -6,11 +6,12 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getHistoryProvider } from "#core/modules/provider-registry.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type { ConversationRecord } from "./history.js";
 
-export const conversationRecallTool: Anthropic.Tool = {
+export const conversationRecallTool: KotaTool = {
 	name: "conversation_recall",
 	description:
 		"Search and read past conversations. " +

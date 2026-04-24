@@ -1,9 +1,9 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { evaluateCondition, resolveStepInput } from "#core/manifest/index.js";
 import { executeTool } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
-export const pipeTool: Anthropic.Tool = {
+export const pipeTool: KotaTool = {
 	name: "pipe",
 	description:
 		"Chain tools sequentially — each step's output feeds the next via $prev. " +

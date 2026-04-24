@@ -1,4 +1,4 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import {
 	linuxClick, linuxCursorPosition, linuxDoubleClick, linuxDrag,
@@ -10,7 +10,7 @@ import {
 
 export { resetComputerUseState } from "./computer-use-actions.js";
 
-export const computerUseTool: Anthropic.Tool = {
+export const computerUseTool: KotaTool = {
 	name: "computer_use",
 	description:
 		"Control mouse and keyboard to interact with the computer GUI. " +

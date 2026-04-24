@@ -1,8 +1,8 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { queryOS, queryResources, queryRuntimes, queryServices } from "./env-probes.js";
 
-export const envInfoTool: Anthropic.Tool = {
+export const envInfoTool: KotaTool = {
 	name: "env_info",
 	description:
 		"Discover the host environment: OS, installed runtimes, running services, " +

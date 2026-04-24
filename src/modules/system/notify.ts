@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { platform } from "node:os";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/index.js";
 
-export const notifyTool: Anthropic.Tool = {
+export const notifyTool: KotaTool = {
 	name: "notify",
 	description:
 		"Send a desktop notification to the user. Use to alert about completed tasks, " +

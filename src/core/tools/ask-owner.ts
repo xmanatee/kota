@@ -8,7 +8,7 @@
  * before a question is enqueued.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { OwnerQuestionQueue, PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
 import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { reviewOwnerQuestion } from "#core/daemon/owner-question-review.js";
@@ -28,7 +28,7 @@ export function runWithAskOwnerSource<T>(source: string, fn: () => Promise<T>): 
   return askOwnerSourceContext.run(source, fn);
 }
 
-export const askOwnerTool: Anthropic.Tool = {
+export const askOwnerTool: KotaTool = {
   name: "ask_owner",
   description:
     "Escalate a high-stakes decision to the repo owner and block until they answer. " +

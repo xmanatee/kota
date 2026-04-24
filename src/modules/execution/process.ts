@@ -1,4 +1,4 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import {
   cleanupProcesses,
@@ -12,7 +12,7 @@ import {
 
 export { cleanupProcesses, clearProcesses, getActiveProcessCount };
 
-export const processTool: Anthropic.Tool = {
+export const processTool: KotaTool = {
   name: "process",
   description:
     "Manage background processes (start/output/signal/list). " +

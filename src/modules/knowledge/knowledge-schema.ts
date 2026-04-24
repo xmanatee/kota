@@ -1,6 +1,6 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 
-export const knowledgeTool: Anthropic.Tool = {
+export const knowledgeTool: KotaTool = {
 	name: "knowledge",
 	description:
 		"Structured knowledge base — store, search, and manage entries as markdown files with metadata. " +

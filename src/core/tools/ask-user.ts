@@ -1,9 +1,9 @@
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "./index.js";
 
-export const askUserTool: Anthropic.Tool = {
+export const askUserTool: KotaTool = {
   name: "ask_user",
   description:
     "Ask the user a question and wait for their response. " +

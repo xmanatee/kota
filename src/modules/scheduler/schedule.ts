@@ -1,8 +1,8 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getScheduler, parseRepeat, parseTime } from "#core/daemon/scheduler.js";
 import type { ToolResult } from "#core/tools/index.js";
 
-export const scheduleTool: Anthropic.Tool = {
+export const scheduleTool: KotaTool = {
   name: "schedule",
   description:
     "Set reminders, schedule recurring tasks, or create event-triggered schedules. " +

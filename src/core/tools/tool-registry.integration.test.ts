@@ -1,5 +1,5 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, describe, expect, it } from "vitest";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import {
   clearCustomTools,
   executeTool,
@@ -9,7 +9,7 @@ import {
 import { enableGroup, filterTools, resetGroups } from "./tool-groups.js";
 import { FailureTracker } from "./tool-runner.js";
 
-const makeTool = (name: string): Anthropic.Tool => ({
+const makeTool = (name: string): KotaTool => ({
   name,
   description: `Test tool: ${name}`,
   input_schema: { type: "object" as const, properties: {} },

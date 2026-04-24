@@ -1,8 +1,8 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getWatcherManager } from "#core/file-tracking/file-watcher.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
-export const fileWatchTool: Anthropic.Tool = {
+export const fileWatchTool: KotaTool = {
 	name: "file_watch",
 	description:
 		"Watch a directory for file changes. Changes emit 'file.changed' events on the event bus " +

@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ModelClient } from "#core/model/model-client.js";
 
 // --- Hoisted mocks ---
@@ -252,7 +253,7 @@ describe("runEditorLoop", () => {
     });
 
     const callArgs = client.messages.stream.mock.calls[0][0];
-    const toolNames = callArgs.tools.map((t: Anthropic.Tool) => t.name);
+    const toolNames = callArgs.tools.map((t: KotaTool) => t.name);
     expect(toolNames).toContain("file_read");
     expect(toolNames).toContain("file_edit");
     expect(toolNames).toContain("file_write");
@@ -273,7 +274,7 @@ describe("runEditorLoop", () => {
     });
 
     const callArgs = client.messages.stream.mock.calls[0][0];
-    const toolNames = callArgs.tools.map((t: Anthropic.Tool) => t.name);
+    const toolNames = callArgs.tools.map((t: KotaTool) => t.name);
     expect(toolNames).toContain("web_search");
     expect(toolNames).toContain("web_fetch");
   });
@@ -287,7 +288,7 @@ describe("runEditorLoop", () => {
     });
 
     const callArgs = client.messages.stream.mock.calls[0][0];
-    const toolNames = callArgs.tools.map((t: Anthropic.Tool) => t.name);
+    const toolNames = callArgs.tools.map((t: KotaTool) => t.name);
     expect(toolNames).toContain("code_exec");
   });
 
@@ -300,7 +301,7 @@ describe("runEditorLoop", () => {
     });
 
     const callArgs = client.messages.stream.mock.calls[0][0];
-    const toolNames = callArgs.tools.map((t: Anthropic.Tool) => t.name);
+    const toolNames = callArgs.tools.map((t: KotaTool) => t.name);
     expect(toolNames).toContain("multi_edit");
   });
 
@@ -313,7 +314,7 @@ describe("runEditorLoop", () => {
     });
 
     const callArgs = client.messages.stream.mock.calls[0][0];
-    const toolNames = callArgs.tools.map((t: Anthropic.Tool) => t.name);
+    const toolNames = callArgs.tools.map((t: KotaTool) => t.name);
     expect(toolNames).not.toContain("delegate");
     expect(toolNames).not.toContain("ask_user");
     expect(toolNames).not.toContain("enable_tools");

@@ -3,6 +3,7 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { OAIMessage, OAITool, OAIToolCall } from "./types.js";
 
 /** Extract plain text from the system param (string or TextBlockParam[]). */
@@ -98,13 +99,13 @@ export function extractToolResultContent(
 	return prefix + texts.join("\n");
 }
 
-/** Convert Anthropic tool definitions to OpenAI format. */
-export function toOpenAITools(tools: Anthropic.Tool[]): OAITool[] {
+/** Convert neutral KotaTool definitions to OpenAI tool format. */
+export function toOpenAITools(tools: KotaTool[]): OAITool[] {
 	return tools.map((t) => ({
 		type: "function" as const,
 		function: {
 			name: t.name,
-			description: t.description ?? "",
+			description: t.description,
 			parameters: t.input_schema as Record<string, unknown>,
 		},
 	}));

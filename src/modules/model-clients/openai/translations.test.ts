@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import {
 	buildAnthropicMessage,
 	extractToolResultContent,
@@ -146,7 +147,7 @@ describe("toOpenAITools edge cases", () => {
 	});
 
 	it("handles complex nested schema", () => {
-		const tools: Anthropic.Tool[] = [
+		const tools: KotaTool[] = [
 			{
 				name: "complex",
 				description: "A complex tool",

@@ -1,10 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { extractPage, formatMetadataHeader } from "./html-page-extract.js";
 
-export const webFetchTool: Anthropic.Tool = {
+export const webFetchTool: KotaTool = {
   name: "web_fetch",
   description:
     "Fetch a web page and return its content as clean Markdown. " +

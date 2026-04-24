@@ -22,7 +22,7 @@ export {
   removeHarnessHooks,
   resetHarnessHooks,
 } from "./hooks.js";
-export type { KotaToolInputSchema } from "./message-protocol.js";
+export type { KotaTool, KotaToolInputSchema } from "./message-protocol.js";
 export {
   clearAgentHarnessRegistryForTest,
   hasAgentHarness,

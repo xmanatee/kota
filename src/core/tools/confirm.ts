@@ -1,10 +1,10 @@
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getEventBus } from "#core/events/event-bus.js";
 import type { ToolResult } from "./index.js";
 
-export const confirmTool: Anthropic.Tool = {
+export const confirmTool: KotaTool = {
 	name: "confirm",
 	description:
 		"Request human approval before executing a high-stakes action. " +

@@ -5,7 +5,7 @@
  * Sub-agents share findings without routing through the parent.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/index.js";
 import {
   clearAllWorkspaces,
@@ -18,7 +18,7 @@ import {
   writeEntry,
 } from "./workspace-store.js";
 
-export const workspaceTool: Anthropic.Tool = {
+export const workspaceTool: KotaTool = {
   name: "workspace",
   description:
     "Shared workspace (blackboard) for multi-agent coordination. " +

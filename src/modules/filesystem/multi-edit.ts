@@ -1,12 +1,12 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { recordModification } from "#core/file-tracking/file-tracker.js";
 import { trackFileChange } from "#core/loop/file-changes.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { printEditDiff } from "./diff.js";
 import { lintFile } from "./lint.js";
 
-export const multiEditTool: Anthropic.Tool = {
+export const multiEditTool: KotaTool = {
   name: "multi_edit",
   description:
     "Apply multiple edits across one or more files atomically. " +

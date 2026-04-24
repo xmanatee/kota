@@ -22,12 +22,13 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 
 const messagesStreamMock = vi.fn();
 const messagesCreateMock = vi.fn();
 const createModelClientMock = vi.fn();
 const executeToolMock = vi.fn();
-const getAllToolsMock = vi.fn<() => readonly Anthropic.Tool[]>();
+const getAllToolsMock = vi.fn<() => readonly KotaTool[]>();
 
 vi.mock("#core/model/model-client.js", () => ({
   createModelClient: (...args: unknown[]) => createModelClientMock(...args),
@@ -48,7 +49,7 @@ const SHIPPED_SCENARIOS_ROOT = join(
   "scenarios",
 );
 
-const FILE_READ_TOOL: Anthropic.Tool = {
+const FILE_READ_TOOL: KotaTool = {
   name: "file_read",
   description: "Read a file from the working directory",
   input_schema: {
@@ -58,7 +59,7 @@ const FILE_READ_TOOL: Anthropic.Tool = {
   },
 };
 
-const FILE_WRITE_TOOL: Anthropic.Tool = {
+const FILE_WRITE_TOOL: KotaTool = {
   name: "file_write",
   description: "Write a file to the working directory",
   input_schema: {
@@ -68,7 +69,7 @@ const FILE_WRITE_TOOL: Anthropic.Tool = {
   },
 };
 
-const SHELL_TOOL: Anthropic.Tool = {
+const SHELL_TOOL: KotaTool = {
   name: "shell",
   description: "Run a shell command in the working directory",
   input_schema: {

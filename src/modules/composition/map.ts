@@ -1,8 +1,8 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { executeTool } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
-export const mapTool: Anthropic.Tool = {
+export const mapTool: KotaTool = {
 	name: "map",
 	description:
 		"Apply one tool to every item in a list — parallel, no LLM overhead. " +

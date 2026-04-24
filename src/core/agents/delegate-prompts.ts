@@ -1,4 +1,4 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { resolveToolSet } from "#core/tools/index.js";
 import { detectProject, getDirectoryOverview } from "#core/util/project-detection.js";
@@ -101,7 +101,7 @@ export const EXECUTE_TOOL_NAMES = [
 type ToolRunner = (input: Record<string, unknown>) => Promise<ToolResult>;
 
 /** Custom shell tool definition with 60s timeout description for sub-agents. */
-const subShellTool: Anthropic.Tool = {
+const subShellTool: KotaTool = {
   name: "shell",
   description:
     "Execute a shell command (max 60s timeout). " +
@@ -131,7 +131,7 @@ function createBoundedShellRunner(baseRunner: ToolRunner): ToolRunner {
 
 /** Apply the bounded shell override to a resolved tool set. */
 function applyShellBound(
-  toolSet: { tools: Anthropic.Tool[]; runners: Record<string, ToolRunner> },
+  toolSet: { tools: KotaTool[]; runners: Record<string, ToolRunner> },
 ): void {
   const idx = toolSet.tools.findIndex((t) => t.name === "shell");
   if (idx >= 0) toolSet.tools[idx] = subShellTool;
@@ -140,17 +140,17 @@ function applyShellBound(
   }
 }
 
-export function getExploreToolSet(): { tools: Anthropic.Tool[]; runners: Record<string, ToolRunner> } {
+export function getExploreToolSet(): { tools: KotaTool[]; runners: Record<string, ToolRunner> } {
   const set = resolveToolSet(EXPLORE_TOOL_NAMES);
   applyShellBound(set);
   return set;
 }
 
-export function getResearchToolSet(): { tools: Anthropic.Tool[]; runners: Record<string, ToolRunner> } {
+export function getResearchToolSet(): { tools: KotaTool[]; runners: Record<string, ToolRunner> } {
   return getExploreToolSet();
 }
 
-export function getExecuteToolSet(): { tools: Anthropic.Tool[]; runners: Record<string, ToolRunner> } {
+export function getExecuteToolSet(): { tools: KotaTool[]; runners: Record<string, ToolRunner> } {
   const set = resolveToolSet(EXECUTE_TOOL_NAMES);
   applyShellBound(set);
   return set;

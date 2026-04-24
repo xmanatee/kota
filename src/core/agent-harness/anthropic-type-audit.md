@@ -15,6 +15,11 @@ core contract forces a conversion at that seam.
 
 ## Import inventory
 
+The inventory below captures the Stage-0 state. Stages 1 and 2 have landed —
+`Anthropic.Tool.InputSchema` and `Anthropic.Tool` are no longer referenced by
+any file under `src/core/`. The rows tagged **tools (...)** therefore no
+longer hold; they remain for historical reference.
+
 38 files under `src/core/` currently import `type Anthropic from "@anthropic-ai/sdk"`:
 
 | Area | File | Role |
@@ -193,38 +198,38 @@ Rails: these files keep their `type Anthropic` import only if they also
 reference `Anthropic.Tool` (most do); the `InputSchema` import is what goes
 away. Stage 2 finishes the cleanup by removing the `Anthropic.Tool` reference.
 
-### Stage 2 — `KotaTool`
+### Stage 2 — `KotaTool` (landed)
 
-Introduce `KotaTool = { name: string; description: string; input_schema:
-KotaToolInputSchema }` in `src/core/agent-harness/types.ts`. Migrate:
+`KotaTool = { name: string; description: string; input_schema:
+KotaToolInputSchema }` lives in `src/core/agent-harness/message-protocol.ts`
+and is exported from the agent-harness index. No file under `src/core/`
+references `Anthropic.Tool` any more — every core tool declaration, registry
+function, MCP bridge entry, manifest execution path, delegate sub-agent, and
+module-contribution contract (`ToolDef.tool`) speaks `KotaTool`. The
+`StreamConfig.tools`, `MessageStreamParams.tools`, and `MockApiCall.tools`
+fields on the model-client boundary are also `KotaTool[]`; the remaining
+message/thinking shapes there are Stage 3–5 territory.
 
-- `src/core/tools/{agent-status,approval,ask-owner,ask-user,checkpoint,confirm,todo}.ts` — declare each tool as `KotaTool`.
-- `src/core/tools/module-factory/definition.ts` — `moduleFactoryTool: KotaTool`.
-- `src/core/tools/tool-groups.ts` — `filterTools(tools: readonly KotaTool[]): KotaTool[]`, `buildEnableToolsTool(): KotaTool`, `enableToolsTool: KotaTool`.
-- `src/core/tools/index.ts` — `ToolRegistration.tool: KotaTool`, `tools: KotaTool[]`, `getAllTools(): readonly KotaTool[]`, `getRegisteredTools(): KotaTool[]`, `resolveToolSet(): { tools: KotaTool[]; runners: Record<string, ToolRunner> }`, `registerTool(tool: KotaTool, ...)`.
-- `src/core/tools/custom-tool.ts`, `src/core/tools/custom-tool-handlers.ts` — `RegisterFn: (tool: KotaTool, ...) => void`, `customToolTool: KotaTool`, internal `toolDef: KotaTool`.
-- `src/core/tools/delegate.ts` — `delegateTool: KotaTool`.
-- `src/core/tools/delegate-turn.ts` — `TurnLoopOptions.tools: KotaTool[]`.
-- `src/core/agents/delegate-prompts.ts` — `subShellTool: KotaTool`, tool-set return signatures typed on `KotaTool[]`.
-- `src/core/mcp/manager.ts` — `toAnthropicTool` renamed `toKotaTool`, `McpManager.getTools(): KotaTool[]`, internal `kotaTools: KotaTool[]`.
-- `src/core/modules/module-types.ts` — `ToolDef.tool: KotaTool`.
-- `src/core/tools/tool-registry.integration.test.ts` — `makeTool(): KotaTool`.
+Module tool declarations across the repo (filesystem, execution, browser,
+web-access, git, memory, composition, system, scheduler, secrets,
+working-memory, prompt-templates, knowledge, guardrails-audit, read-document,
+history/conversation-recall) were migrated to `KotaTool` in the same stage so
+the `ToolDef.tool: KotaTool` contract has no optional-description gap with
+`Anthropic.Tool.description?`. The five adapter seams flipped their declared
+input type:
 
-Adapter-side translation:
-- `src/modules/claude-agent-harness/adapter.ts` takes `KotaTool[]` and passes
-  through (structurally compatible) or converts where the claude SDK adds a
-  wrapper shape.
-- `src/modules/model-clients/anthropic/*` — replace the pass-through with an
-  explicit `kotaToAnthropicTool()` helper; structurally a no-op today, but the
-  explicit boundary is the new invariant.
-- `src/modules/model-clients/openai/translations.ts` — input type for tool
-  translation becomes `KotaTool`.
-- `src/modules/openai-tools-agent-harness`, `src/modules/thin-agent-harness` —
-  same input type swap.
-- `src/modules/mcp-server` — the MCP bridge takes `KotaTool` and produces MCP
-  tool entries.
+- `claude-agent-harness/adapter.ts` accepts `KotaTool[]` and passes through.
+- `model-clients/anthropic.ts` introduces an explicit `kotaToAnthropicTool()`
+  helper — a structural no-op today, but the call-site is the new invariant.
+- `model-clients/openai/translations.ts` typed `toOpenAITools(tools:
+  KotaTool[])`.
+- `openai-tools-agent-harness` typed its `selectToolDefinitions()` return on
+  `KotaTool[]`.
+- `thin-agent-harness` has no tool loop, so no input to flip.
+- `mcp-server` renamed `anthropicToMcp` → `kotaToolToMcp` and types
+  `moduleToolList`, `getExposedTools()` on `KotaTool`.
 
-After this stage, all of role (1) is gone from core.
+After this stage, role (1) is gone from core.
 
 ### Stage 3 — `KotaThinkingConfig`
 
@@ -343,36 +348,22 @@ Module-side fixtures that still target the Anthropic wire
 
 ## Follow-up tasks
 
-Explorer can seed each stage as its own task, in the order listed. Titles
-designed to be unique and self-describing so they slot into `data/tasks/`
-directly:
+Stages 1 and 2 have landed. Explorer can seed each remaining stage as its
+own task, in the order listed:
 
-1. **Introduce neutral `KotaToolInputSchema` and migrate core tool-schema
-   builders** — implements Stage 1. Scope: the five files named under Stage 1
-   plus the `input_schema` casts inside them; no adapter-side changes beyond a
-   structurally compatible pass-through.
-2. **Introduce neutral `KotaTool` and migrate every core tool-definition,
-   registry, and MCP/manifest consumer** — implements Stage 2. Scope: all 21
-   tool-definition / registry files plus the five module-side adapter seams
-   (claude-agent-harness, model-clients/anthropic, model-clients/openai,
-   openai-tools-agent-harness, thin-agent-harness, mcp-server) flipping to
-   `KotaTool` inputs. Largest stage; ship as one cohesive PR.
-3. **Introduce neutral `KotaThinkingConfig` and migrate loop +
+1. **Introduce neutral `KotaThinkingConfig` and migrate loop +
    model-client surfaces** — implements Stage 3. Scope: six files listed under
    Stage 3 plus the anthropic and openai model-client translations.
-4. **Introduce neutral `KotaMessage` protocol and migrate the loop,
+2. **Introduce neutral `KotaMessage` protocol and migrate the loop,
    compaction, masking, pruning, reflection, delegate, and history-provider
    surfaces** — implements Stage 4. Scope: ten core files plus loop-level
    tests and the anthropic/openai/claude-agent-harness translation seams.
-5. **Introduce neutral `KotaModelResponse` and `KotaMessageStream` and complete
+3. **Introduce neutral `KotaModelResponse` and `KotaMessageStream` and complete
    the model-client migration** — implements Stage 5. Scope: `model-client.ts`,
    `streaming.ts`, `mock-client.ts`, the five loop consumers of the assistant
    response, `delegate-turn.ts`, and every `ModelClient` implementation in
    `src/modules/model-clients/*`.
-6. **Enforce the neutral-protocol boundary in core with an import guard** —
+4. **Enforce the neutral-protocol boundary in core with an import guard** —
    implements Stage 6. Scope: the `no-anthropic-imports-in-core` test, the
    `src/core/agent-harness/AGENTS.md` upgrade, and the one-line adapter-seam
    statements in module-side `AGENTS.md`.
-
-These six tasks map one-to-one onto stages 1-6; each one is landable on its
-own, keeps the tree green, and removes a named Anthropic type from core.

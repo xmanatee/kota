@@ -6,11 +6,11 @@
  * Approved items are executed immediately and the result returned.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { executeTool, type ToolResult } from "./index.js";
 
-const approvalTool: Anthropic.Tool = {
+const approvalTool: KotaTool = {
 	name: "approval",
 	description:
 		"Review and resolve queued tool calls that need approval. " +

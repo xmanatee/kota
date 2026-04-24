@@ -1,4 +1,4 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { closeBrowser, getPage } from "./lifecycle.js";
 
@@ -6,7 +6,7 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_SCREENSHOT_WIDTH = 1280;
 const DEFAULT_MAX_SCREENSHOT_HEIGHT = 720;
 
-export const browserNavigateTool: Anthropic.Tool = {
+export const browserNavigateTool: KotaTool = {
   name: "browser_navigate",
   description:
     "Navigate to a URL in a headless browser. Waits for the page to reach network idle " +
@@ -66,7 +66,7 @@ export async function runBrowserNavigate(
   }
 }
 
-export const browserClickTool: Anthropic.Tool = {
+export const browserClickTool: KotaTool = {
   name: "browser_click",
   description:
     "Click an element on the current page by CSS selector. " +
@@ -105,7 +105,7 @@ export async function runBrowserClick(
   }
 }
 
-export const browserTypeTool: Anthropic.Tool = {
+export const browserTypeTool: KotaTool = {
   name: "browser_type",
   description:
     "Type text into an input element on the current page by CSS selector. " +
@@ -159,7 +159,7 @@ export async function runBrowserType(
   }
 }
 
-export const browserScreenshotTool: Anthropic.Tool = {
+export const browserScreenshotTool: KotaTool = {
   name: "browser_screenshot",
   description:
     "Capture a screenshot of the current page or a specific element. " +
@@ -244,7 +244,7 @@ export async function runBrowserScreenshot(
   }
 }
 
-export const browserEvaluateTool: Anthropic.Tool = {
+export const browserEvaluateTool: KotaTool = {
   name: "browser_evaluate",
   description:
     "Execute a JavaScript expression in the current page context and return the result. " +
@@ -288,7 +288,7 @@ export async function runBrowserEvaluate(
   }
 }
 
-export const browserGetTextTool: Anthropic.Tool = {
+export const browserGetTextTool: KotaTool = {
   name: "browser_get_text",
   description:
     "Extract visible text content from the current page or a specific element. " +
@@ -348,7 +348,7 @@ export async function runBrowserGetText(
   }
 }
 
-export const browserCloseTool: Anthropic.Tool = {
+export const browserCloseTool: KotaTool = {
   name: "browser_close",
   description: "Close the browser instance and release resources.",
   input_schema: {
@@ -372,7 +372,7 @@ const X_POST_URL_RE = /^https?:\/\/(?:www\.|mobile\.)?(?:x|twitter)\.com\/[^/]+\
 const DEFAULT_X_POST_TIMEOUT_MS = 20_000;
 const DEFAULT_X_POST_REPLY_COUNT = 5;
 
-export const xPostReadTool: Anthropic.Tool = {
+export const xPostReadTool: KotaTool = {
   name: "x_post_read",
   description:
     "Read an X (Twitter) post and its immediate reply thread. Navigates a " +
@@ -509,7 +509,7 @@ const X_POST_EXTRACT_SCRIPT = `
 const DEFAULT_ARTICLE_TIMEOUT_MS = 30_000;
 const DEFAULT_ARTICLE_MAX_LENGTH = 40_000;
 
-export const renderedArticleReadTool: Anthropic.Tool = {
+export const renderedArticleReadTool: KotaTool = {
   name: "rendered_article_read",
   description:
     "Fetch a JS-rendered article page via the headless browser and return " +

@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import {
   formatBytes,
@@ -13,7 +13,7 @@ import {
   safePositiveInt,
 } from "./http-request-utils.js";
 
-export const httpRequestTool: Anthropic.Tool = {
+export const httpRequestTool: KotaTool = {
   name: "http_request",
   description:
     "Make an HTTP request. Supports all methods, custom headers, and request bodies. " +

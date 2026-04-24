@@ -1,4 +1,4 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { registration as agentStatus } from "./agent-status.js";
 import { registration as approval } from "./approval.js";
 import { registration as askOwner } from "./ask-owner.js";
@@ -18,7 +18,7 @@ type ToolRunner = (input: Record<string, unknown>) => Promise<ToolResult>;
 
 /** Co-located tool metadata. Each tool file exports one of these. */
 export type ToolRegistration = {
-  tool: Anthropic.Tool;
+  tool: KotaTool;
   runner: ToolRunner;
   /** Risk classification for guardrails. */
   risk: "safe" | "moderate" | "dangerous";
@@ -79,7 +79,7 @@ export function getModuleToolRisk(name: string): "safe" | "moderate" | "dangerou
 // ─── Build runners and tools from registrations (lazy) ───────────────
 
 const runners: Record<string, ToolRunner> = {};
-const tools: Anthropic.Tool[] = [];
+const tools: KotaTool[] = [];
 
 function ensureInit(): void {
   if (_initialized) return;
@@ -93,7 +93,7 @@ function ensureInit(): void {
 }
 
 /** Returns the full tool list (core + module-registered). Read-only. */
-export function getAllTools(): readonly Anthropic.Tool[] {
+export function getAllTools(): readonly KotaTool[] {
   ensureInit();
   return tools;
 }
@@ -124,7 +124,7 @@ const moduleToolOwners = new Map<string, Set<string>>();
 const moduleToolMeta = new Map<string, { risk: "safe" | "moderate" | "dangerous"; kind: "discovery" | "action" }>();
 
 export function registerTool(
-  tool: Anthropic.Tool,
+  tool: KotaTool,
   runner: ToolRunner,
   moduleName?: string,
   meta?: { risk: "safe" | "moderate" | "dangerous"; kind: "discovery" | "action" },
@@ -183,7 +183,7 @@ export function deregisterModuleTools(moduleName: string): void {
   moduleToolOwners.delete(moduleName);
 }
 
-export function getRegisteredTools(): Anthropic.Tool[] {
+export function getRegisteredTools(): KotaTool[] {
   ensureInit();
   return tools.filter((t) => customToolNames.has(t.name));
 }
@@ -198,9 +198,9 @@ export function getModuleToolNames(moduleName: string): string[] {
  * Returns matching tool definitions and runners; silently skips unknown names.
  * Callers can override individual entries after resolution (e.g. bounded shell).
  */
-export function resolveToolSet(names: readonly string[]): { tools: Anthropic.Tool[]; runners: Record<string, ToolRunner> } {
+export function resolveToolSet(names: readonly string[]): { tools: KotaTool[]; runners: Record<string, ToolRunner> } {
   ensureInit();
-  const resolvedTools: Anthropic.Tool[] = [];
+  const resolvedTools: KotaTool[] = [];
   const resolvedRunners: Record<string, ToolRunner> = {};
   for (const name of names) {
     const tool = tools.find((t) => t.name === name);

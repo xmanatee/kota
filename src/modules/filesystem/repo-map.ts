@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
-import type Anthropic from "@anthropic-ai/sdk";
 import { glob as globFn } from "glob";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/index.js";
 
-export const repoMapTool: Anthropic.Tool = {
+export const repoMapTool: KotaTool = {
   name: "repo_map",
   description:
     "Generate a structural map of the codebase showing file paths and exported symbols " +

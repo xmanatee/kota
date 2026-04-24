@@ -7,6 +7,7 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ModelClient } from "./model-client.js";
 
 type Listener = (...args: unknown[]) => void;
@@ -62,7 +63,7 @@ class MockStream {
 export type MockApiCall = {
 	model: string;
 	messages: Anthropic.MessageParam[];
-	tools: Anthropic.Tool[];
+	tools: KotaTool[];
 	system: unknown;
 };
 
@@ -88,7 +89,7 @@ export function createMockClient(
 				calls.push({
 					model: params.model as string,
 					messages: params.messages as Anthropic.MessageParam[],
-					tools: params.tools as Anthropic.Tool[],
+					tools: params.tools as KotaTool[],
 					system: params.system,
 				});
 				const idx = Math.min(callIndex, responses.length - 1);

@@ -1,11 +1,12 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 
 const messagesStreamMock = vi.fn();
 const messagesCreateMock = vi.fn();
 const createModelClientMock = vi.fn();
 const executeToolMock = vi.fn();
-const getAllToolsMock = vi.fn<() => readonly Anthropic.Tool[]>();
+const getAllToolsMock = vi.fn<() => readonly KotaTool[]>();
 
 vi.mock("#core/model/model-client.js", () => ({
   createModelClient: (...args: unknown[]) => createModelClientMock(...args),
@@ -54,7 +55,7 @@ function makeStubStream(opts: {
   };
 }
 
-const TEST_TOOL: Anthropic.Tool = {
+const TEST_TOOL: KotaTool = {
   name: "echo_tool",
   description: "Echo the provided text",
   input_schema: {
@@ -73,7 +74,7 @@ const TEST_TOOL: Anthropic.Tool = {
  */
 type StreamCallSnapshot = {
   system: string | undefined;
-  tools: readonly Anthropic.Tool[] | undefined;
+  tools: readonly KotaTool[] | undefined;
   messages: Anthropic.MessageParam[];
 };
 
@@ -95,7 +96,7 @@ beforeEach(() => {
   messagesStreamMock.mockImplementation(
     (params: {
       system?: string;
-      tools?: readonly Anthropic.Tool[];
+      tools?: readonly KotaTool[];
       messages: Anthropic.MessageParam[];
     }) => {
       streamCallSnapshots.push({
@@ -376,7 +377,7 @@ describe("openaiToolsAgentHarness — guardrails", () => {
   });
 
   it("only exposes allowedTools to the model and rejects tool calls outside that set", async () => {
-    const otherTool: Anthropic.Tool = {
+    const otherTool: KotaTool = {
       name: "other_tool",
       description: "Other",
       input_schema: { type: "object" as const, properties: {} },
@@ -403,7 +404,7 @@ describe("openaiToolsAgentHarness — guardrails", () => {
       allowedTools: ["echo_tool"],
     });
 
-    const sentTools = streamCallSnapshots[0].tools as Anthropic.Tool[];
+    const sentTools = streamCallSnapshots[0].tools as KotaTool[];
     expect(sentTools.map((t) => t.name)).toEqual(["echo_tool"]);
   });
 });

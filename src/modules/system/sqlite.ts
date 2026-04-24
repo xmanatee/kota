@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
-export const sqliteTool: Anthropic.Tool = {
+export const sqliteTool: KotaTool = {
 	name: "sqlite",
 	description:
 		"Query SQLite databases. Run SQL, list tables, inspect schemas. " +

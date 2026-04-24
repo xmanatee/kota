@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { checkFreshness, recordModification } from "#core/file-tracking/file-tracker.js";
 import { trackFileChange } from "#core/loop/file-changes.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
@@ -11,7 +11,7 @@ import {
 import { lintFile } from "./lint.js";
 import { fileNotFoundError } from "./path-resolver.js";
 
-export const fileEditTool: Anthropic.Tool = {
+export const fileEditTool: KotaTool = {
   name: "file_edit",
   description:
     "Edit a file by replacing an exact string with a new string. " +

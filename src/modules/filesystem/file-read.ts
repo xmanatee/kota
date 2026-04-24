@@ -1,5 +1,5 @@
 import { existsSync, statSync } from "node:fs";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import {
   formatSize,
@@ -13,7 +13,7 @@ import {
 } from "./file-read-formats.js";
 import { fileNotFoundError } from "./path-resolver.js";
 
-export const fileReadTool: Anthropic.Tool = {
+export const fileReadTool: KotaTool = {
   name: "file_read",
   description:
     "Read a file with line numbers. Supports offset/limit for large files. " +

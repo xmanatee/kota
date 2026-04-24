@@ -1,11 +1,11 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { enrichWithSourceContext } from "./error-context.js";
 import { smartErrorTruncate } from "./shell-diagnostics.js";
 
-export const shellTool: Anthropic.Tool = {
+export const shellTool: KotaTool = {
   name: "shell",
   description:
     "Execute a shell command and return its output. " +

@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { truncateToolResult } from "#core/loop/context.js";
 import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
@@ -22,7 +23,7 @@ export type TurnLoopOptions = {
   client: ModelClient;
   messages: Anthropic.Messages.MessageParam[];
   systemBlocks: Anthropic.Messages.TextBlockParam[];
-  tools: Anthropic.Tool[];
+  tools: KotaTool[];
   runners: Record<string, (input: Record<string, unknown>) => Promise<ToolResult>>;
   mcpMgr: McpManager | undefined;
   isExecute: boolean;

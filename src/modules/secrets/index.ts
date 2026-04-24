@@ -11,13 +11,13 @@
  */
 
 import { createInterface } from "node:readline";
-import type Anthropic from "@anthropic-ai/sdk";
 import { Command } from "commander";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getSecretStore, initSecretStore, type SecretScope } from "#core/config/secrets.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { ToolResult } from "#core/tools/index.js";
 
-const getSecretTool: Anthropic.Tool = {
+const getSecretTool: KotaTool = {
   name: "get_secret",
   description:
     "Retrieve a secret (API key, token, credential) and inject it into the environment. " +

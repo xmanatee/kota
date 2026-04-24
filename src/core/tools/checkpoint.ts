@@ -1,9 +1,9 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { recordModification } from "#core/file-tracking/file-tracker.js";
 import { getChangeTracker } from "#core/loop/file-changes.js";
 import type { ToolResult } from "./index.js";
 
-export const checkpointTool: Anthropic.Tool = {
+export const checkpointTool: KotaTool = {
   name: "checkpoint",
   description:
     "Review and manage file changes made during this session. " +
