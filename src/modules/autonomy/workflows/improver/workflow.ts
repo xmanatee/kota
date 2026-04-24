@@ -2,7 +2,7 @@ import type { AgentDef } from "#core/agents/agent-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
-import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
+import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { createImproverSemanticCheck } from "#modules/autonomy/improver-semantic-gate.js";
 import { onRecoveryTrigger, resetWorktreeForRecovery } from "#modules/autonomy/recovery.js";
 import type { RunOutcomeAggregation } from "#modules/autonomy/run-outcome-aggregation.js";
@@ -144,6 +144,11 @@ const improverWorkflow: WorkflowDefinitionInput = {
             id: "commit-message-exists",
             type: "code" as const,
             run: (ctx) => checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
+          },
+          {
+            id: "commit-stageable",
+            type: "code" as const,
+            run: (ctx) => checkCommitStageable(ctx.projectDir),
           },
           { ...createImproverSemanticCheck(), phase: 2 },
         ],

@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { WorkflowStepContext, WorkflowStepResult } from "#core/workflow/run-types.js";
-import { commitWorkflowChanges } from "./commit.js";
+import {
+  checkCommitStageable,
+  commitWorkflowChanges,
+  listCommitStagePaths,
+} from "./commit.js";
 import builderWorkflow from "./workflows/builder/workflow.js";
 
 function initGitRepo(dir: string): void {
@@ -216,6 +220,34 @@ describe("commitWorkflowChanges", () => {
       "A\tdata/tasks/task-raw.md",
       "D\tdata/inbox/raw.md",
     ]);
+  });
+
+  describe("checkCommitStageable", () => {
+    it("passes when there is nothing to stage", () => {
+      expect(checkCommitStageable(projectDir)).toMatch(/no mutated paths to stage/);
+    });
+
+    it("passes when every mutated path is stageable", () => {
+      writeFileSync(join(projectDir, "change.txt"), "hello\n");
+      expect(checkCommitStageable(projectDir)).toMatch(/1 mutated path\(s\) stageable/);
+      expect(listCommitStagePaths(projectDir)).toEqual(["change.txt"]);
+    });
+
+    // The check mirrors the commit step's exact `git add -A -- <paths>` call
+    // as a dry-run. A tracked file that was deleted in the worktree still
+    // shows in diff --name-only HEAD (and therefore in listCommitStagePaths)
+    // regardless of ignore rules. That path goes through the same dry-run and
+    // either passes or throws. This case exercises the pass path for a
+    // deletion-only working tree.
+    it("passes when mutated paths are tracked deletions", () => {
+      const tracked = join(projectDir, "data", "note.md");
+      mkdirSync(join(projectDir, "data"), { recursive: true });
+      writeFileSync(tracked, "idea\n");
+      execSync("git add data/note.md", { cwd: projectDir });
+      execSync('git commit -q -m "add"', { cwd: projectDir });
+      rmSync(tracked);
+      expect(checkCommitStageable(projectDir)).toMatch(/1 mutated path\(s\) stageable/);
+    });
   });
 
   it("rejects registered scratch worktrees before committing", () => {

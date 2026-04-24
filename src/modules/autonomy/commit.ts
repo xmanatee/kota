@@ -1,4 +1,4 @@
-import { execFileSync, execSync } from "node:child_process";
+import { execFileSync, execSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { listWorkflowMutatedPaths } from "#core/workflow/steps/agent-write-scope.js";
@@ -63,6 +63,51 @@ function listStagedDeletions(projectDir: string): Set<string> {
     if (trimmed.length > 0) set.add(trimmed);
   }
   return set;
+}
+
+/**
+ * Returns the exact set of paths `commitWorkflowChanges` would pass to
+ * `git add -A -- <paths>`: the workflow-owned mutations minus any paths
+ * already staged as deletions (which `git add -A` cannot re-stage).
+ * Exported so repair-loop checks can simulate the same staging call the
+ * terminal commit step will make.
+ */
+export function listCommitStagePaths(projectDir: string): string[] {
+  const mutatedPaths = listWorkflowMutatedPaths(projectDir);
+  if (mutatedPaths.length === 0) return [];
+  const alreadyStagedDeletions = listStagedDeletions(projectDir);
+  return mutatedPaths.filter((p) => !alreadyStagedDeletions.has(p));
+}
+
+/**
+ * Repair-loop check: fails if `git add -A -- <paths>` would refuse to
+ * stage any of the mutated paths. The commit step's staging call is
+ * terminal, so an ignore conflict (e.g. a nested `.gitignore` re-ignoring
+ * what the repo-root rules un-ignored) wastes the whole agent run. This
+ * dry-runs the exact call so the agent can repair it before commit.
+ */
+export function checkCommitStageable(projectDir: string): string {
+  const pathsToStage = listCommitStagePaths(projectDir);
+  if (pathsToStage.length === 0) return "OK: no mutated paths to stage";
+  const result = spawnSync(
+    "git",
+    ["add", "--dry-run", "-A", "--", ...pathsToStage],
+    { cwd: projectDir, encoding: "utf8" },
+  );
+  if (result.status !== 0) {
+    const detail = [result.stdout, result.stderr]
+      .filter((s) => s && s.length > 0)
+      .join("\n")
+      .trim();
+    throw new Error(
+      `git would refuse to stage the commit set:\n${detail}\n\n` +
+        "Resolve the conflict before finishing: either edit or remove the " +
+        "gitignore rule (often a nested .gitignore) that rejects the listed " +
+        "path, or delete the file from the working tree if it should not be " +
+        "committed.",
+    );
+  }
+  return `OK: ${pathsToStage.length} mutated path(s) stageable`;
 }
 
 /**

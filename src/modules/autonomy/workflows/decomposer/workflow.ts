@@ -5,7 +5,7 @@ import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
-import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
+import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import {
   onRecoveryTrigger,
   resetWorktreeForRecovery,
@@ -274,6 +274,11 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
             id: "commit-message-exists",
             type: "code" as const,
             run: (ctx) => checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
+          },
+          {
+            id: "commit-stageable",
+            type: "code" as const,
+            run: (ctx) => checkCommitStageable(ctx.projectDir),
           },
         ],
       },

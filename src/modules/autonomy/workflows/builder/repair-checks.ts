@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
+import { checkCommitStageable } from "#modules/autonomy/commit.js";
 import { createCriticCheck } from "#modules/autonomy/critic.js";
 import { checkCommitMessageExists, checkNoScratchArtifacts, runCheck } from "#modules/autonomy/shared.js";
 import { findTaskReviewTarget } from "#modules/autonomy/task-review-target.js";
@@ -270,6 +271,11 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       id: "commit-message-exists",
       type: "code" as const,
       run: (ctx) => checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir),
+    },
+    {
+      id: "commit-stageable",
+      type: "code" as const,
+      run: (ctx) => checkCommitStageable(ctx.projectDir),
     },
     { ...createCriticCheck(), phase: 2 },
   ];

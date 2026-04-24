@@ -48,6 +48,13 @@ reproducer — would discard all of the agent's progress. A bare `deny`
 still blocks the command and feeds the denial back as a tool_result so the
 agent can adapt. The same rule applies to `createDaemonHostControlGuard`.
 
+Every workflow that calls `commitWorkflowChanges` must also wire
+`checkCommitStageable` into its repair loop. The terminal commit step's
+`git add -A -- <paths>` is unrecoverable; the repair-loop dry-run catches
+ignore conflicts (e.g. a nested `.gitignore` re-ignoring a path the repo-
+root rules un-ignored) before an agent run dies at staging. Builder has
+burned ~$43 and ~75 agent-minutes across two instances of this exact shape.
+
 ### Autonomy Mode Declaration
 
 Every agent step must declare its autonomy posture explicitly — the validator
