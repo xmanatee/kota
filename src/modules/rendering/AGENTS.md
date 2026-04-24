@@ -26,6 +26,7 @@ state paint it. New primitives extend the union rather than smuggling
 raw strings through an escape hatch.
 
 Today's primitives cover lines and text spans, headings, separators,
+section rules (width-filling labeled rule for section boundaries),
 blanks, stacks, key/value blocks, status banners, lists, panels, tool
 calls, agent messages, diffs, and JSON. A surface that cannot be modeled
 with the current vocabulary adds the missing primitive here — it does

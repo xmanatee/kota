@@ -206,6 +206,18 @@ export function renderNode(node: RenderNode, ctx: RenderContext): string {
       const len = Math.max(4, ctx.width - ctx.indent);
       return `${pad(ctx.indent)}${ctx.theme.separatorRule.repeat(len)}`;
     }
+    case "sectionRule": {
+      const prefix = pad(ctx.indent);
+      const labelSpan = paintSpan({ text: node.label, bold: true }, ctx.theme);
+      const remaining = Math.max(
+        0,
+        ctx.width - ctx.indent - node.label.length - 1,
+      );
+      if (remaining === 0) return `${prefix}${labelSpan}`;
+      const rule = ctx.theme.separatorRule.repeat(remaining);
+      const ruleSpan = paintSpan({ text: rule, role: "muted" }, ctx.theme);
+      return `${prefix}${labelSpan} ${ruleSpan}`;
+    }
     case "blank":
       return "";
     case "stack":

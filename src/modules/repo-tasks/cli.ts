@@ -17,10 +17,10 @@ import {
 	getRepoTasksDir,
 	REPO_INBOX_DIR,
 	REPO_TASK_STATES,
+	type RepoTaskState,
 	TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER,
 	TASK_INITIATIVE_PLACEHOLDER,
 	TASK_SOURCE_INTENT_PLACEHOLDER,
-	type RepoTaskState,
 } from "./repo-tasks-domain.js";
 
 const OPEN_STATES: RepoTaskState[] = ["backlog", "ready", "doing", "blocked"];

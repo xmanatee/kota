@@ -48,6 +48,11 @@ export type SeparatorNode = {
   kind: "separator";
 };
 
+export type SectionRuleNode = {
+  kind: "sectionRule";
+  label: string;
+};
+
 export type BlankNode = {
   kind: "blank";
 };
@@ -125,6 +130,7 @@ export type RenderNode =
   | LineNode
   | HeadingNode
   | SeparatorNode
+  | SectionRuleNode
   | BlankNode
   | StackNode
   | KVBlockNode
@@ -165,6 +171,10 @@ export function heading(label: string, level: 1 | 2 | 3 = 2): HeadingNode {
 
 export function separator(): SeparatorNode {
   return { kind: "separator" };
+}
+
+export function sectionRule(label: string): SectionRuleNode {
+  return { kind: "sectionRule", label };
 }
 
 export function blank(): BlankNode {

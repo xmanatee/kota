@@ -3,6 +3,7 @@ import { renderToString } from "#modules/rendering/transport.js";
 import {
 	DaemonDashboard,
 	type DashboardSnapshot,
+	type DashboardTaskQueue,
 	formatStatsGrid,
 	renderDashboard,
 } from "./dashboard.js";
@@ -180,6 +181,55 @@ describe("renderDashboard", () => {
 		expect(output).toContain("Actionable 2");
 	});
 
+	it("omits zero-valued states from the Work counts row so it never looks blank", () => {
+		const output = stripAnsi(
+			renderDashboard(
+				makeSnapshot({
+					taskQueue: {
+						inboxCount: 3,
+						openCount: 12,
+						pullableCount: 8,
+						actionableCount: 2,
+						counts: {
+							backlog: 6,
+							ready: 2,
+							doing: 0,
+							blocked: 3,
+							done: 100,
+							dropped: 4,
+						},
+					},
+				}),
+				[],
+			),
+		);
+		expect(output).toContain("Work");
+		// Doing 0 / Ready etc. with 0 must not render; all-zero noise is what
+		// made the Work section look blank in the owner's transcript.
+		expect(output).not.toMatch(/Doing\s+0/);
+	});
+
+	it("skips the Work section entirely when the task queue has no open signal", () => {
+		const emptyQueue: DashboardTaskQueue = {
+			inboxCount: 0,
+			openCount: 0,
+			pullableCount: 0,
+			actionableCount: 0,
+			counts: {
+				backlog: 0,
+				ready: 0,
+				doing: 0,
+				blocked: 0,
+				done: 500,
+				dropped: 10,
+			},
+		};
+		const output = stripAnsi(
+			renderDashboard(makeSnapshot({ taskQueue: emptyQueue }), []),
+		);
+		expect(output).not.toContain("Work");
+	});
+
 	it("shows last completed workflow", () => {
 		const snapshot = makeSnapshot({
 			lastCompletedWorkflow: "sorter",
@@ -244,6 +294,108 @@ describe("renderDashboard", () => {
 		expect(output).not.toContain("log line 0");
 		expect(output).toContain("log line 29");
 	});
+
+	it("activity rule fills the available width at each common terminal size", () => {
+		const logs = ["Daemon starting..."];
+		for (const width of [80, 120, 160]) {
+			const output = stripAnsi(
+				renderDashboard(makeSnapshot(), logs, { width }),
+			);
+			const activityLine = output
+				.split("\n")
+				.find((l) => l.trim().startsWith("Activity "));
+			expect(activityLine, `width=${width}`).toBeDefined();
+			// The rule should fill the remaining columns (width - "Activity " length)
+			// so the section heading never looks like a stray 52-char nub at 160 cols.
+			expect(activityLine!.length).toBe(width);
+			expect(activityLine!.endsWith("─")).toBe(true);
+		}
+	});
+});
+
+/**
+ * Fixture-style regression for the owner's copied-scrollback transcript:
+ * the daemon reports 668 done / 1 ready, has nonzero cost and completed
+ * runs, has no active/pending runs, and is idle. The snapshot must render
+ * cleanly at 80-, 120-, and 160-col terminals with no merged stat cells,
+ * no blank Work section, a clean state line, and a width-aware Activity
+ * rule leading into the captured log buffer.
+ */
+describe("renderDashboard - owner transcript regression fixture", () => {
+	const fixtureSnapshot: DashboardSnapshot = {
+		pid: 54321,
+		startedAt: new Date(Date.now() - 7_200_000).toISOString(),
+		running: true,
+		stopping: false,
+		completedRuns: 668,
+		totalCostUsd: 1930.84,
+		activeRuns: [],
+		pendingRuns: [],
+		dispatchPaused: false,
+		definitionCount: 14,
+		sessionCount: 1,
+		lastCompletedWorkflow: "builder",
+		lastCompletedAt: new Date(Date.now() - 120_000).toISOString(),
+		lastCompletedStatus: "success",
+		taskQueue: {
+			inboxCount: 0,
+			openCount: 8,
+			pullableCount: 1,
+			actionableCount: 1,
+			counts: {
+				backlog: 0,
+				ready: 1,
+				doing: 0,
+				blocked: 7,
+				done: 668,
+				dropped: 17,
+			},
+		},
+	};
+
+	const fixtureLogs = [
+		"Daemon ready (pid 54321): 14 workflows, 0 scheduled items, poll 30s",
+		"[dispatch] runtime.idle: checking queue",
+		"[dispatch] no eligible workflow",
+		"[heartbeat] 30s elapsed",
+	];
+
+	for (const width of [80, 120, 160]) {
+		it(`renders the owner regression scenario cleanly at ${width} columns`, () => {
+			const output = stripAnsi(
+				renderDashboard(fixtureSnapshot, fixtureLogs, { width }),
+			);
+
+			// Merged cost/defs regression guard (from the earlier owner transcript).
+			expect(output).toMatch(/Cost\s+\$1930\.84\s{2,}Defs/);
+
+			// Exactly one full status block per render; no duplicated frame
+			// inside a single render. "KOTA Daemon" header must appear once.
+			const kotaOccurrences = output.match(/KOTA Daemon/g) ?? [];
+			expect(kotaOccurrences.length).toBe(1);
+
+			// Work section shows actionable signal rather than a row of zeros.
+			expect(output).toContain("Work");
+			expect(output).toMatch(/Ready\s+1/);
+			expect(output).toMatch(/Blocked\s+7/);
+			expect(output).not.toMatch(/Doing\s+0/);
+			expect(output).not.toMatch(/Backlog\s+0/);
+
+			// Activity rule fills the terminal width — the heading/rule pair
+			// must occupy the full column count at every tested size.
+			const activityLine = output
+				.split("\n")
+				.find((l) => l.trim().startsWith("Activity "));
+			expect(activityLine, `width=${width}`).toBeDefined();
+			expect(activityLine!.length).toBe(width);
+
+			// State and log streams stay visibly separated: Activity heading
+			// appears between the static stat/state block and the first log.
+			const activityIdx = output.indexOf("Activity ");
+			expect(activityIdx).toBeGreaterThan(output.indexOf("State"));
+			expect(activityIdx).toBeLessThan(output.indexOf("Daemon ready"));
+		});
+	}
 });
 
 describe("formatStatsGrid", () => {
@@ -288,14 +440,27 @@ describe("formatStatsGrid", () => {
 describe("DaemonDashboard", () => {
 	let stdoutSpy: ReturnType<typeof vi.spyOn>;
 	let stderrSpy: ReturnType<typeof vi.spyOn>;
+	let originalIsTTY: boolean | undefined;
+
+	function setIsTTY(value: boolean): void {
+		Object.defineProperty(process.stdout, "isTTY", {
+			configurable: true,
+			value,
+		});
+	}
 
 	beforeEach(() => {
 		stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
 		stdoutSpy = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+		originalIsTTY = process.stdout.isTTY;
 	});
 
 	afterEach(() => {
 		vi.restoreAllMocks();
+		Object.defineProperty(process.stdout, "isTTY", {
+			configurable: true,
+			value: originalIsTTY,
+		});
 	});
 
 	it("captures stderr log messages into the dashboard", () => {
@@ -353,5 +518,39 @@ describe("DaemonDashboard", () => {
 		} finally {
 			dashboard.stop();
 		}
+	});
+
+	it("enters the alternate screen buffer on a TTY so refreshes cannot leak into scrollback", () => {
+		setIsTTY(true);
+		const dashboard = new DaemonDashboard(() => makeSnapshot());
+		dashboard.start();
+		try {
+			const calls = stdoutSpy.mock.calls.map((c: unknown[]) => c[0] as string);
+			expect(calls[0]).toContain("\x1b[?1049h");
+			expect(calls[0]).toContain("\x1b[?25l");
+		} finally {
+			dashboard.stop();
+		}
+		const afterStopCalls = stdoutSpy.mock.calls.map((c: unknown[]) => c[0] as string);
+		const lastCall = afterStopCalls.at(-1) ?? "";
+		expect(lastCall).toContain("\x1b[?1049l");
+		expect(lastCall).toContain("\x1b[?25h");
+	});
+
+	it("does not enter the alternate screen buffer in non-TTY contexts", () => {
+		setIsTTY(false);
+		const dashboard = new DaemonDashboard(() => makeSnapshot());
+		dashboard.start();
+		try {
+			const joined = stdoutSpy.mock.calls.map((c: unknown[]) => c[0] as string).join("");
+			expect(joined).not.toContain("\x1b[?1049h");
+			expect(joined).not.toContain("\x1b[?25l");
+		} finally {
+			dashboard.stop();
+		}
+		const joinedAfter = stdoutSpy.mock.calls
+			.map((c: unknown[]) => c[0] as string)
+			.join("");
+		expect(joinedAfter).not.toContain("\x1b[?1049l");
 	});
 });

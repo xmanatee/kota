@@ -8,10 +8,12 @@ import {
 	plain,
 	type RenderNode,
 	type SemanticRole,
+	sectionRule,
 	span,
 	stack,
 	type TextSpan,
 } from "#modules/rendering/primitives.js";
+import { type RenderContext, render } from "#modules/rendering/render.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import { abbreviateRunId, formatDuration, formatTimeAgo, formatUptime } from "./format-utils.js";
 
@@ -56,7 +58,16 @@ const LOG_BUFFER_MAX = 200;
 const REFRESH_INTERVAL_MS = 1_000;
 const COLUMN_GAP = 2;
 const STATS_INDENT = "  ";
-const ACTIVITY_HEADER_WIDTH = 52;
+
+// Alternate-screen buffer + cursor-hide sequences keep the live dashboard
+// from polluting terminal scrollback. Without these, every 1s refresh writes
+// another full status block; over a daemon-long session the scrollback
+// collects hundreds of duplicated frames. On exit the original buffer is
+// restored so the operator's shell prompt is intact.
+const ALT_SCREEN_ENTER = "\x1b[?1049h";
+const ALT_SCREEN_EXIT = "\x1b[?1049l";
+const CURSOR_HIDE = "\x1b[?25l";
+const CURSOR_SHOW = "\x1b[?25h";
 
 type StatusTextRole = { text: string; role: SemanticRole };
 
@@ -244,16 +255,10 @@ export function buildDashboardNode(
 	children.push(line(plain("  "), ...describeOperationalState(snapshot, snapshot.pendingRuns)));
 	children.push(blank());
 
-	if (snapshot.taskQueue) {
+	if (snapshot.taskQueue && taskQueueHasSignal(snapshot.taskQueue)) {
 		const task = snapshot.taskQueue;
 		children.push(line(span("Work", undefined, true)));
-		children.push(
-			line(
-				plain(
-					`  Inbox ${task.inboxCount}  Ready ${task.counts.ready}  Backlog ${task.counts.backlog}  Doing ${task.counts.doing}  Blocked ${task.counts.blocked}`,
-				),
-			),
-		);
+		children.push(line(plain(`  ${formatQueueCountsRow(task)}`)));
 		children.push(
 			line(
 				plain(
@@ -316,14 +321,7 @@ export function buildDashboardNode(
 	}
 
 	if (logs.length > 0) {
-		const heading = "Activity ";
-		const fillWidth = Math.max(0, ACTIVITY_HEADER_WIDTH - heading.length);
-		children.push(
-			line(
-				span(heading, undefined, true),
-				span("─".repeat(fillWidth), "muted"),
-			),
-		);
+		children.push(sectionRule("Activity"));
 		const visible = logs.slice(-MAX_LOG_LINES);
 		for (const log of visible) {
 			children.push(line(span(`  ${log}`, "muted")));
@@ -333,10 +331,38 @@ export function buildDashboardNode(
 	return stack(...children);
 }
 
+function taskQueueHasSignal(task: DashboardTaskQueue): boolean {
+	if (task.inboxCount > 0) return true;
+	if (task.pullableCount > 0) return true;
+	if (task.actionableCount > 0) return true;
+	if (task.openCount > 0) return true;
+	const { counts } = task;
+	if (counts.ready > 0) return true;
+	if (counts.doing > 0) return true;
+	if (counts.backlog > 0) return true;
+	if (counts.blocked > 0) return true;
+	return false;
+}
+
+function formatQueueCountsRow(task: DashboardTaskQueue): string {
+	// Show only non-zero states so the Work section always carries signal;
+	// an all-zero row would reduce to a line of literal zeros with no
+	// decision-relevant content.
+	const entries: string[] = [];
+	if (task.inboxCount > 0) entries.push(`Inbox ${task.inboxCount}`);
+	if (task.counts.ready > 0) entries.push(`Ready ${task.counts.ready}`);
+	if (task.counts.doing > 0) entries.push(`Doing ${task.counts.doing}`);
+	if (task.counts.backlog > 0) entries.push(`Backlog ${task.counts.backlog}`);
+	if (task.counts.blocked > 0) entries.push(`Blocked ${task.counts.blocked}`);
+	return entries.join("  ");
+}
+
 export function renderDashboard(
 	snapshot: DashboardSnapshot,
 	logs: readonly string[],
+	ctx?: Partial<RenderContext>,
 ): string {
+	if (ctx) return render(buildDashboardNode(snapshot, logs), ctx);
 	return renderToString(buildDashboardNode(snapshot, logs));
 }
 
@@ -344,10 +370,16 @@ export class DaemonDashboard {
 	private logBuffer: string[] = [];
 	private refreshTimer: ReturnType<typeof setInterval> | null = null;
 	private originalStderrWrite: typeof process.stderr.write | null = null;
+	private altScreenActive = false;
 
 	constructor(private readonly getSnapshot: () => DashboardSnapshot) {}
 
 	start(): void {
+		if (process.stdout.isTTY) {
+			process.stdout.write(`${ALT_SCREEN_ENTER}${CURSOR_HIDE}`);
+			this.altScreenActive = true;
+		}
+
 		this.originalStderrWrite = process.stderr.write;
 		process.stderr.write = ((chunk: string | Uint8Array): boolean => {
 			const text = String(chunk).trimEnd();
@@ -374,6 +406,10 @@ export class DaemonDashboard {
 		if (this.originalStderrWrite) {
 			process.stderr.write = this.originalStderrWrite;
 			this.originalStderrWrite = null;
+		}
+		if (this.altScreenActive) {
+			process.stdout.write(`${CURSOR_SHOW}${ALT_SCREEN_EXIT}`);
+			this.altScreenActive = false;
 		}
 	}
 

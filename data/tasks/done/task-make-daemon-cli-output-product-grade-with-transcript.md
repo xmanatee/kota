@@ -1,12 +1,12 @@
 ---
 id: task-make-daemon-cli-output-product-grade-with-transcript
 title: Make daemon CLI output product-grade with transcript regression evidence
-status: ready
+status: done
 priority: p1
 area: modules
 summary: Fix the visible daemon status/activity output so copied terminal scrollback is clean, non-repetitive, width-safe, and covered by transcript fixtures.
 created_at: 2026-04-24T00:00:00.000Z
-updated_at: 2026-04-24T00:00:00.000Z
+updated_at: 2026-04-24T19:26:35.551Z
 ---
 
 ## Problem

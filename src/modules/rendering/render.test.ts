@@ -9,6 +9,7 @@ import {
   list,
   panel,
   plain,
+  sectionRule,
   separator,
   span,
   stack,
@@ -143,5 +144,15 @@ describe("pure renderer", () => {
     const ctx = renderContext({ theme: NO_COLOR_THEME, width: 2 });
     const out = render(separator(), ctx);
     expect(out.length).toBeGreaterThan(0);
+  });
+
+  test("section rule renders label with a width-filling separator tail", () => {
+    for (const width of [40, 80, 120, 160]) {
+      const ctx = renderContext({ theme: NO_COLOR_THEME, width });
+      const out = render(sectionRule("Activity"), ctx);
+      expect(out.length).toBe(width);
+      expect(out.startsWith("Activity ")).toBe(true);
+      expect(out.endsWith("-")).toBe(true);
+    }
   });
 });

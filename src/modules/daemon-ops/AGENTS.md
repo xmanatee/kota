@@ -35,7 +35,17 @@ CLI commands.
   collides values with the next label.
 - Status block and streaming activity must be visibly separated. The dashboard
   draws a single `Activity ─────` heading rule before the captured log buffer;
-  the static block above it has no horizontal rules of its own.
+  the static block above it has no horizontal rules of its own. The rule uses
+  the rendering module's `sectionRule` primitive so it fills the terminal
+  width instead of clipping to a fixed column count.
+- The live dashboard enters the terminal's alternate-screen buffer on a TTY.
+  Refreshes overwrite a private buffer instead of scrolling the primary
+  buffer, so a daemon-long session cannot accumulate duplicated status frames
+  in scrollback. Non-TTY contexts skip this and keep normal line output.
+- The `Work` section only renders when the task queue carries actionable
+  signal. Zero-valued states (`Doing 0`, `Backlog 0`, etc.) are filtered out
+  of the counts row and a fully-zero queue suppresses the section entirely,
+  so the heading never introduces a row that looks blank.
 
 ## Peer CLI Reference
 

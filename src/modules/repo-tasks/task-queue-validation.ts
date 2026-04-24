@@ -6,10 +6,10 @@ import {
   getRepoTaskStateDir,
   REPO_TASK_STATES,
   REPO_TASKS_DIR,
+  type RepoTaskState,
   TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER,
   TASK_INITIATIVE_PLACEHOLDER,
   TASK_SOURCE_INTENT_PLACEHOLDER,
-  type RepoTaskState,
 } from "./repo-tasks-domain.js";
 
 export type TaskQueueValidationSeverity = "error" | "warning";
