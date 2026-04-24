@@ -97,12 +97,9 @@ module has registered a hook whose kind is not in the adapter's supported set,
 the entry point throws loudly before calling the adapter — same rule as
 `thin-agent-harness` rejecting tool options it cannot host.
 
-`src/core/loop/pre-send-hooks.ts` is a separate, classic-loop-scoped surface.
-Its `PreSendContext` exposes classic-loop primitives (ModelClient, message
-history, CostTracker, Transport) and only fires inside the classic
-`AgentSession` loop — the architect module is the canonical caller. New code
-that needs to observe or decorate every adapter's run should use the neutral
-harness hook, not the classic pre-send hook.
+`src/core/loop/pre-send-hooks.ts` is a separate classic-loop surface
+(architect module) exposing ModelClient/history/CostTracker/Transport.
+New cross-adapter decoration uses the neutral harness hook, not that.
 
 ## Neutral wire-type declarations
 
@@ -110,15 +107,16 @@ harness hook, not the classic pre-send hook.
 normalizes into — `AgentMessage` (with variants `AgentAssistantMessage`,
 `AgentResultMessage`, `AgentStatusMessage`, `AgentContentBlock`,
 `AgentMessageWithSession`), `AgentPermissionMode`, `AgentSettingSource` —
-plus the rest of the neutral surface: `AgentEffort`,
-`AgentMcpServerConfig` (a `stdio | sse | http | sdk` discriminated union
-whose `sdk` variant carries opaque `instance: unknown`; non-claude
-adapters reject non-empty `mcpServers` at the boundary), and
+plus `AgentEffort`, `AgentMcpServerConfig` (a `stdio | sse | http`
+union over transport variants every harness can reason about; non-
+claude adapters reject non-empty `mcpServers` at the boundary), and
 `AgentCanUseTool` / `AgentPermissionResult` (structurally aligned with
-the Claude SDK so guards flow through the claude adapter with one cast).
-These shapes originated with the Claude Agent SDK but the protocol
-treats them as neutral; nothing in core imports the claude-agent-sdk
-package.
+the Claude SDK so guards flow through the claude adapter with one
+cast). These shapes originated with the Claude Agent SDK but the
+protocol treats them as neutral; nothing in core imports the claude-
+agent-sdk package. Harness-specific in-process MCP hosting (the
+claude-only `sdk` variant carrying a live server instance) stays
+inside the owning adapter and never surfaces here.
 
 Claude-SDK-specific query shapes (`SDKQueryOptions`, `SDKSystemPrompt`,
 `SDKThinkingConfig`, `SDKQueryParams`, `SDKQueryFn`, `SDKModule`), the

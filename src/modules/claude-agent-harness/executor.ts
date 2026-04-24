@@ -8,7 +8,6 @@ import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type {
   AgentCanUseTool,
   AgentEffort,
-  AgentMcpServers,
   AgentMessage,
   AgentPermissionMode,
   AgentPermissionResult,
@@ -16,6 +15,17 @@ import type {
   AgentSettingSource,
 } from "#core/agent-harness/types.js";
 import type { SDKQueryOptions, SDKSystemPrompt } from "./sdk-types.js";
+
+/**
+ * Claude-module-internal MCP server map: the harness-neutral transport
+ * variants (`stdio | sse | http`) every harness reasons about, plus the
+ * claude-agent-sdk in-process `sdk` variant this adapter hosts via
+ * `createSdkMcpServer`. The adapter merges caller-supplied neutral entries
+ * with its internal in-process servers (owner-questions today) before
+ * handing the combined map to `query()`. Nothing in core references this
+ * shape.
+ */
+export type ClaudeAgentMcpServers = Record<string, McpServerConfig>;
 
 export type ExecutorWriter = { write(text: string): boolean };
 
@@ -27,7 +37,7 @@ export type ExecutorOptions = {
   maxTurns?: number;
   allowedTools?: string[];
   disallowedTools?: string[];
-  mcpServers?: AgentMcpServers;
+  mcpServers?: ClaudeAgentMcpServers;
   permissionMode?: AgentPermissionMode;
   persistSession?: boolean;
   effort: AgentEffort;
@@ -184,20 +194,13 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
   const thinking = options.thinkingEnabled
     ? { type: "enabled" as const, budgetTokens: Math.max(1024, options.thinkingBudget ?? 10_000) }
     : undefined;
-  // The neutral `AgentMcpServers` shape declares the in-process `sdk`-typed
-  // server's `instance` as `unknown`; this adapter is the only producer (via
-  // `createSdkMcpServer` in `kota-tools-mcp.ts`), so the runtime value is
-  // always the SDK's `McpServer` and the cast is safe at this boundary.
-  const mcpServers = options.mcpServers as
-    | Record<string, McpServerConfig>
-    | undefined;
   return {
     model: options.model,
     maxTurns: options.maxTurns,
     systemPrompt: options.systemPrompt,
     allowedTools: options.allowedTools,
     disallowedTools: options.disallowedTools,
-    mcpServers,
+    mcpServers: options.mcpServers,
     permissionMode,
     cwd: options.cwd ?? process.cwd(),
     persistSession: options.persistSession,

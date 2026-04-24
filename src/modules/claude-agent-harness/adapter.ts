@@ -7,6 +7,7 @@ import type {
   AgentPermissionMode,
   AgentSettingSource,
 } from "#core/agent-harness/index.js";
+import type { ClaudeAgentMcpServers } from "./executor.js";
 import { executeWithAgentSDK } from "./executor.js";
 import {
   createOwnerQuestionMcpServers,
@@ -102,14 +103,24 @@ const DEFAULT_PERMISSION_MODE: NonNullable<AgentHarnessRunOptions["permissionMod
 function mergeOwnerQuestionsMcpServer(
   existing: AgentMcpServers | undefined,
   source: string,
-): AgentMcpServers {
+): ClaudeAgentMcpServers {
   // Owner-question injection must never overwrite caller-supplied MCP servers
   // (modules may have registered their own). If the caller already wired an
   // owner-questions server under this name, keep theirs; otherwise add ours.
+  //
+  // Caller-supplied `existing` entries are the harness-neutral transport
+  // variants (`stdio | sse | http`). The merged result adds the claude-only
+  // in-process `sdk` entry, so the return widens to the adapter's
+  // `ClaudeAgentMcpServers` shape. Neutral transport entries are
+  // structurally compatible with the SDK's same-named wire types apart
+  // from a stricter `tools?` element type, which the adapter does not
+  // populate here; a single cast at this one boundary keeps the neutral
+  // protocol ignorant of the claude-sdk types.
   const owner = createOwnerQuestionMcpServers(source);
   if (existing === undefined) return owner;
-  if (KOTA_OWNER_QUESTIONS_MCP_SERVER in existing) return existing;
-  return { ...existing, ...owner };
+  const wired = existing as ClaudeAgentMcpServers;
+  if (KOTA_OWNER_QUESTIONS_MCP_SERVER in wired) return wired;
+  return { ...wired, ...owner };
 }
 
 /**
@@ -141,9 +152,13 @@ export const claudeAgentHarness: AgentHarness = {
     writer?: AgentHarnessWriter,
   ): Promise<AgentHarnessResult> {
     const { prompt, askOwner, settingSources, permissionMode, systemPrompt, ...rest } = options;
-    const mcpServers = askOwner
+    // Neutral transport entries (`stdio | sse | http`) are structurally
+    // compatible with the SDK's same-named shapes apart from a stricter
+    // `tools?` element type; the adapter is the only place the two views
+    // meet, so the widening cast sits here once.
+    const mcpServers: ClaudeAgentMcpServers | undefined = askOwner
       ? mergeOwnerQuestionsMcpServer(rest.mcpServers, askOwner.source)
-      : rest.mcpServers;
+      : (rest.mcpServers as ClaudeAgentMcpServers | undefined);
     return executeWithAgentSDK(
       prompt,
       {

@@ -24,6 +24,16 @@ directly; nothing else in core imports `@anthropic-ai/claude-agent-sdk`.
 - Owner-questions surface is adapter-owned: when `askOwner` is present, the
   adapter merges `createOwnerQuestionMcpServers(source)` into the SDK's
   `mcpServers` map. Callers never inject that MCP server themselves.
+- The claude-agent-sdk in-process `sdk` MCP variant (`createSdkMcpServer`,
+  `{type: "sdk", name, instance}`) is adapter-private. The neutral
+  protocol covers only the transport variants (`stdio | sse | http`);
+  `executor.ts` exports `ClaudeAgentMcpServers` as the adapter-internal
+  extended map that combines the neutral variants with the live in-process
+  entry, and the adapter is the only place the two views meet. Neutral
+  callers cannot pass in-process servers directly; route any future
+  claude-specific in-process tool through this adapter's owner-questions-
+  style internal wiring rather than re-adding an in-process field to the
+  neutral shape.
 - `settingSources` defaults to `["project"]` and `permissionMode` defaults to
   `"bypassPermissions"` inside the adapter when the caller passes
   `undefined`. Autonomy workflow steps rely on these defaults by omitting

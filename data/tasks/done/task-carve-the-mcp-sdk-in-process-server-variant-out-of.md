@@ -1,12 +1,12 @@
 ---
 id: task-carve-the-mcp-sdk-in-process-server-variant-out-of
 title: Carve the MCP sdk in-process server variant out of core into the claude-agent-harness module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Move AgentMcpSdkServerConfig and the {type: 'sdk', instance: unknown} MCP variant out of the core AgentMcpServers union into the claude-agent-harness module where it is actually produced (createSdkMcpServer) and consumed, so core's MCP protocol surface stops carrying a claude-SDK-only in-process variant every other adapter has to reject.
 created_at: 2026-04-24T03:42:08.883Z
-updated_at: 2026-04-24T03:42:08.883Z
+updated_at: 2026-04-24T03:52:23.728Z
 ---
 
 ## Problem

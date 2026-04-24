@@ -125,15 +125,14 @@ export type AgentCanUseTool = (
 
 /**
  * One MCP server entry the harness should host for the agent. KOTA-owned
- * discriminated union covering the variants the claude-agent-sdk actually
- * accepts today (`stdio | sse | http | sdk`). Non-claude adapters reject any
+ * discriminated union covering the transport variants every harness can
+ * reason about (`stdio | sse | http`). Non-claude adapters reject any
  * non-empty `mcpServers` field at their boundary; the claude adapter passes
- * the entries through to the SDK with a typed cast.
+ * the entries through to the SDK.
  *
- * The `sdk` variant carries an in-process MCP server `instance` typed as
- * `unknown` because the underlying server class is a claude-agent-sdk
- * internal — only the claude adapter constructs values of this shape via
- * `createSdkMcpServer`, and only the SDK consumes them.
+ * Harness-specific in-process hosting mechanisms (e.g. the claude-agent-sdk
+ * `sdk` variant that carries a live server instance) stay inside the
+ * adapter that owns them and never surface here.
  */
 export type AgentMcpStdioServerConfig = {
   type?: "stdio";
@@ -156,17 +155,10 @@ export type AgentMcpHttpServerConfig = {
   tools?: unknown[];
 };
 
-export type AgentMcpSdkServerConfig = {
-  type: "sdk";
-  name: string;
-  instance: unknown;
-};
-
 export type AgentMcpServerConfig =
   | AgentMcpStdioServerConfig
   | AgentMcpSseServerConfig
-  | AgentMcpHttpServerConfig
-  | AgentMcpSdkServerConfig;
+  | AgentMcpHttpServerConfig;
 
 export type AgentMcpServers = Record<string, AgentMcpServerConfig>;
 
