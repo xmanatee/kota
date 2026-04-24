@@ -122,16 +122,22 @@ them through `git add -A` so downstream repair-loop checks observe the
 same working-tree shape the real agent produced.
 
 The loader pins provenance: every recording's `sourceRunId` must match
-the fixture's `real-failure` provenance. The `pnpm kota eval
-record-agent-step` CLI is the single source for `fileOperations` on a
-committing source run — it resolves the commit SHA captured by
-`commitWorkflowChanges` from `steps/commit.json` and walks that commit's
-diff, so Edit edits, `pnpm kota task move/create`, and `git mv` round-
-trip without hand transcription. Run-directory artifacts come from the
-Write-event scan and stay templated to `{{runDir}}`. A non-committing
-source run is a hard error; hand-authored recordings are reserved for
-judge calls (e.g. `critic-review.json`) and fixtures whose source
-branch has not yet produced a commit.
+the fixture's `real-failure` provenance. `pnpm kota eval
+record-agent-step` is the single authoring surface and operates in two
+mutually exclusive modes:
+
+- `--step <id>` resolves the source commit SHA from
+  `steps/commit.json` and walks the diff, so Edit edits, `pnpm kota
+  task move/create`, and `git mv` round-trip as `fileOperations`
+  without hand transcription. Run-directory artifacts come from the
+  Write-event scan and stay templated to `{{runDir}}`. A
+  non-committing source run is a hard error.
+- `--judge <label>` reads the source run's `<runDir>/<label>.json`
+  verdict (what `handleVerdict` persists) and wraps it as
+  `response.text` with empty `fileOperations` — judges have no tool
+  access. A missing labeled artifact fails loudly naming run id and
+  label. Two fixture recordings (workflow-step + judge) sit side by
+  side in `<fixtureDir>/recordings/`.
 
 Two prompt shapes route through the same adapter: workflow-step
 prompts keyed by the `Step:` marker, and judge prompts (today the

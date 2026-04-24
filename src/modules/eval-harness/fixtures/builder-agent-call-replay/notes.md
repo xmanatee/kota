@@ -80,22 +80,27 @@ overlapping.
 
 ## Recorder extraction
 
-`recordings/build.json` is auto-extracted by
-`pnpm kota eval record-agent-step --run-id <id> --step build --fixture
-builder-agent-call-replay`. The recorder resolves the source run's
-commit SHA from `steps/commit.json` and walks that commit's diff, so
-every `fileOperations` entry for a repo-tree path — including task
-moves via `pnpm kota task move`, `git mv`, and Edit-tool edits — comes
-directly from `git show <sha>:<path>`. Run-directory artifacts
-(`success-criteria.txt`, `success-criteria-verified.txt`,
-`commit-message.txt`) are not committed, so they come from the Write-
-event scan of the step's `events.jsonl` and stay templated to
-`{{runDir}}`.
+Both recordings are produced by `pnpm kota eval record-agent-step`
+with no hand-authored files. One invocation per agent call:
 
-`recordings/critic-review.json` is still authored by hand: the critic
-is a judge call, not a workflow step, so its response text is lifted
-from the source run's `critic-review.json` rather than an agent-step
-artifact.
+- `pnpm kota eval record-agent-step --run-id <id> --step build
+  --fixture builder-agent-call-replay` writes `recordings/build.json`.
+  The recorder resolves the source run's commit SHA from
+  `steps/commit.json` and walks that commit's diff, so every
+  `fileOperations` entry for a repo-tree path — including task moves
+  via `pnpm kota task move`, `git mv`, and Edit-tool edits — comes
+  directly from `git show <sha>:<path>`. Run-directory artifacts
+  (`success-criteria.txt`, `success-criteria-verified.txt`,
+  `commit-message.txt`) are not committed, so they come from the
+  Write-event scan of the step's `events.jsonl` and stay templated to
+  `{{runDir}}`.
+- `pnpm kota eval record-agent-step --run-id <id> --judge
+  critic-review --fixture builder-agent-call-replay` writes
+  `recordings/critic-review.json`. The judge mode reads the source
+  run's `<runDir>/critic-review.json` verdict (the normalized JSON
+  `handleVerdict` persists) and wraps it as `response.text`.
+  `fileOperations` is always empty for judge recordings — a judge
+  call has no tool access by contract.
 
 The fixture's `initial/` tree is authored separately by pulling each
 file the source commit ADDED or EDITED from its pre-commit parent

@@ -28,7 +28,10 @@ import { print } from "#modules/rendering/transport.js";
 import { runEvalSet } from "./eval-set.js";
 import { FixtureProvenanceError, loadAllFixtures, loadFixture } from "./fixture.js";
 import type { ResourceProfile } from "./fixture-run.js";
-import { extractAgentStepRecording } from "./recorder.js";
+import {
+  extractAgentStepRecording,
+  extractJudgeCallRecording,
+} from "./recorder.js";
 import { createSubprocessExecutor } from "./subprocess-executor.js";
 
 function loadFixturesForCli(
@@ -215,20 +218,52 @@ export function buildEvalCommand(projectDir: string): Command {
   cmd
     .command("record-agent-step")
     .description(
-      "Extract an agent-step recording from a real .kota/runs/<id>/steps/<step>/ artifact into a fixture.",
+      "Extract an agent-step or judge-call recording from a real .kota/runs/<id>/ artifact into a fixture.",
     )
     .requiredOption("--run-id <id>", "Source run id under .kota/runs/")
-    .requiredOption("--step <id>", "Agent step id to extract (e.g. decompose)")
+    .option("--step <id>", "Agent step id to extract (e.g. decompose) — mutually exclusive with --judge")
+    .option(
+      "--judge <label>",
+      "Judge artifact label to extract (e.g. critic-review, semantic-gate-review); reads <runDir>/<label>.json — mutually exclusive with --step",
+    )
     .requiredOption(
       "--fixture <id>",
       "Target fixture id under src/modules/eval-harness/fixtures/",
     )
-    .action((opts: { runId: string; step: string; fixture: string }) => {
+    .action((opts: { runId: string; step?: string; judge?: string; fixture: string }) => {
       const fixtureDir = join(fixturesRoot, opts.fixture);
+      if (!opts.step === !opts.judge) {
+        throw new Error(
+          "record-agent-step requires exactly one of --step or --judge.",
+        );
+      }
+      if (opts.judge !== undefined) {
+        const result = extractJudgeCallRecording({
+          projectDir,
+          sourceRunId: opts.runId,
+          label: opts.judge,
+          fixtureDir,
+        });
+        print(stack(
+          line(
+            plain("wrote recording: "),
+            span(result.recordingPath, "accent"),
+          ),
+          line(
+            plain("  workflow="),
+            span(result.recording.workflowName, "info"),
+            plain("  judge="),
+            span(result.recording.stepId, "info"),
+            plain("  source="),
+            span(result.recording.sourceRunId, "muted"),
+          ),
+        ));
+        return;
+      }
       const result = extractAgentStepRecording({
         projectDir,
         sourceRunId: opts.runId,
-        stepId: opts.step,
+        stepId: opts.step!,
         fixtureDir,
       });
       print(stack(

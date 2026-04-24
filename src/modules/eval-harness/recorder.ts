@@ -15,6 +15,15 @@
  * templated to `{{runDir}}`. A source run whose commit step did not commit
  * is a hard error — the recorder will not emit an empty or partial
  * recording.
+ *
+ * Judge-call recordings (critic, improver semantic gate, any future judge)
+ * take the same recording shape and use the same recording path contract.
+ * Their response text comes from the run-level judge artifact
+ * `<runDir>/<label>.json` (`handleVerdict` writes it via `JSON.stringify`
+ * with 2-space indent) rather than a workflow-step artifact. Judges have
+ * no tool access by contract (see `AUTONOMY_DISALLOWED_TOOLS`), so
+ * `fileOperations` is always empty. Turns/tokens/cost stay at the
+ * `1/0/0/0` placeholder the judge artifact does not carry on disk.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -242,4 +251,82 @@ export function extractAgentStepRecording(
     skippedWritesOutsideProject: [...skippedFromCommit, ...skippedFromWrites],
     sourceCommitSha,
   };
+}
+
+export type ExtractJudgeRecordingParams = {
+  projectDir: string;
+  sourceRunId: string;
+  label: string;
+  fixtureDir: string;
+};
+
+export type ExtractJudgeRecordingResult = {
+  recordingPath: string;
+  recording: AgentStepRecording;
+};
+
+/**
+ * Extract a judge-call recording (critic, improver semantic gate, future
+ * judges) from the source run's `<runDir>/<label>.json` artifact. The
+ * artifact is the normalized verdict `handleVerdict` persists; the
+ * recording wraps it as `response.text` so the replay adapter returns the
+ * same JSON the real judge produced.
+ *
+ * Judge calls have no tool access (see `AUTONOMY_DISALLOWED_TOOLS` in
+ * `src/modules/autonomy/shared.ts`), so `fileOperations` is always empty.
+ * The `turns`/`totalCostUsd`/`inputTokens`/`outputTokens` placeholders
+ * match today's hand-authored judge recordings — the judge artifact does
+ * not carry those fields on disk, and the replay adapter does not need
+ * them for dispatch.
+ *
+ * Safe to re-run: overwrites the target file on each call. A missing or
+ * unparseable `<runDir>/<label>.json` is a hard error naming the run id
+ * and label so a source run that never invoked the named judge cannot
+ * be silently recorded as an empty verdict.
+ */
+export function extractJudgeCallRecording(
+  params: ExtractJudgeRecordingParams,
+): ExtractJudgeRecordingResult {
+  const artifactPath = join(
+    params.projectDir,
+    ".kota",
+    "runs",
+    params.sourceRunId,
+    `${params.label}.json`,
+  );
+  if (!existsSync(artifactPath)) {
+    throw new Error(
+      `Judge artifact not found for label "${params.label}" in source run "${params.sourceRunId}": ${artifactPath}. Either the run id or the judge label is wrong, or the source run never invoked this judge.`,
+    );
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(artifactPath, "utf-8"));
+  } catch (err) {
+    throw new Error(
+      `Judge artifact "${params.label}.json" in source run "${params.sourceRunId}" is not valid JSON (${artifactPath}): ${(err as Error).message}`,
+    );
+  }
+
+  const workflowName = readWorkflowName(params.projectDir, params.sourceRunId);
+  const recording: AgentStepRecording = {
+    version: 1,
+    workflowName,
+    stepId: params.label,
+    sourceRunId: params.sourceRunId,
+    response: {
+      text: JSON.stringify(parsed, null, 2),
+      subtype: "success",
+      turns: 1,
+      totalCostUsd: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+    },
+    fileOperations: [],
+  };
+
+  const recordingPath = recordingPathForStep(params.fixtureDir, params.label);
+  mkdirSync(dirname(recordingPath), { recursive: true });
+  writeFileSync(recordingPath, `${JSON.stringify(recording, null, 2)}\n`, "utf-8");
+  return { recordingPath, recording };
 }

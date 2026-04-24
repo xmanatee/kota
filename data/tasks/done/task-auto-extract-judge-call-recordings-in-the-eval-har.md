@@ -1,12 +1,12 @@
 ---
 id: task-auto-extract-judge-call-recordings-in-the-eval-har
 title: Auto-extract judge-call recordings in the eval-harness recorder
-status: ready
+status: done
 priority: p1
 area: modules
 summary: Extend pnpm kota eval record-agent-step so judge-call recordings (builder critic-review, improver semantic-gate) are auto-produced from a source run's <runDir>/<judge>.json artifact, eliminating the last hand-transcription step in replay-fixture authoring.
 created_at: 2026-04-24T21:13:38.957Z
-updated_at: 2026-04-24T21:13:38.957Z
+updated_at: 2026-04-24T21:23:10.639Z
 ---
 
 ## Problem
