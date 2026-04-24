@@ -1,12 +1,12 @@
 ---
 id: task-fix-broken-decomposer-agent-call-replay-fixture-so
 title: Fix broken decomposer-agent-call-replay fixture so cadence pass^k stops degrading
-status: ready
+status: done
 priority: p1
 area: modules
 summary: Recorded decompose.json subtasks predate the open-task quality gates and now fail task validation, so the cadence run reports fail/error every week and pass^k drags on each evaluation.
 created_at: 2026-04-24T22:54:54.232Z
-updated_at: 2026-04-24T22:54:54.232Z
+updated_at: 2026-04-24T23:02:19.077Z
 ---
 
 ## Problem

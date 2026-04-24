@@ -6,17 +6,23 @@
  * builder's own `pnpm test` repair-loop check, so a workflow-layer regression
  * (replay adapter, subprocess executor, gather-run-data, repair loop, commit
  * step) could ship and only surface in a real autonomy run that paid a live
- * LLM bill. This test closes that gap by replaying a representative shipped
- * fixture end-to-end through the same `runFixture` + subprocess executor path
+ * LLM bill. This test closes that gap by replaying representative shipped
+ * fixtures end-to-end through the same `runFixture` + subprocess executor path
  * the cadence uses, asserting predicate pass.
  *
- * One fixture is enough — `improver-agent-call-replay` covers the
- * load-bearing surfaces in a single replay: workflow-step prompt routing,
- * judge-prompt routing (`semantic-gate-review` recording), gather-run-data
- * aggregation, the full repair-loop survival, the commit step's `git add -A`,
- * and the restart request. Adding the builder/decomposer fixtures here would
- * roughly double the smoke runtime without exercising additional workflow-
- * runtime branches; both stay in cadence-only coverage.
+ * Two fixtures cover the full set of workflow-runtime branches we want to
+ * gate at `pnpm test` time:
+ *   - `decomposer-agent-call-replay` is the smallest fixture and is the only
+ *     one whose repair loop runs `pnpm run validate-tasks` against the
+ *     fixture's tmp project root, so it gates the task-validator-as-repair-
+ *     check path against silent regression.
+ *   - `improver-agent-call-replay` covers judge-prompt routing
+ *     (`semantic-gate-review` recording) and gather-run-data aggregation in
+ *     a way the other shipped replay fixtures do not.
+ * The builder fixture stays in cadence-only coverage because its surfaces
+ * (workflow-step prompt routing, repair-loop survival, commit step's
+ * `git add -A`, restart request) are already exercised by both gated
+ * fixtures.
  *
  * The subprocess executor invokes `node bin/kota.mjs workflow exec ...`,
  * which loads `dist/cli.js`. The autonomy builder's repair loop runs
@@ -53,53 +59,58 @@ const SMOKE_PROFILE: ResourceProfile = {
   memoryKillThresholdMB: 4096,
 };
 
-const SMOKE_FIXTURE_ID = "improver-agent-call-replay";
+const SMOKE_FIXTURE_IDS = [
+  "decomposer-agent-call-replay",
+  "improver-agent-call-replay",
+] as const;
 
 describe("eval-harness shipped replay-fixture smoke gate", () => {
-  it(
-    `replays ${SMOKE_FIXTURE_ID} end-to-end through the subprocess executor`,
-    async () => {
-      const fixturesRoot = join(
-        PROJECT_DIR,
-        "src/modules/eval-harness/fixtures",
-      );
-      const fixture = loadFixture(fixturesRoot, SMOKE_FIXTURE_ID);
-      const runArtifactBaseDir = mkdtempSync(
-        join(tmpdir(), `kota-replay-smoke-${SMOKE_FIXTURE_ID}-`),
-      );
-      const executor = createSubprocessExecutor({
-        kotaBinaryPath: resolve(join(PROJECT_DIR, "bin/kota.mjs")),
-        extraEnv: { NODE_OPTIONS: "" },
-      });
-      const report = await runFixture({
-        fixture,
-        executor,
-        resourceProfile: SMOKE_PROFILE,
-        runArtifactBaseDir,
-        runIndex: 0,
-        repeatCount: 1,
-      });
-      try {
-        const failingPredicates = report.predicateResults.filter(
-          (r) => !r.passed,
+  for (const fixtureId of SMOKE_FIXTURE_IDS) {
+    it(
+      `replays ${fixtureId} end-to-end through the subprocess executor`,
+      async () => {
+        const fixturesRoot = join(
+          PROJECT_DIR,
+          "src/modules/eval-harness/fixtures",
         );
-        expect(
-          report.run.outcome,
-          `replay smoke run did not pass: ${JSON.stringify(
-            {
-              executionOutcome: report.executionOutcome,
-              failingPredicates,
-            },
-            null,
-            2,
-          )}`,
-        ).toBe("pass");
-        expect(failingPredicates).toHaveLength(0);
-      } finally {
-        cleanupFixtureWorkingDir(report.workingDir);
-        rmSync(runArtifactBaseDir, { recursive: true, force: true });
-      }
-    },
-    240_000,
-  );
+        const fixture = loadFixture(fixturesRoot, fixtureId);
+        const runArtifactBaseDir = mkdtempSync(
+          join(tmpdir(), `kota-replay-smoke-${fixtureId}-`),
+        );
+        const executor = createSubprocessExecutor({
+          kotaBinaryPath: resolve(join(PROJECT_DIR, "bin/kota.mjs")),
+          extraEnv: { NODE_OPTIONS: "" },
+        });
+        const report = await runFixture({
+          fixture,
+          executor,
+          resourceProfile: SMOKE_PROFILE,
+          runArtifactBaseDir,
+          runIndex: 0,
+          repeatCount: 1,
+        });
+        try {
+          const failingPredicates = report.predicateResults.filter(
+            (r) => !r.passed,
+          );
+          expect(
+            report.run.outcome,
+            `replay smoke run did not pass: ${JSON.stringify(
+              {
+                executionOutcome: report.executionOutcome,
+                failingPredicates,
+              },
+              null,
+              2,
+            )}`,
+          ).toBe("pass");
+          expect(failingPredicates).toHaveLength(0);
+        } finally {
+          cleanupFixtureWorkingDir(report.workingDir);
+          rmSync(runArtifactBaseDir, { recursive: true, force: true });
+        }
+      },
+      240_000,
+    );
+  }
 });
