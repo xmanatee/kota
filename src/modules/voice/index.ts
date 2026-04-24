@@ -10,7 +10,7 @@
 
 import type { KotaModule } from "#core/modules/module-types.js";
 import { buildVoiceCommand } from "./cli.js";
-import { voiceRoutes } from "./routes.js";
+import { voiceControlRoutes, voiceRoutes } from "./routes.js";
 
 export {
   getSpeechSynthesisProvider,
@@ -39,6 +39,7 @@ const voiceModule: KotaModule = {
   dependencies: ["transcription"],
   commands: () => [buildVoiceCommand()],
   routes: () => voiceRoutes(),
+  controlRoutes: () => voiceControlRoutes(),
 };
 
 export default voiceModule;

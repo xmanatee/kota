@@ -316,6 +316,7 @@ const daemonModule: KotaModule = {
           pollIntervalMs: parseIntOption(opts.pollInterval, "poll-interval") * 1000,
           workflows: ctx.getContributedWorkflows(),
           channels: ctx.getContributedChannels(),
+          controlRoutes: ctx.getContributedControlRoutes(),
           logFormat,
           resolveAgentDef: (name) => ctx.resolveAgentDef(name),
           resolveSkillsPrompt: (names, agentName) => ctx.resolveSkillsPrompt(names, agentName),

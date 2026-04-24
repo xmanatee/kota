@@ -10,6 +10,13 @@ and live runtime state.
 - The control API is a daemon-owned protocol. Exact routes, payload fields,
   event names, capability scopes, and status values belong in source, typed
   clients, and focused tests rather than durable docs.
+- Modules extend the control API through `KotaModule.controlRoutes`, not by
+  adding handlers under `src/core/daemon/`. Each contribution declares its own
+  `capabilityScope` (`read` | `control`); the router applies the same
+  bearer-token and scope check to contributed routes as to built-in ones.
+  Collisions with the built-in table or with another module's contribution
+  throw at server construction. Use this seam for any module-owned
+  control-plane endpoint (history, workflow, webhooks, voice, future).
 - Clients should use daemon client wrappers for URL construction, response
   decoding, authentication, polling, and live updates. They must not read
   daemon runtime files directly.

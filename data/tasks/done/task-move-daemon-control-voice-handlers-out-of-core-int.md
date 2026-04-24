@@ -1,12 +1,12 @@
 ---
 id: task-move-daemon-control-voice-handlers-out-of-core-int
 title: Move daemon-control voice handlers out of core into the voice module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Remove daemon-control-voice.ts (and its #modules/voice/* imports) from src/core/ by letting modules contribute to the daemon-control route table with a capability scope; the voice module registers /voice/transcribe and /voice/synthesize itself.
 created_at: 2026-04-24T08:40:34.936Z
-updated_at: 2026-04-24T08:40:34.936Z
+updated_at: 2026-04-24T08:55:25.576Z
 ---
 
 ## Problem

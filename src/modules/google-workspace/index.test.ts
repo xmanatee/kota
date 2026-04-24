@@ -11,6 +11,7 @@ function makeCtx(config?: Record<string, unknown>): ModuleContext {
     storage: {} as ModuleContext["storage"],
     registerGroup: vi.fn(),
     getRoutes: vi.fn().mockReturnValue([]),
+    getContributedControlRoutes: vi.fn().mockReturnValue([]),
     getContributedWorkflows: vi.fn().mockReturnValue([]),
     getContributedChannels: vi.fn().mockReturnValue([]),
     getModuleConfig: vi.fn().mockReturnValue(config),

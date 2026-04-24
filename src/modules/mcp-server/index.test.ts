@@ -44,6 +44,7 @@ function makeStubCtx(): ModuleContext {
 		getRoutes: () => [],
 		getContributedWorkflows: () => [],
 		getContributedChannels: () => [],
+		getContributedControlRoutes: () => [],
 		getModuleSummaries: () => [],
 		getModuleConfig: () => undefined as never,
 		log: Object.assign(() => {}, {

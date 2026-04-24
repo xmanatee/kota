@@ -15,6 +15,7 @@ import { reimportInstalledModule } from "./module-discovery.js";
 import { getModuleDependents, type LifecycleState, unloadAllModules, unloadModule } from "./module-lifecycle.js";
 import type { ModuleStorage } from "./module-storage.js";
 import {
+  type ControlRouteRegistration,
   type CreateSessionOptions,
   type HealthCheckResult,
   type KotaModule,
@@ -63,6 +64,7 @@ export class ModuleLoader {
   private cwd: string;
   private commandsOnly: boolean;
   private collectingRoutes = false;
+  private collectingControlRoutes = false;
   private sessionFactory: ((opts: CreateSessionOptions) => ModuleSession) | null = null;
   private toolCallDepth = 0;
   private static MAX_TOOL_CALL_DEPTH = 10;
@@ -104,6 +106,7 @@ export class ModuleLoader {
       moduleStorages: this.moduleStorages,
       getBus: () => this.bus,
       getRoutes: () => this.getRoutes(),
+      getContributedControlRoutes: () => this.getContributedControlRoutes(),
       getContributedWorkflows: () => this.getContributedWorkflows(),
       getContributedChannels: () => this.getContributedChannels(),
       getModuleSummaries: () => this.getModuleSummaries(),
@@ -326,6 +329,27 @@ export class ModuleLoader {
       return routes;
     } finally {
       this.collectingRoutes = false;
+    }
+  }
+
+  getContributedControlRoutes(): ControlRouteRegistration[] {
+    if (this.collectingControlRoutes) return [];
+    this.collectingControlRoutes = true;
+    try {
+      const routes: ControlRouteRegistration[] = [];
+      for (const mod of this.modules) {
+        if (mod.controlRoutes) {
+          try {
+            routes.push(...mod.controlRoutes(this.createContext(mod.name)));
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error(`[kota] Module "${mod.name}" control-route registration failed: ${msg}`);
+          }
+        }
+      }
+      return routes;
+    } finally {
+      this.collectingControlRoutes = false;
     }
   }
 

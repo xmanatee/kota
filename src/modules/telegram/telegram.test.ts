@@ -32,6 +32,7 @@ function makeStubCtx(bus?: EventBus): ModuleContext {
     getRoutes: () => [],
     getContributedWorkflows: () => [],
     getContributedChannels: () => [],
+    getContributedControlRoutes: () => [],
   getModuleSummaries: () => [],
     getModuleConfig: () => undefined,
     log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },

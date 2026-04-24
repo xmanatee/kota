@@ -10,7 +10,9 @@
 
 export type { AgentDef, SkillDef } from "./core/agents/agent-types.js";
 export type { ChannelAdapter, ChannelDef, ChannelOperatorIdentity, ChannelStartContext, ChannelUserIdentity } from "./core/channels/channel.js";
+export type { CapabilityScope } from "./core/daemon/daemon-control-types.js";
 export type {
+  ControlRouteRegistration,
   CreateSessionOptions,
   KotaModule,
   ModuleContext,

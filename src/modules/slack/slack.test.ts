@@ -20,6 +20,7 @@ function makeStubCtx(bus?: EventBus, slackConfig?: unknown): ModuleContext {
     getRoutes: () => [],
     getContributedWorkflows: () => [],
     getContributedChannels: () => [],
+    getContributedControlRoutes: () => [],
     getModuleSummaries: () => [],
     getModuleConfig: () => slackConfig as never,
     log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },

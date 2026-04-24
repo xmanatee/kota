@@ -13,6 +13,7 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { AgentDef, SkillDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
+import type { CapabilityScope } from "#core/daemon/daemon-control-types.js";
 import type { PreSendHook } from "#core/loop/pre-send-hooks.js";
 import type { ToolMiddlewareFn } from "#core/tools/tool-middleware.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
@@ -126,6 +127,34 @@ export type RouteRegistration = {
   bypassAuth?: boolean;
 };
 
+/**
+ * An HTTP route registered by a module on the daemon-control server.
+ *
+ * The daemon-control surface is capability-scoped: every request is
+ * classified as a `read` or `control` call before the handler runs.
+ * Modules contribute these routes through `KotaModule.controlRoutes`
+ * instead of adding entries to a core-hosted route table. The method +
+ * path must not collide with any built-in daemon-control route or with
+ * another module's contribution — the server rejects collisions loudly at
+ * startup.
+ *
+ * Control routes use exact-match paths; modules that need path parameters
+ * can be taught the pattern later, but today's module-owned control
+ * endpoints are all fixed URLs.
+ */
+export type ControlRouteRegistration = {
+  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+  /** Exact request path. Path parameters are not supported for control routes. */
+  path: string;
+  /**
+   * Capability scope required to invoke the route.
+   * - "read": observe daemon state
+   * - "control": mutate daemon state or trigger external side effects
+   */
+  capabilityScope: CapabilityScope;
+  handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>;
+};
+
 export type ModuleContribution<T> =
   | readonly T[]
   | ((ctx: ModuleContext) => readonly T[] | Promise<readonly T[]>);
@@ -145,6 +174,8 @@ export type ModuleContext = {
   registerGroup: (name: string, toolNames: string[], pattern?: RegExp) => void;
   /** Get HTTP routes registered by all loaded modules. Decouples modules from each other. */
   getRoutes: () => RouteRegistration[];
+  /** Get daemon-control HTTP routes contributed by all loaded modules. */
+  getContributedControlRoutes: () => ControlRouteRegistration[];
   /** Get workflow definitions contributed by loaded modules. */
   getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
   /** Get channel definitions contributed by loaded modules. */
@@ -271,6 +302,14 @@ export type KotaModule = {
    * Routes are matched by method + path in the HTTP request handler.
    */
   routes?: (ctx: ModuleContext) => RouteRegistration[];
+
+  /**
+   * Daemon-control HTTP routes this module adds. Called once at module
+   * load time. Each route carries its required capability scope; the
+   * daemon-control server applies the same `read` / `control` gate to
+   * contributed routes as it does to built-in ones.
+   */
+  controlRoutes?: (ctx: ModuleContext) => ControlRouteRegistration[];
 
   /**
    * Workflow definitions this module contributes.

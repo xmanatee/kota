@@ -12,6 +12,7 @@ const stubCtx: ModuleContext = {
   getRoutes: () => [],
   getContributedWorkflows: () => [],
   getContributedChannels: () => [],
+  getContributedControlRoutes: () => [],
   getModuleSummaries: () => [],
   getModuleConfig: () => undefined,
   log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },

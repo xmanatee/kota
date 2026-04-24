@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import type { ControlRouteRegistration } from "#core/modules/module-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import { handleApproveAllApprovals, handleApproveApproval, handleListApprovals, handleRejectAllApprovals, handleRejectApproval } from "./daemon-control-approvals.js";
@@ -18,9 +19,8 @@ import { handleMetrics } from "./daemon-control-metrics.js";
 import { handleAnswerOwnerQuestion, handleDismissOwnerQuestion, handleListOwnerQuestions } from "./daemon-control-owner-questions.js";
 import { handleRegisterPushToken } from "./daemon-control-push-tokens.js";
 import { handleListSessions, handleRegisterSession, handleUnregisterSession } from "./daemon-control-sessions.js";
-import type { DaemonControlHandle, DaemonLiveStatus, DaemonSseEvent } from "./daemon-control-types.js";
+import type { CapabilityScope, DaemonControlHandle, DaemonLiveStatus, DaemonSseEvent } from "./daemon-control-types.js";
 import { jsonResponse } from "./daemon-control-utils.js";
-import { handleVoiceSynthesize, handleVoiceTranscribe } from "./daemon-control-voice.js";
 import { handleWebhookRequest } from "./daemon-control-webhook.js";
 import {
   handleAbortWorkflow,
@@ -62,8 +62,11 @@ export type {
   WorkflowRunSummary,
 } from "./daemon-control-types.js";
 
-// Map each route key (method + " " + path pattern) to its required capability scope.
-const ROUTE_SCOPES: Record<string, "read" | "control"> = {
+// Built-in daemon-control routes and their required capability scope.
+// Modules contribute additional exact-match routes through
+// KotaModule.controlRoutes; collisions with this table or with another
+// module's contribution throw at server construction time.
+const BUILTIN_ROUTE_SCOPES: Record<string, CapabilityScope> = {
   "GET /status": "read",
   "GET /workflow/status": "read",
   "GET /events": "read",
@@ -102,8 +105,6 @@ const ROUTE_SCOPES: Record<string, "read" | "control"> = {
   "POST /push-tokens": "control",
   "GET /commands": "read",
   "POST /commands/invoke": "control",
-  "POST /voice/transcribe": "control",
-  "POST /voice/synthesize": "control",
 };
 
 function extractParams(pattern: string, path: string): Record<string, string> | null {
@@ -122,12 +123,13 @@ function extractParams(pattern: string, path: string): Record<string, string> | 
 }
 
 function matchRouteKey(
+  routeScopes: Record<string, CapabilityScope>,
   method: string,
   path: string,
 ): { key: string; params: Record<string, string> } | null {
   const exactKey = `${method} ${path}`;
-  if (exactKey in ROUTE_SCOPES) return { key: exactKey, params: {} };
-  for (const key of Object.keys(ROUTE_SCOPES)) {
+  if (exactKey in routeScopes) return { key: exactKey, params: {} };
+  for (const key of Object.keys(routeScopes)) {
     if (!key.startsWith(`${method} `)) continue;
     const pattern = key.slice(method.length + 1);
     if (!pattern.includes(":")) continue;
@@ -161,6 +163,13 @@ export type DaemonControlServerOptions = {
    * Required whenever {@link DaemonControlServerOptions.makeAgent} is supplied.
    */
   conversationResolver?: DaemonChatConversationResolver;
+  /**
+   * Module-contributed daemon-control routes. Each contribution carries its
+   * own capability scope; the router applies the same bearer-token and
+   * scope check to contributed routes as to built-in ones. Paths colliding
+   * with a built-in route or with another contribution throw at startup.
+   */
+  controlRoutes?: readonly ControlRouteRegistration[];
 };
 
 export class DaemonControlServer {
@@ -175,6 +184,8 @@ export class DaemonControlServer {
   private readonly conversationResolver: DaemonChatConversationResolver | null;
   private readonly defaultAutonomyMode: AutonomyMode | undefined;
   private readonly chatSweepMs: number;
+  private readonly routeScopes: Record<string, CapabilityScope>;
+  private readonly contributedHandlers: Map<string, ControlRouteRegistration["handler"]>;
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -201,6 +212,22 @@ export class DaemonControlServer {
     }
     const ttlMs = options?.chatPool?.ttlMs ?? (5 * 60 * 1000);
     this.chatSweepMs = Math.min(ttlMs, 60_000);
+
+    const routeScopes: Record<string, CapabilityScope> = { ...BUILTIN_ROUTE_SCOPES };
+    const contributedHandlers = new Map<string, ControlRouteRegistration["handler"]>();
+    for (const route of options?.controlRoutes ?? []) {
+      const key = `${route.method} ${route.path}`;
+      if (key in routeScopes) {
+        throw new Error(
+          `DaemonControlServer: contributed control route "${key}" collides with ` +
+            `an existing route (built-in or earlier module contribution)`,
+        );
+      }
+      routeScopes[key] = route.capabilityScope;
+      contributedHandlers.set(key, route.handler);
+    }
+    this.routeScopes = routeScopes;
+    this.contributedHandlers = contributedHandlers;
   }
 
   start(): Promise<number> {
@@ -294,7 +321,7 @@ export class DaemonControlServer {
       return;
     }
 
-    const match = matchRouteKey(method, path);
+    const match = matchRouteKey(this.routeScopes, method, path);
     if (!match) {
       jsonResponse(res, 404, { error: "Not found" });
       return;
@@ -469,14 +496,9 @@ export class DaemonControlServer {
     if (method === "GET" && path === "/commands") { handleListCommands(res); return; }
     if (method === "POST" && path === "/commands/invoke") { handleInvokeCommand(h, req, res); return; }
 
-    if (method === "POST" && path === "/voice/transcribe") {
-      handleVoiceTranscribe(req, res).catch((err: Error) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: err.message });
-      });
-      return;
-    }
-    if (method === "POST" && path === "/voice/synthesize") {
-      handleVoiceSynthesize(req, res).catch((err: Error) => {
+    const contributed = this.contributedHandlers.get(match.key);
+    if (contributed) {
+      Promise.resolve(contributed(req, res)).catch((err: Error) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: err.message });
       });
       return;

@@ -9,6 +9,7 @@ import { type EventBus, initEventBus } from "#core/events/event-bus.js";
 import { AgentSession } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
 import { initModuleLogStore } from "#core/modules/module-log.js";
+import type { ControlRouteRegistration } from "#core/modules/module-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
 import type { LogFormat } from "#core/util/log-format.js";
@@ -41,6 +42,12 @@ export type DaemonConfig = {
   stateDir?: string;
   workflows?: readonly RegisteredWorkflowDefinitionInput[];
   channels?: readonly ChannelDef[];
+  /**
+   * Daemon-control routes contributed by loaded modules. Registered on the
+   * daemon's control server alongside its built-in routes; collisions fail
+   * at server construction.
+   */
+  controlRoutes?: readonly ControlRouteRegistration[];
   /** How long a session may be idle before it is swept. Default: 5 minutes. */
   sessionIdleTtlMs?: number;
   /** How often to run the session sweep. Default: 1 minute. */
@@ -168,6 +175,7 @@ export class Daemon {
         chatPool: { ttlMs: config.config?.daemon?.sessionIdleTtlMs },
         chatBindings,
         conversationResolver,
+        controlRoutes: config.controlRoutes,
       },
     );
   }

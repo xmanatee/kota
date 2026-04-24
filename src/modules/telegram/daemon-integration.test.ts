@@ -303,6 +303,7 @@ describe("Telegram personal-assistant daemon integration", () => {
       getRoutes: () => [],
       getContributedWorkflows: () => [],
       getContributedChannels: () => [],
+      getContributedControlRoutes: () => [],
       getModuleSummaries: () => [],
       getModuleConfig: () =>
         ({ defaultAutonomyMode: "supervised" }) as never,

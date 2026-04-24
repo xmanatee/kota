@@ -16,6 +16,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type {
+  ControlRouteRegistration,
   KotaModule,
   ModuleContext,
   RouteRegistration,
@@ -42,6 +43,7 @@ export class ModuleTestHarness {
   readonly #options: ModuleHarnessOptions;
   readonly #tools = new Map<string, ToolDef>();
   #routes: RouteRegistration[] = [];
+  #controlRoutes: ControlRouteRegistration[] = [];
   readonly #dynamicStateProviders = new Map<string, () => string>();
   readonly #eventHandlers = new Map<
     string,
@@ -90,6 +92,9 @@ export class ModuleTestHarness {
       if (mod.routes) {
         this.#routes.push(...mod.routes(ctx));
       }
+      if (mod.controlRoutes) {
+        this.#controlRoutes.push(...mod.controlRoutes(ctx));
+      }
       if (mod.onLoad) {
         await mod.onLoad(ctx);
       }
@@ -137,6 +142,11 @@ export class ModuleTestHarness {
     return [...this.#routes];
   }
 
+  /** Return daemon-control routes contributed by the loaded module(s). */
+  getControlRoutes(): ControlRouteRegistration[] {
+    return [...this.#controlRoutes];
+  }
+
   /**
    * Call all registered dynamic state providers and return their concatenated output.
    * Returns an empty string if no providers are registered.
@@ -169,6 +179,7 @@ export class ModuleTestHarness {
       storage,
       registerGroup: () => {},
       getRoutes: () => [...this.#routes],
+      getContributedControlRoutes: () => [...this.#controlRoutes],
       getContributedWorkflows: () => [],
       getContributedChannels: () => [],
       getModuleSummaries: () => [],

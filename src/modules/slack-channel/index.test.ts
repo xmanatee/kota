@@ -33,6 +33,7 @@ function makeStubCtx(
     getRoutes: () => [],
     getContributedWorkflows: () => [],
     getContributedChannels: () => [],
+    getContributedControlRoutes: () => [],
     getModuleSummaries: () => [],
     getModuleConfig: () => moduleConfig as never,
     log: Object.assign(() => {}, {
