@@ -1,12 +1,12 @@
 ---
 id: task-move-repl-session-and-code-wrappers-out-of-core-in
 title: Move REPL-session and code-wrappers out of core into the execution module
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Relocate code-wrappers.ts and repl-session.ts from src/core/tools/ into src/modules/execution/ so core no longer owns Python/Node REPL runtime infrastructure that only the execution module and custom-tool surface need.
 created_at: 2026-04-24T07:31:56.370Z
-updated_at: 2026-04-24T07:31:56.370Z
+updated_at: 2026-04-24T07:39:12.404Z
 ---
 
 ## Problem

@@ -5,7 +5,8 @@
 
 import { existsSync, unlinkSync } from "node:fs";
 import type { KotaTool, KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
-import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "./code-wrappers.js";
+import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "#modules/execution/code-wrappers.js";
+import { sessions } from "#modules/execution/repl-session.js";
 import {
   type CustomToolDef,
   getToolPath,
@@ -14,7 +15,6 @@ import {
   saveToDisk,
   validateName,
 } from "./custom-tool-persistence.js";
-import { sessions } from "./repl-session.js";
 
 export type ToolResult = { content: string; is_error?: boolean };
 

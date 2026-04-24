@@ -4,9 +4,9 @@
 
 import type { KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
-import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "#core/tools/code-wrappers.js";
-import type { Language } from "#core/tools/repl-session.js";
-import { sessions } from "#core/tools/repl-session.js";
+import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "#modules/execution/code-wrappers.js";
+import type { Language } from "#modules/execution/repl-session.js";
+import { sessions } from "#modules/execution/repl-session.js";
 import type { ManifestToolDef, ModuleManifest } from "./types.js";
 
 // ─── Tool runner builder ─────────────────────────────────────────────

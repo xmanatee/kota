@@ -9,7 +9,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { KotaTool, KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
-import { DEFAULT_TIMEOUT } from "./code-wrappers.js";
+import { DEFAULT_TIMEOUT } from "#modules/execution/code-wrappers.js";
 import { buildRunner, handleCreate, handleList, handleRemove, type ToolResult } from "./custom-tool-handlers.js";
 import {
   type CustomToolDef,

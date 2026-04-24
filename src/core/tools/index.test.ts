@@ -176,7 +176,7 @@ describe("registerTool", () => {
 
 describe("child_process isolation", () => {
   // Tools that intentionally run real commands in isolated temp dirs (integration tests)
-  const INTEGRATION_ALLOWLIST = new Set(["git", "sqlite", "shell", "grep", "file-read", "file-read-formats", "code-exec", "process", "process-core", "env-probes", "runtime-check", "repl-session"]);
+  const INTEGRATION_ALLOWLIST = new Set(["git", "sqlite", "shell", "grep", "file-read", "file-read-formats", "code-exec", "process", "process-core", "env-probes", "runtime-check"]);
 
   it("every tool using execFileSync/execSync has a test that mocks child_process", () => {
     const toolsDir = new URL(".", import.meta.url).pathname;

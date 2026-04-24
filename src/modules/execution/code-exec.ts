@@ -1,11 +1,11 @@
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "#core/tools/code-wrappers.js";
-import { cleanupSessions, findPythonBinary, type Language, type REPLSession, sessions } from "#core/tools/repl-session.js";
 import { which } from "#core/tools/runtime-check.js";
 import type { ToolResult, ToolResultBlock } from "#core/tools/tool-result.js";
+import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "./code-wrappers.js";
 import { extractPlots, readPlotFiles } from "./plot-capture.js";
+import { cleanupSessions, findPythonBinary, type Language, type REPLSession, sessions } from "./repl-session.js";
 
 export { cleanupSessions };
 

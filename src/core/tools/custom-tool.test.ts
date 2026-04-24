@@ -2,6 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { cleanupSessions } from "#modules/execution/repl-session.js";
 import {
   getCustomToolCount,
   loadSavedTools,
@@ -9,7 +10,6 @@ import {
   runCustomTool,
 } from "./custom-tool.js";
 import { executeTool, getAllTools } from "./index.js";
-import { cleanupSessions } from "./repl-session.js";
 
 // Use a temp directory for persistence tests
 const testDir = join(tmpdir(), `kota-custom-tool-test-${Date.now()}`);
