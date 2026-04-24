@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "workflowName": "builder",
+  "stepId": "critic-review",
+  "sourceRunId": "2026-04-24T15-11-48-347Z-builder-gnt9c6",
+  "response": {
+    "text": "{\n  \"verdict\": \"pass\",\n  \"critical_issues\": [],\n  \"warnings\": [],\n  \"summary\": \"Smoke fixture directory, fixture.json with smoke-fixture provenance naming both invariants, seeded builder run, seeded doing/ task, notes.md, and narrowed uncovered/notes.md entry all match Done When criteria; eval-run artifacts show the fixture passes within the 60s budget (201ms) against all seven predicates, and a prior inverted-gate eval run produced a non-pass outcome confirming the gate-regression catch.\"\n}",
+    "subtype": "success",
+    "turns": 1,
+    "totalCostUsd": 0.0,
+    "inputTokens": 0,
+    "outputTokens": 0
+  },
+  "fileOperations": []
+}

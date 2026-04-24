@@ -6,6 +6,7 @@ logs/
 # Eval-harness fixtures legitimately seed prior run state; the runner copies
 # `initial/` verbatim into an isolated tmpdir at fixture-run time.
 !src/modules/eval-harness/fixtures/**/initial/.kota/
+!src/modules/eval-harness/fixtures/**/initial/dist/
 /runs/
 /kota/
 /.worktrees/

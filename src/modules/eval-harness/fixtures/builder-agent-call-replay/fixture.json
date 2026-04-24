@@ -1,0 +1,86 @@
+{
+  "id": "builder-agent-call-replay",
+  "description": "End-to-end replay of builder's `build` agent step plus the phase-2 critic repair check. Seeds one ready-queue task, forwards the autonomy.queue.available trigger payload, and routes both the agent step and the critic judge through the eval-harness replay adapter so the agent-call branch regression-gates without paying for a real LLM run. Derived from source run 2026-04-24T15-11-48-347Z-builder-gnt9c6 — the real builder run that committed 1a2ea1bb (Add decomposer non-timeout decision-gate smoke fixture).",
+  "role": "builder",
+  "workflowName": "builder",
+  "budgetMs": 120000,
+  "triggerPayload": {
+    "_runId": "fixture-builder-agent-call-replay-2026-04-24",
+    "pullableCount": 1,
+    "actionableCount": 1,
+    "counts": {
+      "backlog": 0,
+      "ready": 1,
+      "doing": 0,
+      "blocked": 0,
+      "done": 0,
+      "dropped": 0
+    }
+  },
+  "predicates": [
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/ready/task-add-decomposer-shoulddecompose-false-smoke-fixture.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/done/task-add-decomposer-shoulddecompose-false-smoke-fixture.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/done/task-add-decomposer-shoulddecompose-false-smoke-fixture.md",
+      "needle": "status: done"
+    },
+    {
+      "kind": "file-exists",
+      "path": "src/modules/eval-harness/fixtures/decomposer-short-circuits-on-non-timeout/fixture.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": "src/modules/eval-harness/fixtures/decomposer-short-circuits-on-non-timeout/fixture.json",
+      "needle": "decomposer-short-circuits-on-non-timeout"
+    },
+    {
+      "kind": "file-exists",
+      "path": "src/modules/eval-harness/fixtures/decomposer-short-circuits-on-non-timeout/notes.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": "src/modules/eval-harness/fixtures/decomposer-short-circuits-on-non-timeout/initial/data/tasks/doing/task-fixture-decomposer-decision-seed.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "src/modules/eval-harness/fixtures/decomposer-short-circuits-on-non-timeout/initial/data/tasks/doing/task-fixture-decomposer-decision-seed.md",
+      "needle": "CANARY-LINE-decomposer-short-circuits-on-non-timeout-fixture-seed"
+    },
+    {
+      "kind": "file-exists",
+      "path": "src/modules/eval-harness/fixtures/decomposer-short-circuits-on-non-timeout/initial/.kota/runs/2026-04-24T12-00-00-000Z-builder-fxt001/metadata.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": "src/modules/eval-harness/fixtures/uncovered/notes.md",
+      "needle": "decomposer (agent-call path only)"
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-builder-agent-call-replay-2026-04-24/metadata.json",
+      "needle": "\"id\": \"build\",\n      \"type\": \"agent\",\n      \"status\": \"success\""
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-builder-agent-call-replay-2026-04-24/metadata.json",
+      "needle": "\"id\": \"commit\",\n      \"type\": \"code\",\n      \"status\": \"success\""
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-builder-agent-call-replay-2026-04-24/metadata.json",
+      "needle": "\"committed\": true"
+    }
+  ],
+  "tags": ["autonomy", "agent-call-replay"],
+  "provenance": {
+    "kind": "real-failure",
+    "sourceRunId": "2026-04-24T15-11-48-347Z-builder-gnt9c6"
+  }
+}

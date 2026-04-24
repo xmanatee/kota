@@ -137,6 +137,13 @@ and Bash mutations (task moves, task creates) are the fixture author's
 responsibility to encode as additional `fileOperations`, with the
 source run id kept pinned.
 
+Two prompt shapes route through the same adapter: workflow-step
+prompts keyed by the `Step:` marker, and judge prompts (today only the
+critic) keyed to the fixed id `critic-review`. Judge recordings skip
+the workflow-name match because their prompt never names a workflow;
+fixtures that drive a workflow through both surfaces ship one recording
+per surface.
+
 ## Boundaries
 
 - Scoring, fixture-run contract, runner, gate decisions, and the persisted

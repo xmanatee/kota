@@ -1,0 +1,6 @@
+.kota/
+node_modules/
+# Eval-harness fixtures legitimately seed prior run state; mirror the repo-
+# root unignore so agent mutations into nested fixture initial/.kota/ trees
+# are stageable under the replay.
+!src/modules/eval-harness/fixtures/**/initial/.kota/

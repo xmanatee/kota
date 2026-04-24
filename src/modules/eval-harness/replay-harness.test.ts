@@ -142,10 +142,25 @@ describe("createReplayAgentHarness", () => {
     }
   });
 
-  it("throws when the prompt does not declare Workflow/Step/Run directory", async () => {
+  it("throws when the prompt shape is not a recognized workflow-step or judge call", async () => {
     const harness = createReplayAgentHarness(fixtureDir);
     await expect(
       harness.run({ prompt: "no header here", cwd, effort: "xhigh" }),
+    ).rejects.toThrow(/does not recognize this agent-prompt shape/);
+  });
+
+  it("throws when a step prompt has the header but is missing one of the marker lines", async () => {
+    const harness = createReplayAgentHarness(fixtureDir);
+    await expect(
+      harness.run({
+        prompt: [
+          "Execute one KOTA workflow step in this repository.",
+          "Workflow: decomposer",
+          "Run directory: .kota/runs/replay-test-run",
+        ].join("\n"),
+        cwd,
+        effort: "xhigh",
+      }),
     ).rejects.toThrow(/could not parse Workflow\/Step\/Run directory/);
   });
 
@@ -160,7 +175,7 @@ describe("createReplayAgentHarness", () => {
     ).rejects.toThrow(/has no recording for step "unknown-step"/);
   });
 
-  it("throws when the recording's workflow name does not match the prompt", async () => {
+  it("throws when the recording's workflow name does not match the step prompt", async () => {
     const harness = createReplayAgentHarness(fixtureDir);
     const prompt = buildPrompt(".kota/runs/replay-test-run").replace(
       "Workflow: decomposer",
@@ -169,6 +184,92 @@ describe("createReplayAgentHarness", () => {
     await expect(
       harness.run({ prompt, cwd, effort: "xhigh" }),
     ).rejects.toThrow(/declares workflow "decomposer" but the current run is workflow "different-workflow"/);
+  });
+
+  it("replays a critic-style judge prompt against the critic-review recording", async () => {
+    const criticRecording: AgentStepRecording = {
+      version: 1,
+      workflowName: "builder",
+      stepId: "critic-review",
+      sourceRunId: "2026-04-18T15-45-49-339Z-decomposer-zloyo6",
+      response: {
+        text: JSON.stringify({
+          verdict: "pass",
+          critical_issues: [],
+          warnings: [],
+          summary: "Replay.",
+        }),
+        subtype: "success",
+        turns: 3,
+        totalCostUsd: 0.1,
+        inputTokens: 50,
+        outputTokens: 25,
+      },
+      fileOperations: [],
+    };
+    writeFileSync(
+      recordingPathForStep(fixtureDir, "critic-review"),
+      JSON.stringify(criticRecording),
+    );
+    const harness = createReplayAgentHarness(fixtureDir);
+    const judgePrompt = [
+      "## Task (what was asked)",
+      "seed task body",
+      "",
+      "## Task state",
+      "data/tasks/done/task-x.md (done)",
+      "",
+      "## Review context",
+      "Project root: /tmp/project",
+      "Run directory: .kota/runs/replay-test-run",
+      "",
+      "## Diff summary",
+      "one file",
+    ].join("\n");
+    const result = await harness.run({
+      prompt: judgePrompt,
+      cwd,
+      effort: "xhigh",
+    });
+    expect(result.isError).toBe(false);
+    expect(JSON.parse(result.text).verdict).toBe("pass");
+  });
+
+  it("skips the workflow-name match on judge prompts even when the recording declares a different workflow", async () => {
+    // Declaring a workflow name on judge recordings is allowed for
+    // traceability; the adapter does not enforce a match because the judge
+    // prompt shape never names a workflow. Recording declares "builder" while
+    // the fixture's other recording is "decomposer"; both coexist.
+    const criticRecording: AgentStepRecording = {
+      version: 1,
+      workflowName: "builder",
+      stepId: "critic-review",
+      sourceRunId: "2026-04-18T15-45-49-339Z-decomposer-zloyo6",
+      response: {
+        text: '{"verdict":"pass","critical_issues":[],"warnings":[],"summary":""}',
+        subtype: "success",
+        turns: 1,
+        totalCostUsd: 0,
+        inputTokens: 1,
+        outputTokens: 1,
+      },
+      fileOperations: [],
+    };
+    writeFileSync(
+      recordingPathForStep(fixtureDir, "critic-review"),
+      JSON.stringify(criticRecording),
+    );
+    const harness = createReplayAgentHarness(fixtureDir);
+    const judgePrompt = [
+      "## Task (what was asked)",
+      "body",
+      "",
+      "## Review context",
+      "Run directory: .kota/runs/replay-test-run",
+    ].join("\n");
+    await expect(
+      harness.run({ prompt: judgePrompt, cwd, effort: "xhigh" }),
+    ).resolves.toBeDefined();
   });
 });
 

@@ -55,57 +55,33 @@ The `triggerPayload` plumbing on `FixtureSpecFile` and
 newly buildable in principle. Each workflow below is still retired for
 a reason the predicate/payload changes do not resolve.
 
-- **decomposer (agent-call path)** — now covered by
-  `decomposer-agent-call-replay`. The recorded-agent-step replay surface
-  (see `src/modules/eval-harness/replay-harness.ts`) lets the fixture
-  exercise decomposer's `decompose` agent step end-to-end without
-  paying for a real LLM run. The fixture replays source run
-  `2026-04-18T15-45-49-339Z-decomposer-zloyo6`, materializes the
-  recorded post-agent state (task move, two ready-queue subtasks,
-  run-directory `commit-message.txt` and `notes.md`), stages the
-  mutations, and verifies the decomposer repair-loop checks, commit
-  step, and restart request all complete cleanly. The existing
-  `decomposer-short-circuits-on-non-timeout` smoke fixture still covers
-  the decision-gate branch that never invokes an agent call.
-- **builder (agent-call path)** — now covered by
-  `builder-agent-call-replay`. The replay adapter extended to recognize
-  the phase-2 critic-review judge prompt alongside the workflow-step
-  prompt, so one fixture replays both the `build` agent step and the
-  critic judge from one source run (`2026-04-24T15-11-48-347Z-builder-
-  gnt9c6`) without paying for any LLM. The fixture materializes the
-  full post-agent repo state (task move from `ready/` to `done/`, four
-  new files under `src/modules/eval-harness/fixtures/decomposer-short-
-  circuits-on-non-timeout/`, one edit to `uncovered/notes.md`, and the
-  three run-directory artifacts `success-criteria.txt`,
-  `success-criteria-verified.txt`, `commit-message.txt`), drives the
-  full builder repair loop to success (including the critic-review
-  repair check via the judge-prompt replay), and completes the commit
-  step plus restart request. The three existing live-LLM builder
-  fixtures (`builder-trivial-edit`, `builder-multi-point-wiring`,
-  `builder-resume-doing-task`) stay live because each encodes a
-  generator-quality failure mode replay cannot cover (smoke plumbing,
-  partial-wiring "missed one Done When", and the resume-doing-before-
-  pull-ready pickup discipline); a replay-backed fixture gates the
-  workflow-layer substrate, which is complementary, not overlapping.
+- **decomposer** — retired pending a bootstrap follow-up. 470 runs, all
+  status=success. The representative real-failure shape in
+  `2026-04-18T15-45-49-339Z-decomposer-zloyo6` is now expressible
+  (seed a fake failed-builder `.kota/runs/<id>/metadata.json`, seed
+  `doing/` + `ready/` task files, forward `{runDir, runId}` via
+  `triggerPayload`), but the `decompose` step is an agent call that
+  costs a real autonomous LLM run per fixture replay. Until the eval
+  harness grows an agent-step fake (or the fixture is reshaped to
+  short-circuit the agent step via the existing `shouldDecompose:
+  false` path), a decomposer fixture would dominate eval-set cost. A
+  dedicated follow-up task should scope the agent-step bootstrap
+  separately.
 - **improver** — retired. 153 success / 953 non-success runs with real
   failure shapes. The workflow reads the whole `.kota/runs/` aggregate
-  and edits KOTA source, prompts, and tests. The agent-step replay
-  adapter would cover the agent call itself, but a real fixture would
-  still need to materialize a realistic subset of the KOTA source tree
+  and edits KOTA source, prompts, and tests. A real fixture would still
+  need to materialize a realistic subset of the KOTA source tree
   (enough for `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test`,
   and `workflow validate` to succeed) plus a representative run-history
   sample. That bootstrap is an order of magnitude larger than any
   existing fixture's `initial/` tree and requires an explicit "clone
   from KOTA source" harness capability to stay honest about fixture
-  isolation; replay alone does not unblock improver.
+  isolation.
 - **research-retry** — retired. 56 runs, all status=success. The
   workflow retries blocked research tasks using authenticated-browser
   and rendered-browser tools contributed by the browser module. The
   harness subprocess runs with `HOME` remapped to the fixture working
   dir and no credentials, so the retry step cannot exercise the browser
-  path it exists to retry. The agent-step replay adapter records the
-  final response envelope and file mutations but does not stand in for
-  live browser-tool side effects; a real-failure fixture still needs a
-  browser-capability fake that mirrors the blocked-source shape, or a
-  module-loader stub at the fixture boundary. Replay alone does not
-  unblock research-retry.
+  path it exists to retry. A real-failure fixture needs a browser-
+  capability fake that mirrors the blocked-source shape, or a module-
+  loader stub at the fixture boundary. Neither is built yet.

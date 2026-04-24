@@ -1,12 +1,12 @@
 ---
 id: task-seed-builder-agent-call-replay-fixture-to-regressi
 title: Seed builder agent-call replay fixture to regression-gate workflow-layer paths cheaply
-status: ready
+status: done
 priority: p1
 area: modules
 summary: Extend the eval-harness agent-step replay adapter to the builder workflow: record a real past builder run and ship a replay fixture that regression-gates the repair-loop, commit-stageable, and serialization paths without paying for a live LLM on every eval-set invocation.
 created_at: 2026-04-24T19:32:25.408Z
-updated_at: 2026-04-24T19:32:25.408Z
+updated_at: 2026-04-24T19:58:22.934Z
 ---
 
 ## Problem

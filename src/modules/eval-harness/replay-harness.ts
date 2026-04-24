@@ -31,30 +31,64 @@ import {
 
 export const REPLAY_AGENT_HARNESS_NAME_ENV = "KOTA_EVAL_HARNESS_REPLAY_ROOT";
 
-type ParsedPromptContext = {
-  workflow: string;
-  stepId: string;
-  runDir: string;
-};
+/**
+ * Recording-key discriminator.
+ *
+ * KOTA issues two shapes of agent call through `claude-agent-sdk`: workflow
+ * step executions (generator path) and workflow judge calls (evaluator path,
+ * today only `createCriticCheck`). Each shape has a stable prompt fingerprint
+ * the adapter uses to pick the right recording without coupling to a private
+ * systemPrompt constant:
+ *
+ *  - **step**: prompt built by `buildAgentPrompt` in
+ *    `src/core/workflow/steps/step-executor-agent.ts`; starts with the fixed
+ *    header and declares `Workflow:`, `Step:`, `Run directory:`.
+ *  - **judge**: prompt built by `createCriticCheck` in
+ *    `src/modules/autonomy/critic.ts`; starts with `## Task (what was asked)`
+ *    and declares `Run directory:` inside a `## Review context` block. The
+ *    recording key is the judge's repair-check id (`critic-review`).
+ */
+type ParsedPromptContext =
+  | { kind: "step"; workflow: string; stepId: string; runDir: string }
+  | { kind: "judge"; stepId: string; runDir: string };
+
+const STEP_PROMPT_HEADER =
+  "Execute one KOTA workflow step in this repository.";
+const JUDGE_PROMPT_HEADER = "## Task (what was asked)";
+const CRITIC_RECORDING_ID = "critic-review";
 
 /**
- * Extract the workflow name, step id, and run directory the agent-step
- * executor embedded in the prompt. These are the only fields the replay
- * adapter needs to pick a recording and substitute path placeholders. The
- * prompt layout is stable; see `buildAgentPrompt` in
- * `src/core/workflow/steps/step-executor-agent.ts`.
+ * Identify which recording a prompt should replay. Step prompts are keyed by
+ * the explicit `Step:` line; judge prompts map to their repair-check id so
+ * each fixture stores at most one recording per agent call it replays.
  */
 function parsePromptContext(prompt: string): ParsedPromptContext {
-  const workflow = /^Workflow:\s*(.+)$/m.exec(prompt)?.[1]?.trim();
-  const stepId = /^Step:\s*(.+)$/m.exec(prompt)?.[1]?.trim();
-  const runDir = /^Run directory:\s*(.+)$/m.exec(prompt)?.[1]?.trim();
-  if (!workflow || !stepId || !runDir) {
-    const preview = prompt.slice(0, 400);
-    throw new Error(
-      `eval-harness replay adapter could not parse Workflow/Step/Run directory from the agent prompt (first 400 chars: ${JSON.stringify(preview)}); the prompt shape built by step-executor-agent.ts is load-bearing for replay. This typically means the decompose step invoked a repair-loop retry; fix the underlying repair check so the first replay call is sufficient.`,
-    );
+  if (prompt.startsWith(STEP_PROMPT_HEADER)) {
+    const workflow = /^Workflow:\s*(.+)$/m.exec(prompt)?.[1]?.trim();
+    const stepId = /^Step:\s*(.+)$/m.exec(prompt)?.[1]?.trim();
+    const runDir = /^Run directory:\s*(.+)$/m.exec(prompt)?.[1]?.trim();
+    if (!workflow || !stepId || !runDir) {
+      const preview = prompt.slice(0, 400);
+      throw new Error(
+        `eval-harness replay adapter could not parse Workflow/Step/Run directory from the agent prompt (first 400 chars: ${JSON.stringify(preview)}); the prompt shape built by step-executor-agent.ts is load-bearing for replay. This typically means the step invoked a repair-loop retry; fix the underlying repair check so the first replay call is sufficient.`,
+      );
+    }
+    return { kind: "step", workflow, stepId, runDir };
   }
-  return { workflow, stepId, runDir };
+  if (prompt.trimStart().startsWith(JUDGE_PROMPT_HEADER)) {
+    const runDir = /^Run directory:\s*(.+)$/m.exec(prompt)?.[1]?.trim();
+    if (!runDir) {
+      const preview = prompt.slice(0, 400);
+      throw new Error(
+        `eval-harness replay adapter detected a critic prompt without a "Run directory:" line (first 400 chars: ${JSON.stringify(preview)}); the critic user-message shape built in src/modules/autonomy/critic.ts is load-bearing for replay.`,
+      );
+    }
+    return { kind: "judge", stepId: CRITIC_RECORDING_ID, runDir };
+  }
+  const preview = prompt.slice(0, 400);
+  throw new Error(
+    `eval-harness replay adapter does not recognize this agent-prompt shape (first 400 chars: ${JSON.stringify(preview)}). Known shapes: workflow-step prompts built by buildAgentPrompt (leading with "${STEP_PROMPT_HEADER}"), and workflow-judge prompts built by createCriticCheck (leading with "${JUDGE_PROMPT_HEADER}").`,
+  );
 }
 
 function substituteRunDir(path: string, runDir: string): string {
@@ -138,7 +172,11 @@ export function createReplayAgentHarness(recordingsRoot: string): AgentHarness {
           `eval-harness replay adapter has no recording for step ${JSON.stringify(context.stepId)}; expected "${join(recordingsRoot, "recordings", `${context.stepId}.json`)}".`,
         );
       }
-      if (recording.workflowName !== context.workflow) {
+      // Workflow-step calls carry the workflow name in their prompt header and
+      // must match the recording's declared workflow; judge calls never name a
+      // workflow in their user message, so the recording's workflowName on
+      // those is advisory (traceability only) and is not used for dispatch.
+      if (context.kind === "step" && recording.workflowName !== context.workflow) {
         throw new Error(
           `eval-harness replay adapter recording for step ${JSON.stringify(context.stepId)} declares workflow ${JSON.stringify(recording.workflowName)} but the current run is workflow ${JSON.stringify(context.workflow)}.`,
         );
