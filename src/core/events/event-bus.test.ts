@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  type BusEvents,
   EventBus,
   getEventBus,
   initEventBus,
@@ -196,6 +197,36 @@ describe("EventBus", () => {
 
       bus.clear();
       expect(bus.listenerCount()).toBe(0);
+    });
+  });
+
+  describe("custom events", () => {
+    it("supports custom string event names outside the BusEvents map", () => {
+      const bus = new EventBus();
+      const handler = vi.fn();
+      bus.on("custom.event", handler);
+      bus.emit("custom.event", { foo: "bar" });
+      expect(handler).toHaveBeenCalledWith({ foo: "bar" });
+    });
+  });
+
+  describe("handler errors", () => {
+    it("propagates synchronous handler errors out of emit", () => {
+      const bus = new EventBus();
+      const h1 = vi.fn(() => {
+        throw new Error("boom");
+      });
+      const h2 = vi.fn();
+      bus.on(
+        "runtime.idle",
+        h1 as BusEvents["runtime.idle"] extends infer T
+          ? (payload: T) => void
+          : never,
+      );
+      bus.on("runtime.idle", h2);
+      expect(() =>
+        bus.emit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 }),
+      ).toThrow("boom");
     });
   });
 });

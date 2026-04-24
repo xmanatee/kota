@@ -17,7 +17,7 @@ This directory contains the project-owned modules.
   that module in the `dependencies` array of the KotaModule definition. The
   loader uses declared dependencies for load ordering and unload safety.
   Type-only imports (`import type`) do not need a declared dependency.
-  `src/module-deps.test.ts` enforces this.
+  `src/core/modules/module-deps.test.ts` enforces this.
 - When adding or modifying a notification channel module, keep the module's
   local `AGENTS.md`, config type, and focused tests aligned. Exact event names,
   payload fields, and subscription lists belong in code and tests, not a shared
