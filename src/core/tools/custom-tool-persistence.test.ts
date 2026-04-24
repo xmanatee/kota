@@ -200,7 +200,6 @@ describe("saveToDisk", () => {
       parameters: { type: "object", properties: {} },
       code: "print('hi')",
       language: "python",
-      timeoutMs: 30000,
     });
     expect(existsSync(join(testRoot, ".kota", "tools"))).toBe(true);
   });
@@ -212,7 +211,6 @@ describe("saveToDisk", () => {
       parameters: { type: "object", properties: { x: { type: "string" } } },
       code: "print(params['x'])",
       language: "python" as const,
-      timeoutMs: 5000,
     };
     saveToDisk(def);
 
@@ -227,21 +225,6 @@ describe("saveToDisk", () => {
     expect(saved.parameters).toEqual(def.parameters);
   });
 
-  it("does not persist timeoutMs in the saved file", () => {
-    saveToDisk({
-      name: "no_timeout",
-      description: "No timeout",
-      parameters: { type: "object", properties: {} },
-      code: "print('x')",
-      language: "node",
-      timeoutMs: 99999,
-    });
-
-    const filePath = join(testRoot, ".kota", "tools", "no_timeout.json");
-    const saved = JSON.parse(readFileSync(filePath, "utf8"));
-    expect(saved.timeoutMs).toBeUndefined();
-  });
-
   it("overwrites an existing tool file", () => {
     const base = {
       name: "overwrite_me",
@@ -249,7 +232,6 @@ describe("saveToDisk", () => {
       parameters: { type: "object", properties: {} },
       code: "print('v1')",
       language: "python" as const,
-      timeoutMs: 5000,
     };
     saveToDisk(base);
     saveToDisk({ ...base, description: "v2", code: "print('v2')" });

@@ -9,7 +9,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { KotaTool, KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
-import { DEFAULT_TIMEOUT } from "#modules/execution/code-wrappers.js";
 import { buildRunner, handleCreate, handleList, handleRemove, type ToolResult } from "./custom-tool-handlers.js";
 import {
   type CustomToolDef,
@@ -125,7 +124,6 @@ export function loadSavedTools(): number {
         parameters: normalizeSchema(raw.parameters) as Record<string, unknown>,
         code: raw.code,
         language: raw.language === "node" ? "node" : "python",
-        timeoutMs: DEFAULT_TIMEOUT,
       };
 
       if (typeof def.parameters === "string") continue;

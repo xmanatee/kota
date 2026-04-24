@@ -1,14 +1,13 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Language } from "#modules/execution/repl-session.js";
+import type { CodeLanguage } from "#core/tools/code-runner.js";
 
 export type CustomToolDef = {
   name: string;
   description: string;
   parameters: Record<string, unknown>;
   code: string;
-  language: Language;
-  timeoutMs: number;
+  language: CodeLanguage;
 };
 
 export const MAX_CUSTOM_TOOLS = 20;

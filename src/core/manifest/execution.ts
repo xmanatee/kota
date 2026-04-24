@@ -4,9 +4,7 @@
 
 import type { KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
-import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "#modules/execution/code-wrappers.js";
-import type { Language } from "#modules/execution/repl-session.js";
-import { sessions } from "#modules/execution/repl-session.js";
+import { type CodeLanguage, runCode } from "#core/tools/code-runner.js";
 import type { ManifestToolDef, ModuleManifest } from "./types.js";
 
 // ─── Tool runner builder ─────────────────────────────────────────────
@@ -14,28 +12,10 @@ import type { ManifestToolDef, ModuleManifest } from "./types.js";
 function buildToolRunner(
 	toolDef: ManifestToolDef,
 ): (input: Record<string, unknown>) => Promise<{ content: string; is_error?: boolean }> {
-	const lang: Language = toolDef.language || "python";
+	const lang: CodeLanguage = toolDef.language || "python";
 	return async (input) => {
-		const paramsJson = JSON.stringify(input);
-		const b64 = Buffer.from(paramsJson).toString("base64");
-
-		const wrapper =
-			lang === "python"
-				? `import json as __j, base64 as __b\nparams = __j.loads(__b.b64decode('${b64}').decode())\n${toolDef.code}`
-				: `const params = JSON.parse(Buffer.from('${b64}','base64').toString());\n${toolDef.code}`;
-
-		const session = sessions[lang];
-		const { output, isError } = await session.execute(
-			wrapper,
-			DEFAULT_TIMEOUT,
-		);
-
-		const truncated =
-			output.length > MAX_OUTPUT
-				? `${output.slice(0, MAX_OUTPUT)}\n[truncated — ${output.length} chars total]`
-				: output;
-
-		return { content: truncated, is_error: isError };
+		const { output, isError } = await runCode(lang, toolDef.code, input);
+		return { content: output, is_error: isError };
 	};
 }
 

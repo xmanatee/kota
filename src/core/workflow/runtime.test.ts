@@ -13,7 +13,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { clearCustomTools, registerTool } from "#core/tools/index.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
-import { runShell, shellTool } from "#modules/execution/shell.js";
 import { WorkflowRunStore } from "./run-store.js";
 import { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE, RELOAD_SIGNAL_FILE, WorkflowRuntime } from "./runtime.js";
 import { registerWorkflowDefinition, validateWorkflowDefinitions } from "./validation.js";
@@ -515,8 +514,17 @@ describe("WorkflowRuntime", () => {
   });
 
   it("supports code steps that call KOTA tools before agent steps", async () => {
-    // Register the shell tool from the execution module (normally loaded by project modules)
-    registerTool(shellTool, runShell, "execution");
+    // Register a minimal fake tool to exercise runTool() from a code step.
+    // Integration with real module tools is covered by module-owned tests.
+    registerTool(
+      {
+        name: "fake_probe",
+        description: "Test-only probe that returns a fixed string",
+        input_schema: { type: "object" as const, properties: {} },
+      },
+      async () => ({ content: "ready" }),
+      "fake-module",
+    );
 
     writeFileSync(
       join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
@@ -545,9 +553,7 @@ describe("WorkflowRuntime", () => {
               id: "prep",
               type: "code",
               run: async ({ runTool }) => {
-                const result = await runTool("shell", {
-                  command: "printf ready",
-                });
+                const result = await runTool("fake_probe", {});
                 return { note: result.content.trim() };
               },
             },

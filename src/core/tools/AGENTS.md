@@ -90,3 +90,24 @@ ingested payloads. Mode changes flow only through the operator control path
 - Guardrails: `guardrails.ts`, `guardrails-classify.ts`, `audit-store.ts` —
   risk classification and audit trail.
 
+## Code-runner protocol
+
+Custom tools and manifest-defined tools execute agent-authored Python or
+Node.js code. Core owns the declarative surface (schema, validation,
+persistence, manifest → `KotaModule` conversion) but does not depend on any
+executor module. `code-runner.ts` defines the neutral `CodeRunner` protocol;
+executor modules (today: `execution`) register runners at load via
+`registerCodeRunner` and deregister on unload. Core callers invoke
+`runCode(language, code, params, timeoutMs?)` — parameter wrapping, default
+timeout, and output truncation are the runner's responsibility.
+
+Zero registered runners is a tolerated state: `runCode` returns a loud error
+result at invocation time (`No code runner registered for language "<lang>".
+…`). Custom tool creation and manifest module loading remain no-ops with
+respect to execution.
+
+No file under `src/core/` may import from `#modules/execution/...` — not
+production code, not tests. The guard in
+`src/core/modules/no-execution-module-imports-in-core.test.ts` enforces
+this at every commit.
+

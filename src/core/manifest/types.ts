@@ -2,14 +2,14 @@
  * Manifest type definitions — declarative JSON schema for agent-authored modules.
  */
 
-import type { Language } from "#modules/execution/repl-session.js";
+import type { CodeLanguage } from "#core/tools/code-runner.js";
 
 export type ManifestToolDef = {
 	name: string;
 	description: string;
 	parameters?: Record<string, unknown>;
 	code: string;
-	language?: Language;
+	language?: CodeLanguage;
 	group?: string;
 };
 

@@ -1,12 +1,12 @@
 ---
 id: task-eliminate-remaining-core-to-execution-module-impor
 title: Eliminate remaining core to execution-module imports
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Remove #modules/execution imports from core/ by moving custom-tool and manifest code-execution out of core; core must not depend on any module at runtime.
 created_at: 2026-04-24T08:06:39.554Z
-updated_at: 2026-04-24T08:06:39.554Z
+updated_at: 2026-04-24T08:20:56.633Z
 ---
 
 ## Problem

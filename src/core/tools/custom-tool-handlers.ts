@@ -5,8 +5,7 @@
 
 import { existsSync, unlinkSync } from "node:fs";
 import type { KotaTool, KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
-import { DEFAULT_TIMEOUT, MAX_OUTPUT } from "#modules/execution/code-wrappers.js";
-import { sessions } from "#modules/execution/repl-session.js";
+import { runCode } from "#core/tools/code-runner.js";
 import {
   type CustomToolDef,
   getToolPath,
@@ -57,7 +56,7 @@ export function handleCreate(
     customDefs.delete(name);
   }
 
-  const def: CustomToolDef = { name, description, parameters, code, language, timeoutMs: DEFAULT_TIMEOUT };
+  const def: CustomToolDef = { name, description, parameters, code, language };
 
   const toolDef: KotaTool = {
     name,
@@ -124,20 +123,7 @@ export function handleRemove(
 
 export function buildRunner(def: CustomToolDef): (input: Record<string, unknown>) => Promise<ToolResult> {
   return async (input) => {
-    const paramsJson = JSON.stringify(input);
-    const b64 = Buffer.from(paramsJson).toString("base64");
-
-    const wrapper = def.language === "python"
-      ? `import json as __j, base64 as __b\nparams = __j.loads(__b.b64decode('${b64}').decode())\n${def.code}`
-      : `const params = JSON.parse(Buffer.from('${b64}','base64').toString());\n${def.code}`;
-
-    const session = sessions[def.language];
-    const { output, isError } = await session.execute(wrapper, def.timeoutMs);
-
-    const truncated = output.length > MAX_OUTPUT
-      ? `${output.slice(0, MAX_OUTPUT)}\n[truncated — ${output.length} chars total]`
-      : output;
-
-    return { content: truncated, is_error: isError };
+    const { output, isError } = await runCode(def.language, def.code, input);
+    return { content: output, is_error: isError };
   };
 }

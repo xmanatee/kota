@@ -2,7 +2,6 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { cleanupSessions } from "#modules/execution/repl-session.js";
 import {
   getCustomToolCount,
   loadSavedTools,
@@ -431,105 +430,19 @@ describe("resetCustomTools", () => {
   });
 });
 
-describe("custom tool execution (integration)", () => {
-  afterAll(() => {
-    cleanupSessions();
-  });
-
-  it("executes a Python custom tool", async () => {
+describe("custom tool execution without a registered runner", () => {
+  it("returns a loud error result instead of executing", async () => {
     await runCustomTool({
       action: "create",
-      name: "add_numbers",
-      description: "Add two numbers",
-      parameters: {
-        type: "object",
-        properties: {
-          a: { type: "number" },
-          b: { type: "number" },
-        },
-      },
-      code: "print(params['a'] + params['b'])",
+      name: "no_runner_available",
+      description: "Should fail at invocation",
+      code: "print('never runs')",
       language: "python",
     });
 
-    const result = await executeTool("add_numbers", { a: 3, b: 7 });
-    expect(result.is_error).toBeFalsy();
-    expect(result.content).toContain("10");
-  });
-
-  it("executes a Node.js custom tool", async () => {
-    await runCustomTool({
-      action: "create",
-      name: "reverse_string",
-      description: "Reverse a string",
-      parameters: {
-        type: "object",
-        properties: { text: { type: "string" } },
-      },
-      code: "console.log(params.text.split('').reverse().join(''))",
-      language: "node",
-    });
-
-    const result = await executeTool("reverse_string", { text: "hello" });
-    expect(result.is_error).toBeFalsy();
-    expect(result.content).toContain("olleh");
-  });
-
-  it("handles errors in custom tool code gracefully", async () => {
-    await runCustomTool({
-      action: "create",
-      name: "will_fail",
-      description: "This will error",
-      code: "raise ValueError('intentional error')",
-      language: "python",
-    });
-
-    const result = await executeTool("will_fail", {});
-    expect(result.content).toContain("ValueError");
-    expect(result.content).toContain("intentional error");
-  });
-
-  it("passes complex parameters correctly", async () => {
-    await runCustomTool({
-      action: "create",
-      name: "format_data",
-      description: "Format structured data",
-      parameters: {
-        type: "object",
-        properties: {
-          items: { type: "array" },
-          separator: { type: "string" },
-        },
-      },
-      code: "print(params['separator'].join(str(x) for x in params['items']))",
-      language: "python",
-    });
-
-    const result = await executeTool("format_data", {
-      items: [1, 2, 3],
-      separator: " | ",
-    });
-    expect(result.is_error).toBeFalsy();
-    expect(result.content).toContain("1 | 2 | 3");
-  });
-
-  it("handles params with special characters", async () => {
-    await runCustomTool({
-      action: "create",
-      name: "echo_special",
-      description: "Echo text with special chars",
-      parameters: {
-        type: "object",
-        properties: { text: { type: "string" } },
-      },
-      code: "print(params['text'])",
-      language: "python",
-    });
-
-    const result = await executeTool("echo_special", {
-      text: "Hello 'world' \"test\" \n newline & special <chars>",
-    });
-    expect(result.is_error).toBeFalsy();
-    expect(result.content).toContain("Hello 'world'");
+    const result = await executeTool("no_runner_available", {});
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("No code runner registered");
+    expect(result.content).toContain("python");
   });
 });
