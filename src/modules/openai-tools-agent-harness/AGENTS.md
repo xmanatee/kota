@@ -6,6 +6,9 @@ tool-calling loop driven by any OpenAI-compatible ModelClient
 via `KotaConfig.defaultAgentHarness: "openai-tools"`, per-step `harness`,
 or the `--harness openai-tools` CLI flag.
 
+This module owns the `KotaTool` ↔ OpenAI-tools native-loop tool-definition
+translation at the adapter seam (see `src/core/agent-harness/AGENTS.md`).
+
 ## Supported Providers
 
 The adapter inherits provider coverage from `model-clients`. Any

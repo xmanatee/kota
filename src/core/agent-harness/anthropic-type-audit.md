@@ -15,8 +15,8 @@ core contract forces a conversion at that seam.
 
 ## Import inventory
 
-The inventory below captures the Stage-0 state. Stages 1, 2, 3, 4, and 5
-have landed — `Anthropic.Tool.InputSchema`, `Anthropic.Tool`,
+The inventory below captures the Stage-0 state. Stages 1, 2, 3, 4, 5,
+and 6 have landed — `Anthropic.Tool.InputSchema`, `Anthropic.Tool`,
 `Anthropic.Messages.ThinkingConfigParam`, every internal
 message/content-block shape (`Anthropic.MessageParam`,
 `Anthropic.Messages.ContentBlockParam`, `Anthropic.Messages.TextBlockParam`,
@@ -26,9 +26,9 @@ message/content-block shape (`Anthropic.MessageParam`,
 `model-client.ts` `MessageStream` / `ModelClient.create`) are no longer
 referenced by any file under `src/core/`. Every row in the table below
 therefore no longer holds; they remain for historical reference. No file
-under `src/core/` imports from `@anthropic-ai/sdk`. Stage 6 adds the
-import guard and the documentation refresh that promote the claim to an
-enforced invariant.
+under `src/core/` imports from `@anthropic-ai/sdk`, and
+`no-anthropic-imports-in-core.test.ts` enforces that invariant
+mechanically.
 
 38 files under `src/core/` originally imported `type Anthropic from "@anthropic-ai/sdk"`:
 
@@ -351,21 +351,24 @@ After this stage, role (4) is gone from core and
 that imports `@anthropic-ai/sdk` to satisfy a core contract. Stage 6
 promotes this invariant to an enforced import guard.
 
-### Stage 6 — enforce and document
+### Stage 6 — enforce and document (landed)
 
-Once stages 1-5 land:
-
-- Add a `no-anthropic-imports-in-core.test.ts` under
-  `src/core/agent-harness/` that walks `src/core/**/*.ts` and asserts no
-  `@anthropic-ai/sdk` import remains. This replaces the soft boundary claim
-  with a loud failure mode, the same pattern other core boundaries use.
-- Update `src/core/agent-harness/AGENTS.md` to state the stronger claim:
-  *nothing in core treats Anthropic's SDK type surface as its internal
-  protocol*, and cross-reference this audit.
-- Add short sections in
-  `src/modules/{claude-agent-harness,model-clients/anthropic,model-clients/openai,openai-tools-agent-harness,thin-agent-harness,mcp-server}/AGENTS.md`
-  noting the translation responsibility at each adapter seam (one sentence per
-  module).
+`no-anthropic-imports-in-core.test.ts` under `src/core/agent-harness/`
+walks `src/core/**/*.ts` and fails the suite if any file imports,
+side-effect imports, dynamically imports, `require`s, `vi.mock`s, or
+re-exports from `@anthropic-ai/sdk`. There is no allowlist — a future
+core contract that legitimately needs a provider-specific shape widens
+the neutral protocol or pushes translation into an adapter module.
+`src/core/agent-harness/AGENTS.md` states the stronger post-Stage-5
+claim (*nothing in core treats the Anthropic SDK type surface as its
+internal protocol*) and cross-references this audit. Each translating
+module (`claude-agent-harness`, `model-clients` + `model-clients/openai`,
+`openai-tools-agent-harness`, `thin-agent-harness`, `mcp-server`) names
+its adapter-seam translation responsibility in one sentence in its
+local `AGENTS.md`. The stale `vi.mock("@anthropic-ai/sdk", ...)` block
+in `src/core/tools/autonomy-mode-boundary.integration.test.ts` was
+removed alongside the guard — the surrounding `createModelClient` and
+`streamMessage` mocks already kept the SDK module unreachable.
 
 ## Fixture-churn containment
 
@@ -386,9 +389,9 @@ Module-side fixtures that still target the Anthropic wire
 
 ## Follow-up tasks
 
-Stages 1, 2, 3, 4, and 5 have landed. Explorer can seed the remaining stage:
-
-1. **Enforce the neutral-protocol boundary in core with an import guard** —
-   implements Stage 6. Scope: the `no-anthropic-imports-in-core` test, the
-   `src/core/agent-harness/AGENTS.md` upgrade, and the one-line adapter-seam
-   statements in module-side `AGENTS.md`.
+Stages 1-6 have landed. The audit is complete; this file remains as the
+historical record of the migration. Future work that would cross the
+boundary (new reasoning/thinking shapes, new content-block variants,
+new streaming event kinds) should widen the KOTA-owned neutral protocol
+in `src/core/agent-harness/message-protocol.ts` and push translation
+into the adapter modules named in Stage 6.

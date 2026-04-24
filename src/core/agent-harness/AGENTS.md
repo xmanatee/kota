@@ -108,22 +108,23 @@ normalizes into — `AgentMessage` (with variants `AgentAssistantMessage`,
 `AgentEffort`, `AgentMcpServerConfig` (`stdio | sse | http`; non-claude
 adapters reject non-empty `mcpServers` at the boundary), and
 `AgentCanUseTool` / `AgentPermissionResult` (structurally aligned with
-the Claude SDK so guards flow through with one cast). These shapes
-originated with the Claude Agent SDK but the protocol treats them as
-neutral; nothing in core imports the claude-agent-sdk package.
-Harness-specific in-process MCP hosting (the claude-only `sdk` variant)
-stays inside the owning adapter.
+the Claude SDK so guards flow through with one cast). The protocol
+treats these as neutral; nothing in core imports the claude-agent-sdk
+package. Harness-specific in-process MCP hosting (the claude-only
+`sdk` variant) stays inside the owning adapter.
 
 Claude-SDK-specific query shapes (`SDKQueryOptions`, `SDKSystemPrompt`,
 `SDKThinkingConfig`, `SDKQueryParams`, `SDKQueryFn`, `SDKModule`), the
 executor primitive, and the owner-questions MCP bridge live in
 `src/modules/claude-agent-harness/`.
 
-The target is stronger than "core doesn't import the claude-agent-
+The invariant is stronger than "core doesn't import the claude-agent-
 sdk": *nothing in core treats the Anthropic SDK type surface as its
-internal protocol*. Tool shapes are now `KotaTool` /
-`KotaToolInputSchema` in `message-protocol.ts`; message/thinking
-shapes follow in later stages. See `anthropic-type-audit.md`.
+internal protocol*. Every tool, message, block, thinking config, and
+model response on a core interface is a KOTA-owned neutral type from
+`message-protocol.ts`; adapter modules translate at their seam.
+`no-anthropic-imports-in-core.test.ts` enforces this mechanically. See
+`anthropic-type-audit.md` for the historical record.
 
 ## Per-step harness-specific options
 

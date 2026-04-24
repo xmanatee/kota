@@ -1,12 +1,12 @@
 ---
 id: task-enforce-the-neutral-protocol-boundary-in-core-with
 title: Enforce the neutral-protocol boundary in core with an import guard (Stage 6)
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Implement Stage 6 of the Anthropic SDK type-surface audit: add no-anthropic-imports-in-core guard, upgrade src/core/agent-harness/AGENTS.md to the stronger claim, and add one-line adapter-seam notes to each translating module's AGENTS.md.
 created_at: 2026-04-24T06:57:19.793Z
-updated_at: 2026-04-24T06:57:19.793Z
+updated_at: 2026-04-24T07:08:02.154Z
 ---
 
 ## Problem

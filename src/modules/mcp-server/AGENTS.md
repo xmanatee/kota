@@ -15,3 +15,5 @@ the Model Context Protocol over stdio.
 - Exact MCP method names, resource identifiers, prompt names, capability
   flags, and payload shapes belong in source and protocol tests, not in
   durable prose.
+- This module owns the `KotaTool` ↔ MCP tool-definition translation at the
+  adapter seam (see `src/core/agent-harness/AGENTS.md`).

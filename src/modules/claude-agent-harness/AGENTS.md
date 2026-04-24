@@ -7,6 +7,8 @@ questions MCP bridge (`kota-tools-mcp.ts`), the claude-shaped query/option
 declarations (`sdk-types.ts` — `SDKQueryOptions`, `SDKSystemPrompt`,
 `SDKThinkingConfig`, `SDKQueryParams`, `SDKQueryFn`, `SDKModule`), and the
 adapter that translates neutral `AgentHarnessRunOptions` into SDK wire shape.
+This module owns the `KotaTool` ↔ claude-agent-sdk tool-definition
+translation at the native-loop seam (see `src/core/agent-harness/AGENTS.md`).
 The harness-neutral wire-frame declarations (`AgentMessage`,
 `AgentPermissionMode`, `AgentSettingSource`) live in
 `src/core/agent-harness/types.ts` because the workflow runtime consumes them

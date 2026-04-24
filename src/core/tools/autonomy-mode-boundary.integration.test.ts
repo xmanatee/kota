@@ -48,11 +48,6 @@ const {
   ),
 }));
 
-vi.mock("@anthropic-ai/sdk", () => ({
-  default: class MockAnthropic {
-    messages = { stream: vi.fn() };
-  },
-}));
 vi.mock("#core/model/model-client.js", () => ({
   createModelClient: vi.fn(() => ({
     client: { messages: { stream: vi.fn(), create: vi.fn() } },

@@ -7,6 +7,8 @@ completion loop that uses the core ModelClient registry.
   Operators can select it when they want a claude-agent-sdk-free path against
   any provider the model-clients module ships (Anthropic, OpenAI, Ollama,
   Groq, Together, LM Studio, etc.).
+- The thin harness runs no tool loop, so there is no `KotaTool` translation
+  seam in this module (see `src/core/agent-harness/AGENTS.md`).
 - Guardrail options (canUseTool, mcpServers, allowedTools, disallowedTools)
   are rejected at the boundary. The harness has no tool surface to guard, so
   silently ignoring them would violate the guardrails-always-apply contract.
