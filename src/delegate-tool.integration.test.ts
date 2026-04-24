@@ -2,9 +2,9 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { runDelegate, setDelegateConfig } from "#core/tools/delegate.js";
+import { setPromptResolver } from "#core/tools/delegate-config.js";
 import { PromptStore } from "#modules/prompt-templates/prompt-template.js";
-import { runDelegate, setDelegateConfig } from "./delegate.js";
-import { setPromptResolver } from "./delegate-config.js";
 
 vi.mock("#core/model/model-client.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("#core/model/model-client.js")>();
@@ -23,9 +23,16 @@ vi.mock("#core/model/model-client.js", async (importOriginal) => {
   };
 });
 
-import type { DelegateMetadata } from "./delegate-format.js";
-import { assembleDelegateResult, buildDelegateResult, buildSourcesSection, collectImageBlocks, extractModifiedFiles, formatMetadata } from "./delegate-format.js";
-import type { ToolResultBlock } from "./index.js";
+import type { DelegateMetadata } from "#core/tools/delegate-format.js";
+import {
+  assembleDelegateResult,
+  buildDelegateResult,
+  buildSourcesSection,
+  collectImageBlocks,
+  extractModifiedFiles,
+  formatMetadata,
+} from "#core/tools/delegate-format.js";
+import type { ToolResultBlock } from "#core/tools/index.js";
 
 describe("runDelegate input validation", () => {
   it("rejects missing task", async () => {

@@ -24,9 +24,9 @@ import type {
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
 import type { ReplChrome } from "#core/modules/provider-types.js";
+import { composeTranscriptPrompt, runHarnessRepl } from "#core/repl/index.js";
 import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
 import { thinAgentHarness } from "#modules/thin-agent-harness/adapter.js";
-import { composeTranscriptPrompt, runHarnessRepl } from "./harness-repl.js";
 
 function makeInput(lines: string[]): Readable {
   return Readable.from(lines.map((l) => `${l}\n`));

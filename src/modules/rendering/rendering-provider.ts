@@ -1,10 +1,11 @@
 /**
  * Rendering provider — the module-owned default implementation of
  * `RenderingProvider`. Core resolves operator-facing surfaces through
- * the provider registry (see
- * `src/core/modules/no-rendering-imports-in-core.test.ts`); this file
- * is the concrete binding between that seam and the rendering
- * primitives and transport.
+ * the provider registry; the repo-wide guard at
+ * `src/core/agent-harness/no-module-imports-in-core.test.ts` keeps core
+ * from reaching into `#modules/rendering/*` directly. This file is the
+ * concrete binding between that seam and the rendering primitives and
+ * transport.
  */
 
 import type { Transport } from "#core/loop/transport.js";

@@ -6,14 +6,14 @@
  * the actual integration boundary between these two modules.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getToolMiddleware, resetToolMiddleware } from "#core/tools/tool-middleware.js";
+import { executeToolCalls } from "#core/tools/tool-runner.js";
 import { createRetryMiddleware, resetRetryStats } from "#modules/tool-retry/tool-retry.js";
-import { getToolMiddleware, resetToolMiddleware } from "./tool-middleware.js";
-import { executeToolCalls } from "./tool-runner.js";
 
 // Mock executeTool and truncateToolResult, but NOT tool-retry.
 // Autonomy-mode gating calls `assess()` → `classifyRisk()` → `getCoreRegistrations()`,
 // so the registrations list must come through real.
-vi.mock(import("./index.js"), async (importOriginal) => {
+vi.mock(import("#core/tools/index.js"), async (importOriginal) => {
   const actual = await importOriginal();
   return { ...actual, executeTool: vi.fn() };
 });
@@ -21,7 +21,7 @@ vi.mock("#core/loop/context.js", () => ({
   truncateToolResult: vi.fn((text: string) => text),
 }));
 
-import { executeTool } from "./index.js";
+import { executeTool } from "#core/tools/index.js";
 
 const mockExecuteTool = vi.mocked(executeTool);
 

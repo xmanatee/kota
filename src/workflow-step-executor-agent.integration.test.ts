@@ -21,7 +21,9 @@ vi.mock("#core/events/event-bus.js", () => ({ tryEmit: tryEmitMock }));
 
 const executeWithAgentSDKMock = vi.hoisted(() => vi.fn());
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
-  const actual = await vi.importActual("../../../modules/claude-agent-harness/executor.js");
+  const actual = await vi.importActual<typeof import("#modules/claude-agent-harness/executor.js")>(
+    "#modules/claude-agent-harness/executor.js",
+  );
   return {
     ...actual,
     executeWithAgentSDK: executeWithAgentSDKMock,
@@ -37,11 +39,11 @@ vi.mock("#core/loop/system-prompt.js", () => ({
 // and the adapter still routes through the mocked executeWithAgentSDK.
 import "#modules/claude-agent-harness/index.js";
 
-import type { WorkflowRunMetadata } from "../run-types.js";
-import type { WorkflowAgentStep, WorkflowDefinition } from "../types.js";
-import { AgentWriteScopeViolationError } from "./agent-write-scope.js";
-import { executeAgentStep } from "./step-executor-agent.js";
-import { AgentStepRuntimeError } from "./step-executor-retry.js";
+import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { AgentWriteScopeViolationError } from "#core/workflow/steps/agent-write-scope.js";
+import { executeAgentStep } from "#core/workflow/steps/step-executor-agent.js";
+import { AgentStepRuntimeError } from "#core/workflow/steps/step-executor-retry.js";
+import type { WorkflowAgentStep, WorkflowDefinition } from "#core/workflow/types.js";
 
 function makeDefinition(name = "test-workflow"): WorkflowDefinition {
   return {

@@ -8,22 +8,30 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  Daemon,
+  type DaemonConfig,
+  getScheduler,
+  initScheduler,
+  RESTART_EXIT_CODE,
+  resetScheduler,
+} from "#core/daemon/index.js";
 import { resetEventBus } from "#core/events/event-bus.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
-import { Daemon, type DaemonConfig, RESTART_EXIT_CODE } from "./daemon.js";
-import { getScheduler, initScheduler, resetScheduler } from "./scheduler.js";
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
-  const actual = await vi.importActual("../../modules/claude-agent-harness/executor.js");
+  const actual = await vi.importActual<typeof import("#modules/claude-agent-harness/executor.js")>(
+    "#modules/claude-agent-harness/executor.js",
+  );
   return {
     ...actual,
     executeWithAgentSDK: vi.fn(),
   };
 });
 
-vi.mock("./task-store.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./task-store.js")>();
+vi.mock("#core/daemon/task-store.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("#core/daemon/task-store.js")>();
   return { ...actual, initTaskStore: vi.fn() };
 });
 

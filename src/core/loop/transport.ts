@@ -11,7 +11,9 @@
  * `RenderingProvider` on load that the loop constructor uses to build
  * the default operator-facing transport. Deployments that omit the
  * rendering module degrade to `NullTransport` rather than failing at
- * load time. See `src/core/modules/no-rendering-imports-in-core.test.ts`.
+ * load time. The repo-wide import guard at
+ * `src/core/agent-harness/no-module-imports-in-core.test.ts` keeps core
+ * free of direct `#modules/*` imports.
  */
 
 /** Events emitted by the agent during execution. */

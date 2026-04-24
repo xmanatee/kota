@@ -2,21 +2,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
-import {
-  KOTA_OWNER_QUESTIONS_MCP_SERVER,
-  KOTA_OWNER_QUESTIONS_MCP_TOOL,
-} from "#modules/claude-agent-harness/kota-tools-mcp.js";
-import type { WorkflowRunMetadata, WorkflowStepContext } from "../run-types.js";
 import type {
-  WorkflowAgentStep,
-  WorkflowDefinition,
-  WorkflowEmitStep,
-  WorkflowNotifyConfig,
-  WorkflowRunTrigger,
-  WorkflowToolStep,
-} from "../types.js";
-import type { AgentStepConfig } from "./step-executor.js";
+  WorkflowRunMetadata,
+  WorkflowStepContext,
+} from "#core/workflow/run-types.js";
+import type { AgentStepConfig } from "#core/workflow/steps/step-executor.js";
 import {
   buildAgentPrompt,
   buildRepairPrompt,
@@ -25,11 +15,26 @@ import {
   executeStep,
   executeToolStep,
   withRetry,
-} from "./step-executor.js";
-import { classifyAgentRuntimeFailure } from "./step-executor-retry.js";
+} from "#core/workflow/steps/step-executor.js";
+import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
+import type {
+  WorkflowAgentStep,
+  WorkflowDefinition,
+  WorkflowEmitStep,
+  WorkflowNotifyConfig,
+  WorkflowRunTrigger,
+  WorkflowToolStep,
+} from "#core/workflow/types.js";
+import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
+import {
+  KOTA_OWNER_QUESTIONS_MCP_SERVER,
+  KOTA_OWNER_QUESTIONS_MCP_TOOL,
+} from "#modules/claude-agent-harness/kota-tools-mcp.js";
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
-  const actual = await vi.importActual("../../../modules/claude-agent-harness/executor.js");
+  const actual = await vi.importActual<typeof import("#modules/claude-agent-harness/executor.js")>(
+    "#modules/claude-agent-harness/executor.js",
+  );
   return {
     ...actual,
     executeWithAgentSDK: vi.fn(),

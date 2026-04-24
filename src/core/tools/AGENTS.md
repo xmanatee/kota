@@ -107,7 +107,7 @@ result at invocation time (`No code runner registered for language "<lang>".
 respect to execution.
 
 No file under `src/core/` may import from `#modules/execution/...` — not
-production code, not tests. The guard in
-`src/core/modules/no-execution-module-imports-in-core.test.ts` enforces
-this at every commit.
+production code, not tests. The repo-wide guard in
+`src/core/agent-harness/no-module-imports-in-core.test.ts` rejects every
+`#modules/*` subpath under `src/core/` at every commit.
 

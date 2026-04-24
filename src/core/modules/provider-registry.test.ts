@@ -133,62 +133,10 @@ describe("provider singleton", () => {
 	});
 });
 
-// --- Interface conformance tests ---
-
-describe("interface conformance", () => {
-	it("MemoryProvider interface matches MemoryStore shape", async () => {
-		const { MemoryStore } = await import("#modules/memory/store.js");
-		const store = new MemoryStore("/tmp/test-provider-conformance");
-		const provider: MemoryProvider = store;
-		expect(typeof provider.save).toBe("function");
-		expect(typeof provider.search).toBe("function");
-		expect(typeof provider.list).toBe("function");
-		expect(typeof provider.update).toBe("function");
-		expect(typeof provider.delete).toBe("function");
-		expect(typeof provider.supportsSemanticSearch).toBe("function");
-		expect(typeof provider.semanticSearch).toBe("function");
-		expect(typeof provider.reindex).toBe("function");
-	});
-
-	it("KnowledgeProvider interface matches KnowledgeStore shape", async () => {
-		const { KnowledgeStore } = await import("#modules/knowledge/store.js");
-		const store = new KnowledgeStore("/tmp/test-provider-conformance");
-		const provider: KnowledgeProvider = store;
-		expect(typeof provider.create).toBe("function");
-		expect(typeof provider.read).toBe("function");
-		expect(typeof provider.update).toBe("function");
-		expect(typeof provider.delete).toBe("function");
-		expect(typeof provider.search).toBe("function");
-		expect(typeof provider.list).toBe("function");
-		expect(typeof provider.count).toBe("function");
-		expect(typeof provider.supportsSemanticSearch).toBe("function");
-		expect(typeof provider.semanticSearch).toBe("function");
-		expect(typeof provider.reindex).toBe("function");
-	});
-
-	it("TaskProvider interface matches TaskStore shape", async () => {
-		const { TaskStore } = await import("#core/daemon/task-store.js");
-		const store = new TaskStore(undefined, null);
-		const provider: TaskProvider = store;
-		expect(typeof provider.add).toBe("function");
-		expect(typeof provider.update).toBe("function");
-		expect(typeof provider.list).toBe("function");
-		expect(typeof provider.active).toBe("function");
-		expect(typeof provider.get).toBe("function");
-		expect(typeof provider.clear).toBe("function");
-		expect(typeof provider.archiveCompleted).toBe("function");
-		expect(typeof provider.getActiveSummary).toBe("function");
-		expect(typeof provider.isEmpty).toBe("function");
-		expect(typeof provider.count).toBe("function");
-	});
-
-	// HistoryProvider conformance is enforced structurally: the history
-	// module's onLoad calls `ctx.registerProvider("history", getHistory())`
-	// with a typed HistoryProvider target, so any shape mismatch fails at
-	// typecheck. Core cannot import ConversationHistory (see
-	// `no-history-imports-in-core.test.ts`), so there is no in-core runtime
-	// check here.
-});
+// Interface conformance between provider interfaces and their concrete
+// module-owned stores lives at
+// `src/provider-registry-conformance.integration.test.ts`, which can
+// legitimately import from `#modules/*`.
 
 // --- Convenience getter tests ---
 

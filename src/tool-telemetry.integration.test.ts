@@ -1,8 +1,12 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ModuleLoader } from "#core/modules/module-loader.js";
+import { clearCustomTools } from "#core/tools/index.js";
+import {
+  getToolTelemetry,
+  resetToolTelemetry,
+  ToolTelemetry,
+} from "#core/tools/tool-telemetry.js";
 import filesystemModule from "#modules/filesystem/index.js";
-import { clearCustomTools } from "./index.js";
-import { getToolTelemetry, resetToolTelemetry, ToolTelemetry } from "./tool-telemetry.js";
 
 describe("ToolTelemetry", () => {
   it("records a successful tool call", () => {
@@ -176,7 +180,7 @@ describe("Integration: telemetry populated via executeToolCalls", () => {
 
   it("records timing and success for real tool execution", async () => {
     // Import executeToolCalls — it uses the real tool runner which calls getToolTelemetry()
-    const { executeToolCalls } = await import("./tool-runner.js");
+    const { executeToolCalls } = await import("#core/tools/tool-runner.js");
     const { BufferTransport } = await import("#core/loop/transport.js");
     const transport = new BufferTransport();
 
@@ -204,7 +208,7 @@ describe("Integration: telemetry populated via executeToolCalls", () => {
   });
 
   it("records success for working tool", async () => {
-    const { executeToolCalls } = await import("./tool-runner.js");
+    const { executeToolCalls } = await import("#core/tools/tool-runner.js");
     const { BufferTransport } = await import("#core/loop/transport.js");
     const transport = new BufferTransport();
     const { writeFileSync, unlinkSync } = await import("node:fs");

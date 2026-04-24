@@ -14,9 +14,9 @@ host) resolve them through `getRenderingProvider()` in
 (`RenderingProvider`, `ReplChrome`) live in
 `#core/modules/provider-types.js`. Deployments that omit this module
 degrade to `NullTransport` for the agent stream; the interactive REPL
-refuses to start without a chrome. The import guard
-`src/core/modules/no-rendering-imports-in-core.test.ts` enforces the
-boundary.
+refuses to start without a chrome. The repo-wide import guard
+`src/core/agent-harness/no-module-imports-in-core.test.ts` enforces the
+boundary for every `#modules/*` subpath.
 
 ## Vocabulary
 

@@ -1,29 +1,22 @@
 /**
- * Import guard: no file under `src/core/` may import from the execution
- * module (`#modules/execution/...`).
+ * Import guard: no file under `src/core/` may reference a project module via
+ * the `#modules/*` package-import subpath.
  *
- * Core owns the declarative surface for `custom_tool` and manifest-defined
- * tools but defers language-specific execution to executor modules through
- * the neutral `CodeRunner` protocol in `src/core/tools/code-runner.ts`.
- * Reintroducing a `#modules/execution` import under `src/core/` turns core
- * back into a hard consumer of the execution module and breaks any deployment
- * that swaps or disables it. This guard mirrors the Stage 6 Anthropic-SDK
- * import guard under `src/core/agent-harness/`.
+ * The neutral-protocol audit drove `src/core/` to zero `#modules/*` imports
+ * in non-test sources; the cross-harness test relocation pass extends that
+ * invariant to test files as well. A regression that smuggles a
+ * `#modules/*` import back into core — source or test — turns this test
+ * red. There is intentionally no file allowlist: if new core code needs
+ * module-owned behavior, extend the neutral protocol or move the test to
+ * the cross-cutting `src/*.integration.test.ts` tier.
  *
- * Recognized import forms (all targeting the `#modules/execution` package
- * specifier, case-sensitive, with or without a subpath suffix):
+ * Recognized import forms (all targeting any `#modules/<name>` specifier):
  *   - static `import ... from ...` (type and value)
  *   - bare side-effect `import '...'`
  *   - dynamic `import(...)`
  *   - `require(...)`
  *   - `vi.mock(...)`
  *   - `export ... from ...`
- *
- * The walk covers every `.ts` file under `src/core/` (including tests) so a
- * future change cannot smuggle the dependency back in through a test file.
- * There is intentionally no file allowlist: if a future core contract needs
- * a runtime-module-specific shape, widen `CodeRunner` (or add a new core-
- * owned protocol) and push the specifics into the module adapter.
  */
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -56,23 +49,23 @@ type Offense = {
 const PATTERNS: Array<{ form: string; regex: RegExp }> = [
   {
     form: "static import/re-export",
-    regex: /\bfrom\s+["']#modules\/execution(?:\/[^"']*)?["']/g,
+    regex: /\bfrom\s+["']#modules\/[^"']+["']/g,
   },
   {
     form: "side-effect import",
-    regex: /\bimport\s+["']#modules\/execution(?:\/[^"']*)?["']/g,
+    regex: /\bimport\s+["']#modules\/[^"']+["']/g,
   },
   {
     form: "dynamic import()",
-    regex: /\bimport\s*\(\s*["']#modules\/execution(?:\/[^"']*)?["']/g,
+    regex: /\bimport\s*\(\s*["']#modules\/[^"']+["']/g,
   },
   {
     form: "require()",
-    regex: /\brequire\s*\(\s*["']#modules\/execution(?:\/[^"']*)?["']/g,
+    regex: /\brequire\s*\(\s*["']#modules\/[^"']+["']/g,
   },
   {
     form: "vi.mock()",
-    regex: /\bvi\.mock\s*\(\s*["']#modules\/execution(?:\/[^"']*)?["']/g,
+    regex: /\bvi\.mock\s*\(\s*["']#modules\/[^"']+["']/g,
   },
 ];
 
@@ -101,24 +94,20 @@ function scan(file: string): Offense[] {
   return offenses;
 }
 
-describe("no #modules/execution imports in src/core/", () => {
-  it("every core .ts file is free of #modules/execution references", () => {
+describe("no #modules/* imports in src/core/", () => {
+  it("every core .ts file is free of #modules/* references", () => {
     const files = collectTsFiles(CORE_DIR);
     const offenses = files.flatMap(scan);
 
     if (offenses.length > 0) {
       const details = offenses
-        .map(
-          (o) =>
-            `  ${o.file}:${o.line} [${o.form}] ${o.snippet}`,
-        )
+        .map((o) => `  ${o.file}:${o.line} [${o.form}] ${o.snippet}`)
         .join("\n");
       const message =
-        `core may not import #modules/execution; found ${offenses.length} offense(s):\n${details}\n` +
-        `Core-hosted code executes agent-authored code through the CodeRunner ` +
-        `protocol in src/core/tools/code-runner.ts. Module adapters register ` +
-        `runners on load; core callers invoke runCode(language, code, params). ` +
-        `See src/core/tools/AGENTS.md for the boundary rule.`;
+        `core may not import from #modules/*; found ${offenses.length} offense(s):\n${details}\n` +
+        `Core owns neutral protocols; module-owned behavior belongs behind the module protocol ` +
+        `surfaces. Cross-cutting tests that legitimately need multiple modules belong at ` +
+        `src/*.integration.test.ts, not under src/core/.`;
       throw new Error(message);
     }
 

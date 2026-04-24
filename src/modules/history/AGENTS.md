@@ -13,4 +13,4 @@ This directory owns conversation history — the persistent record of past sessi
 
 - Does not own the memory or knowledge stores (those belong in `memory/` and `knowledge/`).
 - CLI-launched sessions use configured autonomy explicitly. Missing session-autonomy config is a boundary error, not a hidden fallback.
-- Core must not import from `#modules/history/*`. The import guard at `src/core/modules/no-history-imports-in-core.test.ts` enforces the seam.
+- Core must not import from `#modules/history/*`. The repo-wide import guard at `src/core/agent-harness/no-module-imports-in-core.test.ts` enforces the seam for every `#modules/*` subpath.

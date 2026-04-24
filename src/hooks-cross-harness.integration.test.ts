@@ -16,10 +16,13 @@ vi.mock("#modules/claude-agent-harness/executor.js", async (importActual) => {
   };
 });
 
+import {
+  registerHarnessHook,
+  resetHarnessHooks,
+  runAgentHarness,
+} from "#core/agent-harness/index.js";
 import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
 import { thinAgentHarness } from "#modules/thin-agent-harness/adapter.js";
-import { registerHarnessHook, resetHarnessHooks } from "./hooks.js";
-import { runAgentHarness } from "./runner.js";
 
 beforeEach(() => {
   messagesCreateMock.mockReset();

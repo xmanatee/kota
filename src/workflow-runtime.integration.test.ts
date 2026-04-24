@@ -12,13 +12,23 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { clearCustomTools, registerTool } from "#core/tools/index.js";
+import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import {
+  ABORT_SIGNAL_FILE,
+  PAUSE_SIGNAL_FILE,
+  RELOAD_SIGNAL_FILE,
+  WorkflowRuntime,
+} from "#core/workflow/runtime.js";
+import {
+  registerWorkflowDefinition,
+  validateWorkflowDefinitions,
+} from "#core/workflow/validation.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
-import { WorkflowRunStore } from "./run-store.js";
-import { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE, RELOAD_SIGNAL_FILE, WorkflowRuntime } from "./runtime.js";
-import { registerWorkflowDefinition, validateWorkflowDefinitions } from "./validation.js";
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
-  const actual = await vi.importActual("../../modules/claude-agent-harness/executor.js");
+  const actual = await vi.importActual<typeof import("#modules/claude-agent-harness/executor.js")>(
+    "#modules/claude-agent-harness/executor.js",
+  );
   return {
     ...actual,
     executeWithAgentSDK: vi.fn(),
@@ -1773,7 +1783,7 @@ describe("WorkflowRuntime", () => {
     await wait(40);
 
     // Spy on validateWorkflowDefinitions to throw on the reload call (after start)
-    const validationModule = await import("./validation.js");
+    const validationModule = await import("#core/workflow/validation.js");
     const spy = vi.spyOn(validationModule, "validateWorkflowDefinitions");
     spy.mockImplementationOnce(() => { throw new Error("bad definition"); });
 
@@ -2104,7 +2114,7 @@ describe("WorkflowRuntime", () => {
       runtime.start();
       await wait(50); // both workflows should be running
 
-      const { WorkflowRunStore } = await import("./run-store.js");
+      const { WorkflowRunStore } = await import("#core/workflow/run-store.js");
       const store = new WorkflowRunStore(projectDir);
       const state = store.readState();
 

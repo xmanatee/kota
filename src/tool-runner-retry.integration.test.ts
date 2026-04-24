@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { executeTool } from "#core/tools/index.js";
+import { getToolMiddleware, resetToolMiddleware } from "#core/tools/tool-middleware.js";
+import { executeToolCalls } from "#core/tools/tool-runner.js";
 import { createRetryMiddleware, resetRetryStats } from "#modules/tool-retry/tool-retry.js";
-import { executeTool } from "./index.js";
-import { getToolMiddleware, resetToolMiddleware } from "./tool-middleware.js";
-import { executeToolCalls } from "./tool-runner.js";
 
 // Mock only the leaf tool executor — let real retry middleware and truncateToolResult run.
 // Autonomy-mode gating calls `assess()` → `classifyRisk()` → `getCoreRegistrations()`,
 // so the registrations list must come through real.
-vi.mock(import("./index.js"), async (importOriginal) => {
+vi.mock(import("#core/tools/index.js"), async (importOriginal) => {
   const actual = await importOriginal();
   return { ...actual, executeTool: vi.fn() };
 });

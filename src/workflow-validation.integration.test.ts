@@ -2,18 +2,18 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import autonomyModule from "#modules/autonomy/index.js";
-// Side-effect import: registers the claude-agent-sdk harness so the step
-// validator can resolve it when a test exercises `harnessOptions`.
-import "#modules/claude-agent-harness/index.js";
-import type { RegisteredWorkflowDefinitionInput } from "./types.js";
+import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   registerWorkflowDefinition,
   validateWorkflowDefinitions as validateWorkflowDefinitionsCore,
   WorkflowDefinitionError,
   type WorkflowValidationOptions,
-} from "./validation.js";
-import { VALID_MODEL_IDS } from "./validation-steps.js";
+} from "#core/workflow/validation.js";
+import { VALID_MODEL_IDS } from "#core/workflow/validation-steps.js";
+import autonomyModule from "#modules/autonomy/index.js";
+// Side-effect import: registers the claude-agent-sdk harness so the step
+// validator can resolve it when a test exercises `harnessOptions`.
+import "#modules/claude-agent-harness/index.js";
 
 function validateWorkflowDefinitions(
   definitions: readonly RegisteredWorkflowDefinitionInput[],

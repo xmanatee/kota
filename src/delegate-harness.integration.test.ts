@@ -17,7 +17,7 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
 
 await import("#modules/claude-agent-harness/index.js");
 
-const { runDelegateHarness } = await import("./delegate-harness.js");
+const { runDelegateHarness } = await import("#core/tools/delegate-harness.js");
 
 function mockTransport(): Transport & {
   messages: Array<{ type: string; message?: string; content?: string }>;

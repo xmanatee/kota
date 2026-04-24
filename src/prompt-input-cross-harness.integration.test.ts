@@ -18,9 +18,9 @@ vi.mock("#modules/claude-agent-harness/executor.js", async (importActual) => {
   };
 });
 
+import { expandUserPromptReferences } from "#core/prompt-input/index.js";
 import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
 import { thinAgentHarness } from "#modules/thin-agent-harness/adapter.js";
-import { expandUserPromptReferences } from "./expand.js";
 
 const TEST_ROOT = join(process.cwd(), ".test-prompt-input-cross-harness");
 const FIXTURE = join(TEST_ROOT, "fixture.md");

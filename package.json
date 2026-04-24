@@ -36,7 +36,7 @@
     "build": "rm -rf dist && tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "test": "NODE_OPTIONS=--conditions=source vitest run",
-    "test:workflow-critical": "NODE_OPTIONS=--conditions=source vitest run src/modules/claude-agent-harness/executor.test.ts src/event-bus.test.ts src/core/loop/instruction-files.test.ts src/modules/daemon-ops/index.test.ts src/core/daemon/daemon.test.ts src/task-files.test.ts src/core/workflow/runtime.test.ts src/core/workflow/validation.test.ts",
+    "test:workflow-critical": "NODE_OPTIONS=--conditions=source vitest run src/modules/claude-agent-harness/executor.test.ts src/event-bus.test.ts src/core/loop/instruction-files.test.ts src/modules/daemon-ops/index.test.ts src/daemon.integration.test.ts src/task-files.test.ts src/workflow-runtime.integration.test.ts src/workflow-validation.integration.test.ts",
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
     "build:schema": "NODE_OPTIONS=--conditions=source tsx src/core/config/build-schema.ts",

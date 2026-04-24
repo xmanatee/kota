@@ -1,12 +1,12 @@
 ---
 id: task-relocate-coremodule-cross-harness-tests-out-of-src
 title: Relocate core→module cross-harness tests out of src/core to purge core test-layer module imports
-status: ready
+status: done
 priority: p2
 area: core
 summary: Move the three cross-harness.test.ts files (and harness/module-coupled workflow/daemon/tool tests) out of src/core so src/core imports zero #modules/* adapters even in tests, matching the inverted protocol boundary enforced for non-test core code.
 created_at: 2026-04-24T10:23:36.987Z
-updated_at: 2026-04-24T10:23:36.987Z
+updated_at: 2026-04-24T10:40:14.651Z
 ---
 
 ## Problem
