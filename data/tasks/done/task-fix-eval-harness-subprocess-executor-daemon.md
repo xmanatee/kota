@@ -1,12 +1,12 @@
 ---
 id: task-fix-eval-harness-subprocess-executor-daemon
 title: Fix eval-harness subprocess-executor so queued workflow runs actually execute
-status: ready
+status: done
 priority: p1
 area: eval-harness
 summary: The eval-harness subprocess-executor spawns `kota workflow trigger` but never runs a daemon in the fixture's isolated HOME/KOTA_PROJECT_DIR, so pending runs never execute and every fixture times out. Close that gap so `pnpm kota eval run` can actually finish shipped smoke fixtures end-to-end.
 created_at: 2026-04-24T14:00:00.750Z
-updated_at: 2026-04-24T14:00:00.750Z
+updated_at: 2026-04-24T14:31:59.960Z
 ---
 
 ## Problem

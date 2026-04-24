@@ -13,6 +13,7 @@ import { registerDefinitionsCommand } from "./definitions/definitions.js";
 import { registerDepsCommand } from "./definitions/deps.js";
 import { registerValidateCommand } from "./definitions/validate.js";
 import { registerControlCommands } from "./execution/control.js";
+import { registerExecCommand } from "./execution/exec.js";
 import { registerGcCommand } from "./execution/gc.js";
 import { registerRunCommand } from "./execution/run.js";
 import { registerTriggerCommands } from "./execution/trigger.js";
@@ -54,6 +55,7 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
   registerFollowCommand(wfCmd);
   registerTriggerCommands(wfCmd, ctx);
   registerTriggersCommand(wfCmd, ctx);
+  registerExecCommand(wfCmd, ctx);
   registerValidateCommand(wfCmd, ctx);
   registerControlCommands(wfCmd);
   registerRunCommand(wfCmd, ctx);
