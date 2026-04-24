@@ -198,6 +198,41 @@ describe("loadFixture", () => {
     expect(() => loadFixture(root, "realBare")).toThrow(FixtureProvenanceError);
   });
 
+  it("accepts an optional triggerPayload and forwards it verbatim", () => {
+    writeFixture(root, "withPayload", {
+      id: "withPayload",
+      description: "x",
+      role: "decomposer",
+      workflowName: "decomposer",
+      budgetMs: 600_000,
+      predicates: [{ kind: "file-exists", path: "foo" }],
+      triggerPayload: {
+        runDir: ".kota/runs/fake-builder-run",
+        runId: "fake-builder-run",
+        nested: { count: 3 },
+      },
+    });
+    const loaded = loadFixture(root, "withPayload");
+    expect(loaded.spec.triggerPayload).toEqual({
+      runDir: ".kota/runs/fake-builder-run",
+      runId: "fake-builder-run",
+      nested: { count: 3 },
+    });
+  });
+
+  it("rejects a non-object triggerPayload", () => {
+    writeFixture(root, "badPayload", {
+      id: "badPayload",
+      description: "x",
+      role: "decomposer",
+      workflowName: "decomposer",
+      budgetMs: 600_000,
+      predicates: [{ kind: "file-exists", path: "foo" }],
+      triggerPayload: ["not", "an", "object"],
+    });
+    expect(() => loadFixture(root, "badPayload")).toThrow(/triggerPayload.*JSON object/);
+  });
+
   it("rejects unknown provenance kinds", () => {
     writeFixture(root, "unknownKind", {
       id: "unknownKind",

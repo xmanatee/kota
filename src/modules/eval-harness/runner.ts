@@ -31,6 +31,11 @@ export type WorkflowExecutionRequest = {
   workingDir: string;
   /** Hard budget for this attempt in ms. The executor must return by then. */
   budgetMs: number;
+  /**
+   * Optional trigger payload for workflows whose `trigger.payload` is
+   * load-bearing. Forwarded verbatim by the executor — no defaulting.
+   */
+  triggerPayload?: Record<string, unknown>;
 };
 
 /** Outcome a WorkflowExecutor reports back to the runner. */
@@ -141,6 +146,9 @@ export async function runFixture(
       workflowName: params.fixture.spec.workflowName,
       workingDir,
       budgetMs: params.fixture.spec.budgetMs,
+      ...(params.fixture.spec.triggerPayload !== undefined && {
+        triggerPayload: params.fixture.spec.triggerPayload,
+      }),
     });
   } catch (err) {
     executionOutcome = {

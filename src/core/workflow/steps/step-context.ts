@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import type { EventBus } from "#core/events/event-bus.js";
 import { executeTool } from "#core/tools/index.js";
 import type { WorkflowRunStore } from "../run-store.js";
@@ -9,6 +9,30 @@ import type {
   WorkflowStepResult,
 } from "../run-types.js";
 import type { WorkflowRunTrigger } from "../types.js";
+
+/**
+ * Per-run append-only log of events a step emitted via `ctx.emit`. The
+ * harness eval layer's `run-emits-event` / `run-omits-event` predicates
+ * inspect this file; emit-only workflows whose failure mode is a wrong bus
+ * event need an observable artifact that does not depend on the step
+ * choosing to include the emission in its output.
+ */
+export const EMITTED_EVENTS_LOG_FILENAME = "emitted-events.jsonl";
+
+function recordEmittedEvent(
+  runDirPath: string,
+  event: string,
+  payload: Record<string, unknown>,
+): void {
+  const logPath = join(runDirPath, EMITTED_EVENTS_LOG_FILENAME);
+  const entry = {
+    event,
+    payload,
+    emittedAt: new Date().toISOString(),
+  };
+  mkdirSync(dirname(logPath), { recursive: true });
+  appendFileSync(logPath, `${JSON.stringify(entry)}\n`, "utf-8");
+}
 
 export function createStepContext(
   metadata: WorkflowRunMetadata,
@@ -52,14 +76,17 @@ export function createStepContext(
       return result;
     },
     emit: (event, payload) => {
+      recordEmittedEvent(runDirPath, event, payload);
       deps.bus.emit(event, payload);
     },
     requestRestart: (reason) => {
-      deps.bus.emit("runtime.restart_requested", {
+      const payload = {
         reason,
         workflow: metadata.workflow,
         runId: metadata.id,
-      });
+      };
+      recordEmittedEvent(runDirPath, "runtime.restart_requested", payload);
+      deps.bus.emit("runtime.restart_requested", payload);
     },
     readPrompt: (promptPath) => {
       return readFileSync(resolve(deps.projectDir, promptPath), "utf-8");

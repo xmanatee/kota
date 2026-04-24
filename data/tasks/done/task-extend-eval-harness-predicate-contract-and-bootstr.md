@@ -1,12 +1,12 @@
 ---
 id: task-extend-eval-harness-predicate-contract-and-bootstr
 title: Extend eval-harness predicate contract and bootstrap to cover emit-only and dependency-heavy autonomy workflows
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Allow real-failure fixtures for autonomy workflows whose failure mode is currently not observable from a working-directory artifact (dispatcher, attention-digest, evaluator-calibration-monitor, evaluator-calibration-notify, pr-reviewer) or whose harness bootstrap is missing (decomposer, improver, research-retry).
 created_at: 2026-04-24T11:53:56.234Z
-updated_at: 2026-04-24T11:53:56.234Z
+updated_at: 2026-04-24T12:12:46.480Z
 ---
 
 ## Problem

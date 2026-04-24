@@ -14,6 +14,17 @@ context construction.
 New step types add a new strategy file here and a dispatch case in
 `step-executor.ts`.
 
+## Per-Run Emitted-Events Log
+
+`createStepContext` wraps `ctx.emit` so every emission a step makes appends
+a `{event, payload, emittedAt}` entry to `<runDir>/emitted-events.jsonl`.
+This is the authoritative per-run bus-event trace: the bus itself does not
+retain history, and step output only captures emissions the step chose to
+list in its returned summary. The eval-harness `run-emits-event` and
+`run-omits-event` predicates inspect this file directly. Callers that need
+to assert on what a workflow emitted should read the log, not the step's
+self-report.
+
 ## Agent writeScope: declare → enforce → fail
 
 Every `AgentDef` declares a `writeScope` listing the tracked-file paths that

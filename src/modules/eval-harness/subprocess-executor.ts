@@ -115,15 +115,21 @@ export function createSubprocessExecutor(
         KOTA_PROJECT_DIR: request.workingDir,
       };
 
-      const child = spawn(
-        "node",
-        [options.kotaBinaryPath, "workflow", "trigger", request.workflowName, "--force"],
-        {
-          cwd: request.workingDir,
-          env,
-          stdio: ["ignore", "pipe", "pipe"],
-        },
-      );
+      const triggerArgs = [
+        options.kotaBinaryPath,
+        "workflow",
+        "trigger",
+        request.workflowName,
+        "--force",
+      ];
+      if (request.triggerPayload !== undefined) {
+        triggerArgs.push("--payload", JSON.stringify(request.triggerPayload));
+      }
+      const child = spawn("node", triggerArgs, {
+        cwd: request.workingDir,
+        env,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
       child.stdout.resume();
       child.stderr.resume();
 

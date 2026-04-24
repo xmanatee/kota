@@ -118,3 +118,143 @@ describe("evaluatePredicate", () => {
     expect(ok.passed).toBe(true);
   });
 });
+
+describe("evaluatePredicate — emitted-events predicates", () => {
+  let workDir: string;
+
+  function seedRunWithEvents(
+    runId: string,
+    entries: Array<{ event: string; payload: Record<string, unknown> }>,
+  ): void {
+    const runDir = join(workDir, ".kota", "runs", runId);
+    mkdirSync(runDir, { recursive: true });
+    const lines = entries.map((e) =>
+      JSON.stringify({
+        event: e.event,
+        payload: e.payload,
+        emittedAt: "2026-04-24T00:00:00.000Z",
+      }),
+    );
+    writeFileSync(
+      join(runDir, "emitted-events.jsonl"),
+      lines.length > 0 ? `${lines.join("\n")}\n` : "",
+    );
+  }
+
+  beforeEach(() => {
+    workDir = mkdtempSync(join(tmpdir(), "kota-eval-harness-emit-"));
+  });
+
+  afterEach(() => {
+    rmSync(workDir, { recursive: true, force: true });
+  });
+
+  it("run-emits-event passes when the event was emitted, fails when absent", () => {
+    seedRunWithEvents("2026-04-24T00-00-00-000Z-dispatcher-abcd12", [
+      { event: "autonomy.queue.available", payload: { pullableCount: 1 } },
+      { event: "autonomy.queue.thin", payload: { pullableCount: 1 } },
+    ]);
+    const ok = evaluatePredicate(workDir, {
+      kind: "run-emits-event",
+      event: "autonomy.queue.available",
+    });
+    const missing = evaluatePredicate(workDir, {
+      kind: "run-emits-event",
+      event: "autonomy.queue.empty",
+    });
+    expect(ok.passed).toBe(true);
+    expect(missing.passed).toBe(false);
+    expect(missing.detail).toContain("no emitted");
+  });
+
+  it("run-emits-event honors a workflow filter", () => {
+    seedRunWithEvents("2026-04-24T00-00-00-000Z-dispatcher-aaaa11", [
+      { event: "autonomy.queue.available", payload: { pullableCount: 1 } },
+    ]);
+    seedRunWithEvents("2026-04-24T00-00-01-000Z-explorer-bbbb22", [
+      { event: "autonomy.queue.available", payload: { pullableCount: 99 } },
+    ]);
+    const dispatcherOnly = evaluatePredicate(workDir, {
+      kind: "run-emits-event",
+      event: "autonomy.queue.available",
+      workflow: "dispatcher",
+      payloadMatch: { pullableCount: 1 },
+    });
+    const explorerOnly = evaluatePredicate(workDir, {
+      kind: "run-emits-event",
+      event: "autonomy.queue.available",
+      workflow: "explorer",
+      payloadMatch: { pullableCount: 99 },
+    });
+    const explorerWithWrongPayload = evaluatePredicate(workDir, {
+      kind: "run-emits-event",
+      event: "autonomy.queue.available",
+      workflow: "explorer",
+      payloadMatch: { pullableCount: 1 },
+    });
+    expect(dispatcherOnly.passed).toBe(true);
+    expect(explorerOnly.passed).toBe(true);
+    expect(explorerWithWrongPayload.passed).toBe(false);
+  });
+
+  it("run-emits-event payloadMatch walks nested structures", () => {
+    seedRunWithEvents("2026-04-24T00-00-00-000Z-dispatcher-cccc33", [
+      {
+        event: "autonomy.queue.available",
+        payload: {
+          pullableCount: 1,
+          counts: { ready: 1, doing: 0, backlog: 0 },
+        },
+      },
+    ]);
+    const deepMatch = evaluatePredicate(workDir, {
+      kind: "run-emits-event",
+      event: "autonomy.queue.available",
+      payloadMatch: { counts: { ready: 1 } },
+    });
+    const deepMismatch = evaluatePredicate(workDir, {
+      kind: "run-emits-event",
+      event: "autonomy.queue.available",
+      payloadMatch: { counts: { ready: 99 } },
+    });
+    expect(deepMatch.passed).toBe(true);
+    expect(deepMismatch.passed).toBe(false);
+  });
+
+  it("run-omits-event passes when the event never fired, fails when it did", () => {
+    seedRunWithEvents("2026-04-24T00-00-00-000Z-dispatcher-dddd44", [
+      { event: "autonomy.queue.available", payload: { pullableCount: 1 } },
+    ]);
+    const ok = evaluatePredicate(workDir, {
+      kind: "run-omits-event",
+      event: "autonomy.queue.empty",
+    });
+    const bad = evaluatePredicate(workDir, {
+      kind: "run-omits-event",
+      event: "autonomy.queue.available",
+    });
+    expect(ok.passed).toBe(true);
+    expect(bad.passed).toBe(false);
+    expect(bad.detail).toContain("expected");
+  });
+
+  it("run-omits-event passes when no runs directory exists yet", () => {
+    const result = evaluatePredicate(workDir, {
+      kind: "run-omits-event",
+      event: "autonomy.queue.empty",
+    });
+    expect(result.passed).toBe(true);
+  });
+
+  it("run-emits-event fails loudly on a malformed event log", () => {
+    const runDir = join(workDir, ".kota", "runs", "2026-04-24T00-00-00-000Z-dispatcher-eeee55");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "emitted-events.jsonl"), "{not json}\n");
+    expect(() =>
+      evaluatePredicate(workDir, {
+        kind: "run-emits-event",
+        event: "whatever",
+      }),
+    ).toThrow();
+  });
+});

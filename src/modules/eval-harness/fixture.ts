@@ -68,6 +68,14 @@ export type FixtureSpecFile = {
    */
   provenance: FixtureProvenance;
   /**
+   * Optional trigger payload forwarded verbatim to
+   * `kota workflow trigger --payload <json>`. Required for workflows whose
+   * `trigger.payload` is load-bearing (e.g. decomposer's `runDir`/`runId`).
+   * Strict-protocol rule: absence means "no extra payload"; the subprocess
+   * must not synthesize defaults.
+   */
+  triggerPayload?: Record<string, unknown>;
+  /**
    * Optional tags operators use to slice the fixture set (e.g. "smoke",
    * "regression-2026-04", "slow"). Not load-bearing — scoring does not read
    * them.
@@ -121,6 +129,20 @@ function isFixturePredicate(value: unknown): value is FixturePredicate {
       return (
         typeof p.command === "string" &&
         (p.timeoutMs === undefined || typeof p.timeoutMs === "number")
+      );
+    case "run-emits-event":
+      return (
+        typeof p.event === "string" &&
+        (p.workflow === undefined || typeof p.workflow === "string") &&
+        (p.payloadMatch === undefined ||
+          (typeof p.payloadMatch === "object" &&
+            p.payloadMatch !== null &&
+            !Array.isArray(p.payloadMatch)))
+      );
+    case "run-omits-event":
+      return (
+        typeof p.event === "string" &&
+        (p.workflow === undefined || typeof p.workflow === "string")
       );
     default:
       return false;
@@ -223,6 +245,20 @@ function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSpecFile 
             );
           })();
 
+  let triggerPayload: Record<string, unknown> | undefined;
+  if (r.triggerPayload !== undefined) {
+    if (
+      typeof r.triggerPayload !== "object" ||
+      r.triggerPayload === null ||
+      Array.isArray(r.triggerPayload)
+    ) {
+      throw new Error(
+        `Fixture at "${fixtureDir}" has invalid triggerPayload; must be a JSON object.`,
+      );
+    }
+    triggerPayload = r.triggerPayload as Record<string, unknown>;
+  }
+
   const provenance = parseProvenance(r.provenance, fixtureDir);
 
   return {
@@ -233,6 +269,7 @@ function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSpecFile 
     budgetMs: r.budgetMs,
     predicates,
     provenance,
+    ...(triggerPayload !== undefined && { triggerPayload }),
     ...(tags && { tags }),
   };
 }
