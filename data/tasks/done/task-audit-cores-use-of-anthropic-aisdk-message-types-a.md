@@ -1,12 +1,12 @@
 ---
 id: task-audit-cores-use-of-anthropic-aisdk-message-types-a
 title: Audit core's use of @anthropic-ai/sdk message types and plan a harness-neutral core message protocol
-status: backlog
+status: done
 priority: p1
 area: architecture
 summary: ~30 core files import type Anthropic from @anthropic-ai/sdk and use MessageParam / ContentBlock / Tool* shapes as the canonical internal message protocol across loop, tools, model, manifest, and workflow. Produce an audit and a staged plan for making core's message protocol harness-neutral, so core stops depending on the Anthropic SDK as its implicit message contract.
 created_at: 2026-04-24T03:42:12.261Z
-updated_at: 2026-04-24T03:42:12.261Z
+updated_at: 2026-04-24T04:03:30.635Z
 ---
 
 ## Problem

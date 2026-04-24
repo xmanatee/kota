@@ -49,10 +49,9 @@ field injected by call sites.
   silently degrade when an operator switches harness.
 - Per-run source attribution flows through an `AsyncLocalStorage` context
   set by `runWithAskOwnerSource` in `src/core/tools/ask-owner.ts`. The
-  openai-tools adapter wraps its tool loop in this context so `runAskOwner`
-  sees the correct source without the adapter importing the tool directly.
-  The claude adapter relies on its MCP server wrapper (which accepts
-  `source` explicitly) for the same effect.
+  openai-tools adapter wraps its tool loop in this context; the claude
+  adapter relies on its MCP server wrapper (which accepts `source`
+  explicitly) for the same effect.
 
 ## Capability flags
 
@@ -74,10 +73,9 @@ field injected by call sites.
 - Call sites resolve a harness per run: workflow steps declare
   `harness`, or inherit from `KotaConfig.defaultAgentHarness` at the top level.
   The operator picks which adapter is the default for their environment.
-- Shipped product workflows may still declare an explicit harness when the repo
-  must boot without operator-local config. Judges that live inside an agent
-  step's repair loop read the parent step's resolved `step.harness` rather than
-  reaching for a parallel config loader.
+- Shipped workflows may declare an explicit harness when the repo must boot
+  without operator-local config. Judges inside an agent step's repair loop
+  read the parent step's resolved `step.harness`, not a parallel config loader.
 
 ## Lifecycle hooks (harness-neutral)
 
@@ -93,9 +91,9 @@ registered hook of a supported kind around the adapter's native run.
 
 Adapters declare which kinds they can host through
 `AgentHarness.supportedHookKinds`. `runAgentHarness` inspects that list: if a
-module has registered a hook whose kind is not in the adapter's supported set,
-the entry point throws loudly before calling the adapter — same rule as
-`thin-agent-harness` rejecting tool options it cannot host.
+module registers a hook whose kind is not in the adapter's supported set, the
+entry point throws loudly — same rule as `thin-agent-harness` rejecting tool
+options it cannot host.
 
 `src/core/loop/pre-send-hooks.ts` is a separate classic-loop surface
 (architect module) exposing ModelClient/history/CostTracker/Transport.
@@ -106,22 +104,28 @@ New cross-adapter decoration uses the neutral harness hook, not that.
 `types.ts` declares the neutral wire frames every harness adapter
 normalizes into — `AgentMessage` (with variants `AgentAssistantMessage`,
 `AgentResultMessage`, `AgentStatusMessage`, `AgentContentBlock`,
-`AgentMessageWithSession`), `AgentPermissionMode`, `AgentSettingSource` —
-plus `AgentEffort`, `AgentMcpServerConfig` (a `stdio | sse | http`
-union over transport variants every harness can reason about; non-
-claude adapters reject non-empty `mcpServers` at the boundary), and
+`AgentMessageWithSession`), `AgentPermissionMode`, `AgentSettingSource`,
+`AgentEffort`, `AgentMcpServerConfig` (`stdio | sse | http`; non-claude
+adapters reject non-empty `mcpServers` at the boundary), and
 `AgentCanUseTool` / `AgentPermissionResult` (structurally aligned with
-the Claude SDK so guards flow through the claude adapter with one
-cast). These shapes originated with the Claude Agent SDK but the
-protocol treats them as neutral; nothing in core imports the claude-
-agent-sdk package. Harness-specific in-process MCP hosting (the
-claude-only `sdk` variant carrying a live server instance) stays
-inside the owning adapter and never surfaces here.
+the Claude SDK so guards flow through with one cast). These shapes
+originated with the Claude Agent SDK but the protocol treats them as
+neutral; nothing in core imports the claude-agent-sdk package.
+Harness-specific in-process MCP hosting (the claude-only `sdk` variant)
+stays inside the owning adapter.
 
 Claude-SDK-specific query shapes (`SDKQueryOptions`, `SDKSystemPrompt`,
 `SDKThinkingConfig`, `SDKQueryParams`, `SDKQueryFn`, `SDKModule`), the
 executor primitive, and the owner-questions MCP bridge live in
 `src/modules/claude-agent-harness/`.
+
+The target is stronger than "nothing in core imports the claude-agent-
+sdk": *nothing in core should treat the Anthropic SDK type surface as
+its internal protocol*. Today the loop, tool registry, `ModelClient`,
+compaction/masking/pruning/reflection, manifest, KEMP, and delegate
+still type contracts on `Anthropic.MessageParam`/`Anthropic.Tool`. See
+`anthropic-type-audit.md` for the import inventory, staged plan, and
+follow-up tasks.
 
 ## Per-step harness-specific options
 
@@ -139,8 +143,7 @@ value is validated by that harness's `validateStepOptions` method:
 
 The harness validator throws on malformed input and returns a
 `Partial<AgentHarnessRunOptions>` fragment the executor merges into the
-neutral run options. The core validator rejects mismatched keys, unknown
+run options. The core validator rejects mismatched keys, unknown
 harnesses, and harnesses that declare no `validateStepOptions`. Leaving
-`harnessOptions` unset lets each adapter apply its own defaults. New
-harness-only knobs belong on `validateStepOptions`, not on the neutral
-step.
+`harnessOptions` unset uses each adapter's defaults. New harness-only
+knobs belong on `validateStepOptions`, not on the neutral step.
