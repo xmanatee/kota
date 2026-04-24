@@ -85,7 +85,7 @@ ingested payloads. Mode changes flow only through the operator control path
 
 ## Logical clusters
 
-- Delegate: `delegate.ts`, `delegate-agent-sdk.ts`, `delegate-config.ts`,
+- Delegate: `delegate.ts`, `delegate-harness.ts`, `delegate-config.ts`,
   `delegate-format.ts`, `delegate-turn.ts` — sub-agent spawning.
 - Custom tools: `custom-tool.ts`, `custom-tool-handlers.ts`,
   `custom-tool-persistence.ts` — user-defined tool extensibility.

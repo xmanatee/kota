@@ -21,7 +21,7 @@ import {
 } from "./delegate-format.js";
 import type { ToolResult } from "./index.js";
 
-const EXPLORE_SDK_TOOLS = [
+const EXPLORE_HARNESS_TOOLS = [
   "Read",
   "Glob",
   "Grep",
@@ -30,13 +30,13 @@ const EXPLORE_SDK_TOOLS = [
   "Bash",
 ];
 
-const EXECUTE_SDK_TOOLS = [
-  ...EXPLORE_SDK_TOOLS,
+const EXECUTE_HARNESS_TOOLS = [
+  ...EXPLORE_HARNESS_TOOLS,
   "Edit",
   "Write",
 ];
 
-export type AgentSDKDelegateConfig = {
+export type DelegateHarnessConfig = {
   cwd?: string;
   projectContext?: string;
   instructionContext?: string;
@@ -52,10 +52,10 @@ export type AgentSDKDelegateConfig = {
   harness: string;
 };
 
-export async function runDelegateAgentSDK(
+export async function runDelegateHarness(
   task: string,
   mode: "explore" | "execute" | "research",
-  config: AgentSDKDelegateConfig,
+  config: DelegateHarnessConfig,
 ): Promise<ToolResult> {
   const isExecute = mode === "execute";
   const basePrompt = isExecute ? EXECUTE_PROMPT : EXPLORE_PROMPT;
@@ -65,7 +65,7 @@ export async function runDelegateAgentSDK(
     instructionContext: config.instructionContext,
   };
   const systemPrompt = buildSubAgentPrompt(basePrompt, promptConfig);
-  const allowedTools = isExecute ? EXECUTE_SDK_TOOLS : EXPLORE_SDK_TOOLS;
+  const allowedTools = isExecute ? EXECUTE_HARNESS_TOOLS : EXPLORE_HARNESS_TOOLS;
   const transport = config.transport;
   const taskChars = [...task];
   const taskPreview =

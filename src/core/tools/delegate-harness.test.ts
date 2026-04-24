@@ -17,7 +17,7 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
 
 await import("#modules/claude-agent-harness/index.js");
 
-const { runDelegateAgentSDK } = await import("./delegate-agent-sdk.js");
+const { runDelegateHarness } = await import("./delegate-harness.js");
 
 function mockTransport(): Transport & {
   messages: Array<{ type: string; message?: string; content?: string }>;
@@ -36,7 +36,7 @@ function mockTransport(): Transport & {
   };
 }
 
-describe("delegate-agent-sdk", () => {
+describe("delegate-harness", () => {
   beforeEach(() => {
     mockExecuteWithAgentSDK.mockReset();
   });
@@ -56,7 +56,7 @@ describe("delegate-agent-sdk", () => {
     });
 
     const transport = mockTransport();
-    const result = await runDelegateAgentSDK("fix auth bug", "execute", {
+    const result = await runDelegateHarness("fix auth bug", "execute", {
       transport,
       harness: "claude-agent-sdk",
     });
@@ -79,7 +79,7 @@ describe("delegate-agent-sdk", () => {
 
     const addRawCost = vi.fn();
     const costTracker = { addRawCost } as unknown as CostTracker;
-    await runDelegateAgentSDK("task", "execute", {
+    await runDelegateHarness("task", "execute", {
       costTracker,
       harness: "claude-agent-sdk",
     });
@@ -96,7 +96,7 @@ describe("delegate-agent-sdk", () => {
       isError: false,
     });
 
-    await runDelegateAgentSDK("find all API endpoints", "explore", {
+    await runDelegateHarness("find all API endpoints", "explore", {
       cwd: "/tmp/project",
       model: "claude-haiku-4-5-20251001",
       instructionContext: "## Project Instructions\nUse AGENTS.md",
@@ -131,7 +131,7 @@ describe("delegate-agent-sdk", () => {
       isError: false,
     });
 
-    await runDelegateAgentSDK("fix the type error", "execute", {
+    await runDelegateHarness("fix the type error", "execute", {
       cwd: "/tmp/project",
       harness: "claude-agent-sdk",
     });
@@ -153,7 +153,7 @@ describe("delegate-agent-sdk", () => {
       isError: true,
     });
 
-    const result = await runDelegateAgentSDK("huge refactor", "execute", {
+    const result = await runDelegateHarness("huge refactor", "execute", {
       harness: "claude-agent-sdk",
     });
     expect(result.content).toContain("hit turn limit");
@@ -170,7 +170,7 @@ describe("delegate-agent-sdk", () => {
     });
 
     const transport = mockTransport();
-    await runDelegateAgentSDK("task", "explore", {
+    await runDelegateHarness("task", "explore", {
       transport,
       harness: "claude-agent-sdk",
     });
@@ -188,7 +188,7 @@ describe("delegate-agent-sdk", () => {
     // behavior change: with `harness` undefined the call throws a loud,
     // operator-oriented error instead of quietly dispatching to claude.
     await expect(
-      runDelegateAgentSDK("task", "explore", {
+      runDelegateHarness("task", "explore", {
         // @ts-expect-error — prove runtime rejection when the required field
         // is missing (the signature itself already forbids this).
         harness: undefined,

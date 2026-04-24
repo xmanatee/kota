@@ -91,7 +91,7 @@ export async function runDelegate(
 
   const resolvedBackend = delegateConfig.backend ?? modelRoute?.backend ?? "thin";
   if (resolvedBackend === "agent-sdk") {
-    const { runDelegateAgentSDK } = await import("./delegate-agent-sdk.js");
+    const { runDelegateHarness } = await import("./delegate-harness.js");
     if (!delegateConfig.harness) {
       return {
         content:
@@ -99,7 +99,7 @@ export async function runDelegate(
         is_error: true,
       };
     }
-    return runDelegateAgentSDK(task, mode, {
+    return runDelegateHarness(task, mode, {
       cwd: delegateConfig.cwd,
       projectContext: delegateConfig.projectContext,
       instructionContext: delegateConfig.instructionContext,

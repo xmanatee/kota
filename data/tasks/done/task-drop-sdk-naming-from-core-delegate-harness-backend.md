@@ -1,12 +1,12 @@
 ---
 id: task-drop-sdk-naming-from-core-delegate-harness-backend
 title: Drop SDK naming from core delegate harness backend
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Rename src/core/tools/delegate-agent-sdk.ts and its exports so the last SDK-labeled surface in core reads as harness-neutral, finishing the recent core agent-harness rename sweep.
 created_at: 2026-04-24T03:08:33.497Z
-updated_at: 2026-04-24T03:08:33.497Z
+updated_at: 2026-04-24T03:13:16.285Z
 ---
 
 ## Problem
