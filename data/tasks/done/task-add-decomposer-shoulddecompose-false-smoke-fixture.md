@@ -1,12 +1,12 @@
 ---
 id: task-add-decomposer-shoulddecompose-false-smoke-fixture
 title: Add decomposer shouldDecompose-false smoke fixture exercising triggerPayload plumbing
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Seed a smoke fixture for decomposer that replays a non-timeout-shaped builder run via triggerPayload, asserting the assess-failure gate correctly chose shouldDecompose: false and skipped the agent step — establishing end-to-end regression coverage of decomposer's decision gate plus the triggerPayload subprocess-executor plumbing without any agent-call cost.
 created_at: 2026-04-24T12:21:41.524Z
-updated_at: 2026-04-24T14:54:41.044Z
+updated_at: 2026-04-24T15:27:04.559Z
 ---
 
 ## Problem

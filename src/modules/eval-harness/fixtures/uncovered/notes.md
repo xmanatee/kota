@@ -55,18 +55,22 @@ The `triggerPayload` plumbing on `FixtureSpecFile` and
 newly buildable in principle. Each workflow below is still retired for
 a reason the predicate/payload changes do not resolve.
 
-- **decomposer** — retired pending a bootstrap follow-up. 470 runs, all
-  status=success. The representative real-failure shape in
-  `2026-04-18T15-45-49-339Z-decomposer-zloyo6` is now expressible
-  (seed a fake failed-builder `.kota/runs/<id>/metadata.json`, seed
-  `doing/` + `ready/` task files, forward `{runDir, runId}` via
-  `triggerPayload`), but the `decompose` step is an agent call that
-  costs a real autonomous LLM run per fixture replay. Until the eval
-  harness grows an agent-step fake (or the fixture is reshaped to
-  short-circuit the agent step via the existing `shouldDecompose:
-  false` path), a decomposer fixture would dominate eval-set cost. A
-  dedicated follow-up task should scope the agent-step bootstrap
-  separately.
+- **decomposer (agent-call path only)** — retired pending a bootstrap
+  follow-up. 470 runs, all status=success. The decision-gate branch
+  (`shouldDecompose: false` on a non-timeout-shaped builder failure) is
+  now covered end-to-end by the smoke fixture
+  `decomposer-short-circuits-on-non-timeout`, which seeds a fake
+  failed-builder `.kota/runs/<id>/metadata.json`, seeds a `doing/` task,
+  and forwards the `workflow.completed` trigger payload via
+  `triggerPayload` — tripping loudly if either harness plumbing
+  regresses. The remaining uncovered branch is the
+  `shouldDecompose: true` path that actually invokes the `decompose`
+  agent step (representative real-failure shape from
+  `2026-04-18T15-45-49-339Z-decomposer-zloyo6`); that path costs a real
+  autonomous LLM run per fixture replay. Until the eval harness grows
+  an agent-step fake, a decomposer agent-call fixture would dominate
+  eval-set cost. A dedicated follow-up task should scope the agent-step
+  bootstrap separately.
 - **improver** — retired. 153 success / 953 non-success runs with real
   failure shapes. The workflow reads the whole `.kota/runs/` aggregate
   and edits KOTA source, prompts, and tests. A real fixture would still

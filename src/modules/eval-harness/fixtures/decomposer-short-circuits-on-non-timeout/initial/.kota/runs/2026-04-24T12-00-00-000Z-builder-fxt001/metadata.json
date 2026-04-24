@@ -1,0 +1,36 @@
+{
+  "id": "2026-04-24T12-00-00-000Z-builder-fxt001",
+  "workflow": "builder",
+  "definitionPath": "src/modules/autonomy/workflows/builder/workflow.ts",
+  "trigger": {
+    "event": "autonomy.queue.available",
+    "payload": {
+      "pullableCount": 1,
+      "actionableCount": 1
+    }
+  },
+  "startedAt": "2026-04-24T12:00:00.000Z",
+  "completedAt": "2026-04-24T12:01:00.000Z",
+  "status": "failed",
+  "durationMs": 60000,
+  "runDir": ".kota/runs/2026-04-24T12-00-00-000Z-builder-fxt001",
+  "steps": [
+    {
+      "id": "inspect-ready-queue",
+      "type": "code",
+      "status": "success",
+      "startedAt": "2026-04-24T12:00:00.001Z",
+      "completedAt": "2026-04-24T12:00:00.050Z",
+      "durationMs": 49
+    },
+    {
+      "id": "build",
+      "type": "agent",
+      "status": "failed",
+      "startedAt": "2026-04-24T12:00:00.060Z",
+      "completedAt": "2026-04-24T12:00:59.940Z",
+      "durationMs": 59880,
+      "error": "Builder agent exited with non-zero status: validation tooling reported a configuration mismatch."
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "id": "decomposer-short-circuits-on-non-timeout",
+  "description": "Replays a non-timeout-shaped failed-builder run through decomposer via triggerPayload and asserts assess-failure short-circuits to shouldDecompose: false (decompose agent step skipped, no commit, no restart). Proves the triggerPayload subprocess plumbing forwards verbatim and the decomposer decision gate stays calibrated, without paying for any agent call.",
+  "role": "decomposer",
+  "workflowName": "decomposer",
+  "budgetMs": 60000,
+  "triggerPayload": {
+    "_runId": "fixture-decomposer-shortcircuit-2026-04-24",
+    "workflow": "builder",
+    "runId": "2026-04-24T12-00-00-000Z-builder-fxt001",
+    "runDir": ".kota/runs/2026-04-24T12-00-00-000Z-builder-fxt001",
+    "status": "failed",
+    "triggerEvent": "autonomy.queue.available",
+    "durationMs": 60000,
+    "definitionPath": "src/modules/autonomy/workflows/builder/workflow.ts",
+    "tags": ["monitored"],
+    "autonomyMode": "autonomous"
+  },
+  "predicates": [
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/doing/task-fixture-decomposer-decision-seed.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/doing/task-fixture-decomposer-decision-seed.md",
+      "needle": "CANARY-LINE-decomposer-short-circuits-on-non-timeout-fixture-seed"
+    },
+    {
+      "kind": "file-absent",
+      "path": "data/tasks/dropped/task-fixture-decomposer-decision-seed.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-decomposer-shortcircuit-2026-04-24/metadata.json",
+      "needle": "\"id\": \"assess-failure\",\n      \"type\": \"code\",\n      \"status\": \"success\""
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-decomposer-shortcircuit-2026-04-24/metadata.json",
+      "needle": "\"shouldDecompose\": false"
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-decomposer-shortcircuit-2026-04-24/metadata.json",
+      "needle": "\"id\": \"decompose\",\n      \"type\": \"agent\",\n      \"status\": \"skipped\""
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-decomposer-shortcircuit-2026-04-24/metadata.json",
+      "needle": "\"id\": \"commit\",\n      \"type\": \"code\",\n      \"status\": \"skipped\""
+    }
+  ],
+  "tags": ["smoke", "autonomy", "decision-gate"],
+  "provenance": {
+    "kind": "smoke-fixture",
+    "justification": "Locks two harness-plumbing invariants no real-failure fixture captures today and that no other smoke fixture covers either: (1) triggerPayload round-trips verbatim through `kota workflow exec --payload <json>` so the runDir/runId of the upstream failed-builder run reach decomposer's assess-failure step intact (the dispatcher smoke fixture only exercises the payload-free `manual` trigger), and (2) decomposer's assess-failure decision gate returns shouldDecompose: false on a non-timeout-shaped builder failure, skipping the decompose agent step (asserted directly against the deterministic decomposer run metadata so a regression that lets the agent step run is caught loudly without a real LLM call). The fixture uses the `_runId` field of the queue-replay protocol to pin the decomposer run dir name so file-contains can inspect the metadata.json without globbing — `_runId` is part of the payload the runtime-dispatch path naturally adds to every queued workflow.completed trigger, so this is the same shape decomposer sees in production. The agent-call path (shouldDecompose: true → real decompose run) remains uncovered pending the agent-step bootstrap follow-up tracked in fixtures/uncovered/notes.md."
+  }
+}
