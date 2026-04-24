@@ -80,29 +80,24 @@ overlapping.
 
 ## Recorder extraction
 
-The fixture was assembled by hand with the same workflow the decomposer
-replay fixture used:
+`recordings/build.json` is auto-extracted by
+`pnpm kota eval record-agent-step --run-id <id> --step build --fixture
+builder-agent-call-replay`. The recorder resolves the source run's
+commit SHA from `steps/commit.json` and walks that commit's diff, so
+every `fileOperations` entry for a repo-tree path — including task
+moves via `pnpm kota task move`, `git mv`, and Edit-tool edits — comes
+directly from `git show <sha>:<path>`. Run-directory artifacts
+(`success-criteria.txt`, `success-criteria-verified.txt`,
+`commit-message.txt`) are not committed, so they come from the Write-
+event scan of the step's `events.jsonl` and stay templated to
+`{{runDir}}`.
 
-1. Lift the agent-step response envelope from the source run's
-   `steps/build.json` `output` block (`text`, `subtype`, `turns`,
-   `totalCostUsd`, `inputTokens`, `outputTokens`, `sessionId`) into
-   `recordings/build.json.response`.
-2. Lift the critic verdict text from the source run's
-   `critic-review.json` into `recordings/critic-review.json.response.text`.
-3. Assemble `recordings/build.json.fileOperations` from the six files the
-   real commit touched (task file rename + four new files + one edit),
-   plus the three run-directory artifacts the builder always writes
-   (`success-criteria.txt`, `success-criteria-verified.txt`,
-   `commit-message.txt`). Task moves from `pnpm kota task move` do not
-   round-trip through the recorder yet, so the delete/write pair for the
-   task file is authored directly with the exact pre- and post-edit
-   contents captured from `git show <commit>`.
-4. Author the fixture's `initial/` tree by pulling each file the source
-   commit ADDED or EDITED from its pre-commit parent (`git show
-   <commit>^:<path>`), so HEAD at fixture replay time matches the repo
-   state the real builder saw.
+`recordings/critic-review.json` is still authored by hand: the critic
+is a judge call, not a workflow step, so its response text is lifted
+from the source run's `critic-review.json` rather than an agent-step
+artifact.
 
-If a future recorder upgrade auto-extracts task-move Bash calls, the
-hand-written delete/write entries in `recordings/build.json` can be
-dropped in favor of the recorder's output; no predicate changes would
-be required.
+The fixture's `initial/` tree is authored separately by pulling each
+file the source commit ADDED or EDITED from its pre-commit parent
+(`git show <commit>^:<path>`), so HEAD at fixture replay time matches
+the repo state the real builder saw.

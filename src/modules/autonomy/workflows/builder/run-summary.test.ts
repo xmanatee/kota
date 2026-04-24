@@ -222,7 +222,13 @@ describe("builder workflow write-run-summary step", () => {
       stepResults: {
         commit: makeStepResult("success"),
       },
-      stepOutputs: { commit: { committed: true, message: "Some commit" } },
+      stepOutputs: {
+        commit: {
+          committed: true,
+          message: "Some commit",
+          sha: "0000000000000000000000000000000000000000",
+        },
+      },
       previousOutput: undefined,
       stepOutputList: [],
       projectDir: "/tmp",

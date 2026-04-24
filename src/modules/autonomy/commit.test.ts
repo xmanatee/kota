@@ -78,13 +78,22 @@ describe("commitWorkflowChanges", () => {
     writeFileSync(join(runDirPath, "commit-message.txt"), "Builder: my custom message");
 
     const result = commitWorkflowChanges(projectDir, runDirPath);
-    expect(result).toEqual({ committed: true, message: "Builder: my custom message" });
+    expect(result.committed).toBe(true);
+    if (!result.committed) throw new Error("unreachable");
+    expect(result.message).toBe("Builder: my custom message");
+    expect(result.sha).toMatch(/^[0-9a-f]{40}$/);
 
     const log = execSync("git log --format=%s -1", {
       cwd: projectDir,
       encoding: "utf-8",
     }).trim();
     expect(log).toBe("Builder: my custom message");
+
+    const headSha = execSync("git rev-parse HEAD", {
+      cwd: projectDir,
+      encoding: "utf-8",
+    }).trim();
+    expect(result.sha).toBe(headSha);
   });
 
   it("requires commit-message.txt when there are working tree changes", () => {
@@ -185,7 +194,10 @@ describe("commitWorkflowChanges", () => {
     writeFileSync(join(runDirPath, "commit-message.txt"), "Sort inbox: drop stale note");
 
     const result = commitWorkflowChanges(projectDir, runDirPath);
-    expect(result).toEqual({ committed: true, message: "Sort inbox: drop stale note" });
+    expect(result.committed).toBe(true);
+    if (!result.committed) throw new Error("unreachable");
+    expect(result.message).toBe("Sort inbox: drop stale note");
+    expect(result.sha).toMatch(/^[0-9a-f]{40}$/);
 
     const tree = execSync("git show --name-status --format= HEAD", {
       cwd: projectDir,
@@ -302,7 +314,13 @@ describe("builder workflow commit and restart gates", () => {
   it("runs restart when commit produced a commit", async () => {
     const ctx = makeContext(
       { commit: "success" },
-      { commit: { committed: true, message: "Workflow: update repo" } },
+      {
+        commit: {
+          committed: true,
+          message: "Workflow: update repo",
+          sha: "0000000000000000000000000000000000000000",
+        },
+      },
     );
     expect(await restartStep!.when!(ctx)).toBe(true);
   });

@@ -4,12 +4,17 @@
  * Scaffolds a recording file from a real `.kota/runs/<id>/steps/<stepId>.json`
  * artifact. The response envelope is lifted verbatim from the source step
  * artifact so the replay returns the literal text, turn count, token usage,
- * and subtype the real agent produced. The file-operation list is seeded
- * from a best-effort scan of the step's `<stepId>.events.jsonl` for Write
- * tool invocations; the fixture author fills in anything the agent mutated
- * through Edit or shelling out (e.g. `pnpm kota task move`, `git mv`),
- * keeping the recording honest relative to the real run without forcing the
- * recorder to reverse-engineer every Bash command.
+ * and subtype the real agent produced.
+ *
+ * Repo-tree `fileOperations` come from the commit the source run produced:
+ * the recorder reads the SHA from `steps/commit.json`, then walks the
+ * commit diff (`recorder-commit-diff.ts`) to emit one `write`/`delete` per
+ * touched path, with renames expanded to a delete + write pair. Run-dir
+ * paths (under `.kota/runs/<sourceRunId>/`) are never committed; they come
+ * from a best-effort Write-event scan of the step's events.jsonl and stay
+ * templated to `{{runDir}}`. A source run whose commit step did not commit
+ * is a hard error — the recorder will not emit an empty or partial
+ * recording.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -20,8 +25,11 @@ import type {
   AgentStepRecordingResponse,
 } from "./agent-step-recording.js";
 import { recordingPathForStep } from "./agent-step-recording.js";
+import {
+  extractCommitDiffOperations,
+  resolveSourceCommitSha,
+} from "./recorder-commit-diff.js";
 
-/** The subset of `<stepId>.json` we consume. */
 type StepArtifactOutput = {
   content?: unknown;
   sessionId?: unknown;
@@ -53,21 +61,17 @@ function requireNumber(value: unknown, field: string): number {
 }
 
 export type ExtractRecordingParams = {
-  /** Project root containing `.kota/runs/<sourceRunId>/…`. */
   projectDir: string;
-  /** Source run id (directory name under `.kota/runs/`). */
   sourceRunId: string;
-  /** Step id to extract (must be an agent step in the source run). */
   stepId: string;
-  /** Target fixture directory; the recording writes under `<fixtureDir>/recordings/<stepId>.json`. */
   fixtureDir: string;
 };
 
 export type ExtractRecordingResult = {
   recordingPath: string;
   recording: AgentStepRecording;
-  /** Write tool invocations whose path fell outside `projectDir`; the recorder drops them from the recording and reports them so the author can audit. */
   skippedWritesOutsideProject: string[];
+  sourceCommitSha: string;
 };
 
 function readStepArtifact(
@@ -75,14 +79,7 @@ function readStepArtifact(
   sourceRunId: string,
   stepId: string,
 ): StepArtifact {
-  const path = join(
-    projectDir,
-    ".kota",
-    "runs",
-    sourceRunId,
-    "steps",
-    `${stepId}.json`,
-  );
+  const path = join(projectDir, ".kota", "runs", sourceRunId, "steps", `${stepId}.json`);
   if (!existsSync(path)) {
     throw new Error(
       `Source step artifact not found: ${path}. Either the run id or the step id is wrong.`,
@@ -108,7 +105,7 @@ function extractResponse(
   if (!out || typeof out !== "object") {
     throw new Error(`Step "${stepId}" has no output object.`);
   }
-  const response: AgentStepRecordingResponse = {
+  return {
     text: requireString(out.content, "output.content"),
     subtype: requireString(out.subtype, "output.subtype"),
     turns: requireNumber(out.turns, "output.turns"),
@@ -117,18 +114,30 @@ function extractResponse(
     outputTokens: requireNumber(out.outputTokens, "output.outputTokens"),
     ...(typeof out.sessionId === "string" && { sessionId: out.sessionId }),
   };
-  return response;
+}
+
+function readWorkflowName(projectDir: string, sourceRunId: string): string {
+  const path = join(projectDir, ".kota", "runs", sourceRunId, "metadata.json");
+  if (!existsSync(path)) {
+    throw new Error(
+      `Source run metadata not found: ${path}. The recorder needs it to determine the workflow name.`,
+    );
+  }
+  const meta = JSON.parse(readFileSync(path, "utf-8")) as { workflow?: unknown };
+  if (typeof meta.workflow !== "string") {
+    throw new Error(`Source run metadata missing "workflow" field: ${path}`);
+  }
+  return meta.workflow;
 }
 
 /**
- * Walk the step's events JSONL and collect Write tool invocations whose
- * file_path is absolute inside the project. Edits and Bash side effects
- * are not captured — the author fills them in based on the step's real
- * outcome. Absolute paths are rewritten as cwd-relative; paths inside
- * `.kota/runs/<sourceRunId>/` are rewritten with the `{{runDir}}`
- * placeholder so the recording works against any run id on replay.
+ * Collect Write tool invocations targeting run-dir paths. Repo-tree paths
+ * come from the commit diff, so this scan is limited to `{{runDir}}`-
+ * templated run-dir artifacts. Write events pointing outside the project
+ * root are reported via `skippedOutsideProject` so the author can audit.
+ * Multiple writes to the same run-dir path collapse to the latest write.
  */
-function extractWriteOperationsFromEvents(
+function extractRunDirWriteOperations(
   projectDir: string,
   sourceRunId: string,
   stepId: string,
@@ -141,13 +150,11 @@ function extractWriteOperationsFromEvents(
     "steps",
     `${stepId}.events.jsonl`,
   );
-  if (!existsSync(eventsPath)) {
-    return { ops: [], skippedOutsideProject: [] };
-  }
+  if (!existsSync(eventsPath)) return { ops: [], skippedOutsideProject: [] };
   const sourceRunDir = join(".kota", "runs", sourceRunId);
   const ops: AgentStepFileOperation[] = [];
   const skippedOutsideProject: string[] = [];
-  const seenPaths = new Set<string>();
+  const indexByPath = new Map<string, number>();
   for (const line of readFileSync(eventsPath, "utf-8").split("\n")) {
     const trimmed = line.trim();
     if (trimmed.length === 0) continue;
@@ -170,25 +177,17 @@ function extractWriteOperationsFromEvents(
       if (b.type !== "tool_use" || b.name !== "Write") continue;
       const filePath = b.input?.file_path;
       const writeContent = b.input?.content;
-      if (typeof filePath !== "string" || typeof writeContent !== "string") {
-        continue;
-      }
-      const absolute = resolve(filePath);
-      const rel = relative(projectDir, absolute);
+      if (typeof filePath !== "string" || typeof writeContent !== "string") continue;
+      const rel = relative(projectDir, resolve(filePath));
       if (rel.startsWith("..")) {
         skippedOutsideProject.push(filePath);
         continue;
       }
-      const templated = rel.startsWith(`${sourceRunDir}/`)
-        ? rel.replace(sourceRunDir, "{{runDir}}")
-        : rel;
-      // Preserve only the latest write for a given path — multiple writes
-      // to the same file in a single agent run collapse to the final one.
-      if (seenPaths.has(templated)) {
-        const existingIndex = ops.findIndex((o) => o.path === templated);
-        if (existingIndex >= 0) ops.splice(existingIndex, 1);
-      }
-      seenPaths.add(templated);
+      if (rel !== sourceRunDir && !rel.startsWith(`${sourceRunDir}/`)) continue;
+      const templated = rel.replace(sourceRunDir, "{{runDir}}");
+      const existing = indexByPath.get(templated);
+      if (existing !== undefined) ops.splice(existing, 1);
+      indexByPath.set(templated, ops.length);
       ops.push({ op: "write", path: templated, content: writeContent });
     }
   }
@@ -202,70 +201,45 @@ function extractWriteOperationsFromEvents(
 export function extractAgentStepRecording(
   params: ExtractRecordingParams,
 ): ExtractRecordingResult {
-  const artifact = readStepArtifact(
-    params.projectDir,
-    params.sourceRunId,
-    params.stepId,
-  );
+  const artifact = readStepArtifact(params.projectDir, params.sourceRunId, params.stepId);
   if (typeof artifact.id === "string" && artifact.id !== params.stepId) {
     throw new Error(
       `Source step artifact id "${String(artifact.id)}" does not match requested step id "${params.stepId}".`,
     );
   }
   const response = extractResponse(artifact, params.stepId);
+  const workflowName = readWorkflowName(params.projectDir, params.sourceRunId);
+  const sourceCommitSha = resolveSourceCommitSha(params.projectDir, params.sourceRunId);
 
-  const workflowMetadataPath = join(
-    params.projectDir,
-    ".kota",
-    "runs",
-    params.sourceRunId,
-    "metadata.json",
-  );
-  if (!existsSync(workflowMetadataPath)) {
-    throw new Error(
-      `Source run metadata not found: ${workflowMetadataPath}. The recorder needs it to determine the workflow name.`,
+  const { ops: commitOps, skippedOutsideProject: skippedFromCommit } =
+    extractCommitDiffOperations(
+      params.projectDir,
+      params.sourceRunId,
+      sourceCommitSha,
     );
-  }
-  const workflowMetadata = JSON.parse(
-    readFileSync(workflowMetadataPath, "utf-8"),
-  ) as { workflow?: unknown };
-  if (typeof workflowMetadata.workflow !== "string") {
-    throw new Error(
-      `Source run metadata missing "workflow" field: ${workflowMetadataPath}`,
+  const { ops: runDirOps, skippedOutsideProject: skippedFromWrites } =
+    extractRunDirWriteOperations(
+      params.projectDir,
+      params.sourceRunId,
+      params.stepId,
     );
-  }
-
-  const { ops, skippedOutsideProject } = extractWriteOperationsFromEvents(
-    params.projectDir,
-    params.sourceRunId,
-    params.stepId,
-  );
 
   const recording: AgentStepRecording = {
     version: 1,
-    workflowName: workflowMetadata.workflow,
+    workflowName,
     stepId: params.stepId,
     sourceRunId: params.sourceRunId,
     response,
-    fileOperations: ops,
+    fileOperations: [...commitOps, ...runDirOps],
   };
 
-  const recordingPath = recordingPathForStep(
-    params.fixtureDir,
-    params.stepId,
-  );
-  writeRecording(recording, recordingPath);
+  const recordingPath = recordingPathForStep(params.fixtureDir, params.stepId);
+  mkdirSync(dirname(recordingPath), { recursive: true });
+  writeFileSync(recordingPath, `${JSON.stringify(recording, null, 2)}\n`, "utf-8");
   return {
     recordingPath,
     recording,
-    skippedWritesOutsideProject: skippedOutsideProject,
+    skippedWritesOutsideProject: [...skippedFromCommit, ...skippedFromWrites],
+    sourceCommitSha,
   };
-}
-
-function writeRecording(
-  recording: AgentStepRecording,
-  recordingPath: string,
-): void {
-  mkdirSync(dirname(recordingPath), { recursive: true });
-  writeFileSync(recordingPath, `${JSON.stringify(recording, null, 2)}\n`, "utf-8");
 }

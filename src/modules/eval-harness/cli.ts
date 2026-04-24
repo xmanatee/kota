@@ -243,6 +243,8 @@ export function buildEvalCommand(projectDir: string): Command {
           span(result.recording.stepId, "info"),
           plain("  source="),
           span(result.recording.sourceRunId, "muted"),
+          plain("  sourceCommit="),
+          span(result.sourceCommitSha.slice(0, 12), "muted"),
         ),
         line(
           plain("  response turns="),
@@ -258,7 +260,7 @@ export function buildEvalCommand(projectDir: string): Command {
           ? [
               line(
                 span(
-                  `  skipped ${result.skippedWritesOutsideProject.length} Write tool call(s) whose file_path falls outside the project (audit if relevant):`,
+                  `  skipped ${result.skippedWritesOutsideProject.length} path(s) outside the project (audit if relevant):`,
                   "warn",
                 ),
               ),
@@ -267,12 +269,6 @@ export function buildEvalCommand(projectDir: string): Command {
               ),
             ]
           : []),
-        line(
-          span(
-            "  Edit/Bash side effects are not auto-captured — fill in the recording manually for any mutation outside the extracted Write set.",
-            "muted",
-          ),
-        ),
       ));
     });
 

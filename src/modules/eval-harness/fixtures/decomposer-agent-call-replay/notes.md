@@ -14,11 +14,17 @@ eval-harness replay adapter. The fixture regression-gates the
   the `decompose` agent step fires.
 - `recordings/decompose.json` carries the recorded agent response
   envelope (lifted from source run
-  `2026-04-18T15-45-49-339Z-decomposer-zloyo6`) and the set of file
-  operations that mirror the post-agent state the real decomposer run
-  produced (original task moved to `dropped/` with a `## Decomposed`
-  section, two ready-queue subtasks, run-directory
-  `commit-message.txt` and `notes.md`).
+  `2026-04-18T15-45-49-339Z-decomposer-zloyo6`) and a hand-authored set
+  of file operations that model what a successful decomposer run of
+  this shape would produce: original task moved to `dropped/` with a
+  `## Decomposed` section, two ready-queue subtasks, run-directory
+  `commit-message.txt` and `notes.md`. The `fileOperations` list is not
+  auto-extractable by `pnpm kota eval record-agent-step` because no
+  decomposer source run has ever produced `commit.committed: true` —
+  decomposer runs that ran the `decompose` agent step still ended the
+  commit step as no-op today. When a real committing decomposer run is
+  available, its source id can replace this fixture's provenance and
+  the recording can be re-extracted in one CLI call.
 - `{{runDir}}` inside a recorded path is substituted with the current
   run directory at replay time so the recording is portable across
   subprocess runs.

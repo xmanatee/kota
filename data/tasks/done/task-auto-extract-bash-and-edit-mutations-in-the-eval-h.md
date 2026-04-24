@@ -1,12 +1,12 @@
 ---
 id: task-auto-extract-bash-and-edit-mutations-in-the-eval-h
 title: Auto-extract Bash and Edit mutations in the eval-harness recorder
-status: ready
+status: done
 priority: p1
 area: modules
 summary: Extend src/modules/eval-harness/recorder.ts so pnpm kota eval record-agent-step produces a complete file-operations list without hand-authored entries for pnpm kota task move/create, Edit-tool edits, or git mv — reading the source run's committed diff as ground truth.
 created_at: 2026-04-24T20:34:20.748Z
-updated_at: 2026-04-24T20:34:20.748Z
+updated_at: 2026-04-24T21:03:15.620Z
 ---
 
 ## Problem

@@ -110,39 +110,33 @@ numbers don't support a gate either way — rerun with correct config first.
 
 Fixtures that exercise an agent-call branch ship a recording under
 `<fixtureDir>/recordings/<stepId>.json`. Each recording captures a real
-past `.kota/runs/<id>/steps/<stepId>.json` response envelope plus the
-post-agent file operations the real run produced. The subprocess
-executor forwards the fixture directory as
-`KOTA_EVAL_HARNESS_REPLAY_ROOT`; the eval-harness module's top-level
-registration sees the env var and overrides the `claude-agent-sdk`
-harness slot with a replay adapter for that subprocess. Production
-selection is unchanged — operator and daemon runs never set the env.
+past `steps/<stepId>.json` response envelope plus the post-agent file
+operations. The subprocess executor forwards the fixture directory as
+`KOTA_EVAL_HARNESS_REPLAY_ROOT`; the module's top-level registration
+sees the env var and overrides the `claude-agent-sdk` harness slot with
+a replay adapter for that subprocess. Production selection is unchanged.
 
-The replay adapter substitutes `{{runDir}}` inside recorded paths with
-the current run directory parsed from the agent prompt, writes every
-file operation to the fixture working directory, and stages the results
-through `git add -A` so downstream repair-loop checks
-(`task-queue-valid`, `commit-stageable`) observe the same working-tree
-shape the real agent produced with `pnpm kota task {create,move}`.
+The replay adapter substitutes `{{runDir}}` inside recorded paths,
+writes every operation to the fixture working directory, and stages
+them through `git add -A` so downstream repair-loop checks observe the
+same working-tree shape the real agent produced.
 
-The loader pins provenance: a fixture with any recording must declare
-`real-failure` provenance, and every recording's `sourceRunId` must
-match the fixture's `provenance.sourceRunId`. Mismatches, unknown
-operation kinds, and unsupported recording versions fail at
-`loadFixture` with a typed error naming the offending file. The
-`pnpm kota eval record-agent-step --run-id <id> --step <step> --fixture
-<id>` CLI extracts a recording from a real run's step artifact,
-auto-filling the response envelope and Write-tool side effects; Edit
-and Bash mutations (task moves, task creates) are the fixture author's
-responsibility to encode as additional `fileOperations`, with the
-source run id kept pinned.
+The loader pins provenance: every recording's `sourceRunId` must match
+the fixture's `real-failure` provenance. The `pnpm kota eval
+record-agent-step` CLI is the single source for `fileOperations` on a
+committing source run — it resolves the commit SHA captured by
+`commitWorkflowChanges` from `steps/commit.json` and walks that commit's
+diff, so Edit edits, `pnpm kota task move/create`, and `git mv` round-
+trip without hand transcription. Run-directory artifacts come from the
+Write-event scan and stay templated to `{{runDir}}`. A non-committing
+source run is a hard error; hand-authored recordings are reserved for
+judge calls (e.g. `critic-review.json`) and fixtures whose source
+branch has not yet produced a commit.
 
 Two prompt shapes route through the same adapter: workflow-step
-prompts keyed by the `Step:` marker, and judge prompts (today only the
+prompts keyed by the `Step:` marker, and judge prompts (today the
 critic) keyed to the fixed id `critic-review`. Judge recordings skip
-the workflow-name match because their prompt never names a workflow;
-fixtures that drive a workflow through both surfaces ship one recording
-per surface.
+the workflow-name match because their prompt never names a workflow.
 
 ## Boundaries
 

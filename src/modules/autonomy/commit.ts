@@ -9,7 +9,7 @@ import {
 
 export type CommitResult =
   | { committed: false }
-  | { committed: true; message: string };
+  | { committed: true; message: string; sha: string };
 
 function runGit(projectDir: string, command: string): string {
   return execSync(command, {
@@ -157,6 +157,7 @@ export function commitWorkflowChanges(
   }
 
   const message = runGit(projectDir, "git log --format=%s -1");
+  const sha = runGit(projectDir, "git rev-parse HEAD");
 
-  return { committed: true, message };
+  return { committed: true, message, sha };
 }
