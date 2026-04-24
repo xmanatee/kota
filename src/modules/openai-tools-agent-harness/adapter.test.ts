@@ -1,6 +1,5 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { KotaContentBlock, KotaMessage, KotaModelResponse, KotaTool, KotaToolResultBlock } from "#core/agent-harness/message-protocol.js";
 
 const messagesStreamMock = vi.fn();
 const messagesCreateMock = vi.fn();
@@ -22,7 +21,7 @@ import {
   openaiToolsAgentHarness,
 } from "./adapter.js";
 
-type StubFinalMessage = Pick<Anthropic.Message, "id" | "content" | "stop_reason"> & {
+type StubFinalMessage = Pick<KotaModelResponse, "id" | "content" | "stop_reason"> & {
   usage?: { input_tokens: number; output_tokens: number };
 };
 
@@ -37,9 +36,8 @@ function makeStubStream(opts: {
       }
       return this;
     },
-    finalMessage: async (): Promise<Anthropic.Message> => ({
+    finalMessage: async (): Promise<KotaModelResponse> => ({
       id: opts.final.id,
-      type: "message",
       role: "assistant",
       model: "stub-model",
       content: opts.final.content,
@@ -51,7 +49,7 @@ function makeStubStream(opts: {
         cache_creation_input_tokens: null,
         cache_read_input_tokens: null,
       },
-    } as Anthropic.Message),
+    }),
   };
 }
 
@@ -75,7 +73,7 @@ const TEST_TOOL: KotaTool = {
 type StreamCallSnapshot = {
   system: string | undefined;
   tools: readonly KotaTool[] | undefined;
-  messages: Anthropic.MessageParam[];
+  messages: KotaMessage[];
 };
 
 const streamCallSnapshots: StreamCallSnapshot[] = [];
@@ -97,12 +95,12 @@ beforeEach(() => {
     (params: {
       system?: string;
       tools?: readonly KotaTool[];
-      messages: Anthropic.MessageParam[];
+      messages: KotaMessage[];
     }) => {
       streamCallSnapshots.push({
         system: params.system,
         tools: params.tools ? [...params.tools] : undefined,
-        messages: JSON.parse(JSON.stringify(params.messages)) as Anthropic.MessageParam[],
+        messages: JSON.parse(JSON.stringify(params.messages)) as KotaMessage[],
       });
       const next = streamReturnQueue.shift();
       if (!next) throw new Error("messagesStreamMock: no scripted return value");
@@ -146,7 +144,7 @@ describe("openaiToolsAgentHarness — happy path tool loop", () => {
               id: "call_1",
               name: "echo_tool",
               input: { text: "hello" },
-            } as Anthropic.ContentBlock,
+            } as KotaContentBlock,
           ],
           usage: { input_tokens: 7, output_tokens: 3 },
         },
@@ -159,7 +157,7 @@ describe("openaiToolsAgentHarness — happy path tool loop", () => {
           id: "msg_2",
           stop_reason: "end_turn",
           content: [
-            { type: "text", text: "all done", citations: null } as Anthropic.ContentBlock,
+            { type: "text", text: "all done", citations: null } as KotaContentBlock,
           ],
           usage: { input_tokens: 11, output_tokens: 4 },
         },
@@ -225,7 +223,7 @@ describe("openaiToolsAgentHarness — guardrails", () => {
               id: "call_deny",
               name: "echo_tool",
               input: { text: "secret" },
-            } as Anthropic.ContentBlock,
+            } as KotaContentBlock,
           ],
           usage: { input_tokens: 4, output_tokens: 2 },
         },
@@ -237,7 +235,7 @@ describe("openaiToolsAgentHarness — guardrails", () => {
           id: "msg_deny_2",
           stop_reason: "end_turn",
           content: [
-            { type: "text", text: "I cannot proceed", citations: null } as Anthropic.ContentBlock,
+            { type: "text", text: "I cannot proceed", citations: null } as KotaContentBlock,
           ],
           usage: { input_tokens: 5, output_tokens: 3 },
         },
@@ -294,7 +292,7 @@ describe("openaiToolsAgentHarness — guardrails", () => {
               id: "call_int",
               name: "echo_tool",
               input: { text: "x" },
-            } as Anthropic.ContentBlock,
+            } as KotaContentBlock,
           ],
           usage: { input_tokens: 3, output_tokens: 1 },
         },
@@ -336,7 +334,7 @@ describe("openaiToolsAgentHarness — guardrails", () => {
               id: "call_dis",
               name: "echo_tool",
               input: { text: "x" },
-            } as Anthropic.ContentBlock,
+            } as KotaContentBlock,
           ],
           usage: { input_tokens: 2, output_tokens: 1 },
         },
@@ -348,7 +346,7 @@ describe("openaiToolsAgentHarness — guardrails", () => {
           id: "msg_dis_2",
           stop_reason: "end_turn",
           content: [
-            { type: "text", text: "ok", citations: null } as Anthropic.ContentBlock,
+            { type: "text", text: "ok", citations: null } as KotaContentBlock,
           ],
           usage: { input_tokens: 2, output_tokens: 1 },
         },
@@ -366,7 +364,7 @@ describe("openaiToolsAgentHarness — guardrails", () => {
 
     expect(canUseTool).not.toHaveBeenCalled();
     expect(executeToolMock).not.toHaveBeenCalled();
-    const toolResultBlock = (streamCallSnapshots[1].messages[2].content as Anthropic.Messages.ToolResultBlockParam[])[0];
+    const toolResultBlock = (streamCallSnapshots[1].messages[2].content as KotaToolResultBlock[])[0];
     expect(toolResultBlock).toMatchObject({
       type: "tool_result",
       tool_use_id: "call_dis",
@@ -390,7 +388,7 @@ describe("openaiToolsAgentHarness — guardrails", () => {
           id: "msg_allow_1",
           stop_reason: "end_turn",
           content: [
-            { type: "text", text: "ok", citations: null } as Anthropic.ContentBlock,
+            { type: "text", text: "ok", citations: null } as KotaContentBlock,
           ],
           usage: { input_tokens: 1, output_tokens: 1 },
         },
@@ -422,7 +420,7 @@ describe("openaiToolsAgentHarness — protocol errors", () => {
               id: "call_bad",
               name: "echo_tool",
               input: { _raw: "{not json" },
-            } as Anthropic.ContentBlock,
+            } as KotaContentBlock,
           ],
           usage: { input_tokens: 2, output_tokens: 1 },
         },
@@ -451,7 +449,7 @@ describe("openaiToolsAgentHarness — protocol errors", () => {
               id: "call_x",
               name: "",
               input: {},
-            } as Anthropic.ContentBlock,
+            } as KotaContentBlock,
           ],
         },
       }),
@@ -508,7 +506,7 @@ describe("openaiToolsAgentHarness — unsupported options rejection", () => {
           id: "msg_system_string",
           stop_reason: "end_turn",
           content: [
-            { type: "text", text: "ok", citations: null } as Anthropic.ContentBlock,
+            { type: "text", text: "ok", citations: null } as KotaContentBlock,
           ],
           usage: { input_tokens: 1, output_tokens: 1 },
         },
@@ -540,7 +538,7 @@ describe("openaiToolsAgentHarness — reasoning-effort passthrough", () => {
           id: "msg_effort",
           stop_reason: "end_turn",
           content: [
-            { type: "text", text: "ok", citations: null } as Anthropic.ContentBlock,
+            { type: "text", text: "ok", citations: null } as KotaContentBlock,
           ],
         },
       }),
@@ -583,7 +581,7 @@ describe("openaiToolsAgentHarness — limits", () => {
               id: `${id}_call`,
               name: "echo_tool",
               input: { text: "again" },
-            } as Anthropic.ContentBlock,
+            } as KotaContentBlock,
           ],
           usage: { input_tokens: 1, output_tokens: 1 },
         },

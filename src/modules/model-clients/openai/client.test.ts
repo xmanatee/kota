@@ -1,5 +1,8 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type {
+	KotaTextBlock,
+	KotaToolUseBlock,
+} from "#core/agent-harness/message-protocol.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import {
 	anthropicThinkingTranslator,
@@ -156,7 +159,7 @@ describe("OpenAIModelClient", () => {
 			max_tokens: 100,
 			messages: [{ role: "user", content: "hi" }],
 		});
-		expect((msg.content[0] as Anthropic.TextBlock).text).toBe("");
+		expect((msg.content[0] as KotaTextBlock).text).toBe("");
 	});
 
 	it("handles create with tool_calls and no content", async () => {
@@ -185,8 +188,8 @@ describe("OpenAIModelClient", () => {
 		});
 		expect(msg.stop_reason).toBe("tool_use");
 		expect(msg.content).toHaveLength(2);
-		expect((msg.content[0] as Anthropic.ToolUseBlock).name).toBe("search");
-		expect((msg.content[1] as Anthropic.ToolUseBlock).name).toBe("read");
+		expect((msg.content[0] as KotaToolUseBlock).name).toBe("search");
+		expect((msg.content[1] as KotaToolUseBlock).name).toBe("read");
 	});
 
 	it("propagates HTTP error details", async () => {

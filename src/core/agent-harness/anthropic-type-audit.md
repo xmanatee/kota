@@ -15,22 +15,22 @@ core contract forces a conversion at that seam.
 
 ## Import inventory
 
-The inventory below captures the Stage-0 state. Stages 1, 2, 3, and 4 have
-landed — `Anthropic.Tool.InputSchema`, `Anthropic.Tool`,
-`Anthropic.Messages.ThinkingConfigParam`, and every internal
+The inventory below captures the Stage-0 state. Stages 1, 2, 3, 4, and 5
+have landed — `Anthropic.Tool.InputSchema`, `Anthropic.Tool`,
+`Anthropic.Messages.ThinkingConfigParam`, every internal
 message/content-block shape (`Anthropic.MessageParam`,
 `Anthropic.Messages.ContentBlockParam`, `Anthropic.Messages.TextBlockParam`,
 `Anthropic.Messages.ToolUseBlockParam`, `Anthropic.Messages.ToolUseBlock`,
-`Anthropic.Messages.ToolResultBlockParam`) are no longer referenced by any
-file under `src/core/`. The rows tagged **tools (...)**, **loop (...)**,
-**modules (provider-types)**, and the thinking-shape entries on
-loop/model-client files therefore no longer hold; they remain for historical
-reference. The only remaining Anthropic types in `src/core/` ride on the
-assistant-response path (`Anthropic.Message` on `Context.addAssistantMessage`,
-`delegate-turn.ts`, `model-client.ts` `MessageStream`/`ModelClient.create`)
-and are Stage 5 territory.
+`Anthropic.Messages.ToolResultBlockParam`), and the assistant-response path
+(`Anthropic.Message` on `Context.addAssistantMessage`, `delegate-turn.ts`,
+`model-client.ts` `MessageStream` / `ModelClient.create`) are no longer
+referenced by any file under `src/core/`. Every row in the table below
+therefore no longer holds; they remain for historical reference. No file
+under `src/core/` imports from `@anthropic-ai/sdk`. Stage 6 adds the
+import guard and the documentation refresh that promote the claim to an
+enforced invariant.
 
-38 files under `src/core/` currently import `type Anthropic from "@anthropic-ai/sdk"`:
+38 files under `src/core/` originally imported `type Anthropic from "@anthropic-ai/sdk"`:
 
 | Area | File | Role |
 |---|---|---|
@@ -312,37 +312,44 @@ After this stage, role (2) is effectively gone from core; the only
 remaining roles are the Stage 5 response-shape migration and the Stage 6
 import-guard + AGENTS.md upgrade.
 
-### Stage 5 — `KotaModelResponse` + `KotaMessageStream`
+### Stage 5 — `KotaModelResponse` + `KotaMessageStream` (landed)
 
-Introduce:
+`KotaModelResponse`, `KotaModelUsage`, `KotaStopReason`, and
+`KotaMessageStream` live in `src/core/agent-harness/message-protocol.ts`
+alongside `KotaTool`, `KotaThinkingConfig`, and `KotaMessage`, and are
+re-exported from the agent-harness index. No file under `src/core/`
+references `Anthropic.Message` any more —
+`Context.addAssistantMessage(message: KotaModelResponse)`,
+`TurnLoopOptions.response: KotaModelResponse`,
+`MessageStream.finalMessage(): Promise<KotaModelResponse>`,
+`ModelClient.messages.create(): Promise<KotaModelResponse>`, and
+`streamMessage()` / `StreamConfig` all speak the neutral shape.
+`MessageStream` in `src/core/model/model-client.ts` is a public alias for
+`KotaMessageStream`, keeping the load-bearing name callers already use.
+`src/core/model/mock-client.ts` exports neutral fixture builders
+(`textResponse`, `toolUseResponse`, `multiToolResponse`, `createMockClient`)
+returning `KotaModelResponse`, and `MockApiCall.messages` is `KotaMessage[]`.
+`stop_reason` is the literal union
+`"end_turn" | "max_tokens" | "stop_sequence" | "tool_use" | "pause_turn" | "refusal"`;
+providers that produce a reason outside the union translate at their seam.
 
-```ts
-type KotaModelUsage = { input_tokens: number; output_tokens: number; cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null };
-type KotaModelResponse = { id: string; role: "assistant"; model: string; content: KotaContentBlock[]; stop_reason: string; usage: KotaModelUsage };
-interface KotaMessageStream { on(event: "text" | "thinking", cb: (delta: string) => void): this; finalMessage(): Promise<KotaModelResponse>; }
-type KotaMessageStreamParams = { model: string; max_tokens: number; system?: KotaTextBlock[] | string; messages: KotaMessage[]; tools?: KotaTool[]; thinking?: KotaThinkingConfig; effort?: AgentEffort };
-type KotaMessageCreateParams = { model: string; max_tokens: number; system?: string; messages: KotaMessage[] };
-```
+Adapter-side: `src/modules/model-clients/anthropic.ts` exposes explicit
+`anthropicMessageToKotaResponse()` and `wrapAnthropicStream()` helpers.
+The Anthropic `Message` is narrowed block-by-block to `KotaContentBlock`
+(dropping SDK-only fields such as `citations` and server-tool-use blocks)
+and `stop_reason` is narrowed to the neutral union — no `as` cast past
+the helpers. `src/modules/model-clients/openai/stream.ts`,
+`src/modules/model-clients/openai/client.ts`,
+`src/modules/model-clients/openai/translations.ts`, and
+`src/modules/model-clients/failover-client.ts` no longer import
+`@anthropic-ai/sdk`; `OpenAIStream` produces `KotaModelResponse` directly
+through `buildKotaModelResponse()`, and `FailoverModelClient.doCreate`
+returns `Promise<KotaModelResponse>`.
 
-Migrate:
-
-- `src/core/model/model-client.ts` — replace `Anthropic.Message`, `Anthropic.MessageParam[]`, `Anthropic.Messages.TextBlockParam[]`, `Anthropic.Tool[]`, `Anthropic.Messages.ThinkingConfigParam` in `MessageStream`, `MessageStreamParams`, `MessageCreateParams`, `ModelClient`.
-- `src/core/model/streaming.ts` — `StreamConfig` + `streamMessage()` return types.
-- `src/core/model/mock-client.ts` — fixtures return `KotaModelResponse`, `MockApiCall` records `KotaMessage[]` / `KotaTool[]`.
-- `src/core/model/model-client.test.ts`, `src/openai-model-client.test.ts` — rebuild fixtures on neutral types.
-- `src/core/loop/context.ts` — `addAssistantMessage(message: KotaModelResponse)` (last Anthropic import falls out of the loop).
-- `src/core/loop/loop-send.ts`, `src/core/loop/compaction.ts` — consume `KotaModelResponse`.
-- `src/core/tools/delegate-turn.ts` — `response: KotaModelResponse`.
-
-Adapter-side: every `ModelClient` implementation
-(`src/modules/model-clients/anthropic/*`, `openai/*`, `failover-client.ts`)
-translates its native stream and final-message types into the neutral shapes
-at the adapter boundary. The Anthropic provider's adapter becomes the only
-place that imports `@anthropic-ai/sdk`.
-
-At the end of Stage 5 no file under `src/core/` imports from
-`@anthropic-ai/sdk`, and every Anthropic type used by a core primitive has a
-neutral KOTA equivalent.
+After this stage, role (4) is gone from core and
+`src/modules/model-clients/anthropic.ts` is the only file in the repo
+that imports `@anthropic-ai/sdk` to satisfy a core contract. Stage 6
+promotes this invariant to an enforced import guard.
 
 ### Stage 6 — enforce and document
 
@@ -379,16 +386,9 @@ Module-side fixtures that still target the Anthropic wire
 
 ## Follow-up tasks
 
-Stages 1, 2, 3, and 4 have landed. Explorer can seed each remaining stage as
-its own task, in the order listed:
+Stages 1, 2, 3, 4, and 5 have landed. Explorer can seed the remaining stage:
 
-1. **Introduce neutral `KotaModelResponse` and `KotaMessageStream` and complete
-   the model-client migration** — implements Stage 5. Scope: `model-client.ts`,
-   `streaming.ts`, `mock-client.ts`, the remaining loop consumers of the
-   assistant response (`context.addAssistantMessage`, `loop-send.finalMessage`,
-   `delegate-turn.response`), and every `ModelClient` implementation in
-   `src/modules/model-clients/*`.
-2. **Enforce the neutral-protocol boundary in core with an import guard** —
+1. **Enforce the neutral-protocol boundary in core with an import guard** —
    implements Stage 6. Scope: the `no-anthropic-imports-in-core` test, the
    `src/core/agent-harness/AGENTS.md` upgrade, and the one-line adapter-seam
    statements in module-side `AGENTS.md`.

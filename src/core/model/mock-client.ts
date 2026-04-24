@@ -1,28 +1,34 @@
 /**
- * Mock Anthropic client for E2E testing.
+ * Mock ModelClient for E2E testing.
  *
  * Simulates the streaming API so the full agent loop can be tested
  * without a real API key. Each call to messages.stream() returns the
  * next response in a pre-configured sequence.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
-import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type {
+	KotaContentBlock,
+	KotaMessage,
+	KotaMessageStream,
+	KotaModelResponse,
+	KotaModelUsage,
+	KotaTool,
+} from "#core/agent-harness/message-protocol.js";
 import type { ModelClient } from "./model-client.js";
 
-type Listener = (...args: unknown[]) => void;
+type StreamListener = (delta: string) => void;
 
 /**
- * Minimal mock of the SDK's MessageStream. Emits text/thinking events
+ * Minimal mock of `KotaMessageStream`. Emits text/thinking events
  * and resolves finalMessage() with the pre-configured response.
  */
-class MockStream {
-	private listeners = new Map<string, Listener[]>();
+class MockStream implements KotaMessageStream {
+	private listeners = new Map<string, StreamListener[]>();
 	private resolved = false;
 
-	constructor(private response: Anthropic.Message) {}
+	constructor(private response: KotaModelResponse) {}
 
-	on(event: string, handler: Listener): this {
+	on(event: "text" | "thinking", handler: StreamListener): this {
 		const existing = this.listeners.get(event);
 		if (existing) {
 			existing.push(handler);
@@ -32,27 +38,23 @@ class MockStream {
 		return this;
 	}
 
-	private emit(event: string, ...args: unknown[]): void {
+	private emit(event: string, delta: string): void {
 		const handlers = this.listeners.get(event);
 		if (!handlers) return;
-		for (const h of handlers) h(...args);
+		for (const h of handlers) h(delta);
 	}
 
-	async finalMessage(): Promise<Anthropic.Message> {
+	async finalMessage(): Promise<KotaModelResponse> {
 		if (this.resolved) return this.response;
 		this.resolved = true;
 
 		// Emit events for each content block, simulating streaming behavior
 		for (const block of this.response.content) {
 			if (block.type === "text") {
-				this.emit("text", block.text, block.text);
+				this.emit("text", block.text);
 			}
-			if (block.type === "thinking" && "thinking" in block) {
-				this.emit(
-					"thinking",
-					(block as { thinking: string }).thinking,
-					(block as { thinking: string }).thinking,
-				);
+			if (block.type === "thinking") {
+				this.emit("thinking", block.thinking);
 			}
 		}
 		return this.response;
@@ -62,13 +64,13 @@ class MockStream {
 /** Record of what was sent to the mock API. */
 export type MockApiCall = {
 	model: string;
-	messages: Anthropic.MessageParam[];
+	messages: KotaMessage[];
 	tools: KotaTool[];
 	system: unknown;
 };
 
 /**
- * Create a mock Anthropic client that returns pre-configured responses.
+ * Create a mock ModelClient that returns pre-configured responses.
  *
  * Each call to `messages.stream()` pops the next response from the list.
  * If the list is exhausted, the last response is reused (so tests can
@@ -78,26 +80,31 @@ export type MockApiCall = {
  * for assertions.
  */
 export function createMockClient(
-	responses: Anthropic.Message[],
+	responses: KotaModelResponse[],
 ): [ModelClient, MockApiCall[]] {
 	const calls: MockApiCall[] = [];
 	let callIndex = 0;
 
-	const client = {
+	const client: ModelClient = {
 		messages: {
-			stream(params: Record<string, unknown>) {
+			stream(params): KotaMessageStream {
 				calls.push({
-					model: params.model as string,
-					messages: params.messages as Anthropic.MessageParam[],
-					tools: params.tools as KotaTool[],
+					model: params.model,
+					messages: params.messages,
+					tools: params.tools ?? [],
 					system: params.system,
 				});
 				const idx = Math.min(callIndex, responses.length - 1);
 				callIndex++;
 				return new MockStream(responses[idx]);
 			},
+			async create(_params): Promise<KotaModelResponse> {
+				const idx = Math.min(callIndex, responses.length - 1);
+				callIndex++;
+				return responses[idx];
+			},
 		},
-	} as unknown as ModelClient;
+	};
 
 	return [client, calls];
 }
@@ -111,27 +118,29 @@ function nextId(): string {
 	return `msg_mock_${msgCounter}`;
 }
 
+function defaultUsage(outputTokens: number): KotaModelUsage {
+	return {
+		input_tokens: 100,
+		output_tokens: outputTokens,
+		cache_creation_input_tokens: null,
+		cache_read_input_tokens: null,
+	};
+}
+
 /** Build a text-only response (agent stops with text). */
 export function textResponse(
 	text: string,
-	usage?: Partial<Anthropic.Message["usage"]>,
-): Anthropic.Message {
+	usage?: Partial<KotaModelUsage>,
+): KotaModelResponse {
 	return {
 		id: nextId(),
-		type: "message",
 		role: "assistant",
 		model: "claude-haiku-4-5-20251001",
-		content: [{ type: "text", text, citations: null }],
+		content: [{ type: "text", text }],
 		stop_reason: "end_turn",
 		stop_sequence: null,
-		usage: {
-			input_tokens: 100,
-			output_tokens: Math.ceil(text.length / 4),
-			cache_creation_input_tokens: null,
-			cache_read_input_tokens: null,
-			...usage,
-		},
-	} as Anthropic.Message;
+		usage: { ...defaultUsage(Math.ceil(text.length / 4)), ...usage },
+	};
 }
 
 /** Build a tool-use response (agent calls a tool). */
@@ -139,14 +148,10 @@ export function toolUseResponse(
 	toolName: string,
 	toolInput: unknown,
 	opts?: { text?: string; toolId?: string },
-): Anthropic.Message {
-	const content: Anthropic.ContentBlock[] = [];
+): KotaModelResponse {
+	const content: KotaContentBlock[] = [];
 	if (opts?.text) {
-		content.push({
-			type: "text",
-			text: opts.text,
-			citations: null,
-		} as Anthropic.ContentBlock);
+		content.push({ type: "text", text: opts.text });
 	}
 	content.push({
 		type: "tool_use",
@@ -156,46 +161,34 @@ export function toolUseResponse(
 	});
 	return {
 		id: nextId(),
-		type: "message",
 		role: "assistant",
 		model: "claude-haiku-4-5-20251001",
 		content,
 		stop_reason: "tool_use",
 		stop_sequence: null,
-		usage: {
-			input_tokens: 100,
-			output_tokens: 50,
-			cache_creation_input_tokens: null,
-			cache_read_input_tokens: null,
-		},
-	} as Anthropic.Message;
+		usage: defaultUsage(50),
+	};
 }
 
 /** Build a response with multiple tool calls. */
 export function multiToolResponse(
 	tools: Array<{ name: string; input: unknown; id?: string }>,
-): Anthropic.Message {
-	const content: Anthropic.ContentBlock[] = tools.map((t) => ({
-		type: "tool_use" as const,
+): KotaModelResponse {
+	const content: KotaContentBlock[] = tools.map((t) => ({
+		type: "tool_use",
 		id: t.id ?? `toolu_mock_${++msgCounter}`,
 		name: t.name,
 		input: t.input,
 	}));
 	return {
 		id: nextId(),
-		type: "message",
 		role: "assistant",
 		model: "claude-haiku-4-5-20251001",
 		content,
 		stop_reason: "tool_use",
 		stop_sequence: null,
-		usage: {
-			input_tokens: 100,
-			output_tokens: 80,
-			cache_creation_input_tokens: null,
-			cache_read_input_tokens: null,
-		},
-	} as Anthropic.Message;
+		usage: defaultUsage(80),
+	};
 }
 
 /** Reset the internal message counter (call between tests). */

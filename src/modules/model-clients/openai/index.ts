@@ -1,12 +1,12 @@
 /**
- * OpenAI-compatible ModelClient — translates between Anthropic message format
- * (used internally by KOTA) and the OpenAI chat completions API format.
+ * OpenAI-compatible ModelClient — translates between KOTA's neutral message
+ * protocol (used internally) and the OpenAI chat completions API wire format.
  */
 
 export { type OpenAIClientOptions, OpenAIModelClient } from "./client.js";
 export { OpenAIStream } from "./stream.js";
 export {
-	buildAnthropicMessage,
+	buildKotaModelResponse,
 	extractToolResultContent,
 	mapFinishReason,
 	safeJsonParse,

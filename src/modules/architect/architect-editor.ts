@@ -1,7 +1,6 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import type {
-  KotaContentBlock,
   KotaMessage,
+  KotaModelResponse,
   KotaTextBlock,
 } from "#core/agent-harness/message-protocol.js";
 import { truncateToolResult } from "#core/loop/context.js";
@@ -64,7 +63,7 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
   const tracker = createFailureTracker();
 
   for (let turn = 0; turn < MAX_EDITOR_TURNS; turn++) {
-    let response!: Anthropic.Message;
+    let response!: KotaModelResponse;
     let streamSuccess = false;
     for (let attempt = 0; attempt <= STREAM_MAX_RETRIES; attempt++) {
       try {
@@ -110,7 +109,7 @@ export async function runEditorLoop(opts: EditorOptions): Promise<EditorResult> 
 
     messages.push({
       role: "assistant",
-      content: response.content as unknown as KotaContentBlock[],
+      content: response.content,
     });
 
     const toolBlocks = response.content.filter((b) => b.type === "tool_use");

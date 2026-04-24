@@ -1,12 +1,12 @@
 ---
 id: task-introduce-neutral-kotamodelresponse-and-complete-t
 title: Introduce neutral KotaModelResponse and complete the model-client migration
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Implement Stage 5 of the Anthropic SDK type-surface audit: add neutral KotaModelResponse / KotaMessageStream / KotaModelUsage and migrate ModelClient, MessageStream, streaming, mock-client, context.addAssistantMessage, loop-send finalMessage, delegate-turn response, and every model-client module so nothing in core imports @anthropic-ai/sdk except adapter seams.
 created_at: 2026-04-24T06:23:48.664Z
-updated_at: 2026-04-24T06:23:48.664Z
+updated_at: 2026-04-24T06:45:12.149Z
 ---
 
 ## Problem

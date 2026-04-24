@@ -13,8 +13,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { KotaModelResponse } from "#core/agent-harness/message-protocol.js";
 import { registerModelClientFactory } from "#core/model/model-client.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStep, WorkflowDefinition } from "#core/workflow/types.js";
@@ -79,13 +79,12 @@ function makeAgentStep(moduleRoot: string): WorkflowAgentStep {
   };
 }
 
-function stubTextResponse(text: string): Anthropic.Message {
+function stubTextResponse(text: string): KotaModelResponse {
   return {
     id: "msg-ok",
-    type: "message",
     role: "assistant",
     model: "openai/gpt-4o-mini",
-    content: [{ type: "text", text, citations: null }],
+    content: [{ type: "text", text }],
     stop_reason: "end_turn",
     stop_sequence: null,
     usage: {
@@ -93,8 +92,6 @@ function stubTextResponse(text: string): Anthropic.Message {
       output_tokens: 1,
       cache_creation_input_tokens: null,
       cache_read_input_tokens: null,
-      server_tool_use: null,
-      service_tier: null,
     },
   };
 }

@@ -7,6 +7,10 @@ import type {
 	KotaContentBlock,
 	KotaImageBlock,
 	KotaMessage,
+	KotaMessageStream,
+	KotaModelResponse,
+	KotaModelUsage,
+	KotaStopReason,
 	KotaTextBlock,
 	KotaThinkingBlock,
 	KotaThinkingConfig,
@@ -17,7 +21,6 @@ import type {
 } from "#core/agent-harness/message-protocol.js";
 import type {
 	MessageCreateParams,
-	MessageStream,
 	MessageStreamParams,
 	ModelClient,
 } from "#core/model/model-client.js";
@@ -181,6 +184,130 @@ export function kotaToAnthropicThinkingConfig(
 	return { type: "disabled" };
 }
 
+/**
+ * Anthropic SDK content blocks carry extra fields (`citations`, thinking
+ * signatures, server-tool-use) that are not part of the neutral
+ * `KotaContentBlock` union. This helper narrows block-by-block and drops
+ * anything the core protocol does not express; new variants must be added
+ * here deliberately.
+ */
+function anthropicBlockToKotaBlock(
+	block: Anthropic.Messages.ContentBlock,
+): KotaContentBlock | null {
+	switch (block.type) {
+		case "text":
+			return { type: "text", text: block.text };
+		case "tool_use":
+			return {
+				type: "tool_use",
+				id: block.id,
+				name: block.name,
+				input: block.input,
+			};
+		case "thinking":
+			return {
+				type: "thinking",
+				thinking: block.thinking,
+				signature: block.signature,
+			};
+		default:
+			return null;
+	}
+}
+
+/**
+ * Narrow an Anthropic stop_reason string to the neutral `KotaStopReason`
+ * union. The SDK types stop_reason as `string | null` for forward
+ * compatibility with new model variants; this helper maps known values and
+ * falls back to `"end_turn"` for unexpected values — the loop treats an
+ * unknown reason as a normal end-of-turn rather than failing the whole run.
+ */
+function narrowAnthropicStopReason(
+	reason: string | null | undefined,
+): KotaStopReason | null {
+	if (reason === null || reason === undefined) return null;
+	switch (reason) {
+		case "end_turn":
+		case "max_tokens":
+		case "stop_sequence":
+		case "tool_use":
+		case "pause_turn":
+		case "refusal":
+			return reason;
+		default:
+			return "end_turn";
+	}
+}
+
+function anthropicUsageToKotaUsage(
+	usage: Anthropic.Messages.Usage,
+): KotaModelUsage {
+	return {
+		input_tokens: usage.input_tokens,
+		output_tokens: usage.output_tokens,
+		cache_read_input_tokens: usage.cache_read_input_tokens ?? null,
+		cache_creation_input_tokens: usage.cache_creation_input_tokens ?? null,
+	};
+}
+
+/**
+ * Translate an Anthropic SDK `Message` to the neutral `KotaModelResponse`
+ * field-for-field. This is the single seam where the SDK's wider shape
+ * narrows to core's contract — no `as` cast past this helper.
+ */
+export function anthropicMessageToKotaResponse(
+	message: Anthropic.Message,
+): KotaModelResponse {
+	const content: KotaContentBlock[] = [];
+	for (const block of message.content) {
+		const translated = anthropicBlockToKotaBlock(block);
+		if (translated) content.push(translated);
+	}
+	return {
+		id: message.id,
+		role: "assistant",
+		model: message.model,
+		content,
+		stop_reason: narrowAnthropicStopReason(message.stop_reason),
+		stop_sequence: message.stop_sequence ?? null,
+		usage: anthropicUsageToKotaUsage(message.usage),
+	};
+}
+
+/**
+ * Minimal shape of the Anthropic SDK's `MessageStream` surface that KOTA
+ * consumes. Typed structurally so the wrapper does not have to name the SDK's
+ * internal `MessageStream` class path.
+ */
+type AnthropicMessageStreamLike = {
+	on(event: "text", cb: (delta: string) => void): unknown;
+	on(event: "thinking", cb: (delta: string) => void): unknown;
+	finalMessage(): Promise<Anthropic.Message>;
+};
+
+/**
+ * Wrap an Anthropic SDK `MessageStream` as a neutral `KotaMessageStream`.
+ * The SDK stream is kept for its event loop (text/thinking deltas) and only
+ * the final message is translated to the neutral shape; the wrapper exposes
+ * only the events core reads.
+ */
+export function wrapAnthropicStream(
+	stream: AnthropicMessageStreamLike,
+): KotaMessageStream {
+	const wrapper: KotaMessageStream = {
+		on(event, cb) {
+			if (event === "text") stream.on("text", cb);
+			else stream.on("thinking", cb);
+			return wrapper;
+		},
+		async finalMessage() {
+			const message = await stream.finalMessage();
+			return anthropicMessageToKotaResponse(message);
+		},
+	};
+	return wrapper;
+}
+
 /** ModelClient wrapping the Anthropic SDK. */
 export class AnthropicModelClient implements ModelClient {
 	readonly messages: ModelClient["messages"];
@@ -188,14 +315,18 @@ export class AnthropicModelClient implements ModelClient {
 	constructor(options?: { maxRetries?: number; apiKey?: string }) {
 		const sdk = new Anthropic(options);
 		this.messages = {
-			stream: (params: MessageStreamParams) =>
-				sdk.messages.stream(
+			stream: (params: MessageStreamParams) => {
+				const sdkStream = sdk.messages.stream(
 					toAnthropicStreamParams(params) as Parameters<typeof sdk.messages.stream>[0],
-				) as unknown as MessageStream,
-			create: (params: MessageCreateParams) =>
-				sdk.messages.create(
+				) as unknown as AnthropicMessageStreamLike;
+				return wrapAnthropicStream(sdkStream);
+			},
+			create: async (params: MessageCreateParams) => {
+				const sdkMessage = (await sdk.messages.create(
 					toAnthropicCreateParams(params) as Parameters<typeof sdk.messages.create>[0],
-				) as unknown as Promise<Anthropic.Message>,
+				)) as Anthropic.Message;
+				return anthropicMessageToKotaResponse(sdkMessage);
+			},
 		};
 	}
 }

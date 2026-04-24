@@ -10,14 +10,15 @@
  * silently ignored.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
 import type {
   AgentCanUseTool,
   AgentHarness,
   AgentHarnessResult,
   AgentHarnessRunOptions,
   AgentHarnessWriter,
+  KotaContentBlock,
   KotaMessage,
+  KotaTextBlock,
   KotaTool,
   KotaToolResultBlock,
   KotaToolUseBlock,
@@ -32,13 +33,11 @@ export const OPENAI_TOOLS_ASK_OWNER_TOOL_NAME = "ask_owner";
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_MAX_TURNS = 25;
 
-function isToolUseBlock(
-  block: Anthropic.ContentBlock,
-): block is Anthropic.ToolUseBlock {
+function isToolUseBlock(block: KotaContentBlock): block is KotaToolUseBlock {
   return block.type === "tool_use";
 }
 
-function isTextBlock(block: Anthropic.ContentBlock): block is Anthropic.TextBlock {
+function isTextBlock(block: KotaContentBlock): block is KotaTextBlock {
   return block.type === "text";
 }
 
@@ -330,11 +329,9 @@ async function runOpenaiToolsLoop(
       const turnText = textBlocks.map((block) => block.text).join("");
       if (turnText.length > 0) finalText = turnText;
 
-      // `finalMessage` is still `Anthropic.Message` until Stage 5 swaps it to
-      // `KotaModelResponse`; its content is structurally a `KotaContentBlock[]`.
       messages.push({
         role: "assistant",
-        content: finalMessage.content as unknown as KotaMessage["content"],
+        content: finalMessage.content,
       });
 
       if (toolBlocks.length === 0 || finalMessage.stop_reason === "end_turn") {

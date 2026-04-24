@@ -3,9 +3,11 @@
  * and OpenAI chat-completion shapes.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
 import type {
+	KotaContentBlock,
 	KotaMessage,
+	KotaModelResponse,
+	KotaStopReason,
 	KotaTextBlock,
 	KotaTool,
 	KotaToolResultBlock,
@@ -125,10 +127,8 @@ export function toOpenAITools(tools: KotaTool[]): OAITool[] {
 	}));
 }
 
-/** Map OpenAI finish_reason to Anthropic stop_reason. */
-export function mapFinishReason(
-	reason: string | null,
-): Anthropic.Message["stop_reason"] {
+/** Map OpenAI finish_reason to the neutral `KotaStopReason`. */
+export function mapFinishReason(reason: string | null): KotaStopReason {
 	switch (reason) {
 		case "stop":
 			return "end_turn";
@@ -141,21 +141,17 @@ export function mapFinishReason(
 	}
 }
 
-/** Build an Anthropic.Message from accumulated OpenAI response data. */
-export function buildAnthropicMessage(opts: {
+/** Build a neutral `KotaModelResponse` from accumulated OpenAI response data. */
+export function buildKotaModelResponse(opts: {
 	text: string;
 	toolCalls: Array<{ id: string; name: string; input: unknown }>;
-	stopReason: Anthropic.Message["stop_reason"];
+	stopReason: KotaStopReason;
 	model: string;
 	usage: { input: number; output: number };
-}): Anthropic.Message {
-	const content: Anthropic.ContentBlock[] = [];
+}): KotaModelResponse {
+	const content: KotaContentBlock[] = [];
 	if (opts.text) {
-		content.push({
-			type: "text",
-			text: opts.text,
-			citations: null,
-		} as Anthropic.ContentBlock);
+		content.push({ type: "text", text: opts.text });
 	}
 	for (const tc of opts.toolCalls) {
 		content.push({
@@ -166,15 +162,10 @@ export function buildAnthropicMessage(opts: {
 		});
 	}
 	if (content.length === 0) {
-		content.push({
-			type: "text",
-			text: "",
-			citations: null,
-		} as Anthropic.ContentBlock);
+		content.push({ type: "text", text: "" });
 	}
 	return {
 		id: `msg_oai_${Date.now()}`,
-		type: "message",
 		role: "assistant",
 		model: opts.model,
 		content,
@@ -186,7 +177,7 @@ export function buildAnthropicMessage(opts: {
 			cache_creation_input_tokens: null,
 			cache_read_input_tokens: null,
 		},
-	} as Anthropic.Message;
+	};
 }
 
 /** Parse JSON with fallback to raw string wrapper. */

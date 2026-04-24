@@ -1,5 +1,8 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
+import type {
+	KotaTextBlock,
+	KotaToolUseBlock,
+} from "#core/agent-harness/message-protocol.js";
 import { OpenAIStream } from "./stream.js";
 
 function sseChunks(events: string[]): ReadableStream<Uint8Array> {
@@ -42,7 +45,7 @@ describe("OpenAIStream", () => {
 		];
 		const stream = new OpenAIStream(() => Promise.resolve(okResponse(events)), "test");
 		const msg = await stream.finalMessage();
-		expect((msg.content[0] as Anthropic.TextBlock).text).toBe("ok");
+		expect((msg.content[0] as KotaTextBlock).text).toBe("ok");
 	});
 
 	it("accumulates multiple parallel tool calls", async () => {
@@ -87,8 +90,8 @@ describe("OpenAIStream", () => {
 
 		expect(msg.stop_reason).toBe("tool_use");
 		expect(msg.content).toHaveLength(2);
-		const tc0 = msg.content[0] as Anthropic.ToolUseBlock;
-		const tc1 = msg.content[1] as Anthropic.ToolUseBlock;
+		const tc0 = msg.content[0] as KotaToolUseBlock;
+		const tc1 = msg.content[1] as KotaToolUseBlock;
 		expect(tc0.name).toBe("search");
 		expect(tc0.input).toEqual({ q: "x" });
 		expect(tc1.name).toBe("read");
@@ -113,7 +116,7 @@ describe("OpenAIStream", () => {
 			"test",
 		);
 		const msg = await stream.finalMessage();
-		expect((msg.content[0] as Anthropic.TextBlock).text).toBe("hello");
+		expect((msg.content[0] as KotaTextBlock).text).toBe("hello");
 	});
 
 	it("handles interleaved text and tool calls", async () => {
@@ -143,8 +146,8 @@ describe("OpenAIStream", () => {
 		const msg = await stream.finalMessage();
 
 		expect(msg.content).toHaveLength(2);
-		expect((msg.content[0] as Anthropic.TextBlock).text).toBe("Let me ");
-		expect((msg.content[1] as Anthropic.ToolUseBlock).name).toBe("search");
+		expect((msg.content[0] as KotaTextBlock).text).toBe("Let me ");
+		expect((msg.content[1] as KotaToolUseBlock).name).toBe("search");
 	});
 
 	it("picks up usage from mid-stream chunk", async () => {
@@ -188,7 +191,7 @@ describe("OpenAIStream", () => {
 		];
 		const stream = new OpenAIStream(() => Promise.resolve(okResponse(events)), "test");
 		const msg = await stream.finalMessage();
-		const tc = msg.content[0] as Anthropic.ToolUseBlock;
+		const tc = msg.content[0] as KotaToolUseBlock;
 		expect(tc.id).toBe("call_0");
 	});
 
@@ -241,6 +244,6 @@ describe("OpenAIStream", () => {
 			"test",
 		);
 		const msg = await stream.finalMessage();
-		expect((msg.content[0] as Anthropic.TextBlock).text).toBe("ok");
+		expect((msg.content[0] as KotaTextBlock).text).toBe("ok");
 	});
 });

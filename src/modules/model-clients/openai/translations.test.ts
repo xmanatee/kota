@@ -1,4 +1,3 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
 import type {
 	KotaImageBlock,
@@ -9,7 +8,7 @@ import type {
 	KotaToolUseBlock,
 } from "#core/agent-harness/message-protocol.js";
 import {
-	buildAnthropicMessage,
+	buildKotaModelResponse,
 	extractToolResultContent,
 	kotaMessageToOpenAiMessage,
 	mapFinishReason,
@@ -272,9 +271,9 @@ describe("mapFinishReason edge cases", () => {
 	});
 });
 
-describe("buildAnthropicMessage edge cases", () => {
-	it("builds message with multiple tool calls", () => {
-		const msg = buildAnthropicMessage({
+describe("buildKotaModelResponse edge cases", () => {
+	it("builds response with multiple tool calls", () => {
+		const msg = buildKotaModelResponse({
 			text: "",
 			toolCalls: [
 				{ id: "c1", name: "search", input: { q: "a" } },
@@ -287,12 +286,12 @@ describe("buildAnthropicMessage edge cases", () => {
 		expect(msg.content).toHaveLength(2);
 		expect(msg.content[0].type).toBe("tool_use");
 		expect(msg.content[1].type).toBe("tool_use");
-		expect((msg.content[0] as Anthropic.ToolUseBlock).name).toBe("search");
-		expect((msg.content[1] as Anthropic.ToolUseBlock).name).toBe("read");
+		expect((msg.content[0] as KotaToolUseBlock).name).toBe("search");
+		expect((msg.content[1] as KotaToolUseBlock).name).toBe("read");
 	});
 
 	it("includes text before tool calls when both present", () => {
-		const msg = buildAnthropicMessage({
+		const msg = buildKotaModelResponse({
 			text: "Analyzing...",
 			toolCalls: [{ id: "c1", name: "analyze", input: {} }],
 			stopReason: "tool_use",
@@ -307,7 +306,7 @@ describe("buildAnthropicMessage edge cases", () => {
 	});
 
 	it("generates unique-ish message ids", () => {
-		const m1 = buildAnthropicMessage({
+		const m1 = buildKotaModelResponse({
 			text: "a", toolCalls: [], stopReason: "end_turn",
 			model: "t", usage: { input: 0, output: 0 },
 		});

@@ -40,11 +40,10 @@ describe("openai-tools agent harness integration", () => {
       },
       finalMessage: async () => ({
         id: "msg_int",
-        type: "message",
-        role: "assistant",
+        role: "assistant" as const,
         model: "test",
-        content: [{ type: "text", text: "ok", citations: null }],
-        stop_reason: "end_turn",
+        content: [{ type: "text" as const, text: "ok" }],
+        stop_reason: "end_turn" as const,
         stop_sequence: null,
         usage: {
           input_tokens: 1,

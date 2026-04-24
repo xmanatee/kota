@@ -6,9 +6,10 @@
  * `registerModelClientFactory` at module load time.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
 import type {
 	KotaMessage,
+	KotaMessageStream,
+	KotaModelResponse,
 	KotaTextBlock,
 	KotaThinkingConfig,
 	KotaTool,
@@ -17,12 +18,12 @@ import type { AgentEffort } from "#core/agent-harness/types.js";
 
 export type { AgentEffort };
 
-/** Minimal stream interface matching the Anthropic SDK's MessageStream subset KOTA uses. */
-export interface MessageStream {
-	on(event: "text", cb: (delta: string) => void): this;
-	on(event: "thinking", cb: (delta: string) => void): this;
-	finalMessage(): Promise<Anthropic.Message>;
-}
+/**
+ * Public alias for the neutral stream shape. `MessageStream` is the name the
+ * loop and sub-agent code have always used; its definition is now the neutral
+ * `KotaMessageStream`, so callers see one consistent surface.
+ */
+export type MessageStream = KotaMessageStream;
 
 /** Parameters for streaming message creation. */
 export type MessageStreamParams = {
@@ -53,8 +54,8 @@ export type MessageCreateParams = {
 /** Abstract LLM client — swap providers without changing agent code. */
 export interface ModelClient {
 	messages: {
-		stream(params: MessageStreamParams): MessageStream;
-		create(params: MessageCreateParams): Promise<Anthropic.Message>;
+		stream(params: MessageStreamParams): KotaMessageStream;
+		create(params: MessageCreateParams): Promise<KotaModelResponse>;
 	};
 }
 

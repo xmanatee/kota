@@ -1,8 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import type Anthropic from "@anthropic-ai/sdk";
 import type {
-  KotaContentBlock,
   KotaMessage,
+  KotaModelResponse,
   KotaToolResultBlockContent,
 } from "#core/agent-harness/message-protocol.js";
 import type { ModelClient } from "#core/model/model-client.js";
@@ -94,12 +93,10 @@ export class Context {
     this.messages.push({ role: "user", content });
   }
 
-  addAssistantMessage(message: Anthropic.Message): void {
-    // Stage 5 replaces `Anthropic.Message` here with `KotaModelResponse`; its
-    // `content` is already structurally compatible with `KotaContentBlock[]`.
+  addAssistantMessage(message: KotaModelResponse): void {
     this.messages.push({
       role: "assistant",
-      content: message.content as unknown as KotaContentBlock[],
+      content: message.content,
     });
   }
 

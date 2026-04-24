@@ -9,8 +9,11 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface, type Interface } from "node:readline";
-import type Anthropic from "@anthropic-ai/sdk";
-import type { KotaMessage, KotaTool } from "#core/agent-harness/message-protocol.js";
+import type {
+	KotaMessage,
+	KotaModelResponse,
+	KotaTool,
+} from "#core/agent-harness/message-protocol.js";
 import { loadConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { getEventBus } from "#core/events/event-bus.js";
@@ -676,7 +679,7 @@ export class McpServer {
 			...(systemPrompt && { system: systemPrompt }),
 		};
 
-		let response: Anthropic.Message;
+		let response: KotaModelResponse;
 		try {
 			response = await this.modelClient.messages.create(callParams);
 		} catch (err) {

@@ -1,9 +1,12 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, describe, expect, it, type Mock, vi } from "vitest";
-import type { KotaTool } from "./core/agent-harness/message-protocol.js";
+import type {
+	KotaTextBlock,
+	KotaTool,
+	KotaToolUseBlock,
+} from "./core/agent-harness/message-protocol.js";
 import type { ModelClient } from "./core/model/model-client.js";
 import {
-	buildAnthropicMessage,
+	buildKotaModelResponse,
 	mapFinishReason,
 	OpenAIModelClient,
 	systemToText,
@@ -245,9 +248,9 @@ describe("mapFinishReason", () => {
 	});
 });
 
-describe("buildAnthropicMessage", () => {
+describe("buildKotaModelResponse", () => {
 	it("builds text-only message", () => {
-		const msg = buildAnthropicMessage({
+		const msg = buildKotaModelResponse({
 			text: "Hello",
 			toolCalls: [],
 			stopReason: "end_turn",
@@ -259,13 +262,13 @@ describe("buildAnthropicMessage", () => {
 		expect(msg.stop_reason).toBe("end_turn");
 		expect(msg.content).toHaveLength(1);
 		expect(msg.content[0].type).toBe("text");
-		expect((msg.content[0] as Anthropic.TextBlock).text).toBe("Hello");
+		expect((msg.content[0] as KotaTextBlock).text).toBe("Hello");
 		expect(msg.usage.input_tokens).toBe(10);
 		expect(msg.usage.output_tokens).toBe(5);
 	});
 
 	it("builds message with tool calls", () => {
-		const msg = buildAnthropicMessage({
+		const msg = buildKotaModelResponse({
 			text: "",
 			toolCalls: [{ id: "call_1", name: "search", input: { q: "test" } }],
 			stopReason: "tool_use",
@@ -275,13 +278,13 @@ describe("buildAnthropicMessage", () => {
 		expect(msg.stop_reason).toBe("tool_use");
 		expect(msg.content).toHaveLength(1);
 		expect(msg.content[0].type).toBe("tool_use");
-		const tc = msg.content[0] as Anthropic.ToolUseBlock;
+		const tc = msg.content[0] as KotaToolUseBlock;
 		expect(tc.name).toBe("search");
 		expect(tc.input).toEqual({ q: "test" });
 	});
 
 	it("builds message with text and tool calls", () => {
-		const msg = buildAnthropicMessage({
+		const msg = buildKotaModelResponse({
 			text: "Searching...",
 			toolCalls: [{ id: "c1", name: "search", input: {} }],
 			stopReason: "tool_use",
@@ -294,7 +297,7 @@ describe("buildAnthropicMessage", () => {
 	});
 
 	it("adds empty text block when no content", () => {
-		const msg = buildAnthropicMessage({
+		const msg = buildKotaModelResponse({
 			text: "",
 			toolCalls: [],
 			stopReason: "end_turn",
@@ -302,7 +305,7 @@ describe("buildAnthropicMessage", () => {
 			usage: { input: 0, output: 0 },
 		});
 		expect(msg.content).toHaveLength(1);
-		expect((msg.content[0] as Anthropic.TextBlock).text).toBe("");
+		expect((msg.content[0] as KotaTextBlock).text).toBe("");
 	});
 });
 
@@ -392,7 +395,7 @@ describe("OpenAIModelClient", () => {
 			expect(result.role).toBe("assistant");
 			expect(result.model).toBe("llama3");
 			expect(result.stop_reason).toBe("end_turn");
-			expect((result.content[0] as Anthropic.TextBlock).text).toBe("Hello!");
+			expect((result.content[0] as KotaTextBlock).text).toBe("Hello!");
 
 			// Verify the request was sent correctly
 			const [url, opts] = mock.mock.calls[0];
@@ -447,7 +450,7 @@ describe("OpenAIModelClient", () => {
 
 			expect(result.stop_reason).toBe("tool_use");
 			expect(result.content[0].type).toBe("tool_use");
-			const tc = result.content[0] as Anthropic.ToolUseBlock;
+			const tc = result.content[0] as KotaToolUseBlock;
 			expect(tc.name).toBe("search");
 			expect(tc.input).toEqual({ q: "weather" });
 		});
@@ -618,7 +621,7 @@ describe("OpenAIModelClient", () => {
 			expect(textChunks).toEqual(["Hello", " world"]);
 			expect(msg.stop_reason).toBe("end_turn");
 			expect(msg.model).toBe("llama3");
-			expect((msg.content[0] as Anthropic.TextBlock).text).toBe(
+			expect((msg.content[0] as KotaTextBlock).text).toBe(
 				"Hello world",
 			);
 			expect(msg.usage.input_tokens).toBe(10);
@@ -703,7 +706,7 @@ describe("OpenAIModelClient", () => {
 
 			expect(msg.stop_reason).toBe("tool_use");
 			expect(msg.content).toHaveLength(1);
-			const tc = msg.content[0] as Anthropic.ToolUseBlock;
+			const tc = msg.content[0] as KotaToolUseBlock;
 			expect(tc.type).toBe("tool_use");
 			expect(tc.id).toBe("call_1");
 			expect(tc.name).toBe("search");
@@ -781,7 +784,7 @@ describe("OpenAIModelClient", () => {
 				messages: [{ role: "user", content: "hi" }],
 			});
 			const msg = await stream.finalMessage();
-			expect((msg.content[0] as Anthropic.TextBlock).text).toBe("ok");
+			expect((msg.content[0] as KotaTextBlock).text).toBe("ok");
 		});
 	});
 });

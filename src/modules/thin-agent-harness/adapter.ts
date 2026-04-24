@@ -1,10 +1,10 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import type {
   AgentHarness,
   AgentHarnessResult,
   AgentHarnessRunOptions,
   AgentHarnessWriter,
   KotaMessage,
+  KotaModelResponse,
 } from "#core/agent-harness/index.js";
 import { createModelClient } from "#core/model/model-client.js";
 
@@ -35,7 +35,7 @@ function rejectUnsupportedToolOptions(options: AgentHarnessRunOptions): void {
   }
 }
 
-function extractText(message: Anthropic.Message): string {
+function extractText(message: KotaModelResponse): string {
   const parts: string[] = [];
   for (const block of message.content) {
     if (block.type === "text") parts.push(block.text);

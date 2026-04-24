@@ -20,9 +20,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { KotaContentBlock, KotaMessage, KotaModelResponse, KotaTool } from "#core/agent-harness/message-protocol.js";
 
 const messagesStreamMock = vi.fn();
 const messagesCreateMock = vi.fn();
@@ -80,7 +79,7 @@ const SHELL_TOOL: KotaTool = {
 };
 
 type StubFinalMessage = Pick<
-  Anthropic.Message,
+  KotaModelResponse,
   "id" | "content" | "stop_reason"
 > & {
   usage?: { input_tokens: number; output_tokens: number };
@@ -97,9 +96,8 @@ function makeStubStream(opts: {
       }
       return this;
     },
-    finalMessage: async (): Promise<Anthropic.Message> => ({
+    finalMessage: async (): Promise<KotaModelResponse> => ({
       id: opts.final.id,
-      type: "message",
       role: "assistant",
       model: "stub-model",
       content: opts.final.content,
@@ -111,13 +109,13 @@ function makeStubStream(opts: {
         cache_creation_input_tokens: null,
         cache_read_input_tokens: null,
       },
-    } as Anthropic.Message),
+    }),
   };
 }
 
-type StreamCallSnapshot = { messages: Anthropic.MessageParam[] };
+type StreamCallSnapshot = { messages: KotaMessage[] };
 type StreamBuilder = (
-  messages: Anthropic.MessageParam[],
+  messages: KotaMessage[],
 ) => ReturnType<typeof makeStubStream>;
 
 const streamCallSnapshots: StreamCallSnapshot[] = [];
@@ -127,7 +125,7 @@ function queueStreamBuilder(builder: StreamBuilder): void {
   streamBuilderQueue.push(builder);
 }
 
-function concatToolResultContent(messages: Anthropic.MessageParam[]): string {
+function concatToolResultContent(messages: KotaMessage[]): string {
   const parts: string[] = [];
   for (const message of messages) {
     if (message.role !== "user" || typeof message.content === "string") continue;
@@ -152,7 +150,7 @@ function concatToolResultContent(messages: Anthropic.MessageParam[]): string {
 const EXPECTED_PATTERN = /must return exactly "([^"]+)"/;
 
 function extractExpectedFromToolResult(
-  messages: Anthropic.MessageParam[],
+  messages: KotaMessage[],
 ): string {
   const blob = concatToolResultContent(messages);
   const match = EXPECTED_PATTERN.exec(blob);
@@ -179,10 +177,10 @@ describe("openai-tools harness × revise-from-test-output scenario", () => {
     streamBuilderQueue.length = 0;
 
     messagesStreamMock.mockImplementation(
-      (params: { messages: Anthropic.MessageParam[] }) => {
+      (params: { messages: KotaMessage[] }) => {
         const snapshot = JSON.parse(
           JSON.stringify(params.messages),
-        ) as Anthropic.MessageParam[];
+        ) as KotaMessage[];
         streamCallSnapshots.push({ messages: snapshot });
         const next = streamBuilderQueue.shift();
         if (!next) throw new Error("messagesStreamMock: no scripted builder for this turn");
@@ -251,7 +249,7 @@ describe("openai-tools harness × revise-from-test-output scenario", () => {
               name: "shell",
               input: { command: loaded.spec.verification.command },
             },
-          ] as Anthropic.ContentBlock[],
+          ] as KotaContentBlock[],
           usage: { input_tokens: 10, output_tokens: 4 },
         },
       }),
@@ -275,7 +273,7 @@ describe("openai-tools harness × revise-from-test-output scenario", () => {
               name: "file_write",
               input: { path: "src/secret.js", content: fixedSecret },
             },
-          ] as Anthropic.ContentBlock[],
+          ] as KotaContentBlock[],
           usage: { input_tokens: 20, output_tokens: 10 },
         },
       });
@@ -293,7 +291,7 @@ describe("openai-tools harness × revise-from-test-output scenario", () => {
               name: "shell",
               input: { command: loaded.spec.verification.command },
             },
-          ] as Anthropic.ContentBlock[],
+          ] as KotaContentBlock[],
           usage: { input_tokens: 8, output_tokens: 4 },
         },
       }),
@@ -306,8 +304,8 @@ describe("openai-tools harness × revise-from-test-output scenario", () => {
           id: "msg_done",
           stop_reason: "end_turn",
           content: [
-            { type: "text", text: "Scenario solved.", citations: null },
-          ] as Anthropic.ContentBlock[],
+            { type: "text", text: "Scenario solved." },
+          ] as KotaContentBlock[],
           usage: { input_tokens: 6, output_tokens: 3 },
         },
       }),

@@ -2,14 +2,16 @@
  * SSE stream consumer for OpenAI-compatible chat completion endpoints.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
-import type { MessageStream } from "#core/model/model-client.js";
-import { buildAnthropicMessage, mapFinishReason, safeJsonParse } from "./translations.js";
+import type {
+	KotaMessageStream,
+	KotaModelResponse,
+} from "#core/agent-harness/message-protocol.js";
+import { buildKotaModelResponse, mapFinishReason, safeJsonParse } from "./translations.js";
 import type { OAIStreamChunk } from "./types.js";
 
-export class OpenAIStream implements MessageStream {
+export class OpenAIStream implements KotaMessageStream {
 	private listeners = new Map<string, Array<(delta: string) => void>>();
-	private messagePromise: Promise<Anthropic.Message>;
+	private messagePromise: Promise<KotaModelResponse>;
 
 	constructor(fetchFn: () => Promise<Response>, model: string) {
 		this.messagePromise = this.consume(fetchFn, model);
@@ -22,7 +24,7 @@ export class OpenAIStream implements MessageStream {
 		return this;
 	}
 
-	async finalMessage(): Promise<Anthropic.Message> {
+	async finalMessage(): Promise<KotaModelResponse> {
 		return this.messagePromise;
 	}
 
@@ -34,7 +36,7 @@ export class OpenAIStream implements MessageStream {
 	private async consume(
 		fetchFn: () => Promise<Response>,
 		fallbackModel: string,
-	): Promise<Anthropic.Message> {
+	): Promise<KotaModelResponse> {
 		const response = await fetchFn();
 		if (!response.ok) {
 			const body = await response.text();
@@ -120,7 +122,7 @@ export class OpenAIStream implements MessageStream {
 			input: safeJsonParse(tc.args),
 		}));
 
-		return buildAnthropicMessage({
+		return buildKotaModelResponse({
 			text,
 			toolCalls: parsedToolCalls,
 			stopReason: mapFinishReason(finishReason),

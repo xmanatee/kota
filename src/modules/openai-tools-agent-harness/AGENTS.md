@@ -24,7 +24,7 @@ Each turn:
    its seam.
 2. Streamed `text` deltas flow to the optional `AgentHarnessWriter` so
    operators see live output.
-3. The final `Anthropic.Message` is split into text and `tool_use` blocks.
+3. The final `KotaModelResponse` is split into text and `tool_use` blocks.
 4. If there are no tool calls (or `stop_reason === "end_turn"`), the loop
    returns the latest text.
 5. Otherwise each tool call is validated, gated, executed, and its result

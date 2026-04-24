@@ -1,7 +1,6 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import type {
-  KotaContentBlock,
   KotaMessage,
+  KotaModelResponse,
   KotaTextBlock,
   KotaTool,
   KotaToolResultBlockContent,
@@ -69,7 +68,7 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
   let completionReason: CompletionReason = "done";
 
   for (let turn = 0; turn < maxTurns; turn++) {
-    let response!: Anthropic.Message;
+    let response!: KotaModelResponse;
     let streamSuccess = false;
     for (let attempt = 0; attempt <= STREAM_MAX_RETRIES; attempt++) {
       try {
@@ -151,11 +150,9 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
       if (block.type === "text") lastText = block.text;
     }
 
-    // Stage 5 replaces `Anthropic.Message` with `KotaModelResponse` here; its
-    // `content` is already structurally compatible with `KotaContentBlock[]`.
     messages.push({
       role: "assistant",
-      content: response.content as unknown as KotaContentBlock[],
+      content: response.content,
     });
 
     const toolBlocks = response.content.filter((b) => b.type === "tool_use");

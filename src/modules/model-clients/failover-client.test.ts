@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { KotaModelResponse } from "#core/agent-harness/message-protocol.js";
 import type { MessageStream, ModelClient } from "#core/model/model-client.js";
 import { FailoverModelClient } from "./failover-client.js";
 
@@ -7,15 +8,19 @@ vi.mock("#core/events/event-bus.js", () => ({
 }));
 
 function makeMockClient(label: string): ModelClient {
-  const msg = {
+  const msg: KotaModelResponse = {
     id: `msg-${label}`,
-    type: "message" as const,
-    role: "assistant" as const,
-    content: [{ type: "text" as const, text: `response from ${label}` }],
+    role: "assistant",
+    content: [{ type: "text", text: `response from ${label}` }],
     model: `model-${label}`,
-    stop_reason: "end_turn" as const,
+    stop_reason: "end_turn",
     stop_sequence: null,
-    usage: { input_tokens: 10, output_tokens: 5 },
+    usage: {
+      input_tokens: 10,
+      output_tokens: 5,
+      cache_creation_input_tokens: null,
+      cache_read_input_tokens: null,
+    },
   };
   return {
     messages: {

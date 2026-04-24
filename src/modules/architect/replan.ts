@@ -6,9 +6,9 @@
  * refinement and LangGraph's plan-and-execute pattern.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
 import type {
 	KotaMessage,
+	KotaTextBlock,
 	KotaToolResultBlock,
 	KotaToolUseBlock,
 } from "#core/agent-harness/message-protocol.js";
@@ -186,7 +186,7 @@ export async function invokeReplanner(opts: ReplanOptions): Promise<ReplanDecisi
 	if (opts.costTracker) opts.costTracker.addUsage(opts.model, response.usage);
 
 	const text = response.content
-		.filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
+		.filter((b): b is KotaTextBlock => b.type === "text")
 		.map((b) => b.text)
 		.join("\n");
 

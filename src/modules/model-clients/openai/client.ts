@@ -5,7 +5,7 @@
  * Together, vLLM, LM Studio, etc.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaModelResponse } from "#core/agent-harness/message-protocol.js";
 import type {
 	MessageCreateParams,
 	MessageStream,
@@ -14,7 +14,7 @@ import type {
 } from "#core/model/model-client.js";
 import { buildMissingReasoningError, type EffortTranslator } from "../reasoning.js";
 import { OpenAIStream } from "./stream.js";
-import { buildAnthropicMessage, mapFinishReason, safeJsonParse, toOpenAIMessages, toOpenAITools } from "./translations.js";
+import { buildKotaModelResponse, mapFinishReason, safeJsonParse, toOpenAIMessages, toOpenAITools } from "./translations.js";
 import type { OAIResponse } from "./types.js";
 
 export type OpenAIClientOptions = {
@@ -76,7 +76,7 @@ export class OpenAIModelClient implements ModelClient {
 
 	private async doCreate(
 		params: MessageCreateParams,
-	): Promise<Anthropic.Message> {
+	): Promise<KotaModelResponse> {
 		const body = this.buildRequestBody(params, false);
 		const url = `${this.baseUrl}/chat/completions`;
 
@@ -104,7 +104,7 @@ export class OpenAIModelClient implements ModelClient {
 			input: safeJsonParse(tc.function.arguments),
 		}));
 
-		return buildAnthropicMessage({
+		return buildKotaModelResponse({
 			text: textContent,
 			toolCalls,
 			stopReason: mapFinishReason(choice.finish_reason),

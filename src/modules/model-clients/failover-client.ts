@@ -1,4 +1,4 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { KotaModelResponse } from "#core/agent-harness/message-protocol.js";
 import type {
   MessageCreateParams,
   MessageStream,
@@ -82,7 +82,7 @@ export class FailoverModelClient implements ModelClient {
     return stream;
   }
 
-  private async doCreate(params: MessageCreateParams): Promise<Anthropic.Message> {
+  private async doCreate(params: MessageCreateParams): Promise<KotaModelResponse> {
     const isProbe = !this.tracker.isHealthy() && this.tracker.shouldProbe();
     const client = this.activeClient();
 

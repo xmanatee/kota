@@ -1,5 +1,5 @@
-import type Anthropic from "@anthropic-ai/sdk";
-import { describe, expect, it, } from "vitest";
+import { describe, expect, it } from "vitest";
+import type { KotaModelResponse } from "#core/agent-harness/message-protocol.js";
 import type {
 	MessageCreateParams,
 	MessageStream,
@@ -9,7 +9,7 @@ import type {
 
 // --- Interface compliance helpers ---
 
-function createMockStream(response: Anthropic.Message): MessageStream {
+function createMockStream(response: KotaModelResponse): MessageStream {
 	const listeners = new Map<string, Array<(delta: string) => void>>();
 
 	const stream: MessageStream = {
@@ -31,13 +31,12 @@ function createMockStream(response: Anthropic.Message): MessageStream {
 	return stream;
 }
 
-function mockResponse(text: string): Anthropic.Message {
+function mockResponse(text: string): KotaModelResponse {
 	return {
 		id: "msg_test_1",
-		type: "message",
 		role: "assistant",
 		model: "test-model",
-		content: [{ type: "text", text, citations: null }],
+		content: [{ type: "text", text }],
 		stop_reason: "end_turn",
 		stop_sequence: null,
 		usage: {
@@ -46,10 +45,10 @@ function mockResponse(text: string): Anthropic.Message {
 			cache_creation_input_tokens: null,
 			cache_read_input_tokens: null,
 		},
-	} as Anthropic.Message;
+	};
 }
 
-function createTestClient(responses: Anthropic.Message[]): ModelClient {
+function createTestClient(responses: KotaModelResponse[]): ModelClient {
 	let idx = 0;
 	return {
 		messages: {
@@ -97,7 +96,7 @@ describe("ModelClient interface", () => {
 		expect(result).toBe(stream);
 	});
 
-	it("create returns a Message directly", async () => {
+	it("create returns a KotaModelResponse directly", async () => {
 		const resp = mockResponse("Hello from create");
 		const client = createTestClient([resp]);
 
@@ -165,12 +164,11 @@ describe("ModelClient interface", () => {
 	});
 
 	it("thinking event fires on stream", async () => {
-		const resp: Anthropic.Message = {
+		const resp: KotaModelResponse = {
 			id: "msg_think",
-			type: "message",
 			role: "assistant",
 			model: "test",
-			content: [{ type: "text", text: "answer", citations: null }],
+			content: [{ type: "text", text: "answer" }],
 			stop_reason: "end_turn",
 			stop_sequence: null,
 			usage: {
@@ -179,7 +177,7 @@ describe("ModelClient interface", () => {
 				cache_creation_input_tokens: null,
 				cache_read_input_tokens: null,
 			},
-		} as Anthropic.Message;
+		};
 
 		const client = createTestClient([resp]);
 		const stream = client.messages.stream({
@@ -197,14 +195,13 @@ describe("ModelClient interface", () => {
 	});
 
 	it("multiple text events fire in order", async () => {
-		const resp: Anthropic.Message = {
+		const resp: KotaModelResponse = {
 			id: "msg_multi",
-			type: "message",
 			role: "assistant",
 			model: "test",
 			content: [
-				{ type: "text", text: "first", citations: null },
-				{ type: "text", text: "second", citations: null },
+				{ type: "text", text: "first" },
+				{ type: "text", text: "second" },
 			],
 			stop_reason: "end_turn",
 			stop_sequence: null,
@@ -214,7 +211,7 @@ describe("ModelClient interface", () => {
 				cache_creation_input_tokens: null,
 				cache_read_input_tokens: null,
 			},
-		} as Anthropic.Message;
+		};
 
 		const client = createTestClient([resp]);
 		const stream = client.messages.stream({

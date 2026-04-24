@@ -139,3 +139,54 @@ export type KotaMessage = {
   role: KotaRole;
   content: string | KotaContentBlock[];
 };
+
+/**
+ * Neutral usage accounting shared by every `ModelClient` implementation.
+ * `cache_*` fields stay nullable because the Anthropic wire exposes them as
+ * `number | null` and the usage-accounting path reads them verbatim.
+ * Providers that do not have cache accounting leave them `null`.
+ */
+export type KotaModelUsage = {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_input_tokens?: number | null;
+  cache_creation_input_tokens?: number | null;
+};
+
+/**
+ * Neutral stop-reason union. Providers whose native stop reason falls outside
+ * this union translate at their adapter seam; core never widens the type.
+ */
+export type KotaStopReason =
+  | "end_turn"
+  | "max_tokens"
+  | "stop_sequence"
+  | "tool_use"
+  | "pause_turn"
+  | "refusal";
+
+/**
+ * Neutral assistant-response shape. Every `ModelClient.messages.stream()` and
+ * `ModelClient.messages.create()` implementation returns this directly;
+ * provider-native message shapes only live behind the adapter seam.
+ */
+export type KotaModelResponse = {
+  id: string;
+  role: "assistant";
+  model: string;
+  content: KotaContentBlock[];
+  stop_reason: KotaStopReason | null;
+  stop_sequence?: string | null;
+  usage: KotaModelUsage;
+};
+
+/**
+ * Neutral streaming interface. Core only reads `text` and `thinking` deltas
+ * and the final message; provider-native streams expose more events that are
+ * not part of this surface.
+ */
+export interface KotaMessageStream {
+  on(event: "text", cb: (delta: string) => void): this;
+  on(event: "thinking", cb: (delta: string) => void): this;
+  finalMessage(): Promise<KotaModelResponse>;
+}

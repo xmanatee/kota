@@ -1,6 +1,9 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type {
+  KotaModelResponse,
+  KotaModelUsage,
+  KotaTool,
+} from "#core/agent-harness/message-protocol.js";
 import type { ModelClient } from "#core/model/model-client.js";
 
 // --- Hoisted mocks ---
@@ -32,19 +35,17 @@ import { runEditorLoop } from "./architect-editor.js";
 
 // --- Helpers ---
 
-function mockUsage(overrides: Partial<Anthropic.Messages.Usage> = {}): Anthropic.Messages.Usage {
+function mockUsage(overrides: Partial<KotaModelUsage> = {}): KotaModelUsage {
   return {
     input_tokens: 100,
     output_tokens: 50,
     cache_creation_input_tokens: 0,
     cache_read_input_tokens: 0,
-    server_tool_use: undefined,
-    service_tier: undefined,
     ...overrides,
-  } as Anthropic.Messages.Usage;
+  };
 }
 
-type MockMessage = Partial<Anthropic.Message> & { _text?: string };
+type MockMessage = Partial<KotaModelResponse> & { _text?: string };
 
 function createMockStream(opts: MockMessage = {}) {
   const textContent = opts._text ?? "";
@@ -53,20 +54,20 @@ function createMockStream(opts: MockMessage = {}) {
       if (event === "text" && textContent) handler(textContent);
       return this;
     },
-    async finalMessage(): Promise<Anthropic.Message> {
+    async finalMessage(): Promise<KotaModelResponse> {
       const { _text: _, ...rest } = opts;
       return {
         id: "msg_test",
-        type: "message",
         role: "assistant",
         content: textContent
           ? [{ type: "text" as const, text: textContent }]
           : [],
         model: "test-model",
         stop_reason: "end_turn",
+        stop_sequence: null,
         usage: mockUsage(),
         ...rest,
-      } as Anthropic.Message;
+      };
     },
   };
 }

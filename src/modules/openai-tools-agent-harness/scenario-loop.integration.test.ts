@@ -12,9 +12,8 @@
 import { cpSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { KotaContentBlock, KotaMessage, KotaModelResponse, KotaTool } from "#core/agent-harness/message-protocol.js";
 
 const messagesStreamMock = vi.fn();
 const messagesCreateMock = vi.fn();
@@ -75,7 +74,7 @@ const SHELL_TOOL: KotaTool = {
 };
 
 type StubFinalMessage = Pick<
-  Anthropic.Message,
+  KotaModelResponse,
   "id" | "content" | "stop_reason"
 > & {
   usage?: { input_tokens: number; output_tokens: number };
@@ -92,9 +91,8 @@ function makeStubStream(opts: {
       }
       return this;
     },
-    finalMessage: async (): Promise<Anthropic.Message> => ({
+    finalMessage: async (): Promise<KotaModelResponse> => ({
       id: opts.final.id,
-      type: "message",
       role: "assistant",
       model: "stub-model",
       content: opts.final.content,
@@ -106,12 +104,12 @@ function makeStubStream(opts: {
         cache_creation_input_tokens: null,
         cache_read_input_tokens: null,
       },
-    } as Anthropic.Message),
+    }),
   };
 }
 
 type StreamCallSnapshot = {
-  messages: Anthropic.MessageParam[];
+  messages: KotaMessage[];
 };
 
 const streamCallSnapshots: StreamCallSnapshot[] = [];
@@ -134,9 +132,9 @@ describe("openai-tools harness × extract-shared-helper scenario", () => {
     streamReturnQueue.length = 0;
 
     messagesStreamMock.mockImplementation(
-      (params: { messages: Anthropic.MessageParam[] }) => {
+      (params: { messages: KotaMessage[] }) => {
         streamCallSnapshots.push({
-          messages: JSON.parse(JSON.stringify(params.messages)) as Anthropic.MessageParam[],
+          messages: JSON.parse(JSON.stringify(params.messages)) as KotaMessage[],
         });
         const next = streamReturnQueue.shift();
         if (!next) throw new Error("messagesStreamMock: no scripted return value");
@@ -188,7 +186,7 @@ describe("openai-tools harness × extract-shared-helper scenario", () => {
               name: "file_read",
               input: { path: "test.js" },
             },
-          ] as Anthropic.ContentBlock[],
+          ] as KotaContentBlock[],
           usage: { input_tokens: 10, output_tokens: 4 },
         },
       }),
@@ -237,7 +235,7 @@ describe("openai-tools harness × extract-shared-helper scenario", () => {
                   "module.exports = { farewell };\n",
               },
             },
-          ] as Anthropic.ContentBlock[],
+          ] as KotaContentBlock[],
           usage: { input_tokens: 30, output_tokens: 20 },
         },
       }),
@@ -256,7 +254,7 @@ describe("openai-tools harness × extract-shared-helper scenario", () => {
               name: "shell",
               input: { command: loaded.spec.verification.command },
             },
-          ] as Anthropic.ContentBlock[],
+          ] as KotaContentBlock[],
           usage: { input_tokens: 8, output_tokens: 4 },
         },
       }),
@@ -273,9 +271,8 @@ describe("openai-tools harness × extract-shared-helper scenario", () => {
             {
               type: "text",
               text: "Scenario solved.",
-              citations: null,
             },
-          ] as Anthropic.ContentBlock[],
+          ] as KotaContentBlock[],
           usage: { input_tokens: 6, output_tokens: 3 },
         },
       }),

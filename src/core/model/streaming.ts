@@ -1,6 +1,6 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import type {
   KotaMessage,
+  KotaModelResponse,
   KotaTextBlock,
   KotaThinkingConfig,
   KotaTool,
@@ -42,7 +42,7 @@ export type StreamConfig = {
 
 /** Stream an API call with retry for mid-stream failures. */
 export async function streamMessage(config: StreamConfig): Promise<{
-  response: Anthropic.Message;
+  response: KotaModelResponse;
   streamedText: string;
 }> {
   const { client, model, maxTokens, system, messages, tools, thinkingConfig, transport } = config;
