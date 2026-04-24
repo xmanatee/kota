@@ -1,12 +1,12 @@
 ---
 id: task-seed-inbox-sorter-agent-call-replay-fixture-to-gat
 title: Seed inbox-sorter agent-call replay fixture to gate workflow-layer substrate cheaply
-status: ready
+status: done
 priority: p1
 area: modules
 summary: Apply the explorer/builder/decomposer/improver agent-call-replay pattern to inbox-sorter: one replay fixture covering the sort-inbox agent step end-to-end, authored entirely through pnpm kota eval record-agent-step, so the workflow-layer substrate (four repair checks, commit step, inspect-inbox/sort-inbox gating) is gated on every pnpm test without paying for a live LLM.
 created_at: 2026-04-24T23:42:47.142Z
-updated_at: 2026-04-24T23:42:47.142Z
+updated_at: 2026-04-24T23:51:35.529Z
 ---
 
 ## Problem
