@@ -50,7 +50,7 @@ Passive mode forces `permissionMode: "default"` and restricts tools to a
 read-only list because the subprocess SDK cannot see the KOTA tool-runner.
 Autonomous mode leaves `permissionMode` undefined on the neutral boundary and
 the claude-agent-sdk adapter applies its default (`"bypassPermissions"`); a
-step may override that default per-harness through its `claudeAgentSdk`
+step may override that default per-harness through its `harnessOptions`
 carve-out (see `src/core/agent-harness/AGENTS.md`).
 
 Mode is an operator control, orthogonal to the per-tool approval queue.

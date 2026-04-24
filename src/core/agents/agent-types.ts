@@ -10,9 +10,10 @@
  * across workflow files.
  *
  * Claude-agent-sdk-specific per-run options (permissionMode, settingSources)
- * live on the step's `claudeAgentSdk` carve-out in `#core/workflow/types.js`
- * and are only interpreted by the claude-agent-sdk harness. They are not a
- * property of the agent itself — an agent may run on any registered harness.
+ * live on the step's `harnessOptions["claude-agent-sdk"]` carve-out in
+ * `#core/workflow/types.js` and are only interpreted by the claude-agent-sdk
+ * harness. They are not a property of the agent itself — an agent may run on
+ * any registered harness.
  */
 
 /**

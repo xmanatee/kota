@@ -3,6 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import autonomyModule from "#modules/autonomy/index.js";
+// Side-effect import: registers the claude-agent-sdk harness so the step
+// validator can resolve it when a test exercises `harnessOptions`.
+import "#modules/claude-agent-harness/index.js";
 import type { RegisteredWorkflowDefinitionInput } from "./types.js";
 import {
   registerWorkflowDefinition,
@@ -1335,6 +1338,165 @@ describe("workflow validation", () => {
         projectDir,
       );
       expect(defs[0].recoveryCapable).toBe(true);
+    });
+  });
+
+  describe("agent step harnessOptions carve-out", () => {
+    function makeAgentStepWithHarnessOptions(
+      harnessOptions: Record<string, unknown> | undefined,
+      overrides?: { harness?: string },
+    ): RegisteredWorkflowDefinitionInput {
+      writeFileSync(
+        join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+        "Build.\n",
+      );
+      return registerWorkflowDefinition("test/builder.ts", {
+        name: "builder",
+        triggers: [{ event: "runtime.idle" }],
+        steps: [
+          {
+            id: "build",
+            type: "agent",
+            promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+            model: "claude-opus-4-7",
+            effort: "xhigh",
+            autonomyMode: "autonomous",
+            ...(overrides?.harness !== undefined ? { harness: overrides.harness } : {}),
+            ...(harnessOptions !== undefined ? { harnessOptions } : {}),
+          },
+        ],
+      });
+    }
+
+    it("accepts a valid claude-agent-sdk harnessOptions block", () => {
+      const defs = validateWorkflowDefinitions(
+        [
+          makeAgentStepWithHarnessOptions({
+            "claude-agent-sdk": {
+              permissionMode: "acceptEdits",
+              settingSources: ["project", "local"],
+            },
+          }),
+        ],
+        projectDir,
+      );
+      const step = defs[0].steps[0] as { harnessOptions?: Record<string, unknown> };
+      expect(step.harnessOptions).toEqual({
+        "claude-agent-sdk": {
+          permissionMode: "acceptEdits",
+          settingSources: ["project", "local"],
+        },
+      });
+    });
+
+    it("normalizes an empty harnessOptions object to undefined", () => {
+      const defs = validateWorkflowDefinitions(
+        [makeAgentStepWithHarnessOptions({})],
+        projectDir,
+      );
+      const step = defs[0].steps[0] as { harnessOptions?: Record<string, unknown> };
+      expect(step.harnessOptions).toBeUndefined();
+    });
+
+    it("normalizes a claude-agent-sdk block with only unknown-undefined fields to undefined", () => {
+      const defs = validateWorkflowDefinitions(
+        [
+          makeAgentStepWithHarnessOptions({
+            "claude-agent-sdk": {},
+          }),
+        ],
+        projectDir,
+      );
+      const step = defs[0].steps[0] as { harnessOptions?: Record<string, unknown> };
+      expect(step.harnessOptions).toBeUndefined();
+    });
+
+    it("rejects harnessOptions keyed by a harness that does not match the step", () => {
+      expect(() =>
+        validateWorkflowDefinitions(
+          [
+            makeAgentStepWithHarnessOptions({
+              "openai-tools": { permissionMode: "acceptEdits" },
+            }),
+          ],
+          projectDir,
+        ),
+      ).toThrow(
+        /harnessOptions key "openai-tools" does not match the step's resolved harness "claude-agent-sdk"/,
+      );
+    });
+
+    it("rejects harnessOptions with more than one key", () => {
+      expect(() =>
+        validateWorkflowDefinitions(
+          [
+            makeAgentStepWithHarnessOptions({
+              "claude-agent-sdk": { permissionMode: "acceptEdits" },
+              "openai-tools": {},
+            }),
+          ],
+          projectDir,
+        ),
+      ).toThrow(/harnessOptions must contain at most one key/);
+    });
+
+    it("rejects harnessOptions for an unknown harness", () => {
+      expect(() =>
+        validateWorkflowDefinitions(
+          [
+            makeAgentStepWithHarnessOptions(
+              { "made-up-harness": {} },
+              { harness: "made-up-harness" },
+            ),
+          ],
+          projectDir,
+        ),
+      ).toThrow(/harnessOptions references unknown harness "made-up-harness"/);
+    });
+
+    it("surfaces the harness validator error with step-path context", () => {
+      expect(() =>
+        validateWorkflowDefinitions(
+          [
+            makeAgentStepWithHarnessOptions({
+              "claude-agent-sdk": { permissionMode: "nope" },
+            }),
+          ],
+          projectDir,
+        ),
+      ).toThrow(
+        /steps\[0\].harnessOptions\["claude-agent-sdk"\] rejected by harness validator: .*permissionMode must be one of/,
+      );
+    });
+
+    it("rejects an unknown key inside the harness-specific block", () => {
+      expect(() =>
+        validateWorkflowDefinitions(
+          [
+            makeAgentStepWithHarnessOptions({
+              "claude-agent-sdk": { bogus: true },
+            }),
+          ],
+          projectDir,
+        ),
+      ).toThrow(
+        /rejected by harness validator: unknown key\(s\): "bogus"/,
+      );
+    });
+
+    it("rejects invalid settingSources entries", () => {
+      expect(() =>
+        validateWorkflowDefinitions(
+          [
+            makeAgentStepWithHarnessOptions({
+              "claude-agent-sdk": { settingSources: ["project", "bogus"] },
+            }),
+          ],
+          projectDir,
+        ),
+      ).toThrow(
+        /settingSources entries must be one of project, local, user/,
+      );
     });
   });
 });

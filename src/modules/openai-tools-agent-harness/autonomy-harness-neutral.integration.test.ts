@@ -64,9 +64,9 @@ function makeMetadata(): WorkflowRunMetadata {
 }
 
 function makeAgentStep(moduleRoot: string): WorkflowAgentStep {
-  // Intentionally no claudeAgentSdk block — those per-harness options are
-  // only valid on the claude-agent-sdk harness and the openai-tools adapter
-  // rejects any claude-specific wire options that leak through its boundary.
+  // Intentionally no harnessOptions block — those per-harness options are
+  // only valid on the resolved harness and the openai-tools adapter rejects
+  // any claude-specific wire options that leak through its boundary.
   return {
     id: "build",
     type: "agent",

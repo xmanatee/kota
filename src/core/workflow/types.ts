@@ -1,3 +1,4 @@
+import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import type { BusEvents } from "#core/events/event-bus.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
@@ -26,22 +27,6 @@ export type WorkflowAgentBackoffState = {
 export type WorkflowAgentBackoffSignal = {
   kind: WorkflowAgentBackoffKind;
   reason: string;
-};
-
-/**
- * Per-step passthrough for `claude-agent-sdk`-specific options. Only the
- * `claude-agent-sdk` harness reads these values; every other harness rejects a
- * step that carries a non-empty `claudeAgentSdk` block at definition load time.
- *
- * Leaving this field unset is the common path: the claude adapter applies its
- * own defaults (`permissionMode: "bypassPermissions"`, `settingSources:
- * ["project"]`) at runtime. The string-literal unions are kept in lockstep
- * with the claude-agent-sdk wire types (`SDKPermissionMode`, `SDKSettingSource`)
- * so the neutral workflow types.ts does not import claude-SDK wire shapes.
- */
-export type WorkflowClaudeSdkStepOptions = {
-  permissionMode?: "default" | "acceptEdits" | "dontAsk" | "bypassPermissions";
-  settingSources?: Array<"project" | "local" | "user">;
 };
 
 export type WorkflowFilterScalar = string | number | boolean;
@@ -164,12 +149,15 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
   allowedTools?: string[];
   disallowedTools?: string[];
   /**
-   * Per-step passthrough for `claude-agent-sdk`-specific options. Only the
-   * `claude-agent-sdk` harness reads these values; other harnesses reject a
-   * step that carries a non-empty block at definition load time. Leave unset
-   * to inherit the claude adapter's defaults.
+   * Harness-neutral passthrough for per-step options that only one registered
+   * harness knows how to interpret. The block is a single-key object whose key
+   * must match the step's resolved harness name; the value is opaque to core
+   * and validated by that harness's `validateStepOptions` method. Leave unset
+   * to inherit the harness defaults. The core validator rejects any key that
+   * does not match the resolved harness, and any harness without a registered
+   * `validateStepOptions`.
    */
-  claudeAgentSdk?: WorkflowClaudeSdkStepOptions;
+  harnessOptions?: Record<string, unknown>;
   /**
    * Operator supervision mode for this step. Orthogonal to per-tool risk
    * classification. Required in effect: the validator rejects an agent step
@@ -479,8 +467,14 @@ export type WorkflowAgentStep = WorkflowBaseStep & {
   thinkingBudget?: number;
   allowedTools?: string[];
   disallowedTools?: string[];
-  /** Per-step claude-SDK passthrough (see {@link WorkflowClaudeSdkStepOptions}). */
-  claudeAgentSdk?: WorkflowClaudeSdkStepOptions;
+  /**
+   * Validated per-step harness-specific options. Single-key record whose key
+   * equals the step's resolved harness name and whose value is the fragment
+   * returned by `AgentHarness.validateStepOptions`. Opaque to core at
+   * runtime — the step executor merges the fragment into neutral run options
+   * before invoking the harness.
+   */
+  harnessOptions?: Record<string, Partial<AgentHarnessRunOptions>>;
   /** Operator supervision mode applied to this agent step. */
   autonomyMode: AutonomyMode;
   retry?: WorkflowRetryConfig;

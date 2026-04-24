@@ -1,12 +1,12 @@
 ---
 id: task-move-claudeagentsdk-step-options-carve-out-and-its
 title: Move claudeAgentSdk step-options carve-out and its validator out of core into module-contributed harness-step-options
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Lift the claude-SDK-specific step carve-out and hardcoded permission/setting-source enum literals out of the core workflow validator into a module-contributed harness-step-options registry so core workflow types and validation stay fully harness-neutral.
 created_at: 2026-04-23T23:22:33.168Z
-updated_at: 2026-04-23T23:22:33.168Z
+updated_at: 2026-04-24T02:20:12.943Z
 ---
 
 ## Problem

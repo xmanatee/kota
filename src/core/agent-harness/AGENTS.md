@@ -127,18 +127,22 @@ executor primitive, and the owner-questions MCP bridge live in
 
 ## Per-step harness-specific options
 
-Neutral workflow step shapes do not carry claude-SDK-only fields. A step
-that needs a non-default claude posture declares a typed carve-out:
+Neutral workflow step shapes carry no harness-specific fields. Per-step
+overrides route through the `harnessOptions` passthrough — a single-key
+record whose key must equal the step's resolved harness name and whose
+value is validated by that harness's `validateStepOptions` method:
 
 ```ts
 { type: "agent", harness: "claude-agent-sdk",
-  claudeAgentSdk: { permissionMode: "acceptEdits", settingSources: ["project"] } }
+  harnessOptions: {
+    "claude-agent-sdk": { permissionMode: "acceptEdits", settingSources: ["project"] },
+  } }
 ```
 
-`claudeAgentSdk` is the single passthrough for this adapter. The validator
-rejects the block on any other harness. Leaving it unset is the common
-path: the claude adapter applies the defaults
-(`permissionMode: "bypassPermissions"`, `settingSources: ["project"]`) when
-the caller passes `undefined` on `AgentHarnessRunOptions`. Other adapters
-continue to reject claude-specific neutral options at their boundary. New
-claude-only knobs belong here, not on the neutral step or neutral options.
+The harness validator throws on malformed input and returns a
+`Partial<AgentHarnessRunOptions>` fragment the executor merges into the
+neutral run options. The core validator rejects mismatched keys, unknown
+harnesses, and harnesses that declare no `validateStepOptions`. Leaving
+`harnessOptions` unset lets each adapter apply its own defaults. New
+harness-only knobs belong on `validateStepOptions`, not on the neutral
+step.

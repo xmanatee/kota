@@ -231,6 +231,27 @@ export type AgentHarness = {
    * branching on a declared capability rather than the adapter name.
    */
   readonly emitsAgentMessageStream: boolean;
+  /**
+   * Validates a per-step harness-specific options block and returns the
+   * neutral `AgentHarnessRunOptions` fragment to merge into the adapter run
+   * when the step executes. The returned object is also stored on the
+   * validated workflow step (under the step's `harnessOptions[harness.name]`
+   * slot) for history and recovery.
+   *
+   * Declared only on harnesses that accept per-step options. Throws on
+   * malformed input with a field-path message; the core step validator
+   * catches the throw and wraps it with step-label context before surfacing
+   * the `WorkflowDefinitionError`. Returning `undefined` is the supported
+   * "no per-step overrides" signal — e.g. the caller supplied `{}` and the
+   * harness treats empty as no-op.
+   *
+   * Only fields that are safe to serialize and safe to re-apply on a replay
+   * should appear in the returned fragment; runtime-only fields such as
+   * `abortController` or `canUseTool` must not be produced here.
+   */
+  readonly validateStepOptions?: (
+    raw: unknown,
+  ) => Partial<AgentHarnessRunOptions> | undefined;
   run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

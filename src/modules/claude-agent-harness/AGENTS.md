@@ -27,11 +27,12 @@ workflow runtime consumes them directly; nothing else in core imports
 - `settingSources` defaults to `["project"]` and `permissionMode` defaults to
   `"bypassPermissions"` inside the adapter when the caller passes
   `undefined`. Autonomy workflow steps rely on these defaults by omitting
-  the `claudeAgentSdk` carve-out entirely. An explicit value on the neutral
+  the `harnessOptions` carve-out entirely. An explicit value on the neutral
   `AgentHarnessRunOptions` (including `"default"` forced by passive autonomy
   mode) still wins. Per-step overrides live on the workflow step's
-  `claudeAgentSdk` block (see `src/core/agent-harness/AGENTS.md`); this
-  adapter is the only place that reads those values.
+  `harnessOptions["claude-agent-sdk"]` block (see
+  `src/core/agent-harness/AGENTS.md`); the adapter's `validateStepOptions`
+  is the only place the claude-specific enum literals live.
 - Declared capabilities: `askOwnerToolName =
   "mcp__kota_owner_questions__ask_owner"`, `emitsAgentMessageStream = true`.
 - The claude-SDK `PermissionResult` TS type marks `updatedInput` optional on

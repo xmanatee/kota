@@ -33,22 +33,23 @@ This enforcement lives in the core executor, not in per-workflow prompts or
 repair checks. Workflows declare scope honestly on their agent definitions
 and let the runtime reject out-of-scope writes uniformly.
 
-## Claude-SDK Per-Step Overrides
+## Per-Step Harness-Specific Options
 
-The neutral `WorkflowAgentStep` shape has no `permissionMode` or
-`settingSources` fields. Both are claude-agent-sdk wire concepts — the
-adapter in `src/modules/claude-agent-harness/` owns them and applies the
-workflow-agent defaults (`"bypassPermissions"` / `["project"]`) at runtime
-when the caller passes `undefined`. Steps that need a non-default claude
-posture declare the carve-out explicitly:
+The neutral `WorkflowAgentStep` shape has no harness-specific fields. A step
+that needs a non-default posture on a particular harness declares the
+carve-out through the generic `harnessOptions` passthrough:
 
 ```ts
-{ type: "agent", harness: "claude-agent-sdk", claudeAgentSdk: { permissionMode: "acceptEdits" }, ... }
+{ type: "agent", harness: "claude-agent-sdk",
+  harnessOptions: { "claude-agent-sdk": { permissionMode: "acceptEdits" } },
+  ... }
 ```
 
-The validator rejects `claudeAgentSdk` on any other harness, and the
-openai-tools/thin adapters continue to reject claude wire options at their
-neutral boundary.
+The block is a single-key record whose key must equal the step's resolved
+harness name; the value is opaque to core and validated by that harness's
+registered `validateStepOptions` method. The core validator rejects
+mismatched keys, unknown harnesses, and harnesses that declare no per-step
+options. See `src/core/agent-harness/AGENTS.md` for the protocol surface.
 
 ## Resolved Harness And Model On Agent Step Results
 

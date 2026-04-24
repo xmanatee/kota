@@ -116,6 +116,7 @@ async function executeRepairAgentIteration(
     agentConfig.projectDir,
   );
   const harness = resolveAgentHarness(step.harness);
+  const harnessRunOverrides = step.harnessOptions?.[harness.name];
   const result = await runAgentHarness(
     harness,
     {
@@ -129,8 +130,8 @@ async function executeRepairAgentIteration(
       thinkingBudget: step.thinkingBudget,
       allowedTools: step.allowedTools,
       disallowedTools: step.disallowedTools,
-      permissionMode: step.claudeAgentSdk?.permissionMode,
-      settingSources: step.claudeAgentSdk?.settingSources,
+      permissionMode: harnessRunOverrides?.permissionMode,
+      settingSources: harnessRunOverrides?.settingSources,
       abortController,
       onMessage: appendMessage,
       canUseTool: createWorkflowAgentGuards(),

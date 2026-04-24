@@ -406,9 +406,10 @@ export async function executeAgentStep(
     const prompt = lastSchemaError
       ? `${agentPrompt.prompt}\n\n[Previous output failed schema validation: ${lastSchemaError}\nPlease include all required fields in your JSON block and try again.]`
       : agentPrompt.prompt;
+    const harnessRunOverrides = step.harnessOptions?.[resolvedHarness.name];
     const permissions = resolveAgentPermissions(
       step.autonomyMode,
-      step.claudeAgentSdk?.permissionMode,
+      harnessRunOverrides?.permissionMode,
       step.allowedTools,
       step.disallowedTools,
       resolvedHarness.askOwnerToolName,
@@ -434,7 +435,7 @@ export async function executeAgentStep(
                 }
               : undefined,
           permissionMode: permissions.permissionMode,
-          settingSources: step.claudeAgentSdk?.settingSources,
+          settingSources: harnessRunOverrides?.settingSources,
           abortController,
           ...(trackedMessage !== undefined ? { onMessage: trackedMessage } : {}),
           canUseTool: createWorkflowAgentGuards(),
