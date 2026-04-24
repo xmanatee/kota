@@ -1,5 +1,6 @@
 import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
 import type { Task, TaskPriority, TaskStatus } from "#core/daemon/task-store.js";
+import type { Transport } from "#core/loop/transport.js";
 
 /** A stored conversation message — alias for the core harness message protocol. */
 export type ConversationMessage = KotaMessage;
@@ -163,6 +164,43 @@ export interface TaskProvider {
 	getActiveSummary(): string | null;
 	isEmpty(): boolean;
 	count(): number;
+}
+
+/**
+ * REPL chrome surface — paints operator-facing banners, status, and
+ * errors around the interactive transcript. The rendering module
+ * supplies the default implementation; core consumers resolve it
+ * through `RenderingProvider.createReplChrome()` so `src/core/repl`
+ * stays free of rendering-module imports.
+ */
+export interface ReplChrome {
+	/** Announce the chosen harness and model once at REPL entry. */
+	announceHarness(harness: { name: string; description: string }, model: string): void;
+	/** Print the `/help` table of slash commands and descriptions. */
+	showHelp(commands: Record<string, string>): void;
+	/** Print the `/status` snapshot (harness, model, turn count). */
+	showStatus(harness: string, model: string, turns: number): void;
+	/** Confirm a `/reset` or `/clear` of the transcript. */
+	showReset(): void;
+	/** Paint an error message raised during a turn. */
+	showError(message: string): void;
+	/** Print the footer on REPL exit. */
+	showGoodbye(): void;
+}
+
+/**
+ * Rendering service — the module-owned seam core uses to paint
+ * operator-facing surfaces without importing `#modules/rendering/*`.
+ * The rendering module registers a default implementation during
+ * `onLoad`; deployments without the rendering module receive `null`
+ * from `getRenderingProvider()` and must degrade to a neutral path
+ * (e.g. `NullTransport`, a `ReplChrome`-less refusal).
+ */
+export interface RenderingProvider {
+	/** Build the default CLI transport for an agent session. */
+	createAgentTransport(options: { verbose: boolean; showCost: boolean }): Transport;
+	/** Build the REPL chrome surface used for banners, help, and errors. */
+	createReplChrome(): ReplChrome;
 }
 
 /** Interface for conversation history storage (create/save/load/list/find/remove). */

@@ -6,10 +6,14 @@ import {
   type AgentHarnessWriter,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
+import { getRenderingProvider } from "#core/modules/provider-registry.js";
+import type { ReplChrome } from "#core/modules/provider-types.js";
 import { expandUserPromptReferences } from "#core/prompt-input/index.js";
-import { blank, line, plain, span } from "#modules/rendering/primitives.js";
-import type { TransportStream } from "#modules/rendering/transport.js";
-import { TerminalTransport } from "#modules/rendering/transport.js";
+
+/** Minimal writable-stream surface used for the assistant's streamed output. */
+export type ReplOutputStream = {
+  write(chunk: string): boolean;
+};
 
 export type HarnessReplRunOverrides = Omit<
   AgentHarnessRunOptions,
@@ -28,17 +32,18 @@ export type HarnessReplOptions = {
    */
   input?: NodeJS.ReadableStream;
   /**
-   * Transport for REPL chrome (banner, status, errors). Defaults to a
-   * TerminalTransport around `process.stderr`. The harness writer below
-   * handles assistant-streaming output.
+   * Chrome surface for REPL banners, help, status, and errors. When
+   * omitted the REPL resolves the rendering module's default chrome
+   * through the provider registry; deployments without the rendering
+   * module must supply one explicitly or the REPL refuses to start.
    */
-  chrome?: TerminalTransport;
+  chrome?: ReplChrome;
   /**
-   * Writer that receives the assistant's streamed output. Defaults to a
-   * TransportStream adapter around `process.stdout`. Tests capture the
-   * stream to assert what the operator sees.
+   * Writer that receives the assistant's streamed output. Defaults to
+   * `process.stdout`. Tests capture the stream to assert what the
+   * operator sees.
    */
-  output?: TransportStream;
+  output?: ReplOutputStream;
 };
 
 type ReplTurn = {
@@ -76,35 +81,12 @@ export function composeTranscriptPrompt(
   return parts.join("\n");
 }
 
-function streamWriter(stream: TransportStream): AgentHarnessWriter {
+function streamWriter(stream: ReplOutputStream): AgentHarnessWriter {
   return {
     write(text: string): boolean {
       return stream.write(text);
     },
   };
-}
-
-function announceHarness(
-  chrome: TerminalTransport,
-  harness: AgentHarness,
-  model: string,
-): void {
-  chrome.write(
-    line(
-      span("kota ", "muted"),
-      span(`[${harness.name}]`, "accent"),
-      span(" ", "muted"),
-      span(model, "info"),
-      plain("  "),
-      span("interactive", "muted"),
-    ),
-  );
-  chrome.write(
-    line(
-      span(harness.description, "muted"),
-    ),
-  );
-  chrome.write(blank());
 }
 
 const REPL_COMMANDS: Record<string, string> = {
@@ -122,48 +104,41 @@ type ReplState = {
 
 function handleReplCommand(
   command: string,
-  chrome: TerminalTransport,
+  chrome: ReplChrome,
   state: ReplState,
   harness: AgentHarness,
   model: string,
 ): boolean {
   switch (command) {
     case "/help": {
-      for (const [cmd, desc] of Object.entries(REPL_COMMANDS)) {
-        chrome.write(
-          line(span(`  ${cmd.padEnd(10)}`, "accent"), plain(` ${desc}`)),
-        );
-      }
-      chrome.write(
-        line(span("  exit      ", "accent"), plain(" Quit interactive mode")),
-      );
+      chrome.showHelp(REPL_COMMANDS);
       return true;
     }
     case "/status": {
-      chrome.write(
-        line(
-          span("Harness: ", "muted"),
-          span(harness.name, "info"),
-          plain("  "),
-          span("Model: ", "muted"),
-          span(model, "info"),
-          plain("  "),
-          span("Turns: ", "muted"),
-          plain(String(state.turnsOut)),
-        ),
-      );
+      chrome.showStatus(harness.name, model, state.turnsOut);
       return true;
     }
     case "/reset":
     case "/clear": {
       state.transcript.length = 0;
       state.turnsOut = 0;
-      chrome.write(line(span("Transcript cleared.", "success")));
+      chrome.showReset();
       return true;
     }
     default:
       return false;
   }
+}
+
+function resolveChrome(explicit: ReplChrome | undefined): ReplChrome {
+  if (explicit) return explicit;
+  const provider = getRenderingProvider();
+  if (!provider) {
+    throw new Error(
+      "runHarnessRepl requires a ReplChrome: pass `chrome` explicitly or load the `rendering` module so the REPL can resolve one from the provider registry.",
+    );
+  }
+  return provider.createReplChrome();
 }
 
 /**
@@ -181,12 +156,12 @@ export async function runHarnessRepl(options: HarnessReplOptions): Promise<void>
     );
   }
 
-  const chrome = options.chrome ?? new TerminalTransport({ stream: process.stderr });
-  const output = options.output ?? (process.stdout as unknown as TransportStream);
+  const chrome = resolveChrome(options.chrome);
+  const output: ReplOutputStream = options.output ?? process.stdout;
   const writer = streamWriter(output);
   const inputStream = options.input ?? process.stdin;
 
-  announceHarness(chrome, options.harness, options.model);
+  chrome.announceHarness(options.harness, options.model);
 
   const rl: ReadlineInterface = createInterface({
     input: inputStream,
@@ -230,9 +205,7 @@ export async function runHarnessRepl(options: HarnessReplOptions): Promise<void>
       });
       output.write("\n");
     } catch (err) {
-      chrome.write(
-        line(span(`Error: ${(err as Error).message}`, "error")),
-      );
+      chrome.showError((err as Error).message);
     }
     return "continue";
   };
@@ -248,6 +221,5 @@ export async function runHarnessRepl(options: HarnessReplOptions): Promise<void>
     rl.prompt();
   }
 
-  chrome.write(blank());
-  chrome.write(line(span("Goodbye.", "muted")));
+  chrome.showGoodbye();
 }

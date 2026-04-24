@@ -5,10 +5,17 @@ import type {
 	HistoryProvider,
 	KnowledgeProvider,
 	MemoryProvider,
+	RenderingProvider,
 	TaskProvider,
 } from "./provider-types.js";
 
-export type { HistoryProvider, KnowledgeProvider, MemoryProvider, TaskProvider } from "./provider-types.js";
+export type {
+	HistoryProvider,
+	KnowledgeProvider,
+	MemoryProvider,
+	RenderingProvider,
+	TaskProvider,
+} from "./provider-types.js";
 
 type ProviderEntry = {
 	name: string;
@@ -163,4 +170,17 @@ export function getHistoryProvider(): HistoryProvider {
 	throw new Error(
 		"No history provider registered. Load the `history` module before calling getHistoryProvider.",
 	);
+}
+
+/**
+ * Get the active rendering provider from the registry, or `null` when
+ * no rendering module is loaded. Unlike history/memory/knowledge, this
+ * accessor returns `null` instead of throwing so minimal deployments
+ * (daemon-only, headless channels, session pools) can degrade to a
+ * neutral fallback — `NullTransport` for the agent stream, a refusal
+ * for the interactive REPL — without failing at startup.
+ */
+export function getRenderingProvider(): RenderingProvider | null {
+	if (!registry) return null;
+	return registry.get<RenderingProvider>("rendering");
 }

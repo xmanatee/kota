@@ -4,6 +4,20 @@ Typed terminal rendering for KOTA. Every operator-facing surface routes
 through this module instead of writing raw ANSI or hand-rolled padding
 to a stream.
 
+## Inverted Seam
+
+Core does not import `#modules/rendering/*`. The module registers a
+`RenderingProvider` during `onLoad` that supplies the default
+`CliTransport` and `ReplChrome`. Core callers (loop constructor, REPL
+host) resolve them through `getRenderingProvider()` in
+`#core/modules/provider-registry.js`; protocol types
+(`RenderingProvider`, `ReplChrome`) live in
+`#core/modules/provider-types.js`. Deployments that omit this module
+degrade to `NullTransport` for the agent stream; the interactive REPL
+refuses to start without a chrome. The import guard
+`src/core/modules/no-rendering-imports-in-core.test.ts` enforces the
+boundary.
+
 ## Vocabulary
 
 Primitives are a discriminated union. Surfaces describe *what* they want

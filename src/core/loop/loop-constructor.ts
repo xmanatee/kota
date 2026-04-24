@@ -23,7 +23,7 @@ import type { LoopOptions } from "./loop.js";
 import { type AgentLoopState, runInitModules, saveToHistoryImpl } from "./loop-init.js";
 import { loadProjectContext } from "./project-context.js";
 import { SessionStateMachine } from "./session-state.js";
-import { CliTransport } from "./transport.js";
+import { NullTransport, ProxyTransport } from "./transport.js";
 import { detectVerifyCommands, VerifyTracker } from "./verify-tracker.js";
 
 export function initAgentSession(
@@ -45,7 +45,21 @@ export function initAgentSession(
   state.verbose = options.verbose || false;
   state.sessionPath = options.sessionPath;
   const showCost = options.showCost ?? options.config?.serve?.showCost ?? true;
-  state.transport = options.transport || new CliTransport(state.verbose, showCost);
+  state.showCost = showCost;
+  if (options.transport) {
+    state.transport = options.transport;
+    state.defaultTransportProxy = undefined;
+  } else {
+    // The rendering module contributes the default CLI transport through
+    // the provider registry during its `onLoad`. That runs inside
+    // `runInitModules`, after the constructor finishes, so we start with
+    // a proxy wrapping `NullTransport` and swap its target once the
+    // rendering provider is available. Deployments that omit the
+    // rendering module keep the `NullTransport` fallback.
+    const proxy = new ProxyTransport(new NullTransport());
+    state.defaultTransportProxy = proxy;
+    state.transport = proxy;
+  }
   const isNonInteractive = options.historySource === "action";
   state.guardrailsConfig = options.config?.guardrails
     ?? (isNonInteractive ? { policies: { safe: "allow", moderate: "allow", dangerous: "deny" } } : getDefaultGuardrails());

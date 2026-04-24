@@ -14,7 +14,7 @@ import { initAgentSession } from "./loop-constructor.js";
 import { type AgentLoopState, runClose, saveToHistoryImpl } from "./loop-init.js";
 import { runSend } from "./loop-send.js";
 import type { SessionState, SessionStateMachine } from "./session-state.js";
-import { BufferTransport, type Transport } from "./transport.js";
+import { BufferTransport, type ProxyTransport, type Transport } from "./transport.js";
 import type { VerifyTracker } from "./verify-tracker.js";
 
 export type LoopOptions = {
@@ -69,6 +69,8 @@ export class AgentSession {
   private mcpManager: McpManager | null = null;
   private moduleLoader!: ModuleLoader;
   private transport!: Transport;
+  private defaultTransportProxy: ProxyTransport | undefined;
+  private showCost!: boolean;
   private sigintHandler!: () => void;
   private closed = false;
   private initialized = false;

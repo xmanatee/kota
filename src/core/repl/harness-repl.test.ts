@@ -23,9 +23,8 @@ import type {
   AgentHarnessRunOptions,
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
+import type { ReplChrome } from "#core/modules/provider-types.js";
 import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
-import type { RenderNode } from "#modules/rendering/primitives.js";
-import { TerminalTransport } from "#modules/rendering/transport.js";
 import { thinAgentHarness } from "#modules/thin-agent-harness/adapter.js";
 import { composeTranscriptPrompt, runHarnessRepl } from "./harness-repl.js";
 
@@ -33,29 +32,38 @@ function makeInput(lines: string[]): Readable {
   return Readable.from(lines.map((l) => `${l}\n`));
 }
 
-class CapturingChrome extends TerminalTransport {
-  readonly nodes: RenderNode[] = [];
+type ChromeEvent =
+  | { kind: "announce"; harness: { name: string; description: string }; model: string }
+  | { kind: "help"; commands: Record<string, string> }
+  | { kind: "status"; harness: string; model: string; turns: number }
+  | { kind: "reset" }
+  | { kind: "error"; message: string }
+  | { kind: "goodbye" };
 
-  constructor() {
-    super({
-      stream: {
-        write: () => true,
-        columns: 80,
-        isTTY: false,
-      },
-      width: 80,
-    });
+class CapturingChrome implements ReplChrome {
+  readonly events: ChromeEvent[] = [];
+
+  announceHarness(harness: { name: string; description: string }, model: string): void {
+    this.events.push({ kind: "announce", harness, model });
   }
-
-  write(node: RenderNode): void {
-    this.nodes.push(node);
-    super.write(node);
+  showHelp(commands: Record<string, string>): void {
+    this.events.push({ kind: "help", commands });
+  }
+  showStatus(harness: string, model: string, turns: number): void {
+    this.events.push({ kind: "status", harness, model, turns });
+  }
+  showReset(): void {
+    this.events.push({ kind: "reset" });
+  }
+  showError(message: string): void {
+    this.events.push({ kind: "error", message });
+  }
+  showGoodbye(): void {
+    this.events.push({ kind: "goodbye" });
   }
 }
 
 class CapturingOutput {
-  columns = 80;
-  isTTY = false;
   readonly chunks: string[] = [];
   write(text: string): boolean {
     this.chunks.push(text);
@@ -140,12 +148,12 @@ describe("runHarnessRepl", () => {
       output: new CapturingOutput(),
     });
 
-    const banner = chrome.nodes.find((n): n is RenderNode & { kind: "line" } => {
-      if (n.kind !== "line") return false;
-      const joined = n.spans.map((s) => s.text).join("");
-      return joined.includes("[stub]") && joined.includes("test-model-x");
+    const announce = chrome.events.find((e) => e.kind === "announce");
+    expect(announce).toMatchObject({
+      kind: "announce",
+      harness: { name: "stub" },
+      model: "test-model-x",
     });
-    expect(banner).toBeDefined();
   });
 
   it("carries transcript context across turns for the thin adapter", async () => {
@@ -271,19 +279,21 @@ describe("runHarnessRepl", () => {
       },
     };
 
+    const chrome = new CapturingChrome();
     await runHarnessRepl({
       harness,
       model: "m",
       cwd: process.cwd(),
       run: { effort: "xhigh" },
       input: makeInput(["first", "/reset", "second", "exit"]),
-      chrome: new CapturingChrome(),
+      chrome,
       output: new CapturingOutput(),
     });
 
     expect(prompts).toHaveLength(2);
     expect(prompts[0]).toBe("first");
     expect(prompts[1]).toBe("second");
+    expect(chrome.events.some((e) => e.kind === "reset")).toBe(true);
   });
 
   it("surfaces harness errors without exiting the loop", async () => {
@@ -314,10 +324,8 @@ describe("runHarnessRepl", () => {
     });
 
     expect(call).toBe(2);
-    const joined = chrome.nodes
-      .flatMap((n) => (n.kind === "line" ? n.spans.map((s) => s.text) : []))
-      .join("");
-    expect(joined).toContain("Error: boom");
+    const errorEvent = chrome.events.find((e) => e.kind === "error");
+    expect(errorEvent).toMatchObject({ kind: "error", message: "boom" });
   });
 });
 

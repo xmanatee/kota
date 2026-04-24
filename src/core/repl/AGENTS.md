@@ -12,5 +12,8 @@ adapter. The CLI `run -i` path for harness-backed providers enters here.
 - Adapters that declare `supportsMultiTurn: false` are rejected loudly at
   entry rather than silently downgraded to single-turn.
 - Assistant streaming output goes through the harness writer (stdout by
-  default). REPL chrome (banner, status, errors) goes through a separate
-  `TerminalTransport` bound to stderr so scripted pipelines stay clean.
+  default). REPL chrome (banner, status, errors) goes through a
+  `ReplChrome` supplied by the rendering module via
+  `getRenderingProvider()`; core does not import
+  `#modules/rendering/*`. Deployments without the rendering module must
+  pass a chrome explicitly or the REPL refuses to start.

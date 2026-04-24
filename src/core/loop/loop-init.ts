@@ -9,7 +9,11 @@ import type { ModelTiers } from "#core/model/model-router.js";
 import { discoverModules } from "#core/modules/module-discovery.js";
 import type { ModuleLoader } from "#core/modules/module-loader.js";
 import { discoverProjectModules } from "#core/modules/project-discovery.js";
-import { getHistoryProvider, resetProviderRegistry } from "#core/modules/provider-registry.js";
+import {
+  getHistoryProvider,
+  getRenderingProvider,
+  resetProviderRegistry,
+} from "#core/modules/provider-registry.js";
 import { resetAgentStatusProviders } from "#core/tools/agent-status.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { loadSavedTools, resetCustomTools } from "#core/tools/custom-tool.js";
@@ -22,7 +26,7 @@ import type { Context } from "./context.js";
 import type { CostTracker } from "./cost.js";
 import { resetChangeTracker } from "./file-changes.js";
 import type { SessionStateMachine } from "./session-state.js";
-import type { Transport } from "./transport.js";
+import type { ProxyTransport, Transport } from "./transport.js";
 import type { VerifyTracker } from "./verify-tracker.js";
 
 /** Internal state interface used to access AgentSession fields from extracted functions. */
@@ -41,6 +45,17 @@ export interface AgentLoopState {
   thinkingConfig: KotaThinkingConfig | undefined;
   verbose: boolean;
   transport: Transport;
+  /**
+   * Present when the constructor created a default `ProxyTransport`
+   * waiting on the rendering module. `runInitModules` resolves the
+   * rendering provider after module load and swaps the proxy's target
+   * so operator-facing events flow through the module-owned
+   * `CliTransport`. Left as the `NullTransport` fallback when no
+   * rendering module is loaded.
+   */
+  defaultTransportProxy: ProxyTransport | undefined;
+  /** Operator-visible cost summary flag; forwarded to the module-owned CLI transport. */
+  showCost: boolean;
   verifyTracker: VerifyTracker;
   mcpManager: McpManager | null;
   costTracker: CostTracker;
@@ -99,6 +114,8 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
   for (const { name } of listManifestModules()) addLoadedModule(name);
   await state.moduleLoader.loadAll(projectModules, modules);
 
+  bindRenderingTransport(state);
+
   restoreConversationIfRequested(state);
 
   const skillsPrompt = state.moduleLoader.getSkillsPrompt();
@@ -118,6 +135,16 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
   if (state.stateMachine.canTransition("ready")) {
     state.stateMachine.transition("ready");
   }
+}
+
+function bindRenderingTransport(state: AgentLoopState): void {
+  if (!state.defaultTransportProxy) return;
+  const provider = getRenderingProvider();
+  if (!provider) return;
+  state.defaultTransportProxy.target = provider.createAgentTransport({
+    verbose: state.verbose,
+    showCost: state.showCost,
+  });
 }
 
 function restoreConversationIfRequested(state: AgentLoopState): void {

@@ -1,12 +1,12 @@
 ---
 id: task-invert-corerendering-module-imports-via-neutral-ch
 title: Invert core→rendering-module imports via neutral chrome and CLI-transport providers
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Move CliTransport out of src/core/loop/transport.ts and chrome rendering out of src/core/repl/harness-repl.ts via a rendering provider seam, and add a no-rendering-imports-in-core guard mirroring voice/history/execution.
 created_at: 2026-04-24T09:50:20.040Z
-updated_at: 2026-04-24T09:50:20.040Z
+updated_at: 2026-04-24T10:16:49.834Z
 ---
 
 ## Problem

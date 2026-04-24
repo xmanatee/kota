@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CliTransport } from "#core/loop/transport.js";
+import { BufferTransport } from "#core/loop/transport.js";
 import { type StreamConfig, streamMessage } from "./streaming.js";
 
 let stdoutSpy: ReturnType<typeof vi.spyOn>;
@@ -45,7 +45,7 @@ function cfg(client: unknown): StreamConfig {
     system: [{ type: "text", text: "test" }],
     messages: [{ role: "user", content: "Hello" }],
     tools: [],
-    transport: new CliTransport(false),
+    transport: new BufferTransport(),
   };
 }
 
@@ -196,7 +196,7 @@ describe("streamMessage", () => {
     expect(result.streamedText).not.toContain("partial");
   });
 
-  it("emits thinking events to stderr in verbose mode", async () => {
+  it("emits a thinking_start event and every thinking chunk when thinking is enabled", async () => {
     const s = {
       on: vi.fn().mockImplementation((event: string, cb: (...args: unknown[]) => void) => {
         if (event === "thinking") { cb("step 1..."); cb("step 2..."); }
@@ -210,44 +210,20 @@ describe("streamMessage", () => {
       }),
     };
     const client = { messages: { stream: vi.fn().mockReturnValue(s) } };
+    const transport = new BufferTransport();
     const config = {
       ...cfg(client),
       thinkingConfig: { type: "enabled" as const, budget_tokens: 1000 },
-      transport: new CliTransport(true),
+      transport,
     };
 
     await streamMessage(config);
 
-    const stderrCalls = stderrSpy.mock.calls.map((c: unknown[]) => c[0]);
-    expect(stderrCalls).toContain("[thinking] ");
-    expect(stderrCalls).toContain("step 1...");
-    expect(stderrCalls).toContain("step 2...");
-  });
-
-  it("emits single thinking notice in non-verbose mode", async () => {
-    const s = {
-      on: vi.fn().mockImplementation((event: string, cb: (...args: unknown[]) => void) => {
-        if (event === "thinking") { cb("internal reasoning"); }
-        if (event === "text") cb("reply");
-      }),
-      finalMessage: vi.fn().mockResolvedValue({
-        id: "msg_t", type: "message", role: "assistant",
-        content: [{ type: "text", text: "reply" }],
-        model: "test-model", stop_reason: "end_turn",
-        usage: { input_tokens: 10, output_tokens: 5 },
-      }),
-    };
-    const client = { messages: { stream: vi.fn().mockReturnValue(s) } };
-    const config = {
-      ...cfg(client),
-      thinkingConfig: { type: "enabled" as const, budget_tokens: 1000 },
-      transport: new CliTransport(false),
-    };
-
-    await streamMessage(config);
-
-    const stderrCalls = stderrSpy.mock.calls.map((c: unknown[]) => c[0]);
-    expect(stderrCalls).toContain("[kota] Thinking...\n");
-    expect(stderrCalls).not.toContain("internal reasoning");
+    const thinkingStarts = transport.events.filter((e) => e.type === "thinking_start");
+    const thinkingChunks = transport.events
+      .filter((e): e is Extract<typeof e, { type: "thinking" }> => e.type === "thinking")
+      .map((e) => e.content);
+    expect(thinkingStarts).toHaveLength(1);
+    expect(thinkingChunks).toEqual(["step 1...", "step 2..."]);
   });
 });
