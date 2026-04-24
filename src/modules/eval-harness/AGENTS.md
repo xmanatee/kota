@@ -88,23 +88,29 @@ subscribe to the typed event, not filter generic completion events by
 workflow name. CLI and HTTP callers still own their own comparison —
 auto-resolution is cadence-only.
 
-## Runner Lifecycle
+## Runner Lifecycle And Execution Paths
 
-Each fixture run materializes its initial state into a fresh tmpdir (runs
-never mutate the operator's repo), invokes the workflow through a
-pluggable executor, evaluates predicates, and emits a per-run artifact.
-The eval-set layer aggregates fixtures × repeats into one report.
+Each fixture run materializes its initial state into a fresh tmpdir,
+invokes the workflow through a pluggable executor, evaluates predicates,
+and emits a per-run artifact. Fixtures run sequentially — parallel
+replicas would corrupt the per-run resource profile and break noise-band
+comparison. `gated` means the change should not ship as-is; rerun on the
+same host class to confirm. `not-gated` with a profile-drift or
+sample-too-small reason means rerun with correct config.
 
-Fixtures run sequentially by design — parallel replicas would corrupt the
-resource profile recorded per run, breaking the noise-band comparison.
+Three paths share the same `runFixture` + subprocess executor:
 
-## How To Read A Regression
-
-`gated` means the change should not ship as-is. Reshape, rerun on the same
-host class, and compare. If the drop persists across independent runs with
-stable resource profiles, the regression is real. `not-gated` with a
-resource-profile-drift or repeat-count-below-minimum reason means the
-numbers don't support a gate either way — rerun with correct config first.
+- **Smoke gate (`pnpm test`)** — `replay-smoke.test.ts` runs one shipped
+  `*-agent-call-replay` fixture at `repeats=1`, no baseline, so workflow-
+  layer regressions (replay adapter, subprocess executor, gather-run-data,
+  repair loop, commit step) fail the standard test pass — including
+  inside every autonomy run's own `pnpm test` repair-loop check. The
+  chosen fixture must cover both the workflow-step and judge-prompt
+  branches. Live-LLM fixtures stay out of this gate.
+- **Cadence (`eval-harness-cadence`)** — every shipped fixture, weekly,
+  `repeats=k`, owns the persisted baseline and `pass^k` aggregation.
+- **CLI (`pnpm kota eval run`)** — operator-driven; caller owns the
+  comparison, no baseline persistence.
 
 ## Recorded Agent-Step Replay
 
@@ -114,40 +120,22 @@ the fixture directory as `KOTA_EVAL_HARNESS_REPLAY_ROOT`; the module
 overrides the `claude-agent-sdk` slot with a replay adapter for that
 subprocess. Production selection is unchanged.
 
-The adapter substitutes `{{runDir}}` inside recorded paths, writes
-operations to the fixture working dir, and `git add -A`s them so
-downstream repair checks see the same tree the real agent produced.
-Every recording's `sourceRunId` must match the fixture's
-`real-failure` provenance. `pnpm kota eval record-agent-step` is the
-single authoring surface:
+The adapter substitutes `{{runDir}}` in recorded paths, writes operations
+to the fixture working dir, and `git add -A`s them so downstream repair
+checks see the same tree the real agent produced. Every recording's
+`sourceRunId` must match the fixture's `real-failure` provenance.
+`pnpm kota eval record-agent-step` is the single authoring surface
+(`--step <id>` walks the source commit's diff; `--judge <label>` lifts
+`<runDir>/<label>.json`; `--source-commit-sha` is the escape hatch for
+pre-SHA-capture sources). The adapter routes workflow-step prompts by
+the `Step:` marker and judge prompts by leading header (table in
+`replay-harness.ts`); a new judge adds an entry there and authors via
+`--judge <label>`.
 
-- `--step <id>` resolves the source commit SHA from
-  `steps/commit.json` and walks the diff; repo-tree mutations
-  round-trip as `fileOperations`. Run-dir artifacts come from the
-  Write-event scan and stay templated to `{{runDir}}`. A
-  non-committing source run is a hard error.
-- `--judge <label>` reads the source run's `<runDir>/<label>.json`
-  verdict and wraps it as `response.text` with empty
-  `fileOperations` — judges have no tool access.
-- `--source-commit-sha <sha>` is an explicit escape hatch for source
-  runs whose `steps/commit.json` pre-dates the SHA capture. The
-  committed=true contract is still enforced.
-
-Two prompt shapes route through the same adapter: workflow-step
-prompts keyed by the `Step:` marker, and judge prompts keyed by their
-leading header. Known judge headers → recording ids:
-
-- `## Task (what was asked)` → `critic-review`.
-- `## Commit message` → `semantic-gate-review`.
-
-A new judge adds its header + recording-id to the replay-adapter table
-and authors its recording via `--judge <label>`. Judge recordings skip
-the workflow-name match because their prompt never names a workflow.
-
-Fixtures that depend on a time-sliding window (e.g. improver reading
-runs under `.kota/runs/`) use the runner's fixture-templating pass:
-`{{NOW_MINUS_HOURS:N}}` and `{{NOW_MINUS_MINUTES:N}}` are rewritten to
-ISO timestamps `N` units before `Date.now()` at materialization.
+Time-sliding fixtures (e.g. improver reading runs under `.kota/runs/`)
+use the runner's templating pass: `{{NOW_MINUS_HOURS:N}}` and
+`{{NOW_MINUS_MINUTES:N}}` rewrite to ISO timestamps `N` units before
+`Date.now()` at materialization.
 
 ## Boundaries
 

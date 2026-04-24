@@ -1,12 +1,12 @@
 ---
 id: task-gate-shipped-replay-fixtures-from-pnpm-test-so-wor
 title: Gate shipped replay fixtures from pnpm test so workflow-layer regressions surface in CI
-status: ready
+status: done
 priority: p1
 area: modules
 summary: Wire at least one of the three shipped agent-call replay fixtures into the standard pnpm test pass so workflow-layer regressions block commits immediately instead of waiting for the weekly eval-harness cadence.
 created_at: 2026-04-24T22:31:53.879Z
-updated_at: 2026-04-24T22:31:53.879Z
+updated_at: 2026-04-24T22:49:34.491Z
 ---
 
 ## Problem
