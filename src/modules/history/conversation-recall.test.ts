@@ -1,18 +1,13 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ConversationHistory } from "./history.js";
-
-vi.mock("./history.js", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("./history.js")>();
-	return { ...actual, getHistory: vi.fn() };
-});
-
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+	initProviderRegistry,
+	resetProviderRegistry,
+} from "#core/modules/provider-registry.js";
 import { runConversationRecall } from "./conversation-recall.js";
-import { getHistory } from "./history.js";
-
-const mocked = vi.mocked(getHistory);
+import { ConversationHistory } from "./history.js";
 
 describe("runConversationRecall", () => {
 	let history: ConversationHistory;
@@ -20,7 +15,12 @@ describe("runConversationRecall", () => {
 	beforeEach(() => {
 		const dir = mkdtempSync(join(tmpdir(), "kota-recall-test-"));
 		history = new ConversationHistory(dir);
-		mocked.mockReturnValue(history);
+		const registry = initProviderRegistry();
+		registry.register("history", "test", history);
+	});
+
+	afterEach(() => {
+		resetProviderRegistry();
 	});
 
 	describe("list", () => {

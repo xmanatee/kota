@@ -65,9 +65,25 @@ vi.mock("./core/mcp/manager.js", () => ({
     static loadConfig() { return null; }
   },
 }));
-vi.mock("./core/modules/project-discovery.js", () => ({
-  discoverProjectModules: vi.fn(async () => []),
-}));
+vi.mock("./core/modules/project-discovery.js", async () => {
+  // Load the history module so its onLoad registers the "history" provider
+  // during AgentSession init. Without it, saveToHistoryImpl has no provider
+  // to resolve because registerDefaultProviders no longer seeds one. The
+  // module declares a rendering dependency and a tool contribution in
+  // production; strip those here because the tool system is mocked out and
+  // rendering is not part of this integration scope.
+  const real = (await import("./modules/history/index.js")).default;
+  const historyModule = {
+    ...real,
+    dependencies: [] as string[],
+    tools: undefined,
+    skills: undefined,
+    routes: undefined,
+  };
+  return {
+    discoverProjectModules: vi.fn(async () => [historyModule]),
+  };
+});
 vi.mock("./core/modules/module-discovery.js", () => ({
   discoverModules: vi.fn(async () => []),
 }));
@@ -161,9 +177,12 @@ describe("history save → resume end-to-end", () => {
 
     expect(convId).toBeTruthy();
 
-    // Session 2: resume and send another message
+    // Session 2: resume and send another message. The history module owns
+    // the "history" provider and registers it during session init, so the
+    // resume is applied once initPromise resolves (awaited by send()).
     mockStreamMessage.mockResolvedValueOnce(textResponse("Sure, continuing!"));
     const session2 = new AgentSession({ autonomyMode: "autonomous", resumeConversation: convId! });
+    await (session2 as unknown as { initPromise: Promise<void> }).initPromise;
 
     // Verify old messages are restored
     const ctx = (session2 as any).context;
@@ -195,6 +214,10 @@ describe("history save → resume end-to-end", () => {
 
   it("close() saves history for partial conversations (error recovery)", async () => {
     const session = new AgentSession({ autonomyMode: "autonomous" });
+    // Modules (including history) load asynchronously during init. Await that
+    // before manually seeding the context so the close-time save can find a
+    // provider — a real partial send would likewise wait out initPromise.
+    await (session as unknown as { initPromise: Promise<void> }).initPromise;
     // Simulate a partial send: user message added but API call failed
     const ctx = (session as any).context;
     ctx.addUserMessage("This should be saved on close");
@@ -329,6 +352,7 @@ describe("history save → resume end-to-end", () => {
 
     // Session 2: resume, verify compaction count and input tokens are restored
     const session2 = new AgentSession({ autonomyMode: "autonomous", resumeConversation: convId! });
+    await (session2 as unknown as { initPromise: Promise<void> }).initPromise;
     const ctx2 = (session2 as any).context;
     const stats = ctx2.getStats();
     // Input tokens from session 1 should be restored

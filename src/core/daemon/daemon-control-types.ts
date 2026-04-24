@@ -1,7 +1,7 @@
+import type { ConversationData, ConversationRecord } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ToolCallSummaryEntry, WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState, WorkflowStepSkipReason } from "#core/workflow/run-types.js";
 import type { WorkflowAgentBackoffState } from "#core/workflow/types.js";
-import type { ConversationData, ConversationRecord } from "#modules/history/history-utils.js";
 import type { PendingApproval } from "./approval-queue.js";
 import type { DaemonState } from "./daemon-state.js";
 import type { PendingOwnerQuestion } from "./owner-question-queue.js";

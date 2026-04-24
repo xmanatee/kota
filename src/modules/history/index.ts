@@ -1,15 +1,17 @@
 /**
  * History module — conversation recall across sessions.
  *
- * Registers the `conversation_recall` tool in the `management` group.
- * Enables the agent to search and read past conversations.
+ * Owns the file-based ConversationHistory store and registers it as the
+ * `default` history provider. Contributes the `conversation_recall` tool
+ * in the `management` group and the `/api/history` HTTP routes.
  */
 
-import type { KotaModule } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import {
 	conversationRecallTool,
 	runConversationRecall,
 } from "./conversation-recall.js";
+import { getHistory } from "./history.js";
 import { historyRoutes } from "./routes.js";
 
 const historyModule: KotaModule = {
@@ -27,7 +29,11 @@ const historyModule: KotaModule = {
 			group: "management",
 		},
 	],
-  skills: [{ name: "history", promptPath: "src/modules/history/history.md" }],
+	skills: [{ name: "history", promptPath: "src/modules/history/history.md" }],
+
+	onLoad: (ctx: ModuleContext) => {
+		ctx.registerProvider("history", getHistory());
+	},
 
 	routes: () => historyRoutes(),
 };

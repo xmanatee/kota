@@ -10,6 +10,7 @@ import { AgentSession } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
 import { initModuleLogStore } from "#core/modules/module-log.js";
 import type { ControlRouteRegistration } from "#core/modules/module-types.js";
+import { getHistoryProvider } from "#core/modules/provider-registry.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
 import type { LogFormat } from "#core/util/log-format.js";
@@ -17,7 +18,6 @@ import { isProcessAlive } from "#core/util/process-alive.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
-import { getHistory } from "#modules/history/history.js";
 import { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import { DaemonControlServer, type InteractiveSession } from "./daemon-control.js";
 import { buildDaemonHandle } from "./daemon-handle.js";
@@ -141,10 +141,17 @@ export class Daemon {
     const daemonVerbose = config.verbose;
     const chatBindings = new DaemonChatBindingStore(this.stateDir);
     const conversationResolver = {
-      conversationExists: (conversationId: string): boolean =>
-        getHistory().load(conversationId) !== null,
+      conversationExists: (conversationId: string): boolean => {
+        try {
+          return getHistoryProvider().load(conversationId) !== null;
+        } catch {
+          // History module not loaded (no session active yet). Treat as "not found" —
+          // the caller will decide whether to create a fresh conversation or error.
+          return false;
+        }
+      },
       createConversation: (_mode: AutonomyMode): string =>
-        getHistory().create(daemonModel ?? "claude-sonnet-4-6", this.projectDir, "user"),
+        getHistoryProvider().create(daemonModel ?? "claude-sonnet-4-6", this.projectDir, "user"),
     };
     this.controlServer = new DaemonControlServer(
       buildDaemonHandle({

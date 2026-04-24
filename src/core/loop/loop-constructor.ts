@@ -14,7 +14,6 @@ import { isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import { setDelegateConfig } from "#core/tools/delegate.js";
 import { getDefaultConfig as getDefaultGuardrails } from "#core/tools/guardrails.js";
 import { enableGroup } from "#core/tools/tool-groups.js";
-import { getHistory } from "#modules/history/history.js";
 import { buildSessionWarmup } from "#root/init.js";
 import { Context } from "./context.js";
 import { CostTracker } from "./cost.js";
@@ -107,29 +106,18 @@ export function initAgentSession(
     }
   }
 
-  if (options.resumeConversation) {
-    const history = getHistory();
-    const data = history.load(options.resumeConversation);
-    if (data) {
-      state.conversationId = options.resumeConversation;
-      state.context = new Context(systemPrompt);
-      state.context.restoreFrom(data.messages, data.compactionCount, data.lastInputTokens);
-      state.transport.emit({
-        type: "status",
-        message: `[kota] Resumed conversation: "${data.record.title}" (${data.record.messageCount} messages)`,
-      });
-    } else {
-      state.context = new Context(systemPrompt);
-      state.transport.emit({ type: "error", message: `[kota] Conversation ${options.resumeConversation} not found, starting fresh` });
-    }
-  } else if (state.sessionPath && existsSync(state.sessionPath)) {
+  if (state.sessionPath && existsSync(state.sessionPath) && !options.resumeConversation) {
     state.context = Context.load(state.sessionPath, systemPrompt);
     if (state.verbose) state.transport.emit({ type: "status", message: `[kota] Resumed session from ${state.sessionPath}` });
   } else {
     state.context = new Context(systemPrompt);
   }
 
-  state.historyEnabled = !options.noHistory && (!state.sessionPath || !!state.conversationId);
+  // Conversation resume needs the history provider, which the history module
+  // registers during runInitModules. Defer the actual restore to that phase;
+  // keep the intent on state so the async init can consume it.
+  state.resumeConversationId = options.resumeConversation;
+  state.historyEnabled = !options.noHistory && (!state.sessionPath || !!options.resumeConversation);
   state.historySource = options.historySource ?? "user";
 
   state.verifyTracker = new VerifyTracker(detectVerifyCommands());

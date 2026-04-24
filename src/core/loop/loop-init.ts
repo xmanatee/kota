@@ -9,7 +9,7 @@ import type { ModelTiers } from "#core/model/model-router.js";
 import { discoverModules } from "#core/modules/module-discovery.js";
 import type { ModuleLoader } from "#core/modules/module-loader.js";
 import { discoverProjectModules } from "#core/modules/project-discovery.js";
-import { resetProviderRegistry } from "#core/modules/provider-registry.js";
+import { getHistoryProvider, resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { resetAgentStatusProviders } from "#core/tools/agent-status.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { loadSavedTools, resetCustomTools } from "#core/tools/custom-tool.js";
@@ -18,7 +18,6 @@ import type { GuardrailsConfig } from "#core/tools/guardrails.js";
 import { addLoadedModule, resetModuleFactory } from "#core/tools/module-factory/index.js";
 import { resetGroups } from "#core/tools/tool-groups.js";
 import { resetToolTelemetry } from "#core/tools/tool-telemetry.js";
-import { getHistory } from "#modules/history/history.js";
 import type { Context } from "./context.js";
 import type { CostTracker } from "./cost.js";
 import { resetChangeTracker } from "./file-changes.js";
@@ -52,6 +51,8 @@ export interface AgentLoopState {
   historyEnabled: boolean;
   historySource: "user" | "action";
   conversationId: string | null;
+  /** Pending resume target captured from LoopOptions; consumed during module init. */
+  resumeConversationId: string | undefined;
   projectContext: string;
   instructionContext: string;
   modelTiers: ModelTiers | undefined;
@@ -98,6 +99,8 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
   for (const { name } of listManifestModules()) addLoadedModule(name);
   await state.moduleLoader.loadAll(projectModules, modules);
 
+  restoreConversationIfRequested(state);
+
   const skillsPrompt = state.moduleLoader.getSkillsPrompt();
   if (skillsPrompt) {
     state.context.appendSystemPrompt(skillsPrompt);
@@ -117,12 +120,46 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
   }
 }
 
+function restoreConversationIfRequested(state: AgentLoopState): void {
+  if (!state.resumeConversationId) return;
+  const targetId = state.resumeConversationId;
+  state.resumeConversationId = undefined;
+  const history = getHistoryProvider();
+  const data = history.load(targetId);
+  if (data) {
+    state.conversationId = targetId;
+    state.context.restoreFrom(data.messages, data.compactionCount, data.lastInputTokens);
+    state.transport.emit({
+      type: "status",
+      message: `[kota] Resumed conversation: "${data.record.title}" (${data.record.messageCount} messages)`,
+    });
+  } else {
+    // Mirror the pre-refactor semantics: a session that binds history only
+    // through resumeConversation (i.e. also has a sessionPath) disables
+    // history when resume fails; a session without a sessionPath still
+    // creates a new conversation on the next save.
+    if (state.sessionPath) state.historyEnabled = false;
+    state.transport.emit({
+      type: "error",
+      message: `[kota] Conversation ${targetId} not found, starting fresh`,
+    });
+  }
+}
+
 export function saveToHistoryImpl(state: AgentLoopState): void {
   if (!state.historyEnabled) return;
   const snapshot = state.context.snapshot();
-  const history = getHistory();
+  if (!state.conversationId && snapshot.messages.length === 0) return;
+  let history: ReturnType<typeof getHistoryProvider>;
+  try {
+    history = getHistoryProvider();
+  } catch {
+    // History module not loaded (e.g. a deployment excludes it, or the
+    // session closes before init completes). Saving is a best-effort side
+    // effect — skip rather than surfacing an init error to the caller.
+    return;
+  }
   if (!state.conversationId) {
-    if (snapshot.messages.length === 0) return;
     state.conversationId = history.create(state.model, process.cwd(), state.historySource);
   }
   history.save(state.conversationId, snapshot.messages, snapshot.compactionCount, snapshot.lastInputTokens);

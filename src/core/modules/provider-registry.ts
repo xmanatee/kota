@@ -1,7 +1,6 @@
 /** Provider registry — swappable backends for core services. */
 
 import { getTaskStore } from "#core/daemon/task-store.js";
-import { getHistory } from "#modules/history/history.js";
 import type {
 	HistoryProvider,
 	KnowledgeProvider,
@@ -110,7 +109,6 @@ export function resetProviderRegistry(): void {
 export function registerDefaultProviders(): void {
 	if (!registry) return;
 	registry.register("task", "default", getTaskStore());
-	registry.register("history", "default", getHistory());
 }
 
 /**
@@ -152,11 +150,17 @@ export function getTaskProvider(): TaskProvider {
 	return getTaskStore();
 }
 
-/** Get the active history provider, or the default ConversationHistory when no registry provider is active. */
+/**
+ * Get the active history provider from the registry. The `history` module
+ * owns the default implementation — callers must ensure it has loaded (via
+ * the module runtime or `ensureCliProvidersFor(["history"])`).
+ */
 export function getHistoryProvider(): HistoryProvider {
 	if (registry) {
 		const provider = registry.get<HistoryProvider>("history");
 		if (provider) return provider;
 	}
-	return getHistory();
+	throw new Error(
+		"No history provider registered. Load the `history` module before calling getHistoryProvider.",
+	);
 }

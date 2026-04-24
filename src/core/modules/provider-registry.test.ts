@@ -182,19 +182,12 @@ describe("interface conformance", () => {
 		expect(typeof provider.count).toBe("function");
 	});
 
-	it("HistoryProvider interface matches ConversationHistory shape", async () => {
-		const { ConversationHistory } = await import("#modules/history/history.js");
-		const history = new ConversationHistory("/tmp/test-provider-conformance-history");
-		const provider: HistoryProvider = history;
-		expect(typeof provider.create).toBe("function");
-		expect(typeof provider.save).toBe("function");
-		expect(typeof provider.load).toBe("function");
-		expect(typeof provider.list).toBe("function");
-		expect(typeof provider.getMostRecent).toBe("function");
-		expect(typeof provider.findByPrefix).toBe("function");
-		expect(typeof provider.remove).toBe("function");
-		expect(typeof provider.cleanup).toBe("function");
-	});
+	// HistoryProvider conformance is enforced structurally: the history
+	// module's onLoad calls `ctx.registerProvider("history", getHistory())`
+	// with a typed HistoryProvider target, so any shape mismatch fails at
+	// typecheck. Core cannot import ConversationHistory (see
+	// `no-history-imports-in-core.test.ts`), so there is no in-core runtime
+	// check here.
 });
 
 // --- Convenience getter tests ---
@@ -307,11 +300,18 @@ describe("convenience getters", () => {
 		expect(typeof provider.add).toBe("function");
 	});
 
-	it("getHistoryProvider returns ConversationHistory when no registry", () => {
+	it("getHistoryProvider throws when no provider registered", () => {
 		resetProviderRegistry();
-		const provider = getHistoryProvider();
-		expect(typeof provider.list).toBe("function");
-		expect(typeof provider.load).toBe("function");
+		expect(() => getHistoryProvider()).toThrow(
+			/No history provider registered/,
+		);
+	});
+
+	it("getHistoryProvider throws when registry exists but no history provider registered", () => {
+		initProviderRegistry();
+		expect(() => getHistoryProvider()).toThrow(
+			/No history provider registered/,
+		);
 	});
 
 	it("getHistoryProvider returns custom provider when registered", () => {
@@ -334,11 +334,6 @@ describe("convenience getters", () => {
 		expect(provider.create("model", "/tmp")).toBe("custom-id");
 	});
 
-	it("getHistoryProvider returns default when registry exists but has no history provider", () => {
-		initProviderRegistry();
-		const provider = getHistoryProvider();
-		expect(typeof provider.list).toBe("function");
-	});
 });
 
 // --- registerDefaultProviders tests ---
@@ -351,10 +346,9 @@ describe("registerDefaultProviders", () => {
 		registerDefaultProviders();
 		expect(reg.list("memory")).toEqual([]);
 		expect(reg.list("task")).toEqual(["default"]);
-		expect(reg.list("history")).toEqual(["default"]);
+		expect(reg.list("history")).toEqual([]);
 		expect(reg.list("knowledge")).toEqual([]);
 		expect(reg.getActiveName("task")).toBe("default");
-		expect(reg.getActiveName("history")).toBe("default");
 	});
 
 	it("default providers are functional", () => {
@@ -362,8 +356,6 @@ describe("registerDefaultProviders", () => {
 		registerDefaultProviders();
 		const task = getTaskProvider();
 		expect(typeof task.add).toBe("function");
-		const hist = getHistoryProvider();
-		expect(typeof hist.list).toBe("function");
 	});
 
 	it("does nothing when registry not initialized", () => {

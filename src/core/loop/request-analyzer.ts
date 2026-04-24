@@ -1,8 +1,7 @@
 import { statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
-import { getMemoryProvider } from "#core/modules/provider-registry.js";
-import type { Memory } from "#core/modules/provider-types.js";
-import { type ConversationRecord, getHistory } from "#modules/history/history.js";
+import { getHistoryProvider, getMemoryProvider } from "#core/modules/provider-registry.js";
+import type { ConversationRecord, Memory } from "#core/modules/provider-types.js";
 
 export type PathInfo = {
   path: string;
@@ -155,7 +154,7 @@ export function analyzeRequest(
       // Memory store unavailable — skip
     }
     try {
-      const history = getHistory();
+      const history = getHistoryProvider();
       conversations = history.list({ search: terms.join(" "), limit: MAX_CONVERSATIONS });
     } catch {
       // History unavailable — skip

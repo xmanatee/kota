@@ -22,9 +22,10 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   };
 });
 
-vi.mock("./task-store.js", () => ({
-  initTaskStore: vi.fn(),
-}));
+vi.mock("./task-store.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./task-store.js")>();
+  return { ...actual, initTaskStore: vi.fn() };
+});
 
 import "#modules/claude-agent-harness/index.js";
 

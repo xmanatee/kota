@@ -1,12 +1,12 @@
 ---
 id: task-eliminate-remaining-core-to-history-module-imports
 title: Eliminate remaining core-to-history-module imports via a neutral HistoryProvider protocol
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Stop core from importing #modules/history/*: hoist HistoryProvider's type dependencies into core, have the history module register its own provider on load (mirroring memory/knowledge), migrate call sites to getHistoryProvider(), and add an import-guard test — the natural follow-up to the recent voice and execution carve-outs.
 created_at: 2026-04-24T09:14:37.367Z
-updated_at: 2026-04-24T09:14:37.367Z
+updated_at: 2026-04-24T09:45:55.953Z
 ---
 
 ## Problem

@@ -76,6 +76,7 @@ export class AgentSession {
   private projectContext!: string;
   private instructionContext!: string;
   private conversationId: string | null = null;
+  private resumeConversationId: string | undefined;
   private historyEnabled!: boolean;
   private historySource!: "user" | "action";
   private sessionId!: string;

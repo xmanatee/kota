@@ -1,6 +1,29 @@
 import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
 import type { Task, TaskPriority, TaskStatus } from "#core/daemon/task-store.js";
-import type { ConversationData, ConversationRecord } from "#modules/history/history.js";
+
+/** A stored conversation message — alias for the core harness message protocol. */
+export type ConversationMessage = KotaMessage;
+
+/** Summary record for a persisted conversation in history. */
+export type ConversationRecord = {
+	id: string;
+	title: string;
+	createdAt: string;
+	updatedAt: string;
+	model: string;
+	messageCount: number;
+	cwd: string;
+	/** Distinguishes user-initiated conversations from internal non-user sessions. */
+	source?: "user" | "action";
+};
+
+/** Full persisted conversation state: summary plus messages and compaction metadata. */
+export type ConversationData = {
+	record: ConversationRecord;
+	messages: ConversationMessage[];
+	compactionCount: number;
+	lastInputTokens: number;
+};
 
 /** A memory entry: a persisted agent note with content, tags, and timestamp. */
 export type Memory = {
@@ -147,7 +170,7 @@ export interface HistoryProvider {
 	create(model: string, cwd: string, source?: "user" | "action"): string;
 	save(
 		id: string,
-		messages: KotaMessage[],
+		messages: ConversationMessage[],
 		compactionCount: number,
 		lastInputTokens: number,
 	): void;

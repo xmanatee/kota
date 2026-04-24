@@ -1,26 +1,11 @@
 import { createHash } from "node:crypto";
-import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
+import type {
+  ConversationMessage,
+  ConversationRecord,
+} from "#core/modules/provider-types.js";
 
-export type Message = KotaMessage;
-
-export type ConversationRecord = {
-  id: string;
-  title: string;
-  createdAt: string;
-  updatedAt: string;
-  model: string;
-  messageCount: number;
-  cwd: string;
-  /** Distinguishes user-initiated conversations from internal non-user sessions. */
-  source?: "user" | "action";
-};
-
-export type ConversationData = {
-  record: ConversationRecord;
-  messages: Message[];
-  compactionCount: number;
-  lastInputTokens: number;
-};
+export type { ConversationData, ConversationRecord } from "#core/modules/provider-types.js";
+export type Message = ConversationMessage;
 
 export type HistoryIndex = {
   conversations: ConversationRecord[];

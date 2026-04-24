@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock memory provider to isolate from real ~/.kota/memory.json
+// Mock memory and history providers to isolate from real stores
 vi.mock("./core/modules/provider-registry.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./core/modules/provider-registry.js")>();
   return {
@@ -13,15 +13,11 @@ vi.mock("./core/modules/provider-registry.js", async (importOriginal) => {
       list: () => [] as any[],
       search: () => [] as any[],
     })),
+    getHistoryProvider: vi.fn(() => ({
+      getMostRecent: () => null,
+    })),
   };
 });
-
-// Mock history module to control conversation data
-vi.mock("./modules/history/history.js", () => ({
-  getHistory: vi.fn(() => ({
-    getMostRecent: () => null,
-  })),
-}));
 
 // Mock task-store module to isolate and test failure paths
 vi.mock("./core/daemon/task-store.js", () => ({
@@ -40,12 +36,11 @@ vi.mock("./core/daemon/scheduler.js", () => ({
 import { detectEnvironment, detectProject, getDirectoryOverview } from "#core/util/project-detection.js";
 import { getScheduler } from "./core/daemon/scheduler.js";
 import { getTaskStore } from "./core/daemon/task-store.js";
-import { getMemoryProvider } from "./core/modules/provider-registry.js";
+import { getHistoryProvider, getMemoryProvider } from "./core/modules/provider-registry.js";
 import { buildSessionWarmup } from "./init.js";
-import { getHistory } from "./modules/history/history.js";
 
 const mocked = vi.mocked(getMemoryProvider);
-const mockedHistory = vi.mocked(getHistory);
+const mockedHistory = vi.mocked(getHistoryProvider);
 const mockedTaskStore = vi.mocked(getTaskStore);
 const mockedScheduler = vi.mocked(getScheduler);
 

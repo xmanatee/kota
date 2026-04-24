@@ -3,10 +3,10 @@ import type { KotaConfig } from "#core/config/config.js";
 import { loadConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
+import { getHistoryProvider } from "#core/modules/provider-registry.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
-import { getHistory } from "#modules/history/history.js";
 import { getApprovalQueue } from "./approval-queue.js";
 import { computeModuleConfigDiff } from "./config-reload-diff.js";
 import type {
@@ -206,9 +206,28 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       ];
       return () => stops.forEach((s) => s());
     },
-    listHistory: (search?: string, limit = 20) => getHistory().list({ search, limit }),
-    getHistory: (id: string) => getHistory().load(id) ?? null,
-    deleteHistory: (id: string) => getHistory().remove(id),
+    listHistory: (search?: string, limit = 20) => {
+      try {
+        return getHistoryProvider().list({ search, limit });
+      } catch {
+        // History module not loaded (no session active yet). Return empty.
+        return [];
+      }
+    },
+    getHistory: (id: string) => {
+      try {
+        return getHistoryProvider().load(id) ?? null;
+      } catch {
+        return null;
+      }
+    },
+    deleteHistory: (id: string) => {
+      try {
+        return getHistoryProvider().remove(id);
+      } catch {
+        return false;
+      }
+    },
     listApprovals: () => getApprovalQueue().list("pending"),
     approveApproval: (id: string, note?: string) => getApprovalQueue().approve(id, note),
     rejectApproval: (id: string, reason?: string) => getApprovalQueue().reject(id, reason),

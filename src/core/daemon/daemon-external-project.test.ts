@@ -15,9 +15,10 @@ import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import { Daemon } from "./daemon.js";
 import { resetScheduler } from "./scheduler.js";
 
-vi.mock("./task-store.js", () => ({
-  initTaskStore: vi.fn(),
-}));
+vi.mock("./task-store.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./task-store.js")>();
+  return { ...actual, initTaskStore: vi.fn() };
+});
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
