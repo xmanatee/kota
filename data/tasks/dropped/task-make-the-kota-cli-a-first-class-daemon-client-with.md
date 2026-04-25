@@ -1,12 +1,12 @@
 ---
 id: task-make-the-kota-cli-a-first-class-daemon-client-with
 title: Make the KOTA CLI a first-class daemon client with an interactive runtime navigator
-status: backlog
+status: dropped
 priority: p2
 area: architecture
 summary: Treat the CLI as a replaceable client of the daemon control API and add an interactive navigator over runtime state (sessions, modules, logs, agents, secrets).
 created_at: 2026-04-25T12:26:57.655Z
-updated_at: 2026-04-25T12:26:57.655Z
+updated_at: 2026-04-25T12:49:23.007Z
 ---
 
 ## Problem
