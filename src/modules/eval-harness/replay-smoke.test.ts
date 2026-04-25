@@ -10,7 +10,7 @@
  * fixtures end-to-end through the same `runFixture` + subprocess executor path
  * the cadence uses, asserting predicate pass.
  *
- * Four fixtures cover the full set of workflow-runtime branches we want to
+ * Five fixtures cover the full set of workflow-runtime branches we want to
  * gate at `pnpm test` time:
  *   - `decomposer-agent-call-replay` is the smallest fixture and is the only
  *     one whose repair loop runs `pnpm run validate-tasks` against the
@@ -30,6 +30,16 @@
  *     shape (a `getRepoTaskQueueSnapshot` + tracked-changes-outside-inbox
  *     guard before the agent step), and the inbox-sorter-specific
  *     repair-check tuple (`task-queue-valid` with `--min-ready 0`).
+ *   - `research-retry-agent-call-replay` covers the
+ *     `inspect-candidates` selection-and-evaluation path
+ *     (`runtime-detect.isPlaywrightAvailable` + `readBrowserConfig`,
+ *     `candidates.listResearchRetryCandidates`,
+ *     `precondition.evaluateCandidate`'s URL classification + marker
+ *     fingerprint), the `mark-attempt` post-agent fingerprint-marker
+ *     writeback, and the research-retry repair-check tuple
+ *     (`task-queue-valid` with default `min-ready`,
+ *     `no-scratch-artifacts`, `commit-message-exists`, `commit-stageable`)
+ *     — none of which the other four replays exercise.
  * The builder fixture stays in cadence-only coverage because its surfaces
  * (workflow-step prompt routing, repair-loop survival, commit step's
  * `git add -A`, restart request) are already exercised by the gated
@@ -75,6 +85,7 @@ const SMOKE_FIXTURE_IDS = [
   "improver-agent-call-replay",
   "explorer-agent-call-replay",
   "inbox-sorter-agent-call-replay",
+  "research-retry-agent-call-replay",
 ] as const;
 
 describe("eval-harness shipped replay-fixture smoke gate", () => {

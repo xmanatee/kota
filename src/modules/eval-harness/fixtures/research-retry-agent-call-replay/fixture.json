@@ -1,0 +1,79 @@
+{
+  "id": "research-retry-agent-call-replay",
+  "description": "End-to-end replay of research-retry's `retry` agent step plus the surrounding inspect-candidates, mark-attempt, and commit steps. Seeds one blocked task with a plain-http URL so inspect-candidates selects it under the hermetic capability profile (no Playwright, no auth profile), forwards a fixed `_runId` so predicates can inspect `.kota/runs/<id>/metadata.json` deterministically, and routes the agent step through the eval-harness replay adapter so the agent-call branch regression-gates without paying for a real LLM run. Derived from source run 2026-04-23T00-03-55-062Z-research-retry-u92f1u — the real research-retry run that committed f4b4b279 (Re-confirm research-retry blocker with rotated akshay_pachaar/tianle_cai spot checks).",
+  "role": "research-retry",
+  "workflowName": "research-retry",
+  "budgetMs": 180000,
+  "triggerPayload": {
+    "_runId": "fixture-research-retry-agent-call-replay-2026-04-25",
+    "triggerEvent": "autonomy.queue.available",
+    "pullableCount": 1,
+    "actionableCount": 0,
+    "counts": {
+      "backlog": 0,
+      "ready": 0,
+      "doing": 0,
+      "blocked": 1,
+      "done": 0,
+      "dropped": 0
+    }
+  },
+  "predicates": [
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/blocked/task-fixture-research-blocker.md"
+    },
+    {
+      "kind": "file-contains",
+      "path": "data/tasks/blocked/task-fixture-research-blocker.md",
+      "needle": "<!-- research-retry-attempt: fingerprint="
+    },
+    {
+      "kind": "file-exists",
+      "path": "data/tasks/blocked/task-review-inaccessible-research-resources-when-access.md"
+    },
+    {
+      "kind": "file-exists",
+      "path": ".kota/runs/fixture-research-retry-agent-call-replay-2026-04-25/commit-message.txt"
+    },
+    {
+      "kind": "file-exists",
+      "path": ".kota/runs/fixture-research-retry-agent-call-replay-2026-04-25/metadata.json"
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-research-retry-agent-call-replay-2026-04-25/metadata.json",
+      "needle": "\"id\": \"inspect-candidates\",\n      \"type\": \"code\",\n      \"status\": \"success\""
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-research-retry-agent-call-replay-2026-04-25/metadata.json",
+      "needle": "\"id\": \"retry\",\n      \"type\": \"agent\",\n      \"status\": \"success\""
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-research-retry-agent-call-replay-2026-04-25/metadata.json",
+      "needle": "\"id\": \"mark-attempt\",\n      \"type\": \"code\",\n      \"status\": \"success\""
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-research-retry-agent-call-replay-2026-04-25/metadata.json",
+      "needle": "\"id\": \"commit\",\n      \"type\": \"code\",\n      \"status\": \"success\""
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-research-retry-agent-call-replay-2026-04-25/metadata.json",
+      "needle": "\"committed\": true"
+    },
+    {
+      "kind": "file-contains",
+      "path": ".kota/runs/fixture-research-retry-agent-call-replay-2026-04-25/metadata.json",
+      "needle": "\"written\": true"
+    }
+  ],
+  "tags": ["autonomy", "agent-call-replay"],
+  "provenance": {
+    "kind": "real-failure",
+    "sourceRunId": "2026-04-23T00-03-55-062Z-research-retry-u92f1u"
+  }
+}

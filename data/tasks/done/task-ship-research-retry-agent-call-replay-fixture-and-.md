@@ -1,12 +1,12 @@
 ---
 id: task-ship-research-retry-agent-call-replay-fixture-and-
 title: Ship research-retry-agent-call-replay fixture and ride pnpm test smoke gate
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Record an agent-call fixture for the research-retry workflow and add it to replay-smoke.test.ts so its unique plumbing (candidates selection, runtime-detect, blocked-task precondition) fails loudly when workflow-layer regressions ship.
 created_at: 2026-04-25T00:17:27.112Z
-updated_at: 2026-04-25T00:17:27.112Z
+updated_at: 2026-04-25T00:40:17.315Z
 ---
 
 ## Problem
