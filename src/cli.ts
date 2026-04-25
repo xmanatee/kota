@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { expandAlias, loadConfig } from "#core/config/config.js";
 import { expandUserPromptReferences } from "#core/prompt-input/index.js";
+import { getActiveKotaClient } from "#core/server/client-holder.js";
 import { resolveKotaClient } from "#core/server/client-selector.js";
 import { setSkipConfirmations } from "#core/util/confirm.js";
 import { blank, line, span } from "#modules/rendering/primitives.js";
@@ -19,10 +20,9 @@ import {
   interactiveMode,
   parseIntOption,
   registerHistoryCommands,
-  resolveConversationId,
+  resolveRunContinue,
   runPipeLoop,
 } from "./modules/history/cli.js";
-import { getHistory } from "./modules/history/history.js";
 import { parseModelString, resolveApiKey } from "./modules/model-clients/factory.js";
 
 export { formatAuthError } from "./core/model/auth-error.js";
@@ -196,21 +196,7 @@ program
 
     if (skipConfirm) setSkipConfirmations(true);
 
-    let resumeId: string | undefined;
-    if (opts.continue) {
-      const history = getHistory();
-      if (typeof opts.continue === "string") {
-        resumeId = resolveConversationId(history, opts.continue);
-      } else {
-        const recent = history.getMostRecent(process.cwd());
-        if (recent) {
-          resumeId = recent.id;
-        } else {
-          stderr().write(line(span("No previous conversation found for this directory.", "error")));
-          process.exit(1);
-        }
-      }
-    }
+    const resumeId = await resolveRunContinue(getActiveKotaClient(), opts);
 
     const options = {
       autonomyMode: resolveChannelAutonomyMode(

@@ -2,6 +2,8 @@ import type { Command } from "commander";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { loadConfig } from "#core/config/config.js";
 import { createModelClient } from "#core/model/model-client.js";
+import { getActiveKotaClient } from "#core/server/client-holder.js";
+import type { KotaClient } from "#core/server/kota-client.js";
 import { confirmAction } from "#core/util/confirm.js";
 import {
   blank,
@@ -14,7 +16,6 @@ import {
 } from "#modules/rendering/primitives.js";
 import { print, TerminalTransport } from "#modules/rendering/transport.js";
 import { interactiveMode, parseIntOption, resolveConversationId } from "./cli.js";
-import { getHistory } from "./history.js";
 
 let stderrRenderer: TerminalTransport | null = null;
 function stderr(): TerminalTransport {
@@ -32,15 +33,15 @@ export function registerHistoryCommands(program: Command) {
     .option("-n, --limit <n>", "Number of conversations to show", "10")
     .option("-s, --search <query>", "Filter by search term")
     .option("--all", "Show conversations from all directories")
-    .action((opts) => {
-      const history = getHistory();
-      const list = history.list({
+    .action(async (opts) => {
+      const client = getActiveKotaClient();
+      const { conversations } = await client.history.list({
         limit: parseIntOption(opts.limit, "limit"),
         search: opts.search,
         cwd: opts.all ? undefined : process.cwd(),
       });
 
-      if (list.length === 0) {
+      if (conversations.length === 0) {
         print(line(plain("No conversations found.")));
         return;
       }
@@ -51,7 +52,7 @@ export function registerHistoryCommands(program: Command) {
         true,
       ));
       const rule: LineNode = line(span("-".repeat(80), "muted"));
-      const rows: LineNode[] = list.map((c) => {
+      const rows: LineNode[] = conversations.map((c) => {
         const updated = new Date(c.updatedAt).toLocaleString("en-US", {
           month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
         });
@@ -68,14 +69,15 @@ export function registerHistoryCommands(program: Command) {
   historyCmd
     .command("show <id>")
     .description("Show conversation details")
-    .action((idOrPrefix) => {
-      const history = getHistory();
-      const fullId = resolveConversationId(history, idOrPrefix);
-      const data = history.load(fullId);
-      if (!data) {
+    .action(async (idOrPrefix) => {
+      const client = getActiveKotaClient();
+      const fullId = await resolveConversationId(client, idOrPrefix);
+      const result = await client.history.show(fullId);
+      if (!result.found) {
         stderr().write(line(span(`Conversation "${idOrPrefix}" not found.`, "error")));
         process.exit(1);
       }
+      const data = result.data;
 
       print(kvBlock([
         { label: "Title", value: data.record.title },
@@ -111,8 +113,8 @@ export function registerHistoryCommands(program: Command) {
     .option("-v, --verbose", "Show debug output")
     .action(async (idOrPrefix, opts) => {
       const config = loadConfig();
-      const history = getHistory();
-      const fullId = resolveConversationId(history, idOrPrefix);
+      const client = getActiveKotaClient();
+      const fullId = await resolveConversationId(client, idOrPrefix);
       const modelSpec = opts.model || config.model || "claude-sonnet-4-6";
       const resolved = createModelClient({
         model: modelSpec,
@@ -137,10 +139,11 @@ export function registerHistoryCommands(program: Command) {
   historyCmd
     .command("delete <id>")
     .description("Delete a conversation")
-    .action((idOrPrefix) => {
-      const history = getHistory();
-      const fullId = resolveConversationId(history, idOrPrefix);
-      if (history.remove(fullId)) {
+    .action(async (idOrPrefix) => {
+      const client = getActiveKotaClient();
+      const fullId = await resolveConversationId(client, idOrPrefix);
+      const result = await client.history.delete(fullId);
+      if (result.ok) {
         print(line(
           plain("Conversation "),
           span(fullId, "accent"),
@@ -157,17 +160,17 @@ export function registerHistoryCommands(program: Command) {
     .description("Delete all conversations for the current directory")
     .option("-y, --yes", "Skip confirmation prompt")
     .action(async (opts) => {
-      const history = getHistory();
-      const list = history.list({ cwd: process.cwd(), limit: 1000 });
+      const client: KotaClient = getActiveKotaClient();
+      const { conversations } = await client.history.list({ cwd: process.cwd(), limit: 1000 });
 
-      if (list.length === 0) {
+      if (conversations.length === 0) {
         print(line(plain("No conversations to delete.")));
         return;
       }
 
       if (!opts.yes) {
         const confirmed = await confirmAction(
-          `This will permanently delete ${list.length} conversation(s). Continue?`,
+          `This will permanently delete ${conversations.length} conversation(s). Continue?`,
         );
         if (!confirmed) {
           print(line(span("Cancelled.", "muted")));
@@ -176,8 +179,9 @@ export function registerHistoryCommands(program: Command) {
       }
 
       let count = 0;
-      for (const c of list) {
-        if (history.remove(c.id)) count++;
+      for (const c of conversations) {
+        const result = await client.history.delete(c.id);
+        if (result.ok) count++;
       }
       print(line(span(`Deleted ${count} conversation(s).`, "success")));
     });

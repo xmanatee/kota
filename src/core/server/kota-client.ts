@@ -26,7 +26,11 @@ import type {
   OwnerQuestionStatus,
   PendingOwnerQuestion,
 } from "#core/daemon/owner-question-queue.js";
-import type { ReindexResult } from "#core/modules/provider-types.js";
+import type {
+  ConversationData,
+  ConversationRecord,
+  ReindexResult,
+} from "#core/modules/provider-types.js";
 
 /** A masked entry in the secret store (name and source only — never the value). */
 export type SecretListEntry = {
@@ -227,6 +231,36 @@ export type OwnerQuestionMutateResult =
   | { ok: true; question: PendingOwnerQuestion }
   | { ok: false; reason: "not_found" };
 
+/**
+ * Filter for `HistoryClient.list`.
+ *
+ * The CLI uses `cwd` to scope the per-directory list (default `kota history list`),
+ * `--all` to include every directory, and `search` for substring matching against
+ * title or cwd. `source` distinguishes user-initiated chats from internal
+ * action-driven sessions. Defaults match the underlying store: when `limit` is
+ * absent the implementor returns the same default the store would (20).
+ */
+export type HistoryListFilter = {
+  search?: string;
+  limit?: number;
+  cwd?: string;
+  source?: "user" | "action";
+};
+
+export type HistoryListResult = {
+  conversations: ConversationRecord[];
+};
+
+/** Result of `history.show(id)`. Returns the full conversation data on success. */
+export type HistoryShowResult =
+  | { found: true; data: ConversationData }
+  | { found: false };
+
+/** Result of `history.delete(id)`. */
+export type HistoryDeleteResult =
+  | { ok: true }
+  | { ok: false; reason: "not_found" };
+
 /** Workflow-related read operations. */
 export interface WorkflowClient {
   /**
@@ -329,6 +363,23 @@ export interface OwnerQuestionsClient {
 }
 
 /**
+ * Conversation-history operations.
+ *
+ * `list` returns conversation records filtered by `search` / `limit` /
+ * `cwd` / `source`. `show` returns the full `ConversationData`
+ * (record + messages + compaction metadata) for a single conversation.
+ * `delete` removes a conversation. The contract is intentionally minimal:
+ * id-prefix and most-recent-by-cwd resolution are derived in the CLI from
+ * `list` (see `resolveConversationId`) so the contract stays a single
+ * pass-through for stored state, not a query DSL.
+ */
+export interface HistoryClient {
+  list(filter?: HistoryListFilter): Promise<HistoryListResult>;
+  show(id: string): Promise<HistoryShowResult>;
+  delete(id: string): Promise<HistoryDeleteResult>;
+}
+
+/**
  * The single typed surface CLI code imports for daemon-or-local access.
  *
  * The contract grows by adding namespaces here, delegating in
@@ -343,6 +394,7 @@ export interface KotaClient {
   readonly tasks: RepoTasksClient;
   readonly memory: MemoryClient;
   readonly ownerQuestions: OwnerQuestionsClient;
+  readonly history: HistoryClient;
 }
 
 /**
@@ -357,6 +409,7 @@ export const KOTA_CLIENT_NAMESPACES = [
   "tasks",
   "memory",
   "ownerQuestions",
+  "history",
 ] as const satisfies ReadonlyArray<keyof KotaClient>;
 
 export type KotaClientNamespace = (typeof KOTA_CLIENT_NAMESPACES)[number];

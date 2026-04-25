@@ -5,9 +5,10 @@ import { getScheduler, resetScheduler } from "#core/daemon/scheduler.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "#core/loop/loop.js";
 import { formatAuthError } from "#core/model/auth-error.js";
 import { createModelClient } from "#core/model/model-client.js";
+import type { ConversationRecord } from "#core/modules/provider-types.js";
+import type { KotaClient } from "#core/server/kota-client.js";
 import { blank, line, plain, span } from "#modules/rendering/primitives.js";
 import { print, TerminalTransport } from "#modules/rendering/transport.js";
-import { type ConversationHistory, getHistory } from "./history.js";
 
 export { registerHistoryCommands } from "./cli-commands.js";
 
@@ -30,19 +31,41 @@ export function parseIntOption(value: string, name: string): number {
   return n;
 }
 
-/** Resolve an ID or prefix to a full conversation ID. Exits on failure. */
-export function resolveConversationId(history: ConversationHistory, idOrPrefix: string): string {
-  try {
-    const record = history.findByPrefix(idOrPrefix);
-    if (!record) {
-      stderrTransport().write(line(span(`Conversation "${idOrPrefix}" not found.`, "error")));
-      process.exit(1);
-    }
-    return record.id;
-  } catch (err) {
-    stderrTransport().write(line(span((err as Error).message, "error")));
+/**
+ * Resolve an ID or prefix to a full conversation ID via the contract.
+ *
+ * Pulls a sized list from `client.history.list()` (the underlying store
+ * paginates by ts-desc; the cap matches the store's prune threshold) and
+ * walks it to find an exact id match first, then unique-prefix match.
+ * Exits with a clear error on miss or ambiguous prefix.
+ */
+export async function resolveConversationId(
+  client: KotaClient,
+  idOrPrefix: string,
+): Promise<string> {
+  const trimmed = idOrPrefix.trim();
+  if (!trimmed) {
+    stderrTransport().write(line(span(`Conversation "${idOrPrefix}" not found.`, "error")));
     process.exit(1);
   }
+  const { conversations } = await client.history.list({ limit: 10_000 });
+  const exact = conversations.find((c: ConversationRecord) => c.id === trimmed);
+  if (exact) return exact.id;
+  const matches = conversations.filter((c: ConversationRecord) => c.id.startsWith(trimmed));
+  if (matches.length === 0) {
+    stderrTransport().write(line(span(`Conversation "${idOrPrefix}" not found.`, "error")));
+    process.exit(1);
+  }
+  if (matches.length > 1) {
+    stderrTransport().write(line(span(
+      `Ambiguous ID prefix "${trimmed}" matches ${matches.length} conversations: ${matches
+        .map((c) => c.id)
+        .join(", ")}`,
+      "error",
+    )));
+    process.exit(1);
+  }
+  return matches[0].id;
 }
 
 const REPL_COMMANDS: Record<string, string> = {
@@ -179,17 +202,26 @@ export async function interactiveMode(options: LoopOptions, config?: KotaConfig)
   });
 }
 
-/** Register the `run` command's `--continue` logic — resolve conversation ID. */
-export function resolveRunContinue(
+/**
+ * Resolve `kota run --continue` to a conversation id.
+ *
+ * Returns `undefined` when `--continue` is unset. With a string id resolves
+ * that prefix through the contract; with a bare flag picks the most recent
+ * conversation for the current cwd. Exits when no candidate is found.
+ */
+export async function resolveRunContinue(
+  client: KotaClient,
   opts: { continue?: boolean | string },
-): string | undefined {
+): Promise<string | undefined> {
   if (!opts.continue) return undefined;
-  const history = getHistory();
   if (typeof opts.continue === "string") {
-    return resolveConversationId(history, opts.continue);
+    return resolveConversationId(client, opts.continue);
   }
-  const recent = history.getMostRecent(process.cwd());
-  if (recent) return recent.id;
+  const { conversations } = await client.history.list({
+    cwd: process.cwd(),
+    limit: 1,
+  });
+  if (conversations.length > 0) return conversations[0].id;
   stderrTransport().write(
     line(span("No previous conversation found for this directory.", "error")),
   );

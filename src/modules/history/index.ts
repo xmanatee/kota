@@ -7,6 +7,7 @@
  */
 
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { HistoryClient } from "#core/server/kota-client.js";
 import {
 	conversationRecallTool,
 	runConversationRecall,
@@ -37,6 +38,22 @@ const historyModule: KotaModule = {
 
 	routes: () => historyRoutes(),
 	controlRoutes: () => historyControlRoutes(),
+
+	localClient: () => {
+		const handler: HistoryClient = {
+			async list(filter) {
+				return { conversations: getHistory().list(filter) };
+			},
+			async show(id) {
+				const data = getHistory().load(id);
+				return data ? { found: true, data } : { found: false };
+			},
+			async delete(id) {
+				return getHistory().remove(id) ? { ok: true } : { ok: false, reason: "not_found" };
+			},
+		};
+		return { history: handler };
+	},
 };
 
 export default historyModule;

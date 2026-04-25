@@ -13,11 +13,15 @@ import { getHistory } from "./history.js";
 
 function listHistoryLocal(url: URL): { conversations: ConversationRecord[] } {
   const search = url.searchParams.get("search") ?? undefined;
+  const cwd = url.searchParams.get("cwd") ?? undefined;
+  const sourceParam = url.searchParams.get("source") ?? undefined;
+  const source =
+    sourceParam === "user" || sourceParam === "action" ? sourceParam : undefined;
   const rawLimit = url.searchParams.has("limit")
     ? Number.parseInt(url.searchParams.get("limit")!, 10)
     : 20;
   const limit = Number.isNaN(rawLimit) || rawLimit < 1 ? 20 : Math.min(rawLimit, 1000);
-  return { conversations: getHistory().list({ search, limit }) };
+  return { conversations: getHistory().list({ search, limit, cwd, source }) };
 }
 
 function loadHistoryLocal(id: string): ConversationData | null {
@@ -34,12 +38,17 @@ export async function handleListHistory(
   client: DaemonControlClient | null = null,
 ): Promise<void> {
   if (client) {
-    const result = await client.listHistory(
-      url.searchParams.get("search") ?? undefined,
-      url.searchParams.has("limit")
+    const sourceParam = url.searchParams.get("source") ?? undefined;
+    const source =
+      sourceParam === "user" || sourceParam === "action" ? sourceParam : undefined;
+    const result = await client.listHistory({
+      search: url.searchParams.get("search") ?? undefined,
+      limit: url.searchParams.has("limit")
         ? Number.parseInt(url.searchParams.get("limit")!, 10)
         : undefined,
-    );
+      cwd: url.searchParams.get("cwd") ?? undefined,
+      source,
+    });
     if (result) {
       jsonResponse(res, 200, result);
       return;

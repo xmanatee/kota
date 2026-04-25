@@ -35,16 +35,16 @@ function runExpectFail(...args: string[]): { stderr: string; exitCode: number } 
   }
 }
 
-/** Run CLI with full control: custom env, stdin, etc. */
+/** Run CLI with full control: custom env, stdin, cwd. */
 function runFull(
   args: string[],
-  opts?: { env?: Record<string, string>; input?: string },
+  opts?: { env?: Record<string, string>; input?: string; cwd?: string },
 ): { stdout: string; stderr: string; exitCode: number } {
   try {
     const stdout = execFileSync(process.execPath, ["--import", "tsx", CLI, ...args], {
       encoding: "utf-8",
       timeout: CLI_TIMEOUT,
-      cwd: root,
+      cwd: opts?.cwd ?? root,
       env: { ...process.env, ...opts?.env },
       input: opts?.input,
     });
@@ -261,11 +261,18 @@ describe("subcommand help", () => {
 describe("history clear confirmation", () => {
   let tempHome: string;
 
+  // Pin `KOTA_PROJECT_DIR` to `tempHome` so the contract selector finds no
+  // `<projectDir>/.kota/daemon-control.json` and resolves a fresh
+  // `LocalKotaClient` against the seeded HOME=tempHome history. Without
+  // this guard the CLI would route through any daemon currently serving
+  // the developer's machine and wipe the wrong dataset. We keep `cwd: root`
+  // so node still resolves `tsx`. The CLI's own per-cwd filter on
+  // `history clear` still uses `process.cwd()`, so the seeded conversation
+  // is recorded with `cwd: root` to match.
   beforeEach(() => {
     tempHome = join(tmpdir(), `kota-test-clear-${Date.now()}`);
     const histDir = join(tempHome, ".kota", "history");
     mkdirSync(histDir, { recursive: true });
-    // Create a fake conversation index with one entry for root cwd
     const index = {
       conversations: [
         {
@@ -288,7 +295,7 @@ describe("history clear confirmation", () => {
 
   it("cancels when stdin is not a TTY (no --yes)", () => {
     const { stdout, exitCode } = runFull(["history", "clear"], {
-      env: { HOME: tempHome },
+      env: { HOME: tempHome, KOTA_PROJECT_DIR: tempHome },
     });
     expect(exitCode).toBe(0);
     expect(stdout).toContain("Cancelled");
@@ -298,7 +305,7 @@ describe("history clear confirmation", () => {
 
   it("deletes when --yes flag is provided", () => {
     const { stdout, exitCode } = runFull(["history", "clear", "--yes"], {
-      env: { HOME: tempHome },
+      env: { HOME: tempHome, KOTA_PROJECT_DIR: tempHome },
     });
     expect(exitCode).toBe(0);
     expect(stdout).toContain("Deleted 1 conversation(s)");
@@ -309,7 +316,7 @@ describe("history clear confirmation", () => {
     const emptyHome = join(tmpdir(), `kota-test-empty-${Date.now()}`);
     mkdirSync(emptyHome, { recursive: true });
     const { stdout, exitCode } = runFull(["history", "clear"], {
-      env: { HOME: emptyHome },
+      env: { HOME: emptyHome, KOTA_PROJECT_DIR: emptyHome },
     });
     expect(exitCode).toBe(0);
     expect(stdout).toContain("No conversations to delete");
@@ -318,8 +325,16 @@ describe("history clear confirmation", () => {
 
 describe("history resume validation", () => {
   it("exits with error for non-existent conversation ID", () => {
+    // Pin `KOTA_PROJECT_DIR` to a fresh temp dir so the contract selector
+    // finds no `<projectDir>/.kota/daemon-control.json` and resolves a
+    // `LocalKotaClient` against the empty HOME=tempHome history. Without
+    // this guard the CLI would route through any daemon currently serving
+    // the developer's machine and either find an unrelated conversation or
+    // surface a `fetch` abort instead of the expected "not found" error.
+    const tempHome = join(tmpdir(), `kota-test-resume-${Date.now()}`);
+    mkdirSync(tempHome, { recursive: true });
     const { stderr, exitCode } = runFull(["history", "resume", "someId"], {
-      env: { ANTHROPIC_API_KEY: "" },
+      env: { ANTHROPIC_API_KEY: "", HOME: tempHome, KOTA_PROJECT_DIR: tempHome },
     });
     expect(exitCode).toBe(1);
     expect(stderr).toContain("not found");

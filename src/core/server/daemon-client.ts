@@ -16,11 +16,16 @@ import type {
   OwnerQuestionStatus,
   PendingOwnerQuestion,
 } from "#core/daemon/owner-question-queue.js";
-import type { ConversationData, ConversationRecord } from "#core/modules/provider-types.js";
+import type { ConversationData } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type {
   ApprovalsClient,
+  HistoryClient,
+  HistoryDeleteResult,
+  HistoryListFilter,
+  HistoryListResult,
+  HistoryShowResult,
   KotaClient,
   MemoryAddResult,
   MemoryClient,
@@ -84,6 +89,7 @@ export class DaemonControlClient implements KotaClient {
   readonly tasks: RepoTasksClient;
   readonly memory: MemoryClient;
   readonly ownerQuestions: OwnerQuestionsClient;
+  readonly history: HistoryClient;
 
   private constructor(
     private readonly baseUrl: string,
@@ -177,6 +183,53 @@ export class DaemonControlClient implements KotaClient {
       answer: async (id, answer) => this.answerOwnerQuestionHttp(id, answer),
       dismiss: async (id, reason) => this.dismissOwnerQuestionHttp(id, reason),
     };
+    this.history = {
+      list: async (filter) => this.historyListHttp(filter),
+      show: async (id) => this.historyShowHttp(id),
+      delete: async (id) => this.historyDeleteHttp(id),
+    };
+  }
+
+  private async historyListHttp(filter?: HistoryListFilter): Promise<HistoryListResult> {
+    const params = new URLSearchParams();
+    if (filter?.search) params.set("search", filter.search);
+    if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
+    if (filter?.cwd) params.set("cwd", filter.cwd);
+    if (filter?.source) params.set("source", filter.source);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetchWithTimeout(`${this.baseUrl}/history${query}`, {
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as HistoryListResult;
+  }
+
+  private async historyShowHttp(id: string): Promise<HistoryShowResult> {
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/history/${encodeURIComponent(id)}`,
+      { headers: this.authHeaders() },
+    );
+    if (res.status === 404) return { found: false };
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    const data = (await res.json()) as ConversationData;
+    return { found: true, data };
+  }
+
+  private async historyDeleteHttp(id: string): Promise<HistoryDeleteResult> {
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/history/${encodeURIComponent(id)}`,
+      { method: "DELETE", headers: this.authHeaders() },
+    );
+    if (res.status === 204) return { ok: true };
+    if (res.status === 404) return { ok: false, reason: "not_found" };
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `HTTP ${res.status}`);
   }
 
   private async answerOwnerQuestionHttp(
@@ -735,15 +788,11 @@ export class DaemonControlClient implements KotaClient {
     }
   }
 
-  async listHistory(search?: string, limit?: number): Promise<{ conversations: ConversationRecord[] } | null> {
+  async listHistory(
+    filter?: HistoryListFilter,
+  ): Promise<HistoryListResult | null> {
     try {
-      const params = new URLSearchParams();
-      if (search) params.set("search", search);
-      if (limit !== undefined) params.set("limit", String(limit));
-      const query = params.toString() ? `?${params.toString()}` : "";
-      const res = await fetchWithTimeout(`${this.baseUrl}/history${query}`, { headers: this.authHeaders() });
-      if (!res.ok) return null;
-      return (await res.json()) as { conversations: ConversationRecord[] };
+      return await this.historyListHttp(filter);
     } catch {
       return null;
     }
@@ -751,9 +800,8 @@ export class DaemonControlClient implements KotaClient {
 
   async getHistory(id: string): Promise<ConversationData | null> {
     try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/history/${encodeURIComponent(id)}`, { headers: this.authHeaders() });
-      if (!res.ok) return null;
-      return (await res.json()) as ConversationData;
+      const result = await this.historyShowHttp(id);
+      return result.found ? result.data : null;
     } catch {
       return null;
     }
@@ -761,11 +809,8 @@ export class DaemonControlClient implements KotaClient {
 
   async deleteHistory(id: string): Promise<boolean> {
     try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/history/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-        headers: this.authHeaders(),
-      });
-      return res.status === 204;
+      const result = await this.historyDeleteHttp(id);
+      return result.ok;
     } catch {
       return false;
     }

@@ -6,7 +6,7 @@ priority: p2
 area: architecture
 summary: Migrate all non-acceptance CLI subcommands across modules to consume ctx.client.<namespace>.<method> instead of direct stores or .kota/ reads; expand the KotaClient contract namespace surface; add per-namespace daemon HTTP routes where needed.
 created_at: 2026-04-25T13:17:17.850Z
-updated_at: 2026-04-25T14:30:00.000Z
+updated_at: 2026-04-25T15:43:36.000Z
 ---
 
 ## Problem
@@ -166,11 +166,28 @@ until `Done When` is fully satisfied.
   `kota owner-question` CLI no longer imports
   `getOwnerQuestionQueue` (run
   `2026-04-25T15-06-46-060Z-builder-ws6oel`).
+- Done — `history` reads, mutations, and resume/continue resolvers:
+  `kota history list`, `show`, `delete`, `clear`, and `resume` now
+  route through `ctx.client.history.{list,show,delete}`, and the
+  `kota run --continue` resolver in `src/cli.ts` calls
+  `resolveRunContinue(client, opts)` which uses the same contract.
+  `HistoryClient.list({ search?, limit?, cwd?, source? })` returns
+  `{ conversations: ConversationRecord[] }`; `show(id)` returns
+  `{ found: true; data } | { found: false }`; `delete(id)` returns
+  `{ ok: true } | { ok: false; reason: "not_found" }`. The existing
+  daemon-control `/history` and `/history/:id` routes plus the public
+  `/api/history` route gained `?cwd=` and `?source=` filters forwarded
+  through `listHistoryLocal` so daemon-up and daemon-down callers see
+  identical filtered results. `findByPrefix` and `getMostRecent` are
+  derived in CLI from `list` (no second contract method), with
+  ambiguous-prefix detection in `resolveConversationId(client, …)`.
+  CLI no longer imports `getHistory` from any subcommand action handler
+  (run `2026-04-25T15-25-46-109Z-builder-hj89qi`).
 - Pending — `workflow` mutations (control, run management, definition
-  mutations, trigger/exec); `knowledge`, `history`, `agent-ops`,
-  `skill-ops`, `harness-parity`, `webhook`, `eval-harness`,
-  `guardrails-audit`, `module-manager`, `web`, `config`, `mcp-server`,
-  `voice`, `daemon-ops` control, `doctor`.
+  mutations, trigger/exec); `knowledge`, `agent-ops`, `skill-ops`,
+  `harness-parity`, `webhook`, `eval-harness`, `guardrails-audit`,
+  `module-manager`, `web`, `config`, `mcp-server`, `voice`,
+  `daemon-ops` control, `doctor`.
 - Pending — sibling guard test rejecting new direct `.kota/` reads
   from non-bootstrap CLI code.
 
