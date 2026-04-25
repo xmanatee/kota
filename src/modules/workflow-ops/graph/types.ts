@@ -17,7 +17,7 @@ export type TriggerSummary = {
 
 export type StepSummary = {
   id: string;
-  type: "tool" | "agent" | "emit" | "restart" | "code" | "trigger" | "parallel" | "branch" | "foreach" | "approval";
+  type: "tool" | "agent" | "emit" | "restart" | "code" | "trigger" | "parallel" | "branch" | "foreach" | "approval" | "await-event";
   agentName?: string;
   model?: string;
   tool?: string;

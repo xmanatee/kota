@@ -32,6 +32,51 @@ This directory contains the autonomous workflow runtime, validation, registry, a
   `failure-alert.ts`.
 - Shared types and events: `types.ts`, `event-payloads.ts`.
 
+## Pausable Await-Event Steps
+
+A workflow step with `type: "await-event"` suspends on a typed bus event,
+matched by a `(matchField, matchValue)` pair on the event payload. The
+suspension survives a daemon restart:
+
+- The step writes a suspension record at
+  `.kota/runs/<run-id>/awaits/<step-id>.json` before it begins waiting and
+  subscribes to the bus through `EventBus.on`. There is no separate event
+  router.
+- On match (live), the executor writes a sibling
+  `<step-id>.delivered.json`, then resolves with the captured event payload
+  and removes both files. Suspension cleanup is durable across the resolve
+  boundary so a crash mid-record can still recover.
+- On daemon startup, `installAwaitResumers` scans every persisted
+  suspension. For each it either queues a resume run immediately (delivery
+  sibling present, or the deadline already passed during the gap) or
+  registers a fresh one-shot bus listener plus a deadline race. The first
+  match (or timeout) tears down the other, queues a resume, and lets
+  `maybeStartNext` dispatch it through the existing run-resume path.
+- Resume runs carry the captured payloads under
+  `trigger.payload.awaitEventPayloads[stepId]`. The await-event executor
+  short-circuits when that key is present, so the workflow continues with
+  the matched event payload (or a typed `{ kind: "timeout" }` shape) as
+  the step's output.
+
+Replay safety lives in the executor's `settled` flag and the resume
+listener's `fired` flag — duplicate deliveries with the same id are dropped
+on the receive side. Persisted-await files referencing a missing workflow
+or missing step are removed and logged so a stale recovery candidate is
+visible to operators rather than silently retried.
+
+Await-event steps bypass the default step hang rail
+(`DEFAULT_STEP_TIMEOUT_MS`) when no explicit `timeoutMs` is set, because
+operator-loop waits can legitimately exceed it. The protocol-level
+deadline is `awaitTimeoutMs`, which produces the typed timeout output;
+`timeoutMs` (when explicitly set) still applies as a hard hang rail that
+fails the step.
+
+External producers can deliver an event during a daemon-down gap by
+writing the delivery sibling directly. The on-disk shape is
+`{ kind: "event", deliveredAt, event, payload }` for a captured match or
+`{ kind: "timeout", deliveredAt, event, awaitTimeoutMs }` for a fired
+deadline.
+
 ## Typed Code Step Pattern
 
 Use `typedCodeStep<T>` from `types.ts` when a code step's output is consumed by downstream

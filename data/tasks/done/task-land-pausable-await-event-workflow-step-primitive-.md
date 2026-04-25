@@ -1,12 +1,12 @@
 ---
 id: task-land-pausable-await-event-workflow-step-primitive-
 title: Land pausable await-event workflow step primitive with restart-resume
-status: ready
+status: done
 priority: p1
 area: core
 summary: Add a workflow-runtime primitive that lets a step suspend on a typed event id, persist its waiting state to disk, resubscribe on daemon restart, and resume the workflow from that boundary — the missing foundation for autonomous ask_owner that survives a process restart.
 created_at: 2026-04-25T00:48:14.574Z
-updated_at: 2026-04-25T00:48:14.574Z
+updated_at: 2026-04-25T01:21:12.914Z
 ---
 
 ## Problem

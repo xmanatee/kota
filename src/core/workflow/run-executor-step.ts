@@ -214,15 +214,24 @@ export async function executeWorkflowStep(
   const forwardRunAbort = () => stepAbortController.abort(runAbortController.signal.reason);
   runAbortController.signal.addEventListener("abort", forwardRunAbort, { once: true });
 
-  const timeoutMs = "timeoutMs" in step ? (step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS) : DEFAULT_STEP_TIMEOUT_MS;
+  // Await-event steps bypass the default step hang rail because operator-loop
+  // waits can legitimately exceed it. The step honors its own `awaitTimeoutMs`
+  // protocol-level deadline and the run-level abort signal.
+  const skipDefaultTimeout = step.type === "await-event" && step.timeoutMs === undefined;
+  const timeoutMs = skipDefaultTimeout
+    ? undefined
+    : ("timeoutMs" in step ? (step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS) : DEFAULT_STEP_TIMEOUT_MS);
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutHandle = setTimeout(() => {
-      const err = new Error(`Step "${step.id}" timed out after ${timeoutMs}ms`);
-      stepAbortController.abort(err);
-      reject(err);
-    }, timeoutMs);
-  });
+  const timeoutPromise =
+    timeoutMs === undefined
+      ? null
+      : new Promise<never>((_, reject) => {
+          timeoutHandle = setTimeout(() => {
+            const err = new Error(`Step "${step.id}" timed out after ${timeoutMs}ms`);
+            stepAbortController.abort(err);
+            reject(err);
+          }, timeoutMs);
+        });
 
   try {
     const stepPromise = executeStep(
@@ -235,8 +244,11 @@ export async function executeWorkflowStep(
       (message) => run.appendAgentMessage(step.id, message),
       (systemPromptAppend, prompt) => run.writeAgentInputs(step.id, systemPromptAppend, prompt),
       agentConfig,
+      deps.bus,
     );
-    const rawResult = await Promise.race([stepPromise, timeoutPromise]);
+    const rawResult = await (timeoutPromise === null
+      ? stepPromise
+      : Promise.race([stepPromise, timeoutPromise]));
     // Agent steps return an AgentStepResult wrapper so the resolved harness
     // and model can be promoted to top-level fields on the step result; every
     // other step type returns its output directly.

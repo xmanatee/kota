@@ -4,6 +4,7 @@ import type { KotaConfig } from "#core/config/config.js";
 import type { BusEnvelope } from "#core/events/event-bus.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { AgentBackoffManager } from "./agent-backoff.js";
+import { installAwaitResumers } from "./awaits-resume.js";
 import { isWithinDispatchWindow, msUntilDispatchWindowOpens } from "./dispatch-window.js";
 import { enqueueMatchingWorkflows, workflowUsesAgent } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
@@ -59,6 +60,7 @@ export class WorkflowRuntime {
   private readonly wfQueue: WorkflowQueueManager;
   private idleTimer: ReturnType<typeof setInterval> | null = null;
   private stopBus: (() => void) | null = null;
+  private readonly awaitResumeDisposers: Array<() => void> = [];
   /**
    * Active runs keyed by workflow name.
    * Same-workflow serialisation is enforced by never dispatching a workflow
@@ -171,6 +173,21 @@ export class WorkflowRuntime {
     this.watchTriggers.setup(this.definitions, (handler) =>
       this.runtimeConfig.bus.on("file.changed", handler),
     );
+
+    // After interrupted-run recovery and definition load, replay any
+    // persisted await-event suspensions. The resumers either queue a resume
+    // immediately (delivered.json present, or deadline passed during the
+    // gap) or register a one-shot bus listener that queues a resume on
+    // first match.
+    installAwaitResumers({
+      bus: this.runtimeConfig.bus,
+      store: this.store,
+      definitions: this.definitions,
+      log: (msg) => this.log(msg),
+      onScheduled: () => this.maybeStartNext(),
+      disposers: this.awaitResumeDisposers,
+    });
+
     this.maybeStartNext();
 
     this.idleTimer = setInterval(() => {
@@ -194,6 +211,9 @@ export class WorkflowRuntime {
     if (this.stopBus) {
       this.stopBus();
       this.stopBus = null;
+    }
+    for (const dispose of this.awaitResumeDisposers.splice(0)) {
+      try { dispose(); } catch { /* no-op */ }
     }
     this.scheduleTriggers.clearAll();
     this.watchTriggers.clearAll();

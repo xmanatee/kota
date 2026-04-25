@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { EventBus } from "#core/events/event-bus.js";
 import type {
   WorkflowRunMetadata,
   WorkflowStepContext,
@@ -866,6 +867,7 @@ describe("executeStep repair loop", () => {
       () => {},
       () => {},
       agentConfig,
+      new EventBus(),
     );
 
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
@@ -905,6 +907,7 @@ describe("executeStep repair loop", () => {
       () => {},
       () => {},
       agentConfig,
+      new EventBus(),
     ) as { output: Record<string, unknown>; harness: string; model: string };
     const result = wrapped.output;
 
@@ -953,6 +956,7 @@ describe("executeStep repair loop", () => {
         () => {},
         () => {},
         agentConfig,
+        new EventBus(),
       ),
     ).rejects.toThrow('Repair loop for step "test-step" exhausted repair attempts (2)');
 
@@ -993,6 +997,7 @@ describe("executeStep repair loop", () => {
       () => {},
       () => {},
       agentConfig,
+      new EventBus(),
     ) as { output: Record<string, unknown> };
     const result = wrapped.output;
 
@@ -1039,6 +1044,7 @@ describe("executeStep repair loop", () => {
       () => {},
       () => {},
       agentConfig,
+      new EventBus(),
     ) as { output: Record<string, unknown> };
     const result = wrapped.output;
 
@@ -1086,6 +1092,7 @@ describe("executeStep repair loop", () => {
       () => {},
       () => {},
       cfg,
+      new EventBus(),
     );
 
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
@@ -1141,6 +1148,7 @@ describe("executeStep repair loop", () => {
       () => {},
       () => {},
       agentConfig,
+      new EventBus(),
     ) as { output: Record<string, unknown> };
     const result = wrapped.output;
 
@@ -1180,6 +1188,7 @@ describe("executeStep repair loop", () => {
         () => {},
         () => {},
         agentConfig,
+        new EventBus(),
       ),
     ).rejects.toThrow("step timed out");
 
@@ -1219,6 +1228,7 @@ describe("executeStep repair loop", () => {
       () => {},
       () => {},
       agentConfig,
+      new EventBus(),
     ) as { output: Record<string, unknown> };
     const result = wrapped.output;
 

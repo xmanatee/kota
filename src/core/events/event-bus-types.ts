@@ -88,7 +88,7 @@ export type BusEvents = {
     workflow: string;
     runId: string;
     stepId: string;
-    stepType: "tool" | "agent" | "emit" | "restart" | "code" | "parallel" | "trigger" | "branch" | "foreach" | "approval";
+    stepType: "tool" | "agent" | "emit" | "restart" | "code" | "parallel" | "trigger" | "branch" | "foreach" | "approval" | "await-event";
     runDir: string;
     definitionPath: string;
     startedAt: string;
@@ -104,7 +104,7 @@ export type BusEvents = {
     workflow: string;
     runId: string;
     stepId: string;
-    stepType: "tool" | "agent" | "emit" | "restart" | "code" | "parallel" | "trigger" | "branch" | "foreach" | "approval";
+    stepType: "tool" | "agent" | "emit" | "restart" | "code" | "parallel" | "trigger" | "branch" | "foreach" | "approval" | "await-event";
     status: "success" | "failed" | "skipped";
     durationMs: number;
     costUsd?: number;

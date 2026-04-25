@@ -4,6 +4,7 @@ import { matchesFilter } from "./run-executor-utils.js";
 import type {
   RegisteredWorkflowDefinitionInput,
   WorkflowApprovalStepInput,
+  WorkflowAwaitEventStepInput,
   WorkflowBranchStepInput,
   WorkflowDefinition,
   WorkflowForeachStepInput,
@@ -27,6 +28,7 @@ import {
 import {
   validateAgentStep,
   validateApprovalStep,
+  validateAwaitEventStep,
   validateBranchStep,
   validateCodeStep,
   validateEmitStep,
@@ -113,9 +115,16 @@ function validateStep(
       index,
     );
   }
+  if (step.type === "await-event") {
+    return validateAwaitEventStep(
+      step as WorkflowAwaitEventStepInput,
+      definitionPath,
+      index,
+    );
+  }
 
   throw new WorkflowDefinitionError(
-    `steps[${index}].type must be "tool", "agent", "emit", "restart", "code", "parallel", "trigger", "branch", "foreach", or "approval"`,
+    `steps[${index}].type must be "tool", "agent", "emit", "restart", "code", "parallel", "trigger", "branch", "foreach", "approval", or "await-event"`,
     definitionPath,
   );
 }

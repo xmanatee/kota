@@ -2,6 +2,7 @@ export {
   VALID_MODEL_IDS,
   validateAgentStep,
   validateApprovalStep,
+  validateAwaitEventStep,
   validateBranchStep,
   validateCodeStep,
   validateEmitStep,

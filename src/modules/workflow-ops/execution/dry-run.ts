@@ -117,6 +117,11 @@ function stepConfig(step: WorkflowStep): string {
       return `foreach (${step.steps.length} inner step(s), as: ${step.as})`;
     case "approval":
       return step.reason ? `approval: ${step.reason}` : "approval";
+    case "await-event": {
+      const parts = [`event: ${step.event}`, `matchField: ${step.matchField}`];
+      if (step.awaitTimeoutMs) parts.push(`awaitTimeoutMs: ${step.awaitTimeoutMs}`);
+      return `await-event (${parts.join(", ")})`;
+    }
   }
 }
 

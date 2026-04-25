@@ -1,9 +1,11 @@
 import type { AgentMessage } from "#core/agent-harness/types.js";
+import type { EventBus } from "#core/events/event-bus.js";
 import type { RepairCheckResult, RepairIteration } from "../repair-loop.js";
 import { buildRepairPrompt, runAgentRepairLoop } from "../repair-loop.js";
 import type { WorkflowRunMetadata, WorkflowStepContext, WorkflowStepSkipReason } from "../run-types.js";
 import type {
   WorkflowApprovalStep,
+  WorkflowAwaitEventStep,
   WorkflowCodeStep,
   WorkflowDefinition,
   WorkflowEmitStep,
@@ -23,6 +25,7 @@ import {
   withRetry,
 } from "./step-executor-agent.js";
 import { executeApprovalStep } from "./step-executor-approval.js";
+import { executeAwaitEventStep } from "./step-executor-await-event.js";
 import { executeTriggerStep } from "./step-executor-trigger.js";
 
 export type {
@@ -168,6 +171,7 @@ export async function executeStep(
   appendMessage: (message: AgentMessage) => void,
   writeInputs: (systemPromptAppend: string | undefined, prompt: string) => void,
   agentConfig: AgentStepConfig,
+  bus: EventBus,
 ): Promise<WorkflowStepOutput | AgentStepResult> {
   if (step.type === "tool") return executeToolStep(step, context);
   if (step.type === "agent") {
@@ -207,6 +211,14 @@ export async function executeStep(
   }
   if (step.type === "approval") {
     return executeApprovalStep(step as WorkflowApprovalStep, context, abortController.signal);
+  }
+  if (step.type === "await-event") {
+    return executeAwaitEventStep(
+      step as WorkflowAwaitEventStep,
+      context,
+      bus,
+      abortController.signal,
+    );
   }
   return executeCodeStep(step, context);
 }

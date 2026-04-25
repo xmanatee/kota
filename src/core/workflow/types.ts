@@ -320,6 +320,33 @@ export type WorkflowApprovalStepInput = WorkflowBaseStep & {
   defaultResolution?: "deny" | "approve";
 };
 
+export type WorkflowAwaitEventStepInput = WorkflowBaseStep & {
+  type: "await-event";
+  /** Bus event name to wait for. */
+  event: string;
+  /**
+   * Field on the event payload whose value must equal `matchValue`. Defaults
+   * to "id". Producers of the awaited event must include this field.
+   */
+  matchField?: string;
+  /**
+   * Scalar (or resolver returning one) to match against `event.payload[matchField]`.
+   * Suspension persistence captures the resolved value so a daemon-restart
+   * resume reproduces the same match without re-running the resolver.
+   */
+  matchValue: WorkflowValueResolver<string | number>;
+  /**
+   * Wait deadline in milliseconds. When the deadline passes, the step
+   * resolves to a typed `{ kind: "timeout" }` output instead of an event
+   * payload. When omitted, the step waits until matched or aborted.
+   *
+   * This is distinct from the base step's `timeoutMs` (a runtime hang rail
+   * that fails the step). Await-event steps bypass the default hang rail
+   * because operator-loop waits can legitimately be long.
+   */
+  awaitTimeoutMs?: number;
+};
+
 export type WorkflowStepInput =
   | WorkflowToolStepInput
   | WorkflowAgentStepInput
@@ -330,7 +357,8 @@ export type WorkflowStepInput =
   | WorkflowParallelGroupInput
   | WorkflowBranchStepInput
   | WorkflowForeachStepInput
-  | WorkflowApprovalStepInput;
+  | WorkflowApprovalStepInput
+  | WorkflowAwaitEventStepInput;
 
 export type WorkflowNotifyConfig = {
   /**
@@ -542,6 +570,14 @@ export type WorkflowApprovalStep = WorkflowBaseStep & {
   defaultResolution?: "deny" | "approve";
 };
 
+export type WorkflowAwaitEventStep = WorkflowBaseStep & {
+  type: "await-event";
+  event: string;
+  matchField: string;
+  matchValue: WorkflowValueResolver<string | number>;
+  awaitTimeoutMs?: number;
+};
+
 export type WorkflowStep =
   | WorkflowToolStep
   | WorkflowAgentStep
@@ -552,7 +588,8 @@ export type WorkflowStep =
   | WorkflowParallelGroup
   | WorkflowBranchStep
   | WorkflowForeachStep
-  | WorkflowApprovalStep;
+  | WorkflowApprovalStep
+  | WorkflowAwaitEventStep;
 
 export type WorkflowDefinition = {
   name: string;
