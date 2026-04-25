@@ -424,7 +424,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
     });
   });
 
-  it("reports latestActionableRunAt as the newest completedAt across failed or outlier non-improver runs and ignores recovered repair trips", () => {
+  it("reports latestActionableRunAt as the newest completedAt across failed non-improver runs and ignores recovered repair trips", () => {
     writeRun(
       "ok-builder",
       "builder",
@@ -468,6 +468,56 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
 
     const result = aggregateRunOutcomes(runsDir);
     expect(result.latestActionableRunAt).toBe("2026-04-21T02:00:00.000Z");
+  });
+
+  it("does not treat a duration-outlier successful run as actionable on its own", () => {
+    // 24h evidence shows duration outliers track substantive successful work
+    // (e.g. 75-min route migrations producing 525-line commits with full test
+    // coverage), not waste. Triggering improver on outlier-only signals
+    // consistently produced no-op runs that cost ~$2 each. Outliers are still
+    // surfaced in the agent's view via the durationOutliers list so they can
+    // be inspected when improver fires on a real failure.
+    writeRun(
+      "ok-1",
+      "builder",
+      500_000,
+      499_000,
+      undefined,
+      "success",
+      "2026-04-21T01:00:00.000Z",
+    );
+    writeRun(
+      "ok-2",
+      "builder",
+      600_000,
+      599_000,
+      undefined,
+      "success",
+      "2026-04-21T02:00:00.000Z",
+    );
+    writeRun(
+      "ok-3",
+      "builder",
+      700_000,
+      699_000,
+      undefined,
+      "success",
+      "2026-04-21T03:00:00.000Z",
+    );
+    writeRun(
+      "outlier-success",
+      "builder",
+      2_500_000,
+      2_499_000,
+      undefined,
+      "success",
+      "2026-04-21T04:00:00.000Z",
+    );
+
+    const result = aggregateRunOutcomes(runsDir);
+    expect(result.durationOutliers).toHaveLength(1);
+    expect(result.durationOutliers[0].runId).toBe("outlier-success");
+    expect(result.latestActionableRunAt).toBeNull();
   });
 
   it("returns null latestActionableRunAt when only successful runs with recovered repair trips exist", () => {

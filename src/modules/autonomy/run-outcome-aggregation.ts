@@ -35,16 +35,26 @@ export type RunOutcomeAggregation = {
   topRepairFailures24h: RepairCheckTally[];
   topRepairFailures7d: RepairCheckTally[];
   durationOutliers: DurationOutlier[];
-  // Max completedAt across actionable non-improver runs (failed or
-  // duration-outlier). Used by the improver evidence gate to distinguish
-  // "new actionable evidence arrived" from "old evidence aged out of the
-  // window" — the latter must not force another improver pass.
+  // Max completedAt across actionable non-improver runs (terminal failures
+  // only). Used by the improver evidence gate to distinguish "new actionable
+  // evidence arrived" from "old evidence aged out of the window" — the latter
+  // must not force another improver pass.
   //
   // Recovered repair trips are intentionally excluded: the self-healing
   // already worked and the aggregate (topRepairFailures) still surfaces the
-  // pattern when improver next wakes on a genuine failure or outlier. Using
-  // repair-trip completion to advance the gate produced a ~52% no-op rate
-  // on agent runs — see improver AGENTS.md evidence entry.
+  // pattern when improver next wakes on a genuine failure. Using repair-trip
+  // completion to advance the gate produced a ~52% no-op rate on agent runs
+  // — see improver AGENTS.md evidence entry.
+  //
+  // Duration outliers in successful runs are likewise excluded: 24h evidence
+  // shows outliers consistently track substantive long-running work (75-min
+  // route migrations producing 525-line commits with full test coverage),
+  // not waste. Five of six successful improver runs in the 24h preceding the
+  // 2026-04-25T10:38:20Z metrics-route outlier were driven by terminal
+  // failures; the only outlier-only trigger (run 7fhk26) spent $2.14
+  // confirming an SDK api_retry stall was a one-off transport blip and
+  // no-oped. The outlier list still ships to the agent in `durationOutliers`
+  // so it can be inspected when improver does fire on a real failure.
   latestActionableRunAt: string | null;
 };
 
@@ -176,17 +186,12 @@ function enrichOutliersWithSubjects(
 
 function latestActionableCompletedAt(
   all24h: WorkflowRunMetadata[],
-  outliers7d: DurationOutlier[],
 ): string | null {
-  const outlierIds = new Set(
-    outliers7d.filter((o) => o.workflow !== "improver").map((o) => o.runId),
-  );
   let latest: string | null = null;
   for (const run of all24h) {
     if (run.workflow === "improver") continue;
     if (!run.completedAt) continue;
-    const isActionable = run.status === "failed" || outlierIds.has(run.id);
-    if (!isActionable) continue;
+    if (run.status !== "failed") continue;
     if (latest === null || run.completedAt > latest) latest = run.completedAt;
   }
   return latest;
@@ -214,6 +219,6 @@ export function aggregateRunOutcomes(runsDir: string): RunOutcomeAggregation {
     topRepairFailures24h: tallyRepairFailures(all24h).slice(0, 10),
     topRepairFailures7d: tallyRepairFailures(all7d).slice(0, 10),
     durationOutliers,
-    latestActionableRunAt: latestActionableCompletedAt(all24h, durationOutliers),
+    latestActionableRunAt: latestActionableCompletedAt(all24h),
   };
 }

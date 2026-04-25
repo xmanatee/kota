@@ -13,13 +13,24 @@ This directory contains the improver workflow definition and prompt.
   already no-ops on an empty diff, and the semantic gate skips without staged
   changes. Do not invent preventive or speculative edits to avoid exiting clean.
 - The evidence gate (`latestActionableRunAt` in `run-outcome-aggregation`)
-  counts a non-improver run as actionable only when it failed terminally or
-  was a duration outlier. Recovered repair trips on successful runs are
-  intentionally excluded — self-healing already worked, and the repair-check
-  aggregate (`topRepairFailures`) still surfaces the pattern when improver
-  next wakes on a genuine signal. Do not re-broaden actionability to recovered
-  repair trips: doing so drove a ~52% no-op rate on agent runs (39/75 measured
+  counts a non-improver run as actionable only when it failed terminally.
+  Recovered repair trips on successful runs are intentionally excluded —
+  self-healing already worked, and the repair-check aggregate
+  (`topRepairFailures`) still surfaces the pattern when improver next wakes
+  on a genuine failure. Do not re-broaden actionability to recovered repair
+  trips: doing so drove a ~52% no-op rate on agent runs (39/75 measured
   runs, ~$117 of wasted agent spend).
+- Duration outliers in successful runs are also excluded from the actionable
+  signal. 24h evidence around 2026-04-25 showed five of six successful
+  improver runs were driven by terminal failures; the only outlier-only
+  trigger (run `2026-04-24T20-36-26-240Z-improver-7fhk26`) spent $2.14
+  confirming an SDK api_retry stall was a one-off transport blip and
+  no-oped. The next outlier-only candidate after the 75-min metrics-route
+  migration (run `2026-04-25T09-23-21-272Z-builder-2jc8dl`,
+  `latestActionableRunAt = 2026-04-25T10:38:20.295Z`) was the change that
+  retired this trigger. Outlier rows still ship to the agent in
+  `durationOutliers` so they can be inspected when improver fires on a real
+  failure.
 
 ## Evidence Attachment
 
