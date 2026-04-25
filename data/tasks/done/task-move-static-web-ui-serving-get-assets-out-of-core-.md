@@ -1,12 +1,12 @@
 ---
 id: task-move-static-web-ui-serving-get-assets-out-of-core-
 title: Move static web UI serving (GET /, /assets/*) out of core into the web module via KotaModule.routes
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Migrate the static index.html + /assets/* handler and MIME_TYPES table out of core/server-routes.ts into a routes() contribution on the existing web module that already owns webUiDir resolution.
 created_at: 2026-04-25T08:47:47.708Z
-updated_at: 2026-04-25T08:47:47.708Z
+updated_at: 2026-04-25T09:00:00.291Z
 ---
 
 ## Problem

@@ -14,6 +14,7 @@ import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.
 import { warnUnknownConfigKeys } from "#core/config/config-warnings.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { startServer } from "#core/server/server.js";
+import { setWebUiDir, staticWebUiRoutes } from "./static-routes.js";
 
 function parseIntOption(value: string, name: string): number {
   const n = Number.parseInt(value, 10);
@@ -54,12 +55,14 @@ const webModule: KotaModule = {
 
         warnUnknownConfigKeys(process.cwd(), (msg) => console.warn(msg), ctx.getRegisteredConfigKeys());
 
-        const moduleRoutes = ctx.getRoutes();
-
         const webUiDir = resolve(process.cwd(), "clients/web/dist");
-        if (!existsSync(webUiDir)) {
+        const webUiBuilt = existsSync(webUiDir);
+        if (!webUiBuilt) {
           console.warn("Warning: Web UI not built. Run `pnpm --filter @kota/web build` in the web client directory.");
         }
+        setWebUiDir(webUiBuilt ? webUiDir : undefined);
+
+        const moduleRoutes = ctx.getRoutes();
 
         startServer({
           port,
@@ -73,12 +76,13 @@ const webModule: KotaModule = {
             "web server",
           ),
           moduleRoutes,
-          webUiDir: existsSync(webUiDir) ? webUiDir : undefined,
         });
       });
 
     return [cmd];
   },
+
+  routes: () => staticWebUiRoutes(),
 };
 
 export default webModule;

@@ -46,8 +46,6 @@ export type ServerOptions = {
   authToken?: string;
   /** Routes registered by modules (e.g., vercel-adapter). */
   moduleRoutes?: RouteRegistration[];
-  /** Directory containing the built web UI static assets (index.html + assets/). */
-  webUiDir?: string;
 };
 
 export function startServer(options: ServerOptions): Server {
@@ -118,7 +116,6 @@ export function startServer(options: ServerOptions): Server {
     makeAgent,
     defaultAutonomyMode: options.defaultAutonomyMode,
     getDaemonClient: () => daemonLink.current(),
-    webUiDir: options.webUiDir,
     authToken,
   });
 
@@ -145,15 +142,9 @@ export function startServer(options: ServerOptions): Server {
     }
     console.log("API endpoints:");
     console.log("  POST /api/chat           — Send message (SSE streaming)");
-    console.log("  POST /api/chat/vercel    — Vercel AI SDK Data Stream Protocol");
     console.log("  POST /api/sessions       — Create a new session");
     console.log("  GET  /api/sessions       — List active sessions");
     console.log("  DELETE /api/sessions/:id — Close a session");
-    console.log("  GET  /api/schedules      — List pending scheduled items");
-    console.log("  GET  /api/notifications  — SSE stream for due reminders");
-    console.log("  GET  /api/history        — List conversation history");
-    console.log("  GET  /api/history/:id    — Get conversation details");
-    console.log("  DELETE /api/history/:id  — Delete a conversation");
     console.log("  POST /api/events/:name   — Fire a custom event (webhook trigger)");
     console.log("  GET  /api/daemon/status  — Daemon health and server status");
     console.log("  GET  /api/health         — Health check");

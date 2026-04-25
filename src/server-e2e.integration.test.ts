@@ -48,6 +48,7 @@ import { resolve } from "node:path";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import { discoverProjectModules } from "./core/modules/project-discovery.js";
 import { startServer } from "./core/server/server.js";
+import { setWebUiDir } from "./modules/web/static-routes.js";
 
 let server: Server;
 let baseUrl: string;
@@ -127,12 +128,13 @@ beforeAll(async () => {
   const testConfig = { serve: { defaultAutonomyMode: "autonomous" } } as any;
   const loader = new ModuleLoader(testConfig, false, { commandsOnly: true });
   await loader.loadAll(projectModules);
+  const webDir = resolve("clients/web/dist");
+  setWebUiDir(existsSync(webDir) ? webDir : undefined);
   const moduleRoutes = loader.getRoutes();
   server = startServer({
     port: 0,
     config: testConfig,
     moduleRoutes,
-    webUiDir: existsSync(resolve("clients/web/dist")) ? resolve("clients/web/dist") : undefined,
     authToken: TEST_AUTH_TOKEN,
     defaultAutonomyMode: testConfig.serve.defaultAutonomyMode,
   });
@@ -222,6 +224,30 @@ describe("HTTP Server E2E", () => {
       expect(res.status).toBe(200);
       expect(res.headers["content-type"]).toContain("text/html");
       expect(res.body).toContain("<html");
+    });
+
+    it("GET /assets/<file> serves static asset with immutable cache header", async () => {
+      const indexHtml = await httpReq({ method: "GET", path: "/", noAuth: true });
+      const match = indexHtml.body.match(/\/assets\/([^"'>]+)/);
+      expect(match).not.toBeNull();
+      const assetPath = `/assets/${match![1]}`;
+      const res = await httpReq({ method: "GET", path: assetPath, noAuth: true });
+      expect(res.status).toBe(200);
+      expect(res.headers["cache-control"]).toBe(
+        "public, max-age=31536000, immutable",
+      );
+      expect(typeof res.headers["content-type"]).toBe("string");
+      expect(res.body.length).toBeGreaterThan(0);
+    });
+
+    it("GET /assets/<missing> returns 404 JSON via the module route", async () => {
+      const res = await httpReq({
+        method: "GET",
+        path: "/assets/does-not-exist.js",
+        noAuth: true,
+      });
+      expect(res.status).toBe(404);
+      expect(JSON.parse(res.body)).toEqual({ error: "Not found" });
     });
 
     it("GET /api/schedules returns list", async () => {

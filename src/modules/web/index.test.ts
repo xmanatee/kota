@@ -56,9 +56,16 @@ describe("webModule", () => {
     expect(optNames).toContain("--verbose");
   });
 
-  it("does not register tools or routes", () => {
+  it("does not register tools", () => {
     expect(webModule.tools).toBeUndefined();
-    expect(webModule.routes).toBeUndefined();
+  });
+
+  it("contributes static web UI routes", () => {
+    const routes = webModule.routes!(stubCtx);
+    const summaries = routes.map((r) => `${r.method} ${r.path}`);
+    expect(summaries).toContain("GET /");
+    expect(summaries).toContain("GET /index.html");
+    expect(summaries.some((s) => s.startsWith("GET /assets"))).toBe(true);
   });
 
   it("has no dependencies", () => {

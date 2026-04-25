@@ -1,6 +1,4 @@
-import { readFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { extname, join } from "node:path";
 import type { Scheduler } from "#core/daemon/scheduler.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { AgentSession } from "#core/loop/loop.js";
@@ -19,18 +17,6 @@ import {
   handlePatchSession,
 } from "./session-routes.js";
 
-const MIME_TYPES: Record<string, string> = {
-  ".html": "text/html; charset=utf-8",
-  ".js": "application/javascript",
-  ".css": "text/css",
-  ".json": "application/json",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".ico": "image/x-icon",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-};
-
 export type ServerContext = {
   port: number;
   pool: SessionPool;
@@ -46,8 +32,6 @@ export type ServerContext = {
    * daemon that restarts while serve is alive without stale handles.
    */
   getDaemonClient?: () => DaemonControlClient | null;
-  /** Directory containing the built web UI static assets (index.html + assets/). */
-  webUiDir?: string;
   /** Bearer token required on all /api/* requests. Undefined means no auth. */
   authToken?: string;
 };
@@ -180,34 +164,6 @@ export function buildRequestHandler(ctx: ServerContext) {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;
-    }
-
-    if (req.method === "GET" && ctx.webUiDir) {
-      if (path === "/" || path === "/index.html") {
-        try {
-          const html = readFileSync(join(ctx.webUiDir, "index.html"), "utf-8");
-          setCors(res);
-          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-          res.end(html);
-        } catch {
-          jsonResponse(res, 404, { error: "Web UI not installed" });
-        }
-        return;
-      }
-      if (path.startsWith("/assets/")) {
-        const safePath = path.replace(/\.\./g, "");
-        try {
-          const data = readFileSync(join(ctx.webUiDir, safePath));
-          const ext = extname(safePath);
-          const contentType = MIME_TYPES[ext] ?? "application/octet-stream";
-          setCors(res);
-          res.writeHead(200, { "Content-Type": contentType, "Cache-Control": "public, max-age=31536000, immutable" });
-          res.end(data);
-        } catch {
-          jsonResponse(res, 404, { error: "Not found" });
-        }
-        return;
-      }
     }
 
     for (const route of ctx.moduleRoutes) {
