@@ -1,12 +1,12 @@
 ---
 id: task-migrate-push-tokens-daemon-control-route-out-of-co
 title: Migrate /push-tokens daemon-control route out of core into a push-notification module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Move the /push-tokens registration route, the .kota/push-tokens.json store, the Expo Push API delivery, and the approval.requested bus subscription from src/core/daemon/ into a new push-notification module via KotaModule.controlRoutes, mirroring the owner-questions/approvals/history/voice migration pattern, and add an import-guard test refusing reintroduction.
 created_at: 2026-04-25T07:04:33.275Z
-updated_at: 2026-04-25T07:04:33.275Z
+updated_at: 2026-04-25T07:15:15.810Z
 ---
 
 ## Problem

@@ -20,7 +20,6 @@ import type {
   WorkflowRunSummary,
 } from "./daemon-control-types.js";
 import type { DaemonState } from "./daemon-state.js";
-import { registerPushToken, sendPushNotifications } from "./push-tokens.js";
 
 export type DaemonHandleContext = {
   getState: () => DaemonState;
@@ -42,20 +41,6 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
   let metricCountsCache: WorkflowMetricCounts | null = null;
   let metricCountsCacheAt = 0;
   const webhookTimestamps = new Map<string, number[]>();
-
-  // Subscribe to approval.requested for push notification delivery (fire-and-forget).
-  bus.on("approval.requested", (p) => {
-    void sendPushNotifications(
-      projectDir,
-      {
-        approvalId: String(p.id ?? ""),
-        tool: String(p.tool ?? ""),
-        risk: String(p.risk ?? ""),
-        source: String(p.source ?? ""),
-      },
-      log,
-    );
-  });
 
   return {
     getHealthStatus: () => {
@@ -313,9 +298,6 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       metricCountsCache = result;
       metricCountsCacheAt = now;
       return result;
-    },
-    registerPushToken: (deviceId: string, token: string) => {
-      registerPushToken(projectDir, deviceId, token);
     },
     registerSession: (id: string, createdAt: string, autonomyMode: AutonomyMode) => {
       sessions.set(id, { id, createdAt, lastActive: Date.now(), autonomyMode });

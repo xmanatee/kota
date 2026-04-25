@@ -63,7 +63,6 @@ function makeHandle(): DaemonControlHandle {
     setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
     triggerWebhookRun: vi.fn(() => ({ ok: false, notFound: true })),
     reloadConfig: vi.fn(async () => ({ workflows: 0, changedModules: [] })),
-    registerPushToken: vi.fn(),
   };
 }
 

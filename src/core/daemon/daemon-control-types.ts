@@ -203,8 +203,6 @@ export type DaemonControlHandle = {
     notFound?: boolean;
     serveOwned?: boolean;
   };
-  // Push notifications
-  registerPushToken(deviceId: string, token: string): void;
   // Webhook triggers
   triggerWebhookRun(
     name: string,

@@ -54,7 +54,6 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
     triggerWebhookRun: vi.fn(() => ({ ok: false, notFound: true })),
     reloadConfig: vi.fn(async () => ({ workflows: 3, changedModules: [] as string[] })),
-    registerPushToken: vi.fn(),
     ...overrides,
   };
 }
@@ -1081,43 +1080,6 @@ describe("DaemonControlServer", () => {
     it("returns 404 for wrong method on known path", async () => {
       const res = await fetchWithToken(port, "/status", { method: "POST" });
       expect(res.status).toBe(404);
-    });
-  });
-
-  describe("POST /push-tokens", () => {
-    it("registers a push token and returns 200", async () => {
-      const res = await fetchWithToken(port, "/push-tokens", {
-        method: "POST",
-        body: JSON.stringify({ deviceId: "test-device-1", token: "ExponentPushToken[abc123]" }),
-        headers: { "Content-Type": "application/json" },
-      });
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body).toEqual({ ok: true });
-      expect((handle.registerPushToken as ReturnType<typeof vi.fn>).mock.calls).toContainEqual(["test-device-1", "ExponentPushToken[abc123]"]);
-    });
-
-    it("returns 400 when token is missing", async () => {
-      const res = await fetchWithToken(port, "/push-tokens", {
-        method: "POST",
-        body: JSON.stringify({ deviceId: "test-device-1" }),
-        headers: { "Content-Type": "application/json" },
-      });
-      expect(res.status).toBe(400);
-    });
-
-    it("returns 400 when deviceId is missing", async () => {
-      const res = await fetchWithToken(port, "/push-tokens", {
-        method: "POST",
-        body: JSON.stringify({ token: "ExponentPushToken[abc123]" }),
-        headers: { "Content-Type": "application/json" },
-      });
-      expect(res.status).toBe(400);
-    });
-
-    it("returns 401 without token", async () => {
-      const res = await fetchNoToken(port, "/push-tokens", { method: "POST" });
-      expect(res.status).toBe(401);
     });
   });
 

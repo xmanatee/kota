@@ -14,7 +14,6 @@ import {
 } from "./daemon-control-chat.js";
 import { handleInvokeCommand, handleListCommands } from "./daemon-control-commands.js";
 import { handleMetrics } from "./daemon-control-metrics.js";
-import { handleRegisterPushToken } from "./daemon-control-push-tokens.js";
 import { handleListSessions, handleRegisterSession, handleUnregisterSession } from "./daemon-control-sessions.js";
 import type { CapabilityScope, DaemonControlHandle, DaemonLiveStatus, DaemonSseEvent } from "./daemon-control-types.js";
 import { jsonResponse } from "./daemon-control-utils.js";
@@ -88,7 +87,6 @@ const BUILTIN_ROUTE_SCOPES: Record<string, CapabilityScope> = {
   "PATCH /sessions/:id": "control",
   "DELETE /sessions/:id": "control",
   "GET /metrics": "read",
-  "POST /push-tokens": "control",
   "GET /commands": "read",
   "POST /commands/invoke": "control",
 };
@@ -462,8 +460,6 @@ export class DaemonControlServer {
     }
 
     if (method === "GET" && path === "/metrics") { handleMetrics(h, res); return; }
-
-    if (method === "POST" && path === "/push-tokens") { handleRegisterPushToken(h, req, res); return; }
 
     if (method === "GET" && path === "/commands") { handleListCommands(res); return; }
     if (method === "POST" && path === "/commands/invoke") { handleInvokeCommand(h, req, res); return; }

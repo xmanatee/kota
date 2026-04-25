@@ -32,16 +32,16 @@ and live runtime state.
   `daemon-state.ts`, `daemon-subscriptions.ts`.
 - Control API: `daemon-control.ts` (router), `daemon-control-types.ts`,
   `daemon-control-utils.ts`, and per-domain handlers
-  (`-chat.ts`, `-metrics.ts`, `-push-tokens.ts`, `-sessions.ts`,
+  (`-chat.ts`, `-metrics.ts`, `-sessions.ts`,
   `-webhook.ts`, `-workflow.ts`).
   Module-owned endpoints (e.g. `/history/*`, `/voice/*`, `/approvals*`,
-  `/owner-questions*`) live in their contributing module under
+  `/owner-questions*`, `/push-tokens`) live in their contributing module under
   `#modules/<name>/routes.ts`.
 - Scheduling: `scheduler.ts`, `scheduler-store.ts`, `schedule-parser.ts`.
 - Task management: `task-store.ts`, `task-store-types.ts`, `task-router.ts`,
   `task-router-data.ts`.
 - Daemon primitives: `approval-queue.ts`, `notification-gate.ts`,
-  `event-ring-buffer.ts`, `push-tokens.ts`, `config-reload-diff.ts`,
+  `event-ring-buffer.ts`, `config-reload-diff.ts`,
   `module-crash-alert.ts`, `session-sweep.ts`.
 
 ## Multi-Project Runtime Shape
@@ -71,8 +71,6 @@ Recoverable surfaces (append-only or file-backed; survive crash):
   rewritten on every status transition.
 - **Owner-question queue** (`.kota/owner-questions/*.json`) — one file per
   question, rewritten on every status transition.
-- **Push-token store** (`.kota/push-tokens.json`) — rewritten on every
-  registration.
 - **Task store** (`data/tasks/`) — file-backed; unaffected by daemon crash.
 - **Conversation history** (`~/.kota/history/`) — messages persist per
   `conversationId` via `ConversationHistory.save()`; the *conversation text*
