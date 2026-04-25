@@ -113,6 +113,18 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
     modules: {
       list: stub({ modules: [] as ModuleListEntry[] }),
     },
+    agents: {
+      list: stub({ agents: [] }),
+      inspect: stub({ found: false }),
+    },
+    skills: {
+      list: stub({ skills: [] }),
+      import: stub({ ok: false, reason: "missing_name", message: "stub" }),
+    },
+    harnessParity: {
+      list: stub({ scenarios: [] }),
+      run: stub({ ok: false, reason: "no_scenarios", message: "stub" }),
+    },
   };
   return { ...base, ...overrides };
 }

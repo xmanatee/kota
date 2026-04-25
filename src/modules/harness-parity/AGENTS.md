@@ -19,6 +19,12 @@ judged against real runs rather than aspiration.
 - Paired artifacts land under a single operator-chosen output directory with
   one subdirectory per harness, plus a top-level `parity.json` summarizing
   the comparison.
+- This module also owns the `harnessParity` `KotaClient` namespace
+  (`harness-parity-operations.ts`). CLI action handlers consume
+  `ctx.client.harnessParity.<method>()`; the local handler and the
+  daemon-control routes (`controlRoutes` at `/harness-parity/*`) call the
+  same shared helpers, so daemon-up and daemon-down callers see the same
+  scenario list and run summary.
 
 ## Artifact Shape
 

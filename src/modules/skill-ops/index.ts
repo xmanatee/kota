@@ -6,12 +6,9 @@
  * Imported skills are stored in `.kota/skills/` and shown in `skill list`.
  */
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
 import { Command } from "commander";
-import type { SkillDef } from "#core/agents/agent-types.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
-import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
+import type { SkillSummary, SkillsClient } from "#core/server/kota-client.js";
 import {
   type LineNode,
   line,
@@ -20,38 +17,8 @@ import {
   stack,
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
-
-type ImportedSkill = SkillDef & { source: string };
-
-function kotaSkillsDir(cwd: string): string {
-  return join(cwd, ".kota", "skills");
-}
-
-function readImportedSkills(cwd: string): ImportedSkill[] {
-  const dir = kotaSkillsDir(cwd);
-  if (!existsSync(dir)) return [];
-  const results: ImportedSkill[] = [];
-  for (const file of readdirSync(dir)) {
-    if (!file.endsWith(".md")) continue;
-    const filePath = join(dir, file);
-    const content = readFileSync(filePath, "utf8");
-    const { attrs } = parseFlatFrontMatter(content);
-    const name = typeof attrs.name === "string" ? attrs.name : basename(file, ".md");
-    const description = typeof attrs.description === "string" ? attrs.description : undefined;
-    results.push({ name, description, promptPath: join(".kota", "skills", file), source: "imported" });
-  }
-  return results;
-}
-
-async function fetchSkillContent(source: string): Promise<string> {
-  if (source.startsWith("http://") || source.startsWith("https://")) {
-    const res = await fetch(source);
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    return res.text();
-  }
-  if (!existsSync(source)) throw new Error(`File not found: ${source}`);
-  return readFileSync(source, "utf8");
-}
+import { skillControlRoutes } from "./routes.js";
+import { importSkill, listSkills } from "./skill-ops-operations.js";
 
 function buildSkillCommand(ctx: ModuleContext): Command {
   const skillCmd = new Command("skill").description("Manage and inspect registered skills");
@@ -60,44 +27,18 @@ function buildSkillCommand(ctx: ModuleContext): Command {
     .command("list")
     .description("List all registered skills with source module")
     .option("--json", "Output as JSON")
-    .action((opts: { json?: boolean }) => {
-      const summaries = ctx.getModuleSummaries();
-      type SkillEntry = SkillDef & { source: string };
-      const skills: SkillEntry[] = [];
-      for (const summary of summaries) {
-        for (const skill of summary.skills) {
-          skills.push({ ...skill, source: summary.name });
-        }
-      }
-      for (const imported of readImportedSkills(process.cwd())) {
-        if (!skills.some((s) => s.name === imported.name)) {
-          skills.push(imported);
-        }
-      }
+    .action(async (opts: { json?: boolean }) => {
+      const result = await ctx.client.skills.list();
       if (opts.json) {
         // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
-        console.log(JSON.stringify(skills, null, 2));
+        console.log(JSON.stringify(result.skills, null, 2));
         return;
       }
-      if (skills.length === 0) {
+      if (result.skills.length === 0) {
         print(line(plain("No skills registered.")));
         return;
       }
-      const nameWidth = Math.max(...skills.map((s) => s.name.length), 4);
-      const srcWidth = Math.max(...skills.map((s) => s.source.length), 6);
-      const header = line(span(
-        `${"Name".padEnd(nameWidth)}  ${"Source".padEnd(srcWidth)}  Description`,
-        "muted",
-        true,
-      ));
-      const rule = line(span("-".repeat(nameWidth + srcWidth + 16), "muted"));
-      const rows: LineNode[] = skills.map((s) => line(
-        span(s.name.padEnd(nameWidth), "accent"),
-        plain("  "),
-        span(s.source.padEnd(srcWidth), "info"),
-        plain(`  ${s.description ?? ""}`),
-      ));
-      print(stack(header, rule, ...rows));
+      print(stack(...buildSkillListLines(result.skills)));
     });
 
   skillCmd
@@ -105,39 +46,41 @@ function buildSkillCommand(ctx: ModuleContext): Command {
     .description("Install a skill from a URL or local file path into .kota/skills/")
     .option("--name <name>", "Override the skill name (and filename)")
     .action(async (source: string, opts: { name?: string }) => {
-      let content: string;
-      try {
-        content = await fetchSkillContent(source);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`Error: ${msg}`);
+      const result = await ctx.client.skills.import(
+        source,
+        opts.name !== undefined ? { name: opts.name } : undefined,
+      );
+      if (!result.ok) {
+        console.error(`Error: ${result.message}`);
         process.exit(1);
       }
-
-      const { attrs } = parseFlatFrontMatter(content);
-      const frontmatterName = typeof attrs.name === "string" ? attrs.name : undefined;
-
-      if (!frontmatterName && !opts.name) {
-        console.error(
-          "Error: skill file has no 'name' field in frontmatter. Use --name to specify one.",
-        );
-        process.exit(1);
-      }
-
-      const skillName = opts.name ?? (frontmatterName as string);
-      const dir = kotaSkillsDir(process.cwd());
-      mkdirSync(dir, { recursive: true });
-      const dest = join(dir, `${skillName}.md`);
-      writeFileSync(dest, content, "utf8");
       print(line(
         span("Installed skill ", "success"),
-        span(`'${skillName}'`, "accent"),
+        span(`'${result.name}'`, "accent"),
         plain(" → "),
-        span(dest, "muted"),
+        span(result.path, "muted"),
       ));
     });
 
   return skillCmd;
+}
+
+export function buildSkillListLines(skills: SkillSummary[]): LineNode[] {
+  const nameWidth = Math.max(...skills.map((s) => s.name.length), 4);
+  const srcWidth = Math.max(...skills.map((s) => s.source.length), 6);
+  const header = line(span(
+    `${"Name".padEnd(nameWidth)}  ${"Source".padEnd(srcWidth)}  Description`,
+    "muted",
+    true,
+  ));
+  const rule = line(span("-".repeat(nameWidth + srcWidth + 16), "muted"));
+  const rows: LineNode[] = skills.map((s) => line(
+    span(s.name.padEnd(nameWidth), "accent"),
+    plain("  "),
+    span(s.source.padEnd(srcWidth), "info"),
+    plain(`  ${s.description ?? ""}`),
+  ));
+  return [header, rule, ...rows];
 }
 
 const skillsModule: KotaModule = {
@@ -146,6 +89,18 @@ const skillsModule: KotaModule = {
   description: "Operator CLI for inspecting and importing registered skills",
   dependencies: ["rendering"],
   commands: (ctx: ModuleContext) => [buildSkillCommand(ctx)],
+  controlRoutes: (ctx) => skillControlRoutes(ctx),
+  localClient: (ctx) => {
+    const skills: SkillsClient = {
+      async list() {
+        return listSkills(ctx);
+      },
+      async import(source, options) {
+        return importSkill(ctx, source, options);
+      },
+    };
+    return { skills };
+  },
 };
 
 export default skillsModule;

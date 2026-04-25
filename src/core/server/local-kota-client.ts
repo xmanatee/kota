@@ -48,6 +48,9 @@ export class LocalKotaClient implements KotaClient {
   readonly knowledge: KotaClient["knowledge"];
   readonly sessions: KotaClient["sessions"];
   readonly modules: KotaClient["modules"];
+  readonly agents: KotaClient["agents"];
+  readonly skills: KotaClient["skills"];
+  readonly harnessParity: KotaClient["harnessParity"];
 
   constructor(handlers: LocalClientHandlers) {
     this.workflow = handlers.workflow;
@@ -60,5 +63,8 @@ export class LocalKotaClient implements KotaClient {
     this.knowledge = handlers.knowledge;
     this.sessions = handlers.sessions;
     this.modules = handlers.modules;
+    this.agents = handlers.agents;
+    this.skills = handlers.skills;
+    this.harnessParity = handlers.harnessParity;
   }
 }

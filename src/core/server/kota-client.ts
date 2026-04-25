@@ -20,6 +20,7 @@
  * implementations are registered through ModuleContext and assembled
  * into the `LocalKotaClient` by the selector.
  */
+import type { AgentToolPolicy } from "#core/agents/agent-types.js";
 import type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
 import type {
   InteractiveSession,
@@ -727,6 +728,174 @@ export interface ModulesClient {
 }
 
 /**
+ * A registered agent definition as the CLI surfaces it.
+ *
+ * `source` carries the contributing module name so the navigator can render
+ * attribution. `model` reflects the agent's default after operator overrides
+ * from `config.agentModels` are applied — the contract pre-resolves that
+ * mapping so no caller has to repeat it. `effort` is required on every
+ * `AgentDef`, but the contract types it as optional because some legacy
+ * agent definitions surfaced through `getModuleSummaries()` predate the
+ * required field; absence renders as the empty string in CLI output.
+ */
+export type AgentSummary = {
+  name: string;
+  source: string;
+  role: string;
+  model: string;
+  effort?: "low" | "medium" | "high" | "xhigh" | "max";
+  promptPath: string;
+  writeScope: string[];
+  skills?: string[] | "all";
+  tools?: AgentToolPolicy;
+};
+
+export type AgentsListResult = {
+  agents: AgentSummary[];
+};
+
+export type AgentInspectResult =
+  | { found: true; agent: AgentSummary }
+  | { found: false };
+
+/**
+ * Agent definition operations.
+ *
+ * `list` returns every agent contributed by the loaded module set, with the
+ * operator's `agentModels` overrides already resolved. `inspect` returns the
+ * full detail for a single agent. Both reads work daemon-up and daemon-down;
+ * the daemon-side route reflects the daemon's loaded module set, the local
+ * handler reflects the CLI's.
+ */
+export interface AgentsClient {
+  list(): Promise<AgentsListResult>;
+  inspect(name: string): Promise<AgentInspectResult>;
+}
+
+/**
+ * A registered skill as the CLI surfaces it. `source` is the contributing
+ * module name, or the literal string `"imported"` for skills installed under
+ * `.kota/skills/` via `kota skill import`.
+ */
+export type SkillSummary = {
+  name: string;
+  source: string;
+  description?: string;
+  promptPath: string;
+  roles?: string[];
+};
+
+export type SkillsListResult = {
+  skills: SkillSummary[];
+};
+
+export type SkillImportOptions = {
+  /** Override the skill name (and on-disk filename) declared in frontmatter. */
+  name?: string;
+};
+
+/**
+ * Result of `skills.import`.
+ *
+ * `fetch_failed` covers HTTP and missing-local-file errors uniformly;
+ * `missing_name` fires when the skill source has no `name` frontmatter and
+ * the caller passed no override. The CLI maps both to a single error
+ * message regardless of which transport answered.
+ */
+export type SkillImportResult =
+  | { ok: true; name: string; path: string }
+  | {
+      ok: false;
+      reason: "fetch_failed" | "missing_name";
+      message: string;
+    };
+
+/**
+ * Skill operations.
+ *
+ * `list` enumerates every registered skill — module-contributed plus
+ * imported — with the contributor name. `import` fetches a skill from a URL
+ * or local file and writes it under `.kota/skills/`.
+ */
+export interface SkillsClient {
+  list(): Promise<SkillsListResult>;
+  import(source: string, options?: SkillImportOptions): Promise<SkillImportResult>;
+}
+
+/** A scenario shipped under `src/modules/harness-parity/scenarios/`. */
+export type HarnessParityScenarioSummary = {
+  id: string;
+  description: string;
+};
+
+export type HarnessParityListResult = {
+  scenarios: HarnessParityScenarioSummary[];
+};
+
+export type HarnessParityRunOptions = {
+  /** Restrict to these scenario ids. Empty / omitted runs every scenario. */
+  scenarios?: string[];
+  /** Restrict to these harness names. Empty / omitted runs every registered harness. */
+  harnesses?: string[];
+  /** Model identifier passed verbatim to every harness. */
+  model?: string;
+  /** Upper turn bound for harnesses that iterate. */
+  maxTurns?: number;
+  /** Override the output directory for paired artifacts. */
+  outDir?: string;
+  /** Keep the materialized working directories for inspection. */
+  keepWorkingDir?: boolean;
+};
+
+/** Per-harness-per-scenario summary surfaced by `harnessParity.run`. */
+export type HarnessParityArtifactSummary = {
+  scenarioId: string;
+  harnessName: string;
+  passed: boolean;
+  isError: boolean;
+  turns: number;
+  changedFiles: string[];
+  artifactDir: string;
+};
+
+/**
+ * Result of `harnessParity.run`.
+ *
+ * Errors that surface before the harness loop runs (scenario load, missing
+ * scenarios, missing harnesses, invalid `maxTurns`) get a typed reason so
+ * the CLI maps each to its existing failure path. Success carries every
+ * paired artifact summary plus the resolved `outBaseDir`.
+ */
+export type HarnessParityRunResult =
+  | {
+      ok: true;
+      outBaseDir: string;
+      artifacts: HarnessParityArtifactSummary[];
+    }
+  | {
+      ok: false;
+      reason:
+        | "scenarios_load_error"
+        | "no_scenarios"
+        | "no_harnesses"
+        | "invalid_max_turns";
+      message: string;
+    };
+
+/**
+ * Harness-parity operations.
+ *
+ * `list` enumerates the scenarios shipped under
+ * `src/modules/harness-parity/scenarios/`. `run` materializes each scenario
+ * across every requested harness and returns the resulting paired-artifact
+ * summary; the artifacts themselves land on disk under `outBaseDir`.
+ */
+export interface HarnessParityClient {
+  list(): Promise<HarnessParityListResult>;
+  run(options?: HarnessParityRunOptions): Promise<HarnessParityRunResult>;
+}
+
+/**
  * The single typed surface CLI code imports for daemon-or-local access.
  *
  * The contract grows by adding namespaces here, delegating in
@@ -745,6 +914,9 @@ export interface KotaClient {
   readonly knowledge: KnowledgeClient;
   readonly sessions: SessionsClient;
   readonly modules: ModulesClient;
+  readonly agents: AgentsClient;
+  readonly skills: SkillsClient;
+  readonly harnessParity: HarnessParityClient;
 }
 
 /**
@@ -763,6 +935,9 @@ export const KOTA_CLIENT_NAMESPACES = [
   "knowledge",
   "sessions",
   "modules",
+  "agents",
+  "skills",
+  "harnessParity",
 ] as const satisfies ReadonlyArray<keyof KotaClient>;
 
 export type KotaClientNamespace = (typeof KOTA_CLIENT_NAMESPACES)[number];

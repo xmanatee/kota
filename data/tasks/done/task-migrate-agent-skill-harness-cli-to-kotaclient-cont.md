@@ -1,12 +1,12 @@
 ---
 id: task-migrate-agent-skill-harness-cli-to-kotaclient-cont
 title: Migrate agent-ops, skill-ops, and harness-parity CLIs to KotaClient
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Migrate the agent-ops, skill-ops, and harness-parity CLI subcommands to ctx.client.<namespace>.<method> so per-agent configuration surfaces all consume the KotaClient contract.
 created_at: 2026-04-25T20:31:21.442Z
-updated_at: 2026-04-25T20:31:21.442Z
+updated_at: 2026-04-25T22:14:47.064Z
 ---
 
 ## Problem

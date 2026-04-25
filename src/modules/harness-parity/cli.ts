@@ -2,17 +2,14 @@
  * `kota harness-parity` CLI surface.
  *
  * Operators run `kota harness-parity run` to execute scenarios across every
- * registered harness and capture paired artifacts under `.kota/runs/`. The
- * command reuses the same `runAgentHarness` path the main `kota run` entry
- * point uses, so the evidence reflects operator reality rather than a
- * parallel benchmarking framework.
+ * registered harness and capture paired artifacts under `.kota/runs/`.
+ * Reads (`list`) and the run itself flow through `ctx.client.harnessParity`,
+ * keeping the CLI off the runner internals.
  */
 
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
 import { Command } from "commander";
-import type { AgentHarness } from "#core/agent-harness/index.js";
-import { listAgentHarnessNames, resolveAgentHarness } from "#core/agent-harness/index.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
+import type { HarnessParityArtifactSummary } from "#core/server/kota-client.js";
 import {
   blank,
   line,
@@ -21,62 +18,15 @@ import {
   stack,
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
-import { runScenarioAcrossHarnesses } from "./runner.js";
-import {
-  type LoadedScenario,
-  loadAllScenarios,
-  loadScenario,
-  ScenarioLoadError,
-} from "./scenario.js";
 
 export type BuildHarnessParityCommandDeps = {
-  projectDir: string;
-  scenariosRoot: string;
-  /** Default base dir for paired artifacts (overridden by `--out`). */
-  defaultOutBaseDir: string;
+  ctx: ModuleContext;
 };
-
-function resolveScenarios(
-  scenariosRoot: string,
-  ids: readonly string[],
-): LoadedScenario[] | null {
-  try {
-    return ids.length > 0
-      ? ids.map((id) => loadScenario(scenariosRoot, id))
-      : loadAllScenarios(scenariosRoot);
-  } catch (err) {
-    if (err instanceof ScenarioLoadError) {
-      console.error(`harness-parity scenario error: ${err.message}`);
-      console.error(`  offending scenario directory: ${err.scenarioDir}`);
-      process.exitCode = 1;
-      return null;
-    }
-    throw err;
-  }
-}
-
-function resolveHarnesses(names: readonly string[]): AgentHarness[] {
-  const resolved: AgentHarness[] = [];
-  const targets = names.length > 0 ? names : listAgentHarnessNames();
-  if (targets.length === 0) {
-    throw new Error(
-      "No agent harnesses are registered; load a harness module (e.g. claude-agent-harness) before running harness-parity.",
-    );
-  }
-  for (const name of targets) resolved.push(resolveAgentHarness(name));
-  return resolved;
-}
-
-function buildOutBaseDir(defaultOutBaseDir: string, override?: string): string {
-  if (override) return override;
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  return join(defaultOutBaseDir, `harness-parity-${stamp}`);
-}
 
 export function buildHarnessParityCommand(
   deps: BuildHarnessParityCommandDeps,
 ): Command {
-  const { scenariosRoot, defaultOutBaseDir } = deps;
+  const { ctx } = deps;
 
   const cmd = new Command("harness-parity").description(
     "Run coding-task scenarios across every registered harness and capture paired artifacts.",
@@ -85,16 +35,15 @@ export function buildHarnessParityCommand(
   cmd
     .command("list")
     .description("List available scenarios.")
-    .action(() => {
-      const scenarios = resolveScenarios(scenariosRoot, []);
-      if (scenarios === null) return;
-      if (scenarios.length === 0) {
+    .action(async () => {
+      const result = await ctx.client.harnessParity.list();
+      if (result.scenarios.length === 0) {
         print(line(plain("No scenarios found.")));
         return;
       }
-      const rows = scenarios.flatMap((s) => [
-        line(span(s.spec.id, "accent", true)),
-        line(span(`  ${s.spec.description}`, "muted")),
+      const rows = result.scenarios.flatMap((s) => [
+        line(span(s.id, "accent", true)),
+        line(span(`  ${s.description}`, "muted")),
       ]);
       print(stack(...rows));
     });
@@ -136,17 +85,6 @@ export function buildHarnessParityCommand(
         out?: string;
         keep?: boolean;
       }) => {
-        const scenarios = resolveScenarios(scenariosRoot, opts.scenario);
-        if (scenarios === null) return;
-        if (scenarios.length === 0) {
-          console.error(`No scenarios to run under "${scenariosRoot}".`);
-          process.exitCode = 1;
-          return;
-        }
-        const harnesses = resolveHarnesses(opts.harness);
-        const outBaseDir = buildOutBaseDir(defaultOutBaseDir, opts.out);
-        mkdirSync(outBaseDir, { recursive: true });
-
         let maxTurns: number | undefined;
         if (opts.maxTurns !== undefined) {
           const parsed = Number.parseInt(opts.maxTurns, 10);
@@ -158,50 +96,57 @@ export function buildHarnessParityCommand(
           maxTurns = parsed;
         }
 
-        let anyHarnessFailed = false;
-        for (const scenario of scenarios) {
-          const artifacts = await runScenarioAcrossHarnesses({
-            scenario,
-            harnesses,
-            callOptions: {
-              model: opts.model,
-              ...(maxTurns !== undefined ? { maxTurns } : {}),
-            },
-            outBaseDir,
-            ...(opts.keep !== undefined ? { keepWorkingDir: opts.keep } : {}),
-          });
+        const result = await ctx.client.harnessParity.run({
+          ...(opts.scenario.length > 0 && { scenarios: opts.scenario }),
+          ...(opts.harness.length > 0 && { harnesses: opts.harness }),
+          model: opts.model,
+          ...(maxTurns !== undefined && { maxTurns }),
+          ...(opts.out !== undefined && { outDir: opts.out }),
+          ...(opts.keep !== undefined && { keepWorkingDir: opts.keep }),
+        });
 
+        if (!result.ok) {
+          console.error(`harness-parity run failed (${result.reason}): ${result.message}`);
+          process.exitCode = 1;
+          return;
+        }
+
+        const byScenario = groupByScenario(result.artifacts);
+        let anyHarnessFailed = false;
+        for (const [scenarioId, artifacts] of byScenario) {
           const rows = artifacts.map((a) => {
-            const verdictRole = a.verification.passed
-              ? "success"
-              : a.isError
-                ? "error"
-                : "warn";
+            const verdictRole = a.passed ? "success" : a.isError ? "error" : "warn";
             return line(
               span(`  ${a.harnessName}`, "accent"),
               plain("  verification="),
-              span(a.verification.passed ? "pass" : "fail", verdictRole),
+              span(a.passed ? "pass" : "fail", verdictRole),
               plain("  turns="),
               span(String(a.turns), "info"),
               plain("  changed="),
               span(String(a.changedFiles.length), "info"),
             );
           });
-          print(stack(
-            line(span(scenario.spec.id, "accent", true)),
-            ...rows,
-          ));
+          print(stack(line(span(scenarioId, "accent", true)), ...rows));
           print(blank());
-
-          for (const a of artifacts) {
-            if (!a.verification.passed) anyHarnessFailed = true;
-          }
+          for (const a of artifacts) if (!a.passed) anyHarnessFailed = true;
         }
 
-        print(line(span(`artifacts: ${outBaseDir}`, "muted")));
+        print(line(span(`artifacts: ${result.outBaseDir}`, "muted")));
         if (anyHarnessFailed) process.exitCode = 1;
       },
     );
 
   return cmd;
+}
+
+function groupByScenario(
+  artifacts: HarnessParityArtifactSummary[],
+): Map<string, HarnessParityArtifactSummary[]> {
+  const out = new Map<string, HarnessParityArtifactSummary[]>();
+  for (const artifact of artifacts) {
+    const list = out.get(artifact.scenarioId) ?? [];
+    list.push(artifact);
+    out.set(artifact.scenarioId, list);
+  }
+  return out;
 }

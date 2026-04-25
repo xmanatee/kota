@@ -24,7 +24,14 @@ import type {
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type {
+  AgentInspectResult,
+  AgentsClient,
+  AgentsListResult,
   ApprovalsClient,
+  HarnessParityClient,
+  HarnessParityListResult,
+  HarnessParityRunOptions,
+  HarnessParityRunResult,
   HistoryClient,
   HistoryDeleteResult,
   HistoryListFilter,
@@ -68,6 +75,10 @@ import type {
   SecretsClient,
   SessionsClient,
   SessionsSetAutonomyModeResult,
+  SkillImportOptions,
+  SkillImportResult,
+  SkillsClient,
+  SkillsListResult,
   WorkflowClient,
   WorkflowTriggerOptions,
 } from "./kota-client.js";
@@ -127,6 +138,9 @@ export class DaemonControlClient implements KotaClient {
   readonly knowledge: KnowledgeClient;
   readonly sessions: SessionsClient;
   readonly modules: ModulesClient;
+  readonly agents: AgentsClient;
+  readonly skills: SkillsClient;
+  readonly harnessParity: HarnessParityClient;
 
   private constructor(
     private readonly baseUrl: string,
@@ -325,6 +339,105 @@ export class DaemonControlClient implements KotaClient {
         return { modules: result.modules };
       },
     };
+    this.agents = {
+      list: async () => this.listAgentsHttp(),
+      inspect: async (name) => this.inspectAgentHttp(name),
+    };
+    this.skills = {
+      list: async () => this.listSkillsHttp(),
+      import: async (source, options) => this.importSkillHttp(source, options),
+    };
+    this.harnessParity = {
+      list: async () => this.listHarnessParityScenariosHttp(),
+      run: async (options) => this.runHarnessParityHttp(options),
+    };
+  }
+
+  private async listAgentsHttp(): Promise<AgentsListResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/agents`, {
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as AgentsListResult;
+  }
+
+  private async inspectAgentHttp(name: string): Promise<AgentInspectResult> {
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/agents/${encodeURIComponent(name)}`,
+      { headers: this.authHeaders() },
+    );
+    if (res.status === 404) return { found: false };
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as AgentInspectResult;
+  }
+
+  private async listSkillsHttp(): Promise<SkillsListResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/skills`, {
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as SkillsListResult;
+  }
+
+  private async importSkillHttp(
+    source: string,
+    options?: SkillImportOptions,
+  ): Promise<SkillImportResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/skills/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.authHeaders() },
+      body: JSON.stringify({
+        source,
+        ...(options?.name !== undefined && { name: options.name }),
+      }),
+    });
+    if (res.status === 400 || res.status === 502) {
+      const body = (await res.json()) as SkillImportResult;
+      return body;
+    }
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as SkillImportResult;
+  }
+
+  private async listHarnessParityScenariosHttp(): Promise<HarnessParityListResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/harness-parity/scenarios`, {
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as HarnessParityListResult;
+  }
+
+  private async runHarnessParityHttp(
+    options?: HarnessParityRunOptions,
+  ): Promise<HarnessParityRunResult> {
+    const res = await fetch(`${this.baseUrl}/harness-parity/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.authHeaders() },
+      body: JSON.stringify(options ?? {}),
+    });
+    if (res.status === 400) {
+      return (await res.json()) as HarnessParityRunResult;
+    }
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as HarnessParityRunResult;
   }
 
   private async listSessionsHttp(): Promise<{ sessions: InteractiveSession[] } | null> {
