@@ -30,6 +30,8 @@ const NAMESPACE_OWNERS: Record<(typeof KOTA_CLIENT_NAMESPACES)[number], string> 
   ownerQuestions: "owner-questions",
   history: "history",
   knowledge: "knowledge",
+  sessions: "daemon-ops",
+  modules: "module-manager",
 };
 
 function readModuleSource(name: string): string {

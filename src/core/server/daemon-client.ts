@@ -7,6 +7,7 @@ import type {
   DaemonSseEvent,
   DaemonSseEventType,
   HealthStatus,
+  InteractiveSession,
   WorkflowDefinitionSummary,
   WorkflowLiveStatus,
   WorkflowRunDetail,
@@ -47,6 +48,8 @@ import type {
   MemoryReindexResult,
   MemorySearchFilter,
   MemorySearchResult,
+  ModuleListEntry,
+  ModulesClient,
   OwnerQuestionMutateResult,
   OwnerQuestionsClient,
   RepoTaskCaptureResult,
@@ -63,6 +66,8 @@ import type {
   SecretMutateResult,
   SecretScope,
   SecretsClient,
+  SessionsClient,
+  SessionsSetAutonomyModeResult,
   WorkflowClient,
   WorkflowTriggerOptions,
 } from "./kota-client.js";
@@ -120,6 +125,8 @@ export class DaemonControlClient implements KotaClient {
   readonly ownerQuestions: OwnerQuestionsClient;
   readonly history: HistoryClient;
   readonly knowledge: KnowledgeClient;
+  readonly sessions: SessionsClient;
+  readonly modules: ModulesClient;
 
   private constructor(
     private readonly baseUrl: string,
@@ -303,6 +310,77 @@ export class DaemonControlClient implements KotaClient {
       delete: async (id) => this.deleteKnowledgeHttp(id),
       reindex: async () => this.reindexKnowledgeHttp(),
     };
+    this.sessions = {
+      list: async () => {
+        const result = await this.listSessionsHttp();
+        if (!result) throw new Error("Daemon unreachable while listing sessions");
+        return { sessions: result.sessions };
+      },
+      setAutonomyMode: async (id, mode) => this.setSessionAutonomyModeHttp(id, mode),
+    };
+    this.modules = {
+      list: async () => {
+        const result = await this.listModulesHttp();
+        if (!result) throw new Error("Daemon unreachable while listing modules");
+        return { modules: result.modules };
+      },
+    };
+  }
+
+  private async listSessionsHttp(): Promise<{ sessions: InteractiveSession[] } | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/sessions`, {
+        headers: this.authHeaders(),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as { sessions: InteractiveSession[] };
+    } catch {
+      return null;
+    }
+  }
+
+  private async setSessionAutonomyModeHttp(
+    id: string,
+    mode: AutonomyMode,
+  ): Promise<SessionsSetAutonomyModeResult> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/sessions/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...this.authHeaders() },
+        body: JSON.stringify({ autonomy_mode: mode }),
+      });
+      if (res.status === 404) return { ok: false, reason: "not_found" };
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      const body = (await res.json()) as {
+        autonomy_mode: AutonomyMode;
+        source?: "daemon" | "serve";
+        serveOwned?: boolean;
+      };
+      return {
+        ok: true,
+        autonomyMode: body.autonomy_mode,
+        source: body.source ?? "daemon",
+        serveOwned: body.serveOwned === true,
+      };
+    } catch (err) {
+      if (err instanceof Error && /HTTP/.test(err.message)) throw err;
+      return { ok: false, reason: "daemon_required" };
+    }
+  }
+
+  private async listModulesHttp(): Promise<{ modules: ModuleListEntry[] } | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/modules`, {
+        headers: this.authHeaders(),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as { modules: ModuleListEntry[] };
+    } catch {
+      return null;
+    }
   }
 
   private async listKnowledgeHttp(

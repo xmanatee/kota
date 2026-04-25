@@ -5,6 +5,8 @@ import { resolveProjectDir } from "#core/config/project-dir.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
+import type { ModulesClient } from "#core/server/kota-client.js";
+import { jsonResponse } from "#core/server/session-pool.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
 import {
@@ -18,7 +20,7 @@ import {
   stack,
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
-import { handleListModules } from "./routes.js";
+import { buildModuleListEntries, handleListModules } from "./routes.js";
 import { generateModuleScaffold, generatePythonScaffold } from "./scaffolds.js";
 
 function healthRole(status: string): "success" | "warn" | "error" | "muted" {
@@ -272,6 +274,26 @@ const moduleManagerModule: KotaModule = {
   routes: (ctx) => [
     { method: "GET", path: "/api/modules", handler: (_req, res) => handleListModules(res, ctx.getModuleSummaries()) },
   ],
+
+  controlRoutes: (ctx) => [
+    {
+      method: "GET",
+      path: "/modules",
+      capabilityScope: "read",
+      handler: (_req, res) => {
+        jsonResponse(res, 200, { modules: buildModuleListEntries(ctx.getModuleSummaries()) });
+      },
+    },
+  ],
+
+  localClient: (ctx) => {
+    const handler: ModulesClient = {
+      async list() {
+        return { modules: buildModuleListEntries(ctx.getModuleSummaries()) };
+      },
+    };
+    return { modules: handler };
+  },
 };
 
 export default moduleManagerModule;

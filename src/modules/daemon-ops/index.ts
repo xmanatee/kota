@@ -8,6 +8,7 @@ import { Daemon, RESTART_EXIT_CODE } from "#core/daemon/daemon.js";
 import type { DaemonControlAddress, DaemonLiveStatus } from "#core/daemon/daemon-control.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
+import type { SessionsClient } from "#core/server/kota-client.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { LogFormat } from "#core/util/log-format.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
@@ -565,6 +566,26 @@ const daemonModule: KotaModule = {
 
     cmd.addCommand(buildQrCommand());
     return [cmd, buildEventsCommand(), buildSessionCommand(), buildStatusCommand()];
+  },
+
+  /**
+   * Local-side `sessions` namespace.
+   *
+   * No daemon is reachable in this branch (the selector chose
+   * LocalKotaClient), so there are no live interactive sessions to enumerate.
+   * Mutations surface `daemon_required` to mirror other contract namespaces
+   * that depend on the running daemon for authoritative state.
+   */
+  localClient: () => {
+    const handler: SessionsClient = {
+      async list() {
+        return { sessions: [] };
+      },
+      async setAutonomyMode() {
+        return { ok: false, reason: "daemon_required" };
+      },
+    };
+    return { sessions: handler };
   },
 };
 

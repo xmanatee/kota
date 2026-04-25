@@ -22,6 +22,7 @@
  */
 import type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
 import type {
+  InteractiveSession,
   WorkflowDefinitionSummary,
   WorkflowLiveStatus,
   WorkflowRunDetail,
@@ -37,6 +38,7 @@ import type {
   KnowledgeEntry,
   ReindexResult,
 } from "#core/modules/provider-types.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 
 /** A masked entry in the secret store (name and source only — never the value). */
 export type SecretListEntry = {
@@ -650,6 +652,80 @@ export interface KnowledgeClient {
   reindex(): Promise<KnowledgeReindexResult>;
 }
 
+export type SessionsListResult = {
+  sessions: InteractiveSession[];
+};
+
+/**
+ * Result of `sessions.setAutonomyMode`. `serveOwned` indicates the session is
+ * registered through `kota serve` rather than owned by the daemon directly;
+ * the daemon updates its advisory metadata and returns success, but the
+ * authoritative change must reach the owning serve process.
+ */
+export type SessionsSetAutonomyModeResult =
+  | { ok: true; autonomyMode: AutonomyMode; source: "daemon" | "serve"; serveOwned: boolean }
+  | { ok: false; reason: "not_found" }
+  | { ok: false; reason: "daemon_required" };
+
+/**
+ * Loaded-module summary surfaced by `modules.list`.
+ *
+ * The shape mirrors `ModuleSummary` but is intentionally narrower: only fields
+ * an operator browsing the runtime needs to make sense of what is loaded and
+ * what each module contributes. Fuller introspection (per-tool listing,
+ * full skill bodies) stays on the module-manager CLI/route surface.
+ */
+export type ModuleListEntry = {
+  name: string;
+  source: "project" | "installed" | "foreign";
+  status: "loaded" | "failed";
+  version?: string;
+  description?: string;
+  toolCount: number;
+  workflowCount: number;
+  commandCount: number;
+  channelCount: number;
+  skillCount: number;
+  agentCount: number;
+  loadError?: string;
+};
+
+export type ModulesListResult = {
+  modules: ModuleListEntry[];
+};
+
+/**
+ * Interactive-session operations.
+ *
+ * `list` enumerates sessions registered with the daemon — both `kota serve`
+ * registrations and daemon-owned chat sessions. `setAutonomyMode` mutates a
+ * session's supervision posture; daemon-owned sessions update in-place and
+ * serve-registered sessions get advisory metadata updated with `serveOwned:
+ * true` so the caller knows the authoritative change must reach the owning
+ * serve process.
+ *
+ * Local mode (no daemon reachable) returns an empty session list and
+ * surfaces `daemon_required` from `setAutonomyMode` — interactive sessions
+ * only exist while a runtime host is alive.
+ */
+export interface SessionsClient {
+  list(): Promise<SessionsListResult>;
+  setAutonomyMode(id: string, mode: AutonomyMode): Promise<SessionsSetAutonomyModeResult>;
+}
+
+/**
+ * Loaded-module operations.
+ *
+ * `list` returns the runtime view of loaded modules. Daemon mode reports
+ * the modules loaded by the daemon process; local mode reports the modules
+ * loaded by the CLI process (the same view `kota module list` already
+ * exposes). `failed` entries carry the load error so the navigator can
+ * show why a module is not available without falling back to log scraping.
+ */
+export interface ModulesClient {
+  list(): Promise<ModulesListResult>;
+}
+
 /**
  * The single typed surface CLI code imports for daemon-or-local access.
  *
@@ -667,6 +743,8 @@ export interface KotaClient {
   readonly ownerQuestions: OwnerQuestionsClient;
   readonly history: HistoryClient;
   readonly knowledge: KnowledgeClient;
+  readonly sessions: SessionsClient;
+  readonly modules: ModulesClient;
 }
 
 /**
@@ -683,6 +761,8 @@ export const KOTA_CLIENT_NAMESPACES = [
   "ownerQuestions",
   "history",
   "knowledge",
+  "sessions",
+  "modules",
 ] as const satisfies ReadonlyArray<keyof KotaClient>;
 
 export type KotaClientNamespace = (typeof KOTA_CLIENT_NAMESPACES)[number];

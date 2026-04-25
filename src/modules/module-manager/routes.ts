@@ -1,5 +1,6 @@
 import type { ServerResponse } from "node:http";
 import type { ModuleHealth, ModuleSummary } from "#core/modules/module-types.js";
+import type { ModuleListEntry } from "#core/server/kota-client.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 
 export type ModuleStatusEntry = {
@@ -54,4 +55,48 @@ export function handleListModules(
     };
   });
   jsonResponse(res, 200, { modules } satisfies ModulesResponse);
+}
+
+/**
+ * Build the contract-shaped `ModuleListEntry[]` from raw module summaries.
+ * Used by both the daemon-control `/modules` route and the local `modules`
+ * KotaClient handler so the navigator sees the same shape regardless of which
+ * implementor served the call.
+ */
+export function buildModuleListEntries(
+  summaries: ModuleSummary[],
+): ModuleListEntry[] {
+  return summaries.map((s) => {
+    if (s.loadError !== undefined) {
+      const entry: ModuleListEntry = {
+        name: s.name,
+        source: s.source,
+        status: "failed",
+        toolCount: 0,
+        workflowCount: 0,
+        commandCount: 0,
+        channelCount: 0,
+        skillCount: 0,
+        agentCount: 0,
+        loadError: s.loadError,
+      };
+      if (s.version !== undefined) entry.version = s.version;
+      if (s.description !== undefined) entry.description = s.description;
+      return entry;
+    }
+    const entry: ModuleListEntry = {
+      name: s.name,
+      source: s.source,
+      status: "loaded",
+      toolCount: s.toolNames.length,
+      workflowCount: s.workflowNames.length,
+      commandCount: s.commandNames.length,
+      channelCount: s.channelNames.length,
+      skillCount: s.skillNames.length,
+      agentCount: s.agentNames.length,
+    };
+    if (s.version !== undefined) entry.version = s.version;
+    if (s.description !== undefined) entry.description = s.description;
+    return entry;
+  });
 }
