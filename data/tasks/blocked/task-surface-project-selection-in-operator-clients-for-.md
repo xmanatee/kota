@@ -179,3 +179,5 @@ if operator demand for simultaneous views is unclear.
 - **(c) Web client selector.** Project-scoped routes and SSE subscription
   scoping in the web dashboard. Native macOS and mobile parity follows as
   their own tasks.
+
+<!-- blocked-promoter-asked: slot=multi-project-runtime-shape last_asked_at=2026-04-25T04:16:28.494Z -->
