@@ -318,6 +318,7 @@ const daemonModule: KotaModule = {
           workflows: ctx.getContributedWorkflows(),
           channels: ctx.getContributedChannels(),
           controlRoutes: ctx.getContributedControlRoutes(),
+          routes: ctx.getRoutes(),
           logFormat,
           resolveAgentDef: (name) => ctx.resolveAgentDef(name),
           resolveSkillsPrompt: (names, agentName) => ctx.resolveSkillsPrompt(names, agentName),

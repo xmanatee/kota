@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import type { ControlRouteRegistration } from "#core/modules/module-types.js";
+import type { ControlRouteRegistration, RouteRegistration } from "#core/modules/module-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import {
@@ -148,6 +148,16 @@ export type DaemonControlServerOptions = {
    * with a built-in route or with another contribution throw at startup.
    */
   controlRoutes?: readonly ControlRouteRegistration[];
+  /**
+   * Module-contributed HTTP routes (the same `KotaModule.routes` list that
+   * `kota serve` consumes). The daemon's control server registers them as a
+   * fallthrough after built-in routes and contributed control routes do not
+   * match, so a running daemon serves the same `/api/*` surface those modules
+   * publish to `kota serve`. Bearer-token auth applies unless the route opts
+   * out via `bypassAuth`. Path collisions with a built-in or contributed
+   * control route throw at startup.
+   */
+  routes?: readonly RouteRegistration[];
 };
 
 export class DaemonControlServer {
@@ -165,6 +175,7 @@ export class DaemonControlServer {
   private readonly routeScopes: Record<string, CapabilityScope>;
   private readonly contributedHandlers: Map<string, ControlRouteRegistration["handler"]>;
   private readonly bypassAuthRoutes: Set<string>;
+  private readonly moduleRoutes: readonly RouteRegistration[];
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -207,9 +218,27 @@ export class DaemonControlServer {
       contributedHandlers.set(key, route.handler);
       if (route.bypassAuth) bypassAuthRoutes.add(key);
     }
+    const moduleRoutes = options?.routes ?? [];
+    for (const route of moduleRoutes) {
+      // Only flag a collision when a module route's exact path matches an
+      // already-registered control route. `routes()` with `pathPattern` use
+      // a base prefix that intentionally overlaps (e.g. `/api/tasks/`) with
+      // their own siblings, so the prefix string itself is not a useful
+      // collision key — the regex is the matcher.
+      if (!route.pathPattern) {
+        const key = `${route.method} ${route.path}`;
+        if (key in routeScopes) {
+          throw new Error(
+            `DaemonControlServer: module route "${key}" collides with an existing ` +
+              `daemon-control route (built-in or contributed)`,
+          );
+        }
+      }
+    }
     this.routeScopes = routeScopes;
     this.contributedHandlers = contributedHandlers;
     this.bypassAuthRoutes = bypassAuthRoutes;
+    this.moduleRoutes = moduleRoutes;
   }
 
   start(): Promise<number> {
@@ -265,6 +294,18 @@ export class DaemonControlServer {
     return header === `Bearer ${this.token}`;
   }
 
+  private findModuleRoute(method: string, path: string): RouteRegistration | null {
+    for (const route of this.moduleRoutes) {
+      if (route.method !== method) continue;
+      if (route.pathPattern) {
+        if (route.pathPattern.test(path)) return route;
+      } else if (route.path === path) {
+        return route;
+      }
+    }
+    return null;
+  }
+
   private broadcast(event: DaemonSseEvent): void {
     const chunk = `event: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`;
     for (const res of this.sseClients) {
@@ -298,6 +339,17 @@ export class DaemonControlServer {
 
     const match = matchRouteKey(this.routeScopes, method, path);
     if (!match) {
+      const moduleRoute = this.findModuleRoute(method, path);
+      if (moduleRoute) {
+        if (!moduleRoute.bypassAuth && !this.isAuthorized(req)) {
+          jsonResponse(res, 401, { error: "Unauthorized" });
+          return;
+        }
+        Promise.resolve(moduleRoute.handler(req, res)).catch((err: Error) => {
+          if (!res.headersSent) jsonResponse(res, 500, { error: err.message });
+        });
+        return;
+      }
       jsonResponse(res, 404, { error: "Not found" });
       return;
     }

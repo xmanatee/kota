@@ -9,7 +9,7 @@ import { type EventBus, initEventBus } from "#core/events/event-bus.js";
 import { AgentSession } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
 import { initModuleLogStore } from "#core/modules/module-log.js";
-import type { ControlRouteRegistration } from "#core/modules/module-types.js";
+import type { ControlRouteRegistration, RouteRegistration } from "#core/modules/module-types.js";
 import { getHistoryProvider, getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
@@ -60,6 +60,14 @@ export type DaemonConfig = {
    * at server construction.
    */
   controlRoutes?: readonly ControlRouteRegistration[];
+  /**
+   * Module HTTP routes (`KotaModule.routes`). Registered on the daemon's
+   * control server as a fallthrough after built-in and control routes do
+   * not match, so a running daemon serves the same `/api/*` surface those
+   * modules publish to `kota serve`. Bearer-token auth still applies unless
+   * a route declares `bypassAuth: true`.
+   */
+  routes?: readonly RouteRegistration[];
   /** How long a session may be idle before it is swept. Default: 5 minutes. */
   sessionIdleTtlMs?: number;
   /** How often to run the session sweep. Default: 1 minute. */
@@ -228,6 +236,7 @@ export class Daemon {
         chatBindings,
         conversationResolver,
         controlRoutes: config.controlRoutes,
+        routes: config.routes,
       },
     );
   }

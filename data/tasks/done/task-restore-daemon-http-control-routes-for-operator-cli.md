@@ -1,12 +1,12 @@
 ---
 id: task-restore-daemon-http-control-routes-for-operator-cli
 title: Restore daemon HTTP control routes so operator CLI works against a running daemon
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: A running KOTA daemon currently serves 404 for every /api/* control route, breaking every CLI subcommand migrated to KotaClient whenever the daemon is up; restore the registered routes and add an integration test that fails if a healthy daemon does not serve its module-contributed control routes.
 created_at: 2026-04-25T22:55:30.000Z
-updated_at: 2026-04-25T22:55:30.000Z
+updated_at: 2026-04-26T00:05:00.000Z
 ---
 
 ## Problem
