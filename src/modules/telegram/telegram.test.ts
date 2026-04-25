@@ -41,6 +41,7 @@ function makeStubCtx(bus?: EventBus): ModuleContext {
     events: {
       emit: (event, payload) => b.emit(event, payload as never),
       subscribe: (event, handler) => b.on(event, handler as never),
+      listenerCount: (event?: string) => b.listenerCount(event),
     },
     createSession: () => ({ send: async () => "", close: () => {} }),
     registerProvider: () => {},

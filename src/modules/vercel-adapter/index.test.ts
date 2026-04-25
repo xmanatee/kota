@@ -22,7 +22,7 @@ function makeContext(config: KotaConfig = { model: "test-model" } as KotaConfig)
     log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
     getSecret: () => null,
     listTools: () => [],
-    events: { emit: () => {}, subscribe: () => () => {} },
+    events: { emit: () => {}, subscribe: () => () => {}, listenerCount: () => 0 },
     createSession: () => ({ send: async () => "", close: () => {} }),
     registerProvider: () => {},
     getProvider: () => null,

@@ -314,6 +314,7 @@ describe("Telegram personal-assistant daemon integration", () => {
       events: {
         emit: (event, payload) => bus.emit(event as never, payload as never),
         subscribe: (event, handler) => bus.on(event, handler as never),
+        listenerCount: (event?: string) => bus.listenerCount(event),
       },
       createSession: () => ({ send: async () => "", close: () => {} }),
       registerProvider: () => {},

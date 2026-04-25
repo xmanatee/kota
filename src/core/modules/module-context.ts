@@ -66,6 +66,9 @@ function createEventProxy(
       if (!bus) return () => {};
       return bus.on(event, handler as never);
     },
+    listenerCount: (event?: string): number => {
+      return getBus()?.listenerCount(event) ?? 0;
+    },
   };
 }
 

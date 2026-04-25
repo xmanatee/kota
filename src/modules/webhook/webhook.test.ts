@@ -27,6 +27,7 @@ function makeStubCtx(bus?: EventBus, webhookConfig?: unknown): ModuleContext {
     events: {
       emit: (event, payload) => b.emit(event, payload as never),
       subscribe: (event, handler) => b.on(event, handler as never),
+      listenerCount: (event?: string) => b.listenerCount(event),
     },
     createSession: () => ({ send: async () => "", close: () => {} }),
     registerProvider: () => {},
@@ -51,11 +52,11 @@ describe("webhookModule", () => {
     expect(webhookModule.description).toBeTruthy();
   });
 
-  it("has no tools, routes, channels, or workflows", () => {
+  it("contributes the inbound event-trigger route and no other capabilities", () => {
     expect(webhookModule.tools).toBeUndefined();
-    expect(webhookModule.routes).toBeUndefined();
     expect(webhookModule.channels).toBeUndefined();
     expect(webhookModule.workflows).toBeUndefined();
+    expect(typeof webhookModule.routes).toBe("function");
   });
 });
 

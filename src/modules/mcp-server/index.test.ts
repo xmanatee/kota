@@ -58,6 +58,7 @@ function makeStubCtx(): ModuleContext {
 		events: {
 			emit: (event, payload) => bus.emit(event, payload as never),
 			subscribe: (event, handler) => bus.on(event, handler as never),
+			listenerCount: (event?: string) => bus.listenerCount(event),
 		},
 		createSession: vi.fn(() => ({ send: vi.fn(async () => ""), close: vi.fn() })),
 		registerProvider: () => {},

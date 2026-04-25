@@ -39,6 +39,7 @@ function makeContext(moduleConfig?: WhisperModuleConfig): ModuleContext {
     events: {
       emit: () => {},
       subscribe: () => () => {},
+      listenerCount: () => 0,
     },
     createSession: () => {
       throw new Error("unused");

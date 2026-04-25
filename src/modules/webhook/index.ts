@@ -1,15 +1,21 @@
 /**
- * Webhook module — routes notification events to configured HTTP endpoints,
- * and provides CLI commands for managing inbound webhook secrets.
+ * Webhook module — owns the generic inbound HTTP→bus event-trigger
+ * surface and the outbound webhook notification channel.
  *
- * Subscribes to the same bus events as the Telegram module and POSTs a JSON
- * payload to each configured URL. No channels, tools, or workflows.
+ * Inbound: contributes `POST /api/events/:name`, the bearer-token-protected
+ * surface external systems (CI, ad-hoc curl, non-GitHub webhooks) use to
+ * fire a typed bus event by name. The route reaches the bus through
+ * `ctx.events`, not by importing the core event bus directly.
+ *
+ * Outbound: subscribes to the same bus events as the Telegram module and
+ * POSTs a JSON payload to each configured URL.
  *
  * Config (kota.config under the "webhook" key):
  *   { urls: string[], events?: string[], retries?: number, retryDelayMs?: number }
  *
  * If `events` is omitted, all notification events are active.
- * If `urls` is empty or the module is not configured, the module is a no-op.
+ * If `urls` is empty or the module is not configured, outbound delivery is
+ * a no-op. The inbound `/api/events/:name` route is registered regardless.
  * `retries` defaults to 3; `retryDelayMs` defaults to 1000.
  */
 
@@ -18,6 +24,7 @@ import type { BusEvents } from "#core/events/event-bus.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { postWithRetry } from "#modules/notification/index.js";
 import { registerWebhookCommands } from "./cli.js";
+import { eventTriggerRoutes } from "./event-trigger-routes.js";
 
 const NOTIFICATION_EVENTS = [
   "workflow.failure.alert",
@@ -41,7 +48,8 @@ let unsubs: (() => void)[] = [];
 const webhookModule: KotaModule = {
   name: "webhook",
   version: "1.0.0",
-  description: "HTTP webhook notification channel for KOTA workflow events",
+  description:
+    "Inbound HTTP→bus event-trigger route (POST /api/events/:name) and outbound HTTP webhook notification channel",
   dependencies: ["notification", "rendering"],
   configKeys: [{ key: "webhooks", description: "Per-workflow webhook secrets for signature verification" }],
 
@@ -92,6 +100,8 @@ const webhookModule: KotaModule = {
     registerWebhookCommands(root);
     return [root];
   },
+
+  routes: (ctx) => eventTriggerRoutes(ctx),
 };
 
 export default webhookModule;

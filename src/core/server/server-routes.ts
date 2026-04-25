@@ -7,7 +7,6 @@ import type { RouteRegistration } from "#core/modules/module-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { DaemonControlClient } from "./daemon-client.js";
 import { queryDaemonStatus } from "./daemon-routes.js";
-import { handleEventTrigger } from "./event-routes.js";
 import { jsonResponse, type SessionPool, setCors } from "./session-pool.js";
 import {
   handleChat,
@@ -112,21 +111,6 @@ export function buildRequestHandler(ctx: ServerContext) {
     const patchSessionMatch = path.match(/^\/api\/sessions\/([^/]+)$/);
     if (req.method === "PATCH" && patchSessionMatch) {
       handlePatchSession(req, res, ctx.pool, patchSessionMatch[1]).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
-      return;
-    }
-
-    const eventMatch = path.match(/^\/api\/events\/([^/]+)$/);
-    if (req.method === "POST" && eventMatch) {
-      let eventName: string;
-      try {
-        eventName = decodeURIComponent(eventMatch[1]);
-      } catch {
-        jsonResponse(res, 400, { error: "Invalid event name encoding" });
-        return;
-      }
-      handleEventTrigger(req, res, ctx.bus, eventName).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;

@@ -1,12 +1,12 @@
 ---
 id: task-move-post-apieventsname-inbound-webhook-event-trig
 title: Move POST /api/events/:name inbound webhook event-trigger route out of core into the webhook module
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Extract the generic inbound HTTP→bus event-trigger route from core/server into the webhook module (or a sibling), continuing the core-shrinking initiative.
 created_at: 2026-04-25T10:41:59.792Z
-updated_at: 2026-04-25T10:41:59.792Z
+updated_at: 2026-04-25T11:00:47.886Z
 ---
 
 ## Problem

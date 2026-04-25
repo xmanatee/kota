@@ -56,6 +56,7 @@ function makeStubCtx(
     events: {
       emit: (event, payload) => b.emit(event, payload as never),
       subscribe: (event, handler) => b.on(event, handler as never),
+      listenerCount: (event?: string) => b.listenerCount(event),
     },
     createSession: vi.fn(() => ({
       send: vi.fn(async () => "agent response text"),

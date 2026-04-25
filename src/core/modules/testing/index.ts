@@ -209,6 +209,14 @@ export class ModuleTestHarness {
             }
           };
         },
+        listenerCount: (event?: string) => {
+          if (event === undefined) {
+            let total = 0;
+            for (const handlers of this.#eventHandlers.values()) total += handlers.length;
+            return total;
+          }
+          return this.#eventHandlers.get(event)?.length ?? 0;
+        },
       },
       createSession: () => {
         throw new Error("createSession is not supported in ModuleTestHarness");

@@ -145,7 +145,6 @@ export function startServer(options: ServerOptions): Server {
     console.log("  POST /api/sessions       — Create a new session");
     console.log("  GET  /api/sessions       — List active sessions");
     console.log("  DELETE /api/sessions/:id — Close a session");
-    console.log("  POST /api/events/:name   — Fire a custom event (webhook trigger)");
     console.log("  GET  /api/daemon/status  — Daemon health and server status");
     console.log("  GET  /api/health         — Health check");
   });
