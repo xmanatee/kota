@@ -1,10 +1,15 @@
 /**
- * Voice CLI — thin daemon client for STT and TTS.
+ * Voice CLI — thin client of `ctx.client.voice`.
  *
- * Commands run against the daemon control API via `DaemonControlClient`.
- * No per-client audio pipeline: the CLI only reads input bytes and plays
- * output bytes through a platform-detected player, keeping provider and
- * credential handling daemon-side.
+ * Commands route through the unified `KotaClient` namespace, which selects
+ * the daemon-side or local handler at startup. Voice work always lives
+ * daemon-side (the providers and their credentials register in module
+ * onLoad, skipped in CLI commandsOnly mode), so the local handler returns
+ * `daemon_required` and the CLI maps that to a single clear hint.
+ *
+ * The CLI itself only reads input bytes and plays output bytes through a
+ * platform-detected player; provider and credential handling stay
+ * daemon-side regardless of which transport answered.
  */
 
 import { spawn, spawnSync } from "node:child_process";
@@ -12,7 +17,11 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, extname, join } from "node:path";
 import { Command } from "commander";
-import { DaemonControlClient } from "#core/server/daemon-client.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
+import type {
+  VoiceSynthesizeResult,
+  VoiceTranscribeResult,
+} from "#core/server/kota-client.js";
 
 const EXT_TO_MIME: Record<string, string> = {
   ".mp3": "audio/mpeg",
@@ -32,16 +41,7 @@ function mimeFromFilename(path: string): string | null {
   return EXT_TO_MIME[ext] ?? null;
 }
 
-function connectDaemon(): DaemonControlClient {
-  const client = DaemonControlClient.fromStateDir();
-  if (!client) {
-    console.error("Daemon is not running. Start it with `kota daemon`.");
-    process.exit(1);
-  }
-  return client;
-}
-
-export function buildVoiceCommand(): Command {
+export function buildVoiceCommand(ctx: ModuleContext): Command {
   const cmd = new Command("voice").description(
     "Talk to the daemon's voice surface (STT input, TTS output)",
   );
@@ -64,14 +64,14 @@ export function buildVoiceCommand(): Command {
         );
         process.exit(1);
       }
-      const result = await connectDaemon().voiceTranscribe({
+      const result = await ctx.client.voice.transcribe({
         audio: new Uint8Array(bytes),
         mimeType,
         filename: basename(file),
         ...(opts.language !== undefined && { languageHint: opts.language }),
       });
       if (!result.ok) {
-        reportFailure(result, "transcription");
+        reportTranscribeFailure(result);
         return;
       }
       if (opts.json) {
@@ -96,14 +96,14 @@ export function buildVoiceCommand(): Command {
       text: string,
       opts: { voice?: string; language?: string; format?: string; output?: string; play: boolean },
     ) => {
-      const result = await connectDaemon().voiceSynthesize({
+      const result = await ctx.client.voice.synthesize({
         text,
         ...(opts.voice !== undefined && { voice: opts.voice }),
         ...(opts.language !== undefined && { languageHint: opts.language }),
         ...(opts.format !== undefined && { format: opts.format }),
       });
       if (!result.ok) {
-        reportFailure(result, "synthesis");
+        reportSynthesizeFailure(result);
         return;
       }
       if (opts.output) {
@@ -125,13 +125,29 @@ export function buildVoiceCommand(): Command {
   return cmd;
 }
 
+function reportTranscribeFailure(
+  result: Extract<VoiceTranscribeResult, { ok: false }>,
+): void {
+  reportFailure(result, "transcription");
+}
+
+function reportSynthesizeFailure(
+  result: Extract<VoiceSynthesizeResult, { ok: false }>,
+): void {
+  reportFailure(result, "synthesis");
+}
+
 function reportFailure(
-  result: { status: number; error: string; code?: string },
+  result: Extract<VoiceTranscribeResult | VoiceSynthesizeResult, { ok: false }>,
   kind: string,
 ): void {
+  if (result.reason === "daemon_required") {
+    console.error("Daemon is not running. Start it with `kota daemon`.");
+    process.exit(1);
+  }
   const code = result.code ? ` [${result.code}]` : "";
   console.error(
-    `Voice ${kind} failed (HTTP ${result.status}${code}): ${result.error || "unknown error"}`,
+    `Voice ${kind} failed (HTTP ${result.status}${code}): ${result.message || "unknown error"}`,
   );
   process.exit(1);
 }

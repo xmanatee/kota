@@ -125,6 +125,21 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       list: stub({ scenarios: [] }),
       run: stub({ ok: false, reason: "no_scenarios", message: "stub" }),
     },
+    webhook: {
+      list: stub({ entries: [] }),
+      secretGenerate: stub({ workflow: "stub", secret: "stub", overwrote: false }),
+      secretRemove: stub({ ok: true, workflow: "stub", removed: false }),
+    },
+    voice: {
+      transcribe: stub({ ok: false, reason: "daemon_required" }),
+      synthesize: stub({ ok: false, reason: "daemon_required" }),
+    },
+    web: {
+      start: stub({ ok: false, reason: "daemon_required" }),
+    },
+    mcpServer: {
+      start: stub({ ok: false, reason: "daemon_required" }),
+    },
   };
   return { ...base, ...overrides };
 }

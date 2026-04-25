@@ -11,6 +11,7 @@
 import type { KotaModule } from "#core/modules/module-types.js";
 import { buildVoiceCommand } from "./cli.js";
 import { voiceControlRoutes, voiceRoutes } from "./routes.js";
+import { localVoiceClient } from "./voice-operations.js";
 
 export {
   getSpeechSynthesisProvider,
@@ -37,9 +38,10 @@ const voiceModule: KotaModule = {
   version: "1.0.0",
   description: "Voice I/O boundary: STT input and TTS output for every KOTA client",
   dependencies: ["transcription"],
-  commands: () => [buildVoiceCommand()],
+  commands: (ctx) => [buildVoiceCommand(ctx)],
   routes: () => voiceRoutes(),
   controlRoutes: () => voiceControlRoutes(),
+  localClient: () => ({ voice: localVoiceClient() }),
 };
 
 export default voiceModule;

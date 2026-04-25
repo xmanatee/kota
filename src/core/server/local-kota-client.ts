@@ -51,6 +51,10 @@ export class LocalKotaClient implements KotaClient {
   readonly agents: KotaClient["agents"];
   readonly skills: KotaClient["skills"];
   readonly harnessParity: KotaClient["harnessParity"];
+  readonly webhook: KotaClient["webhook"];
+  readonly voice: KotaClient["voice"];
+  readonly web: KotaClient["web"];
+  readonly mcpServer: KotaClient["mcpServer"];
 
   constructor(handlers: LocalClientHandlers) {
     this.workflow = handlers.workflow;
@@ -66,5 +70,9 @@ export class LocalKotaClient implements KotaClient {
     this.agents = handlers.agents;
     this.skills = handlers.skills;
     this.harnessParity = handlers.harnessParity;
+    this.webhook = handlers.webhook;
+    this.voice = handlers.voice;
+    this.web = handlers.web;
+    this.mcpServer = handlers.mcpServer;
   }
 }

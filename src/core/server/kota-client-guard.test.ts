@@ -35,6 +35,10 @@ const NAMESPACE_OWNERS: Record<(typeof KOTA_CLIENT_NAMESPACES)[number], string> 
   agents: "agent-ops",
   skills: "skill-ops",
   harnessParity: "harness-parity",
+  webhook: "webhook",
+  voice: "voice",
+  web: "web",
+  mcpServer: "mcp-server",
 };
 
 function readModuleSource(name: string): string {

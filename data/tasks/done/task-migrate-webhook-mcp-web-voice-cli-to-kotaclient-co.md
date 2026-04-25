@@ -1,12 +1,12 @@
 ---
 id: task-migrate-webhook-mcp-web-voice-cli-to-kotaclient-co
 title: Migrate webhook, mcp-server, web, and voice CLIs to KotaClient
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Migrate the webhook, mcp-server, web, and voice CLI subcommands to ctx.client.<namespace>.<method> so external interaction surfaces all consume the KotaClient contract.
 created_at: 2026-04-25T20:31:21.442Z
-updated_at: 2026-04-25T20:31:21.442Z
+updated_at: 2026-04-25T22:49:00.490Z
 ---
 
 ## Problem

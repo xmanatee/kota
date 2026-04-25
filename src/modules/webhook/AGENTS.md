@@ -76,6 +76,12 @@ This directory owns:
 - `kota webhook list`, `kota webhook secret generate`,
   `kota webhook secret remove` manage inbound webhook trigger secrets
   used by the signature-validated `/webhooks/<workflow>` route.
+- These subcommands route through `ctx.client.webhook.<method>()`. The
+  shared logic lives in `webhook-operations.ts` so the daemon-control
+  routes (`GET /webhooks`, `POST /webhooks/:workflow/secret`,
+  `DELETE /webhooks/:workflow/secret`, all under bearer auth) and the
+  local-side `localClient` factory cannot diverge on what gets persisted
+  to `.kota/config.json`.
 
 ## Boundaries
 

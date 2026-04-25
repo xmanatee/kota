@@ -1,20 +1,18 @@
 /**
  * Web module — HTTP API server with SSE streaming and embedded web UI.
  *
- * Extracts the serve CLI command from cli.ts into a KotaModule,
- * continuing the module-first architecture plan. The actual server logic
- * lives in src/server.ts; this module wires it into the CLI as
- * `kota serve`.
+ * Contributes the `web` namespace and its `start` operation. The
+ * `kota serve` CLI is the contract's only consumer today: it routes the
+ * boot request through `ctx.client.web.start(opts)`. The local handler
+ * does the actual server start; the daemon-side handler returns
+ * `daemon_required` because the daemon cannot start a fresh `kota serve`
+ * process in another address space.
  */
 
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
 import { Command } from "commander";
-import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
-import { warnUnknownConfigKeys } from "#core/config/config-warnings.js";
 import type { KotaModule } from "#core/modules/module-types.js";
-import { startServer } from "#core/server/server.js";
-import { setWebUiDir, staticWebUiRoutes } from "./static-routes.js";
+import { staticWebUiRoutes } from "./static-routes.js";
+import { localWebClient } from "./web-operations.js";
 
 function parseIntOption(value: string, name: string): number {
   const n = Number.parseInt(value, 10);
@@ -37,9 +35,13 @@ const webModule: KotaModule = {
       .option("-m, --model <model>", "Model to use")
       .option("-v, --verbose", "Show debug output")
       .option("--no-auth", "Disable bearer token auth (dev/localhost only)")
-      .action((opts) => {
+      .action(async (opts) => {
         const port = parseIntOption(opts.port, "port");
-
+        // Check the API key up front so the failure is reported the same way
+        // regardless of whether the selector picked the local or daemon
+        // transport. The local handler also reports `missing_api_key`, but
+        // routing through the daemon transport would mask it as
+        // `daemon_required`.
         if (!process.env.ANTHROPIC_API_KEY) {
           console.error(
             "Error: ANTHROPIC_API_KEY environment variable is not set.\n",
@@ -52,37 +54,33 @@ const webModule: KotaModule = {
           console.error("     export ANTHROPIC_API_KEY=sk-ant-...\n");
           process.exit(1);
         }
-
-        warnUnknownConfigKeys(process.cwd(), (msg) => console.warn(msg), ctx.getRegisteredConfigKeys());
-
-        const webUiDir = resolve(process.cwd(), "clients/web/dist");
-        const webUiBuilt = existsSync(webUiDir);
-        if (!webUiBuilt) {
-          console.warn("Warning: Web UI not built. Run `pnpm --filter @kota/web build` in the web client directory.");
-        }
-        setWebUiDir(webUiBuilt ? webUiDir : undefined);
-
-        const moduleRoutes = ctx.getRoutes();
-
-        startServer({
+        const result = await ctx.client.web.start({
           port,
-          model: opts.model || ctx.config.model,
-          verbose: opts.verbose || ctx.config.verbose,
-          config: ctx.config,
-          noAuth: opts.auth === false,
-          defaultAutonomyMode: resolveChannelAutonomyMode(
-            undefined,
-            ctx.config,
-            "web server",
-          ),
-          moduleRoutes,
+          ...(opts.model !== undefined && { model: opts.model }),
+          ...(opts.verbose !== undefined && { verbose: opts.verbose }),
+          ...(opts.auth === false && { noAuth: true }),
         });
+        if (result.ok) return;
+        if (result.reason === "missing_api_key") {
+          // Reachable only if the env var was set when the action started but
+          // unset by the time the local handler ran — keep the same hint.
+          console.error("Error: ANTHROPIC_API_KEY environment variable is not set.");
+          process.exit(1);
+        }
+        // daemon_required: a daemon is already running. Two web servers in the
+        // same project would conflict on autonomy state and likely on the port,
+        // so the contract refuses uniformly and points the operator at the fix.
+        console.error(
+          "Cannot start `kota serve` while a daemon is running. Stop the daemon first (`kota daemon stop`) or run `kota serve` against a separate project directory.",
+        );
+        process.exit(1);
       });
 
     return [cmd];
   },
 
   routes: () => staticWebUiRoutes(),
+  localClient: (ctx) => ({ web: localWebClient(ctx) }),
 };
 
 export default webModule;

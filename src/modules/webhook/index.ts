@@ -23,10 +23,17 @@ import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import type { BusEvents } from "#core/events/event-bus.js";
 import type { KotaModule } from "#core/modules/module-types.js";
+import type { WebhookClient } from "#core/server/kota-client.js";
 import { postWithRetry } from "#modules/notification/index.js";
 import { registerWebhookCommands } from "./cli.js";
 import { eventTriggerRoutes } from "./event-trigger-routes.js";
+import { webhookSecretControlRoutes } from "./secret-routes.js";
 import { webhookTriggerControlRoutes } from "./trigger-route.js";
+import {
+  generateWebhookSecret,
+  listWebhooks,
+  removeWebhookSecret,
+} from "./webhook-operations.js";
 
 const NOTIFICATION_EVENTS = [
   "workflow.failure.alert",
@@ -95,16 +102,33 @@ const webhookModule: KotaModule = {
     unsubs = [];
   },
 
-  commands: () => {
+  commands: (ctx) => {
     const root = new Command("webhook").description(
       "Manage inbound webhook secrets for workflow triggers",
     );
-    registerWebhookCommands(root);
+    registerWebhookCommands(root, ctx);
     return [root];
   },
 
   routes: (ctx) => eventTriggerRoutes(ctx),
-  controlRoutes: (ctx) => webhookTriggerControlRoutes(() => loadConfig(ctx.cwd)),
+  controlRoutes: (ctx) => [
+    ...webhookTriggerControlRoutes(() => loadConfig(ctx.cwd)),
+    ...webhookSecretControlRoutes(ctx),
+  ],
+  localClient: (ctx) => {
+    const webhook: WebhookClient = {
+      async list() {
+        return listWebhooks(ctx);
+      },
+      async secretGenerate(workflow) {
+        return generateWebhookSecret(ctx, workflow);
+      },
+      async secretRemove(workflow) {
+        return removeWebhookSecret(ctx, workflow);
+      },
+    };
+    return { webhook };
+  },
 };
 
 export default webhookModule;

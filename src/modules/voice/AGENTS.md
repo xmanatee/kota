@@ -34,8 +34,12 @@ control API, not through a per-client audio pipeline.
   `POST /api/voice/synthesize`): the mirror surface for web / macOS /
   mobile clients that target the HTTP API server rather than daemon-control.
 - **CLI** (`kota voice transcribe <file>`, `kota voice speak <text>`):
-  thin daemon client; no local audio stack beyond reading input bytes and
-  spawning a platform-detected player for output.
+  routes through `ctx.client.voice.{transcribe,synthesize}`. The local
+  handler returns `daemon_required` (providers register in module onLoad,
+  which is skipped in CLI commandsOnly mode), so the CLI surfaces a
+  single "Daemon is not running" hint when no daemon is reachable. There
+  is no local audio stack beyond reading input bytes and spawning a
+  platform-detected player for output.
 - **Web client** (`clients/web`): microphone capture via `MediaRecorder`
   posts to `/api/voice/transcribe` and TTS replies stream back through
   `/api/voice/synthesize`; no vendor SDK in the browser.

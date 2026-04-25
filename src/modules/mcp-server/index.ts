@@ -1,15 +1,17 @@
 /**
  * MCP Server module — expose KOTA tools via the Model Context Protocol.
  *
- * Registers:
- * - `kota mcp-server` CLI command (starts stdio MCP server)
- *
- * Any MCP-compatible host (Claude Code, Cursor, VS Code) can connect
- * and use KOTA's tools without a custom integration.
+ * Contributes the `mcpServer` namespace and its `start` operation. The
+ * `kota mcp-server` CLI is the contract's only consumer today: it routes
+ * the boot request through `ctx.client.mcpServer.start(opts)`. The local
+ * handler does the actual stdio-server start; the daemon-side handler
+ * returns `daemon_required` because the daemon cannot start a stdio MCP
+ * server in another process.
  */
 
 import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { localMcpServerClient } from "./mcp-server-operations.js";
 
 const mcpServerModule: KotaModule = {
 	name: "mcp-server",
@@ -18,7 +20,7 @@ const mcpServerModule: KotaModule = {
 	dependencies: ["repo-tasks"],
 	configKeys: [{ key: "mcp", description: "MCP server and sampling configuration" }],
 
-	commands: (_ctx: ModuleContext) => {
+	commands: (ctx: ModuleContext) => {
 		const cmd = new Command("mcp-server")
 			.description("Start an MCP server exposing KOTA tools over stdio")
 			.option(
@@ -27,56 +29,24 @@ const mcpServerModule: KotaModule = {
 			)
 			.option("--name <name>", "Server name reported to MCP clients", "kota")
 			.action(async (opts) => {
-				const { McpServer } = await import("./server.js");
-				const { loadConfig } = await import("#core/config/config.js");
-				const { ModuleLoader } = await import("#core/modules/module-loader.js");
-				const { discoverProjectModules } = await import("#core/modules/project-discovery.js");
-				const { discoverModules } = await import(
-					"#core/modules/module-discovery.js"
-				);
-
-				const config = loadConfig(process.cwd());
-
-				// Load modules to register their tools (commandsOnly=false)
-				const loader = new ModuleLoader(config, false);
-				const projectModules = await discoverProjectModules();
-				const modules = await discoverModules(process.cwd());
-				await loader.loadAll(projectModules, modules);
-
 				const toolFilter = opts.tools
 					? (opts.tools as string).split(",").map((s: string) => s.trim())
 					: undefined;
-
-				const samplingEnabled = config.mcp?.sampling?.enabled === true;
-				let modelClient;
-				if (samplingEnabled) {
-					const { createModelClient } = await import("#core/model/model-client.js");
-					modelClient = createModelClient({ model: config.model || "claude-sonnet-4-6" }).client;
-				}
-
-				const server = new McpServer({
-					toolFilter,
+				const result = await ctx.client.mcpServer.start({
 					name: opts.name,
-					samplingEnabled,
-					modelClient,
-					samplingModel: config.model,
+					...(toolFilter !== undefined && { toolFilter }),
 				});
-
-				// Graceful shutdown
-				process.on("SIGINT", () => {
-					server.stop();
-					process.exit(0);
-				});
-				process.on("SIGTERM", () => {
-					server.stop();
-					process.exit(0);
-				});
-
-				await server.start();
+				if (result.ok) return;
+				console.error(
+					"Cannot start `kota mcp-server` while a daemon is running. Stop the daemon first (`kota daemon stop`) before exposing the stdio MCP surface.",
+				);
+				process.exit(1);
 			});
 
 		return [cmd];
 	},
+
+	localClient: () => ({ mcpServer: localMcpServerClient() }),
 };
 
 export default mcpServerModule;

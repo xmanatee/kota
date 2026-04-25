@@ -48,6 +48,8 @@ import type {
   KnowledgeSearchResult,
   KnowledgeShowResult,
   KotaClient,
+  McpServerClient,
+  McpServerStartResult,
   MemoryAddResult,
   MemoryClient,
   MemoryDeleteResult,
@@ -79,6 +81,17 @@ import type {
   SkillImportResult,
   SkillsClient,
   SkillsListResult,
+  VoiceClient,
+  VoiceSynthesizeOptions,
+  VoiceSynthesizeResult,
+  VoiceTranscribeOptions,
+  VoiceTranscribeResult,
+  WebClient,
+  WebhookClient,
+  WebhookListResult,
+  WebhookSecretGenerateResult,
+  WebhookSecretRemoveResult,
+  WebStartResult,
   WorkflowClient,
   WorkflowTriggerOptions,
 } from "./kota-client.js";
@@ -141,6 +154,10 @@ export class DaemonControlClient implements KotaClient {
   readonly agents: AgentsClient;
   readonly skills: SkillsClient;
   readonly harnessParity: HarnessParityClient;
+  readonly webhook: WebhookClient;
+  readonly voice: VoiceClient;
+  readonly web: WebClient;
+  readonly mcpServer: McpServerClient;
 
   private constructor(
     private readonly baseUrl: string,
@@ -350,6 +367,109 @@ export class DaemonControlClient implements KotaClient {
     this.harnessParity = {
       list: async () => this.listHarnessParityScenariosHttp(),
       run: async (options) => this.runHarnessParityHttp(options),
+    };
+    this.webhook = {
+      list: async () => this.listWebhooksHttp(),
+      secretGenerate: async (workflow) => this.generateWebhookSecretHttp(workflow),
+      secretRemove: async (workflow) => this.removeWebhookSecretHttp(workflow),
+    };
+    this.voice = {
+      transcribe: async (options) => this.voiceTranscribeNamespace(options),
+      synthesize: async (options) => this.voiceSynthesizeNamespace(options),
+    };
+    /**
+     * `kota serve` and `kota mcp-server` start a long-running process in the
+     * caller's address space. The daemon cannot start either on the caller's
+     * behalf, so the namespace surfaces `daemon_required` uniformly when the
+     * selector picked the daemon transport. The CLI maps that to a clear
+     * "stop the daemon first" hint instead of inventing a second exception
+     * path through the namespace contract.
+     */
+    this.web = {
+      start: async (_options): Promise<WebStartResult> => ({ ok: false, reason: "daemon_required" }),
+    };
+    this.mcpServer = {
+      start: async (_options): Promise<McpServerStartResult> => ({ ok: false, reason: "daemon_required" }),
+    };
+  }
+
+  private async listWebhooksHttp(): Promise<WebhookListResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/webhooks`, {
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as WebhookListResult;
+  }
+
+  private async generateWebhookSecretHttp(
+    workflow: string,
+  ): Promise<WebhookSecretGenerateResult> {
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/webhooks/${encodeURIComponent(workflow)}/secret`,
+      { method: "POST", headers: this.authHeaders() },
+    );
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as WebhookSecretGenerateResult;
+  }
+
+  private async removeWebhookSecretHttp(
+    workflow: string,
+  ): Promise<WebhookSecretRemoveResult> {
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/webhooks/${encodeURIComponent(workflow)}/secret`,
+      { method: "DELETE", headers: this.authHeaders() },
+    );
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as WebhookSecretRemoveResult;
+  }
+
+  private async voiceTranscribeNamespace(
+    options: VoiceTranscribeOptions,
+  ): Promise<VoiceTranscribeResult> {
+    const result = await this.voiceTranscribe(options);
+    if (result.ok) {
+      return {
+        ok: true,
+        text: result.text,
+        ...(result.language !== undefined && { language: result.language }),
+      };
+    }
+    return {
+      ok: false,
+      reason: "transport_error",
+      status: result.status,
+      message: result.error,
+      ...(result.code !== undefined && { code: result.code }),
+    };
+  }
+
+  private async voiceSynthesizeNamespace(
+    options: VoiceSynthesizeOptions,
+  ): Promise<VoiceSynthesizeResult> {
+    const result = await this.voiceSynthesize(options);
+    if (result.ok) {
+      return {
+        ok: true,
+        audio: result.audio,
+        mimeType: result.mimeType,
+        format: result.format,
+      };
+    }
+    return {
+      ok: false,
+      reason: "transport_error",
+      status: result.status,
+      message: result.error,
+      ...(result.code !== undefined && { code: result.code }),
     };
   }
 

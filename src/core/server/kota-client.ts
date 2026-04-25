@@ -822,6 +822,167 @@ export interface SkillsClient {
   import(source: string, options?: SkillImportOptions): Promise<SkillImportResult>;
 }
 
+/**
+ * A workflow surfaced by `webhook.list` with whether a webhook secret is
+ * configured for it. The list reflects the loaded workflow definition set
+ * filtered to webhook-triggered workflows.
+ */
+export type WebhookListEntry = {
+  workflow: string;
+  hasSecret: boolean;
+};
+
+export type WebhookListResult = {
+  entries: WebhookListEntry[];
+};
+
+/**
+ * Result of `webhook.secretGenerate`. The secret is returned exactly once at
+ * generation time so the caller can echo it to the operator.
+ */
+export type WebhookSecretGenerateResult = {
+  workflow: string;
+  secret: string;
+  /** True when an existing secret was overwritten. */
+  overwrote: boolean;
+};
+
+/**
+ * Result of `webhook.secretRemove`. `removed: false` indicates the workflow
+ * had no secret configured; the operation is a no-op in that case.
+ */
+export type WebhookSecretRemoveResult =
+  | { ok: true; workflow: string; removed: true }
+  | { ok: true; workflow: string; removed: false };
+
+/**
+ * Webhook-secret operations.
+ *
+ * `list` enumerates workflows with webhook triggers and whether a secret is
+ * configured for each. `secretGenerate` writes a new HMAC secret into
+ * `.kota/config.json` for the given workflow and returns the secret once.
+ * `secretRemove` clears the secret. All three operations work daemon-up and
+ * daemon-down — the daemon-side persists through the same updateProjectConfig
+ * helper the local handler uses, so config-file mutation cannot diverge.
+ */
+export interface WebhookClient {
+  list(): Promise<WebhookListResult>;
+  secretGenerate(workflow: string): Promise<WebhookSecretGenerateResult>;
+  secretRemove(workflow: string): Promise<WebhookSecretRemoveResult>;
+}
+
+/**
+ * Voice operations.
+ *
+ * `transcribe` and `synthesize` consume the daemon's STT and TTS providers,
+ * which own the upstream credentials and provider client. Local mode (no
+ * daemon reachable) surfaces `daemon_required` so the CLI can render a
+ * single clear "start the daemon" hint instead of trying to load and
+ * configure providers in the operator process.
+ */
+export type VoiceTranscribeOptions = {
+  audio: Uint8Array;
+  mimeType: string;
+  filename?: string;
+  languageHint?: string;
+};
+
+export type VoiceTranscribeResult =
+  | { ok: true; text: string; language?: string }
+  | { ok: false; reason: "daemon_required" }
+  | {
+      ok: false;
+      reason: "transport_error";
+      status: number;
+      message: string;
+      code?: string;
+    };
+
+export type VoiceSynthesizeOptions = {
+  text: string;
+  voice?: string;
+  languageHint?: string;
+  format?: string;
+};
+
+export type VoiceSynthesizeResult =
+  | { ok: true; audio: Buffer; mimeType: string; format: string }
+  | { ok: false; reason: "daemon_required" }
+  | {
+      ok: false;
+      reason: "transport_error";
+      status: number;
+      message: string;
+      code?: string;
+    };
+
+export interface VoiceClient {
+  transcribe(options: VoiceTranscribeOptions): Promise<VoiceTranscribeResult>;
+  synthesize(options: VoiceSynthesizeOptions): Promise<VoiceSynthesizeResult>;
+}
+
+/**
+ * Options accepted by `web.start`.
+ *
+ * `port`, `model`, `verbose`, and `noAuth` map directly to the existing
+ * `kota serve` flags. `defaultAutonomyMode` and `webUiBuilt` are resolved
+ * by the local handler from the operator's environment and aren't exposed
+ * on the namespace contract.
+ */
+export type WebStartOptions = {
+  port: number;
+  model?: string;
+  verbose?: boolean;
+  noAuth?: boolean;
+};
+
+/**
+ * Result of `web.start`.
+ *
+ * The local handler drives a long-running HTTP server; resolution of the
+ * promise is therefore a server-shutdown signal rather than a normal
+ * response. `daemon_required` surfaces from the daemon-side handler because
+ * the daemon cannot start a fresh `kota serve` process in another address
+ * space — running `kota serve` with a daemon already up is ambiguous, so
+ * the contract refuses uniformly and the CLI maps that to a clear
+ * "stop the daemon first" hint.
+ */
+export type WebStartResult =
+  | { ok: true }
+  | { ok: false; reason: "daemon_required" }
+  | { ok: false; reason: "missing_api_key" };
+
+export interface WebClient {
+  start(options: WebStartOptions): Promise<WebStartResult>;
+}
+
+/**
+ * Options accepted by `mcpServer.start`.
+ *
+ * `toolFilter` restricts which KOTA tools the MCP server exposes; absent /
+ * empty means every registered tool. `name` is the server identity reported
+ * to MCP clients and defaults to `"kota"`.
+ */
+export type McpServerStartOptions = {
+  toolFilter?: string[];
+  name: string;
+};
+
+/**
+ * Result of `mcpServer.start`.
+ *
+ * Mirrors `WebStartResult`: the local handler runs a long-running stdio
+ * server, while the daemon-side handler returns `daemon_required` because
+ * the daemon cannot start a stdio server in another process.
+ */
+export type McpServerStartResult =
+  | { ok: true }
+  | { ok: false; reason: "daemon_required" };
+
+export interface McpServerClient {
+  start(options: McpServerStartOptions): Promise<McpServerStartResult>;
+}
+
 /** A scenario shipped under `src/modules/harness-parity/scenarios/`. */
 export type HarnessParityScenarioSummary = {
   id: string;
@@ -917,6 +1078,10 @@ export interface KotaClient {
   readonly agents: AgentsClient;
   readonly skills: SkillsClient;
   readonly harnessParity: HarnessParityClient;
+  readonly webhook: WebhookClient;
+  readonly voice: VoiceClient;
+  readonly web: WebClient;
+  readonly mcpServer: McpServerClient;
 }
 
 /**
@@ -938,6 +1103,10 @@ export const KOTA_CLIENT_NAMESPACES = [
   "agents",
   "skills",
   "harnessParity",
+  "webhook",
+  "voice",
+  "web",
+  "mcpServer",
 ] as const satisfies ReadonlyArray<keyof KotaClient>;
 
 export type KotaClientNamespace = (typeof KOTA_CLIENT_NAMESPACES)[number];
