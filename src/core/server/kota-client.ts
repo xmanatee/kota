@@ -22,6 +22,7 @@
  */
 import type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
 import type { WorkflowRunSummary } from "#core/daemon/daemon-control.js";
+import type { ReindexResult } from "#core/modules/provider-types.js";
 
 /** A masked entry in the secret store (name and source only — never the value). */
 export type SecretListEntry = {
@@ -75,6 +76,35 @@ export type MemoryListEntry = {
 export type MemoryListResult = {
   entries: MemoryListEntry[];
 };
+
+/** Result of `memory.add`. */
+export type MemoryAddResult = { id: string };
+
+/** Result of `memory.delete`. */
+export type MemoryDeleteResult =
+  | { ok: true }
+  | { ok: false; reason: "not_found" };
+
+/** Filter for `memory.search`. */
+export type MemorySearchFilter = {
+  tag?: string;
+  since?: string;
+  semantic?: boolean;
+  limit?: number;
+};
+
+/**
+ * Result of `memory.search`. Semantic ranking requires an embedding-backed
+ * provider; when the caller asks for `semantic: true` and the active provider
+ * cannot satisfy that, the contract surfaces an explicit
+ * `semantic_unavailable` rather than silently falling back to keyword search.
+ */
+export type MemorySearchResult =
+  | { ok: true; entries: MemoryListEntry[] }
+  | { ok: false; reason: "semantic_unavailable" };
+
+/** Result of `memory.reindex`. Mirrors the provider's `ReindexResult`. */
+export type MemoryReindexResult = ReindexResult;
 
 /** Filters accepted by `client.workflow.listRuns`. */
 export type WorkflowRunsListFilter = {
@@ -160,10 +190,22 @@ export interface RepoTasksClient {
   list(states?: RepoTaskState[]): Promise<RepoTaskListResult>;
 }
 
-/** Memory-store read operations. */
+/**
+ * Memory-store operations.
+ *
+ * `list` returns recent entries. `add` writes a new entry and returns its
+ * id. `delete` mutates a single entry. `search` runs keyword or semantic
+ * matching and surfaces `semantic_unavailable` explicitly when an
+ * embedding-backed provider is required but absent. `reindex` rebuilds the
+ * semantic index when the provider supports it.
+ */
 export interface MemoryClient {
   /** List recent memory entries, newest first, capped at `limit`. */
   list(limit?: number): Promise<MemoryListResult>;
+  add(content: string, tags?: string[]): Promise<MemoryAddResult>;
+  delete(id: string): Promise<MemoryDeleteResult>;
+  search(query: string, filter?: MemorySearchFilter): Promise<MemorySearchResult>;
+  reindex(): Promise<MemoryReindexResult>;
 }
 
 /**

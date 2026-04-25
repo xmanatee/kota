@@ -113,6 +113,45 @@ export function handleDeleteMemory(res: ServerResponse, id: string): void {
   }
 }
 
+export async function handleSearchMemory(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const url = new URL(req.url ?? "", "http://localhost");
+  const query = url.searchParams.get("q") ?? "";
+  const tag = url.searchParams.get("tag") ?? undefined;
+  const since = url.searchParams.get("since") ?? undefined;
+  const semantic = url.searchParams.get("semantic") === "true";
+  const limitParam = url.searchParams.get("limit");
+  const limit = limitParam ? Math.max(1, Number.parseInt(limitParam, 10) || 0) : 20;
+  try {
+    const provider = getMemoryProvider();
+    if (semantic && !provider.supportsSemanticSearch()) {
+      jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
+      return;
+    }
+    const results = semantic
+      ? await provider.semanticSearch(query, limit, { tag, since })
+      : provider.search(query, { tag, since }).slice(0, limit);
+    jsonResponse(res, 200, {
+      ok: true,
+      entries: results.map((m) => ({ id: m.id, created: m.created, content: m.content })),
+    });
+  } catch (err) {
+    jsonResponse(res, 500, { error: (err as Error).message });
+  }
+}
+
+export async function handleReindexMemory(res: ServerResponse): Promise<void> {
+  try {
+    const provider = getMemoryProvider();
+    const result = await provider.reindex();
+    jsonResponse(res, 200, result);
+  } catch (err) {
+    jsonResponse(res, 500, { error: (err as Error).message });
+  }
+}
+
 const MEMORY_ENTRY_PATTERN = /^\/api\/memory\/([^/]+)$/;
 
 export function memoryRoutes(): RouteRegistration[] {
@@ -123,9 +162,19 @@ export function memoryRoutes(): RouteRegistration[] {
       handler: (_req, res) => handleListMemory(res),
     },
     {
+      method: "GET",
+      path: "/api/memory/search",
+      handler: (req, res) => handleSearchMemory(req, res),
+    },
+    {
       method: "POST",
       path: "/api/memory",
       handler: (req, res) => handleAddMemory(req, res),
+    },
+    {
+      method: "POST",
+      path: "/api/memory/reindex",
+      handler: (_req, res) => handleReindexMemory(res),
     },
     {
       method: "GET",

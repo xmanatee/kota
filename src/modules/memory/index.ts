@@ -48,6 +48,44 @@ const memoryModule: KotaModule = {
           })),
         };
       },
+      async add(content, tags) {
+        const provider = getMemoryProvider();
+        const id = provider.save(content, tags ?? []);
+        return { id };
+      },
+      async delete(id) {
+        const provider = getMemoryProvider();
+        const ok = provider.delete(id);
+        return ok ? { ok: true } : { ok: false, reason: "not_found" };
+      },
+      async search(query, filter) {
+        const provider = getMemoryProvider();
+        const limit = filter?.limit ?? 20;
+        if (filter?.semantic) {
+          if (!provider.supportsSemanticSearch()) {
+            return { ok: false, reason: "semantic_unavailable" };
+          }
+          const results = await provider.semanticSearch(query, limit, {
+            tag: filter.tag,
+            since: filter.since,
+          });
+          return {
+            ok: true,
+            entries: results.map((m) => ({ id: m.id, created: m.created, content: m.content })),
+          };
+        }
+        const results = provider
+          .search(query, { tag: filter?.tag, since: filter?.since })
+          .slice(0, limit);
+        return {
+          ok: true,
+          entries: results.map((m) => ({ id: m.id, created: m.created, content: m.content })),
+        };
+      },
+      async reindex() {
+        const provider = getMemoryProvider();
+        return provider.reindex();
+      },
     };
     return { memory: handler };
   },

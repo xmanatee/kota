@@ -28,6 +28,60 @@ function stubCtx(): ModuleContext {
 						})),
 					};
 				},
+				async add(content: string, tags?: string[]) {
+					const provider = getMemoryProvider();
+					return { id: provider.save(content, tags ?? []) };
+				},
+				async delete(id: string) {
+					const provider = getMemoryProvider();
+					return provider.delete(id)
+						? { ok: true as const }
+						: { ok: false as const, reason: "not_found" as const };
+				},
+				async search(
+					query: string,
+					filter?: {
+						tag?: string;
+						since?: string;
+						semantic?: boolean;
+						limit?: number;
+					},
+				) {
+					const provider = getMemoryProvider();
+					const limit = filter?.limit ?? 20;
+					if (filter?.semantic) {
+						if (!provider.supportsSemanticSearch()) {
+							return { ok: false as const, reason: "semantic_unavailable" as const };
+						}
+						const results = await provider.semanticSearch(query, limit, {
+							tag: filter.tag,
+							since: filter.since,
+						});
+						return {
+							ok: true as const,
+							entries: results.map((m) => ({
+								id: m.id,
+								created: m.created,
+								content: m.content,
+							})),
+						};
+					}
+					const results = provider
+						.search(query, { tag: filter?.tag, since: filter?.since })
+						.slice(0, limit);
+					return {
+						ok: true as const,
+						entries: results.map((m) => ({
+							id: m.id,
+							created: m.created,
+							content: m.content,
+						})),
+					};
+				},
+				async reindex() {
+					const provider = getMemoryProvider();
+					return provider.reindex();
+				},
 			},
 		},
 	} as unknown as ModuleContext;

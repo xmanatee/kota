@@ -6,7 +6,7 @@ priority: p2
 area: architecture
 summary: Migrate all non-acceptance CLI subcommands across modules to consume ctx.client.<namespace>.<method> instead of direct stores or .kota/ reads; expand the KotaClient contract namespace surface; add per-namespace daemon HTTP routes where needed.
 created_at: 2026-04-25T13:17:17.850Z
-updated_at: 2026-04-25T13:39:43.945Z
+updated_at: 2026-04-25T14:30:00.000Z
 ---
 
 ## Problem
@@ -127,12 +127,22 @@ until `Done When` is fully satisfied.
   `GET /approvals?status=...` route forwards it through to
   `queue.list(status)` (run
   `2026-04-25T13-56-13-058Z-builder-wcqhyv`).
+- Done — `memory` mutations: `add`, `delete`, `search`, and
+  `reindex` now route through `ctx.client.memory.{add,delete,search,reindex}`.
+  `MemoryClient.search` returns
+  `{ ok: true, entries } | { ok: false, reason: "semantic_unavailable" }`
+  so the embedding-required-but-absent error stays explicit. Daemon
+  adds `GET /api/memory/search?q=...&semantic=...&tag=...&since=...&limit=...`
+  and `POST /api/memory/reindex`; existing `POST /api/memory` and
+  `DELETE /api/memory/:id` cover add and delete. The CLI no longer
+  imports `getMemoryProvider` (run
+  `2026-04-25T14-16-07-951Z-builder-3h8o0y`).
 - Pending — `workflow` mutations (control, run management, definition
   mutations, trigger/exec); `knowledge`, `history`, `agent-ops`,
   `skill-ops`, `harness-parity`, `owner-questions`, `webhook`,
   `eval-harness`, `guardrails-audit`, `module-manager`, `web`,
   `config`, `mcp-server`, `voice`, `daemon-ops` control, `doctor`,
-  `repo-tasks` mutations, `memory` mutations.
+  `repo-tasks` mutations.
 - Pending — sibling guard test rejecting new direct `.kota/` reads
   from non-bootstrap CLI code.
 

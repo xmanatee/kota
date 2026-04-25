@@ -18,7 +18,13 @@ import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type {
   ApprovalsClient,
   KotaClient,
+  MemoryAddResult,
   MemoryClient,
+  MemoryDeleteResult,
+  MemoryListEntry,
+  MemoryReindexResult,
+  MemorySearchFilter,
+  MemorySearchResult,
   RepoTaskListEntry,
   RepoTaskState,
   RepoTasksClient,
@@ -139,7 +145,74 @@ export class DaemonControlClient implements KotaClient {
           })),
         };
       },
+      add: async (content, tags) => this.addMemoryHttp(content, tags ?? []),
+      delete: async (id) => this.deleteMemoryHttp(id),
+      search: async (query, filter) => this.searchMemoryHttp(query, filter),
+      reindex: async () => this.reindexMemoryHttp(),
     };
+  }
+
+  private async addMemoryHttp(content: string, tags: string[]): Promise<MemoryAddResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/api/memory`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.authHeaders() },
+      body: JSON.stringify({ content, tags }),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    const body = (await res.json()) as { id: string };
+    return { id: body.id };
+  }
+
+  private async deleteMemoryHttp(id: string): Promise<MemoryDeleteResult> {
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/api/memory/${encodeURIComponent(id)}`,
+      { method: "DELETE", headers: this.authHeaders() },
+    );
+    if (res.status === 404) return { ok: false, reason: "not_found" };
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return { ok: true };
+  }
+
+  private async searchMemoryHttp(
+    query: string,
+    filter?: MemorySearchFilter,
+  ): Promise<MemorySearchResult> {
+    const params = new URLSearchParams();
+    params.set("q", query);
+    if (filter?.tag) params.set("tag", filter.tag);
+    if (filter?.since) params.set("since", filter.since);
+    if (filter?.semantic) params.set("semantic", "true");
+    if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/api/memory/search?${params.toString()}`,
+      { headers: this.authHeaders() },
+    );
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    const body = (await res.json()) as
+      | { ok: true; entries: MemoryListEntry[] }
+      | { ok: false; reason: "semantic_unavailable" };
+    return body;
+  }
+
+  private async reindexMemoryHttp(): Promise<MemoryReindexResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/api/memory/reindex`, {
+      method: "POST",
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as MemoryReindexResult;
   }
 
   private async listSecretsHttp(): Promise<{ secrets: { name: string; source: string }[] } | null> {

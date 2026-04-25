@@ -1,7 +1,6 @@
 import type { Command } from "commander";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { getMemoryProvider } from "#core/modules/provider-registry.js";
 import {
 	type LineNode,
 	line,
@@ -66,19 +65,21 @@ export function registerMemoryCommands(program: Command, ctx: ModuleContext): vo
 		.action(async (query: string, opts: { tag?: string; since?: string; semantic?: boolean; limit: string }) => {
 			await ensureCliProvidersFor(["memory"]);
 			const limit = Math.max(1, parseInt(opts.limit, 10) || 20);
-			const store = getMemoryProvider();
-			if (opts.semantic && !store.supportsSemanticSearch()) {
+			const result = await ctx.client.memory.search(query, {
+				tag: opts.tag,
+				since: opts.since,
+				semantic: opts.semantic === true,
+				limit,
+			});
+			if (!result.ok) {
 				console.error("Semantic memory search requires an embedding-backed memory provider.");
 				process.exit(1);
 			}
-			const results = opts.semantic
-				? await store.semanticSearch(query, limit, { tag: opts.tag, since: opts.since })
-				: store.search(query, { tag: opts.tag, since: opts.since }).slice(0, limit);
-			if (results.length === 0) {
+			if (result.entries.length === 0) {
 				print(line(plain("No matching memories.")));
 				return;
 			}
-			print(stack(...buildMemoryListLines(results)));
+			print(stack(...buildMemoryListLines(result.entries)));
 		});
 
 	memCmd
@@ -103,10 +104,9 @@ export function registerMemoryCommands(program: Command, ctx: ModuleContext): vo
 				console.error("Content is required (use --content or pipe via stdin).");
 				process.exit(1);
 			}
-			const store = getMemoryProvider();
-			const id = store.save(content, opts.tag);
+			const result = await ctx.client.memory.add(content, opts.tag);
 			// biome-ignore lint/suspicious/noConsole: bare id output consumed by scripts
-			console.log(id);
+			console.log(result.id);
 		});
 
 	memCmd
@@ -114,9 +114,8 @@ export function registerMemoryCommands(program: Command, ctx: ModuleContext): vo
 		.description("Delete a memory entry by ID")
 		.action(async (id: string) => {
 			await ensureCliProvidersFor(["memory"]);
-			const store = getMemoryProvider();
-			const ok = store.delete(id);
-			if (!ok) {
+			const result = await ctx.client.memory.delete(id);
+			if (!result.ok) {
 				console.error(`Memory "${id}" not found.`);
 				process.exit(1);
 			}
@@ -135,8 +134,7 @@ export function registerMemoryCommands(program: Command, ctx: ModuleContext): vo
 		)
 		.action(async () => {
 			await ensureCliProvidersFor(["memory"]);
-			const provider = getMemoryProvider();
-			const result = await provider.reindex();
+			const result = await ctx.client.memory.reindex();
 			if (result.skipped) {
 				print(line(plain(
 					"Semantic search not configured — nothing to reindex. " +
