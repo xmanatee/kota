@@ -46,6 +46,25 @@ config key (or the shared `serve.defaultAutonomyMode` config). Restrict
 who can open interactive sessions via
 `modules.telegram.allowedChatIds`; empty or unset allows any chat.
 
+Owner-question escalations support three answer surfaces, all of which
+flow through the same `OwnerQuestionQueue` API and differ only in the
+recorded source label:
+
+- inline-keyboard buttons (`telegram-inline`) for the listed
+  `proposed_answers` plus dismissal,
+- chat reply with `reply_to_message_id` pointing at the delivered
+  owner-question message (`telegram-reply`) for free-form text, and
+- the `kota owner-question` CLI on a workstation (`http`/CLI).
+
+Free-form replies coexist with proposed-answer buttons — the first
+resolution wins and the binding is released, so a later reply to the
+now-stale message falls through to the interactive agent session
+instead of attempting to re-answer. Replies that do not match a tracked
+owner-question message also fall through, preserving the
+"clarifying follow-up" use case for the interactive session. The chat
+allowlist applies to chat replies the same way it applies to ordinary
+text messages — disallowed chats cannot resolve owner questions.
+
 Voice input requires a transcription provider. Install a module that
 registers one under service type `"transcription"`; missing providers
 produce a user-visible failure message rather than a silent drop.

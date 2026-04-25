@@ -1,12 +1,12 @@
 ---
 id: task-support-free-form-telegram-chat-reply-answers-to-p
 title: Support free-form Telegram chat-reply answers to pending owner questions
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Let operators answer pending owner questions with free-form text via Telegram chat reply (reply_to_message_id), so non-listed answers and clarifying details no longer require dropping to the kota CLI.
 created_at: 2026-04-25T04:04:55.873Z
-updated_at: 2026-04-25T04:04:55.873Z
+updated_at: 2026-04-25T04:13:42.424Z
 ---
 
 ## Problem

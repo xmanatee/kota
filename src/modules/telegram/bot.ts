@@ -46,6 +46,17 @@ export type TelegramBotOptions = {
   autonomyMode: AutonomyMode;
   /** Whitelist of allowed chat IDs. Empty/undefined = allow all. */
   allowedChatIds?: number[];
+  /**
+   * Hook invoked when a text message is a Telegram chat reply. If the hook
+   * returns true, the message is considered consumed (e.g. it resolved a
+   * pending owner question) and is not routed to the interactive session.
+   * Returning false falls through to normal message handling.
+   */
+  onChatReply?: (
+    chatId: number,
+    replyToMessageId: number,
+    text: string,
+  ) => Promise<boolean>;
 };
 
 // --- TelegramBot ---
@@ -108,15 +119,36 @@ export class TelegramBot {
 
     for (const update of updates) {
       this.offset = update.update_id + 1;
-      if (!update.message) continue;
-      if (update.message.text) {
-        this.handleMessage(update.message.chat.id, update.message.text, update.message.chat.first_name);
+      const message = update.message;
+      if (!message) continue;
+      const text = message.text;
+      if (text !== undefined) {
+        const chatId = message.chat.id;
+        const firstName = message.chat.first_name;
+        const replyToId = message.reply_to_message?.message_id;
+        if (replyToId !== undefined && this.options.onChatReply) {
+          void this.options
+            .onChatReply(chatId, replyToId, text)
+            .then((handled) => {
+              if (handled) return;
+              this.handleMessage(chatId, text, firstName);
+            })
+            .catch((err) => {
+              console.error(
+                `[kota-telegram] Chat-reply handler error in chat ${chatId}:`,
+                (err as Error).message,
+              );
+              this.handleMessage(chatId, text, firstName);
+            });
+          continue;
+        }
+        this.handleMessage(chatId, text, firstName);
         continue;
       }
-      if (update.message.voice || update.message.audio) {
-        void this.handleVoiceMessage(update.message).catch((err) => {
+      if (message.voice || message.audio) {
+        void this.handleVoiceMessage(message).catch((err) => {
           console.error(
-            `[kota-telegram] Voice handling error in chat ${update.message?.chat.id}:`,
+            `[kota-telegram] Voice handling error in chat ${message.chat.id}:`,
             (err as Error).message,
           );
         });

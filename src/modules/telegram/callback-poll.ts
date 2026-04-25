@@ -16,11 +16,15 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import { getApprovalQueue } from "#modules/approval-queue/index.js";
 import type { TelegramCallbackQuery } from "./client.js";
 import { callTelegramApi } from "./client.js";
+import {
+  editResolvedOwnerQuestionMessage,
+  type PendingMessage,
+} from "./owner-question-reply.js";
+
+export type { PendingMessage };
 
 const POLL_TIMEOUT_S = 30;
 const ERROR_BACKOFF_MS = 5_000;
-
-export type PendingMessage = { chatId: string; messageId: number };
 
 export function startCallbackPoll(
   token: string,
@@ -226,35 +230,6 @@ async function handleOwnerDismissCallback(
     resolved,
     pending,
   );
-}
-
-async function editResolvedOwnerQuestionMessage(
-  token: string,
-  questionId: string,
-  action: "answer" | "dismiss",
-  resolved: { source: string; reason: string; question: string; answer?: string },
-  pending: Map<string, PendingMessage>,
-): Promise<void> {
-  const info = pending.get(questionId);
-  if (!info) return;
-  const label = action === "answer" ? "✅ Answered" : "❌ Dismissed";
-  const outcome =
-    action === "answer" ? `Answer: ${resolved.answer ?? ""}` : "Dismissed";
-  const editedText = [
-    `${label}: owner question from *${resolved.source}*`,
-    `Reason: ${resolved.reason}`,
-    `Question: ${resolved.question}`,
-    `ID: \`${questionId}\``,
-    ``,
-    outcome,
-  ].join("\n");
-  await callTelegramApi(token, "editMessageText", {
-    chat_id: info.chatId,
-    message_id: info.messageId,
-    text: editedText,
-    parse_mode: "Markdown",
-  }).catch(() => {});
-  pending.delete(questionId);
 }
 
 function sleep(ms: number): Promise<void> {

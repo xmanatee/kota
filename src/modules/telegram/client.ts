@@ -42,6 +42,7 @@ export type TelegramMessage = {
   voice?: TelegramVoice;
   audio?: TelegramAudio;
   date: number;
+  reply_to_message?: TelegramMessage;
 };
 
 export type TelegramCallbackQuery = {

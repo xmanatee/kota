@@ -447,6 +447,136 @@ describe("TelegramBot", () => {
     expect(sentToChat77).toBe(true);
   });
 
+  it("routes a reply_to_message text update through the onChatReply hook and skips agent.send when the hook returns true", async () => {
+    agentSendMock.mockClear();
+    const onChatReply = vi.fn(async () => true);
+    const bot = new TelegramBot({
+      token: "tok",
+      autonomyMode: "supervised",
+      onChatReply,
+    });
+    let delivered = false;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/getMe")) {
+        return {
+          json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
+        };
+      }
+      if (url.endsWith("/getUpdates")) {
+        if (!delivered) {
+          delivered = true;
+          return {
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                result: [
+                  {
+                    update_id: 1,
+                    message: {
+                      message_id: 7,
+                      chat: { id: 99, type: "private", first_name: "Op" },
+                      text: "variant-a please",
+                      date: 0,
+                      reply_to_message: {
+                        message_id: 30,
+                        chat: { id: 99, type: "private", first_name: "Op" },
+                        date: 0,
+                      },
+                    },
+                  },
+                ],
+              }),
+          };
+        }
+        return {
+          json: () =>
+            new Promise((resolve) =>
+              setTimeout(() => {
+                bot.stop();
+                resolve({ ok: true, result: [] });
+              }, 100),
+            ),
+        };
+      }
+      return { json: () => Promise.resolve({ ok: true, result: true }) };
+    });
+
+    const startPromise = bot.start();
+    const deadline = Date.now() + 2_000;
+    while (Date.now() < deadline && onChatReply.mock.calls.length === 0) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    await startPromise;
+
+    expect(onChatReply).toHaveBeenCalledWith(99, 30, "variant-a please");
+    expect(agentSendMock).not.toHaveBeenCalled();
+  });
+
+  it("falls through to AgentSession.send when reply_to_message hook returns false (untracked reply still routes through interactive session)", async () => {
+    agentSendMock.mockClear();
+    const onChatReply = vi.fn(async () => false);
+    const bot = new TelegramBot({
+      token: "tok",
+      autonomyMode: "supervised",
+      onChatReply,
+    });
+    let delivered = false;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/getMe")) {
+        return {
+          json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
+        };
+      }
+      if (url.endsWith("/getUpdates")) {
+        if (!delivered) {
+          delivered = true;
+          return {
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                result: [
+                  {
+                    update_id: 1,
+                    message: {
+                      message_id: 8,
+                      chat: { id: 99, type: "private", first_name: "Op" },
+                      text: "what about edge case X?",
+                      date: 0,
+                      reply_to_message: {
+                        message_id: 99999,
+                        chat: { id: 99, type: "private", first_name: "Op" },
+                        date: 0,
+                      },
+                    },
+                  },
+                ],
+              }),
+          };
+        }
+        return {
+          json: () =>
+            new Promise((resolve) =>
+              setTimeout(() => {
+                bot.stop();
+                resolve({ ok: true, result: [] });
+              }, 100),
+            ),
+        };
+      }
+      return { json: () => Promise.resolve({ ok: true, result: true }) };
+    });
+
+    const startPromise = bot.start();
+    const deadline = Date.now() + 2_000;
+    while (Date.now() < deadline && agentSendMock.mock.calls.length === 0) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    await startPromise;
+
+    expect(onChatReply).toHaveBeenCalledWith(99, 99999, "what about edge case X?");
+    expect(agentSendMock).toHaveBeenCalledWith("what about edge case X?");
+  });
+
   it("routes inbound text messages into AgentSession.send (session loop)", async () => {
     agentSendMock.mockClear();
     const bot = new TelegramBot({ token: "tok", autonomyMode: "supervised" });

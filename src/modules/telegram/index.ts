@@ -11,9 +11,13 @@ import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import { AUTONOMY_MODES, type AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { TelegramBot } from "./bot.js";
-import { type PendingMessage, startCallbackPoll } from "./callback-poll.js";
+import { startCallbackPoll } from "./callback-poll.js";
 import type { TelegramMessage } from "./client.js";
 import { callTelegramApi } from "./client.js";
+import {
+  type PendingMessage,
+  tryHandleOwnerQuestionReply,
+} from "./owner-question-reply.js";
 import { startTelegramStatusPoll } from "./status-poll.js";
 
 async function sendTelegramMessage(
@@ -179,13 +183,24 @@ function makeTelegramInteractiveChannel(ctx: ModuleContext): ChannelDef {
         "telegram",
       );
 
+      const allowedChatIds = telegramConfig?.allowedChatIds;
       const bot = new TelegramBot({
         token,
         model: ctx.config.model,
         verbose: ctx.verbose || ctx.config.verbose,
         config: ctx.config,
         autonomyMode,
-        allowedChatIds: telegramConfig?.allowedChatIds,
+        allowedChatIds,
+        onChatReply: (chatId, replyToMessageId, text) =>
+          tryHandleOwnerQuestionReply({
+            token,
+            chatId,
+            replyToMessageId,
+            text,
+            pending: pendingOwnerQuestionMessages,
+            allowedChatIds,
+            log: ctx.log,
+          }),
       });
 
       const unsubscribeSchedule = ctx.events.subscribe("schedule.fire", (payload) => {

@@ -8,3 +8,13 @@ The queue state and review gate live in `src/core/daemon/` as shared runtime
 primitives. This module is the operator surface: listing pending questions,
 answering, dismissing, and exposing the same actions over HTTP so clients
 beyond the local CLI can handle escalations.
+
+Every answer surface — `kota owner-question answer/dismiss` (CLI/HTTP),
+inline-keyboard buttons in Telegram, and free-form Telegram chat replies
+that target the delivered owner-question message — calls the same
+`OwnerQuestionQueue.answer(id, text, source)` API. The only difference is
+the typed `resolutionSource` label recorded on the resolved question:
+`http` for CLI/HTTP, `telegram-inline` for inline-keyboard selections,
+and `telegram-reply` for free-form chat replies. New surfaces should pick
+a distinct source label rather than reusing or aliasing an existing one
+so answer-source attribution stays usable.
