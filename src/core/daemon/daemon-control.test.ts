@@ -1,5 +1,9 @@
 import { createHmac } from "node:crypto";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getApprovalQueue, resetApprovalQueue } from "./approval-queue.js";
 import {
   type DaemonControlHandle,
   DaemonControlServer,
@@ -41,11 +45,6 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     enqueuePendingRun: vi.fn(() => ({ ok: true, queued: "builder", runId: "2026-01-01T00-00-00-000Z-builder-abc123" })),
     cancelQueuedRun: vi.fn(() => ({ ok: false, notFound: true })),
     subscribeToEvents: vi.fn(() => () => {}),
-    listApprovals: vi.fn(() => []),
-    approveApproval: vi.fn(() => null),
-    rejectApproval: vi.fn(() => null),
-    approveAllApprovals: vi.fn(() => []),
-    rejectAllApprovals: vi.fn(() => []),
     listOwnerQuestions: vi.fn(() => []),
     answerOwnerQuestion: vi.fn(() => null),
     dismissOwnerQuestion: vi.fn(() => null),
@@ -779,123 +778,6 @@ describe("DaemonControlServer", () => {
     });
   });
 
-  describe("GET /approvals", () => {
-    it("returns 200 with empty approvals list", async () => {
-      const res = await fetchWithToken(port, "/approvals");
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body).toMatchObject({ approvals: [] });
-      expect(handle.listApprovals).toHaveBeenCalled();
-    });
-
-    it("returns approvals from handle", async () => {
-      const approval = { id: "appr-1", tool: "Bash", input: { command: "ls" }, risk: "dangerous" as const, reason: "needs approval", createdAt: "2026-01-01T00:00:00.000Z", status: "pending" as const };
-      handle = makeHandle({ listApprovals: vi.fn(() => [approval]) });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
-
-      const res = await fetchWithToken(port, "/approvals");
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.approvals).toHaveLength(1);
-      expect(body.approvals[0].id).toBe("appr-1");
-    });
-
-    it("returns 401 without token", async () => {
-      const res = await fetchNoToken(port, "/approvals");
-      expect(res.status).toBe(401);
-    });
-  });
-
-  describe("POST /approvals/:id/approve", () => {
-    it("returns 200 with approval when found", async () => {
-      const approval = { id: "appr-1", tool: "Bash", input: { command: "ls" }, risk: "dangerous" as const, reason: "needs approval", createdAt: "2026-01-01T00:00:00.000Z", status: "approved" as const, resolvedAt: "2026-01-01T00:01:00.000Z" };
-      handle = makeHandle({ approveApproval: vi.fn(() => approval) });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
-
-      const res = await fetchWithToken(port, "/approvals/appr-1/approve", { method: "POST" });
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.approval.id).toBe("appr-1");
-      expect(handle.approveApproval).toHaveBeenCalledWith("appr-1", undefined);
-    });
-
-    it("passes note from request body to handle", async () => {
-      const approval = { id: "appr-1", tool: "Bash", input: {}, risk: "safe" as const, reason: "test", createdAt: "2026-01-01T00:00:00.000Z", status: "approved" as const, approvalNote: "please add a test" };
-      handle = makeHandle({ approveApproval: vi.fn(() => approval) });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
-
-      const res = await fetchWithToken(port, "/approvals/appr-1/approve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: "please add a test" }),
-      });
-      expect(res.status).toBe(200);
-      expect(handle.approveApproval).toHaveBeenCalledWith("appr-1", "please add a test");
-    });
-
-    it("returns 404 when approval not found", async () => {
-      const res = await fetchWithToken(port, "/approvals/missing/approve", { method: "POST" });
-      expect(res.status).toBe(404);
-      const body = await res.json();
-      expect(body.error).toBeTruthy();
-    });
-
-    it("returns 401 without token", async () => {
-      const res = await fetchNoToken(port, "/approvals/appr-1/approve", { method: "POST" });
-      expect(res.status).toBe(401);
-    });
-  });
-
-  describe("POST /approvals/:id/reject", () => {
-    it("returns 200 with approval when found", async () => {
-      const approval = { id: "appr-1", tool: "Bash", input: { command: "ls" }, risk: "dangerous" as const, reason: "needs approval", createdAt: "2026-01-01T00:00:00.000Z", status: "rejected" as const, resolvedAt: "2026-01-01T00:01:00.000Z", rejectionReason: "too risky" };
-      handle = makeHandle({ rejectApproval: vi.fn(() => approval) });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
-
-      const res = await fetchWithToken(port, "/approvals/appr-1/reject", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: "too risky" }),
-      });
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.approval.id).toBe("appr-1");
-      expect(handle.rejectApproval).toHaveBeenCalledWith("appr-1", "too risky");
-    });
-
-    it("accepts reject without a reason body", async () => {
-      const approval = { id: "appr-1", tool: "Bash", input: {}, risk: "safe" as const, reason: "test", createdAt: "2026-01-01T00:00:00.000Z", status: "rejected" as const };
-      handle = makeHandle({ rejectApproval: vi.fn(() => approval) });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
-
-      const res = await fetchWithToken(port, "/approvals/appr-1/reject", { method: "POST" });
-      expect(res.status).toBe(200);
-      expect(handle.rejectApproval).toHaveBeenCalledWith("appr-1", undefined);
-    });
-
-    it("returns 404 when approval not found", async () => {
-      const res = await fetchWithToken(port, "/approvals/missing/reject", { method: "POST" });
-      expect(res.status).toBe(404);
-      const body = await res.json();
-      expect(body.error).toBeTruthy();
-    });
-
-    it("returns 401 without token", async () => {
-      const res = await fetchNoToken(port, "/approvals/appr-1/reject", { method: "POST" });
-      expect(res.status).toBe(401);
-    });
-  });
-
   describe("GET /owner-questions", () => {
     it("returns 200 with empty questions list", async () => {
       const res = await fetchWithToken(port, "/owner-questions");
@@ -1049,6 +931,19 @@ describe("DaemonControlServer", () => {
   });
 
   describe("GET /metrics", () => {
+    let approvalsDir: string;
+
+    beforeEach(() => {
+      approvalsDir = mkdtempSync(join(tmpdir(), "kota-metrics-approvals-"));
+      resetApprovalQueue();
+      getApprovalQueue(approvalsDir);
+    });
+
+    afterEach(() => {
+      resetApprovalQueue();
+      rmSync(approvalsDir, { recursive: true, force: true });
+    });
+
     it("returns 200 with Prometheus text format", async () => {
       const res = await fetchWithToken(port, "/metrics");
       expect(res.status).toBe(200);
@@ -1082,12 +977,12 @@ describe("DaemonControlServer", () => {
       handle = makeHandle({
         getWorkflowMetricCounts: vi.fn(() => metricCounts),
         listSessions: vi.fn(() => [{ id: "s1", createdAt: "2026-01-01T00:00:00Z", lastActive: 0, autonomyMode: "supervised" as const }]),
-        listApprovals: vi.fn(() => [{ id: "a1", tool: "Bash", input: {}, risk: "moderate" as const, reason: "test", createdAt: "2026-01-01T00:00:00Z", status: "pending" as const }]),
         getWorkflowLiveStatus: vi.fn(() => ({
           activeRuns: [], pendingRuns: [], queueLength: 0, completedRuns: 17, workflows: {}, paused: true,
           agentConcurrency: 1, codeConcurrency: 4,
         })),
       });
+      getApprovalQueue().enqueue("Bash", {}, "moderate", "test");
       await server.stop();
       server = new DaemonControlServer(handle, TEST_TOKEN);
       port = await server.start();

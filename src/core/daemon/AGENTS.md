@@ -18,8 +18,8 @@ and live runtime state.
   and threads `params` through to the contributed handler. Collisions with
   the built-in table or with another module's contribution throw at server
   construction. Use this seam for any module-owned control-plane endpoint
-  (voice and history both contribute through it today; future module-owned
-  endpoints follow the same pattern).
+  (voice, history, and approval-queue all contribute through it today;
+  future module-owned endpoints follow the same pattern).
 - Clients should use daemon client wrappers for URL construction, response
   decoding, authentication, polling, and live updates. They must not read
   daemon runtime files directly.
@@ -32,10 +32,10 @@ and live runtime state.
   `daemon-state.ts`, `daemon-subscriptions.ts`.
 - Control API: `daemon-control.ts` (router), `daemon-control-types.ts`,
   `daemon-control-utils.ts`, and per-domain handlers
-  (`daemon-control-approvals.ts`, `-chat.ts`, `-metrics.ts`,
-  `-push-tokens.ts`, `-sessions.ts`, `-webhook.ts`, `-workflow.ts`).
-  Module-owned endpoints (e.g. `/history/*`, `/voice/*`) live in their
-  contributing module under `#modules/<name>/routes.ts`.
+  (`-chat.ts`, `-metrics.ts`, `-push-tokens.ts`, `-sessions.ts`,
+  `-webhook.ts`, `-workflow.ts`).
+  Module-owned endpoints (e.g. `/history/*`, `/voice/*`, `/approvals*`)
+  live in their contributing module under `#modules/<name>/routes.ts`.
 - Scheduling: `scheduler.ts`, `scheduler-store.ts`, `schedule-parser.ts`.
 - Task management: `task-store.ts`, `task-store-types.ts`, `task-router.ts`,
   `task-router-data.ts`.

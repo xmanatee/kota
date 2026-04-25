@@ -1,5 +1,6 @@
 import type { ServerResponse } from "node:http";
 import type { WorkflowActiveRun } from "#core/workflow/run-types.js";
+import { getApprovalQueue } from "./approval-queue.js";
 import type { DaemonControlHandle, WorkflowDurationHistogramEntry, WorkflowMetricCounts } from "./daemon-control-types.js";
 
 function sanitizeLabelValue(value: string): string {
@@ -85,7 +86,7 @@ function buildPrometheusMetrics(
 export function handleMetrics(handle: DaemonControlHandle, res: ServerResponse): void {
   const metricCounts = handle.getWorkflowMetricCounts();
   const activeSessions = handle.listSessions().length;
-  const pendingApprovals = handle.listApprovals().length;
+  const pendingApprovals = getApprovalQueue().count("pending");
   const { paused, activeRuns, queueLength } = handle.getWorkflowLiveStatus();
   const body = buildPrometheusMetrics(metricCounts, activeSessions, pendingApprovals, paused, activeRuns, queueLength);
   res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4; charset=utf-8" });

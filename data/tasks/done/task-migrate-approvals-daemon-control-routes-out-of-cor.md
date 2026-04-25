@@ -1,12 +1,12 @@
 ---
 id: task-migrate-approvals-daemon-control-routes-out-of-cor
 title: Migrate /approvals daemon-control routes out of core via controlRoutes
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Migrate the /approvals, /approvals/:id/approve, /approvals/:id/reject, /approvals/approve-all, /approvals/reject-all daemon-control endpoints from src/core/daemon/daemon-control-approvals.ts into the approval-queue module via KotaModule.controlRoutes, mirroring the history and voice migration pattern, and add an import-guard test refusing reintroduction.
 created_at: 2026-04-25T05:55:47.377Z
-updated_at: 2026-04-25T05:55:47.377Z
+updated_at: 2026-04-25T06:07:06.747Z
 ---
 
 ## Problem

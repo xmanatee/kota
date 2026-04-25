@@ -2,7 +2,6 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { ControlRouteRegistration } from "#core/modules/module-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
-import { handleApproveAllApprovals, handleApproveApproval, handleListApprovals, handleRejectAllApprovals, handleRejectApproval } from "./daemon-control-approvals.js";
 import {
   type DaemonChatConversationResolver,
   type DaemonChatMakeAgent,
@@ -76,11 +75,6 @@ const BUILTIN_ROUTE_SCOPES: Record<string, CapabilityScope> = {
   "POST /workflow/abort": "control",
   "POST /workflow/reload": "control",
   "POST /reload": "control",
-  "GET /approvals": "read",
-  "POST /approvals/:id/approve": "control",
-  "POST /approvals/:id/reject": "control",
-  "POST /approvals/approve-all": "control",
-  "POST /approvals/reject-all": "control",
   "GET /owner-questions": "read",
   "POST /owner-questions/:id/answer": "control",
   "POST /owner-questions/:id/dismiss": "control",
@@ -405,12 +399,6 @@ export class DaemonControlServer {
     if (method === "POST" && path === "/workflow/reload") { handleReloadWorkflow(h, res); return; }
     if (method === "POST" && path === "/reload") { handleReloadConfig(h, res); return; }
     if (method === "POST" && path === "/workflow/trigger") { handleTriggerWorkflow(h, req, res); return; }
-
-    if (method === "GET" && path === "/approvals") { handleListApprovals(h, res); return; }
-    if (method === "POST" && path === "/approvals/approve-all") { handleApproveAllApprovals(h, req, res); return; }
-    if (method === "POST" && path === "/approvals/reject-all") { handleRejectAllApprovals(h, req, res); return; }
-    if (method === "POST" && params.id && path.startsWith("/approvals/") && path.endsWith("/approve")) { handleApproveApproval(h, req, res, params); return; }
-    if (method === "POST" && params.id && path.startsWith("/approvals/") && path.endsWith("/reject")) { handleRejectApproval(h, req, res, params); return; }
 
     if (method === "GET" && path === "/owner-questions") { handleListOwnerQuestions(h, res); return; }
     if (method === "POST" && params.id && path.startsWith("/owner-questions/") && path.endsWith("/answer")) { handleAnswerOwnerQuestion(h, req, res, params); return; }

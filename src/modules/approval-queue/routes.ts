@@ -1,166 +1,278 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { type ApprovalQueue, getApprovalQueue } from "#core/daemon/approval-queue.js";
-import type { RouteRegistration } from "#core/modules/module-types.js";
+import { type ApprovalQueue, getApprovalQueue, type PendingApproval } from "#core/daemon/approval-queue.js";
+import type {
+	ControlRouteRegistration,
+	RouteRegistration,
+} from "#core/modules/module-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 
-export async function handleApproveAllApprovals(
-  req: IncomingMessage,
-  res: ServerResponse,
-  client: DaemonControlClient | null = null,
-  queue: ApprovalQueue = getApprovalQueue(),
-): Promise<void> {
-  let note: string | undefined;
-  try {
-    const body = await readBody(req);
-    note = typeof body.note === "string" ? body.note : undefined;
-  } catch {
-    // note is optional
-  }
-
-  if (client) {
-    const result = await client.approveAllApprovals(note);
-    if (result) {
-      jsonResponse(res, 200, result);
-      return;
-    }
-  }
-  const items = queue.approveAll(note);
-  jsonResponse(res, 200, { approvals: items, count: items.length });
+function listApprovalsLocal(queue: ApprovalQueue): { approvals: PendingApproval[] } {
+	return { approvals: queue.list("pending") };
 }
 
-export async function handleRejectAllApprovals(
-  req: IncomingMessage,
-  res: ServerResponse,
-  client: DaemonControlClient | null = null,
-  queue: ApprovalQueue = getApprovalQueue(),
-): Promise<void> {
-  let reason: string | undefined;
-  try {
-    const body = await readBody(req);
-    reason = typeof body.reason === "string" ? body.reason : undefined;
-  } catch {
-    // reason is optional
-  }
+function approveApprovalLocal(
+	queue: ApprovalQueue,
+	id: string,
+	note?: string,
+): PendingApproval | null {
+	return queue.approve(id, note);
+}
 
-  if (client) {
-    const result = await client.rejectAllApprovals(reason);
-    if (result) {
-      jsonResponse(res, 200, result);
-      return;
-    }
-  }
-  const items = queue.rejectAll(reason);
-  jsonResponse(res, 200, { approvals: items, count: items.length });
+function rejectApprovalLocal(
+	queue: ApprovalQueue,
+	id: string,
+	reason?: string,
+): PendingApproval | null {
+	return queue.reject(id, reason);
+}
+
+function approveAllApprovalsLocal(
+	queue: ApprovalQueue,
+	note?: string,
+): { approvals: PendingApproval[]; count: number } {
+	const items = queue.approveAll(note);
+	return { approvals: items, count: items.length };
+}
+
+function rejectAllApprovalsLocal(
+	queue: ApprovalQueue,
+	reason?: string,
+): { approvals: PendingApproval[]; count: number } {
+	const items = queue.rejectAll(reason);
+	return { approvals: items, count: items.length };
+}
+
+async function readOptionalStringField(
+	req: IncomingMessage,
+	field: "note" | "reason",
+): Promise<string | undefined> {
+	try {
+		const body = await readBody(req);
+		const value = body[field];
+		return typeof value === "string" ? value : undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 export async function handleListApprovals(
-  res: ServerResponse,
-  client: DaemonControlClient | null = null,
-  queue: ApprovalQueue = getApprovalQueue(),
+	res: ServerResponse,
+	client: DaemonControlClient | null = null,
+	queue: ApprovalQueue = getApprovalQueue(),
 ): Promise<void> {
-  if (client) {
-    const result = await client.listApprovals();
-    if (result) {
-      jsonResponse(res, 200, result);
-      return;
-    }
-  }
-  jsonResponse(res, 200, { approvals: queue.list("pending") });
+	if (client) {
+		const result = await client.listApprovals();
+		if (result) {
+			jsonResponse(res, 200, result);
+			return;
+		}
+	}
+	jsonResponse(res, 200, listApprovalsLocal(queue));
 }
 
 export async function handleApproveApproval(
-  req: IncomingMessage,
-  res: ServerResponse,
-  id: string,
-  client: DaemonControlClient | null = null,
-  queue: ApprovalQueue = getApprovalQueue(),
+	req: IncomingMessage,
+	res: ServerResponse,
+	id: string,
+	client: DaemonControlClient | null = null,
+	queue: ApprovalQueue = getApprovalQueue(),
 ): Promise<void> {
-  let note: string | undefined;
-  try {
-    const body = await readBody(req);
-    note = typeof body.note === "string" ? body.note : undefined;
-  } catch {
-    // note is optional
-  }
+	const note = await readOptionalStringField(req, "note");
 
-  if (client) {
-    const result = await client.approveApproval(id, note);
-    if (result) {
-      jsonResponse(res, 200, result);
-      return;
-    }
-  }
-  const item = queue.approve(id, note);
-  if (!item) {
-    jsonResponse(res, 404, { error: "Approval not found or not pending" });
-    return;
-  }
-  jsonResponse(res, 200, { approval: item });
+	if (client) {
+		const result = await client.approveApproval(id, note);
+		if (result) {
+			jsonResponse(res, 200, result);
+			return;
+		}
+	}
+	const item = approveApprovalLocal(queue, id, note);
+	if (!item) {
+		jsonResponse(res, 404, { error: "Approval not found or not pending" });
+		return;
+	}
+	jsonResponse(res, 200, { approval: item });
 }
 
 export async function handleRejectApproval(
-  req: IncomingMessage,
-  res: ServerResponse,
-  id: string,
-  client: DaemonControlClient | null = null,
-  queue: ApprovalQueue = getApprovalQueue(),
+	req: IncomingMessage,
+	res: ServerResponse,
+	id: string,
+	client: DaemonControlClient | null = null,
+	queue: ApprovalQueue = getApprovalQueue(),
 ): Promise<void> {
-  let reason: string | undefined;
-  try {
-    const body = await readBody(req);
-    reason = typeof body.reason === "string" ? body.reason : undefined;
-  } catch {
-    // reason is optional
-  }
+	const reason = await readOptionalStringField(req, "reason");
 
-  if (client) {
-    const result = await client.rejectApproval(id, reason);
-    if (result) {
-      jsonResponse(res, 200, result);
-      return;
-    }
-  }
-  const item = queue.reject(id, reason);
-  if (!item) {
-    jsonResponse(res, 404, { error: "Approval not found or not pending" });
-    return;
-  }
-  jsonResponse(res, 200, { approval: item });
+	if (client) {
+		const result = await client.rejectApproval(id, reason);
+		if (result) {
+			jsonResponse(res, 200, result);
+			return;
+		}
+	}
+	const item = rejectApprovalLocal(queue, id, reason);
+	if (!item) {
+		jsonResponse(res, 404, { error: "Approval not found or not pending" });
+		return;
+	}
+	jsonResponse(res, 200, { approval: item });
+}
+
+export async function handleApproveAllApprovals(
+	req: IncomingMessage,
+	res: ServerResponse,
+	client: DaemonControlClient | null = null,
+	queue: ApprovalQueue = getApprovalQueue(),
+): Promise<void> {
+	const note = await readOptionalStringField(req, "note");
+
+	if (client) {
+		const result = await client.approveAllApprovals(note);
+		if (result) {
+			jsonResponse(res, 200, result);
+			return;
+		}
+	}
+	jsonResponse(res, 200, approveAllApprovalsLocal(queue, note));
+}
+
+export async function handleRejectAllApprovals(
+	req: IncomingMessage,
+	res: ServerResponse,
+	client: DaemonControlClient | null = null,
+	queue: ApprovalQueue = getApprovalQueue(),
+): Promise<void> {
+	const reason = await readOptionalStringField(req, "reason");
+
+	if (client) {
+		const result = await client.rejectAllApprovals(reason);
+		if (result) {
+			jsonResponse(res, 200, result);
+			return;
+		}
+	}
+	jsonResponse(res, 200, rejectAllApprovalsLocal(queue, reason));
 }
 
 const APPROVAL_ACTION_PATTERN = /^\/api\/approvals\/([^/]+)\/(approve|reject)$/;
 
 export function approvalRoutes(): RouteRegistration[] {
-  return [
-    {
-      method: "GET",
-      path: "/api/approvals",
-      handler: (_req, res) => handleListApprovals(res, DaemonControlClient.fromStateDir()),
-    },
-    {
-      method: "POST",
-      path: "/api/approvals/approve-all",
-      handler: (req, res) => handleApproveAllApprovals(req, res, DaemonControlClient.fromStateDir()),
-    },
-    {
-      method: "POST",
-      path: "/api/approvals/reject-all",
-      handler: (req, res) => handleRejectAllApprovals(req, res, DaemonControlClient.fromStateDir()),
-    },
-    {
-      method: "POST",
-      path: "/api/approvals/",
-      pathPattern: APPROVAL_ACTION_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(APPROVAL_ACTION_PATTERN);
-        const id = match![1];
-        const action = match![2];
-        if (action === "approve") {
-          return handleApproveApproval(req, res, id, DaemonControlClient.fromStateDir());
-        }
-        return handleRejectApproval(req, res, id, DaemonControlClient.fromStateDir());
-      },
-    },
-  ];
+	return [
+		{
+			method: "GET",
+			path: "/api/approvals",
+			handler: (_req, res) => handleListApprovals(res, DaemonControlClient.fromStateDir()),
+		},
+		{
+			method: "POST",
+			path: "/api/approvals/approve-all",
+			handler: (req, res) => handleApproveAllApprovals(req, res, DaemonControlClient.fromStateDir()),
+		},
+		{
+			method: "POST",
+			path: "/api/approvals/reject-all",
+			handler: (req, res) => handleRejectAllApprovals(req, res, DaemonControlClient.fromStateDir()),
+		},
+		{
+			method: "POST",
+			path: "/api/approvals/",
+			pathPattern: APPROVAL_ACTION_PATTERN,
+			handler: (req, res) => {
+				const match = new URL(req.url!, "http://localhost").pathname.match(APPROVAL_ACTION_PATTERN);
+				const id = match![1];
+				const action = match![2];
+				if (action === "approve") {
+					return handleApproveApproval(req, res, id, DaemonControlClient.fromStateDir());
+				}
+				return handleRejectApproval(req, res, id, DaemonControlClient.fromStateDir());
+			},
+		},
+	];
+}
+
+async function handleListApprovalsControl(
+	_req: IncomingMessage,
+	res: ServerResponse,
+): Promise<void> {
+	jsonResponse(res, 200, listApprovalsLocal(getApprovalQueue()));
+}
+
+async function handleApproveApprovalControl(
+	req: IncomingMessage,
+	res: ServerResponse,
+	params: Record<string, string>,
+): Promise<void> {
+	const note = await readOptionalStringField(req, "note");
+	const item = approveApprovalLocal(getApprovalQueue(), params.id, note);
+	if (!item) {
+		jsonResponse(res, 404, { error: "Approval not found or not pending" });
+		return;
+	}
+	jsonResponse(res, 200, { approval: item });
+}
+
+async function handleRejectApprovalControl(
+	req: IncomingMessage,
+	res: ServerResponse,
+	params: Record<string, string>,
+): Promise<void> {
+	const reason = await readOptionalStringField(req, "reason");
+	const item = rejectApprovalLocal(getApprovalQueue(), params.id, reason);
+	if (!item) {
+		jsonResponse(res, 404, { error: "Approval not found or not pending" });
+		return;
+	}
+	jsonResponse(res, 200, { approval: item });
+}
+
+async function handleApproveAllApprovalsControl(
+	req: IncomingMessage,
+	res: ServerResponse,
+): Promise<void> {
+	const note = await readOptionalStringField(req, "note");
+	jsonResponse(res, 200, approveAllApprovalsLocal(getApprovalQueue(), note));
+}
+
+async function handleRejectAllApprovalsControl(
+	req: IncomingMessage,
+	res: ServerResponse,
+): Promise<void> {
+	const reason = await readOptionalStringField(req, "reason");
+	jsonResponse(res, 200, rejectAllApprovalsLocal(getApprovalQueue(), reason));
+}
+
+export function approvalControlRoutes(): ControlRouteRegistration[] {
+	return [
+		{
+			method: "GET",
+			path: "/approvals",
+			capabilityScope: "read",
+			handler: handleListApprovalsControl,
+		},
+		{
+			method: "POST",
+			path: "/approvals/approve-all",
+			capabilityScope: "control",
+			handler: handleApproveAllApprovalsControl,
+		},
+		{
+			method: "POST",
+			path: "/approvals/reject-all",
+			capabilityScope: "control",
+			handler: handleRejectAllApprovalsControl,
+		},
+		{
+			method: "POST",
+			path: "/approvals/:id/approve",
+			capabilityScope: "control",
+			handler: handleApproveApprovalControl,
+		},
+		{
+			method: "POST",
+			path: "/approvals/:id/reject",
+			capabilityScope: "control",
+			handler: handleRejectApprovalControl,
+		},
+	];
 }

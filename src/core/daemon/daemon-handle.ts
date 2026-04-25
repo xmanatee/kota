@@ -6,7 +6,6 @@ import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
-import { getApprovalQueue } from "./approval-queue.js";
 import { computeModuleConfigDiff } from "./config-reload-diff.js";
 import type {
   DaemonControlHandle,
@@ -205,11 +204,6 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       ];
       return () => stops.forEach((s) => s());
     },
-    listApprovals: () => getApprovalQueue().list("pending"),
-    approveApproval: (id: string, note?: string) => getApprovalQueue().approve(id, note),
-    rejectApproval: (id: string, reason?: string) => getApprovalQueue().reject(id, reason),
-    approveAllApprovals: (note?: string) => getApprovalQueue().approveAll(note),
-    rejectAllApprovals: (reason?: string) => getApprovalQueue().rejectAll(reason),
     listOwnerQuestions: () => getOwnerQuestionQueue().list("pending"),
     answerOwnerQuestion: (id: string, answer: string) => getOwnerQuestionQueue().answer(id, answer, "daemon-control"),
     dismissOwnerQuestion: (id: string, reason?: string) => getOwnerQuestionQueue().dismiss(id, reason, "daemon-control"),
