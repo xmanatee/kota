@@ -71,36 +71,36 @@ protocols cannot express.
   Reject. Improver + scoped `AGENTS.md` is learn-from-failure.
 - **Routines / scheduled agents.** Already the `workflow` trigger.
 - **Multi-agent coordination patterns.** generator-verifier, orchestrator-
-  subagent, teams, bus, shared state map onto builder/critic, `delegate`
-  + `composition`, dispatcher, bus, `composition.workspace` + stores.
+  subagent, teams, bus, shared state map to builder/critic, `delegate` +
+  `composition`, dispatcher, bus, `composition.workspace` + stores.
 - **Parallel-agent desktop UIs.** Client-surface pattern; new clients use
   the daemon control API. No second runtime host.
 - **Managed Agents / brain-hands decoupling.** Reject. Daemon + session
-  + workflow + run-artifact already decouples brain/hands; credentials-
-  never-in-sandbox is `guardrails.ts` + `injection-defense`.
+  + workflow + run-artifact decouples brain/hands; credentials-never-in-
+  sandbox is `guardrails.ts` + `injection-defense`.
 - **Claude Code auto mode + sandboxing.** Read. Autonomy mode +
   `approval-queue` + `injection-defense` + tool-risk guardrails realize
   the input-probe/output-classifier split.
 - **Harness design for long-running apps.** Read — reinforces decomposer
   + builder + critic + `success-criteria*.txt` as planner/generator/
   evaluator + reset-over-compact + pre-code sprint contracts.
-- **Multi-Claude parallel builds.** Reject. Parallel-builder teams with
-  git-locks would be a second coordination surface; autonomy runs one-
-  task-WIP through builder/critic.
+- **Multi-Claude parallel builds.** Reject. Parallel-builder + git-locks
+  would be a second coordination surface; autonomy is one-task-WIP
+  through builder/critic.
 - **Claude Code 1M context + session management.** Reject at workflow
   layer. Rewind/compact/clear is an interactive-session primitive; fresh-
-  session-per-step + run-artifact handoff already realizes reset-over-
-  compact.
-- **Production MCP agent integration.** Read; reinforces `mcp-server`'s
-  stance that MCP is a transport over KOTA capabilities, not a second
-  registry.
+  session-per-step + run-artifact handoff is reset-over-compact.
+- **Production MCP agent integration.** Read; reinforces `mcp-server` —
+  MCP is a transport over KOTA capabilities, not a second registry.
 - **AGI capability scoring / behavioral-disposition alignment.** Reject.
   `eval-harness` scores task outcomes; threat models do not apply to a
-  first-party operator daemon.
+  first-party daemon.
 - **Microsoft Agent Framework (AutoGen successor).** Reject. Graph-DSL +
-  checkpoint falls under the rejected workflow-DSL slot; orchestration
-  patterns map onto bus events + `trigger` steps; Python+.NET parity is
-  the `daemon` + `client` split.
+  checkpoint is rejected workflow-DSL; orchestration is bus +
+  `trigger` steps; Python+.NET parity is `daemon` + `client`.
+- **Harness-as-shell (inference.sh).** Read. Versioned-app-contract is
+  the typed `tool` protocol in pinned `module` code; scheduler/flows/
+  portability map onto `daemon` + `workflow` + `client`. No new primitive.
 
 ## Prompt Hierarchy And Harness Posture
 

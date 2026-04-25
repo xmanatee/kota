@@ -1,12 +1,12 @@
 ---
 id: task-read-and-distill-three-owner-captured-peerinspirat
 title: Read and distill three owner-captured peer/inspiration links
-status: backlog
+status: done
 priority: p3
 area: research
 summary: Read harness-is-a-shell, garrytan tweet, and augmentcode AGENTS.md post; record per-link verdict (adopt/read/reject) per autonomy External Pattern Decisions convention.
 created_at: 2026-04-25T12:09:31.366Z
-updated_at: 2026-04-25T12:09:31.366Z
+updated_at: 2026-04-25T12:14:02.731Z
 ---
 
 ## Problem
