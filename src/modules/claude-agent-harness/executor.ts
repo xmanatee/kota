@@ -302,9 +302,16 @@ export async function executeWithAgentSDK(
     }
 
     if (message.type === "result") {
+      // The SDK's `result` frame is the terminal message of the conversation
+      // (one per `query()` call). Break instead of `continue` so we do not
+      // wait for the iterator to close: under heavy throttling the SDK can
+      // hang after emitting `result`, and the step-level watchdog would then
+      // throw away the agent's already-completed work when its 3-hour
+      // hang-rail fires. Breaking triggers `iterator.return()` for clean
+      // teardown without blocking on more messages that will never arrive.
       resultMessage = message;
       if (typeof message.num_turns === "number") turns = message.num_turns;
-      continue;
+      break;
     }
 
     if (options.verbose) {

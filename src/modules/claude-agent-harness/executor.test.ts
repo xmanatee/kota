@@ -321,6 +321,32 @@ describe("agent-sdk executor", () => {
     });
   });
 
+  it("returns immediately after the terminal result frame even if the iterator yields more", async () => {
+    let unreachableYielded = false;
+    const iterable: AsyncIterable<AgentMessage> = {
+      async *[Symbol.asyncIterator]() {
+        yield { type: "assistant", message: { content: [{ type: "text", text: "ok" }] } };
+        yield { type: "result", result: "done", subtype: "success", num_turns: 1 };
+        // Simulate an SDK iterator that does not close after the terminal
+        // `result` frame (observed under heavy throttling). The executor must
+        // break on `result` rather than wait for `done`, otherwise the agent
+        // step blocks until the workflow's hang-rail timeout discards the
+        // already-completed work.
+        unreachableYielded = true;
+        yield { type: "assistant", message: { content: [{ type: "text", text: "after-result"}] } };
+      },
+    };
+    mockQuery.mockReturnValue(iterable);
+
+    const writer = makeWriter();
+    const result = await executeWithAgentSDK("test", { effort: "xhigh" }, writer);
+
+    expect(result.text).toBe("done");
+    expect(result.subtype).toBe("success");
+    expect(writer.text).toBe("ok");
+    expect(unreachableYielded).toBe(false);
+  });
+
   it("throws when abort signal fires between messages", async () => {
     const abortController = new AbortController();
     const timeoutError = new Error("Step timed out after 1000ms");
