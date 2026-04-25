@@ -121,14 +121,13 @@ protocols cannot express.
   reintroduce clarification loops or fixed reasoning caps.
 - **Tool-design hygiene.** High bar for new tools; prefer discoverable
   surfaces (read, grep, scoped `AGENTS.md`, prompt state).
-- **No `ask_owner` from autonomous workflow steps.** Notification
-  channels forward `owner.question.asked` to operators, but
-  `ask-owner.ts` holds an in-memory `await`: a restart mid-wait kills
-  the session and the ~10-min timeout wastes tokens either way. For
-  constraint conflicts, external blockers, or scope ambiguity, move
-  the task to `blocked/` with a `## Blocker` section, seed the enabler
-  in `ready/`, commit. Re-enable only once the runtime has a restart-
-  safe await-event step and `ask_owner` uses it.
+- **`ask_owner` from autonomous workflows uses `askOwnerSteps`**
+  (`#core/workflow/ask-owner-step.js`): ask → await-event → consume,
+  daemon-restart-safe via `installAwaitResumers`. Gate on real
+  prior-step output, budget 10 min, consume every
+  `AwaitedOwnerOutcome` kind. Do not import `#core/tools/ask-owner.js`
+  from an autonomy workflow. Contract + first consumer:
+  `workflows/decomposer/AGENTS.md`.
 
 ## Scoped Contracts
 

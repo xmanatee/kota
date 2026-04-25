@@ -1,12 +1,12 @@
 ---
 id: task-demo-askownersteps-in-a-real-autonomy-workflow-and
 title: Demo askOwnerSteps in a real autonomy workflow and flip the AGENTS.md rule
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Splice the askOwnerSteps recipe into one autonomy workflow that genuinely needs operator escalation, produce a real .kota/runs/ artifact of question -> answer -> resume, and flip src/modules/autonomy/AGENTS.md from 'No ask_owner from autonomous workflow steps' to the new step-pattern contract. Closes the notification-delivery umbrella's last two follow-ups.
 created_at: 2026-04-25T02:11:41.178Z
-updated_at: 2026-04-25T02:11:41.178Z
+updated_at: 2026-04-25T02:26:35.996Z
 ---
 
 ## Problem

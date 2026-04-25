@@ -2,7 +2,9 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { askOwnerSteps } from "#core/workflow/ask-owner-step.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { labeledPredicate } from "#core/workflow/run-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
@@ -32,15 +34,68 @@ export const agent: AgentDef = {
 
 const TIMEOUT_THRESHOLD_MS = AUTONOMY_AGENT_HANG_TIMEOUT_MS;
 
+/**
+ * Operator-only ambiguities the agent loop cannot resolve from repo state
+ * alone. When set on the assessment, the workflow opens an `askOwnerSteps`
+ * recipe instead of silently skipping the run.
+ */
+export type DecomposerEscalation = {
+  kind: "task-not-found";
+  /**
+   * Task id extracted from the recovery payload's worktreeSummary. The task
+   * is no longer in any active state, so the operator is the only one who
+   * knows whether it should be decomposed anyway or whether the trigger
+   * should be dropped.
+   */
+  candidateTaskId: string;
+};
+
 export type DecomposerAssessment = {
   reason: string;
   failedRunId: string;
   failedRunDir: string;
   isTimeout: boolean;
+  escalation: DecomposerEscalation | null;
 } & (
   | { shouldDecompose: false }
   | { shouldDecompose: true; taskId: string; taskPath: string }
 );
+
+/**
+ * Outcome of the operator-loop step that resolves a `DecomposerEscalation`.
+ * Mirrors the four `AwaitedOwnerOutcome` kinds explicitly: `answered`
+ * collapses to either `approved` (when the operator authorized continuing)
+ * or `skipped` (any other answer); `dismissed`, `expired`, and `timeout` all
+ * fall back to `skipped` with a human-readable reason. `no-escalation` is
+ * the trivial path when the assessment did not need operator input.
+ */
+export type EscalationResolution =
+  | { kind: "no-escalation" }
+  | {
+      kind: "approved";
+      taskId: string;
+      operatorAnswer: string;
+      /** Pre-rendered injection-defense banner; null when the answer was clean. */
+      banner: string | null;
+    }
+  | { kind: "skipped"; reason: string };
+
+const DECOMPOSE_PREFIX = "decompose ";
+
+function parseOperatorApproval(
+  answer: string,
+  candidateTaskId: string,
+): { approved: boolean; resolvedTaskId: string } {
+  const normalized = answer.trim().toLowerCase();
+  if (!normalized.startsWith(DECOMPOSE_PREFIX)) {
+    return { approved: false, resolvedTaskId: candidateTaskId };
+  }
+  const namedId = normalized.slice(DECOMPOSE_PREFIX.length).trim();
+  return {
+    approved: namedId === candidateTaskId.toLowerCase(),
+    resolvedTaskId: namedId,
+  };
+}
 
 const TASK_STATES_FOR_IDENTIFIED_TASK = ["doing", "blocked", "ready"] as const;
 
@@ -152,6 +207,7 @@ function buildAssessment(
       failedRunId: "",
       failedRunDir: "",
       isTimeout: false,
+      escalation: null,
     };
   }
 
@@ -165,6 +221,7 @@ function buildAssessment(
       failedRunId: source.runId,
       failedRunDir: source.runDir,
       isTimeout: false,
+      escalation: null,
     };
   }
 
@@ -175,20 +232,31 @@ function buildAssessment(
       failedRunId: source.runId,
       failedRunDir: source.runDir,
       isTimeout: false,
+      escalation: null,
     };
   }
 
   // Recovery path: the failed builder's rename was reverted by the stash step,
   // so the task file is back in ready/. Use the pre-stash worktreeSummary to
   // identify which task, then look it up across task states.
+  const candidateId = source.worktreeSummary
+    ? extractTaskIdFromWorktreeSummary(source.worktreeSummary)
+    : null;
   const task = source.worktreeSummary
-    ? (() => {
-        const id = extractTaskIdFromWorktreeSummary(source.worktreeSummary);
-        return id ? findTaskById(projectDir, id) : null;
-      })()
+    ? candidateId
+      ? findTaskById(projectDir, candidateId)
+      : null
     : findTaskInState(projectDir, "doing");
 
   if (!task) {
+    // The recovery payload pointed at a candidate task id but the file is no
+    // longer in any active state — typically because the operator manually
+    // moved it to dropped/ or done/ between the failure and recovery dispatch.
+    // The decision to decompose anyway, name a different task, or drop the
+    // trigger lives outside the repo, so escalate via askOwnerSteps.
+    const escalation: DecomposerEscalation | null = candidateId
+      ? { kind: "task-not-found", candidateTaskId: candidateId }
+      : null;
     return {
       shouldDecompose: false,
       reason: source.worktreeSummary
@@ -197,6 +265,7 @@ function buildAssessment(
       failedRunId: source.runId,
       failedRunDir: source.runDir,
       isTimeout: true,
+      escalation,
     };
   }
 
@@ -208,15 +277,120 @@ function buildAssessment(
     taskId: task.id,
     taskPath: task.path,
     isTimeout: true,
+    escalation: null,
   };
 }
 
 const assessFailure = typedCodeStep<DecomposerAssessment>({
   id: "assess-failure",
   type: "code",
+  exposeOutputToAgent: true,
   run: ({ projectDir, trigger }) =>
     buildAssessment(projectDir, trigger.event, trigger.payload),
 });
+
+const escalationGate = labeledPredicate(
+  "no-escalation-needed",
+  (ctx) => assessFailure.output(ctx).escalation !== null,
+);
+
+const escalationSteps = askOwnerSteps({
+  idPrefix: "escalate-task-not-found",
+  // 15 minutes — short enough that an unreachable operator does not block the
+  // queue, long enough that a human checking notifications has a fair window.
+  awaitTimeoutMs: 15 * 60 * 1000,
+  input: (ctx) => {
+    const a = assessFailure.output(ctx);
+    if (!a.escalation) {
+      throw new Error(
+        "decomposer escalation: ask step ran without an escalation on the assessment — gate predicate is broken",
+      );
+    }
+    const candidate = a.escalation.candidateTaskId;
+    return {
+      context:
+        `Decomposer assessing builder run ${a.failedRunId}. The failure was ` +
+        `timeout-shaped, but the candidate task "${candidate}" identified from ` +
+        "the recovery payload is no longer in any active state " +
+        "(doing/, blocked/, ready/). It may have been moved to done/ or dropped/ " +
+        "after the failure but before recovery dispatch.",
+      question:
+        `Should we decompose "${candidate}" anyway, or drop this trigger?`,
+      reason:
+        "Only the operator knows whether the task was intentionally moved out of " +
+        "the active queue. Decomposing a task the operator already resolved would " +
+        "create stale subtasks; dropping a task that was timing out for a real " +
+        "reason loses the failure signal.",
+      proposedAnswers: [`decompose ${candidate}`, "drop trigger"],
+      source: "decomposer",
+    };
+  },
+});
+
+const escalateAsk = { ...escalationSteps.ask, when: escalationGate };
+const escalateWait = { ...escalationSteps.wait, when: escalationGate };
+const escalateConsume = { ...escalationSteps.consume, when: escalationGate };
+
+const applyEscalationOutcome = typedCodeStep<EscalationResolution>({
+  id: "apply-escalation-outcome",
+  type: "code",
+  exposeOutputToAgent: true,
+  run: (ctx): EscalationResolution => {
+    const assessment = assessFailure.output(ctx);
+    if (!assessment.escalation) {
+      return { kind: "no-escalation" };
+    }
+    const outcome = escalationSteps.consume.output(ctx);
+    const candidate = assessment.escalation.candidateTaskId;
+    switch (outcome.kind) {
+      case "answered": {
+        const { approved, resolvedTaskId } = parseOperatorApproval(
+          outcome.answer,
+          candidate,
+        );
+        if (!approved) {
+          return {
+            kind: "skipped",
+            reason: `operator answered "${outcome.answer}" — not the recognized "decompose ${candidate}" approval`,
+          };
+        }
+        return {
+          kind: "approved",
+          taskId: resolvedTaskId,
+          operatorAnswer: outcome.answer,
+          banner: outcome.banner,
+        };
+      }
+      case "dismissed":
+        return {
+          kind: "skipped",
+          reason: `operator dismissed the question${outcome.reason ? `: ${outcome.reason}` : ""}`,
+        };
+      case "expired":
+        return {
+          kind: "skipped",
+          reason: `question expired with default resolution "${outcome.defaultResolution}"`,
+        };
+      case "timeout":
+        return {
+          kind: "skipped",
+          reason: `await deadline (${outcome.awaitTimeoutMs}ms) elapsed without an operator answer`,
+        };
+      default: {
+        const _exhaustive: never = outcome;
+        return _exhaustive;
+      }
+    }
+  },
+});
+
+const shouldRunDecompose = labeledPredicate(
+  "no-decompose-target",
+  (ctx) => {
+    if (assessFailure.output(ctx).shouldDecompose) return true;
+    return applyEscalationOutcome.output(ctx).kind === "approved";
+  },
+);
 
 const decomposerWorkflow: WorkflowDefinitionInput = {
   name: "decomposer",
@@ -246,6 +420,10 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
         resetWorktreeForRecovery({ projectDir, workflowName: "decomposer" }),
     },
     assessFailure,
+    escalateAsk,
+    escalateWait,
+    escalateConsume,
+    applyEscalationOutcome,
     {
       id: "decompose",
       type: "agent",
@@ -256,7 +434,7 @@ const decomposerWorkflow: WorkflowDefinitionInput = {
       effort: agent.effort,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-      when: (ctx) => assessFailure.output(ctx).shouldDecompose,
+      when: shouldRunDecompose,
       repairLoop: {
         checks: [
           {

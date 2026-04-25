@@ -563,6 +563,14 @@ export class WorkflowTestHarness {
             resolutionSource: "harness",
             ...(approvalNote && { approvalNote }),
           };
+        } else if (step.type === "await-event") {
+          if (!(step.id in stepMocks)) {
+            throw new Error(
+              `Await-event step "${step.id}" requires a mock. Add stepMocks["${step.id}"] to HarnessOptions ` +
+                `with an AwaitEventStepOutput shape ({ kind: "event", ... } or { kind: "timeout", ... }).`,
+            );
+          }
+          output = stepMocks[step.id];
         }
       } catch (err) {
         stepError = err instanceof Error ? err.message : String(err);

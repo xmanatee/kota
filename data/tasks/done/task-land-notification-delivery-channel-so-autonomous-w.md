@@ -1,12 +1,12 @@
 ---
 id: task-land-notification-delivery-channel-so-autonomous-w
 title: Land notification-delivery channel so autonomous workflows can ask_owner again
-status: blocked
+status: done
 priority: p2
 area: autonomy
 summary: Re-enable ask_owner from autonomous workflow steps by providing a notification-delivery channel that reliably surfaces the question to an operator within a practical budget, so the current recorded-and-expired pattern stops wasting $ and wall-clock.
 created_at: 2026-04-25T00:17:31.642Z
-updated_at: 2026-04-25T00:49:16.866Z
+updated_at: 2026-04-25T02:26:35.076Z
 ---
 
 ## Problem
