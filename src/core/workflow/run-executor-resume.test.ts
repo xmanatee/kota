@@ -68,11 +68,15 @@ describe("findResumeFromIndex", () => {
     );
   });
 
-  it("throws when a prerequisite step has skipped status", () => {
+  it("treats a skipped prerequisite as completed and returns the resume index", () => {
+    // A `when`-skipped step is a deliberate non-execution recorded by the
+    // source run, not a partial state. Resume preserves the skip and does
+    // not re-run the step, so it must not block the resume contract — for
+    // example, `blocked-promoter` skips `reset-for-recovery` on
+    // `autonomy.queue.available` triggers and would otherwise be unable to
+    // resume across an await-event suspension on a daemon restart.
     const original = [makeStep("step-a", "skipped")];
-    expect(() => findResumeFromIndex("step-b", defSteps, original)).toThrow(
-      `prerequisite step "step-a" did not complete successfully`,
-    );
+    expect(findResumeFromIndex("step-b", defSteps, original)).toBe(1);
   });
 });
 

@@ -184,6 +184,7 @@ export class WorkflowRuntime {
       store: this.store,
       definitions: this.definitions,
       log: (msg) => this.log(msg),
+      appendResumeRun: (queued) => this.wfQueue.appendResumeRun(queued),
       onScheduled: () => this.maybeStartNext(),
       disposers: this.awaitResumeDisposers,
     });

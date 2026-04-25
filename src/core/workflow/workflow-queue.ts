@@ -129,6 +129,19 @@ export class WorkflowQueueManager {
     );
   }
 
+  /**
+   * Append a fully-formed queued run produced outside the trigger path
+   * (e.g. by `installAwaitResumers` for await-event resumptions). Dedups by
+   * `runId` so a buffered delivery and a live bus match cannot both queue
+   * the same resume. Persists the queue so the runtime's wfQueue and the
+   * store's `pendingRuns` stay in sync.
+   */
+  appendResumeRun(queued: WorkflowQueuedRun): void {
+    if (this.queue.some((item) => item.runId === queued.runId)) return;
+    this.queue.push(queued);
+    this.persist();
+  }
+
   cancel(runId: string): { cancelled: boolean } {
     const index = this.queue.findIndex((item) => item.runId === runId);
     if (index === -1) return { cancelled: false };

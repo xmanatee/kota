@@ -49,6 +49,14 @@ export type InstallAwaitResumersDeps = {
   store: WorkflowRunStore;
   definitions: readonly WorkflowDefinition[];
   log: (message: string) => void;
+  /**
+   * Append a queued resume run to the runtime's workflow queue. The runtime
+   * implementation also persists the queue to disk; tests pass a thin
+   * implementation that updates the store directly. The callee should dedup
+   * by `runId` so a buffered delivery and a live bus match cannot both
+   * queue the same resume.
+   */
+  appendResumeRun: (queued: WorkflowQueuedRun) => void;
   /** Called after the resume run is added to the pending queue. */
   onScheduled: () => void;
   /** Disposers returned for shutdown cleanup (subscribers and timers). */
@@ -121,12 +129,7 @@ function queueResumeRun(
     enqueuedAtMs: Date.now(),
     notBeforeMs: Date.now(),
   };
-  const state = deps.store.readState();
-  const alreadyPending = state.pendingRuns.some(
-    (r) => r.runId === newRunId,
-  );
-  if (alreadyPending) return;
-  deps.store.setPendingRuns([...state.pendingRuns, queued]);
+  deps.appendResumeRun(queued);
   deps.onScheduled();
 }
 

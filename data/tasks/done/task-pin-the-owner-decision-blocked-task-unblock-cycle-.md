@@ -1,12 +1,12 @@
 ---
 id: task-pin-the-owner-decision-blocked-task-unblock-cycle-
 title: Pin the owner-decision blocked-task unblock cycle through an end-to-end integration test
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Cover ask -> daemon-restart -> free-form Telegram reply -> resolved-marker -> auto-promote in one integration test so regressions in askOwnerSteps, blocked-promoter, owner-question-reply, or installAwaitResumers fail a single named test instead of slipping through unit-test seams.
 created_at: 2026-04-25T04:43:34.328Z
-updated_at: 2026-04-25T04:43:34.328Z
+updated_at: 2026-04-25T05:13:18.402Z
 ---
 
 ## Problem

@@ -26,3 +26,14 @@ Runtime contract:
 - The askOwnerSteps recipe is the only outward call; everything else is
   deterministic file operations and `git mv` via the shared
   `moveTaskById` helper.
+
+## Regression coverage
+
+`owner-decision-cycle.integration.test.ts` is the load-bearing regression
+for the full owner-decision unblock cycle: ask → daemon-restart → free-form
+Telegram chat reply → resolved-marker → auto-promote. It drives the real
+`blocked-promoter` workflow, the `askOwnerSteps` recipe, the
+`OwnerQuestionQueue`, the `installAwaitResumers` resume path, and the
+`tryHandleOwnerQuestionReply` chat-reply path through a real `Daemon`
+stop/start cycle. A regression in any one of those four named seams fails
+this single test with a message naming the broken seam.

@@ -153,7 +153,10 @@ export function findResumeFromIndex(
   for (let i = 0; i < idx; i++) {
     const defStep = definitionSteps[i]!;
     const result = originalSteps.find((s) => s.id === defStep.id);
-    if (!result || result.status !== "success") {
+    // A "skipped" status records a `when` predicate that evaluated to false
+    // in the source run — a deliberate non-execution, not a partial state.
+    // Resume preserves the skip; the step does not re-run.
+    if (!result || (result.status !== "success" && result.status !== "skipped")) {
       throw new Error(
         `Cannot resume from step "${stepId}": prerequisite step "${defStep.id}" did not complete successfully in the source run`,
       );

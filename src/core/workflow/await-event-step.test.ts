@@ -167,6 +167,11 @@ describe("await-event step", () => {
       store,
       definitions: [definition],
       log,
+      appendResumeRun: (q) => {
+        const s = store.readState();
+        if (s.pendingRuns.some((r) => r.runId === q.runId)) return;
+        store.setPendingRuns([...s.pendingRuns, q]);
+      },
       onScheduled: () => { scheduled += 1; },
     });
     expect(scheduled).toBe(1);
@@ -239,6 +244,11 @@ describe("await-event step", () => {
       store,
       definitions: [definition],
       log,
+      appendResumeRun: (q) => {
+        const s = store.readState();
+        if (s.pendingRuns.some((r) => r.runId === q.runId)) return;
+        store.setPendingRuns([...s.pendingRuns, q]);
+      },
       onScheduled: () => { scheduled += 1; },
     });
     expect(scheduled).toBe(1);

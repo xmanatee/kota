@@ -250,6 +250,11 @@ describe("askOwnerSteps", () => {
       store,
       definitions: [definition],
       log,
+      appendResumeRun: (q) => {
+        const s = store.readState();
+        if (s.pendingRuns.some((r) => r.runId === q.runId)) return;
+        store.setPendingRuns([...s.pendingRuns, q]);
+      },
       onScheduled: () => {
         scheduled += 1;
       },
