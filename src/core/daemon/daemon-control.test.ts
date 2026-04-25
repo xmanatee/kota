@@ -41,9 +41,6 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     enqueuePendingRun: vi.fn(() => ({ ok: true, queued: "builder", runId: "2026-01-01T00-00-00-000Z-builder-abc123" })),
     cancelQueuedRun: vi.fn(() => ({ ok: false, notFound: true })),
     subscribeToEvents: vi.fn(() => () => {}),
-    listHistory: vi.fn(() => []),
-    getHistory: vi.fn(() => null),
-    deleteHistory: vi.fn(() => false),
     listApprovals: vi.fn(() => []),
     approveApproval: vi.fn(() => null),
     rejectApproval: vi.fn(() => null),
@@ -703,70 +700,6 @@ describe("DaemonControlServer", () => {
           "X-Kota-Webhook-Timestamp": staleTs,
         },
       });
-      expect(res.status).toBe(401);
-    });
-  });
-
-  describe("GET /history", () => {
-    it("returns 200 with empty conversations list", async () => {
-      const res = await fetchWithToken(port, "/history");
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body).toMatchObject({ conversations: [] });
-      expect(handle.listHistory).toHaveBeenCalled();
-    });
-
-    it("returns conversations from handle", async () => {
-      const record = { id: "conv-1", title: "Test", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", model: "claude-opus-4-7", messageCount: 2, cwd: "/tmp" };
-      handle = makeHandle({ listHistory: vi.fn(() => [record]) });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
-
-      const res = await fetchWithToken(port, "/history");
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.conversations).toHaveLength(1);
-      expect(body.conversations[0].id).toBe("conv-1");
-    });
-
-    it("passes search and limit query params to handle", async () => {
-      const res = await fetchWithToken(port, "/history?search=foo&limit=5");
-      expect(res.status).toBe(200);
-      expect(handle.listHistory).toHaveBeenCalledWith("foo", 5);
-    });
-
-    it("returns 401 without token", async () => {
-      const res = await fetchNoToken(port, "/history");
-      expect(res.status).toBe(401);
-    });
-  });
-
-  describe("GET /history/:id", () => {
-    it("returns 200 with conversation data when found", async () => {
-      const record = { id: "conv-1", title: "Test", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", model: "claude-opus-4-7", messageCount: 2, cwd: "/tmp" };
-      const data = { record, messages: [], compactionCount: 0, lastInputTokens: 0 };
-      handle = makeHandle({ getHistory: vi.fn(() => data) });
-      await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN);
-      port = await server.start();
-
-      const res = await fetchWithToken(port, "/history/conv-1");
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.record.id).toBe("conv-1");
-      expect(handle.getHistory).toHaveBeenCalledWith("conv-1");
-    });
-
-    it("returns 404 when conversation not found", async () => {
-      const res = await fetchWithToken(port, "/history/missing-id");
-      expect(res.status).toBe(404);
-      const body = await res.json();
-      expect(body.error).toBeTruthy();
-    });
-
-    it("returns 401 without token", async () => {
-      const res = await fetchNoToken(port, "/history/conv-1");
       expect(res.status).toBe(401);
     });
   });

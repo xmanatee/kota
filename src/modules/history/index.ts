@@ -12,7 +12,7 @@ import {
 	runConversationRecall,
 } from "./conversation-recall.js";
 import { getHistory } from "./history.js";
-import { historyRoutes } from "./routes.js";
+import { historyControlRoutes, historyRoutes } from "./routes.js";
 
 const historyModule: KotaModule = {
 	name: "history",
@@ -36,6 +36,7 @@ const historyModule: KotaModule = {
 	},
 
 	routes: () => historyRoutes(),
+	controlRoutes: () => historyControlRoutes(),
 };
 
 export default historyModule;

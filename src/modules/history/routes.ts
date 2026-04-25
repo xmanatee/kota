@@ -1,28 +1,52 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { RouteRegistration } from "#core/modules/module-types.js";
+import type {
+  ControlRouteRegistration,
+  RouteRegistration,
+} from "#core/modules/module-types.js";
+import type {
+  ConversationData,
+  ConversationRecord,
+} from "#core/modules/provider-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import { getHistory } from "./history.js";
+
+function listHistoryLocal(url: URL): { conversations: ConversationRecord[] } {
+  const search = url.searchParams.get("search") ?? undefined;
+  const rawLimit = url.searchParams.has("limit")
+    ? Number.parseInt(url.searchParams.get("limit")!, 10)
+    : 20;
+  const limit = Number.isNaN(rawLimit) || rawLimit < 1 ? 20 : Math.min(rawLimit, 1000);
+  return { conversations: getHistory().list({ search, limit }) };
+}
+
+function loadHistoryLocal(id: string): ConversationData | null {
+  return getHistory().load(id) ?? null;
+}
+
+function removeHistoryLocal(id: string): boolean {
+  return getHistory().remove(id);
+}
 
 export async function handleListHistory(
   res: ServerResponse,
   url: URL,
   client: DaemonControlClient | null = null,
 ): Promise<void> {
-  const search = url.searchParams.get("search") ?? undefined;
-  const rawLimit = url.searchParams.has("limit") ? Number.parseInt(url.searchParams.get("limit")!, 10) : 20;
-  const limit = Number.isNaN(rawLimit) || rawLimit < 1 ? 20 : Math.min(rawLimit, 1000);
-
   if (client) {
-    const result = await client.listHistory(search, limit);
+    const result = await client.listHistory(
+      url.searchParams.get("search") ?? undefined,
+      url.searchParams.has("limit")
+        ? Number.parseInt(url.searchParams.get("limit")!, 10)
+        : undefined,
+    );
     if (result) {
       jsonResponse(res, 200, result);
       return;
     }
   }
 
-  const history = getHistory();
-  jsonResponse(res, 200, { conversations: history.list({ search, limit }) });
+  jsonResponse(res, 200, listHistoryLocal(url));
 }
 
 export async function handleGetHistory(
@@ -39,8 +63,7 @@ export async function handleGetHistory(
     // null may mean daemon returned 404 or is unreachable — fall through to local
   }
 
-  const history = getHistory();
-  const data = history.load(conversationId);
+  const data = loadHistoryLocal(conversationId);
   if (data) {
     jsonResponse(res, 200, data);
   } else {
@@ -64,8 +87,7 @@ export async function handleDeleteHistory(
     // deleted=false may mean not found OR daemon unreachable; check local
   }
 
-  const history = getHistory();
-  if (history.remove(conversationId)) {
+  if (removeHistoryLocal(conversationId)) {
     res.writeHead(204);
     res.end();
   } else {
@@ -102,6 +124,60 @@ export function historyRoutes(): RouteRegistration[] {
         const match = new URL(req.url!, "http://localhost").pathname.match(HISTORY_ENTRY_PATTERN);
         return handleDeleteHistory(req, res, match![1], DaemonControlClient.fromStateDir());
       },
+    },
+  ];
+}
+
+function handleListHistoryControl(req: IncomingMessage, res: ServerResponse): void {
+  const url = new URL(req.url ?? "/history", "http://127.0.0.1");
+  jsonResponse(res, 200, listHistoryLocal(url));
+}
+
+function handleGetHistoryControl(
+  _req: IncomingMessage,
+  res: ServerResponse,
+  params: Record<string, string>,
+): void {
+  const data = loadHistoryLocal(params.id);
+  if (!data) {
+    jsonResponse(res, 404, { error: "Conversation not found" });
+    return;
+  }
+  jsonResponse(res, 200, data);
+}
+
+function handleDeleteHistoryControl(
+  _req: IncomingMessage,
+  res: ServerResponse,
+  params: Record<string, string>,
+): void {
+  if (!removeHistoryLocal(params.id)) {
+    jsonResponse(res, 404, { error: "Conversation not found" });
+    return;
+  }
+  res.writeHead(204);
+  res.end();
+}
+
+export function historyControlRoutes(): ControlRouteRegistration[] {
+  return [
+    {
+      method: "GET",
+      path: "/history",
+      capabilityScope: "read",
+      handler: handleListHistoryControl,
+    },
+    {
+      method: "GET",
+      path: "/history/:id",
+      capabilityScope: "read",
+      handler: handleGetHistoryControl,
+    },
+    {
+      method: "DELETE",
+      path: "/history/:id",
+      capabilityScope: "control",
+      handler: handleDeleteHistoryControl,
     },
   ];
 }

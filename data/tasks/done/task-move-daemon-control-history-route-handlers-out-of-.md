@@ -1,12 +1,12 @@
 ---
 id: task-move-daemon-control-history-route-handlers-out-of-
 title: Move daemon-control history route handlers out of core via controlRoutes
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Migrate the /history, /history/:id daemon-control endpoints from src/core/daemon/daemon-control-history.ts into the history module via KotaModule.controlRoutes, mirroring the voice migration pattern, and add an import-guard test refusing reintroduction.
 created_at: 2026-04-25T05:21:39.657Z
-updated_at: 2026-04-25T05:21:39.657Z
+updated_at: 2026-04-25T05:31:37.609Z
 ---
 
 ## Problem

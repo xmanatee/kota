@@ -1,4 +1,3 @@
-import type { ConversationData, ConversationRecord } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ToolCallSummaryEntry, WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState, WorkflowStepSkipReason } from "#core/workflow/run-types.js";
 import type { WorkflowAgentBackoffState } from "#core/workflow/types.js";
@@ -182,10 +181,6 @@ export type DaemonControlHandle = {
   enqueuePendingRun(name: string, tags?: string[], extraPayload?: Record<string, unknown>): { ok: boolean; queued?: string; runId?: string; alreadyQueued?: boolean; error?: string };
   cancelQueuedRun(runId: string): { ok: boolean; notFound?: boolean; active?: boolean };
   subscribeToEvents(handler: (event: DaemonSseEvent) => void): () => void;
-  // History
-  listHistory(search?: string, limit?: number): ConversationRecord[];
-  getHistory(id: string): ConversationData | null;
-  deleteHistory(id: string): boolean;
   // Approvals
   listApprovals(): PendingApproval[];
   approveApproval(id: string, note?: string): PendingApproval | null;

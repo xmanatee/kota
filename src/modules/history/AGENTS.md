@@ -7,7 +7,12 @@ This directory owns conversation history — the persistent record of past sessi
 - Protocol payload types (`ConversationData`, `ConversationRecord`, `ConversationMessage`) live in `#core/modules/provider-types.js`. This module re-exports them from `history-utils.ts` for module-internal convenience only.
 - Registers `conversation_recall` in the `management` tool group and contributes the `history` skill (prompt guidance for when and how to use recall).
 - Owns the `history` CLI commands (`kota history …`) in `cli-commands.ts` and CLI helpers (interactive REPL, pipe mode, option parsing) in `cli.ts`.
-- Owns the `/api/history` HTTP routes.
+- Owns the `/api/history` HTTP routes (kota serve) and the `/history`,
+  `/history/:id` daemon-control routes contributed via
+  `KotaModule.controlRoutes`. The two GETs run under capability scope `read`;
+  the DELETE under `control`. Both surfaces share local-only access
+  helpers in `routes.ts` so the wire contract (`{ conversations: ... }`,
+  full record on get, `204` on delete, `404` on missing) stays in one place.
 
 ## Boundaries
 

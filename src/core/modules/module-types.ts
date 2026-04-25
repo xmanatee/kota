@@ -138,13 +138,16 @@ export type RouteRegistration = {
  * another module's contribution — the server rejects collisions loudly at
  * startup.
  *
- * Control routes use exact-match paths; modules that need path parameters
- * can be taught the pattern later, but today's module-owned control
- * endpoints are all fixed URLs.
+ * Paths may include `:name` segments to capture path parameters. The
+ * router extracts them once and passes them to the handler as the third
+ * argument.
  */
 export type ControlRouteRegistration = {
   method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
-  /** Exact request path. Path parameters are not supported for control routes. */
+  /**
+   * Request path. May include `:name` segments for path parameters; the
+   * extracted values arrive in the handler's `params` argument.
+   */
   path: string;
   /**
    * Capability scope required to invoke the route.
@@ -152,7 +155,11 @@ export type ControlRouteRegistration = {
    * - "control": mutate daemon state or trigger external side effects
    */
   capabilityScope: CapabilityScope;
-  handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>;
+  handler: (
+    req: IncomingMessage,
+    res: ServerResponse,
+    params: Record<string, string>,
+  ) => void | Promise<void>;
 };
 
 export type ModuleContribution<T> =

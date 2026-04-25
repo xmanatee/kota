@@ -14,7 +14,6 @@ import {
   handlePatchDaemonSession,
 } from "./daemon-control-chat.js";
 import { handleInvokeCommand, handleListCommands } from "./daemon-control-commands.js";
-import { handleDeleteHistory, handleGetHistory, handleListHistory } from "./daemon-control-history.js";
 import { handleMetrics } from "./daemon-control-metrics.js";
 import { handleAnswerOwnerQuestion, handleDismissOwnerQuestion, handleListOwnerQuestions } from "./daemon-control-owner-questions.js";
 import { handleRegisterPushToken } from "./daemon-control-push-tokens.js";
@@ -77,9 +76,6 @@ const BUILTIN_ROUTE_SCOPES: Record<string, CapabilityScope> = {
   "POST /workflow/abort": "control",
   "POST /workflow/reload": "control",
   "POST /reload": "control",
-  "GET /history": "read",
-  "GET /history/:id": "read",
-  "DELETE /history/:id": "control",
   "GET /approvals": "read",
   "POST /approvals/:id/approve": "control",
   "POST /approvals/:id/reject": "control",
@@ -410,10 +406,6 @@ export class DaemonControlServer {
     if (method === "POST" && path === "/reload") { handleReloadConfig(h, res); return; }
     if (method === "POST" && path === "/workflow/trigger") { handleTriggerWorkflow(h, req, res); return; }
 
-    if (method === "GET" && path === "/history") { handleListHistory(h, res, url); return; }
-    if (method === "GET" && params.id && path.startsWith("/history/")) { handleGetHistory(h, res, params); return; }
-    if (method === "DELETE" && params.id && path.startsWith("/history/")) { handleDeleteHistory(h, req, res, params); return; }
-
     if (method === "GET" && path === "/approvals") { handleListApprovals(h, res); return; }
     if (method === "POST" && path === "/approvals/approve-all") { handleApproveAllApprovals(h, req, res); return; }
     if (method === "POST" && path === "/approvals/reject-all") { handleRejectAllApprovals(h, req, res); return; }
@@ -498,7 +490,7 @@ export class DaemonControlServer {
 
     const contributed = this.contributedHandlers.get(match.key);
     if (contributed) {
-      Promise.resolve(contributed(req, res)).catch((err: Error) => {
+      Promise.resolve(contributed(req, res, params)).catch((err: Error) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: err.message });
       });
       return;
