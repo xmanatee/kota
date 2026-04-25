@@ -1,18 +1,4 @@
-type ModelPricing = {
-  input: number;
-  output: number;
-  cacheRead: number;
-  cacheWrite: number;
-};
-
-/** Per-million-token pricing */
-const PRICING: Record<string, ModelPricing> = {
-  "claude-sonnet-4-6": { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
-  "claude-opus-4-7": { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 },
-  "claude-haiku-4-5-20251001": { input: 0.8, output: 4, cacheRead: 0.08, cacheWrite: 1 },
-};
-
-const DEFAULT_PRICING = PRICING["claude-sonnet-4-6"];
+import { getModelPricingProvider } from "#core/modules/provider-registry.js";
 
 type Usage = {
   input_tokens: number;
@@ -34,12 +20,19 @@ export class CostTracker {
   private totalCacheWrite = 0;
   private totalCost = 0;
 
+  /**
+   * Token tallies always accumulate. Dollar cost only accumulates for models
+   * with a registered pricing row from the active model-pricing provider —
+   * unknown models contribute $0 by design (no silent Sonnet-rate fallback).
+   */
   addUsage(model: string, usage: Usage): void {
-    const pricing = PRICING[model] || DEFAULT_PRICING;
     this.totalInput += usage.input_tokens;
     this.totalOutput += usage.output_tokens;
     this.totalCacheRead += usage.cache_read_input_tokens || 0;
     this.totalCacheWrite += usage.cache_creation_input_tokens || 0;
+
+    const pricing = getModelPricingProvider()?.getPricing(model) ?? null;
+    if (!pricing) return;
 
     this.totalCost +=
       (usage.input_tokens * pricing.input +

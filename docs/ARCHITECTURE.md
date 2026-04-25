@@ -55,9 +55,12 @@ The core should stay small. It should mainly own:
 
 General-purpose capabilities should not accumulate in the core by default.
 Browser use, shell/process access, filesystem actions, HTTP/web access,
-memory backends, MCP integration, and operator surfaces should prefer
-module-owned capability packs unless a shared runtime primitive truly has to
-stay in core.
+memory backends, MCP integration, operator surfaces, and provider-specific
+data such as per-model token pricing should prefer module-owned capability
+packs unless a shared runtime primitive truly has to stay in core. The
+`CostTracker` primitive itself is core; the rate tables it queries through
+the `model-pricing` provider seam belong to whichever module owns the
+model client.
 
 Quiet-hours gating, crash-loop alerting, provider registry state, and approval
 queue state are shared daemon/runtime primitives and belong in `src/core/`.

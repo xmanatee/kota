@@ -1,12 +1,12 @@
 ---
 id: task-extract-provider-specific-token-pricing-from-srcco
 title: Extract provider-specific token pricing from src/core/loop/cost.ts into a model-pricing provider seam
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Move the hardcoded Claude pricing table out of core into a typed model-pricing provider that each model-client module registers, so core stops carrying provider-specific knowledge.
 created_at: 2026-04-25T11:57:32.092Z
-updated_at: 2026-04-25T11:57:32.092Z
+updated_at: 2026-04-25T12:04:39.310Z
 ---
 
 ## Problem

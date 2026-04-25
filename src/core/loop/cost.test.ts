@@ -1,7 +1,34 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  initProviderRegistry,
+  type ModelPricing,
+  type ModelPricingProvider,
+  resetProviderRegistry,
+} from "#core/modules/provider-registry.js";
 import { CostTracker } from "./cost.js";
 
+const TEST_PRICING: Record<string, ModelPricing> = {
+  "claude-sonnet-4-6": { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+  "claude-opus-4-7": { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 },
+  "claude-haiku-4-5-20251001": { input: 0.8, output: 4, cacheRead: 0.08, cacheWrite: 1 },
+};
+
+const testPricingProvider: ModelPricingProvider = {
+  getPricing(model: string) {
+    return TEST_PRICING[model] ?? null;
+  },
+};
+
 describe("CostTracker", () => {
+  beforeEach(() => {
+    const reg = initProviderRegistry();
+    reg.register("model-pricing", "test", testPricingProvider);
+  });
+
+  afterEach(() => {
+    resetProviderRegistry();
+  });
+
   it("starts at zero cost", () => {
     const tracker = new CostTracker();
     expect(tracker.getTotalCost()).toBe(0);
@@ -69,13 +96,32 @@ describe("CostTracker", () => {
     expect(tracker.getTotalCost()).toBeCloseTo(4.8);
   });
 
-  it("falls back to sonnet pricing for unknown models", () => {
+  it("contributes zero cost for models with no registered pricing", () => {
+    // Unknown-model contract: no Sonnet-rate fallback, no silent peer-model
+    // approximation. The seam returns null and addUsage records $0 — token
+    // counts still accumulate so the summary stays informative.
     const tracker = new CostTracker();
     tracker.addUsage("claude-unknown-model", {
       input_tokens: 1_000_000,
-      output_tokens: 0,
+      output_tokens: 1_000_000,
+      cache_read_input_tokens: 1_000_000,
+      cache_creation_input_tokens: 1_000_000,
     });
-    expect(tracker.getTotalCost()).toBeCloseTo(3.0);
+    expect(tracker.getTotalCost()).toBe(0);
+    expect(tracker.getSummary()).toContain("$0.0000");
+    expect(tracker.getSummary()).toContain("1.0M in");
+    expect(tracker.getSummary()).toContain("1.0M out");
+  });
+
+  it("contributes zero cost when no model-pricing provider is registered at all", () => {
+    resetProviderRegistry();
+    initProviderRegistry();
+    const tracker = new CostTracker();
+    tracker.addUsage("claude-sonnet-4-6", {
+      input_tokens: 1_000_000,
+      output_tokens: 1_000_000,
+    });
+    expect(tracker.getTotalCost()).toBe(0);
   });
 
   it("accumulates cost across multiple calls", () => {

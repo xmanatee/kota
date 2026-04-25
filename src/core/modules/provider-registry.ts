@@ -5,6 +5,7 @@ import type {
 	HistoryProvider,
 	KnowledgeProvider,
 	MemoryProvider,
+	ModelPricingProvider,
 	RenderingProvider,
 	TaskProvider,
 } from "./provider-types.js";
@@ -13,6 +14,8 @@ export type {
 	HistoryProvider,
 	KnowledgeProvider,
 	MemoryProvider,
+	ModelPricing,
+	ModelPricingProvider,
 	RenderingProvider,
 	TaskProvider,
 } from "./provider-types.js";
@@ -183,4 +186,18 @@ export function getHistoryProvider(): HistoryProvider {
 export function getRenderingProvider(): RenderingProvider | null {
 	if (!registry) return null;
 	return registry.get<RenderingProvider>("rendering");
+}
+
+/**
+ * Get the active model-pricing provider, or `null` when no pricing module is
+ * loaded. The model-clients module contributes the default implementation
+ * during `onLoad`; deployments without a pricing-providing module receive
+ * `null` and the cost tracker contributes $0 for every model — the same
+ * unknown-model contract the seam uses per-model. Returning null here
+ * preserves the explicit-zero rule end-to-end instead of throwing inside
+ * an interactive cost summary.
+ */
+export function getModelPricingProvider(): ModelPricingProvider | null {
+	if (!registry) return null;
+	return registry.get<ModelPricingProvider>("model-pricing");
 }

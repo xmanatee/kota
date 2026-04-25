@@ -203,6 +203,33 @@ export interface RenderingProvider {
 	createReplChrome(): ReplChrome;
 }
 
+/**
+ * Per-million-token pricing for a single model. Strict: every field must be
+ * present for a registered model. Modules that own model clients register
+ * complete pricing entries through the model-pricing provider seam — the seam
+ * itself never returns a partial record.
+ */
+export type ModelPricing = {
+	input: number;
+	output: number;
+	cacheRead: number;
+	cacheWrite: number;
+};
+
+/**
+ * Lookup contract for per-model token pricing. Module-owned: each
+ * model-client module that ships pricing for its providers registers an
+ * implementation through `ctx.registerProvider("model-pricing", ...)`.
+ *
+ * Returns `null` for any model id without a registered pricing row. Core
+ * `CostTracker.addUsage` treats that null as an explicit zero-cost record
+ * (no silent Sonnet-rate or peer-model fallback) so missing pricing surfaces
+ * as a $0 contribution rather than an inflated approximation.
+ */
+export interface ModelPricingProvider {
+	getPricing(model: string): ModelPricing | null;
+}
+
 /** Interface for conversation history storage (create/save/load/list/find/remove). */
 export interface HistoryProvider {
 	create(model: string, cwd: string, source?: "user" | "action"): string;
