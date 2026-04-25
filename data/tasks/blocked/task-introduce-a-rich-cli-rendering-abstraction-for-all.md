@@ -64,6 +64,14 @@ extend as new surfaces land.
   vocabulary, theming model, and TTY-vs-non-TTY behavior at the conventions
   level without enumerating every primitive.
 
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/peer-cli-comparison
+description: peer-CLI side-by-side captures (gemini-cli, codex, pi, opencode) for terminal rendering scenarios
+```
+
 ## Source / Intent
 
 Owner captures repeatedly called out daemon and CLI output as broken, ugly, and

@@ -47,6 +47,14 @@ artifact does not ship credentials.
 - A live-run or integration artifact under `.kota/runs/` records at
   least one end-to-end launch against a staging bot.
 
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/telegram-deploy-staging
+description: staging-bot launch artifact (smoke-test.sh output against a real bot token)
+```
+
 ## Source / Intent
 
 Owner direction asked for KOTA to run like a real personal assistant on a

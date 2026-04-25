@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
+import { parseBlockedPrecondition } from "./blocked-precondition.js";
 import {
   getRepoTaskStateDir,
   REPO_TASK_STATES,
@@ -505,6 +506,23 @@ export function validateTaskQueue(
             paths: [entry.path],
           });
         }
+      }
+    }
+
+    if (entry.state === "blocked") {
+      const parsed = parseBlockedPrecondition(entry.raw);
+      if (!parsed.ok) {
+        const message = parsed.error === "missing-section"
+          ? `${entry.path} is in blocked/ but is missing the required ## Unblock Precondition section. ` +
+            `Add a precondition (kind: task-done | capability-installed | owner-decision | operator-capture) ` +
+            `so the autonomy loop can re-evaluate the block instead of waiting on human re-review.`
+          : `${entry.path} has a malformed ## Unblock Precondition: ${parsed.error}`;
+        findings.push({
+          code: "blocked-task-precondition-invalid",
+          severity: "error",
+          message,
+          paths: [entry.path],
+        });
       }
     }
 

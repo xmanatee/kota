@@ -15,6 +15,7 @@ import { print } from "#modules/rendering/transport.js";
 import {
 	getRepoInboxDir,
 	getRepoTasksDir,
+	moveTaskById,
 	REPO_INBOX_DIR,
 	REPO_TASK_STATES,
 	type RepoTaskState,
@@ -193,34 +194,24 @@ export function registerTaskCommands(program: Command): void {
 				console.error(`Unknown state "${targetState}". Valid: ${REPO_TASK_STATES.join(", ")}`);
 				process.exit(1);
 			}
-			const tasksDir = getRepoTasksDir(process.cwd());
-			const found = findTask(tasksDir, id);
-			if (!found) {
-				console.error(`Task "${id}" not found.`);
+			try {
+				const result = moveTaskById(process.cwd(), id, targetState as RepoTaskState);
+				print(line(
+					plain("Moved "),
+					span(`"${id}"`, "accent"),
+					plain(` from "${result.fromState}" to `),
+					span(`"${result.toState}"`, "success"),
+					plain("."),
+				));
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				if (/already in/.test(message)) {
+					print(line(plain(`Task "${id}" is already in "${targetState}".`)));
+					return;
+				}
+				console.error(message);
 				process.exit(1);
 			}
-			if (found.state === targetState) {
-				print(line(plain(`Task "${id}" is already in "${targetState}".`)));
-				return;
-			}
-
-			const dstPath = join(tasksDir, targetState, `${id}.md`);
-			const { attrs, body } = parseFlatFrontMatter(found.content);
-			attrs.status = targetState;
-			attrs.updated_at = new Date().toISOString();
-			const updated = serializeFlatFrontMatter(attrs, body);
-
-			execSync(`git mv "${found.path}" "${dstPath}"`, { cwd: process.cwd() });
-			writeFileSync(dstPath, updated, "utf-8");
-			execSync(`git add "${dstPath}"`, { cwd: process.cwd() });
-
-			print(line(
-				plain("Moved "),
-				span(`"${id}"`, "accent"),
-				plain(` from "${found.state}" to `),
-				span(`"${targetState}"`, "success"),
-				plain("."),
-			));
 		});
 
 	taskCmd

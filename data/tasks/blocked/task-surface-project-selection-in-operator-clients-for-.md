@@ -35,6 +35,16 @@ The in-progress `task-enable-kota-to-operate-on-external-projects` work is makin
 - Tests cover the project-switch control path and the per-project filtering of sessions/runs.
 - Docs in the relevant client and daemon-ops `AGENTS.md` describe the model at the conventions level, not as a catalog of endpoints.
 
+## Unblock Precondition
+
+```
+kind: owner-decision
+slot: multi-project-runtime-shape
+question: Should multi-project supervision use Variant A (one daemon hosts many project runtimes), Variant B (one daemon per project, client-side registry), or the Hybrid (daemon-owned registry, one active project)? See ## Proposal for the trade-offs.
+context: Owner was first asked 2026-04-18 and timed out. The askOwnerSteps recipe is now restart-safe so this re-ask is durable.
+proposed_answers: variant-a, variant-b, hybrid, unblock
+```
+
 ## Source / Intent
 
 Owner direction asked KOTA to operate beyond the KOTA repo and supervise

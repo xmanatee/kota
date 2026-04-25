@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
 import { loadRecentRuns, type RunSummary } from "#modules/autonomy/shared.js";
+import { parseBlockedPrecondition } from "#modules/repo-tasks/blocked-precondition.js";
 import {
   countRepoTaskState,
   listRepoTasksInState,
@@ -15,6 +16,12 @@ const DEFAULT_WARNINGS_WINDOW = 10;
 // KOTA_DIGEST_BLOCKED_AGE_DAYS: a blocked task is "long-blocked" when its
 // updated_at is older than this many days (default 3)
 const DEFAULT_BLOCKED_AGE_DAYS = 3;
+// KOTA_DIGEST_BLOCKED_AGED_DAYS: an additional escalation threshold for
+// blocked tasks the autonomy loop genuinely cannot promote on its own —
+// owner-decision and operator-capture preconditions surface here so they do
+// not silently absorb queue capacity (default 14, matching the
+// blocked-promoter owner-ask cadence).
+const DEFAULT_BLOCKED_AGED_DAYS = 14;
 const MAX_INDIVIDUAL_BLOCKED_ITEMS = 5;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -88,14 +95,43 @@ function findLongBlocked(
   return entries;
 }
 
+function findOperatorGatedAged(
+  records: RepoTaskRecord[],
+  thresholdDays: number,
+  nowMs: number,
+): LongBlockedEntry[] {
+  const entries: LongBlockedEntry[] = [];
+  for (const record of records) {
+    const updatedMs = Date.parse(record.frontmatter.updatedAt);
+    if (Number.isNaN(updatedMs)) continue;
+    const ageDays = Math.floor((nowMs - updatedMs) / MS_PER_DAY);
+    if (ageDays < thresholdDays) continue;
+    const parsed = parseBlockedPrecondition(
+      `---\n---\n${record.body}`,
+    );
+    if (!parsed.ok) continue;
+    if (
+      parsed.precondition.kind === "owner-decision" ||
+      parsed.precondition.kind === "operator-capture"
+    ) {
+      entries.push({ record, ageDays });
+    }
+  }
+  entries.sort((a, b) => b.ageDays - a.ageDays);
+  return entries;
+}
+
 function blockedAttentionItems(projectDir: string): AttentionItem[] {
   const blockedCount = countRepoTaskState(projectDir, "blocked");
   if (blockedCount === 0) return [];
 
   const threshold =
     Number(process.env.KOTA_DIGEST_BLOCKED_AGE_DAYS) || DEFAULT_BLOCKED_AGE_DAYS;
+  const agedThreshold =
+    Number(process.env.KOTA_DIGEST_BLOCKED_AGED_DAYS) || DEFAULT_BLOCKED_AGED_DAYS;
   const records = listRepoTasksInState(projectDir, "blocked");
   const longBlocked = findLongBlocked(records, threshold, Date.now());
+  const operatorGatedAged = findOperatorGatedAged(records, agedThreshold, Date.now());
 
   const items: AttentionItem[] = [];
   // Aggregate pressure remains visible unless every blocked task is already
@@ -122,6 +158,16 @@ function blockedAttentionItems(projectDir: string): AttentionItem[] {
     items.push({
       label: "More long-blocked tasks",
       detail: `${tail} additional blocked tasks past threshold`,
+    });
+  }
+
+  // Operator-gated preconditions (owner-decision, operator-capture) cannot
+  // auto-promote, so an aged one needs operator attention rather than another
+  // autonomy retry. Surface them explicitly past the longer aging threshold.
+  for (const { record, ageDays } of operatorGatedAged) {
+    items.push({
+      label: "Operator-gated blocker aged",
+      detail: `${record.frontmatter.id} (blocked ${ageDays}d, operator-gated precondition)`,
     });
   }
   return items;

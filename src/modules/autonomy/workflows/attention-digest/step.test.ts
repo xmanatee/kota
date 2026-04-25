@@ -406,4 +406,78 @@ describe("runAttentionDigestStep", () => {
     });
   });
 
+  describe("operator-gated precondition aging", () => {
+    afterEach(() => {
+      delete process.env.KOTA_DIGEST_BLOCKED_AGE_DAYS;
+      delete process.env.KOTA_DIGEST_BLOCKED_AGED_DAYS;
+    });
+
+    it("surfaces an aged owner-decision precondition past 14 days", () => {
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+      writeBlockedTask(projectDir, "task-aged-owner", {
+        daysAgo: 20,
+        body: [
+          "## Unblock Precondition",
+          "",
+          "```",
+          "kind: owner-decision",
+          "slot: pick-variant",
+          "question: Which variant?",
+          "context: ctx.",
+          "```",
+          "",
+        ].join("\n"),
+      });
+      runSteps(10);
+      const text = emittedEvents[0].payload.text as string;
+      expect(text).toContain("Operator-gated blocker aged");
+      expect(text).toContain("task-aged-owner");
+      expect(text).toContain("operator-gated precondition");
+    });
+
+    it("does not surface an operator-capture precondition under the threshold", () => {
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+      writeBlockedTask(projectDir, "task-fresh-capture", {
+        daysAgo: 5,
+        body: [
+          "## Unblock Precondition",
+          "",
+          "```",
+          "kind: operator-capture",
+          "path: .kota/runs/foo",
+          "description: x",
+          "```",
+          "",
+        ].join("\n"),
+      });
+      runSteps(10);
+      const text = emittedEvents[0].payload.text as string;
+      expect(text).not.toContain("Operator-gated blocker aged");
+    });
+
+    it("does not surface an aged task-done precondition (autonomy can promote it)", () => {
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+      writeBlockedTask(projectDir, "task-aged-task-done", {
+        daysAgo: 30,
+        body: [
+          "## Unblock Precondition",
+          "",
+          "```",
+          "kind: task-done",
+          "ref: task-enabler",
+          "```",
+          "",
+        ].join("\n"),
+      });
+      runSteps(10);
+      const text = emittedEvents[0].payload.text as string;
+      // task-done preconditions can auto-promote, so they only show under the
+      // shorter "long-blocked" threshold, not the operator-gated escalation.
+      expect(text).not.toContain("Operator-gated blocker aged");
+    });
+  });
+
 });

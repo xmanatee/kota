@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
+import { parseBlockedPrecondition } from "#modules/repo-tasks/blocked-precondition.js";
 
 const ROOT = process.cwd();
 const DATA_ROOT = join(ROOT, "data");
@@ -116,6 +117,14 @@ describe("repo task files", () => {
 					}
 				}
 			}
+		}
+	});
+
+	it("requires every blocked task to declare a typed unblock precondition", () => {
+		for (const file of listTaskFiles("blocked")) {
+			const raw = readFileSync(file, "utf-8");
+			const parsed = parseBlockedPrecondition(raw);
+			expect(parsed.ok, `${basename(file)}: ${parsed.ok ? "" : parsed.error}`).toBe(true);
 		}
 	});
 });

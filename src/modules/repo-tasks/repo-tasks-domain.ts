@@ -1,5 +1,7 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { getRepoHeadSha } from "#core/util/repo-worktree.js";
 
 export const REPO_DATA_DIR = "data";
@@ -165,6 +167,67 @@ export function listRepoTasksInState(
     });
   }
   return records;
+}
+
+export type MoveTaskResult = {
+  id: string;
+  fromState: RepoTaskState;
+  toState: RepoTaskState;
+  /** Repo-relative destination path. */
+  path: string;
+  /** Repo-relative previous path. */
+  previousPath: string;
+};
+
+/**
+ * Move a normalized task file between state directories, atomically updating
+ * the `status` and `updated_at` frontmatter fields and staging both the
+ * rename and the rewritten file with `git`.
+ *
+ * This is the single mechanism for state transitions; the `kota task move`
+ * CLI and autonomy workflows both call it. Throws when the task is not found,
+ * is already in the target state, or when the git operations fail.
+ */
+export function moveTaskById(
+  projectDir: string,
+  id: string,
+  toState: RepoTaskState,
+): MoveTaskResult {
+  const tasksDir = getRepoTasksDir(projectDir);
+  let fromState: RepoTaskState | null = null;
+  let fromPath: string | null = null;
+  for (const state of REPO_TASK_STATES) {
+    const candidate = join(tasksDir, state, `${id}.md`);
+    if (existsSync(candidate)) {
+      fromState = state;
+      fromPath = candidate;
+      break;
+    }
+  }
+  if (!fromState || !fromPath) {
+    throw new Error(`Task "${id}" not found in any state directory`);
+  }
+  if (fromState === toState) {
+    throw new Error(`Task "${id}" is already in "${toState}"`);
+  }
+  const dstPath = join(tasksDir, toState, `${id}.md`);
+  const content = readFileSync(fromPath, "utf-8");
+  const { attrs, body } = parseFlatFrontMatter(content);
+  attrs.status = toState;
+  attrs.updated_at = new Date().toISOString();
+  const updated = serializeFlatFrontMatter(attrs, body);
+
+  execFileSync("git", ["mv", fromPath, dstPath], { cwd: projectDir });
+  writeFileSync(dstPath, updated, "utf-8");
+  execFileSync("git", ["add", dstPath], { cwd: projectDir });
+
+  return {
+    id,
+    fromState,
+    toState,
+    path: dstPath.slice(projectDir.length + 1),
+    previousPath: fromPath.slice(projectDir.length + 1),
+  };
 }
 
 export type DaemonTaskDetail = {

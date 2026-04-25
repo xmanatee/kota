@@ -43,6 +43,13 @@ step records the resulting changes.
 - The post-run task body carries the `research-retry-attempt` marker
   `mark-attempt` writes from the candidate's URL fingerprint.
 
+## Unblock Precondition
+
+```
+kind: capability-installed
+probe: storageState:.kota/fixture-no-such-profile.json
+```
+
 ## Source / Intent
 
 Authored alongside `research-retry-agent-call-replay` to satisfy the

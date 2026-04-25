@@ -55,6 +55,14 @@ either converted into follow-up tasks or explained why they do not block
 - The scenarios pack is reachable from the CLI or an operator-runnable
   script, not only from ad-hoc invocation.
 
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/harness-parity-*
+description: live operator-facilitated harness-parity capture against every registered harness
+```
+
 ## Source / Intent
 
 Owner direction from the Claude/Codex-alternative inbox work asked KOTA to be

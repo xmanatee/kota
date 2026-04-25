@@ -62,6 +62,13 @@ task is opened in `data/tasks/backlog/`.
   "read, no action".
 - Any KOTA-specific gap surfaced has a concrete follow-up task opened.
 
+## Unblock Precondition
+
+```
+kind: task-done
+ref: task-enable-autonomous-access-to-auth-walled-sources-so
+```
+
 ## Source / Intent
 
 This task came from research distillation work that could not honestly read a

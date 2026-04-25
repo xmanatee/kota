@@ -1,12 +1,12 @@
 ---
 id: task-audit-and-reposition-the-7-blocked-tasks-with-expl
 title: Audit and reposition the 7 blocked tasks with explicit unblock preconditions
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Walk data/tasks/blocked/, verify each block is still real, reposition or drop stale ones, and leave each remaining blocked task with a typed, machine-checkable unblock precondition so future autonomy cycles can auto-promote when the precondition fires rather than waiting on human re-review.
 created_at: 2026-04-25T02:49:46.570Z
-updated_at: 2026-04-25T02:49:46.570Z
+updated_at: 2026-04-25T03:15:55.374Z
 ---
 
 ## Problem

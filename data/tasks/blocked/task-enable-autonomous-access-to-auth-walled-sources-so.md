@@ -75,6 +75,13 @@ inaccessible retain honest blocked status.
   likely under `src/modules/browser/` or a new sibling), not duplicated across
   docs.
 
+## Unblock Precondition
+
+```
+kind: capability-installed
+probe: playwright
+```
+
 ## Source / Intent
 
 Owner inbox captures included X/Twitter and gated research links that should

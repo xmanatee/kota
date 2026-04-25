@@ -56,6 +56,13 @@ reason based on actual content.
 - The task record reflects the final disposition per URL.
 - Follow-up tasks exist for any adopted or deferred work.
 
+## Unblock Precondition
+
+```
+kind: task-done
+ref: task-enable-autonomous-access-to-auth-walled-sources-so
+```
+
 ## Source / Intent
 
 This grouped task came from owner and watchlist research captures that were

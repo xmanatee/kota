@@ -7,6 +7,7 @@ import { findTask, gcTerminalTasks, listTasksForStates, registerTaskCommands, sl
 
 vi.mock("node:child_process", () => ({
   execSync: vi.fn(),
+  execFileSync: vi.fn(),
 }));
 
 function makeProjectDir(): string {
@@ -285,18 +286,19 @@ describe("kota task move", () => {
     writeTaskFile(projectDir, "ready", "task-mover", { status: "ready" });
     mkdirSync(join(projectDir, "data", "tasks", "doing"), { recursive: true });
 
-    const { execSync: mockExec } = await import("node:child_process");
-    vi.mocked(mockExec).mockImplementation((_cmd: unknown) => {
-      const cmd = String(_cmd);
-      if (cmd.includes("git mv")) {
-        const src = join(projectDir, "data", "tasks", "ready", "task-mover.md");
-        const dst = join(projectDir, "data", "tasks", "doing", "task-mover.md");
-        const content = readFileSync(src, "utf-8");
-        writeFileSync(dst, content);
-        rmSync(src);
-      }
-      return Buffer.from("");
-    });
+    const { execFileSync: mockExecFile } = await import("node:child_process");
+    vi.mocked(mockExecFile).mockImplementation(
+      (_file: unknown, args?: unknown) => {
+        const argv = Array.isArray(args) ? (args as string[]) : [];
+        if (argv[0] === "mv") {
+          const [, src, dst] = argv;
+          const content = readFileSync(src, "utf-8");
+          writeFileSync(dst, content);
+          rmSync(src);
+        }
+        return Buffer.from("");
+      },
+    );
 
     const program = makeProgram();
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
