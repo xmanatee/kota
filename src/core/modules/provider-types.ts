@@ -169,9 +169,9 @@ export interface TaskProvider {
 /**
  * REPL chrome surface — paints operator-facing banners, status, and
  * errors around the interactive transcript. The rendering module
- * supplies the default implementation; core consumers resolve it
- * through `RenderingProvider.createReplChrome()` so `src/core/repl`
- * stays free of rendering-module imports.
+ * supplies the default implementation; the `repl` module resolves it
+ * through `RenderingProvider.createReplChrome()` so `src/modules/repl`
+ * does not need to import `#modules/rendering/*` directly.
  */
 export interface ReplChrome {
 	/** Announce the chosen harness and model once at REPL entry. */

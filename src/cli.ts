@@ -15,7 +15,6 @@ import { createModelClient } from "./core/model/model-client.js";
 import { discoverModules } from "./core/modules/module-discovery.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import { discoverProjectModules } from "./core/modules/project-discovery.js";
-import { runHarnessRepl } from "./core/repl/index.js";
 import {
   interactiveMode,
   parseIntOption,
@@ -24,6 +23,7 @@ import {
   runPipeLoop,
 } from "./modules/history/cli.js";
 import { parseModelString, resolveApiKey } from "./modules/model-clients/factory.js";
+import { runHarnessRepl } from "./modules/repl/index.js";
 
 export { formatAuthError } from "./core/model/auth-error.js";
 export { parseIntOption } from "./modules/history/cli.js";

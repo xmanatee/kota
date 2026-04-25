@@ -1,3 +1,12 @@
+/**
+ * REPL module — harness-neutral interactive terminal client. Drives any
+ * registered `AgentHarness` adapter turn-by-turn. The CLI `run -i` path
+ * for harness-backed providers calls `runHarnessRepl` from this module.
+ *
+ * Operator chrome (banners, status, errors) is resolved through the
+ * rendering provider seam exposed by `RenderingProvider.createReplChrome()`,
+ * so this module depends on `rendering` but does not import it directly.
+ */
 import { createInterface, type Interface as ReadlineInterface } from "node:readline";
 import {
   type AgentHarness,
@@ -6,6 +15,7 @@ import {
   type AgentHarnessWriter,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
+import type { KotaModule } from "#core/modules/module-types.js";
 import { getRenderingProvider } from "#core/modules/provider-registry.js";
 import type { ReplChrome } from "#core/modules/provider-types.js";
 import { expandUserPromptReferences } from "#core/prompt-input/index.js";
@@ -223,3 +233,12 @@ export async function runHarnessRepl(options: HarnessReplOptions): Promise<void>
 
   chrome.showGoodbye();
 }
+
+const replModule: KotaModule = {
+  name: "repl",
+  version: "1.0.0",
+  description:
+    "Harness-neutral interactive terminal REPL for AgentHarness adapters.",
+};
+
+export default replModule;

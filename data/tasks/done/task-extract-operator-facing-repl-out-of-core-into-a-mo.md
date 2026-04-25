@@ -1,12 +1,12 @@
 ---
 id: task-extract-operator-facing-repl-out-of-core-into-a-mo
 title: Extract operator-facing REPL out of core into a module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Move src/core/repl/ into a module so core stops owning the operator-facing harness REPL; the launch path in src/cli.ts and the rendering-provided ReplChrome stay unchanged.
 created_at: 2026-04-25T14:14:41.478Z
-updated_at: 2026-04-25T14:14:41.478Z
+updated_at: 2026-04-25T22:25:00.000Z
 ---
 
 ## Problem

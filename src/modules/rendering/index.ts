@@ -7,9 +7,9 @@
  * Primitives, theme, and transport are exported from their files so
  * call sites import the small surface they need rather than pulling a
  * monolithic facade. The module also contributes a `RenderingProvider`
- * during `onLoad` so `src/core/loop/loop-constructor.ts` and
- * `src/core/repl/harness-repl.ts` resolve the default CLI transport
- * and REPL chrome through the provider registry instead of importing
+ * during `onLoad` so `src/core/loop/loop-constructor.ts` and the
+ * `repl` module resolve the default CLI transport and REPL chrome
+ * through the provider registry instead of importing
  * `#modules/rendering/*` directly.
  */
 
