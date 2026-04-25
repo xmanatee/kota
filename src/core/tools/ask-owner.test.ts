@@ -10,18 +10,6 @@ vi.mock("#core/events/event-bus.js", () => ({
   getEventBus: () => null,
 }));
 
-type MockClock = { now: () => number; sleep: (ms: number) => Promise<void> };
-
-function makeMockClock(): MockClock {
-  let currentTime = 0;
-  return {
-    now: () => currentTime,
-    sleep: async (ms: number) => {
-      currentTime += ms;
-    },
-  };
-}
-
 describe("runAskOwner", () => {
   let dir: string;
   let queue: OwnerQuestionQueue;
@@ -50,70 +38,49 @@ describe("runAskOwner", () => {
   }
 
   it("rejects a question that fails the review gate", async () => {
-    const clock = makeMockClock();
-    setAskOwnerDeps({ clock });
     const result = await runAskOwner(validInput({ question: "why?" }));
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("review gate");
     expect(queue.list()).toHaveLength(0);
   });
 
-  it("enqueues and returns the answer when the owner responds", async () => {
-    const clock = makeMockClock();
-    setAskOwnerDeps({ clock });
-    const promise = runAskOwner(validInput());
-    // Let the first poll happen then inject an answer
-    await Promise.resolve();
-    const pending = queue.list("pending");
-    expect(pending).toHaveLength(1);
-    queue.answer(pending[0].id, "10 minutes");
-
-    const result = await promise;
+  it("enqueues the question and returns immediately with the question id", async () => {
+    const result = await runAskOwner(validInput());
     expect(result.is_error).toBeUndefined();
-    expect(result.content).toContain("10 minutes");
-  });
-
-  it("returns dismissal info when the owner dismisses the question", async () => {
-    const clock = makeMockClock();
-    setAskOwnerDeps({ clock });
-    const promise = runAskOwner(validInput());
-    await Promise.resolve();
-    const pending = queue.list("pending");
-    queue.dismiss(pending[0].id, "scope change");
-    const result = await promise;
-    expect(result.content).toContain("dismissed");
-    expect(result.content).toContain("scope change");
-  });
-
-  it("times out and reports gracefully when no owner response", async () => {
-    const clock = makeMockClock();
-    setAskOwnerDeps({ clock });
-    const result = await runAskOwner(validInput({ timeout_seconds: 1 }));
-    expect(result.content).toContain("timed out");
     const items = queue.list();
     expect(items).toHaveLength(1);
-    expect(items[0].status).toBe("expired");
+    expect(items[0].status).toBe("pending");
+    // The tool result must surface the queued question id so the workflow
+    // runtime (or an operator UI) can match it against an await-event step.
+    expect(result.content).toContain(`[${items[0].id}]`);
+    expect(result.content).toMatch(/runtime owns the wait/);
+  });
+
+  it("does not poll, sleep, or wait for the queue to resolve", async () => {
+    const start = Date.now();
+    const result = await runAskOwner(validInput({ timeout_seconds: 1 }));
+    const elapsed = Date.now() - start;
+    // Enqueue-only: the tool must not wait for the timeout. A 1-second
+    // timeout that returns synchronously proves the held-await polling loop
+    // is gone.
+    expect(elapsed).toBeLessThan(500);
+    expect(result.is_error).toBeUndefined();
+    const item = queue.list()[0];
+    // The question carries the configured timeoutMs so the operator-question
+    // expirer (not the tool) handles eventual resolution.
+    expect(item.timeoutMs).toBe(1000);
+    expect(item.status).toBe("pending");
   });
 
   it("records the configured source on the enqueued question", async () => {
-    const clock = makeMockClock();
-    setAskOwnerDeps({ clock });
-    const promise = runAskOwner(validInput());
-    await Promise.resolve();
+    await runAskOwner(validInput());
     const pending = queue.list("pending");
     expect(pending[0].source).toBe("test-source");
-    queue.answer(pending[0].id, "ok");
-    await promise;
   });
 
   it("carries proposed answers through to the queued item", async () => {
-    const clock = makeMockClock();
-    setAskOwnerDeps({ clock });
-    const promise = runAskOwner(validInput({ proposed_answers: ["10 min", "1 hour"] }));
-    await Promise.resolve();
+    await runAskOwner(validInput({ proposed_answers: ["10 min", "1 hour"] }));
     const pending = queue.list("pending");
     expect(pending[0].proposedAnswers).toEqual(["10 min", "1 hour"]);
-    queue.answer(pending[0].id, "10 min");
-    await promise;
   });
 });

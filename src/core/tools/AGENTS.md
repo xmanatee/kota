@@ -13,6 +13,7 @@ conveniences. New capabilities should prefer module-owned tools.
 
 - `agent_status` — Runtime introspection of tools, modules, providers, groups.
 - `approval` — Guardrails: review/resolve queued tool calls from the daemon approval queue.
+- `ask_owner` — Asynchronous operator escalation. Enqueue-only.
 - `ask_user` — Session loop: interactive terminal I/O.
 - `confirm` — Session coordination: human approval for high-stakes actions.
 - `delegate` — Agent/session loop: sub-agent spawning.
@@ -26,6 +27,30 @@ conveniences. New capabilities should prefer module-owned tools.
 - `tool-groups`, `tool-middleware`, `tool-runner`, `tool-telemetry`, `tool-result`, `tool-adapters`, `tool-adapter-types`, `tool-adapters-zod` — tool execution pipeline.
 - `guardrails`, `guardrails-classify`, `audit-store` — risk assessment and audit storage.
 - `module-factory/` — module lifecycle: `addLoadedModule`/`resetModuleFactory` called from loop-init.
+
+## ask_owner contract
+
+The `ask_owner` tool is **enqueue-only**. `runAskOwner` validates the
+question through the review gate, places it on the OwnerQuestionQueue, and
+returns the question id immediately. The agent's tool loop is never held
+inside an `await` waiting for an answer.
+
+- Workflow callers compose the step-pattern recipe `askOwnerSteps` from
+  `#core/workflow/ask-owner-step.js`. The recipe expands into three steps —
+  `ask`, `wait` (an `await-event` on `owner.question.resolved` matched by
+  question id), and `consume` (a typed code step that reads the queue's
+  terminal state and screens the answer through the structural injection
+  detector). The wait is owned by the workflow runtime, persisted under
+  `.kota/runs/<run-id>/awaits/`, and survives a daemon restart mid-wait.
+- Interactive (non-workflow) sessions get a fire-and-forget result. The
+  tool surfaces the question id and a one-line note that the runtime owns
+  the wait. Agents in interactive sessions should prefer `ask_user` for
+  direct conversational input; `ask_owner` is reserved for asynchronous
+  operator escalation that may be answered after the current turn ends.
+- There is no parallel polling path. `POLL_INTERVAL_MS` and the held-await
+  loop have been removed; reintroducing them would re-create the
+  recorded-and-expired waste that drove the original autonomous-workflow
+  ban (see `src/modules/autonomy/AGENTS.md`).
 
 ## Autonomy mode
 

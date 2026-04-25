@@ -1,12 +1,12 @@
 ---
 id: task-convert-askowner-from-held-await-polling-to-await-
 title: Convert ask_owner from held-await polling to await-event step pattern
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Replace src/core/tools/ask-owner.ts in-tool polling loop with the workflow await-event step pattern (ask -> await-event -> consume), deleting the old held-await path so autonomous workflow steps can use ask_owner safely.
 created_at: 2026-04-25T01:38:38.925Z
-updated_at: 2026-04-25T01:38:38.925Z
+updated_at: 2026-04-25T01:53:45.701Z
 ---
 
 ## Problem

@@ -77,6 +77,39 @@ writing the delivery sibling directly. The on-disk shape is
 `{ kind: "timeout", deliveredAt, event, awaitTimeoutMs }` for a fired
 deadline.
 
+## Ask-Owner Step Pattern
+
+`askOwnerSteps` (in `ask-owner-step.ts`) composes the pausable
+await-event primitive into a three-step recipe — `ask`, `wait`,
+`consume` — that escalates a high-stakes decision to the repo owner
+without holding the agent's tool loop open. Workflows splice the
+returned steps into their definition:
+
+```ts
+const owner = askOwnerSteps({
+  idPrefix: "ask",
+  input: { context, question, reason },
+  awaitTimeoutMs: 15 * 60 * 1000,
+});
+return { ..., steps: [owner.ask, owner.wait, owner.consume, /* downstream */] };
+```
+
+- `ask` enqueues the question on `OwnerQuestionQueue`. Notification
+  modules (`telegram`, `slack`, `webhook`, `email`) already subscribe to
+  `owner.question.asked` and forward the question to operators.
+- `wait` is an `await-event` step on `owner.question.resolved` matched
+  by `id`. The suspension persists to disk so a daemon restart mid-wait
+  resumes the run via `installAwaitResumers`.
+- `consume` reads the queue's terminal state and runs the structural
+  injection detector (`#core/util/injection-detector.js`) over the
+  operator's answer, returning a typed `AwaitedOwnerOutcome`
+  discriminated union: `answered` (with optional banner when the
+  detector flags the payload), `dismissed`, `expired`, or `timeout`.
+
+Downstream steps consume the outcome via `owner.consume.output(ctx)` or
+read the await output from the resume run's trigger envelope under
+`trigger.payload.awaitEventPayloads[<wait-step-id>]`.
+
 ## Typed Code Step Pattern
 
 Use `typedCodeStep<T>` from `types.ts` when a code step's output is consumed by downstream

@@ -1,6 +1,17 @@
 /**
- * ask_owner tool — escalate a high-stakes decision to the repo owner and
- * block until the owner answers, dismisses, or the question times out.
+ * ask_owner tool — escalate a high-stakes decision to the repo owner.
+ *
+ * The tool is enqueue-only. It validates the question, places it on the
+ * owner-question queue, and returns the question id. It does not block the
+ * agent's tool loop waiting for an answer. Workflow code that wants to wait
+ * composes the step-pattern recipe in
+ * `#core/tools/ask-owner-step.js` (ask -> await-event -> consume); the
+ * workflow runtime owns the wait via the pausable `await-event` step
+ * primitive and survives a daemon restart mid-wait.
+ *
+ * In interactive (non-workflow) sessions the tool is fire-and-forget. Use
+ * `ask_user` for direct conversational input; `ask_owner` is for asynchronous
+ * operator escalation that may be answered after the current turn ends.
  *
  * Agents should reach for this only when proceeding with best judgment is
  * genuinely unsafe (ambiguous architectural direction, scope escalations,
@@ -9,13 +20,12 @@
  */
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import type { OwnerQuestionQueue, PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
+import type { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { reviewOwnerQuestion } from "#core/daemon/owner-question-review.js";
 import type { ToolResult } from "./index.js";
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
-const POLL_INTERVAL_MS = 2000;
 
 // Async-local storage so concurrent agent runs (e.g. parallel workflow step
 // groups) can each pin their own source string without clobbering a shared
@@ -31,7 +41,8 @@ export function runWithAskOwnerSource<T>(source: string, fn: () => Promise<T>): 
 export const askOwnerTool: KotaTool = {
   name: "ask_owner",
   description:
-    "Escalate a high-stakes decision to the repo owner and block until they answer. " +
+    "Enqueue a question for the repo owner and return immediately. " +
+    "The workflow runtime (or operator UI) is responsible for awaiting and routing the answer. " +
     "Use only when proceeding with best judgment is genuinely unsafe (ambiguous architectural " +
     "direction, scope change, irreversible action). Structural review rejects low-quality questions " +
     "before the owner sees them. Prefer self-directed investigation and ask_user in interactive contexts.",
@@ -57,26 +68,16 @@ export const askOwnerTool: KotaTool = {
       },
       timeout_seconds: {
         type: "number",
-        description: "How long to wait for an answer before returning. Default 600 (10 minutes).",
+        description:
+          "How long the queue may keep this question pending before the operator-question expirer resolves it with the question's default resolution. Default 600 (10 minutes).",
       },
     },
     required: ["context", "question", "reason"],
   },
 };
 
-type Clock = {
-  now(): number;
-  sleep(ms: number): Promise<void>;
-};
-
-const defaultClock: Clock = {
-  now: () => Date.now(),
-  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-};
-
 type Deps = {
   queue: () => OwnerQuestionQueue;
-  clock: Clock;
   source: () => string;
 };
 
@@ -91,7 +92,6 @@ function envFallbackSource(): string {
 
 let currentDeps: Deps = {
   queue: () => getOwnerQuestionQueue(),
-  clock: defaultClock,
   source: envFallbackSource,
 };
 
@@ -102,7 +102,6 @@ export function setAskOwnerDeps(deps: Partial<Deps>): void {
 export function resetAskOwnerDeps(): void {
   currentDeps = {
     queue: () => getOwnerQuestionQueue(),
-    clock: defaultClock,
     source: envFallbackSource,
   };
 }
@@ -136,33 +135,12 @@ export async function runAskOwner(
     defaultResolution: "dismiss",
   });
 
-  const deadline = activeDeps.clock.now() + timeoutMs;
-  let current: PendingOwnerQuestion | null = item;
-  while (activeDeps.clock.now() < deadline) {
-    current = queue.get(item.id);
-    if (!current) {
-      return { content: `Owner question [${item.id}] disappeared from queue`, is_error: true };
-    }
-    if (current.status === "answered") {
-      return { content: `Owner answered [${item.id}]: ${current.answer ?? ""}` };
-    }
-    if (current.status === "dismissed") {
-      const detail = current.dismissalReason ? `: ${current.dismissalReason}` : "";
-      return { content: `Owner dismissed [${item.id}]${detail} — proceed with your best judgment or unblock the work.` };
-    }
-    if (current.status === "expired") {
-      return { content: `Owner question [${item.id}] expired without an answer — proceed with your best judgment based on available context.` };
-    }
-    await activeDeps.clock.sleep(POLL_INTERVAL_MS);
-  }
-
-  const final = queue.get(item.id);
-  if (final?.status === "answered") {
-    return { content: `Owner answered [${item.id}]: ${final.answer ?? ""}` };
-  }
-  if (final?.status === "pending") queue.expire(item.id, "ask_owner:timeout");
   return {
-    content: `Owner question [${item.id}] timed out after ${Math.round(timeoutMs / 1000)}s — proceed with your best judgment based on available context.`,
+    content:
+      `Owner question [${item.id}] enqueued. ` +
+      `An operator will be notified through configured channels; ` +
+      `the answer flows back through the workflow runtime via the await-event step. ` +
+      `Your turn ends here — do not poll, the runtime owns the wait.`,
   };
 }
 

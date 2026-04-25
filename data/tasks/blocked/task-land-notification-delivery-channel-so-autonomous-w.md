@@ -155,8 +155,15 @@ Unblock by: land the pausable / await-event workflow step primitive
 in `ready/`). Once that primitive exists, this task splits into
 three follow-ups that each fit a single builder run:
 
-1. Replace the in-tool `ask_owner` polling with the new step-shaped
-   pattern, deleting the old held-await path (no dual path).
+1. ~~Replace the in-tool `ask_owner` polling with the new step-shaped
+   pattern, deleting the old held-await path (no dual path).~~
+   **Done.** Landed by `task-convert-askowner-from-held-await-polling-to-await-`:
+   `src/core/tools/ask-owner.ts` is now enqueue-only, the
+   `askOwnerSteps` recipe in `src/core/workflow/ask-owner-step.ts`
+   composes ask → await-event → consume on top of the pausable
+   await-event primitive, and the three-outcome integration test
+   (answered, dismissed, restart-during-wait) lives in
+   `src/core/workflow/ask-owner-step.test.ts`.
 2. Flip the `src/modules/autonomy/AGENTS.md` rule from "forbidden"
    to "allowed under the new step pattern", with explicit budget
    bounds and the typed `operator-unreachable` terminal.
