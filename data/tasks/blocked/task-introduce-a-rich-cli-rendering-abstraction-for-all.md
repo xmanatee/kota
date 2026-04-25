@@ -6,7 +6,7 @@ priority: p2
 area: modules
 summary: Replace ad-hoc console printing with a dedicated rendering layer (library or module) used by daemon mode, CLI mode, and every surface, inspired by gemini-cli / codex / pi / opencode.
 created_at: 2026-04-22T16:46:53.748Z
-updated_at: 2026-04-22T19:55:19.438Z
+updated_at: 2026-04-25T12:07:36.046Z
 ---
 
 ## Problem
@@ -78,6 +78,17 @@ Owner captures repeatedly called out daemon and CLI output as broken, ugly, and
 not comparable to professional coding CLIs. The intent is not merely to add a
 rendering helper; it is to make every human-facing terminal surface feel
 coherent, inspectable, and product-grade.
+
+2026-04-25 inbox reinforcement (verbatim): "I want cli to be fully revamped!
+The dedicated module must be very advanced and use abstractions and concepts
+almost like proper UI. it sohuld use all the advanced UI construts using ascii
+and colors and formatting for nice and clean rendering... research which
+methods and approaches are there and poosibly libraries and packages which are
+clean and robust and reliable and are well maintained. If there are no such
+libraries implement it all yourself." Reading: even after Phase 2 migrations
+landed, the owner still perceives the CLI as poor. The peer-CLI capture in the
+unblock precondition and the "library or self-built" decision recorded in the
+Constraints remain the bar; this reinforces that bar is not yet cleared.
 
 ## Initiative
 
