@@ -1,12 +1,12 @@
 ---
 id: task-migrate-owner-questions-daemon-control-routes-out-
 title: Migrate /owner-questions daemon-control routes out of core via controlRoutes
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Migrate the /owner-questions, /owner-questions/:id/answer, /owner-questions/:id/dismiss daemon-control endpoints from src/core/daemon/daemon-control-owner-questions.ts into the owner-questions module via KotaModule.controlRoutes, mirroring the approvals/history/voice migration pattern, and add an import-guard test refusing reintroduction.
 created_at: 2026-04-25T06:29:16.834Z
-updated_at: 2026-04-25T06:29:16.834Z
+updated_at: 2026-04-25T06:39:17.738Z
 ---
 
 ## Problem

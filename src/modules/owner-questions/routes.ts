@@ -1,13 +1,62 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { getOwnerQuestionQueue, type OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
-import type { RouteRegistration } from "#core/modules/module-types.js";
+import {
+  getOwnerQuestionQueue,
+  type OwnerQuestionQueue,
+  type PendingOwnerQuestion,
+} from "#core/daemon/owner-question-queue.js";
+import type {
+  ControlRouteRegistration,
+  RouteRegistration,
+} from "#core/modules/module-types.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
+
+const RESOLUTION_SOURCE = "http";
+
+function listOwnerQuestionsLocal(
+  queue: OwnerQuestionQueue,
+): { questions: PendingOwnerQuestion[] } {
+  return { questions: queue.list("pending") };
+}
+
+function answerOwnerQuestionLocal(
+  queue: OwnerQuestionQueue,
+  id: string,
+  answer: string,
+): PendingOwnerQuestion | null {
+  return queue.answer(id, answer, RESOLUTION_SOURCE);
+}
+
+function dismissOwnerQuestionLocal(
+  queue: OwnerQuestionQueue,
+  id: string,
+  reason?: string,
+): PendingOwnerQuestion | null {
+  return queue.dismiss(id, reason, RESOLUTION_SOURCE);
+}
+
+async function readAnswerField(req: IncomingMessage): Promise<string> {
+  try {
+    const body = await readBody(req);
+    return typeof body.answer === "string" ? body.answer : "";
+  } catch {
+    return "";
+  }
+}
+
+async function readReasonField(req: IncomingMessage): Promise<string | undefined> {
+  try {
+    const body = await readBody(req);
+    return typeof body.reason === "string" ? body.reason : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export async function handleListOwnerQuestions(
   res: ServerResponse,
   queue: OwnerQuestionQueue = getOwnerQuestionQueue(),
 ): Promise<void> {
-  jsonResponse(res, 200, { questions: queue.list("pending") });
+  jsonResponse(res, 200, listOwnerQuestionsLocal(queue));
 }
 
 export async function handleAnswerOwnerQuestion(
@@ -16,18 +65,12 @@ export async function handleAnswerOwnerQuestion(
   id: string,
   queue: OwnerQuestionQueue = getOwnerQuestionQueue(),
 ): Promise<void> {
-  let answer = "";
-  try {
-    const body = await readBody(req);
-    answer = typeof body.answer === "string" ? body.answer : "";
-  } catch {
-    // handled below
-  }
+  const answer = await readAnswerField(req);
   if (!answer.trim()) {
     jsonResponse(res, 400, { error: "answer is required" });
     return;
   }
-  const item = queue.answer(id, answer, "http");
+  const item = answerOwnerQuestionLocal(queue, id, answer);
   if (!item) {
     jsonResponse(res, 404, { error: "Owner question not found or already resolved" });
     return;
@@ -41,14 +84,8 @@ export async function handleDismissOwnerQuestion(
   id: string,
   queue: OwnerQuestionQueue = getOwnerQuestionQueue(),
 ): Promise<void> {
-  let reason: string | undefined;
-  try {
-    const body = await readBody(req);
-    reason = typeof body.reason === "string" ? body.reason : undefined;
-  } catch {
-    // reason is optional
-  }
-  const item = queue.dismiss(id, reason, "http");
+  const reason = await readReasonField(req);
+  const item = dismissOwnerQuestionLocal(queue, id, reason);
   if (!item) {
     jsonResponse(res, 404, { error: "Owner question not found or already resolved" });
     return;
@@ -78,6 +115,68 @@ export function ownerQuestionRoutes(): RouteRegistration[] {
         }
         return handleDismissOwnerQuestion(req, res, id);
       },
+    },
+  ];
+}
+
+async function handleListOwnerQuestionsControl(
+  _req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  jsonResponse(res, 200, listOwnerQuestionsLocal(getOwnerQuestionQueue()));
+}
+
+async function handleAnswerOwnerQuestionControl(
+  req: IncomingMessage,
+  res: ServerResponse,
+  params: Record<string, string>,
+): Promise<void> {
+  const answer = await readAnswerField(req);
+  if (!answer.trim()) {
+    jsonResponse(res, 400, { error: "answer is required" });
+    return;
+  }
+  const item = answerOwnerQuestionLocal(getOwnerQuestionQueue(), params.id, answer);
+  if (!item) {
+    jsonResponse(res, 404, { error: "Owner question not found or already resolved" });
+    return;
+  }
+  jsonResponse(res, 200, { question: item });
+}
+
+async function handleDismissOwnerQuestionControl(
+  req: IncomingMessage,
+  res: ServerResponse,
+  params: Record<string, string>,
+): Promise<void> {
+  const reason = await readReasonField(req);
+  const item = dismissOwnerQuestionLocal(getOwnerQuestionQueue(), params.id, reason);
+  if (!item) {
+    jsonResponse(res, 404, { error: "Owner question not found or already resolved" });
+    return;
+  }
+  jsonResponse(res, 200, { question: item });
+}
+
+export function ownerQuestionControlRoutes(): ControlRouteRegistration[] {
+  return [
+    {
+      method: "GET",
+      path: "/owner-questions",
+      capabilityScope: "read",
+      handler: handleListOwnerQuestionsControl,
+    },
+    {
+      method: "POST",
+      path: "/owner-questions/:id/answer",
+      capabilityScope: "control",
+      handler: handleAnswerOwnerQuestionControl,
+    },
+    {
+      method: "POST",
+      path: "/owner-questions/:id/dismiss",
+      capabilityScope: "control",
+      handler: handleDismissOwnerQuestionControl,
     },
   ];
 }

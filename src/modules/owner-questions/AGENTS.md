@@ -9,6 +9,16 @@ primitives. This module is the operator surface: listing pending questions,
 answering, dismissing, and exposing the same actions over HTTP so clients
 beyond the local CLI can handle escalations.
 
+The module contributes two HTTP surfaces against the same in-process
+`OwnerQuestionQueue` singleton: the public `/api/owner-questions*` routes
+through `KotaModule.routes` for the user-facing `kota serve` server, and the
+daemon-control `/owner-questions*` routes through `KotaModule.controlRoutes`
+(`read` scope on `GET /owner-questions`, `control` scope on the two POSTs)
+for token-authenticated operator clients. Both surfaces collapse to one local
+helper family in `routes.ts` so the wire contract — list/answer/dismiss
+envelopes, the missing-answer 400, and the missing-or-resolved 404 — has a
+single implementation.
+
 Every answer surface — `kota owner-question answer/dismiss` (CLI/HTTP),
 inline-keyboard buttons in Telegram, and free-form Telegram chat replies
 that target the delivered owner-question message — calls the same

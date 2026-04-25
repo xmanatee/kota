@@ -2,7 +2,6 @@ import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ToolCallSummaryEntry, WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState, WorkflowStepSkipReason } from "#core/workflow/run-types.js";
 import type { WorkflowAgentBackoffState } from "#core/workflow/types.js";
 import type { DaemonState } from "./daemon-state.js";
-import type { PendingOwnerQuestion } from "./owner-question-queue.js";
 
 export type WorkflowDefinitionTriggerSummary =
   | { type: "event"; event: string; filter?: Record<string, string | string[]> }
@@ -180,10 +179,6 @@ export type DaemonControlHandle = {
   enqueuePendingRun(name: string, tags?: string[], extraPayload?: Record<string, unknown>): { ok: boolean; queued?: string; runId?: string; alreadyQueued?: boolean; error?: string };
   cancelQueuedRun(runId: string): { ok: boolean; notFound?: boolean; active?: boolean };
   subscribeToEvents(handler: (event: DaemonSseEvent) => void): () => void;
-  // Owner questions
-  listOwnerQuestions(): PendingOwnerQuestion[];
-  answerOwnerQuestion(id: string, answer: string): PendingOwnerQuestion | null;
-  dismissOwnerQuestion(id: string, reason?: string): PendingOwnerQuestion | null;
   // Workflow runs
   listWorkflowRuns(workflow?: string, limit?: number, tag?: string, causedByRunId?: string): WorkflowRunSummary[];
   getWorkflowRun(id: string): WorkflowRunDetail | null;

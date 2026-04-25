@@ -6,7 +6,7 @@
 import { Command } from "commander";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { registerOwnerQuestionCommands } from "./cli.js";
-import { ownerQuestionRoutes } from "./routes.js";
+import { ownerQuestionControlRoutes, ownerQuestionRoutes } from "./routes.js";
 
 export type {
   OwnerQuestionEnqueueInput,
@@ -33,6 +33,7 @@ const ownerQuestionsModule: KotaModule = {
   },
 
   routes: () => ownerQuestionRoutes(),
+  controlRoutes: () => ownerQuestionControlRoutes(),
 };
 
 export default ownerQuestionsModule;

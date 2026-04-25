@@ -14,7 +14,6 @@ import {
 } from "./daemon-control-chat.js";
 import { handleInvokeCommand, handleListCommands } from "./daemon-control-commands.js";
 import { handleMetrics } from "./daemon-control-metrics.js";
-import { handleAnswerOwnerQuestion, handleDismissOwnerQuestion, handleListOwnerQuestions } from "./daemon-control-owner-questions.js";
 import { handleRegisterPushToken } from "./daemon-control-push-tokens.js";
 import { handleListSessions, handleRegisterSession, handleUnregisterSession } from "./daemon-control-sessions.js";
 import type { CapabilityScope, DaemonControlHandle, DaemonLiveStatus, DaemonSseEvent } from "./daemon-control-types.js";
@@ -75,9 +74,6 @@ const BUILTIN_ROUTE_SCOPES: Record<string, CapabilityScope> = {
   "POST /workflow/abort": "control",
   "POST /workflow/reload": "control",
   "POST /reload": "control",
-  "GET /owner-questions": "read",
-  "POST /owner-questions/:id/answer": "control",
-  "POST /owner-questions/:id/dismiss": "control",
   "GET /workflow/definitions": "read",
   "POST /workflow/definitions/:name/disable": "control",
   "POST /workflow/definitions/:name/enable": "control",
@@ -399,10 +395,6 @@ export class DaemonControlServer {
     if (method === "POST" && path === "/workflow/reload") { handleReloadWorkflow(h, res); return; }
     if (method === "POST" && path === "/reload") { handleReloadConfig(h, res); return; }
     if (method === "POST" && path === "/workflow/trigger") { handleTriggerWorkflow(h, req, res); return; }
-
-    if (method === "GET" && path === "/owner-questions") { handleListOwnerQuestions(h, res); return; }
-    if (method === "POST" && params.id && path.startsWith("/owner-questions/") && path.endsWith("/answer")) { handleAnswerOwnerQuestion(h, req, res, params); return; }
-    if (method === "POST" && params.id && path.startsWith("/owner-questions/") && path.endsWith("/dismiss")) { handleDismissOwnerQuestion(h, req, res, params); return; }
 
     if (method === "GET" && path === "/sessions") {
       if (this.chatPool) {

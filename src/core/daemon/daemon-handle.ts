@@ -20,7 +20,6 @@ import type {
   WorkflowRunSummary,
 } from "./daemon-control-types.js";
 import type { DaemonState } from "./daemon-state.js";
-import { getOwnerQuestionQueue } from "./owner-question-queue.js";
 import { registerPushToken, sendPushNotifications } from "./push-tokens.js";
 
 export type DaemonHandleContext = {
@@ -204,9 +203,6 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       ];
       return () => stops.forEach((s) => s());
     },
-    listOwnerQuestions: () => getOwnerQuestionQueue().list("pending"),
-    answerOwnerQuestion: (id: string, answer: string) => getOwnerQuestionQueue().answer(id, answer, "daemon-control"),
-    dismissOwnerQuestion: (id: string, reason?: string) => getOwnerQuestionQueue().dismiss(id, reason, "daemon-control"),
     listWorkflowRuns: (workflow?: string, limit?: number, tag?: string, causedByRunId?: string): WorkflowRunSummary[] =>
       runStore.listRuns({ workflow, limit, tag, causedByRunId }).map((m) => ({
         id: m.id,
