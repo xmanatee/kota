@@ -19,6 +19,10 @@ import type { SecretsClient } from "#core/server/kota-client.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { secretsRoutes } from "./routes.js";
 
+function ensureLocalStore(ctx: ModuleContext): ReturnType<typeof initSecretStore> {
+  return getSecretStore() ?? initSecretStore(ctx.cwd);
+}
+
 const getSecretTool: KotaTool = {
   name: "get_secret",
   description:
@@ -115,34 +119,37 @@ const secretsModule: KotaModule = {
       .option("-g, --global", "Store in global ~/.kota/ scope (default: project)")
       .option("-p, --project", "Store in project .kota/ scope")
       .action(async (name: string, opts) => {
-        const store = initSecretStore();
         const scope = parseScope(opts);
+        let value: string;
         try {
-          const value = await promptSecretValue(name);
-          if (!value) {
-            console.error("Error: empty value, nothing stored.");
-            process.exit(1);
-          }
-          store.set(name, value, scope);
-          console.log(`Secret "${name}" stored (${scope} scope).`);
+          value = await promptSecretValue(name);
         } catch {
           console.error("Error: failed to read secret value.");
           process.exit(1);
         }
+        if (!value) {
+          console.error("Error: empty value, nothing stored.");
+          process.exit(1);
+        }
+        const result = await ctx.client.secrets.set(name, value, scope);
+        if (!result.ok) {
+          console.error(`Error: failed to store secret "${name}"${result.message ? `: ${result.message}` : "."}`);
+          process.exit(1);
+        }
+        console.log(`Secret "${name}" stored (${scope} scope).`);
       });
 
     cmd
       .command("get <name>")
       .description("Retrieve and display a secret value")
-      .action((name: string) => {
-        const store = initSecretStore();
-        const value = store.get(name);
-        if (value === null) {
+      .action(async (name: string) => {
+        const result = await ctx.client.secrets.get(name);
+        if (!result.found) {
           console.error(`Secret "${name}" not found.`);
           process.exit(1);
         }
-        // Print to stdout (for piping), warning to stderr
-        process.stdout.write(value);
+        // Print to stdout (for piping), trailing newline only on TTY
+        process.stdout.write(result.value);
         if (process.stdout.isTTY) process.stdout.write("\n");
       });
 
@@ -168,15 +175,19 @@ const secretsModule: KotaModule = {
       .description("Remove a secret")
       .option("-g, --global", "Remove from global scope")
       .option("-p, --project", "Remove from project scope")
-      .action((name: string, opts) => {
-        const store = initSecretStore();
+      .action(async (name: string, opts) => {
         const scope = parseScope(opts);
-        if (store.remove(name, scope)) {
+        const result = await ctx.client.secrets.remove(name, scope);
+        if (result.ok) {
           console.log(`Secret "${name}" removed (${scope} scope).`);
-        } else {
-          console.error(`Secret "${name}" not found in ${scope} scope.`);
-          process.exit(1);
+          return;
         }
+        if (result.reason === "not_found") {
+          console.error(`Secret "${name}" not found in ${scope} scope.`);
+        } else {
+          console.error(`Error: failed to remove secret "${name}"${result.message ? `: ${result.message}` : "."}`);
+        }
+        process.exit(1);
       });
 
     return [cmd];
@@ -187,8 +198,29 @@ const secretsModule: KotaModule = {
   localClient: (ctx) => {
     const handler: SecretsClient = {
       async list() {
-        const store = getSecretStore() ?? initSecretStore(ctx.cwd);
-        return { secrets: store.list() };
+        return { secrets: ensureLocalStore(ctx).list() };
+      },
+      async get(name) {
+        const value = ensureLocalStore(ctx).get(name);
+        return value === null ? { found: false } : { found: true, value };
+      },
+      async set(name, value, scope) {
+        try {
+          ensureLocalStore(ctx).set(name, value, scope);
+          return { ok: true };
+        } catch (err) {
+          return { ok: false, reason: "store_error", message: (err as Error).message };
+        }
+      },
+      async remove(name, scope) {
+        try {
+          if (!ensureLocalStore(ctx).remove(name, scope)) {
+            return { ok: false, reason: "not_found" };
+          }
+          return { ok: true };
+        } catch (err) {
+          return { ok: false, reason: "store_error", message: (err as Error).message };
+        }
       },
     };
     return { secrets: handler };

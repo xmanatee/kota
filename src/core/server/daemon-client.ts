@@ -22,6 +22,9 @@ import type {
   RepoTaskListEntry,
   RepoTaskState,
   RepoTasksClient,
+  SecretGetResult,
+  SecretMutateResult,
+  SecretScope,
   SecretsClient,
   WorkflowClient,
 } from "./kota-client.js";
@@ -88,6 +91,9 @@ export class DaemonControlClient implements KotaClient {
         const result = await this.listSecretsHttp();
         return { secrets: result?.secrets ?? [] };
       },
+      get: async (name) => this.getSecretHttp(name),
+      set: async (name, value, scope) => this.setSecretHttp(name, value, scope),
+      remove: async (name, scope) => this.removeSecretHttp(name, scope),
     };
     this.tasks = {
       list: async (states) => {
@@ -137,6 +143,64 @@ export class DaemonControlClient implements KotaClient {
       return (await res.json()) as { secrets: { name: string; source: string }[] };
     } catch {
       return null;
+    }
+  }
+
+  private async getSecretHttp(name: string): Promise<SecretGetResult> {
+    try {
+      const res = await fetchWithTimeout(
+        `${this.baseUrl}/api/secrets/${encodeURIComponent(name)}`,
+        { headers: this.authHeaders() },
+      );
+      if (res.status === 404) return { found: false };
+      if (!res.ok) return { found: false };
+      const body = (await res.json()) as { found: boolean; value?: string };
+      if (body.found && typeof body.value === "string") {
+        return { found: true, value: body.value };
+      }
+      return { found: false };
+    } catch {
+      return { found: false };
+    }
+  }
+
+  private async setSecretHttp(
+    name: string,
+    value: string,
+    scope: SecretScope,
+  ): Promise<SecretMutateResult> {
+    try {
+      const res = await fetchWithTimeout(
+        `${this.baseUrl}/api/secrets/${encodeURIComponent(name)}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", ...this.authHeaders() },
+          body: JSON.stringify({ value, scope }),
+        },
+      );
+      if (res.ok) return { ok: true };
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, reason: "store_error", message: body.error ?? `HTTP ${res.status}` };
+    } catch (err) {
+      return { ok: false, reason: "store_error", message: (err as Error).message };
+    }
+  }
+
+  private async removeSecretHttp(
+    name: string,
+    scope: SecretScope,
+  ): Promise<SecretMutateResult> {
+    try {
+      const res = await fetchWithTimeout(
+        `${this.baseUrl}/api/secrets/${encodeURIComponent(name)}?scope=${encodeURIComponent(scope)}`,
+        { method: "DELETE", headers: this.authHeaders() },
+      );
+      if (res.status === 404) return { ok: false, reason: "not_found" };
+      if (res.ok) return { ok: true };
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, reason: "store_error", message: body.error ?? `HTTP ${res.status}` };
+    } catch (err) {
+      return { ok: false, reason: "store_error", message: (err as Error).message };
     }
   }
 

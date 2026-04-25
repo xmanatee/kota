@@ -1,12 +1,12 @@
 ---
 id: task-migrate-remaining-cli-subcommands-to-kotaclient-co
 title: Migrate remaining CLI subcommands to KotaClient contract
-status: ready
+status: doing
 priority: p2
 area: architecture
 summary: Migrate all non-acceptance CLI subcommands across modules to consume ctx.client.<namespace>.<method> instead of direct stores or .kota/ reads; expand the KotaClient contract namespace surface; add per-namespace daemon HTTP routes where needed.
 created_at: 2026-04-25T13:17:17.850Z
-updated_at: 2026-04-25T13:35:20.786Z
+updated_at: 2026-04-25T13:39:43.945Z
 ---
 
 ## Problem
@@ -106,3 +106,28 @@ same way, with the CLI as the reference interactive client.
   parity for the migrated subcommands beyond the original five.
 - Grep evidence in the run directory that no non-bootstrap CLI
   subcommand under `src/modules/*` reads `.kota/` directly.
+
+## Status
+
+Cluster-by-cluster migration is in progress. Each cluster ships in one
+builder run; this task remains in `doing/` between runs and is resumed
+until `Done When` is fully satisfied.
+
+- Done — `secrets`: `set` / `get` / `remove` now route through
+  `ctx.client.secrets.*`. Daemon adds `PUT /api/secrets/{name}`,
+  `GET /api/secrets/{name}`, `DELETE /api/secrets/{name}?scope=...`
+  under bearer auth; local-side handler covers the same surface
+  (run `2026-04-25T13-36-09-141Z-builder-avofqm`).
+- Pending — `approval` mutations (`approve`, `reject`, `approve-all`,
+  `reject-all`, `count`, `history`); `workflow` mutations (control,
+  run management, definition mutations, trigger/exec); `knowledge`,
+  `history`, `agent-ops`, `skill-ops`, `harness-parity`,
+  `owner-questions`, `webhook`, `eval-harness`, `guardrails-audit`,
+  `module-manager`, `web`, `config`, `mcp-server`, `voice`,
+  `daemon-ops` control, `doctor`, `repo-tasks` mutations, `memory`
+  mutations.
+- Pending — sibling guard test rejecting new direct `.kota/` reads
+  from non-bootstrap CLI code.
+
+The decomposer may split this task into per-cluster child tasks at any
+time if a single cluster warrants its own queue entry.

@@ -1,12 +1,12 @@
 ---
 id: task-add-interactive-runtime-navigator-as-a-cli-module
 title: Add interactive runtime navigator as a CLI module
-status: blocked
+status: backlog
 priority: p2
 area: architecture
 summary: Build the interactive runtime navigator as a new src/modules/cli/ module that consumes the KotaClient contract to inspect and toggle sessions, modules, logs, agents, secrets, and approvals.
 created_at: 2026-04-25T12:47:35.871Z
-updated_at: 2026-04-25T12:47:35.871Z
+updated_at: 2026-04-25T13:36:09.391Z
 ---
 
 ## Problem

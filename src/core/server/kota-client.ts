@@ -33,6 +33,17 @@ export type SecretListResult = {
   secrets: SecretListEntry[];
 };
 
+/** Storage scope for a writable secret. Mirrors `SecretScope` in core/config/secrets. */
+export type SecretScope = "project" | "global";
+
+/** Result of `secrets.get(name)`. The contract is explicit about absence. */
+export type SecretGetResult = { found: true; value: string } | { found: false };
+
+/** Result of a writable secret operation (`set`, `remove`). */
+export type SecretMutateResult =
+  | { ok: true }
+  | { ok: false; reason: "not_found" | "store_error"; message?: string };
+
 /** A repo-task queue state, mirroring `data/tasks/<state>/`. */
 export type RepoTaskState =
   | "backlog"
@@ -103,10 +114,20 @@ export interface ApprovalsClient {
   list(): Promise<ApprovalsListResult>;
 }
 
-/** Secret-store read operations. The actual values are never returned. */
+/**
+ * Secret-store operations.
+ *
+ * `list` returns names plus their resolution source — never the values.
+ * `get` returns the resolved value when present, or an explicit `{ found:
+ * false }` when absent. Mutation methods (`set`, `remove`) target a
+ * specific writable scope; reading respects the provider chain regardless
+ * of scope.
+ */
 export interface SecretsClient {
-  /** List secret names plus their resolution source (`global` / `project`). */
   list(): Promise<SecretListResult>;
+  get(name: string): Promise<SecretGetResult>;
+  set(name: string, value: string, scope: SecretScope): Promise<SecretMutateResult>;
+  remove(name: string, scope: SecretScope): Promise<SecretMutateResult>;
 }
 
 /** Repo-task queue read operations (the `data/tasks/*` filesystem queue). */
