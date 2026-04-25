@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { resolveProjectDir } from "#core/config/project-dir.js";
-import type { PendingApproval } from "#core/daemon/approval-queue.js";
+import type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
 import type {
   DaemonControlAddress,
   DaemonLiveStatus,
@@ -81,9 +81,17 @@ export class DaemonControlClient implements KotaClient {
       },
     };
     this.approvals = {
-      list: async () => {
-        const result = await this.listApprovals();
+      list: async (filter) => {
+        const result = await this.listApprovals(filter?.status);
         return { approvals: result?.approvals ?? [] };
+      },
+      approve: async (id, note) => {
+        const result = await this.approveApproval(id, note);
+        return result ? { ok: true, approval: result.approval } : { ok: false, reason: "not_found" };
+      },
+      reject: async (id, reason) => {
+        const result = await this.rejectApproval(id, reason);
+        return result ? { ok: true, approval: result.approval } : { ok: false, reason: "not_found" };
       },
     };
     this.secrets = {
@@ -484,9 +492,12 @@ export class DaemonControlClient implements KotaClient {
     }
   }
 
-  async listApprovals(): Promise<{ approvals: PendingApproval[] } | null> {
+  async listApprovals(
+    status?: ApprovalStatus | "all",
+  ): Promise<{ approvals: PendingApproval[] } | null> {
     try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/approvals`, { headers: this.authHeaders() });
+      const query = status ? `?status=${encodeURIComponent(status)}` : "";
+      const res = await fetchWithTimeout(`${this.baseUrl}/approvals${query}`, { headers: this.authHeaders() });
       if (!res.ok) return null;
       return (await res.json()) as { approvals: PendingApproval[] };
     } catch {

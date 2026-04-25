@@ -20,7 +20,7 @@
  * implementations are registered through ModuleContext and assembled
  * into the `LocalKotaClient` by the selector.
  */
-import type { PendingApproval } from "#core/daemon/approval-queue.js";
+import type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
 import type { WorkflowRunSummary } from "#core/daemon/daemon-control.js";
 
 /** A masked entry in the secret store (name and source only — never the value). */
@@ -92,6 +92,23 @@ export type ApprovalsListResult = {
   approvals: PendingApproval[];
 };
 
+/**
+ * Filter for `ApprovalsClient.list`.
+ *
+ * `status` defaults to `"pending"` so the common "what needs my
+ * attention?" call stays a one-liner. Pass `"all"` to include every
+ * status (used by `kota approval history` and by callers that need to
+ * count or render resolved items).
+ */
+export type ApprovalListFilter = {
+  status?: ApprovalStatus | "all";
+};
+
+/** Result of an approval mutation (`approve`, `reject`). */
+export type ApprovalMutateResult =
+  | { ok: true; approval: PendingApproval }
+  | { ok: false; reason: "not_found" };
+
 /** Workflow-related read operations. */
 export interface WorkflowClient {
   /**
@@ -102,16 +119,19 @@ export interface WorkflowClient {
   listRuns(filter?: WorkflowRunsListFilter): Promise<WorkflowRunsListResult>;
 }
 
-/** Approval-queue read operations. */
+/**
+ * Approval-queue operations.
+ *
+ * `list` reads the queue (filterable by status). `approve` / `reject`
+ * mutate a single pending entry; the daemon implementor talks to the
+ * running daemon's queue, and the local implementor talks to the
+ * in-process queue. Tool execution that follows a successful approve
+ * stays in the CLI — the contract carries only the queue-state change.
+ */
 export interface ApprovalsClient {
-  /**
-   * List currently pending approvals. The daemon implementor reads from
-   * the daemon's running queue; the local implementor reads from the
-   * in-process queue (which is empty unless an interactive session
-   * populated it). When no daemon is running, there is nothing to
-   * approve, so the result is an empty list.
-   */
-  list(): Promise<ApprovalsListResult>;
+  list(filter?: ApprovalListFilter): Promise<ApprovalsListResult>;
+  approve(id: string, note?: string): Promise<ApprovalMutateResult>;
+  reject(id: string, reason?: string): Promise<ApprovalMutateResult>;
 }
 
 /**

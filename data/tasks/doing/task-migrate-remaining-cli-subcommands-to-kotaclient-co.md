@@ -118,14 +118,21 @@ until `Done When` is fully satisfied.
   `GET /api/secrets/{name}`, `DELETE /api/secrets/{name}?scope=...`
   under bearer auth; local-side handler covers the same surface
   (run `2026-04-25T13-36-09-141Z-builder-avofqm`).
-- Pending — `approval` mutations (`approve`, `reject`, `approve-all`,
-  `reject-all`, `count`, `history`); `workflow` mutations (control,
-  run management, definition mutations, trigger/exec); `knowledge`,
-  `history`, `agent-ops`, `skill-ops`, `harness-parity`,
-  `owner-questions`, `webhook`, `eval-harness`, `guardrails-audit`,
-  `module-manager`, `web`, `config`, `mcp-server`, `voice`,
-  `daemon-ops` control, `doctor`, `repo-tasks` mutations, `memory`
-  mutations.
+- Done — `approval` mutations and reads: `approve`, `reject`,
+  `approve-all`, `reject-all`, `count`, and `history` now route
+  through `ctx.client.approvals.{list,approve,reject}`.
+  `ApprovalsClient.list` accepts an optional `{status}` filter
+  (`ApprovalStatus | "all"`, default "pending") and the public
+  `GET /api/approvals?status=...` plus the daemon-control
+  `GET /approvals?status=...` route forwards it through to
+  `queue.list(status)` (run
+  `2026-04-25T13-56-13-058Z-builder-wcqhyv`).
+- Pending — `workflow` mutations (control, run management, definition
+  mutations, trigger/exec); `knowledge`, `history`, `agent-ops`,
+  `skill-ops`, `harness-parity`, `owner-questions`, `webhook`,
+  `eval-harness`, `guardrails-audit`, `module-manager`, `web`,
+  `config`, `mcp-server`, `voice`, `daemon-ops` control, `doctor`,
+  `repo-tasks` mutations, `memory` mutations.
 - Pending — sibling guard test rejecting new direct `.kota/` reads
   from non-bootstrap CLI code.
 

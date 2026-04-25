@@ -1,5 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { type ApprovalQueue, getApprovalQueue, type PendingApproval } from "#core/daemon/approval-queue.js";
+import {
+	type ApprovalQueue,
+	type ApprovalStatus,
+	getApprovalQueue,
+	type PendingApproval,
+} from "#core/daemon/approval-queue.js";
 import type {
 	ControlRouteRegistration,
 	RouteRegistration,
@@ -7,8 +12,30 @@ import type {
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 
-function listApprovalsLocal(queue: ApprovalQueue): { approvals: PendingApproval[] } {
-	return { approvals: queue.list("pending") };
+const VALID_STATUSES: readonly (ApprovalStatus | "all")[] = [
+	"all",
+	"pending",
+	"approved",
+	"rejected",
+	"expired",
+];
+
+function readStatusFilter(req: IncomingMessage): ApprovalStatus | "all" | undefined {
+	const status = new URL(req.url ?? "", "http://localhost").searchParams.get("status");
+	if (status === null) return undefined;
+	if ((VALID_STATUSES as readonly string[]).includes(status)) {
+		return status as ApprovalStatus | "all";
+	}
+	return undefined;
+}
+
+function listApprovalsLocal(
+	queue: ApprovalQueue,
+	status?: ApprovalStatus | "all",
+): { approvals: PendingApproval[] } {
+	if (status === undefined) return { approvals: queue.list("pending") };
+	if (status === "all") return { approvals: queue.list() };
+	return { approvals: queue.list(status) };
 }
 
 function approveApprovalLocal(
@@ -60,15 +87,16 @@ export async function handleListApprovals(
 	res: ServerResponse,
 	client: DaemonControlClient | null = null,
 	queue: ApprovalQueue = getApprovalQueue(),
+	status?: ApprovalStatus | "all",
 ): Promise<void> {
 	if (client) {
-		const result = await client.listApprovals();
+		const result = await client.listApprovals(status);
 		if (result) {
 			jsonResponse(res, 200, result);
 			return;
 		}
 	}
-	jsonResponse(res, 200, listApprovalsLocal(queue));
+	jsonResponse(res, 200, listApprovalsLocal(queue, status));
 }
 
 export async function handleApproveApproval(
@@ -162,7 +190,8 @@ export function approvalRoutes(): RouteRegistration[] {
 		{
 			method: "GET",
 			path: "/api/approvals",
-			handler: (_req, res) => handleListApprovals(res, DaemonControlClient.fromStateDir()),
+			handler: (req, res) =>
+				handleListApprovals(res, DaemonControlClient.fromStateDir(), undefined, readStatusFilter(req)),
 		},
 		{
 			method: "POST",
@@ -192,10 +221,10 @@ export function approvalRoutes(): RouteRegistration[] {
 }
 
 async function handleListApprovalsControl(
-	_req: IncomingMessage,
+	req: IncomingMessage,
 	res: ServerResponse,
 ): Promise<void> {
-	jsonResponse(res, 200, listApprovalsLocal(getApprovalQueue()));
+	jsonResponse(res, 200, listApprovalsLocal(getApprovalQueue(), readStatusFilter(req)));
 }
 
 async function handleApproveApprovalControl(

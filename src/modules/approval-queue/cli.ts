@@ -1,8 +1,6 @@
 import { createInterface } from "node:readline";
 import type { Command } from "commander";
-import { loadConfig } from "#core/config/config.js";
 import type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
-import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { executeTool } from "#core/tools/index.js";
 import {
@@ -15,8 +13,6 @@ import {
 	stack,
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
-
-const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 
 function formatAge(createdAt: string): string {
 	const ageMs = Date.now() - new Date(createdAt).getTime();
@@ -147,12 +143,12 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 		.description("Approve and execute a queued tool call")
 		.option("-n, --note <text>", "Note to attach with the approval")
 		.action(async (id: string, opts: { note?: string }) => {
-			const queue = getApprovalQueue();
-			const item = queue.approve(id, opts.note);
-			if (!item) {
+			const mutate = await ctx.client.approvals.approve(id, opts.note);
+			if (!mutate.ok) {
 				console.error(`Error: approval "${id}" not found or already resolved.`);
 				process.exit(1);
 			}
+			const item = mutate.approval;
 			const result = await executeTool(item.tool, item.input);
 			if (result.is_error) {
 				console.error(`Tool execution failed:\n${result.content}`);
@@ -175,11 +171,8 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 		.option("-n, --note <text>", "Note to attach to every approved item")
 		.option("--risk <level>", "Only approve items of this risk level")
 		.action(async (opts: { yes?: boolean; note?: string; risk?: string }) => {
-			const config = loadConfig();
-			const ttlMs = config.approvalTtlMs ?? DEFAULT_TTL_MS;
-			const queue = getApprovalQueue();
-			queue.expireStale(ttlMs);
-			let items = queue.list("pending");
+			const listed = await ctx.client.approvals.list({ status: "pending" });
+			let items = listed.approvals;
 			if (opts.risk) {
 				items = items.filter((item) => item.risk === opts.risk);
 			}
@@ -211,8 +204,8 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 			let failed = 0;
 
 			for (const item of items) {
-				const approved = queue.approve(item.id, opts.note);
-				if (!approved) {
+				const mutate = await ctx.client.approvals.approve(item.id, opts.note);
+				if (!mutate.ok) {
 					print(line(
 						span("  Skipped ", "muted"),
 						span(`[${item.id}]`, "accent"),
@@ -220,6 +213,7 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 					));
 					continue;
 				}
+				const approved = mutate.approval;
 				const result = await executeTool(item.tool, item.input);
 				if (result.is_error) {
 					console.error(`  Failed [${item.id}] ${item.tool}: ${result.content}`);
@@ -253,13 +247,13 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 		.command("reject <id>")
 		.description("Reject a queued tool call")
 		.option("-r, --reason <text>", "Reason for rejection")
-		.action((id: string, opts: { reason?: string }) => {
-			const queue = getApprovalQueue();
-			const item = queue.reject(id, opts.reason);
-			if (!item) {
+		.action(async (id: string, opts: { reason?: string }) => {
+			const mutate = await ctx.client.approvals.reject(id, opts.reason);
+			if (!mutate.ok) {
 				console.error(`Error: approval "${id}" not found or already resolved.`);
 				process.exit(1);
 			}
+			const item = mutate.approval;
 			const suffix = opts.reason ? ` — ${opts.reason}` : "";
 			print(line(
 				span("Rejected: ", "error"),
@@ -276,11 +270,8 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 		.option("-r, --reason <text>", "Reason to attach to every rejected item")
 		.option("--risk <level>", "Only reject items of this risk level")
 		.action(async (opts: { yes?: boolean; reason?: string; risk?: string }) => {
-			const config = loadConfig();
-			const ttlMs = config.approvalTtlMs ?? DEFAULT_TTL_MS;
-			const queue = getApprovalQueue();
-			queue.expireStale(ttlMs);
-			let items = queue.list("pending");
+			const listed = await ctx.client.approvals.list({ status: "pending" });
+			let items = listed.approvals;
 			if (opts.risk) {
 				items = items.filter((item) => item.risk === opts.risk);
 			}
@@ -311,8 +302,8 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 			let rejected = 0;
 
 			for (const item of items) {
-				const result = queue.reject(item.id, opts.reason);
-				if (!result) {
+				const mutate = await ctx.client.approvals.reject(item.id, opts.reason);
+				if (!mutate.ok) {
 					print(line(
 						span("  Skipped ", "muted"),
 						span(`[${item.id}]`, "accent"),
@@ -343,10 +334,10 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 	approvalCmd
 		.command("count")
 		.description("Print the number of pending approval items")
-		.action(() => {
-			const queue = getApprovalQueue();
+		.action(async () => {
+			const result = await ctx.client.approvals.list({ status: "pending" });
 			// biome-ignore lint/suspicious/noConsole: bare count output consumed by scripts
-			console.log(String(queue.count("pending")));
+			console.log(String(result.approvals.length));
 		});
 
 	approvalCmd
@@ -355,8 +346,7 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 		.option("--status <status>", "Filter by status: approved, rejected, expired")
 		.option("-n <count>", "Max results to show (default 20)", "20")
 		.option("--since <duration>", "Only show items resolved within this window (e.g. 1h, 24h, 7d)")
-		.action((opts: { status?: string; n: string; since?: string }) => {
-			const queue = getApprovalQueue();
+		.action(async (opts: { status?: string; n: string; since?: string }) => {
 			const limit = Math.max(1, parseInt(opts.n, 10) || 20);
 
 			const statusFilter = opts.status as ApprovalStatus | undefined;
@@ -377,8 +367,8 @@ export function registerApprovalCommands(program: Command, ctx: ModuleContext): 
 
 			const cutoff = sinceMs !== null ? Date.now() - sinceMs : null;
 
-			const items = queue
-				.list()
+			const all = await ctx.client.approvals.list({ status: "all" });
+			const items = all.approvals
 				.filter((item) => item.status !== "pending")
 				.filter((item) => !statusFilter || item.status === statusFilter)
 				.filter((item) => {

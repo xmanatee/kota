@@ -36,12 +36,23 @@ const approvalQueueModule: KotaModule = {
 
 	localClient: () => {
 		const handler: ApprovalsClient = {
-			async list() {
+			async list(filter) {
 				const config = loadConfig();
 				const ttlMs = config.approvalTtlMs ?? DEFAULT_TTL_MS;
 				const queue = getApprovalQueue();
 				queue.expireStale(ttlMs);
-				return { approvals: queue.list() };
+				const status = filter?.status;
+				if (status === undefined) return { approvals: queue.list("pending") };
+				if (status === "all") return { approvals: queue.list() };
+				return { approvals: queue.list(status) };
+			},
+			async approve(id, note) {
+				const item = getApprovalQueue().approve(id, note);
+				return item ? { ok: true, approval: item } : { ok: false, reason: "not_found" };
+			},
+			async reject(id, reason) {
+				const item = getApprovalQueue().reject(id, reason);
+				return item ? { ok: true, approval: item } : { ok: false, reason: "not_found" };
 			},
 		};
 		return { approvals: handler };

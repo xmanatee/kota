@@ -12,9 +12,20 @@ function stubCtx(): ModuleContext {
 	return {
 		client: {
 			approvals: {
-				async list() {
+				async list(filter?: { status?: string }) {
 					testQueue.expireStale(DEFAULT_TTL_MS);
-					return { approvals: testQueue.list() };
+					const status = filter?.status;
+					if (status === undefined) return { approvals: testQueue.list("pending") };
+					if (status === "all") return { approvals: testQueue.list() };
+					return { approvals: testQueue.list(status as Parameters<typeof testQueue.list>[0]) };
+				},
+				async approve(id: string, note?: string) {
+					const item = testQueue.approve(id, note);
+					return item ? { ok: true, approval: item } : { ok: false, reason: "not_found" };
+				},
+				async reject(id: string, reason?: string) {
+					const item = testQueue.reject(id, reason);
+					return item ? { ok: true, approval: item } : { ok: false, reason: "not_found" };
 				},
 			},
 		},

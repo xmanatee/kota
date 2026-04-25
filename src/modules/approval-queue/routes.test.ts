@@ -149,6 +149,46 @@ describe("approval-routes", () => {
 			const body = result.body as { approvals: unknown[] };
 			expect(body.approvals).toHaveLength(0);
 		});
+
+		it("returns every status when status filter is 'all'", async () => {
+			const a = queue.enqueue("shell", { command: "ok" }, "safe", "ok");
+			queue.approve(a.id);
+			const b = queue.enqueue("shell", { command: "boom" }, "dangerous", "boom");
+			queue.reject(b.id, "no");
+			queue.enqueue("git", { args: ["status"] }, "safe", "still pending");
+
+			const { res, result } = mockResponse();
+			await handleListApprovals(res, null, queue, "all");
+			expect(result.status).toBe(200);
+			const body = result.body as { approvals: Array<{ status: string }> };
+			expect(body.approvals.map((a) => a.status).sort()).toEqual([
+				"approved",
+				"pending",
+				"rejected",
+			]);
+		});
+
+		it("filters by a specific status", async () => {
+			queue.enqueue("git", { args: ["status"] }, "safe", "still pending");
+			const b = queue.enqueue("shell", { command: "ok" }, "safe", "ok");
+			queue.approve(b.id);
+
+			const { res, result } = mockResponse();
+			await handleListApprovals(res, null, queue, "approved");
+			expect(result.status).toBe(200);
+			const body = result.body as { approvals: Array<{ status: string }> };
+			expect(body.approvals).toHaveLength(1);
+			expect(body.approvals[0].status).toBe("approved");
+		});
+
+		it("forwards the status filter to the daemon client when one is configured", async () => {
+			const listSpy = vi.fn(async () => ({ approvals: [] }));
+			const client = mockClient({ listApprovals: listSpy });
+			const { res, result } = mockResponse();
+			await handleListApprovals(res, client, makeQueue(), "all");
+			expect(result.status).toBe(200);
+			expect(listSpy).toHaveBeenCalledWith("all");
+		});
 	});
 
 	describe("handleApproveApproval", () => {
