@@ -3,7 +3,27 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ModuleContext } from "#core/modules/module-types.js";
+import type { RepoTaskState } from "#core/server/kota-client.js";
 import { findTask, gcTerminalTasks, listTasksForStates, registerTaskCommands, slugify } from "./cli.js";
+import { getRepoTasksDir } from "./repo-tasks-domain.js";
+
+const OPEN_STATES: RepoTaskState[] = ["backlog", "ready", "doing", "blocked"];
+
+function stubCtx(projectDir: string): ModuleContext {
+  return {
+    cwd: projectDir,
+    client: {
+      tasks: {
+        async list(states?: RepoTaskState[]) {
+          const wanted = states && states.length > 0 ? states : OPEN_STATES;
+          const tasks = listTasksForStates(getRepoTasksDir(projectDir), wanted);
+          return { tasks };
+        },
+      },
+    },
+  } as unknown as ModuleContext;
+}
 
 vi.mock("node:child_process", () => ({
   execSync: vi.fn(),
@@ -46,7 +66,7 @@ function writeTaskFile(
   writeFileSync(join(dir, `${id}.md`), content);
 }
 
-function captureOutput(fn: () => void): string {
+async function captureOutput(fn: () => void | Promise<void>): Promise<string> {
   const lines: string[] = [];
   const spy = vi.spyOn(process.stdout, "write").mockImplementation((data) => {
     lines.push(String(data));
@@ -56,7 +76,7 @@ function captureOutput(fn: () => void): string {
     lines.push(`${args.join(" ")}\n`);
   });
   try {
-    fn();
+    await fn();
   } finally {
     spy.mockRestore();
     logSpy.mockRestore();
@@ -64,10 +84,10 @@ function captureOutput(fn: () => void): string {
   return lines.join("");
 }
 
-function makeProgram(): Command {
+function makeProgram(projectDir?: string): Command {
   const program = new Command();
   program.exitOverride();
-  registerTaskCommands(program);
+  registerTaskCommands(program, stubCtx(projectDir ?? process.cwd()));
   return program;
 }
 
@@ -193,8 +213,8 @@ describe("kota task list", () => {
 
   it("prints 'No tasks found.' when queue is empty", async () => {
     const program = makeProgram();
-    const output = captureOutput(() => {
-      program.parse(["node", "kota", "task", "list"]);
+    const output = await captureOutput(async () => {
+      await program.parseAsync(["node", "kota", "task", "list"]);
     });
     expect(output).toContain("No tasks found.");
   });
@@ -204,8 +224,8 @@ describe("kota task list", () => {
     writeTaskFile(projectDir, "doing", "task-beta", { title: "Beta task", priority: "p2" });
 
     const program = makeProgram();
-    const output = captureOutput(() => {
-      program.parse(["node", "kota", "task", "list"]);
+    const output = await captureOutput(async () => {
+      await program.parseAsync(["node", "kota", "task", "list"]);
     });
     expect(output).toContain("task-alpha");
     expect(output).toContain("task-beta");
@@ -217,8 +237,8 @@ describe("kota task list", () => {
     writeTaskFile(projectDir, "backlog", "task-backlog-one");
 
     const program = makeProgram();
-    const output = captureOutput(() => {
-      program.parse(["node", "kota", "task", "list", "--state", "ready"]);
+    const output = await captureOutput(async () => {
+      await program.parseAsync(["node", "kota", "task", "list", "--state", "ready"]);
     });
     expect(output).toContain("task-ready-one");
     expect(output).not.toContain("task-backlog-one");
@@ -240,10 +260,10 @@ describe("kota task show", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("prints full task content", () => {
+  it("prints full task content", async () => {
     writeTaskFile(projectDir, "doing", "task-show-me");
     const program = makeProgram();
-    const output = captureOutput(() => {
+    const output = await captureOutput(async () => {
       program.parse(["node", "kota", "task", "show", "task-show-me"]);
     });
     expect(output).toContain("id: task-show-me");
@@ -314,11 +334,11 @@ describe("kota task move", () => {
     expect(content).toMatch(/^status: doing$/m);
   });
 
-  it("prints message when task is already in target state", () => {
+  it("prints message when task is already in target state", async () => {
     writeTaskFile(projectDir, "ready", "task-already");
 
     const program = makeProgram();
-    const output = captureOutput(() => {
+    const output = await captureOutput(async () => {
       program.parse(["node", "kota", "task", "move", "task-already", "ready"]);
     });
     expect(output).toContain("already in");
@@ -356,9 +376,9 @@ describe("kota task capture", () => {
     expect(content).toContain("# Add search filter");
   });
 
-  it("reports the created task ID", () => {
+  it("reports the created task ID", async () => {
     const program = makeProgram();
-    const output = captureOutput(() => {
+    const output = await captureOutput(async () => {
       program.parse(["node", "kota", "task", "capture", "Fix the login bug"]);
     });
     expect(output).toContain("task-fix-the-login-bug");

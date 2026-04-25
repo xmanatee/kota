@@ -33,6 +33,7 @@ function makeCtx(config?: Record<string, unknown>): ModuleContext {
     resolveSkillsPrompt: vi.fn().mockReturnValue(""),
     probeHealthChecks: async () => ({}),
     getRegisteredConfigKeys: () => new Set<string>(),
+    client: {} as never,
   };
 }
 

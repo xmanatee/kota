@@ -3,6 +3,7 @@ import type { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import { executeTool } from "#core/tools/index.js";
 import {
 	blank,
@@ -116,7 +117,7 @@ function renderResolvedItem(item: PendingApproval): RenderNode {
 	return stack(...rows, blank());
 }
 
-export function registerApprovalCommands(program: Command): void {
+export function registerApprovalCommands(program: Command, ctx: ModuleContext): void {
 	const approvalCmd = program
 		.command("approval")
 		.description("Manage the tool-call approval queue");
@@ -124,12 +125,9 @@ export function registerApprovalCommands(program: Command): void {
 	approvalCmd
 		.command("list")
 		.description("List all pending approval items")
-		.action(() => {
-			const config = loadConfig();
-			const ttlMs = config.approvalTtlMs ?? DEFAULT_TTL_MS;
-			const queue = getApprovalQueue();
-			queue.expireStale(ttlMs);
-			const items = queue.list("pending");
+		.action(async () => {
+			const result = await ctx.client.approvals.list();
+			const items = result.approvals.filter((a) => a.status === "pending");
 			if (items.length === 0) {
 				print(line(plain("No pending approvals.")));
 				return;

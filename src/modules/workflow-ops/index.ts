@@ -8,6 +8,8 @@
 
 import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { WorkflowClient } from "#core/server/kota-client.js";
+import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { registerDefinitionLogCommand } from "./definitions/definition-log.js";
 import { registerDefinitionsCommand } from "./definitions/definitions.js";
 import { registerDepsCommand } from "./definitions/deps.js";
@@ -28,6 +30,7 @@ import { registerRunListCommands } from "./runs/run-list.js";
 import { registerRunShowCommand } from "./runs/run-show.js";
 import { registerStatsCommand } from "./runs/run-stats.js";
 import { registerStepInspectCommand } from "./runs/step-inspect.js";
+import { listRuns } from "./utils.js";
 
 export function buildWorkflowCommand(ctx: ModuleContext): Command {
   const wfCmd = new Command("workflow")
@@ -41,7 +44,7 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
         "  or static definitions directly.",
     );
 
-  registerRunListCommands(wfCmd);
+  registerRunListCommands(wfCmd, ctx);
   registerStatsCommand(wfCmd);
   registerExportCommand(wfCmd);
   registerRunShowCommand(wfCmd);
@@ -71,6 +74,40 @@ const workflowModule: KotaModule = {
   dependencies: ["rendering"],
   commands: (ctx) => [buildWorkflowCommand(ctx)],
   routes: (ctx) => workflowRoutes(ctx),
+  localClient: () => {
+    const handler: WorkflowClient = {
+      async listRuns(filter) {
+        const store = new WorkflowRunStore();
+        const limit = filter?.limit ?? 60;
+        const runs = filter?.causedByRunId
+          ? store.listRuns({ causedByRunId: filter.causedByRunId, limit })
+          : listRuns(store, limit);
+        const filtered = filter?.workflow
+          ? runs.filter((r) => r.workflow === filter.workflow)
+          : runs;
+        const tagFiltered = filter?.tag
+          ? filtered.filter((r) => (r.tags ?? []).includes(filter.tag as string))
+          : filtered;
+        return {
+          runs: tagFiltered.map((r) => ({
+            id: r.id,
+            workflow: r.workflow,
+            status: r.status,
+            triggerEvent: r.trigger.event,
+            startedAt: r.startedAt,
+            durationMs: r.durationMs,
+            totalCostUsd: r.totalCostUsd,
+            triggeredByRunId: r.triggeredByRunId,
+            causedBy: r.causedBy,
+            retryOf: r.retryOf,
+            resumedFromRunId: r.resumedFromRunId,
+            tags: r.tags,
+          })),
+        };
+      },
+    };
+    return { workflow: handler };
+  },
 };
 
 export default workflowModule;

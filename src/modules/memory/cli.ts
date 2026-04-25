@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import { getMemoryProvider } from "#core/modules/provider-registry.js";
 import {
 	type LineNode,
@@ -35,7 +36,7 @@ export function buildMemoryListLines(rows: MemoryRow[]): LineNode[] {
 	return [header, rule, ...body];
 }
 
-export function registerMemoryCommands(program: Command): void {
+export function registerMemoryCommands(program: Command, ctx: ModuleContext): void {
 	const memCmd = program
 		.command("memory")
 		.description("Inspect and manage the agent memory store");
@@ -47,13 +48,12 @@ export function registerMemoryCommands(program: Command): void {
 		.action(async (opts: { limit: string }) => {
 			await ensureCliProvidersFor(["memory"]);
 			const limit = Math.max(1, parseInt(opts.limit, 10) || 20);
-			const store = getMemoryProvider();
-			const entries = store.list().slice(0, limit);
-			if (entries.length === 0) {
+			const result = await ctx.client.memory.list(limit);
+			if (result.entries.length === 0) {
 				print(line(plain("No memory entries.")));
 				return;
 			}
-			print(stack(...buildMemoryListLines(entries)));
+			print(stack(...buildMemoryListLines(result.entries)));
 		});
 
 	memCmd

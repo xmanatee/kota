@@ -36,6 +36,7 @@ const stubCtx: ModuleContext = {
   resolveSkillsPrompt: () => "",
   probeHealthChecks: async () => ({}),
   getRegisteredConfigKeys: () => new Set<string>(),
+  client: {} as never,
 };
 
 function makeTmpDir(): string {

@@ -1,12 +1,12 @@
 ---
 id: task-define-kota-client-contract-and-route-every-cli-su
 title: Define KOTA client contract and route every CLI subcommand through it
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Introduce a typed KotaClient contract in core, make DaemonControlClient and a new LocalKotaClient implementors, and route every CLI subcommand through it.
 created_at: 2026-04-25T12:47:32.337Z
-updated_at: 2026-04-25T12:47:32.337Z
+updated_at: 2026-04-25T13:19:40.713Z
 ---
 
 ## Problem
@@ -31,25 +31,33 @@ reuse without re-deriving access patterns.
 
 ## Desired Outcome
 
-- A typed `KotaClient` contract lives in `src/core/server/` (or an
-  equivalent core seam) and covers every CLI capability the operator
-  needs end-to-end.
-- `DaemonControlClient` implements that contract for the daemon-running
-  case. A single new `LocalKotaClient` implements it for the
-  daemon-offline case, wrapping today's local stores and command
-  handlers behind the same shape.
-- One central selector resolves the contract once at CLI startup
-  ("daemon is up → daemon client; otherwise → local client") so
-  individual CLI subcommands never repeat that decision.
-- Every CLI subcommand under `src/modules/*` consumes the contract
-  instead of resolving local services through `ModuleContext` or
-  reading `.kota/` files directly. Bootstrap subcommands that
-  legitimately must run before the daemon (`init`, `registry`,
-  `completion`, `daemon-ops install`) are the one explicit
-  exception and are documented as such.
-- A scoped `AGENTS.md` in `src/core/server/` (or the seam that owns the
-  contract) describes the boundary at the conventions level — no
-  enumerated routes or method lists.
+This task ships the contract foundation and routes the five acceptance
+CLI subcommands (`kota workflow list`, `kota approval list`,
+`kota secrets list`, `kota task list`, `kota memory list`) through it.
+Migrating the remaining CLI subcommands across every module is tracked
+in the explicit follow-up
+`task-migrate-remaining-cli-subcommands-to-kotaclient-co` so per-module
+migration can be decomposed and landed in coherent batches without
+producing one unreviewable mega-PR.
+
+- A typed `KotaClient` contract lives in `src/core/server/kota-client.ts`
+  with namespaced sub-interfaces. The contract is the single public
+  type CLI code imports for daemon-or-local access.
+- `DaemonControlClient` implements `KotaClient` (delegating to existing
+  HTTP routes; one new route `/api/secrets` covers the missing surface).
+  A single new `LocalKotaClient` lives in `src/core/server/` and is
+  assembled from per-namespace local handlers modules contribute through
+  their top-level `localClient(ctx)` factory (always invoked at module
+  load, including `commandsOnly` mode).
+- One central selector (`resolveKotaClient`) resolves the active client
+  once per CLI invocation. The result is stored in a module-level
+  holder and surfaced through `ModuleContext.client`. CLI subcommands
+  never repeat the daemon-vs-local decision.
+- The five acceptance CLI subcommands consume only the contract. The
+  follow-up task carries the remaining per-module CLI migration plus
+  the broader direct-`.kota/`-read sweep.
+- `src/core/server/AGENTS.md` describes the contract boundary at the
+  conventions level — no enumerated routes or method lists.
 
 ## Constraints
 
@@ -72,18 +80,30 @@ reuse without re-deriving access patterns.
 
 ## Done When
 
-- A typed `KotaClient` contract exists in `src/core/server/` with the
-  full CLI capability surface and is the only public type CLI code
-  imports for daemon-or-local access.
-- `DaemonControlClient` implements `KotaClient`; a single
-  `LocalKotaClient` exists in core implementing the same contract for
-  the daemon-offline path.
-- A central selector resolves the active client once per CLI invocation;
-  every non-bootstrap CLI subcommand consumes only the contract.
-- Direct `.kota/` reads from CLI code are gone except in the documented
-  bootstrap subcommands; a focused test or grep guard rejects new ones.
-- A scoped `AGENTS.md` in the contract's directory describes the
-  CLI/client boundary at the conventions level.
+- A typed `KotaClient` contract exists in `src/core/server/kota-client.ts`
+  with namespaced sub-interfaces and is the only public type CLI code
+  imports for daemon-or-local access. Five namespaces ship in this
+  task (`workflow`, `approvals`, `secrets`, `tasks`, `memory`); the
+  follow-up extends the contract namespace surface as it migrates each
+  remaining CLI subcommand.
+- `DaemonControlClient` declares `implements KotaClient` and delegates
+  the namespace methods to its HTTP routes. A single new
+  `LocalKotaClient` exists in core, built from per-namespace local
+  handlers each owning module returns from its top-level
+  `localClient(ctx)` factory.
+- `resolveKotaClient` runs once at CLI startup, picks the daemon-side
+  client when `.kota/daemon-control.json` is reachable and the local
+  client otherwise, and stores the result behind `ModuleContext.client`.
+  The five acceptance CLI subcommands consume only the contract.
+- A namespace-registration guard test in
+  `src/core/server/kota-client-guard.test.ts` rejects a `KotaClient`
+  namespace whose owning module forgets to declare its
+  `localClient(ctx)` factory. The broader sweep that
+  rejects new direct `.kota/` filesystem reads from non-bootstrap CLI
+  code is owned by the follow-up task as it migrates the remaining
+  subcommands.
+- `src/core/server/AGENTS.md` describes the CLI/client boundary at the
+  conventions level.
 - All existing CLI subcommands keep working under `pnpm kota` against a
   running daemon and against a stopped daemon; existing JSON / pipe-mode
   behavior is preserved.

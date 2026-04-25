@@ -42,6 +42,7 @@ function makeStubCtx(bus?: EventBus, webhookConfig?: unknown): ModuleContext {
     resolveSkillsPrompt: () => "",
     probeHealthChecks: async () => ({}),
     getRegisteredConfigKeys: () => new Set<string>(),
+    client: {} as never,
   };
 }
 

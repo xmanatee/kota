@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { expandAlias, loadConfig } from "#core/config/config.js";
 import { expandUserPromptReferences } from "#core/prompt-input/index.js";
+import { resolveKotaClient } from "#core/server/client-selector.js";
 import { setSkipConfirmations } from "#core/util/confirm.js";
 import { blank, line, span } from "#modules/rendering/primitives.js";
 import { TerminalTransport } from "#modules/rendering/transport.js";
@@ -313,6 +314,11 @@ async function main() {
   const config = loadConfig();
   const loader = new ModuleLoader(config, false, { commandsOnly: true });
   await loader.loadAll(projectModules, modules);
+  // Resolve the active KotaClient exactly once: daemon when reachable,
+  // otherwise a LocalKotaClient assembled from the namespace handlers
+  // modules registered during load. CLI subcommands consume this through
+  // ctx.client and never re-decide the daemon-vs-local policy.
+  resolveKotaClient({ localHandlers: loader.getLocalClientHandlers() });
   for (const cmd of loader.getCommands()) {
     program.addCommand(cmd);
   }

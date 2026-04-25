@@ -1,11 +1,76 @@
 # Server
 
-This directory owns the HTTP server layer for sessions, daemon control, event
-streams, and server-side notifications.
+This directory owns the HTTP server layer plus the typed `KotaClient`
+contract every CLI subcommand uses for daemon-or-local access.
 
-- Keep transport and session infrastructure here.
-- Capability-specific routes belong in the owning module and are contributed
-  through `KotaModule.routes`.
-- Do not read `.kota/` files to infer live daemon state when the daemon control
-  API can provide it.
+## HTTP server scope
+
+- Transport, session, and event-stream infrastructure live here.
+- Capability-specific routes belong in the owning module and are
+  contributed through `KotaModule.routes`.
+- Do not read `.kota/` files to infer live daemon state when the daemon
+  control API can provide it.
 - Do not import server session-pool code back into daemon runtime code.
+
+## KotaClient contract
+
+`KotaClient` (in `kota-client.ts`) is the single typed surface CLI code
+imports for daemon-or-local access. Two implementors realize it:
+
+- `DaemonControlClient` — talks to a running daemon over the HTTP
+  control API.
+- `LocalKotaClient` — assembled from per-namespace local handlers
+  registered by modules during load.
+
+A single selector (`client-selector.ts`) resolves the active client once
+per CLI invocation and stores it in `client-holder.ts`. CLI subcommands
+read it through `ModuleContext.client` and never re-decide the
+daemon-vs-local policy.
+
+## Conventions
+
+- The contract lives in `kota-client.ts` and grows by adding a typed
+  namespace plus its declared name in `KOTA_CLIENT_NAMESPACES`.
+- The owning module exposes its local handler through a top-level
+  `localClient(ctx)` factory on its `KotaModule` definition, returning
+  `{ <namespace>: handler }`. The loader always invokes this factory
+  during module load — including the CLI's `commandsOnly` path — so
+  handler registration does not depend on `onLoad`. The selector
+  validates that every namespace has a registered handler when no daemon
+  is reachable; missing handlers are a load-time failure with no silent
+  fallback.
+- The owning module also contributes any HTTP routes the daemon-side
+  client calls (under `KotaModule.routes`). Add routes to the same
+  module that owns the underlying state.
+- CLI subcommands consume `ctx.client.<namespace>.<method>()`. They must
+  not import stores, run direct filesystem reads under `.kota/`, or
+  resolve providers from `provider-registry` for capabilities the
+  contract already covers.
+- Existing daemon HTTP routes (`/api/memory`, `/api/tasks`, `/api/secrets`,
+  approvals, workflow runs) are the daemon-side surface. Their request
+  and response shapes are part of the public protocol.
+- Bootstrap subcommands that legitimately must run before any client is
+  resolved — `init`, `registry`, `completion`, `daemon-ops install` —
+  are the explicit exception. They may read `.kota/` directly during
+  setup. Document the exemption in the owning module's local AGENTS.md
+  if a new bootstrap command is added.
+
+## Adding a new namespace
+
+1. Add the namespace interface to `kota-client.ts` and append its name
+   to `KOTA_CLIENT_NAMESPACES`. Keep types small and explicit.
+2. Wire the daemon-side implementation as a class-field property on
+   `DaemonControlClient`. Reuse an existing HTTP route or contribute a
+   new one from the owning module.
+3. Expose the local-side implementation through the owning module's
+   top-level `localClient(ctx)` factory. Return `{ <namespace>: impl }`.
+4. Migrate the CLI subcommand to consume `ctx.client.<namespace>.<m>()`.
+
+## Anti-patterns
+
+- A second public client surface alongside `DaemonControlClient`.
+- Per-subcommand "is daemon up?" checks that bypass the selector.
+- Local handlers reaching back through HTTP to the same daemon they run
+  inside.
+- A namespace whose daemon-side and local-side return different data
+  shapes — both implementors share one type per method.

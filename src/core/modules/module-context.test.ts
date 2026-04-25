@@ -334,6 +334,7 @@ describe("resolveModuleTools", () => {
     resolveSkillsPrompt: () => "",
     probeHealthChecks: async () => ({}),
     getRegisteredConfigKeys: () => new Set<string>(),
+    client: {} as never,
   } as ModuleContext;
 
   it("returns empty array when tools is undefined", () => {

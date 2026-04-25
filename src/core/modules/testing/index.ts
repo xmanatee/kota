@@ -27,6 +27,8 @@ import {
   initProviderRegistry,
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
+import { getActiveKotaClient } from "#core/server/client-holder.js";
+import type { LocalClientHandlers } from "#core/server/kota-client.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
 export type ModuleHarnessOptions = {
@@ -50,6 +52,7 @@ export class ModuleTestHarness {
     Array<(payload: Record<string, unknown>) => void>
   >();
   readonly #tempDir: string;
+  readonly #localClientHandlers: Partial<LocalClientHandlers> = {};
   #loaded = false;
 
   constructor(
@@ -94,6 +97,13 @@ export class ModuleTestHarness {
       }
       if (mod.controlRoutes) {
         this.#controlRoutes.push(...mod.controlRoutes(ctx));
+      }
+      if (mod.localClient) {
+        const handlers = mod.localClient(ctx);
+        for (const [namespace, impl] of Object.entries(handlers)) {
+          if (!impl) continue;
+          (this.#localClientHandlers as Record<string, unknown>)[namespace] = impl;
+        }
       }
       if (mod.onLoad) {
         await mod.onLoad(ctx);
@@ -240,6 +250,9 @@ export class ModuleTestHarness {
       resolveAgentDef: () => undefined,
       resolveSkillsPrompt: () => "",
       getRegisteredConfigKeys: () => new Set<string>(),
+      get client() {
+        return getActiveKotaClient();
+      },
     };
   }
 }

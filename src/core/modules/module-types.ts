@@ -15,6 +15,10 @@ import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { CapabilityScope } from "#core/daemon/daemon-control-types.js";
 import type { PreSendHook } from "#core/loop/pre-send-hooks.js";
+import type {
+  KotaClient,
+  LocalClientHandlers,
+} from "#core/server/kota-client.js";
 import type { ToolMiddlewareFn } from "#core/tools/tool-middleware.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -265,6 +269,14 @@ export type ModuleContext = {
   probeHealthChecks: () => Promise<Record<string, HealthCheckResult>>;
   /** Top-level config keys registered by loaded modules. */
   getRegisteredConfigKeys: () => ReadonlySet<string>;
+  /**
+   * The resolved KotaClient for the current CLI invocation. Subcommands
+   * read this to talk to KOTA capabilities — workflows, approvals, secrets,
+   * tasks, memory — without deciding "daemon vs local" themselves. The
+   * CLI startup runs the selector once before commands execute; throws
+   * loudly if accessed before resolution.
+   */
+  readonly client: KotaClient;
 };
 
 /**
@@ -359,6 +371,17 @@ export type KotaModule = {
    * Registered agents can be referenced by name in workflow agent steps.
    */
   agents?: ModuleContribution<AgentDef>;
+
+  /**
+   * Local-side handlers for the KotaClient namespaces this module owns.
+   * The loader always invokes this factory at module load — including in
+   * the CLI's `commandsOnly` path — so the selector can assemble a
+   * complete `LocalKotaClient` before any subcommand runs. Heavy
+   * initialization (event subscriptions, channel startup, provider
+   * registration) belongs in `onLoad`; this hook should stay light and
+   * idempotent.
+   */
+  localClient?: (ctx: ModuleContext) => Partial<LocalClientHandlers>;
 
   /** Called after the module is loaded and tools are registered. */
   onLoad?: (ctx: ModuleContext) => Promise<void> | void;

@@ -5,6 +5,7 @@ import type { AgentDef, SkillDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
+import type { LocalClientHandlers } from "#core/server/kota-client.js";
 import { executeTool, getModuleToolNames, registerTool } from "#core/tools/index.js";
 import { registerCustomGroup } from "#core/tools/tool-groups.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -59,6 +60,7 @@ export class ModuleLoader {
   private contributedWorkflows: RegisteredWorkflowDefinitionInput[] = [];
   private contributedChannels: ChannelDef[] = [];
   private bus: EventBus | null = null;
+  private localClientHandlers: Partial<LocalClientHandlers> = {};
   private verbose: boolean;
   private config: KotaConfig;
   private cwd: string;
@@ -128,6 +130,31 @@ export class ModuleLoader {
       },
     };
     return createModuleContext(params, moduleName);
+  }
+
+  private collectLocalClientHandlers(
+    mod: KotaModule,
+    ctx: ModuleContext,
+  ): void {
+    if (!mod.localClient) return;
+    const handlers = mod.localClient(ctx) as Partial<LocalClientHandlers>;
+    for (const namespace of Object.keys(handlers) as (keyof LocalClientHandlers)[]) {
+      const impl = handlers[namespace];
+      if (!impl) continue;
+      if (this.localClientHandlers[namespace]) {
+        throw new Error(
+          `Module "${mod.name}" tried to register a local client handler for ` +
+            `"${namespace}" but one is already registered. Each KotaClient namespace has a single owner.`,
+        );
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this.localClientHandlers as any)[namespace] = impl;
+    }
+  }
+
+  /** Snapshot of local-side client handlers registered by loaded modules. */
+  getLocalClientHandlers(): Partial<LocalClientHandlers> {
+    return { ...this.localClientHandlers };
   }
 
   async load(mod: KotaModule): Promise<void> {
@@ -205,6 +232,8 @@ export class ModuleLoader {
         this.contributedChannels.push(def);
       }
     }
+
+    this.collectLocalClientHandlers(mod, ctx);
 
     if (mod.onLoad && !this.commandsOnly) await mod.onLoad(ctx);
 

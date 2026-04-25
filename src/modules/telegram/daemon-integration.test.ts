@@ -329,6 +329,7 @@ describe("Telegram personal-assistant daemon integration", () => {
       resolveSkillsPrompt: () => "",
       probeHealthChecks: async () => ({}),
       getRegisteredConfigKeys: () => new Set<string>(),
+      client: {} as never,
     };
 
     if (typeof telegramModule.channels !== "function") {

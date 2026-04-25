@@ -41,6 +41,7 @@ const stubCtx: ModuleContext = {
     resolveSkillsPrompt: () => "",
     probeHealthChecks: async () => ({}),
     getRegisteredConfigKeys: () => new Set<string>(),
+    client: {} as never,
   };
 
 describe("daemonModule", () => {

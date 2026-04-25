@@ -36,6 +36,7 @@ function makeContext(config: KotaConfig = { model: "test-model" } as KotaConfig)
     resolveSkillsPrompt: () => "",
     probeHealthChecks: async () => ({}),
     getRegisteredConfigKeys: () => new Set<string>(),
+    client: {} as never,
   };
 }
 

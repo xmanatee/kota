@@ -3,12 +3,35 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import {
+	getMemoryProvider,
 	initProviderRegistry,
 	resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import { registerMemoryCommands } from "./cli.js";
 import { getMemoryStore, resetMemoryStore } from "./store.js";
+
+function stubCtx(): ModuleContext {
+	return {
+		client: {
+			memory: {
+				async list(limit?: number) {
+					const provider = getMemoryProvider();
+					const all = provider.list();
+					const slice = limit !== undefined ? all.slice(0, limit) : all;
+					return {
+						entries: slice.map((entry) => ({
+							id: entry.id,
+							created: entry.created,
+							content: entry.content,
+						})),
+					};
+				},
+			},
+		},
+	} as unknown as ModuleContext;
+}
 
 function makeProjectDir(): string {
 	const dir = join(
@@ -22,7 +45,7 @@ function makeProjectDir(): string {
 function makeMemoryProgram(): Command {
 	const program = new Command();
 	program.exitOverride();
-	registerMemoryCommands(program);
+	registerMemoryCommands(program, stubCtx());
 	return program;
 }
 

@@ -15,6 +15,23 @@ import type {
 import type { ConversationData, ConversationRecord } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import type {
+  ApprovalsClient,
+  KotaClient,
+  MemoryClient,
+  RepoTaskListEntry,
+  RepoTaskState,
+  RepoTasksClient,
+  SecretsClient,
+  WorkflowClient,
+} from "./kota-client.js";
+
+const REPO_TASK_OPEN_STATES: RepoTaskState[] = [
+  "backlog",
+  "ready",
+  "doing",
+  "blocked",
+];
 
 const FETCH_TIMEOUT_MS = 2_000;
 
@@ -38,11 +55,123 @@ function fetchWithTimeout(url: string, options?: RequestInit): Promise<Response>
   );
 }
 
-export class DaemonControlClient {
+export class DaemonControlClient implements KotaClient {
+  readonly workflow: WorkflowClient;
+  readonly approvals: ApprovalsClient;
+  readonly secrets: SecretsClient;
+  readonly tasks: RepoTasksClient;
+  readonly memory: MemoryClient;
+
   private constructor(
     private readonly baseUrl: string,
     private readonly token?: string,
-  ) {}
+  ) {
+    this.workflow = {
+      listRuns: async (filter) => {
+        const result = await this.listWorkflowRuns(
+          filter?.workflow,
+          filter?.limit,
+          filter?.tag,
+          filter?.causedByRunId,
+        );
+        return { runs: result?.runs ?? [] };
+      },
+    };
+    this.approvals = {
+      list: async () => {
+        const result = await this.listApprovals();
+        return { approvals: result?.approvals ?? [] };
+      },
+    };
+    this.secrets = {
+      list: async () => {
+        const result = await this.listSecretsHttp();
+        return { secrets: result?.secrets ?? [] };
+      },
+    };
+    this.tasks = {
+      list: async (states) => {
+        const result = await this.listTasksHttp();
+        const wantedStates = states && states.length > 0 ? states : REPO_TASK_OPEN_STATES;
+        const tasks: RepoTaskListEntry[] = [];
+        if (result) {
+          for (const state of wantedStates) {
+            if (state === "done" || state === "dropped") {
+              continue;
+            }
+            const stateTasks = result.tasks[state] ?? [];
+            for (const task of stateTasks) {
+              tasks.push({
+                id: task.id,
+                priority: task.priority,
+                title: task.title,
+                state,
+              });
+            }
+          }
+        }
+        return { tasks };
+      },
+    };
+    this.memory = {
+      list: async (limit) => {
+        const result = await this.listMemoryHttp();
+        const slice = result ? result.entries.slice(0, limit ?? Number.POSITIVE_INFINITY) : [];
+        return {
+          entries: slice.map((entry) => ({
+            id: entry.id,
+            created: entry.created,
+            content: entry.excerpt,
+          })),
+        };
+      },
+    };
+  }
+
+  private async listSecretsHttp(): Promise<{ secrets: { name: string; source: string }[] } | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/api/secrets`, {
+        headers: this.authHeaders(),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as { secrets: { name: string; source: string }[] };
+    } catch {
+      return null;
+    }
+  }
+
+  private async listTasksHttp(): Promise<
+    | {
+        counts: Record<string, number>;
+        tasks: Record<string, { id: string; title: string; priority: string; area: string; summary: string; body: string }[]>;
+      }
+    | null
+  > {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/api/tasks`, {
+        headers: this.authHeaders(),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as {
+        counts: Record<string, number>;
+        tasks: Record<string, { id: string; title: string; priority: string; area: string; summary: string; body: string }[]>;
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private async listMemoryHttp(): Promise<{ entries: { id: string; tags: string[]; created: string; excerpt: string }[] } | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/api/memory`, {
+        headers: this.authHeaders(),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as { entries: { id: string; tags: string[]; created: string; excerpt: string }[] };
+    } catch {
+      return null;
+    }
+  }
 
   static fromStateDir(stateDir?: string): DaemonControlClient | null {
     const dir = stateDir ?? join(resolveProjectDir(), ".kota");

@@ -7,12 +7,17 @@
  */
 
 import { Command } from "commander";
+import { loadConfig } from "#core/config/config.js";
+import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { KotaModule } from "#core/modules/module-types.js";
+import type { ApprovalsClient } from "#core/server/kota-client.js";
 import { registerApprovalCommands } from "./cli.js";
 import { approvalControlRoutes, approvalRoutes } from "./routes.js";
 
 export type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
 export { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "#core/daemon/approval-queue.js";
+
+const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 
 const approvalQueueModule: KotaModule = {
 	name: "approval-queue",
@@ -20,14 +25,27 @@ const approvalQueueModule: KotaModule = {
 	description: "Approval queue state and operator CLI for tool-call approvals",
 	dependencies: ["rendering"],
 
-	commands: () => {
+	commands: (ctx) => {
 		const root = new Command("__root__");
-		registerApprovalCommands(root);
+		registerApprovalCommands(root, ctx);
 		return root.commands as Command[];
 	},
 
 	routes: () => approvalRoutes(),
 	controlRoutes: () => approvalControlRoutes(),
+
+	localClient: () => {
+		const handler: ApprovalsClient = {
+			async list() {
+				const config = loadConfig();
+				const ttlMs = config.approvalTtlMs ?? DEFAULT_TTL_MS;
+				const queue = getApprovalQueue();
+				queue.expireStale(ttlMs);
+				return { approvals: queue.list() };
+			},
+		};
+		return { approvals: handler };
+	},
 };
 
 export default approvalQueueModule;

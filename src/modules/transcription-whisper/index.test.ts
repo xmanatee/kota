@@ -59,6 +59,7 @@ function makeContext(moduleConfig?: WhisperModuleConfig): ModuleContext {
     resolveAgentDef: () => undefined,
     resolveSkillsPrompt: () => "",
     getRegisteredConfigKeys: () => new Set<string>(),
+    client: {} as never,
   };
 }
 

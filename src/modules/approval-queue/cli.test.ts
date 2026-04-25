@@ -4,7 +4,22 @@ import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApprovalQueue, resetApprovalQueue } from "#core/daemon/approval-queue.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import { registerApprovalCommands } from "./cli.js";
+
+const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+function stubCtx(): ModuleContext {
+	return {
+		client: {
+			approvals: {
+				async list() {
+					testQueue.expireStale(DEFAULT_TTL_MS);
+					return { approvals: testQueue.list() };
+				},
+			},
+		},
+	} as unknown as ModuleContext;
+}
 
 vi.mock("#core/events/event-bus.js", () => ({
 	tryEmit: vi.fn(),
@@ -30,7 +45,7 @@ import { executeTool } from "#core/tools/index.js";
 function makeProgram(): Command {
 	const program = new Command();
 	program.exitOverride(); // prevent process.exit in tests
-	registerApprovalCommands(program);
+	registerApprovalCommands(program, stubCtx());
 	return program;
 }
 

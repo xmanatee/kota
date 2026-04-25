@@ -1,9 +1,9 @@
 import type { Command } from "commander";
-import { DaemonControlClient } from "#core/server/daemon-client.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { blank, type LineNode, line, plain, type RenderNode, stack } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
-import { formatDate, formatDuration, listRuns, statusIcon } from "../utils.js";
+import { formatDate, formatDuration, statusIcon } from "../utils.js";
 import type { HistoryStats } from "./workflow-history.js";
 import { computeHistoryStats, loadRunsInWindow } from "./workflow-history.js";
 
@@ -20,7 +20,7 @@ type RunRow = {
   tags?: string[];
 };
 
-export function registerRunListCommands(wfCmd: Command): void {
+export function registerRunListCommands(wfCmd: Command, ctx: ModuleContext): void {
   wfCmd
     .command("list")
     .description("List recent workflow runs")
@@ -38,38 +38,27 @@ export function registerRunListCommands(wfCmd: Command): void {
       const limit = Number.parseInt(opts.limit, 10) || 20;
       const causedByRunId = opts.causedBy as string | undefined;
 
-      let page: RunRow[];
-      const store = new WorkflowRunStore();
+      const result = await ctx.client.workflow.listRuns({
+        workflow: opts.workflow,
+        limit: limit * 3,
+        causedByRunId,
+      });
 
-      const daemonClient = DaemonControlClient.fromStateDir();
-      const daemonRuns = daemonClient ? await daemonClient.listWorkflowRuns(opts.workflow, limit * 3, undefined, causedByRunId) : null;
-
-      if (daemonRuns) {
-        const filtered = daemonRuns.runs
-          .filter((r) => !opts.status || r.status === opts.status)
-          .filter((r) => !opts.tag || (r.tags ?? []).includes(opts.tag as string));
-        page = filtered.slice(0, limit).map((r) => ({
-          id: r.id,
-          workflow: r.workflow,
-          status: r.status,
-          durationMs: r.durationMs,
-          totalCostUsd: r.totalCostUsd,
-          startedAt: r.startedAt,
-          trigger: { event: r.triggerEvent },
-          retryOf: r.retryOf,
-          triggeredByRunId: r.triggeredByRunId,
-          tags: r.tags,
-        }));
-      } else {
-        const runs = causedByRunId
-          ? store.listRuns({ causedByRunId, limit: limit * 3 })
-          : listRuns(store, limit * 3);
-        const filtered = runs
-          .filter((r) => !opts.workflow || r.workflow === opts.workflow)
-          .filter((r) => !opts.status || r.status === opts.status)
-          .filter((r) => !opts.tag || (r.tags ?? []).includes(opts.tag as string));
-        page = filtered.slice(0, limit);
-      }
+      const filtered = result.runs
+        .filter((r) => !opts.status || r.status === opts.status)
+        .filter((r) => !opts.tag || (r.tags ?? []).includes(opts.tag as string));
+      const page: RunRow[] = filtered.slice(0, limit).map((r) => ({
+        id: r.id,
+        workflow: r.workflow,
+        status: r.status,
+        durationMs: r.durationMs,
+        totalCostUsd: r.totalCostUsd,
+        startedAt: r.startedAt,
+        trigger: { event: r.triggerEvent },
+        retryOf: r.retryOf,
+        triggeredByRunId: r.triggeredByRunId,
+        tags: r.tags,
+      }));
 
       if (page.length === 0) {
         print(line(plain("No runs found.")));

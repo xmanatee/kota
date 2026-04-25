@@ -11,6 +11,8 @@ import type { EventBus } from "#core/events/event-bus.js";
 import { registerCleanupHook } from "#core/loop/cleanup-hooks.js";
 import { registerDynamicStateProvider } from "#core/loop/dynamic-state.js";
 import { registerPreSendHook as registerPreSendHookImpl } from "#core/loop/pre-send-hooks.js";
+import { getActiveKotaClient } from "#core/server/client-holder.js";
+import type { KotaClient } from "#core/server/kota-client.js";
 import { getRegisteredTools } from "#core/tools/index.js";
 import { registerCustomGroup } from "#core/tools/tool-groups.js";
 import { getToolMiddleware } from "#core/tools/tool-middleware.js";
@@ -177,5 +179,8 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
     resolveSkillsPrompt,
     probeHealthChecks,
     getRegisteredConfigKeys,
+    get client(): KotaClient {
+      return getActiveKotaClient();
+    },
   };
 }

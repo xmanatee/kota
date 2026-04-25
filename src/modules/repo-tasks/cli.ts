@@ -2,6 +2,7 @@ import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { Command } from "commander";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import {
 	blank,
@@ -139,7 +140,7 @@ export function gcTerminalTasks(
 	return { archived, deleted };
 }
 
-export function registerTaskCommands(program: Command): void {
+export function registerTaskCommands(program: Command, ctx: ModuleContext): void {
 	const taskCmd = program
 		.command("task")
 		.description("Inspect and manage the repo task queue");
@@ -151,8 +152,7 @@ export function registerTaskCommands(program: Command): void {
 			"-s, --state <state>",
 			"Filter by state (backlog|ready|doing|blocked|done|dropped)",
 		)
-		.action((opts: { state?: string }) => {
-			const tasksDir = getRepoTasksDir(process.cwd());
+		.action(async (opts: { state?: string }) => {
 			let states: RepoTaskState[];
 			if (opts.state) {
 				if (!REPO_TASK_STATES.includes(opts.state as RepoTaskState)) {
@@ -164,13 +164,13 @@ export function registerTaskCommands(program: Command): void {
 				states = OPEN_STATES;
 			}
 
-			const tasks = listTasksForStates(tasksDir, states);
-			if (tasks.length === 0) {
+			const result = await ctx.client.tasks.list(states);
+			if (result.tasks.length === 0) {
 				print(line(plain("No tasks found.")));
 				return;
 			}
 
-			print(stack(...buildTaskListLines(tasks)));
+			print(stack(...buildTaskListLines(result.tasks)));
 		});
 
 	taskCmd

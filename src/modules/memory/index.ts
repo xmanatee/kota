@@ -11,6 +11,8 @@
 
 import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { getMemoryProvider } from "#core/modules/provider-registry.js";
+import type { MemoryClient } from "#core/server/kota-client.js";
 import { registerMemoryCommands } from "./cli.js";
 import { memoryTool, runMemory } from "./memory.js";
 import { memoryRoutes } from "./routes.js";
@@ -32,13 +34,31 @@ const memoryModule: KotaModule = {
   ],
   skills: [{ name: "memory", promptPath: "src/modules/memory/memory.md" }],
 
+  localClient: () => {
+    const handler: MemoryClient = {
+      async list(limit) {
+        const provider = getMemoryProvider();
+        const all = provider.list();
+        const slice = limit !== undefined ? all.slice(0, limit) : all;
+        return {
+          entries: slice.map((entry) => ({
+            id: entry.id,
+            created: entry.created,
+            content: entry.content,
+          })),
+        };
+      },
+    };
+    return { memory: handler };
+  },
+
   onLoad: (ctx: ModuleContext) => {
     ctx.registerProvider("memory", getMemoryStore());
   },
 
-  commands: () => {
+  commands: (ctx) => {
     const root = new Command("__root__");
-    registerMemoryCommands(root);
+    registerMemoryCommands(root, ctx);
     return root.commands as Command[];
   },
 

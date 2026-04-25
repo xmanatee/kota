@@ -15,7 +15,9 @@ import { Command } from "commander";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getSecretStore, initSecretStore, type SecretScope } from "#core/config/secrets.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { SecretsClient } from "#core/server/kota-client.js";
 import type { ToolResult } from "#core/tools/index.js";
+import { secretsRoutes } from "./routes.js";
 
 const getSecretTool: KotaTool = {
   name: "get_secret",
@@ -102,7 +104,9 @@ const secretsModule: KotaModule = {
     },
   ],
 
-  commands: (_ctx) => {
+  routes: () => secretsRoutes(),
+
+  commands: (ctx) => {
     const cmd = new Command("secrets").description("Manage secrets and credentials");
 
     cmd
@@ -145,17 +149,16 @@ const secretsModule: KotaModule = {
     cmd
       .command("list")
       .description("List available secret names (not values)")
-      .action(() => {
-        const store = initSecretStore();
-        const secrets = store.list();
-        if (secrets.length === 0) {
+      .action(async () => {
+        const result = await ctx.client.secrets.list();
+        if (result.secrets.length === 0) {
           console.log("No secrets configured.");
           console.log("Use 'kota secrets set <name>' to add one.");
           return;
         }
         console.log(`${"Name".padEnd(30)} Source`);
         console.log("-".repeat(50));
-        for (const s of secrets) {
+        for (const s of result.secrets) {
           console.log(`${s.name.padEnd(30)} ${s.source}`);
         }
       });
@@ -180,6 +183,16 @@ const secretsModule: KotaModule = {
   },
 
   skills: [{ name: "secrets", promptPath: "src/modules/secrets/secrets.md" }],
+
+  localClient: (ctx) => {
+    const handler: SecretsClient = {
+      async list() {
+        const store = getSecretStore() ?? initSecretStore(ctx.cwd);
+        return { secrets: store.list() };
+      },
+    };
+    return { secrets: handler };
+  },
 
   onLoad: (ctx) => {
     initSecretStore(ctx.cwd);
