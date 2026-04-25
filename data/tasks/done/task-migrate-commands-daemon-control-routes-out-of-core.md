@@ -1,12 +1,12 @@
 ---
 id: task-migrate-commands-daemon-control-routes-out-of-core
 title: Migrate /commands daemon-control routes out of core into the commands module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Move the GET /commands and POST /commands/invoke daemon-control routes from src/core/daemon/daemon-control-commands.ts into the existing commands module via KotaModule.controlRoutes, mirroring the push-tokens/owner-questions/approvals/history migration pattern, expose enqueuePendingRun to modules through a small workflow-dispatcher provider so the migrated handler can trigger workflows without round-tripping back through HTTP, delete the core handler file, and add an import-guard test refusing reintroduction.
 created_at: 2026-04-25T07:39:09.805Z
-updated_at: 2026-04-25T07:39:09.805Z
+updated_at: 2026-04-25T07:51:33.050Z
 ---
 
 ## Problem

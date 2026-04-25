@@ -16,6 +16,7 @@ import {
   SLASH_COMMAND_PROVIDER_TYPE,
   type SlashCommandCatalog,
 } from "./catalog.js";
+import { commandsControlRoutes } from "./control-routes.js";
 import { commandRoutes } from "./routes.js";
 
 export {
@@ -31,6 +32,7 @@ export {
   type SlashCommandSource,
 } from "./catalog.js";
 
+export { commandsControlRoutes } from "./control-routes.js";
 export { commandRoutes } from "./routes.js";
 
 // The catalog instance is built once per module load and shared between the
@@ -69,6 +71,10 @@ const commandsModule: KotaModule = {
 
   routes(ctx) {
     return commandRoutes(ensureCatalog(ctx));
+  },
+
+  controlRoutes() {
+    return commandsControlRoutes();
   },
 };
 

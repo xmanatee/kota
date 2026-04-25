@@ -37,6 +37,22 @@ Clients call:
   resolve a command. The response either confirms a queued workflow or
   delivers the skill prompt.
 
+## Surfaces
+
+The module owns two parallel HTTP surfaces backed by the same catalog:
+
+- Web routes (`KotaModule.routes`) under `/api/commands` and
+  `/api/commands/invoke` for in-process clients.
+- Daemon-control routes (`KotaModule.controlRoutes`) under `/commands` and
+  `/commands/invoke` for the daemon control plane.
+
+Both surfaces resolve through the `slash-command-catalog` provider the
+module registers in `onLoad`. Daemon-control invocation triggers workflow
+runs through the `workflow-dispatcher` provider seam
+(`#core/workflow/workflow-dispatcher-provider`), which the daemon registers
+at startup. The handler looks the dispatcher up per request and returns 503
+when the seam is unregistered, mirroring the catalog-unavailable path.
+
 ## Boundaries
 
 - Keep the command shape small: name, label, optional description, source, and
@@ -45,3 +61,6 @@ Clients call:
   capability needs to be reachable from the palette, the right move is to add
   the `command` tag to an existing workflow or contribute a skill.
 - Clients query the daemon for the catalog; they do not read repo files.
+- The daemon-control route handler must not import the `DaemonControlHandle`
+  type; the workflow-dispatcher seam is the only authorized way to enqueue a
+  workflow run from a module-contributed control route.

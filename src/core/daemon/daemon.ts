@@ -10,7 +10,7 @@ import { AgentSession } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
 import { initModuleLogStore } from "#core/modules/module-log.js";
 import type { ControlRouteRegistration } from "#core/modules/module-types.js";
-import { getHistoryProvider } from "#core/modules/provider-registry.js";
+import { getHistoryProvider, getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
 import type { LogFormat } from "#core/util/log-format.js";
@@ -18,6 +18,10 @@ import { isProcessAlive } from "#core/util/process-alive.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
+import {
+  WORKFLOW_DISPATCHER_PROVIDER_TYPE,
+  type WorkflowDispatcher,
+} from "#core/workflow/workflow-dispatcher-provider.js";
 import { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import { DaemonControlServer, type InteractiveSession } from "./daemon-control.js";
 import { buildDaemonHandle } from "./daemon-handle.js";
@@ -153,19 +157,32 @@ export class Daemon {
       createConversation: (_mode: AutonomyMode): string =>
         getHistoryProvider().create(daemonModel ?? "claude-sonnet-4-6", this.projectDir, "user"),
     };
+    const handle = buildDaemonHandle({
+      getState: () => this.state,
+      isRunning: () => this.isRunning(),
+      workflows: this.workflows,
+      bus: this.bus,
+      sessions: this.sessions,
+      runStore: this.runStore,
+      projectDir: this.projectDir,
+      config: { config: config.config, verbose: config.verbose },
+      log: (message) => this.log(message),
+      getModuleHealthChecks: () => this.moduleHealthChecks,
+    });
+    // Register the workflow-dispatcher seam so module-contributed
+    // daemon-control routes can enqueue pending workflow runs without
+    // holding a DaemonControlHandle. The seam lives in the provider registry
+    // alongside slash-command-catalog so the registration order matches the
+    // existing pattern.
+    const dispatcher: WorkflowDispatcher = {
+      enqueuePendingRun: (name) => handle.enqueuePendingRun(name),
+    };
+    const registry = getProviderRegistry();
+    if (registry) {
+      registry.register(WORKFLOW_DISPATCHER_PROVIDER_TYPE, "daemon", dispatcher);
+    }
     this.controlServer = new DaemonControlServer(
-      buildDaemonHandle({
-        getState: () => this.state,
-        isRunning: () => this.isRunning(),
-        workflows: this.workflows,
-        bus: this.bus,
-        sessions: this.sessions,
-        runStore: this.runStore,
-        projectDir: this.projectDir,
-        config: { config: config.config, verbose: config.verbose },
-        log: (message) => this.log(message),
-        getModuleHealthChecks: () => this.moduleHealthChecks,
-      }),
+      handle,
       this.token,
       {
         eventBufferSize: config.config?.daemon?.eventBufferSize,
