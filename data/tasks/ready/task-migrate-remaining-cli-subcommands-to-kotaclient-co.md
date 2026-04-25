@@ -1,12 +1,12 @@
 ---
 id: task-migrate-remaining-cli-subcommands-to-kotaclient-co
 title: Migrate remaining CLI subcommands to KotaClient contract
-status: backlog
+status: ready
 priority: p2
 area: architecture
 summary: Migrate all non-acceptance CLI subcommands across modules to consume ctx.client.<namespace>.<method> instead of direct stores or .kota/ reads; expand the KotaClient contract namespace surface; add per-namespace daemon HTTP routes where needed.
 created_at: 2026-04-25T13:17:17.850Z
-updated_at: 2026-04-25T13:17:17.850Z
+updated_at: 2026-04-25T13:35:20.786Z
 ---
 
 ## Problem
