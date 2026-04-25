@@ -14,7 +14,13 @@ import type {
 	RepoTasksClient,
 } from "#core/server/kota-client.js";
 import { listTasksForStates, registerTaskCommands } from "./cli.js";
-import { getRepoTasksDir } from "./repo-tasks-domain.js";
+import { getRepoTasksDir, moveTaskById } from "./repo-tasks-domain.js";
+import {
+	captureInboxTask,
+	createNormalizedTask,
+	gcTerminalTasks,
+	showTask,
+} from "./repo-tasks-operations.js";
 import { taskRoutes } from "./routes.js";
 
 const REPO_TASK_OPEN_STATES: RepoTaskState[] = [
@@ -45,6 +51,40 @@ const repoTasksModule: KotaModule = {
 				const wanted = states && states.length > 0 ? states : REPO_TASK_OPEN_STATES;
 				const tasks: RepoTaskListEntry[] = listTasksForStates(tasksDir, wanted);
 				return { tasks };
+			},
+			async show(id) {
+				return showTask(ctx.cwd, id);
+			},
+			async move(id, toState) {
+				try {
+					const result = moveTaskById(ctx.cwd, id, toState);
+					return {
+						ok: true,
+						id: result.id,
+						fromState: result.fromState,
+						toState: result.toState,
+						path: result.path,
+						previousPath: result.previousPath,
+					};
+				} catch (err) {
+					const message = err instanceof Error ? err.message : String(err);
+					if (/not found/i.test(message)) {
+						return { ok: false, reason: "not_found" };
+					}
+					if (/already in/i.test(message)) {
+						return { ok: false, reason: "already_in_state", state: toState };
+					}
+					throw err;
+				}
+			},
+			async create(options) {
+				return createNormalizedTask(ctx.cwd, options);
+			},
+			async capture(title) {
+				return captureInboxTask(ctx.cwd, title);
+			},
+			async gc(options) {
+				return gcTerminalTasks(ctx.cwd, options ?? {});
 			},
 		};
 		return { tasks: handler };

@@ -137,12 +137,26 @@ until `Done When` is fully satisfied.
   `DELETE /api/memory/:id` cover add and delete. The CLI no longer
   imports `getMemoryProvider` (run
   `2026-04-25T14-16-07-951Z-builder-3h8o0y`).
+- Done — `repo-tasks` mutations: `move`, `gc`, `create`, `capture`, and
+  `show` now route through `ctx.client.tasks.{show,move,create,capture,gc}`.
+  `RepoTasksClient` grew typed shapes
+  (`RepoTaskShowResult`, `RepoTaskMoveResult`,
+  `RepoTaskCreateResult`, `RepoTaskCaptureResult`, `RepoTaskGcResult`)
+  with explicit `{ ok: true } | { ok: false; reason }` discriminants.
+  Daemon adds `GET /api/tasks/{id}`, `PATCH /api/tasks/{id}/move`
+  (full state set, distinct from web-UI restricted
+  `PATCH /api/tasks/{id}/state`), `POST /api/tasks/normalized`,
+  `POST /api/tasks/capture`, and `POST /api/tasks/gc`. The shared
+  mutation logic lives in `src/modules/repo-tasks/repo-tasks-operations.ts`
+  so the daemon route handlers and the local-client handlers cannot
+  diverge. The CLI no longer reads/writes `data/tasks/` or `.kota/`
+  directly from any subcommand action (run
+  `2026-04-25T14-40-55-087Z-builder-wrugq7`).
 - Pending — `workflow` mutations (control, run management, definition
   mutations, trigger/exec); `knowledge`, `history`, `agent-ops`,
   `skill-ops`, `harness-parity`, `owner-questions`, `webhook`,
   `eval-harness`, `guardrails-audit`, `module-manager`, `web`,
-  `config`, `mcp-server`, `voice`, `daemon-ops` control, `doctor`,
-  `repo-tasks` mutations.
+  `config`, `mcp-server`, `voice`, `daemon-ops` control, `doctor`.
 - Pending — sibling guard test rejecting new direct `.kota/` reads
   from non-bootstrap CLI code.
 

@@ -3,9 +3,26 @@ import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import type { RouteRegistration } from "#core/modules/module-types.js";
+import type {
+  RepoTaskState as ContractRepoTaskState,
+  RepoTaskCreateOptions,
+  RepoTaskPriority,
+} from "#core/server/kota-client.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import type { DaemonTaskDetail, DaemonTaskStatusResponse } from "./repo-tasks-domain.js";
-import { getRepoInboxDir, getRepoTasksDir, type RepoTaskState } from "./repo-tasks-domain.js";
+import {
+  getRepoInboxDir,
+  getRepoTasksDir,
+  moveTaskById,
+  REPO_TASK_STATES,
+  type RepoTaskState,
+} from "./repo-tasks-domain.js";
+import {
+  captureInboxTask,
+  createNormalizedTask,
+  gcTerminalTasks,
+  showTask,
+} from "./repo-tasks-operations.js";
 
 const COUNTED_STATES = ["inbox", "ready", "backlog", "doing", "blocked"] as const;
 const DETAIL_STATES = ["doing", "ready", "backlog", "blocked"] as const;
@@ -328,6 +345,184 @@ export function handleTaskStatus(
 
 const TASK_STATE_PATTERN = /^\/api\/tasks\/([^/]+)\/state$/;
 const TASK_BODY_PATTERN = /^\/api\/tasks\/([^/]+)\/body$/;
+const TASK_MOVE_PATTERN = /^\/api\/tasks\/([^/]+)\/move$/;
+const TASK_SHOW_PATTERN = /^\/api\/tasks\/([^/]+)$/;
+
+const ALLOWED_PRIORITIES: readonly RepoTaskPriority[] = ["p0", "p1", "p2", "p3"];
+
+function isRepoTaskState(value: unknown): value is ContractRepoTaskState {
+  return typeof value === "string" && (REPO_TASK_STATES as readonly string[]).includes(value);
+}
+
+function isRepoTaskPriority(value: unknown): value is RepoTaskPriority {
+  return typeof value === "string" && (ALLOWED_PRIORITIES as readonly string[]).includes(value);
+}
+
+function shouldHandleShowPath(path: string): boolean {
+  if (!TASK_SHOW_PATTERN.test(path)) return false;
+  // Reserve subpaths (/state, /body, /move, /normalized, /capture, /gc) for
+  // their dedicated handlers.
+  return ![
+    "normalized",
+    "capture",
+    "gc",
+  ].includes(path.slice("/api/tasks/".length));
+}
+
+export async function handleTaskShow(
+  res: ServerResponse,
+  id: string,
+  projectDir = process.cwd(),
+): Promise<void> {
+  const result = showTask(projectDir, id);
+  if (!result.found) {
+    jsonResponse(res, 404, { error: `Task "${id}" not found.` });
+    return;
+  }
+  jsonResponse(res, 200, { state: result.state, content: result.content });
+}
+
+export async function handleTaskMove(
+  req: IncomingMessage,
+  res: ServerResponse,
+  id: string,
+  projectDir = process.cwd(),
+): Promise<void> {
+  let body: Record<string, unknown>;
+  try {
+    body = await readBody(req);
+  } catch {
+    jsonResponse(res, 400, { error: "Invalid request body" });
+    return;
+  }
+  if (!isRepoTaskState(body.state)) {
+    jsonResponse(res, 400, {
+      error: `state must be one of: ${REPO_TASK_STATES.join(", ")}`,
+    });
+    return;
+  }
+  try {
+    const result = moveTaskById(projectDir, id, body.state);
+    jsonResponse(res, 200, {
+      id: result.id,
+      fromState: result.fromState,
+      toState: result.toState,
+      path: result.path,
+      previousPath: result.previousPath,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/not found/i.test(message)) {
+      jsonResponse(res, 404, { error: message });
+      return;
+    }
+    if (/already in/i.test(message)) {
+      jsonResponse(res, 409, { state: body.state, error: message });
+      return;
+    }
+    jsonResponse(res, 500, { error: message });
+  }
+}
+
+export async function handleTaskCreateNormalized(
+  req: IncomingMessage,
+  res: ServerResponse,
+  projectDir = process.cwd(),
+): Promise<void> {
+  let body: Record<string, unknown>;
+  try {
+    body = await readBody(req);
+  } catch {
+    jsonResponse(res, 400, { error: "Invalid request body" });
+    return;
+  }
+  if (typeof body.title !== "string" || body.title.trim() === "") {
+    jsonResponse(res, 400, { error: "title is required" });
+    return;
+  }
+  if (!isRepoTaskPriority(body.priority)) {
+    jsonResponse(res, 400, {
+      error: `priority must be one of: ${ALLOWED_PRIORITIES.join(", ")}`,
+    });
+    return;
+  }
+  if (!isRepoTaskState(body.state)) {
+    jsonResponse(res, 400, {
+      error: `state must be one of: ${REPO_TASK_STATES.join(", ")}`,
+    });
+    return;
+  }
+  if (typeof body.area !== "string" || body.area.trim() === "") {
+    jsonResponse(res, 400, { error: "area is required" });
+    return;
+  }
+  const summary = typeof body.summary === "string" ? body.summary : undefined;
+
+  const options: RepoTaskCreateOptions = {
+    title: body.title,
+    priority: body.priority,
+    area: body.area,
+    state: body.state,
+    ...(summary !== undefined && { summary }),
+  };
+  const result = createNormalizedTask(projectDir, options);
+  if (!result.ok) {
+    const status = result.reason === "already_exists" ? 409 : 400;
+    jsonResponse(res, status, { reason: result.reason, error: result.message });
+    return;
+  }
+  jsonResponse(res, 201, { id: result.id, path: result.path });
+}
+
+export async function handleTaskCapture(
+  req: IncomingMessage,
+  res: ServerResponse,
+  projectDir = process.cwd(),
+): Promise<void> {
+  let body: Record<string, unknown>;
+  try {
+    body = await readBody(req);
+  } catch {
+    jsonResponse(res, 400, { error: "Invalid request body" });
+    return;
+  }
+  if (typeof body.title !== "string" || body.title.trim() === "") {
+    jsonResponse(res, 400, { error: "title is required" });
+    return;
+  }
+  const result = captureInboxTask(projectDir, body.title);
+  if (!result.ok) {
+    const status = result.reason === "already_exists" ? 409 : 400;
+    jsonResponse(res, status, { reason: result.reason, error: result.message });
+    return;
+  }
+  jsonResponse(res, 201, { id: result.id, path: result.path });
+}
+
+export async function handleTaskGc(
+  req: IncomingMessage,
+  res: ServerResponse,
+  projectDir = process.cwd(),
+): Promise<void> {
+  let body: Record<string, unknown>;
+  try {
+    body = await readBody(req);
+  } catch {
+    jsonResponse(res, 400, { error: "Invalid request body" });
+    return;
+  }
+  const days = typeof body.days === "number" ? body.days : undefined;
+  if (days !== undefined && (!Number.isFinite(days) || days <= 0)) {
+    jsonResponse(res, 400, { error: "days must be a positive number" });
+    return;
+  }
+  const result = gcTerminalTasks(projectDir, {
+    ...(days !== undefined && { days }),
+    ...(typeof body.delete === "boolean" && { delete: body.delete }),
+    ...(typeof body.dryRun === "boolean" && { dryRun: body.dryRun }),
+  });
+  jsonResponse(res, 200, result);
+}
 
 export function taskRoutes(): RouteRegistration[] {
   return [
@@ -342,6 +537,21 @@ export function taskRoutes(): RouteRegistration[] {
       handler: (req, res) => handleTaskCreate(req, res),
     },
     {
+      method: "POST",
+      path: "/api/tasks/normalized",
+      handler: (req, res) => handleTaskCreateNormalized(req, res),
+    },
+    {
+      method: "POST",
+      path: "/api/tasks/capture",
+      handler: (req, res) => handleTaskCapture(req, res),
+    },
+    {
+      method: "POST",
+      path: "/api/tasks/gc",
+      handler: (req, res) => handleTaskGc(req, res),
+    },
+    {
       method: "PATCH",
       path: "/api/tasks/",
       pathPattern: TASK_STATE_PATTERN,
@@ -353,10 +563,33 @@ export function taskRoutes(): RouteRegistration[] {
     {
       method: "PATCH",
       path: "/api/tasks/",
+      pathPattern: TASK_MOVE_PATTERN,
+      handler: (req, res) => {
+        const match = new URL(req.url!, "http://localhost").pathname.match(TASK_MOVE_PATTERN);
+        return handleTaskMove(req, res, match![1]);
+      },
+    },
+    {
+      method: "PATCH",
+      path: "/api/tasks/",
       pathPattern: TASK_BODY_PATTERN,
       handler: (req, res) => {
         const match = new URL(req.url!, "http://localhost").pathname.match(TASK_BODY_PATTERN);
         return handleTaskBodyUpdate(req, res, match![1]);
+      },
+    },
+    {
+      method: "GET",
+      path: "/api/tasks/",
+      pathPattern: TASK_SHOW_PATTERN,
+      handler: (req, res) => {
+        const path = new URL(req.url!, "http://localhost").pathname;
+        if (!shouldHandleShowPath(path)) {
+          jsonResponse(res, 404, { error: "Not found" });
+          return;
+        }
+        const match = path.match(TASK_SHOW_PATTERN);
+        return handleTaskShow(res, decodeURIComponent(match![1]));
       },
     },
   ];

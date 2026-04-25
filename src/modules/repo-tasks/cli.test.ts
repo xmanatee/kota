@@ -4,9 +4,19 @@ import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { RepoTaskState } from "#core/server/kota-client.js";
-import { findTask, gcTerminalTasks, listTasksForStates, registerTaskCommands, slugify } from "./cli.js";
-import { getRepoTasksDir } from "./repo-tasks-domain.js";
+import type {
+  RepoTaskCreateOptions,
+  RepoTaskGcOptions,
+  RepoTaskState,
+} from "#core/server/kota-client.js";
+import { listTasksForStates, registerTaskCommands } from "./cli.js";
+import { getRepoTasksDir, moveTaskById } from "./repo-tasks-domain.js";
+import {
+  captureInboxTask,
+  createNormalizedTask,
+  gcTerminalTasks,
+  showTask,
+} from "./repo-tasks-operations.js";
 
 const OPEN_STATES: RepoTaskState[] = ["backlog", "ready", "doing", "blocked"];
 
@@ -19,6 +29,40 @@ function stubCtx(projectDir: string): ModuleContext {
           const wanted = states && states.length > 0 ? states : OPEN_STATES;
           const tasks = listTasksForStates(getRepoTasksDir(projectDir), wanted);
           return { tasks };
+        },
+        async show(id: string) {
+          return showTask(projectDir, id);
+        },
+        async move(id: string, toState: RepoTaskState) {
+          try {
+            const result = moveTaskById(projectDir, id, toState);
+            return {
+              ok: true as const,
+              id: result.id,
+              fromState: result.fromState,
+              toState: result.toState,
+              path: result.path,
+              previousPath: result.previousPath,
+            };
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            if (/not found/i.test(message)) {
+              return { ok: false as const, reason: "not_found" as const };
+            }
+            if (/already in/i.test(message)) {
+              return { ok: false as const, reason: "already_in_state" as const, state: toState };
+            }
+            throw err;
+          }
+        },
+        async create(options: RepoTaskCreateOptions) {
+          return createNormalizedTask(projectDir, options);
+        },
+        async capture(title: string) {
+          return captureInboxTask(projectDir, title);
+        },
+        async gc(options?: RepoTaskGcOptions) {
+          return gcTerminalTasks(projectDir, options ?? {});
         },
       },
     },
@@ -91,25 +135,6 @@ function makeProgram(projectDir?: string): Command {
   return program;
 }
 
-describe("slugify", () => {
-  it("converts title to kebab slug", () => {
-    expect(slugify("Add search filter")).toBe("add-search-filter");
-  });
-
-  it("strips non-alphanumeric characters", () => {
-    expect(slugify("Fix: auth/redirect!")).toBe("fix-authredirect");
-  });
-
-  it("truncates at 50 characters", () => {
-    const long = "a".repeat(60);
-    expect(slugify(long).length).toBe(50);
-  });
-
-  it("returns empty string for whitespace-only input", () => {
-    expect(slugify("   ")).toBe("");
-  });
-});
-
 describe("listTasksForStates", () => {
   let projectDir: string;
 
@@ -163,36 +188,6 @@ describe("listTasksForStates", () => {
     const result = listTasksForStates(join(projectDir, "data", "tasks"), ["ready"]);
     expect(result[0].priority).toBe("p1");
     expect(result[0].title).toBe("My Task");
-  });
-});
-
-describe("findTask", () => {
-  let projectDir: string;
-
-  beforeEach(() => {
-    projectDir = makeProjectDir();
-  });
-
-  afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
-  });
-
-  it("returns null when task does not exist", () => {
-    const result = findTask(join(projectDir, "data", "tasks"), "task-missing");
-    expect(result).toBeNull();
-  });
-
-  it("finds task in any state", () => {
-    writeTaskFile(projectDir, "backlog", "task-foo");
-    const result = findTask(join(projectDir, "data", "tasks"), "task-foo");
-    expect(result).not.toBeNull();
-    expect(result?.state).toBe("backlog");
-  });
-
-  it("returns the task content", () => {
-    writeTaskFile(projectDir, "ready", "task-bar");
-    const result = findTask(join(projectDir, "data", "tasks"), "task-bar");
-    expect(result?.content).toContain("id: task-bar");
   });
 });
 
@@ -264,22 +259,22 @@ describe("kota task show", () => {
     writeTaskFile(projectDir, "doing", "task-show-me");
     const program = makeProgram();
     const output = await captureOutput(async () => {
-      program.parse(["node", "kota", "task", "show", "task-show-me"]);
+      await program.parseAsync(["node", "kota", "task", "show", "task-show-me"]);
     });
     expect(output).toContain("id: task-show-me");
     expect(output).toContain("## Problem");
   });
 
-  it("exits with error for unknown task", () => {
+  it("exits with error for unknown task", async () => {
     const program = makeProgram();
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = vi.spyOn(process, "exit").mockImplementation(((code: number) => {
       throw new Error(`process.exit:${code}`);
     }) as never);
     try {
-      expect(() => program.parse(["node", "kota", "task", "show", "task-nonexistent"])).toThrow(
-        "process.exit:1",
-      );
+      await expect(
+        program.parseAsync(["node", "kota", "task", "show", "task-nonexistent"]),
+      ).rejects.toThrow("process.exit:1");
     } finally {
       errSpy.mockRestore();
       exitSpy.mockRestore();
@@ -323,7 +318,7 @@ describe("kota task move", () => {
     const program = makeProgram();
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
-      program.parse(["node", "kota", "task", "move", "task-mover", "doing"]);
+      await program.parseAsync(["node", "kota", "task", "move", "task-mover", "doing"]);
     } finally {
       logSpy.mockRestore();
     }
@@ -339,7 +334,7 @@ describe("kota task move", () => {
 
     const program = makeProgram();
     const output = await captureOutput(async () => {
-      program.parse(["node", "kota", "task", "move", "task-already", "ready"]);
+      await program.parseAsync(["node", "kota", "task", "move", "task-already", "ready"]);
     });
     expect(output).toContain("already in");
   });
@@ -361,11 +356,11 @@ describe("kota task capture", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("creates a new inbox task file", () => {
+  it("creates a new inbox task file", async () => {
     const program = makeProgram();
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
-      program.parse(["node", "kota", "task", "capture", "Add search filter"]);
+      await program.parseAsync(["node", "kota", "task", "capture", "Add search filter"]);
     } finally {
       logSpy.mockRestore();
     }
@@ -379,12 +374,12 @@ describe("kota task capture", () => {
   it("reports the created task ID", async () => {
     const program = makeProgram();
     const output = await captureOutput(async () => {
-      program.parse(["node", "kota", "task", "capture", "Fix the login bug"]);
+      await program.parseAsync(["node", "kota", "task", "capture", "Fix the login bug"]);
     });
     expect(output).toContain("task-fix-the-login-bug");
   });
 
-  it("errors if task file already exists", () => {
+  it("errors if task file already exists", async () => {
     writeFileSync(
       join(projectDir, "data", "inbox", "task-duplicate.md"),
       "# duplicate\n",
@@ -396,9 +391,9 @@ describe("kota task capture", () => {
       throw new Error(`process.exit:${code}`);
     }) as never);
     try {
-      expect(() => program.parse(["node", "kota", "task", "capture", "duplicate"])).toThrow(
-        "process.exit:1",
-      );
+      await expect(
+        program.parseAsync(["node", "kota", "task", "capture", "duplicate"]),
+      ).rejects.toThrow("process.exit:1");
     } finally {
       errSpy.mockRestore();
       exitSpy.mockRestore();
@@ -406,72 +401,3 @@ describe("kota task capture", () => {
   });
 });
 
-describe("gcTerminalTasks", () => {
-  let projectDir: string;
-
-  beforeEach(() => {
-    projectDir = makeProjectDir();
-  });
-
-  afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
-  });
-
-  function writeTerminalTask(
-    state: "done" | "dropped",
-    id: string,
-    updatedAt: string,
-  ): void {
-    const dir = join(projectDir, "data", "tasks", state);
-    mkdirSync(dir, { recursive: true });
-    const content = `---\nid: ${id}\ntitle: Title\nstatus: ${state}\nupdated_at: ${updatedAt}\n---\n\n## Done.\n`;
-    writeFileSync(join(dir, `${id}.md`), content);
-  }
-
-  it("archives tasks older than threshold", () => {
-    writeTerminalTask("done", "task-old", "2020-01-01");
-    const result = gcTerminalTasks(projectDir, { days: 30 });
-    expect(result.archived).toHaveLength(1);
-    expect(result.archived[0]).toBe("task-old.md");
-    expect(existsSync(join(projectDir, ".kota", "task-archive", "task-old.md"))).toBe(true);
-    expect(existsSync(join(projectDir, "data", "tasks", "done", "task-old.md"))).toBe(false);
-  });
-
-  it("does not archive tasks newer than threshold", () => {
-    const recent = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    writeTerminalTask("done", "task-recent", recent);
-    const result = gcTerminalTasks(projectDir, { days: 30 });
-    expect(result.archived).toHaveLength(0);
-    expect(existsSync(join(projectDir, "data", "tasks", "done", "task-recent.md"))).toBe(true);
-  });
-
-  it("deletes instead of archiving when delete option is set", () => {
-    writeTerminalTask("dropped", "task-drop-old", "2020-01-01");
-    const result = gcTerminalTasks(projectDir, { days: 30, delete: true });
-    expect(result.deleted).toHaveLength(1);
-    expect(existsSync(join(projectDir, "data", "tasks", "dropped", "task-drop-old.md"))).toBe(false);
-    expect(existsSync(join(projectDir, ".kota", "task-archive", "task-drop-old.md"))).toBe(false);
-  });
-
-  it("dry-run returns affected list without mutating files", () => {
-    writeTerminalTask("done", "task-dry", "2020-01-01");
-    const result = gcTerminalTasks(projectDir, { days: 30, dryRun: true });
-    expect(result.archived).toHaveLength(1);
-    expect(existsSync(join(projectDir, "data", "tasks", "done", "task-dry.md"))).toBe(true);
-    expect(existsSync(join(projectDir, ".kota", "task-archive", "task-dry.md"))).toBe(false);
-  });
-
-  it("handles both done and dropped states", () => {
-    writeTerminalTask("done", "task-done-old", "2020-01-01");
-    writeTerminalTask("dropped", "task-dropped-old", "2020-02-01");
-    const result = gcTerminalTasks(projectDir, { days: 30 });
-    expect(result.archived).toHaveLength(2);
-  });
-
-  it("does not touch open state tasks", () => {
-    writeTaskFile(projectDir, "ready", "task-ready-skip", { updated_at: "2020-01-01" });
-    const result = gcTerminalTasks(projectDir, { days: 30 });
-    expect(result.archived).toHaveLength(0);
-    expect(existsSync(join(projectDir, "data", "tasks", "ready", "task-ready-skip.md"))).toBe(true);
-  });
-});

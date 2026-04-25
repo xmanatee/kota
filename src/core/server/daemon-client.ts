@@ -25,7 +25,14 @@ import type {
   MemoryReindexResult,
   MemorySearchFilter,
   MemorySearchResult,
+  RepoTaskCaptureResult,
+  RepoTaskCreateOptions,
+  RepoTaskCreateResult,
+  RepoTaskGcOptions,
+  RepoTaskGcResult,
   RepoTaskListEntry,
+  RepoTaskMoveResult,
+  RepoTaskShowResult,
   RepoTaskState,
   RepoTasksClient,
   SecretGetResult,
@@ -132,6 +139,11 @@ export class DaemonControlClient implements KotaClient {
         }
         return { tasks };
       },
+      show: async (id) => this.showTaskHttp(id),
+      move: async (id, toState) => this.moveTaskHttp(id, toState),
+      create: async (options) => this.createTaskHttp(options),
+      capture: async (title) => this.captureTaskHttp(title),
+      gc: async (options) => this.gcTasksHttp(options ?? {}),
     };
     this.memory = {
       list: async (limit) => {
@@ -283,6 +295,118 @@ export class DaemonControlClient implements KotaClient {
     } catch (err) {
       return { ok: false, reason: "store_error", message: (err as Error).message };
     }
+  }
+
+  private async showTaskHttp(id: string): Promise<RepoTaskShowResult> {
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/api/tasks/${encodeURIComponent(id)}`,
+      { headers: this.authHeaders() },
+    );
+    if (res.status === 404) return { found: false };
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    const body = (await res.json()) as { state: RepoTaskState; content: string };
+    return { found: true, state: body.state, content: body.content };
+  }
+
+  private async moveTaskHttp(
+    id: string,
+    toState: RepoTaskState,
+  ): Promise<RepoTaskMoveResult> {
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/api/tasks/${encodeURIComponent(id)}/move`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...this.authHeaders() },
+        body: JSON.stringify({ state: toState }),
+      },
+    );
+    if (res.status === 404) return { ok: false, reason: "not_found" };
+    if (res.status === 409) {
+      const body = (await res.json().catch(() => ({}))) as { state?: RepoTaskState };
+      return { ok: false, reason: "already_in_state", state: body.state ?? toState };
+    }
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    const body = (await res.json()) as {
+      id: string;
+      fromState: RepoTaskState;
+      toState: RepoTaskState;
+      path: string;
+      previousPath: string;
+    };
+    return {
+      ok: true,
+      id: body.id,
+      fromState: body.fromState,
+      toState: body.toState,
+      path: body.path,
+      previousPath: body.previousPath,
+    };
+  }
+
+  private async createTaskHttp(
+    options: RepoTaskCreateOptions,
+  ): Promise<RepoTaskCreateResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/api/tasks/normalized`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.authHeaders() },
+      body: JSON.stringify(options),
+    });
+    if (res.status === 409) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, reason: "already_exists", message: body.error };
+    }
+    if (res.status === 400) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string; reason?: string };
+      const reason = body.reason === "invalid_slug" ? "invalid_slug" : "invalid_slug";
+      return { ok: false, reason, message: body.error };
+    }
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    const body = (await res.json()) as { id: string; path: string };
+    return { ok: true, id: body.id, path: body.path };
+  }
+
+  private async captureTaskHttp(title: string): Promise<RepoTaskCaptureResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/api/tasks/capture`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.authHeaders() },
+      body: JSON.stringify({ title }),
+    });
+    if (res.status === 409) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, reason: "already_exists", message: body.error };
+    }
+    if (res.status === 400) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, reason: "invalid_slug", message: body.error };
+    }
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    const body = (await res.json()) as { id: string; path: string };
+    return { ok: true, id: body.id, path: body.path };
+  }
+
+  private async gcTasksHttp(options: RepoTaskGcOptions): Promise<RepoTaskGcResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/api/tasks/gc`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.authHeaders() },
+      body: JSON.stringify(options),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as RepoTaskGcResult;
   }
 
   private async listTasksHttp(): Promise<

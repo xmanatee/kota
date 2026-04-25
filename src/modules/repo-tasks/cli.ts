@@ -1,9 +1,9 @@
-import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
+import type { RepoTaskPriority } from "#core/server/kota-client.js";
+import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import {
 	blank,
 	type LineNode,
@@ -14,19 +14,17 @@ import {
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 import {
-	getRepoInboxDir,
-	getRepoTasksDir,
-	moveTaskById,
 	REPO_INBOX_DIR,
 	REPO_TASK_STATES,
 	type RepoTaskState,
-	TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER,
-	TASK_INITIATIVE_PLACEHOLDER,
-	TASK_SOURCE_INTENT_PLACEHOLDER,
 } from "./repo-tasks-domain.js";
 
 const OPEN_STATES: RepoTaskState[] = ["backlog", "ready", "doing", "blocked"];
-const TERMINAL_STATES: RepoTaskState[] = ["done", "dropped"];
+const ALLOWED_PRIORITIES: readonly RepoTaskPriority[] = ["p0", "p1", "p2", "p3"];
+
+function isRepoTaskPriority(value: string): value is RepoTaskPriority {
+	return (ALLOWED_PRIORITIES as readonly string[]).includes(value);
+}
 
 type TaskEntry = {
 	id: string;
@@ -35,6 +33,10 @@ type TaskEntry = {
 	state: RepoTaskState;
 };
 
+/**
+ * Read the on-disk normalized tasks for the given states. Used by both the
+ * local-side `tasks.list` handler and the CLI's table renderer.
+ */
 export function listTasksForStates(tasksDir: string, states: RepoTaskState[]): TaskEntry[] {
 	const results: TaskEntry[] = [];
 	for (const state of states) {
@@ -61,83 +63,6 @@ export function listTasksForStates(tasksDir: string, states: RepoTaskState[]): T
 		}
 	}
 	return results;
-}
-
-export function findTask(
-	tasksDir: string,
-	id: string,
-): { path: string; state: RepoTaskState; content: string } | null {
-	for (const state of REPO_TASK_STATES) {
-		const filePath = join(tasksDir, state, `${id}.md`);
-		if (existsSync(filePath)) {
-			return { path: filePath, state, content: readFileSync(filePath, "utf-8") };
-		}
-	}
-	return null;
-}
-
-export function slugify(title: string): string {
-	return title
-		.toLowerCase()
-		.replace(/[^a-z0-9\s-]/g, "")
-		.trim()
-		.replace(/\s+/g, "-")
-		.replace(/-+/g, "-")
-		.slice(0, 50);
-}
-
-type GcResult = {
-	archived: string[];
-	deleted: string[];
-};
-
-export function gcTerminalTasks(
-	projectDir: string,
-	opts: { days?: number; delete?: boolean; dryRun?: boolean } = {},
-): GcResult {
-	const days = opts.days ?? 30;
-	const deleteMode = opts.delete ?? false;
-	const dryRun = opts.dryRun ?? false;
-	const tasksDir = getRepoTasksDir(projectDir);
-	const archiveDir = join(projectDir, ".kota", "task-archive");
-	const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-	const archived: string[] = [];
-	const deleted: string[] = [];
-
-	for (const state of TERMINAL_STATES) {
-		const dir = join(tasksDir, state);
-		let files: string[];
-		try {
-			files = readdirSync(dir).filter((f) => f.endsWith(".md") && f !== "AGENTS.md");
-		} catch {
-			continue;
-		}
-		for (const file of files) {
-			const filePath = join(dir, file);
-			let updatedAt: Date | null = null;
-			try {
-				const content = readFileSync(filePath, "utf-8");
-				const { attrs } = parseFlatFrontMatter(content);
-				const raw = attrs.updated_at;
-				if (raw) updatedAt = new Date(String(raw));
-			} catch {
-				continue;
-			}
-			if (!updatedAt || Number.isNaN(updatedAt.getTime()) || updatedAt >= cutoff) continue;
-			if (deleteMode) {
-				if (!dryRun) rmSync(filePath);
-				deleted.push(file);
-			} else {
-				if (!dryRun) {
-					mkdirSync(archiveDir, { recursive: true });
-					renameSync(filePath, join(archiveDir, file));
-				}
-				archived.push(file);
-			}
-		}
-	}
-
-	return { archived, deleted };
 }
 
 export function registerTaskCommands(program: Command, ctx: ModuleContext): void {
@@ -176,26 +101,26 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 	taskCmd
 		.command("show <id>")
 		.description("Print the full content of a normalized task")
-		.action((id: string) => {
-			const found = findTask(getRepoTasksDir(process.cwd()), id);
-			if (!found) {
+		.action(async (id: string) => {
+			const result = await ctx.client.tasks.show(id);
+			if (!result.found) {
 				console.error(`Task "${id}" not found.`);
 				process.exit(1);
 			}
-			process.stdout.write(found.content);
-			if (!found.content.endsWith("\n")) process.stdout.write("\n");
+			process.stdout.write(result.content);
+			if (!result.content.endsWith("\n")) process.stdout.write("\n");
 		});
 
 	taskCmd
 		.command("move <id> <state>")
 		.description("Move a normalized task to the target state, updating status frontmatter")
-		.action((id: string, targetState: string) => {
+		.action(async (id: string, targetState: string) => {
 			if (!REPO_TASK_STATES.includes(targetState as RepoTaskState)) {
 				console.error(`Unknown state "${targetState}". Valid: ${REPO_TASK_STATES.join(", ")}`);
 				process.exit(1);
 			}
-			try {
-				const result = moveTaskById(process.cwd(), id, targetState as RepoTaskState);
+			const result = await ctx.client.tasks.move(id, targetState as RepoTaskState);
+			if (result.ok) {
 				print(line(
 					plain("Moved "),
 					span(`"${id}"`, "accent"),
@@ -203,15 +128,14 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 					span(`"${result.toState}"`, "success"),
 					plain("."),
 				));
-			} catch (err) {
-				const message = err instanceof Error ? err.message : String(err);
-				if (/already in/.test(message)) {
-					print(line(plain(`Task "${id}" is already in "${targetState}".`)));
-					return;
-				}
-				console.error(message);
-				process.exit(1);
+				return;
 			}
+			if (result.reason === "already_in_state") {
+				print(line(plain(`Task "${id}" is already in "${targetState}".`)));
+				return;
+			}
+			console.error(`Task "${id}" not found in any state directory`);
+			process.exit(1);
 		});
 
 	taskCmd
@@ -224,16 +148,16 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 		.option("--days <n>", "Archive tasks older than N days (default: 30)")
 		.option("--delete", "Permanently delete instead of archiving")
 		.option("--dry-run", "Print what would be done without mutating anything")
-		.action((opts: { days?: string; delete?: boolean; dryRun?: boolean }) => {
+		.action(async (opts: { days?: string; delete?: boolean; dryRun?: boolean }) => {
 			const days = opts.days != null ? Number.parseInt(opts.days, 10) : 30;
 			if (Number.isNaN(days) || days <= 0) {
 				console.error("--days must be a positive number");
 				process.exit(1);
 			}
-			const result = gcTerminalTasks(process.cwd(), {
+			const result = await ctx.client.tasks.gc({
 				days,
-				delete: opts.delete,
-				dryRun: opts.dryRun,
+				...(opts.delete !== undefined && { delete: opts.delete }),
+				...(opts.dryRun !== undefined && { dryRun: opts.dryRun }),
 			});
 			const affected = opts.delete ? result.deleted : result.archived;
 			if (affected.length === 0) {
@@ -260,8 +184,8 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 		.option("-a, --area <area>", "Area (e.g. core, architecture, modules)", "core")
 		.option("-s, --state <state>", "Initial state directory", "backlog")
 		.option("--summary <summary>", "One-line summary")
-		.action((title: string, opts: { priority: string; area: string; state: string; summary?: string }) => {
-			if (!["p0", "p1", "p2", "p3"].includes(opts.priority)) {
+		.action(async (title: string, opts: { priority: string; area: string; state: string; summary?: string }) => {
+			if (!isRepoTaskPriority(opts.priority)) {
 				console.error(`Invalid priority "${opts.priority}". Must be p0, p1, p2, or p3.`);
 				process.exit(1);
 			}
@@ -269,96 +193,39 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 				console.error(`Unknown state "${opts.state}". Valid: ${REPO_TASK_STATES.join(", ")}`);
 				process.exit(1);
 			}
-
-			const slug = slugify(title);
-			if (!slug) {
-				console.error("Title produced an empty slug. Use a more descriptive title.");
-				process.exit(1);
-			}
-
-			const id = `task-${slug}`;
-			const tasksDir = getRepoTasksDir(process.cwd());
-			const stateDir = join(tasksDir, opts.state);
-			mkdirSync(stateDir, { recursive: true });
-			const filePath = join(stateDir, `${id}.md`);
-
-			if (existsSync(filePath)) {
-				console.error(`Task file "${id}.md" already exists in ${opts.state}/.`);
-				process.exit(1);
-			}
-
-			const now = new Date().toISOString();
-			const attrs: Record<string, string> = {
-				id,
+			const result = await ctx.client.tasks.create({
 				title,
-				status: opts.state,
 				priority: opts.priority,
 				area: opts.area,
-				summary: opts.summary ?? "",
-				created_at: now,
-				updated_at: now,
-			};
-
-			const body = [
-				"",
-				"## Problem",
-				"",
-				"## Desired Outcome",
-				"",
-				"## Constraints",
-				"",
-				"## Done When",
-				"",
-				"## Source / Intent",
-				"",
-				TASK_SOURCE_INTENT_PLACEHOLDER,
-				"",
-				"## Initiative",
-				"",
-				TASK_INITIATIVE_PLACEHOLDER,
-				"",
-				"## Acceptance Evidence",
-				"",
-				TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER,
-				"",
-			].join("\n");
-
-			writeFileSync(filePath, serializeFlatFrontMatter(attrs, body), "utf-8");
-			execSync(`git add "${filePath}"`, { cwd: process.cwd() });
+				state: opts.state as RepoTaskState,
+				...(opts.summary !== undefined && { summary: opts.summary }),
+			});
+			if (!result.ok) {
+				console.error(result.message ?? `Failed to create task: ${result.reason}`);
+				process.exit(1);
+			}
 			print(stack(
 				line(
 					plain("Created task "),
-					span(`"${id}"`, "accent"),
+					span(`"${result.id}"`, "accent"),
 					plain(` in ${opts.state}/. Edit the file to fill in sections.`),
 				),
-				line(span(filePath, "muted")),
+				line(span(result.path, "muted")),
 			));
 		});
 
 	taskCmd
 		.command("capture <title>")
 		.description("Create a quick inbox capture under data/inbox")
-		.action((title: string) => {
-			const slug = slugify(title);
-			if (!slug) {
-				console.error("Title produced an empty slug. Use a more descriptive title.");
+		.action(async (title: string) => {
+			const result = await ctx.client.tasks.capture(title);
+			if (!result.ok) {
+				console.error(result.message ?? `Failed to capture: ${result.reason}`);
 				process.exit(1);
 			}
-
-			const id = `task-${slug}`;
-			const inboxDir = getRepoInboxDir(process.cwd());
-			mkdirSync(inboxDir, { recursive: true });
-			const filePath = join(inboxDir, `${id}.md`);
-
-			if (existsSync(filePath)) {
-				console.error(`Inbox file "${id}.md" already exists.`);
-				process.exit(1);
-			}
-
-			writeFileSync(filePath, `# ${title}\n`, "utf-8");
 			print(line(
 				plain("Created inbox capture "),
-				span(`"${id}"`, "accent"),
+				span(`"${result.id}"`, "accent"),
 				plain(` in ${REPO_INBOX_DIR}.`),
 			));
 		});

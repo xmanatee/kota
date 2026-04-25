@@ -3,7 +3,28 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { handleTaskBodyUpdate, handleTaskCreate, handleTaskStateChange, handleTaskStatus } from "./routes.js";
+import {
+  handleTaskBodyUpdate,
+  handleTaskCapture,
+  handleTaskCreate,
+  handleTaskCreateNormalized,
+  handleTaskGc,
+  handleTaskMove,
+  handleTaskShow,
+  handleTaskStateChange,
+  handleTaskStatus,
+} from "./routes.js";
+
+vi.mock("node:child_process", () => ({
+  // Default: throw (no real git in tmpdir). Tests that need a custom
+  // git-mv implementation (e.g. handleTaskMove) override the mock locally.
+  execSync: vi.fn(() => {
+    throw new Error("not a git repo");
+  }),
+  execFileSync: vi.fn(() => {
+    throw new Error("not a git repo");
+  }),
+}));
 
 
 function makeProjectDir(): string {
@@ -256,6 +277,165 @@ describe("task-routes", () => {
       const { res, result } = mockResponse();
       await handleTaskCreate(req, res, projectDir);
 
+      expect(result.status).toBe(400);
+    });
+  });
+
+  describe("handleTaskShow", () => {
+    it("returns 200 with state and content for an existing task", async () => {
+      writeTaskFile(projectDir, "ready", "showme", { id: "task-showme", title: "Show me" });
+      const { res, result } = mockResponse();
+      await handleTaskShow(res, "task-showme", projectDir);
+      expect(result.status).toBe(200);
+      const body = result.body as { state: string; content: string };
+      expect(body.state).toBe("ready");
+      expect(body.content).toContain("id: task-showme");
+    });
+
+    it("returns 404 when task does not exist", async () => {
+      const { res, result } = mockResponse();
+      await handleTaskShow(res, "task-missing", projectDir);
+      expect(result.status).toBe(404);
+    });
+  });
+
+  describe("handleTaskMove", () => {
+    it("moves a task to doing (state restricted in /state but allowed here)", async () => {
+      writeTaskFile(projectDir, "ready", "mover", { id: "task-mover", status: "ready" });
+      mkdirSync(join(projectDir, "data", "tasks", "doing"), { recursive: true });
+      const { execFileSync: mockExecFile } = await import("node:child_process");
+      vi.mocked(mockExecFile).mockImplementation((_file: unknown, args?: unknown) => {
+        const argv = Array.isArray(args) ? (args as string[]) : [];
+        if (argv[0] === "mv") {
+          const [, src, dst] = argv;
+          const content = readFileSync(src, "utf-8");
+          writeFileSync(dst, content);
+          rmSync(src);
+        }
+        return Buffer.from("");
+      });
+
+      const req = mockRequest({ state: "doing" });
+      const { res, result } = mockResponse();
+      await handleTaskMove(req, res, "task-mover", projectDir);
+      expect(result.status).toBe(200);
+      const body = result.body as Record<string, string>;
+      expect(body.fromState).toBe("ready");
+      expect(body.toState).toBe("doing");
+      expect(existsSync(join(projectDir, "data", "tasks", "doing", "task-mover.md"))).toBe(true);
+    });
+
+    it("returns 404 when task is not found", async () => {
+      const req = mockRequest({ state: "backlog" });
+      const { res, result } = mockResponse();
+      await handleTaskMove(req, res, "task-missing", projectDir);
+      expect(result.status).toBe(404);
+    });
+
+    it("returns 409 when task is already in target state", async () => {
+      writeTaskFile(projectDir, "ready", "stay", { id: "task-stay", status: "ready" });
+      const req = mockRequest({ state: "ready" });
+      const { res, result } = mockResponse();
+      await handleTaskMove(req, res, "task-stay", projectDir);
+      expect(result.status).toBe(409);
+    });
+
+    it("returns 400 for invalid state", async () => {
+      writeTaskFile(projectDir, "ready", "x", { id: "task-x", status: "ready" });
+      const req = mockRequest({ state: "bogus" });
+      const { res, result } = mockResponse();
+      await handleTaskMove(req, res, "task-x", projectDir);
+      expect(result.status).toBe(400);
+    });
+  });
+
+  describe("handleTaskCreateNormalized", () => {
+    it("creates a normalized task with full template", async () => {
+      const req = mockRequest({
+        title: "Add dashboard",
+        priority: "p2",
+        area: "ui",
+        state: "backlog",
+        summary: "summary",
+      });
+      const { res, result } = mockResponse();
+      await handleTaskCreateNormalized(req, res, projectDir);
+      expect(result.status).toBe(201);
+      const body = result.body as { id: string; path: string };
+      expect(body.id).toBe("task-add-dashboard");
+      const content = readFileSync(body.path, "utf-8");
+      expect(content).toContain("id: task-add-dashboard");
+      expect(content).toContain("## Done When");
+    });
+
+    it("returns 400 for invalid priority", async () => {
+      const req = mockRequest({ title: "Bad", priority: "p9", area: "ui", state: "backlog" });
+      const { res, result } = mockResponse();
+      await handleTaskCreateNormalized(req, res, projectDir);
+      expect(result.status).toBe(400);
+    });
+
+    it("returns 400 for invalid state", async () => {
+      const req = mockRequest({ title: "Bad", priority: "p2", area: "ui", state: "nope" });
+      const { res, result } = mockResponse();
+      await handleTaskCreateNormalized(req, res, projectDir);
+      expect(result.status).toBe(400);
+    });
+
+    it("returns 409 on duplicate id", async () => {
+      const req1 = mockRequest({ title: "Dup", priority: "p2", area: "ui", state: "backlog" });
+      const r1 = mockResponse();
+      await handleTaskCreateNormalized(req1, r1.res, projectDir);
+      const req2 = mockRequest({ title: "Dup", priority: "p2", area: "ui", state: "backlog" });
+      const r2 = mockResponse();
+      await handleTaskCreateNormalized(req2, r2.res, projectDir);
+      expect(r2.result.status).toBe(409);
+    });
+  });
+
+  describe("handleTaskCapture", () => {
+    it("creates a deterministic inbox file (no random suffix)", async () => {
+      const req = mockRequest({ title: "Quick note" });
+      const { res, result } = mockResponse();
+      await handleTaskCapture(req, res, projectDir);
+      expect(result.status).toBe(201);
+      const body = result.body as { id: string; path: string };
+      expect(body.id).toBe("task-quick-note");
+    });
+
+    it("returns 409 on duplicate", async () => {
+      const r1 = mockResponse();
+      await handleTaskCapture(mockRequest({ title: "Dup" }), r1.res, projectDir);
+      const r2 = mockResponse();
+      await handleTaskCapture(mockRequest({ title: "Dup" }), r2.res, projectDir);
+      expect(r2.result.status).toBe(409);
+    });
+  });
+
+  describe("handleTaskGc", () => {
+    function writeTerminal(state: "done" | "dropped", id: string, updatedAt: string): void {
+      const dir = join(projectDir, "data", "tasks", state);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, `${id}.md`),
+        `---\nid: ${id}\ntitle: T\nstatus: ${state}\nupdated_at: ${updatedAt}\n---\n\n## Done.\n`,
+      );
+    }
+
+    it("archives terminal tasks older than the threshold", async () => {
+      writeTerminal("done", "task-old-gc", "2020-01-01");
+      const req = mockRequest({ days: 30 });
+      const { res, result } = mockResponse();
+      await handleTaskGc(req, res, projectDir);
+      expect(result.status).toBe(200);
+      const body = result.body as { archived: string[] };
+      expect(body.archived).toContain("task-old-gc.md");
+    });
+
+    it("returns 400 when days is not positive", async () => {
+      const req = mockRequest({ days: 0 });
+      const { res, result } = mockResponse();
+      await handleTaskGc(req, res, projectDir);
       expect(result.status).toBe(400);
     });
   });

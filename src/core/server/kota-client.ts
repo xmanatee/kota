@@ -66,6 +66,69 @@ export type RepoTaskListResult = {
   tasks: RepoTaskListEntry[];
 };
 
+/**
+ * Result of `tasks.show(id)`. The full file content is returned with the
+ * resolved state so callers can render it without re-resolving the task.
+ */
+export type RepoTaskShowResult =
+  | { found: true; state: RepoTaskState; content: string }
+  | { found: false };
+
+/**
+ * Result of `tasks.move(id, toState)`. `previousPath` and `path` are
+ * repo-relative so callers can render or stage either side of the move.
+ */
+export type RepoTaskMoveResult =
+  | {
+      ok: true;
+      id: string;
+      fromState: RepoTaskState;
+      toState: RepoTaskState;
+      path: string;
+      previousPath: string;
+    }
+  | { ok: false; reason: "not_found" }
+  | { ok: false; reason: "already_in_state"; state: RepoTaskState };
+
+/** Allowed task priorities. */
+export type RepoTaskPriority = "p0" | "p1" | "p2" | "p3";
+
+export type RepoTaskCreateOptions = {
+  title: string;
+  priority: RepoTaskPriority;
+  area: string;
+  state: RepoTaskState;
+  summary?: string;
+};
+
+export type RepoTaskCreateResult =
+  | { ok: true; id: string; path: string }
+  | {
+      ok: false;
+      reason: "invalid_slug" | "already_exists";
+      message?: string;
+    };
+
+export type RepoTaskCaptureResult =
+  | { ok: true; id: string; path: string }
+  | {
+      ok: false;
+      reason: "invalid_slug" | "already_exists";
+      message?: string;
+    };
+
+/** Options accepted by `tasks.gc`. Defaults match the CLI: 30 days, archive. */
+export type RepoTaskGcOptions = {
+  days?: number;
+  delete?: boolean;
+  dryRun?: boolean;
+};
+
+export type RepoTaskGcResult = {
+  archived: string[];
+  deleted: string[];
+};
+
 /** A masked memory entry as the CLI surfaces it. */
 export type MemoryListEntry = {
   id: string;
@@ -180,7 +243,16 @@ export interface SecretsClient {
   remove(name: string, scope: SecretScope): Promise<SecretMutateResult>;
 }
 
-/** Repo-task queue read operations (the `data/tasks/*` filesystem queue). */
+/**
+ * Repo-task queue operations (the `data/tasks/*` filesystem queue).
+ *
+ * `list` enumerates open-state task headers. `show` returns one task's full
+ * file content. `move` transitions a task between any two states (including
+ * the autonomy-owned `doing` and terminal `done`/`dropped`); web-UI restricted
+ * moves stay on `/api/tasks/:id/state`. `create` writes a normalized task with
+ * the full template; `capture` writes a quick `# title` inbox note. `gc`
+ * archives or deletes terminal tasks older than the threshold.
+ */
 export interface RepoTasksClient {
   /**
    * List repo tasks restricted to the given queue states. When no states
@@ -188,6 +260,11 @@ export interface RepoTasksClient {
    * (`backlog`, `ready`, `doing`, `blocked`).
    */
   list(states?: RepoTaskState[]): Promise<RepoTaskListResult>;
+  show(id: string): Promise<RepoTaskShowResult>;
+  move(id: string, toState: RepoTaskState): Promise<RepoTaskMoveResult>;
+  create(options: RepoTaskCreateOptions): Promise<RepoTaskCreateResult>;
+  capture(title: string): Promise<RepoTaskCaptureResult>;
+  gc(options?: RepoTaskGcOptions): Promise<RepoTaskGcResult>;
 }
 
 /**
