@@ -64,6 +64,7 @@ import type {
   SecretScope,
   SecretsClient,
   WorkflowClient,
+  WorkflowTriggerOptions,
 } from "./kota-client.js";
 
 const REPO_TASK_OPEN_STATES: RepoTaskState[] = [
@@ -85,6 +86,21 @@ export type VoiceSynthesizeResponse =
 
 function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+/**
+ * Daemon `/workflow/trigger` only accepts a `payload` object that the
+ * runtime spreads into the run's trigger payload. The daemon imposes its own
+ * `event` ("manual") and `_runId` (generated server-side), so the CLI-side
+ * `event`, `runId`, `force`, and `notBeforeMs` options on
+ * `WorkflowTriggerOptions` are honored only on the daemon-down enqueue path.
+ * The HTTP request carries the user-extension payload alone.
+ */
+function buildTriggerHttpPayload(
+  options: WorkflowTriggerOptions | undefined,
+): Record<string, unknown> | undefined {
+  if (!options?.payload) return undefined;
+  return Object.keys(options.payload).length > 0 ? options.payload : undefined;
 }
 
 function fetchWithTimeout(url: string, options?: RequestInit): Promise<Response> {
@@ -118,6 +134,83 @@ export class DaemonControlClient implements KotaClient {
           filter?.causedByRunId,
         );
         return { runs: result?.runs ?? [] };
+      },
+      status: async () => {
+        const result = await this.getWorkflowStatus();
+        if (!result) throw new Error("Daemon unreachable while reading workflow status");
+        return { ...result, pendingAbort: false };
+      },
+      pause: async () => {
+        const result = await this.pause();
+        if (!result) throw new Error("Daemon unreachable while pausing dispatch");
+        return { paused: result.paused, already: result.already ?? false };
+      },
+      resume: async () => {
+        const result = await this.resume();
+        if (!result) throw new Error("Daemon unreachable while resuming dispatch");
+        return { paused: result.paused, already: result.already ?? false };
+      },
+      abort: async () => {
+        const result = await this.abort();
+        if (!result) throw new Error("Daemon unreachable while aborting active runs");
+        return { status: "applied", count: result.aborted };
+      },
+      reload: async () => {
+        const result = await this.reload();
+        if (!result) throw new Error("Daemon unreachable while reloading definitions");
+        return { status: "applied", count: result.count };
+      },
+      enable: async (name) => {
+        const result = await this.enableWorkflow(name);
+        if (!result) throw new Error(`Daemon unreachable while enabling workflow "${name}"`);
+        return result.notFound ? { ok: false, reason: "not_found" } : { ok: true };
+      },
+      disable: async (name) => {
+        const result = await this.disableWorkflow(name);
+        if (!result) throw new Error(`Daemon unreachable while disabling workflow "${name}"`);
+        return result.notFound ? { ok: false, reason: "not_found" } : { ok: true };
+      },
+      cancelRun: async (id) => {
+        const result = await this.cancelRun(id);
+        if (!result) throw new Error(`Daemon unreachable while cancelling run "${id}"`);
+        if (result.notFound) return { ok: false, reason: "not_found" };
+        if (result.active) return { ok: false, reason: "active" };
+        return { ok: true };
+      },
+      abortRun: async (id) => {
+        const result = await this.abortRun(id);
+        if (!result) throw new Error(`Daemon unreachable while aborting run "${id}"`);
+        if (result.notFound) return { ok: false, reason: "not_found" };
+        if (result.queued) return { ok: false, reason: "queued" };
+        return { ok: true };
+      },
+      getRun: async (id) => {
+        const run = await this.getWorkflowRun(id);
+        return run ? { found: true, run } : { found: false };
+      },
+      listDefinitions: async () => {
+        const result = await this.getWorkflowDefinitions();
+        if (!result) {
+          throw new Error("Daemon unreachable while listing workflow definitions");
+        }
+        return { source: "daemon", definitions: result.definitions };
+      },
+      triggerByName: async (name, options) => {
+        const result = await this.trigger(
+          name,
+          options?.tags,
+          buildTriggerHttpPayload(options),
+        );
+        if (!result) {
+          throw new Error(`Daemon unreachable while triggering workflow "${name}"`);
+        }
+        if (result.alreadyQueued) return { ok: false, reason: "already_queued" };
+        return {
+          ok: true,
+          path: "daemon",
+          queued: result.queued ?? name,
+          ...(result.runId !== undefined && { runId: result.runId }),
+        };
       },
     };
     this.approvals = {

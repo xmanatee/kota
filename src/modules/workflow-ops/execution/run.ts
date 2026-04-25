@@ -1,6 +1,5 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { WorkflowDefinitionError } from "#core/workflow/validation.js";
 import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
 import { buildDryRunPlan, formatDryRunResult } from "./dry-run.js";
@@ -14,25 +13,23 @@ export function registerRunCommand(wfCmd: Command, ctx: ModuleContext): void {
     .command("abort <run-id>")
     .description("Abort a specific active workflow run by ID")
     .action(async (runId: string) => {
-      const client = DaemonControlClient.fromStateDir();
-      if (!client) {
+      const result = await ctx.client.workflow.abortRun(runId);
+      if (result.ok) {
+        console.log(`Aborted run ${runId}.`);
+        return;
+      }
+      if (result.reason === "daemon_required") {
         console.error("No running daemon found. Cannot abort a run without a daemon.");
         process.exit(1);
       }
-      const result = await client.abortRun(runId);
-      if (!result) {
-        console.error("Failed to reach daemon.");
+      if (result.reason === "queued") {
+        console.error(
+          `Run "${runId}" is queued, not active. Use \`kota workflow cancel ${runId}\` to cancel it.`,
+        );
         process.exit(1);
       }
-      if (result.notFound) {
-        console.error(`Run "${runId}" not found or not active.`);
-        process.exit(1);
-      }
-      if (result.queued) {
-        console.error(`Run "${runId}" is queued, not active. Use \`kota workflow cancel ${runId}\` to cancel it.`);
-        process.exit(1);
-      }
-      console.log(`Aborted run ${runId}.`);
+      console.error(`Run "${runId}" not found or not active.`);
+      process.exit(1);
     });
 
   runCmd

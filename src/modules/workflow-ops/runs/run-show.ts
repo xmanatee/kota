@@ -1,8 +1,9 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
-import { DaemonControlClient } from "#core/server/daemon-client.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
+import type { WorkflowRunDetail } from "#core/daemon/daemon-control.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
+import type { WorkflowClient } from "#core/server/kota-client.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { RepairSummary } from "#core/workflow/run-store-helpers.js";
 import { extractRepairSummary } from "#core/workflow/run-store-helpers.js";
@@ -47,50 +48,53 @@ export type ChainNode = {
 };
 
 async function fetchRunSummary(
+  workflowClient: WorkflowClient,
   id: string,
-  daemonClient: DaemonControlClient | null,
-  store: WorkflowRunStore,
 ): Promise<{ id: string; workflow: string; status: string; durationMs?: number; causedBy?: { runId: string; workflow: string } } | null> {
-  if (daemonClient) {
-    const run = await daemonClient.getWorkflowRun(id);
-    if (run) return { id: run.id, workflow: run.workflow, status: run.status, durationMs: run.durationMs, causedBy: run.causedBy };
-  }
-  const meta = store.getRun(id);
-  if (!meta) return null;
-  return { id: meta.id, workflow: meta.workflow, status: meta.status, durationMs: meta.durationMs, causedBy: meta.causedBy };
+  const result = await workflowClient.getRun(id);
+  if (!result.found) return null;
+  const run = result.run;
+  return {
+    id: run.id,
+    workflow: run.workflow,
+    status: run.status,
+    ...(run.durationMs !== undefined && { durationMs: run.durationMs }),
+    ...(run.causedBy !== undefined && { causedBy: run.causedBy }),
+  };
 }
 
 async function fetchChildren(
+  workflowClient: WorkflowClient,
   parentId: string,
-  daemonClient: DaemonControlClient | null,
-  store: WorkflowRunStore,
 ): Promise<Array<{ id: string; workflow: string; status: string; durationMs?: number }>> {
-  if (daemonClient) {
-    const result = await daemonClient.listWorkflowRuns(undefined, 50, undefined, parentId);
-    if (result) return result.runs;
-  }
-  return store.listRuns({ causedByRunId: parentId, limit: 50 }).map((r) => ({
+  const result = await workflowClient.listRuns({ causedByRunId: parentId, limit: 50 });
+  return result.runs.map((r) => ({
     id: r.id,
     workflow: r.workflow,
     status: r.status,
-    durationMs: r.durationMs,
+    ...(r.durationMs !== undefined && { durationMs: r.durationMs }),
   }));
 }
 
 async function buildChainTree(
   rootId: string,
-  daemonClient: DaemonControlClient | null,
-  store: WorkflowRunStore,
+  workflowClient: WorkflowClient,
   depth: number,
   maxDepth: number,
 ): Promise<ChainNode | null> {
-  const run = await fetchRunSummary(rootId, daemonClient, store);
+  const run = await fetchRunSummary(workflowClient, rootId);
   if (!run) return null;
-  const node: ChainNode = { id: run.id, workflow: run.workflow, status: run.status, durationMs: run.durationMs, children: [] };
+  const node: ChainNode = {
+    id: run.id,
+    workflow: run.workflow,
+    status: run.status,
+    ...(run.durationMs !== undefined && { durationMs: run.durationMs }),
+    children: [],
+  };
   if (depth < maxDepth) {
-    const children = await fetchChildren(rootId, daemonClient, store);
+    const children = await fetchChildren(workflowClient, rootId);
     for (const child of children) {
-      const childNode = await buildChainTree(child.id, daemonClient, store, depth + 1, maxDepth);
+      const childNode = await buildChainTree(child.id, workflowClient, depth + 1, maxDepth);
       if (childNode) node.children.push(childNode);
     }
   }
@@ -259,7 +263,44 @@ function errorSpans(message: string): TextSpan[] {
   return [span(message, "error")];
 }
 
-export function registerRunShowCommand(wfCmd: Command): void {
+/**
+ * Project a daemon `WorkflowRunDetail` onto the `WorkflowRunMetadata` shape
+ * that the local rendering helpers consume. The two representations overlap
+ * in everything the CLI shows; daemon-only fields like step `startedAt` /
+ * `completedAt` come from the run start time as a best-effort placeholder.
+ */
+function metadataFromDetail(run: WorkflowRunDetail): WorkflowRunMetadata {
+  return {
+    id: run.id,
+    workflow: run.workflow,
+    definitionPath: "",
+    trigger: { event: run.triggerEvent, payload: run.triggerPayload ?? {} },
+    startedAt: run.startedAt,
+    status: run.status as WorkflowRunMetadata["status"],
+    runDir: "",
+    steps: run.steps.map((s) => ({
+      id: s.id,
+      type: s.type as WorkflowRunMetadata["steps"][number]["type"],
+      status: s.status as "success" | "failed" | "skipped",
+      startedAt: run.startedAt,
+      completedAt: run.completedAt ?? run.startedAt,
+      durationMs: s.durationMs,
+      ...(s.error !== undefined && { error: s.error }),
+      ...(s.costUsd != null && { costUsd: s.costUsd, output: { totalCostUsd: s.costUsd } }),
+      ...(s.skipReason !== undefined && { skipReason: s.skipReason }),
+    })),
+    ...(run.completedAt != null && { completedAt: run.completedAt }),
+    ...(run.durationMs != null && { durationMs: run.durationMs }),
+    ...(run.totalCostUsd != null && { totalCostUsd: run.totalCostUsd }),
+    ...(run.triggeredByRunId != null && { triggeredByRunId: run.triggeredByRunId }),
+    ...(run.causedBy != null && { causedBy: run.causedBy }),
+    ...(run.retryOf != null && { retryOf: run.retryOf }),
+    ...(run.resumedFromRunId != null && { resumedFromRunId: run.resumedFromRunId }),
+    ...(run.warnings && run.warnings.length > 0 && { warnings: run.warnings }),
+  };
+}
+
+export function registerRunShowCommand(wfCmd: Command, ctx: ModuleContext): void {
   wfCmd
     .command("show <run-id>")
     .description("Show step-level details for a specific run")
@@ -272,7 +313,9 @@ export function registerRunShowCommand(wfCmd: Command): void {
       const showChain = options.chain as boolean | undefined;
       const store = new WorkflowRunStore();
 
-      // Support prefix matching via disk
+      // Run-id prefix matching reads the on-disk runs directory; the contract
+      // only takes fully-qualified ids and would have to round-trip through
+      // listRuns + filter for the same effect.
       let resolvedId = runId;
       if (!runId.includes("Z-")) {
         try {
@@ -289,50 +332,26 @@ export function registerRunShowCommand(wfCmd: Command): void {
         }
       }
 
-      // Try daemon API first, fall back to disk.
-      // Skip daemon when --step is requested since that needs full step output.
-      const daemonClient = stepId === undefined ? DaemonControlClient.fromStateDir() : null;
-      const daemonRun = daemonClient ? await daemonClient.getWorkflowRun(resolvedId) : null;
-
+      // The contract `getRun` returns the daemon's live view when daemon-up
+      // and reconstructs `WorkflowRunDetail` from the artifact when daemon-
+      // down, so the CLI does not branch on daemon presence here. `--step`
+      // needs the full step output (including the `output` field, which the
+      // daemon summary trims) so that path always reads the artifact.
       let metadata: WorkflowRunMetadata;
-      if (daemonRun) {
-        // Reconstruct a WorkflowRunMetadata-compatible shape from daemon response
-        metadata = {
-          id: daemonRun.id,
-          workflow: daemonRun.workflow,
-          definitionPath: "",
-          trigger: { event: daemonRun.triggerEvent, payload: daemonRun.triggerPayload ?? {} },
-          startedAt: daemonRun.startedAt,
-          status: daemonRun.status as WorkflowRunMetadata["status"],
-          runDir: "",
-          steps: daemonRun.steps.map((s) => ({
-            id: s.id,
-            type: s.type as WorkflowRunMetadata["steps"][number]["type"],
-            status: s.status as "success" | "failed" | "skipped",
-            startedAt: daemonRun.startedAt,
-            completedAt: daemonRun.completedAt ?? daemonRun.startedAt,
-            durationMs: s.durationMs,
-            error: s.error,
-            ...(s.costUsd != null && { costUsd: s.costUsd, output: { totalCostUsd: s.costUsd } }),
-            ...(s.skipReason !== undefined && { skipReason: s.skipReason }),
-          })),
-          ...(daemonRun.completedAt != null && { completedAt: daemonRun.completedAt }),
-          ...(daemonRun.durationMs != null && { durationMs: daemonRun.durationMs }),
-          ...(daemonRun.totalCostUsd != null && { totalCostUsd: daemonRun.totalCostUsd }),
-          ...(daemonRun.triggeredByRunId != null && { triggeredByRunId: daemonRun.triggeredByRunId }),
-          ...(daemonRun.causedBy != null && { causedBy: daemonRun.causedBy }),
-          ...(daemonRun.retryOf != null && { retryOf: daemonRun.retryOf }),
-          ...(daemonRun.resumedFromRunId != null && { resumedFromRunId: daemonRun.resumedFromRunId }),
-          ...(daemonRun.warnings && daemonRun.warnings.length > 0 && { warnings: daemonRun.warnings }),
-        };
-      } else {
-        const metadataPath = join(store.runsDir, resolvedId, "metadata.json");
-        const diskMeta = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
+      if (stepId !== undefined) {
+        const diskMeta = store.getRun(resolvedId);
         if (!diskMeta) {
           print(line(...errorSpans(`Run "${resolvedId}" not found.`)));
           process.exit(1);
         }
         metadata = diskMeta;
+      } else {
+        const result = await ctx.client.workflow.getRun(resolvedId);
+        if (!result.found) {
+          print(line(...errorSpans(`Run "${resolvedId}" not found.`)));
+          process.exit(1);
+        }
+        metadata = metadataFromDetail(result.run);
       }
 
       if (stepId !== undefined) {
@@ -356,13 +375,13 @@ export function registerRunShowCommand(wfCmd: Command): void {
         let current: { causedBy?: { runId: string; workflow: string } } | null = metadata;
         let depth = 0;
         while (current?.causedBy && depth < MAX_DEPTH) {
-          const parent = await fetchRunSummary(current.causedBy.runId, daemonClient, store);
+          const parent = await fetchRunSummary(ctx.client.workflow, current.causedBy.runId);
           if (!parent) break;
           rootId = parent.id;
           current = parent;
           depth++;
         }
-        const tree = await buildChainTree(rootId, daemonClient, store, 0, MAX_DEPTH);
+        const tree = await buildChainTree(rootId, ctx.client.workflow, 0, MAX_DEPTH);
         if (!tree) {
           print(line(...errorSpans(`Could not load chain for run "${resolvedId}".`)));
           process.exit(1);
@@ -390,24 +409,18 @@ export function registerRunShowCommand(wfCmd: Command): void {
         }
       }
 
-      // Show downstream runs triggered by this run
-      let triggeredRuns: { id: string; workflow: string; status: string }[] = [];
-      if (daemonRun) {
-        const downstreamResult = daemonClient
-          ? await daemonClient.listWorkflowRuns(undefined, 50, undefined, resolvedId)
-          : null;
-        if (downstreamResult) {
-          triggeredRuns = downstreamResult.runs.map((r) => ({
-            id: r.id,
-            workflow: r.workflow,
-            status: r.status,
-          }));
-        }
-      } else {
-        triggeredRuns = store
-          .listRuns({ causedByRunId: resolvedId, limit: 50 })
-          .map((r) => ({ id: r.id, workflow: r.workflow, status: r.status }));
-      }
+      // Show downstream runs triggered by this run via the contract; daemon-
+      // up returns the daemon's live tracker, daemon-down enumerates run
+      // artifacts.
+      const downstream = await ctx.client.workflow.listRuns({
+        causedByRunId: resolvedId,
+        limit: 50,
+      });
+      const triggeredRuns = downstream.runs.map((r) => ({
+        id: r.id,
+        workflow: r.workflow,
+        status: r.status,
+      }));
       if (triggeredRuns.length > 0) {
         children.push(blank());
         children.push(line(plain(`Triggered runs (${triggeredRuns.length}):`)));

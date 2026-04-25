@@ -1,12 +1,12 @@
 ---
 id: task-migrate-workflow-run-def-trigger-cli-to-kotaclient
 title: Migrate workflow run, definition, and trigger/exec CLIs to KotaClient
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Migrate the remaining workflow-ops CLI subcommands (run management, definition mutations, trigger/exec) to ctx.client.workflow.* so the entire workflow-ops module routes through the KotaClient contract.
 created_at: 2026-04-25T20:31:21.442Z
-updated_at: 2026-04-25T20:31:21.442Z
+updated_at: 2026-04-25T21:12:30.280Z
 ---
 
 ## Problem

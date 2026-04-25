@@ -1,9 +1,5 @@
 import type { Command } from "commander";
-import type { WorkflowDefinitionTriggerSummary } from "#core/daemon/daemon-control-types.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { DaemonControlClient } from "#core/server/daemon-client.js";
-import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
-import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
 
 type WatchTriggerRow = {
   workflow: string;
@@ -12,66 +8,28 @@ type WatchTriggerRow = {
   debounceMs: number;
 };
 
-function collectFromSummary(
-  defs: { name: string; enabled: boolean; triggers: WorkflowDefinitionTriggerSummary[] }[],
-): WatchTriggerRow[] {
-  const rows: WatchTriggerRow[] = [];
-  for (const def of defs) {
-    for (const t of def.triggers) {
-      if (t.type === "watch") {
-        rows.push({ workflow: def.name, enabled: def.enabled, patterns: t.patterns, debounceMs: t.debounceMs });
-      }
-    }
-  }
-  return rows;
-}
-
-function collectFromDefinitions(
-  defs: readonly RegisteredWorkflowDefinitionInput[],
-): WatchTriggerRow[] {
-  const rows: WatchTriggerRow[] = [];
-  for (const def of defs) {
-    for (const t of def.triggers) {
-      if (!t.watch) continue;
-      const patterns = Array.isArray(t.watch) ? t.watch : [t.watch];
-      rows.push({ workflow: def.name, enabled: def.enabled !== false, patterns, debounceMs: t.debounceMs ?? 500 });
-    }
-  }
-  return rows;
-}
-
 export function registerTriggersCommand(
   wfCmd: Command,
   ctx: ModuleContext,
 ): void {
-  const getDefinitionsOrExit = () => {
-    try {
-      return getValidatedWorkflowDefinitions(ctx);
-    } catch (err) {
-      console.error(String(err instanceof Error ? err.message : err));
-      process.exit(1);
-    }
-  };
-
   wfCmd
     .command("triggers")
     .description("Show active file-watch triggers")
     .option("--json", "Output as JSON")
     .action(async (opts: { json?: boolean }) => {
-      let rows: WatchTriggerRow[];
-      let source: "daemon" | "static" = "static";
-
-      const daemonClient = DaemonControlClient.fromStateDir();
-      if (daemonClient) {
-        const result = await daemonClient.getWorkflowDefinitions();
-        if (result?.definitions) {
-          rows = collectFromSummary(result.definitions);
-          source = "daemon";
-        } else {
-          rows = collectFromDefinitions(getDefinitionsOrExit());
+      const result = await ctx.client.workflow.listDefinitions();
+      const rows: WatchTriggerRow[] = [];
+      for (const def of result.definitions) {
+        for (const trigger of def.triggers) {
+          if (trigger.type === "watch") {
+            rows.push({
+              workflow: def.name,
+              enabled: def.enabled,
+              patterns: trigger.patterns,
+              debounceMs: trigger.debounceMs,
+            });
+          }
         }
-      } else {
-        rows = collectFromDefinitions(getDefinitionsOrExit());
       }
 
       if (opts.json) {
@@ -95,6 +53,6 @@ export function registerTriggersCommand(
         const debounce = r.debounceMs !== 500 ? ` (debounce ${r.debounceMs}ms)` : "";
         console.log(`${name}  ${enabled}  ${patterns}${debounce}`);
       }
-      console.log(`\n${rows.length} watch trigger(s). Source: ${source}.`);
+      console.log(`\n${rows.length} watch trigger(s). Source: ${result.source}.`);
     });
 }

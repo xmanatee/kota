@@ -1,10 +1,8 @@
 import type { Command } from "commander";
-import { DaemonControlClient } from "#core/server/daemon-client.js";
-import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import { blank, type LineNode, line, plain, stack } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 import { formatDate } from "../utils.js";
-import { loadRunsInWindow } from "./workflow-history.js";
 
 type RunCostEntry = {
   id: string;
@@ -78,38 +76,7 @@ export function buildRunBreakdownLines(runs: RunCostEntry[]): LineNode[] {
   });
 }
 
-async function loadRuns(
-  store: WorkflowRunStore,
-  cutoffMs: number,
-  workflowFilter?: string,
-): Promise<RunCostEntry[]> {
-  const daemonClient = DaemonControlClient.fromStateDir();
-  if (daemonClient) {
-    const result = await daemonClient.listWorkflowRuns(workflowFilter, 1000);
-    if (result) {
-      return result.runs
-        .filter((r) => new Date(r.startedAt).getTime() >= cutoffMs)
-        .map((r) => ({
-          id: r.id,
-          workflow: r.workflow,
-          status: r.status,
-          startedAt: r.startedAt,
-          totalCostUsd: r.totalCostUsd,
-        }));
-    }
-  }
-  const allRuns = loadRunsInWindow(store.runsDir, cutoffMs);
-  const filtered = workflowFilter ? allRuns.filter((r) => r.workflow === workflowFilter) : allRuns;
-  return filtered.map((r) => ({
-    id: r.id,
-    workflow: r.workflow,
-    status: r.status,
-    startedAt: r.startedAt,
-    totalCostUsd: r.totalCostUsd,
-  }));
-}
-
-export function registerCostCommand(wfCmd: Command): void {
+export function registerCostCommand(wfCmd: Command, ctx: ModuleContext): void {
   wfCmd
     .command("cost")
     .description("Show per-workflow cost ranked by total spend")
@@ -119,8 +86,19 @@ export function registerCostCommand(wfCmd: Command): void {
     .action(async (opts: { workflow?: string; days: string; json?: boolean }) => {
       const days = Math.max(1, Number.parseInt(opts.days, 10) || 7);
       const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
-      const store = new WorkflowRunStore();
-      const runs = await loadRuns(store, cutoffMs, opts.workflow);
+      const result = await ctx.client.workflow.listRuns({
+        ...(opts.workflow !== undefined && { workflow: opts.workflow }),
+        limit: 1000,
+      });
+      const runs: RunCostEntry[] = result.runs
+        .filter((r) => new Date(r.startedAt).getTime() >= cutoffMs)
+        .map((r) => ({
+          id: r.id,
+          workflow: r.workflow,
+          status: r.status,
+          startedAt: r.startedAt,
+          ...(r.totalCostUsd !== undefined && { totalCostUsd: r.totalCostUsd }),
+        }));
       const rows = computeWorkflowCostRows(runs);
       const finished = runs.filter((r) => r.status !== "running");
       const grandTotal = finished.reduce((s, r) => s + (r.totalCostUsd ?? 0), 0);

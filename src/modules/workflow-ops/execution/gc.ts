@@ -1,9 +1,9 @@
 import type { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
-import { DaemonControlClient } from "#core/server/daemon-client.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 
-export function registerGcCommand(wfCmd: Command): void {
+export function registerGcCommand(wfCmd: Command, ctx: ModuleContext): void {
   wfCmd
     .command("gc")
     .description(
@@ -36,26 +36,20 @@ export function registerGcCommand(wfCmd: Command): void {
         process.exit(1);
       }
 
-      // Collect active run IDs from daemon if running, so we never prune them.
-      // WorkflowRunStore.pruneRuns already reads activeRuns from state, but
-      // the daemon may have runs not yet written to state.
-      let daemonActiveRunIds: Set<string> | undefined;
-      const client = DaemonControlClient.fromStateDir();
-      if (client) {
-        const status = await client.getDaemonStatus();
-        if (status) {
-          daemonActiveRunIds = new Set(
-            (status.workflow?.activeRuns ?? []).map((r: { runId: string }) => r.runId),
-          );
-        }
-      }
+      // Collect active run IDs from the contract so the daemon's in-flight
+      // tracker (which may include runs not yet flushed to state) protects
+      // them from pruning. The local-side `status()` reads the same persisted
+      // state the WorkflowRunStore would, so daemon-down semantics are
+      // preserved.
+      const status = await ctx.client.workflow.status();
+      const protectedRunIds = new Set(status.activeRuns.map((r) => r.runId));
 
       const store = new WorkflowRunStore();
       const pruned = store.pruneRuns({
         retentionDays,
         minKeepPerWorkflow: minKeep,
         dryRun,
-        protectedRunIds: daemonActiveRunIds,
+        protectedRunIds,
       });
 
       if (pruned.length === 0) {
