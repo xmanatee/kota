@@ -179,6 +179,17 @@ function buildPrecondition(
       if (!question || question.length === 0) {
         return { ok: false, error: "owner-decision precondition requires 'question'" };
       }
+      // Mirror the askOwner review gate's structural contract at parse time so
+      // a malformed question fails task validation instead of crashing
+      // blocked-promoter at the ask step. Keep this in sync with
+      // src/core/daemon/owner-question-review.ts.
+      if (!question.endsWith("?")) {
+        return {
+          ok: false,
+          error:
+            "owner-decision 'question' must end with '?' so the askOwner review gate accepts it; move trailing context into the 'context' field",
+        };
+      }
       return {
         ok: true,
         precondition: {

@@ -141,6 +141,20 @@ describe("parseBlockedPrecondition", () => {
     if (!result.ok) expect(result.error).toMatch(/requires 'question'/);
   });
 
+  it("rejects owner-decision whose question does not end with '?'", () => {
+    const result = parseBlockedPrecondition(
+      bodyWith(
+        fenced(
+          "kind: owner-decision",
+          "slot: needs-pick",
+          "question: Pick a variant. See the body for trade-offs.",
+        ),
+      ),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/must end with '\?'/);
+  });
+
   it("parses operator-capture with path and description", () => {
     const result = parseBlockedPrecondition(
       bodyWith(
