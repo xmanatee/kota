@@ -2,20 +2,24 @@
  * `kota eval` CLI surface.
  *
  * Operators run `kota eval run` to execute a fixture or a full set against
- * the current project's subprocess workflow trigger. Results land as run
- * artifacts under `.kota/eval-runs/`; the aggregate score is also echoed to
- * stdout for CI consumption.
+ * the current project's subprocess workflow trigger. CLI subcommands route
+ * through `ctx.client.evalHarness.<method>()` so daemon-up and daemon-down
+ * operators see the same fixture set, run report shape, and calibration
+ * aggregate. The `record-agent-step` developer subcommand stays local —
+ * it extracts a fixture from a project run artifact and is not part of the
+ * operator KotaClient surface.
  */
 
-import { mkdirSync, realpathSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { Command } from "commander";
-import { EventBus } from "#core/events/event-bus.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
+import type {
+  EvalCalibrationOptions,
+  EvalRunOptions,
+} from "#core/server/kota-client.js";
 import {
-  aggregateCalibration,
   DEFAULT_CALIBRATION_MIN_SAMPLE,
   DEFAULT_CALIBRATION_THRESHOLD_RATE,
-  evaluateCalibrationGate,
 } from "#modules/autonomy/evaluator-calibration.js";
 import {
   blank,
@@ -25,37 +29,10 @@ import {
   stack,
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
-import { runEvalSet } from "./eval-set.js";
-import { FixtureProvenanceError, loadAllFixtures, loadFixture } from "./fixture.js";
-import type { ResourceProfile } from "./fixture-run.js";
 import {
   extractAgentStepRecording,
   extractJudgeCallRecording,
 } from "./recorder.js";
-import { createSubprocessExecutor } from "./subprocess-executor.js";
-
-function loadFixturesForCli(
-  fixturesRoot: string,
-  ids: readonly string[],
-): ReturnType<typeof loadAllFixtures> | null {
-  try {
-    return ids.length > 0
-      ? ids.map((id) => loadFixture(fixturesRoot, id))
-      : loadAllFixtures(fixturesRoot);
-  } catch (err) {
-    if (err instanceof FixtureProvenanceError) {
-      console.error(`eval-harness fixture provenance error: ${err.message}`);
-      console.error(`  offending fixture directory: ${err.fixtureDir}`);
-      process.exitCode = 1;
-      return null;
-    }
-    throw err;
-  }
-}
-
-const DEFAULT_HOST_CLASS = "local-dev";
-const DEFAULT_CPU_ALLOC = 2;
-const DEFAULT_MEM_ALLOC_MB = 4096;
 
 function parsePositiveInt(raw: string, name: string): number {
   const parsed = Number.parseInt(raw, 10);
@@ -65,39 +42,7 @@ function parsePositiveInt(raw: string, name: string): number {
   return parsed;
 }
 
-function resolveProfile(opts: {
-  hostClass?: string;
-  cpuAllocation?: string;
-  cpuKill?: string;
-  memoryAllocation?: string;
-  memoryKill?: string;
-}): ResourceProfile {
-  const cpuAllocationCores = opts.cpuAllocation
-    ? Number.parseFloat(opts.cpuAllocation)
-    : DEFAULT_CPU_ALLOC;
-  const cpuKillThresholdCores = opts.cpuKill
-    ? Number.parseFloat(opts.cpuKill)
-    : cpuAllocationCores;
-  const memoryAllocationMB = opts.memoryAllocation
-    ? parsePositiveInt(opts.memoryAllocation, "memory-allocation-mb")
-    : DEFAULT_MEM_ALLOC_MB;
-  const memoryKillThresholdMB = opts.memoryKill
-    ? parsePositiveInt(opts.memoryKill, "memory-kill-threshold-mb")
-    : memoryAllocationMB;
-  return {
-    hostClass: opts.hostClass ?? DEFAULT_HOST_CLASS,
-    cpuAllocationCores,
-    cpuKillThresholdCores,
-    memoryAllocationMB,
-    memoryKillThresholdMB,
-  };
-}
-
-export function buildEvalCommand(projectDir: string): Command {
-  const fixturesRoot = join(projectDir, "src/modules/eval-harness/fixtures");
-  const evalRunsRoot = join(projectDir, ".kota/eval-runs");
-  const kotaBinaryPath = resolve(join(projectDir, "bin/kota.mjs"));
-
+export function buildEvalCommand(ctx: ModuleContext): Command {
   const cmd = new Command("eval").description(
     "Run the autonomy eval harness against a fixture or fixture set.",
   );
@@ -105,28 +50,25 @@ export function buildEvalCommand(projectDir: string): Command {
   cmd
     .command("list")
     .description("List all discovered fixtures under the eval-harness module.")
-    .action(() => {
-      const fixtures = loadFixturesForCli(fixturesRoot, []);
-      if (fixtures === null) return;
-      if (fixtures.length === 0) {
+    .action(async () => {
+      const result = await ctx.client.evalHarness.list();
+      if (result.fixtures.length === 0) {
         print(line(plain("No fixtures found.")));
         return;
       }
-      const rows = fixtures.flatMap((f) => {
-        const tags = f.spec.tags && f.spec.tags.length > 0
-          ? ` [${f.spec.tags.join(", ")}]`
-          : "";
+      const rows = result.fixtures.flatMap((f) => {
+        const tags = f.tags.length > 0 ? ` [${f.tags.join(", ")}]` : "";
         return [
           line(
-            span(f.spec.id, "accent", true),
+            span(f.id, "accent", true),
             plain("  ("),
-            span(f.spec.role, "info"),
+            span(f.role, "info"),
             plain(" → "),
-            span(f.spec.workflowName, "agent"),
+            span(f.workflowName, "agent"),
             plain(")"),
             span(tags, "muted"),
           ),
-          line(span(`  ${f.spec.description}`, "muted")),
+          line(span(`  ${f.description}`, "muted")),
         ];
       });
       print(stack(...rows));
@@ -154,63 +96,52 @@ export function buildEvalCommand(projectDir: string): Command {
       keep?: boolean;
     }) => {
       const repeats = parsePositiveInt(opts.repeats, "repeats");
-      const profile = resolveProfile({
-        hostClass: opts.hostClass,
-        cpuAllocation: opts.cpuAllocation,
-        cpuKill: opts.cpuKill,
-        memoryAllocation: opts.memoryAllocationMb,
-        memoryKill: opts.memoryKillThresholdMb,
-      });
-      const fixtures = loadFixturesForCli(fixturesRoot, opts.fixture);
-      if (fixtures === null) return;
-      if (fixtures.length === 0) {
-        console.error(`No fixtures to run under "${fixturesRoot}".`);
+      const runOptions: EvalRunOptions = {
+        repeatCount: repeats,
+        ...(opts.fixture.length > 0 && { fixtureIds: opts.fixture }),
+        ...(opts.hostClass !== undefined && { hostClass: opts.hostClass }),
+        ...(opts.cpuAllocation !== undefined && {
+          cpuAllocationCores: Number.parseFloat(opts.cpuAllocation),
+        }),
+        ...(opts.cpuKill !== undefined && {
+          cpuKillThresholdCores: Number.parseFloat(opts.cpuKill),
+        }),
+        ...(opts.memoryAllocationMb !== undefined && {
+          memoryAllocationMB: parsePositiveInt(opts.memoryAllocationMb, "memory-allocation-mb"),
+        }),
+        ...(opts.memoryKillThresholdMb !== undefined && {
+          memoryKillThresholdMB: parsePositiveInt(opts.memoryKillThresholdMb, "memory-kill-threshold-mb"),
+        }),
+        ...(opts.keep === true && { keepWorkingDirs: true }),
+      };
+      const result = await ctx.client.evalHarness.run(runOptions);
+      if (!result.ok) {
+        if (result.reason === "fixture_provenance") {
+          console.error(`eval-harness fixture provenance error: ${result.message}`);
+        } else {
+          console.error(result.message);
+        }
         process.exitCode = 1;
         return;
       }
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const runArtifactBaseDir = join(evalRunsRoot, stamp);
-      mkdirSync(runArtifactBaseDir, { recursive: true });
 
-      const bus = new EventBus();
-      const executor = createSubprocessExecutor({ kotaBinaryPath });
-      const report = await runEvalSet({
-        fixtures,
-        executor,
-        resourceProfile: profile,
-        runArtifactBaseDir: realpathSync(runArtifactBaseDir),
-        repeatCount: repeats,
-        keepWorkingDirs: opts.keep ?? false,
-      });
-
-      bus.emit("eval-harness.set.completed", {
-        fixtureCount: report.aggregate.fixtureCount,
-        repeatCount: report.repeatCount,
-        passAtK: report.aggregate.passAtK,
-        passHatK: report.aggregate.passHatK,
-        hostClass: profile.hostClass,
-        runArtifactBaseDir: report.runArtifactBaseDir,
-        startedAt: report.startedAt,
-        completedAt: report.completedAt,
-      });
-
-      const passAtK = report.aggregate.passAtK;
-      const passHatK = report.aggregate.passHatK;
+      const passAtK = result.passAtK;
+      const passHatK = result.passHatK;
       const passRole = passHatK >= 1 ? "success" : passHatK > 0 ? "warn" : "error";
       print(stack(
         line(
           plain("eval-set done: "),
-          span(String(fixtures.length), "accent"),
+          span(String(result.fixtureCount), "accent"),
           plain(" fixtures × "),
-          span(String(repeats), "accent"),
+          span(String(result.repeatCount), "accent"),
           plain(" runs → pass@k="),
           span(`${(passAtK * 100).toFixed(1)}%`, "info"),
           plain(" pass^k="),
           span(`${(passHatK * 100).toFixed(1)}%`, passRole),
         ),
-        line(span(`artifacts: ${report.runArtifactBaseDir}`, "muted")),
+        line(span(`artifacts: ${result.runArtifactBaseDir}`, "muted")),
       ));
-      if (report.aggregate.passHatK < 1) {
+      if (passHatK < 1) {
         process.exitCode = 1;
       }
     });
@@ -235,6 +166,7 @@ export function buildEvalCommand(projectDir: string): Command {
       "Override for the source commit SHA; use when steps/commit.json reports committed=true but pre-dates the SHA capture. Ignored with --judge (judges have no commit).",
     )
     .action((opts: { runId: string; step?: string; judge?: string; fixture: string; sourceCommitSha?: string }) => {
+      const fixturesRoot = join(ctx.cwd, "src/modules/eval-harness/fixtures");
       const fixtureDir = join(fixturesRoot, opts.fixture);
       if (!opts.step === !opts.judge) {
         throw new Error(
@@ -243,7 +175,7 @@ export function buildEvalCommand(projectDir: string): Command {
       }
       if (opts.judge !== undefined) {
         const result = extractJudgeCallRecording({
-          projectDir,
+          projectDir: ctx.cwd,
           sourceRunId: opts.runId,
           label: opts.judge,
           fixtureDir,
@@ -265,7 +197,7 @@ export function buildEvalCommand(projectDir: string): Command {
         return;
       }
       const result = extractAgentStepRecording({
-        projectDir,
+        projectDir: ctx.cwd,
         sourceRunId: opts.runId,
         stepId: opts.step!,
         fixtureDir,
@@ -340,7 +272,7 @@ export function buildEvalCommand(projectDir: string): Command {
       "Override runs directory (default <projectDir>/.kota/runs)",
     )
     .option("--json", "Emit the aggregate + decision as JSON for CI consumption")
-    .action((opts: {
+    .action(async (opts: {
       windowDays: string;
       followUpDays: string;
       thresholdRate: string;
@@ -358,25 +290,32 @@ export function buildEvalCommand(projectDir: string): Command {
         throw new Error("--threshold-rate must be between 0 and 1.");
       }
 
-      const runsDir = opts.runsDir ?? join(projectDir, ".kota", "runs");
-      const dayMs = 24 * 60 * 60 * 1000;
-      const aggregate = aggregateCalibration(runsDir, {
-        windowMs: windowDays * dayMs,
-        followUpWindowMs: followUpDays * dayMs,
-      });
-      const decision = evaluateCalibrationGate(aggregate, {
+      const calibrationOptions: EvalCalibrationOptions = {
+        windowDays,
+        followUpDays,
         thresholdRate,
         minSample,
-      });
+        ...(opts.runsDir !== undefined && { runsDir: opts.runsDir }),
+      };
+      const { aggregate, decision } = await ctx.client.evalHarness.calibration(calibrationOptions);
 
       if (opts.json) {
         // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
         console.log(JSON.stringify({ aggregate, decision }, null, 2));
       } else {
         const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
-        const gateRole = decision.status === "gated"
+        const a = aggregate as {
+          totalRuns: number;
+          byVerdict: { pass: number; pass_with_warnings: number; fail: number; absent: number };
+          passContradictionCount: number;
+          passContradictionRate: number;
+          passWithWarningsFollowUpCount: number;
+          passWithWarningsFollowUpRate: number;
+        };
+        const d = decision as { status: string; reason: string };
+        const gateRole = d.status === "gated"
           ? "error"
-          : decision.status === "under-threshold"
+          : d.status === "under-threshold"
             ? "success"
             : "warn";
         print(stack(
@@ -387,31 +326,31 @@ export function buildEvalCommand(projectDir: string): Command {
           ),
           line(
             plain("  total runs="),
-            span(String(aggregate.totalRuns), "info"),
+            span(String(a.totalRuns), "info"),
             plain("  pass="),
-            span(String(aggregate.byVerdict.pass), "success"),
+            span(String(a.byVerdict.pass), "success"),
             plain("  pass_with_warnings="),
-            span(String(aggregate.byVerdict.pass_with_warnings), "warn"),
+            span(String(a.byVerdict.pass_with_warnings), "warn"),
             plain("  fail="),
-            span(String(aggregate.byVerdict.fail), "error"),
+            span(String(a.byVerdict.fail), "error"),
             plain("  absent="),
-            span(String(aggregate.byVerdict.absent), "muted"),
+            span(String(a.byVerdict.absent), "muted"),
           ),
           line(
             plain("  pass contradiction: "),
-            plain(`${aggregate.passContradictionCount}/${aggregate.byVerdict.pass} `),
-            span(`(${pct(aggregate.passContradictionRate)})`, "muted"),
+            plain(`${a.passContradictionCount}/${a.byVerdict.pass} `),
+            span(`(${pct(a.passContradictionRate)})`, "muted"),
           ),
           line(
             plain("  pass_with_warnings follow-up: "),
-            plain(`${aggregate.passWithWarningsFollowUpCount}/${aggregate.byVerdict.pass_with_warnings} `),
-            span(`(${pct(aggregate.passWithWarningsFollowUpRate)})`, "muted"),
+            plain(`${a.passWithWarningsFollowUpCount}/${a.byVerdict.pass_with_warnings} `),
+            span(`(${pct(a.passWithWarningsFollowUpRate)})`, "muted"),
           ),
           blank(),
           line(
             plain("  gate: "),
-            span(decision.status, gateRole, true),
-            plain(` — ${decision.reason}`),
+            span(d.status, gateRole, true),
+            plain(` — ${d.reason}`),
           ),
         ));
       }

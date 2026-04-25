@@ -1,14 +1,13 @@
 import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { Command } from "commander";
-import { resolveProjectDir } from "#core/config/project-dir.js";
-import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
-import { DaemonControlClient } from "#core/server/daemon-client.js";
-import type { ModulesClient } from "#core/server/kota-client.js";
+import type {
+  ModuleInspectEntry,
+  ModulesAdminClient,
+  ModulesClient,
+} from "#core/server/kota-client.js";
 import { jsonResponse } from "#core/server/session-pool.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
-import { isProcessAlive } from "#core/util/process-alive.js";
 import {
   blank,
   kvBlock,
@@ -20,6 +19,7 @@ import {
   stack,
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
+import { inspectModule } from "./admin-operations.js";
 import { buildModuleListEntries, handleListModules } from "./routes.js";
 import { generateModuleScaffold, generatePythonScaffold } from "./scaffolds.js";
 
@@ -58,30 +58,30 @@ function buildModuleCommand(ctx: ModuleContext): Command {
     .command("list")
     .description("List all loaded modules with contribution counts")
     .option("--json", "Output as JSON")
-    .action((opts: { json?: boolean }) => {
-      const summaries = ctx.getModuleSummaries();
+    .action(async (opts: { json?: boolean }) => {
+      const result = await ctx.client.modules.list();
       if (opts.json) {
         // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
-        console.log(JSON.stringify(summaries, null, 2));
+        console.log(JSON.stringify(result.modules, null, 2));
         return;
       }
-      if (summaries.length === 0) {
+      if (result.modules.length === 0) {
         print(line(plain("No modules loaded.")));
         return;
       }
-      const nameWidth = Math.max(...summaries.map((s) => s.name.length), 4);
+      const nameWidth = Math.max(...result.modules.map((s) => s.name.length), 4);
       const headerLabel =
         `${"Name".padEnd(nameWidth)}  ${"Ver".padEnd(7)}  ${"Tools".padStart(5)}  ${"Wf".padStart(3)}  ${"Cmd".padStart(3)}  ${"Ch".padStart(3)}  ${"Sk".padStart(3)}  ${"Ag".padStart(3)}  Description`;
       const header = line(span(headerLabel, "muted", true));
       const rule = line(span("-".repeat(headerLabel.length + 8), "muted"));
-      const rows: LineNode[] = summaries.map((s) => {
+      const rows: LineNode[] = result.modules.map((s) => {
         const ver = (s.version ?? "").padEnd(7);
-        const tools = String(s.toolNames.length).padStart(5);
-        const wf = String(s.workflowNames.length).padStart(3);
-        const cmd = String(s.commandNames.length).padStart(3);
-        const ch = String(s.channelNames.length).padStart(3);
-        const sk = String(s.skillNames.length).padStart(3);
-        const ag = String(s.agentNames.length).padStart(3);
+        const tools = String(s.toolCount).padStart(5);
+        const wf = String(s.workflowCount).padStart(3);
+        const cmd = String(s.commandCount).padStart(3);
+        const ch = String(s.channelCount).padStart(3);
+        const sk = String(s.skillCount).padStart(3);
+        const ag = String(s.agentCount).padStart(3);
         const desc = s.description ?? "";
         return line(
           span(s.name.padEnd(nameWidth), "accent"),
@@ -95,7 +95,7 @@ function buildModuleCommand(ctx: ModuleContext): Command {
         ...rows,
         blank(),
         line(
-          span(String(summaries.length), "accent"),
+          span(String(result.modules.length), "accent"),
           plain(" module(s) loaded."),
         ),
       ));
@@ -105,14 +105,15 @@ function buildModuleCommand(ctx: ModuleContext): Command {
     .command("inspect <name>")
     .description("Show full detail for one module")
     .option("--json", "Output as JSON")
-    .action((name: string, opts: { json?: boolean }) => {
-      const summaries = ctx.getModuleSummaries();
-      const moduleSummary = summaries.find((s) => s.name === name);
-      if (!moduleSummary) {
-        const names = summaries.map((s) => s.name).join(", ");
+    .action(async (name: string, opts: { json?: boolean }) => {
+      const result = await ctx.client.modulesAdmin.inspect(name);
+      if (!result.found) {
+        const list = await ctx.client.modules.list();
+        const names = list.modules.map((s) => s.name).join(", ");
         console.error(`Module "${name}" not found. Loaded: ${names || "(none)"}`);
         process.exit(1);
       }
+      const moduleSummary: ModuleInspectEntry = result.module;
       if (opts.json) {
         // biome-ignore lint/suspicious/noConsole: structured JSON output path stays on console
         console.log(JSON.stringify(moduleSummary, null, 2));
@@ -215,36 +216,19 @@ function buildModuleCommand(ctx: ModuleContext): Command {
     .command("reload <name>")
     .description("Reload a module from disk via daemon config reload")
     .action(async (name: string) => {
-      const summaries = ctx.getModuleSummaries();
-      const exists = summaries.some((s) => s.name === name);
-      if (!exists) {
-        const names = summaries.map((s) => s.name).join(", ");
-        console.error(`Module "${name}" not found. Loaded: ${names || "(none)"}`);
+      const result = await ctx.client.modulesAdmin.reload(name);
+      if (!result.ok) {
+        if (result.reason === "daemon_required") {
+          console.error("Daemon is not running. Module reload requires a running daemon.");
+        } else {
+          const list = await ctx.client.modules.list();
+          const names = list.modules.map((s) => s.name).join(", ");
+          console.error(`Module "${name}" not found. Loaded: ${names || "(none)"}`);
+        }
         process.exit(1);
       }
 
-      const address = readOptionalJsonFile<DaemonControlAddress>(
-        join(resolveProjectDir(), ".kota", "daemon-control.json"),
-      );
-      if (!address || typeof address.pid !== "number" || !isProcessAlive(address.pid)) {
-        console.error("Daemon is not running. Module reload requires a running daemon.");
-        process.exit(1);
-      }
-
-      const client = DaemonControlClient.fromStateDir();
-      if (!client) {
-        console.error("Cannot connect to daemon.");
-        process.exit(1);
-      }
-
-      const result = await client.reloadConfig();
-      if (!result) {
-        console.error("Daemon reload failed or daemon is not reachable.");
-        process.exit(1);
-      }
-
-      const reloaded = result.changedModules.includes(name);
-      if (reloaded) {
+      if (result.reloaded) {
         print(line(
           plain("Module "),
           span(`"${name}"`, "accent"),
@@ -255,7 +239,7 @@ function buildModuleCommand(ctx: ModuleContext): Command {
           plain("Module "),
           span(`"${name}"`, "accent"),
           span(" unchanged ", "muted"),
-          plain(`(no config diff detected). ${result.workflows} workflow(s) active.`),
+          plain(`(no config diff detected). ${result.workflowsActive} workflow(s) active.`),
         ));
       }
     });
@@ -284,15 +268,36 @@ const moduleManagerModule: KotaModule = {
         jsonResponse(res, 200, { modules: buildModuleListEntries(ctx.getModuleSummaries()) });
       },
     },
+    {
+      method: "GET",
+      path: "/modules/:name",
+      capabilityScope: "read",
+      handler: (_req, res, params) => {
+        const result = inspectModule(ctx, params.name);
+        if (!result.found) {
+          jsonResponse(res, 404, result);
+          return;
+        }
+        jsonResponse(res, 200, result);
+      },
+    },
   ],
 
   localClient: (ctx) => {
-    const handler: ModulesClient = {
+    const modules: ModulesClient = {
       async list() {
         return { modules: buildModuleListEntries(ctx.getModuleSummaries()) };
       },
     };
-    return { modules: handler };
+    const modulesAdmin: ModulesAdminClient = {
+      async inspect(name) {
+        return inspectModule(ctx, name);
+      },
+      async reload(_name) {
+        return { ok: false, reason: "daemon_required" };
+      },
+    };
+    return { modules, modulesAdmin };
   },
 };
 

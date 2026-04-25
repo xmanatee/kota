@@ -39,6 +39,12 @@ const NAMESPACE_OWNERS: Record<(typeof KOTA_CLIENT_NAMESPACES)[number], string> 
   voice: "voice",
   web: "web",
   mcpServer: "mcp-server",
+  audit: "guardrails-audit",
+  config: "config",
+  modulesAdmin: "module-manager",
+  daemonOps: "daemon-ops",
+  doctor: "doctor",
+  evalHarness: "eval-harness",
 };
 
 function readModuleSource(name: string): string {

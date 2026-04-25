@@ -1,8 +1,30 @@
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ModuleContext } from "#core/modules/module-types.js";
+import type {
+	AuditClient,
+	AuditListEntry,
+	KotaClient,
+} from "#core/server/kota-client.js";
 import type { AuditEntry } from "#core/tools/audit-store.js";
-import { AuditStore } from "#core/tools/audit-store.js";
 import { registerAuditCommands } from "./cli.js";
+
+function makeFakeCtx(client: AuditClient): ModuleContext {
+	return {
+		client: { audit: client } as unknown as KotaClient,
+	} as unknown as ModuleContext;
+}
+
+function entryToList(entry: AuditEntry): AuditListEntry {
+	return {
+		ts: entry.ts,
+		tool: entry.tool,
+		risk: entry.risk,
+		policy: entry.policy,
+		reason: entry.reason,
+		...(entry.session !== undefined && { session: entry.session }),
+	};
+}
 
 function makeEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
 	return {
@@ -17,7 +39,7 @@ function makeEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
 
 describe("audit-cli", () => {
 	let outputLines: string[];
-	let querySpy: ReturnType<typeof vi.spyOn>;
+	let listSpy: ReturnType<typeof vi.fn>;
 
 	beforeEach(() => {
 		outputLines = [];
@@ -28,7 +50,7 @@ describe("audit-cli", () => {
 			outputLines.push(String(data));
 			return true;
 		});
-		querySpy = vi.spyOn(AuditStore.prototype, "query").mockReturnValue([]);
+		listSpy = vi.fn(async () => ({ entries: [] }));
 	});
 
 	afterEach(() => {
@@ -39,22 +61,27 @@ describe("audit-cli", () => {
 		return outputLines.join("");
 	}
 
+	function setListEntries(entries: AuditEntry[]): void {
+		listSpy.mockResolvedValue({ entries: entries.map(entryToList) });
+	}
+
 	async function run(args: string[]): Promise<void> {
 		const program = new Command();
 		program.exitOverride();
-		registerAuditCommands(program);
+		const client: AuditClient = { list: listSpy as unknown as AuditClient["list"] };
+		registerAuditCommands(program, makeFakeCtx(client));
 		await program.parseAsync(["node", "kota", ...args]);
 	}
 
 	describe("audit list", () => {
 		it("prints no entries message when store is empty", async () => {
-			querySpy.mockReturnValue([]);
+			setListEntries([]);
 			await run(["audit", "list"]);
 			expect(captured()).toContain("No audit entries.");
 		});
 
 		it("prints table with entries", async () => {
-			querySpy.mockReturnValue([makeEntry({ tool: "file_read", risk: "safe", policy: "allow" })]);
+			setListEntries([makeEntry({ tool: "file_read", risk: "safe", policy: "allow" })]);
 			await run(["audit", "list"]);
 			const output = captured();
 			expect(output).toContain("file_read");
@@ -64,34 +91,33 @@ describe("audit-cli", () => {
 
 		it("passes risk filter to store", async () => {
 			await run(["audit", "list", "--risk", "dangerous"]);
-			expect(querySpy).toHaveBeenCalledWith(expect.objectContaining({ risk: "dangerous" }));
+			expect(listSpy).toHaveBeenCalledWith(expect.objectContaining({ risk: "dangerous" }));
 		});
 
 		it("passes policy filter to store", async () => {
 			await run(["audit", "list", "--policy", "deny"]);
-			expect(querySpy).toHaveBeenCalledWith(expect.objectContaining({ policy: "deny" }));
+			expect(listSpy).toHaveBeenCalledWith(expect.objectContaining({ policy: "deny" }));
 		});
 
 		it("passes limit to store", async () => {
 			await run(["audit", "list", "-n", "10"]);
-			expect(querySpy).toHaveBeenCalledWith(expect.objectContaining({ limit: 10 }));
+			expect(listSpy).toHaveBeenCalledWith(expect.objectContaining({ limit: 10 }));
 		});
 
 		it("uses default limit of 50", async () => {
 			await run(["audit", "list"]);
-			expect(querySpy).toHaveBeenCalledWith(expect.objectContaining({ limit: 50 }));
+			expect(listSpy).toHaveBeenCalledWith(expect.objectContaining({ limit: 50 }));
 		});
 
 		it("displays session column", async () => {
-			querySpy.mockReturnValue([makeEntry({ session: "sess-abc123" })]);
+			setListEntries([makeEntry({ session: "sess-abc123" })]);
 			await run(["audit", "list"]);
 			expect(captured()).toContain("sess-abc123");
 		});
 
 		it("shows dash for missing session", async () => {
-			querySpy.mockReturnValue([makeEntry()]);
+			setListEntries([makeEntry()]);
 			await run(["audit", "list"]);
-			// The row should have a dash in the session column
 			expect(captured()).toMatch(/-\s+bash/);
 		});
 	});

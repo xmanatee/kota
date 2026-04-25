@@ -1,6 +1,9 @@
 import type { Command } from "commander";
-import type { AuditEntry, AuditFilter } from "#core/tools/audit-store.js";
-import { AuditStore } from "#core/tools/audit-store.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
+import type {
+	AuditListEntry,
+	AuditListFilter,
+} from "#core/server/kota-client.js";
 import {
 	type LineNode,
 	line,
@@ -49,7 +52,7 @@ function policyRole(policy: string): "success" | "warn" | "error" | "muted" {
 	}
 }
 
-export function buildAuditListLines(entries: AuditEntry[]): LineNode[] {
+export function buildAuditListLines(entries: AuditListEntry[]): LineNode[] {
 	const sessionWidth = Math.max(...entries.map((e) => (e.session ?? "-").length), 7);
 	const toolWidth = Math.max(...entries.map((e) => e.tool.length), 4);
 	const riskWidth = Math.max(...entries.map((e) => e.risk.length), 4);
@@ -81,7 +84,7 @@ export function buildAuditListLines(entries: AuditEntry[]): LineNode[] {
 	return [header, rule, ...rows];
 }
 
-export function registerAuditCommands(program: Command): void {
+export function registerAuditCommands(program: Command, ctx: ModuleContext): void {
 	const auditCmd = program
 		.command("audit")
 		.description("Query the guardrail audit trail");
@@ -92,20 +95,19 @@ export function registerAuditCommands(program: Command): void {
 		.option("--risk <level>", "Filter by risk level (safe, low, moderate, dangerous, critical)")
 		.option("--policy <outcome>", "Filter by policy outcome (allow, confirm, deny)")
 		.option("-n, --limit <n>", "Maximum entries to show", String(DEFAULT_LIMIT))
-		.action((opts: { risk?: string; policy?: string; limit: string }) => {
+		.action(async (opts: { risk?: string; policy?: string; limit: string }) => {
 			const limit = Math.max(1, parseInt(opts.limit, 10) || DEFAULT_LIMIT);
-			const filter: AuditFilter = { limit };
-			if (opts.risk) filter.risk = opts.risk as AuditFilter["risk"];
-			if (opts.policy) filter.policy = opts.policy as AuditFilter["policy"];
+			const filter: AuditListFilter = { limit };
+			if (opts.risk) filter.risk = opts.risk as AuditListFilter["risk"];
+			if (opts.policy) filter.policy = opts.policy as AuditListFilter["policy"];
 
 			try {
-				const store = new AuditStore(process.cwd());
-				const entries = store.query(filter);
-				if (entries.length === 0) {
+				const result = await ctx.client.audit.list(filter);
+				if (result.entries.length === 0) {
 					print(line(plain("No audit entries.")));
 					return;
 				}
-				print(stack(...buildAuditListLines(entries)));
+				print(stack(...buildAuditListLines(result.entries)));
 			} catch (err) {
 				console.error(`Error reading audit store: ${(err as Error).message}`);
 				process.exit(1);

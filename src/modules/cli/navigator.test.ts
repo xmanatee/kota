@@ -140,6 +140,35 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
     mcpServer: {
       start: stub({ ok: false, reason: "daemon_required" }),
     },
+    audit: {
+      list: stub({ entries: [] }),
+    },
+    config: {
+      validate: stub({ sources: [], warnings: [], resolved: {} }),
+      get: stub({ found: false, reason: "not_found" }),
+      set: stub({ ok: true, unknownKey: false, topKey: "stub", value: null }),
+      schemaPath: stub({ path: "/stub" }),
+      schemaContent: stub({ content: "{}" }),
+    },
+    modulesAdmin: {
+      inspect: stub({ found: false }),
+      reload: stub({ ok: false, reason: "daemon_required" }),
+    },
+    daemonOps: {
+      status: stub({ state: "not_running", managed: false }),
+      pid: stub({ state: "not_running" }),
+      stop: stub({ ok: false, reason: "not_running" }),
+      reload: stub({ ok: false, reason: "not_running" }),
+    },
+    doctor: {
+      run: stub({ checks: [] }),
+      fix: stub({ repairs: [] }),
+    },
+    evalHarness: {
+      list: stub({ fixtures: [] }),
+      run: stub({ ok: false, reason: "no_fixtures", message: "stub" }),
+      calibration: stub({ aggregate: {}, decision: {} }),
+    },
   };
   return { ...base, ...overrides };
 }

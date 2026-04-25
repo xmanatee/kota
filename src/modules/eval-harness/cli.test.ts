@@ -2,11 +2,34 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ModuleContext } from "#core/modules/module-types.js";
+import type { EvalHarnessClient, KotaClient } from "#core/server/kota-client.js";
 import {
   EVALUATOR_CALIBRATION_ARTIFACT,
   type EvaluatorCalibrationArtifact,
 } from "#modules/autonomy/evaluator-calibration.js";
 import { buildEvalCommand } from "./cli.js";
+import {
+  listEvalFixtures,
+  runEvalCalibration,
+  runEvalHarness,
+} from "./eval-operations.js";
+
+function makeFakeCtx(projectDir: string): ModuleContext {
+  const evalHarness: EvalHarnessClient = {
+    async list() {
+      return listEvalFixtures(projectDir);
+    },
+    async run(options) {
+      return runEvalHarness(projectDir, options ?? {});
+    },
+    async calibration(options) {
+      return runEvalCalibration(projectDir, options ?? {});
+    },
+  };
+  const client = { evalHarness } as unknown as KotaClient;
+  return { cwd: projectDir, client } as unknown as ModuleContext;
+}
 
 function seedCalibration(
   runsDir: string,
@@ -70,7 +93,7 @@ describe("kota eval calibration CLI", () => {
       return true;
     });
 
-    const cmd = buildEvalCommand(projectDir);
+    const cmd = buildEvalCommand(makeFakeCtx(projectDir));
     await cmd.parseAsync(
       ["calibration", "--min-sample", "1", "--threshold-rate", "0.9"],
       { from: "user" },
@@ -94,7 +117,7 @@ describe("kota eval calibration CLI", () => {
       logs.push(args.map((a) => String(a)).join(" "));
     });
 
-    const cmd = buildEvalCommand(projectDir);
+    const cmd = buildEvalCommand(makeFakeCtx(projectDir));
     await cmd.parseAsync(
       [
         "calibration",
@@ -129,7 +152,7 @@ describe("kota eval calibration CLI", () => {
       return true;
     });
 
-    const cmd = buildEvalCommand(projectDir);
+    const cmd = buildEvalCommand(makeFakeCtx(projectDir));
     await cmd.parseAsync(
       ["calibration", "--min-sample", "8", "--threshold-rate", "0.25"],
       { from: "user" },

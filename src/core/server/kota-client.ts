@@ -23,6 +23,7 @@
 import type { AgentToolPolicy } from "#core/agents/agent-types.js";
 import type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
 import type {
+  DaemonLiveStatus,
   InteractiveSession,
   WorkflowDefinitionSummary,
   WorkflowLiveStatus,
@@ -983,6 +984,353 @@ export interface McpServerClient {
   start(options: McpServerStartOptions): Promise<McpServerStartResult>;
 }
 
+/**
+ * A guardrail audit entry as the CLI surfaces it. Mirrors `AuditEntry`
+ * but is declared on the contract surface so the daemon and local
+ * implementors share the same wire shape without coupling clients to
+ * the core audit-store types.
+ */
+export type AuditListEntry = {
+  ts: string;
+  tool: string;
+  risk: string;
+  policy: string;
+  reason: string;
+  session?: string;
+};
+
+/**
+ * Filter for `AuditClient.list`. Mirrors the existing CLI flags and
+ * HTTP `/api/audit` query params so callers do not need to know which
+ * transport answered.
+ */
+export type AuditListFilter = {
+  tool?: string;
+  risk?: "safe" | "low" | "moderate" | "dangerous" | "critical";
+  policy?: "allow" | "confirm" | "deny";
+  since?: string;
+  session?: string;
+  limit?: number;
+};
+
+export type AuditListResult = {
+  entries: AuditListEntry[];
+};
+
+/**
+ * Audit-trail operations.
+ *
+ * `list` returns guardrail assessments newest-first. The local handler
+ * reads `.kota/audit.jsonl` through the audit store; the daemon handler
+ * reads through the same store the daemon-loaded `guardrails-audit`
+ * module owns. Both transports return the same shape.
+ */
+export interface AuditClient {
+  list(filter?: AuditListFilter): Promise<AuditListResult>;
+}
+
+/**
+ * Resolved-config snapshot returned by `config.validate`.
+ *
+ * `sources` carries the project + global config file paths the resolver
+ * read (the global path is omitted when not present). `warnings` carries
+ * unknown-key diagnostics (one warning per key the resolver did not
+ * recognize given the loaded module set's contributed config keys). The
+ * `resolved` payload is the same merged config shape `loadConfig` returns;
+ * the contract types it as a plain JSON record because the CLI only ever
+ * round-trips it for rendering.
+ */
+export type ConfigValidateResult = {
+  sources: { label: "global" | "project"; path: string }[];
+  warnings: string[];
+  resolved: Record<string, unknown>;
+};
+
+/**
+ * Result of `config.get(key)`.
+ *
+ * `key` is dot-notation (`a.b.c`) into the resolved merged config.
+ * Returns `not_found` instead of `undefined` so the CLI can render a
+ * clear diagnostic without ambiguity between "missing" and "explicit
+ * null". The value is the matched leaf (string, number, object, etc.)
+ * surfaced verbatim for the caller to JSON-stringify or unwrap.
+ */
+export type ConfigGetResult =
+  | { found: true; value: unknown }
+  | { found: false; reason: "not_found" };
+
+/**
+ * Result of `config.set(key, value)`.
+ *
+ * `unknownKey: true` flags writes to a top-level key that the loaded
+ * module set did not declare; the operation still persists (the CLI
+ * surfaces the warning and continues), matching the existing CLI
+ * behavior. `value` is the parsed value the writer persisted —
+ * typically the JSON-parsed result of the input string, falling back
+ * to the literal string when JSON parsing fails.
+ */
+export type ConfigSetResult = {
+  ok: true;
+  unknownKey: boolean;
+  topKey: string;
+  value: unknown;
+};
+
+/**
+ * Configuration operations.
+ *
+ * `validate` returns the resolved merged config plus diagnostics about
+ * unknown keys; `get` resolves a dot-notation key path; `set` persists
+ * a single key into the project-level `.kota/config.json`. The schema
+ * file path is exposed by `schemaPath()` so the CLI can avoid building
+ * its own URL math; the daemon-side handler reflects the daemon's
+ * shipped schema and the local handler reflects the CLI's, but both
+ * point at the same file in normal installs.
+ */
+export interface ConfigClient {
+  validate(): Promise<ConfigValidateResult>;
+  get(key: string): Promise<ConfigGetResult>;
+  set(key: string, rawValue: string): Promise<ConfigSetResult>;
+  schemaPath(): Promise<{ path: string }>;
+  schemaContent(): Promise<{ content: string }>;
+}
+
+/**
+ * Inspection result for `modulesAdmin.inspect(name)`. Carries the full
+ * runtime summary the CLI renders in `kota module inspect`. Module-
+ * loading details that depend on agent/skill internals stay typed as
+ * plain string lists and optional records to keep the contract decoupled
+ * from the implementing types.
+ */
+export type ModuleInspectEntry = {
+  name: string;
+  source: "project" | "installed" | "foreign";
+  version?: string;
+  description?: string;
+  status: "loaded" | "failed";
+  dependencies: string[];
+  toolNames: string[];
+  workflowNames: string[];
+  commandNames: string[];
+  routeSummaries: string[];
+  channelNames: string[];
+  skillNames: string[];
+  agentNames: string[];
+  health?: {
+    status: string;
+    restartCount: number;
+    lastRestartAt?: string;
+  };
+  commandError?: string;
+  routeError?: string;
+  loadError?: string;
+};
+
+export type ModuleInspectResult =
+  | { found: true; module: ModuleInspectEntry }
+  | { found: false };
+
+/**
+ * Result of `modulesAdmin.reload(name)`. The handler talks to the
+ * running daemon to re-read its config and re-register module
+ * contributions; daemon-down surfaces `daemon_required`. `reloaded`
+ * carries whether the daemon detected a config change for that
+ * specific module name; `workflowsActive` mirrors the daemon's
+ * post-reload definition count.
+ */
+export type ModuleReloadResult =
+  | { ok: true; reloaded: boolean; workflowsActive: number }
+  | { ok: false; reason: "not_found" }
+  | { ok: false; reason: "daemon_required" };
+
+/**
+ * Module-administration operations.
+ *
+ * `inspect` returns the full per-module summary surfaced by
+ * `kota module inspect <name>`; `reload` reissues the daemon's config
+ * reload pipeline and reports whether the named module's config
+ * changed.
+ *
+ * `list` already lives on the `modules` namespace as a navigator-shaped
+ * summary; this admin namespace keeps `inspect` and `reload` separate so
+ * the navigator's narrow `ModuleListEntry` contract stays untouched.
+ */
+export interface ModulesAdminClient {
+  inspect(name: string): Promise<ModuleInspectResult>;
+  reload(name: string): Promise<ModuleReloadResult>;
+}
+
+/**
+ * Result of `daemonOps.status()`.
+ *
+ * `running` carries the live daemon status payload (already shaped like
+ * `DaemonLiveStatus`); `not_running` surfaces when no daemon is
+ * reachable; `stale` surfaces when a control file points at a pid that
+ * is no longer alive. The operator CLI maps each variant to its
+ * existing exit-code path. `managed` reflects whether an OS service
+ * unit is installed for the daemon.
+ */
+export type DaemonOpsStatusResult =
+  | { state: "running"; managed: boolean; status: DaemonLiveStatus }
+  | { state: "not_running"; managed: boolean }
+  | { state: "stale"; managed: boolean; pid: number };
+
+/** Result of `daemonOps.pid()`. */
+export type DaemonOpsPidResult =
+  | { state: "running"; pid: number }
+  | { state: "not_running" }
+  | { state: "stale"; pid: number };
+
+/** Result of `daemonOps.stop(opts)`. */
+export type DaemonOpsStopResult =
+  | { ok: true }
+  | { ok: false; reason: "not_running" }
+  | { ok: false; reason: "stale"; pid: number }
+  | { ok: false; reason: "timeout"; pid: number };
+
+/** Result of `daemonOps.reload()`. */
+export type DaemonOpsReloadResult =
+  | { ok: true; workflows: number; changedModules: string[] }
+  | { ok: false; reason: "not_running" }
+  | { ok: false; reason: "reload_failed" };
+
+/**
+ * Daemon-supervisor operations exposed to operator CLIs.
+ *
+ * Every method works daemon-up by definition (the supervisor is the
+ * thing being inspected); the local handler reads `.kota/daemon-control.json`
+ * to detect not-running and stale-control-file states without re-doing
+ * that file logic in the CLI handler.
+ */
+export interface DaemonOpsClient {
+  status(): Promise<DaemonOpsStatusResult>;
+  pid(): Promise<DaemonOpsPidResult>;
+  stop(options?: { timeoutSec?: number }): Promise<DaemonOpsStopResult>;
+  reload(): Promise<DaemonOpsReloadResult>;
+}
+
+/** A single doctor health-check result. Mirrors the module's internal type. */
+export type DoctorCheckResult = {
+  label: string;
+  status: "pass" | "warn" | "fail";
+  detail?: string;
+};
+
+/** A single doctor auto-repair result. Mirrors the module's internal type. */
+export type DoctorRepairResult = {
+  item: string;
+  action: "repaired" | "skipped" | "manual";
+  detail?: string;
+};
+
+export type DoctorRunOptions = {
+  skipConnectivity?: boolean;
+};
+
+export type DoctorRunResult = {
+  checks: DoctorCheckResult[];
+};
+
+export type DoctorFixResult = {
+  repairs: DoctorRepairResult[];
+};
+
+/**
+ * Doctor operations.
+ *
+ * `run` executes the pass/warn/fail health checks (provider connectivity
+ * is opt-out via `skipConnectivity`); `fix` applies the safe automatic
+ * repairs (stale control file, missing canonical directories, stray
+ * runtime directories). Both operations work daemon-up and daemon-down
+ * — the daemon-side handler runs against the daemon's own runtime view,
+ * the local handler runs against the CLI process view.
+ */
+export interface DoctorClient {
+  run(options?: DoctorRunOptions): Promise<DoctorRunResult>;
+  fix(): Promise<DoctorFixResult>;
+}
+
+/** A fixture surfaced by `evalHarness.list`. */
+export type EvalFixtureSummary = {
+  id: string;
+  description: string;
+  role: string;
+  workflowName: string;
+  tags: string[];
+};
+
+export type EvalListResult = {
+  fixtures: EvalFixtureSummary[];
+};
+
+/**
+ * Options accepted by `evalHarness.run`.
+ *
+ * Mirror the existing `kota eval run` flags. The local handler resolves
+ * defaults from the same constants the CLI used before migration.
+ */
+export type EvalRunOptions = {
+  fixtureIds?: string[];
+  repeatCount?: number;
+  hostClass?: string;
+  cpuAllocationCores?: number;
+  cpuKillThresholdCores?: number;
+  memoryAllocationMB?: number;
+  memoryKillThresholdMB?: number;
+  keepWorkingDirs?: boolean;
+};
+
+export type EvalRunResult =
+  | {
+      ok: true;
+      fixtureCount: number;
+      repeatCount: number;
+      passAtK: number;
+      passHatK: number;
+      runArtifactBaseDir: string;
+    }
+  | { ok: false; reason: "no_fixtures"; message: string }
+  | { ok: false; reason: "fixture_provenance"; message: string };
+
+/**
+ * Options accepted by `evalHarness.calibration`. Mirror the CLI flags so
+ * the operator can drive the same window-based aggregation through the
+ * contract.
+ */
+export type EvalCalibrationOptions = {
+  windowDays?: number;
+  followUpDays?: number;
+  thresholdRate?: number;
+  minSample?: number;
+  runsDir?: string;
+};
+
+/**
+ * Result of `evalHarness.calibration`. The aggregate and decision payloads
+ * are surfaced as plain JSON records so the contract avoids coupling to
+ * the autonomy module's internal types.
+ */
+export type EvalCalibrationResult = {
+  aggregate: Record<string, unknown>;
+  decision: Record<string, unknown>;
+};
+
+/**
+ * Eval-harness operations exposed to operator CLIs.
+ *
+ * `list` enumerates fixtures, `run` executes one or many fixtures via
+ * the subprocess executor, `calibration` runs the rolling-window
+ * evaluator-calibration aggregator. The local handler does the actual
+ * filesystem and subprocess work; the daemon-side handler delegates to
+ * the same operations through the existing `/api/eval/run` route plus
+ * new control routes for list/calibration.
+ */
+export interface EvalHarnessClient {
+  list(): Promise<EvalListResult>;
+  run(options?: EvalRunOptions): Promise<EvalRunResult>;
+  calibration(options?: EvalCalibrationOptions): Promise<EvalCalibrationResult>;
+}
+
 /** A scenario shipped under `src/modules/harness-parity/scenarios/`. */
 export type HarnessParityScenarioSummary = {
   id: string;
@@ -1082,6 +1430,12 @@ export interface KotaClient {
   readonly voice: VoiceClient;
   readonly web: WebClient;
   readonly mcpServer: McpServerClient;
+  readonly audit: AuditClient;
+  readonly config: ConfigClient;
+  readonly modulesAdmin: ModulesAdminClient;
+  readonly daemonOps: DaemonOpsClient;
+  readonly doctor: DoctorClient;
+  readonly evalHarness: EvalHarnessClient;
 }
 
 /**
@@ -1107,6 +1461,12 @@ export const KOTA_CLIENT_NAMESPACES = [
   "voice",
   "web",
   "mcpServer",
+  "audit",
+  "config",
+  "modulesAdmin",
+  "daemonOps",
+  "doctor",
+  "evalHarness",
 ] as const satisfies ReadonlyArray<keyof KotaClient>;
 
 export type KotaClientNamespace = (typeof KOTA_CLIENT_NAMESPACES)[number];

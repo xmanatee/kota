@@ -1,12 +1,12 @@
 ---
 id: task-migrate-operator-cli-utilities-and-add-kota-read-g
 title: Migrate operator utility CLIs and add direct .kota read guard
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Migrate the remaining operator utility CLIs (module-manager, config, daemon-ops control, doctor, eval-harness, guardrails-audit) to ctx.client.* and add the sibling guard test rejecting new direct .kota/ reads from non-bootstrap CLI code.
 created_at: 2026-04-25T20:31:21.442Z
-updated_at: 2026-04-25T22:55:00.000Z
+updated_at: 2026-04-25T23:40:15.388Z
 ---
 
 ## Problem

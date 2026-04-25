@@ -3,6 +3,15 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ModuleContext } from "#core/modules/module-types.js";
+import type { ConfigClient, KotaClient } from "#core/server/kota-client.js";
+import {
+  configSchemaContent,
+  configSchemaPath,
+  getConfigValue,
+  setConfigValue,
+  validateConfig,
+} from "./config-operations.js";
 import { buildConfigCommand } from "./index.js";
 
 const { FAKE_HOME } = vi.hoisted(() => {
@@ -27,14 +36,36 @@ function makeProjectDir(): string {
   return realpathSync(dir);
 }
 
-function makeProgram(moduleKeys: ReadonlySet<string> = new Set()): Command {
+function makeFakeCtx(projectDir: string, moduleKeys: ReadonlySet<string>): ModuleContext {
+  const config: ConfigClient = {
+    async validate() {
+      return validateConfig(projectDir, moduleKeys);
+    },
+    async get(key) {
+      return getConfigValue(projectDir, key);
+    },
+    async set(key, rawValue) {
+      return setConfigValue(projectDir, moduleKeys, key, rawValue);
+    },
+    async schemaPath() {
+      return { path: configSchemaPath() };
+    },
+    async schemaContent() {
+      return { content: configSchemaContent() };
+    },
+  };
+  const client = { config } as unknown as KotaClient;
+  return { cwd: projectDir, client } as unknown as ModuleContext;
+}
+
+function makeProgram(projectDir: string, moduleKeys: ReadonlySet<string> = new Set()): Command {
   const program = new Command();
   program.exitOverride();
-  program.addCommand(buildConfigCommand(moduleKeys));
+  program.addCommand(buildConfigCommand(makeFakeCtx(projectDir, moduleKeys)));
   return program;
 }
 
-function captureOutput(fn: () => void): { out: string; err: string } {
+async function captureOutput(fn: () => Promise<void> | void): Promise<{ out: string; err: string }> {
   const outLines: string[] = [];
   const errLines: string[] = [];
   const logSpy = vi.spyOn(console, "log").mockImplementation((...args) => {
@@ -48,7 +79,7 @@ function captureOutput(fn: () => void): { out: string; err: string } {
     return true;
   });
   try {
-    fn();
+    await fn();
   } finally {
     logSpy.mockRestore();
     errSpy.mockRestore();
@@ -72,56 +103,56 @@ describe("kota config validate", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("shows no sources when no config files exist", () => {
-    const { out } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "validate"]);
+  it("shows no sources when no config files exist", async () => {
+    const { out } = await captureOutput(async () => {
+      await makeProgram(projectDir).parseAsync(["node", "kota", "config", "validate"]);
     });
     expect(out).toContain("none found");
   });
 
-  it("shows project source path when project config exists", () => {
+  it("shows project source path when project config exists", async () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
       JSON.stringify({ model: "claude-opus-4-7" }),
     );
 
-    const { out } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "validate"]);
+    const { out } = await captureOutput(async () => {
+      await makeProgram(projectDir).parseAsync(["node", "kota", "config", "validate"]);
     });
     expect(out).toContain("project");
     expect(out).toContain(".kota");
   });
 
-  it("includes resolved config in output", () => {
+  it("includes resolved config in output", async () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
       JSON.stringify({ model: "claude-opus-4-7", maxTokens: 4096 }),
     );
 
-    const { out } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "validate"]);
+    const { out } = await captureOutput(async () => {
+      await makeProgram(projectDir).parseAsync(["node", "kota", "config", "validate"]);
     });
     expect(out).toContain("claude-opus-4-7");
     expect(out).toContain("4096");
   });
 
-  it("warns about unknown top-level keys", () => {
+  it("warns about unknown top-level keys", async () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
       JSON.stringify({ model: "claude-sonnet-4-6", modelTier: "fast" }),
     );
 
-    const { err } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "validate"]);
+    const { err } = await captureOutput(async () => {
+      await makeProgram(projectDir).parseAsync(["node", "kota", "config", "validate"]);
     });
     expect(err).toContain('Unknown key "modelTier"');
     expect(err).toContain("project");
   });
 
-  it("does not warn about module-registered config keys", () => {
+  it("does not warn about module-registered config keys", async () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
@@ -129,13 +160,13 @@ describe("kota config validate", () => {
     );
 
     const moduleKeys = new Set(["scheduler", "webhooks"]);
-    const { err } = captureOutput(() => {
-      makeProgram(moduleKeys).parse(["node", "kota", "config", "validate"]);
+    const { err } = await captureOutput(async () => {
+      await makeProgram(projectDir, moduleKeys).parseAsync(["node", "kota", "config", "validate"]);
     });
     expect(err).toBe("");
   });
 
-  it("warns about keys not in core or module sets", () => {
+  it("warns about keys not in core or module sets", async () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
@@ -143,49 +174,49 @@ describe("kota config validate", () => {
     );
 
     const moduleKeys = new Set(["scheduler"]);
-    const { err } = captureOutput(() => {
-      makeProgram(moduleKeys).parse(["node", "kota", "config", "validate"]);
+    const { err } = await captureOutput(async () => {
+      await makeProgram(projectDir, moduleKeys).parseAsync(["node", "kota", "config", "validate"]);
     });
     expect(err).toContain('Unknown key "bogus"');
     expect(err).not.toContain("scheduler");
   });
 
-  it("does not warn about known keys", () => {
+  it("does not warn about known keys", async () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
       JSON.stringify({ model: "claude-sonnet-4-6", modelTiers: { fast: "claude-haiku-4-5" } }),
     );
 
-    const { err } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "validate"]);
+    const { err } = await captureOutput(async () => {
+      await makeProgram(projectDir).parseAsync(["node", "kota", "config", "validate"]);
     });
     expect(err).toBe("");
   });
 
-  it("--json outputs only resolved config JSON", () => {
+  it("--json outputs only resolved config JSON", async () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
       JSON.stringify({ model: "claude-opus-4-7" }),
     );
 
-    const { out } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "validate", "--json"]);
+    const { out } = await captureOutput(async () => {
+      await makeProgram(projectDir).parseAsync(["node", "kota", "config", "validate", "--json"]);
     });
     const parsed = JSON.parse(out.trim());
     expect(parsed.model).toBe("claude-opus-4-7");
   });
 
-  it("--json does not include source headers or warnings", () => {
+  it("--json does not include source headers or warnings", async () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
       JSON.stringify({ model: "claude-opus-4-7", unknownKey: true }),
     );
 
-    const { out, err } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "validate", "--json"]);
+    const { out, err } = await captureOutput(async () => {
+      await makeProgram(projectDir).parseAsync(["node", "kota", "config", "validate", "--json"]);
     });
     expect(out).not.toContain("Config sources");
     expect(err).toBe("");
@@ -209,41 +240,41 @@ describe("kota config get", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("prints top-level string value", () => {
+  it("prints top-level string value", async () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
       JSON.stringify({ model: "claude-opus-4-7" }),
     );
 
-    const { out } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "get", "model"]);
+    const { out } = await captureOutput(async () => {
+      await makeProgram(projectDir).parseAsync(["node", "kota", "config", "get", "model"]);
     });
     expect(out.trim()).toBe("claude-opus-4-7");
   });
 
-  it("prints nested value via dot-notation", () => {
+  it("prints nested value via dot-notation", async () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
       JSON.stringify({ daemon: { shutdownGracePeriodMs: 12345 } }),
     );
 
-    const { out } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "get", "daemon.shutdownGracePeriodMs"]);
+    const { out } = await captureOutput(async () => {
+      await makeProgram(projectDir).parseAsync(["node", "kota", "config", "get", "daemon.shutdownGracePeriodMs"]);
     });
     expect(out.trim()).toBe("12345");
   });
 
-  it("exits non-zero for missing key", () => {
+  it("exits non-zero for missing key", async () => {
     const exitSpy = vi.spyOn(process, "exit").mockImplementation((_code) => {
       throw new Error("process.exit");
     });
-    expect(() => {
-      captureOutput(() => {
-        makeProgram().parse(["node", "kota", "config", "get", "nonexistent"]);
-      });
-    }).toThrow();
+    await expect(
+      captureOutput(async () => {
+        await makeProgram(projectDir).parseAsync(["node", "kota", "config", "get", "nonexistent"]);
+      }),
+    ).rejects.toThrow();
     exitSpy.mockRestore();
   });
 });
@@ -263,41 +294,41 @@ describe("kota config set", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("writes string value when not valid JSON", () => {
-    captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "set", "model", "claude-opus-4-7"]);
+  it("writes string value when not valid JSON", async () => {
+    await captureOutput(async () => {
+      await makeProgram(projectDir).parseAsync(["node", "kota", "config", "set", "model", "claude-opus-4-7"]);
     });
     const written = JSON.parse(readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"));
     expect(written.model).toBe("claude-opus-4-7");
   });
 
-  it("creates project config file if it does not exist", () => {
+  it("creates project config file if it does not exist", async () => {
     expect(existsSync(join(projectDir, ".kota", "config.json"))).toBe(false);
-    captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "set", "model", "claude-opus-4-7"]);
+    await captureOutput(async () => {
+      await makeProgram(projectDir).parseAsync(["node", "kota", "config", "set", "model", "claude-opus-4-7"]);
     });
     expect(existsSync(join(projectDir, ".kota", "config.json"))).toBe(true);
   });
 
-  it("supports nested key via dot-notation", () => {
-    captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "set", "daemon.shutdownGracePeriodMs", "9000"]);
+  it("supports nested key via dot-notation", async () => {
+    await captureOutput(async () => {
+      await makeProgram(projectDir).parseAsync(["node", "kota", "config", "set", "daemon.shutdownGracePeriodMs", "9000"]);
     });
     const written = JSON.parse(readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"));
     expect(written.daemon.shutdownGracePeriodMs).toBe(9000);
   });
 
-  it("warns for unrecognised key", () => {
-    const { err } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "set", "unknownKey", "value"]);
+  it("warns for unrecognised key", async () => {
+    const { err } = await captureOutput(async () => {
+      await makeProgram(projectDir).parseAsync(["node", "kota", "config", "set", "unknownKey", "value"]);
     });
     expect(err).toContain("not a recognised config key");
   });
 
-  it("does not warn when setting a module-registered key", () => {
+  it("does not warn when setting a module-registered key", async () => {
     const moduleKeys = new Set(["scheduler"]);
-    const { err } = captureOutput(() => {
-      makeProgram(moduleKeys).parse(["node", "kota", "config", "set", "scheduler.agentConcurrency", "2"]);
+    const { err } = await captureOutput(async () => {
+      await makeProgram(projectDir, moduleKeys).parseAsync(["node", "kota", "config", "set", "scheduler.agentConcurrency", "2"]);
     });
     expect(err).toBe("");
     const written = JSON.parse(readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"));
@@ -306,18 +337,26 @@ describe("kota config set", () => {
 });
 
 describe("kota config schema", () => {
-  it("prints the path to the schema file", () => {
-    const { out } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "schema"]);
+  let projectDir: string;
+  beforeEach(() => {
+    projectDir = makeProjectDir();
+  });
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("prints the path to the schema file", async () => {
+    const { out } = await captureOutput(async () => {
+      await makeProgram(projectDir).parseAsync(["node", "kota", "config", "schema"]);
     });
     const schemaPath = out.trim();
     expect(schemaPath).toMatch(/kota-config\.schema\.json$/);
     expect(existsSync(schemaPath)).toBe(true);
   });
 
-  it("schema file exists and is valid JSON Schema", () => {
-    const { out } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "schema"]);
+  it("schema file exists and is valid JSON Schema", async () => {
+    const { out } = await captureOutput(async () => {
+      await makeProgram(projectDir).parseAsync(["node", "kota", "config", "schema"]);
     });
     const schemaPath = resolve(out.trim());
     const content = JSON.parse(readFileSync(schemaPath, "utf-8"));
@@ -326,9 +365,9 @@ describe("kota config schema", () => {
     expect(content.properties).toBeDefined();
   });
 
-  it("--print outputs schema content", () => {
-    const { out } = captureOutput(() => {
-      makeProgram().parse(["node", "kota", "config", "schema", "--print"]);
+  it("--print outputs schema content", async () => {
+    const { out } = await captureOutput(async () => {
+      await makeProgram(projectDir).parseAsync(["node", "kota", "config", "schema", "--print"]);
     });
     const content = JSON.parse(out.trim());
     expect(content.$schema).toBeDefined();

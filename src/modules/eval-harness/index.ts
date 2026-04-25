@@ -14,9 +14,17 @@
  */
 
 import { registerAgentHarness } from "#core/agent-harness/index.js";
+import { EventBus } from "#core/events/event-bus.js";
 import type { KotaModule } from "#core/modules/module-types.js";
+import type { EvalHarnessClient } from "#core/server/kota-client.js";
 import evalHarnessCadence from "./cadence-workflow.js";
 import { buildEvalCommand } from "./cli.js";
+import { evalHarnessControlRoutes } from "./eval-control-routes.js";
+import {
+  listEvalFixtures,
+  runEvalCalibration,
+  runEvalHarness,
+} from "./eval-operations.js";
 import evalHarnessRegressionNotify from "./regression-notify-workflow.js";
 import {
   createReplayAgentHarness,
@@ -130,9 +138,24 @@ const evalHarnessModule: KotaModule = {
   // subprocess executor is the only production caller that sets that env,
   // so operator and daemon runs are unaffected.
   dependencies: ["autonomy", "rendering", "claude-agent-harness"],
-  commands: (ctx) => [buildEvalCommand(ctx.cwd)],
+  commands: (ctx) => [buildEvalCommand(ctx)],
   routes: (ctx) => evalHarnessRoutes(ctx),
+  controlRoutes: (ctx) => evalHarnessControlRoutes(ctx),
   workflows: [evalHarnessCadence, evalHarnessRegressionNotify],
+  localClient: (ctx) => {
+    const evalHarness: EvalHarnessClient = {
+      async list() {
+        return listEvalFixtures(ctx.cwd);
+      },
+      async run(options) {
+        return runEvalHarness(ctx.cwd, options ?? {}, new EventBus());
+      },
+      async calibration(options) {
+        return runEvalCalibration(ctx.cwd, options ?? {});
+      },
+    };
+    return { evalHarness };
+  },
 };
 
 export default evalHarnessModule;

@@ -55,6 +55,12 @@ export class LocalKotaClient implements KotaClient {
   readonly voice: KotaClient["voice"];
   readonly web: KotaClient["web"];
   readonly mcpServer: KotaClient["mcpServer"];
+  readonly audit: KotaClient["audit"];
+  readonly config: KotaClient["config"];
+  readonly modulesAdmin: KotaClient["modulesAdmin"];
+  readonly daemonOps: KotaClient["daemonOps"];
+  readonly doctor: KotaClient["doctor"];
+  readonly evalHarness: KotaClient["evalHarness"];
 
   constructor(handlers: LocalClientHandlers) {
     this.workflow = handlers.workflow;
@@ -74,5 +80,11 @@ export class LocalKotaClient implements KotaClient {
     this.voice = handlers.voice;
     this.web = handlers.web;
     this.mcpServer = handlers.mcpServer;
+    this.audit = handlers.audit;
+    this.config = handlers.config;
+    this.modulesAdmin = handlers.modulesAdmin;
+    this.daemonOps = handlers.daemonOps;
+    this.doctor = handlers.doctor;
+    this.evalHarness = handlers.evalHarness;
   }
 }

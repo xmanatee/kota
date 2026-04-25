@@ -28,6 +28,24 @@ import type {
   AgentsClient,
   AgentsListResult,
   ApprovalsClient,
+  AuditClient,
+  AuditListFilter,
+  AuditListResult,
+  ConfigClient,
+  ConfigGetResult,
+  ConfigSetResult,
+  ConfigValidateResult,
+  DaemonOpsClient,
+  DoctorClient,
+  DoctorFixResult,
+  DoctorRunOptions,
+  DoctorRunResult,
+  EvalCalibrationOptions,
+  EvalCalibrationResult,
+  EvalHarnessClient,
+  EvalListResult,
+  EvalRunOptions,
+  EvalRunResult,
   HarnessParityClient,
   HarnessParityListResult,
   HarnessParityRunOptions,
@@ -57,7 +75,10 @@ import type {
   MemoryReindexResult,
   MemorySearchFilter,
   MemorySearchResult,
+  ModuleInspectResult,
   ModuleListEntry,
+  ModuleReloadResult,
+  ModulesAdminClient,
   ModulesClient,
   OwnerQuestionMutateResult,
   OwnerQuestionsClient,
@@ -158,6 +179,12 @@ export class DaemonControlClient implements KotaClient {
   readonly voice: VoiceClient;
   readonly web: WebClient;
   readonly mcpServer: McpServerClient;
+  readonly audit: AuditClient;
+  readonly config: ConfigClient;
+  readonly modulesAdmin: ModulesAdminClient;
+  readonly daemonOps: DaemonOpsClient;
+  readonly doctor: DoctorClient;
+  readonly evalHarness: EvalHarnessClient;
 
   private constructor(
     private readonly baseUrl: string,
@@ -391,6 +418,261 @@ export class DaemonControlClient implements KotaClient {
     this.mcpServer = {
       start: async (_options): Promise<McpServerStartResult> => ({ ok: false, reason: "daemon_required" }),
     };
+    this.audit = {
+      list: async (filter) => this.listAuditHttp(filter),
+    };
+    this.config = {
+      validate: async () => this.configValidateHttp(),
+      get: async (key) => this.configGetHttp(key),
+      set: async (key, rawValue) => this.configSetHttp(key, rawValue),
+      schemaPath: async () => this.configSchemaPathHttp(),
+      schemaContent: async () => this.configSchemaContentHttp(),
+    };
+    this.modulesAdmin = {
+      inspect: async (name) => this.modulesInspectHttp(name),
+      reload: async (name) => this.modulesReloadHttp(name),
+    };
+    /**
+     * The daemon-up daemonOps namespace always reports `running` because the
+     * client only exists when the selector resolved to a daemon address. The
+     * local handler is the one that distinguishes "not running" from "stale
+     * control file" — the daemon-up branch never sees those states.
+     */
+    this.daemonOps = {
+      status: async () => {
+        const status = await this.getDaemonStatus();
+        if (!status) {
+          throw new Error("Daemon unreachable while reading daemon status");
+        }
+        const managed = await this.daemonManagedHttp();
+        return { state: "running", managed, status };
+      },
+      pid: async () => {
+        const status = await this.getDaemonStatus();
+        if (!status || typeof status.pid !== "number") {
+          throw new Error("Daemon unreachable while reading daemon pid");
+        }
+        return { state: "running", pid: status.pid };
+      },
+      stop: async (_options) => {
+        throw new Error(
+          "daemonOps.stop is owned by the local handler — the daemon cannot SIGTERM itself.",
+        );
+      },
+      reload: async () => {
+        const result = await this.reloadConfig();
+        if (!result) return { ok: false, reason: "reload_failed" };
+        return { ok: true, workflows: result.workflows, changedModules: result.changedModules };
+      },
+    };
+    this.doctor = {
+      run: async (options) => this.doctorRunHttp(options),
+      fix: async () => this.doctorFixHttp(),
+    };
+    this.evalHarness = {
+      list: async () => this.evalListHttp(),
+      run: async (options) => this.evalRunHttp(options),
+      calibration: async (options) => this.evalCalibrationHttp(options),
+    };
+  }
+
+  private async listAuditHttp(filter?: AuditListFilter): Promise<AuditListResult> {
+    const params = new URLSearchParams();
+    if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
+    if (filter?.tool) params.set("tool", filter.tool);
+    if (filter?.risk) params.set("risk", filter.risk);
+    if (filter?.policy) params.set("policy", filter.policy);
+    if (filter?.since) params.set("since", filter.since);
+    if (filter?.session) params.set("session", filter.session);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetchWithTimeout(`${this.baseUrl}/audit${query}`, {
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as AuditListResult;
+  }
+
+  private async configValidateHttp(): Promise<ConfigValidateResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/config/validate`, {
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as ConfigValidateResult;
+  }
+
+  private async configGetHttp(key: string): Promise<ConfigGetResult> {
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/config/value?key=${encodeURIComponent(key)}`,
+      { headers: this.authHeaders() },
+    );
+    if (res.status === 404) return { found: false, reason: "not_found" };
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as ConfigGetResult;
+  }
+
+  private async configSetHttp(key: string, rawValue: string): Promise<ConfigSetResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/config/value`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...this.authHeaders() },
+      body: JSON.stringify({ key, rawValue }),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as ConfigSetResult;
+  }
+
+  private async configSchemaPathHttp(): Promise<{ path: string }> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/config/schema-path`, {
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as { path: string };
+  }
+
+  private async configSchemaContentHttp(): Promise<{ content: string }> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/config/schema`, {
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as { content: string };
+  }
+
+  private async modulesInspectHttp(name: string): Promise<ModuleInspectResult> {
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/modules/${encodeURIComponent(name)}`,
+      { headers: this.authHeaders() },
+    );
+    if (res.status === 404) return { found: false };
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as ModuleInspectResult;
+  }
+
+  private async modulesReloadHttp(name: string): Promise<ModuleReloadResult> {
+    const result = await this.reloadConfig();
+    if (!result) return { ok: false, reason: "daemon_required" };
+    const modulesRes = await this.listModulesHttp();
+    if (modulesRes && !modulesRes.modules.some((m) => m.name === name)) {
+      return { ok: false, reason: "not_found" };
+    }
+    return {
+      ok: true,
+      reloaded: result.changedModules.includes(name),
+      workflowsActive: result.workflows,
+    };
+  }
+
+  /**
+   * The OS-managed daemon flag is filesystem-scoped (it checks for a
+   * launchd plist or systemd unit on the operator host). The daemon
+   * cannot answer that for the calling host, so the daemon-up branch
+   * always reports `false`; the local handler is the one that probes
+   * the operator filesystem.
+   */
+  private async daemonManagedHttp(): Promise<boolean> {
+    return false;
+  }
+
+  private async doctorRunHttp(options?: DoctorRunOptions): Promise<DoctorRunResult> {
+    const params = new URLSearchParams();
+    if (options?.skipConnectivity) params.set("skipConnectivity", "true");
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetchWithTimeout(`${this.baseUrl}/doctor/run${query}`, {
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as DoctorRunResult;
+  }
+
+  private async doctorFixHttp(): Promise<DoctorFixResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/doctor/fix`, {
+      method: "POST",
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as DoctorFixResult;
+  }
+
+  private async evalListHttp(): Promise<EvalListResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/eval/list`, {
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as EvalListResult;
+  }
+
+  private async evalRunHttp(options?: EvalRunOptions): Promise<EvalRunResult> {
+    const res = await fetch(`${this.baseUrl}/api/eval/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.authHeaders() },
+      body: JSON.stringify(options ?? {}),
+    });
+    if (res.status === 400) {
+      const body = (await res.json()) as { error: string };
+      const msg = body.error;
+      if (/no fixtures/i.test(msg)) return { ok: false, reason: "no_fixtures", message: msg };
+      return { ok: false, reason: "fixture_provenance", message: msg };
+    }
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    const body = (await res.json()) as {
+      fixtureCount: number;
+      repeatCount: number;
+      passAtK: number;
+      passHatK: number;
+      runArtifactBaseDir: string;
+    };
+    return { ok: true, ...body };
+  }
+
+  private async evalCalibrationHttp(
+    options?: EvalCalibrationOptions,
+  ): Promise<EvalCalibrationResult> {
+    const params = new URLSearchParams();
+    if (options?.windowDays !== undefined) params.set("windowDays", String(options.windowDays));
+    if (options?.followUpDays !== undefined) params.set("followUpDays", String(options.followUpDays));
+    if (options?.thresholdRate !== undefined) params.set("thresholdRate", String(options.thresholdRate));
+    if (options?.minSample !== undefined) params.set("minSample", String(options.minSample));
+    if (options?.runsDir) params.set("runsDir", options.runsDir);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetchWithTimeout(`${this.baseUrl}/eval/calibration${query}`, {
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as EvalCalibrationResult;
   }
 
   private async listWebhooksHttp(): Promise<WebhookListResult> {
