@@ -90,12 +90,19 @@ export function createSubprocessExecutor(
       const kotaRoot = dirname(dirname(resolve(options.kotaBinaryPath)));
       const kotaDistDir = join(kotaRoot, "dist");
 
+      const basePath = process.env.PATH ?? "";
+      const pathWithShims =
+        request.externalCallShimDir !== undefined
+          ? `${request.externalCallShimDir}:${basePath}`
+          : basePath;
+
       const env = {
         ...process.env,
         ...(options.extraEnv ?? {}),
         HOME: request.workingDir,
         KOTA_PROJECT_DIR: request.workingDir,
         KOTA_DIST_DIR: kotaDistDir,
+        PATH: pathWithShims,
         ...(request.replayRecordingsRoot !== undefined && {
           [REPLAY_AGENT_HARNESS_NAME_ENV]: request.replayRecordingsRoot,
         }),

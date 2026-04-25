@@ -10,7 +10,7 @@
  * fixtures end-to-end through the same `runFixture` + subprocess executor path
  * the cadence uses, asserting predicate pass.
  *
- * Five fixtures cover the full set of workflow-runtime branches we want to
+ * Six fixtures cover the full set of workflow-runtime branches we want to
  * gate at `pnpm test` time:
  *   - `decomposer-agent-call-replay` is the smallest fixture and is the only
  *     one whose repair loop runs `pnpm run validate-tasks` against the
@@ -40,6 +40,14 @@
  *     (`task-queue-valid` with default `min-ready`,
  *     `no-scratch-artifacts`, `commit-message-exists`, `commit-stageable`)
  *     — none of which the other four replays exercise.
+ *   - `pr-reviewer-agent-call-replay` covers the new `external-call-log`
+ *     predicate + fake-binary shim mechanism wired through the runner
+ *     and subprocess executor, the `assess-pr` webhook-payload
+ *     assessment path (action / kota-task branch / fork gating), the
+ *     `outputFormat: "json"` + `outputSchema` extraction the `review`
+ *     step now declares, and the typed `workflow.pr.review.posted`
+ *     emission shape — none of which the other shipped replays
+ *     exercise.
  * The builder fixture stays in cadence-only coverage because its surfaces
  * (workflow-step prompt routing, repair-loop survival, commit step's
  * `git add -A`, restart request) are already exercised by the gated
@@ -86,6 +94,7 @@ const SMOKE_FIXTURE_IDS = [
   "explorer-agent-call-replay",
   "inbox-sorter-agent-call-replay",
   "research-retry-agent-call-replay",
+  "pr-reviewer-agent-call-replay",
 ] as const;
 
 describe("eval-harness shipped replay-fixture smoke gate", () => {

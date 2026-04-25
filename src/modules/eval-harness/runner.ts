@@ -20,6 +20,7 @@ import { spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { installExternalCallShims } from "./external-call-shim.js";
 import type { LoadedFixture } from "./fixture.js";
 import type { FixtureRun, FixtureRunOutcome, ResourceProfile } from "./fixture-run.js";
 import { applyFixtureTemplates } from "./fixture-templating.js";
@@ -47,6 +48,14 @@ export type WorkflowExecutionRequest = {
    * workflows never invoke an agent step.
    */
   replayRecordingsRoot?: string;
+  /**
+   * Absolute path to the fixture-scoped fake-binary shim directory. When
+   * set, the subprocess executor prepends this directory to `PATH` so any
+   * shadowed binary (e.g. `gh`) resolves to the recording shim instead of
+   * the host's real binary. Absent when the fixture declared no
+   * `externalCallShims`.
+   */
+  externalCallShimDir?: string;
 };
 
 /** Outcome a WorkflowExecutor reports back to the runner. */
@@ -128,7 +137,10 @@ function initFixtureGit(workingDir: string): void {
  * The directory is created under the OS tmp dir by default so harness runs
  * never mutate the operator's repo even if something misbehaves.
  */
-function materializeFixtureWorkingDir(fixture: LoadedFixture): string {
+function materializeFixtureWorkingDir(fixture: LoadedFixture): {
+  workingDir: string;
+  shimDir: string | null;
+} {
   const workingDir = mkdtempSync(
     join(tmpdir(), `kota-eval-${fixture.spec.id}-`),
   );
@@ -141,7 +153,18 @@ function materializeFixtureWorkingDir(fixture: LoadedFixture): string {
   if (fixture.agentStepRecordings.length > 0) {
     initFixtureGit(workingDir);
   }
-  return workingDir;
+  let shimDir: string | null = null;
+  if (
+    fixture.spec.externalCallShims !== undefined &&
+    fixture.spec.externalCallShims.length > 0
+  ) {
+    const installed = installExternalCallShims(
+      workingDir,
+      fixture.spec.externalCallShims,
+    );
+    shimDir = installed.shimDir;
+  }
+  return { workingDir, shimDir };
 }
 
 function outcomeFromExecution(
@@ -198,7 +221,7 @@ function writeRunArtifact(
 export async function runFixture(
   params: RunFixtureParams,
 ): Promise<FixtureRunReport> {
-  const workingDir = materializeFixtureWorkingDir(params.fixture);
+  const { workingDir, shimDir } = materializeFixtureWorkingDir(params.fixture);
   const startedAt = new Date();
   const startMs = startedAt.getTime();
   let executionOutcome: WorkflowExecutionOutcome;
@@ -213,6 +236,7 @@ export async function runFixture(
       ...(params.fixture.agentStepRecordings.length > 0 && {
         replayRecordingsRoot: params.fixture.fixtureDir,
       }),
+      ...(shimDir !== null && { externalCallShimDir: shimDir }),
     });
   } catch (err) {
     executionOutcome = {

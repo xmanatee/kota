@@ -21,6 +21,26 @@ import { join } from "node:path";
  */
 export type EventPayloadMatch = Record<string, unknown>;
 
+/**
+ * Argv-shape matcher for an `external-call-log` predicate. Three small
+ * matchers cover the matching tolerance fixtures actually need today; new
+ * shapes extend the union only on demonstrated need (no parallel DSL).
+ *
+ *  - `argv-equals` — invocation argv (post-binary) must equal this list,
+ *    element by element. Use when the assertion needs to pin the full
+ *    command shape.
+ *  - `argv-prefix` — invocation argv (post-binary) must start with this
+ *    list. Use when the meaningful portion of the command is the leading
+ *    subcommand and flags are advisory.
+ *  - `argv-includes` — invocation argv (post-binary) must contain this
+ *    exact token at any position. Use when the meaningful assertion is
+ *    "this command was invoked with this specific arg".
+ */
+export type ExternalCallArgvMatch =
+  | { kind: "argv-equals"; argv: readonly string[] }
+  | { kind: "argv-prefix"; argv: readonly string[] }
+  | { kind: "argv-includes"; arg: string };
+
 export type FixturePredicate =
   | { kind: "file-exists"; path: string }
   | { kind: "file-absent"; path: string }
@@ -60,6 +80,29 @@ export type FixturePredicate =
       kind: "run-omits-event";
       event: string;
       workflow?: string;
+    }
+  | {
+      /**
+       * Passes when at least one entry in
+       * `<workingDir>/.kota/external-calls/<binary>.jsonl` matches the
+       * argv shape (and, when set, the exit-code class). Each line is one
+       * recorded out-of-process invocation written by the fixture-scoped
+       * shim — see `external-call-shim.ts`. The predicate runs against
+       * the same JSONL log whether the line was written by a live shim
+       * call (real LLM run) or by an agent-step recording's
+       * `fileOperations` (replay path), so one assertion covers both
+       * paths. The shim records argv exactly as observed; this predicate
+       * is responsible for any matching tolerance it wants to express.
+       */
+      kind: "external-call-log";
+      binary: string;
+      match: ExternalCallArgvMatch;
+      /**
+       * Optional exit-code class. Default is "any" (no exit-code
+       * constraint). When set, the matching invocation's recorded exit
+       * code must fall in the named class.
+       */
+      exitClass?: "zero" | "non-zero";
     };
 
 export type PredicateEvalResult = {
@@ -310,6 +353,159 @@ function evaluateRunOmitsEvent(
   };
 }
 
+type ExternalCallEntry = {
+  binary: string;
+  argv: string[];
+  exitCode: number;
+};
+
+/**
+ * Read every recorded invocation for a binary from
+ * `<workingDir>/.kota/external-calls/<binary>.jsonl`. Returns an empty list
+ * when the log file does not exist (binary was never invoked). Malformed
+ * lines fail loudly — a corrupt log is not a silent pass signal, it is a
+ * shim or recording bug the operator needs to see.
+ */
+function readExternalCallLogEntries(
+  workingDir: string,
+  binary: string,
+): ExternalCallEntry[] {
+  const logPath = join(workingDir, ".kota", "external-calls", `${binary}.jsonl`);
+  if (!existsSync(logPath)) return [];
+  if (!statSync(logPath).isFile()) {
+    throw new Error(
+      `external-call log path ${logPath} exists but is not a regular file.`,
+    );
+  }
+  const raw = readFileSync(logPath, "utf-8");
+  const entries: ExternalCallEntry[] = [];
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+    const parsed = JSON.parse(trimmed) as {
+      binary?: unknown;
+      argv?: unknown;
+      exitCode?: unknown;
+    };
+    if (typeof parsed.binary !== "string") {
+      throw new Error(
+        `Malformed entry in ${logPath}: missing "binary" string.`,
+      );
+    }
+    if (
+      !Array.isArray(parsed.argv) ||
+      !parsed.argv.every((s) => typeof s === "string")
+    ) {
+      throw new Error(
+        `Malformed entry in ${logPath}: "argv" must be an array of strings.`,
+      );
+    }
+    if (typeof parsed.exitCode !== "number" || !Number.isFinite(parsed.exitCode)) {
+      throw new Error(
+        `Malformed entry in ${logPath}: "exitCode" must be a finite number.`,
+      );
+    }
+    entries.push({
+      binary: parsed.binary,
+      argv: parsed.argv as string[],
+      exitCode: parsed.exitCode,
+    });
+  }
+  return entries;
+}
+
+function argvMatchesShape(
+  argv: readonly string[],
+  match: ExternalCallArgvMatch,
+): boolean {
+  switch (match.kind) {
+    case "argv-equals":
+      return (
+        argv.length === match.argv.length &&
+        argv.every((token, i) => token === match.argv[i])
+      );
+    case "argv-prefix":
+      return (
+        argv.length >= match.argv.length &&
+        match.argv.every((token, i) => argv[i] === token)
+      );
+    case "argv-includes":
+      return argv.includes(match.arg);
+  }
+}
+
+function describeMatch(match: ExternalCallArgvMatch): string {
+  switch (match.kind) {
+    case "argv-equals":
+      return `argv-equals ${JSON.stringify(match.argv)}`;
+    case "argv-prefix":
+      return `argv-prefix ${JSON.stringify(match.argv)}`;
+    case "argv-includes":
+      return `argv-includes ${JSON.stringify(match.arg)}`;
+  }
+}
+
+function exitCodeMatchesClass(
+  exitCode: number,
+  expected: "zero" | "non-zero" | undefined,
+): boolean {
+  if (expected === undefined) return true;
+  return expected === "zero" ? exitCode === 0 : exitCode !== 0;
+}
+
+function evaluateExternalCallLog(
+  workingDir: string,
+  predicate: Extract<FixturePredicate, { kind: "external-call-log" }>,
+): PredicateEvalResult {
+  const entries = readExternalCallLogEntries(workingDir, predicate.binary);
+  const sameBinary = entries.filter((e) => e.binary === predicate.binary);
+  if (sameBinary.length === 0) {
+    return {
+      predicate,
+      passed: false,
+      detail: `external-call-log: ${JSON.stringify(predicate.binary)} was never invoked (log file ${predicate.binary}.jsonl is missing or empty).`,
+    };
+  }
+  const argvMatches = sameBinary.filter((e) =>
+    argvMatchesShape(e.argv, predicate.match),
+  );
+  if (argvMatches.length === 0) {
+    const observed = sameBinary
+      .slice(0, 5)
+      .map((e) => JSON.stringify(e.argv))
+      .join(", ");
+    return {
+      predicate,
+      passed: false,
+      detail: `external-call-log: ${sameBinary.length} ${predicate.binary} invocation(s) recorded but none match ${describeMatch(predicate.match)}. Observed: ${observed}`,
+    };
+  }
+  const exitClass = predicate.exitClass;
+  if (exitClass !== undefined) {
+    const exitMatches = argvMatches.filter((e) =>
+      exitCodeMatchesClass(e.exitCode, exitClass),
+    );
+    if (exitMatches.length === 0) {
+      const observedExits = argvMatches.slice(0, 5).map((e) => e.exitCode).join(", ");
+      return {
+        predicate,
+        passed: false,
+        detail: `external-call-log: ${argvMatches.length} ${predicate.binary} invocation(s) matched ${describeMatch(predicate.match)} but exitClass=${exitClass} did not match. Observed exit codes: ${observedExits}`,
+      };
+    }
+    return {
+      predicate,
+      passed: true,
+      detail: `external-call-log: ${exitMatches.length} ${predicate.binary} invocation(s) matched ${describeMatch(predicate.match)} with exitClass=${exitClass}.`,
+    };
+  }
+  return {
+    predicate,
+    passed: true,
+    detail: `external-call-log: ${argvMatches.length} ${predicate.binary} invocation(s) matched ${describeMatch(predicate.match)}.`,
+  };
+}
+
 export function evaluatePredicate(
   workingDir: string,
   predicate: FixturePredicate,
@@ -328,6 +524,8 @@ export function evaluatePredicate(
       return evaluateRunEmitsEvent(workingDir, predicate);
     case "run-omits-event":
       return evaluateRunOmitsEvent(workingDir, predicate);
+    case "external-call-log":
+      return evaluateExternalCallLog(workingDir, predicate);
   }
 }
 

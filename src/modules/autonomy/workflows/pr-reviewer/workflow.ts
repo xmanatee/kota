@@ -118,6 +118,26 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => !assessPr.output(ctx).skip,
+      // The agent's prompt requires the response end with a fenced JSON
+      // object containing `recommendation`; the emit step then reads that
+      // recommendation off the structured step output. Without
+      // outputFormat: "json" the runtime would expose the raw response
+      // envelope (`{content, sessionId, ...}`) and the recommendation
+      // would be unreachable, so the emit step would throw on every real
+      // run. Schema-pin to the two legal verdict values so a regression
+      // in either the prompt or the agent's JSON shape fails loudly at
+      // step time rather than at emit time.
+      outputFormat: "json",
+      outputSchema: {
+        type: "object",
+        required: ["recommendation"],
+        properties: {
+          recommendation: {
+            type: "string",
+            enum: ["approve", "request-changes"],
+          },
+        },
+      },
     },
     {
       id: "emit-review-posted",

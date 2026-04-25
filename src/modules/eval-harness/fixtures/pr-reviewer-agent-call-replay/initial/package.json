@@ -1,0 +1,11 @@
+{
+  "name": "kota-eval-harness-fixture",
+  "private": true,
+  "scripts": {
+    "build": "true",
+    "typecheck": "true",
+    "lint": "true",
+    "lint:fix": "true",
+    "test": "true"
+  }
+}

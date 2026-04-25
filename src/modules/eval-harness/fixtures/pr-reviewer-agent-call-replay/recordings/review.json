@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "workflowName": "pr-reviewer",
+  "stepId": "review",
+  "sourceRunId": "fixture-pr-reviewer-agent-call-replay-2026-04-25",
+  "response": {
+    "text": "Reviewed PR #42 in kota-test/example (head branch kota/task/task-add-cache-warming).\n\nDone-When coverage looks complete: the inbox-sorter cache-warming task lands the new `warm-cache` step plus tests under `src/modules/inbox-sorter/`, and the prompt edit reflects the new branch. No tracked-file changes outside the declared writeScope, no missing tests for the new cache hit/miss branches, and the commit message names the source task. Posted approval via `gh pr review 42 --approve --body ...`.\n\n```json\n{\"recommendation\":\"approve\"}\n```",
+    "subtype": "success",
+    "turns": 18,
+    "totalCostUsd": 0.42,
+    "inputTokens": 4200,
+    "outputTokens": 820,
+    "sessionId": "fixture-pr-reviewer-agent-call-replay-session"
+  },
+  "fileOperations": [
+    {
+      "op": "write",
+      "path": ".kota/external-calls/gh.jsonl",
+      "content": "{\"binary\":\"gh\",\"argv\":[\"pr\",\"review\",\"42\",\"--approve\",\"--body\",\"Reviewed PR #42 — Done-When coverage looks complete; approving.\"],\"exitCode\":0,\"timestamp\":\"2026-04-25T03:30:00.000Z\"}\n"
+    }
+  ]
+}

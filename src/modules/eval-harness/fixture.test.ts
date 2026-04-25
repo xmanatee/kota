@@ -238,6 +238,71 @@ describe("loadFixture", () => {
     expect(() => loadFixture(root, "badPayload")).toThrow(/triggerPayload.*JSON object/);
   });
 
+  it("accepts an optional externalCallShims list and validates entry shape", () => {
+    writeFixture(root, "withShims", {
+      id: "withShims",
+      description: "x",
+      role: "pr-reviewer",
+      workflowName: "pr-reviewer",
+      budgetMs: 600_000,
+      predicates: [{ kind: "file-exists", path: "foo" }],
+      externalCallShims: ["gh"],
+    });
+    const loaded = loadFixture(root, "withShims");
+    expect(loaded.spec.externalCallShims).toEqual(["gh"]);
+  });
+
+  it("rejects externalCallShims entries with unsafe characters", () => {
+    writeFixture(root, "badShims", {
+      id: "badShims",
+      description: "x",
+      role: "pr-reviewer",
+      workflowName: "pr-reviewer",
+      budgetMs: 600_000,
+      predicates: [{ kind: "file-exists", path: "foo" }],
+      externalCallShims: ["../escape"],
+    });
+    expect(() => loadFixture(root, "badShims")).toThrow(/externalCallShims/);
+  });
+
+  it("accepts a well-formed external-call-log predicate", () => {
+    writeFixture(root, "withExtCall", {
+      id: "withExtCall",
+      description: "x",
+      role: "pr-reviewer",
+      workflowName: "pr-reviewer",
+      budgetMs: 600_000,
+      predicates: [
+        {
+          kind: "external-call-log",
+          binary: "gh",
+          match: { kind: "argv-prefix", argv: ["pr", "review"] },
+          exitClass: "zero",
+        },
+      ],
+    });
+    const loaded = loadFixture(root, "withExtCall");
+    expect(loaded.spec.predicates).toHaveLength(1);
+  });
+
+  it("rejects an external-call-log predicate with a malformed match", () => {
+    writeFixture(root, "badExtCall", {
+      id: "badExtCall",
+      description: "x",
+      role: "pr-reviewer",
+      workflowName: "pr-reviewer",
+      budgetMs: 600_000,
+      predicates: [
+        {
+          kind: "external-call-log",
+          binary: "gh",
+          match: { kind: "argv-prefix", argv: [] },
+        },
+      ],
+    });
+    expect(() => loadFixture(root, "badExtCall")).toThrow(/invalid predicate/);
+  });
+
   it("rejects unknown provenance kinds", () => {
     writeFixture(root, "unknownKind", {
       id: "unknownKind",
@@ -374,20 +439,29 @@ describe("agent-step recording provenance", () => {
     expect((caught as Error).message).toMatch(/sourceRunId/);
   });
 
-  it("rejects agent-step recordings attached to a smoke fixture", () => {
+  it("permits agent-step recordings on a smoke fixture for harness-plumbing fixtures with no real-run history", () => {
+    // Some workflows (e.g. pr-reviewer) have no real-failure history yet, so
+    // the harness-plumbing fixture that locks their replay path must use
+    // smoke-fixture provenance. Honesty stays in the smoke justification,
+    // not in a forced "real-failure" claim against a fabricated run id.
     writeFixture(root, "smokeWithRec", {
       id: "smokeWithRec",
       description: "rec",
-      role: "decomposer",
-      workflowName: "decomposer",
+      role: "pr-reviewer",
+      workflowName: "pr-reviewer",
       budgetMs: 600_000,
       predicates: [{ kind: "file-exists", path: "x" }],
       provenance: SMOKE_PROVENANCE,
     });
-    writeRecording("smokeWithRec", "decompose", VALID_RECORDING);
+    writeRecording("smokeWithRec", "decompose", {
+      ...VALID_RECORDING,
+      sourceRunId: "synthesized-fixture-2026-04-25",
+    });
 
-    expect(() => loadFixture(root, "smokeWithRec")).toThrow(
-      FixtureRecordingProvenanceError,
+    const loaded = loadFixture(root, "smokeWithRec");
+    expect(loaded.agentStepRecordings).toHaveLength(1);
+    expect(loaded.agentStepRecordings[0].sourceRunId).toBe(
+      "synthesized-fixture-2026-04-25",
     );
   });
 

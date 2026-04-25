@@ -1,12 +1,12 @@
 ---
 id: task-add-eval-harness-external-call-log-predicate-so-pr
 title: Add eval-harness external-call-log predicate so pr-reviewer can enter agent-call-replay fixture coverage
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Extend the eval-harness predicate contract with an external-call-log kind that observes a fake gh binary's invocations from PATH so the pr-reviewer workflow's external GitHub side effects become assertable; with that primitive in place, retire pr-reviewer from src/modules/eval-harness/fixtures/uncovered/notes.md by landing pr-reviewer-agent-call-replay alongside the other shipped workflow replay fixtures.
 created_at: 2026-04-25T03:27:21.506Z
-updated_at: 2026-04-25T03:27:21.506Z
+updated_at: 2026-04-25T03:48:23.429Z
 ---
 
 ## Problem

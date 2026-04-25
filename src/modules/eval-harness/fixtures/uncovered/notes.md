@@ -42,11 +42,6 @@ of a real failure to encode, not a harness gap.
   it with a seeded `evaluator-calibration.regression.detected` payload
   and assert the `workflow.attention.digest` emission shape via
   `run-emits-event`. No real misbridge has happened yet.
-- **pr-reviewer** — retired. 0 runs on this branch. The failure mode is
-  an external `gh` CLI call, not a repo-observable artifact or bus-event
-  emission. A future fixture would need a fake `gh` binary on `PATH` and
-  either an `external-call-log` predicate or a shell-log harness hook;
-  neither is built yet, and there is no real failure to motivate them.
 
 ## Dependency-heavy workflows — retired: bootstrap blockers remain
 

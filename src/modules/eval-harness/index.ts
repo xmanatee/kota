@@ -69,6 +69,12 @@ export {
 } from "./baseline-store.js";
 export type { EvalSetParams, EvalSetReport } from "./eval-set.js";
 export { runEvalSet } from "./eval-set.js";
+export type { InstalledShims } from "./external-call-shim.js";
+export {
+  EXTERNAL_CALL_LOG_SUBDIR,
+  installExternalCallShims,
+  SHIM_SUBDIR,
+} from "./external-call-shim.js";
 export type {
   FixtureAutonomyRole,
   FixtureProvenance,
@@ -89,7 +95,11 @@ export {
   evaluateRegressionGate,
   MIN_REPEAT_COUNT_FOR_GATING,
 } from "./noise-band.js";
-export type { FixturePredicate, PredicateEvalResult } from "./predicates.js";
+export type {
+  ExternalCallArgvMatch,
+  FixturePredicate,
+  PredicateEvalResult,
+} from "./predicates.js";
 export { evaluatePredicate, evaluatePredicates } from "./predicates.js";
 export {
   createReplayAgentHarness,

@@ -258,3 +258,151 @@ describe("evaluatePredicate — emitted-events predicates", () => {
     ).toThrow();
   });
 });
+
+describe("evaluatePredicate — external-call-log predicate", () => {
+  let workDir: string;
+
+  function seedExternalCallLog(
+    binary: string,
+    entries: Array<{ binary?: string; argv: string[]; exitCode?: number }>,
+  ): void {
+    const dir = join(workDir, ".kota", "external-calls");
+    mkdirSync(dir, { recursive: true });
+    const lines = entries.map((e) =>
+      JSON.stringify({
+        binary: e.binary ?? binary,
+        argv: e.argv,
+        exitCode: e.exitCode ?? 0,
+        timestamp: "2026-04-25T00:00:00.000Z",
+      }),
+    );
+    writeFileSync(
+      join(dir, `${binary}.jsonl`),
+      lines.length > 0 ? `${lines.join("\n")}\n` : "",
+    );
+  }
+
+  beforeEach(() => {
+    workDir = mkdtempSync(join(tmpdir(), "kota-eval-harness-extcall-"));
+  });
+
+  afterEach(() => {
+    rmSync(workDir, { recursive: true, force: true });
+  });
+
+  it("argv-equals matches the exact recorded argv", () => {
+    seedExternalCallLog("gh", [
+      { argv: ["pr", "review", "42", "--approve", "--body", "LGTM"] },
+    ]);
+    const ok = evaluatePredicate(workDir, {
+      kind: "external-call-log",
+      binary: "gh",
+      match: {
+        kind: "argv-equals",
+        argv: ["pr", "review", "42", "--approve", "--body", "LGTM"],
+      },
+    });
+    expect(ok.passed).toBe(true);
+  });
+
+  it("argv-prefix matches when invocation starts with the expected tokens", () => {
+    seedExternalCallLog("gh", [
+      { argv: ["pr", "review", "42", "--approve"] },
+    ]);
+    const ok = evaluatePredicate(workDir, {
+      kind: "external-call-log",
+      binary: "gh",
+      match: { kind: "argv-prefix", argv: ["pr", "review"] },
+    });
+    expect(ok.passed).toBe(true);
+  });
+
+  it("argv-includes matches when a specific token appears anywhere in argv", () => {
+    seedExternalCallLog("gh", [
+      { argv: ["pr", "review", "42", "--body", "Looks good"] },
+    ]);
+    const ok = evaluatePredicate(workDir, {
+      kind: "external-call-log",
+      binary: "gh",
+      match: { kind: "argv-includes", arg: "--body" },
+    });
+    expect(ok.passed).toBe(true);
+  });
+
+  it("fails when the binary was never invoked (log file missing)", () => {
+    const result = evaluatePredicate(workDir, {
+      kind: "external-call-log",
+      binary: "gh",
+      match: { kind: "argv-prefix", argv: ["pr", "review"] },
+    });
+    expect(result.passed).toBe(false);
+    expect(result.detail).toContain("never invoked");
+  });
+
+  it("fails when the binary was invoked but argv shape mismatches", () => {
+    seedExternalCallLog("gh", [
+      { argv: ["repo", "view", "owner/repo"] },
+    ]);
+    const result = evaluatePredicate(workDir, {
+      kind: "external-call-log",
+      binary: "gh",
+      match: { kind: "argv-prefix", argv: ["pr", "review"] },
+    });
+    expect(result.passed).toBe(false);
+    expect(result.detail).toContain("none match");
+    expect(result.detail).toContain("repo");
+  });
+
+  it("fails when argv matches but exit-code class does not", () => {
+    seedExternalCallLog("gh", [
+      { argv: ["pr", "review", "42", "--approve"], exitCode: 0 },
+    ]);
+    const result = evaluatePredicate(workDir, {
+      kind: "external-call-log",
+      binary: "gh",
+      match: { kind: "argv-prefix", argv: ["pr", "review"] },
+      exitClass: "non-zero",
+    });
+    expect(result.passed).toBe(false);
+    expect(result.detail).toContain("exitClass=non-zero");
+  });
+
+  it("passes when argv matches and exit-code class matches", () => {
+    seedExternalCallLog("gh", [
+      { argv: ["pr", "review", "42"], exitCode: 0 },
+    ]);
+    const result = evaluatePredicate(workDir, {
+      kind: "external-call-log",
+      binary: "gh",
+      match: { kind: "argv-prefix", argv: ["pr", "review"] },
+      exitClass: "zero",
+    });
+    expect(result.passed).toBe(true);
+  });
+
+  it("ignores entries from other binaries even if the log was tampered with", () => {
+    seedExternalCallLog("gh", [
+      { binary: "git", argv: ["status"] },
+    ]);
+    const result = evaluatePredicate(workDir, {
+      kind: "external-call-log",
+      binary: "gh",
+      match: { kind: "argv-prefix", argv: ["pr", "review"] },
+    });
+    expect(result.passed).toBe(false);
+    expect(result.detail).toContain("never invoked");
+  });
+
+  it("fails loudly when the log is malformed", () => {
+    const dir = join(workDir, ".kota", "external-calls");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "gh.jsonl"), "{not json}\n");
+    expect(() =>
+      evaluatePredicate(workDir, {
+        kind: "external-call-log",
+        binary: "gh",
+        match: { kind: "argv-prefix", argv: ["pr"] },
+      }),
+    ).toThrow();
+  });
+});

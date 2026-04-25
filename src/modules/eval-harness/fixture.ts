@@ -82,6 +82,18 @@ export type FixtureSpecFile = {
    */
   triggerPayload?: Record<string, unknown>;
   /**
+   * Optional list of external binary names the runner should shadow with a
+   * fixture-scoped recording shim (e.g. ["gh"]). Each declared name has a
+   * Node-script shim installed under `<workingDir>/.kota/shims/<binary>`,
+   * the shim directory is prepended to `PATH` for the subprocess, and the
+   * shim records every invocation as a JSONL line under
+   * `<workingDir>/.kota/external-calls/<binary>.jsonl` for an
+   * `external-call-log` predicate to inspect. Production code paths leave
+   * `PATH` untouched. Allowed name characters are `[A-Za-z0-9._-]` so a
+   * malformed declaration cannot escape the shim directory.
+   */
+  externalCallShims?: readonly string[];
+  /**
    * Optional tags operators use to slice the fixture set (e.g. "smoke",
    * "regression-2026-04", "slow"). Not load-bearing — scoring does not read
    * them.
@@ -158,6 +170,35 @@ function isFixturePredicate(value: unknown): value is FixturePredicate {
         typeof p.event === "string" &&
         (p.workflow === undefined || typeof p.workflow === "string")
       );
+    case "external-call-log":
+      return (
+        typeof p.binary === "string" &&
+        p.binary.length > 0 &&
+        isValidExternalCallMatch(p.match) &&
+        (p.exitClass === undefined ||
+          p.exitClass === "zero" ||
+          p.exitClass === "non-zero")
+      );
+    default:
+      return false;
+  }
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((v) => typeof v === "string");
+}
+
+function isValidExternalCallMatch(value: unknown): boolean {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const v = value as Record<string, unknown>;
+  switch (v.kind) {
+    case "argv-equals":
+    case "argv-prefix":
+      return isStringArray(v.argv) && (v.argv as string[]).length > 0;
+    case "argv-includes":
+      return typeof v.arg === "string" && v.arg.length > 0;
     default:
       return false;
   }
@@ -273,6 +314,23 @@ function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSpecFile 
     triggerPayload = r.triggerPayload as Record<string, unknown>;
   }
 
+  let externalCallShims: string[] | undefined;
+  if (r.externalCallShims !== undefined) {
+    if (!isStringArray(r.externalCallShims)) {
+      throw new Error(
+        `Fixture at "${fixtureDir}" has invalid externalCallShims; must be an array of binary-name strings.`,
+      );
+    }
+    for (const name of r.externalCallShims as string[]) {
+      if (!/^[A-Za-z0-9._-]+$/.test(name)) {
+        throw new Error(
+          `Fixture at "${fixtureDir}" externalCallShims entry ${JSON.stringify(name)} contains characters outside [A-Za-z0-9._-]. Refuse to install a shim with that name.`,
+        );
+      }
+    }
+    externalCallShims = r.externalCallShims as string[];
+  }
+
   const provenance = parseProvenance(r.provenance, fixtureDir);
 
   return {
@@ -284,6 +342,7 @@ function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSpecFile 
     predicates,
     provenance,
     ...(triggerPayload !== undefined && { triggerPayload }),
+    ...(externalCallShims !== undefined && { externalCallShims }),
     ...(tags && { tags }),
   };
 }
@@ -310,12 +369,18 @@ function validateRecordingProvenance(
   recordings: readonly AgentStepRecording[],
 ): void {
   if (recordings.length === 0) return;
-  if (spec.provenance.kind !== "real-failure") {
-    throw new FixtureRecordingProvenanceError(
-      fixtureDir,
-      `agent-step recordings are present but fixture provenance kind is "${spec.provenance.kind}". Agent-call fixtures must declare "real-failure" provenance so every recording points at a real source run id.`,
-    );
-  }
+  // Real-failure fixtures pin every recording to the same source run id so
+  // the recording is provable evidence of a past run rather than a synthesized
+  // shape. Smoke fixtures opt out of that pin: they exist to lock harness
+  // plumbing for a workflow whose target failure mode has no real-run history
+  // yet (e.g. pr-reviewer's external-call-log path), and a synthesized
+  // recording is the legitimate way to exercise that plumbing. Honesty for
+  // smoke fixtures lives in the written `justification`, which the loader
+  // already enforces is non-empty; the recording's own `sourceRunId` field
+  // (also enforced non-empty by `parseAgentStepRecording`) carries
+  // traceability for the recording's origin without forcing a fake
+  // "real-failure" claim onto a synthesized shape.
+  if (spec.provenance.kind !== "real-failure") return;
   const expected = spec.provenance.sourceRunId;
   for (const recording of recordings) {
     if (recording.sourceRunId !== expected) {
