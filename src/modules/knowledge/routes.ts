@@ -1,38 +1,37 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import { getKnowledgeProvider } from "#core/modules/provider-registry.js";
-import type { KnowledgeEntry } from "#core/modules/provider-types.js";
+import type { KnowledgeEntry, SearchFilters } from "#core/modules/provider-types.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 
-type KnowledgeListItem = {
-  id: string;
-  title: string;
-  type: string;
-  tags: string[];
-  status: string;
-  excerpt: string;
-};
-
 type KnowledgeListResponse = {
-  entries: KnowledgeListItem[];
+  entries: KnowledgeEntry[];
 };
 
-function toListItem(entry: KnowledgeEntry): KnowledgeListItem {
-  return {
-    id: entry.id,
-    title: entry.title,
-    type: entry.type,
-    tags: entry.tags,
-    status: entry.status,
-    excerpt: entry.content.slice(0, 200).replace(/\s+/g, " ").trim(),
-  };
+function parseScope(value: string | null): "project" | "global" | "all" | undefined {
+  if (value === "project" || value === "global" || value === "all") return value;
+  return undefined;
 }
 
-export function handleListKnowledge(res: ServerResponse): void {
+function parseListFilters(req: IncomingMessage): SearchFilters {
+  const url = new URL(req.url ?? "", "http://localhost");
+  const scope = parseScope(url.searchParams.get("scope")) ?? "all";
+  const filters: SearchFilters = { scope };
+  const tag = url.searchParams.get("tag");
+  const type = url.searchParams.get("type");
+  const status = url.searchParams.get("status");
+  if (tag) filters.tag = tag;
+  if (type) filters.type = type;
+  if (status) filters.status = status;
+  return filters;
+}
+
+export function handleListKnowledge(req: IncomingMessage, res: ServerResponse): void {
   try {
     const provider = getKnowledgeProvider();
-    const all = provider.list({ scope: "all" });
-    jsonResponse(res, 200, { entries: all.map(toListItem) } satisfies KnowledgeListResponse);
+    const filters = parseListFilters(req);
+    const entries = provider.list(filters);
+    jsonResponse(res, 200, { entries } satisfies KnowledgeListResponse);
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }
@@ -71,11 +70,76 @@ export async function handleAddKnowledge(
   const content = typeof body.content === "string" ? body.content : "";
   const type = typeof body.type === "string" ? body.type : "note";
   const status = typeof body.status === "string" ? body.status : "active";
-  const tags = Array.isArray(body.tags) ? (body.tags as unknown[]).filter((t): t is string => typeof t === "string") : [];
+  const tags = Array.isArray(body.tags)
+    ? (body.tags as unknown[]).filter((t): t is string => typeof t === "string")
+    : [];
+  const scope =
+    body.scope === "project" || body.scope === "global" ? body.scope : undefined;
+  const meta =
+    body.meta && typeof body.meta === "object" && !Array.isArray(body.meta)
+      ? Object.fromEntries(
+          Object.entries(body.meta as Record<string, unknown>).filter(
+            (entry): entry is [string, string] => typeof entry[1] === "string",
+          ),
+        )
+      : undefined;
   try {
     const provider = getKnowledgeProvider();
-    const id = provider.create({ title, content, type, tags, status });
+    const id = provider.create({
+      title,
+      content,
+      type,
+      tags,
+      status,
+      ...(scope !== undefined && { scope }),
+      ...(meta !== undefined && { meta }),
+    });
     jsonResponse(res, 201, { id });
+  } catch (err) {
+    jsonResponse(res, 500, { error: (err as Error).message });
+  }
+}
+
+export async function handleSearchKnowledge(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const url = new URL(req.url ?? "", "http://localhost");
+  const query = url.searchParams.get("q") ?? "";
+  const tag = url.searchParams.get("tag") ?? undefined;
+  const type = url.searchParams.get("type") ?? undefined;
+  const status = url.searchParams.get("status") ?? undefined;
+  const scope = parseScope(url.searchParams.get("scope"));
+  const semantic = url.searchParams.get("semantic") === "true";
+  const limitParam = url.searchParams.get("limit");
+  const limit = limitParam
+    ? Math.max(1, Number.parseInt(limitParam, 10) || 0)
+    : 20;
+  const filters: SearchFilters = {};
+  if (tag) filters.tag = tag;
+  if (type) filters.type = type;
+  if (status) filters.status = status;
+  if (scope) filters.scope = scope;
+  try {
+    const provider = getKnowledgeProvider();
+    if (semantic && !provider.supportsSemanticSearch()) {
+      jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
+      return;
+    }
+    const entries = semantic
+      ? await provider.semanticSearch(query, limit, filters)
+      : provider.search(query, filters).slice(0, limit);
+    jsonResponse(res, 200, { ok: true, entries });
+  } catch (err) {
+    jsonResponse(res, 500, { error: (err as Error).message });
+  }
+}
+
+export async function handleReindexKnowledge(res: ServerResponse): Promise<void> {
+  try {
+    const provider = getKnowledgeProvider();
+    const result = await provider.reindex();
+    jsonResponse(res, 200, result);
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }
@@ -136,12 +200,22 @@ export function knowledgeRoutes(): RouteRegistration[] {
     {
       method: "GET",
       path: "/api/knowledge",
-      handler: (_req, res) => handleListKnowledge(res),
+      handler: (req, res) => handleListKnowledge(req, res),
+    },
+    {
+      method: "GET",
+      path: "/api/knowledge/search",
+      handler: (req, res) => handleSearchKnowledge(req, res),
     },
     {
       method: "POST",
       path: "/api/knowledge",
       handler: (req, res) => handleAddKnowledge(req, res),
+    },
+    {
+      method: "POST",
+      path: "/api/knowledge/reindex",
+      handler: (_req, res) => handleReindexKnowledge(res),
     },
     {
       method: "GET",

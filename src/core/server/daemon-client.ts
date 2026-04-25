@@ -16,7 +16,10 @@ import type {
   OwnerQuestionStatus,
   PendingOwnerQuestion,
 } from "#core/daemon/owner-question-queue.js";
-import type { ConversationData } from "#core/modules/provider-types.js";
+import type {
+  ConversationData,
+  KnowledgeEntry,
+} from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type {
@@ -26,6 +29,16 @@ import type {
   HistoryListFilter,
   HistoryListResult,
   HistoryShowResult,
+  KnowledgeAddOptions,
+  KnowledgeAddResult,
+  KnowledgeClient,
+  KnowledgeDeleteResult,
+  KnowledgeListFilter,
+  KnowledgeListResult,
+  KnowledgeReindexResult,
+  KnowledgeSearchFilter,
+  KnowledgeSearchResult,
+  KnowledgeShowResult,
   KotaClient,
   MemoryAddResult,
   MemoryClient,
@@ -90,6 +103,7 @@ export class DaemonControlClient implements KotaClient {
   readonly memory: MemoryClient;
   readonly ownerQuestions: OwnerQuestionsClient;
   readonly history: HistoryClient;
+  readonly knowledge: KnowledgeClient;
 
   private constructor(
     private readonly baseUrl: string,
@@ -188,6 +202,112 @@ export class DaemonControlClient implements KotaClient {
       show: async (id) => this.historyShowHttp(id),
       delete: async (id) => this.historyDeleteHttp(id),
     };
+    this.knowledge = {
+      list: async (filter) => this.listKnowledgeHttp(filter),
+      show: async (id) => this.showKnowledgeHttp(id),
+      search: async (query, filter) => this.searchKnowledgeHttp(query, filter),
+      add: async (options) => this.addKnowledgeHttp(options),
+      delete: async (id) => this.deleteKnowledgeHttp(id),
+      reindex: async () => this.reindexKnowledgeHttp(),
+    };
+  }
+
+  private async listKnowledgeHttp(
+    filter?: KnowledgeListFilter,
+  ): Promise<KnowledgeListResult> {
+    const params = new URLSearchParams();
+    if (filter?.tag) params.set("tag", filter.tag);
+    if (filter?.type) params.set("type", filter.type);
+    if (filter?.status) params.set("status", filter.status);
+    if (filter?.scope) params.set("scope", filter.scope);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetchWithTimeout(`${this.baseUrl}/api/knowledge${query}`, {
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    const body = (await res.json()) as { entries: KnowledgeEntry[] };
+    return { entries: body.entries };
+  }
+
+  private async showKnowledgeHttp(id: string): Promise<KnowledgeShowResult> {
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/api/knowledge/${encodeURIComponent(id)}`,
+      { headers: this.authHeaders() },
+    );
+    if (res.status === 404) return { found: false };
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    const entry = (await res.json()) as KnowledgeEntry;
+    return { found: true, entry };
+  }
+
+  private async searchKnowledgeHttp(
+    query: string,
+    filter?: KnowledgeSearchFilter,
+  ): Promise<KnowledgeSearchResult> {
+    const params = new URLSearchParams();
+    params.set("q", query);
+    if (filter?.tag) params.set("tag", filter.tag);
+    if (filter?.type) params.set("type", filter.type);
+    if (filter?.status) params.set("status", filter.status);
+    if (filter?.scope) params.set("scope", filter.scope);
+    if (filter?.semantic) params.set("semantic", "true");
+    if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/api/knowledge/search?${params.toString()}`,
+      { headers: this.authHeaders() },
+    );
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as KnowledgeSearchResult;
+  }
+
+  private async addKnowledgeHttp(
+    options: KnowledgeAddOptions,
+  ): Promise<KnowledgeAddResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/api/knowledge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.authHeaders() },
+      body: JSON.stringify(options),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    const body = (await res.json()) as { id: string };
+    return { id: body.id };
+  }
+
+  private async deleteKnowledgeHttp(id: string): Promise<KnowledgeDeleteResult> {
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/api/knowledge/${encodeURIComponent(id)}`,
+      { method: "DELETE", headers: this.authHeaders() },
+    );
+    if (res.status === 404) return { ok: false, reason: "not_found" };
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return { ok: true };
+  }
+
+  private async reindexKnowledgeHttp(): Promise<KnowledgeReindexResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/api/knowledge/reindex`, {
+      method: "POST",
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as KnowledgeReindexResult;
   }
 
   private async historyListHttp(filter?: HistoryListFilter): Promise<HistoryListResult> {

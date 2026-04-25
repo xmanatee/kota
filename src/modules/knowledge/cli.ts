@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import type { Command } from "commander";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
-import { getKnowledgeProvider } from "#core/modules/provider-registry.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
+import type { KnowledgeEntry } from "#core/modules/provider-types.js";
 import {
 	blank,
 	kvBlock,
@@ -75,6 +76,16 @@ export function buildKnowledgeSearchLines(entries: KnowledgeRow[]): LineNode[] {
 	return [header, rule, ...rows];
 }
 
+function toRow(entry: KnowledgeEntry): KnowledgeRow {
+	return {
+		id: entry.id,
+		title: entry.title,
+		type: entry.type,
+		status: entry.status,
+		updated: entry.updated,
+	};
+}
+
 /** Parse a JSON or JSONL file into raw entry objects. */
 export function parseImportEntries(content: string): RawImportEntry[] {
 	const trimmed = content.trim();
@@ -90,7 +101,10 @@ export function parseImportEntries(content: string): RawImportEntry[] {
 		.map((line) => JSON.parse(line) as RawImportEntry);
 }
 
-export function registerKnowledgeCommands(program: Command): void {
+export function registerKnowledgeCommands(
+	program: Command,
+	ctx: ModuleContext,
+): void {
 	const kCmd = program
 		.command("knowledge")
 		.description("Inspect and manage the project knowledge store");
@@ -105,15 +119,17 @@ export function registerKnowledgeCommands(program: Command): void {
 		.action(async (opts: { tag?: string; type?: string; status?: string; limit: string }) => {
 			await ensureCliProvidersFor(["knowledge"]);
 			const limit = Math.max(1, parseInt(opts.limit, 10) || 20);
-			const store = getKnowledgeProvider();
-			const entries = store
-				.list({ tag: opts.tag, type: opts.type, status: opts.status })
-				.slice(0, limit);
+			const result = await ctx.client.knowledge.list({
+				tag: opts.tag,
+				type: opts.type,
+				status: opts.status,
+			});
+			const entries = result.entries.slice(0, limit);
 			if (entries.length === 0) {
 				print(line(plain("No knowledge entries.")));
 				return;
 			}
-			print(stack(...buildKnowledgeListLines(entries)));
+			print(stack(...buildKnowledgeListLines(entries.map(toRow))));
 		});
 
 	kCmd
@@ -127,24 +143,22 @@ export function registerKnowledgeCommands(program: Command): void {
 		.action(async (query: string, opts: { tag?: string; type?: string; status?: string; semantic?: boolean; limit: string }) => {
 			await ensureCliProvidersFor(["knowledge"]);
 			const limit = Math.max(1, parseInt(opts.limit, 10) || 20);
-			const store = getKnowledgeProvider();
-			const filters = {
+			const result = await ctx.client.knowledge.search(query, {
 				tag: opts.tag,
 				type: opts.type,
 				status: opts.status,
-			};
-			if (opts.semantic && !store.supportsSemanticSearch()) {
+				semantic: opts.semantic === true,
+				limit,
+			});
+			if (!result.ok) {
 				console.error("Semantic knowledge search requires an embedding-backed knowledge provider.");
 				process.exit(1);
 			}
-			const results = opts.semantic
-				? await store.semanticSearch(query, limit, filters)
-				: store.search(query, filters).slice(0, limit);
-			if (results.length === 0) {
+			if (result.entries.length === 0) {
 				print(line(plain("No matching knowledge entries.")));
 				return;
 			}
-			print(stack(...buildKnowledgeSearchLines(results)));
+			print(stack(...buildKnowledgeSearchLines(result.entries.map(toRow))));
 		});
 
 	kCmd
@@ -152,12 +166,12 @@ export function registerKnowledgeCommands(program: Command): void {
 		.description("Print a single knowledge entry")
 		.action(async (id: string) => {
 			await ensureCliProvidersFor(["knowledge"]);
-			const store = getKnowledgeProvider();
-			const entry = store.read(id);
-			if (!entry) {
+			const result = await ctx.client.knowledge.show(id);
+			if (!result.found) {
 				console.error(`Knowledge entry "${id}" not found.`);
 				process.exit(1);
 			}
+			const entry = result.entry;
 			const meta = Object.entries(entry.meta).map(([k, v]) => ({
 				label: k,
 				value: String(v),
@@ -198,8 +212,7 @@ export function registerKnowledgeCommands(program: Command): void {
 				for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
 				content = Buffer.concat(chunks).toString("utf-8").trimEnd();
 			}
-			const store = getKnowledgeProvider();
-			const id = store.create({
+			const result = await ctx.client.knowledge.add({
 				title: opts.title,
 				content,
 				type: opts.type,
@@ -208,7 +221,7 @@ export function registerKnowledgeCommands(program: Command): void {
 				scope: opts.scope as "project" | "global",
 			});
 			// biome-ignore lint/suspicious/noConsole: bare id output consumed by scripts
-			console.log(id);
+			console.log(result.id);
 		});
 
 	kCmd
@@ -216,9 +229,8 @@ export function registerKnowledgeCommands(program: Command): void {
 		.description("Delete a knowledge entry by ID")
 		.action(async (id: string) => {
 			await ensureCliProvidersFor(["knowledge"]);
-			const store = getKnowledgeProvider();
-			const ok = store.delete(id);
-			if (!ok) {
+			const result = await ctx.client.knowledge.delete(id);
+			if (!result.ok) {
 				console.error(`Knowledge entry "${id}" not found.`);
 				process.exit(1);
 			}
@@ -247,14 +259,13 @@ export function registerKnowledgeCommands(program: Command): void {
 				console.error(`Invalid format "${opts.format}". Use "json" or "jsonl".`);
 				process.exit(1);
 			}
-			const store = getKnowledgeProvider();
-			const entries = store.list({
+			const result = await ctx.client.knowledge.list({
 				type: opts.type,
 				status: opts.status,
 				tag: opts.tag,
 				scope: opts.scope as "project" | "global" | "all",
 			});
-			const exported = entries.map((e) => ({
+			const exported = result.entries.map((e) => ({
 				title: e.title,
 				body: e.content,
 				tags: e.tags,
@@ -284,8 +295,7 @@ export function registerKnowledgeCommands(program: Command): void {
 		)
 		.action(async () => {
 			await ensureCliProvidersFor(["knowledge"]);
-			const provider = getKnowledgeProvider();
-			const result = await provider.reindex();
+			const result = await ctx.client.knowledge.reindex();
 			if (result.skipped) {
 				print(line(plain(
 					"Semantic search not configured — nothing to reindex. " +
@@ -330,7 +340,6 @@ export function registerKnowledgeCommands(program: Command): void {
 				console.error(`Failed to parse file: ${err instanceof Error ? err.message : String(err)}`);
 				process.exit(1);
 			}
-			const store = getKnowledgeProvider();
 			let imported = 0;
 			let skipped = 0;
 			for (let i = 0; i < entries.length; i++) {
@@ -344,7 +353,7 @@ export function registerKnowledgeCommands(program: Command): void {
 					Array.isArray(entry.tags) && entry.tags.every((t) => typeof t === "string")
 						? (entry.tags as string[])
 						: [];
-				store.create({
+				await ctx.client.knowledge.add({
 					title: entry.title,
 					content: entry.body,
 					type: opts.type,

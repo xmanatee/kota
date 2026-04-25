@@ -14,6 +14,10 @@ function mockResponse() {
   return { res, result };
 }
 
+function listRequest(query = ""): IncomingMessage {
+  return { url: `/api/knowledge${query}` } as unknown as IncomingMessage;
+}
+
 function makeEntry(overrides: Partial<KnowledgeEntry> = {}): KnowledgeEntry {
   return {
     id: "entry-abc",
@@ -55,19 +59,19 @@ describe("knowledge-routes", () => {
     it("returns 200 with empty entries when store is empty", () => {
       vi.mocked(getKnowledgeProvider).mockReturnValue(makeProvider([]));
       const { res, result } = mockResponse();
-      handleListKnowledge(res);
+      handleListKnowledge(listRequest(), res);
       expect(result.status).toBe(200);
       const body = result.body as { entries: unknown[] };
       expect(body.entries).toEqual([]);
     });
 
-    it("returns list items with id, title, type, tags, status, and excerpt", () => {
+    it("returns full entries with content, tags, timestamps, and meta", () => {
       const entry = makeEntry({ content: "Hello world content." });
       vi.mocked(getKnowledgeProvider).mockReturnValue(makeProvider([entry]));
       const { res, result } = mockResponse();
-      handleListKnowledge(res);
+      handleListKnowledge(listRequest(), res);
       expect(result.status).toBe(200);
-      const body = result.body as { entries: Array<Record<string, unknown>> };
+      const body = result.body as { entries: KnowledgeEntry[] };
       expect(body.entries).toHaveLength(1);
       const item = body.entries[0];
       expect(item.id).toBe("entry-abc");
@@ -75,17 +79,26 @@ describe("knowledge-routes", () => {
       expect(item.type).toBe("note");
       expect(item.tags).toEqual(["testing"]);
       expect(item.status).toBe("active");
-      expect(item.excerpt).toBe("Hello world content.");
+      expect(item.content).toBe("Hello world content.");
+      expect(item.created).toBe("2026-01-01T00:00:00Z");
+      expect(item.updated).toBe("2026-01-01T00:00:00Z");
+      expect(item.meta).toEqual({});
     });
 
-    it("truncates excerpt to 200 characters", () => {
-      const longContent = "x".repeat(300);
-      const entry = makeEntry({ content: longContent });
-      vi.mocked(getKnowledgeProvider).mockReturnValue(makeProvider([entry]));
-      const { res, result } = mockResponse();
-      handleListKnowledge(res);
-      const body = result.body as { entries: Array<Record<string, unknown>> };
-      expect((body.entries[0].excerpt as string).length).toBe(200);
+    it("forwards scope/tag/type/status query params to provider.list", () => {
+      const provider = makeProvider([]);
+      vi.mocked(getKnowledgeProvider).mockReturnValue(provider);
+      const { res } = mockResponse();
+      handleListKnowledge(
+        listRequest("?scope=project&tag=foo&type=note&status=active"),
+        res,
+      );
+      expect(provider.list).toHaveBeenCalledWith({
+        scope: "project",
+        tag: "foo",
+        type: "note",
+        status: "active",
+      });
     });
 
     it("returns 500 when provider throws", () => {
@@ -94,7 +107,7 @@ describe("knowledge-routes", () => {
         list: vi.fn(() => { throw new Error("store error"); }),
       });
       const { res, result } = mockResponse();
-      handleListKnowledge(res);
+      handleListKnowledge(listRequest(), res);
       expect(result.status).toBe(500);
       expect((result.body as { error: string }).error).toBe("store error");
     });

@@ -6,7 +6,7 @@ priority: p2
 area: architecture
 summary: Migrate all non-acceptance CLI subcommands across modules to consume ctx.client.<namespace>.<method> instead of direct stores or .kota/ reads; expand the KotaClient contract namespace surface; add per-namespace daemon HTTP routes where needed.
 created_at: 2026-04-25T13:17:17.850Z
-updated_at: 2026-04-25T15:43:36.000Z
+updated_at: 2026-04-25T17:05:00.000Z
 ---
 
 ## Problem
@@ -183,8 +183,25 @@ until `Done When` is fully satisfied.
   ambiguous-prefix detection in `resolveConversationId(client, …)`.
   CLI no longer imports `getHistory` from any subcommand action handler
   (run `2026-04-25T15-25-46-109Z-builder-hj89qi`).
+- Done — `knowledge` reads, mutations, and reindex: `list`, `search`,
+  `show`, `add`, `delete`, `reindex`, `export`, and `import` now route
+  through `ctx.client.knowledge.{list,search,show,add,delete,reindex}`.
+  `KnowledgeClient` returns full `KnowledgeEntry[]` from `list` and
+  `search` (so list/show/export/render share one shape) and surfaces
+  `{ ok: false, reason: "semantic_unavailable" }` from `search` when the
+  active provider lacks embedding support, mirroring the memory
+  namespace. `KnowledgeAddOptions` carries `scope` (`project`/`global`)
+  and optional `meta`; `KnowledgeListFilter` and `KnowledgeSearchFilter`
+  carry `tag`/`type`/`status`/`scope` and `search` adds `semantic` and
+  `limit`. Daemon adds `GET /api/knowledge/search` (with
+  `q`/`tag`/`type`/`status`/`scope`/`semantic`/`limit`) and
+  `POST /api/knowledge/reindex`; the existing `GET /api/knowledge`
+  route now accepts `tag`/`type`/`status`/`scope` query params and
+  returns full entries (callers slice `limit` themselves). The CLI no
+  longer imports `getKnowledgeProvider` from any subcommand action
+  handler (run `2026-04-25T15-51-37-531Z-builder-az50w1`).
 - Pending — `workflow` mutations (control, run management, definition
-  mutations, trigger/exec); `knowledge`, `agent-ops`, `skill-ops`,
+  mutations, trigger/exec); `agent-ops`, `skill-ops`,
   `harness-parity`, `webhook`, `eval-harness`, `guardrails-audit`,
   `module-manager`, `web`, `config`, `mcp-server`, `voice`,
   `daemon-ops` control, `doctor`.

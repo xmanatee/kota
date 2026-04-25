@@ -3,12 +3,90 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import {
+	getKnowledgeProvider,
 	initProviderRegistry,
 	resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
+import type {
+	KnowledgeAddOptions,
+	KnowledgeListFilter,
+	KnowledgeSearchFilter,
+} from "#core/server/kota-client.js";
 import { parseImportEntries, registerKnowledgeCommands } from "./cli.js";
 import { KnowledgeStore, resetKnowledgeStore } from "./store.js";
+
+function stubCtx(): ModuleContext {
+	return {
+		client: {
+			knowledge: {
+				async list(filter?: KnowledgeListFilter) {
+					const provider = getKnowledgeProvider();
+					const entries = provider.list({
+						tag: filter?.tag,
+						type: filter?.type,
+						status: filter?.status,
+						scope: filter?.scope,
+					});
+					return { entries };
+				},
+				async show(id: string) {
+					const provider = getKnowledgeProvider();
+					const entry = provider.read(id);
+					return entry
+						? { found: true as const, entry }
+						: { found: false as const };
+				},
+				async search(query: string, filter?: KnowledgeSearchFilter) {
+					const provider = getKnowledgeProvider();
+					const limit = filter?.limit ?? 20;
+					const filters = {
+						tag: filter?.tag,
+						type: filter?.type,
+						status: filter?.status,
+						scope: filter?.scope,
+					};
+					if (filter?.semantic) {
+						if (!provider.supportsSemanticSearch()) {
+							return {
+								ok: false as const,
+								reason: "semantic_unavailable" as const,
+							};
+						}
+						const entries = await provider.semanticSearch(query, limit, filters);
+						return { ok: true as const, entries };
+					}
+					const entries = provider.search(query, filters).slice(0, limit);
+					return { ok: true as const, entries };
+				},
+				async add(options: KnowledgeAddOptions) {
+					const provider = getKnowledgeProvider();
+					const id = provider.create({
+						title: options.title,
+						content: options.content,
+						...(options.type !== undefined && { type: options.type }),
+						...(options.tags !== undefined && { tags: options.tags }),
+						...(options.status !== undefined && { status: options.status }),
+						...(options.scope !== undefined && { scope: options.scope }),
+						...(options.meta !== undefined && { meta: options.meta }),
+					});
+					return { id };
+				},
+				async delete(id: string) {
+					const provider = getKnowledgeProvider();
+					return provider.delete(id)
+						? { ok: true as const }
+						: { ok: false as const, reason: "not_found" as const };
+				},
+				async reindex() {
+					const provider = getKnowledgeProvider();
+					return provider.reindex();
+				},
+			},
+		},
+	} as unknown as ModuleContext;
+}
 
 function makeProjectDir(): string {
 	const dir = join(
@@ -22,7 +100,7 @@ function makeProjectDir(): string {
 function makeKnowledgeProgram(): Command {
 	const program = new Command();
 	program.exitOverride();
-	registerKnowledgeCommands(program);
+	registerKnowledgeCommands(program, stubCtx());
 	return program;
 }
 
@@ -344,7 +422,7 @@ describe("kota knowledge search", () => {
 		expect(semanticSearch).toHaveBeenCalledWith(
 			"hello",
 			4,
-			{ tag: undefined, type: undefined, status: undefined },
+			{ tag: undefined, type: undefined, status: undefined, scope: undefined },
 		);
 	});
 });
