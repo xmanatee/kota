@@ -1,12 +1,12 @@
 ---
 id: task-migrate-remaining-cli-subcommands-to-kotaclient-co
 title: Migrate remaining CLI subcommands to KotaClient contract
-status: doing
+status: dropped
 priority: p2
 area: architecture
 summary: Migrate all non-acceptance CLI subcommands across modules to consume ctx.client.<namespace>.<method> instead of direct stores or .kota/ reads; expand the KotaClient contract namespace surface; add per-namespace daemon HTTP routes where needed.
 created_at: 2026-04-25T13:17:17.850Z
-updated_at: 2026-04-25T17:05:00.000Z
+updated_at: 2026-04-25T20:31:21.442Z
 ---
 
 ## Problem
@@ -210,3 +210,26 @@ until `Done When` is fully satisfied.
 
 The decomposer may split this task into per-cluster child tasks at any
 time if a single cluster warrants its own queue entry.
+
+## Decomposed
+
+After the workflow control cluster shipped (run
+`2026-04-25T16-09-18-430Z-builder-dhnx9j`, critic verdict pass; the
+builder step then timed out and recovery stashed the diff), the
+remaining clusters were split into four sequenceable per-cluster
+child tasks:
+
+- `task-migrate-workflow-run-def-trigger-cli-to-kotaclient` —
+  workflow run management, definition mutations, and trigger/exec
+  subcommands; completes the workflow-ops module migration. (ready)
+- `task-migrate-agent-skill-harness-cli-to-kotaclient-cont` —
+  agent-ops, skill-ops, and harness-parity per-agent-context CLI
+  surfaces. (backlog)
+- `task-migrate-webhook-mcp-web-voice-cli-to-kotaclient-co` —
+  webhook, mcp-server, web, and voice external-interaction CLI
+  surfaces. (backlog)
+- `task-migrate-operator-cli-utilities-and-add-kota-read-g` —
+  module-manager, config, daemon-ops control, doctor, eval-harness,
+  guardrails-audit operator-utility CLIs, plus the sibling guard
+  test rejecting new direct `.kota/` reads from non-bootstrap CLI
+  code. (backlog)
