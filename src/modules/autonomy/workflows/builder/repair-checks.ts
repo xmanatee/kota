@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import { checkCommitStageable } from "#modules/autonomy/commit.js";
 import { createCriticCheck } from "#modules/autonomy/critic.js";
+import { checkDocBloat } from "#modules/autonomy/doc-bloat-check.js";
 import { checkCommitMessageExists, checkNoScratchArtifacts, runCheck } from "#modules/autonomy/shared.js";
 import { findTaskReviewTarget } from "#modules/autonomy/task-review-target.js";
 
@@ -266,6 +267,12 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       id: "no-scratch-artifacts",
       type: "code" as const,
       run: (ctx) => checkNoScratchArtifacts(ctx.projectDir),
+    },
+    {
+      id: "doc-bloat",
+      type: "code" as const,
+      phase: 1,
+      run: (ctx) => checkDocBloat(ctx.projectDir),
     },
     {
       id: "commit-message-exists",

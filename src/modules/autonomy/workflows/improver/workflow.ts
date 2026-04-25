@@ -3,6 +3,7 @@ import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
+import { checkDocBloat } from "#modules/autonomy/doc-bloat-check.js";
 import { createImproverSemanticCheck } from "#modules/autonomy/improver-semantic-gate.js";
 import { onRecoveryTrigger, resetWorktreeForRecovery } from "#modules/autonomy/recovery.js";
 import type { RunOutcomeAggregation } from "#modules/autonomy/run-outcome-aggregation.js";
@@ -139,6 +140,12 @@ const improverWorkflow: WorkflowDefinitionInput = {
             id: "no-scratch-artifacts",
             type: "code" as const,
             run: (ctx) => checkNoScratchArtifacts(ctx.projectDir),
+          },
+          {
+            id: "doc-bloat",
+            type: "code" as const,
+            phase: 1,
+            run: (ctx) => checkDocBloat(ctx.projectDir),
           },
           {
             id: "commit-message-exists",

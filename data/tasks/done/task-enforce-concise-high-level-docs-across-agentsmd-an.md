@@ -1,12 +1,12 @@
 ---
 id: task-enforce-concise-high-level-docs-across-agentsmd-an
 title: Enforce concise high-level docs across AGENTS.md and prevent agent-driven doc bloat
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Add an enforcement mechanism (improver/critic check, lint, or new agent) that prevents agents from bloating AGENTS.md and other docs with file inventories, mechanism walkthroughs, or duplicated info.
 created_at: 2026-04-25T12:27:43.474Z
-updated_at: 2026-04-25T12:29:46.127Z
+updated_at: 2026-04-25T12:39:19.627Z
 ---
 
 ## Problem

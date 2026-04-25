@@ -32,6 +32,17 @@ This directory contains the improver workflow definition and prompt.
   `durationOutliers` so they can be inspected when improver fires on a real
   failure.
 
+## Doc-Bloat Repair Check
+
+`doc-bloat-check` runs in this workflow's repair loop (and in builder's)
+as a deterministic gate over staged AGENTS.md/CLAUDE.md/docs additions.
+It rejects three concrete bloat shapes: drawn directory trees, prose
+narrating renames or version history, and file-path bullet dumps beyond
+a small budget. The underlying conventions stay in the root
+`AGENTS.md`/`CLAUDE.md`; this check is the enforcement surface so they
+do not silently drift across autonomous runs. Judgment-heavy doc-quality
+calls remain with the semantic gate and the critic.
+
 ## Evidence Attachment
 
 Improver is the autonomous distillation mechanism for this repo: systemic
