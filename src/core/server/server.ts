@@ -17,9 +17,13 @@ import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
 import { initModuleLogStore } from "#core/modules/module-log.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
+import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { DaemonLink } from "./daemon-link.js";
-import { NotificationHub } from "./server-notifications.js";
+import {
+  NOTIFICATION_HUB_PROVIDER_TYPE,
+  type NotificationHubProvider,
+} from "./notification-hub-provider.js";
 import { buildRequestHandler } from "./server-routes.js";
 import { SessionPool } from "./session-pool.js";
 
@@ -75,17 +79,20 @@ export function startServer(options: ServerOptions): Server {
   initModuleLogStore(process.cwd());
   const scheduler = getScheduler();
 
-  const hub = new NotificationHub();
-
   let stopBusConnection = (): void => {};
   let stopScheduler = (): void => {};
   if (!daemonRunning) {
-    stopBusConnection = scheduler.connectBus(bus, (dueItems) => {
-      hub.handleDueItems(dueItems);
-    });
-    stopScheduler = scheduler.startTimer(30_000, (dueItems) => {
-      hub.handleDueItems(dueItems);
-    });
+    const hub = getProviderRegistry()?.get<NotificationHubProvider>(
+      NOTIFICATION_HUB_PROVIDER_TYPE,
+    );
+    if (hub) {
+      stopBusConnection = scheduler.connectBus(bus, (dueItems) => {
+        hub.handleDueItems(dueItems);
+      });
+      stopScheduler = scheduler.startTimer(30_000, (dueItems) => {
+        hub.handleDueItems(dueItems);
+      });
+    }
   }
 
   const cleanupTimer = setInterval(() => pool.cleanup(), 5 * 60 * 1000);
@@ -106,7 +113,6 @@ export function startServer(options: ServerOptions): Server {
     port,
     pool,
     scheduler,
-    hub,
     bus,
     moduleRoutes: options.moduleRoutes ?? [],
     makeAgent,

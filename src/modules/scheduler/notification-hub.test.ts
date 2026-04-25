@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ScheduledItem } from "#core/daemon/scheduler.js";
-import { NotificationHub } from "./server-notifications.js";
-import type { SseTransport } from "./session-pool.js";
+import type { SseTransport } from "#core/server/session-pool.js";
+import { NotificationHub } from "./notification-hub.js";
 
 function mockSseClient(closed = false): SseTransport & { sentEvents: Array<{ name: string; data: unknown }> } {
   const sentEvents: Array<{ name: string; data: unknown }> = [];

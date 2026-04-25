@@ -10,13 +10,7 @@ import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { DaemonControlClient } from "./daemon-client.js";
 import { queryDaemonStatus } from "./daemon-routes.js";
 import { handleEventTrigger } from "./event-routes.js";
-import type { NotificationHub } from "./server-notifications.js";
-import {
-  jsonResponse,
-  type SessionPool,
-  SseTransport,
-  setCors,
-} from "./session-pool.js";
+import { jsonResponse, type SessionPool, setCors } from "./session-pool.js";
 import {
   handleChat,
   handleCreateSession,
@@ -41,7 +35,6 @@ export type ServerContext = {
   port: number;
   pool: SessionPool;
   scheduler: Scheduler;
-  hub: NotificationHub;
   bus: EventBus;
   moduleRoutes: RouteRegistration[];
   makeAgent: (transport: Transport, autonomyMode: AutonomyMode) => AgentSession;
@@ -118,29 +111,6 @@ export function buildRequestHandler(ctx: ServerContext) {
       handleChat(req, res, ctx.pool, ctx.makeAgent, ctx.defaultAutonomyMode, registerSessionWithDaemon).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
-      return;
-    }
-
-    if (req.method === "GET" && path === "/api/schedules") {
-      jsonResponse(res, 200, { schedules: ctx.scheduler.pending() });
-      return;
-    }
-
-    if (req.method === "GET" && path === "/api/notifications") {
-      setCors(res);
-      res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
-      const sse = new SseTransport(res);
-      ctx.hub.addClient(sse);
-      res.on("close", () => ctx.hub.removeClient(sse));
-      try {
-        for (const item of ctx.scheduler.getDue()) {
-          ctx.scheduler.markFired(item.id);
-          sse.send("notification", { type: "reminder", id: item.id, description: item.description, scheduledFor: item.triggerAt, repeat: item.repeatLabel || null });
-        }
-      } catch (err) {
-        sse.send("error", { message: (err as Error).message });
-      }
-      sse.send("connected", { message: "Listening for notifications" });
       return;
     }
 

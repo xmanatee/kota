@@ -1,12 +1,12 @@
 ---
 id: task-move-apischedules-and-apinotifications-server-rout
 title: Move /api/schedules and /api/notifications server routes into the scheduler module via KotaModule.routes
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Migrate the two scheduler-owned server routes out of core/server-routes.ts into a routes() contribution on the scheduler module, matching the recent /commands and /history server-route migrations.
 created_at: 2026-04-25T08:13:50.648Z
-updated_at: 2026-04-25T08:13:50.648Z
+updated_at: 2026-04-25T08:26:03.331Z
 ---
 
 ## Problem

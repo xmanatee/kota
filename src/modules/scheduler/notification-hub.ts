@@ -1,15 +1,18 @@
 /**
- * Notification hub — manages SSE notification clients and due-item reminder dispatching.
+ * Notification hub — manages SSE notification clients for the scheduler
+ * module's `/api/notifications` route and broadcasts due-item reminders.
  *
- * Extracted from server.ts to:
- * 1. Deduplicate the due-item callback (was copy-pasted for timers)
- * 2. Make notification broadcasting independently testable
+ * The HTTP server registers this hub as a provider (via the scheduler
+ * module's `onLoad`) and looks it up to wire the scheduler bus and timer
+ * callbacks. Module-local routes resolve the same hub through the
+ * `getNotificationHub()` accessor.
  */
 
 import type { ScheduledItem } from "#core/daemon/scheduler.js";
-import type { SseTransport } from "./session-pool.js";
+import type { NotificationHubProvider } from "#core/server/notification-hub-provider.js";
+import type { SseTransport } from "#core/server/session-pool.js";
 
-export class NotificationHub {
+export class NotificationHub implements NotificationHubProvider {
   private clients = new Set<SseTransport>();
 
   addClient(client: SseTransport): void {
@@ -46,4 +49,15 @@ export class NotificationHub {
       });
     }
   }
+}
+
+let instance: NotificationHub | null = null;
+
+export function getNotificationHub(): NotificationHub {
+  if (!instance) instance = new NotificationHub();
+  return instance;
+}
+
+export function resetNotificationHub(): void {
+  instance = null;
 }
