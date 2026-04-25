@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { OwnerQuestionStatus, PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
-import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import {
   blank,
   type LineNode,
@@ -86,7 +86,7 @@ function renderResolved(item: PendingOwnerQuestion): RenderNode {
   return stack(...rows, blank());
 }
 
-export function registerOwnerQuestionCommands(program: Command): void {
+export function registerOwnerQuestionCommands(program: Command, ctx: ModuleContext): void {
   const cmd = program
     .command("owner-question")
     .description("Manage the owner question queue for agent escalations");
@@ -94,9 +94,9 @@ export function registerOwnerQuestionCommands(program: Command): void {
   cmd
     .command("list")
     .description("List pending owner questions")
-    .action(() => {
-      const queue = getOwnerQuestionQueue();
-      const items = queue.list("pending");
+    .action(async () => {
+      const result = await ctx.client.ownerQuestions.list();
+      const items = result.questions;
       if (items.length === 0) {
         print(line(plain("No pending owner questions.")));
         return;
@@ -114,14 +114,14 @@ export function registerOwnerQuestionCommands(program: Command): void {
   cmd
     .command("answer <id> <answer...>")
     .description("Answer a pending owner question")
-    .action((id: string, answerWords: string[]) => {
+    .action(async (id: string, answerWords: string[]) => {
       const answer = answerWords.join(" ").trim();
       if (!answer) {
         console.error("Error: answer text is required.");
         process.exit(1);
       }
-      const item = getOwnerQuestionQueue().answer(id, answer, "cli");
-      if (!item) {
+      const mutate = await ctx.client.ownerQuestions.answer(id, answer);
+      if (!mutate.ok) {
         console.error(`Error: owner question "${id}" not found or already resolved.`);
         process.exit(1);
       }
@@ -136,9 +136,9 @@ export function registerOwnerQuestionCommands(program: Command): void {
     .command("dismiss <id>")
     .description("Dismiss a pending owner question without answering")
     .option("-r, --reason <text>", "Reason for dismissal")
-    .action((id: string, opts: { reason?: string }) => {
-      const item = getOwnerQuestionQueue().dismiss(id, opts.reason, "cli");
-      if (!item) {
+    .action(async (id: string, opts: { reason?: string }) => {
+      const mutate = await ctx.client.ownerQuestions.dismiss(id, opts.reason);
+      if (!mutate.ok) {
         console.error(`Error: owner question "${id}" not found or already resolved.`);
         process.exit(1);
       }
@@ -153,9 +153,10 @@ export function registerOwnerQuestionCommands(program: Command): void {
   cmd
     .command("count")
     .description("Print the number of pending owner questions")
-    .action(() => {
+    .action(async () => {
+      const result = await ctx.client.ownerQuestions.list();
       // biome-ignore lint/suspicious/noConsole: bare count output consumed by scripts
-      console.log(String(getOwnerQuestionQueue().count("pending")));
+      console.log(String(result.questions.length));
     });
 
   cmd
@@ -164,8 +165,7 @@ export function registerOwnerQuestionCommands(program: Command): void {
     .option("--status <status>", `Filter by status: ${VALID_STATUSES.filter((s) => s !== "pending").join(", ")}`)
     .option("-n <count>", "Max results to show (default 20)", "20")
     .option("--since <duration>", "Only show items resolved within this window (e.g. 1h, 24h, 7d)")
-    .action((opts: { status?: string; n: string; since?: string }) => {
-      const queue = getOwnerQuestionQueue();
+    .action(async (opts: { status?: string; n: string; since?: string }) => {
       const limit = Math.max(1, parseInt(opts.n, 10) || 20);
       const statusFilter = opts.status as OwnerQuestionStatus | undefined;
       if (statusFilter && !VALID_STATUSES.includes(statusFilter)) {
@@ -183,8 +183,8 @@ export function registerOwnerQuestionCommands(program: Command): void {
       }
       const cutoff = sinceMs !== null ? Date.now() - sinceMs : null;
 
-      const items = queue
-        .list()
+      const all = await ctx.client.ownerQuestions.list({ status: "all" });
+      const items = all.questions
         .filter((item) => item.status !== "pending")
         .filter((item) => !statusFilter || item.status === statusFilter)
         .filter((item) => {

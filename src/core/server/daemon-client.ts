@@ -12,6 +12,10 @@ import type {
   WorkflowRunDetail,
   WorkflowRunSummary,
 } from "#core/daemon/daemon-control.js";
+import type {
+  OwnerQuestionStatus,
+  PendingOwnerQuestion,
+} from "#core/daemon/owner-question-queue.js";
 import type { ConversationData, ConversationRecord } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
@@ -25,6 +29,8 @@ import type {
   MemoryReindexResult,
   MemorySearchFilter,
   MemorySearchResult,
+  OwnerQuestionMutateResult,
+  OwnerQuestionsClient,
   RepoTaskCaptureResult,
   RepoTaskCreateOptions,
   RepoTaskCreateResult,
@@ -77,6 +83,7 @@ export class DaemonControlClient implements KotaClient {
   readonly secrets: SecretsClient;
   readonly tasks: RepoTasksClient;
   readonly memory: MemoryClient;
+  readonly ownerQuestions: OwnerQuestionsClient;
 
   private constructor(
     private readonly baseUrl: string,
@@ -162,6 +169,81 @@ export class DaemonControlClient implements KotaClient {
       search: async (query, filter) => this.searchMemoryHttp(query, filter),
       reindex: async () => this.reindexMemoryHttp(),
     };
+    this.ownerQuestions = {
+      list: async (filter) => {
+        const result = await this.listOwnerQuestions(filter?.status);
+        return { questions: result?.questions ?? [] };
+      },
+      answer: async (id, answer) => this.answerOwnerQuestionHttp(id, answer),
+      dismiss: async (id, reason) => this.dismissOwnerQuestionHttp(id, reason),
+    };
+  }
+
+  private async answerOwnerQuestionHttp(
+    id: string,
+    answer: string,
+  ): Promise<OwnerQuestionMutateResult> {
+    try {
+      const res = await fetchWithTimeout(
+        `${this.baseUrl}/owner-questions/${encodeURIComponent(id)}/answer`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...this.authHeaders() },
+          body: JSON.stringify({ answer }),
+        },
+      );
+      if (res.status === 404) return { ok: false, reason: "not_found" };
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      const body = (await res.json()) as { question: PendingOwnerQuestion };
+      return { ok: true, question: body.question };
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith("HTTP ")) throw err;
+      return { ok: false, reason: "not_found" };
+    }
+  }
+
+  private async dismissOwnerQuestionHttp(
+    id: string,
+    reason?: string,
+  ): Promise<OwnerQuestionMutateResult> {
+    try {
+      const res = await fetchWithTimeout(
+        `${this.baseUrl}/owner-questions/${encodeURIComponent(id)}/dismiss`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...this.authHeaders() },
+          body: JSON.stringify(reason !== undefined ? { reason } : {}),
+        },
+      );
+      if (res.status === 404) return { ok: false, reason: "not_found" };
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      const body = (await res.json()) as { question: PendingOwnerQuestion };
+      return { ok: true, question: body.question };
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith("HTTP ")) throw err;
+      return { ok: false, reason: "not_found" };
+    }
+  }
+
+  async listOwnerQuestions(
+    status?: OwnerQuestionStatus | "all",
+  ): Promise<{ questions: PendingOwnerQuestion[] } | null> {
+    try {
+      const query = status ? `?status=${encodeURIComponent(status)}` : "";
+      const res = await fetchWithTimeout(`${this.baseUrl}/owner-questions${query}`, {
+        headers: this.authHeaders(),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as { questions: PendingOwnerQuestion[] };
+    } catch {
+      return null;
+    }
   }
 
   private async addMemoryHttp(content: string, tags: string[]): Promise<MemoryAddResult> {

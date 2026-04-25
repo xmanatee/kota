@@ -22,6 +22,10 @@
  */
 import type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
 import type { WorkflowRunSummary } from "#core/daemon/daemon-control.js";
+import type {
+  OwnerQuestionStatus,
+  PendingOwnerQuestion,
+} from "#core/daemon/owner-question-queue.js";
 import type { ReindexResult } from "#core/modules/provider-types.js";
 
 /** A masked entry in the secret store (name and source only — never the value). */
@@ -202,6 +206,27 @@ export type ApprovalMutateResult =
   | { ok: true; approval: PendingApproval }
   | { ok: false; reason: "not_found" };
 
+/**
+ * Filter for `OwnerQuestionsClient.list`.
+ *
+ * `status` defaults to `"pending"` so the common "what's blocking the owner?"
+ * call stays a one-liner. Pass a specific resolved status (`"answered"`,
+ * `"dismissed"`, `"expired"`) or `"all"` to include resolved items used by
+ * `kota owner-question history` and any caller that needs the full archive.
+ */
+export type OwnerQuestionListFilter = {
+  status?: OwnerQuestionStatus | "all";
+};
+
+export type OwnerQuestionsListResult = {
+  questions: PendingOwnerQuestion[];
+};
+
+/** Result of an owner-question mutation (`answer`, `dismiss`). */
+export type OwnerQuestionMutateResult =
+  | { ok: true; question: PendingOwnerQuestion }
+  | { ok: false; reason: "not_found" };
+
 /** Workflow-related read operations. */
 export interface WorkflowClient {
   /**
@@ -286,6 +311,24 @@ export interface MemoryClient {
 }
 
 /**
+ * Owner-question queue operations.
+ *
+ * `list` reads the queue (filterable by status). `answer` resolves a pending
+ * question with the operator's answer; `dismiss` resolves a pending question
+ * without a substantive answer. Both mutations return the resolved question
+ * so callers can render attribution (`resolutionSource`, `resolvedAt`) or
+ * surface follow-up details. Resolved-question history (CLI `history --since`,
+ * `--status`, `-n`) is composed from `list({ status: "all" })` plus CLI-side
+ * filtering — the contract carries the queue snapshot, not the filter
+ * derivation.
+ */
+export interface OwnerQuestionsClient {
+  list(filter?: OwnerQuestionListFilter): Promise<OwnerQuestionsListResult>;
+  answer(id: string, answer: string): Promise<OwnerQuestionMutateResult>;
+  dismiss(id: string, reason?: string): Promise<OwnerQuestionMutateResult>;
+}
+
+/**
  * The single typed surface CLI code imports for daemon-or-local access.
  *
  * The contract grows by adding namespaces here, delegating in
@@ -299,6 +342,7 @@ export interface KotaClient {
   readonly secrets: SecretsClient;
   readonly tasks: RepoTasksClient;
   readonly memory: MemoryClient;
+  readonly ownerQuestions: OwnerQuestionsClient;
 }
 
 /**
@@ -312,6 +356,7 @@ export const KOTA_CLIENT_NAMESPACES = [
   "secrets",
   "tasks",
   "memory",
+  "ownerQuestions",
 ] as const satisfies ReadonlyArray<keyof KotaClient>;
 
 export type KotaClientNamespace = (typeof KOTA_CLIENT_NAMESPACES)[number];

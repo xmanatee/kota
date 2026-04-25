@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { OwnerQuestionQueue, resetOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
+import {
+  OwnerQuestionQueue,
+  type OwnerQuestionStatus,
+  resetOwnerQuestionQueue,
+} from "#core/daemon/owner-question-queue.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import { registerOwnerQuestionCommands } from "./cli.js";
 
 vi.mock("#core/events/event-bus.js", () => ({
@@ -12,18 +17,34 @@ vi.mock("#core/events/event-bus.js", () => ({
 }));
 
 let testQueue: OwnerQuestionQueue;
-vi.mock("#core/daemon/owner-question-queue.js", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("#core/daemon/owner-question-queue.js")>();
+
+function stubCtx(): ModuleContext {
   return {
-    ...mod,
-    getOwnerQuestionQueue: () => testQueue,
-  };
-});
+    client: {
+      ownerQuestions: {
+        async list(filter?: { status?: OwnerQuestionStatus | "all" }) {
+          const status = filter?.status;
+          if (status === undefined) return { questions: testQueue.list("pending") };
+          if (status === "all") return { questions: testQueue.list() };
+          return { questions: testQueue.list(status) };
+        },
+        async answer(id: string, answer: string) {
+          const item = testQueue.answer(id, answer, "cli");
+          return item ? { ok: true, question: item } : { ok: false, reason: "not_found" };
+        },
+        async dismiss(id: string, reason?: string) {
+          const item = testQueue.dismiss(id, reason, "cli");
+          return item ? { ok: true, question: item } : { ok: false, reason: "not_found" };
+        },
+      },
+    },
+  } as unknown as ModuleContext;
+}
 
 function makeProgram(): Command {
   const program = new Command();
   program.exitOverride();
-  registerOwnerQuestionCommands(program);
+  registerOwnerQuestionCommands(program, stubCtx());
   return program;
 }
 

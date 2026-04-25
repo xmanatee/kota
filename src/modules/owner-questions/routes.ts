@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   getOwnerQuestionQueue,
   type OwnerQuestionQueue,
+  type OwnerQuestionStatus,
   type PendingOwnerQuestion,
 } from "#core/daemon/owner-question-queue.js";
 import type {
@@ -12,10 +13,32 @@ import { jsonResponse, readBody } from "#core/server/session-pool.js";
 
 const RESOLUTION_SOURCE = "http";
 
-function listOwnerQuestionsLocal(
+const VALID_STATUSES: readonly (OwnerQuestionStatus | "all")[] = [
+  "all",
+  "pending",
+  "answered",
+  "dismissed",
+  "expired",
+];
+
+export function readOwnerQuestionStatusFilter(
+  req: IncomingMessage,
+): OwnerQuestionStatus | "all" | undefined {
+  const status = new URL(req.url ?? "", "http://localhost").searchParams.get("status");
+  if (status === null) return undefined;
+  if ((VALID_STATUSES as readonly string[]).includes(status)) {
+    return status as OwnerQuestionStatus | "all";
+  }
+  return undefined;
+}
+
+export function listOwnerQuestionsLocal(
   queue: OwnerQuestionQueue,
+  status?: OwnerQuestionStatus | "all",
 ): { questions: PendingOwnerQuestion[] } {
-  return { questions: queue.list("pending") };
+  if (status === undefined) return { questions: queue.list("pending") };
+  if (status === "all") return { questions: queue.list() };
+  return { questions: queue.list(status) };
 }
 
 function answerOwnerQuestionLocal(
@@ -55,8 +78,9 @@ async function readReasonField(req: IncomingMessage): Promise<string | undefined
 export async function handleListOwnerQuestions(
   res: ServerResponse,
   queue: OwnerQuestionQueue = getOwnerQuestionQueue(),
+  status?: OwnerQuestionStatus | "all",
 ): Promise<void> {
-  jsonResponse(res, 200, listOwnerQuestionsLocal(queue));
+  jsonResponse(res, 200, listOwnerQuestionsLocal(queue, status));
 }
 
 export async function handleAnswerOwnerQuestion(
@@ -100,7 +124,8 @@ export function ownerQuestionRoutes(): RouteRegistration[] {
     {
       method: "GET",
       path: "/api/owner-questions",
-      handler: (_req, res) => handleListOwnerQuestions(res),
+      handler: (req, res) =>
+        handleListOwnerQuestions(res, undefined, readOwnerQuestionStatusFilter(req)),
     },
     {
       method: "POST",
@@ -120,10 +145,14 @@ export function ownerQuestionRoutes(): RouteRegistration[] {
 }
 
 async function handleListOwnerQuestionsControl(
-  _req: IncomingMessage,
+  req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
-  jsonResponse(res, 200, listOwnerQuestionsLocal(getOwnerQuestionQueue()));
+  jsonResponse(
+    res,
+    200,
+    listOwnerQuestionsLocal(getOwnerQuestionQueue(), readOwnerQuestionStatusFilter(req)),
+  );
 }
 
 async function handleAnswerOwnerQuestionControl(

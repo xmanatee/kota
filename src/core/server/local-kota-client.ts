@@ -43,6 +43,7 @@ export class LocalKotaClient implements KotaClient {
   readonly secrets: KotaClient["secrets"];
   readonly tasks: KotaClient["tasks"];
   readonly memory: KotaClient["memory"];
+  readonly ownerQuestions: KotaClient["ownerQuestions"];
 
   constructor(handlers: LocalClientHandlers) {
     this.workflow = handlers.workflow;
@@ -50,5 +51,6 @@ export class LocalKotaClient implements KotaClient {
     this.secrets = handlers.secrets;
     this.tasks = handlers.tasks;
     this.memory = handlers.memory;
+    this.ownerQuestions = handlers.ownerQuestions;
   }
 }

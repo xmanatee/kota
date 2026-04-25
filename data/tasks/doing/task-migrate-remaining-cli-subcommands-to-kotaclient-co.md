@@ -152,11 +152,25 @@ until `Done When` is fully satisfied.
   diverge. The CLI no longer reads/writes `data/tasks/` or `.kota/`
   directly from any subcommand action (run
   `2026-04-25T14-40-55-087Z-builder-wrugq7`).
+- Done — `owner-questions` reads and mutations: `list`, `answer`,
+  `dismiss`, `count`, and `history` now route through
+  `ctx.client.ownerQuestions.{list,answer,dismiss}`. `OwnerQuestionsClient`
+  uses `{ status?: OwnerQuestionStatus | "all" }` (default `"pending"`)
+  for `list`, mirroring the approvals namespace; mutations return
+  `{ ok: true; question } | { ok: false; reason: "not_found" }`.
+  Existing daemon-control routes (`GET /owner-questions`,
+  `POST /owner-questions/:id/answer`,
+  `POST /owner-questions/:id/dismiss`) and the public
+  `GET /api/owner-questions` route gained an optional `?status=` query
+  forwarded into the shared `listOwnerQuestionsLocal` helper. The
+  `kota owner-question` CLI no longer imports
+  `getOwnerQuestionQueue` (run
+  `2026-04-25T15-06-46-060Z-builder-ws6oel`).
 - Pending — `workflow` mutations (control, run management, definition
   mutations, trigger/exec); `knowledge`, `history`, `agent-ops`,
-  `skill-ops`, `harness-parity`, `owner-questions`, `webhook`,
-  `eval-harness`, `guardrails-audit`, `module-manager`, `web`,
-  `config`, `mcp-server`, `voice`, `daemon-ops` control, `doctor`.
+  `skill-ops`, `harness-parity`, `webhook`, `eval-harness`,
+  `guardrails-audit`, `module-manager`, `web`, `config`, `mcp-server`,
+  `voice`, `daemon-ops` control, `doctor`.
 - Pending — sibling guard test rejecting new direct `.kota/` reads
   from non-bootstrap CLI code.
 
