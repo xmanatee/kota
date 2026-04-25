@@ -1,12 +1,12 @@
 ---
 id: task-add-interactive-runtime-navigator-as-a-cli-module
 title: Add interactive runtime navigator as a CLI module
-status: backlog
+status: ready
 priority: p2
 area: architecture
 summary: Build the interactive runtime navigator as a new src/modules/cli/ module that consumes the KotaClient contract to inspect and toggle sessions, modules, logs, agents, secrets, and approvals.
 created_at: 2026-04-25T12:47:35.871Z
-updated_at: 2026-04-25T13:36:09.391Z
+updated_at: 2026-04-25T15:18:00.000Z
 ---
 
 ## Problem
@@ -88,14 +88,6 @@ There is no operator-facing navigator client yet, and no module under
 - A scoped `AGENTS.md` for `src/modules/cli/` documents the
   navigator's purpose, the rendering and contract conventions, and
   the TTY-vs-non-TTY behavior at the conventions level.
-
-## Unblock Precondition
-
-```
-kind: task-done
-ref: task-define-kota-client-contract-and-route-every-cli-su
-description: navigator must consume the KotaClient contract; build it after the contract lands.
-```
 
 ## Source / Intent
 
