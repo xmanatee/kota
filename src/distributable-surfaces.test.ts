@@ -38,21 +38,21 @@ describe("examples/github-actions/kota-trigger.yml", () => {
     expect(content).toMatch(/\/webhooks\/\$\{?WORKFLOW_NAME\}?/);
   });
 
-  it("webhook path pattern matches daemon control route", () => {
-    const controlPath = resolve(ROOT, "src/core/daemon/daemon-control.ts");
-    expect(existsSync(controlPath), "daemon-control.ts must exist").toBe(true);
-    const controlSrc = readFileSync(controlPath, "utf-8");
+  it("webhook path pattern matches the contributed control route", () => {
+    const triggerRoutePath = resolve(ROOT, "src/modules/webhook/trigger-route.ts");
+    expect(existsSync(triggerRoutePath), "trigger-route.ts must exist").toBe(true);
+    const handlerSrc = readFileSync(triggerRoutePath, "utf-8");
 
     expect(
-      controlSrc.includes('/webhooks/'),
-      "daemon-control.ts must handle /webhooks/ route",
+      handlerSrc.includes('/webhooks/'),
+      "webhook module must contribute the /webhooks/ control route",
     ).toBe(true);
   });
 
-  it("signature header matches daemon webhook handler", () => {
-    const webhookHandler = resolve(ROOT, "src/core/daemon/daemon-control-webhook.ts");
-    expect(existsSync(webhookHandler), "daemon-control-webhook.ts must exist").toBe(true);
-    const handlerSrc = readFileSync(webhookHandler, "utf-8");
+  it("signature header matches the webhook module's trigger handler", () => {
+    const triggerRoutePath = resolve(ROOT, "src/modules/webhook/trigger-route.ts");
+    expect(existsSync(triggerRoutePath), "trigger-route.ts must exist").toBe(true);
+    const handlerSrc = readFileSync(triggerRoutePath, "utf-8");
 
     const yamlContent = readFileSync(yamlPath, "utf-8");
 

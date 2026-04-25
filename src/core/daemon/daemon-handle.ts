@@ -1,4 +1,3 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
 import type { KotaConfig } from "#core/config/config.js";
 import { loadConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
@@ -40,7 +39,6 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
   // Local mutable state that only the handle needs.
   let metricCountsCache: WorkflowMetricCounts | null = null;
   let metricCountsCacheAt = 0;
-  const webhookTimestamps = new Map<string, number[]>();
 
   return {
     getHealthStatus: () => {
@@ -319,45 +317,6 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       // chat pool on top; for serve-registered rows we report serveOwned so the
       // caller can forward the change or surface it to the operator.
       return { ok: true, serveOwned: session.source !== "daemon" };
-    },
-    triggerWebhookRun: (name, signature, rawBody, payload, webhookTimestamp) => {
-      const expectedSecret = config.config?.webhooks?.[name]?.secret;
-      if (!expectedSecret) return { ok: false, unauthorized: true };
-      const hexSig = signature.startsWith("sha256=") ? signature.slice(7) : signature;
-      const expected = createHmac("sha256", expectedSecret).update(rawBody).digest("hex");
-      let sigMatch = false;
-      try {
-        sigMatch = timingSafeEqual(Buffer.from(hexSig, "hex"), Buffer.from(expected, "hex"));
-      } catch {
-        sigMatch = false;
-      }
-      if (!sigMatch) return { ok: false, unauthorized: true };
-      if (webhookTimestamp !== undefined) {
-        const ts = parseInt(webhookTimestamp, 10);
-        if (Number.isNaN(ts) || Math.abs(Date.now() - ts) > 5 * 60 * 1000) {
-          return { ok: false, unauthorized: true };
-        }
-      }
-      const definition = workflows.getDefinitions().find((d) => d.name === name);
-      const rateLimit = definition?.webhookRateLimit;
-      if (rateLimit) {
-        const now = Date.now();
-        const windowMs = 60_000;
-        const windowStart = now - windowMs;
-        const timestamps = (webhookTimestamps.get(name) ?? []).filter((t) => t > windowStart);
-        if (timestamps.length >= rateLimit.maxPerMinute) {
-          const oldest = timestamps[0];
-          const retryAfterMs = oldest + windowMs - now;
-          return { ok: false, rateLimited: true, retryAfterMs };
-        }
-        timestamps.push(now);
-        webhookTimestamps.set(name, timestamps);
-      }
-      const result = workflows.enqueueWebhookRun(name, payload);
-      if (result.error?.startsWith("Unknown workflow") || result.error?.includes("no webhook trigger")) {
-        return { ok: false, notFound: true };
-      }
-      return result;
     },
   };
 }

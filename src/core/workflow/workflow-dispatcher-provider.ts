@@ -8,8 +8,9 @@
  * core daemon handle out of module surface area while exposing only the
  * dispatch capability the route handler needs.
  *
- * The shape mirrors `DaemonControlHandle.enqueuePendingRun` so handlers
- * forward the result envelope verbatim.
+ * The shape mirrors the slice of `DaemonControlHandle` used by module
+ * handlers (`enqueuePendingRun`, `enqueueWebhookRun`) so they forward the
+ * result envelope verbatim.
  */
 
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
@@ -25,6 +26,21 @@ export type EnqueuePendingRunResult = {
   error?: string;
 };
 
+/** Webhook trigger payload threaded through to the workflow run. */
+export type WebhookRunPayload = {
+  body: unknown;
+  headers: Record<string, string>;
+  timestamp: string;
+};
+
+export type EnqueueWebhookRunResult = {
+  ok: boolean;
+  runId?: string;
+  alreadyRunning?: boolean;
+  notFound?: boolean;
+  error?: string;
+};
+
 export type WorkflowDispatcher = {
   /**
    * Enqueue a pending workflow run by name. Returns the same envelope as
@@ -32,6 +48,17 @@ export type WorkflowDispatcher = {
    * directly.
    */
   enqueuePendingRun(name: string): EnqueuePendingRunResult;
+  /**
+   * Enqueue a webhook-triggered workflow run. Mirrors the signature of the
+   * core workflow runtime's `enqueueWebhookRun` so module handlers (today
+   * the webhook module's signature-validated `/webhooks/:name` route) can
+   * forward the result. Returns `notFound` for unknown workflows or
+   * workflows without a webhook trigger.
+   */
+  enqueueWebhookRun(
+    name: string,
+    payload: WebhookRunPayload,
+  ): EnqueueWebhookRunResult;
 };
 
 /**

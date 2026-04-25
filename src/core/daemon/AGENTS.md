@@ -32,18 +32,27 @@ and live runtime state.
   `daemon-state.ts`, `daemon-subscriptions.ts`.
 - Control API: `daemon-control.ts` (router), `daemon-control-types.ts`,
   `daemon-control-utils.ts`, and per-domain handlers
-  (`-chat.ts`, `-sessions.ts`, `-webhook.ts`, `-workflow.ts`).
+  (`-chat.ts`, `-sessions.ts`, `-workflow.ts`).
   Module-owned endpoints (e.g. `/history/*`, `/voice/*`, `/approvals*`,
-  `/owner-questions*`, `/push-tokens`, `/commands*`, `/metrics`) live in
-  their contributing module under `#modules/<name>/routes.ts` (or
-  `#modules/<name>/control-routes.ts`). Module-owned routes that need to
-  trigger workflow runs use the `workflow-dispatcher` provider seam
+  `/owner-questions*`, `/push-tokens`, `/commands*`, `/metrics`,
+  `/webhooks/:name`) live in their contributing module under
+  `#modules/<name>/routes.ts` (or `#modules/<name>/control-routes.ts`).
+  Module-owned routes that need to trigger workflow runs use the
+  `workflow-dispatcher` provider seam
   (`#core/workflow/workflow-dispatcher-provider.js`); routes that need to
   read live workflow runtime state (counts, sessions, paused/active/queued
   status) use the `workflow-metrics-source` seam
-  (`#core/daemon/metrics-source-provider.js`). The daemon registers both
-  at startup so contributed handlers can dispatch and read without holding
-  a `DaemonControlHandle`.
+  (`#core/daemon/metrics-source-provider.js`); routes that need to read
+  pre-dispatch policy from a workflow definition (today the webhook
+  module's per-workflow `webhookRateLimit`) use the
+  `workflow-definitions` seam
+  (`#core/workflow/workflow-definitions-provider.js`). The daemon
+  registers all three at startup so contributed handlers can dispatch
+  and read without holding a `DaemonControlHandle`. Routes whose auth is
+  carried in a per-request signature header rather than the daemon
+  Bearer token (today the webhook module's `/webhooks/:name`) opt out of
+  the bearer-token middleware via `ControlRouteRegistration.bypassAuth`,
+  mirroring `RouteRegistration.bypassAuth`.
 - Scheduling: `scheduler.ts`, `scheduler-store.ts`, `schedule-parser.ts`.
 - Task management: `task-store.ts`, `task-store-types.ts`, `task-router.ts`,
   `task-router-data.ts`.

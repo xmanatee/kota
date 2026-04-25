@@ -160,6 +160,14 @@ export type ControlRouteRegistration = {
    * - "control": mutate daemon state or trigger external side effects
    */
   capabilityScope: CapabilityScope;
+  /**
+   * When true, the daemon-control server skips the bearer-token auth check
+   * for this route. Use for inbound webhook endpoints whose auth is
+   * carried in a per-request signature header rather than the daemon's
+   * Bearer token (e.g. `POST /webhooks/:name`). The module must perform
+   * its own request authentication. Mirrors `RouteRegistration.bypassAuth`.
+   */
+  bypassAuth?: boolean;
   handler: (
     req: IncomingMessage,
     res: ServerResponse,

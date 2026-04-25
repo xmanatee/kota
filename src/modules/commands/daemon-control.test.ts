@@ -88,7 +88,6 @@ function makeHandle(): DaemonControlHandle {
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),
     setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
-    triggerWebhookRun: vi.fn(() => ({ ok: false, notFound: true })),
     reloadConfig: vi.fn(async () => ({ workflows: 0, changedModules: [] })),
   };
 }
@@ -168,7 +167,10 @@ function registerDispatcher(
   result: EnqueuePendingRunResult | (() => EnqueuePendingRunResult),
 ): Mock<(name: string) => EnqueuePendingRunResult> {
   const fn = vi.fn((_name: string) => (typeof result === "function" ? result() : result));
-  const dispatcher: WorkflowDispatcher = { enqueuePendingRun: fn };
+  const dispatcher: WorkflowDispatcher = {
+    enqueuePendingRun: fn,
+    enqueueWebhookRun: vi.fn(() => ({ ok: false, notFound: true })),
+  };
   const registry = getProviderRegistry();
   if (!registry) throw new Error("provider registry not initialized");
   registry.register(WORKFLOW_DISPATCHER_PROVIDER_TYPE, "test", dispatcher);

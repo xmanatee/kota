@@ -20,11 +20,13 @@
  */
 
 import { Command } from "commander";
+import { loadConfig } from "#core/config/config.js";
 import type { BusEvents } from "#core/events/event-bus.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { postWithRetry } from "#modules/notification/index.js";
 import { registerWebhookCommands } from "./cli.js";
 import { eventTriggerRoutes } from "./event-trigger-routes.js";
+import { webhookTriggerControlRoutes } from "./trigger-route.js";
 
 const NOTIFICATION_EVENTS = [
   "workflow.failure.alert",
@@ -102,6 +104,7 @@ const webhookModule: KotaModule = {
   },
 
   routes: (ctx) => eventTriggerRoutes(ctx),
+  controlRoutes: (ctx) => webhookTriggerControlRoutes(() => loadConfig(ctx.cwd)),
 };
 
 export default webhookModule;

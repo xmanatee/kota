@@ -1,12 +1,12 @@
 ---
 id: task-move-signature-validated-webhooksworkflowname-rout
 title: Move signature-validated /webhooks/:workflowName route out of core into the webhook module
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Extract the signature-validated workflow-trigger route plus its HMAC/timestamp/rate-limit handler from core/daemon into the webhook module, completing the move of webhook surfaces out of core.
 created_at: 2026-04-25T11:17:41.387Z
-updated_at: 2026-04-25T11:17:41.387Z
+updated_at: 2026-04-25T11:33:12.312Z
 ---
 
 ## Problem

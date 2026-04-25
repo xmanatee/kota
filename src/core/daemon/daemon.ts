@@ -19,6 +19,10 @@ import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
+  WORKFLOW_DEFINITIONS_PROVIDER_TYPE,
+  type WorkflowDefinitionsSource,
+} from "#core/workflow/workflow-definitions-provider.js";
+import {
   WORKFLOW_DISPATCHER_PROVIDER_TYPE,
   type WorkflowDispatcher,
 } from "#core/workflow/workflow-dispatcher-provider.js";
@@ -180,16 +184,30 @@ export class Daemon {
     // existing pattern.
     const dispatcher: WorkflowDispatcher = {
       enqueuePendingRun: (name) => handle.enqueuePendingRun(name),
+      enqueueWebhookRun: (name, payload) => {
+        const result = this.workflows.enqueueWebhookRun(name, payload);
+        if (result.error?.startsWith("Unknown workflow") || result.error?.includes("no webhook trigger")) {
+          return { ok: false, notFound: true };
+        }
+        return result;
+      },
     };
     const metricsSource: WorkflowMetricsSource = {
       getWorkflowMetricCounts: () => handle.getWorkflowMetricCounts(),
       listSessions: () => handle.listSessions(),
       getWorkflowLiveStatus: () => handle.getWorkflowLiveStatus(),
     };
+    const definitionsSource: WorkflowDefinitionsSource = {
+      getWebhookRateLimit: (name) => {
+        const def = this.workflows.getDefinitions().find((d) => d.name === name);
+        return def?.webhookRateLimit;
+      },
+    };
     const registry = getProviderRegistry();
     if (registry) {
       registry.register(WORKFLOW_DISPATCHER_PROVIDER_TYPE, "daemon", dispatcher);
       registry.register(WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE, "daemon", metricsSource);
+      registry.register(WORKFLOW_DEFINITIONS_PROVIDER_TYPE, "daemon", definitionsSource);
     }
     this.controlServer = new DaemonControlServer(
       handle,

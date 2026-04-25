@@ -15,7 +15,6 @@ import {
 import { handleListSessions, handleRegisterSession, handleUnregisterSession } from "./daemon-control-sessions.js";
 import type { CapabilityScope, DaemonControlHandle, DaemonLiveStatus, DaemonSseEvent } from "./daemon-control-types.js";
 import { jsonResponse } from "./daemon-control-utils.js";
-import { handleWebhookRequest } from "./daemon-control-webhook.js";
 import {
   handleAbortWorkflow,
   handleAbortWorkflowRun,
@@ -165,6 +164,7 @@ export class DaemonControlServer {
   private readonly chatSweepMs: number;
   private readonly routeScopes: Record<string, CapabilityScope>;
   private readonly contributedHandlers: Map<string, ControlRouteRegistration["handler"]>;
+  private readonly bypassAuthRoutes: Set<string>;
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -194,6 +194,7 @@ export class DaemonControlServer {
 
     const routeScopes: Record<string, CapabilityScope> = { ...BUILTIN_ROUTE_SCOPES };
     const contributedHandlers = new Map<string, ControlRouteRegistration["handler"]>();
+    const bypassAuthRoutes = new Set<string>();
     for (const route of options?.controlRoutes ?? []) {
       const key = `${route.method} ${route.path}`;
       if (key in routeScopes) {
@@ -204,9 +205,11 @@ export class DaemonControlServer {
       }
       routeScopes[key] = route.capabilityScope;
       contributedHandlers.set(key, route.handler);
+      if (route.bypassAuth) bypassAuthRoutes.add(key);
     }
     this.routeScopes = routeScopes;
     this.contributedHandlers = contributedHandlers;
+    this.bypassAuthRoutes = bypassAuthRoutes;
   }
 
   start(): Promise<number> {
@@ -293,20 +296,13 @@ export class DaemonControlServer {
       return;
     }
 
-    // Webhook triggers use their own secret auth, not the daemon Bearer token.
-    if (method === "POST" && path.startsWith("/webhooks/")) {
-      const workflowName = decodeURIComponent(path.slice("/webhooks/".length));
-      handleWebhookRequest(this.handle, req, res, workflowName);
-      return;
-    }
-
     const match = matchRouteKey(this.routeScopes, method, path);
     if (!match) {
       jsonResponse(res, 404, { error: "Not found" });
       return;
     }
 
-    if (!this.isAuthorized(req)) {
+    if (!this.bypassAuthRoutes.has(match.key) && !this.isAuthorized(req)) {
       jsonResponse(res, 401, { error: "Unauthorized" });
       return;
     }
