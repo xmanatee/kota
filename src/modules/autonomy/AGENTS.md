@@ -112,8 +112,7 @@ protocols cannot express.
 - **Trustworthy-agents four-layer injection defense maps onto existing
   surfaces.** Model/harness ≈ SDK boundary; tools ≈
   `src/core/tools/guardrails.ts` + risk; runtime ≈ `approval-queue` +
-  autonomy mode + `injection-defense`. Plan-Mode "authorize strategies"
-  if needed is a new autonomy mode, not a parallel approval surface.
+  autonomy mode + `injection-defense`.
 - **Opus 4.7 harness defaults at the agent-step layer.** Delegate-don't-
   pair (front-load intent, constraints, success criteria in one turn),
   `xhigh` default, adaptive thinking, batch-upfront prompting, judicious
@@ -122,12 +121,14 @@ protocols cannot express.
   reintroduce clarification loops or fixed reasoning caps.
 - **Tool-design hygiene.** High bar for new tools; prefer discoverable
   surfaces (read, grep, scoped `AGENTS.md`, prompt state).
-- **No `ask_owner` from autonomous workflow steps.** Every recorded
-  autonomous call expires unanswered (`.kota/owner-questions/*.json`)
-  after ~10 min of wasted wall-clock. For constraint conflicts, external
-  blockers, or scope ambiguity, reshape the queue: move the task to
-  `blocked/` with a `## Blocker` section, seed the enabler in `ready/`,
-  commit. Re-enable only after a notification-delivery channel lands.
+- **No `ask_owner` from autonomous workflow steps.** Notification
+  channels forward `owner.question.asked` to operators, but
+  `ask-owner.ts` holds an in-memory `await`: a restart mid-wait kills
+  the session and the ~10-min timeout wastes tokens either way. For
+  constraint conflicts, external blockers, or scope ambiguity, move
+  the task to `blocked/` with a `## Blocker` section, seed the enabler
+  in `ready/`, commit. Re-enable only once the runtime has a restart-
+  safe await-event step and `ask_owner` uses it.
 
 ## Scoped Contracts
 

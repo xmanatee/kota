@@ -1,12 +1,12 @@
 ---
 id: task-land-notification-delivery-channel-so-autonomous-w
 title: Land notification-delivery channel so autonomous workflows can ask_owner again
-status: backlog
+status: blocked
 priority: p2
 area: autonomy
 summary: Re-enable ask_owner from autonomous workflow steps by providing a notification-delivery channel that reliably surfaces the question to an operator within a practical budget, so the current recorded-and-expired pattern stops wasting $ and wall-clock.
 created_at: 2026-04-25T00:17:31.642Z
-updated_at: 2026-04-25T00:17:31.642Z
+updated_at: 2026-04-25T00:49:16.866Z
 ---
 
 ## Problem
@@ -115,3 +115,50 @@ recorded-and-expired waste that forced the current ban.
 - `src/modules/autonomy/AGENTS.md` diff showing the rule flip from
   "forbidden" to "allowed under contract X" with a link to the
   implementing module.
+
+## Blocker
+
+This task is blocked because the most expensive constraint —
+"the autonomy step-runner must survive a process restart during a
+pending question; resume is append-log + event replay, not a held
+`await`" — combined with "no backwards-compatibility dual path"
+requires a workflow primitive that does not exist yet. Investigation
+on 2026-04-25 found:
+
+- The notification-delivery surface the title invokes is already
+  wired. `src/modules/telegram/index.ts`, `src/modules/slack/index.ts`,
+  `src/modules/webhook/index.ts`, and `src/modules/email/index.ts`
+  all subscribe to `owner.question.asked` and forward to operators
+  with answer/dismiss controls. So channel coverage is not the
+  remaining gap; the AGENTS.md text "Re-enable only after a
+  notification-delivery channel lands" is misleading and is being
+  corrected as part of this reshape.
+- The genuine remaining gap is restart-resilience for the wait/resume
+  boundary. Today `src/core/tools/ask-owner.ts` polls the queue in a
+  held in-memory `await`. If the process dies mid-wait the agent
+  session dies with it — no append-log, no event replay, no resume.
+  Making the existing tool restart-safe in place violates the
+  task's "Resume is append-log + event replay, not a held `await`"
+  constraint.
+- The architecturally honest fix is a new workflow-step primitive:
+  an `await-event` step that records its waiting state to disk,
+  subscribes to a typed event (filtered by id), and on daemon
+  restart scans persisted waits and resubscribes — driving resume
+  from the workflow runtime rather than from inside an agent's tool
+  loop. Once that primitive exists, autonomous escalation becomes a
+  step-shaped pattern (`ask` → `await-event` → `consume`) instead of
+  an inside-the-tool-loop blocking call, and the restart, answered,
+  and timed-out outcomes all reduce to the new primitive's contract.
+
+Unblock by: land the pausable / await-event workflow step primitive
+(seeded as `task-land-pausable-await-event-workflow-step-primitive`
+in `ready/`). Once that primitive exists, this task splits into
+three follow-ups that each fit a single builder run:
+
+1. Replace the in-tool `ask_owner` polling with the new step-shaped
+   pattern, deleting the old held-await path (no dual path).
+2. Flip the `src/modules/autonomy/AGENTS.md` rule from "forbidden"
+   to "allowed under the new step pattern", with explicit budget
+   bounds and the typed `operator-unreachable` terminal.
+3. Add the real-autonomy-workflow demo + the three-outcome
+   integration tests against the wired channels.
