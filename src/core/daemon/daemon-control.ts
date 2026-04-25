@@ -12,7 +12,6 @@ import {
   handleDaemonChat,
   handlePatchDaemonSession,
 } from "./daemon-control-chat.js";
-import { handleMetrics } from "./daemon-control-metrics.js";
 import { handleListSessions, handleRegisterSession, handleUnregisterSession } from "./daemon-control-sessions.js";
 import type { CapabilityScope, DaemonControlHandle, DaemonLiveStatus, DaemonSseEvent } from "./daemon-control-types.js";
 import { jsonResponse } from "./daemon-control-utils.js";
@@ -85,7 +84,6 @@ const BUILTIN_ROUTE_SCOPES: Record<string, CapabilityScope> = {
   "POST /sessions/:id/chat": "control",
   "PATCH /sessions/:id": "control",
   "DELETE /sessions/:id": "control",
-  "GET /metrics": "read",
 };
 
 function extractParams(pattern: string, path: string): Record<string, string> | null {
@@ -455,8 +453,6 @@ export class DaemonControlServer {
       }
       return;
     }
-
-    if (method === "GET" && path === "/metrics") { handleMetrics(h, res); return; }
 
     const contributed = this.contributedHandlers.get(match.key);
     if (contributed) {

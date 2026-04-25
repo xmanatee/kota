@@ -1,7 +1,27 @@
+/**
+ * Daemon-control route contribution for the tracing module.
+ *
+ * Renders `GET /metrics` as Prometheus text-format exposition. The handler
+ * pulls workflow-runtime reads (run counts, cost totals, duration
+ * histogram, sessions, paused/active/queued state) through the
+ * `workflow-metrics-source` provider seam the daemon registers at startup,
+ * and reads pending-approval count from the shared `getApprovalQueue()`
+ * primitive in core. Sibling of the OTLP push emitter
+ * (`WorkflowMetricsEmitter`); both surfaces emit the same observability
+ * concern, just in different transports.
+ */
+
 import type { ServerResponse } from "node:http";
+import { getApprovalQueue } from "#core/daemon/approval-queue.js";
+import type {
+  InteractiveSession,
+  WorkflowDurationHistogramEntry,
+  WorkflowLiveStatus,
+  WorkflowMetricCounts,
+} from "#core/daemon/daemon-control-types.js";
+import { getWorkflowMetricsSource } from "#core/daemon/metrics-source-provider.js";
+import type { ControlRouteRegistration } from "#core/modules/module-types.js";
 import type { WorkflowActiveRun } from "#core/workflow/run-types.js";
-import { getApprovalQueue } from "./approval-queue.js";
-import type { DaemonControlHandle, WorkflowDurationHistogramEntry, WorkflowMetricCounts } from "./daemon-control-types.js";
 
 function sanitizeLabelValue(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
@@ -24,7 +44,7 @@ function buildDurationHistogram(entries: WorkflowDurationHistogramEntry[]): stri
   return lines;
 }
 
-function buildPrometheusMetrics(
+export function buildPrometheusMetrics(
   metricCounts: WorkflowMetricCounts,
   activeSessions: number,
   pendingApprovals: number,
@@ -83,12 +103,36 @@ function buildPrometheusMetrics(
   return lines.join("\n");
 }
 
-export function handleMetrics(handle: DaemonControlHandle, res: ServerResponse): void {
-  const metricCounts = handle.getWorkflowMetricCounts();
-  const activeSessions = handle.listSessions().length;
+function handleMetricsControl(_req: unknown, res: ServerResponse): void {
+  const source = getWorkflowMetricsSource();
+  if (!source) {
+    res.writeHead(503, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Metrics source unavailable" }));
+    return;
+  }
+  const metricCounts = source.getWorkflowMetricCounts();
+  const sessions: InteractiveSession[] = source.listSessions();
+  const liveStatus: WorkflowLiveStatus = source.getWorkflowLiveStatus();
   const pendingApprovals = getApprovalQueue().count("pending");
-  const { paused, activeRuns, queueLength } = handle.getWorkflowLiveStatus();
-  const body = buildPrometheusMetrics(metricCounts, activeSessions, pendingApprovals, paused, activeRuns, queueLength);
+  const body = buildPrometheusMetrics(
+    metricCounts,
+    sessions.length,
+    pendingApprovals,
+    liveStatus.paused,
+    liveStatus.activeRuns,
+    liveStatus.queueLength,
+  );
   res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4; charset=utf-8" });
   res.end(body);
+}
+
+export function tracingControlRoutes(): ControlRouteRegistration[] {
+  return [
+    {
+      method: "GET",
+      path: "/metrics",
+      capabilityScope: "read",
+      handler: handleMetricsControl,
+    },
+  ];
 }

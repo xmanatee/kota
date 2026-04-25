@@ -6,6 +6,16 @@ This module provides OpenTelemetry workflow execution tracing and metrics.
   operator-facing metrics.
 - Opt-in via the `tracing.endpoint` config field. Metrics use the same endpoint
   unless `tracing.metricsEndpoint` is set.
+- Owns the daemon-control `GET /metrics` Prometheus text-format exposition
+  alongside the OTLP push emitter. The route is contributed through
+  `KotaModule.controlRoutes` with `read` capability scope and is always
+  available — it does not require `tracing.endpoint` to be set, since
+  Prometheus is pull-based and unrelated to the OTLP exporter. The handler
+  reads workflow runtime state through the
+  `workflow-metrics-source` provider seam the daemon registers at startup;
+  it returns `503 { "error": "Metrics source unavailable" }` when no daemon
+  has registered a source (e.g. CLI processes spinning up a standalone
+  control server in tests).
 - When no endpoint is configured, no bus subscriptions are registered (zero
   overhead).
 - Model info for agent steps is resolved from contributed workflow definitions

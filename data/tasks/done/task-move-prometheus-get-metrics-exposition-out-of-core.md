@@ -1,12 +1,12 @@
 ---
 id: task-move-prometheus-get-metrics-exposition-out-of-core
 title: Move Prometheus GET /metrics exposition out of core into the tracing module
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Continue the module-first core-shrinking pattern by migrating the daemon-control Prometheus /metrics handler from src/core/daemon/ into the tracing module via KotaModule.controlRoutes, so observability lives in one module.
 created_at: 2026-04-25T09:22:08.356Z
-updated_at: 2026-04-25T09:22:08.356Z
+updated_at: 2026-04-25T09:34:22.258Z
 ---
 
 ## Problem

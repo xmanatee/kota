@@ -28,6 +28,10 @@ import { buildDaemonHandle } from "./daemon-handle.js";
 import { DaemonLogger } from "./daemon-logger.js";
 import { assertDaemonState, type DaemonState } from "./daemon-state.js";
 import { subscribeDaemon } from "./daemon-subscriptions.js";
+import {
+  WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE,
+  type WorkflowMetricsSource,
+} from "./metrics-source-provider.js";
 import { NotificationGate } from "./notification-gate.js";
 import { getScheduler, initScheduler } from "./scheduler.js";
 import { sweepExpiredSessions } from "./session-sweep.js";
@@ -177,9 +181,15 @@ export class Daemon {
     const dispatcher: WorkflowDispatcher = {
       enqueuePendingRun: (name) => handle.enqueuePendingRun(name),
     };
+    const metricsSource: WorkflowMetricsSource = {
+      getWorkflowMetricCounts: () => handle.getWorkflowMetricCounts(),
+      listSessions: () => handle.listSessions(),
+      getWorkflowLiveStatus: () => handle.getWorkflowLiveStatus(),
+    };
     const registry = getProviderRegistry();
     if (registry) {
       registry.register(WORKFLOW_DISPATCHER_PROVIDER_TYPE, "daemon", dispatcher);
+      registry.register(WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE, "daemon", metricsSource);
     }
     this.controlServer = new DaemonControlServer(
       handle,

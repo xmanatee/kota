@@ -32,16 +32,18 @@ and live runtime state.
   `daemon-state.ts`, `daemon-subscriptions.ts`.
 - Control API: `daemon-control.ts` (router), `daemon-control-types.ts`,
   `daemon-control-utils.ts`, and per-domain handlers
-  (`-chat.ts`, `-metrics.ts`, `-sessions.ts`,
-  `-webhook.ts`, `-workflow.ts`).
+  (`-chat.ts`, `-sessions.ts`, `-webhook.ts`, `-workflow.ts`).
   Module-owned endpoints (e.g. `/history/*`, `/voice/*`, `/approvals*`,
-  `/owner-questions*`, `/push-tokens`, `/commands*`) live in their
-  contributing module under `#modules/<name>/routes.ts` (or
+  `/owner-questions*`, `/push-tokens`, `/commands*`, `/metrics`) live in
+  their contributing module under `#modules/<name>/routes.ts` (or
   `#modules/<name>/control-routes.ts`). Module-owned routes that need to
   trigger workflow runs use the `workflow-dispatcher` provider seam
-  (`#core/workflow/workflow-dispatcher-provider.js`) — the daemon registers
-  it at startup so contributed handlers can enqueue pending runs without
-  holding a `DaemonControlHandle`.
+  (`#core/workflow/workflow-dispatcher-provider.js`); routes that need to
+  read live workflow runtime state (counts, sessions, paused/active/queued
+  status) use the `workflow-metrics-source` seam
+  (`#core/daemon/metrics-source-provider.js`). The daemon registers both
+  at startup so contributed handlers can dispatch and read without holding
+  a `DaemonControlHandle`.
 - Scheduling: `scheduler.ts`, `scheduler-store.ts`, `schedule-parser.ts`.
 - Task management: `task-store.ts`, `task-store-types.ts`, `task-router.ts`,
   `task-router-data.ts`.
