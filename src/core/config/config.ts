@@ -1,19 +1,27 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { type QuietHoursConfig, validateQuietHours } from "../daemon/notification-gate.js";
+import type { QuietHoursConfig } from "../daemon/notification-gate.js";
 import type { ModelTiers } from "../model/model-router.js";
 import type { ForeignModuleConfig } from "../modules/foreign-module.js";
-import { type AutonomyMode, isAutonomyMode } from "../tools/autonomy-mode.js";
-import { type GuardrailsConfig, sanitizeGuardrailsConfig } from "../tools/guardrails.js";
-import { type DispatchWindow, validateDispatchWindow } from "../workflow/dispatch-window.js";
+import type { AutonomyMode } from "../tools/autonomy-mode.js";
+import type { GuardrailsConfig } from "../tools/guardrails.js";
+import { mergeConfigs } from "./config-merge.js";
+import { sanitize } from "./config-sanitize.js";
+import type { KotaModuleConfigRegistry } from "./config-slice.js";
 
 /**
  * KOTA configuration schema.
- * Loaded from ~/.kota/config.json (global) and .kota/config.json (project).
- * Project-level overrides global. CLI flags override both.
+ *
+ * Loaded from `~/.kota/config.json` (global) and `.kota/config.json`
+ * (project). Project overrides global; CLI flags override both.
+ *
+ * Modules own their slice end-to-end via `KotaModule.configSlices`; this
+ * type declares only the core-owned fields and intersects in module-
+ * registered slice types via declaration merging on
+ * `KotaModuleConfigRegistry`.
  */
-export type KotaConfig = {
+export type CoreKotaConfig = {
   model?: string;
   editorModel?: string;
   maxTokens?: number;
@@ -43,59 +51,28 @@ export type KotaConfig = {
   /** Per-module configuration. Keys are module names, values are module-specific settings. */
   modules?: Record<string, Record<string, unknown>>;
 
-  /**
-   * Foreign-language (out-of-process) modules.
-   * Each entry declares a subprocess to spawn and communicate with via KEMP.
-   * The protocol contract is owned by the core module types and tests.
-   */
+  /** Foreign-language (out-of-process) modules. */
   foreignModules?: ForeignModuleConfig[];
 
-  /** Provider overrides. Keys are service types (e.g. "memory", "knowledge"), values are provider names. */
+  /** Provider overrides. Keys are service types (e.g. "memory"), values are provider names. */
   providers?: Record<string, string>;
-
-  /** Model provider configuration for non-Anthropic backends (OpenAI-compat, Ollama, etc.). */
-  modelProvider?: {
-    type?: string;
-    baseUrl?: string;
-    apiKey?: string;
-  };
 
   /** Model tier mapping for adaptive routing. Keys: fast, balanced, capable. */
   modelTiers?: ModelTiers;
 
-  /**
-   * Per-agent model overrides. Keys are agent names (project or module-contributed);
-   * values are model IDs. Takes effect at agent resolve time; invalid model strings are
-   * passed through without validation, same as the top-level `model` field.
-   */
+  /** Per-agent model overrides. */
   agentModels?: Record<string, string>;
 
   /**
-   * Name of the agent harness adapter agent steps default to when a step does
-   * not declare its own `harness`. Must match a harness registered by a loaded
-   * module (e.g. `"claude-agent-sdk"` or `"thin"`). There is no implicit
-   * default — KOTA does not silently pick claude-agent-sdk when unset. Leave
-   * undefined only if every agent step in your workflows declares `harness`
-   * explicitly.
+   * Default agent harness adapter name. Must match a harness registered by a
+   * loaded module. No implicit default — KOTA does not silently pick one.
    */
   defaultAgentHarness?: string;
-
-  /**
-   * Per-workflow webhook secrets for `POST /webhooks/:workflowName`.
-   * Keys are workflow names; each entry must have a `secret` string.
-   * Keep this in `.kota/config.json` (project-local, gitignored) to avoid
-   * committing secrets.
-   */
-  webhooks?: Record<string, { secret: string }>;
 
   /** TTL for pending approval items in milliseconds. Default: 86400000 (24 hours). */
   approvalTtlMs?: number;
 
-  /**
-   * Run artifact retention policy for `.kota/runs/`.
-   * Applied when `kota workflow gc` is run explicitly.
-   * Defaults: retentionDays=7, minKeepPerWorkflow=10.
-   */
+  /** Run artifact retention policy for `.kota/runs/`. */
   runsGc?: {
     /** Delete runs older than this many days (default: 7). */
     retentionDays?: number;
@@ -107,7 +84,7 @@ export type KotaConfig = {
   serve?: {
     /** Disable bearer-token auth (default: auth enabled). For localhost-only dev use. */
     noAuth?: boolean;
-    /** Show per-turn cost line in terminal output (default: true). Set to false to suppress. */
+    /** Show per-turn cost line in terminal output (default: true). */
     showCost?: boolean;
     /** Autonomy mode applied to new interactive sessions when the client does not specify one. */
     defaultAutonomyMode?: AutonomyMode;
@@ -121,148 +98,53 @@ export type KotaConfig = {
 
   /** Log output settings. */
   log?: {
-    /** Output format. "text" is human-readable (default); "json" emits newline-delimited JSON for log aggregators. Overridden by LOG_FORMAT env var. */
+    /** "text" is human-readable (default); "json" emits newline-delimited JSON. */
     format?: "text" | "json";
   };
 
   /** Daemon lifecycle settings. */
   daemon?: {
-    /**
-     * How long (ms) to wait for active workflow runs to complete before aborting them
-     * during shutdown. 0 = drain indefinitely. Default: 60000 (60 s).
-     */
+    /** ms to wait for active workflow runs before aborting on shutdown. 0 = drain. */
     shutdownGracePeriodMs?: number;
-    /**
-     * Number of recent SSE events to retain in the in-memory ring buffer.
-     * Clients can query buffered events via GET /api/events or replay them on
-     * SSE reconnect with GET /events?since=<timestamp>. Default: 500.
-     */
+    /** Recent SSE events retained in the in-memory ring buffer. Default: 500. */
     eventBufferSize?: number;
-    /**
-     * How long (ms) a daemon-owned interactive chat session may be idle before
-     * it is swept. Default: 300000 (5 minutes).
-     */
+    /** Idle TTL for daemon-owned interactive chat sessions. Default: 5 min. */
     sessionIdleTtlMs?: number;
   };
 
   /** Notification settings. */
   notifications?: {
-    /**
-     * Minimum milliseconds between failure alerts for the same workflow.
-     * Default: 0 (no cooldown — every failure fires an alert).
-     * Example: 300000 suppresses repeated alerts within 5 minutes.
-     */
+    /** Minimum ms between failure alerts for the same workflow. Default: 0. */
     alertCooldownMs?: number;
-    /**
-     * Suppress non-critical channel notifications outside specified hours.
-     * Events held during quiet hours are released as a single batched digest
-     * when the window ends. workflow.failure.alert bypasses quiet hours by default.
-     *
-     * @example
-     * { "start": "22:00", "end": "08:00", "allowCritical": true }
-     */
+    /** Suppress non-critical channel notifications outside specified hours. */
     quietHours?: QuietHoursConfig;
   };
 
   /** Foreign module health monitoring settings. */
   moduleMonitoring?: {
-    /**
-     * Number of restarts within `crashAlertWindowMs` that triggers an
-     * `module.crash.alert` notification. Default: 3.
-     */
+    /** Restarts within `crashAlertWindowMs` that trigger `module.crash.alert`. */
     crashAlertThreshold?: number;
-    /**
-     * Rolling window in milliseconds for counting module restarts.
-     * Also serves as the alert cooldown — at most one alert per module per window.
-     * Default: 600000 (10 minutes).
-     */
+    /** Rolling window for counting module restarts. Also alert cooldown. */
     crashAlertWindowMs?: number;
-  };
-
-  /** Scheduler settings for autonomous workflow dispatch. */
-  scheduler?: {
-    /**
-     * Restrict autonomous dispatch to a time-of-day window.
-     * Affects `runtime.idle` (idle trigger) and `intervalMs` (interval trigger) only.
-     * Cron, event, file-watch, and manual triggers are not affected.
-     *
-     * @example
-     * { "start": "09:00", "end": "18:00", "days": ["mon","tue","wed","thu","fri"] }
-     */
-    dispatchWindow?: DispatchWindow;
-    /**
-     * Maximum number of agent-step workflows that may run simultaneously.
-     * Must be a positive integer. Default: 1 (serial agent dispatch).
-     */
-    agentConcurrency?: number;
-    /**
-     * Maximum number of code-only (no agent step) workflows that may run
-     * simultaneously. Must be a positive integer. Default: 4.
-     */
-    codeConcurrency?: number;
   };
 
   /** Workflow runtime settings. */
   workflow?: {
-    /**
-     * Maximum step output size in bytes before truncation.
-     * Default: 262144 (256 KB). Hard cap: 10485760 (10 MB).
-     * Outputs exceeding this limit are replaced with a structured truncation notice.
-     */
+    /** Max step output bytes before truncation. Default: 256 KB. Hard cap: 10 MB. */
     maxStepOutputBytes?: number;
   };
-
-  /** OpenTelemetry tracing and metrics for workflow execution. Opt-in. */
-  tracing?: {
-    /** OTLP HTTP endpoint (e.g. "http://localhost:4318/v1/traces"). Required to enable tracing. */
-    endpoint: string;
-    /**
-     * OTLP HTTP endpoint for metrics (e.g. "http://localhost:4318/v1/metrics").
-     * Defaults to `endpoint` so a single collector sees both signals.
-     */
-    metricsEndpoint?: string;
-    /** How often to flush metric batches to the exporter. Default: 30 000. */
-    metricsExportIntervalMs?: number;
-    /** Sampling rate between 0 and 1. Default: 1.0 (sample everything). */
-    samplingRate?: number;
-    /** Service name reported in traces. Default: "kota". */
-    serviceName?: string;
-  };
-
-  /**
-   * Model provider failover. When configured, requests fail over to a
-   * secondary provider when the primary is detected as unhealthy.
-   * Omit to disable (single-provider, no behavior change).
-   */
-  failover?: {
-    /** Fallback provider name (e.g. "openai"). Required. */
-    provider: string;
-    /** Fallback model string. Falls back to the primary model if omitted. */
-    model?: string;
-    /** Base URL for the fallback provider. Uses preset if omitted. */
-    baseUrl?: string;
-    /** API key for the fallback provider. Resolved from env if omitted. */
-    apiKey?: string;
-    /** Number of errors in the sliding window that trigger failover. Default: 5. */
-    errorThreshold?: number;
-    /** Sliding window size in milliseconds. Default: 60000. */
-    windowMs?: number;
-    /** Cooldown before probing the primary again, in milliseconds. Default: 300000. */
-    cooldownMs?: number;
-  };
-
-  /** MCP server settings. */
-  mcp?: {
-    /**
-     * Sampling settings — allow MCP clients to delegate LLM completions to KOTA.
-     * Default: disabled.
-     */
-    sampling?: {
-      /** Enable the sampling/createMessage handler. Default: false. */
-      enabled?: boolean;
-    };
-  };
 };
+
+/**
+ * Module-contributed config slice fields, derived from the
+ * `KotaModuleConfigRegistry` declaration-merging surface in
+ * `config-slice.ts`.
+ */
+export type ModuleConfigSliceFields = {
+  [K in keyof KotaModuleConfigRegistry]?: KotaModuleConfigRegistry[K];
+};
+
+export type KotaConfig = CoreKotaConfig & ModuleConfigSliceFields;
 
 const CONFIG_FILENAME = "config.json";
 const GLOBAL_DIR = join(homedir(), ".kota");
@@ -279,374 +161,6 @@ function readConfigFile(path: string): Partial<KotaConfig> | null {
   } catch {
     return null;
   }
-}
-
-/** Validate and coerce config values. Returns a clean config with only known fields. */
-function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
-  const out: Partial<KotaConfig> = {};
-
-  if (typeof raw.model === "string" && raw.model) out.model = raw.model;
-  if (typeof raw.editorModel === "string" && raw.editorModel) out.editorModel = raw.editorModel;
-  if (typeof raw.maxTokens === "number" && raw.maxTokens > 0) out.maxTokens = raw.maxTokens;
-  if (typeof raw.thinking === "boolean") out.thinking = raw.thinking;
-  if (typeof raw.thinkingBudget === "number" && raw.thinkingBudget >= 1024) out.thinkingBudget = raw.thinkingBudget;
-  if (typeof raw.verbose === "boolean") out.verbose = raw.verbose;
-  if (typeof raw.skipConfirmations === "boolean") out.skipConfirmations = raw.skipConfirmations;
-  if (typeof raw.reflection === "boolean") out.reflection = raw.reflection;
-
-  if (Array.isArray(raw.autoEnable)) {
-    const valid = raw.autoEnable.filter((g): g is string => typeof g === "string" && g.length > 0);
-    if (valid.length > 0) out.autoEnable = valid;
-  }
-
-  if (typeof raw.user === "object" && raw.user !== null && !Array.isArray(raw.user)) {
-    const user: KotaConfig["user"] = {};
-    if (typeof raw.user.name === "string" && raw.user.name) user.name = raw.user.name;
-    if (typeof raw.user.context === "string" && raw.user.context) user.context = raw.user.context;
-    if (user.name || user.context) out.user = user;
-  }
-
-  if (typeof raw.aliases === "object" && raw.aliases !== null && !Array.isArray(raw.aliases)) {
-    const aliases: Record<string, string> = {};
-    for (const [key, val] of Object.entries(raw.aliases)) {
-      if (typeof val === "string" && val) aliases[key] = val;
-    }
-    if (Object.keys(aliases).length > 0) out.aliases = aliases;
-  }
-
-  if (typeof raw.guardrails === "object" && raw.guardrails !== null && !Array.isArray(raw.guardrails)) {
-    const parsed = sanitizeGuardrailsConfig(raw.guardrails as Record<string, unknown>);
-    if (parsed) out.guardrails = parsed;
-  }
-
-  if (typeof raw.modules === "object" && raw.modules !== null && !Array.isArray(raw.modules)) {
-    const modules: Record<string, Record<string, unknown>> = {};
-    for (const [name, val] of Object.entries(raw.modules)) {
-      if (typeof val === "object" && val !== null && !Array.isArray(val)) {
-        modules[name] = val as Record<string, unknown>;
-      }
-    }
-    if (Object.keys(modules).length > 0) out.modules = modules;
-  }
-
-  if (typeof raw.providers === "object" && raw.providers !== null && !Array.isArray(raw.providers)) {
-    const providers: Record<string, string> = {};
-    for (const [type, name] of Object.entries(raw.providers)) {
-      if (typeof name === "string" && name) providers[type] = name;
-    }
-    if (Object.keys(providers).length > 0) out.providers = providers;
-  }
-
-  if (typeof raw.modelProvider === "object" && raw.modelProvider !== null && !Array.isArray(raw.modelProvider)) {
-    const mp: KotaConfig["modelProvider"] = {};
-    const src = raw.modelProvider as Record<string, unknown>;
-    if (typeof src.type === "string" && src.type) mp.type = src.type;
-    if (typeof src.baseUrl === "string" && src.baseUrl) mp.baseUrl = src.baseUrl;
-    if (typeof src.apiKey === "string" && src.apiKey) mp.apiKey = src.apiKey;
-    if (mp.type || mp.baseUrl) out.modelProvider = mp;
-  }
-
-  if (typeof raw.webhooks === "object" && raw.webhooks !== null && !Array.isArray(raw.webhooks)) {
-    const webhooks: Record<string, { secret: string }> = {};
-    for (const [name, val] of Object.entries(raw.webhooks)) {
-      if (typeof val === "object" && val !== null && !Array.isArray(val)) {
-        const entry = val as Record<string, unknown>;
-        if (typeof entry.secret === "string" && entry.secret) {
-          webhooks[name] = { secret: entry.secret };
-        }
-      }
-    }
-    if (Object.keys(webhooks).length > 0) out.webhooks = webhooks;
-  }
-
-  if (typeof raw.approvalTtlMs === "number" && raw.approvalTtlMs > 0) out.approvalTtlMs = raw.approvalTtlMs;
-
-  if (typeof raw.runsGc === "object" && raw.runsGc !== null && !Array.isArray(raw.runsGc)) {
-    const gc: KotaConfig["runsGc"] = {};
-    const src = raw.runsGc as Record<string, unknown>;
-    if (typeof src.retentionDays === "number" && src.retentionDays > 0) gc.retentionDays = src.retentionDays;
-    if (typeof src.minKeepPerWorkflow === "number" && src.minKeepPerWorkflow >= 0) gc.minKeepPerWorkflow = src.minKeepPerWorkflow;
-    out.runsGc = gc;
-  }
-
-  if (typeof raw.modelTiers === "object" && raw.modelTiers !== null && !Array.isArray(raw.modelTiers)) {
-    const tiers: ModelTiers = {};
-    const src = raw.modelTiers as Record<string, unknown>;
-    if (typeof src.fast === "string" && src.fast) tiers.fast = src.fast;
-    if (typeof src.balanced === "string" && src.balanced) tiers.balanced = src.balanced;
-    if (typeof src.capable === "string" && src.capable) tiers.capable = src.capable;
-    if (tiers.fast || tiers.balanced || tiers.capable) out.modelTiers = tiers;
-  }
-
-  if (typeof raw.agentModels === "object" && raw.agentModels !== null && !Array.isArray(raw.agentModels)) {
-    const agentModels: Record<string, string> = {};
-    for (const [name, val] of Object.entries(raw.agentModels)) {
-      if (typeof val === "string" && val) agentModels[name] = val;
-    }
-    if (Object.keys(agentModels).length > 0) out.agentModels = agentModels;
-  }
-
-  if (typeof raw.log === "object" && raw.log !== null && !Array.isArray(raw.log)) {
-    const src = raw.log as Record<string, unknown>;
-    if (src.format === "text" || src.format === "json") out.log = { format: src.format };
-  }
-
-  if (typeof raw.serve === "object" && raw.serve !== null && !Array.isArray(raw.serve)) {
-    const src = raw.serve as Record<string, unknown>;
-    const s: NonNullable<KotaConfig["serve"]> = {};
-    if (typeof src.noAuth === "boolean") s.noAuth = src.noAuth;
-    if (typeof src.showCost === "boolean") s.showCost = src.showCost;
-    if (src.defaultAutonomyMode !== undefined) {
-      if (!isAutonomyMode(src.defaultAutonomyMode)) {
-        throw new Error(
-          `config.serve.defaultAutonomyMode must be one of passive, supervised, autonomous (got ${JSON.stringify(src.defaultAutonomyMode)})`,
-        );
-      }
-      s.defaultAutonomyMode = src.defaultAutonomyMode;
-    }
-    if (Object.keys(s).length > 0) out.serve = s;
-  }
-
-  if (typeof raw.cli === "object" && raw.cli !== null && !Array.isArray(raw.cli)) {
-    const src = raw.cli as Record<string, unknown>;
-    const c: NonNullable<KotaConfig["cli"]> = {};
-    if (src.defaultAutonomyMode !== undefined) {
-      if (!isAutonomyMode(src.defaultAutonomyMode)) {
-        throw new Error(
-          `config.cli.defaultAutonomyMode must be one of passive, supervised, autonomous (got ${JSON.stringify(src.defaultAutonomyMode)})`,
-        );
-      }
-      c.defaultAutonomyMode = src.defaultAutonomyMode;
-    }
-    if (Object.keys(c).length > 0) out.cli = c;
-  }
-
-  if (typeof raw.daemon === "object" && raw.daemon !== null && !Array.isArray(raw.daemon)) {
-    const src = raw.daemon as Record<string, unknown>;
-    const d: KotaConfig["daemon"] = {};
-    if (typeof src.shutdownGracePeriodMs === "number" && src.shutdownGracePeriodMs >= 0) {
-      d.shutdownGracePeriodMs = src.shutdownGracePeriodMs;
-    }
-    if (typeof src.eventBufferSize === "number" && src.eventBufferSize > 0) {
-      d.eventBufferSize = src.eventBufferSize;
-    }
-    if (typeof src.sessionIdleTtlMs === "number" && src.sessionIdleTtlMs > 0) {
-      d.sessionIdleTtlMs = src.sessionIdleTtlMs;
-    }
-    if (Object.keys(d).length > 0) out.daemon = d;
-  }
-
-  if (typeof raw.notifications === "object" && raw.notifications !== null && !Array.isArray(raw.notifications)) {
-    const src = raw.notifications as Record<string, unknown>;
-    const n: KotaConfig["notifications"] = {};
-    if (typeof src.alertCooldownMs === "number" && src.alertCooldownMs >= 0) {
-      n.alertCooldownMs = src.alertCooldownMs;
-    }
-    if (src.quietHours !== undefined && !validateQuietHours(src.quietHours)) {
-      const qh = src.quietHours as Record<string, unknown>;
-      const quietHours: QuietHoursConfig = {
-        start: qh.start as string,
-        end: qh.end as string,
-      };
-      if (typeof qh.allowCritical === "boolean") quietHours.allowCritical = qh.allowCritical;
-      n.quietHours = quietHours;
-    }
-    if (Object.keys(n).length > 0) out.notifications = n;
-  }
-
-  if (typeof raw.scheduler === "object" && raw.scheduler !== null && !Array.isArray(raw.scheduler)) {
-    const src = raw.scheduler as Record<string, unknown>;
-    const s: KotaConfig["scheduler"] = {};
-    if (src.dispatchWindow !== undefined) {
-      const err = validateDispatchWindow(src.dispatchWindow);
-      if (!err) {
-        const dw = src.dispatchWindow as Record<string, unknown>;
-        const window: DispatchWindow = {
-          start: dw.start as string,
-          end: dw.end as string,
-        };
-        if (Array.isArray(dw.days)) {
-          window.days = dw.days as DispatchWindow["days"];
-        }
-        s.dispatchWindow = window;
-      }
-    }
-    if (typeof src.agentConcurrency === "number" && src.agentConcurrency > 0 && Number.isInteger(src.agentConcurrency)) {
-      s.agentConcurrency = src.agentConcurrency;
-    }
-    if (typeof src.codeConcurrency === "number" && src.codeConcurrency > 0 && Number.isInteger(src.codeConcurrency)) {
-      s.codeConcurrency = src.codeConcurrency;
-    }
-    if (Object.keys(s).length > 0) out.scheduler = s;
-  }
-
-  if (typeof raw.workflow === "object" && raw.workflow !== null && !Array.isArray(raw.workflow)) {
-    const src = raw.workflow as Record<string, unknown>;
-    const w: KotaConfig["workflow"] = {};
-    if (typeof src.maxStepOutputBytes === "number" && src.maxStepOutputBytes > 0) {
-      w.maxStepOutputBytes = src.maxStepOutputBytes;
-    }
-    if (Object.keys(w).length > 0) out.workflow = w;
-  }
-
-  if (typeof raw.tracing === "object" && raw.tracing !== null && !Array.isArray(raw.tracing)) {
-    const src = raw.tracing as Record<string, unknown>;
-    if (typeof src.endpoint === "string" && src.endpoint) {
-      const t: NonNullable<KotaConfig["tracing"]> = { endpoint: src.endpoint };
-      if (typeof src.metricsEndpoint === "string" && src.metricsEndpoint) {
-        t.metricsEndpoint = src.metricsEndpoint;
-      }
-      if (
-        typeof src.metricsExportIntervalMs === "number" &&
-        src.metricsExportIntervalMs > 0
-      ) {
-        t.metricsExportIntervalMs = src.metricsExportIntervalMs;
-      }
-      if (typeof src.samplingRate === "number" && src.samplingRate >= 0 && src.samplingRate <= 1) {
-        t.samplingRate = src.samplingRate;
-      }
-      if (typeof src.serviceName === "string" && src.serviceName) {
-        t.serviceName = src.serviceName;
-      }
-      out.tracing = t;
-    }
-  }
-
-  if (typeof raw.failover === "object" && raw.failover !== null && !Array.isArray(raw.failover)) {
-    const src = raw.failover as Record<string, unknown>;
-    if (typeof src.provider === "string" && src.provider) {
-      const fo: NonNullable<KotaConfig["failover"]> = { provider: src.provider };
-      if (typeof src.model === "string" && src.model) fo.model = src.model;
-      if (typeof src.baseUrl === "string" && src.baseUrl) fo.baseUrl = src.baseUrl;
-      if (typeof src.apiKey === "string" && src.apiKey) fo.apiKey = src.apiKey;
-      if (typeof src.errorThreshold === "number" && src.errorThreshold > 0 && Number.isInteger(src.errorThreshold)) {
-        fo.errorThreshold = src.errorThreshold;
-      }
-      if (typeof src.windowMs === "number" && src.windowMs > 0) fo.windowMs = src.windowMs;
-      if (typeof src.cooldownMs === "number" && src.cooldownMs > 0) fo.cooldownMs = src.cooldownMs;
-      out.failover = fo;
-    }
-  }
-
-  if (typeof raw.mcp === "object" && raw.mcp !== null && !Array.isArray(raw.mcp)) {
-    const src = raw.mcp as Record<string, unknown>;
-    const m: KotaConfig["mcp"] = {};
-    if (typeof src.sampling === "object" && src.sampling !== null && !Array.isArray(src.sampling)) {
-      const samp = src.sampling as Record<string, unknown>;
-      const s: NonNullable<KotaConfig["mcp"]>["sampling"] = {};
-      if (typeof samp.enabled === "boolean") s.enabled = samp.enabled;
-      if (Object.keys(s).length > 0) m.sampling = s;
-    }
-    if (Object.keys(m).length > 0) out.mcp = m;
-  }
-
-  if (typeof raw.moduleMonitoring === "object" && raw.moduleMonitoring !== null && !Array.isArray(raw.moduleMonitoring)) {
-    const src = raw.moduleMonitoring as Record<string, unknown>;
-    const mm: NonNullable<KotaConfig["moduleMonitoring"]> = {};
-    if (typeof src.crashAlertThreshold === "number" && src.crashAlertThreshold > 0 && Number.isInteger(src.crashAlertThreshold)) {
-      mm.crashAlertThreshold = src.crashAlertThreshold;
-    }
-    if (typeof src.crashAlertWindowMs === "number" && src.crashAlertWindowMs > 0) {
-      mm.crashAlertWindowMs = src.crashAlertWindowMs;
-    }
-    if (Object.keys(mm).length > 0) out.moduleMonitoring = mm;
-  }
-
-  if (Array.isArray(raw.foreignModules)) {
-    const fexts: ForeignModuleConfig[] = [];
-    for (const entry of raw.foreignModules) {
-      if (typeof entry !== "object" || entry === null) continue;
-      const src = entry as Record<string, unknown>;
-      if (src.transport === "http") {
-        if (typeof src.url !== "string" || !src.url) continue;
-        fexts.push({ transport: "http", url: src.url });
-        continue;
-      }
-      if (src.transport !== "stdio") continue;
-      if (typeof src.command !== "string" || !src.command) continue;
-      const fext: ForeignModuleConfig = { transport: "stdio", command: src.command };
-      if (Array.isArray(src.args)) {
-        fext.args = src.args.filter((a): a is string => typeof a === "string");
-      }
-      if (typeof src.env === "object" && src.env !== null && !Array.isArray(src.env)) {
-        const env: Record<string, string> = {};
-        for (const [k, v] of Object.entries(src.env as Record<string, unknown>)) {
-          if (typeof v === "string") env[k] = v;
-        }
-        if (Object.keys(env).length > 0) fext.env = env;
-      }
-      if (typeof src.cwd === "string" && src.cwd) fext.cwd = src.cwd;
-      fexts.push(fext);
-    }
-    if (fexts.length > 0) out.foreignModules = fexts;
-  }
-
-  return out;
-}
-
-/** Deep-merge two configs. `b` overrides `a` for scalar fields; arrays/objects merge shallowly. */
-function mergeConfigs(a: Partial<KotaConfig>, b: Partial<KotaConfig>): Partial<KotaConfig> {
-  const merged = { ...a };
-
-  for (const key of Object.keys(b) as (keyof KotaConfig)[]) {
-    const val = b[key];
-    if (val === undefined) continue;
-
-    if (key === "user" && typeof val === "object") {
-      merged.user = { ...a.user, ...val };
-    } else if (key === "aliases" && typeof val === "object") {
-      merged.aliases = { ...a.aliases, ...(val as Record<string, string>) };
-    } else if (key === "guardrails" && typeof val === "object") {
-      // Project guardrails override global — merge policies, project toolOverrides replace global
-      const base = a.guardrails;
-      const over = val as GuardrailsConfig;
-      merged.guardrails = {
-        policies: { ...(base?.policies), ...over.policies },
-        toolOverrides: over.toolOverrides ?? base?.toolOverrides,
-      };
-    } else if (key === "modules" && typeof val === "object") {
-      merged.modules = { ...a.modules, ...(val as Record<string, Record<string, unknown>>) };
-    } else if (key === "providers" && typeof val === "object") {
-      merged.providers = { ...a.providers, ...(val as Record<string, string>) };
-    } else if (key === "modelProvider" && typeof val === "object") {
-      merged.modelProvider = { ...a.modelProvider, ...(val as KotaConfig["modelProvider"]) };
-    } else if (key === "modelTiers" && typeof val === "object") {
-      merged.modelTiers = { ...a.modelTiers, ...(val as ModelTiers) };
-    } else if (key === "agentModels" && typeof val === "object") {
-      merged.agentModels = { ...a.agentModels, ...(val as Record<string, string>) };
-    } else if (key === "runsGc" && typeof val === "object") {
-      merged.runsGc = { ...a.runsGc, ...(val as KotaConfig["runsGc"]) };
-    } else if (key === "webhooks" && typeof val === "object") {
-      merged.webhooks = { ...a.webhooks, ...(val as Record<string, { secret: string }>) };
-    } else if (key === "autoEnable" && Array.isArray(val)) {
-      // Project autoEnable replaces global (not merges) — project knows best
-      merged.autoEnable = val as string[];
-    } else if (key === "foreignModules" && Array.isArray(val)) {
-      // Project foreign modules append to global
-      merged.foreignModules = [...(a.foreignModules ?? []), ...(val as ForeignModuleConfig[])];
-    } else if (key === "notifications" && typeof val === "object") {
-      merged.notifications = { ...a.notifications, ...(val as KotaConfig["notifications"]) };
-    } else if (key === "scheduler" && typeof val === "object") {
-      merged.scheduler = { ...a.scheduler, ...(val as KotaConfig["scheduler"]) };
-    } else if (key === "workflow" && typeof val === "object") {
-      merged.workflow = { ...a.workflow, ...(val as KotaConfig["workflow"]) };
-    } else if (key === "moduleMonitoring" && typeof val === "object") {
-      merged.moduleMonitoring = { ...a.moduleMonitoring, ...(val as KotaConfig["moduleMonitoring"]) };
-    } else if (key === "failover" && typeof val === "object") {
-      merged.failover = { ...a.failover, ...(val as NonNullable<KotaConfig["failover"]>) };
-    } else if (key === "tracing" && typeof val === "object") {
-      merged.tracing = { ...a.tracing, ...(val as NonNullable<KotaConfig["tracing"]>) };
-    } else if (key === "serve" && typeof val === "object") {
-      merged.serve = { ...a.serve, ...(val as NonNullable<KotaConfig["serve"]>) };
-    } else if (key === "cli" && typeof val === "object") {
-      merged.cli = { ...a.cli, ...(val as NonNullable<KotaConfig["cli"]>) };
-    } else {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (merged as any)[key] = val;
-    }
-  }
-
-  return merged;
 }
 
 /**
@@ -682,8 +196,9 @@ export function buildUserProfile(config: KotaConfig): string {
 }
 
 /**
- * Update the project-local `.kota/config.json` by applying a mutation function to the raw
- * (unsanitized) config object. Creates the file and directory if they do not exist.
+ * Update the project-local `.kota/config.json` by applying a mutation
+ * function to the raw (unsanitized) config object. Creates the file and
+ * directory if they do not exist.
  */
 export function updateProjectConfig(
   cwd: string,

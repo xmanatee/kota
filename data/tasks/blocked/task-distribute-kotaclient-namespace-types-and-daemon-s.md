@@ -168,3 +168,5 @@ and runtime primitives.
 - Test output showing the new guard test passing on the current tree
   and failing on a deliberately-introduced per-namespace type added
   back into `src/core/server/`.
+
+<!-- blocked-promoter-asked: slot=kotaclient-namespace-distribution-chunking last_asked_at=2026-04-26T00:31:34.965Z -->

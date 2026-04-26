@@ -1,12 +1,12 @@
 ---
 id: task-distribute-module-owned-config-slices-into-their-o
 title: Distribute module-owned config slices into their owning modules
-status: ready
+status: doing
 priority: p1
 area: architecture
 summary: Move per-slice TypeScript type declarations, sanitization, and merge logic from src/core/config/config.ts into each owning module by extending the existing configKeys hook into a typed configSlice contract, so adding a module's config field is a strictly module-local edit.
 created_at: 2026-04-26T00:19:50.894Z
-updated_at: 2026-04-26T00:19:50.894Z
+updated_at: 2026-04-26T00:21:48.488Z
 ---
 
 ## Problem
