@@ -295,6 +295,129 @@ final class DaemonClientTests: XCTestCase {
         }
     }
 
+    func testFetchDigestDecodesActivePayload() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/digest")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+            let body = #"""
+            {
+              "data": {
+                "windowStartedAt": "2026-04-25T08:00:00.000Z",
+                "windowEndedAt": "2026-04-26T08:00:00.000Z",
+                "builderCommits": [{
+                  "runId": "r-1",
+                  "taskId": "task-foo",
+                  "taskTitle": "Add foo",
+                  "commitSubject": "Add foo",
+                  "durationMs": 60000
+                }],
+                "explorerAdditions": [],
+                "decomposerSplits": [],
+                "blockedPromoterMoves": [],
+                "failedMonitoredRuns": [],
+                "pendingOwnerQuestions": [],
+                "agingOperatorCaptures": [],
+                "queueDelta": {
+                  "current": {"backlog": 0, "ready": 1, "doing": 0, "blocked": 8},
+                  "previous": null,
+                  "delta": {"backlog": null, "ready": null, "doing": null, "blocked": null}
+                },
+                "quiet": false
+              },
+              "text": "Daily digest 2026-04-26\n- builder committed: Add foo"
+            }
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let resp = try await client.fetchDigest()
+        XCTAssertEqual(resp.data.quiet, false)
+        XCTAssertEqual(resp.data.builderCommits.count, 1)
+        XCTAssertEqual(resp.data.builderCommits[0].taskId, "task-foo")
+        XCTAssertEqual(resp.data.builderCommits[0].taskTitle, "Add foo")
+        XCTAssertEqual(resp.data.queueDelta.current.ready, 1)
+        XCTAssertEqual(resp.data.queueDelta.current.blocked, 8)
+        XCTAssertNil(resp.data.queueDelta.previous)
+        XCTAssertNil(resp.data.queueDelta.delta.ready)
+        XCTAssertTrue(resp.text.contains("builder committed: Add foo"))
+    }
+
+    func testFetchDigestDecodesQuietPayload() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            let body = #"""
+            {
+              "data": {
+                "windowStartedAt": "2026-04-25T08:00:00.000Z",
+                "windowEndedAt": "2026-04-26T08:00:00.000Z",
+                "builderCommits": [],
+                "explorerAdditions": [],
+                "decomposerSplits": [],
+                "blockedPromoterMoves": [],
+                "failedMonitoredRuns": [],
+                "pendingOwnerQuestions": [],
+                "agingOperatorCaptures": [],
+                "queueDelta": {
+                  "current": {"backlog": 0, "ready": 0, "doing": 0, "blocked": 0},
+                  "previous": null,
+                  "delta": {"backlog": null, "ready": null, "doing": null, "blocked": null}
+                },
+                "quiet": true
+              },
+              "text": "Daily digest 2026-04-26\n(quiet window — nothing to report)"
+            }
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let resp = try await client.fetchDigest()
+        XCTAssertTrue(resp.data.quiet)
+        XCTAssertEqual(resp.data.builderCommits.count, 0)
+        XCTAssertTrue(resp.text.contains("quiet window"))
+    }
+
+    func testFetchDigestSurfacesHttpErrorOneToOne() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            let body = #"{"error": "windowEndMs must be a finite number"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 400, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+
+        do {
+            _ = try await client.fetchDigest()
+            XCTFail("expected httpError")
+        } catch DaemonClientError.httpError(let code) {
+            XCTAssertEqual(code, 400)
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+    }
+
     func testTriggerWorkflowSendsBody() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }

@@ -61,6 +61,9 @@ final class AppState: ObservableObject {
     @Published var taskQueue: TaskQueueResponse?
     @Published var activeSessions: [SessionSummary] = []
     @Published var recentRuns: [RunSummary] = []
+    @Published var digest: DigestResponse?
+    @Published var digestError: String?
+    @Published var isLoadingDigest: Bool = false
     @Published var projectDir: URL? {
         didSet {
             if let dir = projectDir {
@@ -161,6 +164,7 @@ final class AppState: ObservableObject {
     private func refreshLocal() async {
         guard let dir = projectDir else {
             health = .offline
+            clearDigestForOffline()
             return
         }
 
@@ -173,10 +177,36 @@ final class AppState: ObservableObject {
             taskQueue = nil
             activeSessions = []
             recentRuns = []
+            clearDigestForOffline()
             return
         }
 
         await fetchAll()
+    }
+
+    /// Drops any cached digest body when the daemon transitions offline so a
+    /// stale rollup never paints over a disconnected state. The on-demand
+    /// digest is only loaded explicitly, so the next load happens once the
+    /// daemon is reachable again.
+    private func clearDigestForOffline() {
+        digest = nil
+        digestError = nil
+        isLoadingDigest = false
+    }
+
+    /// Pulls the on-demand 24h rollup from `/api/digest`. Errors land in
+    /// `digestError` so the view can surface the daemon's typed failure
+    /// without preserving a stale body.
+    func loadDigest() async {
+        isLoadingDigest = true
+        digestError = nil
+        do {
+            digest = try await client.fetchDigest()
+        } catch {
+            digest = nil
+            digestError = error.localizedDescription
+        }
+        isLoadingDigest = false
     }
 
     private func fetchAll() async {
@@ -215,6 +245,7 @@ final class AppState: ObservableObject {
         case .failure(let error):
             health = .error(error.localizedDescription)
             activeRuns = []
+            clearDigestForOffline()
         }
 
         switch ar {

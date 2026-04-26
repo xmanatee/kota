@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-menu-bar-digestview-consuming-apidigest
 title: Add macOS menu bar DigestView consuming /api/digest
-status: ready
+status: done
 priority: p2
 area: client
 summary: Add a Digest view in the macOS menu bar client that calls GET /api/digest and renders the same on-demand digest body the web DigestPanel, Telegram /digest, kota digest CLI, and daemon HTTP route already share, completing native operator-pull parity for the daily-digest seam.
 created_at: 2026-04-26T05:05:25.319Z
-updated_at: 2026-04-26T05:05:25.319Z
+updated_at: 2026-04-26T05:14:29.583Z
 ---
 
 ## Problem

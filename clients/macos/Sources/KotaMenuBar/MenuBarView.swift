@@ -27,6 +27,9 @@ struct MenuBarView: View {
             // Recent runs history
             RecentRunsView()
 
+            // Daily digest (on-demand /api/digest)
+            DigestView()
+
             // Task queue
             TaskQueueView()
 
