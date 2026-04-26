@@ -211,6 +211,39 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(resp.sessions[1].source, "daemon")
     }
 
+    func testAttentionResponseDecodes() throws {
+        let json = """
+        {
+          "data": {
+            "items": [
+              {"label": "Empty ready queue", "detail": "Builder has nothing to pull."},
+              {"label": "Stalled work", "detail": "2 tasks stuck in doing"}
+            ]
+          },
+          "text": "Attention digest (2 items):\\n• *Empty ready queue*: Builder has nothing to pull.\\n• *Stalled work*: 2 tasks stuck in doing"
+        }
+        """.data(using: .utf8)!
+        let resp = try decoder.decode(AttentionResponse.self, from: json)
+        XCTAssertEqual(resp.data.items.count, 2)
+        XCTAssertEqual(resp.data.items[0].label, "Empty ready queue")
+        XCTAssertEqual(resp.data.items[0].detail, "Builder has nothing to pull.")
+        XCTAssertEqual(resp.data.items[1].label, "Stalled work")
+        XCTAssertTrue(resp.text.contains("Attention digest (2 items):"))
+        XCTAssertTrue(resp.text.contains("• *Stalled work*: 2 tasks stuck in doing"))
+    }
+
+    func testAttentionResponseDecodesEmptyState() throws {
+        let json = """
+        {
+          "data": {"items": []},
+          "text": "No attention items right now."
+        }
+        """.data(using: .utf8)!
+        let resp = try decoder.decode(AttentionResponse.self, from: json)
+        XCTAssertTrue(resp.data.items.isEmpty)
+        XCTAssertEqual(resp.text, "No attention items right now.")
+    }
+
     func testDaemonHealthProperties() {
         XCTAssertEqual(DaemonHealth.unknown.systemImageName, "circle")
         XCTAssertEqual(DaemonHealth.unknown.label, "KOTA")

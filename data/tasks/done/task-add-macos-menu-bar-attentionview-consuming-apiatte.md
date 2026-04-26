@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-menu-bar-attentionview-consuming-apiatte
 title: Add macOS menu bar AttentionView consuming /api/attention
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add an AttentionView in the macOS menu bar (mirroring DigestView) that calls GET /api/attention and renders the same on-demand attention body the Telegram /attention, kota attention CLI, daemon HTTP route, and web AttentionPanel already share, completing the macOS consumer of the attention-digest on-demand seam.
 created_at: 2026-04-26T09:05:42.788Z
-updated_at: 2026-04-26T09:05:42.788Z
+updated_at: 2026-04-26T09:12:07.628Z
 ---
 
 ## Problem

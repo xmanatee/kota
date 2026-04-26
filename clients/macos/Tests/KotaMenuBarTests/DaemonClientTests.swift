@@ -418,6 +418,88 @@ final class DaemonClientTests: XCTestCase {
         }
     }
 
+    func testFetchAttentionDecodesActivePayload() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/attention")
+            XCTAssertEqual(request.httpMethod ?? "GET", "GET")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+            let body = #"""
+            {
+              "data": {
+                "items": [
+                  {"label": "Empty ready queue", "detail": "Builder has nothing to pull."}
+                ]
+              },
+              "text": "Attention digest (1 item):\n• *Empty ready queue*: Builder has nothing to pull."
+            }
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let resp = try await client.fetchAttention()
+        XCTAssertEqual(resp.data.items.count, 1)
+        XCTAssertEqual(resp.data.items[0].label, "Empty ready queue")
+        XCTAssertEqual(resp.data.items[0].detail, "Builder has nothing to pull.")
+        XCTAssertTrue(resp.text.contains("Attention digest (1 item):"))
+    }
+
+    func testFetchAttentionDecodesEmptyPayload() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/attention")
+            let body = #"""
+            {"data": {"items": []}, "text": "No attention items right now."}
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let resp = try await client.fetchAttention()
+        XCTAssertTrue(resp.data.items.isEmpty)
+        XCTAssertEqual(resp.text, "No attention items right now.")
+    }
+
+    func testFetchAttentionSurfacesHttpErrorOneToOne() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            let body = #"{"error": "boom"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+
+        do {
+            _ = try await client.fetchAttention()
+            XCTFail("expected httpError")
+        } catch DaemonClientError.httpError(let code) {
+            XCTAssertEqual(code, 500)
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+    }
+
     func testTriggerWorkflowSendsBody() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }

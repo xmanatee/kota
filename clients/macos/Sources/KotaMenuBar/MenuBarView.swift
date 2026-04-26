@@ -30,6 +30,9 @@ struct MenuBarView: View {
             // Daily digest (on-demand /api/digest)
             DigestView()
 
+            // Attention rollup (on-demand /api/attention)
+            AttentionView()
+
             // Task queue
             TaskQueueView()
 

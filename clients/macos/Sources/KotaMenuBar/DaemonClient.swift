@@ -100,6 +100,10 @@ final class DaemonClient {
         try await get("/api/digest")
     }
 
+    func fetchAttention() async throws -> AttentionResponse {
+        try await get("/api/attention")
+    }
+
     func invokeSlashCommand(name: String) async throws -> InvokeCommandResponse {
         let body = try JSONEncoder().encode(InvokeCommandRequest(name: name))
         return try await post("/commands/invoke", body: body)

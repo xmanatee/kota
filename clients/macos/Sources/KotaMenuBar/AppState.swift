@@ -64,6 +64,9 @@ final class AppState: ObservableObject {
     @Published var digest: DigestResponse?
     @Published var digestError: String?
     @Published var isLoadingDigest: Bool = false
+    @Published var attention: AttentionResponse?
+    @Published var attentionError: String?
+    @Published var isLoadingAttention: Bool = false
     @Published var projectDir: URL? {
         didSet {
             if let dir = projectDir {
@@ -164,7 +167,7 @@ final class AppState: ObservableObject {
     private func refreshLocal() async {
         guard let dir = projectDir else {
             health = .offline
-            clearDigestForOffline()
+            clearOnDemandForOffline()
             return
         }
 
@@ -177,21 +180,24 @@ final class AppState: ObservableObject {
             taskQueue = nil
             activeSessions = []
             recentRuns = []
-            clearDigestForOffline()
+            clearOnDemandForOffline()
             return
         }
 
         await fetchAll()
     }
 
-    /// Drops any cached digest body when the daemon transitions offline so a
-    /// stale rollup never paints over a disconnected state. The on-demand
-    /// digest is only loaded explicitly, so the next load happens once the
-    /// daemon is reachable again.
-    private func clearDigestForOffline() {
+    /// Drops any cached on-demand body (digest, attention) when the daemon
+    /// transitions offline so a stale rollup never paints over a disconnected
+    /// state. These bodies are only loaded explicitly, so the next load
+    /// happens once the daemon is reachable again.
+    private func clearOnDemandForOffline() {
         digest = nil
         digestError = nil
         isLoadingDigest = false
+        attention = nil
+        attentionError = nil
+        isLoadingAttention = false
     }
 
     /// Pulls the on-demand 24h rollup from `/api/digest`. Errors land in
@@ -207,6 +213,21 @@ final class AppState: ObservableObject {
             digestError = error.localizedDescription
         }
         isLoadingDigest = false
+    }
+
+    /// Pulls the on-demand attention rollup from `/api/attention`. Mirrors
+    /// `loadDigest`: failures land in `attentionError` rather than silently
+    /// folding back to the digest body.
+    func loadAttention() async {
+        isLoadingAttention = true
+        attentionError = nil
+        do {
+            attention = try await client.fetchAttention()
+        } catch {
+            attention = nil
+            attentionError = error.localizedDescription
+        }
+        isLoadingAttention = false
     }
 
     private func fetchAll() async {
@@ -245,7 +266,7 @@ final class AppState: ObservableObject {
         case .failure(let error):
             health = .error(error.localizedDescription)
             activeRuns = []
-            clearDigestForOffline()
+            clearOnDemandForOffline()
         }
 
         switch ar {
