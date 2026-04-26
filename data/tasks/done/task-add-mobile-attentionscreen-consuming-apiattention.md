@@ -1,12 +1,12 @@
 ---
 id: task-add-mobile-attentionscreen-consuming-apiattention
 title: Add mobile AttentionScreen consuming /api/attention
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add an AttentionScreen in the mobile client (mirroring DigestScreen) that calls GET /api/attention and renders the same on-demand attention body the Telegram /attention, kota attention CLI, daemon HTTP route, and web AttentionPanel already share, and extend the push-notification screen union and workflow.attention.digest fan-out to deep-link into the new screen instead of co-mingling with the daily-digest screen.
 created_at: 2026-04-26T09:05:45.023Z
-updated_at: 2026-04-26T09:05:45.023Z
+updated_at: 2026-04-26T09:23:41.770Z
 ---
 
 ## Problem

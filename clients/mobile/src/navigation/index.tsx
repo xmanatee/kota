@@ -11,6 +11,7 @@ import { Text, TouchableOpacity } from 'react-native';
 import { useDaemon } from '../context/DaemonContext';
 import { ApprovalDetailScreen } from '../screens/ApprovalDetailScreen';
 import { ApprovalListScreen } from '../screens/ApprovalListScreen';
+import { AttentionScreen } from '../screens/AttentionScreen';
 import { ChatDetailScreen } from '../screens/ChatDetailScreen';
 import { ChatListScreen } from '../screens/ChatListScreen';
 import { DigestScreen } from '../screens/DigestScreen';
@@ -49,6 +50,7 @@ export type TabParams = {
   Approvals: NavigatorScreenParams<ApprovalsStackParams> | undefined;
   Questions: undefined;
   Tasks: undefined;
+  Attention: undefined;
   Digest: undefined;
   Chat: NavigatorScreenParams<ChatStackParams> | undefined;
 };
@@ -77,6 +79,11 @@ function navigateToApproval(approvalId?: string) {
 function navigateToDigest() {
   if (!navigationRef.isReady()) return;
   navigationRef.navigate('Digest');
+}
+
+function navigateToAttention() {
+  if (!navigationRef.isReady()) return;
+  navigationRef.navigate('Attention');
 }
 
 // Configure how notifications are presented while the app is in the foreground.
@@ -188,6 +195,7 @@ export function AppNavigator() {
       routeNotificationResponse(response.notification.request.content.data, {
         toApproval: navigateToApproval,
         toDigest: navigateToDigest,
+        toAttention: navigateToAttention,
       });
     });
     return () => sub.remove();
@@ -230,6 +238,11 @@ export function AppNavigator() {
           name="Tasks"
           component={TaskQueueScreen}
           options={{ tabBarIcon: () => <Text>📌</Text>, headerShown: true, title: 'Tasks' }}
+        />
+        <Tab.Screen
+          name="Attention"
+          component={AttentionScreen}
+          options={{ tabBarIcon: () => <Text>🔔</Text>, headerShown: true, title: 'Attention' }}
         />
         <Tab.Screen
           name="Digest"

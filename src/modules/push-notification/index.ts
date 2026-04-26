@@ -7,10 +7,13 @@
  * - Bus subscriptions that fan each event out to every registered token
  *   through the Expo Push API as a best-effort wake-up hint:
  *     - `approval.requested` → deep-links into the approval detail.
- *     - `workflow.daily.digest` → wakes the mobile DigestScreen for the
- *       08:00 cadence rollup.
- *     - `workflow.attention.digest` → wakes the same screen with an
- *       attention-posture title when something needs the operator.
+ *     - `workflow.daily.digest` → wakes the mobile DigestScreen
+ *       (`data.screen = "digest"`) for the 08:00 cadence rollup.
+ *     - `workflow.attention.digest` → wakes the mobile AttentionScreen
+ *       (`data.screen = "attention"`) with an attention-posture title
+ *       when something needs the operator. The two surfaces stay
+ *       distinct so the on-demand attention rollup never co-mingles
+ *       with the daily-digest body.
  *   SSE remains the authoritative real-time path; the push payload's
  *   `data.screen` field deep-links the tap target.
  *
@@ -54,6 +57,7 @@ const pushNotificationModule: KotaModule = {
           {
             title: "KOTA daily digest",
             body: String(payload.text ?? ""),
+            screen: "digest",
           },
           (msg) => ctx.log.warn(msg),
         );
@@ -64,6 +68,7 @@ const pushNotificationModule: KotaModule = {
           {
             title: "KOTA needs your attention",
             body: String(payload.text ?? ""),
+            screen: "attention",
           },
           (msg) => ctx.log.warn(msg),
         );

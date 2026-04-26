@@ -7,6 +7,7 @@
  * Recognized payloads:
  * - `{ screen: "approvals", approvalId? }` → ApprovalsTab/ApprovalDetail
  * - `{ screen: "digest" }` → DigestTab
+ * - `{ screen: "attention" }` → AttentionTab
  *
  * Anything else is a no-op (older notifications without a `screen` field, or
  * payloads from a future version the mobile app has not learned yet).
@@ -15,6 +16,7 @@
 export type NotificationRouter = {
   toApproval(approvalId?: string): void;
   toDigest(): void;
+  toAttention(): void;
 };
 
 export function routeNotificationResponse(
@@ -33,6 +35,11 @@ export function routeNotificationResponse(
 
   if (screen === "digest") {
     router.toDigest();
+    return;
+  }
+
+  if (screen === "attention") {
+    router.toAttention();
     return;
   }
 }

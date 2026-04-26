@@ -1,5 +1,6 @@
 import type {
   Approval,
+  AttentionResponse,
   DaemonStatus,
   DigestResponse,
   OwnerQuestion,
@@ -25,6 +26,9 @@ export interface DaemonState {
   digest: DigestResponse | null;
   digestLoading: boolean;
   digestError: string | null;
+  attention: AttentionResponse | null;
+  attentionLoading: boolean;
+  attentionError: string | null;
 }
 
 export type DaemonAction =
@@ -43,7 +47,10 @@ export type DaemonAction =
   | { type: 'ERROR'; error: string | null }
   | { type: 'DIGEST_LOADING' }
   | { type: 'DIGEST_RESULT'; digest: DigestResponse }
-  | { type: 'DIGEST_ERROR'; error: string };
+  | { type: 'DIGEST_ERROR'; error: string }
+  | { type: 'ATTENTION_LOADING' }
+  | { type: 'ATTENTION_RESULT'; attention: AttentionResponse }
+  | { type: 'ATTENTION_ERROR'; error: string };
 
 export const initialState: DaemonState = {
   daemonUrl: '',
@@ -63,6 +70,9 @@ export const initialState: DaemonState = {
   digest: null,
   digestLoading: false,
   digestError: null,
+  attention: null,
+  attentionLoading: false,
+  attentionError: null,
 };
 
 export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
@@ -89,6 +99,9 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         digest: action.online ? state.digest : null,
         digestError: action.online ? state.digestError : null,
         digestLoading: action.online ? state.digestLoading : false,
+        attention: action.online ? state.attention : null,
+        attentionError: action.online ? state.attentionError : null,
+        attentionLoading: action.online ? state.attentionLoading : false,
       };
     case 'SSE_STATUS':
       return { ...state, sseConnected: action.connected };
@@ -129,6 +142,22 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         digestLoading: false,
         digestError: action.error,
         digest: null,
+      };
+    case 'ATTENTION_LOADING':
+      return { ...state, attentionLoading: true, attentionError: null };
+    case 'ATTENTION_RESULT':
+      return {
+        ...state,
+        attention: action.attention,
+        attentionLoading: false,
+        attentionError: null,
+      };
+    case 'ATTENTION_ERROR':
+      return {
+        ...state,
+        attentionLoading: false,
+        attentionError: action.error,
+        attention: null,
       };
   }
 }

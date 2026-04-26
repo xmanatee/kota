@@ -21,6 +21,7 @@ export type ApprovalPushPayload = {
 export type DigestPushPayload = {
   title: string;
   body: string;
+  screen: "digest" | "attention";
 };
 
 const EXPO_PUSH_API_URL = "https://exp.host/--/expo-server/push/send";
@@ -28,7 +29,8 @@ const DIGEST_BODY_PREVIEW_CHARS = 140;
 
 type ExpoMessageData =
   | { screen: "approvals"; approvalId: string }
-  | { screen: "digest" };
+  | { screen: "digest" }
+  | { screen: "attention" };
 
 type ExpoMessage = {
   to: string;
@@ -76,7 +78,7 @@ export async function sendDigestPushNotifications(
     sound: "default",
     title: payload.title,
     body,
-    data: { screen: "digest" },
+    data: { screen: payload.screen },
   }));
 
   await postMessages(messages, log);

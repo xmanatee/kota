@@ -1,6 +1,7 @@
 import { type DaemonState, initialState, reducer } from '../context/state';
 import type {
   Approval,
+  AttentionResponse,
   DaemonStatus,
   DigestResponse,
   OwnerQuestion,
@@ -214,6 +215,63 @@ describe('reducer', () => {
     expect(withDigest.digest).toBe(digest);
     const offline = reducer(withDigest, { type: 'ONLINE', online: false });
     expect(offline.digest).toBeNull();
+  });
+
+  test('ATTENTION_LOADING flips loading flag and clears prior error', () => {
+    const withError = reducer(initialState, {
+      type: 'ATTENTION_ERROR',
+      error: 'boom',
+    });
+    expect(withError.attentionError).toBe('boom');
+    const next = reducer(withError, { type: 'ATTENTION_LOADING' });
+    expect(next.attentionLoading).toBe(true);
+    expect(next.attentionError).toBeNull();
+  });
+
+  test('ATTENTION_RESULT stores payload and clears loading/error', () => {
+    const attention: AttentionResponse = {
+      data: {
+        items: [{ label: 'Owner question', detail: 'pending 2 days' }],
+      },
+      text: 'Attention required\n- pending owner question',
+    };
+    const loading = reducer(initialState, { type: 'ATTENTION_LOADING' });
+    const next = reducer(loading, { type: 'ATTENTION_RESULT', attention });
+    expect(next.attention).toBe(attention);
+    expect(next.attentionLoading).toBe(false);
+    expect(next.attentionError).toBeNull();
+  });
+
+  test('ATTENTION_ERROR clears stale attention payload', () => {
+    const attention: AttentionResponse = {
+      data: { items: [] },
+      text: 'No attention items right now.',
+    };
+    const withAttention = reducer(initialState, {
+      type: 'ATTENTION_RESULT',
+      attention,
+    });
+    const next = reducer(withAttention, {
+      type: 'ATTENTION_ERROR',
+      error: '503',
+    });
+    expect(next.attention).toBeNull();
+    expect(next.attentionError).toBe('503');
+    expect(next.attentionLoading).toBe(false);
+  });
+
+  test('ONLINE false drops cached attention so it cannot persist across an offline transition', () => {
+    const attention: AttentionResponse = {
+      data: { items: [{ label: 'Builder warnings', detail: '3/10' }] },
+      text: 'Attention required\n- builder warnings repeating',
+    };
+    const withAttention = reducer(initialState, {
+      type: 'ATTENTION_RESULT',
+      attention,
+    });
+    expect(withAttention.attention).toBe(attention);
+    const offline = reducer(withAttention, { type: 'ONLINE', online: false });
+    expect(offline.attention).toBeNull();
   });
 
   test('OWNER_QUESTIONS recomputes pending count', () => {

@@ -5,11 +5,13 @@
  * - `sendPushNotifications` for `approval.requested` — mobile app deep-links
  *   into the approval queue using `data.screen = "approvals"` +
  *   `data.approvalId`.
- * - `sendDigestPushNotifications` for `workflow.daily.digest` and
- *   `workflow.attention.digest` — mobile app deep-links into DigestScreen
- *   using `data.screen = "digest"`. The body is a short preview of the
- *   rendered digest text; the screen refetches the full payload from
- *   `/api/digest`.
+ * - `sendDigestPushNotifications` for `workflow.daily.digest` (deep-links
+ *   into DigestScreen, `data.screen = "digest"`) and `workflow.attention.digest`
+ *   (deep-links into AttentionScreen, `data.screen = "attention"`). Both
+ *   surfaces share the body-preview pipeline; the screen field is the only
+ *   discriminator. The body is a short preview of the rendered digest/attention
+ *   text; the screen refetches the full payload from `/api/digest` or
+ *   `/api/attention` respectively.
  *
  * A regression in either payload silently breaks mobile push deep-linking,
  * so each shape is pinned exactly here.
@@ -156,6 +158,7 @@ describe("push-notification send paths", () => {
         {
           title: "KOTA daily digest",
           body: "Daily digest 2026-04-26\n- builder committed: Add foo",
+          screen: "digest",
         },
         vi.fn(),
       );
@@ -184,27 +187,35 @@ describe("push-notification send paths", () => {
       ]);
     });
 
-    it("uses a distinct attention-posture title for workflow.attention.digest", async () => {
+    it("emits screen=attention with an attention-posture title for workflow.attention.digest", async () => {
       await sendDigestPushNotifications(
         projectDir,
         {
           title: "KOTA needs your attention",
           body: "3 items need attention",
+          screen: "attention",
         },
         vi.fn(),
       );
 
+      expect(fetchMock).toHaveBeenCalledTimes(1);
       const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-      const body = JSON.parse(init.body as string) as Array<{ title: string; body: string }>;
-      expect(body[0].title).toBe("KOTA needs your attention");
-      expect(body[0].body).toBe("3 items need attention");
+      const body = JSON.parse(init.body as string) as Array<Record<string, unknown>>;
+      expect(body[0]).toEqual({
+        to: "ExponentPushToken[aaa]",
+        sound: "default",
+        title: "KOTA needs your attention",
+        body: "3 items need attention",
+        data: { screen: "attention" },
+      });
+      expect((body[1] as { data: { screen: string } }).data.screen).toBe("attention");
     });
 
     it("truncates the body preview to keep payload under Expo limits", async () => {
       const longLine = "x".repeat(500);
       await sendDigestPushNotifications(
         projectDir,
-        { title: "KOTA daily digest", body: longLine },
+        { title: "KOTA daily digest", body: longLine, screen: "digest" },
         vi.fn(),
       );
       const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -219,6 +230,7 @@ describe("push-notification send paths", () => {
         {
           title: "KOTA daily digest",
           body: "\n\n  \nReal first line\nSecond line",
+          screen: "digest",
         },
         vi.fn(),
       );
@@ -234,7 +246,7 @@ describe("push-notification send paths", () => {
       );
       await sendDigestPushNotifications(
         projectDir,
-        { title: "KOTA daily digest", body: "anything" },
+        { title: "KOTA daily digest", body: "anything", screen: "digest" },
         vi.fn(),
       );
       expect(fetchMock).not.toHaveBeenCalled();
@@ -247,7 +259,7 @@ describe("push-notification send paths", () => {
       const log = vi.fn();
       await sendDigestPushNotifications(
         projectDir,
-        { title: "KOTA daily digest", body: "x" },
+        { title: "KOTA daily digest", body: "x", screen: "digest" },
         log,
       );
       expect(log).toHaveBeenCalledTimes(1);

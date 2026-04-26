@@ -1,5 +1,6 @@
 import type {
   Approval,
+  AttentionResponse,
   AutonomyMode,
   DaemonStatus,
   DigestResponse,
@@ -113,6 +114,10 @@ export class DaemonClient {
 
   getDigest(): Promise<DigestResponse> {
     return this.request<DigestResponse>('/api/digest');
+  }
+
+  getAttention(): Promise<AttentionResponse> {
+    return this.request<AttentionResponse>('/api/attention');
   }
 
   registerPushToken(deviceId: string, token: string): Promise<{ ok: boolean }> {

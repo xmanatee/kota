@@ -12,6 +12,7 @@ describe('routeNotificationResponse', () => {
     return {
       toApproval: jest.fn(),
       toDigest: jest.fn(),
+      toAttention: jest.fn(),
     };
   }
 
@@ -23,6 +24,7 @@ describe('routeNotificationResponse', () => {
     );
     expect(router.toApproval).toHaveBeenCalledWith('approval-42');
     expect(router.toDigest).not.toHaveBeenCalled();
+    expect(router.toAttention).not.toHaveBeenCalled();
   });
 
   test('routes screen=approvals without approvalId to ApprovalList', () => {
@@ -36,6 +38,15 @@ describe('routeNotificationResponse', () => {
     routeNotificationResponse({ screen: 'digest' }, router);
     expect(router.toDigest).toHaveBeenCalledTimes(1);
     expect(router.toApproval).not.toHaveBeenCalled();
+    expect(router.toAttention).not.toHaveBeenCalled();
+  });
+
+  test('routes screen=attention to the AttentionScreen tab', () => {
+    const router = makeRouter();
+    routeNotificationResponse({ screen: 'attention' }, router);
+    expect(router.toAttention).toHaveBeenCalledTimes(1);
+    expect(router.toDigest).not.toHaveBeenCalled();
+    expect(router.toApproval).not.toHaveBeenCalled();
   });
 
   test('ignores notifications with unknown or missing screen field', () => {
@@ -47,6 +58,7 @@ describe('routeNotificationResponse', () => {
     routeNotificationResponse('not an object', router);
     expect(router.toApproval).not.toHaveBeenCalled();
     expect(router.toDigest).not.toHaveBeenCalled();
+    expect(router.toAttention).not.toHaveBeenCalled();
   });
 
   test('ignores screen=approvals when approvalId is not a string', () => {

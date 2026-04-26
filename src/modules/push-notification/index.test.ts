@@ -4,7 +4,9 @@
  *
  * - `approval.requested` → `data.screen = "approvals"` (existing behavior).
  * - `workflow.daily.digest` → `data.screen = "digest"`, cadence-posture title.
- * - `workflow.attention.digest` → `data.screen = "digest"`, attention-posture title.
+ * - `workflow.attention.digest` → `data.screen = "attention"`, attention-posture
+ *   title, so a tap deep-links into the mobile AttentionScreen instead of the
+ *   daily-digest screen.
  *
  * The module is exercised through its real `onLoad` against a stub
  * `ModuleContext` whose event proxy is backed by a real `EventBus`. Each
@@ -143,7 +145,7 @@ describe("pushNotificationModule bus subscriptions", () => {
     });
   });
 
-  it("fans workflow.attention.digest out as a screen=digest push with attention title", async () => {
+  it("fans workflow.attention.digest out as a screen=attention push with attention title", async () => {
     bus.emit("workflow.attention.digest", {
       items: [{ kind: "pending-owner-question", id: "abc" }],
       text: "Attention required 2026-04-26\n- owner question pending",
@@ -158,7 +160,7 @@ describe("pushNotificationModule bus subscriptions", () => {
       sound: "default",
       title: "KOTA needs your attention",
       body: "Attention required 2026-04-26",
-      data: { screen: "digest" },
+      data: { screen: "attention" },
     });
   });
 

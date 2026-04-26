@@ -24,6 +24,7 @@ interface DaemonContextValue {
   setPushNotificationsEnabled: (enabled: boolean) => Promise<void>;
   refresh: () => void;
   refreshDigest: () => Promise<void>;
+  refreshAttention: () => Promise<void>;
 }
 
 const DaemonContext = createContext<DaemonContextValue>({
@@ -33,6 +34,7 @@ const DaemonContext = createContext<DaemonContextValue>({
   setPushNotificationsEnabled: async () => {},
   refresh: () => {},
   refreshDigest: async () => {},
+  refreshAttention: async () => {},
 });
 
 export function DaemonProvider({ children }: { children: React.ReactNode }) {
@@ -221,6 +223,21 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const refreshAttention = useCallback(async () => {
+    const client = clientRef.current;
+    if (!client) return;
+    dispatch({ type: 'ATTENTION_LOADING' });
+    try {
+      const attention = await client.getAttention();
+      dispatch({ type: 'ATTENTION_RESULT', attention });
+    } catch (e) {
+      dispatch({
+        type: 'ATTENTION_ERROR',
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }, []);
+
   return (
     <DaemonContext.Provider
       value={{
@@ -230,6 +247,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
         setPushNotificationsEnabled,
         refresh,
         refreshDigest,
+        refreshAttention,
       }}
     >
       {children}

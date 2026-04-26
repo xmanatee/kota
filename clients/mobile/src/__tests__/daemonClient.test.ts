@@ -269,6 +269,42 @@ describe('DaemonClient', () => {
     await expect(client().getDigest()).rejects.toThrow('503');
   });
 
+  test('getAttention sends GET /api/attention with bearer token (populated payload)', async () => {
+    const populated = {
+      data: {
+        items: [
+          { label: 'Owner question', detail: 'oq-1 pending 3d' },
+          { label: 'Builder warnings', detail: '3/10' },
+        ],
+      },
+      text: 'Attention required 2026-04-26\n- owner question pending\n- builder warnings repeating',
+    };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(populated));
+    const res = await client().getAttention();
+    expect(lastCall()[0]).toBe(`${baseUrl}/api/attention`);
+    expect(lastHeaders().Authorization).toBe(`Bearer ${token}`);
+    expect(res).toEqual(populated);
+    expect(res.data.items).toHaveLength(2);
+  });
+
+  test('getAttention passes through the empty-state envelope unchanged', async () => {
+    const empty = {
+      data: { items: [] },
+      text: 'No attention items right now.',
+    };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(empty));
+    const res = await client().getAttention();
+    expect(res.data.items).toHaveLength(0);
+    expect(res.text).toBe('No attention items right now.');
+  });
+
+  test('getAttention surfaces the daemon HTTP error one-to-one', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response('', { status: 503, statusText: 'Service Unavailable' }),
+    );
+    await expect(client().getAttention()).rejects.toThrow('503');
+  });
+
   test('health hits /health without auth header (public endpoint)', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({ status: 'ok', version: '1', uptimeMs: 1, components: {} }));
     await client().health();
