@@ -67,6 +67,10 @@ final class AppState: ObservableObject {
     @Published var attention: AttentionResponse?
     @Published var attentionError: String?
     @Published var isLoadingAttention: Bool = false
+    @Published var knowledgeQuery: String = ""
+    @Published var knowledgeResult: KnowledgeSearchResponse?
+    @Published var knowledgeError: String?
+    @Published var isLoadingKnowledge: Bool = false
     @Published var projectDir: URL? {
         didSet {
             if let dir = projectDir {
@@ -198,6 +202,9 @@ final class AppState: ObservableObject {
         attention = nil
         attentionError = nil
         isLoadingAttention = false
+        knowledgeResult = nil
+        knowledgeError = nil
+        isLoadingKnowledge = false
     }
 
     /// Pulls the on-demand 24h rollup from `/api/digest`. Errors land in
@@ -228,6 +235,31 @@ final class AppState: ObservableObject {
             attentionError = error.localizedDescription
         }
         isLoadingAttention = false
+    }
+
+    /// Pulls semantic knowledge search results from `/api/knowledge/search`.
+    /// Empty / whitespace-only queries clear any prior result and skip the
+    /// request — the view surfaces the inline usage hint instead. Failures
+    /// land in `knowledgeError`; the typed `semanticUnavailable` branch lands
+    /// in `knowledgeResult` so the view renders the daemon's explanation
+    /// without retrying the request.
+    func loadKnowledge() async {
+        let trimmed = knowledgeQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            knowledgeResult = nil
+            knowledgeError = nil
+            isLoadingKnowledge = false
+            return
+        }
+        isLoadingKnowledge = true
+        knowledgeError = nil
+        do {
+            knowledgeResult = try await client.searchKnowledge(query: trimmed, limit: 10)
+        } catch {
+            knowledgeResult = nil
+            knowledgeError = error.localizedDescription
+        }
+        isLoadingKnowledge = false
     }
 
     private func fetchAll() async {

@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-menu-bar-knowledgeview-consuming-daemonc
 title: Add macOS menu-bar KnowledgeView consuming DaemonClient.searchKnowledge
-status: ready
+status: done
 priority: p2
 area: client
 summary: Add KnowledgeView.swift under clients/macos/Sources/KotaMenuBar/, wire it into MenuBarView.swift as a collapsible section consistent with DigestView and AttentionView, extend AppState with the search state observables (current query, current result, in-flight, last error) using the same pattern other sections use, and render the four operator-visible branches one-to-one with the daemon contract: per-entry id+type+status+title lines (matching renderKnowledgeSearchPlain), empty-result body, empty-query usage hint, and the semantic-unavailable explanation. Capture the four screenshots and update src/modules/knowledge/AGENTS.md to name the macOS menu bar as a knowledge-surface consumer (one-line update).
 created_at: 2026-04-26T12:54:12.303Z
-updated_at: 2026-04-26T12:54:12.303Z
+updated_at: 2026-04-26T23:57:32.119Z
 ---
 
 ## Problem

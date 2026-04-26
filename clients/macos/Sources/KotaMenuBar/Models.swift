@@ -444,6 +444,24 @@ struct KnowledgeEntry: Codable, Identifiable, Equatable {
     let title: String
 }
 
+/// Renders knowledge entries one-to-one with the shared
+/// `renderKnowledgeSearchPlain` helper exported by
+/// `src/modules/knowledge/render.ts`: id, type, status, and title columns
+/// padded to the widest value across the result set. Sharing this helper
+/// keeps the macOS menu bar body identical to the Telegram, CLI, and web
+/// surfaces — five operator pull-surfaces, one rendered line shape.
+func renderKnowledgeSearchPlain(_ entries: [KnowledgeEntry]) -> String {
+    let idWidth = max(entries.map { $0.id.count }.max() ?? 0, 2)
+    let typeWidth = max(entries.map { $0.type.count }.max() ?? 0, 4)
+    let statusWidth = max(entries.map { $0.status.count }.max() ?? 0, 6)
+    return entries.map { e in
+        let id = e.id.padding(toLength: idWidth, withPad: " ", startingAt: 0)
+        let type = e.type.padding(toLength: typeWidth, withPad: " ", startingAt: 0)
+        let status = e.status.padding(toLength: statusWidth, withPad: " ", startingAt: 0)
+        return "\(id)  \(type)  \(status)  \(e.title)"
+    }.joined(separator: "\n")
+}
+
 /// Discriminated mirror of the daemon's `GET /api/knowledge/search`
 /// response: `{ ok: true, entries: KnowledgeEntry[] }` on success and
 /// `{ ok: false, reason: "semantic_unavailable" }` when no embedding-backed

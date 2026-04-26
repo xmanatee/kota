@@ -33,6 +33,9 @@ struct MenuBarView: View {
             // Attention rollup (on-demand /api/attention)
             AttentionView()
 
+            // Knowledge search (on-demand /api/knowledge/search)
+            KnowledgeView()
+
             // Task queue
             TaskQueueView()
 

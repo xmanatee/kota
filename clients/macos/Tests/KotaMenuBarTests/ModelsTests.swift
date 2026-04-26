@@ -296,6 +296,66 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(resp.serveOwned, false)
     }
 
+    // MARK: - Knowledge
+
+    func testKnowledgeSearchResponseDecodesEntries() throws {
+        let json = #"""
+        {"ok": true, "entries": [
+          {"id": "k-1", "type": "note", "status": "active", "title": "Knowledge fan-out"},
+          {"id": "k-2", "type": "decision", "status": "archived", "title": "Operator parity"}
+        ]}
+        """#.data(using: .utf8)!
+        let response = try decoder.decode(KnowledgeSearchResponse.self, from: json)
+        guard case .success(let entries) = response else {
+            XCTFail("expected success branch")
+            return
+        }
+        XCTAssertEqual(entries.count, 2)
+        XCTAssertEqual(entries[0].id, "k-1")
+        XCTAssertEqual(entries[0].type, "note")
+        XCTAssertEqual(entries[0].status, "active")
+        XCTAssertEqual(entries[0].title, "Knowledge fan-out")
+    }
+
+    func testKnowledgeSearchResponseDecodesSemanticUnavailable() throws {
+        let json = #"{"ok": false, "reason": "semantic_unavailable"}"#.data(using: .utf8)!
+        let response = try decoder.decode(KnowledgeSearchResponse.self, from: json)
+        XCTAssertEqual(response, .semanticUnavailable)
+    }
+
+    func testKnowledgeSearchResponseRejectsUnknownReason() {
+        let json = #"{"ok": false, "reason": "something_else"}"#.data(using: .utf8)!
+        XCTAssertThrowsError(try decoder.decode(KnowledgeSearchResponse.self, from: json))
+    }
+
+    func testRenderKnowledgeSearchPlainMatchesSharedLineShape() {
+        let entries = [
+            KnowledgeEntry(id: "k-1", type: "note", status: "active", title: "Knowledge fan-out"),
+            KnowledgeEntry(id: "k-12", type: "decision", status: "archived", title: "Operator parity"),
+        ]
+        let rendered = renderKnowledgeSearchPlain(entries)
+        // Mirrors `renderKnowledgeSearchPlain` from src/modules/knowledge/render.ts:
+        // padEnd to widest id/type/status, two spaces between columns, title last.
+        let expected = """
+            k-1   note      active    Knowledge fan-out
+            k-12  decision  archived  Operator parity
+            """
+        XCTAssertEqual(rendered, expected)
+    }
+
+    func testRenderKnowledgeSearchPlainHonorsMinimumWidths() {
+        let entries = [
+            KnowledgeEntry(id: "a", type: "x", status: "ok", title: "Short"),
+        ]
+        let rendered = renderKnowledgeSearchPlain(entries)
+        // id min width 2, type min width 4, status min width 6 — matches TS.
+        XCTAssertEqual(rendered, "a   x     ok      Short")
+    }
+
+    func testRenderKnowledgeSearchPlainEmptyReturnsEmpty() {
+        XCTAssertEqual(renderKnowledgeSearchPlain([]), "")
+    }
+
     // MARK: - Helpers
 
     private func makeApproval(risk: String) -> ApprovalRequest {
