@@ -1,12 +1,12 @@
 ---
 id: task-add-kota-digest-cli-command-consuming-the-on-deman
 title: Add kota digest CLI command consuming the on-demand digest seam
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a 'kota digest' subcommand that emits the same on-demand operator digest the Telegram /digest command already produces, so operators on the terminal can pull a digest without depending on Telegram.
 created_at: 2026-04-26T03:24:16.115Z
-updated_at: 2026-04-26T03:24:16.115Z
+updated_at: 2026-04-26T03:34:37.265Z
 ---
 
 ## Problem

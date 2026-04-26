@@ -9,6 +9,7 @@ import type {
   RegisteredWorkflowDefinitionInput,
   WorkflowDefinitionInput,
 } from "#core/workflow/types.js";
+import { buildDigestCommand } from "./workflows/daily-digest/digest-cli.js";
 
 // Absolute path to KOTA's install root (the directory that contains `src/` in
 // source mode and `dist/` in built mode). Workflow `promptPath` values are
@@ -82,6 +83,7 @@ const autonomyModule: KotaModule = {
   dependencies: ["workflow-ops", "repo-tasks", "rendering"],
   workflows: async () => await discoverAutonomyWorkflowDefinitions(),
   agents: async () => await discoverAutonomyAgents(),
+  commands: () => [buildDigestCommand()],
 };
 
 export default autonomyModule;
