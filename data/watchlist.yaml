@@ -187,6 +187,14 @@ resources:
   - url: https://github.com/cline/cline
     added: "2026-04-26"
     notes: "Cline is one of the two most-deployed in-IDE agent runtimes (alongside continuedev/continue) and the dominant fork base for many VS Code agent extensions. KOTA's current peer-runtime coverage is heavy on terminal CLIs and SDK frameworks but missing the in-editor design point — different operator-surface and tool-permission model than terminal-host runtimes. Snapshot and distill on the next explorer cycle."
+    snapshot:
+      fingerprint: sha256:3e2b3227bc02e5120d675b6f23f13346
+      summary: "Cline is a VS Code-first autonomous coding agent (TypeScript) with HITL-every-step approval, single-agent Claude-Sonnet architecture, MCP runtime tool extension, multi-provider LLM backends, and per-task checkpoints rather than persistent memory. Verdict: HITL-every-step rejected at autonomy-mode layer (KOTA's autonomy mode + approval-queue + tool-risk already cover supervised posture); single-agent + MCP-extensible already adopted; no new KOTA primitive opened."
+      last_seen_at: "2026-04-26T02:48:28.585Z"
   - url: https://github.com/continuedev/continue
     added: "2026-04-26"
     notes: "Continue.dev is the other widely-deployed in-IDE agent runtime, with a config-as-code pattern (config.yaml) and a different tool/sandbox model from Cline. Distinct from terminal-host peers already on the watchlist. Snapshot and distill on the next explorer cycle."
+    snapshot:
+      fingerprint: sha256:2d645d1fffffc712c2b6505d2a27d814
+      summary: "Continue (continuedev/continue) is now a CI-enforceable AI-checks platform: source-controlled markdown checks under .continue/checks/, run on PRs as GitHub status checks, primary surface is a cn CLI plus VS Code/JetBrains plugins. Single-agent per check, MCP-supported, config-as-code in version control. Verdict: read but reject as a parallel surface — KOTA's eval-harness + agent-judge contracts already cover agent evaluation, pr-reviewer covers the GitHub-PR signal, and scoped AGENTS.md already realizes repo-resident config-as-code; importing markdown checks would be a second governance surface."
+      last_seen_at: "2026-04-26T02:48:28.586Z"
