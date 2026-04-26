@@ -184,3 +184,9 @@ resources:
       fingerprint: sha256:dc8e033b206bc91d5ff47e6134e84d9a
       summary: "Microsoft Agent Framework is Microsoft's first-party AutoGen + Semantic-Kernel successor, a Python + .NET SDK built on Agent + graph-based Workflow (executor/edge) primitives with sequential/concurrent/group-chat/handoff/magentic orchestrations, Cosmos-DB-backed checkpoint + time-travel, human-in-the-loop request/response gates, a YAML declarative workflow DSL, middleware, OpenTelemetry observability, DevUI, and AutoGen + Semantic-Kernel migration guides."
       last_seen_at: "2026-04-23T21:10:25.405Z"
+  - url: https://github.com/cline/cline
+    added: "2026-04-26"
+    notes: "Cline is one of the two most-deployed in-IDE agent runtimes (alongside continuedev/continue) and the dominant fork base for many VS Code agent extensions. KOTA's current peer-runtime coverage is heavy on terminal CLIs and SDK frameworks but missing the in-editor design point — different operator-surface and tool-permission model than terminal-host runtimes. Snapshot and distill on the next explorer cycle."
+  - url: https://github.com/continuedev/continue
+    added: "2026-04-26"
+    notes: "Continue.dev is the other widely-deployed in-IDE agent runtime, with a config-as-code pattern (config.yaml) and a different tool/sandbox model from Cline. Distinct from terminal-host peers already on the watchlist. Snapshot and distill on the next explorer cycle."
