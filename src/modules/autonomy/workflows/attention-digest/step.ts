@@ -25,7 +25,14 @@ const DEFAULT_BLOCKED_AGED_DAYS = 14;
 const MAX_INDIVIDUAL_BLOCKED_ITEMS = 5;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-type AttentionItem = { label: string; detail: string };
+export type AttentionItem = { label: string; detail: string };
+
+export type RenderedAttention = {
+  items: AttentionItem[];
+  text: string;
+};
+
+export const NO_ATTENTION_ITEMS_TEXT = "No attention items right now.";
 
 function builderFailureStreak(recentRuns: RunSummary[]): number {
   // recentRuns is most-recent-first; count consecutive builder failures from the head
@@ -228,6 +235,26 @@ function buildDigestText(items: AttentionItem[]): string {
 }
 
 /**
+ * Operator-initiated attention digest body. Runs the same detector + renderer
+ * the cadence step uses, but does not touch the cadence counter and does not
+ * emit `workflow.attention.digest`. When no items warrant attention the body
+ * is a short fixed reply rather than the cadence-style empty header.
+ *
+ * Operator-facing only — this output must not be exposed to autonomy agents
+ * in any prompt path.
+ */
+export function renderOnDemandAttention(opts: {
+  projectDir: string;
+  runsDir: string;
+}): RenderedAttention {
+  const recentRuns = loadRecentRuns(opts.runsDir);
+  const items = detectAttentionItems(opts.projectDir, recentRuns);
+  const text =
+    items.length === 0 ? NO_ATTENTION_ITEMS_TEXT : buildDigestText(items);
+  return { items, text };
+}
+
+/**
  * Run one attention digest step. Increments the persistent counter and, every
  * DIGEST_EVERY_N_RUNS invocations, checks for attention items and emits bus
  * events when any are found.
@@ -248,12 +275,9 @@ export function runAttentionDigestStep(
   writeJsonFileAtomic(counterFile, { count });
   if (count % DIGEST_EVERY_N_RUNS !== 0) return;
 
-  const recentRuns = loadRecentRuns(runsDir);
-
-  const items = detectAttentionItems(projectDir, recentRuns);
+  const { items, text } = renderOnDemandAttention({ projectDir, runsDir });
   if (items.length === 0) return;
 
-  const text = buildDigestText(items);
   emit?.("workflow.attention.digest", {
     items,
     text,

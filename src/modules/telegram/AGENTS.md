@@ -4,9 +4,10 @@ This directory owns the Telegram integration — interactive bot access and
 notification forwarding.
 
 - Contributes two daemon channels: `telegram-status` (responds to `/status`
-  with workflow state and to `/digest` with the on-demand daily digest) and
-  `telegram-interactive` (hosts one agent session per chat). Both are started
-  and stopped by the daemon alongside other channels.
+  with workflow state, to `/digest` with the on-demand daily digest, and to
+  `/attention` with the on-demand attention digest) and `telegram-interactive`
+  (hosts one agent session per chat). Both are started and stopped by the
+  daemon alongside other channels.
 - The `/digest` command calls the daily-digest module's
   `renderOnDemandDigest` seam directly. It must not write the cadence
   snapshot file and must not emit `workflow.daily.digest` (otherwise other
@@ -15,6 +16,15 @@ notification forwarding.
   initiated and replies in-band to the requesting chat. Like the cadence
   digest, the rendered body is operator-facing only and must not be
   exposed to autonomy agents in any prompt path.
+- The `/attention` command mirrors `/digest` for the symmetric attention
+  surface: it calls the attention-digest module's `renderOnDemandAttention`
+  seam directly, must not advance the cadence counter
+  (`.kota/attention-digest-counter.json`), must not emit
+  `workflow.attention.digest`, is not gated by quiet hours, and posts the
+  rendered text in-band. When nothing warrants attention the bot replies
+  with the short fixed `NO_ATTENTION_ITEMS_TEXT` body so the operator can
+  distinguish "nothing wrong" from "command failed". The body is
+  operator-facing only and must not be exposed to autonomy agents.
 - Contributes notification subscriptions for workflow events.
 - Optional event filters must not suppress urgent owner/approval escalation
   notifications.

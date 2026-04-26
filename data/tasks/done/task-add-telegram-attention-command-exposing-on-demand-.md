@@ -1,12 +1,12 @@
 ---
 id: task-add-telegram-attention-command-exposing-on-demand-
 title: Add Telegram /attention command exposing on-demand attention digest
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a Telegram /attention command that runs the attention-digest detector on demand and posts the rendered attention items to the chat, mirroring the /digest precedent and giving operators a pull-side counterpart to the cadence-driven attention push.
 created_at: 2026-04-26T06:49:49.338Z
-updated_at: 2026-04-26T06:49:49.338Z
+updated_at: 2026-04-26T06:56:23.671Z
 ---
 
 ## Problem

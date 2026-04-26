@@ -1,8 +1,19 @@
-import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { runAttentionDigestStep } from "./step.js";
+import {
+  NO_ATTENTION_ITEMS_TEXT,
+  renderOnDemandAttention,
+  runAttentionDigestStep,
+} from "./step.js";
 
 function makeTaskDir(projectDir: string, state: string, count: number): void {
   const dir = join(projectDir, "data", "tasks", state);
@@ -403,6 +414,61 @@ describe("runAttentionDigestStep", () => {
       const text = emittedEvents[0].payload.text as string;
       expect(text).toContain("Stale blocker");
       expect(text).toContain("task-day-old");
+    });
+  });
+
+  describe("renderOnDemandAttention", () => {
+    it("returns the same body cadence would emit when items exist", () => {
+      makeTaskDir(projectDir, "doing", 2);
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+
+      // Drive the cadence so we can compare its emitted text against the
+      // on-demand body for the exact same repo state.
+      runSteps(10);
+      expect(emittedEvents).toHaveLength(1);
+      const cadenceText = emittedEvents[0].payload.text as string;
+
+      const result = renderOnDemandAttention({ projectDir, runsDir });
+      expect(result.items.length).toBeGreaterThan(0);
+      expect(result.text).toBe(cadenceText);
+    });
+
+    it("returns the short fixed reply when nothing warrants attention", () => {
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+
+      const result = renderOnDemandAttention({ projectDir, runsDir });
+      expect(result.items).toEqual([]);
+      expect(result.text).toBe(NO_ATTENTION_ITEMS_TEXT);
+    });
+
+    it("does not write the cadence counter file", () => {
+      makeTaskDir(projectDir, "doing", 2);
+      const counterFile = join(runsDir, "..", "attention-digest-counter.json");
+      expect(existsSync(counterFile)).toBe(false);
+
+      renderOnDemandAttention({ projectDir, runsDir });
+
+      expect(existsSync(counterFile)).toBe(false);
+    });
+
+    it("does not advance an existing cadence counter", () => {
+      const counterFile = join(runsDir, "..", "attention-digest-counter.json");
+      writeFileSync(counterFile, JSON.stringify({ count: 7 }), "utf-8");
+      makeTaskDir(projectDir, "doing", 2);
+
+      renderOnDemandAttention({ projectDir, runsDir });
+
+      const persisted = JSON.parse(readFileSync(counterFile, "utf-8"));
+      expect(persisted.count).toBe(7);
+    });
+
+    it("does not emit workflow.attention.digest", () => {
+      makeTaskDir(projectDir, "doing", 2);
+      // Even though detection finds an item, the on-demand path must not emit.
+      renderOnDemandAttention({ projectDir, runsDir });
+      expect(emittedEvents).toHaveLength(0);
     });
   });
 

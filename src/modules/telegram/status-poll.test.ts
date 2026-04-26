@@ -16,6 +16,12 @@ vi.mock("#modules/autonomy/workflows/daily-digest/on-demand.js", () => ({
   renderOnDemandDigest: (...args: unknown[]) => mockedRenderOnDemandDigest(...args),
 }));
 
+const mockedRenderOnDemandAttention = vi.fn();
+vi.mock("#modules/autonomy/workflows/attention-digest/step.js", () => ({
+  renderOnDemandAttention: (...args: unknown[]) =>
+    mockedRenderOnDemandAttention(...args),
+}));
+
 const mockedCallTelegramApi = vi.mocked(callTelegramApi);
 
 const FAKE_TOKEN = "bot-token-123";
@@ -109,6 +115,7 @@ describe("startTelegramStatusPoll", () => {
   beforeEach(() => {
     mockedCallTelegramApi.mockReset();
     mockedRenderOnDemandDigest.mockReset();
+    mockedRenderOnDemandAttention.mockReset();
   });
 
   afterEach(() => {
@@ -162,6 +169,47 @@ describe("startTelegramStatusPoll", () => {
       text: renderedBody,
     });
     expect((sendCall?.[2] as { parse_mode?: string }).parse_mode).toBeUndefined();
+  });
+
+  it("responds to /attention from the configured chat with rendered attention text", async () => {
+    const renderedBody =
+      "Attention digest (1 item):\n• *Stalled work*: 2 tasks stuck in doing";
+    mockedRenderOnDemandAttention.mockReturnValue({
+      items: [{ label: "Stalled work", detail: "2 tasks stuck in doing" }],
+      text: renderedBody,
+    });
+    mockedCallTelegramApi
+      .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/attention")])
+      .mockResolvedValue([]);
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo);
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(mockedRenderOnDemandAttention).toHaveBeenCalledWith({
+      projectDir: FAKE_PROJECT_DIR,
+      runsDir: `${FAKE_PROJECT_DIR}/.kota/runs`,
+    });
+    const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
+    expect(sendCall).toBeDefined();
+    expect(sendCall?.[2]).toMatchObject({
+      chat_id: FAKE_CHAT_ID,
+      text: renderedBody,
+    });
+    expect((sendCall?.[2] as { parse_mode?: string }).parse_mode).toBeUndefined();
+  });
+
+  it("ignores /attention from chats outside the allowlist", async () => {
+    mockedRenderOnDemandAttention.mockReturnValue({
+      items: [],
+      text: "should not be sent",
+    });
+    mockedCallTelegramApi
+      .mockResolvedValueOnce([makeUpdate(1, 111111, "/attention")])
+      .mockResolvedValue([]);
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(mockedRenderOnDemandAttention).not.toHaveBeenCalled();
+    const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
+    expect(sendCall).toBeUndefined();
   });
 
   it("ignores /digest from chats outside the allowlist", async () => {

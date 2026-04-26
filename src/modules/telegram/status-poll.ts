@@ -1,5 +1,7 @@
+import { join } from "node:path";
 import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
 import { computeCostByWorkflow, loadRecentRuns } from "#modules/autonomy/shared.js";
+import { renderOnDemandAttention } from "#modules/autonomy/workflows/attention-digest/step.js";
 import { renderOnDemandDigest } from "#modules/autonomy/workflows/daily-digest/on-demand.js";
 import { callTelegramApi } from "./client.js";
 
@@ -86,6 +88,17 @@ export function startTelegramStatusPoll(
     });
   }
 
+  async function handleAttention(): Promise<void> {
+    const runsDir = join(projectDir, ".kota", "runs");
+    const { text } = renderOnDemandAttention({ projectDir, runsDir });
+    await callTelegramApi(token, "sendMessage", {
+      chat_id: chatId,
+      // Plain text — the rendered attention body uses bullet glyphs and
+      // *bold* markers that would require Markdown escaping.
+      text: truncateForTelegram(text),
+    });
+  }
+
   async function poll(): Promise<void> {
     if (!running) return;
     try {
@@ -110,6 +123,8 @@ export function startTelegramStatusPoll(
           await handleStatus();
         } else if (msg.text === "/digest") {
           await handleDigest();
+        } else if (msg.text === "/attention") {
+          await handleAttention();
         }
       }
     } catch (err) {
