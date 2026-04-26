@@ -1,5 +1,12 @@
 import { type DaemonState, initialState, reducer } from '../context/state';
-import type { Approval, DaemonStatus, OwnerQuestion, RunSummary, TasksResponse } from '../types';
+import type {
+  Approval,
+  DaemonStatus,
+  DigestResponse,
+  OwnerQuestion,
+  RunSummary,
+  TasksResponse,
+} from '../types';
 
 function makeApproval(overrides: Partial<Approval> = {}): Approval {
   return {
@@ -107,6 +114,106 @@ describe('reducer', () => {
   test('SSE_STATUS updates the connected flag', () => {
     const s = reducer(initialState, { type: 'SSE_STATUS', connected: true });
     expect(s.sseConnected).toBe(true);
+  });
+
+  test('DIGEST_LOADING flips loading flag and clears prior error', () => {
+    const withError = reducer(initialState, {
+      type: 'DIGEST_ERROR',
+      error: 'boom',
+    });
+    expect(withError.digestError).toBe('boom');
+    const next = reducer(withError, { type: 'DIGEST_LOADING' });
+    expect(next.digestLoading).toBe(true);
+    expect(next.digestError).toBeNull();
+  });
+
+  test('DIGEST_RESULT stores payload and clears loading/error', () => {
+    const digest: DigestResponse = {
+      data: {
+        windowStartedAt: 't0',
+        windowEndedAt: 't1',
+        builderCommits: [],
+        explorerAdditions: [],
+        decomposerSplits: [],
+        blockedPromoterMoves: [],
+        failedMonitoredRuns: [],
+        pendingOwnerQuestions: [],
+        agingOperatorCaptures: [],
+        queueDelta: {
+          current: { backlog: 0, ready: 0, doing: 0, blocked: 0 },
+          previous: null,
+          delta: { backlog: null, ready: null, doing: null, blocked: null },
+        },
+        quiet: true,
+      },
+      text: 'rendered body',
+    };
+    const loading = reducer(initialState, { type: 'DIGEST_LOADING' });
+    const next = reducer(loading, { type: 'DIGEST_RESULT', digest });
+    expect(next.digest).toBe(digest);
+    expect(next.digestLoading).toBe(false);
+    expect(next.digestError).toBeNull();
+  });
+
+  test('DIGEST_ERROR clears stale digest', () => {
+    const digest: DigestResponse = {
+      data: {
+        windowStartedAt: 't0',
+        windowEndedAt: 't1',
+        builderCommits: [],
+        explorerAdditions: [],
+        decomposerSplits: [],
+        blockedPromoterMoves: [],
+        failedMonitoredRuns: [],
+        pendingOwnerQuestions: [],
+        agingOperatorCaptures: [],
+        queueDelta: {
+          current: { backlog: 0, ready: 0, doing: 0, blocked: 0 },
+          previous: null,
+          delta: { backlog: null, ready: null, doing: null, blocked: null },
+        },
+        quiet: false,
+      },
+      text: 'rendered body',
+    };
+    const withDigest = reducer(initialState, {
+      type: 'DIGEST_RESULT',
+      digest,
+    });
+    const next = reducer(withDigest, { type: 'DIGEST_ERROR', error: '503' });
+    expect(next.digest).toBeNull();
+    expect(next.digestError).toBe('503');
+    expect(next.digestLoading).toBe(false);
+  });
+
+  test('ONLINE false drops cached digest so it cannot persist across an offline transition', () => {
+    const digest: DigestResponse = {
+      data: {
+        windowStartedAt: 't0',
+        windowEndedAt: 't1',
+        builderCommits: [],
+        explorerAdditions: [],
+        decomposerSplits: [],
+        blockedPromoterMoves: [],
+        failedMonitoredRuns: [],
+        pendingOwnerQuestions: [],
+        agingOperatorCaptures: [],
+        queueDelta: {
+          current: { backlog: 0, ready: 0, doing: 0, blocked: 0 },
+          previous: null,
+          delta: { backlog: null, ready: null, doing: null, blocked: null },
+        },
+        quiet: false,
+      },
+      text: 'rendered body',
+    };
+    const withDigest = reducer(initialState, {
+      type: 'DIGEST_RESULT',
+      digest,
+    });
+    expect(withDigest.digest).toBe(digest);
+    const offline = reducer(withDigest, { type: 'ONLINE', online: false });
+    expect(offline.digest).toBeNull();
   });
 
   test('OWNER_QUESTIONS recomputes pending count', () => {

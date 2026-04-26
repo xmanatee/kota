@@ -1,12 +1,12 @@
 ---
 id: task-add-mobile-digestscreen-consuming-apidigest
 title: Add mobile DigestScreen consuming /api/digest
-status: ready
+status: done
 priority: p2
 area: client
 summary: Add a Digest screen to the React Native mobile client that calls GET /api/digest through DaemonClient and renders the same on-demand digest body the Telegram /digest, kota digest CLI, daemon HTTP route, web DigestPanel, and macOS DigestView already share, completing operator-pull parity for the daily-digest seam across every primary native operator surface.
 created_at: 2026-04-26T05:38:28.009Z
-updated_at: 2026-04-26T05:38:28.009Z
+updated_at: 2026-04-26T05:47:32.102Z
 ---
 
 ## Problem

@@ -1,6 +1,7 @@
 import type {
   Approval,
   DaemonStatus,
+  DigestResponse,
   OwnerQuestion,
   RunSummary,
   TasksResponse,
@@ -21,6 +22,9 @@ export interface DaemonState {
   pendingOwnerQuestionCount: number;
   pushNotificationsEnabled: boolean;
   error: string | null;
+  digest: DigestResponse | null;
+  digestLoading: boolean;
+  digestError: string | null;
 }
 
 export type DaemonAction =
@@ -36,7 +40,10 @@ export type DaemonAction =
   | { type: 'OWNER_QUESTIONS'; questions: OwnerQuestion[] }
   | { type: 'TASKS'; tasks: TasksResponse }
   | { type: 'PENDING_COUNT'; count: number }
-  | { type: 'ERROR'; error: string | null };
+  | { type: 'ERROR'; error: string | null }
+  | { type: 'DIGEST_LOADING' }
+  | { type: 'DIGEST_RESULT'; digest: DigestResponse }
+  | { type: 'DIGEST_ERROR'; error: string };
 
 export const initialState: DaemonState = {
   daemonUrl: '',
@@ -53,6 +60,9 @@ export const initialState: DaemonState = {
   pendingOwnerQuestionCount: 0,
   pushNotificationsEnabled: true,
   error: null,
+  digest: null,
+  digestLoading: false,
+  digestError: null,
 };
 
 export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
@@ -72,7 +82,14 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
     case 'SET_PUSH_ENABLED':
       return { ...state, pushNotificationsEnabled: action.enabled };
     case 'ONLINE':
-      return { ...state, online: action.online, error: action.online ? null : state.error };
+      return {
+        ...state,
+        online: action.online,
+        error: action.online ? null : state.error,
+        digest: action.online ? state.digest : null,
+        digestError: action.online ? state.digestError : null,
+        digestLoading: action.online ? state.digestLoading : false,
+      };
     case 'SSE_STATUS':
       return { ...state, sseConnected: action.connected };
     case 'STATUS':
@@ -97,5 +114,21 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
       return { ...state, pendingApprovalCount: action.count };
     case 'ERROR':
       return { ...state, error: action.error };
+    case 'DIGEST_LOADING':
+      return { ...state, digestLoading: true, digestError: null };
+    case 'DIGEST_RESULT':
+      return {
+        ...state,
+        digest: action.digest,
+        digestLoading: false,
+        digestError: null,
+      };
+    case 'DIGEST_ERROR':
+      return {
+        ...state,
+        digestLoading: false,
+        digestError: action.error,
+        digest: null,
+      };
   }
 }

@@ -198,6 +198,77 @@ describe('DaemonClient', () => {
     await expect(client().getStatus()).rejects.toThrow('401');
   });
 
+  test('getDigest sends GET /api/digest with bearer token (active payload)', async () => {
+    const active = {
+      data: {
+        windowStartedAt: '2026-04-25T08:00:00.000Z',
+        windowEndedAt: '2026-04-26T08:00:00.000Z',
+        builderCommits: [
+          {
+            runId: 'r-1',
+            taskId: 'task-foo',
+            taskTitle: 'Add foo',
+            commitSubject: 'Add foo',
+            durationMs: 60000,
+          },
+        ],
+        explorerAdditions: [],
+        decomposerSplits: [],
+        blockedPromoterMoves: [],
+        failedMonitoredRuns: [],
+        pendingOwnerQuestions: [],
+        agingOperatorCaptures: [],
+        queueDelta: {
+          current: { backlog: 0, ready: 1, doing: 0, blocked: 8 },
+          previous: null,
+          delta: { backlog: null, ready: null, doing: null, blocked: null },
+        },
+        quiet: false,
+      },
+      text: 'Daily digest 2026-04-26\n- builder committed: Add foo',
+    };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(active));
+    const res = await client().getDigest();
+    expect(lastCall()[0]).toBe(`${baseUrl}/api/digest`);
+    expect(lastHeaders().Authorization).toBe(`Bearer ${token}`);
+    expect(res).toEqual(active);
+    expect(res.data.quiet).toBe(false);
+  });
+
+  test('getDigest passes quiet payloads through unchanged', async () => {
+    const quiet = {
+      data: {
+        windowStartedAt: '2026-04-25T08:00:00.000Z',
+        windowEndedAt: '2026-04-26T08:00:00.000Z',
+        builderCommits: [],
+        explorerAdditions: [],
+        decomposerSplits: [],
+        blockedPromoterMoves: [],
+        failedMonitoredRuns: [],
+        pendingOwnerQuestions: [],
+        agingOperatorCaptures: [],
+        queueDelta: {
+          current: { backlog: 0, ready: 0, doing: 0, blocked: 0 },
+          previous: null,
+          delta: { backlog: null, ready: null, doing: null, blocked: null },
+        },
+        quiet: true,
+      },
+      text: 'Daily digest 2026-04-26\n(quiet window — nothing to report)',
+    };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(quiet));
+    const res = await client().getDigest();
+    expect(res.data.quiet).toBe(true);
+    expect(res.text).toContain('quiet window');
+  });
+
+  test('getDigest surfaces the daemon HTTP error one-to-one', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response('', { status: 503, statusText: 'Service Unavailable' }),
+    );
+    await expect(client().getDigest()).rejects.toThrow('503');
+  });
+
   test('health hits /health without auth header (public endpoint)', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({ status: 'ok', version: '1', uptimeMs: 1, components: {} }));
     await client().health();

@@ -23,6 +23,7 @@ interface DaemonContextValue {
   saveSettings: (url: string, token: string) => Promise<void>;
   setPushNotificationsEnabled: (enabled: boolean) => Promise<void>;
   refresh: () => void;
+  refreshDigest: () => Promise<void>;
 }
 
 const DaemonContext = createContext<DaemonContextValue>({
@@ -31,6 +32,7 @@ const DaemonContext = createContext<DaemonContextValue>({
   saveSettings: async () => {},
   setPushNotificationsEnabled: async () => {},
   refresh: () => {},
+  refreshDigest: async () => {},
 });
 
 export function DaemonProvider({ children }: { children: React.ReactNode }) {
@@ -204,8 +206,32 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     void fetchAll();
   }, [fetchAll]);
 
+  const refreshDigest = useCallback(async () => {
+    const client = clientRef.current;
+    if (!client) return;
+    dispatch({ type: 'DIGEST_LOADING' });
+    try {
+      const digest = await client.getDigest();
+      dispatch({ type: 'DIGEST_RESULT', digest });
+    } catch (e) {
+      dispatch({
+        type: 'DIGEST_ERROR',
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }, []);
+
   return (
-    <DaemonContext.Provider value={{ state, client: clientRef.current, saveSettings, setPushNotificationsEnabled, refresh }}>
+    <DaemonContext.Provider
+      value={{
+        state,
+        client: clientRef.current,
+        saveSettings,
+        setPushNotificationsEnabled,
+        refresh,
+        refreshDigest,
+      }}
+    >
       {children}
     </DaemonContext.Provider>
   );

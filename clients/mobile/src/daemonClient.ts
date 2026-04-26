@@ -2,6 +2,7 @@ import type {
   Approval,
   AutonomyMode,
   DaemonStatus,
+  DigestResponse,
   HealthResponse,
   InteractiveSession,
   OwnerQuestion,
@@ -108,6 +109,10 @@ export class DaemonClient {
         body: reason !== undefined ? JSON.stringify({ reason }) : undefined,
       },
     );
+  }
+
+  getDigest(): Promise<DigestResponse> {
+    return this.request<DigestResponse>('/api/digest');
   }
 
   registerPushToken(deviceId: string, token: string): Promise<{ ok: boolean }> {

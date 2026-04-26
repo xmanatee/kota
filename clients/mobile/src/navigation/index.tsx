@@ -13,6 +13,7 @@ import { ApprovalDetailScreen } from '../screens/ApprovalDetailScreen';
 import { ApprovalListScreen } from '../screens/ApprovalListScreen';
 import { ChatDetailScreen } from '../screens/ChatDetailScreen';
 import { ChatListScreen } from '../screens/ChatListScreen';
+import { DigestScreen } from '../screens/DigestScreen';
 import { OwnerQuestionListScreen } from '../screens/OwnerQuestionListScreen';
 import { RunDetailScreen } from '../screens/RunDetailScreen';
 import { RunListScreen } from '../screens/RunListScreen';
@@ -47,6 +48,7 @@ export type TabParams = {
   Approvals: NavigatorScreenParams<ApprovalsStackParams> | undefined;
   Questions: undefined;
   Tasks: undefined;
+  Digest: undefined;
   Chat: NavigatorScreenParams<ChatStackParams> | undefined;
 };
 
@@ -224,6 +226,11 @@ export function AppNavigator() {
           name="Tasks"
           component={TaskQueueScreen}
           options={{ tabBarIcon: () => <Text>📌</Text>, headerShown: true, title: 'Tasks' }}
+        />
+        <Tab.Screen
+          name="Digest"
+          component={DigestScreen}
+          options={{ tabBarIcon: () => <Text>📰</Text>, headerShown: true, title: 'Digest' }}
         />
         <Tab.Screen
           name="Chat"
