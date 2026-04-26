@@ -217,5 +217,15 @@ export function classifyAgentRuntimeFailure(
     return { kind: "auth", retryable: false };
   }
 
+  // Anthropic SDK emits this exact prefix when the streaming response stalls
+  // server-side after the SDK has exhausted its internal retry budget. It is
+  // distinct from generic "timeout" text because it carries the literal
+  // "API Error: Stream idle timeout" marker. Classifying it as provider lets
+  // AgentBackoffManager apply a 5+ min dispatch delay so the next agent run
+  // does not collide with the same upstream stall.
+  if (/api error:\s*stream idle timeout/i.test(input.message)) {
+    return { kind: "provider", retryable: true };
+  }
+
   return null;
 }

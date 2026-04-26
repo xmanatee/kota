@@ -1374,6 +1374,20 @@ describe("classifyAgentRuntimeFailure", () => {
     ).toEqual({ kind: "auth", retryable: false });
   });
 
+  it("classifies SDK 'Stream idle timeout' as retryable provider", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        message:
+          'Agent step "build" failed (success): API Error: Stream idle timeout - partial response received',
+      }),
+    ).toEqual({ kind: "provider", retryable: true });
+    expect(
+      classifyAgentRuntimeFailure({
+        message: "API Error: Stream idle timeout",
+      }),
+    ).toEqual({ kind: "provider", retryable: true });
+  });
+
   it("does not classify max-turns SDK subtype (step fails hard)", () => {
     expect(
       classifyAgentRuntimeFailure({
