@@ -3,6 +3,7 @@ import type { ConnectionStatus } from "@/hooks/use-daemon-events";
 import { cn } from "@/lib/utils";
 import { ActiveSessionsPanel } from "./ActiveSessionsPanel";
 import { ApprovalList } from "./ApprovalList";
+import { AttentionPanel } from "./AttentionPanel";
 import { AuditPanel } from "./AuditPanel";
 import { ConfigPanel } from "./ConfigPanel";
 import { CostPanel } from "./CostPanel";
@@ -101,6 +102,10 @@ export function Sidebar({
 
           <SidebarSection title="Digest" defaultOpen={false}>
             <DigestPanel />
+          </SidebarSection>
+
+          <SidebarSection title="Attention" defaultOpen={false}>
+            <AttentionPanel />
           </SidebarSection>
 
           <SidebarSection title="Workflows">

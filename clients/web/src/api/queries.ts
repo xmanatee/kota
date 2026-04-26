@@ -24,6 +24,7 @@ export const queryKeys = {
   config: ["config"] as const,
   slashCommands: ["slashCommands"] as const,
   digest: ["digest"] as const,
+  attention: ["attention"] as const,
 };
 
 export const healthQuery = queryOptions({
@@ -148,5 +149,11 @@ export const slashCommandsQuery = queryOptions({
 export const digestQuery = queryOptions({
   queryKey: queryKeys.digest,
   queryFn: api.getDigest,
+  refetchInterval: 300000,
+});
+
+export const attentionQuery = queryOptions({
+  queryKey: queryKeys.attention,
+  queryFn: api.getAttention,
   refetchInterval: 300000,
 });

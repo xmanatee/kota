@@ -1,4 +1,5 @@
 import type {
+  AttentionResponse,
   AuditEntry,
   AutonomyMode,
   ConversationData,
@@ -283,6 +284,8 @@ export const api = {
   getConfig: () => apiJson<Record<string, unknown>>("/api/config"),
 
   getDigest: () => apiJson<DigestResponse>("/api/digest"),
+
+  getAttention: () => apiJson<AttentionResponse>("/api/attention"),
 
   listSlashCommands: () =>
     apiJson<{ commands: SlashCommand[] }>("/api/commands"),

@@ -1,12 +1,12 @@
 ---
 id: task-add-web-client-attention-panel-consuming-apiattent
 title: Add web client attention panel consuming /api/attention
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add an Attention sidebar panel in the embedded web client that calls GET /api/attention and renders the same on-demand attention body the Telegram /attention, kota attention CLI, and daemon HTTP route already share, completing the web consumer of the attention-digest on-demand seam.
 created_at: 2026-04-26T08:28:44.699Z
-updated_at: 2026-04-26T08:28:44.699Z
+updated_at: 2026-04-26T08:34:11.041Z
 ---
 
 ## Problem

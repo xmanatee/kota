@@ -303,6 +303,16 @@ export type DigestResponse = {
   text: string;
 };
 
+export type AttentionItem = {
+  label: string;
+  detail: string;
+};
+
+export type AttentionResponse = {
+  data: { items: AttentionItem[] };
+  text: string;
+};
+
 export type SlashCommandSource = "workflow" | "skill";
 
 export type SlashCommand = {

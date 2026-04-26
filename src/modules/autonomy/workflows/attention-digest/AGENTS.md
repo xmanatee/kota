@@ -13,9 +13,11 @@ detector + renderer the cadence path uses and returns
 `{ items: AttentionItem[]; text: string }`. The cadence step
 (`runAttentionDigestStep`) calls the same seam so the two paths cannot drift.
 Operator-facing pull surfaces (Telegram `/attention`, the `kota attention`
-CLI in `attention-cli.ts`, and `GET /api/attention` in `attention-route.ts`
-as the web/native consumer) consume the seam directly; later surfaces
-(web/macOS/mobile attention panels) reuse it the same way.
+CLI in `attention-cli.ts`, `GET /api/attention` in `attention-route.ts`,
+and the embedded web client `AttentionPanel` in
+`clients/web/src/components/sidebar/AttentionPanel.tsx` consuming that
+HTTP route) consume the seam directly; later native surfaces (macOS,
+mobile attention panels) reuse it the same way.
 
 Counter invariant: the on-demand path must not write
 `<runsDir>/../attention-digest-counter.json`. That file is owned by the
