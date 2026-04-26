@@ -5,6 +5,7 @@ import { getScheduler, resetScheduler } from "#core/daemon/scheduler.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "#core/loop/loop.js";
 import { formatAuthError } from "#core/model/auth-error.js";
 import { createModelClient } from "#core/model/model-client.js";
+import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import type { ConversationRecord } from "#core/modules/provider-types.js";
 import type { KotaClient } from "#core/server/kota-client.js";
 import { blank, line, plain, span } from "#modules/rendering/primitives.js";
@@ -214,6 +215,7 @@ export async function resolveRunContinue(
   opts: { continue?: boolean | string },
 ): Promise<string | undefined> {
   if (!opts.continue) return undefined;
+  await ensureCliProvidersFor(["history"]);
   if (typeof opts.continue === "string") {
     return resolveConversationId(client, opts.continue);
   }

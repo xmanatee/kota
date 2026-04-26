@@ -402,6 +402,9 @@ export type HistoryDeleteResult =
   | { ok: true }
   | { ok: false; reason: "not_found" };
 
+/** Result of `history.reindex`. Mirrors the provider's `ReindexResult`. */
+export type HistoryReindexResult = ReindexResult;
+
 /** Knowledge storage scope. Mirrors `SearchFilters.scope` in provider types. */
 export type KnowledgeScope = "project" | "global" | "all";
 
@@ -632,6 +635,8 @@ export interface HistoryClient {
   list(filter?: HistoryListFilter): Promise<HistoryListResult>;
   show(id: string): Promise<HistoryShowResult>;
   delete(id: string): Promise<HistoryDeleteResult>;
+  /** Rebuild the semantic index over all conversations when the active provider supports it. */
+  reindex(): Promise<HistoryReindexResult>;
 }
 
 /**

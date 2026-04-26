@@ -19,7 +19,11 @@ import {
   DaemonControlServer,
   type WorkflowMetricCounts,
 } from "#core/daemon/daemon-control.js";
-import { resetHistory } from "./history.js";
+import {
+  initProviderRegistry,
+  resetProviderRegistry,
+} from "#core/modules/provider-registry.js";
+import { getHistory, resetHistory } from "./history.js";
 import { historyControlRoutes } from "./routes.js";
 
 const TEST_TOKEN = "history-test-token";
@@ -87,6 +91,7 @@ describe("history module daemon-control routes", () => {
     prevHome = process.env.HOME;
     process.env.HOME = homeDir;
     resetHistory();
+    initProviderRegistry().register("history", "default", getHistory());
     server = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
       controlRoutes: historyControlRoutes(),
     });
@@ -95,6 +100,7 @@ describe("history module daemon-control routes", () => {
 
   afterEach(async () => {
     await server.stop();
+    resetProviderRegistry();
     resetHistory();
     if (prevHome === undefined) delete process.env.HOME;
     else process.env.HOME = prevHome;
@@ -106,6 +112,7 @@ describe("history module daemon-control routes", () => {
       const routes = historyControlRoutes();
       expect(routes.map((r) => `${r.method} ${r.path} (${r.capabilityScope})`)).toEqual([
         "GET /history (read)",
+        "POST /history/reindex (control)",
         "GET /history/:id (read)",
         "DELETE /history/:id (control)",
       ]);
@@ -181,6 +188,22 @@ describe("history module daemon-control routes", () => {
       expect(res.status).toBe(404);
       const body = (await res.json()) as { error: string };
       expect(body.error).toBeTruthy();
+    });
+  });
+
+  describe("POST /history/reindex", () => {
+    it("returns the provider's ReindexResult — base provider reports skipped", async () => {
+      const res = await fetchWith(port, "/history/reindex", { method: "POST" });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { indexed: number; failed: number; skipped?: boolean };
+      expect(body).toEqual({ indexed: 0, failed: 0, skipped: true });
+    });
+
+    it("requires the daemon bearer token", async () => {
+      const res = await globalThis.fetch(`http://127.0.0.1:${port}/history/reindex`, {
+        method: "POST",
+      });
+      expect(res.status).toBe(401);
     });
   });
 

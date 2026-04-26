@@ -1,5 +1,9 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type {
+  HistorySemanticOptions,
+  ReindexResult,
+} from "#core/modules/provider-types.js";
 import {
   type ConversationData,
   type ConversationRecord,
@@ -217,6 +221,29 @@ export class ConversationHistory {
 
     index.conversations = keep;
     this.saveIndex(index);
+  }
+
+  /** Storage directory containing `index.json` and per-conversation files. */
+  getStorageDir(): string {
+    return this.dir;
+  }
+
+  supportsSemanticSearch(): boolean {
+    return false;
+  }
+
+  async semanticSearch(
+    _query: string,
+    _topK: number,
+    _options?: HistorySemanticOptions,
+  ): Promise<ConversationRecord[]> {
+    throw new Error(
+      "Semantic conversation search requires an embedding-backed history provider.",
+    );
+  }
+
+  async reindex(): Promise<ReindexResult> {
+    return { indexed: 0, failed: 0, skipped: true };
   }
 
   /** Clean up orphaned files not in the index. */

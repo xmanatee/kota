@@ -273,6 +273,9 @@ describe("convenience getters", () => {
 			findByPrefix: () => null,
 			remove: () => false,
 			cleanup: () => 0,
+			supportsSemanticSearch: () => false,
+			semanticSearch: async () => [],
+			reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
 		};
 		reg.register("history", "custom", custom);
 		reg.setActive("history", "custom");

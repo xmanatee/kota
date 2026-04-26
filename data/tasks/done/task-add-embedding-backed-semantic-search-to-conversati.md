@@ -1,12 +1,12 @@
 ---
 id: task-add-embedding-backed-semantic-search-to-conversati
 title: Add embedding-backed semantic search to conversation history
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a history-semantic module that wraps the conversation history store with embedding-backed search, mirroring memory-semantic and knowledge-semantic, so conversation_recall can rank by relevance instead of substring.
 created_at: 2026-04-26T01:34:53.467Z
-updated_at: 2026-04-26T01:34:53.467Z
+updated_at: 2026-04-26T01:49:56.436Z
 ---
 
 ## Problem

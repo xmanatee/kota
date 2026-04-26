@@ -97,6 +97,7 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       list: stub({ conversations: [] }),
       show: stub({ found: false }),
       delete: stub({ ok: true }),
+      reindex: stub({ indexed: 0, failed: 0 }),
     },
     knowledge: {
       list: stub({ entries: [] }),

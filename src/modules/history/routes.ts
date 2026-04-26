@@ -3,6 +3,7 @@ import type {
   ControlRouteRegistration,
   RouteRegistration,
 } from "#core/modules/module-types.js";
+import { getHistoryProvider } from "#core/modules/provider-registry.js";
 import type {
   ConversationData,
   ConversationRecord,
@@ -142,6 +143,19 @@ function handleListHistoryControl(req: IncomingMessage, res: ServerResponse): vo
   jsonResponse(res, 200, listHistoryLocal(url));
 }
 
+async function handleReindexHistoryControl(
+  _req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  try {
+    const provider = getHistoryProvider();
+    const result = await provider.reindex();
+    jsonResponse(res, 200, result);
+  } catch (err) {
+    jsonResponse(res, 500, { error: (err as Error).message });
+  }
+}
+
 function handleGetHistoryControl(
   _req: IncomingMessage,
   res: ServerResponse,
@@ -175,6 +189,12 @@ export function historyControlRoutes(): ControlRouteRegistration[] {
       path: "/history",
       capabilityScope: "read",
       handler: handleListHistoryControl,
+    },
+    {
+      method: "POST",
+      path: "/history/reindex",
+      capabilityScope: "control",
+      handler: handleReindexHistoryControl,
     },
     {
       method: "GET",

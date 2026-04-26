@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { loadConfig } from "#core/config/config.js";
 import { createModelClient } from "#core/model/model-client.js";
+import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import { getActiveKotaClient } from "#core/server/client-holder.js";
 import type { KotaClient } from "#core/server/kota-client.js";
 import { confirmAction } from "#core/util/confirm.js";
@@ -34,6 +35,7 @@ export function registerHistoryCommands(program: Command) {
     .option("-s, --search <query>", "Filter by search term")
     .option("--all", "Show conversations from all directories")
     .action(async (opts) => {
+      await ensureCliProvidersFor(["history"]);
       const client = getActiveKotaClient();
       const { conversations } = await client.history.list({
         limit: parseIntOption(opts.limit, "limit"),
@@ -70,6 +72,7 @@ export function registerHistoryCommands(program: Command) {
     .command("show <id>")
     .description("Show conversation details")
     .action(async (idOrPrefix) => {
+      await ensureCliProvidersFor(["history"]);
       const client = getActiveKotaClient();
       const fullId = await resolveConversationId(client, idOrPrefix);
       const result = await client.history.show(fullId);
@@ -112,6 +115,7 @@ export function registerHistoryCommands(program: Command) {
     .option("-m, --model <model>", "Model to use")
     .option("-v, --verbose", "Show debug output")
     .action(async (idOrPrefix, opts) => {
+      await ensureCliProvidersFor(["history"]);
       const config = loadConfig();
       const client = getActiveKotaClient();
       const fullId = await resolveConversationId(client, idOrPrefix);
@@ -140,6 +144,7 @@ export function registerHistoryCommands(program: Command) {
     .command("delete <id>")
     .description("Delete a conversation")
     .action(async (idOrPrefix) => {
+      await ensureCliProvidersFor(["history"]);
       const client = getActiveKotaClient();
       const fullId = await resolveConversationId(client, idOrPrefix);
       const result = await client.history.delete(fullId);
@@ -156,10 +161,39 @@ export function registerHistoryCommands(program: Command) {
     });
 
   historyCmd
+    .command("reindex")
+    .description(
+      "Rebuild the semantic search index for all conversations. " +
+        "No-op when no embedding provider is configured.",
+    )
+    .action(async () => {
+      await ensureCliProvidersFor(["history"]);
+      const client = getActiveKotaClient();
+      const result = await client.history.reindex();
+      if (result.skipped) {
+        print(line(plain(
+          "Semantic search not configured — nothing to reindex. " +
+            "Set `providers.history` to an embedding-capable provider to enable.",
+        )));
+        return;
+      }
+      const failedRole = result.failed > 0 ? "error" : "muted";
+      print(line(
+        plain("Reindexed "),
+        span(String(result.indexed), "success"),
+        plain(" conversation(s) ("),
+        span(`${result.failed} failed`, failedRole),
+        plain(")."),
+      ));
+      if (result.failed > 0) process.exit(1);
+    });
+
+  historyCmd
     .command("clear")
     .description("Delete all conversations for the current directory")
     .option("-y, --yes", "Skip confirmation prompt")
     .action(async (opts) => {
+      await ensureCliProvidersFor(["history"]);
       const client: KotaClient = getActiveKotaClient();
       const { conversations } = await client.history.list({ cwd: process.cwd(), limit: 1000 });
 

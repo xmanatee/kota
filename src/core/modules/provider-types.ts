@@ -230,6 +230,12 @@ export interface ModelPricingProvider {
 	getPricing(model: string): ModelPricing | null;
 }
 
+/** Filter accepted by `HistoryProvider.semanticSearch`. */
+export type HistorySemanticOptions = {
+	cwd?: string;
+	source?: "user" | "action";
+};
+
 /** Interface for conversation history storage (create/save/load/list/find/remove). */
 export interface HistoryProvider {
 	create(model: string, cwd: string, source?: "user" | "action"): string;
@@ -250,4 +256,19 @@ export interface HistoryProvider {
 	findByPrefix(idOrPrefix: string): ConversationRecord | null;
 	remove(id: string): boolean;
 	cleanup(): number;
+	supportsSemanticSearch(): boolean;
+	/**
+	 * Rank conversations by semantic similarity to a natural-language query.
+	 * Only embedding-backed providers should return results here.
+	 */
+	semanticSearch(
+		query: string,
+		topK: number,
+		options?: HistorySemanticOptions,
+	): Promise<ConversationRecord[]>;
+	/**
+	 * Rebuild the semantic index over all conversations. Providers without
+	 * embedding support return `{ indexed: 0, failed: 0, skipped: true }`.
+	 */
+	reindex(): Promise<ReindexResult>;
 }

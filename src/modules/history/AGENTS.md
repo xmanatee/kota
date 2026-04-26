@@ -17,5 +17,9 @@ This directory owns conversation history — the persistent record of past sessi
 ## Boundaries
 
 - Does not own the memory or knowledge stores (those belong in `memory/` and `knowledge/`).
+- The embedding-backed history provider is in `src/modules/history-semantic/`,
+  which layers on top of this module's store. Modules that consume the history
+  store at runtime (currently `history-semantic`) must list `history` in their
+  KotaModule `dependencies` so the loader orders onLoad correctly.
 - CLI-launched sessions use configured autonomy explicitly. Missing session-autonomy config is a boundary error, not a hidden fallback.
 - Core must not import from `#modules/history/*`. The repo-wide import guard at `src/core/agent-harness/no-module-imports-in-core.test.ts` enforces the seam for every `#modules/*` subpath.

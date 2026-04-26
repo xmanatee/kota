@@ -54,6 +54,7 @@ import type {
   HistoryDeleteResult,
   HistoryListFilter,
   HistoryListResult,
+  HistoryReindexResult,
   HistoryShowResult,
   KnowledgeAddOptions,
   KnowledgeAddResult,
@@ -359,6 +360,7 @@ export class DaemonControlClient implements KotaClient {
       list: async (filter) => this.historyListHttp(filter),
       show: async (id) => this.historyShowHttp(id),
       delete: async (id) => this.historyDeleteHttp(id),
+      reindex: async () => this.reindexHistoryHttp(),
     };
     this.knowledge = {
       list: async (filter) => this.listKnowledgeHttp(filter),
@@ -1036,6 +1038,18 @@ export class DaemonControlClient implements KotaClient {
     if (res.status === 404) return { ok: false, reason: "not_found" };
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error ?? `HTTP ${res.status}`);
+  }
+
+  private async reindexHistoryHttp(): Promise<HistoryReindexResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/history/reindex`, {
+      method: "POST",
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as HistoryReindexResult;
   }
 
   private async answerOwnerQuestionHttp(

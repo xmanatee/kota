@@ -91,7 +91,9 @@ export async function runConversationRecall(
 					is_error: true,
 				};
 			}
-			const results = history.list({ search: query, limit });
+			const results = history.supportsSemanticSearch()
+				? await history.semanticSearch(query, limit)
+				: history.list({ search: query, limit });
 			if (results.length === 0) {
 				return { content: "No matching conversations found." };
 			}
