@@ -76,9 +76,11 @@ produces the same body the cadence step emits, evaluated against a
 rolling window ending at the call moment. It is the operator-initiated
 counterpart to the 08:00 cadence run; the Telegram `/digest` command,
 the terminal `kota digest` command (with `--json` for the structured
-`DailyDigestData` payload), and the daemon HTTP route `GET /api/digest`
-(the web/native consumer, returning `{ data, text }`) all call it
-directly so every operator surface reads from the same body.
+`DailyDigestData` payload), the daemon HTTP route `GET /api/digest`
+(returning `{ data, text }`), and the embedded web client's
+`DigestPanel` (consuming that route through the daemon's typed
+HTTP+JSON API) all call it directly so every operator surface reads
+from the same body.
 
 Snapshot invariant: the on-demand path does not write
 `.kota/daily-digest-state.json`. That file is owned by the cadence run

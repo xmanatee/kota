@@ -6,6 +6,7 @@ import { ApprovalList } from "./ApprovalList";
 import { AuditPanel } from "./AuditPanel";
 import { ConfigPanel } from "./ConfigPanel";
 import { CostPanel } from "./CostPanel";
+import { DigestPanel } from "./DigestPanel";
 import { HistoryList } from "./HistoryList";
 import { KnowledgePanel } from "./KnowledgePanel";
 import { MemoryPanel } from "./MemoryPanel";
@@ -96,6 +97,10 @@ export function Sidebar({
 
           <SidebarSection title="Tasks">
             <TaskPanel />
+          </SidebarSection>
+
+          <SidebarSection title="Digest" defaultOpen={false}>
+            <DigestPanel />
           </SidebarSection>
 
           <SidebarSection title="Workflows">

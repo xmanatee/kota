@@ -224,6 +224,85 @@ export type CostSummary = {
   workflows: Array<{ workflow: string; costUsd: number }>;
 };
 
+export type DigestBuilderCommitItem = {
+  runId: string;
+  taskId: string | null;
+  taskTitle: string | null;
+  commitSubject: string;
+  durationMs: number | null;
+};
+
+export type DigestExplorerAdditionItem = {
+  runId: string;
+  taskCount: number;
+  watchlistAdds: number;
+};
+
+export type DigestDecomposerSplitItem = {
+  runId: string;
+  parentTaskId: string | null;
+  childTaskCount: number;
+};
+
+export type DigestBlockedPromoterMoveItem = {
+  runId: string;
+  promotedTaskIds: string[];
+  toReady: string[];
+  toBacklog: string[];
+};
+
+export type DigestFailedRunItem = {
+  runId: string;
+  workflow: string;
+  status: "failed" | "interrupted";
+  startedAt: string;
+};
+
+export type DigestPendingOwnerQuestionItem = {
+  id: string;
+  question: string;
+  source: string;
+  ageDays: number;
+};
+
+export type DigestAgingOperatorCaptureItem = {
+  taskId: string;
+  ageDays: number;
+  path: string;
+};
+
+export type DigestQueueCounts = {
+  backlog: number;
+  ready: number;
+  doing: number;
+  blocked: number;
+};
+
+export type DigestQueueDelta = {
+  current: DigestQueueCounts;
+  previous: DigestQueueCounts | null;
+  delta: { [K in keyof DigestQueueCounts]: number | null };
+};
+
+export type DailyDigestData = {
+  windowStartedAt: string;
+  windowEndedAt: string;
+  builderCommits: DigestBuilderCommitItem[];
+  explorerAdditions: DigestExplorerAdditionItem[];
+  decomposerSplits: DigestDecomposerSplitItem[];
+  blockedPromoterMoves: DigestBlockedPromoterMoveItem[];
+  failedMonitoredRuns: DigestFailedRunItem[];
+  pendingOwnerQuestions: DigestPendingOwnerQuestionItem[];
+  agingOperatorCaptures: DigestAgingOperatorCaptureItem[];
+  queueDelta: DigestQueueDelta;
+  quiet: boolean;
+};
+
+export type DigestResponse = {
+  data: DailyDigestData;
+  text: string;
+};
+
 export type SlashCommandSource = "workflow" | "skill";
 
 export type SlashCommand = {

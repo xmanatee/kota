@@ -1,12 +1,12 @@
 ---
 id: task-add-web-client-digest-panel-consuming-apidigest
 title: Add web client digest panel consuming /api/digest
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a Digest sidebar panel/view in the embedded web client that calls GET /api/digest and renders the same on-demand digest body the Telegram /digest, kota digest CLI, and daemon HTTP route already share, completing the web/native consumer of the on-demand digest seam.
 created_at: 2026-04-26T04:30:37.481Z
-updated_at: 2026-04-26T04:30:37.481Z
+updated_at: 2026-04-26T04:37:15.572Z
 ---
 
 ## Problem

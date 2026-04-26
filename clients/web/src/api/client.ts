@@ -5,6 +5,7 @@ import type {
   ConversationRecord,
   DaemonLiveStatus,
   DaemonTaskStatusResponse,
+  DigestResponse,
   HealthStatus,
   InteractiveSession,
   KnowledgeEntry,
@@ -280,6 +281,8 @@ export const api = {
   getAudit: () => apiJson<{ entries: AuditEntry[] }>("/api/audit"),
 
   getConfig: () => apiJson<Record<string, unknown>>("/api/config"),
+
+  getDigest: () => apiJson<DigestResponse>("/api/digest"),
 
   listSlashCommands: () =>
     apiJson<{ commands: SlashCommand[] }>("/api/commands"),
