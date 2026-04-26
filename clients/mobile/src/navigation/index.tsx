@@ -20,6 +20,7 @@ import { RunListScreen } from '../screens/RunListScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { StatusScreen } from '../screens/StatusScreen';
 import { TaskQueueScreen } from '../screens/TaskQueueScreen';
+import { routeNotificationResponse } from './routeNotificationResponse';
 
 export type StatusStackParams = {
   DaemonStatus: undefined;
@@ -71,6 +72,11 @@ function navigateToApproval(approvalId?: string) {
   } else {
     navigationRef.navigate('Approvals');
   }
+}
+
+function navigateToDigest() {
+  if (!navigationRef.isReady()) return;
+  navigationRef.navigate('Digest');
 }
 
 // Configure how notifications are presented while the app is in the foreground.
@@ -179,12 +185,10 @@ export function AppNavigator() {
   // Old notifications without `screen` open the app home as-is (no navigation).
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data as Record<string, unknown> | undefined;
-      const screen = data?.screen;
-      if (screen === 'approvals') {
-        const approvalId = typeof data?.approvalId === 'string' ? data.approvalId : undefined;
-        navigateToApproval(approvalId);
-      }
+      routeNotificationResponse(response.notification.request.content.data, {
+        toApproval: navigateToApproval,
+        toDigest: navigateToDigest,
+      });
     });
     return () => sub.remove();
   }, []);

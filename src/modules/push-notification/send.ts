@@ -18,29 +18,86 @@ export type ApprovalPushPayload = {
   source: string;
 };
 
+export type DigestPushPayload = {
+  title: string;
+  body: string;
+};
+
 const EXPO_PUSH_API_URL = "https://exp.host/--/expo-server/push/send";
+const DIGEST_BODY_PREVIEW_CHARS = 140;
+
+type ExpoMessageData =
+  | { screen: "approvals"; approvalId: string }
+  | { screen: "digest" };
+
+type ExpoMessage = {
+  to: string;
+  sound: "default";
+  title: string;
+  body: string;
+  data: ExpoMessageData;
+};
 
 export async function sendPushNotifications(
   projectDir: string,
   payload: ApprovalPushPayload,
   log: (msg: string) => void,
 ): Promise<void> {
-  const store = loadStore(projectDir);
-  const entries = Object.values(store.tokens);
-  if (entries.length === 0) return;
+  const tokens = loadTokens(projectDir);
+  if (tokens.length === 0) return;
 
   const { approvalId, tool, risk, source } = payload;
   const title = source ? `${source} — ${tool}` : `Approval: ${tool}`;
   const body = `Risk: ${risk}`;
 
-  const messages = entries.map((entry) => ({
-    to: entry.token,
+  const messages: ExpoMessage[] = tokens.map((token) => ({
+    to: token,
     sound: "default",
     title,
     body,
     data: { screen: "approvals", approvalId },
   }));
 
+  await postMessages(messages, log);
+}
+
+export async function sendDigestPushNotifications(
+  projectDir: string,
+  payload: DigestPushPayload,
+  log: (msg: string) => void,
+): Promise<void> {
+  const tokens = loadTokens(projectDir);
+  if (tokens.length === 0) return;
+
+  const body = previewBody(payload.body);
+
+  const messages: ExpoMessage[] = tokens.map((token) => ({
+    to: token,
+    sound: "default",
+    title: payload.title,
+    body,
+    data: { screen: "digest" },
+  }));
+
+  await postMessages(messages, log);
+}
+
+function loadTokens(projectDir: string): string[] {
+  const store = loadStore(projectDir);
+  return Object.values(store.tokens).map((entry) => entry.token);
+}
+
+function previewBody(rawBody: string): string {
+  const firstLine = rawBody.split(/\r?\n/).find((line) => line.trim().length > 0) ?? "";
+  const trimmed = firstLine.trim();
+  if (trimmed.length <= DIGEST_BODY_PREVIEW_CHARS) return trimmed;
+  return `${trimmed.slice(0, DIGEST_BODY_PREVIEW_CHARS - 1).trimEnd()}…`;
+}
+
+async function postMessages(
+  messages: ExpoMessage[],
+  log: (msg: string) => void,
+): Promise<void> {
   try {
     const res = await fetch(EXPO_PUSH_API_URL, {
       method: "POST",

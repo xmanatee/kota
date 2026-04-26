@@ -1,12 +1,12 @@
 ---
 id: task-add-push-notification-delivery-for-workflowdailydi
 title: Add push-notification delivery for workflow.daily.digest so mobile devices wake up on the cadence
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Have the push-notification module subscribe to workflow.daily.digest (and workflow.attention.digest) so that registered Expo tokens receive a wake-up push when the cadence digest fires; deep-link the tap target to the mobile DigestScreen so the operator surfaces stay symmetric with telegram/slack/email/webhook channels.
 created_at: 2026-04-26T06:13:29.799Z
-updated_at: 2026-04-26T06:13:29.799Z
+updated_at: 2026-04-26T06:23:52.401Z
 ---
 
 ## Problem
