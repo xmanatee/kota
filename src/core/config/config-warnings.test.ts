@@ -106,8 +106,8 @@ describe("KNOWN_CONFIG_KEYS", () => {
     const expected = [
       "model", "editorModel", "maxTokens", "thinking", "thinkingBudget",
       "verbose", "skipConfirmations", "autoEnable", "user", "aliases", "reflection",
-      "guardrails", "modules", "foreignModules", "providers", "modelProvider",
-      "modelTiers", "agentModels", "approvalTtlMs",
+      "guardrails", "modules", "foreignModules", "providers",
+      "modelTiers", "agentModels", "defaultAgentHarness", "approvalTtlMs",
       "runsGc", "serve", "cli", "log", "daemon", "notifications", "workflow",
       "moduleMonitoring",
     ];
@@ -117,7 +117,7 @@ describe("KNOWN_CONFIG_KEYS", () => {
   });
 
   it("does not contain module-registered keys", () => {
-    for (const key of ["scheduler", "webhooks", "mcp"]) {
+    for (const key of ["scheduler", "webhooks", "mcp", "tracing", "failover", "modelProvider"]) {
       expect(KNOWN_CONFIG_KEYS.has(key), `should not contain module key: ${key}`).toBe(false);
     }
   });

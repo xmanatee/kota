@@ -1,17 +1,10 @@
 import { type Meter, metrics } from "@opentelemetry/api";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
+import { type TracingConfig, tracingConfigSlice } from "./config-slice.js";
 import { WorkflowMetricsEmitter } from "./metrics.js";
 import { tracingControlRoutes } from "./routes.js";
 import { buildModelLookup, WorkflowTracer } from "./tracer.js";
-
-type TracingConfig = {
-  endpoint: string;
-  metricsEndpoint?: string;
-  metricsExportIntervalMs?: number;
-  samplingRate?: number;
-  serviceName?: string;
-};
 
 const METER_NAME = "kota-workflow";
 
@@ -143,7 +136,7 @@ const tracingModule: KotaModule = {
   version: "1.0.0",
   description: "OpenTelemetry workflow execution tracing with structured spans",
 
-  configKeys: [{ key: "tracing", description: "OpenTelemetry trace export endpoint and sampling config" }],
+  configSlices: [tracingConfigSlice],
 
   controlRoutes: () => tracingControlRoutes(),
 

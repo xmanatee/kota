@@ -4,6 +4,10 @@ import type { Command } from "commander";
 import type { AgentDef, SkillDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
+import {
+  registerConfigSlice,
+  unregisterConfigSlicesForOwner,
+} from "#core/config/config-slice.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { LocalClientHandlers } from "#core/server/kota-client.js";
 import { executeTool, getModuleToolNames, registerTool } from "#core/tools/index.js";
@@ -170,15 +174,16 @@ export class ModuleLoader {
       }
     }
 
-    if (mod.configKeys) {
-      for (const ck of mod.configKeys) {
-        const existing = this.registeredConfigKeys.get(ck.key);
-        if (existing) {
+    if (mod.configSlices) {
+      for (const slice of mod.configSlices) {
+        const existing = this.registeredConfigKeys.get(slice.key);
+        if (existing && existing !== mod.name) {
           throw new Error(
-            `Module "${mod.name}" tried to register config key "${ck.key}" already claimed by "${existing}"`,
+            `Module "${mod.name}" tried to register config key "${slice.key}" already claimed by "${existing}"`,
           );
         }
-        this.registeredConfigKeys.set(ck.key, mod.name);
+        registerConfigSlice(slice, mod.name);
+        this.registeredConfigKeys.set(slice.key, mod.name);
       }
     }
 
@@ -465,7 +470,9 @@ export class ModuleLoader {
   }
 
   async unloadAll(): Promise<void> {
+    const owners = [...new Set(this.registeredConfigKeys.values())];
     await unloadAllModules(this.lifecycleState);
+    for (const owner of owners) unregisterConfigSlicesForOwner(owner);
     this.registeredConfigKeys.clear();
     this.contributedWorkflows.splice(0);
     this.contributedChannels.splice(0);
@@ -480,6 +487,7 @@ export class ModuleLoader {
     for (const [key, owner] of this.registeredConfigKeys) {
       if (owner === moduleName) this.registeredConfigKeys.delete(key);
     }
+    unregisterConfigSlicesForOwner(moduleName);
 
     const wfDefs = this.moduleWorkflowDefs.get(moduleName);
     if (wfDefs) {

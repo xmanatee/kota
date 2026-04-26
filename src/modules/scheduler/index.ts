@@ -10,6 +10,7 @@
 
 import type { KotaModule } from "#core/modules/module-types.js";
 import { NOTIFICATION_HUB_PROVIDER_TYPE } from "#core/server/notification-hub-provider.js";
+import { schedulerConfigSlice } from "./config-slice.js";
 import { getNotificationHub } from "./notification-hub.js";
 import { schedulerRoutes } from "./routes.js";
 import { runSchedule, scheduleTool } from "./schedule.js";
@@ -20,7 +21,7 @@ const schedulerModule: KotaModule = {
   name: "scheduler",
   version: "1.0.0",
   description: "Timed reminders, recurring tasks, and event-triggered automations",
-  configKeys: [{ key: "scheduler", description: "Scheduler dispatch window and concurrency settings" }],
+  configSlices: [schedulerConfigSlice],
   tools: [
     {
       tool: scheduleTool,

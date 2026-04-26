@@ -20,6 +20,7 @@ import { pathToFileURL } from "node:url";
 import type { ModuleManifest } from "#core/manifest/index.js";
 import { manifestToModule, validateManifest } from "#core/manifest/index.js";
 import { adaptExport } from "#core/tools/tool-adapters.js";
+import { registerModuleConfigSlices } from "./module-config-slices.js";
 import type { KotaModule } from "./module-types.js";
 
 const MODULES_DIR = ".kota/modules";
@@ -45,7 +46,10 @@ export async function discoverModules(cwd?: string, verbose = false): Promise<Ko
     const moduleDir = join(modulesDir, name);
     try {
       const module = await loadModuleDirectory(moduleDir, name);
-      if (module) modules.push(module);
+      if (module) {
+        modules.push(module);
+        registerModuleConfigSlices(module);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[kota] Module "${name}" failed to load: ${msg}`);

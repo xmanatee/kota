@@ -10,11 +10,11 @@ import type { ModelTiers } from "../model/model-router.js";
 import type { ForeignModuleConfig } from "../modules/foreign-module.js";
 import { type AutonomyMode, isAutonomyMode } from "../tools/autonomy-mode.js";
 import { sanitizeGuardrailsConfig } from "../tools/guardrails.js";
+import type { CoreKotaConfig, KotaConfig } from "./config.js";
 import {
   getRegisteredConfigSlices,
   type KotaModuleConfigRegistry,
 } from "./config-slice.js";
-import type { CoreKotaConfig, KotaConfig } from "./config.js";
 
 /** Validate and coerce config values for core-owned fields. */
 export function sanitizeCore(raw: Partial<KotaConfig>): Partial<CoreKotaConfig> {

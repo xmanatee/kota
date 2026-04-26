@@ -9,8 +9,8 @@
 import type { ModelTiers } from "../model/model-router.js";
 import type { ForeignModuleConfig } from "../modules/foreign-module.js";
 import type { GuardrailsConfig } from "../tools/guardrails.js";
-import { getRegisteredConfigSlice } from "./config-slice.js";
 import type { CoreKotaConfig, KotaConfig } from "./config.js";
+import { getRegisteredConfigSlice } from "./config-slice.js";
 
 const CORE_KEYS: ReadonlySet<string> = new Set<keyof CoreKotaConfig>([
   "model",
@@ -61,8 +61,7 @@ export function mergeConfigs(
     const slice = getRegisteredConfigSlice(key as string);
     if (slice) {
       const baseVal = (a as Record<string, unknown>)[slice.key];
-      // biome-ignore lint/suspicious/noExplicitAny: registry-driven dispatch
-      (merged as Record<string, unknown>)[slice.key] = slice.merge(baseVal as any, val as any);
+      (merged as Record<string, unknown>)[slice.key] = slice.merge(baseVal as never, val as never);
       continue;
     }
 
@@ -121,7 +120,6 @@ function mergeCoreField(
   } else if (key === "log" && typeof val === "object") {
     merged.log = { ...a.log, ...(val as CoreKotaConfig["log"]) };
   } else {
-    // biome-ignore lint/suspicious/noExplicitAny: scalar passthrough for primitives
-    (merged as any)[key] = val;
+    (merged as Record<string, unknown>)[key as string] = val;
   }
 }

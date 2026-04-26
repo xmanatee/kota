@@ -35,10 +35,28 @@ export interface KotaModuleConfigRegistry {}
 export type KotaModuleConfigKey = keyof KotaModuleConfigRegistry & string;
 
 /**
+ * Build-time pointer that tells `build-schema.ts` which TypeScript type to
+ * materialize into a JSON Schema fragment for the slice. The
+ * `relativePath` is module-source relative to the repo root; the
+ * `typeName` is the exported TS type name to feed to
+ * `ts-json-schema-generator`.
+ */
+export type ModuleConfigSliceSchemaSource = {
+  /** Repo-relative path to the source file declaring the slice's TypeScript type. */
+  relativePath: string;
+  /** Exported TS type name. */
+  typeName: string;
+};
+
+/**
  * Strict slice contract. Each slice declares its key, a description used
  * by `kota config validate`, and typed sanitize/merge callbacks. No
  * optional fields: a slice that does not need merge semantics still
  * declares an explicit override-replaces-base merge.
+ *
+ * `schemaSource` is consumed by `build-schema.ts` so the committed
+ * `schema/kota-config.schema.json` can mirror the slice's TypeScript
+ * shape end-to-end without core importing module types.
  */
 export type ModuleConfigSlice<
   K extends KotaModuleConfigKey = KotaModuleConfigKey,
@@ -50,10 +68,10 @@ export type ModuleConfigSlice<
     base: KotaModuleConfigRegistry[K] | undefined,
     override: KotaModuleConfigRegistry[K],
   ): KotaModuleConfigRegistry[K];
+  schemaSource: ModuleConfigSliceSchemaSource;
 };
 
-// biome-ignore lint/suspicious/noExplicitAny: registry holds heterogeneous slice types
-const _slices = new Map<string, ModuleConfigSlice<any>>();
+const _slices = new Map<string, ModuleConfigSlice>();
 const _slicesByOwner = new Map<string, Set<string>>();
 
 /**

@@ -1,3 +1,4 @@
+import { registerModuleConfigSlices } from "./module-config-slices.js";
 import type { KotaModule } from "./module-types.js";
 import {
   importModuleEntry,
@@ -22,6 +23,7 @@ export async function discoverProjectModules(): Promise<KotaModule[]> {
     const module = await importModuleEntry<KotaModule>(moduleUrl, "index");
     if (!module) continue;
     modules.push(module);
+    registerModuleConfigSlices(module);
   }
 
   return modules;

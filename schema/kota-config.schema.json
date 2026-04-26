@@ -2,14 +2,14 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://kota.dev/schema/kota-config.schema.json",
   "title": "KotaConfig",
-  "description": "KOTA configuration schema. Loaded from ~/.kota/config.json (global) and .kota/config.json (project). Project-level overrides global. CLI flags override both.",
+  "description": "KOTA configuration file (.kota/config.json). Project-level config overrides global (~/.kota/config.json); CLI flags override both.",
   "additionalProperties": false,
   "properties": {
     "agentModels": {
       "additionalProperties": {
         "type": "string"
       },
-      "description": "Per-agent model overrides. Keys are agent names (project or module-contributed); values are model IDs. Takes effect at agent resolve time; invalid model strings are passed through without validation, same as the top-level `model` field.",
+      "description": "Per-agent model overrides.",
       "type": "object"
     },
     "aliases": {
@@ -50,22 +50,22 @@
       "description": "Daemon lifecycle settings.",
       "properties": {
         "eventBufferSize": {
-          "description": "Number of recent SSE events to retain in the in-memory ring buffer. Clients can query buffered events via GET /api/events or replay them on SSE reconnect with GET /events?since=<timestamp>. Default: 500.",
+          "description": "Recent SSE events retained in the in-memory ring buffer. Default: 500.",
           "type": "number"
         },
         "sessionIdleTtlMs": {
-          "description": "How long (ms) a daemon-owned interactive chat session may be idle before it is swept. Default: 300000 (5 minutes).",
+          "description": "Idle TTL for daemon-owned interactive chat sessions. Default: 5 min.",
           "type": "number"
         },
         "shutdownGracePeriodMs": {
-          "description": "How long (ms) to wait for active workflow runs to complete before aborting them during shutdown. 0 = drain indefinitely. Default: 60000 (60 s).",
+          "description": "ms to wait for active workflow runs before aborting on shutdown. 0 = drain.",
           "type": "number"
         }
       },
       "type": "object"
     },
     "defaultAgentHarness": {
-      "description": "Name of the agent harness adapter agent steps default to when a step does not declare its own `harness`. Must match a harness registered by a loaded module (e.g. `\"claude-agent-sdk\"` or `\"thin\"`). There is no implicit default — KOTA does not silently pick claude-agent-sdk when unset. Leave undefined only if every agent step in your workflows declares `harness` explicitly.",
+      "description": "Default agent harness adapter name. Must match a harness registered by a loaded module. No implicit default — KOTA does not silently pick one.",
       "type": "string"
     },
     "editorModel": {
@@ -73,26 +73,25 @@
     },
     "failover": {
       "additionalProperties": false,
-      "description": "Model provider failover. When configured, requests fail over to a secondary provider when the primary is detected as unhealthy. Omit to disable (single-provider, no behavior change).",
       "properties": {
         "apiKey": {
-          "description": "API key for the fallback provider. Resolved from env if omitted.",
+          "description": "Fallback API key. Resolved from env if omitted.",
           "type": "string"
         },
         "baseUrl": {
-          "description": "Base URL for the fallback provider. Uses preset if omitted.",
+          "description": "Fallback base URL. Uses preset if omitted.",
           "type": "string"
         },
         "cooldownMs": {
-          "description": "Cooldown before probing the primary again, in milliseconds. Default: 300000.",
+          "description": "Cooldown before re-probing the primary, in ms. Default: 300000.",
           "type": "number"
         },
         "errorThreshold": {
-          "description": "Number of errors in the sliding window that trigger failover. Default: 5.",
+          "description": "Errors in the sliding window that trigger failover. Default: 5.",
           "type": "number"
         },
         "model": {
-          "description": "Fallback model string. Falls back to the primary model if omitted.",
+          "description": "Fallback model. Falls back to the primary model if omitted.",
           "type": "string"
         },
         "provider": {
@@ -100,17 +99,18 @@
           "type": "string"
         },
         "windowMs": {
-          "description": "Sliding window size in milliseconds. Default: 60000.",
+          "description": "Sliding window in ms. Default: 60000.",
           "type": "number"
         }
       },
       "required": [
         "provider"
       ],
-      "type": "object"
+      "type": "object",
+      "description": "Model provider failover (secondary provider when primary is unhealthy)"
     },
     "foreignModules": {
-      "description": "Foreign-language (out-of-process) modules. Each entry declares a subprocess to spawn and communicate with via KEMP. The protocol contract is owned by the core module types and tests.",
+      "description": "Foreign-language (out-of-process) modules.",
       "items": {
         "anyOf": [
           {
@@ -280,7 +280,7 @@
       "description": "Log output settings.",
       "properties": {
         "format": {
-          "description": "Output format. \"text\" is human-readable (default); \"json\" emits newline-delimited JSON for log aggregators. Overridden by LOG_FORMAT env var.",
+          "description": "\"text\" is human-readable (default); \"json\" emits newline-delimited JSON.",
           "enum": [
             "text",
             "json"
@@ -295,11 +295,9 @@
     },
     "mcp": {
       "additionalProperties": false,
-      "description": "MCP server settings.",
       "properties": {
         "sampling": {
           "additionalProperties": false,
-          "description": "Sampling settings — allow MCP clients to delegate LLM completions to KOTA. Default: disabled.",
           "properties": {
             "enabled": {
               "description": "Enable the sampling/createMessage handler. Default: false.",
@@ -309,14 +307,14 @@
           "type": "object"
         }
       },
-      "type": "object"
+      "type": "object",
+      "description": "MCP server and sampling configuration"
     },
     "model": {
       "type": "string"
     },
     "modelProvider": {
       "additionalProperties": false,
-      "description": "Model provider configuration for non-Anthropic backends (OpenAI-compat, Ollama, etc.).",
       "properties": {
         "apiKey": {
           "type": "string"
@@ -328,7 +326,8 @@
           "type": "string"
         }
       },
-      "type": "object"
+      "type": "object",
+      "description": "Non-Anthropic model provider (OpenAI-compat, Ollama, etc.)"
     },
     "modelTiers": {
       "additionalProperties": false,
@@ -350,11 +349,11 @@
       "description": "Foreign module health monitoring settings.",
       "properties": {
         "crashAlertThreshold": {
-          "description": "Number of restarts within `crashAlertWindowMs` that triggers an `module.crash.alert` notification. Default: 3.",
+          "description": "Restarts within `crashAlertWindowMs` that trigger `module.crash.alert`.",
           "type": "number"
         },
         "crashAlertWindowMs": {
-          "description": "Rolling window in milliseconds for counting module restarts. Also serves as the alert cooldown — at most one alert per module per window. Default: 600000 (10 minutes).",
+          "description": "Rolling window for counting module restarts. Also alert cooldown.",
           "type": "number"
         }
       },
@@ -588,7 +587,7 @@
       "description": "Notification settings.",
       "properties": {
         "alertCooldownMs": {
-          "description": "Minimum milliseconds between failure alerts for the same workflow. Default: 0 (no cooldown — every failure fires an alert). Example: 300000 suppresses repeated alerts within 5 minutes.",
+          "description": "Minimum ms between failure alerts for the same workflow. Default: 0.",
           "type": "number"
         },
         "quietHours": {
@@ -620,7 +619,7 @@
       "additionalProperties": {
         "type": "string"
       },
-      "description": "Provider overrides. Keys are service types (e.g. \"memory\", \"knowledge\"), values are provider names.",
+      "description": "Provider overrides. Keys are service types (e.g. \"memory\"), values are provider names.",
       "type": "object"
     },
     "reflection": {
@@ -629,7 +628,7 @@
     },
     "runsGc": {
       "additionalProperties": false,
-      "description": "Run artifact retention policy for `.kota/runs/`. Applied when `kota workflow gc` is run explicitly. Defaults: retentionDays=7, minKeepPerWorkflow=10.",
+      "description": "Run artifact retention policy for `.kota/runs/`.",
       "properties": {
         "minKeepPerWorkflow": {
           "description": "Always keep at least this many recent runs per workflow (default: 10).",
@@ -644,14 +643,13 @@
     },
     "scheduler": {
       "additionalProperties": false,
-      "description": "Scheduler settings for autonomous workflow dispatch.",
       "properties": {
         "agentConcurrency": {
-          "description": "Maximum number of agent-step workflows that may run simultaneously. Must be a positive integer. Default: 1 (serial agent dispatch).",
+          "description": "Max simultaneous agent-step workflows. Must be a positive integer. Default: 1.",
           "type": "number"
         },
         "codeConcurrency": {
-          "description": "Maximum number of code-only (no agent step) workflows that may run simultaneously. Must be a positive integer. Default: 4.",
+          "description": "Max simultaneous code-only workflows. Must be a positive integer. Default: 4.",
           "type": "number"
         },
         "dispatchWindow": {
@@ -690,7 +688,8 @@
           "type": "object"
         }
       },
-      "type": "object"
+      "type": "object",
+      "description": "Scheduler dispatch window and concurrency settings"
     },
     "serve": {
       "additionalProperties": false,
@@ -709,7 +708,7 @@
           "type": "boolean"
         },
         "showCost": {
-          "description": "Show per-turn cost line in terminal output (default: true). Set to false to suppress.",
+          "description": "Show per-turn cost line in terminal output (default: true).",
           "type": "boolean"
         }
       },
@@ -726,22 +725,21 @@
     },
     "tracing": {
       "additionalProperties": false,
-      "description": "OpenTelemetry tracing and metrics for workflow execution. Opt-in.",
       "properties": {
         "endpoint": {
-          "description": "OTLP HTTP endpoint (e.g. \"http://localhost:4318/v1/traces\"). Required to enable tracing.",
+          "description": "OTLP HTTP endpoint (e.g. \"http://localhost:4318/v1/traces\"). Required to enable.",
           "type": "string"
         },
         "metricsEndpoint": {
-          "description": "OTLP HTTP endpoint for metrics (e.g. \"http://localhost:4318/v1/metrics\"). Defaults to `endpoint` so a single collector sees both signals.",
+          "description": "OTLP HTTP endpoint for metrics. Defaults to `endpoint`.",
           "type": "string"
         },
         "metricsExportIntervalMs": {
-          "description": "How often to flush metric batches to the exporter. Default: 30 000.",
+          "description": "Metric flush interval. Default: 30 000.",
           "type": "number"
         },
         "samplingRate": {
-          "description": "Sampling rate between 0 and 1. Default: 1.0 (sample everything).",
+          "description": "Sampling rate between 0 and 1. Default: 1.0.",
           "type": "number"
         },
         "serviceName": {
@@ -752,7 +750,8 @@
       "required": [
         "endpoint"
       ],
-      "type": "object"
+      "type": "object",
+      "description": "OpenTelemetry trace export endpoint and sampling config"
     },
     "user": {
       "additionalProperties": false,
@@ -783,15 +782,15 @@
         ],
         "type": "object"
       },
-      "description": "Per-workflow webhook secrets for `POST /webhooks/:workflowName`. Keys are workflow names; each entry must have a `secret` string. Keep this in `.kota/config.json` (project-local, gitignored) to avoid committing secrets.",
-      "type": "object"
+      "type": "object",
+      "description": "Per-workflow webhook secrets for signature verification"
     },
     "workflow": {
       "additionalProperties": false,
       "description": "Workflow runtime settings.",
       "properties": {
         "maxStepOutputBytes": {
-          "description": "Maximum step output size in bytes before truncation. Default: 262144 (256 KB). Hard cap: 10485760 (10 MB). Outputs exceeding this limit are replaced with a structured truncation notice.",
+          "description": "Max step output bytes before truncation. Default: 256 KB. Hard cap: 10 MB.",
           "type": "number"
         }
       },

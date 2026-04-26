@@ -13,6 +13,7 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { AgentDef, SkillDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
+import type { ModuleConfigSlice } from "#core/config/config-slice.js";
 import type { CapabilityScope } from "#core/daemon/daemon-control-types.js";
 import type { PreSendHook } from "#core/loop/pre-send-hooks.js";
 import type {
@@ -291,12 +292,6 @@ export type ModuleContext = {
  * Project modules use the same protocol as user-installed ones.
  * The core without any modules loaded still functions as a basic agent.
  */
-/** A top-level config key claimed by a module. */
-export type ModuleConfigKey = {
-  key: string;
-  description?: string;
-};
-
 export type KotaModule = {
   /** Unique module identifier (e.g. "memory", "telegram", "web"). */
   name: string;
@@ -308,10 +303,14 @@ export type KotaModule = {
   dependencies?: string[];
 
   /**
-   * Top-level config keys this module owns. Declared statically so the config
-   * warning system can recognise them without requiring an `onLoad` callback.
+   * Top-level config slices this module owns. Each slice carries the
+   * key, a description used by `kota config validate`, and typed
+   * sanitize/merge callbacks. Slices are registered globally so
+   * `loadConfig()` can apply them whether the module was discovered via
+   * `discoverProjectModules()`/`discoverModules()` or loaded directly
+   * through `ModuleLoader.load()`.
    */
-  configKeys?: readonly ModuleConfigKey[];
+  configSlices?: readonly ModuleConfigSlice[];
 
   /** JSON Schema fragment for this module's config under `config.modules`. */
   configSchema?: Record<string, unknown>;

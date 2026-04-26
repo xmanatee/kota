@@ -26,6 +26,7 @@ import type { KotaModule } from "#core/modules/module-types.js";
 import type { WebhookClient } from "#core/server/kota-client.js";
 import { postWithRetry } from "#modules/notification/index.js";
 import { registerWebhookCommands } from "./cli.js";
+import { webhookConfigSlice } from "./config-slice.js";
 import { eventTriggerRoutes } from "./event-trigger-routes.js";
 import { webhookSecretControlRoutes } from "./secret-routes.js";
 import { webhookTriggerControlRoutes } from "./trigger-route.js";
@@ -60,7 +61,7 @@ const webhookModule: KotaModule = {
   description:
     "Inbound HTTP→bus event-trigger route (POST /api/events/:name) and outbound HTTP webhook notification channel",
   dependencies: ["notification", "rendering"],
-  configKeys: [{ key: "webhooks", description: "Per-workflow webhook secrets for signature verification" }],
+  configSlices: [webhookConfigSlice],
 
   onLoad: (ctx) => {
     const config = ctx.getModuleConfig<WebhookConfig>();

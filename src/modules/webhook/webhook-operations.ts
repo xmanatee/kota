@@ -14,6 +14,9 @@ import type {
   WebhookSecretGenerateResult,
   WebhookSecretRemoveResult,
 } from "#core/server/kota-client.js";
+// Side-effect import: registers the webhook config slice so loadConfig
+// sanitizes/merges the webhooks key when this module's operations run.
+import "./config-slice.js";
 
 /**
  * Enumerate workflows with a webhook trigger and whether a secret is

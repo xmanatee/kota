@@ -2,6 +2,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { KotaConfig } from "./config.js";
 
+/**
+ * Top-level config keys the core owns. Module-owned slice keys
+ * (`webhooks`, `tracing`, `mcp`, `failover`, `modelProvider`, `scheduler`,
+ * …) are recognized via the module slice registry plus the loader's
+ * `getRegisteredConfigKeys()` snapshot, not enumerated here.
+ */
 export const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set<keyof KotaConfig>([
   "model",
   "editorModel",
@@ -18,9 +24,9 @@ export const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set<keyof KotaConfig>(
   "modules",
   "foreignModules",
   "providers",
-  "modelProvider",
   "modelTiers",
   "agentModels",
+  "defaultAgentHarness",
   "approvalTtlMs",
   "runsGc",
   "serve",

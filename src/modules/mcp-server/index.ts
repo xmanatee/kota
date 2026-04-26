@@ -11,6 +11,7 @@
 
 import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { mcpConfigSlice } from "./config-slice.js";
 import { localMcpServerClient } from "./mcp-server-operations.js";
 
 const mcpServerModule: KotaModule = {
@@ -18,7 +19,7 @@ const mcpServerModule: KotaModule = {
 	version: "1.0.0",
 	description: "Expose KOTA tools via the Model Context Protocol (stdio)",
 	dependencies: ["repo-tasks"],
-	configKeys: [{ key: "mcp", description: "MCP server and sampling configuration" }],
+	configSlices: [mcpConfigSlice],
 
 	commands: (ctx: ModuleContext) => {
 		const cmd = new Command("mcp-server")

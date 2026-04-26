@@ -3,12 +3,22 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearRegisteredConfigSlices, type ModuleConfigSlice } from "#core/config/config-slice.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { clearCustomTools, executeTool, getAllTools } from "#core/tools/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "#core/tools/tool-groups.js";
 import { ModuleLoader } from "./module-loader.js";
 import type { KotaModule } from "./module-types.js";
-import { resetProviderRegistry } from "./provider-registry.js";
+
+function fakeSlice(key: string, description = "test"): ModuleConfigSlice {
+  return {
+    key: key as never,
+    description,
+    sanitize: (raw) => (typeof raw === "object" && raw !== null ? raw : undefined) as never,
+    merge: (base, override) => ({ ...(base as object), ...(override as object) }) as never,
+    schemaSource: { relativePath: "test", typeName: "TestConfig" },
+  };
+}
 
 function makeTool(name: string, opts?: { risk?: "safe" | "moderate" | "dangerous"; kind?: "discovery" | "action" }) {
   return {
@@ -553,11 +563,12 @@ describe("ModuleLoader", () => {
   });
 
   it("reload cleans up config keys, skills, workflows, and channels", async () => {
+    clearRegisteredConfigSlices();
     const loader = new ModuleLoader({});
     await loader.load({
       name: "cleanup-mod",
       tools: [makeTool("cleanup_tool")],
-      configKeys: [{ key: "cleanupMod" }],
+      configSlices: [fakeSlice("cleanupMod")],
     });
 
     expect(loader.getRegisteredConfigKeys().has("cleanupMod")).toBe(true);
@@ -571,10 +582,11 @@ describe("ModuleLoader", () => {
   });
 
   it("unload cleans up config keys", async () => {
+    clearRegisteredConfigSlices();
     const loader = new ModuleLoader({});
     await loader.load({
       name: "cfgkey-mod",
-      configKeys: [{ key: "cfgKeyMod" }],
+      configSlices: [fakeSlice("cfgKeyMod")],
     });
     expect(loader.getRegisteredConfigKeys().has("cfgKeyMod")).toBe(true);
 
@@ -1174,15 +1186,16 @@ describe("ctx.callTool — direct tool invocation", () => {
     expect(results["broken-mod"].message).toContain("boom");
   });
 
-  it("collects configKeys from loaded modules", async () => {
+  it("collects configSlices from loaded modules", async () => {
+    clearRegisteredConfigSlices();
     const loader = new ModuleLoader({});
     await loader.load({
       name: "mod-a",
-      configKeys: [{ key: "myKey", description: "test key" }],
+      configSlices: [fakeSlice("myKey", "test key")],
     });
     await loader.load({
       name: "mod-b",
-      configKeys: [{ key: "otherKey" }],
+      configSlices: [fakeSlice("otherKey")],
     });
     const keys = loader.getRegisteredConfigKeys();
     expect(keys.has("myKey")).toBe(true);
@@ -1190,21 +1203,23 @@ describe("ctx.callTool — direct tool invocation", () => {
     expect(keys.size).toBe(2);
   });
 
-  it("rejects duplicate configKeys across modules", async () => {
+  it("rejects duplicate configSlices across modules", async () => {
+    clearRegisteredConfigSlices();
     const loader = new ModuleLoader({});
     await loader.load({
       name: "mod-a",
-      configKeys: [{ key: "shared" }],
+      configSlices: [fakeSlice("shared")],
     });
     await expect(
       loader.load({
         name: "mod-b",
-        configKeys: [{ key: "shared" }],
+        configSlices: [fakeSlice("shared")],
       }),
     ).rejects.toThrow(/already claimed by "mod-a"/);
   });
 
-  it("returns empty set when no modules declare configKeys", async () => {
+  it("returns empty set when no modules declare configSlices", async () => {
+    clearRegisteredConfigSlices();
     const loader = new ModuleLoader({});
     await loader.load({ name: "plain" });
     expect(loader.getRegisteredConfigKeys().size).toBe(0);
