@@ -12,9 +12,9 @@ This directory contains the attention digest workflow definition and test.
 detector + renderer the cadence path uses and returns
 `{ items: AttentionItem[]; text: string }`. The cadence step
 (`runAttentionDigestStep`) calls the same seam so the two paths cannot drift.
-The Telegram `/attention` command is the first operator-facing consumer; later
-surfaces (`kota attention`, `/api/attention`, web/macOS/mobile attention
-panels) can reuse it.
+Operator-facing pull surfaces (Telegram `/attention`, the `kota attention`
+CLI in `attention-cli.ts`) consume the seam directly; later surfaces
+(`/api/attention`, web/macOS/mobile attention panels) reuse it the same way.
 
 Counter invariant: the on-demand path must not write
 `<runsDir>/../attention-digest-counter.json`. That file is owned by the

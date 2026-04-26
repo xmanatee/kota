@@ -9,6 +9,7 @@ import type {
   RegisteredWorkflowDefinitionInput,
   WorkflowDefinitionInput,
 } from "#core/workflow/types.js";
+import { buildAttentionCommand } from "./workflows/attention-digest/attention-cli.js";
 import { buildDigestCommand } from "./workflows/daily-digest/digest-cli.js";
 import { digestRoutes } from "./workflows/daily-digest/digest-route.js";
 
@@ -84,7 +85,7 @@ const autonomyModule: KotaModule = {
   dependencies: ["workflow-ops", "repo-tasks", "rendering"],
   workflows: async () => await discoverAutonomyWorkflowDefinitions(),
   agents: async () => await discoverAutonomyAgents(),
-  commands: () => [buildDigestCommand()],
+  commands: () => [buildDigestCommand(), buildAttentionCommand()],
   routes: (ctx) => digestRoutes({ projectDir: ctx.cwd }),
 };
 

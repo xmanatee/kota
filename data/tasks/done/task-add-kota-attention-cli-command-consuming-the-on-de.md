@@ -1,12 +1,12 @@
 ---
 id: task-add-kota-attention-cli-command-consuming-the-on-de
 title: Add kota attention CLI command consuming the on-demand attention seam
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a `kota attention` CLI command that runs the attention-digest detector on demand and prints the rendered attention items (or short "no attention items" body) to stdout, mirroring the just-landed Telegram /attention precedent and the established `kota digest` CLI surface so operators can pull attention items without scraping .kota/runs/.
 created_at: 2026-04-26T07:22:47.124Z
-updated_at: 2026-04-26T07:22:47.124Z
+updated_at: 2026-04-26T07:28:07.048Z
 ---
 
 ## Problem
