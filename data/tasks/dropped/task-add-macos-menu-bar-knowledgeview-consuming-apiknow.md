@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-menu-bar-knowledgeview-consuming-apiknow
 title: Add macOS menu bar KnowledgeView consuming /api/knowledge/search
-status: ready
+status: dropped
 priority: p2
 area: client
 summary: Add a Knowledge view in the macOS menu bar client that calls GET /api/knowledge/search (semantic + limit), renders the same top-N entry shape the Telegram /knowledge command and shared knowledge render helper already emit, and surfaces the semantic-unavailable branch one-to-one — extending the knowledge surface fan-out from Telegram to the always-visible native operator surface.
 created_at: 2026-04-26T12:16:20.605Z
-updated_at: 2026-04-26T12:16:20.605Z
+updated_at: 2026-04-26T12:53:53.603Z
 ---
 
 ## Problem
@@ -174,3 +174,25 @@ duplication.
   text and Telegram `/knowledge` reply for the same query and same
   project state to demonstrate body parity across surfaces.
 - Test output showing the new `DaemonClientTests` cases passing.
+
+## Decomposed
+
+Builder timed out (~17 min, streamed-API idle timeout) in
+`.kota/runs/2026-04-26T12-34-47-932Z-builder-etzhhp/` while still in the
+contract-design phase. The original task bundles the daemon contract
+layer, the SwiftUI view layer, AppState observables, MenuBarView
+integration, four-branch operator screenshots, and a docs update — too
+much for one builder run. Split into:
+
+- `task-add-macos-daemonclientsearchknowledge-with-discrim` — typed
+  Swift mirrors (`KnowledgeEntry`, discriminated `KnowledgeSearchResponse`),
+  `DaemonClient.searchKnowledge(query:limit:)`, and the four
+  `DaemonClientTests` cases (success entries, empty entries, ok:false
+  semantic-unavailable, typed HTTP error). Independently shippable;
+  no UI surface yet.
+- `task-add-macos-menu-bar-knowledgeview-consuming-daemonc` — depends
+  on the contract layer above. Adds `KnowledgeView.swift`, AppState
+  observables, MenuBarView wiring, the four-branch operator
+  screenshots, and the one-line `src/modules/knowledge/AGENTS.md`
+  consumer update.
+
