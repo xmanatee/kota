@@ -24,3 +24,14 @@ This directory contains the explorer workflow definition and prompt.
   `strategic-ready-coverage` phase-1 repair check will otherwise force a
   full agent re-run. Same cost profile as the `task-queue-valid` trip above.
 - Other task-queue warnings stay advisory.
+- The `External Pattern Decisions` catalog in `src/modules/autonomy/AGENTS.md`
+  is out of scope for explorer. When a watchlist entry yields a clear
+  reject/read/adopt verdict against KOTA's primitives, record it in the
+  watchlist `summary` field for that entry — that is explorer's only
+  verdict-recording surface. The autonomy AGENTS.md catalog is curated by
+  owner distillation or by improver from repeated run evidence; explorer's
+  writeScope intentionally excludes it. Two recent occurrences
+  (`2026-04-24T14-04-37-931Z-explorer-5qwsga`,
+  `2026-04-26T02-06-31-519Z-explorer-0nterp`) burned ~13 min of agent time
+  each because the writeScope guard rejected the AGENTS.md edit and aborted
+  the whole step with no commit.
