@@ -148,31 +148,35 @@ function getCredentials(): { token: string; chatId: string } | null {
   return { token, chatId };
 }
 
-const telegramStatusChannel: ChannelDef = {
-  name: "telegram-status",
-  description: "Responds to /status commands in Telegram with current workflow state",
-  create(ctx) {
-    const token = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
-    if (!token || !chatId) return null;
+function makeTelegramStatusChannel(moduleCtx: ModuleContext): ChannelDef {
+  return {
+    name: "telegram-status",
+    description:
+      "Responds to /status, /digest, /attention, and /knowledge in Telegram",
+    create(ctx) {
+      const token = process.env.TELEGRAM_BOT_TOKEN;
+      const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
+      if (!token || !chatId) return null;
 
-    let stop: (() => void) | null = null;
-    return {
-      async start() {
-        stop = startTelegramStatusPoll(
-          token,
-          chatId,
-          ctx.projectDir,
-          ctx.getWorkflowStatus,
-          ctx.log,
-        );
-      },
-      stop() {
-        stop?.();
-      },
-    };
-  },
-};
+      let stop: (() => void) | null = null;
+      return {
+        async start() {
+          stop = startTelegramStatusPoll(
+            token,
+            chatId,
+            ctx.projectDir,
+            ctx.getWorkflowStatus,
+            moduleCtx.client.knowledge,
+            ctx.log,
+          );
+        },
+        stop() {
+          stop?.();
+        },
+      };
+    },
+  };
+}
 
 function makeTelegramInteractiveChannel(ctx: ModuleContext): ChannelDef {
   return {
@@ -247,7 +251,7 @@ const telegramModule: KotaModule = {
   name: "telegram",
   version: "1.0.0",
   description: "Telegram bot frontend for KOTA",
-  dependencies: ["approval-queue", "autonomy", "transcription"],
+  dependencies: ["approval-queue", "autonomy", "knowledge", "transcription"],
   configSchema: {
     type: "object",
     additionalProperties: false,
@@ -266,7 +270,10 @@ const telegramModule: KotaModule = {
     },
   },
 
-  channels: (ctx) => [telegramStatusChannel, makeTelegramInteractiveChannel(ctx)],
+  channels: (ctx) => [
+    makeTelegramStatusChannel(ctx),
+    makeTelegramInteractiveChannel(ctx),
+  ],
 
   onLoad: (ctx) => {
     const telegramConfig = ctx.getModuleConfig<TelegramConfig>();

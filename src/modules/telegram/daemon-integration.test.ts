@@ -164,7 +164,28 @@ describe("Telegram personal-assistant daemon integration", () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     // Contribute a minimal Telegram channel that responds to /status using
-    // the daemon-owned runtime state.
+    // the daemon-owned runtime state. The integration test never exercises
+    // /knowledge so the knowledge client stays a never-called stub.
+    const knowledgeStub = {
+      async list() {
+        throw new Error("not used");
+      },
+      async show() {
+        throw new Error("not used");
+      },
+      async search() {
+        throw new Error("not used");
+      },
+      async add() {
+        throw new Error("not used");
+      },
+      async delete() {
+        throw new Error("not used");
+      },
+      async reindex() {
+        throw new Error("not used");
+      },
+    } as unknown as Parameters<typeof startTelegramStatusPoll>[4];
     const telegramStatusChannel: ChannelDef = {
       name: "telegram-status-test",
       create(ctx) {
@@ -176,6 +197,7 @@ describe("Telegram personal-assistant daemon integration", () => {
               String(statusChatId),
               ctx.projectDir,
               ctx.getWorkflowStatus,
+              knowledgeStub,
               ctx.log,
             );
           },

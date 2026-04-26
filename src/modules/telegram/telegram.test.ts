@@ -80,6 +80,7 @@ describe("telegramModule", () => {
     expect(telegramModule.dependencies).toEqual([
       "approval-queue",
       "autonomy",
+      "knowledge",
       "transcription",
     ]);
   });

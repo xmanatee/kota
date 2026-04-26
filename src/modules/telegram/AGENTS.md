@@ -4,8 +4,9 @@ This directory owns the Telegram integration — interactive bot access and
 notification forwarding.
 
 - Contributes two daemon channels: `telegram-status` (responds to `/status`
-  with workflow state, to `/digest` with the on-demand daily digest, and to
-  `/attention` with the on-demand attention digest) and `telegram-interactive`
+  with workflow state, to `/digest` with the on-demand daily digest, to
+  `/attention` with the on-demand attention digest, and to `/knowledge
+  <query>` with a semantic-ranked knowledge search) and `telegram-interactive`
   (hosts one agent session per chat). Both are started and stopped by the
   daemon alongside other channels.
 - The `/digest` command calls the daily-digest module's
@@ -25,6 +26,21 @@ notification forwarding.
   with the short fixed `NO_ATTENTION_ITEMS_TEXT` body so the operator can
   distinguish "nothing wrong" from "command failed". The body is
   operator-facing only and must not be exposed to autonomy agents.
+- The `/knowledge <query>` command exposes the same knowledge seam the
+  CLI and `/api/knowledge` serve: it calls `ctx.client.knowledge.search`
+  with `{ semantic: true, limit: 10 }` and renders the top entries via the
+  shared plain-text helper in the `knowledge` module (no copy of CLI
+  rendering logic on the Telegram side). Empty / whitespace-only queries
+  reply with a usage hint and skip the store call. An empty result reply
+  is the fixed `"No matching knowledge entries."` body so the operator
+  can distinguish "nothing matched" from "command failed". When no
+  embedding-backed knowledge provider is configured the search returns
+  `{ ok: false, reason: "semantic_unavailable" }` and the bot surfaces a
+  one-line explanation instead of silently degrading to keyword search.
+  The reply is plain text (knowledge titles can carry Markdown-active
+  characters), is not gated by quiet hours, never advances any cadence
+  counter or emits a workflow event, and is operator-facing only — it
+  must not be exposed to autonomy agents in any prompt path.
 - Contributes notification subscriptions for workflow events.
 - Optional event filters must not suppress urgent owner/approval escalation
   notifications.

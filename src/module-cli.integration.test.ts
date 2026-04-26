@@ -362,9 +362,14 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
     expect(loaded).not.toContain("memory");
     expect(loaded).not.toContain("scheduler");
 
-    // Modules without tools should still load
-    expect(loaded).toContain("telegram");
+    // Modules without tools and without tool-conflicting transitive
+    // dependencies should still load (daemon-ops -> repo-tasks -> rendering
+    // is an entirely tool-less subgraph). Modules like telegram declare a
+    // dependency on a tool-providing module (knowledge) and therefore fail
+    // by transitive dependency, not by tool conflict.
     expect(loaded).toContain("daemon-ops");
+    expect(loaded).toContain("repo-tasks");
+    expect(loaded).toContain("rendering");
 
     errSpy.mockRestore();
     await loader1.unloadAll();

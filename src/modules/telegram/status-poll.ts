@@ -1,8 +1,10 @@
 import { join } from "node:path";
+import type { KnowledgeClient } from "#core/server/kota-client.js";
 import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
 import { computeCostByWorkflow, loadRecentRuns } from "#modules/autonomy/shared.js";
 import { renderOnDemandAttention } from "#modules/autonomy/workflows/attention-digest/step.js";
 import { renderOnDemandDigest } from "#modules/autonomy/workflows/daily-digest/on-demand.js";
+import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
 import { callTelegramApi } from "./client.js";
 
 const POLL_INTERVAL_MS = 30_000;
@@ -63,6 +65,7 @@ export function startTelegramStatusPoll(
   chatId: string,
   projectDir: string,
   getStatusInfo: () => StatusInfo,
+  knowledge: KnowledgeClient,
   log?: (message: string) => void,
 ): () => void {
   let running = true;
@@ -99,6 +102,39 @@ export function startTelegramStatusPoll(
     });
   }
 
+  async function handleKnowledge(text: string): Promise<void> {
+    const query =
+      text === "/knowledge" ? "" : text.slice("/knowledge ".length).trim();
+    if (query.length === 0) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: "Usage: /knowledge <query>",
+      });
+      return;
+    }
+    const result = await knowledge.search(query, { semantic: true, limit: 10 });
+    if (!result.ok) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: "Semantic knowledge search requires an embedding-backed knowledge provider.",
+      });
+      return;
+    }
+    if (result.entries.length === 0) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: "No matching knowledge entries.",
+      });
+      return;
+    }
+    await callTelegramApi(token, "sendMessage", {
+      chat_id: chatId,
+      // Plain text — knowledge titles can carry Markdown-active characters
+      // that would require escaping if Markdown parse_mode were enabled.
+      text: truncateForTelegram(renderKnowledgeSearchPlain(result.entries)),
+    });
+  }
+
   async function poll(): Promise<void> {
     if (!running) return;
     try {
@@ -125,6 +161,11 @@ export function startTelegramStatusPoll(
           await handleDigest();
         } else if (msg.text === "/attention") {
           await handleAttention();
+        } else if (
+          msg.text === "/knowledge" ||
+          msg.text.startsWith("/knowledge ")
+        ) {
+          await handleKnowledge(msg.text);
         }
       }
     } catch (err) {

@@ -1,12 +1,12 @@
 ---
 id: task-add-a-telegram-knowledge-command-for-ad-hoc-semant
 title: Add a Telegram /knowledge command for ad-hoc semantic knowledge search
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a Telegram /knowledge <query> command that runs against ctx.client.knowledge.search and emits the matching entries inline, opening the operator-facing knowledge seam on the messaging surface in the same Telegram-first cadence the daily-digest and attention-digest seams established.
 created_at: 2026-04-26T09:43:58.020Z
-updated_at: 2026-04-26T09:43:58.020Z
+updated_at: 2026-04-26T09:54:48.328Z
 ---
 
 ## Problem
