@@ -50,6 +50,7 @@ type EmailConfig = {
 const NOTIFICATION_EVENTS = [
   "workflow.failure.alert",
   "workflow.attention.digest",
+  "workflow.daily.digest",
   "workflow.approval.expired",
   "module.crash.alert",
   "approval.requested",

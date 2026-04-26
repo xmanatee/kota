@@ -204,6 +204,25 @@ export type BusEvents = {
     items: { label: string; detail: string }[];
     text: string;
   };
+  /**
+   * Periodic operator-facing rollup of what KOTA accomplished over a rolling
+   * window. Complement to `workflow.attention.digest`: the attention digest
+   * is exception-side ("here are conditions that need a human"), the daily
+   * digest is positive-side ("here is the rhythm of work that landed and
+   * what is still pending"). Emitted by the `daily-digest` workflow on a
+   * fixed cadence; channels (Telegram, Slack, email, webhook) treat
+   * `payload.text` as the human-readable body.
+   */
+  "workflow.daily.digest": {
+    /** ISO timestamp at the start of the window covered. */
+    windowStartedAt: string;
+    /** ISO timestamp at the end of the window covered. */
+    windowEndedAt: string;
+    /** Human-readable rendered digest body. Channels forward this verbatim. */
+    text: string;
+    /** True when the window had nothing to report; channels still deliver. */
+    quiet: boolean;
+  };
   "workflow.build.committed": {
     runId: string;
     taskId: string | null;

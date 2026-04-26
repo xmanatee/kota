@@ -20,6 +20,7 @@ import { postWithRetry } from "#modules/notification/index.js";
 const NOTIFICATION_EVENTS = [
   "workflow.failure.alert",
   "workflow.attention.digest",
+  "workflow.daily.digest",
   "workflow.approval.expired",
   "module.crash.alert",
 ] as const satisfies readonly (keyof BusEvents)[];
@@ -70,6 +71,12 @@ function buildBlocks(event: string, payload: Record<string, unknown>): Block[] {
     case "workflow.attention.digest": {
       const text = payload.text as string | undefined;
       return [header("Attention Digest"), divider, section(text ?? "Digest available.")];
+    }
+    case "workflow.daily.digest": {
+      const text = payload.text as string | undefined;
+      const quiet = payload.quiet === true;
+      const title = quiet ? "Daily Digest (quiet)" : "Daily Digest";
+      return [header(title), divider, section(text ?? "Daily digest available.")];
     }
     case "workflow.build.committed": {
       const commitMessage = payload.commitMessage as string | undefined;

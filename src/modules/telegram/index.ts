@@ -287,6 +287,11 @@ const telegramModule: KotaModule = {
         if (!creds) return;
         void sendTelegramMessage(creds.token, creds.chatId, payload.text as string, ctx.log);
       }),
+      ctx.events.subscribe("workflow.daily.digest", (payload) => {
+        const creds = getCredentials();
+        if (!creds) return;
+        void sendTelegramMessage(creds.token, creds.chatId, payload.text as string, ctx.log);
+      }),
       ctx.events.subscribe("workflow.approval.expired", (payload) => {
         const creds = getCredentials();
         if (!creds) return;

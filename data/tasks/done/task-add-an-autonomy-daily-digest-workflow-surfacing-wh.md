@@ -1,12 +1,12 @@
 ---
 id: task-add-an-autonomy-daily-digest-workflow-surfacing-wh
 title: Add an autonomy daily digest workflow surfacing what KOTA accomplished over a rolling window
-status: ready
+status: done
 priority: p2
 area: autonomy
 summary: Add a periodic autonomy workflow that emits an operator-facing digest of completed/failed work (builder commits, explorer additions, decomposer splits, blocked-promoter moves, pending owner questions) over a rolling window so operators can see autonomy progress without scraping .kota/runs/.
 created_at: 2026-04-26T00:59:10.368Z
-updated_at: 2026-04-26T00:59:10.368Z
+updated_at: 2026-04-26T01:20:24.255Z
 ---
 
 ## Problem

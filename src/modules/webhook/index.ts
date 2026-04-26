@@ -39,6 +39,7 @@ import {
 const NOTIFICATION_EVENTS = [
   "workflow.failure.alert",
   "workflow.attention.digest",
+  "workflow.daily.digest",
   "workflow.approval.expired",
 ] as const satisfies readonly (keyof BusEvents)[];
 

@@ -79,7 +79,7 @@ const autonomyModule: KotaModule = {
   name: "autonomy",
   version: "1.0.0",
   description: "Autonomous development workflows and their paired agents",
-  dependencies: ["workflow-ops", "repo-tasks"],
+  dependencies: ["workflow-ops", "repo-tasks", "rendering"],
   workflows: async () => await discoverAutonomyWorkflowDefinitions(),
   agents: async () => await discoverAutonomyAgents(),
 };

@@ -195,6 +195,25 @@ describe("telegramModule notifications via onLoad", () => {
     expect(body.text).toContain("Builder failure streak");
   });
 
+  it("sends Telegram message on workflow.daily.digest", async () => {
+    const bus = new EventBus();
+    telegramModule.onLoad!(makeStubCtx(bus));
+    bus.emit("workflow.daily.digest", {
+      windowStartedAt: "2026-04-25T08:00:00.000Z",
+      windowEndedAt: "2026-04-26T08:00:00.000Z",
+      text: "Daily digest body — 2 commits, 1 explorer addition.",
+      quiet: false,
+    });
+    await Promise.resolve();
+    expect(mockedCallTelegramApi).toHaveBeenCalledWith(
+      FAKE_TOKEN,
+      "sendMessage",
+      expect.objectContaining({ chat_id: FAKE_CHAT_ID }),
+    );
+    const body = mockedCallTelegramApi.mock.calls[0][2] as { text: string };
+    expect(body.text).toContain("Daily digest body");
+  });
+
   it("sends Telegram message on owner.question.asked with CLI commands and Dismiss button", async () => {
     const bus = new EventBus();
     telegramModule.onLoad!(makeStubCtx(bus));

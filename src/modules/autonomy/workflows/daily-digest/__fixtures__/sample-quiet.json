@@ -1,0 +1,17 @@
+{
+  "windowStartedAt": "2026-04-25T08:00:00.000Z",
+  "windowEndedAt": "2026-04-26T08:00:00.000Z",
+  "builderCommits": [],
+  "explorerAdditions": [],
+  "decomposerSplits": [],
+  "blockedPromoterMoves": [],
+  "failedMonitoredRuns": [],
+  "pendingOwnerQuestions": [],
+  "agingOperatorCaptures": [],
+  "queueDelta": {
+    "current": { "backlog": 4, "ready": 2, "doing": 0, "blocked": 1 },
+    "previous": { "backlog": 4, "ready": 2, "doing": 0, "blocked": 1 },
+    "delta": { "backlog": 0, "ready": 0, "doing": 0, "blocked": 0 }
+  },
+  "quiet": true
+}

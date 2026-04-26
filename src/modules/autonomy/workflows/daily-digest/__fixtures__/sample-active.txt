@@ -1,0 +1,32 @@
+Daily digest (2026-04-25 08:00Z → 2026-04-26 08:00Z)
+----------------------------------------
+
+Builder commits (2, 58m total) -------------------------------------------------
+- task-distribute-module-owned-config-slices-into-ownin: Distribute module-owned config slices into owning modules
+- task-blocked-promoter-auto-cadence: blocked-promoter: auto-promote satisfied blocked tasks and refresh owner-ask cadence
+
+Explorer additions (2 runs, 2 task batches, 0 watchlist adds) ------------------
+- 2026-04-26T00-53-00-233Z-explorer-zwvf2w: +1 tasks, +0 watchlist
+- 2026-04-26T00-17-04-496Z-explorer-uoxn8a: +1 tasks, +0 watchlist
+
+Decomposer splits (1) ----------------------------------------------------------
+- task-rewrite-the-large-monolith → 4 child tasks
+
+Blocked-promoter moves (2 tasks promoted across 1 run) -------------------------
+- task-x: blocked → ready
+- task-y: blocked → backlog
+
+Failed/interrupted monitored runs (1) — see attention-digest -------------------
+- improver: failed (2026-04-25T19-00-00-000Z-improver-xxx)
+
+Pending owner questions (1) ----------------------------------------------------
+- q-aaaaaa (blocked-promoter, 5d): Should we proceed with chunked KotaClient namespace distribution as proposed in…
+
+Aging operator-capture preconditions (1) ---------------------------------------
+- task-needs-screenshot (21d, awaits .kota/captures/screenshot.png)
+
+Queue state --------------------------------------------------------------------
+- ready: 1 (=)
+- backlog: 0 (-2)
+- doing: 0 (-1)
+- blocked: 8 (-1)

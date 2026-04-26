@@ -229,6 +229,42 @@ describe("slackModule notifications", () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
+  it("POSTs Block Kit on workflow.daily.digest with rendered text", async () => {
+    const bus = new EventBus();
+    slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
+    bus.emit("workflow.daily.digest", {
+      windowStartedAt: "2026-04-25T08:00:00.000Z",
+      windowEndedAt: "2026-04-26T08:00:00.000Z",
+      text: "Daily digest body",
+      quiet: false,
+    });
+    await Promise.resolve();
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const body = JSON.parse(
+      (mockFetch.mock.calls[0] as [string, RequestInit])[1].body as string,
+    ) as { blocks: unknown[] };
+    const text = JSON.stringify(body.blocks);
+    expect(text).toContain("Daily Digest");
+    expect(text).toContain("Daily digest body");
+  });
+
+  it("labels quiet daily digest distinctly", async () => {
+    const bus = new EventBus();
+    slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
+    bus.emit("workflow.daily.digest", {
+      windowStartedAt: "2026-04-25T08:00:00.000Z",
+      windowEndedAt: "2026-04-26T08:00:00.000Z",
+      text: "No autonomy activity in this window.",
+      quiet: true,
+    });
+    await Promise.resolve();
+    const body = JSON.parse(
+      (mockFetch.mock.calls[0] as [string, RequestInit])[1].body as string,
+    ) as { blocks: unknown[] };
+    const text = JSON.stringify(body.blocks);
+    expect(text).toContain("Daily Digest (quiet)");
+  });
+
   it("is a no-op when config is absent", async () => {
     const bus = new EventBus();
     slackModule.onLoad!(makeStubCtx(bus, undefined));

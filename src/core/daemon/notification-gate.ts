@@ -29,6 +29,7 @@ export type QuietHoursConfig = {
 /** Events held during quiet hours. */
 const GATED_EVENTS: ReadonlySet<string> = new Set([
   "workflow.attention.digest",
+  "workflow.daily.digest",
 ]);
 
 function parseHHMM(s: string): { h: number; m: number } {

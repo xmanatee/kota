@@ -29,6 +29,15 @@ export function formatEmail(event: string, payload: Record<string, unknown>): Em
       };
     }
 
+    case "workflow.daily.digest": {
+      const text = payload.text as string | undefined;
+      const quiet = payload.quiet === true;
+      return {
+        subject: quiet ? "[KOTA] Daily Digest (quiet)" : "[KOTA] Daily Digest",
+        text: text ?? "Daily digest — no detail available.",
+      };
+    }
+
     case "workflow.approval.expired": {
       const workflowName = payload.workflowName as string | undefined;
       const runId = payload.runId as string | undefined;

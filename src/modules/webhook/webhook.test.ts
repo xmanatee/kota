@@ -135,6 +135,25 @@ describe("webhookModule notifications", () => {
     expect(mockFetch).toHaveBeenCalledOnce();
   });
 
+  it("forwards workflow.daily.digest by default", async () => {
+    const bus = new EventBus();
+    webhookModule.onLoad!(makeStubCtx(bus, { urls: [FAKE_URL] }));
+    bus.emit("workflow.daily.digest", {
+      windowStartedAt: "2026-04-25T08:00:00.000Z",
+      windowEndedAt: "2026-04-26T08:00:00.000Z",
+      text: "Daily digest body",
+      quiet: false,
+    });
+    await Promise.resolve();
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const body = JSON.parse(
+      (mockFetch.mock.calls[0] as [string, RequestInit])[1].body as string,
+    ) as { event: string; text: string; quiet: boolean };
+    expect(body.event).toBe("workflow.daily.digest");
+    expect(body.text).toBe("Daily digest body");
+    expect(body.quiet).toBe(false);
+  });
+
   it("is a no-op when urls is empty", async () => {
     const bus = new EventBus();
     webhookModule.onLoad!(makeStubCtx(bus, { urls: [] }));

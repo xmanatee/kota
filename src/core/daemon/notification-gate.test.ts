@@ -149,6 +149,33 @@ describe("NotificationGate", () => {
     gate.dispose();
   });
 
+  it("suppresses workflow.daily.digest during quiet hours and releases on window end", () => {
+    vi.setSystemTime(makeTime(23, 0, 0, 0));
+    const config: QuietHoursConfig = { start: "22:00", end: "08:00" };
+    bus.on("workflow.daily.digest", (p) =>
+      received.push({ event: "workflow.daily.digest", payload: p }),
+    );
+    const gate = new NotificationGate(bus, config);
+
+    bus.emit("workflow.daily.digest", {
+      windowStartedAt: "x",
+      windowEndedAt: "y",
+      text: "Daily digest body",
+      quiet: false,
+    });
+    expect(received).toHaveLength(0);
+
+    vi.advanceTimersByTime(9 * 60 * 60 * 1000 + 1000);
+    // Released as a single batched attention digest entry that includes the
+    // held daily-digest text so the operator does not lose the body.
+    expect(received).toHaveLength(1);
+    expect(received[0]?.event).toBe("workflow.attention.digest");
+    const releasedText = (received[0]?.payload as { text: string }).text;
+    expect(releasedText).toContain("Daily digest body");
+
+    gate.dispose();
+  });
+
   it("releases held events as a single digest when window ends", () => {
     // 23:00 — 9 hours until 08:00
     vi.setSystemTime(makeTime(23, 0, 0, 0));

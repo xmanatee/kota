@@ -1,0 +1,76 @@
+{
+  "windowStartedAt": "2026-04-25T08:00:00.000Z",
+  "windowEndedAt": "2026-04-26T08:00:00.000Z",
+  "builderCommits": [
+    {
+      "runId": "2026-04-26T00-21-34-632Z-builder-qb1n0z",
+      "taskId": "task-distribute-module-owned-config-slices-into-ownin",
+      "taskTitle": "Distribute module-owned config slices into owning modules",
+      "commitSubject": "Distribute module-owned config slices into owning modules",
+      "durationMs": 1882000
+    },
+    {
+      "runId": "2026-04-25T22-45-10-100Z-builder-aaaaaa",
+      "taskId": "task-blocked-promoter-auto-cadence",
+      "taskTitle": "blocked-promoter: auto-promote satisfied blocked tasks",
+      "commitSubject": "blocked-promoter: auto-promote satisfied blocked tasks and refresh owner-ask cadence",
+      "durationMs": 1620000
+    }
+  ],
+  "explorerAdditions": [
+    {
+      "runId": "2026-04-26T00-53-00-233Z-explorer-zwvf2w",
+      "taskCount": 1,
+      "watchlistAdds": 0
+    },
+    {
+      "runId": "2026-04-26T00-17-04-496Z-explorer-uoxn8a",
+      "taskCount": 1,
+      "watchlistAdds": 0
+    }
+  ],
+  "decomposerSplits": [
+    {
+      "runId": "2026-04-25T20-12-04-001Z-decomposer-aaaaaa",
+      "parentTaskId": "task-rewrite-the-large-monolith",
+      "childTaskCount": 4
+    }
+  ],
+  "blockedPromoterMoves": [
+    {
+      "runId": "2026-04-26T00-21-34-597Z-blocked-promoter-ur62wt",
+      "promotedTaskIds": ["task-x", "task-y"],
+      "toReady": ["task-x"],
+      "toBacklog": ["task-y"]
+    }
+  ],
+  "failedMonitoredRuns": [
+    {
+      "runId": "2026-04-25T19-00-00-000Z-improver-xxx",
+      "workflow": "improver",
+      "status": "failed",
+      "startedAt": "2026-04-25T19:00:00.000Z"
+    }
+  ],
+  "pendingOwnerQuestions": [
+    {
+      "id": "q-aaaaaa",
+      "source": "blocked-promoter",
+      "ageDays": 5,
+      "question": "Should we proceed with chunked KotaClient namespace distribution as proposed in the plan or escalate?"
+    }
+  ],
+  "agingOperatorCaptures": [
+    {
+      "taskId": "task-needs-screenshot",
+      "ageDays": 21,
+      "path": ".kota/captures/screenshot.png"
+    }
+  ],
+  "queueDelta": {
+    "current": { "backlog": 0, "ready": 1, "doing": 0, "blocked": 8 },
+    "previous": { "backlog": 2, "ready": 1, "doing": 1, "blocked": 9 },
+    "delta": { "backlog": -2, "ready": 0, "doing": -1, "blocked": -1 }
+  },
+  "quiet": false
+}

@@ -23,6 +23,23 @@ describe("formatEmail", () => {
     expect(msg.text).toBe("3 items need review");
   });
 
+  it("formats workflow.daily.digest with rendered text", () => {
+    const msg = formatEmail("workflow.daily.digest", {
+      text: "Daily digest body\nQueue state: ready 2",
+      quiet: false,
+    });
+    expect(msg.subject).toBe("[KOTA] Daily Digest");
+    expect(msg.text).toContain("Daily digest body");
+  });
+
+  it("labels quiet daily digest distinctly", () => {
+    const msg = formatEmail("workflow.daily.digest", {
+      text: "No autonomy activity in this window.",
+      quiet: true,
+    });
+    expect(msg.subject).toBe("[KOTA] Daily Digest (quiet)");
+  });
+
   it("formats approval.requested with kota CLI commands", () => {
     const msg = formatEmail("approval.requested", {
       id: "abc-123",
