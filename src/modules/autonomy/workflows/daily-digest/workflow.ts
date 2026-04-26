@@ -7,75 +7,59 @@
  * The trigger is a fixed cron schedule so cadence is predictable for
  * operators. Per `workflows/AGENTS.md`, autonomy workflows must not
  * subscribe to `runtime.idle` — only the dispatcher does.
+ *
+ * The data + render pipeline lives in `on-demand.ts` (`computeDigestSnapshot`)
+ * so the cadence path here and the telegram `/digest` path cannot drift; the
+ * cadence step layers state-write and event-emit on top.
  */
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { typedCodeStep } from "#core/workflow/types.js";
-import { countRepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
-  aggregateDailyDigest,
   type DailyDigestData,
   digestStateFromCounts,
-  type QueueCounts,
-  readDigestState,
 } from "./aggregate.js";
-import { renderDailyDigest } from "./render.js";
+import {
+  computeDigestSnapshot,
+  DAILY_DIGEST_STATE_FILENAME,
+} from "./on-demand.js";
 
-export const DAILY_DIGEST_STATE_FILENAME = "daily-digest-state.json";
+export { DAILY_DIGEST_STATE_FILENAME };
 export const DAILY_DIGEST_EVENT = "workflow.daily.digest";
 export const DAILY_DIGEST_DIGEST_JSON = "digest.json";
 export const DAILY_DIGEST_DIGEST_TXT = "digest.txt";
-
-function readQueueCounts(projectDir: string): QueueCounts {
-  return {
-    backlog: countRepoTaskState(projectDir, "backlog"),
-    ready: countRepoTaskState(projectDir, "ready"),
-    doing: countRepoTaskState(projectDir, "doing"),
-    blocked: countRepoTaskState(projectDir, "blocked"),
-  };
-}
 
 const buildDigest = typedCodeStep<DailyDigestData>({
   id: "build-digest",
   type: "code",
   run: ({ projectDir, workflow, emit }) => {
-    const runsDir = join(projectDir, ".kota", "runs");
     const statePath = join(projectDir, ".kota", DAILY_DIGEST_STATE_FILENAME);
-    const previousState = readDigestState(statePath);
-    const currentCounts = readQueueCounts(projectDir);
-    const nowMs = Date.now();
-    const data = aggregateDailyDigest({
-      runsDir,
-      projectDir,
-      ownerQuestions: getOwnerQuestionQueue(),
-      windowEndMs: nowMs,
-      previousQueueCounts: previousState?.counts ?? null,
-      currentQueueCounts: currentCounts,
-    });
-    const text = renderDailyDigest(data);
+    const snapshot = computeDigestSnapshot({ projectDir });
 
     writeFileSync(
       join(workflow.runDirPath, DAILY_DIGEST_DIGEST_JSON),
-      JSON.stringify(data, null, 2),
+      JSON.stringify(snapshot.data, null, 2),
     );
     writeFileSync(
       join(workflow.runDirPath, DAILY_DIGEST_DIGEST_TXT),
-      `${text}\n`,
+      `${snapshot.text}\n`,
     );
-    writeJsonFileAtomic(statePath, digestStateFromCounts(currentCounts, nowMs));
+    writeJsonFileAtomic(
+      statePath,
+      digestStateFromCounts(snapshot.currentCounts, snapshot.windowEndMs),
+    );
 
     emit(DAILY_DIGEST_EVENT, {
-      windowStartedAt: data.windowStartedAt,
-      windowEndedAt: data.windowEndedAt,
-      text,
-      quiet: data.quiet,
+      windowStartedAt: snapshot.data.windowStartedAt,
+      windowEndedAt: snapshot.data.windowEndedAt,
+      text: snapshot.text,
+      quiet: snapshot.data.quiet,
     });
 
-    return data;
+    return snapshot.data;
   },
 });
 

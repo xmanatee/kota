@@ -11,10 +11,16 @@ vi.mock("#modules/autonomy/shared.js", () => ({
   computeCostByWorkflow: vi.fn().mockReturnValue({}),
 }));
 
+const mockedRenderOnDemandDigest = vi.fn();
+vi.mock("#modules/autonomy/workflows/daily-digest/on-demand.js", () => ({
+  renderOnDemandDigest: (...args: unknown[]) => mockedRenderOnDemandDigest(...args),
+}));
+
 const mockedCallTelegramApi = vi.mocked(callTelegramApi);
 
 const FAKE_TOKEN = "bot-token-123";
 const FAKE_CHAT_ID = "987654321";
+const FAKE_PROJECT_DIR = "/fake/project";
 
 function makeStatusInfo(overrides: Partial<StatusInfo> = {}): StatusInfo {
   return {
@@ -102,6 +108,7 @@ describe("startTelegramStatusPoll", () => {
 
   beforeEach(() => {
     mockedCallTelegramApi.mockReset();
+    mockedRenderOnDemandDigest.mockReset();
   });
 
   afterEach(() => {
@@ -110,7 +117,7 @@ describe("startTelegramStatusPoll", () => {
 
   it("polls getUpdates on start", async () => {
     mockedCallTelegramApi.mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, makeStatusInfo);
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo);
     await new Promise((r) => setTimeout(r, 10));
     expect(mockedCallTelegramApi).toHaveBeenCalledWith(
       FAKE_TOKEN,
@@ -123,7 +130,7 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/status")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, makeStatusInfo);
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo);
     await new Promise((r) => setTimeout(r, 20));
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
     expect(sendCall).toBeDefined();
@@ -134,11 +141,60 @@ describe("startTelegramStatusPoll", () => {
     expect((sendCall?.[2] as { text: string }).text).toContain("*Dispatch:*");
   });
 
+  it("responds to /digest from the configured chat with rendered digest text", async () => {
+    const renderedBody =
+      "Daily digest (2026-04-25 08:00Z → 2026-04-26 08:00Z)\n----------------------------------------\n\nNo autonomy activity in this window.\n\nQueue state --------------------------------------------------------------------\n- ready: 2 (=)";
+    mockedRenderOnDemandDigest.mockReturnValue({
+      data: { quiet: true, windowStartedAt: "x", windowEndedAt: "y" },
+      text: renderedBody,
+    });
+    mockedCallTelegramApi
+      .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/digest")])
+      .mockResolvedValue([]);
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo);
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(mockedRenderOnDemandDigest).toHaveBeenCalledWith({ projectDir: FAKE_PROJECT_DIR });
+    const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
+    expect(sendCall).toBeDefined();
+    expect(sendCall?.[2]).toMatchObject({
+      chat_id: FAKE_CHAT_ID,
+      text: renderedBody,
+    });
+    expect((sendCall?.[2] as { parse_mode?: string }).parse_mode).toBeUndefined();
+  });
+
+  it("ignores /digest from chats outside the allowlist", async () => {
+    mockedRenderOnDemandDigest.mockReturnValue({ data: {}, text: "should not be sent" });
+    mockedCallTelegramApi
+      .mockResolvedValueOnce([makeUpdate(1, 111111, "/digest")])
+      .mockResolvedValue([]);
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(mockedRenderOnDemandDigest).not.toHaveBeenCalled();
+    const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
+    expect(sendCall).toBeUndefined();
+  });
+
+  it("truncates an oversized digest body to fit Telegram's 4096-char limit", async () => {
+    const oversize = `${"x".repeat(5000)}`;
+    mockedRenderOnDemandDigest.mockReturnValue({ data: {}, text: oversize });
+    mockedCallTelegramApi
+      .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/digest")])
+      .mockResolvedValue([]);
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo);
+    await new Promise((r) => setTimeout(r, 20));
+    const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
+    const text = (sendCall?.[2] as { text: string }).text;
+    expect(text.length).toBeLessThanOrEqual(4096);
+    expect(text.endsWith("…(truncated)")).toBe(true);
+  });
+
   it("ignores messages from other chat IDs", async () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, 111111, "/status")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, makeStatusInfo);
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo);
     await new Promise((r) => setTimeout(r, 20));
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
     expect(sendCall).toBeUndefined();
@@ -148,20 +204,18 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/help")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, makeStatusInfo);
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo);
     await new Promise((r) => setTimeout(r, 20));
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
     expect(sendCall).toBeUndefined();
   });
 
   it("advances offset so already-seen updates are not reprocessed", async () => {
-    // Return update_id=42, then nothing on subsequent polls
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(42, Number(FAKE_CHAT_ID), "/status")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, makeStatusInfo);
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo);
     await new Promise((r) => setTimeout(r, 20));
-    // /status was sent exactly once (not duplicated)
     const sendCalls = mockedCallTelegramApi.mock.calls.filter((c) => c[1] === "sendMessage");
     expect(sendCalls).toHaveLength(1);
   });
@@ -171,8 +225,12 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockRejectedValueOnce(new Error("network timeout"))
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, makeStatusInfo, (msg) =>
-      logs.push(msg),
+    stop = startTelegramStatusPoll(
+      FAKE_TOKEN,
+      FAKE_CHAT_ID,
+      FAKE_PROJECT_DIR,
+      makeStatusInfo,
+      (msg) => logs.push(msg),
     );
     await new Promise((r) => setTimeout(r, 20));
     expect(logs.some((l) => l.includes("network timeout"))).toBe(true);
@@ -180,7 +238,7 @@ describe("startTelegramStatusPoll", () => {
 
   it("stops polling after stop() is called", async () => {
     mockedCallTelegramApi.mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, makeStatusInfo);
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo);
     await new Promise((r) => setTimeout(r, 10));
     const callsBefore = mockedCallTelegramApi.mock.calls.length;
     stop();

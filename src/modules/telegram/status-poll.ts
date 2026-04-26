@@ -1,9 +1,12 @@
 import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
 import { computeCostByWorkflow, loadRecentRuns } from "#modules/autonomy/shared.js";
+import { renderOnDemandDigest } from "#modules/autonomy/workflows/daily-digest/on-demand.js";
 import { callTelegramApi } from "./client.js";
 
 const POLL_INTERVAL_MS = 30_000;
 const ERROR_BACKOFF_MS = 5_000;
+/** Telegram sendMessage hard limit; longer bodies must be truncated client-side. */
+const TELEGRAM_MAX_MESSAGE_LENGTH = 4096;
 
 export type StatusInfo = {
   runtimeState: WorkflowRuntimeState;
@@ -47,15 +50,41 @@ export function buildStatusText({ runtimeState, dispatchPaused, runsDir }: Statu
   return lines.join("\n");
 }
 
+function truncateForTelegram(body: string): string {
+  if (body.length <= TELEGRAM_MAX_MESSAGE_LENGTH) return body;
+  const suffix = "\n…(truncated)";
+  return `${body.slice(0, TELEGRAM_MAX_MESSAGE_LENGTH - suffix.length)}${suffix}`;
+}
+
 export function startTelegramStatusPoll(
   token: string,
   chatId: string,
+  projectDir: string,
   getStatusInfo: () => StatusInfo,
   log?: (message: string) => void,
 ): () => void {
   let running = true;
   let offset = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
+
+  async function handleStatus(): Promise<void> {
+    const text = buildStatusText(getStatusInfo());
+    await callTelegramApi(token, "sendMessage", {
+      chat_id: chatId,
+      text,
+      parse_mode: "Markdown",
+    });
+  }
+
+  async function handleDigest(): Promise<void> {
+    const { text } = renderOnDemandDigest({ projectDir });
+    await callTelegramApi(token, "sendMessage", {
+      chat_id: chatId,
+      // Plain text — the rendered digest contains underscores, parentheses,
+      // and backticks that would require Markdown escaping.
+      text: truncateForTelegram(text),
+    });
+  }
 
   async function poll(): Promise<void> {
     if (!running) return;
@@ -76,14 +105,12 @@ export function startTelegramStatusPoll(
         const msg = update.message;
         if (!msg?.text) continue;
         if (String(msg.chat.id) !== chatId) continue;
-        if (msg.text !== "/status") continue;
 
-        const text = buildStatusText(getStatusInfo());
-        await callTelegramApi(token, "sendMessage", {
-          chat_id: chatId,
-          text,
-          parse_mode: "Markdown",
-        });
+        if (msg.text === "/status") {
+          await handleStatus();
+        } else if (msg.text === "/digest") {
+          await handleDigest();
+        }
       }
     } catch (err) {
       if (!running) return;

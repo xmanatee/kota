@@ -1,12 +1,12 @@
 ---
 id: task-add-a-telegram-digest-command-that-emits-the-lates
 title: Add a Telegram /digest command that emits the latest daily-digest on demand
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Mirror the existing Telegram /status command with /digest, which runs the daily-digest aggregator+renderer on demand and posts the rendered text to the chat without disturbing the 24h cadence snapshot.
 created_at: 2026-04-26T02:47:21.729Z
-updated_at: 2026-04-26T02:47:21.729Z
+updated_at: 2026-04-26T02:56:42.868Z
 ---
 
 ## Problem

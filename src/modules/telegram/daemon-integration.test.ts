@@ -174,6 +174,7 @@ describe("Telegram personal-assistant daemon integration", () => {
             stop = startTelegramStatusPoll(
               "test-token",
               String(statusChatId),
+              ctx.projectDir,
               ctx.getWorkflowStatus,
               ctx.log,
             );

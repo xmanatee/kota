@@ -159,7 +159,13 @@ const telegramStatusChannel: ChannelDef = {
     let stop: (() => void) | null = null;
     return {
       async start() {
-        stop = startTelegramStatusPoll(token, chatId, ctx.getWorkflowStatus, ctx.log);
+        stop = startTelegramStatusPoll(
+          token,
+          chatId,
+          ctx.projectDir,
+          ctx.getWorkflowStatus,
+          ctx.log,
+        );
       },
       stop() {
         stop?.();

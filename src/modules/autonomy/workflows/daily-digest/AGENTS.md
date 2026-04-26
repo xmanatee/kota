@@ -69,6 +69,30 @@ list of every shipped notification channel module (`telegram`, `slack`,
 `email`, `webhook`). Channel modules treat `payload.text` as the
 human-readable body so the workflow code never branches on channel.
 
+## On-Demand Seam
+
+`renderOnDemandDigest({ projectDir, windowEndMs? })` in `on-demand.ts`
+produces the same body the cadence step emits, evaluated against a
+rolling window ending at the call moment. It is the operator-initiated
+counterpart to the 08:00 cadence run; the Telegram `/digest` command
+calls it directly.
+
+Snapshot invariant: the on-demand path does not write
+`.kota/daily-digest-state.json`. That file is owned by the cadence run
+and must reflect "previous cadence window", not "previous on-demand
+call" — otherwise a mid-day `/digest` would corrupt the next 08:00
+delta. The cadence and on-demand paths share `computeDigestSnapshot`
+so the rendered body cannot drift.
+
+Bus invariant: the on-demand path does not emit `workflow.daily.digest`.
+Other notification channels must not see an operator's mid-day `/digest`
+as a duplicate cadence digest; the requesting Telegram chat receives
+its body in-band.
+
+Agent-feed invariant: like the cadence path, the on-demand body is
+operator-facing only and must not be exposed to autonomy agents in any
+prompt path (see project memory: no cost bias in autonomy).
+
 ## Boundaries
 
 - The digest is operator-facing only. The workflow does not set

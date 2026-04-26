@@ -4,8 +4,17 @@ This directory owns the Telegram integration — interactive bot access and
 notification forwarding.
 
 - Contributes two daemon channels: `telegram-status` (responds to `/status`
-  with workflow state) and `telegram-interactive` (hosts one agent session per
-  chat). Both are started and stopped by the daemon alongside other channels.
+  with workflow state and to `/digest` with the on-demand daily digest) and
+  `telegram-interactive` (hosts one agent session per chat). Both are started
+  and stopped by the daemon alongside other channels.
+- The `/digest` command calls the daily-digest module's
+  `renderOnDemandDigest` seam directly. It must not write the cadence
+  snapshot file and must not emit `workflow.daily.digest` (otherwise other
+  notification channels would receive a duplicate, surprising digest).
+  Quiet hours intentionally do not gate `/digest` — the call is operator
+  initiated and replies in-band to the requesting chat. Like the cadence
+  digest, the rendered body is operator-facing only and must not be
+  exposed to autonomy agents in any prompt path.
 - Contributes notification subscriptions for workflow events.
 - Optional event filters must not suppress urgent owner/approval escalation
   notifications.
