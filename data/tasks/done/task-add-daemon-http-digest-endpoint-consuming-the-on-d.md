@@ -1,12 +1,12 @@
 ---
 id: task-add-daemon-http-digest-endpoint-consuming-the-on-d
 title: Add daemon HTTP digest endpoint consuming the on-demand digest seam
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Expose 'GET /api/digest' on the daemon control server returning the same on-demand digest body the Telegram /digest command and 'kota digest' CLI already emit, so web and future native clients can pull the same rollup without depending on the terminal.
 created_at: 2026-04-26T03:57:24.799Z
-updated_at: 2026-04-26T03:57:24.799Z
+updated_at: 2026-04-26T04:06:51.653Z
 ---
 
 ## Problem

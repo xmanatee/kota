@@ -74,10 +74,11 @@ human-readable body so the workflow code never branches on channel.
 `renderOnDemandDigest({ projectDir, windowEndMs? })` in `on-demand.ts`
 produces the same body the cadence step emits, evaluated against a
 rolling window ending at the call moment. It is the operator-initiated
-counterpart to the 08:00 cadence run; the Telegram `/digest` command
-and the terminal `kota digest` command (with `--json` for the
-structured `DailyDigestData` payload) both call it directly so every
-operator surface reads from the same body.
+counterpart to the 08:00 cadence run; the Telegram `/digest` command,
+the terminal `kota digest` command (with `--json` for the structured
+`DailyDigestData` payload), and the daemon HTTP route `GET /api/digest`
+(the web/native consumer, returning `{ data, text }`) all call it
+directly so every operator surface reads from the same body.
 
 Snapshot invariant: the on-demand path does not write
 `.kota/daily-digest-state.json`. That file is owned by the cadence run
