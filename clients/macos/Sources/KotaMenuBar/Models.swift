@@ -430,6 +430,55 @@ struct AttentionItem: Codable {
     let detail: String
 }
 
+// MARK: - Knowledge
+
+/// Mirror of a single entry returned by the daemon's
+/// `GET /api/knowledge/search` route. Decoding is restricted to the four
+/// fields the shared `renderKnowledgeSearchPlain` helper consumes
+/// (`src/modules/knowledge/render.ts`) so the macOS surface speaks the
+/// same line shape as Telegram, the CLI, and the web `KnowledgePanel`.
+struct KnowledgeEntry: Codable, Identifiable, Equatable {
+    let id: String
+    let type: String
+    let status: String
+    let title: String
+}
+
+/// Discriminated mirror of the daemon's `GET /api/knowledge/search`
+/// response: `{ ok: true, entries: KnowledgeEntry[] }` on success and
+/// `{ ok: false, reason: "semantic_unavailable" }` when no embedding-backed
+/// knowledge provider is configured. Strict decode so payload drift fails
+/// loudly instead of silently degrading the rendered surface.
+enum KnowledgeSearchResponse: Decodable, Equatable {
+    case success(entries: [KnowledgeEntry])
+    case semanticUnavailable
+
+    private enum CodingKeys: String, CodingKey {
+        case ok, entries, reason
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let ok = try container.decode(Bool.self, forKey: .ok)
+        if ok {
+            let entries = try container.decode([KnowledgeEntry].self, forKey: .entries)
+            self = .success(entries: entries)
+            return
+        }
+        let reason = try container.decode(String.self, forKey: .reason)
+        switch reason {
+        case "semantic_unavailable":
+            self = .semanticUnavailable
+        default:
+            throw DecodingError.dataCorruptedError(
+                forKey: .reason,
+                in: container,
+                debugDescription: "Unknown knowledge search reason: \(reason)"
+            )
+        }
+    }
+}
+
 // MARK: - Daemon connectivity state
 
 enum DaemonHealth {

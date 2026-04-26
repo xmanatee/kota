@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-daemonclientsearchknowledge-with-discrim
 title: Add macOS DaemonClient.searchKnowledge with discriminated KnowledgeSearchResponse types and unit tests
-status: ready
+status: done
 priority: p2
 area: client
 summary: Wire the daemon contract layer for the knowledge surface into the macOS menu-bar client: add KnowledgeEntry and the discriminated KnowledgeSearchResponse to Models.swift, add a typed searchKnowledge(query:limit:) method to DaemonClient.swift that targets GET /api/knowledge/search?q=&semantic=true&limit=, and pair the four DaemonClientTests cases (success entries, empty entries, ok:false semantic-unavailable, typed HTTP error) so the view layer in the follow-up subtask can consume a tested seam.
 created_at: 2026-04-26T12:54:00.498Z
-updated_at: 2026-04-26T12:54:00.498Z
+updated_at: 2026-04-26T23:49:47.243Z
 ---
 
 ## Problem

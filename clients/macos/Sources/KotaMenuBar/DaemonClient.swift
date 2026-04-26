@@ -104,6 +104,37 @@ final class DaemonClient {
         try await get("/api/attention")
     }
 
+    /// Targets the daemon's `GET /api/knowledge/search?q=&semantic=true&limit=`
+    /// route and decodes the discriminated `{ ok: true, entries }` /
+    /// `{ ok: false, reason: "semantic_unavailable" }` response. The query
+    /// string is built via `URLComponents` so `q` is percent-encoded
+    /// correctly. HTTP errors surface one-to-one as
+    /// `DaemonClientError.httpError`.
+    func searchKnowledge(query: String, limit: Int) async throws -> KnowledgeSearchResponse {
+        guard let conn = connection else { throw DaemonClientError.notConnected }
+        guard var components = URLComponents(url: conn.baseURL, resolvingAgainstBaseURL: false) else {
+            throw DaemonClientError.notConnected
+        }
+        components.path = "/api/knowledge/search"
+        components.queryItems = [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "semantic", value: "true"),
+            URLQueryItem(name: "limit", value: String(limit)),
+        ]
+        guard let url = components.url else { throw DaemonClientError.notConnected }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw DaemonClientError.httpError(http.statusCode)
+        }
+        do {
+            return try decoder.decode(KnowledgeSearchResponse.self, from: data)
+        } catch {
+            throw DaemonClientError.decodingError(error)
+        }
+    }
+
     func invokeSlashCommand(name: String) async throws -> InvokeCommandResponse {
         let body = try JSONEncoder().encode(InvokeCommandRequest(name: name))
         return try await post("/commands/invoke", body: body)

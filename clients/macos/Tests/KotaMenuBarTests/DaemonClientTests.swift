@@ -500,6 +500,129 @@ final class DaemonClientTests: XCTestCase {
         }
     }
 
+    func testSearchKnowledgeDecodesSuccessfulEntries() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/knowledge/search")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+            let comps = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)
+            let items = comps?.queryItems ?? []
+            XCTAssertEqual(items.first(where: { $0.name == "q" })?.value, "hello world")
+            XCTAssertEqual(items.first(where: { $0.name == "semantic" })?.value, "true")
+            XCTAssertEqual(items.first(where: { $0.name == "limit" })?.value, "10")
+            let body = #"""
+            {"ok": true, "entries": [
+              {"id": "k-1", "type": "note", "status": "active", "title": "Knowledge surface fan-out"},
+              {"id": "k-2", "type": "decision", "status": "archived", "title": "Operator-pull parity"}
+            ]}
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.searchKnowledge(query: "hello world", limit: 10)
+        switch result {
+        case .success(let entries):
+            XCTAssertEqual(entries.count, 2)
+            XCTAssertEqual(entries[0].id, "k-1")
+            XCTAssertEqual(entries[0].type, "note")
+            XCTAssertEqual(entries[0].status, "active")
+            XCTAssertEqual(entries[0].title, "Knowledge surface fan-out")
+            XCTAssertEqual(entries[1].id, "k-2")
+            XCTAssertEqual(entries[1].type, "decision")
+            XCTAssertEqual(entries[1].status, "archived")
+            XCTAssertEqual(entries[1].title, "Operator-pull parity")
+        case .semanticUnavailable:
+            XCTFail("expected success branch")
+        }
+    }
+
+    func testSearchKnowledgeDecodesEmptyEntries() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/knowledge/search")
+            let comps = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)
+            let items = comps?.queryItems ?? []
+            XCTAssertEqual(items.first(where: { $0.name == "q" })?.value, "no-match")
+            XCTAssertEqual(items.first(where: { $0.name == "limit" })?.value, "5")
+            let body = #"{"ok": true, "entries": []}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.searchKnowledge(query: "no-match", limit: 5)
+        switch result {
+        case .success(let entries):
+            XCTAssertTrue(entries.isEmpty)
+        case .semanticUnavailable:
+            XCTFail("expected empty success branch")
+        }
+    }
+
+    func testSearchKnowledgeDecodesSemanticUnavailable() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/knowledge/search")
+            let body = #"{"ok": false, "reason": "semantic_unavailable"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.searchKnowledge(query: "anything", limit: 10)
+        switch result {
+        case .success:
+            XCTFail("expected semanticUnavailable branch")
+        case .semanticUnavailable:
+            break
+        }
+    }
+
+    func testSearchKnowledgeSurfacesHttpErrorOneToOne() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            let body = #"{"error": "boom"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+
+        do {
+            _ = try await client.searchKnowledge(query: "x", limit: 10)
+            XCTFail("expected httpError")
+        } catch DaemonClientError.httpError(let code) {
+            XCTAssertEqual(code, 500)
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+    }
+
     func testTriggerWorkflowSendsBody() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
