@@ -1,12 +1,12 @@
 ---
 id: task-add-daemon-http-attention-endpoint-consuming-the-o
 title: Add daemon HTTP attention endpoint consuming the on-demand attention seam
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Expose 'GET /api/attention' on the daemon control server returning the same on-demand attention body the Telegram /attention command and 'kota attention' CLI already emit, so web and future native clients can pull the same attention rollup without depending on the terminal.
 created_at: 2026-04-26T07:55:33.040Z
-updated_at: 2026-04-26T07:55:33.040Z
+updated_at: 2026-04-26T08:00:36.788Z
 ---
 
 ## Problem
