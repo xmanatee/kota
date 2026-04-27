@@ -8,6 +8,7 @@ import type {
   KnowledgeSearchResponse,
   MemorySearchResponse,
   OwnerQuestion,
+  RecallSearchResponse,
   RunSummary,
   TasksResponse,
   TasksSearchResponse,
@@ -699,6 +700,125 @@ describe('reducer', () => {
     expect(withResult.tasksResult).toBe(result);
     const offline = reducer(withResult, { type: 'ONLINE', online: false });
     expect(offline.tasksResult).toBeNull();
+  });
+
+  test('RECALL_QUERY_SET stores the query without touching results or loading flags', () => {
+    const next = reducer(initialState, {
+      type: 'RECALL_QUERY_SET',
+      query: 'autonomy',
+    });
+    expect(next.recallQuery).toBe('autonomy');
+    expect(next.recallResult).toBeNull();
+    expect(next.recallLoading).toBe(false);
+    expect(next.recallError).toBeNull();
+  });
+
+  test('RECALL_LOADING records the in-flight query and clears prior error', () => {
+    const withError = reducer(initialState, {
+      type: 'RECALL_ERROR',
+      error: 'boom',
+    });
+    expect(withError.recallError).toBe('boom');
+    const next = reducer(withError, {
+      type: 'RECALL_LOADING',
+      query: 'autonomy',
+    });
+    expect(next.recallLoading).toBe(true);
+    expect(next.recallError).toBeNull();
+    expect(next.recallQuery).toBe('autonomy');
+  });
+
+  test('RECALL_RESULT stores a populated payload across multiple source arms', () => {
+    const result: RecallSearchResponse = {
+      ok: true,
+      hits: [
+        {
+          source: 'knowledge',
+          score: 0.91,
+          id: 'k-1',
+          title: 'Autonomy loop notes',
+          preview: 'cross-store recall seam preview',
+          updated: '2026-04-26T12:00:00.000Z',
+        },
+        {
+          source: 'tasks',
+          score: 0.71,
+          id: 'task-foo',
+          title: 'Wire mobile recall',
+          state: 'ready',
+          priority: 'p2',
+          updatedAt: '2026-04-25T12:00:00.000Z',
+        },
+      ],
+    };
+    const loading = reducer(initialState, {
+      type: 'RECALL_LOADING',
+      query: 'autonomy',
+    });
+    const next = reducer(loading, { type: 'RECALL_RESULT', result });
+    expect(next.recallResult).toBe(result);
+    expect(next.recallLoading).toBe(false);
+    expect(next.recallError).toBeNull();
+  });
+
+  test('RECALL_RESULT preserves the semantic-unavailable branch verbatim', () => {
+    const result: RecallSearchResponse = {
+      ok: false,
+      reason: 'semantic_unavailable',
+    };
+    const next = reducer(initialState, { type: 'RECALL_RESULT', result });
+    expect(next.recallResult).toEqual({
+      ok: false,
+      reason: 'semantic_unavailable',
+    });
+    expect(next.recallLoading).toBe(false);
+    expect(next.recallError).toBeNull();
+  });
+
+  test('RECALL_ERROR clears stale recall result', () => {
+    const result: RecallSearchResponse = {
+      ok: true,
+      hits: [
+        {
+          source: 'memory',
+          score: 0.83,
+          id: 'm-1',
+          preview: 'remembers the recall fan-out cadence',
+          created: '2026-04-25T18:30:00.000Z',
+        },
+      ],
+    };
+    const withResult = reducer(initialState, {
+      type: 'RECALL_RESULT',
+      result,
+    });
+    const next = reducer(withResult, { type: 'RECALL_ERROR', error: '503' });
+    expect(next.recallResult).toBeNull();
+    expect(next.recallError).toBe('503');
+    expect(next.recallLoading).toBe(false);
+  });
+
+  test('ONLINE false drops cached recall result so it cannot persist across an offline transition', () => {
+    const result: RecallSearchResponse = {
+      ok: true,
+      hits: [
+        {
+          source: 'history',
+          score: 0.71,
+          id: 'c-1',
+          title: 'Autonomy loop debug',
+          cwd: '/Users/x/proj',
+          updatedAt: '2026-04-25T12:00:00.000Z',
+        },
+      ],
+    };
+    const withResult = reducer(initialState, {
+      type: 'RECALL_RESULT',
+      result,
+    });
+    expect(withResult.recallResult).toBe(result);
+    const offline = reducer(withResult, { type: 'ONLINE', online: false });
+    expect(offline.recallResult).toBeNull();
   });
 
   test('OWNER_QUESTIONS recomputes pending count', () => {

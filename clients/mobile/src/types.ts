@@ -402,3 +402,84 @@ export interface RepoTaskSearchHit {
 export type TasksSearchResponse =
   | { ok: true; tasks: RepoTaskSearchHit[] }
   | { ok: false; reason: 'semantic_unavailable' };
+
+/**
+ * Source of a `RecallHit`. Mirrors the daemon's `RecallSource` union exported
+ * from `src/core/server/kota-client.ts`. The cross-store recall seam
+ * discriminates each hit by which store originated it; adding a new source
+ * extends this union and the `RecallHit` discriminated type below.
+ */
+export type RecallSource = 'knowledge' | 'memory' | 'history' | 'tasks';
+
+export interface RecallKnowledgeHit {
+  source: 'knowledge';
+  score: number;
+  id: string;
+  title: string;
+  preview: string;
+  updated: string;
+}
+
+export interface RecallMemoryHit {
+  source: 'memory';
+  score: number;
+  id: string;
+  preview: string;
+  created: string;
+}
+
+export interface RecallHistoryHit {
+  source: 'history';
+  score: number;
+  id: string;
+  title: string;
+  cwd: string;
+  updatedAt: string;
+}
+
+export interface RecallTasksHit {
+  source: 'tasks';
+  score: number;
+  id: string;
+  title: string;
+  state: string;
+  priority: string;
+  updatedAt: string;
+}
+
+/**
+ * Mirror of one ranked, source-tagged hit returned by the daemon's
+ * cross-store recall seam (`POST /recall` and `POST /api/recall` in
+ * `src/modules/recall/routes.ts`). Discriminated by `source`; the per-source
+ * payload carries the operator-facing metadata each surface renders. Keeps
+ * the mobile decode path one-to-one with the macOS `DaemonClient.recall`
+ * decoder so the four arms stay identical across both clients.
+ */
+export type RecallHit =
+  | RecallKnowledgeHit
+  | RecallMemoryHit
+  | RecallHistoryHit
+  | RecallTasksHit;
+
+/**
+ * Discriminated mirror of the daemon's recall response:
+ * `{ ok: true, hits: RecallHit[] }` on success and
+ * `{ ok: false, reason: "semantic_unavailable" }` when no contributors are
+ * registered. Strict so payload drift fails loudly instead of silently
+ * degrading the rendered surface to per-store keyword search.
+ */
+export type RecallSearchResponse =
+  | { ok: true; hits: RecallHit[] }
+  | { ok: false; reason: 'semantic_unavailable' };
+
+/**
+ * Optional filter accepted by `DaemonClient.recall`. All fields are optional
+ * with explicit defaults applied at the daemon seam (`topK` defaults to 20,
+ * `minScore` defaults to 0, `sources` defaults to every registered
+ * contributor). Mirror of the daemon's `RecallFilter`.
+ */
+export interface RecallFilter {
+  topK?: number;
+  minScore?: number;
+  sources?: ReadonlyArray<RecallSource>;
+}

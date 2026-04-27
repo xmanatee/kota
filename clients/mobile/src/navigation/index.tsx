@@ -19,6 +19,7 @@ import { HistoryScreen } from '../screens/HistoryScreen';
 import { KnowledgeScreen } from '../screens/KnowledgeScreen';
 import { MemoryScreen } from '../screens/MemoryScreen';
 import { OwnerQuestionListScreen } from '../screens/OwnerQuestionListScreen';
+import { RecallScreen } from '../screens/RecallScreen';
 import { RunDetailScreen } from '../screens/RunDetailScreen';
 import { RunListScreen } from '../screens/RunListScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
@@ -60,6 +61,7 @@ export type TabParams = {
   Knowledge: undefined;
   Memory: undefined;
   History: undefined;
+  Recall: undefined;
   Chat: NavigatorScreenParams<ChatStackParams> | undefined;
 };
 
@@ -276,6 +278,11 @@ export function AppNavigator() {
           name="History"
           component={HistoryScreen}
           options={{ tabBarIcon: () => <Text>🕘</Text>, headerShown: true, title: 'History' }}
+        />
+        <Tab.Screen
+          name="Recall"
+          component={RecallScreen}
+          options={{ tabBarIcon: () => <Text>✨</Text>, headerShown: true, title: 'Recall' }}
         />
         <Tab.Screen
           name="Chat"

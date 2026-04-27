@@ -1,12 +1,12 @@
 ---
 id: task-add-mobile-recallscreen-consuming-a-new-daemonclie
 title: Add mobile RecallScreen consuming a new DaemonClient.recall
-status: ready
+status: done
 priority: p2
 area: client
 summary: Add a RecallScreen in the mobile client that calls POST /recall through a new DaemonClient.recall, exposes recall state on DaemonContext, and renders the four discriminated RecallHit arms (knowledge/memory/history/task) with source + score badges, closing the cross-store-recall fan-out across Telegram, daemon HTTP, web, macOS DaemonClient, macOS RecallView, and mobile.
 created_at: 2026-04-27T10:00:19.077Z
-updated_at: 2026-04-27T10:00:19.077Z
+updated_at: 2026-04-27T10:14:02.308Z
 ---
 
 ## Problem

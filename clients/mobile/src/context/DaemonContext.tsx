@@ -33,6 +33,8 @@ interface DaemonContextValue {
   searchHistory: (query: string) => Promise<void>;
   setTasksQuery: (query: string) => void;
   searchTasks: (query: string) => Promise<void>;
+  setRecallQuery: (query: string) => void;
+  recall: (query: string) => Promise<void>;
 }
 
 const DaemonContext = createContext<DaemonContextValue>({
@@ -51,6 +53,8 @@ const DaemonContext = createContext<DaemonContextValue>({
   searchHistory: async () => {},
   setTasksQuery: () => {},
   searchTasks: async () => {},
+  setRecallQuery: () => {},
+  recall: async () => {},
 });
 
 export function DaemonProvider({ children }: { children: React.ReactNode }) {
@@ -334,6 +338,26 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const setRecallQuery = useCallback((query: string) => {
+    dispatch({ type: 'RECALL_QUERY_SET', query });
+  }, []);
+
+  const recall = useCallback(async (query: string) => {
+    const client = clientRef.current;
+    if (!client) return;
+    if (query.trim().length === 0) return;
+    dispatch({ type: 'RECALL_LOADING', query });
+    try {
+      const result = await client.recall(query);
+      dispatch({ type: 'RECALL_RESULT', result });
+    } catch (e) {
+      dispatch({
+        type: 'RECALL_ERROR',
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }, []);
+
   return (
     <DaemonContext.Provider
       value={{
@@ -352,6 +376,8 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
         searchHistory,
         setTasksQuery,
         searchTasks,
+        setRecallQuery,
+        recall,
       }}
     >
       {children}

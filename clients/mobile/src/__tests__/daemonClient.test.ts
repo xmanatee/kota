@@ -566,6 +566,136 @@ describe('DaemonClient', () => {
     await expect(client().searchTasks('x')).rejects.toThrow('503');
   });
 
+  test('recall posts query to /api/recall and decodes the success branch with all four arms', async () => {
+    const success = {
+      ok: true,
+      hits: [
+        {
+          source: 'knowledge',
+          score: 0.91,
+          id: 'k-1',
+          title: 'Autonomy loop notes',
+          preview: 'cross-store recall seam preview',
+          updated: '2026-04-26T12:00:00.000Z',
+        },
+        {
+          source: 'memory',
+          score: 0.83,
+          id: 'm-1',
+          preview: 'remembers the recall fan-out cadence',
+          created: '2026-04-25T18:30:00.000Z',
+        },
+        {
+          source: 'history',
+          score: 0.71,
+          id: 'c-1',
+          title: 'Autonomy loop debug',
+          cwd: '/Users/x/proj',
+          updatedAt: '2026-04-25T12:00:00.000Z',
+        },
+        {
+          source: 'tasks',
+          score: 0.63,
+          id: 'task-foo',
+          title: 'Wire mobile recall',
+          state: 'ready',
+          priority: 'p2',
+          updatedAt: '2026-04-24T12:00:00.000Z',
+        },
+      ],
+    };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(success));
+    const res = await client().recall('autonomy loop');
+    const [url, init] = lastCall();
+    expect(url).toBe(`${baseUrl}/api/recall`);
+    expect(init?.method).toBe('POST');
+    expect(init?.body).toBe(JSON.stringify({ query: 'autonomy loop' }));
+    expect(lastHeaders().Authorization).toBe(`Bearer ${token}`);
+    expect(lastHeaders()['Content-Type']).toBe('application/json');
+    expect(res).toEqual(success);
+  });
+
+  test('recall only sends a filter when at least one option is set', async () => {
+    fetchSpy.mockImplementation(async () =>
+      jsonResponse({ ok: true, hits: [] }),
+    );
+    await client().recall('x', { topK: 5 });
+    expect(lastCall()[1]?.body).toBe(
+      JSON.stringify({ query: 'x', filter: { topK: 5 } }),
+    );
+
+    await client().recall('x', { sources: ['knowledge', 'tasks'] });
+    expect(lastCall()[1]?.body).toBe(
+      JSON.stringify({
+        query: 'x',
+        filter: { sources: ['knowledge', 'tasks'] },
+      }),
+    );
+  });
+
+  test('recall decodes the semantic-unavailable branch verbatim', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, reason: 'semantic_unavailable' }),
+    );
+    const res = await client().recall('anything');
+    expect(res).toEqual({ ok: false, reason: 'semantic_unavailable' });
+  });
+
+  test('recall rejects an unknown reason loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, reason: 'mystery' }),
+    );
+    await expect(client().recall('x')).rejects.toThrow(/mystery/);
+  });
+
+  test('recall rejects an unknown source loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({
+        ok: true,
+        hits: [
+          { source: 'rumor', score: 0.5, id: 'r-1', title: 'rogue arm' },
+        ],
+      }),
+    );
+    await expect(client().recall('x')).rejects.toThrow(/unknown source/i);
+  });
+
+  test('recall rejects a malformed knowledge hit loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({
+        ok: true,
+        hits: [{ source: 'knowledge', score: 0.5, id: 'k-1' }],
+      }),
+    );
+    await expect(client().recall('x')).rejects.toThrow(
+      /knowledge fields/i,
+    );
+  });
+
+  test('recall rejects a malformed tasks hit loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({
+        ok: true,
+        hits: [
+          {
+            source: 'tasks',
+            score: 0.5,
+            id: 'task-foo',
+            title: 'incomplete',
+          },
+        ],
+      }),
+    );
+    await expect(client().recall('x')).rejects.toThrow(/tasks fields/i);
+  });
+
+  test('recall surfaces the daemon HTTP error one-to-one', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response('', { status: 503, statusText: 'Service Unavailable' }),
+    );
+    await expect(client().recall('x')).rejects.toThrow('503');
+  });
+
   test('health hits /health without auth header (public endpoint)', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({ status: 'ok', version: '1', uptimeMs: 1, components: {} }));
     await client().health();

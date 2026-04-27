@@ -7,6 +7,7 @@ import type {
   KnowledgeSearchResponse,
   MemorySearchResponse,
   OwnerQuestion,
+  RecallSearchResponse,
   RunSummary,
   TasksResponse,
   TasksSearchResponse,
@@ -49,6 +50,10 @@ export interface DaemonState {
   tasksResult: TasksSearchResponse | null;
   tasksLoading: boolean;
   tasksError: string | null;
+  recallQuery: string;
+  recallResult: RecallSearchResponse | null;
+  recallLoading: boolean;
+  recallError: string | null;
 }
 
 export type DaemonAction =
@@ -86,7 +91,11 @@ export type DaemonAction =
   | { type: 'TASKS_QUERY_SET'; query: string }
   | { type: 'TASKS_LOADING'; query: string }
   | { type: 'TASKS_RESULT'; result: TasksSearchResponse }
-  | { type: 'TASKS_ERROR'; error: string };
+  | { type: 'TASKS_ERROR'; error: string }
+  | { type: 'RECALL_QUERY_SET'; query: string }
+  | { type: 'RECALL_LOADING'; query: string }
+  | { type: 'RECALL_RESULT'; result: RecallSearchResponse }
+  | { type: 'RECALL_ERROR'; error: string };
 
 export const initialState: DaemonState = {
   daemonUrl: '',
@@ -125,6 +134,10 @@ export const initialState: DaemonState = {
   tasksResult: null,
   tasksLoading: false,
   tasksError: null,
+  recallQuery: '',
+  recallResult: null,
+  recallLoading: false,
+  recallError: null,
 };
 
 export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
@@ -166,6 +179,9 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         tasksResult: action.online ? state.tasksResult : null,
         tasksError: action.online ? state.tasksError : null,
         tasksLoading: action.online ? state.tasksLoading : false,
+        recallResult: action.online ? state.recallResult : null,
+        recallError: action.online ? state.recallError : null,
+        recallLoading: action.online ? state.recallLoading : false,
       };
     case 'SSE_STATUS':
       return { ...state, sseConnected: action.connected };
@@ -314,6 +330,29 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         tasksLoading: false,
         tasksError: action.error,
         tasksResult: null,
+      };
+    case 'RECALL_QUERY_SET':
+      return { ...state, recallQuery: action.query };
+    case 'RECALL_LOADING':
+      return {
+        ...state,
+        recallQuery: action.query,
+        recallLoading: true,
+        recallError: null,
+      };
+    case 'RECALL_RESULT':
+      return {
+        ...state,
+        recallResult: action.result,
+        recallLoading: false,
+        recallError: null,
+      };
+    case 'RECALL_ERROR':
+      return {
+        ...state,
+        recallLoading: false,
+        recallError: action.error,
+        recallResult: null,
       };
   }
 }

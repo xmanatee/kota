@@ -13,6 +13,9 @@ import type {
   MemoryEntry,
   MemorySearchResponse,
   OwnerQuestion,
+  RecallFilter,
+  RecallHit,
+  RecallSearchResponse,
   RepoTaskSearchHit,
   RunDetail,
   RunSummary,
@@ -213,6 +216,36 @@ export class DaemonClient {
       `/tasks/search?${params.toString()}`,
     );
     return parseTasksSearchResponse(parsed);
+  }
+
+  /**
+   * Targets the daemon's `POST /api/recall` user-facing route — the same
+   * route the embedded web `RecallPanel` consumes — and decodes the
+   * discriminated `{ ok: true, hits }` /
+   * `{ ok: false, reason: "semantic_unavailable" }` envelope. Mirrors the
+   * macOS `DaemonClient.recall` decode discipline: response shapes are
+   * validated explicitly so payload drift throws instead of silently
+   * degrading the rendered surface to per-store keyword search behind the
+   * operator's back. The optional `filter` field is only sent when at least
+   * one of `topK` / `minScore` / `sources` is set, so the daemon seam
+   * applies its typed defaults (`RECALL_DEFAULT_TOP_K = 20`, no min-score
+   * floor, every registered contributor).
+   */
+  async recall(
+    query: string,
+    options: RecallFilter = {},
+  ): Promise<RecallSearchResponse> {
+    const filter: RecallFilter = {};
+    if (options.topK !== undefined) filter.topK = options.topK;
+    if (options.minScore !== undefined) filter.minScore = options.minScore;
+    if (options.sources !== undefined) filter.sources = options.sources;
+    const body: Record<string, unknown> = { query };
+    if (Object.keys(filter).length > 0) body.filter = filter;
+    const parsed = await this.request<unknown>('/api/recall', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    return parseRecallSearchResponse(parsed);
   }
 
   registerPushToken(deviceId: string, token: string): Promise<{ ok: boolean }> {
@@ -550,4 +583,109 @@ function parseConversationRecord(value: unknown): ConversationRecord {
     );
   }
   return record;
+}
+
+function parseRecallSearchResponse(value: unknown): RecallSearchResponse {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid recall response: not an object');
+  }
+  const obj = value as Record<string, unknown>;
+  if (obj.ok === true) {
+    if (!Array.isArray(obj.hits)) {
+      throw new Error('Invalid recall response: hits missing');
+    }
+    const hits = obj.hits.map(parseRecallHit);
+    return { ok: true, hits };
+  }
+  if (obj.ok === false) {
+    if (obj.reason !== 'semantic_unavailable') {
+      throw new Error(
+        `Invalid recall response: unknown reason ${String(obj.reason)}`,
+      );
+    }
+    return { ok: false, reason: 'semantic_unavailable' };
+  }
+  throw new Error('Invalid recall response: missing ok flag');
+}
+
+function parseRecallHit(value: unknown): RecallHit {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid recall hit');
+  }
+  const obj = value as Record<string, unknown>;
+  if (
+    typeof obj.source !== 'string' ||
+    typeof obj.score !== 'number' ||
+    typeof obj.id !== 'string'
+  ) {
+    throw new Error('Invalid recall hit: missing required fields');
+  }
+  switch (obj.source) {
+    case 'knowledge':
+      if (
+        typeof obj.title !== 'string' ||
+        typeof obj.preview !== 'string' ||
+        typeof obj.updated !== 'string'
+      ) {
+        throw new Error('Invalid recall hit: missing knowledge fields');
+      }
+      return {
+        source: 'knowledge',
+        score: obj.score,
+        id: obj.id,
+        title: obj.title,
+        preview: obj.preview,
+        updated: obj.updated,
+      };
+    case 'memory':
+      if (
+        typeof obj.preview !== 'string' ||
+        typeof obj.created !== 'string'
+      ) {
+        throw new Error('Invalid recall hit: missing memory fields');
+      }
+      return {
+        source: 'memory',
+        score: obj.score,
+        id: obj.id,
+        preview: obj.preview,
+        created: obj.created,
+      };
+    case 'history':
+      if (
+        typeof obj.title !== 'string' ||
+        typeof obj.cwd !== 'string' ||
+        typeof obj.updatedAt !== 'string'
+      ) {
+        throw new Error('Invalid recall hit: missing history fields');
+      }
+      return {
+        source: 'history',
+        score: obj.score,
+        id: obj.id,
+        title: obj.title,
+        cwd: obj.cwd,
+        updatedAt: obj.updatedAt,
+      };
+    case 'tasks':
+      if (
+        typeof obj.title !== 'string' ||
+        typeof obj.state !== 'string' ||
+        typeof obj.priority !== 'string' ||
+        typeof obj.updatedAt !== 'string'
+      ) {
+        throw new Error('Invalid recall hit: missing tasks fields');
+      }
+      return {
+        source: 'tasks',
+        score: obj.score,
+        id: obj.id,
+        title: obj.title,
+        state: obj.state,
+        priority: obj.priority,
+        updatedAt: obj.updatedAt,
+      };
+    default:
+      throw new Error(`Invalid recall hit: unknown source ${String(obj.source)}`);
+  }
 }
