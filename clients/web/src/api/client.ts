@@ -1,4 +1,5 @@
 import type {
+  AnswerResult,
   AttentionResponse,
   AuditEntry,
   AutonomyMode,
@@ -290,6 +291,13 @@ export const api = {
 
   recall: (query: string) =>
     apiJson<RecallResult>("/api/recall", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    }),
+
+  answer: (query: string) =>
+    apiJson<AnswerResult>("/api/answer", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),

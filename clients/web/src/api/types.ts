@@ -366,6 +366,27 @@ export type RecallResult =
   | { ok: true; hits: RecallHit[] }
   | { ok: false; reason: "semantic_unavailable" };
 
+/**
+ * Cited-answer types — kept in sync with the daemon's `AnswerResult`
+ * discriminated union (see `src/core/server/kota-client.ts`).
+ */
+export type AnswerCitation = {
+  source: RecallSource;
+  id: string;
+};
+
+export type AnswerResult =
+  | {
+      ok: true;
+      answer: string;
+      citations: AnswerCitation[];
+      hits: RecallHit[];
+    }
+  | {
+      ok: false;
+      reason: "no_hits" | "semantic_unavailable" | "synthesis_failed";
+    };
+
 export type SlashCommandSource = "workflow" | "skill";
 
 export type SlashCommand = {

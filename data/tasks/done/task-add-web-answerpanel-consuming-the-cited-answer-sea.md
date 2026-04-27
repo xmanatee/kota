@@ -1,12 +1,12 @@
 ---
 id: task-add-web-answerpanel-consuming-the-cited-answer-sea
 title: Add web AnswerPanel consuming the cited-answer seam
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a sidebar AnswerPanel to the web client that consumes POST /api/answer through DaemonControlClient.answer.answer(query) and renders the synthesized prose plus a typed citation list, mirroring the just-shipped RecallPanel pattern. Second single honest surface follow-up of the answer seam after Telegram /answer; macOS and mobile adoption land later as separate tasks.
 created_at: 2026-04-27T11:44:28.456Z
-updated_at: 2026-04-27T11:44:28.456Z
+updated_at: 2026-04-27T11:52:44.955Z
 ---
 
 ## Problem
