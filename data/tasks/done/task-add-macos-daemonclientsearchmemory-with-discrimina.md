@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-daemonclientsearchmemory-with-discrimina
 title: Add macOS DaemonClient.searchMemory with discriminated MemorySearchResponse types and unit tests
-status: ready
+status: done
 priority: p2
 area: client
 summary: Wire the daemon contract layer for the memory surface into the macOS menu-bar client: add MemoryEntry and the discriminated MemorySearchResponse to Models.swift, add a typed searchMemory(query:limit:) method to DaemonClient.swift that targets GET /api/memory/search?q=&semantic=true&limit=, and pair the four DaemonClientTests cases (success entries, empty entries, ok:false semantic-unavailable, typed HTTP error) so the view layer in the follow-up subtask can consume a tested seam.
 created_at: 2026-04-27T01:18:16.243Z
-updated_at: 2026-04-27T01:18:16.243Z
+updated_at: 2026-04-27T01:22:23.567Z
 ---
 
 ## Problem

@@ -623,6 +623,127 @@ final class DaemonClientTests: XCTestCase {
         }
     }
 
+    func testSearchMemoryDecodesSuccessfulEntries() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/memory/search")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+            let comps = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)
+            let items = comps?.queryItems ?? []
+            XCTAssertEqual(items.first(where: { $0.name == "q" })?.value, "hello world")
+            XCTAssertEqual(items.first(where: { $0.name == "semantic" })?.value, "true")
+            XCTAssertEqual(items.first(where: { $0.name == "limit" })?.value, "10")
+            let body = #"""
+            {"ok": true, "entries": [
+              {"id": "m-1", "created": "2026-04-26T12:34:56Z", "content": "Memory surface fan-out"},
+              {"id": "m-2", "created": "2026-04-25T08:00:00Z", "content": "Operator-pull parity"}
+            ]}
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.searchMemory(query: "hello world", limit: 10)
+        switch result {
+        case .success(let entries):
+            XCTAssertEqual(entries.count, 2)
+            XCTAssertEqual(entries[0].id, "m-1")
+            XCTAssertEqual(entries[0].created, "2026-04-26T12:34:56Z")
+            XCTAssertEqual(entries[0].content, "Memory surface fan-out")
+            XCTAssertEqual(entries[1].id, "m-2")
+            XCTAssertEqual(entries[1].created, "2026-04-25T08:00:00Z")
+            XCTAssertEqual(entries[1].content, "Operator-pull parity")
+        case .semanticUnavailable:
+            XCTFail("expected success branch")
+        }
+    }
+
+    func testSearchMemoryDecodesEmptyEntries() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/memory/search")
+            let comps = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)
+            let items = comps?.queryItems ?? []
+            XCTAssertEqual(items.first(where: { $0.name == "q" })?.value, "no-match")
+            XCTAssertEqual(items.first(where: { $0.name == "limit" })?.value, "5")
+            let body = #"{"ok": true, "entries": []}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.searchMemory(query: "no-match", limit: 5)
+        switch result {
+        case .success(let entries):
+            XCTAssertTrue(entries.isEmpty)
+        case .semanticUnavailable:
+            XCTFail("expected empty success branch")
+        }
+    }
+
+    func testSearchMemoryDecodesSemanticUnavailable() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/memory/search")
+            let body = #"{"ok": false, "reason": "semantic_unavailable"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.searchMemory(query: "anything", limit: 10)
+        switch result {
+        case .success:
+            XCTFail("expected semanticUnavailable branch")
+        case .semanticUnavailable:
+            break
+        }
+    }
+
+    func testSearchMemorySurfacesHttpErrorOneToOne() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            let body = #"{"error": "boom"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+
+        do {
+            _ = try await client.searchMemory(query: "x", limit: 10)
+            XCTFail("expected httpError")
+        } catch DaemonClientError.httpError(let code) {
+            XCTAssertEqual(code, 500)
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+    }
+
     func testTriggerWorkflowSendsBody() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
