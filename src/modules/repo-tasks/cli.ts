@@ -2,7 +2,11 @@ import { readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { RepoTaskPriority } from "#core/server/kota-client.js";
+import type {
+	RepoTaskState as ContractRepoTaskState,
+	RepoTaskPriority,
+	RepoTaskSearchFilter,
+} from "#core/server/kota-client.js";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import {
 	blank,
@@ -12,7 +16,8 @@ import {
 	span,
 	stack,
 } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { print, TerminalTransport } from "#modules/rendering/transport.js";
+import { renderRepoTaskSearchPlain } from "./render.js";
 import {
 	REPO_INBOX_DIR,
 	REPO_TASK_STATES,
@@ -24,6 +29,20 @@ const ALLOWED_PRIORITIES: readonly RepoTaskPriority[] = ["p0", "p1", "p2", "p3"]
 
 function isRepoTaskPriority(value: string): value is RepoTaskPriority {
 	return (ALLOWED_PRIORITIES as readonly string[]).includes(value);
+}
+
+let stderrRenderer: TerminalTransport | null = null;
+function stderrTransport(): TerminalTransport {
+	if (!stderrRenderer) stderrRenderer = new TerminalTransport({ stream: process.stderr });
+	return stderrRenderer;
+}
+
+function collectStates(value: string, previous: RepoTaskState[]): RepoTaskState[] {
+	if (!REPO_TASK_STATES.includes(value as RepoTaskState)) {
+		console.error(`Unknown state "${value}". Valid: ${REPO_TASK_STATES.join(", ")}`);
+		process.exit(1);
+	}
+	return [...previous, value as RepoTaskState];
 }
 
 type TaskEntry = {
@@ -212,6 +231,99 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 				),
 				line(span(result.path, "muted")),
 			));
+		});
+
+	taskCmd
+		.command("search <query>")
+		.description(
+			"Search the task queue by intent (semantic by default; --keyword forces substring ranking).",
+		)
+		.option("-n, --limit <n>", "Max hits to show", "20")
+		.option(
+			"-s, --state <state>",
+			"Restrict to one state (backlog|ready|doing|blocked|done|dropped). Repeatable.",
+			collectStates,
+			[] as RepoTaskState[],
+		)
+		.option("--keyword", "Use keyword/substring ranking instead of semantic")
+		.option("--no-semantic", "Alias for --keyword")
+		.option("--json", "Emit the structured { ok, tasks | reason } payload as JSON")
+		.action(
+			async (
+				query: string,
+				opts: {
+					limit: string;
+					state: RepoTaskState[];
+					keyword?: boolean;
+					semantic?: boolean;
+					json?: boolean;
+				},
+			) => {
+				const trimmed = query.trim();
+				if (!trimmed) {
+					stderrTransport().write(line(span("Usage: kota task search <query>", "warn")));
+					process.exit(1);
+				}
+				const limit = Number.parseInt(opts.limit, 10);
+				if (!Number.isFinite(limit) || limit <= 0) {
+					stderrTransport().write(
+						line(span(`Error: --limit must be a positive integer, got "${opts.limit}"`, "error")),
+					);
+					process.exit(1);
+				}
+				const semantic = !(opts.keyword === true || opts.semantic === false);
+				const filter: RepoTaskSearchFilter = { semantic, limit };
+				if (opts.state.length > 0) filter.states = opts.state as ContractRepoTaskState[];
+				const result = await ctx.client.tasks.search(trimmed, filter);
+
+				if (opts.json) {
+					process.stdout.write(`${JSON.stringify(result)}\n`);
+					if (!result.ok) process.exit(1);
+					return;
+				}
+
+				if (!result.ok) {
+					stderrTransport().write(line(span(
+						"Semantic task search requires an embedding-backed repo-tasks provider. " +
+							"Configure `providers.repo-tasks` to `tasks-semantic` or pass --keyword.",
+						"error",
+					)));
+					process.exit(1);
+				}
+
+				if (result.tasks.length === 0) {
+					print(line(plain("No matching tasks.")));
+					return;
+				}
+
+				print(line(plain(renderRepoTaskSearchPlain(result.tasks))));
+			},
+		);
+
+	taskCmd
+		.command("reindex")
+		.description(
+			"Rebuild the semantic search index for all repo tasks. " +
+				"No-op when no embedding provider is configured.",
+		)
+		.action(async () => {
+			const result = await ctx.client.tasks.reindex();
+			if (result.skipped) {
+				print(line(plain(
+					"Semantic search not configured — nothing to reindex. " +
+						"Set `providers.repo-tasks` to an embedding-capable provider to enable.",
+				)));
+				return;
+			}
+			const failedRole = result.failed > 0 ? "error" : "muted";
+			print(line(
+				plain("Reindexed "),
+				span(String(result.indexed), "success"),
+				plain(" task(s) ("),
+				span(`${result.failed} failed`, failedRole),
+				plain(")."),
+			));
+			if (result.failed > 0) process.exit(1);
 		});
 
 	taskCmd

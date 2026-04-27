@@ -39,6 +39,7 @@ import type {
   ConversationRecord,
   KnowledgeEntry,
   ReindexResult,
+  RepoTaskSearchHit,
 } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 
@@ -146,6 +147,34 @@ export type RepoTaskGcResult = {
   archived: string[];
   deleted: string[];
 };
+
+/** Filter for `RepoTasksClient.search`. */
+export type RepoTaskSearchFilter = {
+  /** Restrict matches to the listed states. Defaults to all states. */
+  states?: ReadonlyArray<RepoTaskState>;
+  /** Maximum hits returned, ranked by score. Defaults to 20. */
+  limit?: number;
+  /**
+   * When true (default), use the active embedding-backed provider when one
+   * is registered. When false, force the substring/grep keyword path
+   * through the default provider for parity with prior behavior.
+   */
+  semantic?: boolean;
+};
+
+/**
+ * Result of `tasks.search`. Semantic ranking requires an embedding-backed
+ * provider; when the caller asks for `semantic: true` and the active
+ * provider cannot satisfy that, the contract surfaces an explicit
+ * `semantic_unavailable` rather than silently falling back to keyword
+ * search — same shape as memory/knowledge/history.
+ */
+export type RepoTaskSearchResult =
+  | { ok: true; tasks: RepoTaskSearchHit[] }
+  | { ok: false; reason: "semantic_unavailable" };
+
+/** Result of `tasks.reindex`. Mirrors the provider's `ReindexResult`. */
+export type RepoTaskReindexResult = ReindexResult;
 
 /** A masked memory entry as the CLI surfaces it. */
 export type MemoryListEntry = {
@@ -600,6 +629,16 @@ export interface RepoTasksClient {
   create(options: RepoTaskCreateOptions): Promise<RepoTaskCreateResult>;
   capture(title: string): Promise<RepoTaskCaptureResult>;
   gc(options?: RepoTaskGcOptions): Promise<RepoTaskGcResult>;
+  /**
+   * Run semantic or keyword ranking across the repo task queue. Semantic
+   * ranking requires an embedding-backed provider; when the caller asks
+   * for `semantic: true` and the active provider cannot satisfy that, the
+   * contract surfaces an explicit `semantic_unavailable` rather than
+   * silently falling back to keyword search.
+   */
+  search(query: string, filter?: RepoTaskSearchFilter): Promise<RepoTaskSearchResult>;
+  /** Rebuild the semantic index over the repo task queue when the active provider supports it. */
+  reindex(): Promise<RepoTaskReindexResult>;
 }
 
 /**

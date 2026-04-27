@@ -7,6 +7,7 @@ import type {
 	MemoryProvider,
 	ModelPricingProvider,
 	RenderingProvider,
+	RepoTasksProvider,
 	TaskProvider,
 } from "./provider-types.js";
 
@@ -17,6 +18,7 @@ export type {
 	ModelPricing,
 	ModelPricingProvider,
 	RenderingProvider,
+	RepoTasksProvider,
 	TaskProvider,
 } from "./provider-types.js";
 
@@ -172,6 +174,23 @@ export function getHistoryProvider(): HistoryProvider {
 	}
 	throw new Error(
 		"No history provider registered. Load the `history` module before calling getHistoryProvider.",
+	);
+}
+
+/**
+ * Get the active repo-tasks provider from the registry. The `repo-tasks`
+ * module owns the default keyword implementation; the `tasks-semantic`
+ * module registers an embedding-backed override when configured. Callers
+ * must ensure `repo-tasks` has loaded (via the module runtime or
+ * `ensureCliProvidersFor(["repo-tasks"])`).
+ */
+export function getRepoTasksProvider(): RepoTasksProvider {
+	if (registry) {
+		const provider = registry.get<RepoTasksProvider>("repo-tasks");
+		if (provider) return provider;
+	}
+	throw new Error(
+		"No repo-tasks provider registered. Load the `repo-tasks` module before calling getRepoTasksProvider.",
 	);
 }
 

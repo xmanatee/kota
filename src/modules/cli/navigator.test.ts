@@ -80,6 +80,8 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       create: stub({ ok: false, reason: "invalid_slug" }),
       capture: stub({ ok: false, reason: "invalid_slug" }),
       gc: stub({ archived: [], deleted: [] }),
+      search: stub({ ok: true, tasks: [] }),
+      reindex: stub({ indexed: 0, failed: 0 }),
     },
     memory: {
       list: stub({ entries: [] }),

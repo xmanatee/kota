@@ -1,15 +1,18 @@
 /**
  * Repo-tasks module — owns KOTA's task-queue domain.
  *
- * Ships the `kota task` CLI subcommands, the `/api/tasks` HTTP routes, and the
- * domain model (state constants, path helpers, queue snapshot, task-status
- * response shape) in `repo-tasks-domain.ts`.
+ * Ships the `kota task` CLI subcommands, the `/api/tasks` HTTP routes, the
+ * `RepoTasksProvider` default keyword implementation, and the domain model
+ * (state constants, path helpers, queue snapshot, task-status response shape)
+ * in `repo-tasks-domain.ts`.
  */
 
 import { Command } from "commander";
-import type { KotaModule } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { getRepoTasksProvider } from "#core/modules/provider-registry.js";
 import type {
 	RepoTaskListEntry,
+	RepoTaskSearchResult,
 	RepoTaskState,
 	RepoTasksClient,
 } from "#core/server/kota-client.js";
@@ -21,7 +24,8 @@ import {
 	gcTerminalTasks,
 	showTask,
 } from "./repo-tasks-operations.js";
-import { taskRoutes } from "./routes.js";
+import { RepoTasksDefaultStore } from "./repo-tasks-store.js";
+import { taskControlRoutes, taskRoutes } from "./routes.js";
 
 const REPO_TASK_OPEN_STATES: RepoTaskState[] = [
 	"backlog",
@@ -30,11 +34,17 @@ const REPO_TASK_OPEN_STATES: RepoTaskState[] = [
 	"blocked",
 ];
 
+const DEFAULT_SEARCH_LIMIT = 20;
+
 const repoTasksModule: KotaModule = {
 	name: "repo-tasks",
 	version: "1.0.0",
 	description: "Operator CLI for the KOTA repo task queue",
 	dependencies: ["rendering"],
+
+	onLoad: (ctx: ModuleContext) => {
+		ctx.registerProvider("repo-tasks", new RepoTasksDefaultStore(ctx.cwd));
+	},
 
 	commands: (ctx) => {
 		const root = new Command("__root__");
@@ -43,6 +53,7 @@ const repoTasksModule: KotaModule = {
 	},
 
 	routes: () => taskRoutes(),
+	controlRoutes: () => taskControlRoutes(),
 
 	localClient: (ctx) => {
 		const handler: RepoTasksClient = {
@@ -85,6 +96,33 @@ const repoTasksModule: KotaModule = {
 			},
 			async gc(options) {
 				return gcTerminalTasks(ctx.cwd, options ?? {});
+			},
+			async search(query, filter): Promise<RepoTaskSearchResult> {
+				const semantic = filter?.semantic !== false;
+				const limit = filter?.limit ?? DEFAULT_SEARCH_LIMIT;
+				const opts: { topK: number; states?: ReadonlyArray<RepoTaskState> } = {
+					topK: limit,
+				};
+				if (filter?.states && filter.states.length > 0) {
+					opts.states = filter.states;
+				}
+				if (!semantic) {
+					const fallback = new RepoTasksDefaultStore(ctx.cwd);
+					return { ok: true, tasks: await fallback.searchTasks(query, opts) };
+				}
+				const provider = getRepoTasksProvider();
+				if (!provider.supportsSemanticSearch()) {
+					return { ok: false, reason: "semantic_unavailable" };
+				}
+				try {
+					const tasks = await provider.searchTasks(query, opts);
+					return { ok: true, tasks };
+				} catch {
+					return { ok: false, reason: "semantic_unavailable" };
+				}
+			},
+			async reindex() {
+				return getRepoTasksProvider().reindex();
 			},
 		};
 		return { tasks: handler };

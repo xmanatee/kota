@@ -7,6 +7,9 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import type {
   RepoTaskCreateOptions,
   RepoTaskGcOptions,
+  RepoTaskReindexResult,
+  RepoTaskSearchFilter,
+  RepoTaskSearchResult,
   RepoTaskState,
 } from "#core/server/kota-client.js";
 import { listTasksForStates, registerTaskCommands } from "./cli.js";
@@ -17,10 +20,24 @@ import {
   gcTerminalTasks,
   showTask,
 } from "./repo-tasks-operations.js";
+import { RepoTasksDefaultStore } from "./repo-tasks-store.js";
 
 const OPEN_STATES: RepoTaskState[] = ["backlog", "ready", "doing", "blocked"];
 
-function stubCtx(projectDir: string): ModuleContext {
+type SearchOverride = (
+  query: string,
+  filter?: RepoTaskSearchFilter,
+) => Promise<RepoTaskSearchResult>;
+type ReindexOverride = () => Promise<RepoTaskReindexResult>;
+
+function stubCtx(
+  projectDir: string,
+  overrides?: {
+    search?: SearchOverride;
+    reindex?: ReindexOverride;
+  },
+): ModuleContext {
+  const defaultStore = new RepoTasksDefaultStore(projectDir);
   return {
     cwd: projectDir,
     client: {
@@ -63,6 +80,23 @@ function stubCtx(projectDir: string): ModuleContext {
         },
         async gc(options?: RepoTaskGcOptions) {
           return gcTerminalTasks(projectDir, options ?? {});
+        },
+        async search(query: string, filter?: RepoTaskSearchFilter): Promise<RepoTaskSearchResult> {
+          if (overrides?.search) return overrides.search(query, filter);
+          // Default: keyword path through the default store. Mirrors the
+          // local handler behavior when the operator passes --keyword.
+          const opts: { topK: number; states?: RepoTaskState[] } = {
+            topK: filter?.limit ?? 20,
+          };
+          if (filter?.states && filter.states.length > 0) {
+            opts.states = [...filter.states];
+          }
+          const tasks = await defaultStore.searchTasks(query, opts);
+          return { ok: true, tasks };
+        },
+        async reindex(): Promise<RepoTaskReindexResult> {
+          if (overrides?.reindex) return overrides.reindex();
+          return defaultStore.reindex();
         },
       },
     },
@@ -128,10 +162,16 @@ async function captureOutput(fn: () => void | Promise<void>): Promise<string> {
   return lines.join("");
 }
 
-function makeProgram(projectDir?: string): Command {
+function makeProgram(
+  projectDir?: string,
+  overrides?: {
+    search?: SearchOverride;
+    reindex?: ReindexOverride;
+  },
+): Command {
   const program = new Command();
   program.exitOverride();
-  registerTaskCommands(program, stubCtx(projectDir ?? process.cwd()));
+  registerTaskCommands(program, stubCtx(projectDir ?? process.cwd(), overrides));
   return program;
 }
 
@@ -401,3 +441,200 @@ describe("kota task capture", () => {
   });
 });
 
+describe("kota task search", () => {
+  let projectDir: string;
+  let origCwd: string;
+
+  beforeEach(() => {
+    projectDir = makeProjectDir();
+    origCwd = process.cwd();
+    process.chdir(projectDir);
+  });
+
+  afterEach(() => {
+    process.chdir(origCwd);
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("falls back to keyword path with --keyword and prints matched ids", async () => {
+    writeTaskFile(projectDir, "ready", "task-cost-tracker", {
+      title: "Track spend anomaly alerts",
+    });
+    writeTaskFile(projectDir, "done", "task-bread", { title: "Bake bread" });
+
+    const program = makeProgram(projectDir);
+    const output = await captureOutput(async () => {
+      await program.parseAsync([
+        "node",
+        "kota",
+        "task",
+        "search",
+        "spend",
+        "--keyword",
+      ]);
+    });
+    expect(output).toContain("task-cost-tracker");
+    expect(output).not.toContain("task-bread");
+  });
+
+  it("exits non-zero with a single-line operator message when semantic is unavailable", async () => {
+    const program = makeProgram(projectDir, {
+      search: async () => ({ ok: false, reason: "semantic_unavailable" }),
+    });
+    const errSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(((code: number) => {
+      throw new Error(`process.exit:${code}`);
+    }) as never);
+    try {
+      await expect(
+        program.parseAsync(["node", "kota", "task", "search", "cost"]),
+      ).rejects.toThrow("process.exit:1");
+      const written = errSpy.mock.calls.map((args) => String(args[0])).join("");
+      expect(written).toMatch(/Semantic task search requires/);
+    } finally {
+      errSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
+  it("emits structured payload with --json", async () => {
+    const program = makeProgram(projectDir, {
+      search: async () => ({
+        ok: true,
+        tasks: [
+          {
+            id: "task-x",
+            title: "T",
+            state: "ready",
+            priority: "p2",
+            area: "a",
+            summary: "",
+            updatedAt: "2026-04-27T00:00:00.000Z",
+            score: 0.5,
+          },
+        ],
+      }),
+    });
+    const output = await captureOutput(async () => {
+      await program.parseAsync([
+        "node",
+        "kota",
+        "task",
+        "search",
+        "anything",
+        "--json",
+      ]);
+    });
+    expect(output.trim()).toContain('"ok":true');
+    expect(output.trim()).toContain('"id":"task-x"');
+  });
+
+  it("--json with semantic_unavailable exits non-zero but still emits the structured payload", async () => {
+    const program = makeProgram(projectDir, {
+      search: async () => ({ ok: false, reason: "semantic_unavailable" }),
+    });
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(((code: number) => {
+      throw new Error(`process.exit:${code}`);
+    }) as never);
+    let captured = "";
+    const writeSpy = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation((chunk: unknown) => {
+        captured += String(chunk);
+        return true;
+      });
+    try {
+      await expect(
+        program.parseAsync([
+          "node",
+          "kota",
+          "task",
+          "search",
+          "cost",
+          "--json",
+        ]),
+      ).rejects.toThrow("process.exit:1");
+      expect(captured).toContain('"ok":false');
+      expect(captured).toContain('"semantic_unavailable"');
+    } finally {
+      writeSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
+  it("filters by --state", async () => {
+    writeTaskFile(projectDir, "ready", "task-open-spend", {
+      title: "Track spend in open work",
+    });
+    writeTaskFile(projectDir, "done", "task-closed-spend", {
+      title: "Track spend in closed work",
+    });
+
+    const program = makeProgram(projectDir);
+    const output = await captureOutput(async () => {
+      await program.parseAsync([
+        "node",
+        "kota",
+        "task",
+        "search",
+        "spend",
+        "--keyword",
+        "--state",
+        "ready",
+      ]);
+    });
+    expect(output).toContain("task-open-spend");
+    expect(output).not.toContain("task-closed-spend");
+  });
+});
+
+describe("kota task reindex", () => {
+  let projectDir: string;
+  let origCwd: string;
+
+  beforeEach(() => {
+    projectDir = makeProjectDir();
+    origCwd = process.cwd();
+    process.chdir(projectDir);
+  });
+
+  afterEach(() => {
+    process.chdir(origCwd);
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  it("reports skipped when no embedding provider is configured", async () => {
+    const program = makeProgram(projectDir);
+    const output = await captureOutput(async () => {
+      await program.parseAsync(["node", "kota", "task", "reindex"]);
+    });
+    expect(output).toMatch(/Semantic search not configured/);
+  });
+
+  it("prints success counts when reindex completes", async () => {
+    const program = makeProgram(projectDir, {
+      reindex: async () => ({ indexed: 3, failed: 0 }),
+    });
+    const output = await captureOutput(async () => {
+      await program.parseAsync(["node", "kota", "task", "reindex"]);
+    });
+    expect(output).toContain("Reindexed");
+    expect(output).toContain("3");
+  });
+
+  it("exits non-zero when reindex reports failures", async () => {
+    const program = makeProgram(projectDir, {
+      reindex: async () => ({ indexed: 1, failed: 2 }),
+    });
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(((code: number) => {
+      throw new Error(`process.exit:${code}`);
+    }) as never);
+    try {
+      await expect(
+        program.parseAsync(["node", "kota", "task", "reindex"]),
+      ).rejects.toThrow("process.exit:1");
+    } finally {
+      exitSpy.mockRestore();
+    }
+  });
+});

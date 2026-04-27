@@ -2,7 +2,11 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
-import type { RouteRegistration } from "#core/modules/module-types.js";
+import type {
+  ControlRouteRegistration,
+  RouteRegistration,
+} from "#core/modules/module-types.js";
+import { getRepoTasksProvider } from "#core/modules/provider-registry.js";
 import type {
   RepoTaskState as ContractRepoTaskState,
   RepoTaskCreateOptions,
@@ -522,6 +526,69 @@ export async function handleTaskGc(
     ...(typeof body.dryRun === "boolean" && { dryRun: body.dryRun }),
   });
   jsonResponse(res, 200, result);
+}
+
+async function handleTasksSearchControl(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const url = new URL(req.url ?? "/tasks/search", "http://127.0.0.1");
+  const query = url.searchParams.get("q") ?? "";
+  const semantic = url.searchParams.get("semantic") !== "false";
+  const limitParam = url.searchParams.get("limit");
+  const limit = limitParam
+    ? Math.max(1, Number.parseInt(limitParam, 10) || 0)
+    : 20;
+  const stateParams = url.searchParams.getAll("state");
+  const states = stateParams.filter((s): s is ContractRepoTaskState =>
+    (REPO_TASK_STATES as readonly string[]).includes(s),
+  );
+  try {
+    const provider = getRepoTasksProvider();
+    if (semantic && !provider.supportsSemanticSearch()) {
+      jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
+      return;
+    }
+    const opts: { topK: number; states?: ContractRepoTaskState[] } = { topK: limit };
+    if (states.length > 0) opts.states = states;
+    const tasks = await provider.searchTasks(query, opts);
+    jsonResponse(res, 200, { ok: true, tasks });
+  } catch (err) {
+    if (semantic) {
+      jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
+      return;
+    }
+    jsonResponse(res, 500, { error: (err as Error).message });
+  }
+}
+
+async function handleTasksReindexControl(
+  _req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  try {
+    const result = await getRepoTasksProvider().reindex();
+    jsonResponse(res, 200, result);
+  } catch (err) {
+    jsonResponse(res, 500, { error: (err as Error).message });
+  }
+}
+
+export function taskControlRoutes(): ControlRouteRegistration[] {
+  return [
+    {
+      method: "GET",
+      path: "/tasks/search",
+      capabilityScope: "read",
+      handler: handleTasksSearchControl,
+    },
+    {
+      method: "POST",
+      path: "/tasks/reindex",
+      capabilityScope: "control",
+      handler: handleTasksReindexControl,
+    },
+  ];
 }
 
 export function taskRoutes(): RouteRegistration[] {

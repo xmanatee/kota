@@ -12,3 +12,11 @@ served at `/api/tasks`.
   their module `dependencies`.
 - The core daemon no longer proxies task status. `/api/tasks` is computed
   directly from disk in this module.
+- Owns the default `RepoTasksProvider` registration. Substring/grep ranking
+  against `title + summary + indexable body sections` answers `kota task
+  search --keyword`. The `tasks-semantic` module overrides this when an
+  embedding provider is configured.
+- `kota task search` and `kota task reindex` use the same control plane the
+  CLI consumes for `tasks.show`/`tasks.move`. There is no public
+  `/api/tasks/search` route — fan-out to Telegram/macOS/mobile is left to
+  follow-up tasks in the established cadence.

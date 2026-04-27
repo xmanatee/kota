@@ -92,6 +92,20 @@ export class SemanticIndexManager<TEntry> {
 		entries: TEntry[],
 		topK: number,
 	): Promise<TEntry[]> {
+		const scored = await this.rankBySimilarityScored(query, entries, topK);
+		return scored.map((s) => s.entry);
+	}
+
+	/**
+	 * Same ranking as `rankBySimilarity`, but returns each entry with its
+	 * cosine similarity score. Used by callers that surface scores to
+	 * operators (e.g. ranked task search hits).
+	 */
+	async rankBySimilarityScored(
+		query: string,
+		entries: TEntry[],
+		topK: number,
+	): Promise<Array<{ entry: TEntry; score: number }>> {
 		const limit = Math.max(0, topK);
 		if (limit === 0) return [];
 		if (entries.length === 0) return [];
@@ -110,7 +124,7 @@ export class SemanticIndexManager<TEntry> {
 				});
 			}
 			scored.sort((a, b) => b.score - a.score);
-			return scored.slice(0, limit).map((x) => x.entry);
+			return scored.slice(0, limit);
 		} catch (err) {
 			this.onError(err);
 			throw err;

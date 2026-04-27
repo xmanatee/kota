@@ -236,6 +236,70 @@ export type HistorySemanticOptions = {
 	source?: "user" | "action";
 };
 
+/**
+ * The on-disk repo task queue states. Mirrors the canonical state set declared
+ * in `repo-tasks-domain.ts`; declared here so the provider seam stays in core
+ * without a module import.
+ */
+export type RepoTaskState =
+	| "backlog"
+	| "ready"
+	| "doing"
+	| "blocked"
+	| "done"
+	| "dropped";
+
+/**
+ * A single semantic-or-keyword search hit over the repo task queue. Mirrors
+ * the metadata operator surfaces want without requiring a follow-up file
+ * read. `score` is the cosine similarity for embedding-backed providers and
+ * a deterministic keyword score for the substring/grep default.
+ */
+export type RepoTaskSearchHit = {
+	id: string;
+	title: string;
+	state: RepoTaskState;
+	priority: string;
+	area: string;
+	summary: string;
+	updatedAt: string;
+	score: number;
+};
+
+/** Options accepted by `RepoTasksProvider.searchTasks`. */
+export type RepoTasksSearchOptions = {
+	/** Restrict matches to the given states. Defaults to all states. */
+	states?: ReadonlyArray<RepoTaskState>;
+	/** Maximum hits returned, ranked by score. Defaults to 20. */
+	topK?: number;
+};
+
+/**
+ * Interface for the repo task queue's search/reindex seam.
+ *
+ * The default provider lives in the `repo-tasks` module and answers
+ * substring/grep ranking with `supportsSemanticSearch() === false`. The
+ * `tasks-semantic` module registers an overriding implementation that runs
+ * embedding-backed cosine ranking against the same indexable text.
+ */
+export interface RepoTasksProvider {
+	/**
+	 * Rank tasks by relevance to a natural-language query. Embedding-backed
+	 * providers throw if the embedding service is unreachable; callers that
+	 * need a structured fallback wrap the call themselves.
+	 */
+	searchTasks(
+		query: string,
+		options?: RepoTasksSearchOptions,
+	): Promise<RepoTaskSearchHit[]>;
+	/**
+	 * Rebuild the semantic index from the current task queue. Providers
+	 * without embedding support return `{ indexed: 0, failed: 0, skipped: true }`.
+	 */
+	reindex(): Promise<ReindexResult>;
+	supportsSemanticSearch(): boolean;
+}
+
 /** Interface for conversation history storage (create/save/load/list/find/remove). */
 export interface HistoryProvider {
 	create(model: string, cwd: string, source?: "user" | "action"): string;

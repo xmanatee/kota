@@ -92,6 +92,9 @@ import type {
   RepoTaskGcResult,
   RepoTaskListEntry,
   RepoTaskMoveResult,
+  RepoTaskReindexResult,
+  RepoTaskSearchFilter,
+  RepoTaskSearchResult,
   RepoTaskShowResult,
   RepoTaskState,
   RepoTasksClient,
@@ -332,6 +335,8 @@ export class DaemonControlClient implements KotaClient {
       create: async (options) => this.createTaskHttp(options),
       capture: async (title) => this.captureTaskHttp(title),
       gc: async (options) => this.gcTasksHttp(options ?? {}),
+      search: async (query, filter) => this.searchTasksHttp(query, filter),
+      reindex: async () => this.reindexTasksHttp(),
     };
     this.memory = {
       list: async (limit) => {
@@ -1386,6 +1391,40 @@ export class DaemonControlClient implements KotaClient {
       throw new Error(body.error ?? `HTTP ${res.status}`);
     }
     return (await res.json()) as RepoTaskGcResult;
+  }
+
+  private async searchTasksHttp(
+    query: string,
+    filter?: RepoTaskSearchFilter,
+  ): Promise<RepoTaskSearchResult> {
+    const params = new URLSearchParams();
+    params.set("q", query);
+    if (filter?.semantic === false) params.set("semantic", "false");
+    if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
+    if (filter?.states) {
+      for (const state of filter.states) params.append("state", state);
+    }
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/tasks/search?${params.toString()}`,
+      { headers: this.authHeaders() },
+    );
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as RepoTaskSearchResult;
+  }
+
+  private async reindexTasksHttp(): Promise<RepoTaskReindexResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/tasks/reindex`, {
+      method: "POST",
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as RepoTaskReindexResult;
   }
 
   private async listTasksHttp(): Promise<

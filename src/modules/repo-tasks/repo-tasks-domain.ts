@@ -126,6 +126,131 @@ export type RepoTaskRecord = {
   body: string;
 };
 
+/**
+ * A full task record carrying every frontmatter field needed to render a
+ * search hit, plus the raw body. Used by the `repo-tasks` provider seam to
+ * answer search queries with metadata-rich hits without re-reading files.
+ */
+export type RepoTaskFullRecord = {
+  id: string;
+  title: string;
+  state: RepoTaskState;
+  priority: string;
+  area: string;
+  summary: string;
+  updatedAt: string;
+  body: string;
+};
+
+/** Indexable body sections: title and summary plus these markdown sections. */
+export const INDEXABLE_TASK_SECTIONS = [
+  "Problem",
+  "Desired Outcome",
+  "Constraints",
+  "Source / Intent",
+  "Initiative",
+] as const;
+
+/**
+ * Extract the configured indexable text for a task: title, summary, and the
+ * `## Problem`, `## Desired Outcome`, `## Constraints`, `## Source / Intent`,
+ * and `## Initiative` body sections joined into a single string. `## Plan`
+ * and `## Acceptance Evidence` are skipped because they churn faster than
+ * the task's intent.
+ */
+export function buildIndexableTaskText(record: RepoTaskFullRecord): string {
+  const parts: string[] = [];
+  if (record.title) parts.push(record.title);
+  if (record.summary) parts.push(record.summary);
+  const sections = extractTaskSections(
+    record.body,
+    INDEXABLE_TASK_SECTIONS as unknown as readonly string[],
+  );
+  for (const heading of INDEXABLE_TASK_SECTIONS) {
+    const body = sections[heading];
+    if (body) parts.push(body.trim());
+  }
+  return parts.join("\n\n").trim();
+}
+
+/**
+ * Parse `## Heading` sections out of a task body, returning each requested
+ * section keyed by heading. Headings are matched case-sensitively at the
+ * start of a line. A section ends at the next `## ` heading or at end of body.
+ */
+export function extractTaskSections(
+  body: string,
+  headings: readonly string[],
+): Record<string, string> {
+  const wanted = new Set(headings);
+  const lines = body.split(/\r?\n/);
+  const result: Record<string, string> = {};
+  let currentHeading: string | null = null;
+  let buffer: string[] = [];
+  const flush = () => {
+    if (currentHeading) {
+      result[currentHeading] = buffer.join("\n").trim();
+    }
+    buffer = [];
+    currentHeading = null;
+  };
+  for (const line of lines) {
+    const match = /^##\s+(.+)\s*$/.exec(line);
+    if (match) {
+      flush();
+      const heading = match[1].trim();
+      if (wanted.has(heading)) {
+        currentHeading = heading;
+      }
+      continue;
+    }
+    if (currentHeading) buffer.push(line);
+  }
+  flush();
+  return result;
+}
+
+/**
+ * List every full task record across the requested states, reading the
+ * normalized frontmatter fields the provider seam needs. Tasks missing
+ * required frontmatter (id, title, status, updated_at) are skipped so
+ * downstream callers can rely on strict shapes.
+ */
+export function listFullRepoTasks(
+  projectDir: string,
+  states: readonly RepoTaskState[] = REPO_TASK_STATES,
+): RepoTaskFullRecord[] {
+  const tasksDir = getRepoTasksDir(projectDir);
+  const result: RepoTaskFullRecord[] = [];
+  for (const state of states) {
+    const dir = join(tasksDir, state);
+    if (!existsSync(dir)) continue;
+    for (const name of readdirSync(dir)) {
+      if (!name.endsWith(".md") || name === "AGENTS.md") continue;
+      const filePath = join(dir, name);
+      let content: string;
+      try {
+        content = readFileSync(filePath, "utf-8");
+      } catch {
+        continue;
+      }
+      const fm = parseFrontmatterBlock(content);
+      if (!fm || !fm.id || !fm.title || !fm.updated_at) continue;
+      result.push({
+        id: fm.id,
+        title: fm.title,
+        state,
+        priority: fm.priority ?? "",
+        area: fm.area ?? "",
+        summary: fm.summary ?? "",
+        updatedAt: fm.updated_at,
+        body: extractBodyAfterFrontmatter(content),
+      });
+    }
+  }
+  return result;
+}
+
 function parseFrontmatterBlock(content: string): Record<string, string> | null {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!match) return null;

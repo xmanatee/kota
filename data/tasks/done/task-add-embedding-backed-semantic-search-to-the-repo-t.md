@@ -1,12 +1,12 @@
 ---
 id: task-add-embedding-backed-semantic-search-to-the-repo-t
 title: Add embedding-backed semantic search to the repo task queue
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a tasks-semantic module that wraps the repo task queue with embedding-backed search, mirroring memory-semantic, knowledge-semantic, and history-semantic, so autonomy workflows and operators can find similar past or open tasks by intent rather than substring/grep.
 created_at: 2026-04-27T05:22:49.160Z
-updated_at: 2026-04-27T05:22:49.160Z
+updated_at: 2026-04-27T05:43:11.139Z
 ---
 
 ## Problem
