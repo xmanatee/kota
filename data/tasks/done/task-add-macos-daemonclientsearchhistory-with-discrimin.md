@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-daemonclientsearchhistory-with-discrimin
 title: Add macOS DaemonClient.searchHistory with discriminated HistorySearchResponse types and unit tests
-status: ready
+status: done
 priority: p2
 area: client
 summary: Wire the daemon contract layer for the conversation-history surface into the macOS menu-bar client: add ConversationRecord and the discriminated HistorySearchResponse to Models.swift, add a typed searchHistory(query:limit:) method to DaemonClient.swift that targets GET /api/history/search?q=&semantic=true&limit=, mirror renderHistorySearchPlain in Swift, and pair the four DaemonClientTests cases (success conversations, empty conversations, ok:false semantic-unavailable, typed HTTP error) so the view layer in the follow-up subtask can consume a tested seam.
 created_at: 2026-04-27T03:38:32.926Z
-updated_at: 2026-04-27T03:38:32.926Z
+updated_at: 2026-04-27T03:42:34.602Z
 ---
 
 ## Problem

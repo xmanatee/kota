@@ -744,6 +744,150 @@ final class DaemonClientTests: XCTestCase {
         }
     }
 
+    func testSearchHistoryDecodesSuccessfulConversations() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/history/search")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+            let comps = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)
+            let items = comps?.queryItems ?? []
+            XCTAssertEqual(items.first(where: { $0.name == "q" })?.value, "hello world")
+            XCTAssertEqual(items.first(where: { $0.name == "semantic" })?.value, "true")
+            XCTAssertEqual(items.first(where: { $0.name == "limit" })?.value, "10")
+            let body = #"""
+            {"ok": true, "conversations": [
+              {
+                "id": "c-1",
+                "title": "History surface fan-out",
+                "createdAt": "2026-04-26T12:00:00Z",
+                "updatedAt": "2026-04-26T12:34:56Z",
+                "model": "claude-opus-4-7",
+                "messageCount": 12,
+                "cwd": "/repo",
+                "source": "user"
+              },
+              {
+                "id": "c-2",
+                "title": "Operator-pull parity",
+                "createdAt": "2026-04-25T08:00:00Z",
+                "updatedAt": "2026-04-25T09:30:00Z",
+                "model": "claude-sonnet-4-6",
+                "messageCount": 4,
+                "cwd": "/repo"
+              }
+            ]}
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.searchHistory(query: "hello world", limit: 10)
+        switch result {
+        case .success(let conversations):
+            XCTAssertEqual(conversations.count, 2)
+            XCTAssertEqual(conversations[0].id, "c-1")
+            XCTAssertEqual(conversations[0].title, "History surface fan-out")
+            XCTAssertEqual(conversations[0].createdAt, "2026-04-26T12:00:00Z")
+            XCTAssertEqual(conversations[0].updatedAt, "2026-04-26T12:34:56Z")
+            XCTAssertEqual(conversations[0].model, "claude-opus-4-7")
+            XCTAssertEqual(conversations[0].messageCount, 12)
+            XCTAssertEqual(conversations[0].cwd, "/repo")
+            XCTAssertEqual(conversations[0].source, "user")
+            XCTAssertEqual(conversations[1].id, "c-2")
+            XCTAssertEqual(conversations[1].messageCount, 4)
+            XCTAssertNil(conversations[1].source)
+        case .semanticUnavailable:
+            XCTFail("expected success branch")
+        }
+    }
+
+    func testSearchHistoryDecodesEmptyConversations() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/history/search")
+            let comps = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)
+            let items = comps?.queryItems ?? []
+            XCTAssertEqual(items.first(where: { $0.name == "q" })?.value, "no-match")
+            XCTAssertEqual(items.first(where: { $0.name == "semantic" })?.value, "true")
+            XCTAssertEqual(items.first(where: { $0.name == "limit" })?.value, "5")
+            let body = #"{"ok": true, "conversations": []}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.searchHistory(query: "no-match", limit: 5)
+        switch result {
+        case .success(let conversations):
+            XCTAssertTrue(conversations.isEmpty)
+        case .semanticUnavailable:
+            XCTFail("expected empty success branch")
+        }
+    }
+
+    func testSearchHistoryDecodesSemanticUnavailable() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/history/search")
+            let body = #"{"ok": false, "reason": "semantic_unavailable"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.searchHistory(query: "anything", limit: 10)
+        switch result {
+        case .success:
+            XCTFail("expected semanticUnavailable branch")
+        case .semanticUnavailable:
+            break
+        }
+    }
+
+    func testSearchHistorySurfacesHttpErrorOneToOne() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            let body = #"{"error": "boom"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+
+        do {
+            _ = try await client.searchHistory(query: "x", limit: 10)
+            XCTFail("expected httpError")
+        } catch DaemonClientError.httpError(let code) {
+            XCTAssertEqual(code, 500)
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+    }
+
     func testTriggerWorkflowSendsBody() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
