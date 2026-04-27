@@ -252,6 +252,11 @@ describe("Telegram personal-assistant daemon integration", () => {
         throw new Error("not used");
       },
     } as unknown as Parameters<typeof startTelegramStatusPoll>[8];
+    const answerStub = {
+      async answer() {
+        throw new Error("not used");
+      },
+    } as unknown as Parameters<typeof startTelegramStatusPoll>[9];
     const telegramStatusChannel: ChannelDef = {
       name: "telegram-status-test",
       create(ctx) {
@@ -268,6 +273,7 @@ describe("Telegram personal-assistant daemon integration", () => {
               historyStub,
               tasksStub,
               recallStub,
+              answerStub,
               ctx.log,
             );
           },

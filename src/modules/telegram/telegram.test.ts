@@ -78,6 +78,7 @@ describe("telegramModule", () => {
 
   it("declares dependencies", () => {
     expect(telegramModule.dependencies).toEqual([
+      "answer",
       "approval-queue",
       "autonomy",
       "history",

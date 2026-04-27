@@ -3,14 +3,11 @@
 This directory owns the Telegram integration — interactive bot access and
 notification forwarding.
 
-- Contributes two daemon channels: `telegram-status` (responds to `/status`
-  with workflow state, to `/digest` with the on-demand daily digest, to
-  `/attention` with the on-demand attention digest, to `/knowledge <query>`
-  with a semantic-ranked knowledge search, to `/memory <query>` with a
-  semantic-ranked memory search, to `/history <query>` with a
-  semantic-ranked conversation search, to `/tasks <query>` with a
-  semantic-ranked repo-task-queue search, and to `/recall <query>` with
-  one ranked, source-tagged list across every registered store) and
+- Contributes two daemon channels: `telegram-status` (responds to
+  `/status`, `/digest`, `/attention`, the four per-store semantic
+  search commands `/knowledge`, `/memory`, `/history`, `/tasks`, the
+  unified `/recall <query>` cross-store list, and `/answer <query>`
+  for one composed answer plus typed citations) and
   `telegram-interactive` (hosts one agent session per chat). Both are
   started and stopped by the daemon alongside other channels.
 - The `/digest` command calls the daily-digest module's
@@ -30,38 +27,45 @@ notification forwarding.
   with the short fixed `NO_ATTENTION_ITEMS_TEXT` body so the operator can
   distinguish "nothing wrong" from "command failed". The body is
   operator-facing only and must not be exposed to autonomy agents.
-- The `/knowledge <query>`, `/memory <query>`, `/history <query>`, and
-  `/tasks <query>` commands expose the same semantic-search seams the
-  CLI and the matching `/api/*` route serve. Each calls
-  `ctx.client.<store>.search` with `{ semantic: true, limit: 10 }` and
-  renders results via the store's shared plain-text helper (no copy of
-  CLI rendering on the Telegram side). Empty / whitespace-only queries
-  reply with a usage hint and skip the store call. Empty results reply
-  with a fixed per-store body (`"No matching knowledge entries."`,
-  `"No matching memory entries."`, `"No matching conversations."`,
-  `"No matching tasks."`) so the operator can distinguish "nothing
-  matched" from "command failed". When no embedding-backed provider is
-  configured the search returns
+- Read commands (`/knowledge`, `/memory`, `/history`, `/tasks`,
+  `/recall`, `/answer`) are thin wrappers over their `KotaClient`
+  namespace and render through the owning module's plain-text helper —
+  no copy of CLI rendering on the Telegram side. Each is plain text
+  (titles, bodies, and synthesized prose can carry Markdown-active
+  characters), gated by the chat allowlist only (no quiet-hours
+  gating), advances no cadence counter, emits no workflow event,
+  surfaces no cost or token signal, and is operator-facing only — it
+  must not be exposed to autonomy agents in any prompt path.
+- The four per-store search commands call
+  `ctx.client.<store>.search` with `{ semantic: true, limit: 10 }`.
+  Empty / whitespace-only queries reply with a usage hint and skip
+  the store call. Empty results reply with a fixed per-store body
+  (`"No matching knowledge entries."`, `"No matching memory entries."`,
+  `"No matching conversations."`, `"No matching tasks."`) so the
+  operator can distinguish "nothing matched" from "command failed".
+  When no embedding-backed provider is configured the search returns
   `{ ok: false, reason: "semantic_unavailable" }` and the bot surfaces
   a one-line explanation instead of silently degrading to keyword
-  search. Replies are plain text (titles and bodies can carry
-  Markdown-active characters), are not gated by quiet hours, never
-  advance any cadence counter or emit a workflow event, and are
-  operator-facing only — they must not be exposed to autonomy agents
-  in any prompt path.
-- The `/recall <query>` command is the unified-recall entry point: it
-  is a thin wrapper over `ctx.client.recall.recall(query)` and renders
-  one ranked, source-tagged list spanning every registered store via
-  `renderRecallHitsPlain` from the recall module. `/recall` does not
-  fan out to per-store search seams — the recall seam already owns
-  merge, normalize, and ranking. Empty / whitespace-only queries reply
-  with a usage hint; an empty hit list replies with `"No matching
-  items."`; an `{ ok: false, reason: "semantic_unavailable" }` result
-  (no contributors registered) replies with `"Cross-store recall is
-  not configured: no contributors are registered."`. Like the
-  per-store commands, `/recall` is plain text, gated by the chat
-  allowlist only (no quiet-hours gating), advances no cadence counter,
-  emits no workflow event, and is operator-facing only.
+  search.
+- `/recall` is the unified-recall entry point — one ranked,
+  source-tagged list spanning every registered store. The recall seam
+  owns merge, normalize, and ranking; the Telegram handler does not
+  fan out to per-store search seams. Empty hits → `"No matching
+  items."`; `{ ok: false, reason: "semantic_unavailable" }` (no
+  contributors) → `"Cross-store recall is not configured: no
+  contributors are registered."`.
+- `/answer` is the cited-answer composition surface — one prose
+  answer plus typed citations, not a second recall path. It consumes
+  `ctx.client.answer.answer(query)` and renders the discriminated
+  `AnswerResult` exhaustively (success branch + the three `ok: false`
+  reasons, no `default` branch) reusing `renderAnswerCitationsPlain`
+  from the answer module. The seam owns retrieval delegation,
+  synthesis, citation parsing, and the one-retry policy; the handler
+  adds no second prompt, parser, retry, or budget. Failure bodies:
+  `no_hits` → `"No matching sources across the second brain — nothing
+  to synthesize."`, `semantic_unavailable` → `"Cross-store recall has
+  no registered contributors."`, `synthesis_failed` → `"Synthesis
+  failed (model unreachable or unable to cite resolvable sources)."`.
 - Contributes notification subscriptions for workflow events.
 - Optional event filters must not suppress urgent owner/approval escalation
   notifications.

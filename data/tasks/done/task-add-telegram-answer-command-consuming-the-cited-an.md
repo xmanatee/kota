@@ -1,12 +1,12 @@
 ---
 id: task-add-telegram-answer-command-consuming-the-cited-an
 title: Add Telegram /answer command consuming the cited-answer seam
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a Telegram /answer <query> command that consumes the cited-answer seam (KotaClient.answer) and renders one short prose answer followed by a typed citation list, mirroring the established Telegram /recall and per-store search commands. First single honest surface follow-up of the answer seam; macOS, mobile, and web adoption land later as separate tasks.
 created_at: 2026-04-27T11:10:27.684Z
-updated_at: 2026-04-27T11:10:27.684Z
+updated_at: 2026-04-27T11:23:15.264Z
 ---
 
 ## Problem
