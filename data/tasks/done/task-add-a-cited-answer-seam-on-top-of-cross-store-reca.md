@@ -1,12 +1,12 @@
 ---
 id: task-add-a-cited-answer-seam-on-top-of-cross-store-reca
 title: Add a cited-answer seam on top of cross-store recall returning one synthesized answer per query
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Extend the recall fan-out by adding an answer-synthesis seam: take one query, run cross-store recall, ask the model to compose one short cited answer with structured citation markers tied back to typed RecallHits, and expose it through one daemon route + one KotaClient namespace + one kota answer CLI subcommand. Surface fan-out (Telegram, web, macOS, mobile) lands as honest follow-ups, not as parallel chains seeded all at once.
 created_at: 2026-04-27T10:33:59.991Z
-updated_at: 2026-04-27T10:33:59.991Z
+updated_at: 2026-04-27T10:49:18.230Z
 ---
 
 ## Problem

@@ -627,6 +627,64 @@ export interface RecallClient {
 }
 
 /**
+ * Filter accepted by `AnswerClient.answer`. Forwarded to the underlying
+ * recall fan-out so callers can shrink the source pile the synthesizer
+ * sees. All fields share defaults with `RecallFilter`.
+ */
+export type AnswerFilter = RecallFilter;
+
+/**
+ * Typed citation marker emitted by the answer seam. Each citation is
+ * keyed by the same `{ source, id }` discriminator as the underlying
+ * `RecallHit`, so the response is always reconstructable against the
+ * `hits` list — no free-form prose pointers, no hallucinated sources.
+ */
+export type AnswerCitation = {
+  source: RecallSource;
+  id: string;
+};
+
+/**
+ * Result of `answer.answer`.
+ *
+ * `ok: true` carries one short composed answer with structured citations
+ * and the typed `RecallHit[]` they resolve against (a strict subset of the
+ * recall result the seam consumed).
+ *
+ * `ok: false` discriminates the three non-trivial failure modes:
+ *
+ * - `no_hits` — recall returned zero hits; nothing to synthesize.
+ * - `semantic_unavailable` — recall itself is unconfigured (forwarded
+ *   verbatim from the recall seam).
+ * - `synthesis_failed` — the model call failed or produced malformed
+ *   citations that survived the single allowed retry.
+ */
+export type AnswerResult =
+  | {
+      ok: true;
+      answer: string;
+      citations: AnswerCitation[];
+      hits: RecallHit[];
+    }
+  | {
+      ok: false;
+      reason: "no_hits" | "semantic_unavailable" | "synthesis_failed";
+    };
+
+/**
+ * Cited-answer operations.
+ *
+ * `answer(query, filter?)` runs the cross-store recall fan-out and asks
+ * the model for one short composed answer with typed `[source:id]`
+ * citation markers anchored back to the typed `RecallHit`s. The
+ * synthesizer retries once on malformed-citation output before
+ * surfacing `synthesis_failed` — never multiple silent calls per query.
+ */
+export interface AnswerClient {
+  answer(query: string, filter?: AnswerFilter): Promise<AnswerResult>;
+}
+
+/**
  * Workflow runtime operations.
  *
  * Reads (`listRuns`, `status`) work both daemon-up and daemon-down — the
@@ -1610,6 +1668,7 @@ export interface KotaClient {
   readonly doctor: DoctorClient;
   readonly evalHarness: EvalHarnessClient;
   readonly recall: RecallClient;
+  readonly answer: AnswerClient;
 }
 
 /**
@@ -1642,6 +1701,7 @@ export const KOTA_CLIENT_NAMESPACES = [
   "doctor",
   "evalHarness",
   "recall",
+  "answer",
 ] as const satisfies ReadonlyArray<keyof KotaClient>;
 
 export type KotaClientNamespace = (typeof KOTA_CLIENT_NAMESPACES)[number];

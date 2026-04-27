@@ -27,6 +27,9 @@ import type {
   AgentInspectResult,
   AgentsClient,
   AgentsListResult,
+  AnswerClient,
+  AnswerFilter,
+  AnswerResult,
   ApprovalsClient,
   AuditClient,
   AuditListFilter,
@@ -195,6 +198,7 @@ export class DaemonControlClient implements KotaClient {
   readonly doctor: DoctorClient;
   readonly evalHarness: EvalHarnessClient;
   readonly recall: RecallClient;
+  readonly answer: AnswerClient;
 
   private constructor(
     private readonly baseUrl: string,
@@ -491,6 +495,9 @@ export class DaemonControlClient implements KotaClient {
     this.recall = {
       recall: async (query, filter) => this.recallHttp(query, filter),
     };
+    this.answer = {
+      answer: async (query, filter) => this.answerHttp(query, filter),
+    };
   }
 
   private async recallHttp(query: string, filter?: RecallFilter): Promise<RecallResult> {
@@ -504,6 +511,19 @@ export class DaemonControlClient implements KotaClient {
       throw new Error(body.error ?? `HTTP ${res.status}`);
     }
     return (await res.json()) as RecallResult;
+  }
+
+  private async answerHttp(query: string, filter?: AnswerFilter): Promise<AnswerResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/answer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.authHeaders() },
+      body: JSON.stringify({ query, ...(filter && { filter }) }),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as AnswerResult;
   }
 
   private async listAuditHttp(filter?: AuditListFilter): Promise<AuditListResult> {

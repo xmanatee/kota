@@ -46,6 +46,7 @@ const NAMESPACE_OWNERS: Record<(typeof KOTA_CLIENT_NAMESPACES)[number], string> 
   doctor: "doctor",
   evalHarness: "eval-harness",
   recall: "recall",
+  answer: "answer",
 };
 
 function readModuleSource(name: string): string {

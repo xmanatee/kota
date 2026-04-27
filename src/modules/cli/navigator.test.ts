@@ -176,6 +176,9 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
     recall: {
       recall: stub({ ok: true, hits: [] }),
     },
+    answer: {
+      answer: stub({ ok: false, reason: "no_hits" }),
+    },
   };
   return { ...base, ...overrides };
 }
