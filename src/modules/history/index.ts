@@ -54,6 +54,27 @@ const historyModule: KotaModule = {
 					? { ok: true }
 					: { ok: false, reason: "not_found" };
 			},
+			async search(query, filter) {
+				const provider = getHistoryProvider();
+				const limit = filter?.limit ?? 20;
+				if (filter?.semantic) {
+					if (!provider.supportsSemanticSearch()) {
+						return { ok: false, reason: "semantic_unavailable" };
+					}
+					const conversations = await provider.semanticSearch(query, limit, {
+						cwd: filter.cwd,
+						source: filter.source,
+					});
+					return { ok: true, conversations };
+				}
+				const conversations = provider.list({
+					search: query,
+					limit,
+					cwd: filter?.cwd,
+					source: filter?.source,
+				});
+				return { ok: true, conversations };
+			},
 			async reindex() {
 				return getHistoryProvider().reindex();
 			},

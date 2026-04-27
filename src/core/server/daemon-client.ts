@@ -55,6 +55,8 @@ import type {
   HistoryListFilter,
   HistoryListResult,
   HistoryReindexResult,
+  HistorySearchFilter,
+  HistorySearchResult,
   HistoryShowResult,
   KnowledgeAddOptions,
   KnowledgeAddResult,
@@ -360,6 +362,7 @@ export class DaemonControlClient implements KotaClient {
       list: async (filter) => this.historyListHttp(filter),
       show: async (id) => this.historyShowHttp(id),
       delete: async (id) => this.historyDeleteHttp(id),
+      search: async (query, filter) => this.searchHistoryHttp(query, filter),
       reindex: async () => this.reindexHistoryHttp(),
     };
     this.knowledge = {
@@ -1050,6 +1053,27 @@ export class DaemonControlClient implements KotaClient {
       throw new Error(body.error ?? `HTTP ${res.status}`);
     }
     return (await res.json()) as HistoryReindexResult;
+  }
+
+  private async searchHistoryHttp(
+    query: string,
+    filter?: HistorySearchFilter,
+  ): Promise<HistorySearchResult> {
+    const params = new URLSearchParams();
+    params.set("q", query);
+    if (filter?.cwd) params.set("cwd", filter.cwd);
+    if (filter?.source) params.set("source", filter.source);
+    if (filter?.semantic) params.set("semantic", "true");
+    if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/api/history/search?${params.toString()}`,
+      { headers: this.authHeaders() },
+    );
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as HistorySearchResult;
   }
 
   private async answerOwnerQuestionHttp(

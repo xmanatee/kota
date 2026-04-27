@@ -1,12 +1,12 @@
 ---
 id: task-add-daemon-http-apihistorysearch-semantic-search-r
 title: Add daemon HTTP /api/history/search semantic search route consuming HistoryProvider.semanticSearch
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a /api/history/search route mirroring /api/memory/search — discriminated { ok: true, conversations } | { ok: false, reason: 'semantic_unavailable' } envelope, fed by HistoryProvider.semanticSearch when ?semantic=true and supportsSemanticSearch is true — so operator clients can fan out conversation recall the same way memory and knowledge already are.
 created_at: 2026-04-27T03:01:37.975Z
-updated_at: 2026-04-27T03:01:37.975Z
+updated_at: 2026-04-27T03:11:47.189Z
 ---
 
 ## Problem

@@ -405,6 +405,24 @@ export type HistoryDeleteResult =
 /** Result of `history.reindex`. Mirrors the provider's `ReindexResult`. */
 export type HistoryReindexResult = ReindexResult;
 
+/** Filter for `history.search`. */
+export type HistorySearchFilter = {
+  cwd?: string;
+  source?: "user" | "action";
+  semantic?: boolean;
+  limit?: number;
+};
+
+/**
+ * Result of `history.search`. Semantic ranking requires an embedding-backed
+ * provider; when the caller asks for `semantic: true` and the active provider
+ * cannot satisfy that, the contract surfaces an explicit
+ * `semantic_unavailable` rather than silently falling back to keyword search.
+ */
+export type HistorySearchResult =
+  | { ok: true; conversations: ConversationRecord[] }
+  | { ok: false; reason: "semantic_unavailable" };
+
 /** Knowledge storage scope. Mirrors `SearchFilters.scope` in provider types. */
 export type KnowledgeScope = "project" | "global" | "all";
 
@@ -635,6 +653,14 @@ export interface HistoryClient {
   list(filter?: HistoryListFilter): Promise<HistoryListResult>;
   show(id: string): Promise<HistoryShowResult>;
   delete(id: string): Promise<HistoryDeleteResult>;
+  /**
+   * Run semantic or keyword search across stored conversations. Semantic
+   * ranking requires an embedding-backed provider; when the caller asks for
+   * `semantic: true` and the active provider cannot satisfy that, the
+   * contract surfaces an explicit `semantic_unavailable` rather than silently
+   * falling back to keyword search.
+   */
+  search(query: string, filter?: HistorySearchFilter): Promise<HistorySearchResult>;
   /** Rebuild the semantic index over all conversations when the active provider supports it. */
   reindex(): Promise<HistoryReindexResult>;
 }

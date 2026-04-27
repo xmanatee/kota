@@ -81,6 +81,36 @@ export async function handleGetHistory(
   }
 }
 
+export async function handleSearchHistory(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const url = new URL(req.url ?? "", "http://localhost");
+  const query = url.searchParams.get("q") ?? "";
+  const cwd = url.searchParams.get("cwd") ?? undefined;
+  const sourceParam = url.searchParams.get("source") ?? undefined;
+  const source =
+    sourceParam === "user" || sourceParam === "action" ? sourceParam : undefined;
+  const semantic = url.searchParams.get("semantic") === "true";
+  const limitParam = url.searchParams.get("limit");
+  const limit = limitParam
+    ? Math.max(1, Number.parseInt(limitParam, 10) || 0)
+    : 20;
+  try {
+    const provider = getHistoryProvider();
+    if (semantic && !provider.supportsSemanticSearch()) {
+      jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
+      return;
+    }
+    const conversations = semantic
+      ? await provider.semanticSearch(query, limit, { cwd, source })
+      : provider.list({ search: query, limit, cwd, source });
+    jsonResponse(res, 200, { ok: true, conversations });
+  } catch (err) {
+    jsonResponse(res, 500, { error: (err as Error).message });
+  }
+}
+
 export async function handleDeleteHistory(
   _req: IncomingMessage,
   res: ServerResponse,
@@ -116,6 +146,11 @@ export function historyRoutes(): RouteRegistration[] {
         const url = new URL(req.url!, `http://localhost`);
         return handleListHistory(res, url, DaemonControlClient.fromStateDir());
       },
+    },
+    {
+      method: "GET",
+      path: "/api/history/search",
+      handler: (req, res) => handleSearchHistory(req, res),
     },
     {
       method: "GET",
