@@ -83,6 +83,10 @@ final class AppState: ObservableObject {
     @Published var tasksResult: TasksSearchResponse?
     @Published var tasksError: String?
     @Published var isLoadingTasksSearch: Bool = false
+    @Published var recallQuery: String = ""
+    @Published var recallResult: RecallSearchResponse?
+    @Published var recallError: String?
+    @Published var isLoadingRecall: Bool = false
     @Published var projectDir: URL? {
         didSet {
             if let dir = projectDir {
@@ -226,6 +230,9 @@ final class AppState: ObservableObject {
         tasksResult = nil
         tasksError = nil
         isLoadingTasksSearch = false
+        recallResult = nil
+        recallError = nil
+        isLoadingRecall = false
     }
 
     /// Pulls the on-demand 24h rollup from `/api/digest`. Errors land in
@@ -356,6 +363,38 @@ final class AppState: ObservableObject {
             tasksError = error.localizedDescription
         }
         isLoadingTasksSearch = false
+    }
+
+    /// Pulls cross-store recall results from the daemon's `POST /recall`
+    /// route. Empty / whitespace-only queries clear any prior result and skip
+    /// the request — the view surfaces the inline usage hint instead. Failures
+    /// land in `recallError`; the typed `semanticUnavailable` branch lands in
+    /// `recallResult` so the view renders the daemon's explanation without
+    /// retrying the request. `topK`, `minScore`, and `sources` are left nil so
+    /// the seam applies its own typed defaults (every registered contributor,
+    /// `RECALL_DEFAULT_TOP_K = 20`, no min-score floor).
+    func loadRecall() async {
+        let trimmed = recallQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            recallResult = nil
+            recallError = nil
+            isLoadingRecall = false
+            return
+        }
+        isLoadingRecall = true
+        recallError = nil
+        do {
+            recallResult = try await client.recall(
+                query: trimmed,
+                topK: nil,
+                minScore: nil,
+                sources: nil
+            )
+        } catch {
+            recallResult = nil
+            recallError = error.localizedDescription
+        }
+        isLoadingRecall = false
     }
 
     private func fetchAll() async {

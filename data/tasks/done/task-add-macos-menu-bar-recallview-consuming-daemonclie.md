@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-menu-bar-recallview-consuming-daemonclie
 title: Add macOS menu-bar RecallView consuming DaemonClient.recall
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a SwiftUI menu-bar RecallView in clients/macos/Sources/KotaMenuBar/ that consumes the just-landed DaemonClient.recall and renders the four discriminated RecallHit arms, closing macOS parity in the recall fan-out.
 created_at: 2026-04-27T09:25:53.222Z
-updated_at: 2026-04-27T09:25:53.222Z
+updated_at: 2026-04-27T09:32:22.259Z
 ---
 
 ## Problem

@@ -45,6 +45,9 @@ struct MenuBarView: View {
             // Repo task search (on-demand /tasks/search)
             TaskSearchView()
 
+            // Cross-store recall (on-demand POST /recall)
+            RecallView()
+
             // Task queue
             TaskQueueView()
 
