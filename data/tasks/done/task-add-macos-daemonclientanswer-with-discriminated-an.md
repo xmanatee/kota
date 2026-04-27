@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-daemonclientanswer-with-discriminated-an
 title: Add macOS DaemonClient.answer with discriminated AnswerResult types and unit tests
-status: ready
+status: done
 priority: p2
 area: client
 summary: Wire the daemon contract layer for the cited-answer seam into the macOS menu-bar client: add the AnswerCitation struct and discriminated AnswerResult union to Models.swift, add a typed answer(query:topK:minScore:sources:) method to DaemonClient.swift that targets POST /answer, mirror renderAnswerCitationsPlain in Swift, and pair the five DaemonClientTests cases (synthesized success spanning two source arms, no_hits, semantic_unavailable, synthesis_failed, typed HTTP error) so the follow-up macOS AnswerView and mobile AnswerScreen subtasks consume a tested seam.
 created_at: 2026-04-27T12:17:25.429Z
-updated_at: 2026-04-27T12:17:25.429Z
+updated_at: 2026-04-27T12:23:48.103Z
 ---
 
 ## Problem

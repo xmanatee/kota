@@ -279,6 +279,50 @@ final class DaemonClient {
         }
     }
 
+    /// Targets the daemon's `POST /answer` daemon-control route (not under
+    /// `/api/`) and decodes the discriminated four-arm `AnswerResult`:
+    /// one synthesized-success arm carrying `answer`, `citations`, and the
+    /// typed `RecallHit[]` they resolve against, plus three `ok: false`
+    /// failure arms (`no_hits`, `semantic_unavailable`, `synthesis_failed`).
+    /// The request body is built via `JSONEncoder` against the shared
+    /// `RecallRequestBody`, which only emits optional filter fields
+    /// (`topK`, `minScore`, `sources`) when set so the seam applies its own
+    /// typed defaults. HTTP errors surface one-to-one as
+    /// `DaemonClientError.httpError`.
+    func answer(
+        query: String,
+        topK: Int?,
+        minScore: Double?,
+        sources: [String]?
+    ) async throws -> AnswerResult {
+        guard let conn = connection else { throw DaemonClientError.notConnected }
+        guard var components = URLComponents(url: conn.baseURL, resolvingAgainstBaseURL: false) else {
+            throw DaemonClientError.notConnected
+        }
+        components.path = "/answer"
+        guard let url = components.url else { throw DaemonClientError.notConnected }
+        let body = try JSONEncoder().encode(
+            RecallRequestBody(
+                query: query,
+                filter: RecallRequestFilter(topK: topK, minScore: minScore, sources: sources)
+            )
+        )
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw DaemonClientError.httpError(http.statusCode)
+        }
+        do {
+            return try decoder.decode(AnswerResult.self, from: data)
+        } catch {
+            throw DaemonClientError.decodingError(error)
+        }
+    }
+
     func invokeSlashCommand(name: String) async throws -> InvokeCommandResponse {
         let body = try JSONEncoder().encode(InvokeCommandRequest(name: name))
         return try await post("/commands/invoke", body: body)

@@ -1228,6 +1228,204 @@ final class DaemonClientTests: XCTestCase {
         }
     }
 
+    func testAnswerDecodesSynthesizedSuccessAcrossArms() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/answer")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+            let body = request.readBody()
+            XCTAssertNotNil(body)
+            let obj = try? JSONSerialization.jsonObject(with: body!) as? [String: Any]
+            XCTAssertEqual(obj?["query"] as? String, "what am i tracking about recall?")
+            let filter = obj?["filter"] as? [String: Any]
+            XCTAssertEqual(filter?["topK"] as? Int, 8)
+            XCTAssertEqual(filter?["minScore"] as? Double, 0.3)
+            XCTAssertEqual(filter?["sources"] as? [String], ["knowledge", "memory"])
+            let respBody = #"""
+            {"ok": true,
+             "answer": "Recall is the cross-store seam [knowledge:k-1] used by every surface [memory:m-1].",
+             "citations": [
+               {"source": "knowledge", "id": "k-1"},
+               {"source": "memory", "id": "m-1"}
+             ],
+             "hits": [
+               {
+                 "source": "knowledge",
+                 "score": 0.91,
+                 "id": "k-1",
+                 "title": "Cross-store recall seam",
+                 "preview": "Cross-store recall seam preview",
+                 "updated": "2026-04-26T12:34:56Z"
+               },
+               {
+                 "source": "memory",
+                 "score": 0.72,
+                 "id": "m-1",
+                 "preview": "Operator-pull parity",
+                 "created": "2026-04-25T08:00:00Z"
+               }
+             ]}
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.answer(
+            query: "what am i tracking about recall?",
+            topK: 8,
+            minScore: 0.3,
+            sources: ["knowledge", "memory"]
+        )
+        switch result {
+        case .success(let answer, let citations, let hits):
+            XCTAssertEqual(
+                answer,
+                "Recall is the cross-store seam [knowledge:k-1] used by every surface [memory:m-1]."
+            )
+            XCTAssertEqual(citations.count, 2)
+            XCTAssertEqual(citations[0].source, "knowledge")
+            XCTAssertEqual(citations[0].id, "k-1")
+            XCTAssertEqual(citations[1].source, "memory")
+            XCTAssertEqual(citations[1].id, "m-1")
+            XCTAssertEqual(hits.count, 2)
+            guard case let .knowledge(score, id, title, preview, updated) = hits[0] else {
+                XCTFail("expected knowledge arm at [0], got \(hits[0])"); return
+            }
+            XCTAssertEqual(score, 0.91, accuracy: 1e-6)
+            XCTAssertEqual(id, "k-1")
+            XCTAssertEqual(title, "Cross-store recall seam")
+            XCTAssertEqual(preview, "Cross-store recall seam preview")
+            XCTAssertEqual(updated, "2026-04-26T12:34:56Z")
+            guard case let .memory(_, mid, mpreview, mcreated) = hits[1] else {
+                XCTFail("expected memory arm at [1], got \(hits[1])"); return
+            }
+            XCTAssertEqual(mid, "m-1")
+            XCTAssertEqual(mpreview, "Operator-pull parity")
+            XCTAssertEqual(mcreated, "2026-04-25T08:00:00Z")
+        case .noHits, .semanticUnavailable, .synthesisFailed:
+            XCTFail("expected success branch")
+        }
+    }
+
+    func testAnswerDecodesNoHits() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/answer")
+            XCTAssertEqual(request.httpMethod, "POST")
+            let body = request.readBody()
+            XCTAssertNotNil(body)
+            let obj = try? JSONSerialization.jsonObject(with: body!) as? [String: Any]
+            XCTAssertEqual(obj?["query"] as? String, "no-match")
+            let filter = obj?["filter"] as? [String: Any]
+            XCTAssertNotNil(filter)
+            XCTAssertNil(filter?["topK"])
+            XCTAssertNil(filter?["minScore"])
+            XCTAssertNil(filter?["sources"])
+            let respBody = #"{"ok": false, "reason": "no_hits"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.answer(query: "no-match", topK: nil, minScore: nil, sources: nil)
+        switch result {
+        case .noHits:
+            break
+        case .success, .semanticUnavailable, .synthesisFailed:
+            XCTFail("expected noHits branch")
+        }
+    }
+
+    func testAnswerDecodesSemanticUnavailable() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/answer")
+            let respBody = #"{"ok": false, "reason": "semantic_unavailable"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.answer(query: "anything", topK: nil, minScore: nil, sources: nil)
+        switch result {
+        case .semanticUnavailable:
+            break
+        case .success, .noHits, .synthesisFailed:
+            XCTFail("expected semanticUnavailable branch")
+        }
+    }
+
+    func testAnswerDecodesSynthesisFailed() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/answer")
+            let respBody = #"{"ok": false, "reason": "synthesis_failed"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.answer(query: "anything", topK: nil, minScore: nil, sources: nil)
+        switch result {
+        case .synthesisFailed:
+            break
+        case .success, .noHits, .semanticUnavailable:
+            XCTFail("expected synthesisFailed branch")
+        }
+    }
+
+    func testAnswerSurfacesHttpErrorOneToOne() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            let respBody = #"{"error": "boom"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+
+        do {
+            _ = try await client.answer(query: "x", topK: nil, minScore: nil, sources: nil)
+            XCTFail("expected httpError")
+        } catch DaemonClientError.httpError(let code) {
+            XCTAssertEqual(code, 500)
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+    }
+
     func testTriggerWorkflowSendsBody() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }

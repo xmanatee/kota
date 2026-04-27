@@ -723,11 +723,15 @@ enum TasksSearchResponse: Decodable, Equatable {
 
 // MARK: - Cross-store recall
 
-/// Request body for `POST /recall`, mirrored exactly from the daemon
-/// route's accepted shape (`src/modules/recall/routes.ts:50-86`):
-/// `{ "query": <string>, "filter": { "topK"?, "minScore"?, "sources"? } }`.
-/// Optional filter fields are encoded only when set so the seam applies
-/// its own typed defaults; nil values omit the key entirely (no `null`).
+/// Request body shape shared by `POST /recall`
+/// (`src/modules/recall/routes.ts:50-86`) and `POST /answer`
+/// (`src/modules/answer/routes.ts:48-77`). The daemon defines
+/// `AnswerFilter = RecallFilter` (`src/core/server/kota-client.ts:634`)
+/// so the wire shape is identical: `{ "query": <string>, "filter":
+/// { "topK"?, "minScore"?, "sources"? } }`. Optional filter fields are
+/// encoded only when set so each seam applies its own typed defaults;
+/// nil values omit the key entirely (no `null`) via Swift's synthesized
+/// `encodeIfPresent` for Optional Codable members.
 struct RecallRequestFilter: Encodable {
     let topK: Int?
     let minScore: Double?
@@ -884,6 +888,107 @@ enum RecallSearchResponse: Decodable, Equatable {
                 forKey: .reason,
                 in: container,
                 debugDescription: "Unknown recall reason: \(reason)"
+            )
+        }
+    }
+}
+
+// MARK: - Cited answer
+
+/// Mirror of the daemon's `AnswerCitation` shape
+/// (`src/core/server/kota-client.ts:642-645`):
+/// `{ source: RecallSource, id: string }`. Each citation is keyed by the
+/// same `{ source, id }` discriminator as the underlying `RecallHit` so
+/// the response is always reconstructable against the `hits` list — no
+/// free-form prose pointers, no hallucinated sources. `source` decodes
+/// to the same string discriminator the existing `RecallHit` arms use
+/// (`"knowledge" | "memory" | "history" | "tasks"`).
+struct AnswerCitation: Codable, Equatable {
+    let source: String
+    let id: String
+}
+
+/// Renders cited-answer citations one-to-one with the shared
+/// `renderAnswerCitationsPlain` helper exported by
+/// `src/modules/answer/render.ts:32-53`: each citation is resolved
+/// against the typed `RecallHit` list by `{ source, id }`, unresolved
+/// rows are dropped, source column is padded to the widest source
+/// (min width 6), id column is padded to the widest id (min width 2),
+/// score column is right-padded to width 5 (`0.xxx`), columns joined
+/// by two spaces, and the per-source title comes from the arm-specific
+/// helper (`title` for knowledge/history, `preview` for memory,
+/// `[state/priority] title` for tasks). An empty citation list — or
+/// a list whose every entry fails to resolve — returns the empty
+/// string. Sharing this helper keeps the macOS menu bar body identical
+/// to the CLI, Telegram, and web `AnswerPanel` surfaces.
+func renderAnswerCitationsPlain(
+    _ citations: [AnswerCitation],
+    hits: [RecallHit]
+) -> String {
+    if citations.isEmpty { return "" }
+    var byKey: [String: RecallHit] = [:]
+    for hit in hits {
+        byKey["\(hit.source):\(hit.id)"] = hit
+    }
+    let rows: [RecallHit] = citations.compactMap { byKey["\($0.source):\($0.id)"] }
+    if rows.isEmpty { return "" }
+    let sourceWidth = max(rows.map { $0.source.count }.max() ?? 0, 6)
+    let idWidth = max(rows.map { $0.id.count }.max() ?? 0, 2)
+    let scoreWidth = 5
+    return rows.map { hit in
+        let source = hit.source.padding(toLength: sourceWidth, withPad: " ", startingAt: 0)
+        let scoreStr = String(format: "%.3f", hit.score)
+        let score = String(repeating: " ", count: max(0, scoreWidth - scoreStr.count)) + scoreStr
+        let id = hit.id.padding(toLength: idWidth, withPad: " ", startingAt: 0)
+        return "\(source)  \(score)  \(id)  \(hit.describe)"
+    }.joined(separator: "\n")
+}
+
+/// Discriminated mirror of the daemon's `POST /answer` response
+/// (`src/core/server/kota-client.ts:662-672`): one synthesized-success
+/// arm carrying `answer`, `citations`, and the typed `RecallHit[]` they
+/// resolve against, plus three `ok: false` failure arms tagged by
+/// `reason`. Strict decode so payload drift fails loudly instead of
+/// silently degrading the rendered surface.
+///
+/// - `noHits` — recall returned zero hits; nothing to synthesize.
+/// - `semanticUnavailable` — recall itself is unconfigured (forwarded
+///   verbatim from the recall seam).
+/// - `synthesisFailed` — the model call failed or produced malformed
+///   citations that survived the single allowed retry.
+enum AnswerResult: Decodable, Equatable {
+    case success(answer: String, citations: [AnswerCitation], hits: [RecallHit])
+    case noHits
+    case semanticUnavailable
+    case synthesisFailed
+
+    private enum CodingKeys: String, CodingKey {
+        case ok, answer, citations, hits, reason
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let ok = try container.decode(Bool.self, forKey: .ok)
+        if ok {
+            let answer = try container.decode(String.self, forKey: .answer)
+            let citations = try container.decode([AnswerCitation].self, forKey: .citations)
+            let hits = try container.decode([RecallHit].self, forKey: .hits)
+            self = .success(answer: answer, citations: citations, hits: hits)
+            return
+        }
+        let reason = try container.decode(String.self, forKey: .reason)
+        switch reason {
+        case "no_hits":
+            self = .noHits
+        case "semantic_unavailable":
+            self = .semanticUnavailable
+        case "synthesis_failed":
+            self = .synthesisFailed
+        default:
+            throw DecodingError.dataCorruptedError(
+                forKey: .reason,
+                in: container,
+                debugDescription: "Unknown answer reason: \(reason)"
             )
         }
     }
