@@ -10,6 +10,7 @@ import type {
   OwnerQuestion,
   RunSummary,
   TasksResponse,
+  TasksSearchResponse,
 } from '../types';
 
 function makeApproval(overrides: Partial<Approval> = {}): Approval {
@@ -581,6 +582,123 @@ describe('reducer', () => {
     expect(withResult.historyResult).toBe(result);
     const offline = reducer(withResult, { type: 'ONLINE', online: false });
     expect(offline.historyResult).toBeNull();
+  });
+
+  test('TASKS_QUERY_SET stores the query without touching results or loading flags', () => {
+    const next = reducer(initialState, {
+      type: 'TASKS_QUERY_SET',
+      query: 'autonomy',
+    });
+    expect(next.tasksQuery).toBe('autonomy');
+    expect(next.tasksResult).toBeNull();
+    expect(next.tasksLoading).toBe(false);
+    expect(next.tasksError).toBeNull();
+  });
+
+  test('TASKS_LOADING records the in-flight query and clears prior error', () => {
+    const withError = reducer(initialState, {
+      type: 'TASKS_ERROR',
+      error: 'boom',
+    });
+    expect(withError.tasksError).toBe('boom');
+    const next = reducer(withError, {
+      type: 'TASKS_LOADING',
+      query: 'autonomy',
+    });
+    expect(next.tasksLoading).toBe(true);
+    expect(next.tasksError).toBeNull();
+    expect(next.tasksQuery).toBe('autonomy');
+  });
+
+  test('TASKS_RESULT stores a populated payload and clears loading/error', () => {
+    const result: TasksSearchResponse = {
+      ok: true,
+      tasks: [
+        {
+          id: 'task-foo',
+          title: 'Add foo',
+          state: 'ready',
+          priority: 'p2',
+          area: 'client',
+          summary: 'Add foo to the surface',
+          updatedAt: '2026-04-26T12:00:00.000Z',
+          score: 0.91,
+        },
+      ],
+    };
+    const loading = reducer(initialState, {
+      type: 'TASKS_LOADING',
+      query: 'autonomy',
+    });
+    const next = reducer(loading, { type: 'TASKS_RESULT', result });
+    expect(next.tasksResult).toBe(result);
+    expect(next.tasksLoading).toBe(false);
+    expect(next.tasksError).toBeNull();
+  });
+
+  test('TASKS_RESULT preserves the semantic-unavailable branch verbatim', () => {
+    const result: TasksSearchResponse = {
+      ok: false,
+      reason: 'semantic_unavailable',
+    };
+    const next = reducer(initialState, { type: 'TASKS_RESULT', result });
+    expect(next.tasksResult).toEqual({
+      ok: false,
+      reason: 'semantic_unavailable',
+    });
+    expect(next.tasksLoading).toBe(false);
+    expect(next.tasksError).toBeNull();
+  });
+
+  test('TASKS_ERROR clears stale tasks result', () => {
+    const result: TasksSearchResponse = {
+      ok: true,
+      tasks: [
+        {
+          id: 'task-foo',
+          title: 'Add foo',
+          state: 'ready',
+          priority: 'p2',
+          area: 'client',
+          summary: 'Add foo to the surface',
+          updatedAt: '2026-04-26T12:00:00.000Z',
+          score: 0.91,
+        },
+      ],
+    };
+    const withResult = reducer(initialState, {
+      type: 'TASKS_RESULT',
+      result,
+    });
+    const next = reducer(withResult, { type: 'TASKS_ERROR', error: '503' });
+    expect(next.tasksResult).toBeNull();
+    expect(next.tasksError).toBe('503');
+    expect(next.tasksLoading).toBe(false);
+  });
+
+  test('ONLINE false drops cached tasks result so it cannot persist across an offline transition', () => {
+    const result: TasksSearchResponse = {
+      ok: true,
+      tasks: [
+        {
+          id: 'task-foo',
+          title: 'Add foo',
+          state: 'ready',
+          priority: 'p2',
+          area: 'client',
+          summary: 'Add foo to the surface',
+          updatedAt: '2026-04-26T12:00:00.000Z',
+          score: 0.91,
+        },
+      ],
+    };
+    const withResult = reducer(initialState, {
+      type: 'TASKS_RESULT',
+      result,
+    });
+    expect(withResult.tasksResult).toBe(result);
+    const offline = reducer(withResult, { type: 'ONLINE', online: false });
+    expect(offline.tasksResult).toBeNull();
   });
 
   test('OWNER_QUESTIONS recomputes pending count', () => {

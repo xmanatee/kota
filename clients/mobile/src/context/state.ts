@@ -9,6 +9,7 @@ import type {
   OwnerQuestion,
   RunSummary,
   TasksResponse,
+  TasksSearchResponse,
 } from '../types';
 
 export interface DaemonState {
@@ -44,6 +45,10 @@ export interface DaemonState {
   historyResult: HistorySearchResponse | null;
   historyLoading: boolean;
   historyError: string | null;
+  tasksQuery: string;
+  tasksResult: TasksSearchResponse | null;
+  tasksLoading: boolean;
+  tasksError: string | null;
 }
 
 export type DaemonAction =
@@ -77,7 +82,11 @@ export type DaemonAction =
   | { type: 'HISTORY_QUERY_SET'; query: string }
   | { type: 'HISTORY_LOADING'; query: string }
   | { type: 'HISTORY_RESULT'; result: HistorySearchResponse }
-  | { type: 'HISTORY_ERROR'; error: string };
+  | { type: 'HISTORY_ERROR'; error: string }
+  | { type: 'TASKS_QUERY_SET'; query: string }
+  | { type: 'TASKS_LOADING'; query: string }
+  | { type: 'TASKS_RESULT'; result: TasksSearchResponse }
+  | { type: 'TASKS_ERROR'; error: string };
 
 export const initialState: DaemonState = {
   daemonUrl: '',
@@ -112,6 +121,10 @@ export const initialState: DaemonState = {
   historyResult: null,
   historyLoading: false,
   historyError: null,
+  tasksQuery: '',
+  tasksResult: null,
+  tasksLoading: false,
+  tasksError: null,
 };
 
 export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
@@ -150,6 +163,9 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         historyResult: action.online ? state.historyResult : null,
         historyError: action.online ? state.historyError : null,
         historyLoading: action.online ? state.historyLoading : false,
+        tasksResult: action.online ? state.tasksResult : null,
+        tasksError: action.online ? state.tasksError : null,
+        tasksLoading: action.online ? state.tasksLoading : false,
       };
     case 'SSE_STATUS':
       return { ...state, sseConnected: action.connected };
@@ -275,6 +291,29 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         historyLoading: false,
         historyError: action.error,
         historyResult: null,
+      };
+    case 'TASKS_QUERY_SET':
+      return { ...state, tasksQuery: action.query };
+    case 'TASKS_LOADING':
+      return {
+        ...state,
+        tasksQuery: action.query,
+        tasksLoading: true,
+        tasksError: null,
+      };
+    case 'TASKS_RESULT':
+      return {
+        ...state,
+        tasksResult: action.result,
+        tasksLoading: false,
+        tasksError: null,
+      };
+    case 'TASKS_ERROR':
+      return {
+        ...state,
+        tasksLoading: false,
+        tasksError: action.error,
+        tasksResult: null,
       };
   }
 }

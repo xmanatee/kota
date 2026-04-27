@@ -24,6 +24,7 @@ import { RunListScreen } from '../screens/RunListScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { StatusScreen } from '../screens/StatusScreen';
 import { TaskQueueScreen } from '../screens/TaskQueueScreen';
+import { TaskSearchScreen } from '../screens/TaskSearchScreen';
 import { routeNotificationResponse } from './routeNotificationResponse';
 
 export type StatusStackParams = {
@@ -53,6 +54,7 @@ export type TabParams = {
   Approvals: NavigatorScreenParams<ApprovalsStackParams> | undefined;
   Questions: undefined;
   Tasks: undefined;
+  TaskSearch: undefined;
   Attention: undefined;
   Digest: undefined;
   Knowledge: undefined;
@@ -244,6 +246,11 @@ export function AppNavigator() {
           name="Tasks"
           component={TaskQueueScreen}
           options={{ tabBarIcon: () => <Text>📌</Text>, headerShown: true, title: 'Tasks' }}
+        />
+        <Tab.Screen
+          name="TaskSearch"
+          component={TaskSearchScreen}
+          options={{ tabBarIcon: () => <Text>🔎</Text>, headerShown: true, title: 'Task Search' }}
         />
         <Tab.Screen
           name="Attention"

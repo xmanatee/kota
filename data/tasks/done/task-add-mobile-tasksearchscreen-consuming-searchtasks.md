@@ -1,12 +1,12 @@
 ---
 id: task-add-mobile-tasksearchscreen-consuming-searchtasks
 title: Add mobile TaskSearchScreen consuming searchTasks
-status: backlog
+status: done
 priority: p2
 area: client
 summary: Add a TaskSearchScreen in the mobile client (mirroring HistoryScreen, MemoryScreen, KnowledgeScreen) that calls GET /tasks/search through the mobile daemon HTTP client, exposes search state on DaemonContext, and renders the same per-task id/state/priority/title line shape the four other repo-task-search surfaces emit, closing the operator-pull parity loop for the tasks-semantic fan-out across Telegram, daemon, CLI, macOS DaemonClient, macOS TaskSearchView, and mobile.
 created_at: 2026-04-27T06:30:52.806Z
-updated_at: 2026-04-27T06:30:52.806Z
+updated_at: 2026-04-27T07:00:28.647Z
 ---
 
 ## Problem

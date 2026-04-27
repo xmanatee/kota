@@ -495,6 +495,77 @@ describe('DaemonClient', () => {
     await expect(client().searchHistory('x')).rejects.toThrow('503');
   });
 
+  test('searchTasks encodes query/semantic/limit and decodes the success branch', async () => {
+    const success = {
+      ok: true,
+      tasks: [
+        {
+          id: 'task-foo',
+          title: 'Add foo',
+          state: 'ready',
+          priority: 'p2',
+          area: 'client',
+          summary: 'Add foo to the surface',
+          updatedAt: '2026-04-26T12:00:00.000Z',
+          score: 0.91,
+        },
+        {
+          id: 'task-bar',
+          title: 'Polish bar',
+          state: 'backlog',
+          priority: 'p3',
+          area: 'core',
+          summary: 'Polish bar edges',
+          updatedAt: '2026-04-25T18:30:00.000Z',
+          score: 0.42,
+        },
+      ],
+    };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(success));
+    const res = await client().searchTasks('autonomy loop', 10);
+    expect(lastCall()[0]).toBe(
+      `${baseUrl}/tasks/search?q=autonomy+loop&semantic=true&limit=10`,
+    );
+    expect(lastHeaders().Authorization).toBe(`Bearer ${token}`);
+    expect(res).toEqual(success);
+  });
+
+  test('searchTasks decodes the semantic-unavailable branch verbatim', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, reason: 'semantic_unavailable' }),
+    );
+    const res = await client().searchTasks('anything');
+    expect(res).toEqual({ ok: false, reason: 'semantic_unavailable' });
+  });
+
+  test('searchTasks defaults limit to 10', async () => {
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ ok: true, tasks: [] }));
+    await client().searchTasks('x');
+    const url = lastCall()[0] as string;
+    expect(url).toContain('limit=10');
+  });
+
+  test('searchTasks rejects an unknown reason loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, reason: 'mystery' }),
+    );
+    await expect(client().searchTasks('x')).rejects.toThrow(/mystery/);
+  });
+
+  test('searchTasks rejects a malformed task hit loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: true, tasks: [{ id: 'task-foo' }] }),
+    );
+    await expect(client().searchTasks('x')).rejects.toThrow(/repo task hit/i);
+  });
+
+  test('searchTasks surfaces the daemon HTTP error one-to-one', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response('', { status: 503, statusText: 'Service Unavailable' }),
+    );
+    await expect(client().searchTasks('x')).rejects.toThrow('503');
+  });
+
   test('health hits /health without auth header (public endpoint)', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({ status: 'ok', version: '1', uptimeMs: 1, components: {} }));
     await client().health();

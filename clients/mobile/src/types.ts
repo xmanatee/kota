@@ -370,3 +370,35 @@ export interface ConversationRecord {
 export type HistorySearchResponse =
   | { ok: true; conversations: ConversationRecord[] }
   | { ok: false; reason: 'semantic_unavailable' };
+
+/**
+ * Mirror of a single search hit returned by the daemon's
+ * `GET /tasks/search` route. Decoding is restricted to the eight fields
+ * the shared `renderRepoTaskSearchPlain` helper consumes
+ * (`src/modules/repo-tasks/render.ts` and the `RepoTaskSearchHit` shape
+ * in `src/core/modules/provider-types.ts`) so the mobile surface speaks
+ * the same line shape as Telegram, the CLI, the daemon HTTP route, and
+ * the macOS menu bar.
+ */
+export interface RepoTaskSearchHit {
+  id: string;
+  title: string;
+  state: string;
+  priority: string;
+  area: string;
+  summary: string;
+  updatedAt: string;
+  score: number;
+}
+
+/**
+ * Discriminated mirror of the daemon's `GET /tasks/search` response:
+ * `{ ok: true, tasks: RepoTaskSearchHit[] }` on success and
+ * `{ ok: false, reason: "semantic_unavailable" }` when the configured
+ * `repo-tasks` provider does not support semantic search. Strict so
+ * payload drift fails loudly instead of silently degrading the rendered
+ * surface.
+ */
+export type TasksSearchResponse =
+  | { ok: true; tasks: RepoTaskSearchHit[] }
+  | { ok: false; reason: 'semantic_unavailable' };

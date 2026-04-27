@@ -13,10 +13,12 @@ import type {
   MemoryEntry,
   MemorySearchResponse,
   OwnerQuestion,
+  RepoTaskSearchHit,
   RunDetail,
   RunSummary,
   SetAutonomyModeResponse,
   TasksResponse,
+  TasksSearchResponse,
   VoiceSynthesizeResult,
   VoiceTranscribeResult,
 } from './types';
@@ -190,6 +192,27 @@ export class DaemonClient {
       `/api/history/search?${params.toString()}`,
     );
     return parseHistorySearchResponse(parsed);
+  }
+
+  /**
+   * Targets the daemon's `GET /tasks/search?q=&semantic=true&limit=`
+   * control route and decodes the discriminated
+   * `{ ok: true, tasks }` / `{ ok: false, reason: "semantic_unavailable" }`
+   * response. Mirrors the macOS `DaemonClient.searchTasks` decode
+   * discipline: the response shape is validated explicitly so payload
+   * drift throws instead of silently degrading to keyword search behind
+   * the operator's back. Note the route lives at `/tasks/search` (not
+   * under `/api/`), matching the daemon control registration.
+   */
+  async searchTasks(query: string, limit = 10): Promise<TasksSearchResponse> {
+    const params = new URLSearchParams();
+    params.set('q', query);
+    params.set('semantic', 'true');
+    params.set('limit', String(limit));
+    const parsed = await this.request<unknown>(
+      `/tasks/search?${params.toString()}`,
+    );
+    return parseTasksSearchResponse(parsed);
   }
 
   registerPushToken(deviceId: string, token: string): Promise<{ ok: boolean }> {
@@ -440,6 +463,58 @@ function parseHistorySearchResponse(value: unknown): HistorySearchResponse {
     return { ok: false, reason: 'semantic_unavailable' };
   }
   throw new Error('Invalid history search response: missing ok flag');
+}
+
+function parseTasksSearchResponse(value: unknown): TasksSearchResponse {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid tasks search response: not an object');
+  }
+  const obj = value as Record<string, unknown>;
+  if (obj.ok === true) {
+    if (!Array.isArray(obj.tasks)) {
+      throw new Error('Invalid tasks search response: tasks missing');
+    }
+    const tasks = obj.tasks.map(parseRepoTaskSearchHit);
+    return { ok: true, tasks };
+  }
+  if (obj.ok === false) {
+    if (obj.reason !== 'semantic_unavailable') {
+      throw new Error(
+        `Invalid tasks search response: unknown reason ${String(obj.reason)}`,
+      );
+    }
+    return { ok: false, reason: 'semantic_unavailable' };
+  }
+  throw new Error('Invalid tasks search response: missing ok flag');
+}
+
+function parseRepoTaskSearchHit(value: unknown): RepoTaskSearchHit {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid repo task hit');
+  }
+  const obj = value as Record<string, unknown>;
+  if (
+    typeof obj.id !== 'string' ||
+    typeof obj.title !== 'string' ||
+    typeof obj.state !== 'string' ||
+    typeof obj.priority !== 'string' ||
+    typeof obj.area !== 'string' ||
+    typeof obj.summary !== 'string' ||
+    typeof obj.updatedAt !== 'string' ||
+    typeof obj.score !== 'number'
+  ) {
+    throw new Error('Invalid repo task hit: missing required fields');
+  }
+  return {
+    id: obj.id,
+    title: obj.title,
+    state: obj.state,
+    priority: obj.priority,
+    area: obj.area,
+    summary: obj.summary,
+    updatedAt: obj.updatedAt,
+    score: obj.score,
+  };
 }
 
 function parseConversationRecord(value: unknown): ConversationRecord {
