@@ -1,12 +1,12 @@
 ---
 id: task-add-kota-history-search-cli-semantic-search-subcom
 title: Add kota history search CLI semantic search subcommand consuming /api/history/search
-status: backlog
+status: done
 priority: p2
 area: modules
 summary: Add a `kota history search <query>` subcommand that calls ctx.client.history.search through the new /api/history/search route, defaulting to semantic search and printing the per-conversation render the established memory/knowledge subcommands emit, so operators can pull semantic conversation recall from the terminal without scraping history index files.
 created_at: 2026-04-27T03:01:43.081Z
-updated_at: 2026-04-27T03:01:43.081Z
+updated_at: 2026-04-27T03:23:35.062Z
 ---
 
 ## Problem

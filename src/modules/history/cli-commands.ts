@@ -17,6 +17,7 @@ import {
 } from "#modules/rendering/primitives.js";
 import { print, TerminalTransport } from "#modules/rendering/transport.js";
 import { interactiveMode, parseIntOption, resolveConversationId } from "./cli.js";
+import { renderHistorySearchPlain } from "./render.js";
 
 let stderrRenderer: TerminalTransport | null = null;
 function stderr(): TerminalTransport {
@@ -66,6 +67,61 @@ export function registerHistoryCommands(program: Command) {
         );
       });
       print(stack(header, rule, ...rows));
+    });
+
+  historyCmd
+    .command("search <query>")
+    .description("Search conversations (semantic by default)")
+    .option("-n, --limit <n>", "Max conversations to show", "20")
+    .option("--all", "Search across all directories")
+    .option("--keyword", "Use keyword search instead of semantic ranking")
+    .option("--no-semantic", "Alias for --keyword")
+    .option(
+      "--json",
+      "Emit the structured { ok, conversations | reason } payload as JSON",
+    )
+    .action(async (query: string, opts: {
+      limit: string;
+      all?: boolean;
+      keyword?: boolean;
+      semantic?: boolean;
+      json?: boolean;
+    }) => {
+      const trimmed = query.trim();
+      if (!trimmed) {
+        stderr().write(line(span("Usage: kota history search <query>", "warn")));
+        process.exit(1);
+      }
+
+      await ensureCliProvidersFor(["history"]);
+      const client = getActiveKotaClient();
+      const limit = parseIntOption(opts.limit, "limit");
+      const semantic = !(opts.keyword === true || opts.semantic === false);
+      const result = await client.history.search(trimmed, {
+        semantic,
+        limit,
+        cwd: opts.all ? undefined : process.cwd(),
+      });
+
+      if (opts.json) {
+        process.stdout.write(`${JSON.stringify(result)}\n`);
+        return;
+      }
+
+      if (!result.ok) {
+        stderr().write(line(span(
+          "Semantic conversation search requires an embedding-backed history provider.",
+          "error",
+        )));
+        process.exit(1);
+      }
+
+      if (result.conversations.length === 0) {
+        print(line(plain("No matching conversations.")));
+        return;
+      }
+
+      print(line(plain(renderHistorySearchPlain(result.conversations))));
     });
 
   historyCmd
