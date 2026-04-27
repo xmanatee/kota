@@ -174,7 +174,7 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       calibration: stub({ aggregate: {}, decision: {} }),
     },
     recall: {
-      recall: stub({ hits: [] }),
+      recall: stub({ ok: true, hits: [] }),
     },
   };
   return { ...base, ...overrides };

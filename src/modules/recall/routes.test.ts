@@ -39,10 +39,16 @@ function mockRequest(body: Record<string, unknown>): IncomingMessage {
 function fakeProvider(
   hits: RecallHit[],
   capture?: { query?: string; filter?: unknown },
+  contributors: ReadonlyArray<"knowledge" | "memory" | "history" | "tasks"> = [
+    "knowledge",
+    "memory",
+    "history",
+    "tasks",
+  ],
 ): RecallProvider {
   return {
     register: () => {},
-    contributors: () => [],
+    contributors: () => contributors,
     async recall(query, filter) {
       if (capture) {
         capture.query = query;
@@ -78,10 +84,24 @@ describe("recall route handler", () => {
     const { res, result } = mockResponse();
     await handler(mockRequest({ query: "recall" }), res);
     expect(result.status).toBe(200);
-    const body = result.body as { hits: RecallHit[] };
+    const body = result.body as { ok: true; hits: RecallHit[] };
+    expect(body.ok).toBe(true);
     expect(body.hits).toHaveLength(2);
     expect(body.hits[0]).toMatchObject({ source: "knowledge", id: "k1" });
     expect(body.hits[1]).toMatchObject({ source: "tasks", id: "task-recall" });
+  });
+
+  it("returns ok:false reason:semantic_unavailable when no contributors are registered", async () => {
+    const handler = createRecallRouteHandler(() =>
+      fakeProvider([], undefined, []),
+    );
+    const { res, result } = mockResponse();
+    await handler(mockRequest({ query: "anything" }), res);
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({
+      ok: false,
+      reason: "semantic_unavailable",
+    });
   });
 
   it("forwards filter fields through to the provider", async () => {
@@ -131,7 +151,7 @@ describe("recall route handler", () => {
   it("returns 500 when the provider throws", async () => {
     const handler = createRecallRouteHandler(() => ({
       register: () => {},
-      contributors: () => [],
+      contributors: () => ["knowledge"],
       async recall() {
         throw new Error("provider boom");
       },

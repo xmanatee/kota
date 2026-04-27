@@ -62,8 +62,16 @@ export function createRecallRouteHandler(
     }
     const filter = parseFilter(body.filter);
     try {
-      const hits = await resolveProvider().recall(query, filter);
-      jsonResponse(res, 200, { hits } satisfies RecallResult);
+      const provider = resolveProvider();
+      if (provider.contributors().length === 0) {
+        jsonResponse(res, 200, {
+          ok: false,
+          reason: "semantic_unavailable",
+        } satisfies RecallResult);
+        return;
+      }
+      const hits = await provider.recall(query, filter);
+      jsonResponse(res, 200, { ok: true, hits } satisfies RecallResult);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       jsonResponse(res, 500, { error: message });

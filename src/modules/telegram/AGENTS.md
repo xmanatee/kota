@@ -8,10 +8,11 @@ notification forwarding.
   `/attention` with the on-demand attention digest, to `/knowledge <query>`
   with a semantic-ranked knowledge search, to `/memory <query>` with a
   semantic-ranked memory search, to `/history <query>` with a
-  semantic-ranked conversation search, and to `/tasks <query>` with a
-  semantic-ranked repo-task-queue search) and `telegram-interactive`
-  (hosts one agent session per chat). Both are started and stopped by
-  the daemon alongside other channels.
+  semantic-ranked conversation search, to `/tasks <query>` with a
+  semantic-ranked repo-task-queue search, and to `/recall <query>` with
+  one ranked, source-tagged list across every registered store) and
+  `telegram-interactive` (hosts one agent session per chat). Both are
+  started and stopped by the daemon alongside other channels.
 - The `/digest` command calls the daily-digest module's
   `renderOnDemandDigest` seam directly. It must not write the cadence
   snapshot file and must not emit `workflow.daily.digest` (otherwise other
@@ -48,6 +49,19 @@ notification forwarding.
   advance any cadence counter or emit a workflow event, and are
   operator-facing only — they must not be exposed to autonomy agents
   in any prompt path.
+- The `/recall <query>` command is the unified-recall entry point: it
+  is a thin wrapper over `ctx.client.recall.recall(query)` and renders
+  one ranked, source-tagged list spanning every registered store via
+  `renderRecallHitsPlain` from the recall module. `/recall` does not
+  fan out to per-store search seams — the recall seam already owns
+  merge, normalize, and ranking. Empty / whitespace-only queries reply
+  with a usage hint; an empty hit list replies with `"No matching
+  items."`; an `{ ok: false, reason: "semantic_unavailable" }` result
+  (no contributors registered) replies with `"Cross-store recall is
+  not configured: no contributors are registered."`. Like the
+  per-store commands, `/recall` is plain text, gated by the chat
+  allowlist only (no quiet-hours gating), advances no cadence counter,
+  emits no workflow event, and is operator-facing only.
 - Contributes notification subscriptions for workflow events.
 - Optional event filters must not suppress urgent owner/approval escalation
   notifications.

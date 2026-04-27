@@ -110,7 +110,20 @@ export function registerRecallCommand(
 
         if (opts.json) {
           process.stdout.write(`${JSON.stringify(result)}\n`);
+          if (!result.ok) process.exit(1);
           return;
+        }
+
+        if (!result.ok) {
+          stderrTransport().write(
+            line(
+              span(
+                "Cross-store recall has no registered contributors.",
+                "error",
+              ),
+            ),
+          );
+          process.exit(1);
         }
 
         if (result.hits.length === 0) {

@@ -83,6 +83,7 @@ describe("telegramModule", () => {
       "history",
       "knowledge",
       "memory",
+      "recall",
       "repo-tasks",
       "transcription",
     ]);

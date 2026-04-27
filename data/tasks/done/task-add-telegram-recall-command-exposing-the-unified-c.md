@@ -1,12 +1,12 @@
 ---
 id: task-add-telegram-recall-command-exposing-the-unified-c
 title: Add Telegram /recall command exposing the unified cross-store recall seam
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a Telegram /recall <query> command that consumes the unified cross-store recall seam (knowledge, memory, history, tasks) and renders one ranked, source-tagged result list, mirroring the established Telegram per-store search commands but querying every store in one call.
 created_at: 2026-04-27T07:42:23.045Z
-updated_at: 2026-04-27T07:42:23.045Z
+updated_at: 2026-04-27T07:55:05.506Z
 ---
 
 ## Problem

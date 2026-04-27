@@ -76,8 +76,12 @@ const recallModule: KotaModule = {
   localClient: () => {
     const handler: RecallClient = {
       async recall(query, filter) {
-        const hits = await resolveActiveProvider().recall(query, filter);
-        return { hits };
+        const provider = resolveActiveProvider();
+        if (provider.contributors().length === 0) {
+          return { ok: false, reason: "semantic_unavailable" };
+        }
+        const hits = await provider.recall(query, filter);
+        return { ok: true, hits };
       },
     };
     return { recall: handler };

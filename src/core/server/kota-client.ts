@@ -597,13 +597,21 @@ export type RecallFilter = {
 };
 
 /**
- * Result of `recall.recall`. The seam never reports a structured failure for
- * a single contributor — when one cannot answer (no semantic backend, hard
- * error during query) it contributes zero hits and the rest still return.
+ * Result of `recall.recall`.
+ *
+ * The seam tolerates partial contributor failure: when one contributor cannot
+ * answer (no semantic backend, hard error during query) it contributes zero
+ * hits and the rest still return under `ok: true`.
+ *
+ * The discriminated `ok: false` branch only fires when the seam itself has no
+ * registered contributors — i.e. cross-store recall is genuinely unconfigured.
+ * Callers branch on `ok` to tell "nothing matched" (`ok: true` with empty
+ * `hits`) from "the seam is not configured" (`ok: false`), matching the
+ * per-store search surfaces.
  */
-export type RecallResult = {
-  hits: RecallHit[];
-};
+export type RecallResult =
+  | { ok: true; hits: RecallHit[] }
+  | { ok: false; reason: "semantic_unavailable" };
 
 /**
  * Cross-store recall operations.

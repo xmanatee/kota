@@ -3,6 +3,7 @@ import type {
   HistoryClient,
   KnowledgeClient,
   MemoryClient,
+  RecallClient,
   RepoTasksClient,
 } from "#core/server/kota-client.js";
 import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
@@ -12,6 +13,7 @@ import { renderOnDemandDigest } from "#modules/autonomy/workflows/daily-digest/o
 import { renderHistorySearchPlain } from "#modules/history/render.js";
 import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
 import { renderMemorySearchPlain } from "#modules/memory/render.js";
+import { renderRecallHitsPlain } from "#modules/recall/render.js";
 import { renderRepoTaskSearchPlain } from "#modules/repo-tasks/render.js";
 import { callTelegramApi } from "./client.js";
 
@@ -77,6 +79,7 @@ export function startTelegramStatusPoll(
   memory: MemoryClient,
   history: HistoryClient,
   tasks: RepoTasksClient,
+  recall: RecallClient,
   log?: (message: string) => void,
 ): () => void {
   let running = true;
@@ -213,6 +216,40 @@ export function startTelegramStatusPoll(
     });
   }
 
+  async function handleRecall(text: string): Promise<void> {
+    const query =
+      text === "/recall" ? "" : text.slice("/recall ".length).trim();
+    if (query.length === 0) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: "Usage: /recall <query>",
+      });
+      return;
+    }
+    const result = await recall.recall(query);
+    if (!result.ok) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: "Cross-store recall is not configured: no contributors are registered.",
+      });
+      return;
+    }
+    if (result.hits.length === 0) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: "No matching items.",
+      });
+      return;
+    }
+    await callTelegramApi(token, "sendMessage", {
+      chat_id: chatId,
+      // Plain text — recall hits carry titles/previews from every store and
+      // can include Markdown-active characters that would require escaping
+      // if Markdown parse_mode were enabled.
+      text: truncateForTelegram(renderRecallHitsPlain(result.hits)),
+    });
+  }
+
   async function handleTasks(text: string): Promise<void> {
     const query =
       text === "/tasks" ? "" : text.slice("/tasks ".length).trim();
@@ -292,6 +329,11 @@ export function startTelegramStatusPoll(
           msg.text.startsWith("/tasks ")
         ) {
           await handleTasks(msg.text);
+        } else if (
+          msg.text === "/recall" ||
+          msg.text.startsWith("/recall ")
+        ) {
+          await handleRecall(msg.text);
         }
       }
     } catch (err) {
