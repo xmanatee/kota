@@ -7,10 +7,11 @@ notification forwarding.
   with workflow state, to `/digest` with the on-demand daily digest, to
   `/attention` with the on-demand attention digest, to `/knowledge <query>`
   with a semantic-ranked knowledge search, to `/memory <query>` with a
-  semantic-ranked memory search, and to `/history <query>` with a
-  semantic-ranked conversation search) and `telegram-interactive` (hosts
-  one agent session per chat). Both are started and stopped by the daemon
-  alongside other channels.
+  semantic-ranked memory search, to `/history <query>` with a
+  semantic-ranked conversation search, and to `/tasks <query>` with a
+  semantic-ranked repo-task-queue search) and `telegram-interactive`
+  (hosts one agent session per chat). Both are started and stopped by
+  the daemon alongside other channels.
 - The `/digest` command calls the daily-digest module's
   `renderOnDemandDigest` seam directly. It must not write the cadence
   snapshot file and must not emit `workflow.daily.digest` (otherwise other
@@ -28,17 +29,18 @@ notification forwarding.
   with the short fixed `NO_ATTENTION_ITEMS_TEXT` body so the operator can
   distinguish "nothing wrong" from "command failed". The body is
   operator-facing only and must not be exposed to autonomy agents.
-- The `/knowledge <query>`, `/memory <query>`, and `/history <query>`
-  commands expose the same semantic-search seams the CLI and the
-  matching `/api/*` route serve. Each calls `ctx.client.<store>.search`
-  with `{ semantic: true, limit: 10 }` and renders results via the
-  store's shared plain-text helper (no copy of CLI rendering on the
-  Telegram side). Empty / whitespace-only queries reply with a usage
-  hint and skip the store call. Empty results reply with a fixed
-  per-store body (`"No matching knowledge entries."`,
-  `"No matching memory entries."`, `"No matching conversations."`) so
-  the operator can distinguish "nothing matched" from "command failed".
-  When no embedding-backed provider is configured the search returns
+- The `/knowledge <query>`, `/memory <query>`, `/history <query>`, and
+  `/tasks <query>` commands expose the same semantic-search seams the
+  CLI and the matching `/api/*` route serve. Each calls
+  `ctx.client.<store>.search` with `{ semantic: true, limit: 10 }` and
+  renders results via the store's shared plain-text helper (no copy of
+  CLI rendering on the Telegram side). Empty / whitespace-only queries
+  reply with a usage hint and skip the store call. Empty results reply
+  with a fixed per-store body (`"No matching knowledge entries."`,
+  `"No matching memory entries."`, `"No matching conversations."`,
+  `"No matching tasks."`) so the operator can distinguish "nothing
+  matched" from "command failed". When no embedding-backed provider is
+  configured the search returns
   `{ ok: false, reason: "semantic_unavailable" }` and the bot surfaces
   a one-line explanation instead of silently degrading to keyword
   search. Replies are plain text (titles and bodies can carry

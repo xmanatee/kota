@@ -221,6 +221,32 @@ describe("Telegram personal-assistant daemon integration", () => {
         throw new Error("not used");
       },
     } as unknown as Parameters<typeof startTelegramStatusPoll>[6];
+    const tasksStub = {
+      async list() {
+        throw new Error("not used");
+      },
+      async show() {
+        throw new Error("not used");
+      },
+      async move() {
+        throw new Error("not used");
+      },
+      async create() {
+        throw new Error("not used");
+      },
+      async capture() {
+        throw new Error("not used");
+      },
+      async gc() {
+        throw new Error("not used");
+      },
+      async search() {
+        throw new Error("not used");
+      },
+      async reindex() {
+        throw new Error("not used");
+      },
+    } as unknown as Parameters<typeof startTelegramStatusPoll>[7];
     const telegramStatusChannel: ChannelDef = {
       name: "telegram-status-test",
       create(ctx) {
@@ -235,6 +261,7 @@ describe("Telegram personal-assistant daemon integration", () => {
               knowledgeStub,
               memoryStub,
               historyStub,
+              tasksStub,
               ctx.log,
             );
           },

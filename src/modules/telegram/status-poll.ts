@@ -3,6 +3,7 @@ import type {
   HistoryClient,
   KnowledgeClient,
   MemoryClient,
+  RepoTasksClient,
 } from "#core/server/kota-client.js";
 import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
 import { computeCostByWorkflow, loadRecentRuns } from "#modules/autonomy/shared.js";
@@ -11,6 +12,7 @@ import { renderOnDemandDigest } from "#modules/autonomy/workflows/daily-digest/o
 import { renderHistorySearchPlain } from "#modules/history/render.js";
 import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
 import { renderMemorySearchPlain } from "#modules/memory/render.js";
+import { renderRepoTaskSearchPlain } from "#modules/repo-tasks/render.js";
 import { callTelegramApi } from "./client.js";
 
 const POLL_INTERVAL_MS = 30_000;
@@ -74,6 +76,7 @@ export function startTelegramStatusPoll(
   knowledge: KnowledgeClient,
   memory: MemoryClient,
   history: HistoryClient,
+  tasks: RepoTasksClient,
   log?: (message: string) => void,
 ): () => void {
   let running = true;
@@ -210,6 +213,39 @@ export function startTelegramStatusPoll(
     });
   }
 
+  async function handleTasks(text: string): Promise<void> {
+    const query =
+      text === "/tasks" ? "" : text.slice("/tasks ".length).trim();
+    if (query.length === 0) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: "Usage: /tasks <query>",
+      });
+      return;
+    }
+    const result = await tasks.search(query, { semantic: true, limit: 10 });
+    if (!result.ok) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: "Semantic task search requires an embedding-backed repo-tasks provider.",
+      });
+      return;
+    }
+    if (result.tasks.length === 0) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: "No matching tasks.",
+      });
+      return;
+    }
+    await callTelegramApi(token, "sendMessage", {
+      chat_id: chatId,
+      // Plain text — task titles can carry Markdown-active characters that
+      // would require escaping if Markdown parse_mode were enabled.
+      text: truncateForTelegram(renderRepoTaskSearchPlain(result.tasks)),
+    });
+  }
+
   async function poll(): Promise<void> {
     if (!running) return;
     try {
@@ -251,6 +287,11 @@ export function startTelegramStatusPoll(
           msg.text.startsWith("/history ")
         ) {
           await handleHistory(msg.text);
+        } else if (
+          msg.text === "/tasks" ||
+          msg.text.startsWith("/tasks ")
+        ) {
+          await handleTasks(msg.text);
         }
       }
     } catch (err) {

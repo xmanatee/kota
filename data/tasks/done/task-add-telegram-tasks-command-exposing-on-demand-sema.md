@@ -1,12 +1,12 @@
 ---
 id: task-add-telegram-tasks-command-exposing-on-demand-sema
 title: Add Telegram /tasks command exposing on-demand semantic task-queue search
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a Telegram /tasks <query> command consuming the same daemon /api/tasks/search seam the new tasks-semantic provider exposes, with the shared renderRepoTaskSearchPlain helper and the semantic-unavailable / empty-result / empty-query branches the established cadence enforces, so an operator on Telegram can recall similar past or open repo tasks without context-switching to a terminal or browser.
 created_at: 2026-04-27T05:57:05.496Z
-updated_at: 2026-04-27T05:57:05.496Z
+updated_at: 2026-04-27T06:03:59.169Z
 ---
 
 ## Problem
