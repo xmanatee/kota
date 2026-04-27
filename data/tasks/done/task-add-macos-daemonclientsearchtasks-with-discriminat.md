@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-daemonclientsearchtasks-with-discriminat
 title: Add macOS DaemonClient.searchTasks with discriminated TasksSearchResponse types and unit tests
-status: ready
+status: done
 priority: p2
 area: client
 summary: Wire the daemon contract layer for the repo-task-queue semantic-search seam into the macOS menu-bar client: add RepoTaskSearchHit and the discriminated TasksSearchResponse to Models.swift, add a typed searchTasks(query:limit:states:) method to DaemonClient.swift that targets GET /tasks/search?q=&semantic=true&limit=, mirror renderRepoTaskSearchPlain in Swift, and pair the four DaemonClientTests cases (success tasks, empty tasks, ok:false semantic-unavailable, typed HTTP error) so the follow-up TaskSearchView subtask consumes a tested seam.
 created_at: 2026-04-27T06:30:43.682Z
-updated_at: 2026-04-27T06:30:43.682Z
+updated_at: 2026-04-27T06:37:22.773Z
 ---
 
 ## Problem

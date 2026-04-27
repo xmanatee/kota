@@ -888,6 +888,154 @@ final class DaemonClientTests: XCTestCase {
         }
     }
 
+    func testSearchTasksDecodesSuccessfulTasks() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/tasks/search")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+            let comps = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)
+            let items = comps?.queryItems ?? []
+            XCTAssertEqual(items.first(where: { $0.name == "q" })?.value, "hello world")
+            XCTAssertEqual(items.first(where: { $0.name == "semantic" })?.value, "true")
+            XCTAssertEqual(items.first(where: { $0.name == "limit" })?.value, "10")
+            let stateValues = items.filter { $0.name == "state" }.compactMap { $0.value }
+            XCTAssertEqual(stateValues, ["ready", "doing"])
+            let body = #"""
+            {"ok": true, "tasks": [
+              {
+                "id": "task-foo",
+                "title": "Tasks surface fan-out",
+                "state": "ready",
+                "priority": "p2",
+                "area": "client",
+                "summary": "Wire the macOS DaemonClient",
+                "updatedAt": "2026-04-26T12:34:56Z",
+                "score": 0.91
+              },
+              {
+                "id": "task-bar",
+                "title": "Operator-pull parity",
+                "state": "doing",
+                "priority": "p1",
+                "area": "client",
+                "summary": "Mobile screen",
+                "updatedAt": "2026-04-25T08:00:00Z",
+                "score": 0.42
+              }
+            ]}
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.searchTasks(query: "hello world", limit: 10, states: ["ready", "doing"])
+        switch result {
+        case .success(let tasks):
+            XCTAssertEqual(tasks.count, 2)
+            XCTAssertEqual(tasks[0].id, "task-foo")
+            XCTAssertEqual(tasks[0].title, "Tasks surface fan-out")
+            XCTAssertEqual(tasks[0].state, "ready")
+            XCTAssertEqual(tasks[0].priority, "p2")
+            XCTAssertEqual(tasks[0].area, "client")
+            XCTAssertEqual(tasks[0].summary, "Wire the macOS DaemonClient")
+            XCTAssertEqual(tasks[0].updatedAt, "2026-04-26T12:34:56Z")
+            XCTAssertEqual(tasks[0].score, 0.91, accuracy: 1e-6)
+            XCTAssertEqual(tasks[1].id, "task-bar")
+            XCTAssertEqual(tasks[1].state, "doing")
+            XCTAssertEqual(tasks[1].priority, "p1")
+        case .semanticUnavailable:
+            XCTFail("expected success branch")
+        }
+    }
+
+    func testSearchTasksDecodesEmptyTasks() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/tasks/search")
+            let comps = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)
+            let items = comps?.queryItems ?? []
+            XCTAssertEqual(items.first(where: { $0.name == "q" })?.value, "no-match")
+            XCTAssertEqual(items.first(where: { $0.name == "semantic" })?.value, "true")
+            XCTAssertEqual(items.first(where: { $0.name == "limit" })?.value, "5")
+            XCTAssertTrue(items.filter { $0.name == "state" }.isEmpty)
+            let body = #"{"ok": true, "tasks": []}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.searchTasks(query: "no-match", limit: 5, states: nil)
+        switch result {
+        case .success(let tasks):
+            XCTAssertTrue(tasks.isEmpty)
+        case .semanticUnavailable:
+            XCTFail("expected empty success branch")
+        }
+    }
+
+    func testSearchTasksDecodesSemanticUnavailable() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/tasks/search")
+            let body = #"{"ok": false, "reason": "semantic_unavailable"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.searchTasks(query: "anything", limit: 10, states: nil)
+        switch result {
+        case .success:
+            XCTFail("expected semanticUnavailable branch")
+        case .semanticUnavailable:
+            break
+        }
+    }
+
+    func testSearchTasksSurfacesHttpErrorOneToOne() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            let body = #"{"error": "boom"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+
+        do {
+            _ = try await client.searchTasks(query: "x", limit: 10, states: nil)
+            XCTFail("expected httpError")
+        } catch DaemonClientError.httpError(let code) {
+            XCTAssertEqual(code, 500)
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+    }
+
     func testTriggerWorkflowSendsBody() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }

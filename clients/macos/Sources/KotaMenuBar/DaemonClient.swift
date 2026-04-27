@@ -197,6 +197,45 @@ final class DaemonClient {
         }
     }
 
+    /// Targets the daemon's `GET /tasks/search?q=&semantic=true&limit=` daemon
+    /// control route (not under `/api/`) and decodes the discriminated
+    /// `{ ok: true, tasks }` / `{ ok: false, reason: "semantic_unavailable" }`
+    /// response. The query string is built via `URLComponents` so `q` is
+    /// percent-encoded correctly. When `states` is provided, each value is
+    /// appended as a repeated `state=<value>` query item, matching the route
+    /// handler's `url.searchParams.getAll("state")` behavior. HTTP errors
+    /// surface one-to-one as `DaemonClientError.httpError`.
+    func searchTasks(query: String, limit: Int, states: [String]?) async throws -> TasksSearchResponse {
+        guard let conn = connection else { throw DaemonClientError.notConnected }
+        guard var components = URLComponents(url: conn.baseURL, resolvingAgainstBaseURL: false) else {
+            throw DaemonClientError.notConnected
+        }
+        components.path = "/tasks/search"
+        var items: [URLQueryItem] = [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "semantic", value: "true"),
+            URLQueryItem(name: "limit", value: String(limit)),
+        ]
+        if let states {
+            for state in states {
+                items.append(URLQueryItem(name: "state", value: state))
+            }
+        }
+        components.queryItems = items
+        guard let url = components.url else { throw DaemonClientError.notConnected }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw DaemonClientError.httpError(http.statusCode)
+        }
+        do {
+            return try decoder.decode(TasksSearchResponse.self, from: data)
+        } catch {
+            throw DaemonClientError.decodingError(error)
+        }
+    }
+
     func invokeSlashCommand(name: String) async throws -> InvokeCommandResponse {
         let body = try JSONEncoder().encode(InvokeCommandRequest(name: name))
         return try await post("/commands/invoke", body: body)
