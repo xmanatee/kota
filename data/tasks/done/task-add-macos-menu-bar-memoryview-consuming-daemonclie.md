@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-menu-bar-memoryview-consuming-daemonclie
 title: Add macOS menu-bar MemoryView consuming DaemonClient.searchMemory
-status: ready
+status: done
 priority: p2
 area: client
 summary: Add MemoryView.swift under clients/macos/Sources/KotaMenuBar/, wire it into MenuBarView.swift as a collapsible section consistent with KnowledgeView/DigestView/AttentionView, extend AppState with the memory search observables (current query, current result, in-flight, last error) using the same pattern other sections use, and render the four operator-visible branches one-to-one with the daemon contract: id+date+content snippet lines (matching renderMemorySearchPlain), empty-result body, empty-query usage hint, and the semantic-unavailable explanation. Capture the four screenshots and update src/modules/memory/AGENTS.md to name the macOS menu bar as a memory-surface consumer (one-line update).
 created_at: 2026-04-27T01:51:57.233Z
-updated_at: 2026-04-27T01:51:57.233Z
+updated_at: 2026-04-27T01:56:58.607Z
 ---
 
 ## Problem

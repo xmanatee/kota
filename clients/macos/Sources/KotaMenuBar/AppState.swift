@@ -71,6 +71,10 @@ final class AppState: ObservableObject {
     @Published var knowledgeResult: KnowledgeSearchResponse?
     @Published var knowledgeError: String?
     @Published var isLoadingKnowledge: Bool = false
+    @Published var memoryQuery: String = ""
+    @Published var memoryResult: MemorySearchResponse?
+    @Published var memoryError: String?
+    @Published var isLoadingMemory: Bool = false
     @Published var projectDir: URL? {
         didSet {
             if let dir = projectDir {
@@ -205,6 +209,9 @@ final class AppState: ObservableObject {
         knowledgeResult = nil
         knowledgeError = nil
         isLoadingKnowledge = false
+        memoryResult = nil
+        memoryError = nil
+        isLoadingMemory = false
     }
 
     /// Pulls the on-demand 24h rollup from `/api/digest`. Errors land in
@@ -260,6 +267,31 @@ final class AppState: ObservableObject {
             knowledgeError = error.localizedDescription
         }
         isLoadingKnowledge = false
+    }
+
+    /// Pulls semantic memory search results from `/api/memory/search`.
+    /// Empty / whitespace-only queries clear any prior result and skip the
+    /// request — the view surfaces the inline usage hint instead. Failures
+    /// land in `memoryError`; the typed `semanticUnavailable` branch lands in
+    /// `memoryResult` so the view renders the daemon's explanation without
+    /// retrying the request.
+    func loadMemory() async {
+        let trimmed = memoryQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            memoryResult = nil
+            memoryError = nil
+            isLoadingMemory = false
+            return
+        }
+        isLoadingMemory = true
+        memoryError = nil
+        do {
+            memoryResult = try await client.searchMemory(query: trimmed, limit: 10)
+        } catch {
+            memoryResult = nil
+            memoryError = error.localizedDescription
+        }
+        isLoadingMemory = false
     }
 
     private func fetchAll() async {
