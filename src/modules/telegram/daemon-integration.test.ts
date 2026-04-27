@@ -165,7 +165,8 @@ describe("Telegram personal-assistant daemon integration", () => {
 
     // Contribute a minimal Telegram channel that responds to /status using
     // the daemon-owned runtime state. The integration test never exercises
-    // /knowledge or /memory so those clients stay never-called stubs.
+    // /knowledge, /memory, or /history so those clients stay never-called
+    // stubs.
     const knowledgeStub = {
       async list() {
         throw new Error("not used");
@@ -203,6 +204,23 @@ describe("Telegram personal-assistant daemon integration", () => {
         throw new Error("not used");
       },
     } as unknown as Parameters<typeof startTelegramStatusPoll>[5];
+    const historyStub = {
+      async list() {
+        throw new Error("not used");
+      },
+      async show() {
+        throw new Error("not used");
+      },
+      async delete() {
+        throw new Error("not used");
+      },
+      async search() {
+        throw new Error("not used");
+      },
+      async reindex() {
+        throw new Error("not used");
+      },
+    } as unknown as Parameters<typeof startTelegramStatusPoll>[6];
     const telegramStatusChannel: ChannelDef = {
       name: "telegram-status-test",
       create(ctx) {
@@ -216,6 +234,7 @@ describe("Telegram personal-assistant daemon integration", () => {
               ctx.getWorkflowStatus,
               knowledgeStub,
               memoryStub,
+              historyStub,
               ctx.log,
             );
           },

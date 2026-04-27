@@ -152,7 +152,7 @@ function makeTelegramStatusChannel(moduleCtx: ModuleContext): ChannelDef {
   return {
     name: "telegram-status",
     description:
-      "Responds to /status, /digest, /attention, /knowledge, and /memory in Telegram",
+      "Responds to /status, /digest, /attention, /knowledge, /memory, and /history in Telegram",
     create(ctx) {
       const token = process.env.TELEGRAM_BOT_TOKEN;
       const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
@@ -168,6 +168,7 @@ function makeTelegramStatusChannel(moduleCtx: ModuleContext): ChannelDef {
             ctx.getWorkflowStatus,
             moduleCtx.client.knowledge,
             moduleCtx.client.memory,
+            moduleCtx.client.history,
             ctx.log,
           );
         },
@@ -252,7 +253,7 @@ const telegramModule: KotaModule = {
   name: "telegram",
   version: "1.0.0",
   description: "Telegram bot frontend for KOTA",
-  dependencies: ["approval-queue", "autonomy", "knowledge", "memory", "transcription"],
+  dependencies: ["approval-queue", "autonomy", "history", "knowledge", "memory", "transcription"],
   configSchema: {
     type: "object",
     additionalProperties: false,

@@ -1,12 +1,12 @@
 ---
 id: task-add-telegram-history-command-exposing-on-demand-se
 title: Add Telegram /history command exposing on-demand semantic conversation search
-status: backlog
+status: done
 priority: p2
 area: modules
 summary: Add a Telegram `/history <query>` command consuming the same daemon /api/history/search seam Telegram /memory and /knowledge already use, with the shared history-render helper and the semantic-unavailable / empty-result / empty-query branches the established cadence enforces, so an operator on Telegram can recall prior conversations without context-switching to a terminal or browser.
 created_at: 2026-04-27T03:01:46.082Z
-updated_at: 2026-04-27T03:01:46.082Z
+updated_at: 2026-04-27T03:32:03.943Z
 ---
 
 ## Problem

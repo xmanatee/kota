@@ -1,9 +1,14 @@
 import { join } from "node:path";
-import type { KnowledgeClient, MemoryClient } from "#core/server/kota-client.js";
+import type {
+  HistoryClient,
+  KnowledgeClient,
+  MemoryClient,
+} from "#core/server/kota-client.js";
 import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
 import { computeCostByWorkflow, loadRecentRuns } from "#modules/autonomy/shared.js";
 import { renderOnDemandAttention } from "#modules/autonomy/workflows/attention-digest/step.js";
 import { renderOnDemandDigest } from "#modules/autonomy/workflows/daily-digest/on-demand.js";
+import { renderHistorySearchPlain } from "#modules/history/render.js";
 import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
 import { renderMemorySearchPlain } from "#modules/memory/render.js";
 import { callTelegramApi } from "./client.js";
@@ -68,6 +73,7 @@ export function startTelegramStatusPoll(
   getStatusInfo: () => StatusInfo,
   knowledge: KnowledgeClient,
   memory: MemoryClient,
+  history: HistoryClient,
   log?: (message: string) => void,
 ): () => void {
   let running = true;
@@ -170,6 +176,40 @@ export function startTelegramStatusPoll(
     });
   }
 
+  async function handleHistory(text: string): Promise<void> {
+    const query =
+      text === "/history" ? "" : text.slice("/history ".length).trim();
+    if (query.length === 0) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: "Usage: /history <query>",
+      });
+      return;
+    }
+    const result = await history.search(query, { semantic: true, limit: 10 });
+    if (!result.ok) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: "Semantic conversation search requires an embedding-backed history provider.",
+      });
+      return;
+    }
+    if (result.conversations.length === 0) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: "No matching conversations.",
+      });
+      return;
+    }
+    await callTelegramApi(token, "sendMessage", {
+      chat_id: chatId,
+      // Plain text — conversation titles can carry Markdown-active
+      // characters that would require escaping if Markdown parse_mode
+      // were enabled.
+      text: truncateForTelegram(renderHistorySearchPlain(result.conversations)),
+    });
+  }
+
   async function poll(): Promise<void> {
     if (!running) return;
     try {
@@ -206,6 +246,11 @@ export function startTelegramStatusPoll(
           msg.text.startsWith("/memory ")
         ) {
           await handleMemory(msg.text);
+        } else if (
+          msg.text === "/history" ||
+          msg.text.startsWith("/history ")
+        ) {
+          await handleHistory(msg.text);
         }
       }
     } catch (err) {
