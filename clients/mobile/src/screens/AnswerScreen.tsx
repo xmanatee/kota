@@ -11,25 +11,36 @@ import {
 } from 'react-native';
 import { useDaemon } from '../context/DaemonContext';
 import { describeRecallHit, RECALL_SOURCE_TINT } from '../recallRender';
-import type { RecallHit } from '../types';
+import type {
+  AnswerCitation,
+  AnswerResult,
+  RecallHit,
+} from '../types';
 
-const SEMANTIC_UNAVAILABLE_TEXT =
-  'Recall unavailable — no embedding-backed contributors registered.';
-const EMPTY_RESULTS_TEXT = 'No matching hits.';
+const FAILURE_MESSAGE: Record<
+  Extract<AnswerResult, { ok: false }>['reason'],
+  string
+> = {
+  no_hits: 'No matching sources for this question.',
+  semantic_unavailable:
+    'Answer unavailable — no recall contributors registered.',
+  synthesis_failed: 'Could not compose a cited answer for this question.',
+};
+
 const EMPTY_QUERY_HINT =
-  'Type a query and tap Search to recall across knowledge, memory, history, and tasks.';
+  'Type a question and tap Ask to compose a cited answer across knowledge, memory, history, and tasks.';
 
-export function RecallScreen() {
-  const { state, setRecallQuery, recall } = useDaemon();
-  const { online, recallQuery, recallResult, recallLoading, recallError } =
+export function AnswerScreen() {
+  const { state, setAnswerQuery, answer } = useDaemon();
+  const { online, answerQuery, answerResult, answerLoading, answerError } =
     state;
 
-  const trimmed = recallQuery.trim();
+  const trimmed = answerQuery.trim();
   const hasQuery = trimmed.length > 0;
 
   const onSubmit = () => {
     if (!hasQuery) return;
-    void recall(trimmed);
+    void answer(trimmed);
   };
 
   if (!state.settingsLoaded) {
@@ -48,14 +59,14 @@ export function RecallScreen() {
     );
   }
 
-  const headerBadge = renderHeaderBadge(recallResult);
+  const headerBadge = renderHeaderBadge(answerResult);
 
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl refreshing={recallLoading} onRefresh={onSubmit} />
+        <RefreshControl refreshing={answerLoading} onRefresh={onSubmit} />
       }
     >
       {!online && (
@@ -67,7 +78,7 @@ export function RecallScreen() {
       )}
 
       <View style={styles.headerRow}>
-        <Text style={styles.title}>Recall</Text>
+        <Text style={styles.title}>Answer</Text>
         {headerBadge !== null && (
           <View
             style={[
@@ -91,113 +102,144 @@ export function RecallScreen() {
       <View style={styles.queryRow}>
         <TextInput
           style={styles.queryInput}
-          placeholder="Recall across stores…"
+          placeholder="Ask the second brain…"
           autoCapitalize="none"
           autoCorrect={false}
-          value={recallQuery}
-          onChangeText={setRecallQuery}
+          value={answerQuery}
+          onChangeText={setAnswerQuery}
           onSubmitEditing={onSubmit}
           returnKeyType="search"
         />
         <TouchableOpacity
           style={[
-            styles.searchButton,
-            (!hasQuery || !online || recallLoading) &&
-              styles.searchButtonDisabled,
+            styles.askButton,
+            (!hasQuery || !online || answerLoading) &&
+              styles.askButtonDisabled,
           ]}
           onPress={onSubmit}
-          disabled={!hasQuery || !online || recallLoading}
+          disabled={!hasQuery || !online || answerLoading}
         >
-          <Text style={styles.searchButtonText}>Search</Text>
+          <Text style={styles.askButtonText}>Ask</Text>
         </TouchableOpacity>
       </View>
 
-      {recallError !== null && (
+      {answerError !== null && (
         <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{recallError}</Text>
+          <Text style={styles.errorText}>{answerError}</Text>
           <TouchableOpacity
             style={styles.retryButton}
             onPress={onSubmit}
-            disabled={!hasQuery || recallLoading || !online}
+            disabled={!hasQuery || answerLoading || !online}
           >
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {recallError === null && recallResult === null && recallLoading && (
+      {answerError === null && answerResult === null && answerLoading && (
         <View style={styles.center}>
           <ActivityIndicator size="small" />
         </View>
       )}
 
-      {recallError === null && !hasQuery && recallResult === null && (
+      {answerError === null && !hasQuery && answerResult === null && (
         <Text style={styles.usageHint}>{EMPTY_QUERY_HINT}</Text>
       )}
 
-      {recallError === null && recallResult !== null && (
-        <RecallBody result={recallResult} />
+      {answerError === null && answerResult !== null && (
+        <AnswerBody result={answerResult} />
       )}
     </ScrollView>
   );
 }
 
-function RecallBody({
-  result,
-}: {
-  result: NonNullable<ReturnType<typeof useDaemon>['state']['recallResult']>;
-}) {
+function AnswerBody({ result }: { result: AnswerResult }) {
   if (result.ok === false) {
     return (
-      <View style={styles.semanticBox}>
-        <Text style={styles.semanticText}>{SEMANTIC_UNAVAILABLE_TEXT}</Text>
-      </View>
-    );
-  }
-  if (result.hits.length === 0) {
-    return (
-      <View style={styles.bodyCard}>
-        <Text style={styles.body}>{EMPTY_RESULTS_TEXT}</Text>
+      <View style={styles.noticeBox}>
+        <Text style={styles.noticeText}>{FAILURE_MESSAGE[result.reason]}</Text>
       </View>
     );
   }
   return (
-    <View style={styles.hitsList}>
-      {result.hits.map((hit) => (
-        <RecallHitRow key={`${hit.source}:${hit.id}`} hit={hit} />
-      ))}
+    <View style={styles.successWrap}>
+      <View style={styles.bodyCard}>
+        <Text style={styles.body}>{result.answer}</Text>
+      </View>
+      {result.citations.length > 0 && (
+        <View style={styles.citationsList}>
+          {result.citations.map((citation, index) => (
+            <CitationRow
+              key={`${citation.source}:${citation.id}:${index}`}
+              citation={citation}
+              hits={result.hits}
+            />
+          ))}
+        </View>
+      )}
     </View>
   );
 }
 
-function RecallHitRow({ hit }: { hit: RecallHit }) {
-  const tint = RECALL_SOURCE_TINT[hit.source];
+function CitationRow({
+  citation,
+  hits,
+}: {
+  citation: AnswerCitation;
+  hits: RecallHit[];
+}) {
+  const tint = RECALL_SOURCE_TINT[citation.source];
+  const hit = findHit(hits, citation);
   return (
-    <View style={styles.hitRow}>
+    <View style={styles.citationRow}>
       <View style={[styles.sourceBadge, { backgroundColor: tint.bg }]}>
         <Text style={[styles.sourceBadgeText, { color: tint.fg }]}>
-          {hit.source}
+          {citation.source}
         </Text>
       </View>
-      <Text style={styles.score}>{hit.score.toFixed(3)}</Text>
-      <Text style={styles.hitDescribe} numberOfLines={2}>
-        {describeRecallHit(hit)}
-      </Text>
+      {hit !== null ? (
+        <>
+          <Text style={styles.score}>{hit.score.toFixed(3)}</Text>
+          <Text style={styles.citationDescribe} numberOfLines={2}>
+            {describeRecallHit(hit)}
+          </Text>
+        </>
+      ) : (
+        <Text style={styles.citationDescribe} numberOfLines={2}>
+          {citation.id}
+        </Text>
+      )}
     </View>
   );
+}
+
+function findHit(hits: RecallHit[], citation: AnswerCitation): RecallHit | null {
+  for (const hit of hits) {
+    if (hit.source === citation.source && hit.id === citation.id) {
+      return hit;
+    }
+  }
+  return null;
 }
 
 function renderHeaderBadge(
-  result: ReturnType<typeof useDaemon>['state']['recallResult'],
+  result: AnswerResult | null,
 ): { label: string; active: boolean } | null {
   if (result === null) return null;
   if (result.ok === false) {
-    return { label: 'semantic unavailable', active: false };
+    switch (result.reason) {
+      case 'no_hits':
+        return { label: 'no hits', active: false };
+      case 'semantic_unavailable':
+        return { label: 'recall unavailable', active: false };
+      case 'synthesis_failed':
+        return { label: 'synthesis failed', active: false };
+    }
   }
-  const count = result.hits.length;
-  if (count === 0) return { label: 'no matches', active: false };
+  const count = result.citations.length;
+  if (count === 0) return { label: 'answered', active: true };
   return {
-    label: `${count} ${count === 1 ? 'hit' : 'hits'}`,
+    label: `${count} ${count === 1 ? 'cite' : 'cites'}`,
     active: true,
   };
 }
@@ -249,14 +291,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1c1c1e',
   },
-  searchButton: {
+  askButton: {
     backgroundColor: '#007aff',
     borderRadius: 10,
     paddingHorizontal: 16,
     justifyContent: 'center',
   },
-  searchButtonDisabled: { backgroundColor: '#a8a8ad' },
-  searchButtonText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  askButtonDisabled: { backgroundColor: '#a8a8ad' },
+  askButtonText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  successWrap: { gap: 12 },
   bodyCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -267,12 +310,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
   },
   body: {
-    fontFamily: 'Courier',
-    fontSize: 12,
+    fontSize: 14,
     color: '#1c1c1e',
-    lineHeight: 18,
+    lineHeight: 20,
   },
-  hitsList: {
+  citationsList: {
     backgroundColor: '#fff',
     borderRadius: 12,
     paddingHorizontal: 12,
@@ -282,7 +324,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
   },
-  hitRow: {
+  citationRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
@@ -307,7 +349,7 @@ const styles = StyleSheet.create({
     color: '#6c6c70',
     minWidth: 40,
   },
-  hitDescribe: {
+  citationDescribe: {
     flex: 1,
     fontSize: 13,
     color: '#1c1c1e',
@@ -315,12 +357,12 @@ const styles = StyleSheet.create({
   },
   emptyText: { color: '#8e8e93', fontSize: 14 },
   usageHint: { color: '#8e8e93', fontSize: 13 },
-  semanticBox: {
+  noticeBox: {
     backgroundColor: 'rgba(255, 149, 0, 0.12)',
     borderRadius: 10,
     padding: 12,
   },
-  semanticText: { color: '#c25e00', fontSize: 13 },
+  noticeText: { color: '#c25e00', fontSize: 13 },
   errorBox: {
     backgroundColor: 'rgba(255, 59, 48, 0.1)',
     borderRadius: 10,

@@ -1,4 +1,5 @@
 import type {
+  AnswerResult,
   Approval,
   AttentionResponse,
   DaemonStatus,
@@ -54,6 +55,10 @@ export interface DaemonState {
   recallResult: RecallSearchResponse | null;
   recallLoading: boolean;
   recallError: string | null;
+  answerQuery: string;
+  answerResult: AnswerResult | null;
+  answerLoading: boolean;
+  answerError: string | null;
 }
 
 export type DaemonAction =
@@ -95,7 +100,11 @@ export type DaemonAction =
   | { type: 'RECALL_QUERY_SET'; query: string }
   | { type: 'RECALL_LOADING'; query: string }
   | { type: 'RECALL_RESULT'; result: RecallSearchResponse }
-  | { type: 'RECALL_ERROR'; error: string };
+  | { type: 'RECALL_ERROR'; error: string }
+  | { type: 'ANSWER_QUERY_SET'; query: string }
+  | { type: 'ANSWER_LOADING'; query: string }
+  | { type: 'ANSWER_RESULT'; result: AnswerResult }
+  | { type: 'ANSWER_ERROR'; error: string };
 
 export const initialState: DaemonState = {
   daemonUrl: '',
@@ -138,6 +147,10 @@ export const initialState: DaemonState = {
   recallResult: null,
   recallLoading: false,
   recallError: null,
+  answerQuery: '',
+  answerResult: null,
+  answerLoading: false,
+  answerError: null,
 };
 
 export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
@@ -182,6 +195,9 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         recallResult: action.online ? state.recallResult : null,
         recallError: action.online ? state.recallError : null,
         recallLoading: action.online ? state.recallLoading : false,
+        answerResult: action.online ? state.answerResult : null,
+        answerError: action.online ? state.answerError : null,
+        answerLoading: action.online ? state.answerLoading : false,
       };
     case 'SSE_STATUS':
       return { ...state, sseConnected: action.connected };
@@ -353,6 +369,29 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         recallLoading: false,
         recallError: action.error,
         recallResult: null,
+      };
+    case 'ANSWER_QUERY_SET':
+      return { ...state, answerQuery: action.query };
+    case 'ANSWER_LOADING':
+      return {
+        ...state,
+        answerQuery: action.query,
+        answerLoading: true,
+        answerError: null,
+      };
+    case 'ANSWER_RESULT':
+      return {
+        ...state,
+        answerResult: action.result,
+        answerLoading: false,
+        answerError: null,
+      };
+    case 'ANSWER_ERROR':
+      return {
+        ...state,
+        answerLoading: false,
+        answerError: action.error,
+        answerResult: null,
       };
   }
 }

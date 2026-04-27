@@ -9,6 +9,7 @@ import * as Notifications from 'expo-notifications';
 import React, { useEffect } from 'react';
 import { Text, TouchableOpacity } from 'react-native';
 import { useDaemon } from '../context/DaemonContext';
+import { AnswerScreen } from '../screens/AnswerScreen';
 import { ApprovalDetailScreen } from '../screens/ApprovalDetailScreen';
 import { ApprovalListScreen } from '../screens/ApprovalListScreen';
 import { AttentionScreen } from '../screens/AttentionScreen';
@@ -62,6 +63,7 @@ export type TabParams = {
   Memory: undefined;
   History: undefined;
   Recall: undefined;
+  Answer: undefined;
   Chat: NavigatorScreenParams<ChatStackParams> | undefined;
 };
 
@@ -283,6 +285,11 @@ export function AppNavigator() {
           name="Recall"
           component={RecallScreen}
           options={{ tabBarIcon: () => <Text>✨</Text>, headerShown: true, title: 'Recall' }}
+        />
+        <Tab.Screen
+          name="Answer"
+          component={AnswerScreen}
+          options={{ tabBarIcon: () => <Text>💡</Text>, headerShown: true, title: 'Answer' }}
         />
         <Tab.Screen
           name="Chat"

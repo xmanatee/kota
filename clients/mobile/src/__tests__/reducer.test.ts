@@ -1,5 +1,6 @@
 import { type DaemonState, initialState, reducer } from '../context/state';
 import type {
+  AnswerResult,
   Approval,
   AttentionResponse,
   DaemonStatus,
@@ -819,6 +820,126 @@ describe('reducer', () => {
     expect(withResult.recallResult).toBe(result);
     const offline = reducer(withResult, { type: 'ONLINE', online: false });
     expect(offline.recallResult).toBeNull();
+  });
+
+  test('ANSWER_QUERY_SET stores the query without touching results or loading flags', () => {
+    const next = reducer(initialState, {
+      type: 'ANSWER_QUERY_SET',
+      query: 'autonomy loop',
+    });
+    expect(next.answerQuery).toBe('autonomy loop');
+    expect(next.answerResult).toBeNull();
+    expect(next.answerLoading).toBe(false);
+    expect(next.answerError).toBeNull();
+  });
+
+  test('ANSWER_LOADING records the in-flight query and clears prior error', () => {
+    const withError = reducer(initialState, {
+      type: 'ANSWER_ERROR',
+      error: 'boom',
+    });
+    expect(withError.answerError).toBe('boom');
+    const next = reducer(withError, {
+      type: 'ANSWER_LOADING',
+      query: 'autonomy loop',
+    });
+    expect(next.answerLoading).toBe(true);
+    expect(next.answerError).toBeNull();
+    expect(next.answerQuery).toBe('autonomy loop');
+  });
+
+  test('ANSWER_RESULT stores a synthesized success payload spanning multiple sources', () => {
+    const result: AnswerResult = {
+      ok: true,
+      answer:
+        'The recall fan-out indexes [knowledge:k-1] and [memory:m-1] across stores.',
+      citations: [
+        { source: 'knowledge', id: 'k-1' },
+        { source: 'memory', id: 'm-1' },
+      ],
+      hits: [
+        {
+          source: 'knowledge',
+          score: 0.91,
+          id: 'k-1',
+          title: 'Cross-store recall fan-out',
+          preview: 'preview',
+          updated: '2026-04-26T12:00:00.000Z',
+        },
+        {
+          source: 'memory',
+          score: 0.83,
+          id: 'm-1',
+          preview: 'note about recall design',
+          created: '2026-04-25T18:30:00.000Z',
+        },
+      ],
+    };
+    const loading = reducer(initialState, {
+      type: 'ANSWER_LOADING',
+      query: 'autonomy loop',
+    });
+    const next = reducer(loading, { type: 'ANSWER_RESULT', result });
+    expect(next.answerResult).toBe(result);
+    expect(next.answerLoading).toBe(false);
+    expect(next.answerError).toBeNull();
+  });
+
+  test('ANSWER_RESULT preserves each ok:false branch verbatim', () => {
+    const reasons: Array<Extract<AnswerResult, { ok: false }>['reason']> = [
+      'no_hits',
+      'semantic_unavailable',
+      'synthesis_failed',
+    ];
+    for (const reason of reasons) {
+      const result: AnswerResult = { ok: false, reason };
+      const next = reducer(initialState, { type: 'ANSWER_RESULT', result });
+      expect(next.answerResult).toEqual({ ok: false, reason });
+      expect(next.answerLoading).toBe(false);
+      expect(next.answerError).toBeNull();
+    }
+  });
+
+  test('ANSWER_ERROR clears stale answer result', () => {
+    const result: AnswerResult = {
+      ok: true,
+      answer: 'verbatim answer',
+      citations: [{ source: 'knowledge', id: 'k-1' }],
+      hits: [
+        {
+          source: 'knowledge',
+          score: 0.91,
+          id: 'k-1',
+          title: 'Cross-store recall fan-out',
+          preview: 'preview',
+          updated: '2026-04-26T12:00:00.000Z',
+        },
+      ],
+    };
+    const withResult = reducer(initialState, {
+      type: 'ANSWER_RESULT',
+      result,
+    });
+    const next = reducer(withResult, { type: 'ANSWER_ERROR', error: '503' });
+    expect(next.answerResult).toBeNull();
+    expect(next.answerError).toBe('503');
+    expect(next.answerLoading).toBe(false);
+  });
+
+  test('ONLINE false drops cached answer result so it cannot persist across an offline transition', () => {
+    const result: AnswerResult = {
+      ok: true,
+      answer: 'verbatim answer',
+      citations: [],
+      hits: [],
+    };
+    const withResult = reducer(initialState, {
+      type: 'ANSWER_RESULT',
+      result,
+    });
+    expect(withResult.answerResult).toBe(result);
+    const offline = reducer(withResult, { type: 'ONLINE', online: false });
+    expect(offline.answerResult).toBeNull();
   });
 
   test('OWNER_QUESTIONS recomputes pending count', () => {

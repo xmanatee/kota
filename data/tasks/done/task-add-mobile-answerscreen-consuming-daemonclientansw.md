@@ -1,12 +1,12 @@
 ---
 id: task-add-mobile-answerscreen-consuming-daemonclientansw
 title: Add mobile AnswerScreen consuming DaemonClient.answer
-status: ready
+status: done
 priority: p2
 area: client
 summary: Add an AnswerScreen in the mobile client that calls POST /api/answer through a new DaemonClient.answer, exposes answer state on DaemonContext, and renders the synthesized answer body plus typed citations across the four source arms (knowledge/memory/history/tasks), closing the cited-answer fan-out across CLI, daemon HTTP, Telegram, web, macOS DaemonClient, macOS AnswerView, and mobile.
 created_at: 2026-04-27T14:29:49.669Z
-updated_at: 2026-04-27T14:29:49.669Z
+updated_at: 2026-04-27T14:39:21.697Z
 ---
 
 ## Problem

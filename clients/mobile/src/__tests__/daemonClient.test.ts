@@ -696,6 +696,121 @@ describe('DaemonClient', () => {
     await expect(client().recall('x')).rejects.toThrow('503');
   });
 
+  test('answer posts query to /api/answer and decodes the success branch with citations across two source arms', async () => {
+    const success = {
+      ok: true,
+      answer:
+        'Cross-store recall indexes [knowledge:k-1] and [memory:m-1] across the second brain.',
+      citations: [
+        { source: 'knowledge', id: 'k-1' },
+        { source: 'memory', id: 'm-1' },
+      ],
+      hits: [
+        {
+          source: 'knowledge',
+          score: 0.91,
+          id: 'k-1',
+          title: 'Cross-store recall fan-out',
+          preview: 'preview',
+          updated: '2026-04-26T12:00:00.000Z',
+        },
+        {
+          source: 'memory',
+          score: 0.83,
+          id: 'm-1',
+          preview: 'note about recall design',
+          created: '2026-04-25T18:30:00.000Z',
+        },
+      ],
+    };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(success));
+    const res = await client().answer('how does recall fan out');
+    const [url, init] = lastCall();
+    expect(url).toBe(`${baseUrl}/api/answer`);
+    expect(init?.method).toBe('POST');
+    expect(init?.body).toBe(
+      JSON.stringify({ query: 'how does recall fan out' }),
+    );
+    expect(lastHeaders().Authorization).toBe(`Bearer ${token}`);
+    expect(lastHeaders()['Content-Type']).toBe('application/json');
+    expect(res).toEqual(success);
+  });
+
+  test('answer only sends a filter when at least one option is set', async () => {
+    fetchSpy.mockImplementation(async () =>
+      jsonResponse({ ok: false, reason: 'no_hits' }),
+    );
+    await client().answer('x', { topK: 5 });
+    expect(lastCall()[1]?.body).toBe(
+      JSON.stringify({ query: 'x', filter: { topK: 5 } }),
+    );
+
+    await client().answer('x', { sources: ['knowledge', 'tasks'] });
+    expect(lastCall()[1]?.body).toBe(
+      JSON.stringify({
+        query: 'x',
+        filter: { sources: ['knowledge', 'tasks'] },
+      }),
+    );
+  });
+
+  test('answer decodes the no_hits branch verbatim', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, reason: 'no_hits' }),
+    );
+    const res = await client().answer('anything');
+    expect(res).toEqual({ ok: false, reason: 'no_hits' });
+  });
+
+  test('answer decodes the semantic_unavailable branch verbatim', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, reason: 'semantic_unavailable' }),
+    );
+    const res = await client().answer('anything');
+    expect(res).toEqual({ ok: false, reason: 'semantic_unavailable' });
+  });
+
+  test('answer decodes the synthesis_failed branch verbatim', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, reason: 'synthesis_failed' }),
+    );
+    const res = await client().answer('anything');
+    expect(res).toEqual({ ok: false, reason: 'synthesis_failed' });
+  });
+
+  test('answer rejects an unknown reason loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, reason: 'mystery' }),
+    );
+    await expect(client().answer('x')).rejects.toThrow(/mystery/);
+  });
+
+  test('answer rejects a malformed citation loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({
+        ok: true,
+        answer: 'verbatim',
+        citations: [{ source: 'rumor', id: 'r-1' }],
+        hits: [],
+      }),
+    );
+    await expect(client().answer('x')).rejects.toThrow(/answer citation/i);
+  });
+
+  test('answer rejects a missing answer body loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: true, citations: [], hits: [] }),
+    );
+    await expect(client().answer('x')).rejects.toThrow(/answer missing/i);
+  });
+
+  test('answer surfaces the daemon HTTP error one-to-one', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response('', { status: 503, statusText: 'Service Unavailable' }),
+    );
+    await expect(client().answer('x')).rejects.toThrow('503');
+  });
+
   test('health hits /health without auth header (public endpoint)', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({ status: 'ok', version: '1', uptimeMs: 1, components: {} }));
     await client().health();

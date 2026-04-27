@@ -1,4 +1,7 @@
 import type {
+  AnswerCitation,
+  AnswerFilter,
+  AnswerResult,
   Approval,
   AttentionResponse,
   AutonomyMode,
@@ -16,6 +19,7 @@ import type {
   RecallFilter,
   RecallHit,
   RecallSearchResponse,
+  RecallSource,
   RepoTaskSearchHit,
   RunDetail,
   RunSummary,
@@ -246,6 +250,36 @@ export class DaemonClient {
       body: JSON.stringify(body),
     });
     return parseRecallSearchResponse(parsed);
+  }
+
+  /**
+   * Targets the daemon's `POST /api/answer` user-facing route — the same
+   * route the embedded web `AnswerPanel` and Telegram `/answer` consume
+   * — and decodes the discriminated four-arm `AnswerResult`: one
+   * synthesized-success arm carrying `answer`, `citations`, and the
+   * typed `RecallHit[]` they resolve against, plus three `ok: false`
+   * failure arms (`no_hits`, `semantic_unavailable`, `synthesis_failed`).
+   * Mirrors the macOS `DaemonClient.answer` decode discipline: response
+   * shapes are validated explicitly so payload drift throws instead of
+   * silently degrading the rendered surface. The optional `filter`
+   * field is only sent when at least one of `topK` / `minScore` /
+   * `sources` is set, so the daemon seam applies its typed defaults.
+   */
+  async answer(
+    query: string,
+    options: AnswerFilter = {},
+  ): Promise<AnswerResult> {
+    const filter: AnswerFilter = {};
+    if (options.topK !== undefined) filter.topK = options.topK;
+    if (options.minScore !== undefined) filter.minScore = options.minScore;
+    if (options.sources !== undefined) filter.sources = options.sources;
+    const body: Record<string, unknown> = { query };
+    if (Object.keys(filter).length > 0) body.filter = filter;
+    const parsed = await this.request<unknown>('/api/answer', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    return parseAnswerResult(parsed);
   }
 
   registerPushToken(deviceId: string, token: string): Promise<{ ok: boolean }> {
@@ -688,4 +722,69 @@ function parseRecallHit(value: unknown): RecallHit {
     default:
       throw new Error(`Invalid recall hit: unknown source ${String(obj.source)}`);
   }
+}
+
+const ANSWER_REASONS: ReadonlyArray<'no_hits' | 'semantic_unavailable' | 'synthesis_failed'> = [
+  'no_hits',
+  'semantic_unavailable',
+  'synthesis_failed',
+];
+
+function parseAnswerResult(value: unknown): AnswerResult {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid answer response: not an object');
+  }
+  const obj = value as Record<string, unknown>;
+  if (obj.ok === true) {
+    if (typeof obj.answer !== 'string') {
+      throw new Error('Invalid answer response: answer missing');
+    }
+    if (!Array.isArray(obj.citations)) {
+      throw new Error('Invalid answer response: citations missing');
+    }
+    if (!Array.isArray(obj.hits)) {
+      throw new Error('Invalid answer response: hits missing');
+    }
+    const citations = obj.citations.map(parseAnswerCitation);
+    const hits = obj.hits.map(parseRecallHit);
+    return { ok: true, answer: obj.answer, citations, hits };
+  }
+  if (obj.ok === false) {
+    const reason = obj.reason;
+    if (
+      typeof reason !== 'string' ||
+      !(ANSWER_REASONS as readonly string[]).includes(reason)
+    ) {
+      throw new Error(
+        `Invalid answer response: unknown reason ${String(reason)}`,
+      );
+    }
+    return {
+      ok: false,
+      reason: reason as 'no_hits' | 'semantic_unavailable' | 'synthesis_failed',
+    };
+  }
+  throw new Error('Invalid answer response: missing ok flag');
+}
+
+const ANSWER_CITATION_SOURCES: ReadonlyArray<RecallSource> = [
+  'knowledge',
+  'memory',
+  'history',
+  'tasks',
+];
+
+function parseAnswerCitation(value: unknown): AnswerCitation {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid answer citation');
+  }
+  const obj = value as Record<string, unknown>;
+  if (
+    typeof obj.source !== 'string' ||
+    !(ANSWER_CITATION_SOURCES as readonly string[]).includes(obj.source) ||
+    typeof obj.id !== 'string'
+  ) {
+    throw new Error('Invalid answer citation: missing required fields');
+  }
+  return { source: obj.source as RecallSource, id: obj.id };
 }

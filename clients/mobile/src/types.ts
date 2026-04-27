@@ -483,3 +483,54 @@ export interface RecallFilter {
   minScore?: number;
   sources?: ReadonlyArray<RecallSource>;
 }
+
+/**
+ * Optional filter accepted by `DaemonClient.answer`. Forwarded to the
+ * underlying recall fan-out so callers can shrink the source pile the
+ * synthesizer sees. Mirror of the daemon's `AnswerFilter` (alias for
+ * `RecallFilter`).
+ */
+export type AnswerFilter = RecallFilter;
+
+/**
+ * Mirror of the daemon's `AnswerCitation` exported from
+ * `src/core/server/kota-client.ts`. Each citation is keyed by the same
+ * `{ source, id }` discriminator as the underlying `RecallHit`, so a
+ * citation always resolves back to the typed hit it cites — no free-form
+ * prose pointers, no hallucinated sources.
+ */
+export interface AnswerCitation {
+  source: RecallSource;
+  id: string;
+}
+
+/**
+ * Discriminated mirror of the daemon's cited-answer response shared
+ * between the daemon control route (`POST /answer`) and the user-facing
+ * route (`POST /api/answer`). Matches the macOS `DaemonClient.answer`
+ * decode shape one-to-one:
+ *
+ * - `{ ok: true, answer, citations, hits }` — one composed answer body
+ *   plus typed citations resolving against the typed `RecallHit[]` the
+ *   seam consumed.
+ * - `{ ok: false, reason: "no_hits" }` — recall returned zero hits;
+ *   nothing to synthesize.
+ * - `{ ok: false, reason: "semantic_unavailable" }` — recall itself is
+ *   unconfigured.
+ * - `{ ok: false, reason: "synthesis_failed" }` — the model call failed
+ *   or produced malformed citations after the single retry.
+ *
+ * Strict so payload drift fails loudly instead of silently degrading
+ * the rendered surface.
+ */
+export type AnswerResult =
+  | {
+      ok: true;
+      answer: string;
+      citations: AnswerCitation[];
+      hits: RecallHit[];
+    }
+  | {
+      ok: false;
+      reason: 'no_hits' | 'semantic_unavailable' | 'synthesis_failed';
+    };
