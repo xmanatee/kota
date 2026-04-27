@@ -6,6 +6,8 @@ import type {
   DigestResponse,
   HealthResponse,
   InteractiveSession,
+  KnowledgeEntry,
+  KnowledgeSearchResponse,
   OwnerQuestion,
   RunDetail,
   RunSummary,
@@ -118,6 +120,28 @@ export class DaemonClient {
 
   getAttention(): Promise<AttentionResponse> {
     return this.request<AttentionResponse>('/api/attention');
+  }
+
+  /**
+   * Targets the daemon's `GET /api/knowledge/search?q=&semantic=true&limit=`
+   * route and decodes the discriminated `{ ok: true, entries }` /
+   * `{ ok: false, reason: "semantic_unavailable" }` response. Mirrors the
+   * macOS `DaemonClient.searchKnowledge` decode discipline: the response
+   * shape is validated explicitly so payload drift throws instead of
+   * silently degrading to keyword search behind the operator's back.
+   */
+  async searchKnowledge(
+    query: string,
+    limit = 10,
+  ): Promise<KnowledgeSearchResponse> {
+    const params = new URLSearchParams();
+    params.set('q', query);
+    params.set('semantic', 'true');
+    params.set('limit', String(limit));
+    const parsed = await this.request<unknown>(
+      `/api/knowledge/search?${params.toString()}`,
+    );
+    return parseKnowledgeSearchResponse(parsed);
   }
 
   registerPushToken(deviceId: string, token: string): Promise<{ ok: boolean }> {
@@ -266,4 +290,43 @@ export class DaemonClient {
 
 function stringFrom(value: unknown): string {
   return typeof value === 'string' ? value : '';
+}
+
+function parseKnowledgeSearchResponse(value: unknown): KnowledgeSearchResponse {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid knowledge search response: not an object');
+  }
+  const obj = value as Record<string, unknown>;
+  if (obj.ok === true) {
+    if (!Array.isArray(obj.entries)) {
+      throw new Error('Invalid knowledge search response: entries missing');
+    }
+    const entries = obj.entries.map(parseKnowledgeEntry);
+    return { ok: true, entries };
+  }
+  if (obj.ok === false) {
+    if (obj.reason !== 'semantic_unavailable') {
+      throw new Error(
+        `Invalid knowledge search response: unknown reason ${String(obj.reason)}`,
+      );
+    }
+    return { ok: false, reason: 'semantic_unavailable' };
+  }
+  throw new Error('Invalid knowledge search response: missing ok flag');
+}
+
+function parseKnowledgeEntry(value: unknown): KnowledgeEntry {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid knowledge entry');
+  }
+  const obj = value as Record<string, unknown>;
+  if (
+    typeof obj.id !== 'string' ||
+    typeof obj.type !== 'string' ||
+    typeof obj.status !== 'string' ||
+    typeof obj.title !== 'string'
+  ) {
+    throw new Error('Invalid knowledge entry: missing required fields');
+  }
+  return { id: obj.id, type: obj.type, status: obj.status, title: obj.title };
 }

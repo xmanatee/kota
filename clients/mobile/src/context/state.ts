@@ -3,6 +3,7 @@ import type {
   AttentionResponse,
   DaemonStatus,
   DigestResponse,
+  KnowledgeSearchResponse,
   OwnerQuestion,
   RunSummary,
   TasksResponse,
@@ -29,6 +30,10 @@ export interface DaemonState {
   attention: AttentionResponse | null;
   attentionLoading: boolean;
   attentionError: string | null;
+  knowledgeQuery: string;
+  knowledgeResult: KnowledgeSearchResponse | null;
+  knowledgeLoading: boolean;
+  knowledgeError: string | null;
 }
 
 export type DaemonAction =
@@ -50,7 +55,11 @@ export type DaemonAction =
   | { type: 'DIGEST_ERROR'; error: string }
   | { type: 'ATTENTION_LOADING' }
   | { type: 'ATTENTION_RESULT'; attention: AttentionResponse }
-  | { type: 'ATTENTION_ERROR'; error: string };
+  | { type: 'ATTENTION_ERROR'; error: string }
+  | { type: 'KNOWLEDGE_QUERY_SET'; query: string }
+  | { type: 'KNOWLEDGE_LOADING'; query: string }
+  | { type: 'KNOWLEDGE_RESULT'; result: KnowledgeSearchResponse }
+  | { type: 'KNOWLEDGE_ERROR'; error: string };
 
 export const initialState: DaemonState = {
   daemonUrl: '',
@@ -73,6 +82,10 @@ export const initialState: DaemonState = {
   attention: null,
   attentionLoading: false,
   attentionError: null,
+  knowledgeQuery: '',
+  knowledgeResult: null,
+  knowledgeLoading: false,
+  knowledgeError: null,
 };
 
 export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
@@ -102,6 +115,9 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         attention: action.online ? state.attention : null,
         attentionError: action.online ? state.attentionError : null,
         attentionLoading: action.online ? state.attentionLoading : false,
+        knowledgeResult: action.online ? state.knowledgeResult : null,
+        knowledgeError: action.online ? state.knowledgeError : null,
+        knowledgeLoading: action.online ? state.knowledgeLoading : false,
       };
     case 'SSE_STATUS':
       return { ...state, sseConnected: action.connected };
@@ -158,6 +174,29 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         attentionLoading: false,
         attentionError: action.error,
         attention: null,
+      };
+    case 'KNOWLEDGE_QUERY_SET':
+      return { ...state, knowledgeQuery: action.query };
+    case 'KNOWLEDGE_LOADING':
+      return {
+        ...state,
+        knowledgeQuery: action.query,
+        knowledgeLoading: true,
+        knowledgeError: null,
+      };
+    case 'KNOWLEDGE_RESULT':
+      return {
+        ...state,
+        knowledgeResult: action.result,
+        knowledgeLoading: false,
+        knowledgeError: null,
+      };
+    case 'KNOWLEDGE_ERROR':
+      return {
+        ...state,
+        knowledgeLoading: false,
+        knowledgeError: action.error,
+        knowledgeResult: null,
       };
   }
 }

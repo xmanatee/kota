@@ -305,6 +305,61 @@ describe('DaemonClient', () => {
     await expect(client().getAttention()).rejects.toThrow('503');
   });
 
+  test('searchKnowledge encodes query/semantic/limit and decodes the success branch', async () => {
+    const success = {
+      ok: true,
+      entries: [
+        { id: 'k-1', type: 'note', status: 'active', title: 'Autonomy loop' },
+        { id: 'k-2', type: 'doc', status: 'archived', title: 'Old plan' },
+      ],
+    };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(success));
+    const res = await client().searchKnowledge('autonomy loop', 10);
+    expect(lastCall()[0]).toBe(
+      `${baseUrl}/api/knowledge/search?q=autonomy+loop&semantic=true&limit=10`,
+    );
+    expect(lastHeaders().Authorization).toBe(`Bearer ${token}`);
+    expect(res).toEqual(success);
+  });
+
+  test('searchKnowledge decodes the semantic-unavailable branch verbatim', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, reason: 'semantic_unavailable' }),
+    );
+    const res = await client().searchKnowledge('anything');
+    expect(res).toEqual({ ok: false, reason: 'semantic_unavailable' });
+  });
+
+  test('searchKnowledge defaults limit to 10', async () => {
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ ok: true, entries: [] }));
+    await client().searchKnowledge('x');
+    const url = lastCall()[0] as string;
+    expect(url).toContain('limit=10');
+  });
+
+  test('searchKnowledge rejects an unknown reason loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, reason: 'mystery' }),
+    );
+    await expect(client().searchKnowledge('x')).rejects.toThrow(/mystery/);
+  });
+
+  test('searchKnowledge rejects a malformed entry loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: true, entries: [{ id: 'k-1' }] }),
+    );
+    await expect(client().searchKnowledge('x')).rejects.toThrow(
+      /knowledge entry/i,
+    );
+  });
+
+  test('searchKnowledge surfaces the daemon HTTP error one-to-one', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response('', { status: 503, statusText: 'Service Unavailable' }),
+    );
+    await expect(client().searchKnowledge('x')).rejects.toThrow('503');
+  });
+
   test('health hits /health without auth header (public endpoint)', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({ status: 'ok', version: '1', uptimeMs: 1, components: {} }));
     await client().health();

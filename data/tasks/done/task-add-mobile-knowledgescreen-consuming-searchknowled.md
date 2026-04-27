@@ -1,12 +1,12 @@
 ---
 id: task-add-mobile-knowledgescreen-consuming-searchknowled
 title: Add mobile KnowledgeScreen consuming searchKnowledge
-status: ready
+status: done
 priority: p2
 area: client
 summary: Add a KnowledgeScreen in the mobile client (mirroring DigestScreen and AttentionScreen) that calls GET /api/knowledge/search through the mobile daemon HTTP client, exposes search query state on DaemonContext, and renders the top-entry lines plus the semantic-unavailable branch one-to-one with the four other knowledge surfaces — completing the knowledge fan-out across CLI, daemon HTTP, web, Telegram, macOS, and mobile.
 created_at: 2026-04-27T00:07:56.326Z
-updated_at: 2026-04-27T00:07:56.326Z
+updated_at: 2026-04-27T00:16:06.320Z
 ---
 
 ## Problem

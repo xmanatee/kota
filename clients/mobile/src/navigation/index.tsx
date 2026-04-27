@@ -15,6 +15,7 @@ import { AttentionScreen } from '../screens/AttentionScreen';
 import { ChatDetailScreen } from '../screens/ChatDetailScreen';
 import { ChatListScreen } from '../screens/ChatListScreen';
 import { DigestScreen } from '../screens/DigestScreen';
+import { KnowledgeScreen } from '../screens/KnowledgeScreen';
 import { OwnerQuestionListScreen } from '../screens/OwnerQuestionListScreen';
 import { RunDetailScreen } from '../screens/RunDetailScreen';
 import { RunListScreen } from '../screens/RunListScreen';
@@ -52,6 +53,7 @@ export type TabParams = {
   Tasks: undefined;
   Attention: undefined;
   Digest: undefined;
+  Knowledge: undefined;
   Chat: NavigatorScreenParams<ChatStackParams> | undefined;
 };
 
@@ -248,6 +250,11 @@ export function AppNavigator() {
           name="Digest"
           component={DigestScreen}
           options={{ tabBarIcon: () => <Text>📰</Text>, headerShown: true, title: 'Digest' }}
+        />
+        <Tab.Screen
+          name="Knowledge"
+          component={KnowledgeScreen}
+          options={{ tabBarIcon: () => <Text>📚</Text>, headerShown: true, title: 'Knowledge' }}
         />
         <Tab.Screen
           name="Chat"

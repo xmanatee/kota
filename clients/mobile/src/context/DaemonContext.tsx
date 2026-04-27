@@ -25,6 +25,8 @@ interface DaemonContextValue {
   refresh: () => void;
   refreshDigest: () => Promise<void>;
   refreshAttention: () => Promise<void>;
+  setKnowledgeQuery: (query: string) => void;
+  searchKnowledge: (query: string) => Promise<void>;
 }
 
 const DaemonContext = createContext<DaemonContextValue>({
@@ -35,6 +37,8 @@ const DaemonContext = createContext<DaemonContextValue>({
   refresh: () => {},
   refreshDigest: async () => {},
   refreshAttention: async () => {},
+  setKnowledgeQuery: () => {},
+  searchKnowledge: async () => {},
 });
 
 export function DaemonProvider({ children }: { children: React.ReactNode }) {
@@ -238,6 +242,26 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const setKnowledgeQuery = useCallback((query: string) => {
+    dispatch({ type: 'KNOWLEDGE_QUERY_SET', query });
+  }, []);
+
+  const searchKnowledge = useCallback(async (query: string) => {
+    const client = clientRef.current;
+    if (!client) return;
+    if (query.trim().length === 0) return;
+    dispatch({ type: 'KNOWLEDGE_LOADING', query });
+    try {
+      const result = await client.searchKnowledge(query, 10);
+      dispatch({ type: 'KNOWLEDGE_RESULT', result });
+    } catch (e) {
+      dispatch({
+        type: 'KNOWLEDGE_ERROR',
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }, []);
+
   return (
     <DaemonContext.Provider
       value={{
@@ -248,6 +272,8 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
         refresh,
         refreshDigest,
         refreshAttention,
+        setKnowledgeQuery,
+        searchKnowledge,
       }}
     >
       {children}

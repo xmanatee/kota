@@ -286,3 +286,29 @@ export interface AttentionResponse {
   data: { items: AttentionItem[] };
   text: string;
 }
+
+/**
+ * Mirror of a single entry returned by the daemon's
+ * `GET /api/knowledge/search` route. Decoding is restricted to the four
+ * fields the shared `renderKnowledgeSearchPlain` helper consumes
+ * (`src/modules/knowledge/render.ts`) so the mobile surface speaks the
+ * same line shape as Telegram, the CLI, the embedded web panel, and the
+ * macOS menu bar.
+ */
+export interface KnowledgeEntry {
+  id: string;
+  type: string;
+  status: string;
+  title: string;
+}
+
+/**
+ * Discriminated mirror of the daemon's `GET /api/knowledge/search`
+ * response: `{ ok: true, entries: KnowledgeEntry[] }` on success and
+ * `{ ok: false, reason: "semantic_unavailable" }` when no
+ * embedding-backed knowledge provider is configured. Strict so payload
+ * drift fails loudly instead of silently degrading the rendered surface.
+ */
+export type KnowledgeSearchResponse =
+  | { ok: true; entries: KnowledgeEntry[] }
+  | { ok: false; reason: 'semantic_unavailable' };
