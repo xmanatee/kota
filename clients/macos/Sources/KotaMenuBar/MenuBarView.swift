@@ -42,6 +42,9 @@ struct MenuBarView: View {
             // History search (on-demand /api/history/search)
             HistoryView()
 
+            // Repo task search (on-demand /tasks/search)
+            TaskSearchView()
+
             // Task queue
             TaskQueueView()
 

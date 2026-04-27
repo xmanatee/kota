@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-menu-bar-tasksearchview-consuming-daemon
 title: Add macOS menu bar TaskSearchView consuming DaemonClient.searchTasks
-status: backlog
+status: done
 priority: p2
 area: client
 summary: Add a TaskSearchView in the macOS menu bar (mirroring HistoryView, MemoryView, KnowledgeView) that calls DaemonClient.searchTasks for the repo-task-queue semantic-search seam, surfaces the discriminated populated/empty/empty-query/semantic-unavailable branches, and renders the same id/state/priority/title line shape renderRepoTaskSearchPlain emits, completing the macOS step in the tasks-semantic fan-out.
 created_at: 2026-04-27T06:30:49.748Z
-updated_at: 2026-04-27T06:30:49.748Z
+updated_at: 2026-04-27T06:49:05.526Z
 ---
 
 ## Problem

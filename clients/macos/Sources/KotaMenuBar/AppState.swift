@@ -79,6 +79,10 @@ final class AppState: ObservableObject {
     @Published var historyResult: HistorySearchResponse?
     @Published var historyError: String?
     @Published var isLoadingHistory: Bool = false
+    @Published var tasksQuery: String = ""
+    @Published var tasksResult: TasksSearchResponse?
+    @Published var tasksError: String?
+    @Published var isLoadingTasksSearch: Bool = false
     @Published var projectDir: URL? {
         didSet {
             if let dir = projectDir {
@@ -219,6 +223,9 @@ final class AppState: ObservableObject {
         historyResult = nil
         historyError = nil
         isLoadingHistory = false
+        tasksResult = nil
+        tasksError = nil
+        isLoadingTasksSearch = false
     }
 
     /// Pulls the on-demand 24h rollup from `/api/digest`. Errors land in
@@ -324,6 +331,31 @@ final class AppState: ObservableObject {
             historyError = error.localizedDescription
         }
         isLoadingHistory = false
+    }
+
+    /// Pulls semantic repo-task search results from the daemon's
+    /// `/tasks/search` route. Empty / whitespace-only queries clear any prior
+    /// result and skip the request — the view surfaces the inline usage hint
+    /// instead. Failures land in `tasksError`; the typed `semanticUnavailable`
+    /// branch lands in `tasksResult` so the view renders the daemon's
+    /// explanation without retrying the request.
+    func loadTasksSearch() async {
+        let trimmed = tasksQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            tasksResult = nil
+            tasksError = nil
+            isLoadingTasksSearch = false
+            return
+        }
+        isLoadingTasksSearch = true
+        tasksError = nil
+        do {
+            tasksResult = try await client.searchTasks(query: trimmed, limit: 10, states: nil)
+        } catch {
+            tasksResult = nil
+            tasksError = error.localizedDescription
+        }
+        isLoadingTasksSearch = false
     }
 
     private func fetchAll() async {
