@@ -1,12 +1,12 @@
 ---
 id: task-add-mobile-memoryscreen-consuming-searchmemory
 title: Add mobile MemoryScreen consuming searchMemory
-status: ready
+status: done
 priority: p2
 area: client
 summary: Add a MemoryScreen in the mobile client (mirroring KnowledgeScreen, DigestScreen, and AttentionScreen) that calls GET /api/memory/search through the mobile daemon HTTP client, exposes search query state on DaemonContext, and renders the same per-entry line shape plus the semantic-unavailable branch the four other memory surfaces emit — completing the memory fan-out across Telegram, daemon HTTP, macOS DaemonClient, macOS MemoryView, and mobile.
 created_at: 2026-04-27T02:25:52.502Z
-updated_at: 2026-04-27T02:25:52.502Z
+updated_at: 2026-04-27T02:33:01.403Z
 ---
 
 ## Problem

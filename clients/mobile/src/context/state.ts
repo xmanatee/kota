@@ -4,6 +4,7 @@ import type {
   DaemonStatus,
   DigestResponse,
   KnowledgeSearchResponse,
+  MemorySearchResponse,
   OwnerQuestion,
   RunSummary,
   TasksResponse,
@@ -34,6 +35,10 @@ export interface DaemonState {
   knowledgeResult: KnowledgeSearchResponse | null;
   knowledgeLoading: boolean;
   knowledgeError: string | null;
+  memoryQuery: string;
+  memoryResult: MemorySearchResponse | null;
+  memoryLoading: boolean;
+  memoryError: string | null;
 }
 
 export type DaemonAction =
@@ -59,7 +64,11 @@ export type DaemonAction =
   | { type: 'KNOWLEDGE_QUERY_SET'; query: string }
   | { type: 'KNOWLEDGE_LOADING'; query: string }
   | { type: 'KNOWLEDGE_RESULT'; result: KnowledgeSearchResponse }
-  | { type: 'KNOWLEDGE_ERROR'; error: string };
+  | { type: 'KNOWLEDGE_ERROR'; error: string }
+  | { type: 'MEMORY_QUERY_SET'; query: string }
+  | { type: 'MEMORY_LOADING'; query: string }
+  | { type: 'MEMORY_RESULT'; result: MemorySearchResponse }
+  | { type: 'MEMORY_ERROR'; error: string };
 
 export const initialState: DaemonState = {
   daemonUrl: '',
@@ -86,6 +95,10 @@ export const initialState: DaemonState = {
   knowledgeResult: null,
   knowledgeLoading: false,
   knowledgeError: null,
+  memoryQuery: '',
+  memoryResult: null,
+  memoryLoading: false,
+  memoryError: null,
 };
 
 export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
@@ -118,6 +131,9 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         knowledgeResult: action.online ? state.knowledgeResult : null,
         knowledgeError: action.online ? state.knowledgeError : null,
         knowledgeLoading: action.online ? state.knowledgeLoading : false,
+        memoryResult: action.online ? state.memoryResult : null,
+        memoryError: action.online ? state.memoryError : null,
+        memoryLoading: action.online ? state.memoryLoading : false,
       };
     case 'SSE_STATUS':
       return { ...state, sseConnected: action.connected };
@@ -197,6 +213,29 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         knowledgeLoading: false,
         knowledgeError: action.error,
         knowledgeResult: null,
+      };
+    case 'MEMORY_QUERY_SET':
+      return { ...state, memoryQuery: action.query };
+    case 'MEMORY_LOADING':
+      return {
+        ...state,
+        memoryQuery: action.query,
+        memoryLoading: true,
+        memoryError: null,
+      };
+    case 'MEMORY_RESULT':
+      return {
+        ...state,
+        memoryResult: action.result,
+        memoryLoading: false,
+        memoryError: null,
+      };
+    case 'MEMORY_ERROR':
+      return {
+        ...state,
+        memoryLoading: false,
+        memoryError: action.error,
+        memoryResult: null,
       };
   }
 }

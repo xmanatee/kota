@@ -8,6 +8,8 @@ import type {
   InteractiveSession,
   KnowledgeEntry,
   KnowledgeSearchResponse,
+  MemoryEntry,
+  MemorySearchResponse,
   OwnerQuestion,
   RunDetail,
   RunSummary,
@@ -142,6 +144,28 @@ export class DaemonClient {
       `/api/knowledge/search?${params.toString()}`,
     );
     return parseKnowledgeSearchResponse(parsed);
+  }
+
+  /**
+   * Targets the daemon's `GET /api/memory/search?q=&semantic=true&limit=`
+   * route and decodes the discriminated `{ ok: true, entries }` /
+   * `{ ok: false, reason: "semantic_unavailable" }` response. Mirrors the
+   * macOS `DaemonClient.searchMemory` decode discipline: the response
+   * shape is validated explicitly so payload drift throws instead of
+   * silently degrading to keyword search behind the operator's back.
+   */
+  async searchMemory(
+    query: string,
+    limit = 10,
+  ): Promise<MemorySearchResponse> {
+    const params = new URLSearchParams();
+    params.set('q', query);
+    params.set('semantic', 'true');
+    params.set('limit', String(limit));
+    const parsed = await this.request<unknown>(
+      `/api/memory/search?${params.toString()}`,
+    );
+    return parseMemorySearchResponse(parsed);
   }
 
   registerPushToken(deviceId: string, token: string): Promise<{ ok: boolean }> {
@@ -329,4 +353,42 @@ function parseKnowledgeEntry(value: unknown): KnowledgeEntry {
     throw new Error('Invalid knowledge entry: missing required fields');
   }
   return { id: obj.id, type: obj.type, status: obj.status, title: obj.title };
+}
+
+function parseMemorySearchResponse(value: unknown): MemorySearchResponse {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid memory search response: not an object');
+  }
+  const obj = value as Record<string, unknown>;
+  if (obj.ok === true) {
+    if (!Array.isArray(obj.entries)) {
+      throw new Error('Invalid memory search response: entries missing');
+    }
+    const entries = obj.entries.map(parseMemoryEntry);
+    return { ok: true, entries };
+  }
+  if (obj.ok === false) {
+    if (obj.reason !== 'semantic_unavailable') {
+      throw new Error(
+        `Invalid memory search response: unknown reason ${String(obj.reason)}`,
+      );
+    }
+    return { ok: false, reason: 'semantic_unavailable' };
+  }
+  throw new Error('Invalid memory search response: missing ok flag');
+}
+
+function parseMemoryEntry(value: unknown): MemoryEntry {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid memory entry');
+  }
+  const obj = value as Record<string, unknown>;
+  if (
+    typeof obj.id !== 'string' ||
+    typeof obj.created !== 'string' ||
+    typeof obj.content !== 'string'
+  ) {
+    throw new Error('Invalid memory entry: missing required fields');
+  }
+  return { id: obj.id, created: obj.created, content: obj.content };
 }

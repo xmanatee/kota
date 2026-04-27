@@ -27,6 +27,8 @@ interface DaemonContextValue {
   refreshAttention: () => Promise<void>;
   setKnowledgeQuery: (query: string) => void;
   searchKnowledge: (query: string) => Promise<void>;
+  setMemoryQuery: (query: string) => void;
+  searchMemory: (query: string) => Promise<void>;
 }
 
 const DaemonContext = createContext<DaemonContextValue>({
@@ -39,6 +41,8 @@ const DaemonContext = createContext<DaemonContextValue>({
   refreshAttention: async () => {},
   setKnowledgeQuery: () => {},
   searchKnowledge: async () => {},
+  setMemoryQuery: () => {},
+  searchMemory: async () => {},
 });
 
 export function DaemonProvider({ children }: { children: React.ReactNode }) {
@@ -262,6 +266,26 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const setMemoryQuery = useCallback((query: string) => {
+    dispatch({ type: 'MEMORY_QUERY_SET', query });
+  }, []);
+
+  const searchMemory = useCallback(async (query: string) => {
+    const client = clientRef.current;
+    if (!client) return;
+    if (query.trim().length === 0) return;
+    dispatch({ type: 'MEMORY_LOADING', query });
+    try {
+      const result = await client.searchMemory(query, 10);
+      dispatch({ type: 'MEMORY_RESULT', result });
+    } catch (e) {
+      dispatch({
+        type: 'MEMORY_ERROR',
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }, []);
+
   return (
     <DaemonContext.Provider
       value={{
@@ -274,6 +298,8 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
         refreshAttention,
         setKnowledgeQuery,
         searchKnowledge,
+        setMemoryQuery,
+        searchMemory,
       }}
     >
       {children}

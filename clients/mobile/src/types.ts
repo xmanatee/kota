@@ -312,3 +312,28 @@ export interface KnowledgeEntry {
 export type KnowledgeSearchResponse =
   | { ok: true; entries: KnowledgeEntry[] }
   | { ok: false; reason: 'semantic_unavailable' };
+
+/**
+ * Mirror of a single entry returned by the daemon's
+ * `GET /api/memory/search` route. Decoding is restricted to the three
+ * fields the shared `renderMemorySearchPlain` helper consumes
+ * (`src/modules/memory/render.ts`) so the mobile surface speaks the
+ * same line shape as Telegram, the CLI, the daemon HTTP route, and the
+ * macOS menu bar.
+ */
+export interface MemoryEntry {
+  id: string;
+  created: string;
+  content: string;
+}
+
+/**
+ * Discriminated mirror of the daemon's `GET /api/memory/search`
+ * response: `{ ok: true, entries: MemoryEntry[] }` on success and
+ * `{ ok: false, reason: "semantic_unavailable" }` when no
+ * embedding-backed memory provider is configured. Strict so payload
+ * drift fails loudly instead of silently degrading the rendered surface.
+ */
+export type MemorySearchResponse =
+  | { ok: true; entries: MemoryEntry[] }
+  | { ok: false; reason: 'semantic_unavailable' };

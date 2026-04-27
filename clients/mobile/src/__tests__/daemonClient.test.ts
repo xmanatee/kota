@@ -360,6 +360,67 @@ describe('DaemonClient', () => {
     await expect(client().searchKnowledge('x')).rejects.toThrow('503');
   });
 
+  test('searchMemory encodes query/semantic/limit and decodes the success branch', async () => {
+    const success = {
+      ok: true,
+      entries: [
+        {
+          id: 'm-1',
+          created: '2026-04-26T12:00:00.000Z',
+          content: 'autonomy loop notes',
+        },
+        {
+          id: 'm-2',
+          created: '2026-04-25T18:30:00.000Z',
+          content: 'old plan',
+        },
+      ],
+    };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(success));
+    const res = await client().searchMemory('autonomy loop', 10);
+    expect(lastCall()[0]).toBe(
+      `${baseUrl}/api/memory/search?q=autonomy+loop&semantic=true&limit=10`,
+    );
+    expect(lastHeaders().Authorization).toBe(`Bearer ${token}`);
+    expect(res).toEqual(success);
+  });
+
+  test('searchMemory decodes the semantic-unavailable branch verbatim', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, reason: 'semantic_unavailable' }),
+    );
+    const res = await client().searchMemory('anything');
+    expect(res).toEqual({ ok: false, reason: 'semantic_unavailable' });
+  });
+
+  test('searchMemory defaults limit to 10', async () => {
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ ok: true, entries: [] }));
+    await client().searchMemory('x');
+    const url = lastCall()[0] as string;
+    expect(url).toContain('limit=10');
+  });
+
+  test('searchMemory rejects an unknown reason loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, reason: 'mystery' }),
+    );
+    await expect(client().searchMemory('x')).rejects.toThrow(/mystery/);
+  });
+
+  test('searchMemory rejects a malformed entry loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: true, entries: [{ id: 'm-1' }] }),
+    );
+    await expect(client().searchMemory('x')).rejects.toThrow(/memory entry/i);
+  });
+
+  test('searchMemory surfaces the daemon HTTP error one-to-one', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response('', { status: 503, statusText: 'Service Unavailable' }),
+    );
+    await expect(client().searchMemory('x')).rejects.toThrow('503');
+  });
+
   test('health hits /health without auth header (public endpoint)', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({ status: 'ok', version: '1', uptimeMs: 1, components: {} }));
     await client().health();
