@@ -1,12 +1,18 @@
 /**
- * Daemon-control route for the cross-store recall seam.
+ * HTTP routes for the cross-store recall seam.
  *
- * One route, `POST /recall`, exposes the seam to clients. The route is
- * registered as `read` capability scope — the call queries store contents
- * but never mutates them.
+ * Two surfaces share one handler:
+ * - `POST /recall` on the daemon-control server (capability scope `read`),
+ *   consumed by other daemon clients through `KotaClient.recall.recall()`.
+ * - `POST /api/recall` on the user-facing HTTP server, consumed by the web
+ *   client. The same handler answers both so the wire shape cannot drift
+ *   between operator surfaces.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ControlRouteRegistration } from "#core/modules/module-types.js";
+import type {
+  ControlRouteRegistration,
+  RouteRegistration,
+} from "#core/modules/module-types.js";
 import type {
   RecallFilter,
   RecallResult,
@@ -87,6 +93,18 @@ export function recallControlRoutes(
       method: "POST",
       path: "/recall",
       capabilityScope: "read",
+      handler: createRecallRouteHandler(resolveProvider),
+    },
+  ];
+}
+
+export function recallApiRoutes(
+  resolveProvider: () => RecallProvider,
+): RouteRegistration[] {
+  return [
+    {
+      method: "POST",
+      path: "/api/recall",
       handler: createRecallRouteHandler(resolveProvider),
     },
   ];

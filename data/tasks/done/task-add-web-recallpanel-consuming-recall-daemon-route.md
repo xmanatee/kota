@@ -1,12 +1,12 @@
 ---
 id: task-add-web-recallpanel-consuming-recall-daemon-route
 title: Add web RecallPanel consuming /recall daemon route
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a sidebar RecallPanel to the web client that consumes POST /recall through DaemonControlClient.recall.recall(query) and renders ranked, source-tagged hits, mirroring the existing AttentionPanel/DigestPanel pattern.
 created_at: 2026-04-27T08:16:37.823Z
-updated_at: 2026-04-27T08:16:37.823Z
+updated_at: 2026-04-27T08:26:01.466Z
 ---
 
 ## Problem

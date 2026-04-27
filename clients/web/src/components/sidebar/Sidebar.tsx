@@ -14,6 +14,7 @@ import { MemoryPanel } from "./MemoryPanel";
 import { ModulesPanel } from "./ModulesPanel";
 import { OverviewPanel } from "./OverviewPanel";
 import { OwnerQuestionsPanel } from "./OwnerQuestionsPanel";
+import { RecallPanel } from "./RecallPanel";
 import { SchedulesPanel } from "./SchedulesPanel";
 import { SessionList } from "./SessionList";
 import { SidebarSection } from "./SidebarSection";
@@ -126,6 +127,10 @@ export function Sidebar({
 
           <SidebarSection title="Analytics" defaultOpen={false}>
             <CostPanel />
+          </SidebarSection>
+
+          <SidebarSection title="Recall" defaultOpen={false}>
+            <RecallPanel />
           </SidebarSection>
 
           <SidebarSection title="Knowledge" defaultOpen={false}>

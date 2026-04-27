@@ -313,6 +313,59 @@ export type AttentionResponse = {
   text: string;
 };
 
+/**
+ * Cross-store recall types — kept in sync with the daemon's
+ * `RecallResult` discriminated union (see
+ * `src/core/server/kota-client.ts`).
+ */
+export type RecallSource = "knowledge" | "memory" | "history" | "tasks";
+
+export type RecallKnowledgeHit = {
+  source: "knowledge";
+  score: number;
+  id: string;
+  title: string;
+  preview: string;
+  updated: string;
+};
+
+export type RecallMemoryHit = {
+  source: "memory";
+  score: number;
+  id: string;
+  preview: string;
+  created: string;
+};
+
+export type RecallHistoryHit = {
+  source: "history";
+  score: number;
+  id: string;
+  title: string;
+  cwd: string;
+  updatedAt: string;
+};
+
+export type RecallTasksHit = {
+  source: "tasks";
+  score: number;
+  id: string;
+  title: string;
+  state: string;
+  priority: string;
+  updatedAt: string;
+};
+
+export type RecallHit =
+  | RecallKnowledgeHit
+  | RecallMemoryHit
+  | RecallHistoryHit
+  | RecallTasksHit;
+
+export type RecallResult =
+  | { ok: true; hits: RecallHit[] }
+  | { ok: false; reason: "semantic_unavailable" };
+
 export type SlashCommandSource = "workflow" | "skill";
 
 export type SlashCommand = {

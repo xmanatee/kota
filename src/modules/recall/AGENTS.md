@@ -7,8 +7,11 @@ source-tagged hits across every registered contributor.
 
 - The `RecallProvider` primitive and its single in-process implementation.
 - The typed `RecallContributor` protocol every store implements.
-- One daemon-control route (`POST /recall`), one `KotaClient.recall`
-  namespace, and one `kota recall <query>` CLI subcommand.
+- One daemon-control route (`POST /recall`) plus its user-facing twin
+  (`POST /api/recall`) — both share `createRecallRouteHandler` so the wire
+  shape cannot drift between operator surfaces.
+- One `KotaClient.recall` namespace and one `kota recall <query>` CLI
+  subcommand.
 
 ## How a new store joins
 
@@ -48,4 +51,5 @@ cannot answer.
 - No replacement of the per-store query paths. `searchKnowledge`,
   `searchMemory`, `searchHistory`, and `searchTasks` remain as-is.
 - No fan-out to other operator surfaces from this module — Telegram,
-  macOS, mobile, and web adoption land later as their own follow-ups.
+  macOS, and mobile adoption land later as their own follow-ups. The web
+  client consumes `POST /api/recall` (same handler as `POST /recall`).

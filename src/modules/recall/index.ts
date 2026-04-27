@@ -27,7 +27,7 @@ import {
 } from "./contributors.js";
 import { RecallProviderImpl } from "./recall-provider.js";
 import type { RecallProvider } from "./recall-types.js";
-import { recallControlRoutes } from "./routes.js";
+import { recallApiRoutes, recallControlRoutes } from "./routes.js";
 
 let activeProvider: RecallProvider | null = null;
 
@@ -72,6 +72,8 @@ const recallModule: KotaModule = {
   },
 
   controlRoutes: () => recallControlRoutes(resolveActiveProvider),
+
+  routes: () => recallApiRoutes(resolveActiveProvider),
 
   localClient: () => {
     const handler: RecallClient = {

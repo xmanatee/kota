@@ -8,7 +8,10 @@ type Props = {
   onDismiss: () => void;
 };
 
-function filterCommands(commands: SlashCommand[], query: string): SlashCommand[] {
+function filterCommands(
+  commands: SlashCommand[],
+  query: string,
+): SlashCommand[] {
   const q = query.toLowerCase();
   if (!q) return commands;
   return commands.filter(
@@ -24,7 +27,10 @@ export function SlashCommandPalette({
   onPick,
   onDismiss,
 }: Props) {
-  const filtered = useMemo(() => filterCommands(commands, query), [commands, query]);
+  const filtered = useMemo(
+    () => filterCommands(commands, query),
+    [commands, query],
+  );
   const [selected, setSelected] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -71,7 +77,9 @@ export function SlashCommandPalette({
           role="option"
           aria-selected={i === selected}
           className={`flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-sm ${
-            i === selected ? "bg-accent text-accent-foreground" : "hover:bg-muted"
+            i === selected
+              ? "bg-accent text-accent-foreground"
+              : "hover:bg-muted"
           }`}
           onMouseEnter={() => setSelected(i)}
           onClick={() => onPick(cmd)}
@@ -83,7 +91,9 @@ export function SlashCommandPalette({
             </span>
           </div>
           {cmd.description ? (
-            <span className="text-xs text-muted-foreground">{cmd.description}</span>
+            <span className="text-xs text-muted-foreground">
+              {cmd.description}
+            </span>
           ) : null}
         </button>
       ))}

@@ -14,6 +14,7 @@ import type {
   ModuleInfo,
   PendingApproval,
   PendingOwnerQuestion,
+  RecallResult,
   ScheduleEntry,
   SlashCommand,
   SlashCommandInvocation,
@@ -286,6 +287,13 @@ export const api = {
   getDigest: () => apiJson<DigestResponse>("/api/digest"),
 
   getAttention: () => apiJson<AttentionResponse>("/api/attention"),
+
+  recall: (query: string) =>
+    apiJson<RecallResult>("/api/recall", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    }),
 
   listSlashCommands: () =>
     apiJson<{ commands: SlashCommand[] }>("/api/commands"),

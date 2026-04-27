@@ -9,14 +9,12 @@ export const AUTONOMY_MODES: AutonomyMode[] = [
   "autonomous",
 ];
 
-const BADGE_VARIANT: Record<
-  AutonomyMode,
-  "success" | "warning" | "secondary"
-> = {
-  autonomous: "success",
-  supervised: "warning",
-  passive: "secondary",
-};
+const BADGE_VARIANT: Record<AutonomyMode, "success" | "warning" | "secondary"> =
+  {
+    autonomous: "success",
+    supervised: "warning",
+    passive: "secondary",
+  };
 
 const SHORT_LABEL: Record<AutonomyMode, string> = {
   autonomous: "auto",
