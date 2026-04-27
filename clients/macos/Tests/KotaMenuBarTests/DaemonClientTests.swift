@@ -1036,6 +1036,198 @@ final class DaemonClientTests: XCTestCase {
         }
     }
 
+    func testRecallDecodesMixedSourceSuccess() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/recall")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+            let body = request.readBody()
+            XCTAssertNotNil(body)
+            let obj = try? JSONSerialization.jsonObject(with: body!) as? [String: Any]
+            XCTAssertEqual(obj?["query"] as? String, "recall me")
+            let filter = obj?["filter"] as? [String: Any]
+            XCTAssertEqual(filter?["topK"] as? Int, 5)
+            XCTAssertEqual(filter?["minScore"] as? Double, 0.25)
+            XCTAssertEqual(filter?["sources"] as? [String], ["knowledge", "memory"])
+            let respBody = #"""
+            {"ok": true, "hits": [
+              {
+                "source": "knowledge",
+                "score": 0.91,
+                "id": "k-1",
+                "title": "Knowledge surface fan-out",
+                "preview": "Cross-store recall seam preview",
+                "updated": "2026-04-26T12:34:56Z"
+              },
+              {
+                "source": "memory",
+                "score": 0.72,
+                "id": "m-1",
+                "preview": "Operator-pull parity",
+                "created": "2026-04-25T08:00:00Z"
+              },
+              {
+                "source": "history",
+                "score": 0.55,
+                "id": "c-1",
+                "title": "Recall design discussion",
+                "cwd": "/repo",
+                "updatedAt": "2026-04-24T08:00:00Z"
+              },
+              {
+                "source": "tasks",
+                "score": 0.42,
+                "id": "task-foo",
+                "title": "Wire macOS recall",
+                "state": "ready",
+                "priority": "p2",
+                "updatedAt": "2026-04-23T08:00:00Z"
+              }
+            ]}
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.recall(
+            query: "recall me",
+            topK: 5,
+            minScore: 0.25,
+            sources: ["knowledge", "memory"]
+        )
+        switch result {
+        case .success(let hits):
+            XCTAssertEqual(hits.count, 4)
+            guard case let .knowledge(score, id, title, preview, updated) = hits[0] else {
+                XCTFail("expected knowledge arm at [0], got \(hits[0])"); return
+            }
+            XCTAssertEqual(score, 0.91, accuracy: 1e-6)
+            XCTAssertEqual(id, "k-1")
+            XCTAssertEqual(title, "Knowledge surface fan-out")
+            XCTAssertEqual(preview, "Cross-store recall seam preview")
+            XCTAssertEqual(updated, "2026-04-26T12:34:56Z")
+            guard case let .memory(_, mid, mpreview, mcreated) = hits[1] else {
+                XCTFail("expected memory arm at [1], got \(hits[1])"); return
+            }
+            XCTAssertEqual(mid, "m-1")
+            XCTAssertEqual(mpreview, "Operator-pull parity")
+            XCTAssertEqual(mcreated, "2026-04-25T08:00:00Z")
+            guard case let .history(_, hid, htitle, hcwd, hupdated) = hits[2] else {
+                XCTFail("expected history arm at [2], got \(hits[2])"); return
+            }
+            XCTAssertEqual(hid, "c-1")
+            XCTAssertEqual(htitle, "Recall design discussion")
+            XCTAssertEqual(hcwd, "/repo")
+            XCTAssertEqual(hupdated, "2026-04-24T08:00:00Z")
+            guard case let .tasks(_, tid, ttitle, tstate, tpriority, tupdated) = hits[3] else {
+                XCTFail("expected tasks arm at [3], got \(hits[3])"); return
+            }
+            XCTAssertEqual(tid, "task-foo")
+            XCTAssertEqual(ttitle, "Wire macOS recall")
+            XCTAssertEqual(tstate, "ready")
+            XCTAssertEqual(tpriority, "p2")
+            XCTAssertEqual(tupdated, "2026-04-23T08:00:00Z")
+        case .semanticUnavailable:
+            XCTFail("expected success branch")
+        }
+    }
+
+    func testRecallDecodesEmptyHits() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/recall")
+            XCTAssertEqual(request.httpMethod, "POST")
+            let body = request.readBody()
+            XCTAssertNotNil(body)
+            let obj = try? JSONSerialization.jsonObject(with: body!) as? [String: Any]
+            XCTAssertEqual(obj?["query"] as? String, "no-match")
+            // nil topK / minScore / sources omit those keys entirely so the
+            // seam applies its own typed defaults.
+            let filter = obj?["filter"] as? [String: Any]
+            XCTAssertNotNil(filter)
+            XCTAssertNil(filter?["topK"])
+            XCTAssertNil(filter?["minScore"])
+            XCTAssertNil(filter?["sources"])
+            let respBody = #"{"ok": true, "hits": []}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.recall(query: "no-match", topK: nil, minScore: nil, sources: nil)
+        switch result {
+        case .success(let hits):
+            XCTAssertTrue(hits.isEmpty)
+        case .semanticUnavailable:
+            XCTFail("expected empty success branch")
+        }
+    }
+
+    func testRecallDecodesSemanticUnavailable() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/recall")
+            let respBody = #"{"ok": false, "reason": "semantic_unavailable"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.recall(query: "anything", topK: nil, minScore: nil, sources: nil)
+        switch result {
+        case .success:
+            XCTFail("expected semanticUnavailable branch")
+        case .semanticUnavailable:
+            break
+        }
+    }
+
+    func testRecallSurfacesHttpErrorOneToOne() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            let respBody = #"{"error": "boom"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+
+        do {
+            _ = try await client.recall(query: "x", topK: nil, minScore: nil, sources: nil)
+            XCTFail("expected httpError")
+        } catch DaemonClientError.httpError(let code) {
+            XCTAssertEqual(code, 500)
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+    }
+
     func testTriggerWorkflowSendsBody() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }

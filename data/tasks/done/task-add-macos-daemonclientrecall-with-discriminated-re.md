@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-daemonclientrecall-with-discriminated-re
 title: Add macOS DaemonClient.recall with discriminated RecallSearchResponse types and unit tests
-status: ready
+status: done
 priority: p2
 area: client
 summary: Wire the daemon contract layer for the cross-store recall seam into the macOS menu-bar client: add the discriminated RecallHit union and RecallSearchResponse to Models.swift, add a typed recall(query:topK:minScore:sources:) method to DaemonClient.swift that targets POST /recall, mirror renderRecallHitsPlain in Swift, and pair the four DaemonClientTests cases (mixed-source success, empty hits, ok:false semantic-unavailable, typed HTTP error) so the follow-up macOS RecallView and mobile RecallScreen subtasks consume a tested seam.
 created_at: 2026-04-27T08:49:32.359Z
-updated_at: 2026-04-27T08:49:32.359Z
+updated_at: 2026-04-27T08:55:07.157Z
 ---
 
 ## Problem
