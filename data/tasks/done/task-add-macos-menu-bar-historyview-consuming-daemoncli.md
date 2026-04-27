@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-menu-bar-historyview-consuming-daemoncli
 title: Add macOS menu-bar HistoryView consuming DaemonClient.searchHistory
-status: ready
+status: done
 priority: p2
 area: client
 summary: Add HistoryView.swift under clients/macos/Sources/KotaMenuBar/, wire it into MenuBarView.swift as a collapsible section consistent with MemoryView/KnowledgeView/DigestView/AttentionView, extend AppState with the history search observables (current query, current result, in-flight, last error), and render the four operator-visible branches one-to-one with the daemon contract: id+updatedAt+messageCount+title lines (matching renderHistorySearchPlain), empty-result body, empty-query usage hint, and the semantic-unavailable explanation. Capture the four screenshots and update src/modules/history/AGENTS.md to name the macOS menu bar as a history-surface consumer.
 created_at: 2026-04-27T04:13:00.951Z
-updated_at: 2026-04-27T04:13:00.951Z
+updated_at: 2026-04-27T04:18:18.854Z
 ---
 
 ## Problem

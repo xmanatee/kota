@@ -75,6 +75,10 @@ final class AppState: ObservableObject {
     @Published var memoryResult: MemorySearchResponse?
     @Published var memoryError: String?
     @Published var isLoadingMemory: Bool = false
+    @Published var historyQuery: String = ""
+    @Published var historyResult: HistorySearchResponse?
+    @Published var historyError: String?
+    @Published var isLoadingHistory: Bool = false
     @Published var projectDir: URL? {
         didSet {
             if let dir = projectDir {
@@ -212,6 +216,9 @@ final class AppState: ObservableObject {
         memoryResult = nil
         memoryError = nil
         isLoadingMemory = false
+        historyResult = nil
+        historyError = nil
+        isLoadingHistory = false
     }
 
     /// Pulls the on-demand 24h rollup from `/api/digest`. Errors land in
@@ -292,6 +299,31 @@ final class AppState: ObservableObject {
             memoryError = error.localizedDescription
         }
         isLoadingMemory = false
+    }
+
+    /// Pulls semantic history search results from `/api/history/search`.
+    /// Empty / whitespace-only queries clear any prior result and skip the
+    /// request — the view surfaces the inline usage hint instead. Failures
+    /// land in `historyError`; the typed `semanticUnavailable` branch lands in
+    /// `historyResult` so the view renders the daemon's explanation without
+    /// retrying the request.
+    func loadHistory() async {
+        let trimmed = historyQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            historyResult = nil
+            historyError = nil
+            isLoadingHistory = false
+            return
+        }
+        isLoadingHistory = true
+        historyError = nil
+        do {
+            historyResult = try await client.searchHistory(query: trimmed, limit: 10)
+        } catch {
+            historyResult = nil
+            historyError = error.localizedDescription
+        }
+        isLoadingHistory = false
     }
 
     private func fetchAll() async {

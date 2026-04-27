@@ -39,6 +39,9 @@ struct MenuBarView: View {
             // Memory search (on-demand /api/memory/search)
             MemoryView()
 
+            // History search (on-demand /api/history/search)
+            HistoryView()
+
             // Task queue
             TaskQueueView()
 

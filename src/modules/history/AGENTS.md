@@ -13,6 +13,7 @@ This directory owns conversation history — the persistent record of past sessi
   the DELETE under `control`. Both surfaces share local-only access
   helpers in `routes.ts` so the wire contract (`{ conversations: ... }`,
   full record on get, `204` on delete, `404` on missing) stays in one place.
+- Operator pull-surfaces consume the search seam through one shared HTTP route (`GET /api/history/search`) and one shared line shape (`renderHistorySearchPlain`): Telegram `/history`, terminal `kota history search`, and the macOS menu bar `HistoryView`.
 
 ## Boundaries
 
