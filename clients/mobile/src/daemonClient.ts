@@ -2,9 +2,11 @@ import type {
   Approval,
   AttentionResponse,
   AutonomyMode,
+  ConversationRecord,
   DaemonStatus,
   DigestResponse,
   HealthResponse,
+  HistorySearchResponse,
   InteractiveSession,
   KnowledgeEntry,
   KnowledgeSearchResponse,
@@ -166,6 +168,28 @@ export class DaemonClient {
       `/api/memory/search?${params.toString()}`,
     );
     return parseMemorySearchResponse(parsed);
+  }
+
+  /**
+   * Targets the daemon's `GET /api/history/search?q=&semantic=true&limit=`
+   * route and decodes the discriminated `{ ok: true, conversations }` /
+   * `{ ok: false, reason: "semantic_unavailable" }` response. Mirrors the
+   * macOS `DaemonClient.searchHistory` decode discipline: the response
+   * shape is validated explicitly so payload drift throws instead of
+   * silently degrading to keyword search behind the operator's back.
+   */
+  async searchHistory(
+    query: string,
+    limit = 10,
+  ): Promise<HistorySearchResponse> {
+    const params = new URLSearchParams();
+    params.set('q', query);
+    params.set('semantic', 'true');
+    params.set('limit', String(limit));
+    const parsed = await this.request<unknown>(
+      `/api/history/search?${params.toString()}`,
+    );
+    return parseHistorySearchResponse(parsed);
   }
 
   registerPushToken(deviceId: string, token: string): Promise<{ ok: boolean }> {
@@ -391,4 +415,64 @@ function parseMemoryEntry(value: unknown): MemoryEntry {
     throw new Error('Invalid memory entry: missing required fields');
   }
   return { id: obj.id, created: obj.created, content: obj.content };
+}
+
+function parseHistorySearchResponse(value: unknown): HistorySearchResponse {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid history search response: not an object');
+  }
+  const obj = value as Record<string, unknown>;
+  if (obj.ok === true) {
+    if (!Array.isArray(obj.conversations)) {
+      throw new Error(
+        'Invalid history search response: conversations missing',
+      );
+    }
+    const conversations = obj.conversations.map(parseConversationRecord);
+    return { ok: true, conversations };
+  }
+  if (obj.ok === false) {
+    if (obj.reason !== 'semantic_unavailable') {
+      throw new Error(
+        `Invalid history search response: unknown reason ${String(obj.reason)}`,
+      );
+    }
+    return { ok: false, reason: 'semantic_unavailable' };
+  }
+  throw new Error('Invalid history search response: missing ok flag');
+}
+
+function parseConversationRecord(value: unknown): ConversationRecord {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid conversation record');
+  }
+  const obj = value as Record<string, unknown>;
+  if (
+    typeof obj.id !== 'string' ||
+    typeof obj.title !== 'string' ||
+    typeof obj.createdAt !== 'string' ||
+    typeof obj.updatedAt !== 'string' ||
+    typeof obj.model !== 'string' ||
+    typeof obj.messageCount !== 'number' ||
+    typeof obj.cwd !== 'string'
+  ) {
+    throw new Error('Invalid conversation record: missing required fields');
+  }
+  const record: ConversationRecord = {
+    id: obj.id,
+    title: obj.title,
+    createdAt: obj.createdAt,
+    updatedAt: obj.updatedAt,
+    model: obj.model,
+    messageCount: obj.messageCount,
+    cwd: obj.cwd,
+  };
+  if (obj.source === 'user' || obj.source === 'action') {
+    record.source = obj.source;
+  } else if (obj.source !== undefined) {
+    throw new Error(
+      `Invalid conversation record: unknown source ${String(obj.source)}`,
+    );
+  }
+  return record;
 }

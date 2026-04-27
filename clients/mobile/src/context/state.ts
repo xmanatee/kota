@@ -3,6 +3,7 @@ import type {
   AttentionResponse,
   DaemonStatus,
   DigestResponse,
+  HistorySearchResponse,
   KnowledgeSearchResponse,
   MemorySearchResponse,
   OwnerQuestion,
@@ -39,6 +40,10 @@ export interface DaemonState {
   memoryResult: MemorySearchResponse | null;
   memoryLoading: boolean;
   memoryError: string | null;
+  historyQuery: string;
+  historyResult: HistorySearchResponse | null;
+  historyLoading: boolean;
+  historyError: string | null;
 }
 
 export type DaemonAction =
@@ -68,7 +73,11 @@ export type DaemonAction =
   | { type: 'MEMORY_QUERY_SET'; query: string }
   | { type: 'MEMORY_LOADING'; query: string }
   | { type: 'MEMORY_RESULT'; result: MemorySearchResponse }
-  | { type: 'MEMORY_ERROR'; error: string };
+  | { type: 'MEMORY_ERROR'; error: string }
+  | { type: 'HISTORY_QUERY_SET'; query: string }
+  | { type: 'HISTORY_LOADING'; query: string }
+  | { type: 'HISTORY_RESULT'; result: HistorySearchResponse }
+  | { type: 'HISTORY_ERROR'; error: string };
 
 export const initialState: DaemonState = {
   daemonUrl: '',
@@ -99,6 +108,10 @@ export const initialState: DaemonState = {
   memoryResult: null,
   memoryLoading: false,
   memoryError: null,
+  historyQuery: '',
+  historyResult: null,
+  historyLoading: false,
+  historyError: null,
 };
 
 export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
@@ -134,6 +147,9 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         memoryResult: action.online ? state.memoryResult : null,
         memoryError: action.online ? state.memoryError : null,
         memoryLoading: action.online ? state.memoryLoading : false,
+        historyResult: action.online ? state.historyResult : null,
+        historyError: action.online ? state.historyError : null,
+        historyLoading: action.online ? state.historyLoading : false,
       };
     case 'SSE_STATUS':
       return { ...state, sseConnected: action.connected };
@@ -236,6 +252,29 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         memoryLoading: false,
         memoryError: action.error,
         memoryResult: null,
+      };
+    case 'HISTORY_QUERY_SET':
+      return { ...state, historyQuery: action.query };
+    case 'HISTORY_LOADING':
+      return {
+        ...state,
+        historyQuery: action.query,
+        historyLoading: true,
+        historyError: null,
+      };
+    case 'HISTORY_RESULT':
+      return {
+        ...state,
+        historyResult: action.result,
+        historyLoading: false,
+        historyError: null,
+      };
+    case 'HISTORY_ERROR':
+      return {
+        ...state,
+        historyLoading: false,
+        historyError: action.error,
+        historyResult: null,
       };
   }
 }

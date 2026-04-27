@@ -15,6 +15,7 @@ import { AttentionScreen } from '../screens/AttentionScreen';
 import { ChatDetailScreen } from '../screens/ChatDetailScreen';
 import { ChatListScreen } from '../screens/ChatListScreen';
 import { DigestScreen } from '../screens/DigestScreen';
+import { HistoryScreen } from '../screens/HistoryScreen';
 import { KnowledgeScreen } from '../screens/KnowledgeScreen';
 import { MemoryScreen } from '../screens/MemoryScreen';
 import { OwnerQuestionListScreen } from '../screens/OwnerQuestionListScreen';
@@ -56,6 +57,7 @@ export type TabParams = {
   Digest: undefined;
   Knowledge: undefined;
   Memory: undefined;
+  History: undefined;
   Chat: NavigatorScreenParams<ChatStackParams> | undefined;
 };
 
@@ -262,6 +264,11 @@ export function AppNavigator() {
           name="Memory"
           component={MemoryScreen}
           options={{ tabBarIcon: () => <Text>🧠</Text>, headerShown: true, title: 'Memory' }}
+        />
+        <Tab.Screen
+          name="History"
+          component={HistoryScreen}
+          options={{ tabBarIcon: () => <Text>🕘</Text>, headerShown: true, title: 'History' }}
         />
         <Tab.Screen
           name="Chat"

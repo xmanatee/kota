@@ -29,6 +29,8 @@ interface DaemonContextValue {
   searchKnowledge: (query: string) => Promise<void>;
   setMemoryQuery: (query: string) => void;
   searchMemory: (query: string) => Promise<void>;
+  setHistoryQuery: (query: string) => void;
+  searchHistory: (query: string) => Promise<void>;
 }
 
 const DaemonContext = createContext<DaemonContextValue>({
@@ -43,6 +45,8 @@ const DaemonContext = createContext<DaemonContextValue>({
   searchKnowledge: async () => {},
   setMemoryQuery: () => {},
   searchMemory: async () => {},
+  setHistoryQuery: () => {},
+  searchHistory: async () => {},
 });
 
 export function DaemonProvider({ children }: { children: React.ReactNode }) {
@@ -286,6 +290,26 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const setHistoryQuery = useCallback((query: string) => {
+    dispatch({ type: 'HISTORY_QUERY_SET', query });
+  }, []);
+
+  const searchHistory = useCallback(async (query: string) => {
+    const client = clientRef.current;
+    if (!client) return;
+    if (query.trim().length === 0) return;
+    dispatch({ type: 'HISTORY_LOADING', query });
+    try {
+      const result = await client.searchHistory(query, 10);
+      dispatch({ type: 'HISTORY_RESULT', result });
+    } catch (e) {
+      dispatch({
+        type: 'HISTORY_ERROR',
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }, []);
+
   return (
     <DaemonContext.Provider
       value={{
@@ -300,6 +324,8 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
         searchKnowledge,
         setMemoryQuery,
         searchMemory,
+        setHistoryQuery,
+        searchHistory,
       }}
     >
       {children}

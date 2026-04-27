@@ -1,12 +1,12 @@
 ---
 id: task-add-mobile-historyscreen-consuming-searchhistory
 title: Add mobile HistoryScreen consuming searchHistory
-status: ready
+status: done
 priority: p2
 area: client
 summary: Add a HistoryScreen in the mobile client (mirroring KnowledgeScreen, MemoryScreen, DigestScreen, and AttentionScreen) that calls GET /api/history/search through the mobile daemon HTTP client, exposes search state on DaemonContext, and renders the same per-conversation line shape the four other history surfaces emit — completing the history fan-out across Telegram, daemon HTTP, CLI, macOS DaemonClient, macOS HistoryView, and mobile.
 created_at: 2026-04-27T04:46:28.024Z
-updated_at: 2026-04-27T04:46:28.024Z
+updated_at: 2026-04-27T04:56:04.668Z
 ---
 
 ## Problem

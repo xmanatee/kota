@@ -337,3 +337,36 @@ export interface MemoryEntry {
 export type MemorySearchResponse =
   | { ok: true; entries: MemoryEntry[] }
   | { ok: false; reason: 'semantic_unavailable' };
+
+/**
+ * Mirror of a single conversation summary returned by the daemon's
+ * `GET /api/history/search` route. Decoding is restricted to the eight
+ * fields the shared `renderHistorySearchPlain` helper consumes
+ * (`src/modules/history/render.ts` and the `ConversationRecord` shape in
+ * `src/core/modules/provider-types.ts`) so the mobile surface speaks the
+ * same line shape as Telegram, the CLI, the daemon HTTP route, and the
+ * macOS menu bar. `source` is the only optional field, matching the
+ * upstream type one-to-one.
+ */
+export interface ConversationRecord {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  model: string;
+  messageCount: number;
+  cwd: string;
+  source?: 'user' | 'action';
+}
+
+/**
+ * Discriminated mirror of the daemon's `GET /api/history/search`
+ * response: `{ ok: true, conversations: ConversationRecord[] }` on
+ * success and `{ ok: false, reason: "semantic_unavailable" }` when the
+ * configured history provider does not support semantic search. Strict
+ * so payload drift fails loudly instead of silently degrading the
+ * rendered surface.
+ */
+export type HistorySearchResponse =
+  | { ok: true; conversations: ConversationRecord[] }
+  | { ok: false; reason: 'semantic_unavailable' };

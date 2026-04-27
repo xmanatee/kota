@@ -4,6 +4,7 @@ import type {
   AttentionResponse,
   DaemonStatus,
   DigestResponse,
+  HistorySearchResponse,
   KnowledgeSearchResponse,
   MemorySearchResponse,
   OwnerQuestion,
@@ -466,6 +467,120 @@ describe('reducer', () => {
     expect(withResult.memoryResult).toBe(result);
     const offline = reducer(withResult, { type: 'ONLINE', online: false });
     expect(offline.memoryResult).toBeNull();
+  });
+
+  test('HISTORY_QUERY_SET stores the query without touching results or loading flags', () => {
+    const next = reducer(initialState, {
+      type: 'HISTORY_QUERY_SET',
+      query: 'autonomy',
+    });
+    expect(next.historyQuery).toBe('autonomy');
+    expect(next.historyResult).toBeNull();
+    expect(next.historyLoading).toBe(false);
+    expect(next.historyError).toBeNull();
+  });
+
+  test('HISTORY_LOADING records the in-flight query and clears prior error', () => {
+    const withError = reducer(initialState, {
+      type: 'HISTORY_ERROR',
+      error: 'boom',
+    });
+    expect(withError.historyError).toBe('boom');
+    const next = reducer(withError, {
+      type: 'HISTORY_LOADING',
+      query: 'autonomy',
+    });
+    expect(next.historyLoading).toBe(true);
+    expect(next.historyError).toBeNull();
+    expect(next.historyQuery).toBe('autonomy');
+  });
+
+  test('HISTORY_RESULT stores a populated payload and clears loading/error', () => {
+    const result: HistorySearchResponse = {
+      ok: true,
+      conversations: [
+        {
+          id: 'c-1',
+          title: 'Autonomy loop debug',
+          createdAt: '2026-04-26T10:00:00.000Z',
+          updatedAt: '2026-04-26T12:00:00.000Z',
+          model: 'claude-opus-4-7',
+          messageCount: 12,
+          cwd: '/Users/x/proj',
+        },
+      ],
+    };
+    const loading = reducer(initialState, {
+      type: 'HISTORY_LOADING',
+      query: 'autonomy',
+    });
+    const next = reducer(loading, { type: 'HISTORY_RESULT', result });
+    expect(next.historyResult).toBe(result);
+    expect(next.historyLoading).toBe(false);
+    expect(next.historyError).toBeNull();
+  });
+
+  test('HISTORY_RESULT preserves the semantic-unavailable branch verbatim', () => {
+    const result: HistorySearchResponse = {
+      ok: false,
+      reason: 'semantic_unavailable',
+    };
+    const next = reducer(initialState, { type: 'HISTORY_RESULT', result });
+    expect(next.historyResult).toEqual({
+      ok: false,
+      reason: 'semantic_unavailable',
+    });
+    expect(next.historyLoading).toBe(false);
+    expect(next.historyError).toBeNull();
+  });
+
+  test('HISTORY_ERROR clears stale history result', () => {
+    const result: HistorySearchResponse = {
+      ok: true,
+      conversations: [
+        {
+          id: 'c-1',
+          title: 'Autonomy loop debug',
+          createdAt: '2026-04-26T10:00:00.000Z',
+          updatedAt: '2026-04-26T12:00:00.000Z',
+          model: 'claude-opus-4-7',
+          messageCount: 12,
+          cwd: '/Users/x/proj',
+        },
+      ],
+    };
+    const withResult = reducer(initialState, {
+      type: 'HISTORY_RESULT',
+      result,
+    });
+    const next = reducer(withResult, { type: 'HISTORY_ERROR', error: '503' });
+    expect(next.historyResult).toBeNull();
+    expect(next.historyError).toBe('503');
+    expect(next.historyLoading).toBe(false);
+  });
+
+  test('ONLINE false drops cached history result so it cannot persist across an offline transition', () => {
+    const result: HistorySearchResponse = {
+      ok: true,
+      conversations: [
+        {
+          id: 'c-1',
+          title: 'Autonomy loop debug',
+          createdAt: '2026-04-26T10:00:00.000Z',
+          updatedAt: '2026-04-26T12:00:00.000Z',
+          model: 'claude-opus-4-7',
+          messageCount: 12,
+          cwd: '/Users/x/proj',
+        },
+      ],
+    };
+    const withResult = reducer(initialState, {
+      type: 'HISTORY_RESULT',
+      result,
+    });
+    expect(withResult.historyResult).toBe(result);
+    const offline = reducer(withResult, { type: 'ONLINE', online: false });
+    expect(offline.historyResult).toBeNull();
   });
 
   test('OWNER_QUESTIONS recomputes pending count', () => {

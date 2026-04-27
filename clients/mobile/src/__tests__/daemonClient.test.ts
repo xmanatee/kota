@@ -421,6 +421,80 @@ describe('DaemonClient', () => {
     await expect(client().searchMemory('x')).rejects.toThrow('503');
   });
 
+  test('searchHistory encodes query/semantic/limit and decodes the success branch', async () => {
+    const success = {
+      ok: true,
+      conversations: [
+        {
+          id: 'c-1',
+          title: 'Autonomy loop debug',
+          createdAt: '2026-04-26T10:00:00.000Z',
+          updatedAt: '2026-04-26T12:00:00.000Z',
+          model: 'claude-opus-4-7',
+          messageCount: 12,
+          cwd: '/Users/x/proj',
+        },
+        {
+          id: 'c-2',
+          title: 'Old plan',
+          createdAt: '2026-04-25T16:00:00.000Z',
+          updatedAt: '2026-04-25T18:30:00.000Z',
+          model: 'claude-opus-4-7',
+          messageCount: 3,
+          cwd: '/Users/x/proj',
+          source: 'user',
+        },
+      ],
+    };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(success));
+    const res = await client().searchHistory('autonomy loop', 10);
+    expect(lastCall()[0]).toBe(
+      `${baseUrl}/api/history/search?q=autonomy+loop&semantic=true&limit=10`,
+    );
+    expect(lastHeaders().Authorization).toBe(`Bearer ${token}`);
+    expect(res).toEqual(success);
+  });
+
+  test('searchHistory decodes the semantic-unavailable branch verbatim', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, reason: 'semantic_unavailable' }),
+    );
+    const res = await client().searchHistory('anything');
+    expect(res).toEqual({ ok: false, reason: 'semantic_unavailable' });
+  });
+
+  test('searchHistory defaults limit to 10', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: true, conversations: [] }),
+    );
+    await client().searchHistory('x');
+    const url = lastCall()[0] as string;
+    expect(url).toContain('limit=10');
+  });
+
+  test('searchHistory rejects an unknown reason loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, reason: 'mystery' }),
+    );
+    await expect(client().searchHistory('x')).rejects.toThrow(/mystery/);
+  });
+
+  test('searchHistory rejects a malformed conversation loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: true, conversations: [{ id: 'c-1' }] }),
+    );
+    await expect(client().searchHistory('x')).rejects.toThrow(
+      /conversation record/i,
+    );
+  });
+
+  test('searchHistory surfaces the daemon HTTP error one-to-one', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response('', { status: 503, statusText: 'Service Unavailable' }),
+    );
+    await expect(client().searchHistory('x')).rejects.toThrow('503');
+  });
+
   test('health hits /health without auth header (public endpoint)', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({ status: 'ok', version: '1', uptimeMs: 1, components: {} }));
     await client().health();
