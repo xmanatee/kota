@@ -524,6 +524,101 @@ export type KnowledgeDeleteResult =
 export type KnowledgeReindexResult = ReindexResult;
 
 /**
+ * Source of a `RecallHit`. The cross-store recall seam discriminates each hit
+ * by which store originated it. Adding a new contributor extends this union
+ * and the `RecallHit` discriminated type below.
+ */
+export type RecallSource = "knowledge" | "memory" | "history" | "tasks";
+
+/** Knowledge-store hit payload surfaced through `recall`. */
+export type RecallKnowledgeHit = {
+  source: "knowledge";
+  score: number;
+  id: string;
+  title: string;
+  preview: string;
+  updated: string;
+};
+
+/** Memory-store hit payload surfaced through `recall`. */
+export type RecallMemoryHit = {
+  source: "memory";
+  score: number;
+  id: string;
+  preview: string;
+  created: string;
+};
+
+/** Conversation-history hit payload surfaced through `recall`. */
+export type RecallHistoryHit = {
+  source: "history";
+  score: number;
+  id: string;
+  title: string;
+  cwd: string;
+  updatedAt: string;
+};
+
+/** Repo-task-queue hit payload surfaced through `recall`. */
+export type RecallTasksHit = {
+  source: "tasks";
+  score: number;
+  id: string;
+  title: string;
+  state: string;
+  priority: string;
+  updatedAt: string;
+};
+
+/**
+ * One ranked, source-tagged hit returned by the cross-store recall seam.
+ * Discriminated by `source`; the per-source payload carries the operator-
+ * facing metadata each surface renders.
+ */
+export type RecallHit =
+  | RecallKnowledgeHit
+  | RecallMemoryHit
+  | RecallHistoryHit
+  | RecallTasksHit;
+
+/**
+ * Filter accepted by `RecallClient.recall`. All fields are optional with
+ * explicit defaults applied at the seam:
+ *
+ * - `topK` defaults to 20.
+ * - `minScore` defaults to 0 (no floor).
+ * - `sources` defaults to "every registered contributor"; pass a list to
+ *   restrict to a subset (e.g. `["knowledge", "memory"]`).
+ */
+export type RecallFilter = {
+  topK?: number;
+  minScore?: number;
+  sources?: ReadonlyArray<RecallSource>;
+};
+
+/**
+ * Result of `recall.recall`. The seam never reports a structured failure for
+ * a single contributor — when one cannot answer (no semantic backend, hard
+ * error during query) it contributes zero hits and the rest still return.
+ */
+export type RecallResult = {
+  hits: RecallHit[];
+};
+
+/**
+ * Cross-store recall operations.
+ *
+ * `recall(query, filter?)` answers "what do I know / remember / have done /
+ * am tracking about X?" with one ranked, source-tagged list across every
+ * registered contributor. The seam normalizes scores once across hits from
+ * each contributor and merges them deterministically; tie-breaking is
+ * stable so repeated queries return identical orderings.
+ */
+export interface RecallClient {
+  recall(query: string, filter?: RecallFilter): Promise<RecallResult>;
+}
+
+/**
  * Workflow runtime operations.
  *
  * Reads (`listRuns`, `status`) work both daemon-up and daemon-down — the
@@ -1506,6 +1601,7 @@ export interface KotaClient {
   readonly daemonOps: DaemonOpsClient;
   readonly doctor: DoctorClient;
   readonly evalHarness: EvalHarnessClient;
+  readonly recall: RecallClient;
 }
 
 /**
@@ -1537,6 +1633,7 @@ export const KOTA_CLIENT_NAMESPACES = [
   "daemonOps",
   "doctor",
   "evalHarness",
+  "recall",
 ] as const satisfies ReadonlyArray<keyof KotaClient>;
 
 export type KotaClientNamespace = (typeof KOTA_CLIENT_NAMESPACES)[number];

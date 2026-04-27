@@ -173,6 +173,9 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       run: stub({ ok: false, reason: "no_fixtures", message: "stub" }),
       calibration: stub({ aggregate: {}, decision: {} }),
     },
+    recall: {
+      recall: stub({ hits: [] }),
+    },
   };
   return { ...base, ...overrides };
 }

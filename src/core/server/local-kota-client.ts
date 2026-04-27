@@ -61,6 +61,7 @@ export class LocalKotaClient implements KotaClient {
   readonly daemonOps: KotaClient["daemonOps"];
   readonly doctor: KotaClient["doctor"];
   readonly evalHarness: KotaClient["evalHarness"];
+  readonly recall: KotaClient["recall"];
 
   constructor(handlers: LocalClientHandlers) {
     this.workflow = handlers.workflow;
@@ -86,5 +87,6 @@ export class LocalKotaClient implements KotaClient {
     this.daemonOps = handlers.daemonOps;
     this.doctor = handlers.doctor;
     this.evalHarness = handlers.evalHarness;
+    this.recall = handlers.recall;
   }
 }

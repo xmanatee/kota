@@ -85,6 +85,9 @@ import type {
   ModulesClient,
   OwnerQuestionMutateResult,
   OwnerQuestionsClient,
+  RecallClient,
+  RecallFilter,
+  RecallResult,
   RepoTaskCaptureResult,
   RepoTaskCreateOptions,
   RepoTaskCreateResult,
@@ -191,6 +194,7 @@ export class DaemonControlClient implements KotaClient {
   readonly daemonOps: DaemonOpsClient;
   readonly doctor: DoctorClient;
   readonly evalHarness: EvalHarnessClient;
+  readonly recall: RecallClient;
 
   private constructor(
     private readonly baseUrl: string,
@@ -484,6 +488,22 @@ export class DaemonControlClient implements KotaClient {
       run: async (options) => this.evalRunHttp(options),
       calibration: async (options) => this.evalCalibrationHttp(options),
     };
+    this.recall = {
+      recall: async (query, filter) => this.recallHttp(query, filter),
+    };
+  }
+
+  private async recallHttp(query: string, filter?: RecallFilter): Promise<RecallResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/recall`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.authHeaders() },
+      body: JSON.stringify({ query, ...(filter && { filter }) }),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as RecallResult;
   }
 
   private async listAuditHttp(filter?: AuditListFilter): Promise<AuditListResult> {

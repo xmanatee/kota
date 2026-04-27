@@ -1,12 +1,12 @@
 ---
 id: task-add-a-unified-cross-store-recall-seam-returning-ra
 title: Add a unified cross-store recall seam returning ranked semantic hits across knowledge, memory, history, and repo tasks in one query
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Introduce a single cross-store recall seam that takes one natural-language query and returns ranked, source-tagged semantic hits from knowledge, memory, history, and repo-tasks at once, so KOTA can answer 'what do I know / remember / have done / am tracking about X?' without forcing the operator to pick a store.
 created_at: 2026-04-27T07:08:44.656Z
-updated_at: 2026-04-27T07:08:44.656Z
+updated_at: 2026-04-27T07:26:32.832Z
 ---
 
 ## Problem
