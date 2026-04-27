@@ -87,6 +87,10 @@ final class AppState: ObservableObject {
     @Published var recallResult: RecallSearchResponse?
     @Published var recallError: String?
     @Published var isLoadingRecall: Bool = false
+    @Published var answerQuery: String = ""
+    @Published var answerResult: AnswerResult?
+    @Published var answerError: String?
+    @Published var isLoadingAnswer: Bool = false
     @Published var projectDir: URL? {
         didSet {
             if let dir = projectDir {
@@ -233,6 +237,9 @@ final class AppState: ObservableObject {
         recallResult = nil
         recallError = nil
         isLoadingRecall = false
+        answerResult = nil
+        answerError = nil
+        isLoadingAnswer = false
     }
 
     /// Pulls the on-demand 24h rollup from `/api/digest`. Errors land in
@@ -395,6 +402,38 @@ final class AppState: ObservableObject {
             recallError = error.localizedDescription
         }
         isLoadingRecall = false
+    }
+
+    /// Pulls a synthesized cited answer from the daemon's `POST /answer`
+    /// route. Empty / whitespace-only queries clear any prior result and
+    /// skip the request — the view surfaces the inline usage hint instead.
+    /// Failures land in `answerError`; the three typed `ok: false` arms
+    /// (`noHits`, `semanticUnavailable`, `synthesisFailed`) land in
+    /// `answerResult` so the view renders the daemon's degradation notice
+    /// without retrying the request. `topK`, `minScore`, and `sources`
+    /// are left nil so the seam applies its own typed defaults.
+    func loadAnswer() async {
+        let trimmed = answerQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            answerResult = nil
+            answerError = nil
+            isLoadingAnswer = false
+            return
+        }
+        isLoadingAnswer = true
+        answerError = nil
+        do {
+            answerResult = try await client.answer(
+                query: trimmed,
+                topK: nil,
+                minScore: nil,
+                sources: nil
+            )
+        } catch {
+            answerResult = nil
+            answerError = error.localizedDescription
+        }
+        isLoadingAnswer = false
     }
 
     private func fetchAll() async {

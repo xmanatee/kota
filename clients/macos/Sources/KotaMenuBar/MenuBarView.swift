@@ -48,6 +48,9 @@ struct MenuBarView: View {
             // Cross-store recall (on-demand POST /recall)
             RecallView()
 
+            // Cited answer (on-demand POST /answer)
+            AnswerView()
+
             // Task queue
             TaskQueueView()
 

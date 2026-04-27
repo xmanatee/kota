@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-menu-bar-answerview-consuming-daemonclie
 title: Add macOS menu-bar AnswerView consuming DaemonClient.answer
-status: ready
+status: done
 priority: p2
 area: client
 summary: Add a SwiftUI menu-bar AnswerView in clients/macos/Sources/KotaMenuBar/ that consumes the just-landed DaemonClient.answer and renders the synthesized answer plus typed citations, closing macOS parity in the cited-answer fan-out alongside the still-pending mobile AnswerScreen.
 created_at: 2026-04-27T12:50:58.679Z
-updated_at: 2026-04-27T12:50:58.679Z
+updated_at: 2026-04-27T14:03:29.452Z
 ---
 
 ## Problem
