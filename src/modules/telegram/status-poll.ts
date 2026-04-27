@@ -1,10 +1,11 @@
 import { join } from "node:path";
-import type { KnowledgeClient } from "#core/server/kota-client.js";
+import type { KnowledgeClient, MemoryClient } from "#core/server/kota-client.js";
 import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
 import { computeCostByWorkflow, loadRecentRuns } from "#modules/autonomy/shared.js";
 import { renderOnDemandAttention } from "#modules/autonomy/workflows/attention-digest/step.js";
 import { renderOnDemandDigest } from "#modules/autonomy/workflows/daily-digest/on-demand.js";
 import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
+import { renderMemorySearchPlain } from "#modules/memory/render.js";
 import { callTelegramApi } from "./client.js";
 
 const POLL_INTERVAL_MS = 30_000;
@@ -66,6 +67,7 @@ export function startTelegramStatusPoll(
   projectDir: string,
   getStatusInfo: () => StatusInfo,
   knowledge: KnowledgeClient,
+  memory: MemoryClient,
   log?: (message: string) => void,
 ): () => void {
   let running = true;
@@ -135,6 +137,39 @@ export function startTelegramStatusPoll(
     });
   }
 
+  async function handleMemory(text: string): Promise<void> {
+    const query =
+      text === "/memory" ? "" : text.slice("/memory ".length).trim();
+    if (query.length === 0) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: "Usage: /memory <query>",
+      });
+      return;
+    }
+    const result = await memory.search(query, { semantic: true, limit: 10 });
+    if (!result.ok) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: "Semantic memory search requires an embedding-backed memory provider.",
+      });
+      return;
+    }
+    if (result.entries.length === 0) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: "No matching memory entries.",
+      });
+      return;
+    }
+    await callTelegramApi(token, "sendMessage", {
+      chat_id: chatId,
+      // Plain text — memory content can carry Markdown-active characters
+      // that would require escaping if Markdown parse_mode were enabled.
+      text: truncateForTelegram(renderMemorySearchPlain(result.entries)),
+    });
+  }
+
   async function poll(): Promise<void> {
     if (!running) return;
     try {
@@ -166,6 +201,11 @@ export function startTelegramStatusPoll(
           msg.text.startsWith("/knowledge ")
         ) {
           await handleKnowledge(msg.text);
+        } else if (
+          msg.text === "/memory" ||
+          msg.text.startsWith("/memory ")
+        ) {
+          await handleMemory(msg.text);
         }
       }
     } catch (err) {

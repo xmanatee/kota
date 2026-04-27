@@ -1,12 +1,12 @@
 ---
 id: task-add-a-telegram-memory-command-for-ad-hoc-semantic-
 title: Add a Telegram /memory command for ad-hoc semantic memory search
-status: ready
+status: done
 priority: p2
 area: client
 summary: Mirror the /knowledge command for the memory store: parse the message body as the query, call ctx.client.memory.search(query, { semantic: true, limit: 10 }) through the daemon-control client, render the same id/date/content line shape produced by buildMemoryListLines, and surface the four operator-visible branches (populated, empty-results, empty-query-hint, semantic-unavailable) one-to-one with the daemon contract — opening the operator-pull memory fan-out across Telegram, CLI (already done), daemon HTTP (already done), web, macOS, and mobile.
 created_at: 2026-04-27T00:44:59.556Z
-updated_at: 2026-04-27T00:44:59.556Z
+updated_at: 2026-04-27T00:51:53.539Z
 ---
 
 ## Problem

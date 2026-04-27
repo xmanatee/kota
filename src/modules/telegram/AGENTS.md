@@ -5,10 +5,11 @@ notification forwarding.
 
 - Contributes two daemon channels: `telegram-status` (responds to `/status`
   with workflow state, to `/digest` with the on-demand daily digest, to
-  `/attention` with the on-demand attention digest, and to `/knowledge
-  <query>` with a semantic-ranked knowledge search) and `telegram-interactive`
-  (hosts one agent session per chat). Both are started and stopped by the
-  daemon alongside other channels.
+  `/attention` with the on-demand attention digest, to `/knowledge <query>`
+  with a semantic-ranked knowledge search, and to `/memory <query>` with a
+  semantic-ranked memory search) and `telegram-interactive` (hosts one
+  agent session per chat). Both are started and stopped by the daemon
+  alongside other channels.
 - The `/digest` command calls the daily-digest module's
   `renderOnDemandDigest` seam directly. It must not write the cadence
   snapshot file and must not emit `workflow.daily.digest` (otherwise other
@@ -38,6 +39,21 @@ notification forwarding.
   `{ ok: false, reason: "semantic_unavailable" }` and the bot surfaces a
   one-line explanation instead of silently degrading to keyword search.
   The reply is plain text (knowledge titles can carry Markdown-active
+  characters), is not gated by quiet hours, never advances any cadence
+  counter or emits a workflow event, and is operator-facing only — it
+  must not be exposed to autonomy agents in any prompt path.
+- The `/memory <query>` command exposes the same memory seam the CLI and
+  `/api/memory` serve: it calls `ctx.client.memory.search` with
+  `{ semantic: true, limit: 10 }` and renders the top entries via the
+  shared plain-text helper in the `memory` module (no copy of CLI
+  rendering logic on the Telegram side). Empty / whitespace-only queries
+  reply with a usage hint and skip the store call. An empty result reply
+  is the fixed `"No matching memory entries."` body so the operator can
+  distinguish "nothing matched" from "command failed". When no
+  embedding-backed memory provider is configured the search returns
+  `{ ok: false, reason: "semantic_unavailable" }` and the bot surfaces a
+  one-line explanation instead of silently degrading to keyword search.
+  The reply is plain text (memory content can carry Markdown-active
   characters), is not gated by quiet hours, never advances any cadence
   counter or emits a workflow event, and is operator-facing only — it
   must not be exposed to autonomy agents in any prompt path.
