@@ -108,6 +108,11 @@ const HANDLER_IMPL_ALLOWLIST: ReadonlySet<string> = new Set<string>([
   "google-workspace/index.ts",
   "prompt-templates/index.ts",
   "sqlite-memory/index.ts",
+  // Answer module owns the persisted answer-history store under
+  // <projectStateRoot>/answer-history/. The path resolution lives in the
+  // localClient factory for the answer namespace, not in a CLI handler;
+  // the CLI subcommand routes through ctx.client.answer.{log,show}().
+  "answer/index.ts",
 ]);
 
 /** Files that don't house CLI command handlers — exclude from the scan. */

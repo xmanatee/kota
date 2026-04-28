@@ -1,12 +1,12 @@
 ---
 id: task-persist-cited-answer-envelopes-as-a-typed-answer-h
 title: Persist cited-answer envelopes as a typed answer-history store with a read surface
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Extend the answer module to persist every AnswerProvider.answer envelope (ok and ok=false alike) as a typed record under .kota/answer-history/, and expose one read seam (KotaClient.answer.log/show + kota answer log/show CLI + daemon route) so operators can re-read past synthesized answers and the eval-harness has a real-failure corpus to draw from.
 created_at: 2026-04-28T00:14:09.380Z
-updated_at: 2026-04-28T00:14:09.380Z
+updated_at: 2026-04-28T00:44:25.447Z
 ---
 
 ## Problem

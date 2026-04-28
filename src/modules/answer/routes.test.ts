@@ -1,8 +1,17 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
-import type { AnswerResult } from "#core/server/kota-client.js";
+import type {
+  AnswerHistoryEntry,
+  AnswerHistoryListFilter,
+  AnswerHistoryRecord,
+  AnswerResult,
+} from "#core/server/kota-client.js";
+import type { AnswerHistoryStore } from "./answer-history-store.js";
 import type { AnswerProvider } from "./answer-types.js";
-import { createAnswerRouteHandler } from "./routes.js";
+import {
+  createAnswerHistoryRouteHandler,
+  createAnswerRouteHandler,
+} from "./routes.js";
 
 function mockResponse() {
   const result = { status: 0, body: null as unknown };
@@ -34,6 +43,94 @@ function mockRequest(body: Record<string, unknown>): IncomingMessage {
       return this;
     },
   } as unknown as IncomingMessage;
+}
+
+function mockGetRequest(url: string): IncomingMessage {
+  return { url, method: "GET", on: vi.fn() } as unknown as IncomingMessage;
+}
+
+function inMemoryHistoryStore(records: AnswerHistoryRecord[]): AnswerHistoryStore {
+  const store = new Map<string, AnswerHistoryRecord>();
+  for (const r of records) store.set(r.id, r);
+  return {
+    async appendAnswer(record) {
+      store.set(record.id, record);
+    },
+    async listAnswers(filter?: AnswerHistoryListFilter) {
+      const ids = Array.from(store.keys()).sort().reverse();
+      const fromIndex = filter?.beforeId
+        ? ids.indexOf(filter.beforeId) + 1
+        : 0;
+      const limit = filter?.limit ?? 20;
+      const slice = ids.slice(fromIndex, fromIndex + limit);
+      const out: AnswerHistoryEntry[] = [];
+      for (const id of slice) {
+        const record = store.get(id);
+        if (!record) continue;
+        out.push({
+          id: record.id,
+          createdAt: record.createdAt,
+          query: record.query,
+          result: record.result.ok
+            ? { ok: true, citationCount: record.result.citations.length }
+            : { ok: false, reason: record.result.reason },
+        });
+      }
+      return out;
+    },
+    async getAnswer(id) {
+      return store.get(id) ?? null;
+    },
+  };
+}
+
+function sampleHistoryRecord(
+  index: number,
+  ok: boolean,
+): AnswerHistoryRecord {
+  const stamp = new Date(Date.UTC(2026, 3, 28, 0, 0, index)).toISOString();
+  const id = `${stamp.replace(/[:.]/g, "-")}-${String(index).padStart(6, "0")}`;
+  if (ok) {
+    return {
+      id,
+      createdAt: stamp,
+      query: `q${index}`,
+      filter: { topK: 8 },
+      recallHits: [
+        {
+          source: "knowledge",
+          score: 1,
+          id: "k1",
+          title: "Title",
+          preview: "...",
+          updated: "2026-04-26",
+        },
+      ],
+      result: {
+        ok: true,
+        answer: `Body [knowledge:k1] ${index}.`,
+        citations: [{ source: "knowledge", id: "k1" }],
+        hits: [
+          {
+            source: "knowledge",
+            score: 1,
+            id: "k1",
+            title: "Title",
+            preview: "...",
+            updated: "2026-04-26",
+          },
+        ],
+      },
+    };
+  }
+  return {
+    id,
+    createdAt: stamp,
+    query: `q${index}`,
+    filter: { topK: 8 },
+    recallHits: [],
+    result: { ok: false, reason: "no_hits" },
+  };
 }
 
 function fakeProvider(
@@ -178,5 +275,105 @@ describe("answer route handler", () => {
     await handler(mockRequest({ query: "anything" }), res);
     expect(result.status).toBe(500);
     expect((result.body as { error: string }).error).toContain("provider boom");
+  });
+});
+
+describe("answer history route handler", () => {
+  it("list returns an empty entries array for an empty store", async () => {
+    const handlers = createAnswerHistoryRouteHandler(() =>
+      inMemoryHistoryStore([]),
+    );
+    const { res, result } = mockResponse();
+    await handlers.list(mockGetRequest("/answers"), res);
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ entries: [] });
+  });
+
+  it("list returns newest-first entries with mixed ok and ok=false rows", async () => {
+    const records = [
+      sampleHistoryRecord(0, true),
+      sampleHistoryRecord(1, false),
+      sampleHistoryRecord(2, true),
+    ];
+    const handlers = createAnswerHistoryRouteHandler(() =>
+      inMemoryHistoryStore(records),
+    );
+    const { res, result } = mockResponse();
+    await handlers.list(mockGetRequest("/answers"), res);
+    expect(result.status).toBe(200);
+    const body = result.body as { entries: AnswerHistoryEntry[] };
+    expect(body.entries.map((e) => e.id)).toEqual([
+      records[2].id,
+      records[1].id,
+      records[0].id,
+    ]);
+    expect(body.entries[0].result).toEqual({ ok: true, citationCount: 1 });
+    expect(body.entries[1].result).toEqual({ ok: false, reason: "no_hits" });
+  });
+
+  it("list pagination uses beforeId cursor", async () => {
+    const records = [
+      sampleHistoryRecord(0, true),
+      sampleHistoryRecord(1, true),
+      sampleHistoryRecord(2, true),
+      sampleHistoryRecord(3, true),
+    ];
+    const handlers = createAnswerHistoryRouteHandler(() =>
+      inMemoryHistoryStore(records),
+    );
+    const firstPage = mockResponse();
+    await handlers.list(
+      mockGetRequest("/answers?limit=2"),
+      firstPage.res,
+    );
+    const firstBody = firstPage.result.body as { entries: AnswerHistoryEntry[] };
+    expect(firstBody.entries.map((e) => e.query)).toEqual(["q3", "q2"]);
+
+    const secondPage = mockResponse();
+    await handlers.list(
+      mockGetRequest(
+        `/answers?limit=2&beforeId=${encodeURIComponent(firstBody.entries[1].id)}`,
+      ),
+      secondPage.res,
+    );
+    const secondBody = secondPage.result.body as { entries: AnswerHistoryEntry[] };
+    expect(secondBody.entries.map((e) => e.query)).toEqual(["q1", "q0"]);
+  });
+
+  it("show returns ok:true with the record body for an ok:true arm", async () => {
+    const record = sampleHistoryRecord(0, true);
+    const handlers = createAnswerHistoryRouteHandler(() =>
+      inMemoryHistoryStore([record]),
+    );
+    const { res, result } = mockResponse();
+    await handlers.showById(record.id, res);
+    expect(result.status).toBe(200);
+    const body = result.body as { ok: boolean; record?: AnswerHistoryRecord };
+    expect(body.ok).toBe(true);
+    expect(body.record?.id).toBe(record.id);
+    expect(body.record?.result.ok).toBe(true);
+  });
+
+  it("show returns ok:true with the record body for an ok:false arm", async () => {
+    const record = sampleHistoryRecord(0, false);
+    const handlers = createAnswerHistoryRouteHandler(() =>
+      inMemoryHistoryStore([record]),
+    );
+    const { res, result } = mockResponse();
+    await handlers.showById(record.id, res);
+    expect(result.status).toBe(200);
+    const body = result.body as { ok: boolean; record?: AnswerHistoryRecord };
+    expect(body.ok).toBe(true);
+    expect(body.record?.result).toEqual({ ok: false, reason: "no_hits" });
+  });
+
+  it("show returns ok:false reason:not_found for an unknown id", async () => {
+    const handlers = createAnswerHistoryRouteHandler(() =>
+      inMemoryHistoryStore([]),
+    );
+    const { res, result } = mockResponse();
+    await handlers.showById("nope", res);
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ ok: false, reason: "not_found" });
   });
 });

@@ -102,7 +102,11 @@ function makeRecallStub(
 function makeAnswerStub(
   answer: AnswerClient["answer"] = vi.fn(),
 ): AnswerClient {
-  return { answer };
+  return {
+    answer,
+    log: vi.fn(async () => ({ entries: [] })),
+    show: vi.fn(async () => ({ ok: false as const, reason: "not_found" as const })),
+  };
 }
 
 function makeStatusInfo(overrides: Partial<StatusInfo> = {}): StatusInfo {

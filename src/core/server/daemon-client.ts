@@ -29,6 +29,9 @@ import type {
   AgentsListResult,
   AnswerClient,
   AnswerFilter,
+  AnswerHistoryListFilter,
+  AnswerHistoryListResult,
+  AnswerHistoryShowResult,
   AnswerResult,
   ApprovalsClient,
   AuditClient,
@@ -171,6 +174,75 @@ function fetchWithTimeout(url: string, options?: RequestInit): Promise<Response>
   return fetch(url, { ...options, signal: controller.signal }).finally(() =>
     clearTimeout(timer),
   );
+}
+
+/**
+ * Strict decoder for `GET /answers` responses. Rejects loud rather than
+ * silently dropping malformed shapes — same discipline `KotaClient.answer`
+ * already follows for the synthesizer envelope.
+ */
+function decodeAnswerHistoryListResult(value: unknown): AnswerHistoryListResult {
+  if (!isObject(value)) {
+    throw new Error("Malformed answer history list payload: not an object");
+  }
+  const entries = (value as { entries?: unknown }).entries;
+  if (!Array.isArray(entries)) {
+    throw new Error("Malformed answer history list payload: entries not an array");
+  }
+  for (const entry of entries) {
+    if (!isObject(entry)) {
+      throw new Error("Malformed answer history entry: not an object");
+    }
+    const obj = entry as Record<string, unknown>;
+    if (typeof obj.id !== "string") {
+      throw new Error("Malformed answer history entry: missing id");
+    }
+    if (typeof obj.createdAt !== "string") {
+      throw new Error("Malformed answer history entry: missing createdAt");
+    }
+    if (typeof obj.query !== "string") {
+      throw new Error("Malformed answer history entry: missing query");
+    }
+    const result = obj.result as { ok?: unknown } | undefined;
+    if (!result || typeof result.ok !== "boolean") {
+      throw new Error("Malformed answer history entry: missing result.ok");
+    }
+  }
+  return value as AnswerHistoryListResult;
+}
+
+function decodeAnswerHistoryShowResult(value: unknown): AnswerHistoryShowResult {
+  if (!isObject(value)) {
+    throw new Error("Malformed answer history show payload: not an object");
+  }
+  const obj = value as { ok?: unknown };
+  if (obj.ok === false) {
+    const reason = (value as { reason?: unknown }).reason;
+    if (reason !== "not_found") {
+      throw new Error(`Malformed answer history show payload: reason=${String(reason)}`);
+    }
+    return { ok: false, reason: "not_found" };
+  }
+  if (obj.ok === true) {
+    const record = (value as { record?: unknown }).record;
+    if (!isObject(record)) {
+      throw new Error("Malformed answer history show payload: missing record");
+    }
+    const r = record as Record<string, unknown>;
+    if (
+      typeof r.id !== "string" ||
+      typeof r.createdAt !== "string" ||
+      typeof r.query !== "string"
+    ) {
+      throw new Error("Malformed answer history record: missing core fields");
+    }
+    return value as AnswerHistoryShowResult;
+  }
+  throw new Error("Malformed answer history show payload: ok not boolean");
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 export class DaemonControlClient implements KotaClient {
@@ -497,6 +569,8 @@ export class DaemonControlClient implements KotaClient {
     };
     this.answer = {
       answer: async (query, filter) => this.answerHttp(query, filter),
+      log: async (filter) => this.answerLogHttp(filter),
+      show: async (id) => this.answerShowHttp(id),
     };
   }
 
@@ -524,6 +598,37 @@ export class DaemonControlClient implements KotaClient {
       throw new Error(body.error ?? `HTTP ${res.status}`);
     }
     return (await res.json()) as AnswerResult;
+  }
+
+  private async answerLogHttp(
+    filter?: AnswerHistoryListFilter,
+  ): Promise<AnswerHistoryListResult> {
+    const params = new URLSearchParams();
+    if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
+    if (filter?.beforeId !== undefined) params.set("beforeId", filter.beforeId);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetchWithTimeout(`${this.baseUrl}/answers${query}`, {
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    const decoded = (await res.json()) as unknown;
+    return decodeAnswerHistoryListResult(decoded);
+  }
+
+  private async answerShowHttp(id: string): Promise<AnswerHistoryShowResult> {
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/answers/${encodeURIComponent(id)}`,
+      { headers: this.authHeaders() },
+    );
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    const decoded = (await res.json()) as unknown;
+    return decodeAnswerHistoryShowResult(decoded);
   }
 
   private async listAuditHttp(filter?: AuditListFilter): Promise<AuditListResult> {

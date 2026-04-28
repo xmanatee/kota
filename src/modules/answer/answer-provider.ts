@@ -12,12 +12,27 @@
  * 5. Surfaces a synthesizer throw or post-retry malformed citation as
  *    `synthesis_failed`.
  *
+ * After every call (success or failure) the provider appends one record
+ * to the injected `AnswerHistorySink`. Persistence runs after the
+ * envelope is computed so a failing append cannot alter the operator-
+ * visible response — the only externally visible side effect of a sink
+ * failure is a logged warning routed through `onPersistError`.
+ *
  * The provider never re-runs recall, never fans out to a second model
  * call beyond the one allowed retry, and never silently keeps a marker
  * that does not resolve against the typed hit pile.
  */
 
-import type { AnswerFilter, AnswerResult } from "#core/server/kota-client.js";
+import type {
+  AnswerFilter,
+  AnswerResult,
+  RecallHit,
+} from "#core/server/kota-client.js";
+import {
+  type AnswerHistorySink,
+  buildAnswerHistoryRecord,
+  mintAnswerHistoryId,
+} from "./answer-history-store.js";
 import {
   ANSWER_DEFAULT_TOP_K,
   type AnswerProvider,
@@ -29,6 +44,7 @@ import { parseCitations, selectCitedHits } from "./citation-parser.js";
 export type AnswerProviderOptions = {
   recall: AnswerRecallSeam;
   synthesizer: Synthesizer;
+  history: AnswerHistorySink;
   /**
    * Optional callback fired when the synthesizer throws or returns
    * malformed output that survives the retry. Defaults to silent —
@@ -36,51 +52,105 @@ export type AnswerProviderOptions = {
    * recorder to assert on the failure path.
    */
   onSynthesisError?: (error: unknown) => void;
+  /**
+   * Optional callback fired when the history sink fails. Defaults to
+   * silent. The wired module passes this to the module-context warn
+   * channel so the operator sees the failure without the answer call
+   * itself rejecting.
+   */
+  onPersistError?: (error: unknown) => void;
 };
 
 export class AnswerProviderImpl implements AnswerProvider {
   private readonly recall: AnswerRecallSeam;
   private readonly synthesize: Synthesizer;
+  private readonly history: AnswerHistorySink;
   private readonly onSynthesisError: (error: unknown) => void;
+  private readonly onPersistError: (error: unknown) => void;
 
   constructor(options: AnswerProviderOptions) {
     this.recall = options.recall;
     this.synthesize = options.synthesizer;
+    this.history = options.history;
     this.onSynthesisError = options.onSynthesisError ?? (() => {});
+    this.onPersistError = options.onPersistError ?? (() => {});
   }
 
   async answer(query: string, filter?: AnswerFilter): Promise<AnswerResult> {
     const trimmed = query.trim();
-    if (trimmed === "") {
-      return { ok: false, reason: "no_hits" };
-    }
-
     const recallFilter: AnswerFilter = {
       ...filter,
       topK: filter?.topK ?? ANSWER_DEFAULT_TOP_K,
     };
+
+    if (trimmed === "") {
+      return this.persistAndReturn(query, recallFilter, [], {
+        ok: false,
+        reason: "no_hits",
+      });
+    }
+
     const recallResult = await this.recall.recall(trimmed, recallFilter);
     if (!recallResult.ok) {
-      return { ok: false, reason: recallResult.reason };
+      return this.persistAndReturn(query, recallFilter, [], {
+        ok: false,
+        reason: recallResult.reason,
+      });
     }
     const hits = recallResult.hits;
     if (hits.length === 0) {
-      return { ok: false, reason: "no_hits" };
+      return this.persistAndReturn(query, recallFilter, [], {
+        ok: false,
+        reason: "no_hits",
+      });
     }
 
     const firstAttempt = await this.runSynthesis(trimmed, hits, false);
-    if (firstAttempt.ok) return firstAttempt.result;
+    if (firstAttempt.ok) {
+      return this.persistAndReturn(query, recallFilter, hits, firstAttempt.result);
+    }
 
     if (firstAttempt.kind === "thrown") {
       this.onSynthesisError(firstAttempt.error);
-      return { ok: false, reason: "synthesis_failed" };
+      return this.persistAndReturn(query, recallFilter, hits, {
+        ok: false,
+        reason: "synthesis_failed",
+      });
     }
 
     const retry = await this.runSynthesis(trimmed, hits, true);
-    if (retry.ok) return retry.result;
+    if (retry.ok) {
+      return this.persistAndReturn(query, recallFilter, hits, retry.result);
+    }
     if (retry.kind === "thrown") this.onSynthesisError(retry.error);
     else this.onSynthesisError(new Error(`malformed citations: ${retry.unknown.join(", ")}`));
-    return { ok: false, reason: "synthesis_failed" };
+    return this.persistAndReturn(query, recallFilter, hits, {
+      ok: false,
+      reason: "synthesis_failed",
+    });
+  }
+
+  private async persistAndReturn(
+    query: string,
+    filter: AnswerFilter,
+    recallHits: RecallHit[],
+    result: AnswerResult,
+  ): Promise<AnswerResult> {
+    try {
+      await this.history.appendAnswer(
+        buildAnswerHistoryRecord({
+          id: mintAnswerHistoryId(),
+          createdAt: new Date().toISOString(),
+          query,
+          filter,
+          recallHits,
+          result,
+        }),
+      );
+    } catch (error) {
+      this.onPersistError(error);
+    }
+    return result;
   }
 
   private async runSynthesis(

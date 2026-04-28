@@ -52,6 +52,33 @@ marker (or returns no markers at all), the seam surfaces
 The seam therefore makes at most two model calls per `answer(query)` —
 never silent fan-out beyond that.
 
+## Persisted answer history
+
+Every `AnswerProvider.answer(query, filter?)` call appends one typed
+record to `<projectStateRoot>/answer-history/<id>.json` through the
+module-owned `AnswerHistoryStore`. The store is the single record-
+keeping path for cited-answer envelopes and the corpus seam the
+eval-harness pulls real-failure provenance from. Reads are exposed as
+`KotaClient.answer.log(filter?)` / `show(id)`, the
+`kota answer log` / `kota answer show <id>` CLI subcommands, and the
+`GET /api/answers` + `GET /api/answers/:id` HTTP routes (with the
+`/answers` daemon-control twins).
+
+Contracts:
+
+- One record per call regardless of the discriminated `AnswerResult`
+  arm. Success records carry the typed `RecallHit[]` the synthesizer
+  was shown plus the typed `[source:id]` citations. Failure records
+  carry the recall hits the seam saw (or an empty array for the arms
+  that never reached recall).
+- An append failure never alters the operator-visible response. The
+  `onPersistError` callback surfaces the error through the module's
+  warn channel and the answer envelope is still returned exactly as
+  it was computed.
+- Retention is module-internal: the store prunes oldest entries past
+  `ANSWER_HISTORY_DEFAULT_CAP` on append. Pruning is best-effort and
+  has no operator-facing knob.
+
 ## Boundaries
 
 - No second retrieval path. The seam delegates to `RecallProvider` and
@@ -62,7 +89,11 @@ never silent fan-out beyond that.
   follow-up, not as a per-call parameter.
 - No cost surfacing into autonomy. The module uses the project's
   configured model client; cost dashboards stay where they already
-  live.
+  live. The history store records what the typed envelope already
+  contains; it does not surface per-call token usage or cost.
+- No second persistence path. The store is the only on-disk record of
+  cited-answer envelopes — no parallel logging, no second envelope
+  shape elsewhere.
 - No fan-out from this module. Surface adoption (Telegram, macOS,
   mobile, web) ships as honest single-task follow-ups, not a parallel
   five-surface chain seeded here.

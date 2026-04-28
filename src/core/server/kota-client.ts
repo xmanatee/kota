@@ -672,6 +672,65 @@ export type AnswerResult =
     };
 
 /**
+ * Persisted record of one `AnswerProvider.answer(query, filter?)` call.
+ *
+ * One record per call regardless of `ok`. The record carries the original
+ * query verbatim, the post-default filter actually used, the typed
+ * `RecallHit[]` the synthesizer was shown (or what recall returned for
+ * `ok: false` arms that never reached the synthesizer), and the
+ * discriminated `AnswerResult` envelope the caller saw. The shape is
+ * the eval-harness corpus seam — every fixture authored from this store
+ * is a strict subset of these fields.
+ */
+export type AnswerHistoryRecord = {
+  id: string;
+  createdAt: string;
+  query: string;
+  filter: AnswerFilter;
+  recallHits: RecallHit[];
+  result: AnswerResult;
+};
+
+/**
+ * Compact projection of `AnswerHistoryRecord` for list rendering. The
+ * projection is closed over the discriminated `result` shape so callers
+ * cannot accidentally read fields that only exist on the `ok: true`
+ * branch.
+ */
+export type AnswerHistoryEntry = {
+  id: string;
+  createdAt: string;
+  query: string;
+  result:
+    | { ok: true; citationCount: number }
+    | { ok: false; reason: "no_hits" | "semantic_unavailable" | "synthesis_failed" };
+};
+
+/**
+ * Filter accepted by `AnswerClient.log`. Both fields are optional; the
+ * store applies its own defaults (newest-first, capped page size). The
+ * `beforeId` cursor is the `id` of the last entry on the previous page
+ * — passing it returns the next older entries.
+ */
+export type AnswerHistoryListFilter = {
+  limit?: number;
+  beforeId?: string;
+};
+
+/** Result of `AnswerClient.log`. */
+export type AnswerHistoryListResult = {
+  entries: AnswerHistoryEntry[];
+};
+
+/**
+ * Result of `AnswerClient.show`. Discriminated so the caller cannot read
+ * `record` when the id was not found.
+ */
+export type AnswerHistoryShowResult =
+  | { ok: true; record: AnswerHistoryRecord }
+  | { ok: false; reason: "not_found" };
+
+/**
  * Cited-answer operations.
  *
  * `answer(query, filter?)` runs the cross-store recall fan-out and asks
@@ -679,9 +738,16 @@ export type AnswerResult =
  * citation markers anchored back to the typed `RecallHit`s. The
  * synthesizer retries once on malformed-citation output before
  * surfacing `synthesis_failed` — never multiple silent calls per query.
+ *
+ * `log(filter?)` and `show(id)` read back persisted answer envelopes so
+ * the operator can re-render past synthesized answers and the eval-
+ * harness can pull a real-failure corpus. Every `answer(...)` call
+ * appends one record; reads are strict against the typed shapes above.
  */
 export interface AnswerClient {
   answer(query: string, filter?: AnswerFilter): Promise<AnswerResult>;
+  log(filter?: AnswerHistoryListFilter): Promise<AnswerHistoryListResult>;
+  show(id: string): Promise<AnswerHistoryShowResult>;
 }
 
 /**

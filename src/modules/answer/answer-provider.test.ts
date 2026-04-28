@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type {
+  AnswerHistoryRecord,
   RecallFilter,
   RecallHit,
   RecallResult,
 } from "#core/server/kota-client.js";
+import type { AnswerHistorySink } from "./answer-history-store.js";
 import { AnswerProviderImpl } from "./answer-provider.js";
 import type { AnswerRecallSeam, Synthesizer } from "./answer-types.js";
 
@@ -27,6 +29,27 @@ function captureRecall(
   };
   return { seam, calls };
 }
+
+function recordingSink(): {
+  sink: AnswerHistorySink;
+  records: AnswerHistoryRecord[];
+} {
+  const records: AnswerHistoryRecord[] = [];
+  return {
+    records,
+    sink: {
+      async appendAnswer(record) {
+        records.push(record);
+      },
+    },
+  };
+}
+
+const noopSink: AnswerHistorySink = {
+  async appendAnswer() {
+    /* noop */
+  },
+};
 
 const sampleHits: RecallHit[] = [
   {
@@ -62,6 +85,7 @@ describe("AnswerProviderImpl", () => {
     const provider = new AnswerProviderImpl({
       recall: fixedRecall({ ok: true, hits: sampleHits }),
       synthesizer,
+      history: noopSink,
     });
     const result = await provider.answer("How does recall work?");
     if (!result.ok) {
@@ -84,6 +108,7 @@ describe("AnswerProviderImpl", () => {
     const provider = new AnswerProviderImpl({
       recall: fixedRecall({ ok: true, hits: sampleHits }),
       synthesizer,
+      history: noopSink,
     });
     const a = await provider.answer("question");
     const b = await provider.answer("question");
@@ -95,6 +120,7 @@ describe("AnswerProviderImpl", () => {
     const provider = new AnswerProviderImpl({
       recall: fixedRecall({ ok: false, reason: "semantic_unavailable" }),
       synthesizer,
+      history: noopSink,
     });
     const result = await provider.answer("anything");
     expect(result).toEqual({ ok: false, reason: "semantic_unavailable" });
@@ -106,6 +132,7 @@ describe("AnswerProviderImpl", () => {
     const provider = new AnswerProviderImpl({
       recall: fixedRecall({ ok: true, hits: [] }),
       synthesizer,
+      history: noopSink,
     });
     const result = await provider.answer("nothing");
     expect(result).toEqual({ ok: false, reason: "no_hits" });
@@ -117,6 +144,7 @@ describe("AnswerProviderImpl", () => {
     const provider = new AnswerProviderImpl({
       recall: fixedRecall({ ok: true, hits: sampleHits }),
       synthesizer,
+      history: noopSink,
     });
     const result = await provider.answer("   ");
     expect(result).toEqual({ ok: false, reason: "no_hits" });
@@ -135,6 +163,7 @@ describe("AnswerProviderImpl", () => {
     const provider = new AnswerProviderImpl({
       recall: fixedRecall({ ok: true, hits: sampleHits }),
       synthesizer,
+      history: noopSink,
     });
     const result = await provider.answer("query");
     if (!result.ok) {
@@ -157,6 +186,7 @@ describe("AnswerProviderImpl", () => {
     const provider = new AnswerProviderImpl({
       recall: fixedRecall({ ok: true, hits: sampleHits }),
       synthesizer,
+      history: noopSink,
       onSynthesisError: (err) => errors.push(err),
     });
     const result = await provider.answer("query");
@@ -172,6 +202,7 @@ describe("AnswerProviderImpl", () => {
     const provider = new AnswerProviderImpl({
       recall: fixedRecall({ ok: true, hits: sampleHits }),
       synthesizer,
+      history: noopSink,
       onSynthesisError: (err) => errors.push(err),
     });
     const result = await provider.answer("query");
@@ -185,6 +216,7 @@ describe("AnswerProviderImpl", () => {
     const provider = new AnswerProviderImpl({
       recall: fixedRecall({ ok: true, hits: sampleHits }),
       synthesizer,
+      history: noopSink,
     });
     const result = await provider.answer("query");
     expect(result).toEqual({ ok: false, reason: "synthesis_failed" });
@@ -196,6 +228,7 @@ describe("AnswerProviderImpl", () => {
     const provider = new AnswerProviderImpl({
       recall: seam,
       synthesizer,
+      history: noopSink,
     });
     await provider.answer("query");
     expect(calls).toHaveLength(1);
@@ -208,6 +241,7 @@ describe("AnswerProviderImpl", () => {
     const provider = new AnswerProviderImpl({
       recall: seam,
       synthesizer,
+      history: noopSink,
     });
     await provider.answer("query", { topK: 3, sources: ["knowledge"] });
     expect(calls[0].filter).toEqual({ topK: 3, sources: ["knowledge"] });
@@ -222,9 +256,117 @@ describe("AnswerProviderImpl", () => {
     const provider = new AnswerProviderImpl({
       recall: fixedRecall({ ok: true, hits: sampleHits }),
       synthesizer,
+      history: noopSink,
     });
     const result = await provider.answer("query");
     expect(result.ok).toBe(false);
     expect(attempts).toBe(2);
+  });
+
+  describe("history persistence", () => {
+    it("appends one record on the ok:true success arm with hits and citations", async () => {
+      const { sink, records } = recordingSink();
+      const synthesizer: Synthesizer = async () =>
+        "Body [knowledge:k1] then [tasks:task-add-recall].";
+      const provider = new AnswerProviderImpl({
+        recall: fixedRecall({ ok: true, hits: sampleHits }),
+        synthesizer,
+        history: sink,
+      });
+      const result = await provider.answer("How does recall work?");
+      expect(result.ok).toBe(true);
+      expect(records).toHaveLength(1);
+      const record = records[0];
+      expect(record.query).toBe("How does recall work?");
+      expect(record.recallHits).toEqual(sampleHits);
+      expect(record.result.ok).toBe(true);
+      if (record.result.ok) {
+        expect(record.result.citations).toEqual([
+          { source: "knowledge", id: "k1" },
+          { source: "tasks", id: "task-add-recall" },
+        ]);
+      }
+      expect(record.filter.topK).toBe(8);
+    });
+
+    it("appends one record on the no_hits failure arm", async () => {
+      const { sink, records } = recordingSink();
+      const provider = new AnswerProviderImpl({
+        recall: fixedRecall({ ok: true, hits: [] }),
+        synthesizer: async () => "n/a",
+        history: sink,
+      });
+      const result = await provider.answer("nothing");
+      expect(result).toEqual({ ok: false, reason: "no_hits" });
+      expect(records).toHaveLength(1);
+      expect(records[0].result).toEqual({ ok: false, reason: "no_hits" });
+      expect(records[0].recallHits).toEqual([]);
+    });
+
+    it("appends one record on the semantic_unavailable failure arm", async () => {
+      const { sink, records } = recordingSink();
+      const provider = new AnswerProviderImpl({
+        recall: fixedRecall({ ok: false, reason: "semantic_unavailable" }),
+        synthesizer: async () => "n/a",
+        history: sink,
+      });
+      const result = await provider.answer("anything");
+      expect(result).toEqual({ ok: false, reason: "semantic_unavailable" });
+      expect(records).toHaveLength(1);
+      expect(records[0].result).toEqual({
+        ok: false,
+        reason: "semantic_unavailable",
+      });
+    });
+
+    it("appends one record on the synthesis_failed failure arm", async () => {
+      const { sink, records } = recordingSink();
+      const synthesizer: Synthesizer = async () => {
+        throw new Error("boom");
+      };
+      const provider = new AnswerProviderImpl({
+        recall: fixedRecall({ ok: true, hits: sampleHits }),
+        synthesizer,
+        history: sink,
+      });
+      const result = await provider.answer("query");
+      expect(result).toEqual({ ok: false, reason: "synthesis_failed" });
+      expect(records).toHaveLength(1);
+      expect(records[0].result).toEqual({
+        ok: false,
+        reason: "synthesis_failed",
+      });
+      expect(records[0].recallHits).toEqual(sampleHits);
+    });
+
+    it("preserves the original (untrimmed) query verbatim in the record", async () => {
+      const { sink, records } = recordingSink();
+      const provider = new AnswerProviderImpl({
+        recall: fixedRecall({ ok: true, hits: sampleHits }),
+        synthesizer: async () => "Body [knowledge:k1].",
+        history: sink,
+      });
+      await provider.answer("  spaced  ");
+      expect(records).toHaveLength(1);
+      expect(records[0].query).toBe("  spaced  ");
+    });
+
+    it("a failing append never alters the operator-visible response", async () => {
+      const persistErrors: unknown[] = [];
+      const failingSink: AnswerHistorySink = {
+        async appendAnswer() {
+          throw new Error("disk full");
+        },
+      };
+      const provider = new AnswerProviderImpl({
+        recall: fixedRecall({ ok: true, hits: sampleHits }),
+        synthesizer: async () => "Body [knowledge:k1].",
+        history: failingSink,
+        onPersistError: (err) => persistErrors.push(err),
+      });
+      const result = await provider.answer("query");
+      expect(result.ok).toBe(true);
+      expect(persistErrors).toHaveLength(1);
+    });
   });
 });
