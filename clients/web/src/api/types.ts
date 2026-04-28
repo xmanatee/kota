@@ -494,6 +494,76 @@ export const CAPTURE_TARGET_ORDER: ReadonlyArray<CaptureTarget> = [
   "inbox",
 ] as const;
 
+/**
+ * Cross-store retract types — kept in sync with the daemon's
+ * `RetractResult` discriminated union (see
+ * `src/core/server/kota-client.ts`).
+ */
+export type RetractTarget = "memory" | "knowledge" | "tasks" | "inbox";
+
+export type RetractMemoryRecord = {
+  target: "memory";
+  recordId: string;
+};
+
+export type RetractKnowledgeRecord = {
+  target: "knowledge";
+  recordId: string;
+};
+
+export type RetractTasksRecord = {
+  target: "tasks";
+  recordId: string;
+  previousPath: string;
+  path: string;
+  toState: "dropped";
+};
+
+export type RetractInboxRecord = {
+  target: "inbox";
+  recordId: string;
+  path: string;
+};
+
+export type RetractRecord =
+  | RetractMemoryRecord
+  | RetractKnowledgeRecord
+  | RetractTasksRecord
+  | RetractInboxRecord;
+
+export type RetractRequest =
+  | { target: "memory"; id: string }
+  | { target: "knowledge"; slug: string }
+  | { target: "tasks"; id: string }
+  | { target: "inbox"; path: string };
+
+export type RetractResult =
+  | { ok: true; record: RetractRecord }
+  | { ok: false; reason: "no_contributors" }
+  | {
+      ok: false;
+      reason: "not_found";
+      target: RetractTarget;
+      identifier: string;
+    }
+  | {
+      ok: false;
+      reason: "contributor_failed";
+      target: RetractTarget;
+      message: string;
+    };
+
+/**
+ * Stable retract-target ordering. Mirrors the seam's `RETRACT_TARGET_ORDER`
+ * so the panel's picker option order matches the agent and CLI surfaces.
+ */
+export const RETRACT_TARGET_ORDER: ReadonlyArray<RetractTarget> = [
+  "memory",
+  "knowledge",
+  "tasks",
+  "inbox",
+] as const;
+
 export type SlashCommandSource = "workflow" | "skill";
 
 export type SlashCommand = {

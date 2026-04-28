@@ -18,6 +18,7 @@ import { ModulesPanel } from "./ModulesPanel";
 import { OverviewPanel } from "./OverviewPanel";
 import { OwnerQuestionsPanel } from "./OwnerQuestionsPanel";
 import { RecallPanel } from "./RecallPanel";
+import { RetractPanel } from "./RetractPanel";
 import { SchedulesPanel } from "./SchedulesPanel";
 import { SessionList } from "./SessionList";
 import { SidebarSection } from "./SidebarSection";
@@ -146,6 +147,10 @@ export function Sidebar({
 
           <SidebarSection title="Capture" defaultOpen={false}>
             <CapturePanel />
+          </SidebarSection>
+
+          <SidebarSection title="Retract" defaultOpen={false}>
+            <RetractPanel />
           </SidebarSection>
 
           <SidebarSection title="Knowledge" defaultOpen={false}>

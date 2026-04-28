@@ -1,12 +1,12 @@
 ---
 id: task-add-web-retractpanel-consuming-the-cross-store-ret
 title: Add web RetractPanel consuming the cross-store retract seam
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a sidebar RetractPanel to the web client that consumes POST /api/retract through DaemonControlClient.retract.retract({ target, ... }), exhaustively rendering the discriminated RetractResult — removed, no_contributors, not_found, contributor_failed — and offering a typed target picker that maps one-to-one to RetractTarget with the per-arm identifier control (memory id / knowledge slug / task id / inbox path). Second-surface follow-up of the cross-store retract seam after Telegram /retract-<store>; macOS and mobile adoption land later as separate tasks.
 created_at: 2026-04-28T11:31:56.733Z
-updated_at: 2026-04-28T11:31:56.733Z
+updated_at: 2026-04-28T11:38:21.473Z
 ---
 
 ## Problem

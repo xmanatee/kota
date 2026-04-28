@@ -21,6 +21,8 @@ import type {
   PendingApproval,
   PendingOwnerQuestion,
   RecallResult,
+  RetractRequest,
+  RetractResult,
   ScheduleEntry,
   SlashCommand,
   SlashCommandInvocation,
@@ -313,6 +315,13 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(filter ? { text, filter } : { text }),
+    }),
+
+  retract: (request: RetractRequest) =>
+    apiJson<RetractResult>("/api/retract", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
     }),
 
   answerLog: (filter?: AnswerHistoryListFilter) => {
