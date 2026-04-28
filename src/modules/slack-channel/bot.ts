@@ -14,7 +14,11 @@ import { NullTransport, ProxyTransport } from "#core/loop/transport.js";
 import type {
   AnswerClient,
   CaptureClient,
+  HistoryClient,
+  KnowledgeClient,
+  MemoryClient,
   RecallClient,
+  RepoTasksClient,
 } from "#core/server/kota-client.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
@@ -27,6 +31,8 @@ import {
   type SocketPayload,
 } from "./client.js";
 import {
+  type AttentionSnapshotClient,
+  type DigestSnapshotClient,
   dispatchSlackSlashCommand,
   parseSlackSlashCommand,
   type SlackParsedCommand,
@@ -44,6 +50,14 @@ export type SlackBotOptions = {
   recall: RecallClient;
   answer: AnswerClient;
   capture: CaptureClient;
+  /** Per-store semantic-search seams used by `/memory`, `/knowledge`, `/history`, `/tasks`. */
+  memory: MemoryClient;
+  knowledge: KnowledgeClient;
+  history: HistoryClient;
+  tasks: RepoTasksClient;
+  /** On-demand snapshot clients used by `/attention` and `/digest`. */
+  attention: AttentionSnapshotClient;
+  digest: DigestSnapshotClient;
 };
 
 /** Formats an approval request as Block Kit blocks with Approve/Reject buttons. */
@@ -259,6 +273,12 @@ export class SlackBot {
           recall: this.options.recall,
           answer: this.options.answer,
           capture: this.options.capture,
+          memory: this.options.memory,
+          knowledge: this.options.knowledge,
+          history: this.options.history,
+          tasks: this.options.tasks,
+          attention: this.options.attention,
+          digest: this.options.digest,
         },
       });
     } catch (err) {

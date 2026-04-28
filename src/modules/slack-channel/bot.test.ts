@@ -2,9 +2,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   AnswerClient,
   CaptureClient,
+  HistoryClient,
+  KnowledgeClient,
+  MemoryClient,
   RecallClient,
+  RepoTasksClient,
 } from "#core/server/kota-client.js";
+import { renderHistorySearchPlain } from "#modules/history/render.js";
+import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
+import { renderMemorySearchPlain } from "#modules/memory/render.js";
+import { renderRepoTaskSearchPlain } from "#modules/repo-tasks/render.js";
 import { SlackBot } from "./bot.js";
+import type {
+  AttentionSnapshotClient,
+  DigestSnapshotClient,
+} from "./commands.js";
 
 // Mock external dependencies at module level
 vi.mock("./client.js", async () => {
@@ -62,11 +74,51 @@ function makeStubClients(): {
   recall: RecallClient;
   answer: AnswerClient;
   capture: CaptureClient;
+  memory: MemoryClient;
+  knowledge: KnowledgeClient;
+  history: HistoryClient;
+  tasks: RepoTasksClient;
+  attention: AttentionSnapshotClient;
+  digest: DigestSnapshotClient;
 } {
   return {
     recall: { recall: vi.fn() },
     answer: { answer: vi.fn(), log: vi.fn(), show: vi.fn() },
     capture: { capture: vi.fn() },
+    memory: {
+      list: vi.fn(),
+      add: vi.fn(),
+      delete: vi.fn(),
+      search: vi.fn(),
+      reindex: vi.fn(),
+    },
+    knowledge: {
+      list: vi.fn(),
+      show: vi.fn(),
+      search: vi.fn(),
+      add: vi.fn(),
+      delete: vi.fn(),
+      reindex: vi.fn(),
+    },
+    history: {
+      list: vi.fn(),
+      show: vi.fn(),
+      delete: vi.fn(),
+      search: vi.fn(),
+      reindex: vi.fn(),
+    },
+    tasks: {
+      list: vi.fn(),
+      show: vi.fn(),
+      move: vi.fn(),
+      create: vi.fn(),
+      capture: vi.fn(),
+      gc: vi.fn(),
+      search: vi.fn(),
+      reindex: vi.fn(),
+    },
+    attention: { snapshot: vi.fn().mockReturnValue({ text: "" }) },
+    digest: { snapshot: vi.fn().mockReturnValue({ text: "" }) },
   };
 }
 
@@ -988,6 +1040,369 @@ describe("SlackBot", () => {
       await sendSlashAndAwait("D-NS1", "/recall x", ws, "env-ns1");
 
       expect(AgentSession).not.toHaveBeenCalled();
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/memory <query> calls memory.search and renders the entries", async () => {
+      const entries = [
+        { id: "mem-1", created: "2026-04-28T06:00:00Z", content: "alice phone" },
+      ];
+      const searchFn = vi.fn().mockResolvedValue({ ok: true, entries });
+      const bot = makeBot({
+        memory: {
+          list: vi.fn(),
+          add: vi.fn(),
+          delete: vi.fn(),
+          search: searchFn,
+          reindex: vi.fn(),
+        },
+      });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait(
+        "D-MEM",
+        "/memory alice",
+        ws,
+        "env-m1",
+      );
+
+      expect(searchFn).toHaveBeenCalledWith("alice", {
+        semantic: true,
+        limit: 10,
+      });
+      expect(post.text).toBe(renderMemorySearchPlain(entries));
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/memory surfaces semantic_unavailable as the unconfigured notice", async () => {
+      const searchFn = vi
+        .fn()
+        .mockResolvedValue({ ok: false, reason: "semantic_unavailable" });
+      const bot = makeBot({
+        memory: {
+          list: vi.fn(),
+          add: vi.fn(),
+          delete: vi.fn(),
+          search: searchFn,
+          reindex: vi.fn(),
+        },
+      });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait(
+        "D-MEM2",
+        "/memory anything",
+        ws,
+        "env-m2",
+      );
+      expect(post.text).toBe(
+        "Semantic memory search requires an embedding-backed memory provider.",
+      );
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/memory with empty body replies with usage hint and skips the call", async () => {
+      const searchFn = vi.fn();
+      const bot = makeBot({
+        memory: {
+          list: vi.fn(),
+          add: vi.fn(),
+          delete: vi.fn(),
+          search: searchFn,
+          reindex: vi.fn(),
+        },
+      });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait("D-MEM3", "/memory", ws, "env-m3");
+      expect(post.text).toBe("Usage: /memory <query>");
+      expect(searchFn).not.toHaveBeenCalled();
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/memory replies 'No matching memory entries.' when the search returns nothing", async () => {
+      const searchFn = vi.fn().mockResolvedValue({ ok: true, entries: [] });
+      const bot = makeBot({
+        memory: {
+          list: vi.fn(),
+          add: vi.fn(),
+          delete: vi.fn(),
+          search: searchFn,
+          reindex: vi.fn(),
+        },
+      });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait("D-MEM4", "/memory none", ws, "env-m4");
+      expect(post.text).toBe("No matching memory entries.");
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/knowledge <query> calls knowledge.search and renders the entries", async () => {
+      const entries = [
+        {
+          id: "k-1",
+          title: "KOTA overview",
+          type: "note",
+          tags: [],
+          status: "active",
+          created: "2026-04-01T00:00:00Z",
+          updated: "2026-04-01T00:00:00Z",
+          content: "",
+          meta: {},
+        },
+      ];
+      const searchFn = vi.fn().mockResolvedValue({ ok: true, entries });
+      const bot = makeBot({
+        knowledge: {
+          list: vi.fn(),
+          show: vi.fn(),
+          search: searchFn,
+          add: vi.fn(),
+          delete: vi.fn(),
+          reindex: vi.fn(),
+        },
+      });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait(
+        "D-KN",
+        "/knowledge kota",
+        ws,
+        "env-k1",
+      );
+      expect(searchFn).toHaveBeenCalledWith("kota", {
+        semantic: true,
+        limit: 10,
+      });
+      expect(post.text).toBe(renderKnowledgeSearchPlain(entries));
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/knowledge with empty body replies with usage hint and skips the call", async () => {
+      const searchFn = vi.fn();
+      const bot = makeBot({
+        knowledge: {
+          list: vi.fn(),
+          show: vi.fn(),
+          search: searchFn,
+          add: vi.fn(),
+          delete: vi.fn(),
+          reindex: vi.fn(),
+        },
+      });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait("D-KN2", "/knowledge", ws, "env-k2");
+      expect(post.text).toBe("Usage: /knowledge <query>");
+      expect(searchFn).not.toHaveBeenCalled();
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/history <query> calls history.search and renders the conversations", async () => {
+      const conversations = [
+        {
+          id: "h-1",
+          title: "Slack ramp",
+          createdAt: "2026-04-20T00:00:00Z",
+          updatedAt: "2026-04-21T00:00:00Z",
+          model: "opus",
+          messageCount: 4,
+          cwd: "/repo",
+        },
+      ];
+      const searchFn = vi.fn().mockResolvedValue({ ok: true, conversations });
+      const bot = makeBot({
+        history: {
+          list: vi.fn(),
+          show: vi.fn(),
+          delete: vi.fn(),
+          search: searchFn,
+          reindex: vi.fn(),
+        },
+      });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait("D-HI", "/history slack", ws, "env-h1");
+      expect(searchFn).toHaveBeenCalledWith("slack", {
+        semantic: true,
+        limit: 10,
+      });
+      expect(post.text).toBe(renderHistorySearchPlain(conversations));
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/history with empty body replies with usage hint and skips the call", async () => {
+      const searchFn = vi.fn();
+      const bot = makeBot({
+        history: {
+          list: vi.fn(),
+          show: vi.fn(),
+          delete: vi.fn(),
+          search: searchFn,
+          reindex: vi.fn(),
+        },
+      });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait("D-HI2", "/history", ws, "env-h2");
+      expect(post.text).toBe("Usage: /history <query>");
+      expect(searchFn).not.toHaveBeenCalled();
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/tasks <query> calls tasks.search and renders the hits", async () => {
+      const hits = [
+        {
+          id: "task-foo",
+          title: "do foo",
+          state: "ready" as const,
+          priority: "p2",
+          area: "architecture",
+          summary: "",
+          updatedAt: "2026-04-20T00:00:00Z",
+          score: 0.5,
+        },
+      ];
+      const searchFn = vi.fn().mockResolvedValue({ ok: true, tasks: hits });
+      const bot = makeBot({
+        tasks: {
+          list: vi.fn(),
+          show: vi.fn(),
+          move: vi.fn(),
+          create: vi.fn(),
+          capture: vi.fn(),
+          gc: vi.fn(),
+          search: searchFn,
+          reindex: vi.fn(),
+        },
+      });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait("D-TA", "/tasks foo", ws, "env-t1");
+      expect(searchFn).toHaveBeenCalledWith("foo", {
+        semantic: true,
+        limit: 10,
+      });
+      expect(post.text).toBe(renderRepoTaskSearchPlain(hits));
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/tasks with empty body replies with usage hint and skips the call", async () => {
+      const searchFn = vi.fn();
+      const bot = makeBot({
+        tasks: {
+          list: vi.fn(),
+          show: vi.fn(),
+          move: vi.fn(),
+          create: vi.fn(),
+          capture: vi.fn(),
+          gc: vi.fn(),
+          search: searchFn,
+          reindex: vi.fn(),
+        },
+      });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait("D-TA2", "/tasks", ws, "env-t2");
+      expect(post.text).toBe("Usage: /tasks <query>");
+      expect(searchFn).not.toHaveBeenCalled();
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/attention calls attention.snapshot and posts the rendered text verbatim", async () => {
+      const snapshot = vi
+        .fn()
+        .mockReturnValue({ text: "Attention items:\n- task-foo (ready)" });
+      const bot = makeBot({ attention: { snapshot } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait("D-AT", "/attention", ws, "env-at1");
+      expect(snapshot).toHaveBeenCalled();
+      expect(post.text).toBe("Attention items:\n- task-foo (ready)");
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/attention <noise> still triggers the snapshot (body is ignored)", async () => {
+      const snapshot = vi
+        .fn()
+        .mockReturnValue({ text: "All caught up." });
+      const bot = makeBot({ attention: { snapshot } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait(
+        "D-AT2",
+        "/attention now please",
+        ws,
+        "env-at2",
+      );
+      expect(snapshot).toHaveBeenCalledTimes(1);
+      expect(post.text).toBe("All caught up.");
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/digest calls digest.snapshot and posts the rendered text verbatim", async () => {
+      const snapshot = vi
+        .fn()
+        .mockReturnValue({ text: "Daily digest:\nbuilder: 3 runs" });
+      const bot = makeBot({ digest: { snapshot } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait("D-DI", "/digest", ws, "env-di1");
+      expect(snapshot).toHaveBeenCalled();
+      expect(post.text).toBe("Daily digest:\nbuilder: 3 runs");
 
       bot.stop();
       await startPromise.catch(() => {});

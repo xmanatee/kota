@@ -4,11 +4,15 @@ This directory owns the bidirectional Slack bot channel for KOTA.
 
 - Uses Slack Socket Mode (WebSocket) to receive messages without a public HTTP endpoint.
 - One `AgentSession` per Slack user — free-form DMs go to that user's session.
-- First-class slash commands (`/recall`, `/answer`, `/capture`, and the four
-  `/capture-to-{memory,knowledge,tasks,inbox}` twins) are one-shot calls that
-  bypass the session and route through `ctx.client.{recall,answer,capture}`,
-  reusing the same plain-text rendering helpers as the Telegram channel for
-  byte-identical reply bodies.
+- First-class slash commands match the Telegram channel's surface
+  (`/recall`, `/answer`, `/capture` plus the four
+  `/capture-to-{memory,knowledge,tasks,inbox}` twins, the per-store
+  semantic-search seams `/memory`, `/knowledge`, `/history`, `/tasks`, and
+  the on-demand `/attention` and `/digest` seams) — one-shot calls that
+  bypass the per-user session, route through the matching `KotaClient`
+  namespace (or attention/digest snapshot), and reuse the same module-owned
+  plain-text renderers Telegram uses, so a Slack reply matches the Telegram
+  reply byte-for-byte for the same envelope.
 - Slash-command parsing tolerates leading whitespace, a leading bot-mention
   prefix, and matches the command head case-insensitively.
 - Approval requests are posted as interactive Block Kit messages with Approve/Reject buttons.

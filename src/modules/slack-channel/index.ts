@@ -11,6 +11,8 @@ import type { ChannelDef } from "#core/channels/channel.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import { AUTONOMY_MODES, type AutonomyMode } from "#core/tools/autonomy-mode.js";
+import { renderOnDemandAttention } from "#modules/autonomy/workflows/attention-digest/step.js";
+import { renderOnDemandDigest } from "#modules/autonomy/workflows/daily-digest/on-demand.js";
 import { SlackBot } from "./bot.js";
 
 type SlackChannelConfig = {
@@ -30,35 +32,89 @@ function getConfig(ctx: ModuleContext): SlackChannelConfig | null {
   return config;
 }
 
-let bot: SlackBot | null = null;
-let approvalUnsub: (() => void) | null = null;
+function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
+  return {
+    name: "slack-channel",
+    description: "Bidirectional Slack bot channel using Socket Mode",
+    create(ctx) {
+      const config = getConfig(moduleCtx);
+      if (!config) {
+        ctx.log("[kota-slack] No config — channel disabled");
+        return null;
+      }
 
-const slackChannelDef: ChannelDef = {
-  name: "slack-channel",
-  description: "Bidirectional Slack bot channel using Socket Mode",
-  create(ctx) {
-    // Channel adapter defers to the loaded bot instance.
-    // onLoad sets up the bot; the daemon calls start/stop on the adapter.
-    return {
-      async start() {
-        if (!bot) {
-          ctx.log("[kota-slack] No config — channel disabled");
-          return;
-        }
-        await bot.start();
-      },
-      stop() {
-        bot?.stop();
-      },
-    };
-  },
-};
+      const autonomyMode = resolveChannelAutonomyMode(
+        config.defaultAutonomyMode,
+        moduleCtx.config,
+        "slack-channel",
+      );
+
+      const projectDir = ctx.projectDir;
+      const bot = new SlackBot({
+        botToken: config.botToken,
+        appToken: config.appToken,
+        notifyChannel: config.notifyChannel,
+        config: moduleCtx.config,
+        autonomyMode,
+        recall: moduleCtx.client.recall,
+        answer: moduleCtx.client.answer,
+        capture: moduleCtx.client.capture,
+        memory: moduleCtx.client.memory,
+        knowledge: moduleCtx.client.knowledge,
+        history: moduleCtx.client.history,
+        tasks: moduleCtx.client.tasks,
+        attention: {
+          snapshot: () =>
+            renderOnDemandAttention({
+              projectDir,
+              runsDir: ctx.getWorkflowStatus().runsDir,
+            }),
+        },
+        digest: { snapshot: () => renderOnDemandDigest({ projectDir }) },
+      });
+
+      const approvalUnsub = moduleCtx.events.subscribe(
+        "approval.requested",
+        (payload) => {
+          const id = payload.id as string;
+          const tool = payload.tool as string;
+          const risk = payload.risk as string;
+          const reason = payload.reason as string;
+          bot.postApproval(id, tool, risk, reason).catch((err: unknown) => {
+            moduleCtx.log.warn(
+              `slack-channel: failed to post approval: ${(err as Error).message}`,
+            );
+          });
+        },
+      );
+
+      return {
+        async start() {
+          await bot.start();
+        },
+        stop() {
+          approvalUnsub();
+          bot.stop();
+        },
+      };
+    },
+  };
+}
 
 const slackChannelModule: KotaModule = {
   name: "slack-channel",
   version: "1.0.0",
   description: "Bidirectional Slack bot channel for KOTA (Socket Mode)",
-  dependencies: ["answer", "capture", "recall"],
+  dependencies: [
+    "answer",
+    "autonomy",
+    "capture",
+    "history",
+    "knowledge",
+    "memory",
+    "recall",
+    "repo-tasks",
+  ],
   configSchema: {
     type: "object",
     additionalProperties: false,
@@ -71,7 +127,7 @@ const slackChannelModule: KotaModule = {
     },
   },
 
-  channels: [slackChannelDef],
+  channels: (ctx) => [makeSlackChannelDef(ctx)],
 
   onLoad: (ctx) => {
     const config = getConfig(ctx);
@@ -81,41 +137,13 @@ const slackChannelModule: KotaModule = {
       );
       return;
     }
-
-    const autonomyMode = resolveChannelAutonomyMode(
+    // Resolve autonomy mode early so config errors surface at load time, not
+    // at first connection. The channel adapter re-resolves at create time.
+    resolveChannelAutonomyMode(
       config.defaultAutonomyMode,
       ctx.config,
       "slack-channel",
     );
-
-    bot = new SlackBot({
-      botToken: config.botToken,
-      appToken: config.appToken,
-      notifyChannel: config.notifyChannel,
-      config: ctx.config,
-      autonomyMode,
-      recall: ctx.client.recall,
-      answer: ctx.client.answer,
-      capture: ctx.client.capture,
-    });
-
-    approvalUnsub = ctx.events.subscribe("approval.requested", (payload) => {
-      if (!bot) return;
-      const id = payload.id as string;
-      const tool = payload.tool as string;
-      const risk = payload.risk as string;
-      const reason = payload.reason as string;
-      bot.postApproval(id, tool, risk, reason).catch((err: unknown) => {
-        ctx.log.warn(`slack-channel: failed to post approval: ${(err as Error).message}`);
-      });
-    });
-  },
-
-  onUnload: () => {
-    approvalUnsub?.();
-    approvalUnsub = null;
-    bot?.stop();
-    bot = null;
   },
 };
 

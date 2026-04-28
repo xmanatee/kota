@@ -1,12 +1,12 @@
 ---
 id: task-extend-slack-channel-slash-command-parity-to-memor
 title: Extend Slack-channel slash-command parity to /memory /knowledge /history /tasks /attention and /digest matching the Telegram surface
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Slack-channel slash commands today only cover the cross-store recall/answer/capture seams. Telegram already exposes the per-store semantic-search seams /memory /knowledge /history /tasks plus on-demand /attention and /digest, all consuming KotaClient namespaces and the module-owned plain-text renderers. Extend Slack-channel commands.ts to dispatch the same six commands through the same renderers so a Slack reply matches Telegram byte-for-byte for the same envelope, closing the second-channel parity gap left after the capture fan-out.
 created_at: 2026-04-28T06:10:18.938Z
-updated_at: 2026-04-28T06:10:18.938Z
+updated_at: 2026-04-28T06:35:11.657Z
 ---
 
 ## Problem
