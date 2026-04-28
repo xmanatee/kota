@@ -41,6 +41,13 @@ const CROSS_CUTTING_TESTS = new Set([
   "task-files.test.ts",
 ]);
 
+// Shared fixtures co-located with the cross-cutting integration tests
+// they support. Limited to fixtures that span multiple subsystems and
+// therefore have no single owning module to live under.
+const CROSS_CUTTING_FIXTURES = new Set([
+  "conversational-cross-store-fixture.integration.ts",
+]);
+
 function listTopLevelTsFiles(): string[] {
   return readdirSync(SRC_DIR)
     .filter((name) => name.endsWith(".ts"))
@@ -59,6 +66,7 @@ describe("src/ root layout", () => {
       if (ENTRYPOINT_SOURCES.has(name)) continue;
       if (ENTRYPOINT_PAIRED_TESTS.has(name)) continue;
       if (CROSS_CUTTING_TESTS.has(name)) continue;
+      if (CROSS_CUTTING_FIXTURES.has(name)) continue;
       if (name.endsWith(".integration.test.ts")) continue;
       unexpected.push(name);
     }

@@ -29,6 +29,11 @@ The `src/` root holds only:
   `*.integration.test.ts`, `e2e*.test.ts`, `integration.test.ts`,
   `module-e2e.test.ts`, `distributable-surfaces.test.ts`,
   `docs-surface.test.ts`, `task-files.test.ts`.
+- Shared fixtures co-located with cross-cutting integration tests when
+  they span multiple subsystems and have no single owning module
+  (e.g. `conversational-cross-store-fixture.integration.ts`). The fixture name must
+  also be added to the `CROSS_CUTTING_FIXTURES` whitelist in
+  `src/root-layout.test.ts`.
 - `root-layout.test.ts`, the whitelist guard itself.
 
 Every other unit test lives next to the code it exercises under

@@ -113,13 +113,27 @@ export const ROOT_PRODUCTION_ALLOWLIST = new Set([
   "validate-queue.ts",
 ]);
 
+/**
+ * Shared fixtures co-located with cross-cutting integration tests when they
+ * span multiple subsystems and have no single owning module. Mirrors the
+ * authoritative whitelist in src/root-layout.test.ts.
+ */
+export const CROSS_CUTTING_FIXTURES = new Set([
+  "conversational-cross-store-fixture.integration.ts",
+]);
+
 export function checkModuleBoundary(projectDir: string): string {
   const srcDir = join(projectDir, "src");
   if (!existsSync(srcDir)) return "OK: no src/ directory";
 
   // 1. Check for non-allowlisted production files in src/ root.
   const rootFiles = readdirSync(srcDir).filter(
-    (f) => f.endsWith(".ts") && !f.includes(".test.") && !f.includes(".integration.") && !f.endsWith(".d.ts"),
+    (f) =>
+      f.endsWith(".ts") &&
+      !f.includes(".test.") &&
+      !f.includes(".integration.") &&
+      !f.endsWith(".d.ts") &&
+      !CROSS_CUTTING_FIXTURES.has(f),
   );
   const fileViolations = rootFiles.filter((f) => !ROOT_PRODUCTION_ALLOWLIST.has(f));
   if (fileViolations.length) {

@@ -1,12 +1,12 @@
 ---
 id: task-anchor-retract-through-the-conversational-agent-lo
 title: Anchor retract through the conversational agent loop with end-to-end integration tests
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Extend src/conversational-agent-tools.integration.test.ts and src/conversational-prompt-priming.integration.test.ts to cover the retract module so the latest cross-store seam has the same agent-loop coverage as capture/recall/answer.
 created_at: 2026-04-28T14:45:19.074Z
-updated_at: 2026-04-28T14:45:19.074Z
+updated_at: 2026-04-28T14:58:43.543Z
 ---
 
 ## Problem

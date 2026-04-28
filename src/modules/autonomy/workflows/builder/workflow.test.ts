@@ -664,6 +664,15 @@ describe("checkModuleBoundary", () => {
     expect(checkModuleBoundary(dir)).toBe("OK: no root helper drift detected");
   });
 
+  it("passes when src/ has whitelisted cross-cutting fixtures", () => {
+    const dir = makeTmpProject();
+    writeFileSync(
+      join(dir, "src/conversational-cross-store-fixture.integration.ts"),
+      "export {};",
+    );
+    expect(checkModuleBoundary(dir)).toBe("OK: no root helper drift detected");
+  });
+
   it("fails when a non-allowlisted production file exists in src/ root", () => {
     const dir = makeTmpProject();
     writeFileSync(join(dir, "src/new-capability.ts"), "export {};");

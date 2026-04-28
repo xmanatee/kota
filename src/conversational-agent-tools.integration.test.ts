@@ -1,386 +1,128 @@
 /**
- * End-to-end test for the agent-callable cross-store seam tools.
+ * End-to-end tests for the agent-callable cross-store seam tools.
  *
- * Boots a per-user agent session through the `openai-tools` harness against
- * the production capture/recall/answer providers wired to real on-disk
- * stores. A scripted ModelClient drives one session in which the agent
- * fires three tool_use blocks in sequence (`capture`, `recall`, `answer`)
- * and finishes with a plain text reply.
+ * Each describe boots a per-user agent session through the `openai-tools`
+ * harness against the production capture/recall/answer/retract providers
+ * wired to real on-disk stores. A scripted ModelClient drives one session
+ * per describe.
  *
- * The test asserts the bullets in the task's "Done When":
+ * `capture / recall / answer round trip`:
+ *   The agent fires three tool_use blocks in sequence (`capture`,
+ *   `recall`, `answer`) and finishes with a plain text reply. The tests
+ *   assert (a) capture writes a typed memory record, (b) recall returns
+ *   ranked hits across registered contributors, (c) answer produces a
+ *   cited envelope with a fresh `AnswerHistoryRecord`.
  *
- *   (a) `capture` writes through the real `CaptureProvider` and the
- *       resulting `CaptureRecord` is reachable in the matching memory
- *       store.
- *   (b) `recall` returns ranked hits across registered contributors —
- *       captured by inspecting the tool_result block the harness fed back
- *       to the model on the next turn.
- *   (c) `answer` produces a cited answer through the real
- *       `AnswerProvider` and a fresh `AnswerHistoryRecord` is appended
- *       to the same `DiskAnswerHistoryStore` `KotaClient.answer.log`
- *       reads from.
+ * `retract round trip`:
+ *   The agent fires `retract` on a previously-captured memory entry,
+ *   followed by a `recall` that should no longer surface the retracted
+ *   record. Anchors the read-side seam settling after retract through
+ *   the production `RetractProviderImpl`. The dangerous-tool runs under
+ *   the same harness posture the peer arms use — no test-only autonomy
+ *   elevation, no test-only override.
  */
 
-import { execSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type {
-  KotaContentBlock,
-  KotaMessage,
-  KotaModelResponse,
-  KotaTool,
-} from "#core/agent-harness/message-protocol.js";
-import { registerModelClientFactory } from "#core/model/model-client.js";
-import type {
-  ConversationData,
-  ConversationMessage,
-  ConversationRecord,
-  HistoryProvider,
-  ReindexResult,
-} from "#core/modules/provider-types.js";
+import { rmSync } from "node:fs";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { clearCustomTools } from "#core/tools/index.js";
 import {
-  clearCustomTools,
-  registerTool,
-} from "#core/tools/index.js";
-import {
-  answerHistoryRootForProject,
-  DiskAnswerHistoryStore,
-} from "#modules/answer/answer-history-store.js";
-import { AnswerProviderImpl } from "#modules/answer/answer-provider.js";
-import type {
-  AnswerRecallSeam,
-  Synthesizer,
-} from "#modules/answer/answer-types.js";
-import { createAnswerToolDef } from "#modules/answer/tool.js";
-import { CaptureProviderImpl } from "#modules/capture/capture-provider.js";
-import type {
-  CaptureClassification,
-  CaptureClassifier,
-} from "#modules/capture/capture-types.js";
-import {
-  createInboxContributor,
-  createKnowledgeContributor as createKnowledgeCaptureContributor,
-  createMemoryContributor as createMemoryCaptureContributor,
-  createTasksContributor as createTasksCaptureContributor,
-} from "#modules/capture/contributors.js";
-import { createCaptureToolDef } from "#modules/capture/tool.js";
-import { KnowledgeStore } from "#modules/knowledge/store.js";
-import { MemoryStore } from "#modules/memory/store.js";
-import { openaiToolsAgentHarness } from "#modules/openai-tools-agent-harness/index.js";
-import {
-  createHistoryContributor,
-  createKnowledgeContributor as createKnowledgeRecallContributor,
-  createMemoryContributor as createMemoryRecallContributor,
-  createTasksContributor as createTasksRecallContributor,
-} from "#modules/recall/contributors.js";
-import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
-import { createRecallToolDef } from "#modules/recall/tool.js";
-import { RepoTasksDefaultStore } from "#modules/repo-tasks/repo-tasks-store.js";
+  buildCrossStoreFixture,
+  type CrossStoreFixture,
+  endTurn,
+  findLastToolResult,
+  registerCrossStoreTools,
+  runScriptedAgentSession,
+  SEEDED_KNOWLEDGE_TITLE,
+  type StreamCallSnapshot,
+  toolUseTurn,
+} from "./conversational-cross-store-fixture.integration.js";
 
-const SEEDED_KNOWLEDGE_TITLE = "Cross-store recall design";
-const SEEDED_KNOWLEDGE_BODY =
-  "The recall seam ranks hits across stores using min-max normalization.";
 const CAPTURE_NOTE = "Operator wants xhighmnemo decomposer default for autonomy steps.";
 const RECALL_QUERY = "min-max normalization";
 const ANSWER_QUERY = "How does the recall seam rank hits?";
+const RETRACTABLE_NOTE = "Operator scheduled retroterm checkin for thursday only.";
+const POST_RETRACT_RECALL_QUERY = "retroterm checkin thursday";
 
-function createEmptyHistoryProvider(): HistoryProvider {
-  const unused = (name: string): never => {
-    throw new Error(`history provider ${name}() is not used in this test`);
-  };
-  return {
-    create: (_model: string, _cwd: string): string => unused("create"),
-    save: (
-      _id: string,
-      _messages: ConversationMessage[],
-      _compactionCount: number,
-      _lastInputTokens: number,
-    ): void => unused("save"),
-    load: (_id: string): ConversationData | null => null,
-    list: (_opts?: {
-      search?: string;
-      limit?: number;
-      cwd?: string;
-      source?: "user" | "action";
-    }): ConversationRecord[] => [],
-    getMostRecent: (_cwd?: string): ConversationRecord | null => null,
-    findByPrefix: (_idOrPrefix: string): ConversationRecord | null => null,
-    remove: (_id: string): boolean => false,
-    cleanup: (): number => 0,
-    supportsSemanticSearch: (): boolean => false,
-    semanticSearch: async (): Promise<ConversationRecord[]> => unused("semanticSearch"),
-    reindex: async (): Promise<ReindexResult> => ({
-      indexed: 0,
-      failed: 0,
-      skipped: true,
-    }),
-  };
-}
-
-function makeProjectRoot(): string {
-  const dir = mkdtempSync(join(tmpdir(), "kota-conv-tools-"));
-  execSync("git init -q", { cwd: dir });
-  execSync('git config user.email "test@test"', { cwd: dir });
-  execSync('git config user.name "test"', { cwd: dir });
-  mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
-  mkdirSync(join(dir, "data", "inbox"), { recursive: true });
-  mkdirSync(join(dir, ".kota"), { recursive: true });
-  return dir;
-}
-
-function memoryCaptureClassifier(): CaptureClassifier {
-  return {
-    async classify(): Promise<CaptureClassification> {
-      return { kind: "confident", target: "memory" };
-    },
-  };
-}
-
-function makeStubStream(final: KotaModelResponse) {
-  return {
-    on(event: "text" | "thinking", cb: (delta: string) => void) {
-      if (event === "text") {
-        for (const block of final.content) {
-          if (block.type === "text") cb(block.text);
-        }
-      }
-      return this;
-    },
-    finalMessage: async (): Promise<KotaModelResponse> => final,
-  };
-}
-
-function modelResponse(
-  id: string,
-  content: KotaContentBlock[],
-  stop_reason: KotaModelResponse["stop_reason"],
-): KotaModelResponse {
-  return {
-    id,
-    role: "assistant",
-    model: "stub-model",
-    content,
-    stop_reason,
-    stop_sequence: null,
-    usage: {
-      input_tokens: 1,
-      output_tokens: 1,
-      cache_creation_input_tokens: null,
-      cache_read_input_tokens: null,
-    },
-  };
-}
-
-type StreamCallSnapshot = {
-  tools: readonly KotaTool[] | undefined;
-  messages: KotaMessage[];
+type Harness = {
+  fixture: CrossStoreFixture;
+  snapshots: StreamCallSnapshot[];
 };
 
-describe("conversational agent tools (capture / recall / answer)", () => {
-  let projectRoot: string;
-  let memoryStore: MemoryStore;
-  let answerHistoryStore: DiskAnswerHistoryStore;
-  let streamCallSnapshots: StreamCallSnapshot[];
+describe("conversational agent tools — capture / recall / answer round trip", () => {
+  let harness: Harness;
 
   beforeAll(async () => {
     clearCustomTools();
-    streamCallSnapshots = [];
-    projectRoot = makeProjectRoot();
-    memoryStore = new MemoryStore(join(projectRoot, ".kota"));
-    const knowledgeStore = new KnowledgeStore(
-      projectRoot,
-      join(projectRoot, ".kota-global", "data"),
-    );
-    knowledgeStore.create({
-      title: SEEDED_KNOWLEDGE_TITLE,
-      content: SEEDED_KNOWLEDGE_BODY,
-      tags: [],
-    });
-    const tasksProvider = new RepoTasksDefaultStore(projectRoot);
-    const historyProvider = createEmptyHistoryProvider();
+    const fixture = buildCrossStoreFixture("kota-conv-tools-");
+    registerCrossStoreTools(fixture);
+    const snapshots: StreamCallSnapshot[] = [];
+    harness = { fixture, snapshots };
 
-    const captureProvider = new CaptureProviderImpl({
-      classifier: memoryCaptureClassifier(),
-    });
-    captureProvider.register(createMemoryCaptureContributor(memoryStore));
-    captureProvider.register(createKnowledgeCaptureContributor(knowledgeStore));
-    captureProvider.register(createTasksCaptureContributor(projectRoot));
-    captureProvider.register(createInboxContributor(projectRoot));
-
-    const recallProvider = new RecallProviderImpl({
-      onContributorError: () => {},
-    });
-    recallProvider.register(createKnowledgeRecallContributor(knowledgeStore));
-    recallProvider.register(createMemoryRecallContributor(memoryStore));
-    recallProvider.register(createTasksRecallContributor(tasksProvider));
-    recallProvider.register(createHistoryContributor(historyProvider));
-
-    answerHistoryStore = new DiskAnswerHistoryStore({
-      rootDir: answerHistoryRootForProject(join(projectRoot, ".kota")),
-    });
-
-    const recallSeam: AnswerRecallSeam = {
-      async recall(query, filter) {
-        const hits = await recallProvider.recall(query, filter);
-        return { ok: true, hits };
-      },
-    };
-    const synthesizer: Synthesizer = async ({ hits }) => {
-      const knowledgeHit = hits.find((h) => h.source === "knowledge");
-      if (!knowledgeHit) {
-        throw new Error("expected knowledge hit in seeded fixture");
-      }
-      return `The recall seam ranks hits using min-max normalization [knowledge:${knowledgeHit.id}].`;
-    };
-    const answerProvider = new AnswerProviderImpl({
-      recall: recallSeam,
-      synthesizer,
-      history: answerHistoryStore,
-    });
-
-    const captureToolDef = createCaptureToolDef(() => captureProvider);
-    registerTool(captureToolDef.tool, captureToolDef.runner, "capture", {
-      risk: captureToolDef.risk,
-      kind: captureToolDef.kind,
-    });
-    const recallToolDef = createRecallToolDef(() => recallProvider);
-    registerTool(recallToolDef.tool, recallToolDef.runner, "recall", {
-      risk: recallToolDef.risk,
-      kind: recallToolDef.kind,
-    });
-    const answerToolDef = createAnswerToolDef(() => answerProvider);
-    registerTool(answerToolDef.tool, answerToolDef.runner, "answer", {
-      risk: answerToolDef.risk,
-      kind: answerToolDef.kind,
-    });
-
-    const streamReturnQueue = [
-      makeStubStream(
-        modelResponse(
-          "msg_capture",
-          [
-            {
-              type: "tool_use",
-              id: "call_capture",
-              name: "capture",
-              input: { text: CAPTURE_NOTE, target: "memory" },
-            } as KotaContentBlock,
-          ],
-          "tool_use",
-        ),
-      ),
-      makeStubStream(
-        modelResponse(
-          "msg_recall",
-          [
-            {
-              type: "tool_use",
-              id: "call_recall",
-              name: "recall",
-              input: { query: RECALL_QUERY },
-            } as KotaContentBlock,
-          ],
-          "tool_use",
-        ),
-      ),
-      makeStubStream(
-        modelResponse(
-          "msg_answer",
-          [
-            {
-              type: "tool_use",
-              id: "call_answer",
-              name: "answer",
-              input: { query: ANSWER_QUERY },
-            } as KotaContentBlock,
-          ],
-          "tool_use",
-        ),
-      ),
-      makeStubStream(
-        modelResponse(
-          "msg_done",
-          [{ type: "text", text: "all done" } as KotaContentBlock],
-          "end_turn",
-        ),
-      ),
+    const queue = [
+      toolUseTurn("msg_capture", "call_capture", "capture", {
+        text: CAPTURE_NOTE,
+        target: "memory",
+      }),
+      toolUseTurn("msg_recall", "call_recall", "recall", {
+        query: RECALL_QUERY,
+      }),
+      toolUseTurn("msg_answer", "call_answer", "answer", {
+        query: ANSWER_QUERY,
+      }),
+      endTurn("msg_done", "all done"),
     ];
-
-    const streamMock = vi.fn(
-      (params: {
-        tools?: readonly KotaTool[];
-        messages: KotaMessage[];
-      }) => {
-        streamCallSnapshots.push({
-          tools: params.tools ? [...params.tools] : undefined,
-          messages: JSON.parse(JSON.stringify(params.messages)) as KotaMessage[],
-        });
-        const next = streamReturnQueue.shift();
+    await runScriptedAgentSession({
+      prompt: "exercise the cross-store agent tools",
+      snapshots,
+      pickStream: () => {
+        const next = queue.shift();
         if (!next) throw new Error("streamMock: no scripted return value");
         return next;
       },
-    );
-
-    registerModelClientFactory(({ model }) => ({
-      client: {
-        messages: { create: vi.fn(), stream: streamMock },
-      },
-      model,
-      providerName: "stub",
-    }));
-
-    await openaiToolsAgentHarness.run({
-      prompt: "exercise the cross-store agent tools",
-      model: "openai/gpt-4o-mini",
-      effort: "xhigh",
-      systemPrompt: "be terse",
     });
   });
 
   afterAll(() => {
     clearCustomTools();
-    rmSync(projectRoot, { recursive: true, force: true });
+    rmSync(harness.fixture.projectRoot, { recursive: true, force: true });
   });
 
-  it("registers all three agent-callable tools and exposes them on every turn", () => {
-    expect(streamCallSnapshots.length).toBeGreaterThanOrEqual(4);
-    const toolNames = streamCallSnapshots[0].tools?.map((t) => t.name) ?? [];
+  it("registers all four agent-callable tools and exposes them on every turn", () => {
+    expect(harness.snapshots.length).toBeGreaterThanOrEqual(4);
+    const toolNames = harness.snapshots[0].tools?.map((t) => t.name) ?? [];
     expect(toolNames).toContain("capture");
     expect(toolNames).toContain("recall");
     expect(toolNames).toContain("answer");
+    expect(toolNames).toContain("retract");
   });
 
   it("(a) capture wrote a typed memory record reachable through the underlying MemoryStore", () => {
-    const captured = memoryStore.list().find((r) => r.content === CAPTURE_NOTE);
+    const captured = harness.fixture.memoryStore
+      .list()
+      .find((r) => r.content === CAPTURE_NOTE);
     expect(captured).toBeDefined();
-
-    // The harness fed the typed CaptureRecord rendering back to the model.
-    const captureToolResult = findToolResult(streamCallSnapshots, "call_capture");
+    const captureToolResult = findLastToolResult(harness.snapshots, "call_capture");
     expect(captureToolResult).toBeDefined();
     expect(captureToolResult).toContain("Captured: memory");
   });
 
   it("(b) recall returned ranked hits across registered contributors and the harness fed the rendered hits back to the model", () => {
-    const recallToolResult = findToolResult(streamCallSnapshots, "call_recall");
+    const recallToolResult = findLastToolResult(harness.snapshots, "call_recall");
     expect(recallToolResult).toBeDefined();
     if (!recallToolResult) throw new Error("unreachable");
-    // Knowledge entry seeded with the body should appear in the rendered hit
-    // list, anchoring the recall side of the round trip.
     expect(recallToolResult).toContain("knowledge");
     expect(recallToolResult).toContain(SEEDED_KNOWLEDGE_TITLE);
   });
 
   it("(c) answer produced a cited envelope and appended one AnswerHistoryRecord that includes the cross-store recall hits the synthesizer was shown", async () => {
-    const answerToolResult = findToolResult(streamCallSnapshots, "call_answer");
+    const answerToolResult = findLastToolResult(harness.snapshots, "call_answer");
     expect(answerToolResult).toBeDefined();
     if (!answerToolResult) throw new Error("unreachable");
     expect(answerToolResult).toContain("min-max normalization");
     expect(answerToolResult).toContain("Citations");
     expect(answerToolResult).toContain("knowledge");
 
-    const entries = await answerHistoryStore.listAnswers();
+    const entries = await harness.fixture.answerHistoryStore.listAnswers();
     expect(entries.length).toBeGreaterThanOrEqual(1);
     const newest = entries[0];
     expect(newest.query).toBe(ANSWER_QUERY);
@@ -388,7 +130,9 @@ describe("conversational agent tools (capture / recall / answer)", () => {
     if (!newest.result.ok) throw new Error("unreachable");
     expect(newest.result.citationCount).toBeGreaterThanOrEqual(1);
 
-    const record = await answerHistoryStore.getAnswer(newest.id);
+    const record = await harness.fixture.answerHistoryStore.getAnswer(
+      newest.id,
+    );
     if (!record) throw new Error("expected stored answer record");
     expect(record.result.ok).toBe(true);
     if (!record.result.ok) throw new Error("unreachable");
@@ -402,27 +146,102 @@ describe("conversational agent tools (capture / recall / answer)", () => {
   });
 });
 
-function findToolResult(
-  snapshots: StreamCallSnapshot[],
-  toolUseId: string,
-): string | undefined {
-  for (const snap of snapshots) {
-    for (const msg of snap.messages) {
-      if (msg.role !== "user" || !Array.isArray(msg.content)) continue;
-      for (const block of msg.content) {
-        if (
-          typeof block === "object" &&
-          block !== null &&
-          "type" in block &&
-          block.type === "tool_result" &&
-          "tool_use_id" in block &&
-          block.tool_use_id === toolUseId
-        ) {
-          const content = "content" in block ? block.content : undefined;
-          if (typeof content === "string") return content;
-        }
-      }
+describe("conversational agent tools — retract round trip", () => {
+  let harness: Harness;
+  let retractedMemoryId: string;
+
+  beforeAll(async () => {
+    clearCustomTools();
+    const fixture = buildCrossStoreFixture("kota-conv-retract-");
+    registerCrossStoreTools(fixture);
+    const snapshots: StreamCallSnapshot[] = [];
+    harness = { fixture, snapshots };
+
+    // Pre-capture through the production wiring so the retract arm has a
+    // real `RetractProviderImpl`-reachable memory record to remove.
+    const capture = await fixture.captureProvider.capture(RETRACTABLE_NOTE, {
+      target: "memory",
+    });
+    if (!capture.ok || capture.record.target !== "memory") {
+      throw new Error("setup: expected memory capture to succeed");
     }
-  }
-  return undefined;
-}
+    retractedMemoryId = capture.record.recordId;
+
+    // Pre-recall sanity: the captured note is reachable before the agent
+    // retracts it, so a missing post-retract hit is meaningful.
+    const preHits = await fixture.recallProvider.recall(
+      POST_RETRACT_RECALL_QUERY,
+    );
+    if (
+      !preHits.some(
+        (h) => h.source === "memory" && h.id === retractedMemoryId,
+      )
+    ) {
+      throw new Error("setup: expected memory hit before retract");
+    }
+
+    await runScriptedAgentSession({
+      prompt: "retract the prior memory entry and confirm it is gone",
+      snapshots,
+      pickStream: (snaps) => {
+        const turn = snaps.length - 1;
+        switch (turn) {
+          case 0:
+            return toolUseTurn("msg_retract", "call_retract", "retract", {
+              target: "memory",
+              id: retractedMemoryId,
+            });
+          case 1:
+            return toolUseTurn(
+              "msg_recall_after",
+              "call_recall_after",
+              "recall",
+              { query: POST_RETRACT_RECALL_QUERY },
+            );
+          case 2:
+            return endTurn("msg_done", "retract done");
+          default:
+            throw new Error(`streamMock: unexpected turn ${turn}`);
+        }
+      },
+    });
+  });
+
+  afterAll(() => {
+    clearCustomTools();
+    rmSync(harness.fixture.projectRoot, { recursive: true, force: true });
+  });
+
+  it("admits the dangerous `retract` tool under the same harness posture capture/recall/answer use", () => {
+    expect(harness.snapshots.length).toBeGreaterThanOrEqual(3);
+    const toolNames = harness.snapshots[0].tools?.map((t) => t.name) ?? [];
+    expect(toolNames).toContain("retract");
+  });
+
+  it("retracts the captured memory record through the production RetractProvider and renders the typed success body", () => {
+    const retractToolResult = findLastToolResult(
+      harness.snapshots,
+      "call_retract",
+    );
+    expect(retractToolResult).toBeDefined();
+    if (!retractToolResult) throw new Error("unreachable");
+    expect(retractToolResult).toBe(`Retracted: memory  ${retractedMemoryId}`);
+
+    // Read-side: the entry is gone from the underlying MemoryStore.
+    const remaining = harness.fixture.memoryStore
+      .list()
+      .find((r) => r.id === retractedMemoryId);
+    expect(remaining).toBeUndefined();
+  });
+
+  it("a follow-up recall through the agent loop returns no hit for the retracted record's content", () => {
+    const recallAfterResult = findLastToolResult(
+      harness.snapshots,
+      "call_recall_after",
+    );
+    expect(recallAfterResult).toBeDefined();
+    if (!recallAfterResult) throw new Error("unreachable");
+    expect(recallAfterResult).not.toContain(retractedMemoryId);
+    expect(recallAfterResult).not.toContain(RETRACTABLE_NOTE);
+  });
+});

@@ -70,6 +70,22 @@ its `register()` API; nothing in core hard-codes the contributor set.
   chosen contributor threw mid-removal. The seam never silently retries
   into a different store.
 
+## Tests
+
+- Unit tests for the seam pieces sit beside the code: `tool.test.ts`,
+  `system-prompt.test.ts`, `retract-provider.test.ts`,
+  `contributors.test.ts`, `routes.test.ts`, `cli.test.ts`.
+- Cross-store HTTP pipeline integration: `src/retract-pipeline.integration.test.ts`.
+- Agent-loop integration anchors (shared with capture/recall/answer):
+  - `src/conversational-agent-tools.integration.test.ts` exercises the
+    `retract` tool end-to-end through the `openai-tools` harness against
+    the production `RetractProviderImpl`, asserting a follow-up recall
+    no longer surfaces the retracted record.
+  - `src/conversational-prompt-priming.integration.test.ts` pins the
+    `dynamic-state` admission gate for the retract block (positive when
+    the tool is admitted, negative when it is excluded) and asserts the
+    production retract provider settles the read-side seam.
+
 ## Boundaries
 
 - No raw filesystem deletes for tasks. The tasks contributor routes
