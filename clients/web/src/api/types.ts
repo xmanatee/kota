@@ -427,6 +427,73 @@ export type AnswerHistoryShowResult =
   | { ok: true; record: AnswerHistoryRecord }
   | { ok: false; reason: "not_found" };
 
+/**
+ * Cross-store capture types — kept in sync with the daemon's
+ * `CaptureResult` discriminated union (see
+ * `src/core/server/kota-client.ts`).
+ */
+export type CaptureTarget = "memory" | "knowledge" | "tasks" | "inbox";
+
+export type CaptureMemoryRecord = {
+  target: "memory";
+  recordId: string;
+};
+
+export type CaptureKnowledgeRecord = {
+  target: "knowledge";
+  recordId: string;
+};
+
+export type CaptureTasksRecord = {
+  target: "tasks";
+  recordId: string;
+  path: string;
+};
+
+export type CaptureInboxRecord = {
+  target: "inbox";
+  recordId: string;
+  path: string;
+};
+
+export type CaptureRecord =
+  | CaptureMemoryRecord
+  | CaptureKnowledgeRecord
+  | CaptureTasksRecord
+  | CaptureInboxRecord;
+
+export type CaptureFilter = {
+  target?: CaptureTarget;
+  hint?: string;
+};
+
+export type CaptureResult =
+  | { ok: true; record: CaptureRecord }
+  | {
+      ok: false;
+      reason: "ambiguous";
+      suggestions: ReadonlyArray<CaptureTarget>;
+    }
+  | { ok: false; reason: "no_contributors" }
+  | {
+      ok: false;
+      reason: "contributor_failed";
+      target: CaptureTarget;
+      message: string;
+    };
+
+/**
+ * Stable contributor ordering used by the seam to render `suggestions`
+ * deterministically. The web client mirrors the seam's `CAPTURE_TARGET_ORDER`
+ * so the override control's option order matches what the seam returns.
+ */
+export const CAPTURE_TARGET_ORDER: ReadonlyArray<CaptureTarget> = [
+  "memory",
+  "knowledge",
+  "tasks",
+  "inbox",
+] as const;
+
 export type SlashCommandSource = "workflow" | "skill";
 
 export type SlashCommand = {

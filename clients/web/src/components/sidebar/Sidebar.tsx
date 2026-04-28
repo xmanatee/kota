@@ -7,6 +7,7 @@ import { AnswerPanel } from "./AnswerPanel";
 import { ApprovalList } from "./ApprovalList";
 import { AttentionPanel } from "./AttentionPanel";
 import { AuditPanel } from "./AuditPanel";
+import { CapturePanel } from "./CapturePanel";
 import { ConfigPanel } from "./ConfigPanel";
 import { CostPanel } from "./CostPanel";
 import { DigestPanel } from "./DigestPanel";
@@ -141,6 +142,10 @@ export function Sidebar({
 
           <SidebarSection title="Answer History" defaultOpen={false}>
             <AnswerHistoryPanel />
+          </SidebarSection>
+
+          <SidebarSection title="Capture" defaultOpen={false}>
+            <CapturePanel />
           </SidebarSection>
 
           <SidebarSection title="Knowledge" defaultOpen={false}>

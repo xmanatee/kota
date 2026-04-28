@@ -6,6 +6,8 @@ import type {
   AttentionResponse,
   AuditEntry,
   AutonomyMode,
+  CaptureFilter,
+  CaptureResult,
   ConversationData,
   ConversationRecord,
   DaemonLiveStatus,
@@ -304,6 +306,13 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
+    }),
+
+  capture: (text: string, filter?: CaptureFilter) =>
+    apiJson<CaptureResult>("/api/capture", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(filter ? { text, filter } : { text }),
     }),
 
   answerLog: (filter?: AnswerHistoryListFilter) => {

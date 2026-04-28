@@ -1,12 +1,12 @@
 ---
 id: task-add-web-capturepanel-consuming-the-cross-store-cap
 title: Add web CapturePanel consuming the cross-store capture seam
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a sidebar CapturePanel to the web client that consumes POST /api/capture through DaemonControlClient.capture.capture(text, filter?), exhaustively rendering the discriminated CaptureResult — minted record, ambiguous suggestions, no_contributors, and contributor_failed — and offering a typed target override that maps one-to-one to the seam's CaptureTarget union. Second-surface follow-up of the cross-store capture seam after Telegram /capture; macOS and mobile adoption land later as separate tasks.
 created_at: 2026-04-28T04:18:39.808Z
-updated_at: 2026-04-28T04:18:39.808Z
+updated_at: 2026-04-28T04:27:26.705Z
 ---
 
 ## Problem
