@@ -999,7 +999,10 @@ enum AnswerResult: Decodable, Equatable {
 /// Target store for `DaemonClient.capture`. Mirrors the daemon's
 /// `CaptureTarget` union (`src/core/server/kota-client.ts:758`). Adding a
 /// fifth contributor extends this enum and the `CaptureRecord` arms below.
-enum CaptureTarget: String, Codable, Equatable {
+/// `CaseIterable` is here so the menu-bar `CaptureView` picker can list
+/// every target arm without an inline literal that drifts from the wire
+/// contract.
+enum CaptureTarget: String, Codable, Equatable, CaseIterable {
     case memory
     case knowledge
     case tasks

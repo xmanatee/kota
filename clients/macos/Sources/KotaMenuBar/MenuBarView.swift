@@ -51,6 +51,9 @@ struct MenuBarView: View {
             // Cited answer (on-demand POST /answer)
             AnswerView()
 
+            // Cross-store capture (on-demand POST /capture)
+            CaptureView()
+
             // Task queue
             TaskQueueView()
 

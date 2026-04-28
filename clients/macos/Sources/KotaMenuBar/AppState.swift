@@ -91,6 +91,12 @@ final class AppState: ObservableObject {
     @Published var answerResult: AnswerResult?
     @Published var answerError: String?
     @Published var isLoadingAnswer: Bool = false
+    @Published var captureDraft: String = ""
+    @Published var captureTarget: CaptureTargetChoice = .auto
+    @Published var captureHint: String = ""
+    @Published var captureResult: CaptureResult?
+    @Published var captureError: String?
+    @Published var isLoadingCapture: Bool = false
     @Published var projectDir: URL? {
         didSet {
             if let dir = projectDir {
@@ -240,6 +246,9 @@ final class AppState: ObservableObject {
         answerResult = nil
         answerError = nil
         isLoadingAnswer = false
+        captureResult = nil
+        captureError = nil
+        isLoadingCapture = false
     }
 
     /// Pulls the on-demand 24h rollup from `/api/digest`. Errors land in
@@ -434,6 +443,41 @@ final class AppState: ObservableObject {
             answerError = error.localizedDescription
         }
         isLoadingAnswer = false
+    }
+
+    /// Posts the current draft through the daemon's `POST /capture` route.
+    /// Empty / whitespace-only drafts clear any prior result and skip the
+    /// request — the view surfaces the inline usage hint instead. Failures
+    /// land in `captureError`; the four typed `CaptureResult` arms
+    /// (`success`, `ambiguous`, `noContributors`, `contributorFailed`) all
+    /// land in `captureResult` so the view renders the daemon's verdict
+    /// without retrying the request. The `captureTarget` picker collapses
+    /// `.auto` to a `nil` target so the seam classifier picks the store;
+    /// `captureHint` collapses an empty string to `nil` so the daemon
+    /// skips passing the hint to the prompt.
+    func loadCapture() async {
+        let trimmed = captureDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            captureResult = nil
+            captureError = nil
+            isLoadingCapture = false
+            return
+        }
+        isLoadingCapture = true
+        captureError = nil
+        let trimmedHint = captureHint.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedHint: String? = trimmedHint.isEmpty ? nil : trimmedHint
+        do {
+            captureResult = try await client.capture(
+                text: trimmed,
+                target: captureTarget.resolved,
+                hint: resolvedHint
+            )
+        } catch {
+            captureResult = nil
+            captureError = error.localizedDescription
+        }
+        isLoadingCapture = false
     }
 
     private func fetchAll() async {

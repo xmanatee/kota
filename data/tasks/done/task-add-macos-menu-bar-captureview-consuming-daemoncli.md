@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-menu-bar-captureview-consuming-daemoncli
 title: Add macOS menu-bar CaptureView consuming DaemonClient.capture
-status: backlog
+status: done
 priority: p2
 area: modules
 summary: Add a SwiftUI menu-bar CaptureView in clients/macos/Sources/KotaMenuBar/ that consumes the just-landed DaemonClient.capture and renders the four discriminated CaptureResult arms with target-aware feedback, closing macOS parity in the cross-store capture fan-out.
 created_at: 2026-04-28T05:27:25.549Z
-updated_at: 2026-04-28T05:27:25.549Z
+updated_at: 2026-04-28T06:03:47.017Z
 ---
 
 ## Problem
