@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-daemonclientcapture-with-discriminated-c
 title: Add macOS DaemonClient.capture with discriminated CaptureResult types and unit tests
-status: ready
+status: done
 priority: p2
 area: client
 summary: Wire the daemon contract layer for the cross-store capture seam into the macOS menu-bar client: add the discriminated CaptureRecord and CaptureResult unions to Models.swift, add a typed capture(text:target:hint:) method to DaemonClient.swift that targets POST /capture, mirror renderCaptureResultPlain in Swift, and pair the four DaemonClientTests cases (success memory + tasks arms, ambiguous, no_contributors, contributor_failed) so the follow-up macOS CaptureView and mobile CaptureScreen subtasks consume a tested seam.
 created_at: 2026-04-28T04:52:11.259Z
-updated_at: 2026-04-28T04:52:11.259Z
+updated_at: 2026-04-28T04:57:41.294Z
 ---
 
 ## Problem

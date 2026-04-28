@@ -1426,6 +1426,181 @@ final class DaemonClientTests: XCTestCase {
         }
     }
 
+    /// Multi-arm success decode: a `tasks` record (carries `path`) plus a
+    /// second decode of a `memory` record (no `path`) wired through the
+    /// same harness so both record-shape variants are exercised. Also
+    /// pins `renderCaptureResultPlain` byte-for-byte against the TS
+    /// helper for both arms.
+    func testCaptureDecodesSuccessAcrossArms() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        var nextResponse: Data = Data()
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/capture")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+            let body = request.readBody()
+            XCTAssertNotNil(body)
+            let obj = try? JSONSerialization.jsonObject(with: body!) as? [String: Any]
+            XCTAssertEqual(obj?["text"] as? String, "buy milk")
+            let filter = obj?["filter"] as? [String: Any]
+            XCTAssertEqual(filter?["target"] as? String, "tasks")
+            XCTAssertEqual(filter?["hint"] as? String, "shopping")
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, nextResponse)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        // Tasks arm — carries path.
+        nextResponse = #"""
+        {"ok": true, "record": {
+          "target": "tasks",
+          "recordId": "task-buy-milk",
+          "path": "data/tasks/ready/task-buy-milk.md"
+        }}
+        """#.data(using: .utf8)!
+        let tasksResult = try await client.capture(
+            text: "buy milk",
+            target: .tasks,
+            hint: "shopping"
+        )
+        guard case let .success(tasksRecord) = tasksResult else {
+            XCTFail("expected success arm, got \(tasksResult)"); return
+        }
+        guard case let .tasks(tid, tpath) = tasksRecord else {
+            XCTFail("expected tasks record, got \(tasksRecord)"); return
+        }
+        XCTAssertEqual(tid, "task-buy-milk")
+        XCTAssertEqual(tpath, "data/tasks/ready/task-buy-milk.md")
+        XCTAssertEqual(
+            renderCaptureResultPlain(tasksResult),
+            "Captured: tasks  task-buy-milk  data/tasks/ready/task-buy-milk.md"
+        )
+
+        // Memory arm — no path.
+        nextResponse = #"""
+        {"ok": true, "record": {
+          "target": "memory",
+          "recordId": "mem-42"
+        }}
+        """#.data(using: .utf8)!
+        let memoryResult = try await client.capture(
+            text: "buy milk",
+            target: .tasks,
+            hint: "shopping"
+        )
+        guard case let .success(memoryRecord) = memoryResult else {
+            XCTFail("expected success arm, got \(memoryResult)"); return
+        }
+        guard case let .memory(mid) = memoryRecord else {
+            XCTFail("expected memory record, got \(memoryRecord)"); return
+        }
+        XCTAssertEqual(mid, "mem-42")
+        XCTAssertEqual(
+            renderCaptureResultPlain(memoryResult),
+            "Captured: memory  mem-42"
+        )
+    }
+
+    func testCaptureDecodesAmbiguousPreservingOrder() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/capture")
+            XCTAssertEqual(request.httpMethod, "POST")
+            let body = request.readBody()
+            XCTAssertNotNil(body)
+            let obj = try? JSONSerialization.jsonObject(with: body!) as? [String: Any]
+            XCTAssertEqual(obj?["text"] as? String, "ambiguous note")
+            // nil target/hint omits the filter key entirely so the seam
+            // applies its own typed defaults.
+            XCTAssertNil(obj?["filter"])
+            let respBody = #"""
+            {"ok": false, "reason": "ambiguous", "suggestions": ["knowledge", "memory"]}
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.capture(text: "ambiguous note", target: nil, hint: nil)
+        guard case let .ambiguous(suggestions) = result else {
+            XCTFail("expected ambiguous arm, got \(result)"); return
+        }
+        XCTAssertEqual(suggestions, [.knowledge, .memory])
+        XCTAssertEqual(
+            renderCaptureResultPlain(result),
+            "Ambiguous capture. Re-run with --target <one of: knowledge, memory>."
+        )
+    }
+
+    func testCaptureDecodesNoContributors() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/capture")
+            let respBody = #"{"ok": false, "reason": "no_contributors"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.capture(text: "anything", target: nil, hint: nil)
+        guard case .noContributors = result else {
+            XCTFail("expected noContributors arm, got \(result)"); return
+        }
+        XCTAssertEqual(
+            renderCaptureResultPlain(result),
+            "Cross-store capture has no registered contributors."
+        )
+    }
+
+    func testCaptureDecodesContributorFailed() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/capture")
+            let respBody = #"""
+            {"ok": false, "reason": "contributor_failed", "target": "inbox", "message": "inbox writer cannot reach project root"}
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.capture(text: "boom", target: nil, hint: nil)
+        guard case let .contributorFailed(target, message) = result else {
+            XCTFail("expected contributorFailed arm, got \(result)"); return
+        }
+        XCTAssertEqual(target, .inbox)
+        XCTAssertEqual(message, "inbox writer cannot reach project root")
+        XCTAssertEqual(
+            renderCaptureResultPlain(result),
+            "Capture into inbox failed: inbox writer cannot reach project root"
+        )
+    }
+
     func testTriggerWorkflowSendsBody() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }

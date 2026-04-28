@@ -323,6 +323,48 @@ final class DaemonClient {
         }
     }
 
+    /// Targets the daemon's `POST /capture` daemon-control route (not under
+    /// `/api/`) and decodes the discriminated four-arm `CaptureResult`:
+    /// one `ok: true` arm carrying the typed `CaptureRecord`, plus three
+    /// `ok: false` failure arms (`ambiguous`, `no_contributors`,
+    /// `contributor_failed`). The request body is built via `JSONEncoder`
+    /// against `CaptureRequestBody`, which only emits the optional
+    /// `filter` object when at least one filter field is set, and only
+    /// emits per-field keys (`target`, `hint`) when those are set so the
+    /// seam applies its own typed defaults (classifier picks the target;
+    /// no hint passed to the prompt). HTTP errors surface one-to-one as
+    /// `DaemonClientError.httpError`.
+    func capture(
+        text: String,
+        target: CaptureTarget?,
+        hint: String?
+    ) async throws -> CaptureResult {
+        guard let conn = connection else { throw DaemonClientError.notConnected }
+        guard var components = URLComponents(url: conn.baseURL, resolvingAgainstBaseURL: false) else {
+            throw DaemonClientError.notConnected
+        }
+        components.path = "/capture"
+        guard let url = components.url else { throw DaemonClientError.notConnected }
+        let filter: CaptureRequestFilter? = (target == nil && hint == nil)
+            ? nil
+            : CaptureRequestFilter(target: target, hint: hint)
+        let body = try JSONEncoder().encode(CaptureRequestBody(text: text, filter: filter))
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw DaemonClientError.httpError(http.statusCode)
+        }
+        do {
+            return try decoder.decode(CaptureResult.self, from: data)
+        } catch {
+            throw DaemonClientError.decodingError(error)
+        }
+    }
+
     func invokeSlashCommand(name: String) async throws -> InvokeCommandResponse {
         let body = try JSONEncoder().encode(InvokeCommandRequest(name: name))
         return try await post("/commands/invoke", body: body)

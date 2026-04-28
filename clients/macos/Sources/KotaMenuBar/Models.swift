@@ -994,6 +994,180 @@ enum AnswerResult: Decodable, Equatable {
     }
 }
 
+// MARK: - Cross-store capture
+
+/// Target store for `DaemonClient.capture`. Mirrors the daemon's
+/// `CaptureTarget` union (`src/core/server/kota-client.ts:758`). Adding a
+/// fifth contributor extends this enum and the `CaptureRecord` arms below.
+enum CaptureTarget: String, Codable, Equatable {
+    case memory
+    case knowledge
+    case tasks
+    case inbox
+}
+
+/// Discriminated mirror of the daemon's `CaptureRecord` union
+/// (`src/core/server/kota-client.ts:760-797`). Each successful capture
+/// returns the typed identifier the underlying store minted; the
+/// filesystem-backed contributors (tasks, inbox) additionally carry the
+/// path their writer minted so a caller can resolve back to the
+/// underlying store. Decoding is keyed by the wire `target` field, with
+/// every per-arm field required on the daemon side — no nullable shape.
+enum CaptureRecord: Decodable, Equatable {
+    case memory(recordId: String)
+    case knowledge(recordId: String)
+    case tasks(recordId: String, path: String)
+    case inbox(recordId: String, path: String)
+
+    private enum CodingKeys: String, CodingKey {
+        case target, recordId, path
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let target = try container.decode(CaptureTarget.self, forKey: .target)
+        let recordId = try container.decode(String.self, forKey: .recordId)
+        switch target {
+        case .memory:
+            self = .memory(recordId: recordId)
+        case .knowledge:
+            self = .knowledge(recordId: recordId)
+        case .tasks:
+            let path = try container.decode(String.self, forKey: .path)
+            self = .tasks(recordId: recordId, path: path)
+        case .inbox:
+            let path = try container.decode(String.self, forKey: .path)
+            self = .inbox(recordId: recordId, path: path)
+        }
+    }
+
+    var target: CaptureTarget {
+        switch self {
+        case .memory: return .memory
+        case .knowledge: return .knowledge
+        case .tasks: return .tasks
+        case .inbox: return .inbox
+        }
+    }
+
+    var recordId: String {
+        switch self {
+        case .memory(let id): return id
+        case .knowledge(let id): return id
+        case .tasks(let id, _): return id
+        case .inbox(let id, _): return id
+        }
+    }
+}
+
+/// Discriminated mirror of the daemon's `CaptureResult` envelope
+/// (`src/core/server/kota-client.ts:833-846`): one `ok: true` arm carrying
+/// the typed `CaptureRecord` plus three `ok: false` arms tagged by
+/// `reason`. Strict decode so payload drift fails loudly instead of
+/// silently degrading the rendered surface.
+///
+/// - `ambiguous` — the classifier could not pick a single target; the
+///   `suggestions` list is the contributors it considered. The caller
+///   re-issues with an explicit `target` to disambiguate.
+/// - `noContributors` — the seam has no registered contributors at all.
+/// - `contributorFailed` — the chosen contributor threw; `target` is the
+///   contributor that ran and `message` is the verbatim error.
+enum CaptureResult: Decodable, Equatable {
+    case success(record: CaptureRecord)
+    case ambiguous(suggestions: [CaptureTarget])
+    case noContributors
+    case contributorFailed(target: CaptureTarget, message: String)
+
+    private enum CodingKeys: String, CodingKey {
+        case ok, record, reason, suggestions, target, message
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let ok = try container.decode(Bool.self, forKey: .ok)
+        if ok {
+            let record = try container.decode(CaptureRecord.self, forKey: .record)
+            self = .success(record: record)
+            return
+        }
+        let reason = try container.decode(String.self, forKey: .reason)
+        switch reason {
+        case "ambiguous":
+            let suggestions = try container.decode([CaptureTarget].self, forKey: .suggestions)
+            self = .ambiguous(suggestions: suggestions)
+        case "no_contributors":
+            self = .noContributors
+        case "contributor_failed":
+            let target = try container.decode(CaptureTarget.self, forKey: .target)
+            let message = try container.decode(String.self, forKey: .message)
+            self = .contributorFailed(target: target, message: message)
+        default:
+            throw DecodingError.dataCorruptedError(
+                forKey: .reason,
+                in: container,
+                debugDescription: "Unknown capture reason: \(reason)"
+            )
+        }
+    }
+}
+
+/// Renders one capture record one-to-one with the shared
+/// `renderCaptureRecordPlain` helper exported by
+/// `src/modules/capture/render.ts:25-36`: `<target>  <recordId>` for
+/// memory/knowledge and `<target>  <recordId>  <path>` for tasks/inbox.
+private func renderCaptureRecordPlain(_ record: CaptureRecord) -> String {
+    switch record {
+    case .memory(let id):
+        return "memory  \(id)"
+    case .knowledge(let id):
+        return "knowledge  \(id)"
+    case .tasks(let id, let path):
+        return "tasks  \(id)  \(path)"
+    case .inbox(let id, let path):
+        return "inbox  \(id)  \(path)"
+    }
+}
+
+/// Renders a `CaptureResult` one-to-one with the shared
+/// `renderCaptureResultPlain` helper exported by
+/// `src/modules/capture/render.ts:38-50`. Sharing this helper keeps the
+/// macOS menu bar body identical to the CLI, web, and any other surface
+/// that consumes the helper. The chat-surface variant
+/// (`renderCaptureReplyPlain`) is Telegram-specific and intentionally
+/// not mirrored here.
+func renderCaptureResultPlain(_ result: CaptureResult) -> String {
+    switch result {
+    case .success(let record):
+        return "Captured: \(renderCaptureRecordPlain(record))"
+    case .ambiguous(let suggestions):
+        let joined = suggestions.map { $0.rawValue }.joined(separator: ", ")
+        return "Ambiguous capture. Re-run with --target <one of: \(joined)>."
+    case .noContributors:
+        return "Cross-store capture has no registered contributors."
+    case .contributorFailed(let target, let message):
+        return "Capture into \(target.rawValue) failed: \(message)"
+    }
+}
+
+/// Request body shape for `POST /capture`
+/// (`src/modules/capture/routes.ts:43-72`):
+/// `{ "text": <string>, "filter"?: { "target"?, "hint"? } }`. Optional
+/// filter fields are encoded only when set so the seam applies its own
+/// typed defaults (classifier picks the target, no hint passed to the
+/// prompt). Nil values omit the key entirely (no `null`) via Swift's
+/// synthesized `encodeIfPresent` for Optional Codable members. When both
+/// `target` and `hint` are nil, the call site omits the `filter` key
+/// entirely.
+struct CaptureRequestFilter: Encodable {
+    let target: CaptureTarget?
+    let hint: String?
+}
+
+struct CaptureRequestBody: Encodable {
+    let text: String
+    let filter: CaptureRequestFilter?
+}
+
 // MARK: - Daemon connectivity state
 
 enum DaemonHealth {
