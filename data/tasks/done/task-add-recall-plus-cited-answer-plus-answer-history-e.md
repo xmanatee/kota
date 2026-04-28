@@ -1,12 +1,12 @@
 ---
 id: task-add-recall-plus-cited-answer-plus-answer-history-e
 title: Add recall plus cited-answer plus answer-history end-to-end integration test
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Anchor the recently shipped cross-store recall, cited-answer, and answer-history fan-out with one top-level integration test that boots the daemon over seeded knowledge/memory/history/tasks contributors, exercises POST /recall, POST /answer, GET /api/answers, and GET /api/answers/:id end-to-end, and asserts the typed wire shapes so subtle protocol drift across the Telegram, web, macOS, and mobile surfaces cannot land silently.
 created_at: 2026-04-28T02:35:15.699Z
-updated_at: 2026-04-28T02:35:15.699Z
+updated_at: 2026-04-28T02:46:48.783Z
 ---
 
 ## Problem
