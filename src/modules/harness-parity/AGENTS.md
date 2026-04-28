@@ -43,7 +43,7 @@ Per harness run the module writes:
 
 ## Scenario Coverage
 
-The shipped scenarios span three coverage points by design, not by accident:
+The shipped scenarios span four coverage points by design, not by accident:
 
 - A minimal smoke scenario that any tool-calling harness can clear in a
   single round trip. Its job is to prove the parity plumbing — scenario
@@ -62,12 +62,24 @@ The shipped scenarios span three coverage points by design, not by accident:
   bytes back into the agent's next turn cannot clear it, because the
   agent's only path to the expected value runs through the failure
   message. This is the property every real debugging workflow rests on.
+- A discovery scenario whose prompt names only the symptom — `node
+  test.js` fails — and intentionally does not name the source file the
+  agent must edit. The `initial/` tree carries realistic distractor
+  files alongside the one buggy file, and `test.js` does not import the
+  buggy file directly. Its job is to probe the discovery dimension a
+  real operator's prompt depends on: a harness that can read files but
+  cannot effectively search the project (no grep, glob, or directory
+  listing in the autonomous tool loop, or one that stops after the first
+  file it reads) clears the smoke / multi-file / failure-and-revise
+  fixtures and quietly fails this one. Real operators say "this test is
+  failing" and expect the agent to navigate the project on its own.
 
-Keep all three coverage points alive. Adding a fourth scenario is fine,
+Keep all four coverage points alive. Adding a fifth scenario is fine,
 but do not delete any of the existing fixtures: the smoke fixture is the
 first thing to fail when plumbing regresses, the multi-file fixture
-probes multi-turn coding capability, and the failure-and-revise fixture
-probes tool-result carry-over. Each isolates a different blast radius.
+probes multi-turn coding capability, the failure-and-revise fixture
+probes tool-result carry-over, and the discovery fixture probes
+project-navigation capability. Each isolates a different blast radius.
 
 ## Capability Gap Handling
 

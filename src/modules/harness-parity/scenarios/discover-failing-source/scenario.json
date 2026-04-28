@@ -1,0 +1,9 @@
+{
+  "id": "discover-failing-source",
+  "description": "A small Node.js slugify project's test fails with a non-zero exit status. The prompt names only the symptom; the agent must navigate the project, identify the responsible source file among realistic distractors, and fix it.",
+  "prompt": "There is a small Node.js project in this directory. Running `node test.js` fails with a non-zero exit status. Investigate the project on your own, find what needs to change, and fix it. Do not modify `test.js`. When the fix is in the right place, `node test.js` will print `ok` and exit 0.",
+  "verification": {
+    "command": "node test.js",
+    "timeoutMs": 30000
+  }
+}

@@ -1,12 +1,12 @@
 ---
 id: task-add-a-realistic-scale-multi-file-feature-completio
 title: Add a discovery-driven scenario to the harness-parity scenarios pack
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Extend src/modules/harness-parity/scenarios/ with a fourth scenario whose coverage point is symptom-level prompting — the prompt names only an observed failure (test output, error message, behavior gap), and the agent must explore the project to find what to change. This probes a coding-agent capability the three existing scenarios do not — discovery — without duplicating the smoke / multi-file-multi-turn / failure-and-revise coverage points the module's AGENTS.md already protects.
 created_at: 2026-04-28T19:18:44.965Z
-updated_at: 2026-04-28T19:18:44.965Z
+updated_at: 2026-04-28T19:37:17.830Z
 ---
 
 ## Problem

@@ -151,7 +151,7 @@ describe("scenario loader", () => {
 });
 
 describe("shipped scenarios", () => {
-  it("covers the arithmetic-fix smoke, the multi-file workload, and the failure-and-revise probe", () => {
+  it("covers the arithmetic-fix smoke, the multi-file workload, the failure-and-revise probe, and the discovery probe", () => {
     const all = loadAllScenarios(SHIPPED_SCENARIOS_ROOT);
     const ids = all.map((s) => s.spec.id);
     expect(ids).toEqual(
@@ -159,11 +159,12 @@ describe("shipped scenarios", () => {
         "fix-arithmetic-bug",
         "extract-shared-helper",
         "revise-from-test-output",
+        "discover-failing-source",
       ]),
     );
     // Guard against regressions that accidentally drop coverage back to a
     // single fixture. If a new scenario is added, bump this bound deliberately.
-    expect(all.length).toBeGreaterThanOrEqual(3);
+    expect(all.length).toBeGreaterThanOrEqual(4);
   });
 
   it("extract-shared-helper loads with prompt and verification resolved", () => {
@@ -216,6 +217,66 @@ describe("shipped scenarios", () => {
           'function farewell(raw) {\n' +
           '  return `Goodbye, ${sanitize(raw)}!`;\n' +
           '}\n\nmodule.exports = { farewell };\n',
+      );
+      const afterFix = spawnSync(loaded.spec.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(afterFix.status).toBe(0);
+      expect(afterFix.stdout).toContain("ok");
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
+  });
+
+  it("discover-failing-source loads with a symptom-only prompt that does not name the buggy file", () => {
+    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "discover-failing-source");
+    expect(loaded.spec.id).toBe("discover-failing-source");
+    expect(loaded.spec.prompt.length).toBeGreaterThan(0);
+    expect(loaded.spec.verification.command).toBe("node test.js");
+    // The prompt names only the verification command and the project as a
+    // whole — no `src/...` file path leaks the location of the bug. The
+    // agent must search the project on its own.
+    expect(loaded.spec.prompt).not.toMatch(/src\/normalize\.js/);
+    expect(loaded.spec.prompt).not.toMatch(/src\/slugify\.js/);
+    expect(loaded.spec.prompt).not.toMatch(/src\/tokenize\.js/);
+    expect(loaded.spec.prompt).not.toMatch(/src\/assemble\.js/);
+    expect(existsSync(loaded.initialStateDir)).toBe(true);
+    expect(statSync(loaded.initialStateDir).isDirectory()).toBe(true);
+  });
+
+  it("discover-failing-source ships realistic distractors, fails verification before any edit, and is solvable by editing exactly one source file", () => {
+    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "discover-failing-source");
+    const workDir = mkdtempSync(join(tmpdir(), "kota-harness-parity-discover-"));
+    try {
+      cpSync(loaded.initialStateDir, workDir, { recursive: true });
+      // The discovery dimension requires at least three real source files
+      // alongside test.js — one buggy, the others realistic distractors.
+      // test.js itself imports only the entry module, so a harness that
+      // stops at test.js's named imports cannot find the bug.
+      expect(existsSync(join(workDir, "test.js"))).toBe(true);
+      expect(existsSync(join(workDir, "src/slugify.js"))).toBe(true);
+      expect(existsSync(join(workDir, "src/tokenize.js"))).toBe(true);
+      expect(existsSync(join(workDir, "src/normalize.js"))).toBe(true);
+      expect(existsSync(join(workDir, "src/assemble.js"))).toBe(true);
+
+      // Verification fails before the fix — exit non-zero is the only signal
+      // an operator gives, mirroring symptom-level prompting.
+      const beforeFix = spawnSync(loaded.spec.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(beforeFix.status).not.toBe(0);
+
+      // Editing only the buggy file makes verification pass; the distractor
+      // helpers are correct as shipped and need no change.
+      writeFileSync(
+        join(workDir, "src/normalize.js"),
+        'function normalize(token) {\n  return token.toLowerCase();\n}\n\nmodule.exports = { normalize };\n',
       );
       const afterFix = spawnSync(loaded.spec.verification.command, {
         shell: true,
