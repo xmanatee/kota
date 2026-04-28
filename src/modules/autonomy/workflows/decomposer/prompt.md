@@ -7,7 +7,7 @@ exist.
 ## Scope
 
 - Read the original task file identified in the assessment output.
-  - Normal case: `assess-failure.taskPath` points at a task in `data/tasks/doing/`.
+  - Normal case: `assess-failure.taskPath` points at the active task.
   - Operator-approved case: `apply-escalation-outcome` reports `kind: "approved"`
     with a `taskId` the operator authorized after the file moved out of active
     states (likely now in `done/` or `dropped/`). Search the inactive states for
@@ -19,15 +19,15 @@ exist.
 
 ## Subtask Rules
 
-- Use `pnpm kota task create "<title>" --priority <p0-p3> --area <area> --state ready --summary "<summary>"` to scaffold each subtask, then follow `data/tasks/AGENTS.md`.
+- Use `pnpm kota task create` to scaffold each subtask, then follow
+  `data/tasks/AGENTS.md` and the destination state's local contract.
 - Make subtasks sequenceable and independently completable when possible.
 - Do not split only to reduce diff size. Keep a cohesive change together when
   that produces a cleaner result.
 
 ## Original Task
 
-- Use `pnpm kota task move <id> dropped` to move the original task to dropped/
-  (auto-syncs status frontmatter and git staging).
+- Use `pnpm kota task move <id> dropped` to retire the oversized original task.
 - Add a `## Decomposed` section at the end listing the subtask IDs.
 
 ## Finish

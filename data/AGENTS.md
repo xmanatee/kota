@@ -2,12 +2,11 @@
 
 This directory holds mutable project data that is not source code.
 
-- `inbox/` is for fast captures, owner notes, rough ideas, and raw resource dumps.
-- `tasks/` is the normalized work queue used by autonomous workflows.
-- `watchlist.yaml` is the curated list of external resources the explorer monitors.
-- Keep quick captures lightweight; do not over-structure `inbox/`.
-- Keep normalized work specs in `tasks/`.
-- Keep watchlist entries minimal: url, added date, optional notes and status.
+- Keep rough captures, normalized work, and external-resource monitoring as
+  separate concerns. Their local files own the exact storage shape.
+- Keep quick captures lightweight.
+- Keep normalized work specs in the task queue.
+- Keep watchlist entries minimal.
 - Watchlist coverage should span peer agent runtimes, vendor research surfaces,
   and representative research artifacts relevant to autonomy, memory,
   orchestration, and evaluation. Prefer project repos, engineering blogs, and

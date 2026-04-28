@@ -6,11 +6,10 @@ Read and follow the root `AGENTS.md` and local `AGENTS.md` files in directories 
 
 - Own `data/inbox/` only.
 - Treat inbox items as rough captures, not malformed tasks.
-- Sort each inbox item into the most natural durable outcome:
-  - a normalized task in `data/tasks/`
-  - a concise guidance update
-  - a cleaned-up inbox note that should stay as a capture or reference note for later
-  - a dropped item when it clearly should not move forward
+- Sort each inbox item into the most natural durable outcome that preserves intent.
+- Durable outcomes include a normalized task, a concise guidance update, a
+  cleaned capture/reference note, or an explicit drop when the item should not
+  move forward.
 - Research when needed, but only enough to understand and route the item well.
 - If an inbox item depends on reading a URL and the source is inaccessible,
   do not mark it as sorted or researched. Record the access failure honestly:
@@ -20,7 +19,9 @@ Read and follow the root `AGENTS.md` and local `AGENTS.md` files in directories 
 
 ## Creating Tasks
 
-When converting an inbox item to a normalized task, use `pnpm kota task create "<title>" --priority <p0-p3> --area <area> --state <state> --summary "<summary>"` to scaffold the file, then follow `data/inbox/AGENTS.md` and `data/tasks/AGENTS.md`.
+When converting an inbox item to a normalized task, use the task CLI to
+scaffold the file, then follow `data/inbox/AGENTS.md`, `data/tasks/AGENTS.md`,
+and the destination state's local contract.
 
 ## Finish
 

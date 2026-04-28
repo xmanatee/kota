@@ -1,7 +1,10 @@
 # Backlog
 
-This state is for work that matters but is not ready to pull yet.
+This state is the normalized reserve queue.
 
-- Keep backlog items triaged and concise.
-- Promote an item to `ready/` only when it is actionable.
-- If an item no longer matters, move it to `dropped/`.
+- Keep only normalized tasks here: valid future work that is not selected for
+  immediate execution.
+- Priority is independent from this state.
+- Do not use backlog for rough captures, blocked work, or forgotten work.
+- Promote an item when it should enter the short execution queue; drop it when
+  it is no longer worth doing.

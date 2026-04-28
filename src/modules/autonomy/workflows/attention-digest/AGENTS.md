@@ -11,13 +11,9 @@ This directory contains the attention digest workflow definition and test.
 `renderOnDemandAttention({ projectDir, runsDir })` in `step.ts` runs the same
 detector + renderer the cadence path uses and returns
 `{ items: AttentionItem[]; text: string }`. The cadence step
-(`runAttentionDigestStep`) calls the same seam so the two paths cannot drift.
-Operator-facing pull surfaces (Telegram `/attention`, the `kota attention`
-CLI in `attention-cli.ts`, `GET /api/attention` in `attention-route.ts`,
-and the embedded web client `AttentionPanel` in
-`clients/web/src/components/sidebar/AttentionPanel.tsx` consuming that
-HTTP route) consume the seam directly; later native surfaces (macOS,
-mobile attention panels) reuse it the same way.
+calls the same seam so the two paths cannot drift. Operator-facing pull
+surfaces such as Telegram, CLI, daemon HTTP, embedded web, macOS, and mobile
+should consume this seam directly.
 
 Counter invariant: the on-demand path must not write
 `<runsDir>/../attention-digest-counter.json`. That file is owned by the

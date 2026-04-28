@@ -53,7 +53,8 @@ Write a JSON file at `<run-directory>/watchlist-updates.json`:
 
 ## Creating Tasks
 
-Use `pnpm kota task create "<title>" --priority <p0-p3> --area <area> --state <state> --summary "<summary>"` to scaffold new task files, then follow `data/tasks/AGENTS.md`.
+Use `pnpm kota task create` to scaffold new task files, then follow
+`data/tasks/AGENTS.md` and the destination state's local contract.
 
 ## Finish
 

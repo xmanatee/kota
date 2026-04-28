@@ -16,29 +16,15 @@ is still pending over a rolling 24h window.
 
 ## Data Sources
 
-- `.kota/runs/<run-id>/metadata.json` for per-workflow run history (read
-  through `loadRunsInWindow`, the same seam improver uses).
-- `.kota/runs/<run-id>/run-summary.json` for builder commit subjects.
-- `data/tasks/blocked/*.md` for aging operator-capture preconditions.
-- The in-process `OwnerQuestionQueue` for pending owner questions.
-- `data/tasks/<state>/` counts via `countRepoTaskState` for the queue
-  delta. The previous snapshot lives in `.kota/daily-digest-state.json`
-  and is rewritten at the end of each run.
+Read from existing run artifacts, task state, and owner-question state. Do not
+add a parallel digest store or second task parser just for this workflow. The
+cadence snapshot is the only workflow-owned persistence.
 
 ## Categories Reported
 
-The seven categories named in the source task:
-
-- Builder commits (count, task ids/titles, total duration)
-- Explorer additions (per-run task batch and watchlist add counts)
-- Decomposer splits (parent → child task count)
-- Blocked-promoter moves (blocked → ready/backlog with the move cause)
-- Failed/interrupted monitored runs (links operator to attention-digest)
-- Pending owner questions and aging operator-capture preconditions
-- Queue state delta (current vs previous snapshot)
-
-Per-category surfaces cap at five rows; rendering is intentionally short so
-chat surfaces stay readable.
+Report the operator-relevant daily story: completed work, newly created work,
+queue movement, unresolved asks, and failures that need attention. Keep
+per-category rendering short so chat surfaces stay readable.
 
 ## Relationship To attention-digest
 
@@ -54,34 +40,21 @@ chat surfaces stay readable.
 
 ## Outputs
 
-Every run writes:
-
-- `digest.json` — the aggregated `DailyDigestData` shape.
-- `digest.txt` — the rendered no-color text body.
-- An emitted `workflow.daily.digest` event whose `text` field is what
-  channel modules forward verbatim. The payload also carries `quiet`
-  so channels can label quiet windows distinctly without re-rendering.
+Every run writes structured data plus the rendered text body, then emits the
+rendered text for notification channels to forward without re-rendering.
 
 ## Channel Delivery Contract
 
-`workflow.daily.digest` is included in the default `NOTIFICATION_EVENTS`
-list of every shipped notification channel module (`telegram`, `slack`,
-`email`, `webhook`). Channel modules treat `payload.text` as the
-human-readable body so the workflow code never branches on channel.
+Channel modules treat the event payload's rendered text as the human-readable
+body. The workflow must not branch on channel-specific formatting.
 
 ## On-Demand Seam
 
 `renderOnDemandDigest({ projectDir, windowEndMs? })` in `on-demand.ts`
 produces the same body the cadence step emits, evaluated against a
-rolling window ending at the call moment. It is the operator-initiated
-counterpart to the 08:00 cadence run; the Telegram `/digest` command,
-the terminal `kota digest` command (with `--json` for the structured
-`DailyDigestData` payload), the daemon HTTP route `GET /api/digest`
-(returning `{ data, text }`), the embedded web client's `DigestPanel`,
-the macOS menu-bar client's `DigestView`, and the React Native mobile
-client's `DigestScreen` (the latter three consuming that route through
-the daemon's typed HTTP+JSON API) all call it directly so every
-operator surface reads from the same body.
+rolling window ending at the call moment. Telegram, CLI, daemon HTTP, embedded
+web, macOS, and mobile pull surfaces should consume this seam so cadence and
+on-demand rendering cannot drift.
 
 Snapshot invariant: the on-demand path does not write
 `.kota/daily-digest-state.json`. That file is owned by the cadence run

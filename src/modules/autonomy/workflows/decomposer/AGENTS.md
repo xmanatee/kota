@@ -21,25 +21,11 @@ who could distinguish "I already resolved this; drop the trigger" from
 "the task was moved out of active states by accident; decompose it
 anyway".
 
-The escalation is gated on `assessFailure.output(ctx).escalation !== null`.
-The recipe's three steps share the same gate predicate, so they all run
-together or all skip together. The downstream `apply-escalation-outcome`
-step consumes every `AwaitedOwnerOutcome` kind explicitly:
-
-- `answered` matching the proposed `decompose <candidate>` collapses to
-  `{ kind: "approved", ... }` — the agent step then runs against the
-  task in its inactive state. Suspicious answers carry the recipe's
-  pre-rendered `banner` so the downstream agent applies the
-  injection-defense framing; `banner` stays `null` for clean answers.
-- `answered` with anything else collapses to `{ kind: "skipped", ... }`.
-- `dismissed`, `expired`, and `timeout` all collapse to
-  `{ kind: "skipped", ... }` with a human-readable reason. The trigger
-  is dropped — the failure signal is preserved in the source builder
-  run's metadata, which decomposer can revisit if the task is moved
-  back into an active state.
-
 The recipe runs at the workflow layer (not as a tool call), so a daemon
 restart mid-wait resumes the run via `installAwaitResumers`. The
-`awaitTimeoutMs` is 15 minutes — short enough that an unreachable
-operator cannot indefinitely block the queue, long enough that a human
-checking notifications has a fair window.
+wait must stay bounded so an unreachable operator cannot indefinitely block
+the queue.
+
+An approval lets the agent decompose the inactive task; any non-approval skips
+the trigger. Suspicious operator text carries the injection-defense banner into
+the agent step.

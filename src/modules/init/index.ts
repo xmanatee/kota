@@ -40,8 +40,8 @@ This state is for newly captured ideas that have not been triaged yet.
 
 - Keep entries concise.
 - Rough captures are allowed here.
-- Use filename convention: \`task-<slug>.md\`.
-- Move items out quickly once they are understood.
+- Move items out once they are understood, following the destination
+  directory's local contract.
 `;
 
 const TASKS_AGENTS_STUB = `# Tasks
@@ -50,53 +50,69 @@ This directory is the live work queue.
 
 - \`data/inbox/\` is for quick captures and owner ideas.
 - Only normalized work specs belong here.
-- Pull actionable work from \`ready/\`.
+- State and priority are separate: priority describes importance; state
+  describes scheduling/lifecycle.
+- Use \`pnpm kota task create\` to scaffold tasks. The scaffold and validator
+  are the schema boundary.
 `;
 
 const TASK_STATE_AGENTS_STUBS: Record<string, string> = {
   ready: `# Ready
 
-This state is the actionable pull queue.
+This state is the short execution queue.
 
-- Keep it short and prioritized.
-- Items here should be specific enough to execute without deep re-scoping.
-- Pull from here before creating new work.
+- Keep only actionable normalized tasks here.
+- Items here should be specific enough for a builder to pick up without
+  re-scoping.
+- Keep the queue short and intentionally selected for near-term work.
 `,
   doing: `# Doing
 
 This state is for active work in progress.
 
 - Keep WIP low.
-- A task should move here only when somebody is actively working on it.
-- If work stalls on an external blocker, move it to \`blocked/\`.
+- A task should move here only when a human or workflow is actively working on it.
+- Do not use this as a reservation or parking state.
+- If work stalls or pauses, move it to the state that reflects reality instead
+  of leaving it here.
 `,
   backlog: `# Backlog
 
-This state is for unscheduled work that is not yet ready to pull.
+This state is the normalized reserve queue.
 
-- Items here may need scoping, research, or prerequisite work.
-- Promote to \`ready/\` when an item becomes actionable.
+- Keep only normalized tasks here: valid future work that is not selected for
+  immediate execution.
+- Priority is independent from this state.
+- Do not use backlog for rough captures, blocked work, or forgotten work.
+- Promote an item when it should enter the short execution queue; drop it when
+  it is no longer worth doing.
 `,
   blocked: `# Blocked
 
-This state is for work that cannot currently advance.
+This state is for normalized work that cannot currently advance.
 
-- The task body should make the blocker explicit.
-- Move blocked work back to \`ready/\` when it becomes actionable again.
+- Use this only when a specific condition must change before the task can
+  proceed. Do not use it for deprioritization.
+- The task body must state the unblock precondition in the validator-supported
+  format so automation can re-check it without reinterpreting prose.
+- Keep blockers fresh. If the condition changes, move the task to the state
+  that matches its new lifecycle.
 `,
   done: `# Done
 
 This state is for completed work.
 
-- Do not edit completed tasks unless correcting factual errors.
-- Use this directory as a historical record.
+- Keep the task record concise, factual, and outcome-focused.
+- Use this only when the task's Done When criteria are actually satisfied.
+- Do not keep open-ended follow-up work here; create a new task instead.
 `,
   dropped: `# Dropped
 
-This state is for intentionally deprioritized work.
+This state is for normalized work that was consciously dismissed.
 
-- Include a brief reason for dropping in the task body.
-- May be reconsidered later if circumstances change.
+- Record the reason briefly in the task body.
+- Use this state for conscious decisions, not forgotten work or temporary
+  deprioritization.
 `,
 };
 

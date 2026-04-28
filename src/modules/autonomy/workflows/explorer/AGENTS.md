@@ -11,18 +11,9 @@ This directory contains the explorer workflow definition and prompt.
   not the implementation plan.
 - Queue counts are lower bounds, not the goal. A healthy queue should not
   collapse into one repeated kind of local work.
-- Explorer fires on a thin or empty queue, and its `task-queue-valid` repair
-  check requires `data/tasks/ready/` to hold at least one task. When
-  `counts.ready` from `inspect-queue` is `0`, either create the new task with
-  `--state ready` or promote an existing backlog task with `pnpm kota task
-  move <id> ready` before finishing. Do not rely on the repair loop to move
-  the task for you — the pattern consistently burns 15–25 minutes of repair
-  work per occurrence.
-- When `strategicReadyCoverageGap` from `inspect-queue` is `true`, the
-  `ready/` queue is non-empty but holds only `p3` work. The run must create
-  or promote a `p0`/`p1`/`p2` task before finishing; the
-  `strategic-ready-coverage` phase-1 repair check will otherwise force a
-  full agent re-run. Same cost profile as the `task-queue-valid` trip above.
+- When explorer changes the queue, satisfy required queue-health findings from
+  the inspect step before finishing instead of relying on the repair loop to
+  re-run the agent.
 - Other task-queue warnings stay advisory.
 - The `External Pattern Decisions` catalog in `src/modules/autonomy/AGENTS.md`
   is out of scope for explorer. When a watchlist entry yields a clear
