@@ -17,7 +17,10 @@ import {
   executeToolStep,
   withRetry,
 } from "#core/workflow/steps/step-executor.js";
-import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
+import {
+  AgentStepRuntimeError,
+  classifyAgentRuntimeFailure,
+} from "#core/workflow/steps/step-executor-retry.js";
 import type {
   WorkflowAgentStep,
   WorkflowDefinition,
@@ -928,6 +931,57 @@ describe("executeStep repair loop", () => {
     expect(iterations[0].agentResponse).toBe("fixed");
     const failures = iterations[0].failures as Array<{ id: string }>;
     expect(failures[0].id).toBe("check-lint");
+  });
+
+  it("classifies SDK isError from repair agent into provider-kind AgentStepRuntimeError", async () => {
+    // Repair-loop runtime failures must surface a classified backoff signal so
+    // AgentBackoffManager applies the provider-kind dispatch delay. A plain
+    // Error here lets the next dispatcher tick collide with the same outage.
+    mockedExecuteWithAgentSDK
+      .mockResolvedValueOnce(SUCCESS_RESULT) // initial agent run
+      .mockResolvedValueOnce({
+        ...SUCCESS_RESULT,
+        isError: true,
+        text:
+          "API Error: 529 Authentication service is temporarily unavailable. Retry the request.",
+      });
+
+    const runTool = vi
+      .fn()
+      .mockRejectedValue(new Error("lint error: missing semicolon"));
+
+    const context = makeRepairContext(runTool);
+    const step = makeStep(projectDir, {
+      repairLoop: {
+        maxRepairAttempts: 3,
+        checks: [{ id: "check-lint", tool: "shell", input: { command: "npm run lint" } }],
+      },
+    });
+
+    let thrown: unknown;
+    try {
+      await executeStep(
+        makeDefinition(),
+        step,
+        makeMetadata(),
+        TRIGGER,
+        context,
+        new AbortController(),
+        () => {},
+        () => {},
+        agentConfig,
+        new EventBus(),
+      );
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(AgentStepRuntimeError);
+    const runtimeErr = thrown as AgentStepRuntimeError;
+    expect(runtimeErr.kind).toBe("provider");
+    expect(runtimeErr.retryable).toBe(false);
+    expect(runtimeErr.message).toContain('Repair agent for step "test-step" failed');
+    expect(runtimeErr.message).toContain("API Error: 529");
   });
 
   it("budget exhaustion: throws after maxRepairAttempts with still-failing checks", async () => {

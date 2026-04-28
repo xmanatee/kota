@@ -13,6 +13,10 @@ import {
   resolveAgentModel,
   resolvePromptContextStartDir,
 } from "./steps/step-executor-agent.js";
+import {
+  AgentStepRuntimeError,
+  classifyAgentRuntimeFailure,
+} from "./steps/step-executor-retry.js";
 import type { WorkflowAgentStep } from "./types.js";
 
 export type RepairCheckResult = {
@@ -140,6 +144,23 @@ async function executeRepairAgentIteration(
   );
   if (result.isError) {
     const detail = result.text.trim() || "Repair agent returned an error";
+    const classified = classifyAgentRuntimeFailure({
+      message: detail,
+      subtype: result.subtype,
+    });
+    if (classified) {
+      // Mirror the initial-agent isError path in step-executor-agent.ts: the
+      // SDK already exhausted its internal retry budget, so a fresh step-level
+      // retry would just collide with the same outage. Throw a non-retryable
+      // AgentStepRuntimeError so the run-executor surfaces the classified
+      // backoff signal to AgentBackoffManager (provider-kind ≥5 min dispatch
+      // delay) instead of a plain Error that the manager cannot read.
+      throw new AgentStepRuntimeError(
+        `Repair agent for step "${step.id}" failed: ${detail}`,
+        classified.kind,
+        false,
+      );
+    }
     throw new Error(`Repair agent for step "${step.id}" failed: ${detail}`);
   }
   return { text: result.text, turns: result.turns, totalCostUsd: result.totalCostUsd };

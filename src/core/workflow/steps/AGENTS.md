@@ -92,3 +92,11 @@ status, Node error codes, and narrow SDK-specific text markers). See
 fuzzy string matches to the classifier. The same classifier governs autonomy
 agent judges; see `src/modules/autonomy/AGENTS.md` for the judge-wrapper rule
 that protects repair loops from runaway-judge throws.
+
+The repair-loop's own agent invocation (`executeRepairAgentIteration` in
+`../repair-loop.ts`) classifies SDK `isError` results through the same path:
+when the SDK exhausts its internal retries on a provider 5xx, it throws a
+non-retryable `AgentStepRuntimeError` so the run-executor surfaces a
+classified backoff signal to `AgentBackoffManager`. Without this, a
+provider outage during repair leaks as a plain `Error` and the dispatcher
+fires the next agent workflow into the same saturated provider.
