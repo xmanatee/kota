@@ -1,12 +1,12 @@
 ---
 id: task-add-capture-pipeline-integration-test-boots-daemon
 title: Add capture pipeline integration test boots daemon over seeded contributors covers POST /capture and POST /api/capture for every CaptureRecord arm classifier ambiguous fallback and contributor failure
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Anchor the just-fanned-out cross-store capture seam with one top-level integration test that boots the daemon over seeded memory/knowledge/tasks/inbox contributors, exercises POST /capture and POST /api/capture through KotaClient.capture for every CaptureRecord arm, the ambiguous-classifier fallback, and a contributor-failed path, and asserts the typed CaptureResult wire shape so subtle drift across the Telegram, web, macOS, mobile, and Slack surfaces cannot land silently.
 created_at: 2026-04-28T06:08:53.648Z
-updated_at: 2026-04-28T06:08:53.648Z
+updated_at: 2026-04-28T06:19:38.996Z
 ---
 
 ## Problem
