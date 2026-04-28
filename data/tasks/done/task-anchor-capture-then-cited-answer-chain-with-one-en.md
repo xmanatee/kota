@@ -1,12 +1,12 @@
 ---
 id: task-anchor-capture-then-cited-answer-chain-with-one-en
 title: Anchor capture-then-cited-answer chain with one end-to-end pipeline test
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Add one top-level integration test that boots the cross-store capture, recall, answer, and answer-history route handlers against the same in-process stores; captures content, asks an answer query that should match the just-captured content, and asserts the synthesized answer cites the captured record and the cited answer surfaces in answer-history — closing the last gap between the capture↔recall pipeline test (offline keyword-only) and the recall→answer→history pipeline test (synthetic recall contributors).
 created_at: 2026-04-28T07:56:49.053Z
-updated_at: 2026-04-28T07:56:49.053Z
+updated_at: 2026-04-28T08:09:32.821Z
 ---
 
 ## Problem
