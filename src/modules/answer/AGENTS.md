@@ -36,8 +36,10 @@ back to the underlying typed `RecallHit`s.
 ## Typed citation contract
 
 The synthesizer emits `[source:id]` markers in the prose where
-`source ∈ {knowledge, memory, history, tasks}` (matching `RecallSource`
-exactly; no aliases) and `id` is the typed hit id. The parser
+`source ∈ {knowledge, memory, history, tasks, answer}` (matching
+`RecallSource` exactly; no aliases) and `id` is the typed hit id. The
+`answer` arm covers the synthesizer chaining through a prior cited-
+answer envelope when recall surfaced one. The parser
 extracts each marker, validates it against the typed `RecallHit[]` the
 synthesizer was shown, and returns:
 
@@ -76,8 +78,9 @@ never silent fan-out beyond that.
 Every `AnswerProvider.answer(query, filter?)` call appends one typed
 record to `<projectStateRoot>/answer-history/<id>.json` through the
 module-owned `AnswerHistoryStore`. The store is the single record-
-keeping path for cited-answer envelopes and the corpus seam the
-eval-harness pulls real-failure provenance from. Reads are exposed as
+keeping path for cited-answer envelopes, the corpus seam the
+eval-harness pulls real-failure provenance from, and the data source
+behind the `answer` recall contributor (see "Recall contribution" below). Reads are exposed as
 `KotaClient.answer.log(filter?)` / `show(id)`, the
 `kota answer log` / `kota answer show <id>` CLI subcommands, and the
 `GET /api/answers` + `GET /api/answers/:id` HTTP routes (with the
@@ -97,6 +100,25 @@ Contracts:
 - Retention is module-internal: the store prunes oldest entries past
   `ANSWER_HISTORY_DEFAULT_CAP` on append. Pruning is best-effort and
   has no operator-facing knob.
+
+## Recall contribution
+
+The answer module owns its recall adapter end-to-end. `recall-contributor.ts`
+wraps `AnswerHistoryStore.searchAnswers` into a `RecallContributor` for the
+`answer` source, and the module registers it from its own `onLoad` against
+the live `RecallProvider` (looked up through
+`ctx.getProvider<RecallProvider>("recall")`, the same provider-registry
+seam every other module uses for cross-module provider access). `onUnload`
+calls `recallProvider.unregister("answer")` so the seam stays clean across
+module reloads. The recall module does not import answer code and does not
+gain `answer` as a dependency — the registration flows in one direction
+through the public `RecallProvider` API.
+
+`searchAnswers` is keyword-shaped: it scans the existing newest-first id
+listing, decodes records lazily, and ranks by token overlap against the
+stored `query` (and synthesized text on `ok: true`). Native scores fall in
+`[0, 1]`, matching the recall module's existing min-max-normalizable
+contract for stores without a native semantic backend.
 
 ## Boundaries
 

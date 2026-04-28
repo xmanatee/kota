@@ -39,15 +39,13 @@ function mockRequest(body: Record<string, unknown>): IncomingMessage {
 function fakeProvider(
   hits: RecallHit[],
   capture?: { query?: string; filter?: unknown },
-  contributors: ReadonlyArray<"knowledge" | "memory" | "history" | "tasks"> = [
-    "knowledge",
-    "memory",
-    "history",
-    "tasks",
-  ],
+  contributors: ReadonlyArray<
+    "knowledge" | "memory" | "history" | "tasks" | "answer"
+  > = ["knowledge", "memory", "history", "tasks"],
 ): RecallProvider {
   return {
     register: () => {},
+    unregister: () => {},
     contributors: () => contributors,
     async recall(query, filter) {
       if (capture) {
@@ -151,6 +149,7 @@ describe("recall route handler", () => {
   it("returns 500 when the provider throws", async () => {
     const handler = createRecallRouteHandler(() => ({
       register: () => {},
+      unregister: () => {},
       contributors: () => ["knowledge"],
       async recall() {
         throw new Error("provider boom");

@@ -511,5 +511,7 @@ function renderableText(hit: RecallHit): string {
       return `${hit.title} ${hit.cwd}`;
     case "tasks":
       return hit.title;
+    case "answer":
+      return `${hit.query} ${hit.preview}`;
   }
 }

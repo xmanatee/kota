@@ -319,9 +319,15 @@ describe("capture↔recall pipeline (HTTP)", () => {
     rmSync(projectRoot, { recursive: true, force: true });
   });
 
-  it("registers all four capture contributors and all four recall contributors", () => {
+  it("registers all four capture contributors and the four raw-store recall contributors", () => {
     expect(captureProvider.contributors()).toEqual([...CAPTURE_TARGET_ORDER]);
-    expect(recallProvider.contributors()).toEqual([...RECALL_SOURCE_ORDER]);
+    // This pipeline exercises the four raw-store recall contributors only;
+    // the `answer`-source contributor is owned by the answer module and lives
+    // in `RECALL_SOURCE_ORDER` for tie-break purposes but is not registered
+    // by this fixture.
+    expect(recallProvider.contributors()).toEqual(
+      RECALL_SOURCE_ORDER.filter((s) => s !== "answer"),
+    );
   });
 
   it("memory: capture writes through MemoryStore and recall surfaces the typed memory hit by content-derived query", async () => {
@@ -468,5 +474,7 @@ function renderableText(hit: RecallHit): string {
       return `${hit.title} ${hit.cwd}`;
     case "tasks":
       return hit.title;
+    case "answer":
+      return `${hit.query} ${hit.preview}`;
   }
 }

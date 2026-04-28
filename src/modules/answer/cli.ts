@@ -30,6 +30,7 @@ const ALLOWED_SOURCES: ReadonlyArray<RecallSource> = [
   "memory",
   "history",
   "tasks",
+  "answer",
 ];
 
 let stderrRenderer: TerminalTransport | null = null;
@@ -144,7 +145,7 @@ export function registerAnswerCommand(
     .option("-n, --limit <n>", "Max recall hits fed to synthesis (default 8)", "8")
     .option(
       "-s, --source <source>",
-      "Restrict to one source (knowledge|memory|history|tasks). Repeatable.",
+      "Restrict to one source (knowledge|memory|history|tasks|answer). Repeatable.",
       collectSources,
       [] as RecallSource[],
     )

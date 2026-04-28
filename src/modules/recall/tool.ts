@@ -22,15 +22,17 @@ const RECALL_SOURCES: ReadonlyArray<RecallSource> = [
   "memory",
   "history",
   "tasks",
+  "answer",
 ];
 
 export const recallTool: KotaTool = {
   name: "recall",
   description:
-    "Search the second brain (knowledge, memory, conversation history, repo tasks) " +
-    "for entries matching a natural-language query and return a ranked, source-tagged " +
-    "list of hits. Use this to gather cross-store context before answering a question " +
-    "or making a recommendation. Read-only.",
+    "Search the second brain (knowledge, memory, conversation history, repo tasks, " +
+    "and the assistant's prior cited-answer envelopes) for entries matching a " +
+    "natural-language query and return a ranked, source-tagged list of hits. Use " +
+    "this to gather cross-store context — including prior synthesized answers — " +
+    "before answering a question or making a recommendation. Read-only.",
   input_schema: {
     type: "object",
     properties: {

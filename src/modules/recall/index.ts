@@ -2,9 +2,11 @@
  * Recall module — owns the unified cross-store recall seam.
  *
  * - Builds a `RecallProviderImpl` and registers it as the `recall` provider.
- * - Wires each first-party store (knowledge, memory, history, repo-tasks)
- *   as a typed contributor; adding a fifth store later means registering a
- *   fifth contributor here, not editing every consumer.
+ * - Wires the four raw first-party stores (knowledge, memory, history,
+ *   repo-tasks) as typed contributors. Other modules contribute their own
+ *   sources from their own `onLoad` through the public `RecallProvider`
+ *   `register` API — the `answer` module registers an `answer`-source
+ *   contributor over the answer-history store this way.
  * - Exposes the seam through one daemon-control route (`POST /recall`),
  *   one `KotaClient.recall` namespace, and one `kota recall` CLI command.
  */
@@ -64,6 +66,11 @@ const recallModule: KotaModule = {
     provider.register(createHistoryContributor(getHistoryProvider()));
     provider.register(createTasksContributor(getRepoTasksProvider()));
     activeProvider = provider;
+    // Expose the live provider through the provider-registry seam so other
+    // modules can contribute their own `RecallContributor` from their own
+    // `onLoad` (e.g. the `answer` module registers an `answer`-source
+    // contributor over the answer-history store). This is the public
+    // registration seam — there is no second mechanism.
     ctx.registerProvider("recall", provider);
     ctx.registerDynamicStateProvider(
       RECALL_DYNAMIC_STATE_NAME,

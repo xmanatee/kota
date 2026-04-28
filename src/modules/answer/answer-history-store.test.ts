@@ -128,6 +128,127 @@ describe("DiskAnswerHistoryStore", () => {
   });
 });
 
+describe("DiskAnswerHistoryStore.searchAnswers", () => {
+  let rootDir: string;
+
+  beforeEach(() => {
+    rootDir = mkdtempSync(join(tmpdir(), "kota-answer-search-"));
+  });
+  afterEach(() => {
+    rmSync(rootDir, { recursive: true, force: true });
+  });
+
+  function makeNamedRecord(
+    index: number,
+    query: string,
+    answerText: string | undefined,
+  ): AnswerHistoryRecord {
+    const stamp = new Date(Date.UTC(2026, 3, 28, 0, 0, index)).toISOString();
+    const id = `${stamp.replace(/[:.]/g, "-")}-${String(index).padStart(6, "0")}`;
+    if (answerText === undefined) {
+      return buildAnswerHistoryRecord({
+        id,
+        createdAt: stamp,
+        query,
+        filter: { topK: 8 },
+        recallHits: [],
+        result: { ok: false, reason: "no_hits" },
+      });
+    }
+    return buildAnswerHistoryRecord({
+      id,
+      createdAt: stamp,
+      query,
+      filter: { topK: 8 },
+      recallHits: sampleHits,
+      result: {
+        ok: true,
+        answer: `${answerText} [knowledge:k1].`,
+        citations: [{ source: "knowledge", id: "k1" }],
+        hits: sampleHits,
+      },
+    });
+  }
+
+  it("returns the empty list for a fresh store", async () => {
+    const store = new DiskAnswerHistoryStore({ rootDir });
+    const hits = await store.searchAnswers("anything", { topK: 5 });
+    expect(hits).toEqual([]);
+  });
+
+  it("returns the empty list for a blank query or non-positive topK", async () => {
+    const store = new DiskAnswerHistoryStore({ rootDir });
+    await store.appendAnswer(
+      makeNamedRecord(0, "min-max normalization", "Recall normalizes once."),
+    );
+    expect(await store.searchAnswers("", { topK: 5 })).toEqual([]);
+    expect(await store.searchAnswers("   ", { topK: 5 })).toEqual([]);
+    expect(
+      await store.searchAnswers("normalization", { topK: 0 }),
+    ).toEqual([]);
+  });
+
+  it("matches by exact substring against the stored query", async () => {
+    const store = new DiskAnswerHistoryStore({ rootDir });
+    await store.appendAnswer(
+      makeNamedRecord(0, "min-max normalization in recall", "Recall body."),
+    );
+    await store.appendAnswer(
+      makeNamedRecord(1, "unrelated topic about repos", "Unrelated body."),
+    );
+    const hits = await store.searchAnswers("min-max normalization", { topK: 5 });
+    expect(hits).toHaveLength(1);
+    expect(hits[0].record.query).toBe("min-max normalization in recall");
+    expect(hits[0].score).toBeGreaterThan(0);
+  });
+
+  it("matches against the synthesized answer body on ok:true records", async () => {
+    const store = new DiskAnswerHistoryStore({ rootDir });
+    await store.appendAnswer(
+      makeNamedRecord(
+        0,
+        "general question",
+        "The recall seam ranks hits using min-max normalization across stores.",
+      ),
+    );
+    const hits = await store.searchAnswers("min-max normalization", { topK: 5 });
+    expect(hits).toHaveLength(1);
+    expect(hits[0].record.id).toContain("000000");
+  });
+
+  it("ignores ok:false answer text in the corpus (query-only fallback)", async () => {
+    const store = new DiskAnswerHistoryStore({ rootDir });
+    await store.appendAnswer(
+      makeNamedRecord(0, "completely unrelated", undefined),
+    );
+    expect(
+      await store.searchAnswers("no_hits", { topK: 5 }),
+    ).toEqual([]);
+  });
+
+  it("trims results to topK ordered by relevance", async () => {
+    const store = new DiskAnswerHistoryStore({ rootDir });
+    // Three records with varying token overlap against the query
+    // "recall normalization seam".
+    await store.appendAnswer(
+      makeNamedRecord(0, "recall seam tie-breaks", "tie body"),
+    );
+    await store.appendAnswer(
+      makeNamedRecord(1, "recall normalization seam answers", "norm body"),
+    );
+    await store.appendAnswer(
+      makeNamedRecord(2, "memory entry about cooking", "cooking body"),
+    );
+    const hits = await store.searchAnswers("recall normalization seam", {
+      topK: 2,
+    });
+    expect(hits).toHaveLength(2);
+    expect(hits[0].record.query).toBe("recall normalization seam answers");
+    expect(hits[0].score).toBeGreaterThan(hits[1].score);
+    expect(hits[1].record.query).toBe("recall seam tie-breaks");
+  });
+});
+
 describe("mintAnswerHistoryId", () => {
   it("encodes the timestamp and is filename-safe", () => {
     const id = mintAnswerHistoryId(Date.UTC(2026, 3, 28, 12, 30, 45, 250));

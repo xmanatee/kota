@@ -39,6 +39,8 @@ function describeHit(hit: RecallHit): string {
       return `${hit.title} (${hit.cwd})`;
     case "tasks":
       return `[${hit.state}/${hit.priority}] ${hit.title}`;
+    case "answer":
+      return `prior cited answer to "${hit.query}" — ${hit.preview}`;
   }
 }
 

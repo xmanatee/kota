@@ -24,6 +24,7 @@ const RECALL_SOURCES: ReadonlyArray<RecallSource> = [
   "memory",
   "history",
   "tasks",
+  "answer",
 ];
 
 export const answerTool: KotaTool = {

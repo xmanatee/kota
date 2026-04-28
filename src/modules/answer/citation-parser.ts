@@ -24,6 +24,7 @@ const RECALL_SOURCES: ReadonlyArray<RecallSource> = [
   "memory",
   "history",
   "tasks",
+  "answer",
 ];
 
 const SOURCE_PATTERN = RECALL_SOURCES.join("|");

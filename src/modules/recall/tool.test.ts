@@ -33,13 +33,19 @@ function memoryHit(id: string, nativeScore: number): RawRecallEntry {
 }
 
 describe("recall tool — schema", () => {
-  it("declares a JSON schema with `query` required and the four sources enumerated", () => {
+  it("declares a JSON schema with `query` required and every recall source enumerated", () => {
     expect(recallTool.name).toBe("recall");
     expect(recallTool.input_schema.required).toEqual(["query"]);
     const props = recallTool.input_schema.properties as Record<string, unknown>;
     expect(props.query).toBeDefined();
     const sources = (props.sources as { items: { enum: string[] } }).items;
-    expect(sources.enum).toEqual(["knowledge", "memory", "history", "tasks"]);
+    expect(sources.enum).toEqual([
+      "knowledge",
+      "memory",
+      "history",
+      "tasks",
+      "answer",
+    ]);
   });
 });
 

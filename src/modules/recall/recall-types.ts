@@ -16,6 +16,7 @@ import type {
 } from "#core/server/kota-client.js";
 
 export type {
+  RecallAnswerHit,
   RecallFilter,
   RecallHistoryHit,
   RecallHit,
@@ -31,12 +32,18 @@ export type {
  * Adding a new source extends `RecallSource` and the discriminated `RecallHit`
  * union; it does not require editing this constant unless the operator wants
  * the new source's tie-break position to differ from the alphabetical default.
+ *
+ * `answer` is intentionally last: when a raw-store hit and a prior cited-
+ * answer hit normalize to the same score, the raw-store evidence wins the
+ * tie so the synthesizer prefers grounding in the underlying source it
+ * could already have cited directly.
  */
 export const RECALL_SOURCE_ORDER: ReadonlyArray<RecallSource> = [
   "knowledge",
   "memory",
   "tasks",
   "history",
+  "answer",
 ] as const;
 
 /**
@@ -83,6 +90,23 @@ export type RawRecallEntry =
         priority: string;
         updatedAt: string;
       };
+    }
+  | {
+      source: "answer";
+      id: string;
+      nativeScore: number;
+      payload: {
+        query: string;
+        preview: string;
+        citationCount: number;
+        createdAt: string;
+        result:
+          | { ok: true }
+          | {
+              ok: false;
+              reason: "no_hits" | "semantic_unavailable" | "synthesis_failed";
+            };
+      };
     };
 
 /**
@@ -106,9 +130,18 @@ export interface RecallContributor {
  * The recall provider. `register` accepts any contributor; calling it twice
  * with the same source replaces the prior contributor for that source so
  * test harnesses and module reloads stay deterministic.
+ *
+ * `register` and `unregister` are the public registration seam any module
+ * uses to contribute or withdraw a contributor from its own `onLoad` /
+ * `onUnload`. The seam has exactly one shape — a sixth contributor follows
+ * the same path. Modules reach the live `RecallProvider` through the
+ * provider-registry seam (`ctx.getProvider<RecallProvider>("recall")`),
+ * which the recall module populates during its own `onLoad` via
+ * `ctx.registerProvider("recall", provider)`.
  */
 export interface RecallProvider {
   register(contributor: RecallContributor): void;
+  unregister(source: RecallSource): void;
   /** List currently-registered contributor sources, in registration order. */
   contributors(): ReadonlyArray<RecallSource>;
   recall(query: string, filter?: RecallFilter): Promise<RecallHit[]>;

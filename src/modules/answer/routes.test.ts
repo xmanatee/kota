@@ -56,6 +56,10 @@ function inMemoryHistoryStore(records: AnswerHistoryRecord[]): AnswerHistoryStor
     async appendAnswer(record) {
       store.set(record.id, record);
     },
+    async searchAnswers() {
+      // Routes test only exercises the read API, not the recall contributor.
+      return [];
+    },
     async listAnswers(filter?: AnswerHistoryListFilter) {
       const ids = Array.from(store.keys()).sort().reverse();
       const fromIndex = filter?.beforeId

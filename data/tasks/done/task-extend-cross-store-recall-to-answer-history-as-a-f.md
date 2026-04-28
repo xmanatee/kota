@@ -1,12 +1,12 @@
 ---
 id: task-extend-cross-store-recall-to-answer-history-as-a-f
 title: Extend cross-store recall to answer-history as a fifth contributor so prior cited answers ground new fact-shaped turns
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Add searchAnswers to AnswerHistoryStore and register an answer-history RecallContributor (resolving the answer→recall cycle through a public RecallProvider registration seam) so cross-store recall surfaces the assistant's prior cited answers alongside knowledge/memory/history/tasks hits.
 created_at: 2026-04-28T15:36:43.505Z
-updated_at: 2026-04-28T15:36:43.505Z
+updated_at: 2026-04-28T15:59:35.557Z
 ---
 
 ## Problem

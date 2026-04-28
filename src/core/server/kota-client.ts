@@ -527,8 +527,19 @@ export type KnowledgeReindexResult = ReindexResult;
  * Source of a `RecallHit`. The cross-store recall seam discriminates each hit
  * by which store originated it. Adding a new contributor extends this union
  * and the `RecallHit` discriminated type below.
+ *
+ * `answer` carries the assistant's own prior cited-answer envelopes — every
+ * `AnswerProvider.answer` call appends a record to the answer-history store,
+ * and the answer module registers a recall contributor over that store so a
+ * fact-shaped follow-up turn can ground in prior synthesized answers
+ * alongside the raw `knowledge` / `memory` / `history` / `tasks` stores.
  */
-export type RecallSource = "knowledge" | "memory" | "history" | "tasks";
+export type RecallSource =
+  | "knowledge"
+  | "memory"
+  | "history"
+  | "tasks"
+  | "answer";
 
 /** Knowledge-store hit payload surfaced through `recall`. */
 export type RecallKnowledgeHit = {
@@ -571,6 +582,35 @@ export type RecallTasksHit = {
 };
 
 /**
+ * Prior-answer envelope hit payload surfaced through `recall`.
+ *
+ * The hit is the persistent shadow of a prior `AnswerProvider.answer(query)`
+ * call. `query` is the original operator question that produced the
+ * envelope; `preview` is a clipped view of the synthesized answer text on
+ * the success arm or the failure reason on the failure arm; `citationCount`
+ * is the size of the typed `[source:id]` citation list the synthesizer
+ * resolved (zero on failure); `result` mirrors the discriminated success/
+ * failure shape stored in the `AnswerHistoryRecord` so a consumer can show
+ * an operator that the prior answer failed instead of treating every prior
+ * envelope as a usable citation source.
+ */
+export type RecallAnswerHit = {
+  source: "answer";
+  score: number;
+  id: string;
+  query: string;
+  preview: string;
+  citationCount: number;
+  createdAt: string;
+  result:
+    | { ok: true }
+    | {
+        ok: false;
+        reason: "no_hits" | "semantic_unavailable" | "synthesis_failed";
+      };
+};
+
+/**
  * One ranked, source-tagged hit returned by the cross-store recall seam.
  * Discriminated by `source`; the per-source payload carries the operator-
  * facing metadata each surface renders.
@@ -579,7 +619,8 @@ export type RecallHit =
   | RecallKnowledgeHit
   | RecallMemoryHit
   | RecallHistoryHit
-  | RecallTasksHit;
+  | RecallTasksHit
+  | RecallAnswerHit;
 
 /**
  * Filter accepted by `RecallClient.recall`. All fields are optional with
@@ -617,10 +658,13 @@ export type RecallResult =
  * Cross-store recall operations.
  *
  * `recall(query, filter?)` answers "what do I know / remember / have done /
- * am tracking about X?" with one ranked, source-tagged list across every
- * registered contributor. The seam normalizes scores once across hits from
- * each contributor and merges them deterministically; tie-breaking is
- * stable so repeated queries return identical orderings.
+ * am tracking / have already answered about X?" with one ranked, source-
+ * tagged list across every registered contributor. Sources currently
+ * include the four raw stores — `knowledge`, `memory`, `history`, `tasks`
+ * — plus `answer`, the assistant's prior cited-answer envelopes. The seam
+ * normalizes scores once across hits from each contributor and merges them
+ * deterministically; tie-breaking is stable so repeated queries return
+ * identical orderings.
  */
 export interface RecallClient {
   recall(query: string, filter?: RecallFilter): Promise<RecallResult>;

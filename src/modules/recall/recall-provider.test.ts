@@ -206,6 +206,20 @@ describe("RecallProviderImpl", () => {
     expect(provider.contributors()).toEqual(["knowledge"]);
   });
 
+  it("unregister removes the contributor and stops surfacing its hits", async () => {
+    const provider = new RecallProviderImpl({ onContributorError: () => {} });
+    provider.register(fixedContributor("knowledge", [knowledgeHit("k1", 1)]));
+    provider.register(fixedContributor("memory", [memoryHit("m1", 1)]));
+    expect(provider.contributors()).toEqual(["knowledge", "memory"]);
+    provider.unregister("knowledge");
+    expect(provider.contributors()).toEqual(["memory"]);
+    const hits = await provider.recall("q");
+    expect(hits.map((h) => h.source)).toEqual(["memory"]);
+    // Unregistering a source that never registered is a no-op.
+    provider.unregister("history");
+    expect(provider.contributors()).toEqual(["memory"]);
+  });
+
   it("payload fields propagate into the typed RecallHit", async () => {
     const provider = new RecallProviderImpl({ onContributorError: () => {} });
     provider.register(fixedContributor("tasks", [{

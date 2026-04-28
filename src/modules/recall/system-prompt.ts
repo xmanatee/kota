@@ -19,13 +19,16 @@ export const RECALL_DYNAMIC_STATE_NAME = "recall-conversational-pattern";
 export const RECALL_CONVERSATIONAL_BLOCK = `
 <recall-tool>
 The \`recall\` tool searches the second brain (knowledge, memory,
-conversation history, repo tasks) for ranked, source-tagged hits. Call it
-before answering any fact-shaped question whose answer plausibly lives in
-KOTA's stores instead of free-styling from raw model knowledge. Use the
-returned hits to ground the reply and cite them inline. Skip recall only
-when the user is asking for raw computation, code generation against
-provided context, or a question that obviously has no second-brain
-grounding.
+conversation history, repo tasks, and the assistant's prior cited-answer
+envelopes) for ranked, source-tagged hits. Call it before answering any
+fact-shaped question whose answer plausibly lives in KOTA's stores
+instead of free-styling from raw model knowledge. Use the returned hits
+to ground the reply and cite them inline; an \`answer\`-source hit is a
+prior synthesized reply for a similar query, so prefer reusing or
+extending that answer over re-synthesizing from scratch when the question
+matches. Skip recall only when the user is asking for raw computation,
+code generation against provided context, or a question that obviously
+has no second-brain grounding.
 </recall-tool>
 `;
 

@@ -25,6 +25,10 @@ function describeHit(hit: RecallHit): string {
       return hit.title;
     case "tasks":
       return `[${hit.state}/${hit.priority}] ${hit.title}`;
+    case "answer": {
+      const badge = hit.result.ok ? `ok(${hit.citationCount})` : hit.result.reason;
+      return `[${badge}] ${hit.query}`;
+    }
   }
 }
 

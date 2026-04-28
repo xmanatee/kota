@@ -26,6 +26,7 @@ const ALLOWED_SOURCES: ReadonlyArray<RecallSource> = [
   "memory",
   "history",
   "tasks",
+  "answer",
 ];
 
 function parseFilter(value: unknown): RecallFilter | undefined {

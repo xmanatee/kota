@@ -44,14 +44,39 @@ export interface AnswerHistorySink {
   appendAnswer(record: AnswerHistoryRecord): Promise<void>;
 }
 
+export type AnswerSearchOptions = {
+  /** Maximum number of records to return. Caller-supplied; no default. */
+  topK: number;
+};
+
+export type AnswerSearchHit = {
+  record: AnswerHistoryRecord;
+  /**
+   * Keyword-overlap relevance score in `[0, 1]` against the stored `query`
+   * (and synthesized answer text on `ok: true`). The recall seam normalizes
+   * this once across the contributor's batch — callers should treat the
+   * value as a relative ordering signal, not as an absolute probability.
+   */
+  score: number;
+};
+
 /**
- * Full read surface used by the CLI subcommands and HTTP routes.
+ * Full read surface used by the CLI subcommands, HTTP routes, and recall
+ * contributor.
+ *
  * Implementations must not return null entries — `getAnswer` discriminates
- * "no record by that id" via its return type.
+ * "no record by that id" via its return type. `searchAnswers` is keyword-
+ * shaped and returns the top-K records by overlap score, matching the
+ * recall module's existing fallback pattern for stores without a native
+ * semantic backend.
  */
 export interface AnswerHistoryStore extends AnswerHistorySink {
   listAnswers(filter?: AnswerHistoryListFilter): Promise<AnswerHistoryEntry[]>;
   getAnswer(id: string): Promise<AnswerHistoryRecord | null>;
+  searchAnswers(
+    query: string,
+    options: AnswerSearchOptions,
+  ): Promise<AnswerSearchHit[]>;
 }
 
 export type AnswerHistoryStoreOptions = {
@@ -170,6 +195,36 @@ export class DiskAnswerHistoryStore implements AnswerHistoryStore {
     return this.readRecord(id);
   }
 
+  async searchAnswers(
+    query: string,
+    options: AnswerSearchOptions,
+  ): Promise<AnswerSearchHit[]> {
+    const trimmed = query.trim();
+    const { topK } = options;
+    if (trimmed === "" || topK <= 0) return [];
+    const tokens = tokenize(trimmed);
+    if (tokens.length === 0) return [];
+
+    const ids = this.listIdsNewestFirst();
+    const matches: AnswerSearchHit[] = [];
+    for (const id of ids) {
+      const record = this.readRecord(id);
+      if (!record) continue;
+      const haystack = corpusForRecord(record);
+      const score = scoreOverlap(tokens, haystack);
+      if (score <= 0) continue;
+      matches.push({ record, score });
+    }
+    matches.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      // Tie-break: newest first (createdAt desc); ids are sortable.
+      if (a.record.id < b.record.id) return 1;
+      if (a.record.id > b.record.id) return -1;
+      return 0;
+    });
+    return matches.slice(0, topK);
+  }
+
   private recordPath(id: string): string {
     return join(this.rootDir, `${id}.json`);
   }
@@ -220,6 +275,50 @@ export class DiskAnswerHistoryStore implements AnswerHistoryStore {
 const ID_REGEX = /^[A-Za-z0-9_-]+$/;
 function isSafeId(id: string): boolean {
   return ID_REGEX.test(id);
+}
+
+const TOKEN_RE = /[\p{L}\p{N}]+/gu;
+const SEARCH_PREVIEW_MAX = 240;
+
+function tokenize(input: string): string[] {
+  return Array.from(input.toLowerCase().matchAll(TOKEN_RE), (m) => m[0]);
+}
+
+/**
+ * Build the searchable corpus for one record. The query is the strongest
+ * relevance signal — it is the operator-supplied phrasing every prior
+ * conversational turn used. The synthesized prose is included on `ok: true`
+ * so an answer that re-cited the exact phrasing in its body still wins ties
+ * over an answer whose query alone matched. Failure records contribute only
+ * the query so a stored failure does not silently rank against an unrelated
+ * follow-up question.
+ */
+function corpusForRecord(record: AnswerHistoryRecord): string[] {
+  const queryTokens = tokenize(record.query);
+  if (record.result.ok) {
+    return [...queryTokens, ...tokenize(record.result.answer)];
+  }
+  return queryTokens;
+}
+
+function scoreOverlap(queryTokens: string[], haystack: string[]): number {
+  if (haystack.length === 0) return 0;
+  const queryUnique = new Set(queryTokens);
+  const haystackSet = new Set(haystack);
+  let matched = 0;
+  for (const t of queryUnique) if (haystackSet.has(t)) matched += 1;
+  if (matched === 0) return 0;
+  // Recall-style overlap: share of distinct query tokens that appear in the
+  // record. Bounded in `[0, 1]` per record so the recall seam can min-max
+  // normalize a contributor batch the same way it does for keyword fallbacks.
+  return matched / queryUnique.size;
+}
+
+export function answerSearchPreview(record: AnswerHistoryRecord): string {
+  const raw = record.result.ok ? record.result.answer : record.result.reason;
+  const flat = raw.replace(/\s+/g, " ").trim();
+  if (flat.length <= SEARCH_PREVIEW_MAX) return flat;
+  return `${flat.slice(0, SEARCH_PREVIEW_MAX - 1)}…`;
 }
 
 export function answerHistoryRootForProject(projectStateRoot: string): string {

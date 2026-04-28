@@ -22,6 +22,7 @@ import type {
   AnswerClient,
   AnswerHistoryListFilter,
 } from "#core/server/kota-client.js";
+import type { RecallProvider } from "#modules/recall/recall-types.js";
 import {
   type AnswerHistoryStore,
   answerHistoryRootForProject,
@@ -35,6 +36,7 @@ import type {
   Synthesizer,
 } from "./answer-types.js";
 import { registerAnswerCommand } from "./cli.js";
+import { createAnswerRecallContributor } from "./recall-contributor.js";
 import { answerApiRoutes, answerControlRoutes } from "./routes.js";
 import {
   ANSWER_SYNTHESIS_SYSTEM_PROMPT,
@@ -50,6 +52,7 @@ const ANSWER_MAX_OUTPUT_TOKENS = 1024;
 
 let activeProvider: AnswerProvider | null = null;
 let activeHistory: AnswerHistoryStore | null = null;
+let recallContributorHost: RecallProvider | null = null;
 
 function resolveActiveProvider(): AnswerProvider {
   if (!activeProvider) {
@@ -127,6 +130,22 @@ const answerModule: KotaModule = {
       ANSWER_DYNAMIC_STATE_NAME,
       buildAnswerDynamicStateProvider(),
     );
+
+    // Contribute the answer-history corpus to the cross-store recall seam
+    // through `RecallProvider`'s public registration API. The recall module
+    // exposes its provider through the same `ctx.registerProvider("recall",
+    // …)` seam every other provider uses, and `recall` is declared in this
+    // module's `dependencies`, so the loader has already populated the
+    // registry by the time this `onLoad` runs.
+    const recallProvider = ctx.getProvider<RecallProvider>("recall");
+    if (!recallProvider) {
+      throw new Error(
+        "answer module: `recall` provider is not registered. The recall module must load before answer (declared via dependencies).",
+      );
+    }
+    recallProvider.register(createAnswerRecallContributor(activeHistory));
+    recallContributorHost = recallProvider;
+
     ctx.log.info("answer: cited-answer seam ready");
   },
 
@@ -167,6 +186,10 @@ const answerModule: KotaModule = {
   },
 
   onUnload() {
+    if (recallContributorHost) {
+      recallContributorHost.unregister("answer");
+      recallContributorHost = null;
+    }
     activeProvider = null;
     activeHistory = null;
   },

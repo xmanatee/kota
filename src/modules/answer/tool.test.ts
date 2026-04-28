@@ -53,13 +53,19 @@ const sampleHits: RecallHit[] = [
 ];
 
 describe("answer tool — schema", () => {
-  it("declares a JSON schema with `query` required and the four sources enumerated", () => {
+  it("declares a JSON schema with `query` required and every recall source enumerated", () => {
     expect(answerTool.name).toBe("answer");
     expect(answerTool.input_schema.required).toEqual(["query"]);
     const props = answerTool.input_schema.properties as Record<string, unknown>;
     expect(props.query).toBeDefined();
     const sources = (props.sources as { items: { enum: string[] } }).items;
-    expect(sources.enum).toEqual(["knowledge", "memory", "history", "tasks"]);
+    expect(sources.enum).toEqual([
+      "knowledge",
+      "memory",
+      "history",
+      "tasks",
+      "answer",
+    ]);
   });
 });
 

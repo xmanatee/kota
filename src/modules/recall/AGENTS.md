@@ -1,7 +1,9 @@
 # Recall Module
 
 Cross-store recall seam. One natural-language query returns ranked,
-source-tagged hits across every registered contributor.
+source-tagged hits across every registered contributor — currently
+`knowledge`, `memory`, `history`, `tasks`, and the `answer`-history
+corpus contributed by the answer module.
 
 ## What this module owns
 
@@ -29,17 +31,33 @@ source-tagged hits across every registered contributor.
 
 ## How a new store joins
 
-A new contributor:
+A new contributor — owned by whichever module owns the underlying store —
+follows the same registration seam every other contributor uses:
 
 1. Adds a literal to the `RecallSource` union and an arm to the `RecallHit`
    discriminated union in `src/core/server/kota-client.ts`.
 2. Adds a matching arm to `RawRecallEntry` in `recall-types.ts`.
-3. Adds an adapter in `contributors.ts` that wraps its provider into a
-   `RecallContributor`.
-4. Registers the new contributor in this module's `onLoad`.
+3. Builds a `RecallContributor` adapter wherever the store is owned.
+4. From the owning module's `onLoad`, looks up the live `RecallProvider`
+   through the provider-registry seam
+   (`ctx.getProvider<RecallProvider>("recall")`) and calls
+   `register(contributor)`. Declares `recall` in the module's
+   `dependencies` so the loader populates the registry first.
+5. From the same module's `onUnload`, calls
+   `recallProvider.unregister(<source>)` to withdraw the contributor.
 
-The `RecallProvider` itself enumerates contributors at runtime through its
-`register()` API; nothing in core hard-codes the contributor set.
+The four first-party raw-store contributors (`knowledge`, `memory`,
+`history`, `tasks`) live in `contributors.ts` because the recall module
+already owns those stores. The `answer` contributor lives beside the rest
+of the answer-history code in `src/modules/answer/recall-contributor.ts`
+and is the worked example of the cross-module path: a module reaches the
+live `RecallProvider` through the public registration seam from its own
+`onLoad` and contributes a fifth source without the recall module gaining
+an `answer` dependency.
+
+The `RecallProvider` enumerates contributors at runtime through its
+`register` / `unregister` API; nothing in core hard-codes the contributor
+set, and adding a sixth contributor follows the same path.
 
 ## Score normalization rule
 

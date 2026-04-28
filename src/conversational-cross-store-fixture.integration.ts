@@ -51,6 +51,7 @@ import type {
   AnswerRecallSeam,
   Synthesizer,
 } from "#modules/answer/answer-types.js";
+import { createAnswerRecallContributor } from "#modules/answer/recall-contributor.js";
 import { createAnswerToolDef } from "#modules/answer/tool.js";
 import { CaptureProviderImpl } from "#modules/capture/capture-provider.js";
 import type {
@@ -180,6 +181,13 @@ export function buildCrossStoreFixture(prefix: string): CrossStoreFixture {
   recallProvider.register(createMemoryRecallContributor(memoryStore));
   recallProvider.register(createTasksRecallContributor(tasksProvider));
   recallProvider.register(createHistoryContributor(historyProvider));
+  // Answer-history is the fifth recall contributor. Registering it here
+  // mirrors the answer module's `onLoad` so the conversational fixture
+  // exercises the same five-source seam every operator surface sees.
+  const answerHistoryStore = new DiskAnswerHistoryStore({
+    rootDir: answerHistoryRootForProject(join(projectRoot, ".kota")),
+  });
+  recallProvider.register(createAnswerRecallContributor(answerHistoryStore));
 
   const retractProvider = new RetractProviderImpl();
   retractProvider.register(createMemoryRetractContributor(memoryStore));
@@ -187,9 +195,6 @@ export function buildCrossStoreFixture(prefix: string): CrossStoreFixture {
   retractProvider.register(createTasksRetractContributor(projectRoot));
   retractProvider.register(createInboxRetractContributor(projectRoot));
 
-  const answerHistoryStore = new DiskAnswerHistoryStore({
-    rootDir: answerHistoryRootForProject(join(projectRoot, ".kota")),
-  });
   const recallSeam: AnswerRecallSeam = {
     async recall(query, filter) {
       const hits = await recallProvider.recall(query, filter);
@@ -197,6 +202,13 @@ export function buildCrossStoreFixture(prefix: string): CrossStoreFixture {
     },
   };
   const synthesizer: Synthesizer = async ({ hits }) => {
+    // If the recall pile contains a prior cited answer for a similar query,
+    // chain through it so the test asserts that re-asking does not silently
+    // re-synthesize from raw stores when an `answer`-source hit is present.
+    const answerHit = hits.find((h) => h.source === "answer");
+    if (answerHit) {
+      return `The prior cited answer [answer:${answerHit.id}] still applies.`;
+    }
     const knowledgeHit = hits.find((h) => h.source === "knowledge");
     if (!knowledgeHit) {
       throw new Error("expected knowledge hit in seeded fixture");

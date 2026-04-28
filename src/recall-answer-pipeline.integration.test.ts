@@ -110,6 +110,19 @@ const SEED_ENTRIES: RawRecallEntry[] = [
       updatedAt: "2026-04-22",
     },
   },
+  {
+    source: "answer",
+    id: "ans-recall-2026-04-21",
+    nativeScore: 5,
+    payload: {
+      query: "How does the recall seam rank cross-store hits?",
+      preview:
+        "Recall normalizes each source's native scores once, merges contributors, and tie-breaks deterministically.",
+      citationCount: 4,
+      createdAt: "2026-04-21T00:00:00.000Z",
+      result: { ok: true },
+    },
+  },
 ];
 
 function seededContributor(source: RecallSource): RecallContributor {

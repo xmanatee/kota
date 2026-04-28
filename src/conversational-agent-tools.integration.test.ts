@@ -146,6 +146,76 @@ describe("conversational agent tools — capture / recall / answer round trip", 
   });
 });
 
+describe("conversational agent tools — prior answers surface as recall hits", () => {
+  let harness: Harness;
+
+  beforeAll(async () => {
+    clearCustomTools();
+    const fixture = buildCrossStoreFixture("kota-conv-answer-recall-");
+    registerCrossStoreTools(fixture);
+    const snapshots: StreamCallSnapshot[] = [];
+    harness = { fixture, snapshots };
+
+    // Seed an answer-history record by exercising AnswerProvider end-to-end
+    // on the fixture. This is the same flow `kota answer <query>` and the
+    // `answer` agent tool run, so the persisted envelope is identical to
+    // what real operator traffic would produce.
+    const seeded = await fixture.answerProvider.answer(ANSWER_QUERY);
+    if (!seeded.ok) throw new Error("setup: expected seed answer to succeed");
+
+    const queue = [
+      toolUseTurn("msg_recall_after_answer", "call_recall_after_answer", "recall", {
+        query: ANSWER_QUERY,
+      }),
+      endTurn("msg_done", "all done"),
+    ];
+    await runScriptedAgentSession({
+      prompt: "verify prior cited answers surface through recall",
+      snapshots,
+      pickStream: () => {
+        const next = queue.shift();
+        if (!next) throw new Error("streamMock: no scripted return value");
+        return next;
+      },
+    });
+  });
+
+  afterAll(() => {
+    clearCustomTools();
+    rmSync(harness.fixture.projectRoot, { recursive: true, force: true });
+  });
+
+  it("a fact-shaped follow-up turn that has a matching prior cited answer surfaces the prior answer as an `answer`-source recall hit", async () => {
+    // Direct seam assertion: the production RecallProviderImpl returns a
+    // typed `answer`-source hit for the query that already produced an
+    // answer-history record. The scoring contract checked here is the
+    // task's "comes back as one of the top-K", not the absolute score.
+    const hits = await harness.fixture.recallProvider.recall(ANSWER_QUERY, {
+      topK: 8,
+    });
+    const sources = new Set(hits.map((h) => h.source));
+    expect(sources.has("knowledge")).toBe(true);
+    expect(sources.has("answer")).toBe(true);
+    const answerHit = hits.find((h) => h.source === "answer");
+    if (!answerHit) throw new Error("expected an answer-source hit");
+    if (answerHit.source !== "answer") throw new Error("type narrowing");
+    expect(answerHit.query).toBe(ANSWER_QUERY);
+    expect(answerHit.result).toEqual({ ok: true });
+
+    // Agent-loop assertion: the `recall` tool the agent fired through the
+    // production harness rendered the same prior-answer hit alongside the
+    // existing knowledge/memory/history hits.
+    const recallToolResult = findLastToolResult(
+      harness.snapshots,
+      "call_recall_after_answer",
+    );
+    expect(recallToolResult).toBeDefined();
+    if (!recallToolResult) throw new Error("unreachable");
+    expect(recallToolResult).toContain("answer");
+    expect(recallToolResult).toContain(ANSWER_QUERY);
+  });
+});
+
 describe("conversational agent tools — retract round trip", () => {
   let harness: Harness;
   let retractedMemoryId: string;

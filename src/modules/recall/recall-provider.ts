@@ -97,6 +97,17 @@ function toRecallHit(entry: ScoredEntry): RecallHit {
         priority: entry.payload.priority,
         updatedAt: entry.payload.updatedAt,
       };
+    case "answer":
+      return {
+        source: "answer",
+        score: entry.normalized,
+        id: entry.id,
+        query: entry.payload.query,
+        preview: entry.payload.preview,
+        citationCount: entry.payload.citationCount,
+        createdAt: entry.payload.createdAt,
+        result: entry.payload.result,
+      };
   }
 }
 
@@ -129,6 +140,12 @@ export class RecallProviderImpl implements RecallProvider {
       this.order.push(contributor.source);
     }
     this.bySource.set(contributor.source, contributor);
+  }
+
+  unregister(source: RecallSource): void {
+    if (!this.bySource.delete(source)) return;
+    const idx = this.order.indexOf(source);
+    if (idx >= 0) this.order.splice(idx, 1);
   }
 
   contributors(): ReadonlyArray<RecallSource> {
