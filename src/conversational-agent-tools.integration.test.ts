@@ -20,10 +20,20 @@
  *   the production `RetractProviderImpl`. The dangerous-tool runs under
  *   the same harness posture the peer arms use — no test-only autonomy
  *   elevation, no test-only override.
+ *
+ * `post-retract answer settles`:
+ *   The symmetric counterpart on the answer layer — after the agent
+ *   retracts a captured memory entry, the follow-up `answer` turn must
+ *   produce a cited envelope whose persisted `AnswerHistoryRecord`
+ *   carries no citation or `recallHit` referencing the retracted id.
+ *   The negative arm asserts the retry-and-reject contract still trips
+ *   when the synthesizer fabricates a `[memory:<retractedId>]` marker
+ *   that no longer resolves against the post-retract hit pile.
  */
 
 import { rmSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { RecallHit } from "#core/server/kota-client.js";
 import { clearCustomTools } from "#core/tools/index.js";
 import type { Synthesizer } from "#modules/answer/answer-types.js";
 import {
@@ -46,6 +56,10 @@ const FOLLOWUP_ANSWER_QUERY =
 const FABRICATED_ANSWER_ID = "answer-id-that-never-existed";
 const RETRACTABLE_NOTE = "Operator scheduled retroterm checkin for thursday only.";
 const POST_RETRACT_RECALL_QUERY = "retroterm checkin thursday";
+const POST_RETRACT_ANSWER_CAPTURE =
+  "Operator notes the recall seam relies on min-max normalization for ranking hits.";
+const POST_RETRACT_ANSWER_QUERY =
+  "How does the recall seam rank hits using min-max normalization?";
 
 type Harness = {
   fixture: CrossStoreFixture;
@@ -497,5 +511,204 @@ describe("conversational agent tools — retract round trip", () => {
     if (!recallAfterResult) throw new Error("unreachable");
     expect(recallAfterResult).not.toContain(retractedMemoryId);
     expect(recallAfterResult).not.toContain(RETRACTABLE_NOTE);
+  });
+});
+
+describe("conversational agent tools — post-retract answer settles", () => {
+  describe("(positive) follow-up answer turn cites no memory and recalls no memory hit for the retracted id", () => {
+    let harness: Harness;
+    let retractedMemoryId!: string;
+    let preRetractHits!: RecallHit[];
+
+    beforeAll(async () => {
+      clearCustomTools();
+      const fixture = buildCrossStoreFixture(
+        "kota-conv-post-retract-answer-pos-",
+      );
+      registerCrossStoreTools(fixture);
+      const snapshots: StreamCallSnapshot[] = [];
+      harness = { fixture, snapshots };
+
+      // Pre-capture a memory note whose content overlaps both the seeded
+      // knowledge body and the chosen post-retract answer query, so the
+      // pre-retract recall pile carries both a memory and a knowledge hit
+      // and the post-retract answer can still synthesize through the
+      // remaining knowledge hit.
+      const capture = await fixture.captureProvider.capture(
+        POST_RETRACT_ANSWER_CAPTURE,
+        { target: "memory" },
+      );
+      if (!capture.ok || capture.record.target !== "memory") {
+        throw new Error("setup: expected memory capture to succeed");
+      }
+      retractedMemoryId = capture.record.recordId;
+
+      preRetractHits = await fixture.recallProvider.recall(
+        POST_RETRACT_ANSWER_QUERY,
+      );
+      if (
+        !preRetractHits.some(
+          (h) => h.source === "memory" && h.id === retractedMemoryId,
+        )
+      ) {
+        throw new Error("setup: expected memory hit before retract");
+      }
+
+      const queue = [
+        toolUseTurn("msg_retract_pre_answer", "call_retract_pre_answer", "retract", {
+          target: "memory",
+          id: retractedMemoryId,
+        }),
+        toolUseTurn(
+          "msg_post_retract_answer",
+          "call_post_retract_answer",
+          "answer",
+          { query: POST_RETRACT_ANSWER_QUERY },
+        ),
+        endTurn("msg_done", "all done"),
+      ];
+      await runScriptedAgentSession({
+        prompt: "anchor the post-retract answer settling chain",
+        snapshots,
+        pickStream: () => {
+          const next = queue.shift();
+          if (!next) throw new Error("streamMock: no scripted return value");
+          return next;
+        },
+      });
+    });
+
+    afterAll(() => {
+      clearCustomTools();
+      rmSync(harness.fixture.projectRoot, { recursive: true, force: true });
+    });
+
+    it("the pre-retract recall pile carried a memory-source hit for the captured id (sanity precondition)", () => {
+      const memoryHit = preRetractHits.find(
+        (h) => h.source === "memory" && h.id === retractedMemoryId,
+      );
+      expect(memoryHit).toBeDefined();
+    });
+
+    it("the follow-up `answer` tool result is { ok: true } with a cited envelope and the rendered reply does not surface the retracted id", () => {
+      const answerToolResult = findLastToolResult(
+        harness.snapshots,
+        "call_post_retract_answer",
+      );
+      expect(answerToolResult).toBeDefined();
+      if (!answerToolResult) throw new Error("unreachable");
+      expect(answerToolResult).toContain("Citations");
+      expect(answerToolResult).toContain("knowledge");
+      expect(answerToolResult).not.toContain(retractedMemoryId);
+    });
+
+    it("the persisted AnswerHistoryRecord for the follow-up turn carries no memory citation or recallHit for the retracted id", async () => {
+      const entries = await harness.fixture.answerHistoryStore.listAnswers();
+      expect(entries.length).toBe(1);
+      const followup = entries[0];
+      expect(followup.query).toBe(POST_RETRACT_ANSWER_QUERY);
+      expect(followup.result.ok).toBe(true);
+      const record = await harness.fixture.answerHistoryStore.getAnswer(
+        followup.id,
+      );
+      if (!record) throw new Error("expected stored follow-up record");
+      if (!record.result.ok) throw new Error("expected ok result");
+      const memoryCitation = record.result.citations.find(
+        (c) => c.source === "memory" && c.id === retractedMemoryId,
+      );
+      expect(memoryCitation).toBeUndefined();
+      const memoryHit = record.recallHits.find(
+        (h) => h.source === "memory" && h.id === retractedMemoryId,
+      );
+      expect(memoryHit).toBeUndefined();
+    });
+  });
+
+  describe("(negative) fabricated [memory:<retractedMemoryId>] marker still trips retry-and-reject", () => {
+    let harness: Harness;
+    let retractedMemoryId!: string;
+
+    beforeAll(async () => {
+      clearCustomTools();
+      // The fabrication synthesizer always emits a `[memory:<retractedId>]`
+      // marker. The synthesizer fires after the agent retracts the captured
+      // record, so the marker no longer resolves against the post-retract
+      // hit pile and the AnswerProviderImpl retry-and-reject contract
+      // surfaces `synthesis_failed` for the memory arm just as it does for
+      // the answer-then-answer chain's fabricated `[answer:<unknown>]` case.
+      const fabricationSynthesizer: Synthesizer = async () => {
+        if (!retractedMemoryId) {
+          throw new Error("synthesizer fired before retract id was assigned");
+        }
+        return `The prior captured note [memory:${retractedMemoryId}] still applies.`;
+      };
+      const fixture = buildCrossStoreFixture(
+        "kota-conv-post-retract-answer-neg-",
+        { synthesizer: fabricationSynthesizer },
+      );
+      registerCrossStoreTools(fixture);
+      const snapshots: StreamCallSnapshot[] = [];
+      harness = { fixture, snapshots };
+
+      const capture = await fixture.captureProvider.capture(
+        POST_RETRACT_ANSWER_CAPTURE,
+        { target: "memory" },
+      );
+      if (!capture.ok || capture.record.target !== "memory") {
+        throw new Error("setup: expected memory capture to succeed");
+      }
+      retractedMemoryId = capture.record.recordId;
+
+      const queue = [
+        toolUseTurn(
+          "msg_retract_neg_pre_answer",
+          "call_retract_neg_pre_answer",
+          "retract",
+          { target: "memory", id: retractedMemoryId },
+        ),
+        toolUseTurn(
+          "msg_post_retract_answer_neg",
+          "call_post_retract_answer_neg",
+          "answer",
+          { query: POST_RETRACT_ANSWER_QUERY },
+        ),
+        endTurn("msg_done", "all done"),
+      ];
+      await runScriptedAgentSession({
+        prompt: "anchor the negative arm of the post-retract answer chain",
+        snapshots,
+        pickStream: () => {
+          const next = queue.shift();
+          if (!next) throw new Error("streamMock: no scripted return value");
+          return next;
+        },
+      });
+    });
+
+    afterAll(() => {
+      clearCustomTools();
+      rmSync(harness.fixture.projectRoot, { recursive: true, force: true });
+    });
+
+    it("rejects the follow-up synthesis as `synthesis_failed` and persists one extra failure record", async () => {
+      const answerToolResult = findLastToolResult(
+        harness.snapshots,
+        "call_post_retract_answer_neg",
+      );
+      expect(answerToolResult).toBeDefined();
+      if (!answerToolResult) throw new Error("unreachable");
+      // The renderer surfaces the failure verbatim; the fabricated marker
+      // never reaches the operator as a usable citation.
+      expect(answerToolResult.toLowerCase()).toContain("synthesis failed");
+      expect(answerToolResult).not.toContain(retractedMemoryId);
+
+      const entries = await harness.fixture.answerHistoryStore.listAnswers();
+      expect(entries.length).toBe(1);
+      const followup = entries[0];
+      expect(followup.query).toBe(POST_RETRACT_ANSWER_QUERY);
+      expect(followup.result.ok).toBe(false);
+      if (followup.result.ok) throw new Error("unreachable");
+      expect(followup.result.reason).toBe("synthesis_failed");
+    });
   });
 });

@@ -121,17 +121,19 @@ contract.
   `recall-contributor.test.ts`, `tool.test.ts`, `routes.test.ts`,
   `cli.test.ts`, `system-prompt.test.ts`, and the lifecycle anchor
   `answer-lifecycle.test.ts`.
-- Agent-loop integration anchors (shared with capture/recall/retract):
+- Agent-loop integration anchors:
   - `src/conversational-agent-tools.integration.test.ts` exercises the
     `answer` tool end-to-end through the `openai-tools` harness against
-    the production `AnswerProviderImpl`. The "capture / recall / answer
-    round trip" describe pins the success arm with cross-store recall
-    hits; the "prior answers surface as recall hits" describe pins the
-    `answer` recall contributor; and the "answer-then-answer chain"
-    describe pins the synthesizer chaining through a prior cited-answer
-    envelope (positive arm cites the seeded envelope through
-    `[answer:<id>]`; negative arm rejects a fabricated
-    `[answer:<unknown-id>]` marker via the retry-and-reject contract).
+    the production `AnswerProviderImpl`. Describes pin: the cross-store
+    success arm ("capture / recall / answer round trip"); the `answer`
+    recall contributor ("prior answers surface as recall hits"); the
+    synthesizer chaining through a prior cited-answer envelope
+    ("answer-then-answer chain", with positive `[answer:<id>]` and
+    negative fabricated-marker arms); and the symmetric answer-layer
+    settling after retract ("post-retract answer settles", with a
+    positive arm that proves no memory citation or `recallHit` for the
+    retracted id and a negative arm that proves a fabricated
+    `[memory:<retractedId>]` still trips retry-and-reject).
   - `src/conversational-prompt-priming.integration.test.ts` pins the
     `dynamic-state` admission gate for the answer block (positive when
     the tool is admitted, negative when it is excluded).

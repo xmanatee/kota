@@ -1,12 +1,12 @@
 ---
 id: task-anchor-post-retract-answer-settling-through-the-co
 title: Anchor post-retract answer settling through the conversational agent loop
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Extend src/conversational-agent-tools.integration.test.ts so a follow-up answer turn after a retracted memory record produces a cited envelope that does not reference the retracted record, anchoring the answer-layer settling for the cross-store correction loop end-to-end through the openai-tools harness.
 created_at: 2026-04-28T16:58:59.125Z
-updated_at: 2026-04-28T16:58:59.125Z
+updated_at: 2026-04-28T17:10:24.175Z
 ---
 
 ## Problem

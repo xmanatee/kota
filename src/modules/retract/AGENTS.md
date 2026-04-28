@@ -79,8 +79,13 @@ its `register()` API; nothing in core hard-codes the contributor set.
 - Agent-loop integration anchors (shared with capture/recall/answer):
   - `src/conversational-agent-tools.integration.test.ts` exercises the
     `retract` tool end-to-end through the `openai-tools` harness against
-    the production `RetractProviderImpl`, asserting a follow-up recall
-    no longer surfaces the retracted record.
+    the production `RetractProviderImpl`. The "retract round trip"
+    describe asserts a follow-up `recall` no longer surfaces the
+    retracted record; the "post-retract answer settles" describe
+    asserts the symmetric answer-layer claim — a follow-up `answer`
+    turn carries no citation or `recallHit` referencing the retracted
+    memory id, and a fabricated `[memory:<retractedId>]` marker still
+    trips the retry-and-reject contract.
   - `src/conversational-prompt-priming.integration.test.ts` pins the
     `dynamic-state` admission gate for the retract block (positive when
     the tool is admitted, negative when it is excluded) and asserts the
