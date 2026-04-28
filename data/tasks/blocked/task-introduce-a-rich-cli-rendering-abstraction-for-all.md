@@ -69,7 +69,7 @@ extend as new surfaces land.
 ```
 kind: operator-capture
 path: .kota/runs/peer-cli-comparison
-description: peer-CLI side-by-side captures (gemini-cli, codex, pi, opencode) for terminal rendering scenarios
+description: peer-CLI side-by-side captures — operator runs `node scripts/render-scenarios.mjs <out>` for KOTA and the same scenarios pack against gemini-cli, codex, pi, opencode, then pairs outputs under .kota/runs/peer-cli-comparison/<peer>.md
 ```
 
 ## Source / Intent

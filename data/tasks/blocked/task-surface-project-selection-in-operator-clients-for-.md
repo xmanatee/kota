@@ -41,7 +41,7 @@ The in-progress `task-enable-kota-to-operate-on-external-projects` work is makin
 kind: owner-decision
 slot: multi-project-runtime-shape
 question: Should multi-project supervision use Variant A (one daemon hosts many project runtimes), Variant B (one daemon per project, client-side registry), or the Hybrid (daemon-owned registry, one active project)?
-context: See the ## Proposal section of this task for the trade-offs. Owner was first asked 2026-04-18 and timed out; the askOwnerSteps recipe is now restart-safe so this re-ask is durable.
+context: See the ## Proposal section of this task for the trade-offs. Owner was first asked 2026-04-18 and timed out; the askOwnerSteps recipe is now restart-safe so this re-ask is durable. Recommended: variant-a. Rationale: this task's Constraints section already requires "multi-project state in the daemon, not duplicated in each client", and the architecture doc favors one daemon control protocol over per-client side channels. Variant B would carry a multi-daemon façade across all four operator client surfaces (CLI, web, macOS, mobile); Hybrid is an intermediate step that does not deliver simultaneous supervision and would still need to migrate to A or B later.
 proposed_answers: variant-a, variant-b, hybrid, unblock
 ```
 

@@ -60,7 +60,7 @@ either converted into follow-up tasks or explained why they do not block
 ```
 kind: operator-capture
 path: .kota/runs/harness-parity-*
-description: live operator-facilitated harness-parity capture against every registered harness
+description: live operator-facilitated harness-parity capture — operator runs `kota harness-parity run` against every registered harness; artifacts land under .kota/runs/harness-parity-<stamp>/<scenario>/<harness>/ with per-scenario parity.json and per-harness trace-summary.md
 ```
 
 ## Source / Intent

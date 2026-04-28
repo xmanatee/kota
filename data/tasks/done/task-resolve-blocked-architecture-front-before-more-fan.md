@@ -1,12 +1,12 @@
 ---
 id: task-resolve-blocked-architecture-front-before-more-fan
 title: Resolve blocked architecture front before more fan-out
-status: backlog
+status: done
 priority: p1
 area: architecture
 summary: Create an operator-facing plan to clear or decompose the currently blocked architecture tasks (KotaClient namespace distribution, auth-walled access, rich CLI rendering, multi-project supervision, harness parity, Telegram deploy) instead of accumulating new fan-out work.
 created_at: 2026-04-28T22:04:28.711Z
-updated_at: 2026-04-28T22:04:28.711Z
+updated_at: 2026-04-28T22:16:19.967Z
 ---
 
 ## Problem

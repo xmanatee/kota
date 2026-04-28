@@ -52,7 +52,7 @@ artifact does not ship credentials.
 ```
 kind: operator-capture
 path: .kota/runs/telegram-deploy-staging
-description: staging-bot launch artifact (smoke-test.sh output against a real bot token)
+description: staging-bot launch artifact — operator populates deploy/telegram-assistant/.env, runs `sudo deploy/telegram-assistant/install.sh` then `deploy/telegram-assistant/smoke-test.sh > .kota/runs/telegram-deploy-staging/smoke.txt` against a real bot token
 ```
 
 ## Source / Intent

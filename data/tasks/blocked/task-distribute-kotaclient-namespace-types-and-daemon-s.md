@@ -15,7 +15,7 @@ updated_at: 2026-04-25T23:52:25.348Z
 kind: owner-decision
 slot: kotaclient-namespace-distribution-chunking
 question: Should this 3500-line cross-23-namespace refactor land in (a) one cohesive builder run, (b) a foundation task plus 23 per-namespace migration sub-tasks, (c) 2-3 batched sub-tasks (foundation + first half + second half), or (d) foundation plus a pilot namespace plus follow-up migrations?
-context: kota-client.ts is 1477 lines and daemon-client.ts is 1893 lines; DaemonControlClient has 104 references across the repo and ~20 of its public non-namespace transport methods (getDaemonStatus, pause, events, voiceTranscribe, registerSession, queryEvents, ...) are consumed directly by route handlers in webhook, workflow-ops, module-manager, commands, push-notification, and voice modules. Driving daemon-client.ts under the 300-line guideline therefore also requires refactoring those route handlers, not just relocating namespace closures. The task's "Done When" criteria are all-or-nothing (both files <300 lines, every namespace migrated, full CLI parity transcripts, guard test); a single autonomous builder run is unlikely to land that without leaving partial state. Owner question 41f97b38 asked on 2026-04-26.
+context: kota-client.ts is 1477 lines and daemon-client.ts is 1893 lines; DaemonControlClient has 104 references across the repo and ~20 of its public non-namespace transport methods (getDaemonStatus, pause, events, voiceTranscribe, registerSession, queryEvents, ...) are consumed directly by route handlers in webhook, workflow-ops, module-manager, commands, push-notification, and voice modules. Driving daemon-client.ts under the 300-line guideline therefore also requires refactoring those route handlers, not just relocating namespace closures. The task's "Done When" criteria are all-or-nothing (both files <300 lines, every namespace migrated, full CLI parity transcripts, guard test); a single autonomous builder run is unlikely to land that without leaving partial state. Owner question 41f97b38 asked on 2026-04-26. Recommended: decompose_into_foundation_plus_pilot_namespace_then_followups — see ## Decomposition Proposal in the body for the foundation shape (daemonClient hook + route-handler refactor) and the pilot-namespace contract that lets the remaining 22 namespaces fan out as independent backlog tasks once the pattern is in tree.
 proposed_answers: attempt_full_in_one_run, decompose_into_foundation_plus_per_namespace_subtasks, decompose_into_2_or_3_batched_subtasks, decompose_into_foundation_plus_pilot_namespace_then_followups, unblock
 ```
 
@@ -152,6 +152,56 @@ Module-first, core-shrinking architecture: every operator-facing
 capability — including its KotaClient contract — lives in the owning
 module, with `src/core/` reduced to genuine cross-cutting protocols
 and runtime primitives.
+
+## Decomposition Proposal
+
+Concrete shape for the recommended
+`decompose_into_foundation_plus_pilot_namespace_then_followups` answer.
+This is the chunk plan a follow-up builder picks up when the owner picks
+that answer; it is not normative for any other answer.
+
+**Foundation task** — introduces the cross-cutting infrastructure without
+moving any namespace shapes. Done When:
+
+- `KotaModule` carries a typed `daemonClient(link)` factory hook parallel
+  to `localClient(ctx)`. The loader and selector validate that every
+  declared namespace has both a local handler and a daemon handler
+  (failure is a load-time error, not a silent skip).
+- A small typed daemon-link object (`request<T>(method, path, body?)` plus
+  the SSE/timeout helpers genuinely shared by more than one namespace) is
+  the only surface module factories see. `node:http`, the bearer token,
+  and `.kota/daemon-control.json` reads stay inside
+  `src/core/server/daemon-client.ts`.
+- The ~20 non-namespace transport methods on `DaemonControlClient`
+  (`getDaemonStatus`, `pause`, `events`, `voiceTranscribe`,
+  `registerSession`, `queryEvents`, …) are refactored off direct callers
+  in webhook, workflow-ops, module-manager, commands, push-notification,
+  and voice modules. The receiving callers consume module-owned wrappers
+  or the typed link object instead of the central class.
+- A guard test rejects new per-namespace request/response type
+  declarations under `src/core/server/`. The existing
+  `kota-client-guard.test.ts` is updated, not duplicated.
+- No namespace shapes are moved yet. `kota-client.ts` and
+  `daemon-client.ts` may still be over the 300-line guideline at
+  foundation completion; they shrink as the pilot and follow-ups land.
+
+**Pilot namespace task** — migrates one namespace end-to-end through the
+foundation hook to validate the pattern. Recommended pilot: `doctor` or
+`config` (smallest namespace, fewest cross-module dependencies). Done When:
+
+- The pilot namespace's TypeScript interface and request/response types
+  live alongside its module's `localClient(ctx)` factory.
+- The pilot module's `daemonClient(link)` factory composes on top of the
+  typed link object and matches the daemon HTTP wire shape exactly.
+- Daemon-up and daemon-down CLI transcripts demonstrate parity for one
+  read and one mutation on the pilot namespace.
+- `kota-client.ts` and `daemon-client.ts` shrink by the pilot namespace's
+  share of lines.
+
+**Per-namespace follow-ups** — 22 backlog tasks, each migrating one
+remaining namespace using the established foundation+pilot pattern.
+Each follow-up is the size of one builder run; the parent task only
+moves to `done` once all 22 plus the file-size guideline are satisfied.
 
 ## Acceptance Evidence
 
