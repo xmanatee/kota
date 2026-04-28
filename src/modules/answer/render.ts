@@ -1,7 +1,7 @@
 /**
  * Plain-text rendering of cited-answer envelopes.
  *
- * Two responsibilities:
+ * Three responsibilities:
  *
  *   1. `renderAnswerCitationsPlain` lays out the typed citation list that
  *      resolves each `[source:id]` marker against its `RecallHit` payload.
@@ -14,11 +14,19 @@
  *      Telegram `/answer-log` command. Both surfaces share the same
  *      projection so a stored record looks the same when listed from a
  *      terminal and from chat.
+ *
+ *   3. `renderAnswerReplyPlain` renders one `AnswerResult` envelope as a
+ *      chat-shaped reply: the synthesized prose followed by the
+ *      `renderAnswerCitationsPlain` block on `ok: true`, or the fixed
+ *      failure body for each `ok: false` reason. Telegram and Slack
+ *      share this so a stored answer looks the same across messaging
+ *      channels.
  */
 
 import type {
   AnswerCitation,
   AnswerHistoryEntry,
+  AnswerResult,
   RecallHit,
 } from "#core/server/kota-client.js";
 
@@ -102,4 +110,39 @@ export function renderAnswerHistoryEntriesPlain(
       return `${ts}  ${badge}  ${entry.id}  ${query}`;
     })
     .join("\n");
+}
+
+/**
+ * Plain-text reply for chat-channel answer commands. Exhaustively covers
+ * the typed `AnswerResult` discriminated union — `ok: true` plus the
+ * three `ok: false` reasons — with no `default` branch, so a future
+ * additional reason cannot silently fall through to a happy-path render.
+ * The success branch lays out the synthesized prose first (markers
+ * preserved inline) followed by a labeled citation block sharing the
+ * `renderAnswerCitationsPlain` helper that the CLI surface uses.
+ */
+const ANSWER_FAILURE_BODY: Record<
+  Extract<AnswerResult, { ok: false }>["reason"],
+  string
+> = {
+  no_hits: "No matching sources across the second brain — nothing to synthesize.",
+  semantic_unavailable: "Cross-store recall has no registered contributors.",
+  synthesis_failed:
+    "Synthesis failed (model unreachable or unable to cite resolvable sources).",
+};
+
+export function renderAnswerReplyPlain(result: AnswerResult): string {
+  if (result.ok) {
+    const citationsBlock = renderAnswerCitationsPlain(result.citations, result.hits);
+    if (citationsBlock === "") return result.answer;
+    return `${result.answer}\n\nCitations\n${citationsBlock}`;
+  }
+  switch (result.reason) {
+    case "no_hits":
+      return ANSWER_FAILURE_BODY.no_hits;
+    case "semantic_unavailable":
+      return ANSWER_FAILURE_BODY.semantic_unavailable;
+    case "synthesis_failed":
+      return ANSWER_FAILURE_BODY.synthesis_failed;
+  }
 }

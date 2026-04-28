@@ -11,10 +11,10 @@ import type {
   RecallClient,
   RepoTasksClient,
 } from "#core/server/kota-client.js";
+import { renderAnswerReplyPlain } from "#modules/answer/render.js";
 import { callTelegramApi } from "./client.js";
 import {
   buildStatusText,
-  renderAnswerReplyPlain,
   type StatusInfo,
   startTelegramStatusPoll,
 } from "./status-poll.js";

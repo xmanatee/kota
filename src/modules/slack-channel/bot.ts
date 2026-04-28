@@ -11,6 +11,11 @@ import type { KotaConfig } from "#core/config/config.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
 import { NullTransport, ProxyTransport } from "#core/loop/transport.js";
+import type {
+  AnswerClient,
+  CaptureClient,
+  RecallClient,
+} from "#core/server/kota-client.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
   callSlackApi,
@@ -21,6 +26,11 @@ import {
   SlackTransport,
   type SocketPayload,
 } from "./client.js";
+import {
+  dispatchSlackSlashCommand,
+  parseSlackSlashCommand,
+  type SlackParsedCommand,
+} from "./commands.js";
 
 export type SlackBotOptions = {
   botToken: string;
@@ -30,6 +40,10 @@ export type SlackBotOptions = {
   verbose?: boolean;
   config?: KotaConfig;
   autonomyMode: AutonomyMode;
+  /** Cross-store seam clients used by `/recall`, `/answer`, `/capture`. */
+  recall: RecallClient;
+  answer: AnswerClient;
+  capture: CaptureClient;
 };
 
 /** Formats an approval request as Block Kit blocks with Approve/Reject buttons. */
@@ -190,6 +204,12 @@ export class SlackBot {
   }
 
   private async handleMessage(userId: string, channelId: string, text: string): Promise<void> {
+    const parsed = parseSlackSlashCommand(text);
+    if (parsed) {
+      await this.handleSlashCommand(channelId, parsed, userId);
+      return;
+    }
+
     if (this.busyUsers.has(userId)) {
       await callSlackApi(this.options.botToken, "chat.postMessage", {
         channel: channelId,
@@ -222,6 +242,34 @@ export class SlackBot {
       const session = this.sessions.get(userId);
       if (session) session.proxy.target = new NullTransport();
       this.busyUsers.delete(userId);
+    }
+  }
+
+  private async handleSlashCommand(
+    channelId: string,
+    parsed: SlackParsedCommand,
+    userId: string,
+  ): Promise<void> {
+    try {
+      await dispatchSlackSlashCommand({
+        token: this.options.botToken,
+        channelId,
+        parsed,
+        clients: {
+          recall: this.options.recall,
+          answer: this.options.answer,
+          capture: this.options.capture,
+        },
+      });
+    } catch (err) {
+      const message = (err as Error).message;
+      console.error(
+        `[kota-slack] Slash command error for user ${userId} (${parsed.command}): ${message}`,
+      );
+      await callSlackApi(this.options.botToken, "chat.postMessage", {
+        channel: channelId,
+        text: `Command failed: ${message}`,
+      });
     }
   }
 

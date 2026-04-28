@@ -1,14 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type {
+  AnswerClient,
+  CaptureClient,
+  RecallClient,
+} from "#core/server/kota-client.js";
 import { SlackBot } from "./bot.js";
 
 // Mock external dependencies at module level
-vi.mock("./client.js", () => {
+vi.mock("./client.js", async () => {
+  const actual =
+    await vi.importActual<typeof import("./client.js")>("./client.js");
   const SlackTransport = vi.fn(function (this: Record<string, unknown>) {
     this.emit = vi.fn();
     this.flush = vi.fn().mockResolvedValue(undefined);
     this.getBuffer = vi.fn().mockReturnValue("");
   });
   return {
+    ...actual,
     callSlackApi: vi.fn().mockResolvedValue({}),
     openSocketModeUrl: vi.fn().mockResolvedValue("wss://fake.slack.com/ws"),
     SlackTransport,
@@ -50,12 +58,25 @@ const mockedCallSlackApi = vi.mocked(callSlackApi);
 const mockedOpenSocketModeUrl = vi.mocked(openSocketModeUrl);
 const mockedGetApprovalQueue = vi.mocked(getApprovalQueue);
 
+function makeStubClients(): {
+  recall: RecallClient;
+  answer: AnswerClient;
+  capture: CaptureClient;
+} {
+  return {
+    recall: { recall: vi.fn() },
+    answer: { answer: vi.fn(), log: vi.fn(), show: vi.fn() },
+    capture: { capture: vi.fn() },
+  };
+}
+
 function makeBot(overrides?: Partial<ConstructorParameters<typeof SlackBot>[0]>) {
   return new SlackBot({
     botToken: "xoxb-test",
     appToken: "xapp-test",
     notifyChannel: "C-NOTIFY",
     autonomyMode: "supervised",
+    ...makeStubClients(),
     ...overrides,
   });
 }
@@ -612,6 +633,390 @@ describe("SlackBot", () => {
       bot.stop();
       expect(closeFn).toHaveBeenCalledTimes(2);
 
+      await startPromise.catch(() => {});
+    });
+  });
+
+  // --- Slash commands: /recall, /answer, /capture, /capture-to-* ---
+
+  describe("slash commands", () => {
+    function findPostMessage(channelId: string): Record<string, unknown> | null {
+      const calls = mockedCallSlackApi.mock.calls.filter(
+        (call) =>
+          call[1] === "chat.postMessage" &&
+          (call[2] as { channel?: string }).channel === channelId,
+      );
+      const last = calls[calls.length - 1];
+      return last ? (last[2] as Record<string, unknown>) : null;
+    }
+
+    async function sendSlashAndAwait(
+      channelId: string,
+      text: string,
+      ws: MockWebSocket,
+      envelope: string,
+    ): Promise<Record<string, unknown>> {
+      ws.simulateMessage({
+        type: "events_api",
+        envelope_id: envelope,
+        payload: {
+          event: { type: "message", text, user: "U-SLASH", channel: channelId },
+        },
+      });
+      await vi.waitFor(() => {
+        const post = findPostMessage(channelId);
+        if (!post) throw new Error("no chat.postMessage yet");
+      });
+      return findPostMessage(channelId)!;
+    }
+
+    it("/recall <query> calls recall.recall and renders the hits", async () => {
+      const recallFn = vi.fn().mockResolvedValue({
+        ok: true,
+        hits: [
+          {
+            source: "knowledge",
+            id: "k1",
+            title: "Slack adoption notes",
+            score: 0.42,
+          },
+        ],
+      });
+      const bot = makeBot({ recall: { recall: recallFn } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait(
+        "D-RECALL",
+        "/recall slack",
+        ws,
+        "env-r1",
+      );
+
+      expect(recallFn).toHaveBeenCalledWith("slack");
+      expect(post.text).toContain("knowledge");
+      expect(post.text).toContain("k1");
+      expect(post.text).toContain("Slack adoption notes");
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/recall surfaces semantic_unavailable as the unconfigured notice", async () => {
+      const recallFn = vi
+        .fn()
+        .mockResolvedValue({ ok: false, reason: "semantic_unavailable" });
+      const bot = makeBot({ recall: { recall: recallFn } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait(
+        "D-RECALL2",
+        "/recall anything",
+        ws,
+        "env-r2",
+      );
+
+      expect(post.text).toBe(
+        "Cross-store recall is not configured: no contributors are registered.",
+      );
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/recall with an empty query replies with a usage hint and skips the call", async () => {
+      const recallFn = vi.fn();
+      const bot = makeBot({ recall: { recall: recallFn } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait("D-RECALL3", "/recall", ws, "env-r3");
+
+      expect(post.text).toBe("Usage: /recall <query>");
+      expect(recallFn).not.toHaveBeenCalled();
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/answer <query> calls answer.answer and renders the synthesized prose plus citations", async () => {
+      const answerFn = vi.fn().mockResolvedValue({
+        ok: true,
+        answer: "KOTA is a personal knowledge agent. [knowledge:k1]",
+        citations: [{ source: "knowledge", id: "k1" }],
+        hits: [
+          {
+            source: "knowledge",
+            id: "k1",
+            title: "KOTA overview",
+            score: 0.91,
+          },
+        ],
+      });
+      const bot = makeBot({
+        answer: { answer: answerFn, log: vi.fn(), show: vi.fn() },
+      });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait(
+        "D-ANSWER",
+        "/answer what is kota",
+        ws,
+        "env-a1",
+      );
+
+      expect(answerFn).toHaveBeenCalledWith("what is kota");
+      expect(post.text).toContain("KOTA is a personal knowledge agent.");
+      expect(post.text).toContain("Citations");
+      expect(post.text).toContain("k1");
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/answer surfaces no_hits and synthesis_failed reasons one-to-one", async () => {
+      const answerFn = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false, reason: "no_hits" })
+        .mockResolvedValueOnce({ ok: false, reason: "synthesis_failed" });
+      const bot = makeBot({
+        answer: { answer: answerFn, log: vi.fn(), show: vi.fn() },
+      });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post1 = await sendSlashAndAwait(
+        "D-AN1",
+        "/answer foo",
+        ws,
+        "env-a2",
+      );
+      expect(post1.text).toBe(
+        "No matching sources across the second brain — nothing to synthesize.",
+      );
+
+      const post2 = await sendSlashAndAwait(
+        "D-AN2",
+        "/answer bar",
+        ws,
+        "env-a3",
+      );
+      expect(post2.text).toBe(
+        "Synthesis failed (model unreachable or unable to cite resolvable sources).",
+      );
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/answer with empty query replies with a usage hint and skips the call", async () => {
+      const answerFn = vi.fn();
+      const bot = makeBot({
+        answer: { answer: answerFn, log: vi.fn(), show: vi.fn() },
+      });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait("D-AN3", "/answer    ", ws, "env-a4");
+      expect(post.text).toBe("Usage: /answer <query>");
+      expect(answerFn).not.toHaveBeenCalled();
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/capture <text> calls capture.capture without a target and renders the success arm", async () => {
+      const captureFn = vi.fn().mockResolvedValue({
+        ok: true,
+        record: { target: "memory", recordId: "mem-42" },
+      });
+      const bot = makeBot({ capture: { capture: captureFn } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait(
+        "D-CAP",
+        "/capture remember to call alice",
+        ws,
+        "env-c1",
+      );
+
+      expect(captureFn).toHaveBeenCalledWith("remember to call alice", undefined);
+      expect(post.text).toBe("Captured to memory: mem-42");
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/capture-to-tasks dispatches with target=tasks and renders the path-bearing success arm", async () => {
+      const captureFn = vi.fn().mockResolvedValue({
+        ok: true,
+        record: {
+          target: "tasks",
+          recordId: "task-fix-redirect",
+          path: "data/tasks/ready/task-fix-redirect.md",
+        },
+      });
+      const bot = makeBot({ capture: { capture: captureFn } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait(
+        "D-CAP-T",
+        "/capture-to-tasks fix the login redirect",
+        ws,
+        "env-c2",
+      );
+
+      expect(captureFn).toHaveBeenCalledWith("fix the login redirect", {
+        target: "tasks",
+      });
+      expect(post.text).toBe(
+        "Captured to tasks: task-fix-redirect (data/tasks/ready/task-fix-redirect.md)",
+      );
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/capture surfaces ambiguous, no_contributors, and contributor_failed arms", async () => {
+      const captureFn = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          reason: "ambiguous",
+          suggestions: ["memory", "knowledge", "tasks", "inbox"],
+        })
+        .mockResolvedValueOnce({ ok: false, reason: "no_contributors" })
+        .mockResolvedValueOnce({
+          ok: false,
+          reason: "contributor_failed",
+          target: "inbox",
+          message: "permission denied",
+        });
+      const bot = makeBot({ capture: { capture: captureFn } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post1 = await sendSlashAndAwait(
+        "D-CAPF1",
+        "/capture something vague",
+        ws,
+        "env-c3",
+      );
+      expect(post1.text).toBe(
+        "Capture target ambiguous. Suggestions: memory, knowledge, tasks, inbox. Re-run with one of: /capture-to-memory, /capture-to-knowledge, /capture-to-tasks, /capture-to-inbox.",
+      );
+
+      const post2 = await sendSlashAndAwait(
+        "D-CAPF2",
+        "/capture another",
+        ws,
+        "env-c4",
+      );
+      expect(post2.text).toBe(
+        "Cross-store capture has no registered contributors.",
+      );
+
+      const post3 = await sendSlashAndAwait(
+        "D-CAPF3",
+        "/capture-to-inbox raw thought",
+        ws,
+        "env-c5",
+      );
+      expect(post3.text).toBe("Capture into inbox failed: permission denied");
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/capture with empty body short-circuits to the ambiguous body and skips the seam", async () => {
+      const captureFn = vi.fn();
+      const bot = makeBot({ capture: { capture: captureFn } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait("D-CAPE", "/capture   ", ws, "env-c6");
+      expect(post.text).toBe(
+        "Capture target ambiguous. Suggestions: memory, knowledge, tasks, inbox. Re-run with one of: /capture-to-memory, /capture-to-knowledge, /capture-to-tasks, /capture-to-inbox.",
+      );
+      expect(captureFn).not.toHaveBeenCalled();
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("strips a leading bot-mention prefix and matches the command case-insensitively", async () => {
+      const recallFn = vi.fn().mockResolvedValue({ ok: true, hits: [] });
+      const bot = makeBot({ recall: { recall: recallFn } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      await sendSlashAndAwait(
+        "D-MEN",
+        "<@U987654> /Recall protocols",
+        ws,
+        "env-mn1",
+      );
+
+      expect(recallFn).toHaveBeenCalledWith("protocols");
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("does not create a session for a slash command", async () => {
+      const recallFn = vi.fn().mockResolvedValue({ ok: true, hits: [] });
+      const bot = makeBot({ recall: { recall: recallFn } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      await sendSlashAndAwait("D-NS1", "/recall x", ws, "env-ns1");
+
+      expect(AgentSession).not.toHaveBeenCalled();
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("free-form (non-slash) DMs still route to the per-user session", async () => {
+      const recallFn = vi.fn();
+      const captureFn = vi.fn();
+      const bot = makeBot({
+        recall: { recall: recallFn },
+        capture: { capture: captureFn },
+      });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      ws.simulateMessage({
+        type: "events_api",
+        envelope_id: "env-ff1",
+        payload: {
+          event: { type: "message", text: "hello bot", user: "U-FREE", channel: "D-FREE" },
+        },
+      });
+
+      await vi.waitFor(() => expect(AgentSession).toHaveBeenCalled());
+      expect(recallFn).not.toHaveBeenCalled();
+      expect(captureFn).not.toHaveBeenCalled();
+
+      bot.stop();
       await startPromise.catch(() => {});
     });
   });

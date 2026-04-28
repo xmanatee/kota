@@ -1,12 +1,12 @@
 ---
 id: task-add-slack-channel-recall-answer-and-capture-comman
 title: Add Slack-channel /recall, /answer, and /capture commands consuming the cross-store seams
-status: backlog
+status: done
 priority: p1
 area: modules
 summary: Extend src/modules/slack-channel/bot.ts with first-class slash commands /recall, /answer, and /capture that route through the same cross-store seams Telegram already consumes, achieving second-channel parity for the unified knowledge fan-out and giving Slack-resident operators the same recall/answer/capture surface as Telegram users.
 created_at: 2026-04-28T05:27:28.853Z
-updated_at: 2026-04-28T05:27:28.853Z
+updated_at: 2026-04-28T05:55:55.091Z
 ---
 
 ## Problem

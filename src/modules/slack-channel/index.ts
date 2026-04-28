@@ -58,6 +58,7 @@ const slackChannelModule: KotaModule = {
   name: "slack-channel",
   version: "1.0.0",
   description: "Bidirectional Slack bot channel for KOTA (Socket Mode)",
+  dependencies: ["answer", "capture", "recall"],
   configSchema: {
     type: "object",
     additionalProperties: false,
@@ -93,6 +94,9 @@ const slackChannelModule: KotaModule = {
       notifyChannel: config.notifyChannel,
       config: ctx.config,
       autonomyMode,
+      recall: ctx.client.recall,
+      answer: ctx.client.answer,
+      capture: ctx.client.capture,
     });
 
     approvalUnsub = ctx.events.subscribe("approval.requested", (payload) => {

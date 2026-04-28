@@ -1,7 +1,6 @@
 import { join } from "node:path";
 import type {
   AnswerClient,
-  AnswerResult,
   CaptureClient,
   CaptureFilter,
   CaptureTarget,
@@ -13,8 +12,8 @@ import type {
 } from "#core/server/kota-client.js";
 import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
 import {
-  renderAnswerCitationsPlain,
   renderAnswerHistoryEntriesPlain,
+  renderAnswerReplyPlain,
 } from "#modules/answer/render.js";
 import { computeCostByWorkflow, loadRecentRuns } from "#modules/autonomy/shared.js";
 import { renderOnDemandAttention } from "#modules/autonomy/workflows/attention-digest/step.js";
@@ -75,41 +74,6 @@ export function buildStatusText({ runtimeState, dispatchPaused, runsDir }: Statu
   }
 
   return lines.join("\n");
-}
-
-/**
- * Plain-text reply for the `/answer` chat command. Exhaustively covers
- * the typed `AnswerResult` discriminated union — `ok: true` plus the
- * three `ok: false` reasons — with no `default` branch, so a future
- * additional reason cannot silently fall through to a happy-path render.
- * The success branch lays out the synthesized prose first (markers
- * preserved inline) followed by a labeled citation block sharing the
- * `renderAnswerCitationsPlain` helper that the CLI surface uses.
- */
-const ANSWER_FAILURE_BODY: Record<
-  Extract<AnswerResult, { ok: false }>["reason"],
-  string
-> = {
-  no_hits: "No matching sources across the second brain — nothing to synthesize.",
-  semantic_unavailable: "Cross-store recall has no registered contributors.",
-  synthesis_failed:
-    "Synthesis failed (model unreachable or unable to cite resolvable sources).",
-};
-
-export function renderAnswerReplyPlain(result: AnswerResult): string {
-  if (result.ok) {
-    const citationsBlock = renderAnswerCitationsPlain(result.citations, result.hits);
-    if (citationsBlock === "") return result.answer;
-    return `${result.answer}\n\nCitations\n${citationsBlock}`;
-  }
-  switch (result.reason) {
-    case "no_hits":
-      return ANSWER_FAILURE_BODY.no_hits;
-    case "semantic_unavailable":
-      return ANSWER_FAILURE_BODY.semantic_unavailable;
-    case "synthesis_failed":
-      return ANSWER_FAILURE_BODY.synthesis_failed;
-  }
 }
 
 function truncateForTelegram(body: string): string {
