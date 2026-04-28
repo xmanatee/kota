@@ -811,6 +811,153 @@ describe('DaemonClient', () => {
     await expect(client().answer('x')).rejects.toThrow('503');
   });
 
+  test('capture posts text to /api/capture and decodes the success branch across record arms', async () => {
+    const tasksSuccess = {
+      ok: true,
+      record: {
+        target: 'tasks',
+        recordId: 'task-buy-milk',
+        path: 'data/tasks/ready/task-buy-milk.md',
+      },
+    };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(tasksSuccess));
+    const tasksRes = await client().capture('buy milk', {
+      target: 'tasks',
+      hint: 'shopping',
+    });
+    const [tasksUrl, tasksInit] = lastCall();
+    expect(tasksUrl).toBe(`${baseUrl}/api/capture`);
+    expect(tasksInit?.method).toBe('POST');
+    expect(tasksInit?.body).toBe(
+      JSON.stringify({
+        text: 'buy milk',
+        filter: { target: 'tasks', hint: 'shopping' },
+      }),
+    );
+    expect(lastHeaders().Authorization).toBe(`Bearer ${token}`);
+    expect(lastHeaders()['Content-Type']).toBe('application/json');
+    expect(tasksRes).toEqual(tasksSuccess);
+
+    const memorySuccess = {
+      ok: true,
+      record: { target: 'memory', recordId: 'mem-42' },
+    };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(memorySuccess));
+    const memoryRes = await client().capture('remember the milk');
+    const memoryInit = lastCall()[1];
+    expect(memoryInit?.body).toBe(
+      JSON.stringify({ text: 'remember the milk' }),
+    );
+    expect(memoryRes).toEqual(memorySuccess);
+  });
+
+  test('capture only sends a filter when at least one option is set', async () => {
+    fetchSpy.mockImplementation(async () =>
+      jsonResponse({ ok: false, reason: 'no_contributors' }),
+    );
+
+    await client().capture('x');
+    expect(lastCall()[1]?.body).toBe(JSON.stringify({ text: 'x' }));
+
+    await client().capture('x', { target: 'inbox' });
+    expect(lastCall()[1]?.body).toBe(
+      JSON.stringify({ text: 'x', filter: { target: 'inbox' } }),
+    );
+
+    await client().capture('x', { hint: 'misc' });
+    expect(lastCall()[1]?.body).toBe(
+      JSON.stringify({ text: 'x', filter: { hint: 'misc' } }),
+    );
+  });
+
+  test('capture decodes the ambiguous branch preserving suggestion order', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({
+        ok: false,
+        reason: 'ambiguous',
+        suggestions: ['knowledge', 'memory'],
+      }),
+    );
+    const res = await client().capture('a fact about a place');
+    expect(res).toEqual({
+      ok: false,
+      reason: 'ambiguous',
+      suggestions: ['knowledge', 'memory'],
+    });
+  });
+
+  test('capture decodes the no_contributors branch verbatim', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, reason: 'no_contributors' }),
+    );
+    const res = await client().capture('anything');
+    expect(res).toEqual({ ok: false, reason: 'no_contributors' });
+  });
+
+  test('capture decodes the contributor_failed branch with target and message', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({
+        ok: false,
+        reason: 'contributor_failed',
+        target: 'inbox',
+        message: 'inbox writer cannot reach project root',
+      }),
+    );
+    const res = await client().capture('boom');
+    expect(res).toEqual({
+      ok: false,
+      reason: 'contributor_failed',
+      target: 'inbox',
+      message: 'inbox writer cannot reach project root',
+    });
+  });
+
+  test('capture rejects an unknown reason loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, reason: 'mystery' }),
+    );
+    await expect(client().capture('x')).rejects.toThrow(/mystery/);
+  });
+
+  test('capture rejects a malformed record loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({
+        ok: true,
+        record: { target: 'tasks', recordId: 'task-foo' },
+      }),
+    );
+    await expect(client().capture('x')).rejects.toThrow(/tasks path/i);
+  });
+
+  test('capture rejects an unknown target on a success record loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({
+        ok: true,
+        record: { target: 'rumor', recordId: 'r-1' },
+      }),
+    );
+    await expect(client().capture('x')).rejects.toThrow(/unknown target/i);
+  });
+
+  test('capture rejects an unknown contributor_failed target loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({
+        ok: false,
+        reason: 'contributor_failed',
+        target: 'rumor',
+        message: 'boom',
+      }),
+    );
+    await expect(client().capture('x')).rejects.toThrow(/unknown target/i);
+  });
+
+  test('capture surfaces the daemon HTTP error one-to-one', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response('', { status: 503, statusText: 'Service Unavailable' }),
+    );
+    await expect(client().capture('x')).rejects.toThrow('503');
+  });
+
   test('health hits /health without auth header (public endpoint)', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({ status: 'ok', version: '1', uptimeMs: 1, components: {} }));
     await client().health();

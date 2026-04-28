@@ -534,3 +534,102 @@ export type AnswerResult =
       ok: false;
       reason: 'no_hits' | 'semantic_unavailable' | 'synthesis_failed';
     };
+
+/**
+ * Target store for `DaemonClient.capture`. Mirrors the daemon's
+ * `CaptureTarget` union exported from `src/core/server/kota-client.ts:758`.
+ * Adding a fifth contributor extends this union and the `CaptureRecord`
+ * arms below.
+ */
+export type CaptureTarget = 'memory' | 'knowledge' | 'tasks' | 'inbox';
+
+export interface CaptureMemoryRecord {
+  target: 'memory';
+  recordId: string;
+}
+
+export interface CaptureKnowledgeRecord {
+  target: 'knowledge';
+  recordId: string;
+}
+
+export interface CaptureTasksRecord {
+  target: 'tasks';
+  recordId: string;
+  path: string;
+}
+
+export interface CaptureInboxRecord {
+  target: 'inbox';
+  recordId: string;
+  path: string;
+}
+
+/**
+ * Discriminated mirror of the daemon's `CaptureRecord` union
+ * (`src/core/server/kota-client.ts:760-797`). Each successful capture
+ * returns the typed identifier the underlying store minted; the
+ * filesystem-backed contributors (tasks, inbox) additionally carry the
+ * path their writer minted so a caller can resolve back to the
+ * underlying store. Decoding is keyed by the wire `target` field, with
+ * every per-arm field required on the daemon side — no nullable shape.
+ */
+export type CaptureRecord =
+  | CaptureMemoryRecord
+  | CaptureKnowledgeRecord
+  | CaptureTasksRecord
+  | CaptureInboxRecord;
+
+/**
+ * Optional filter accepted by `DaemonClient.capture`. Both fields are
+ * optional; the daemon seam classifies on its own when `target` is not
+ * set. Mirror of the daemon's `CaptureFilter`. A nil target/hint omits
+ * the corresponding key on the wire so the seam applies its own typed
+ * defaults; when both are nil, the request omits `filter` entirely.
+ */
+export interface CaptureFilter {
+  target?: CaptureTarget;
+  hint?: string;
+}
+
+/**
+ * Discriminated mirror of the daemon's `CaptureResult` envelope
+ * (`src/core/server/kota-client.ts:833-846`): one `ok: true` arm
+ * carrying the typed `CaptureRecord` plus three `ok: false` arms tagged
+ * by `reason`. Strict so payload drift fails loudly instead of silently
+ * degrading the rendered surface.
+ *
+ * - `ambiguous` — the classifier could not pick a single target; the
+ *   `suggestions` list is the contributors it considered. The caller
+ *   re-issues with an explicit `target` to disambiguate.
+ * - `no_contributors` — the seam has no registered contributors at all.
+ * - `contributor_failed` — the chosen contributor threw; `target` is
+ *   the contributor that ran and `message` is the verbatim error.
+ */
+export type CaptureResult =
+  | { ok: true; record: CaptureRecord }
+  | {
+      ok: false;
+      reason: 'ambiguous';
+      suggestions: ReadonlyArray<CaptureTarget>;
+    }
+  | { ok: false; reason: 'no_contributors' }
+  | {
+      ok: false;
+      reason: 'contributor_failed';
+      target: CaptureTarget;
+      message: string;
+    };
+
+/**
+ * Stable contributor ordering used by the seam to render `suggestions`
+ * deterministically. The mobile picker mirrors this order so the
+ * target chip ordering matches what the seam returns and what the web
+ * `CapturePanel` renders.
+ */
+export const CAPTURE_TARGET_ORDER: ReadonlyArray<CaptureTarget> = [
+  'memory',
+  'knowledge',
+  'tasks',
+  'inbox',
+] as const;

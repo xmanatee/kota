@@ -2,6 +2,8 @@ import type {
   AnswerResult,
   Approval,
   AttentionResponse,
+  CaptureResult,
+  CaptureTarget,
   DaemonStatus,
   DigestResponse,
   HistorySearchResponse,
@@ -13,6 +15,14 @@ import type {
   TasksResponse,
   TasksSearchResponse,
 } from '../types';
+
+/**
+ * Picker selection for the capture target. `auto` collapses to "no
+ * target on the wire" so the daemon classifier picks the destination.
+ * Per-store values pin the contributor verbatim. The picker is the
+ * mobile equivalent of the CLI `--target` flag.
+ */
+export type CaptureTargetChoice = 'auto' | CaptureTarget;
 
 export interface DaemonState {
   daemonUrl: string;
@@ -59,6 +69,12 @@ export interface DaemonState {
   answerResult: AnswerResult | null;
   answerLoading: boolean;
   answerError: string | null;
+  captureText: string;
+  captureTarget: CaptureTargetChoice;
+  captureHint: string;
+  captureResult: CaptureResult | null;
+  captureLoading: boolean;
+  captureError: string | null;
 }
 
 export type DaemonAction =
@@ -104,7 +120,13 @@ export type DaemonAction =
   | { type: 'ANSWER_QUERY_SET'; query: string }
   | { type: 'ANSWER_LOADING'; query: string }
   | { type: 'ANSWER_RESULT'; result: AnswerResult }
-  | { type: 'ANSWER_ERROR'; error: string };
+  | { type: 'ANSWER_ERROR'; error: string }
+  | { type: 'CAPTURE_TEXT_SET'; text: string }
+  | { type: 'CAPTURE_TARGET_SET'; target: CaptureTargetChoice }
+  | { type: 'CAPTURE_HINT_SET'; hint: string }
+  | { type: 'CAPTURE_LOADING' }
+  | { type: 'CAPTURE_RESULT'; result: CaptureResult }
+  | { type: 'CAPTURE_ERROR'; error: string };
 
 export const initialState: DaemonState = {
   daemonUrl: '',
@@ -151,6 +173,12 @@ export const initialState: DaemonState = {
   answerResult: null,
   answerLoading: false,
   answerError: null,
+  captureText: '',
+  captureTarget: 'auto',
+  captureHint: '',
+  captureResult: null,
+  captureLoading: false,
+  captureError: null,
 };
 
 export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
@@ -198,6 +226,9 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         answerResult: action.online ? state.answerResult : null,
         answerError: action.online ? state.answerError : null,
         answerLoading: action.online ? state.answerLoading : false,
+        captureResult: action.online ? state.captureResult : null,
+        captureError: action.online ? state.captureError : null,
+        captureLoading: action.online ? state.captureLoading : false,
       };
     case 'SSE_STATUS':
       return { ...state, sseConnected: action.connected };
@@ -392,6 +423,28 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         answerLoading: false,
         answerError: action.error,
         answerResult: null,
+      };
+    case 'CAPTURE_TEXT_SET':
+      return { ...state, captureText: action.text };
+    case 'CAPTURE_TARGET_SET':
+      return { ...state, captureTarget: action.target };
+    case 'CAPTURE_HINT_SET':
+      return { ...state, captureHint: action.hint };
+    case 'CAPTURE_LOADING':
+      return { ...state, captureLoading: true, captureError: null };
+    case 'CAPTURE_RESULT':
+      return {
+        ...state,
+        captureResult: action.result,
+        captureLoading: false,
+        captureError: null,
+      };
+    case 'CAPTURE_ERROR':
+      return {
+        ...state,
+        captureLoading: false,
+        captureError: action.error,
+        captureResult: null,
       };
   }
 }

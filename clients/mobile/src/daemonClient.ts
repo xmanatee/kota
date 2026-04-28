@@ -5,6 +5,10 @@ import type {
   Approval,
   AttentionResponse,
   AutonomyMode,
+  CaptureFilter,
+  CaptureRecord,
+  CaptureResult,
+  CaptureTarget,
   ConversationRecord,
   DaemonStatus,
   DigestResponse,
@@ -29,6 +33,7 @@ import type {
   VoiceSynthesizeResult,
   VoiceTranscribeResult,
 } from './types';
+import { CAPTURE_TARGET_ORDER } from './types';
 import { bytesToBase64, base64ToBytes } from './voice/base64';
 
 export class DaemonClient {
@@ -280,6 +285,35 @@ export class DaemonClient {
       body: JSON.stringify(body),
     });
     return parseAnswerResult(parsed);
+  }
+
+  /**
+   * Targets the daemon's `POST /api/capture` user-facing route — the
+   * same route the embedded web `CapturePanel` consumes — and decodes
+   * the discriminated four-arm `CaptureResult`: one `ok: true` arm
+   * carrying the typed `CaptureRecord`, plus three `ok: false` arms
+   * (`ambiguous`, `no_contributors`, `contributor_failed`). The optional
+   * per-field filter keys (`target`, `hint`) are emitted only when set
+   * so the seam applies its own typed defaults (classifier picks the
+   * target; no hint passed). When both are nil, the `filter` key is
+   * omitted entirely. Mirrors the macOS `DaemonClient.capture` decode
+   * discipline: payload drift fails loudly instead of silently
+   * degrading the rendered surface.
+   */
+  async capture(
+    text: string,
+    options: CaptureFilter = {},
+  ): Promise<CaptureResult> {
+    const filter: CaptureFilter = {};
+    if (options.target !== undefined) filter.target = options.target;
+    if (options.hint !== undefined) filter.hint = options.hint;
+    const body: Record<string, unknown> = { text };
+    if (Object.keys(filter).length > 0) body.filter = filter;
+    const parsed = await this.request<unknown>('/api/capture', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    return parseCaptureResult(parsed);
   }
 
   registerPushToken(deviceId: string, token: string): Promise<{ ok: boolean }> {
@@ -787,4 +821,84 @@ function parseAnswerCitation(value: unknown): AnswerCitation {
     throw new Error('Invalid answer citation: missing required fields');
   }
   return { source: obj.source as RecallSource, id: obj.id };
+}
+
+const CAPTURE_TARGETS: ReadonlyArray<CaptureTarget> = CAPTURE_TARGET_ORDER;
+
+function parseCaptureTarget(value: unknown, context: string): CaptureTarget {
+  if (
+    typeof value !== 'string' ||
+    !(CAPTURE_TARGETS as readonly string[]).includes(value)
+  ) {
+    throw new Error(`Invalid capture ${context}: unknown target ${String(value)}`);
+  }
+  return value as CaptureTarget;
+}
+
+function parseCaptureRecord(value: unknown): CaptureRecord {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid capture record: not an object');
+  }
+  const obj = value as Record<string, unknown>;
+  const target = parseCaptureTarget(obj.target, 'record');
+  if (typeof obj.recordId !== 'string') {
+    throw new Error('Invalid capture record: recordId missing');
+  }
+  switch (target) {
+    case 'memory':
+      return { target: 'memory', recordId: obj.recordId };
+    case 'knowledge':
+      return { target: 'knowledge', recordId: obj.recordId };
+    case 'tasks':
+      if (typeof obj.path !== 'string') {
+        throw new Error('Invalid capture record: tasks path missing');
+      }
+      return { target: 'tasks', recordId: obj.recordId, path: obj.path };
+    case 'inbox':
+      if (typeof obj.path !== 'string') {
+        throw new Error('Invalid capture record: inbox path missing');
+      }
+      return { target: 'inbox', recordId: obj.recordId, path: obj.path };
+  }
+}
+
+function parseCaptureResult(value: unknown): CaptureResult {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid capture response: not an object');
+  }
+  const obj = value as Record<string, unknown>;
+  if (obj.ok === true) {
+    return { ok: true, record: parseCaptureRecord(obj.record) };
+  }
+  if (obj.ok === false) {
+    const reason = obj.reason;
+    if (reason === 'ambiguous') {
+      if (!Array.isArray(obj.suggestions)) {
+        throw new Error('Invalid capture response: suggestions missing');
+      }
+      const suggestions = obj.suggestions.map((s) =>
+        parseCaptureTarget(s, 'suggestion'),
+      );
+      return { ok: false, reason: 'ambiguous', suggestions };
+    }
+    if (reason === 'no_contributors') {
+      return { ok: false, reason: 'no_contributors' };
+    }
+    if (reason === 'contributor_failed') {
+      const target = parseCaptureTarget(obj.target, 'failure');
+      if (typeof obj.message !== 'string') {
+        throw new Error('Invalid capture response: contributor_failed message missing');
+      }
+      return {
+        ok: false,
+        reason: 'contributor_failed',
+        target,
+        message: obj.message,
+      };
+    }
+    throw new Error(
+      `Invalid capture response: unknown reason ${String(reason)}`,
+    );
+  }
+  throw new Error('Invalid capture response: missing ok flag');
 }

@@ -10,8 +10,13 @@ import React, {
 import { DaemonClient } from '../daemonClient';
 import { useSSE } from '../hooks/useSSE';
 import { registerPushTokenWithDaemon } from '../pushNotifications';
-import type { SseEvent } from '../types';
-import { type DaemonState, initialState, reducer } from './state';
+import type { CaptureFilter, SseEvent } from '../types';
+import {
+  type CaptureTargetChoice,
+  type DaemonState,
+  initialState,
+  reducer,
+} from './state';
 
 const URL_KEY = 'kota_daemon_url';
 const TOKEN_KEY = 'kota_daemon_token';
@@ -37,6 +42,10 @@ interface DaemonContextValue {
   recall: (query: string) => Promise<void>;
   setAnswerQuery: (query: string) => void;
   answer: (query: string) => Promise<void>;
+  setCaptureText: (text: string) => void;
+  setCaptureTarget: (target: CaptureTargetChoice) => void;
+  setCaptureHint: (hint: string) => void;
+  capture: (text: string, options?: CaptureFilter) => Promise<void>;
 }
 
 const DaemonContext = createContext<DaemonContextValue>({
@@ -59,6 +68,10 @@ const DaemonContext = createContext<DaemonContextValue>({
   recall: async () => {},
   setAnswerQuery: () => {},
   answer: async () => {},
+  setCaptureText: () => {},
+  setCaptureTarget: () => {},
+  setCaptureHint: () => {},
+  capture: async () => {},
 });
 
 export function DaemonProvider({ children }: { children: React.ReactNode }) {
@@ -382,6 +395,37 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const setCaptureText = useCallback((text: string) => {
+    dispatch({ type: 'CAPTURE_TEXT_SET', text });
+  }, []);
+
+  const setCaptureTarget = useCallback((target: CaptureTargetChoice) => {
+    dispatch({ type: 'CAPTURE_TARGET_SET', target });
+  }, []);
+
+  const setCaptureHint = useCallback((hint: string) => {
+    dispatch({ type: 'CAPTURE_HINT_SET', hint });
+  }, []);
+
+  const capture = useCallback(
+    async (text: string, options?: CaptureFilter) => {
+      const client = clientRef.current;
+      if (!client) return;
+      if (text.trim().length === 0) return;
+      dispatch({ type: 'CAPTURE_LOADING' });
+      try {
+        const result = await client.capture(text, options);
+        dispatch({ type: 'CAPTURE_RESULT', result });
+      } catch (e) {
+        dispatch({
+          type: 'CAPTURE_ERROR',
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    },
+    [],
+  );
+
   return (
     <DaemonContext.Provider
       value={{
@@ -404,6 +448,10 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
         recall,
         setAnswerQuery,
         answer,
+        setCaptureText,
+        setCaptureTarget,
+        setCaptureHint,
+        capture,
       }}
     >
       {children}

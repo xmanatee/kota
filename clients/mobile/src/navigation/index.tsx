@@ -13,6 +13,7 @@ import { AnswerScreen } from '../screens/AnswerScreen';
 import { ApprovalDetailScreen } from '../screens/ApprovalDetailScreen';
 import { ApprovalListScreen } from '../screens/ApprovalListScreen';
 import { AttentionScreen } from '../screens/AttentionScreen';
+import { CaptureScreen } from '../screens/CaptureScreen';
 import { ChatDetailScreen } from '../screens/ChatDetailScreen';
 import { ChatListScreen } from '../screens/ChatListScreen';
 import { DigestScreen } from '../screens/DigestScreen';
@@ -64,6 +65,7 @@ export type TabParams = {
   History: undefined;
   Recall: undefined;
   Answer: undefined;
+  Capture: undefined;
   Chat: NavigatorScreenParams<ChatStackParams> | undefined;
 };
 
@@ -290,6 +292,11 @@ export function AppNavigator() {
           name="Answer"
           component={AnswerScreen}
           options={{ tabBarIcon: () => <Text>💡</Text>, headerShown: true, title: 'Answer' }}
+        />
+        <Tab.Screen
+          name="Capture"
+          component={CaptureScreen}
+          options={{ tabBarIcon: () => <Text>📝</Text>, headerShown: true, title: 'Capture' }}
         />
         <Tab.Screen
           name="Chat"

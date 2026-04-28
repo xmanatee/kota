@@ -1,12 +1,12 @@
 ---
 id: task-add-mobile-capturescreen-consuming-a-new-daemoncli
 title: Add mobile CaptureScreen consuming a new DaemonClient.capture
-status: ready
+status: done
 priority: p2
 area: client
 summary: Add a CaptureScreen in the mobile client that calls POST /api/capture through a new DaemonClient.capture, exposes capture state on DaemonContext, and renders the four discriminated CaptureResult arms (success memory/knowledge/tasks/inbox, ambiguous, no_contributors, contributor_failed), closing the cross-store-capture fan-out across Telegram, daemon HTTP, web, macOS DaemonClient, and mobile.
 created_at: 2026-04-28T05:27:20.245Z
-updated_at: 2026-04-28T05:27:20.245Z
+updated_at: 2026-04-28T05:44:43.151Z
 ---
 
 ## Problem
