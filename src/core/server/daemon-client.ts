@@ -110,6 +110,9 @@ import type {
   RepoTaskShowResult,
   RepoTaskState,
   RepoTasksClient,
+  RetractClient,
+  RetractRequest,
+  RetractResult,
   SecretGetResult,
   SecretMutateResult,
   SecretScope,
@@ -275,6 +278,7 @@ export class DaemonControlClient implements KotaClient {
   readonly recall: RecallClient;
   readonly answer: AnswerClient;
   readonly capture: CaptureClient;
+  readonly retract: RetractClient;
 
   private constructor(
     private readonly baseUrl: string,
@@ -579,6 +583,9 @@ export class DaemonControlClient implements KotaClient {
     this.capture = {
       capture: async (text, filter) => this.captureHttp(text, filter),
     };
+    this.retract = {
+      retract: async (request) => this.retractHttp(request),
+    };
   }
 
   private async captureHttp(
@@ -595,6 +602,19 @@ export class DaemonControlClient implements KotaClient {
       throw new Error(body.error ?? `HTTP ${res.status}`);
     }
     return (await res.json()) as CaptureResult;
+  }
+
+  private async retractHttp(request: RetractRequest): Promise<RetractResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/retract`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.authHeaders() },
+      body: JSON.stringify(request),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as RetractResult;
   }
 
   private async recallHttp(query: string, filter?: RecallFilter): Promise<RecallResult> {

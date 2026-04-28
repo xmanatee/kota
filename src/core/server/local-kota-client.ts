@@ -64,6 +64,7 @@ export class LocalKotaClient implements KotaClient {
   readonly recall: KotaClient["recall"];
   readonly answer: KotaClient["answer"];
   readonly capture: KotaClient["capture"];
+  readonly retract: KotaClient["retract"];
 
   constructor(handlers: LocalClientHandlers) {
     this.workflow = handlers.workflow;
@@ -92,5 +93,6 @@ export class LocalKotaClient implements KotaClient {
     this.recall = handlers.recall;
     this.answer = handlers.answer;
     this.capture = handlers.capture;
+    this.retract = handlers.retract;
   }
 }

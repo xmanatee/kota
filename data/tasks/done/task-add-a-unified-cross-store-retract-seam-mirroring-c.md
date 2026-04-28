@@ -1,12 +1,12 @@
 ---
 id: task-add-a-unified-cross-store-retract-seam-mirroring-c
 title: Add a unified cross-store retract seam mirroring capture so the agent can correct or remove prior captures
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Add a typed RetractProvider plus per-store RetractContributor protocol that mirrors the existing CaptureProvider/CaptureContributor pair, surface it as kota retract CLI, POST /retract daemon route, KotaClient.retract namespace, and a retract agent tool with module-owned conversational priming, so a per-user agent session can remove or supersede a prior capture by calling retract mid-conversation instead of leaving append-only contradictions in the stores.
 created_at: 2026-04-28T10:20:51.878Z
-updated_at: 2026-04-28T10:20:51.878Z
+updated_at: 2026-04-28T10:41:08.976Z
 ---
 
 ## Problem

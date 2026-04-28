@@ -184,6 +184,9 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
     capture: {
       capture: stub({ ok: false, reason: "no_contributors" }),
     },
+    retract: {
+      retract: stub({ ok: false, reason: "no_contributors" }),
+    },
   };
   return { ...base, ...overrides };
 }

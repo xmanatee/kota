@@ -48,6 +48,7 @@ const NAMESPACE_OWNERS: Record<(typeof KOTA_CLIENT_NAMESPACES)[number], string> 
   recall: "recall",
   answer: "answer",
   capture: "capture",
+  retract: "retract",
 };
 
 function readModuleSource(name: string): string {

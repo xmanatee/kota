@@ -5,6 +5,12 @@ recall/answer read-side seam. One natural-language note plus an optional
 explicit target routes through one typed contributor into the right
 store.
 
+The symmetric correction surface is `src/modules/retract/` —
+`RetractProvider`, `kota retract`, `POST /retract`, the `retract` agent
+tool, and the matching priming block. Capture writes; retract removes
+or supersedes a prior record. The two seams share the same target list
+and are independently registered.
+
 ## What this module owns
 
 - The `CaptureProvider` primitive and its single in-process implementation.
