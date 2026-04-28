@@ -1,12 +1,12 @@
 ---
 id: task-review-core-file-size-and-module-boundary-budget
 title: Review core file size and module boundary budget
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Run a focused boundary/file-size pass over the largest core files (kota-client, daemon-client, daemon, daemon-control, run-executor) and either open specific split tasks that move ownership toward modules or prove the file should stay as-is.
 created_at: 2026-04-28T22:04:43.355Z
-updated_at: 2026-04-28T22:04:43.355Z
+updated_at: 2026-04-28T22:24:00.154Z
 ---
 
 ## Problem
