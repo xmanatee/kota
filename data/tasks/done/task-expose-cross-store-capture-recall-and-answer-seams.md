@@ -1,12 +1,12 @@
 ---
 id: task-expose-cross-store-capture-recall-and-answer-seams
 title: Expose cross-store capture, recall, and answer seams as first-class agent tools
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Add agent-callable tool definitions wrapping the existing CaptureProvider, RecallProvider, and AnswerProvider so per-user agent sessions can automatically capture noteworthy info, recall context, and produce cited answers mid-conversation, instead of requiring explicit /capture /recall /answer slash commands; closes the gap between a command-driven and a conversational personal assistant by adding one tool surface that every channel that hosts an agent session inherits for free.
 created_at: 2026-04-28T09:11:21.468Z
-updated_at: 2026-04-28T09:11:21.468Z
+updated_at: 2026-04-28T09:26:50.802Z
 ---
 
 ## Problem

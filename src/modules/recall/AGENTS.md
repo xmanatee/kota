@@ -12,6 +12,11 @@ source-tagged hits across every registered contributor.
   shape cannot drift between operator surfaces.
 - One `KotaClient.recall` namespace and one `kota recall <query>` CLI
   subcommand.
+- One agent-callable tool (`recall`) contributed through the standard
+  `KotaModule.tools` path. The tool wraps the same in-process
+  `RecallProvider` and renders results through `renderRecallHitsPlain`,
+  so a per-user agent session can pull cross-store context mid-
+  conversation without an explicit `/recall` slash command.
 
 ## How a new store joins
 

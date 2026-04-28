@@ -16,6 +16,14 @@ store.
   wire shape cannot drift between operator surfaces.
 - One `KotaClient.capture` namespace and one `kota capture <text>` CLI
   subcommand rendered through `src/modules/rendering`.
+- One agent-callable tool (`capture`) contributed through the standard
+  `KotaModule.tools` path. The tool wraps the same in-process
+  `CaptureProvider` the CLI / daemon route / KotaClient share, so a
+  per-user agent session running in any channel can route a noteworthy
+  chat-resident fact through the same classifier and contributor
+  registry without an explicit `/capture` slash command. The runner
+  reuses `renderCaptureResultPlain` so the tool transcript matches the
+  slash-command surface byte-for-byte.
 
 ## How a new store joins
 

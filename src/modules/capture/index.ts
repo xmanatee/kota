@@ -42,6 +42,7 @@ import {
   createTasksContributor,
 } from "./contributors.js";
 import { captureApiRoutes, captureControlRoutes } from "./routes.js";
+import { createCaptureToolDef } from "./tool.js";
 
 const CLASSIFIER_MAX_OUTPUT_TOKENS = 32;
 
@@ -128,6 +129,8 @@ const captureModule: KotaModule = {
     registerCaptureCommand(root, ctx);
     return root.commands as Command[];
   },
+
+  tools: () => [createCaptureToolDef(resolveActiveProvider)],
 
   controlRoutes: () => captureControlRoutes(resolveActiveProvider),
 

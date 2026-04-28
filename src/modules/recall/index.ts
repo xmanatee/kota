@@ -28,6 +28,7 @@ import {
 import { RecallProviderImpl } from "./recall-provider.js";
 import type { RecallProvider } from "./recall-types.js";
 import { recallApiRoutes, recallControlRoutes } from "./routes.js";
+import { createRecallToolDef } from "./tool.js";
 
 let activeProvider: RecallProvider | null = null;
 
@@ -70,6 +71,8 @@ const recallModule: KotaModule = {
     registerRecallCommand(root, ctx);
     return root.commands as Command[];
   },
+
+  tools: () => [createRecallToolDef(resolveActiveProvider)],
 
   controlRoutes: () => recallControlRoutes(resolveActiveProvider),
 

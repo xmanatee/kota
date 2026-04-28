@@ -40,6 +40,7 @@ import {
   ANSWER_SYNTHESIS_SYSTEM_PROMPT,
   buildSynthesisUserPrompt,
 } from "./synthesis-prompt.js";
+import { createAnswerToolDef } from "./tool.js";
 
 const ANSWER_MAX_OUTPUT_TOKENS = 1024;
 
@@ -126,6 +127,8 @@ const answerModule: KotaModule = {
     registerAnswerCommand(root, ctx);
     return root.commands as Command[];
   },
+
+  tools: () => [createAnswerToolDef(resolveActiveProvider)],
 
   controlRoutes: () => answerControlRoutes(resolveActiveProvider, resolveActiveHistory),
 

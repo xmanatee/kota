@@ -13,6 +13,14 @@ back to the underlying typed `RecallHit`s.
   wire shape cannot drift.
 - One `KotaClient.answer` namespace and one `kota answer <query>` CLI
   subcommand rendered through `src/modules/rendering`.
+- One agent-callable tool (`answer`) contributed through the standard
+  `KotaModule.tools` path. The tool wraps the same in-process
+  `AnswerProvider` and renders the cited reply through
+  `renderAnswerReplyPlain`, so a conversational answer turn flows
+  through the same recall + synthesizer + answer-history path every
+  other surface uses. Every successful tool call appends one record to
+  the same `AnswerHistoryStore` `/answer-log` and `kota answer log`
+  read from.
 
 ## Typed citation contract
 
