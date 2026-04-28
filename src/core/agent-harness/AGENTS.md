@@ -23,7 +23,7 @@ protocol live in modules — the core only owns the interface and the registry.
 - Tool risk gating, commit guards, daemon control guards, and injection-defense
   middleware are passed into the harness through standard fields
   (`canUseTool`, `mcpServers`, tool allow/deny lists). Every adapter must
-  apply them; callers should not assume an adapter can skip them.
+  apply them; `src/rails-cross-harness.integration.test.ts` enforces parity.
 - `guards.ts` hosts the harness-neutral `canUseTool` primitives
   (`createAgentCommitGuard`, `createDaemonHostControlGuard`,
   `composeCanUseTools`, `createWorkflowAgentGuards`). Callers that need the

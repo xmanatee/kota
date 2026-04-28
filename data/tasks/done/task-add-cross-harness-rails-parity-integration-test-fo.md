@@ -1,12 +1,12 @@
 ---
 id: task-add-cross-harness-rails-parity-integration-test-fo
 title: Add cross-harness rails parity integration test for canUseTool, allowedTools, and disallowedTools
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Lock the agent-harness rails contract — every registered adapter must honor canUseTool denial, allowedTools, and disallowedTools — with a single src/rails-cross-harness.integration.test.ts that exercises every registered AgentHarness, mirroring the existing hooks-cross-harness and prompt-input-cross-harness integration tests.
 created_at: 2026-04-28T20:39:06.375Z
-updated_at: 2026-04-28T20:39:06.375Z
+updated_at: 2026-04-28T20:50:33.131Z
 ---
 
 ## Problem
