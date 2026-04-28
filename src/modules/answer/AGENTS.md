@@ -18,30 +18,28 @@ back to the underlying typed `RecallHit`s.
   `AnswerProvider` and renders the cited reply through
   `renderAnswerReplyPlain`, so a conversational answer turn flows
   through the same recall + synthesizer + answer-history path every
-  other surface uses. Every successful tool call appends one record to
-  the same `AnswerHistoryStore` `/answer-log` and `kota answer log`
+  other surface uses; every successful call appends to the same
+  `AnswerHistoryStore` the `/answer-log` route and `kota answer log`
   read from.
-- One per-turn dynamic system-prompt contributor (entry point
-  `buildAnswerDynamicStateProvider` in `system-prompt.ts`, registered
-  through `ctx.registerDynamicStateProvider` during `onLoad`). The
-  contributor emits the conversational-pattern block when the session's
-  effective tool policy admits `answer`, and the empty string otherwise
-  — so a session that cannot call the tool never sees instructions that
-  reference it. Tool descriptions cover shape; this block covers the
-  conversational trigger so the agent prefers a cited synthesized reply
-  over free-form text for fact-shaped questions, and so the answer-
-  history surface fills with conversational answers rather than only
-  explicit `/answer` traffic.
+- One per-turn dynamic system-prompt contributor
+  (`buildAnswerDynamicStateProvider` in `system-prompt.ts`, registered
+  via `ctx.registerDynamicStateProvider` during `onLoad`). Emits the
+  conversational-pattern block when the session's effective tool policy
+  admits `answer` and the empty string otherwise. The block tells the
+  agent to prefer a cited synthesized reply over free-form text for
+  fact-shaped questions, so the answer-history surface fills with
+  conversational answers rather than only explicit `/answer` traffic.
 
 ## Typed citation contract
 
 The synthesizer emits `[source:id]` markers in the prose where
 `source ∈ {knowledge, memory, history, tasks, answer}` (matching
 `RecallSource` exactly; no aliases) and `id` is the typed hit id. The
-`answer` arm covers the synthesizer chaining through a prior cited-
-answer envelope when recall surfaced one. The parser
-extracts each marker, validates it against the typed `RecallHit[]` the
-synthesizer was shown, and returns:
+`answer` arm — the synthesizer chaining through a prior cited-answer
+envelope when recall surfaced one — is anchored end-to-end through the
+"answer-then-answer chain" describe noted in **Tests** below. The
+parser extracts each marker, validates it against the typed
+`RecallHit[]` the synthesizer was shown, and returns:
 
 - `answer: string` — the prose verbatim, markers preserved inline so the
   operator sees attribution next to the supporting clause.
@@ -80,45 +78,63 @@ record to `<projectStateRoot>/answer-history/<id>.json` through the
 module-owned `AnswerHistoryStore`. The store is the single record-
 keeping path for cited-answer envelopes, the corpus seam the
 eval-harness pulls real-failure provenance from, and the data source
-behind the `answer` recall contributor (see "Recall contribution" below). Reads are exposed as
-`KotaClient.answer.log(filter?)` / `show(id)`, the
-`kota answer log` / `kota answer show <id>` CLI subcommands, and the
-`GET /api/answers` + `GET /api/answers/:id` HTTP routes (with the
-`/answers` daemon-control twins).
+behind the `answer` recall contributor below. Reads exposed as
+`KotaClient.answer.log` / `show`, `kota answer log` / `show`, and
+`GET /api/answers` + `GET /api/answers/:id` (with `/answers` daemon-
+control twins).
 
 Contracts:
 
 - One record per call regardless of the discriminated `AnswerResult`
   arm. Success records carry the typed `RecallHit[]` the synthesizer
-  was shown plus the typed `[source:id]` citations. Failure records
-  carry the recall hits the seam saw (or an empty array for the arms
-  that never reached recall).
+  was shown plus the typed `[source:id]` citations; failure records
+  carry the recall hits the seam saw (or an empty array for arms that
+  never reached recall).
 - An append failure never alters the operator-visible response. The
   `onPersistError` callback surfaces the error through the module's
-  warn channel and the answer envelope is still returned exactly as
-  it was computed.
-- Retention is module-internal: the store prunes oldest entries past
-  `ANSWER_HISTORY_DEFAULT_CAP` on append. Pruning is best-effort and
-  has no operator-facing knob.
+  warn channel and the answer envelope is still returned as computed.
+- Retention is module-internal: the store best-effort prunes oldest
+  entries past `ANSWER_HISTORY_DEFAULT_CAP` on append. No operator knob.
 
 ## Recall contribution
 
-The answer module owns its recall adapter end-to-end. `recall-contributor.ts`
-wraps `AnswerHistoryStore.searchAnswers` into a `RecallContributor` for the
-`answer` source, and the module registers it from its own `onLoad` against
-the live `RecallProvider` (looked up through
-`ctx.getProvider<RecallProvider>("recall")`, the same provider-registry
-seam every other module uses for cross-module provider access). `onUnload`
-calls `recallProvider.unregister("answer")` so the seam stays clean across
-module reloads. The recall module does not import answer code and does not
-gain `answer` as a dependency — the registration flows in one direction
+The answer module owns its recall adapter end-to-end.
+`recall-contributor.ts` wraps `AnswerHistoryStore.searchAnswers` into a
+`RecallContributor` for the `answer` source; the module registers it
+from its own `onLoad` against the live `RecallProvider` (looked up
+through `ctx.getProvider<RecallProvider>("recall")` — the same
+registry seam every other cross-module provider access uses) and
+`onUnload` calls `recallProvider.unregister("answer")`. The recall
+module does not import answer code; registration flows one-way
 through the public `RecallProvider` API.
 
-`searchAnswers` is keyword-shaped: it scans the existing newest-first id
-listing, decodes records lazily, and ranks by token overlap against the
-stored `query` (and synthesized text on `ok: true`). Native scores fall in
-`[0, 1]`, matching the recall module's existing min-max-normalizable
-contract for stores without a native semantic backend.
+`searchAnswers` is keyword-shaped: it scans the newest-first id
+listing, decodes records lazily, and ranks by token overlap against
+the stored `query` (and synthesized text on `ok: true`). Native scores
+fall in `[0, 1]`, matching the recall module's keyword-fallback
+contract.
+
+## Tests
+
+- Unit tests for the seam pieces sit beside the code: `answer-provider.test.ts`,
+  `answer-history-store.test.ts`, `citation-parser.test.ts`,
+  `recall-contributor.test.ts`, `tool.test.ts`, `routes.test.ts`,
+  `cli.test.ts`, `system-prompt.test.ts`, and the lifecycle anchor
+  `answer-lifecycle.test.ts`.
+- Agent-loop integration anchors (shared with capture/recall/retract):
+  - `src/conversational-agent-tools.integration.test.ts` exercises the
+    `answer` tool end-to-end through the `openai-tools` harness against
+    the production `AnswerProviderImpl`. The "capture / recall / answer
+    round trip" describe pins the success arm with cross-store recall
+    hits; the "prior answers surface as recall hits" describe pins the
+    `answer` recall contributor; and the "answer-then-answer chain"
+    describe pins the synthesizer chaining through a prior cited-answer
+    envelope (positive arm cites the seeded envelope through
+    `[answer:<id>]`; negative arm rejects a fabricated
+    `[answer:<unknown-id>]` marker via the retry-and-reject contract).
+  - `src/conversational-prompt-priming.integration.test.ts` pins the
+    `dynamic-state` admission gate for the answer block (positive when
+    the tool is admitted, negative when it is excluded).
 
 ## Boundaries
 

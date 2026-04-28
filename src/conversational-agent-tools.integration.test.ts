@@ -25,6 +25,7 @@
 import { rmSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { clearCustomTools } from "#core/tools/index.js";
+import type { Synthesizer } from "#modules/answer/answer-types.js";
 import {
   buildCrossStoreFixture,
   type CrossStoreFixture,
@@ -40,6 +41,9 @@ import {
 const CAPTURE_NOTE = "Operator wants xhighmnemo decomposer default for autonomy steps.";
 const RECALL_QUERY = "min-max normalization";
 const ANSWER_QUERY = "How does the recall seam rank hits?";
+const FOLLOWUP_ANSWER_QUERY =
+  "Which contributors does the recall seam rank into the top hits?";
+const FABRICATED_ANSWER_ID = "answer-id-that-never-existed";
 const RETRACTABLE_NOTE = "Operator scheduled retroterm checkin for thursday only.";
 const POST_RETRACT_RECALL_QUERY = "retroterm checkin thursday";
 
@@ -213,6 +217,186 @@ describe("conversational agent tools — prior answers surface as recall hits", 
     if (!recallToolResult) throw new Error("unreachable");
     expect(recallToolResult).toContain("answer");
     expect(recallToolResult).toContain(ANSWER_QUERY);
+  });
+});
+
+describe("conversational agent tools — answer-then-answer chain (prior cited answer becomes evidence for follow-up cited answer)", () => {
+  describe("(positive) follow-up answer turn cites the seeded envelope through [answer:<id>]", () => {
+    let harness: Harness;
+    let seededAnswerId: string;
+
+    beforeAll(async () => {
+      clearCustomTools();
+      const fixture = buildCrossStoreFixture("kota-conv-answer-chain-pos-");
+      registerCrossStoreTools(fixture);
+      const snapshots: StreamCallSnapshot[] = [];
+      harness = { fixture, snapshots };
+
+      // Seed an answer-history record by exercising AnswerProviderImpl
+      // end-to-end on the fixture — same call path the `kota answer <q>`
+      // CLI and the `answer` agent tool use, so the persisted envelope is
+      // identical to what real operator traffic would produce.
+      const seeded = await fixture.answerProvider.answer(ANSWER_QUERY);
+      if (!seeded.ok) throw new Error("setup: expected seed answer to succeed");
+      const entries = await fixture.answerHistoryStore.listAnswers();
+      if (entries.length === 0) {
+        throw new Error("setup: expected one persisted answer history entry");
+      }
+      seededAnswerId = entries[0].id;
+
+      const queue = [
+        toolUseTurn("msg_followup_answer", "call_followup_answer", "answer", {
+          query: FOLLOWUP_ANSWER_QUERY,
+        }),
+        endTurn("msg_done", "all done"),
+      ];
+      await runScriptedAgentSession({
+        prompt: "anchor the answer-then-answer chain through the agent loop",
+        snapshots,
+        pickStream: () => {
+          const next = queue.shift();
+          if (!next) throw new Error("streamMock: no scripted return value");
+          return next;
+        },
+      });
+    });
+
+    afterAll(() => {
+      clearCustomTools();
+      rmSync(harness.fixture.projectRoot, { recursive: true, force: true });
+    });
+
+    it("the follow-up `answer` tool result contains an inline [answer:<id>] marker referencing the seeded envelope", () => {
+      const answerToolResult = findLastToolResult(
+        harness.snapshots,
+        "call_followup_answer",
+      );
+      expect(answerToolResult).toBeDefined();
+      if (!answerToolResult) throw new Error("unreachable");
+      expect(answerToolResult).toContain(`[answer:${seededAnswerId}]`);
+      expect(answerToolResult).toContain("Citations");
+      expect(answerToolResult).toContain("answer");
+    });
+
+    it("the persisted AnswerHistoryRecord for the follow-up turn carries an `answer`-source citation matching the seeded envelope id", async () => {
+      const entries = await harness.fixture.answerHistoryStore.listAnswers();
+      // newest-first ordering: index 0 is the follow-up, index 1 is the seed.
+      expect(entries.length).toBeGreaterThanOrEqual(2);
+      const followup = entries[0];
+      expect(followup.query).toBe(FOLLOWUP_ANSWER_QUERY);
+      expect(followup.result.ok).toBe(true);
+      const record = await harness.fixture.answerHistoryStore.getAnswer(
+        followup.id,
+      );
+      if (!record) throw new Error("expected stored follow-up record");
+      if (!record.result.ok) throw new Error("expected ok result");
+      const answerCitation = record.result.citations.find(
+        (c) => c.source === "answer",
+      );
+      expect(answerCitation).toBeDefined();
+      if (!answerCitation) throw new Error("unreachable");
+      expect(answerCitation.id).toBe(seededAnswerId);
+    });
+
+    it("the recorded recallHits for the follow-up record include the seeded envelope as an `answer`-source hit", async () => {
+      const entries = await harness.fixture.answerHistoryStore.listAnswers();
+      const followup = entries[0];
+      const record = await harness.fixture.answerHistoryStore.getAnswer(
+        followup.id,
+      );
+      if (!record) throw new Error("expected stored follow-up record");
+      const answerHit = record.recallHits.find(
+        (h) => h.source === "answer" && h.id === seededAnswerId,
+      );
+      expect(answerHit).toBeDefined();
+      if (!answerHit) throw new Error("unreachable");
+      if (answerHit.source !== "answer") throw new Error("type narrowing");
+      expect(answerHit.query).toBe(ANSWER_QUERY);
+      expect(answerHit.result).toEqual({ ok: true });
+    });
+  });
+
+  describe("(negative) fabricated [answer:<unknown-id>] marker still trips retry-and-reject", () => {
+    let harness: Harness;
+
+    beforeAll(async () => {
+      clearCustomTools();
+      // The fabrication synthesizer falls back to the default knowledge-cited
+      // reply for the seed call (no `answer` hit yet) and emits a fabricated
+      // `[answer:<unknown-id>]` marker on the follow-up call (when an
+      // `answer` hit is in the pile). Retry runs with the same fabrication
+      // so the AnswerProviderImpl retry-and-reject contract surfaces
+      // `synthesis_failed` for the answer arm just as it does for the
+      // existing knowledge/memory/tasks arms.
+      const fabricationSynthesizer: Synthesizer = async ({ hits }) => {
+        const answerHit = hits.find((h) => h.source === "answer");
+        if (answerHit) {
+          return `The prior cited answer [answer:${FABRICATED_ANSWER_ID}] still applies.`;
+        }
+        const knowledgeHit = hits.find((h) => h.source === "knowledge");
+        if (!knowledgeHit) {
+          throw new Error("expected knowledge hit in seeded fixture");
+        }
+        return `The recall seam ranks hits using min-max normalization [knowledge:${knowledgeHit.id}].`;
+      };
+      const fixture = buildCrossStoreFixture("kota-conv-answer-chain-neg-", {
+        synthesizer: fabricationSynthesizer,
+      });
+      registerCrossStoreTools(fixture);
+      const snapshots: StreamCallSnapshot[] = [];
+      harness = { fixture, snapshots };
+
+      const seeded = await fixture.answerProvider.answer(ANSWER_QUERY);
+      if (!seeded.ok) {
+        throw new Error("setup: expected seed answer to succeed");
+      }
+
+      const queue = [
+        toolUseTurn(
+          "msg_followup_answer_neg",
+          "call_followup_answer_neg",
+          "answer",
+          { query: FOLLOWUP_ANSWER_QUERY },
+        ),
+        endTurn("msg_done", "all done"),
+      ];
+      await runScriptedAgentSession({
+        prompt: "anchor the negative arm of the answer-then-answer chain",
+        snapshots,
+        pickStream: () => {
+          const next = queue.shift();
+          if (!next) throw new Error("streamMock: no scripted return value");
+          return next;
+        },
+      });
+    });
+
+    afterAll(() => {
+      clearCustomTools();
+      rmSync(harness.fixture.projectRoot, { recursive: true, force: true });
+    });
+
+    it("rejects the follow-up synthesis as `synthesis_failed` and persists one extra failure record", async () => {
+      const answerToolResult = findLastToolResult(
+        harness.snapshots,
+        "call_followup_answer_neg",
+      );
+      expect(answerToolResult).toBeDefined();
+      if (!answerToolResult) throw new Error("unreachable");
+      // The renderer surfaces the failure verbatim; the fabricated marker
+      // never reaches the operator as a usable citation.
+      expect(answerToolResult.toLowerCase()).toContain("synthesis failed");
+      expect(answerToolResult).not.toContain(FABRICATED_ANSWER_ID);
+
+      const entries = await harness.fixture.answerHistoryStore.listAnswers();
+      // Two records: the successful seed and the failed follow-up.
+      expect(entries.length).toBe(2);
+      const followup = entries[0];
+      expect(followup.query).toBe(FOLLOWUP_ANSWER_QUERY);
+      expect(followup.result.ok).toBe(false);
+      if (followup.result.ok) throw new Error("unreachable");
+      expect(followup.result.reason).toBe("synthesis_failed");
+    });
   });
 });
 

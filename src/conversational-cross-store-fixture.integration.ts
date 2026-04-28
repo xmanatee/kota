@@ -151,7 +151,24 @@ export function createEmptyHistoryProvider(): HistoryProvider {
   };
 }
 
-export function buildCrossStoreFixture(prefix: string): CrossStoreFixture {
+export type BuildCrossStoreFixtureOptions = {
+  /**
+   * Optional override for the cited-answer `Synthesizer` injected through
+   * `AnswerProviderOptions`. The default emits `[answer:<id>]` when an
+   * `answer` recall hit is in the pile and falls back to the seeded
+   * knowledge entry otherwise — same behavior the existing
+   * capture/recall/answer round-trip describe relies on. Tests that need
+   * to script a fabricated marker (e.g. exercising the
+   * retry-and-reject contract) pass their own synthesizer here without
+   * touching `AnswerProviderImpl` itself.
+   */
+  synthesizer?: Synthesizer;
+};
+
+export function buildCrossStoreFixture(
+  prefix: string,
+  options: BuildCrossStoreFixtureOptions = {},
+): CrossStoreFixture {
   const projectRoot = makeCrossStoreProjectRoot(prefix);
   const memoryStore = new MemoryStore(join(projectRoot, ".kota"));
   const knowledgeStore = new KnowledgeStore(
@@ -201,7 +218,7 @@ export function buildCrossStoreFixture(prefix: string): CrossStoreFixture {
       return { ok: true, hits };
     },
   };
-  const synthesizer: Synthesizer = async ({ hits }) => {
+  const defaultSynthesizer: Synthesizer = async ({ hits }) => {
     // If the recall pile contains a prior cited answer for a similar query,
     // chain through it so the test asserts that re-asking does not silently
     // re-synthesize from raw stores when an `answer`-source hit is present.
@@ -217,7 +234,7 @@ export function buildCrossStoreFixture(prefix: string): CrossStoreFixture {
   };
   const answerProvider = new AnswerProviderImpl({
     recall: recallSeam,
-    synthesizer,
+    synthesizer: options.synthesizer ?? defaultSynthesizer,
     history: answerHistoryStore,
   });
 

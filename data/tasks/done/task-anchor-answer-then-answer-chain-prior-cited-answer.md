@@ -1,12 +1,12 @@
 ---
 id: task-anchor-answer-then-answer-chain-prior-cited-answer
 title: Anchor answer-then-answer chain (prior cited answer becomes evidence for a follow-up cited answer) through the conversational agent loop integration tests
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Extend src/conversational-agent-tools.integration.test.ts so a follow-up answer turn that has a matching prior cited-answer envelope produces a new synthesis that carries an [answer:<id>] citation marker tying the new answer back to the prior envelope, anchoring the synthesizer's documented prior-answer chaining behavior end-to-end through the openai-tools harness.
 created_at: 2026-04-28T16:22:20.175Z
-updated_at: 2026-04-28T16:22:20.175Z
+updated_at: 2026-04-28T16:36:35.949Z
 ---
 
 ## Problem
