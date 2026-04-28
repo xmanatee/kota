@@ -1,12 +1,12 @@
 ---
 id: task-add-telegram-answer-log-and-answer-show-commands-c
 title: Add Telegram /answer-log and /answer-show commands consuming the answer-history seam
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add Telegram /answer-log [N] (newest-first listing) and /answer-show <id> (full re-render) commands that consume KotaClient.answer.log/show, so chat operators can re-read past synthesized answers from the same surface where most ad-hoc /answer queries originate. Honest single-surface follow-up of the answer-history store; web, macOS, and mobile adoption land later as separate tasks.
 created_at: 2026-04-28T00:49:45.485Z
-updated_at: 2026-04-28T00:49:45.485Z
+updated_at: 2026-04-28T01:05:42.155Z
 ---
 
 ## Problem

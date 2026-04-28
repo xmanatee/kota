@@ -4,12 +4,12 @@ This directory owns the Telegram integration — interactive bot access and
 notification forwarding.
 
 - Contributes two daemon channels: `telegram-status` (responds to
-  `/status`, `/digest`, `/attention`, the four per-store semantic
-  search commands `/knowledge`, `/memory`, `/history`, `/tasks`, the
-  unified `/recall <query>` cross-store list, and `/answer <query>`
-  for one composed answer plus typed citations) and
-  `telegram-interactive` (hosts one agent session per chat). Both are
-  started and stopped by the daemon alongside other channels.
+  `/status`, `/digest`, `/attention`, the four per-store search
+  commands `/knowledge`, `/memory`, `/history`, `/tasks`, `/recall`
+  cross-store list, and the cited-answer commands `/answer <query>` /
+  `/answer-log [N]` / `/answer-show <id>`) and `telegram-interactive`
+  (hosts one agent session per chat). Both are started and stopped by
+  the daemon alongside other channels.
 - The `/digest` command calls the daily-digest module's
   `renderOnDemandDigest` seam directly. It must not write the cadence
   snapshot file and must not emit `workflow.daily.digest` (otherwise other
@@ -28,9 +28,10 @@ notification forwarding.
   distinguish "nothing wrong" from "command failed". The body is
   operator-facing only and must not be exposed to autonomy agents.
 - Read commands (`/knowledge`, `/memory`, `/history`, `/tasks`,
-  `/recall`, `/answer`) are thin wrappers over their `KotaClient`
-  namespace and render through the owning module's plain-text helper —
-  no copy of CLI rendering on the Telegram side. Each is plain text
+  `/recall`, `/answer`, `/answer-log`, `/answer-show`) are thin
+  wrappers over their `KotaClient` namespace and render through the
+  owning module's plain-text helper — no copy of CLI rendering on the
+  Telegram side. Each is plain text
   (titles, bodies, and synthesized prose can carry Markdown-active
   characters), gated by the chat allowlist only (no quiet-hours
   gating), advances no cadence counter, emits no workflow event,

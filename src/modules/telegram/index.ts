@@ -152,7 +152,7 @@ function makeTelegramStatusChannel(moduleCtx: ModuleContext): ChannelDef {
   return {
     name: "telegram-status",
     description:
-      "Responds to /status, /digest, /attention, /knowledge, /memory, /history, /tasks, /recall, and /answer in Telegram",
+      "Responds to /status, /digest, /attention, /knowledge, /memory, /history, /tasks, /recall, /answer, /answer-log, and /answer-show in Telegram",
     create(ctx) {
       const token = process.env.TELEGRAM_BOT_TOKEN;
       const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;

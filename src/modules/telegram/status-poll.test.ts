@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   AnswerClient,
+  AnswerHistoryEntry,
+  AnswerHistoryRecord,
   HistoryClient,
   KnowledgeClient,
   MemoryClient,
@@ -15,9 +17,11 @@ import {
   startTelegramStatusPoll,
 } from "./status-poll.js";
 
-vi.mock("./client.js", () => ({
-  callTelegramApi: vi.fn(),
-}));
+vi.mock("./client.js", async () => {
+  const actual =
+    await vi.importActual<typeof import("./client.js")>("./client.js");
+  return { ...actual, callTelegramApi: vi.fn() };
+});
 
 vi.mock("#modules/autonomy/shared.js", () => ({
   loadRecentRuns: vi.fn().mockReturnValue([]),
@@ -1435,6 +1439,463 @@ describe("startTelegramStatusPoll", () => {
     const text = (sendCall?.[2] as { text: string }).text;
     expect(text.length).toBeLessThanOrEqual(4096);
     expect(text.endsWith("…(truncated)")).toBe(true);
+  });
+
+  describe("/answer-log", () => {
+    const okEntry: AnswerHistoryEntry = {
+      id: "2026-04-28T00-00-02-000Z-aaaaaa",
+      createdAt: "2026-04-28T00:00:02.000Z",
+      query: "How does recall work?",
+      result: { ok: true, citationCount: 2 },
+    };
+    const failEntry: AnswerHistoryEntry = {
+      id: "2026-04-28T00-00-01-000Z-bbbbbb",
+      createdAt: "2026-04-28T00:00:01.000Z",
+      query: "What about nothing in the brain?",
+      result: { ok: false, reason: "no_hits" },
+    };
+    const olderEntry: AnswerHistoryEntry = {
+      id: "2026-04-28T00-00-00-000Z-cccccc",
+      createdAt: "2026-04-28T00:00:00.000Z",
+      query: "First ever question",
+      result: { ok: true, citationCount: 1 },
+    };
+
+    it("renders newest-first one-row-per-entry projection with badge, id, and truncated query", async () => {
+      const log = vi
+        .fn()
+        .mockResolvedValue({ entries: [okEntry, failEntry, olderEntry] });
+      const answerClient: AnswerClient = {
+        answer: vi.fn(),
+        log,
+        show: vi.fn(),
+      };
+      mockedCallTelegramApi
+        .mockResolvedValueOnce([
+          makeUpdate(1, Number(FAKE_CHAT_ID), "/answer-log"),
+        ])
+        .mockResolvedValue([]);
+      stop = startTelegramStatusPoll(
+        FAKE_TOKEN,
+        FAKE_CHAT_ID,
+        FAKE_PROJECT_DIR,
+        makeStatusInfo,
+        makeKnowledgeStub(),
+        makeMemoryStub(),
+        makeHistoryStub(),
+        makeTasksStub(),
+        makeRecallStub(),
+        answerClient,
+      );
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(log).toHaveBeenCalledWith({ limit: 5 });
+      const sendCall = mockedCallTelegramApi.mock.calls.find(
+        (c) => c[1] === "sendMessage",
+      );
+      expect(sendCall).toBeDefined();
+      const payload = sendCall?.[2] as {
+        text: string;
+        parse_mode?: string;
+        chat_id: string;
+      };
+      expect(payload.parse_mode).toBeUndefined();
+      expect(payload.chat_id).toBe(FAKE_CHAT_ID);
+      const lines = payload.text.split("\n");
+      expect(lines).toHaveLength(3);
+      // Newest first: okEntry, then failEntry, then olderEntry.
+      expect(lines[0]).toContain(okEntry.id);
+      expect(lines[0]).toContain("ok(2)");
+      expect(lines[0]).toContain("How does recall work?");
+      expect(lines[0]).toContain("2026-04-28T00:00:02Z");
+      expect(lines[1]).toContain(failEntry.id);
+      expect(lines[1]).toContain("no_hits");
+      expect(lines[1]).toContain("What about nothing in the brain?");
+      expect(lines[2]).toContain(olderEntry.id);
+      expect(lines[2]).toContain("ok(1)");
+      expect(lines[2]).toContain("First ever question");
+    });
+
+    it("replies 'No past answer records yet.' when /answer-log returns an empty store", async () => {
+      const log = vi.fn().mockResolvedValue({ entries: [] });
+      const answerClient: AnswerClient = {
+        answer: vi.fn(),
+        log,
+        show: vi.fn(),
+      };
+      mockedCallTelegramApi
+        .mockResolvedValueOnce([
+          makeUpdate(1, Number(FAKE_CHAT_ID), "/answer-log"),
+        ])
+        .mockResolvedValue([]);
+      stop = startTelegramStatusPoll(
+        FAKE_TOKEN,
+        FAKE_CHAT_ID,
+        FAKE_PROJECT_DIR,
+        makeStatusInfo,
+        makeKnowledgeStub(),
+        makeMemoryStub(),
+        makeHistoryStub(),
+        makeTasksStub(),
+        makeRecallStub(),
+        answerClient,
+      );
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(log).toHaveBeenCalledWith({ limit: 5 });
+      const sendCall = mockedCallTelegramApi.mock.calls.find(
+        (c) => c[1] === "sendMessage",
+      );
+      expect(sendCall?.[2]).toMatchObject({
+        chat_id: FAKE_CHAT_ID,
+        text: "No past answer records yet.",
+      });
+    });
+
+    it("honors an explicit positive integer limit", async () => {
+      const log = vi.fn().mockResolvedValue({ entries: [] });
+      const answerClient: AnswerClient = {
+        answer: vi.fn(),
+        log,
+        show: vi.fn(),
+      };
+      mockedCallTelegramApi
+        .mockResolvedValueOnce([
+          makeUpdate(1, Number(FAKE_CHAT_ID), "/answer-log 3"),
+        ])
+        .mockResolvedValue([]);
+      stop = startTelegramStatusPoll(
+        FAKE_TOKEN,
+        FAKE_CHAT_ID,
+        FAKE_PROJECT_DIR,
+        makeStatusInfo,
+        makeKnowledgeStub(),
+        makeMemoryStub(),
+        makeHistoryStub(),
+        makeTasksStub(),
+        makeRecallStub(),
+        answerClient,
+      );
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(log).toHaveBeenCalledWith({ limit: 3 });
+    });
+
+    it("emits a fixed usage hint and never calls the namespace for non-numeric limits", async () => {
+      const log = vi.fn();
+      const answerClient: AnswerClient = {
+        answer: vi.fn(),
+        log,
+        show: vi.fn(),
+      };
+      mockedCallTelegramApi
+        .mockResolvedValueOnce([
+          makeUpdate(1, Number(FAKE_CHAT_ID), "/answer-log abc"),
+          makeUpdate(2, Number(FAKE_CHAT_ID), "/answer-log 0"),
+          makeUpdate(3, Number(FAKE_CHAT_ID), "/answer-log -1"),
+        ])
+        .mockResolvedValue([]);
+      stop = startTelegramStatusPoll(
+        FAKE_TOKEN,
+        FAKE_CHAT_ID,
+        FAKE_PROJECT_DIR,
+        makeStatusInfo,
+        makeKnowledgeStub(),
+        makeMemoryStub(),
+        makeHistoryStub(),
+        makeTasksStub(),
+        makeRecallStub(),
+        answerClient,
+      );
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(log).not.toHaveBeenCalled();
+      const sendCalls = mockedCallTelegramApi.mock.calls.filter(
+        (c) => c[1] === "sendMessage",
+      );
+      expect(sendCalls).toHaveLength(3);
+      for (const call of sendCalls) {
+        expect(call[2]).toMatchObject({
+          chat_id: FAKE_CHAT_ID,
+          text: "Usage: /answer-log [N]",
+        });
+      }
+    });
+
+    it("ignores /answer-log from chats outside the allowlist", async () => {
+      const log = vi.fn();
+      const answerClient: AnswerClient = {
+        answer: vi.fn(),
+        log,
+        show: vi.fn(),
+      };
+      mockedCallTelegramApi
+        .mockResolvedValueOnce([makeUpdate(1, 111111, "/answer-log")])
+        .mockResolvedValue([]);
+      stop = startTelegramStatusPoll(
+        FAKE_TOKEN,
+        FAKE_CHAT_ID,
+        FAKE_PROJECT_DIR,
+        makeStatusInfo,
+        makeKnowledgeStub(),
+        makeMemoryStub(),
+        makeHistoryStub(),
+        makeTasksStub(),
+        makeRecallStub(),
+        answerClient,
+      );
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(log).not.toHaveBeenCalled();
+      const sendCall = mockedCallTelegramApi.mock.calls.find(
+        (c) => c[1] === "sendMessage",
+      );
+      expect(sendCall).toBeUndefined();
+    });
+  });
+
+  describe("/answer-show", () => {
+    const okRecord: AnswerHistoryRecord = {
+      id: "2026-04-28T00-00-00-000Z-eeeeee",
+      createdAt: "2026-04-28T00:00:00.000Z",
+      query: "How does recall rank across stores?",
+      filter: { topK: 8 },
+      recallHits: [
+        {
+          source: "knowledge",
+          score: 0.92,
+          id: "kn-001",
+          title: "Project conventions",
+          preview: "Strict by default...",
+          updated: "2026-04-26",
+        },
+      ],
+      result: {
+        ok: true,
+        answer:
+          "Recall ranks across stores [knowledge:kn-001].",
+        citations: [{ source: "knowledge", id: "kn-001" }],
+        hits: [
+          {
+            source: "knowledge",
+            score: 0.92,
+            id: "kn-001",
+            title: "Project conventions",
+            preview: "Strict by default...",
+            updated: "2026-04-26",
+          },
+        ],
+      },
+    };
+
+    const failRecord: AnswerHistoryRecord = {
+      id: "2026-04-28T00-00-01-000Z-ffffff",
+      createdAt: "2026-04-28T00:00:01.000Z",
+      query: "What about nothing?",
+      filter: { topK: 8 },
+      recallHits: [],
+      result: { ok: false, reason: "no_hits" },
+    };
+
+    it("renders an ok:true record byte-identically to /answer's reply for the same envelope", async () => {
+      const expectedAnswerBody = renderAnswerReplyPlain(okRecord.result);
+      const show = vi.fn().mockResolvedValue({ ok: true, record: okRecord });
+      const answerClient: AnswerClient = {
+        answer: vi.fn(),
+        log: vi.fn(),
+        show,
+      };
+      mockedCallTelegramApi
+        .mockResolvedValueOnce([
+          makeUpdate(
+            1,
+            Number(FAKE_CHAT_ID),
+            `/answer-show ${okRecord.id}`,
+          ),
+        ])
+        .mockResolvedValue([]);
+      stop = startTelegramStatusPoll(
+        FAKE_TOKEN,
+        FAKE_CHAT_ID,
+        FAKE_PROJECT_DIR,
+        makeStatusInfo,
+        makeKnowledgeStub(),
+        makeMemoryStub(),
+        makeHistoryStub(),
+        makeTasksStub(),
+        makeRecallStub(),
+        answerClient,
+      );
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(show).toHaveBeenCalledWith(okRecord.id);
+      const sendCall = mockedCallTelegramApi.mock.calls.find(
+        (c) => c[1] === "sendMessage",
+      );
+      expect(sendCall?.[2]).toMatchObject({
+        chat_id: FAKE_CHAT_ID,
+        text: expectedAnswerBody,
+      });
+      expect((sendCall?.[2] as { text: string }).text).toContain(
+        "[knowledge:kn-001]",
+      );
+      expect((sendCall?.[2] as { text: string }).text).toContain("Citations");
+      expect((sendCall?.[2] as { text: string }).text).toContain(
+        "Project conventions",
+      );
+    });
+
+    it("renders the typed failure reason for an ok:false record without a synthesized body", async () => {
+      const show = vi.fn().mockResolvedValue({ ok: true, record: failRecord });
+      const answerClient: AnswerClient = {
+        answer: vi.fn(),
+        log: vi.fn(),
+        show,
+      };
+      mockedCallTelegramApi
+        .mockResolvedValueOnce([
+          makeUpdate(
+            1,
+            Number(FAKE_CHAT_ID),
+            `/answer-show ${failRecord.id}`,
+          ),
+        ])
+        .mockResolvedValue([]);
+      stop = startTelegramStatusPoll(
+        FAKE_TOKEN,
+        FAKE_CHAT_ID,
+        FAKE_PROJECT_DIR,
+        makeStatusInfo,
+        makeKnowledgeStub(),
+        makeMemoryStub(),
+        makeHistoryStub(),
+        makeTasksStub(),
+        makeRecallStub(),
+        answerClient,
+      );
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(show).toHaveBeenCalledWith(failRecord.id);
+      const sendCall = mockedCallTelegramApi.mock.calls.find(
+        (c) => c[1] === "sendMessage",
+      );
+      expect(sendCall?.[2]).toMatchObject({
+        chat_id: FAKE_CHAT_ID,
+        text: renderAnswerReplyPlain({ ok: false, reason: "no_hits" }),
+      });
+      expect((sendCall?.[2] as { text: string }).text).not.toContain(
+        "Citations",
+      );
+    });
+
+    it("replies with a fixed-body 'not found' message and does not throw for an unknown id", async () => {
+      const show = vi
+        .fn()
+        .mockResolvedValue({ ok: false, reason: "not_found" });
+      const answerClient: AnswerClient = {
+        answer: vi.fn(),
+        log: vi.fn(),
+        show,
+      };
+      mockedCallTelegramApi
+        .mockResolvedValueOnce([
+          makeUpdate(1, Number(FAKE_CHAT_ID), "/answer-show missing"),
+        ])
+        .mockResolvedValue([]);
+      stop = startTelegramStatusPoll(
+        FAKE_TOKEN,
+        FAKE_CHAT_ID,
+        FAKE_PROJECT_DIR,
+        makeStatusInfo,
+        makeKnowledgeStub(),
+        makeMemoryStub(),
+        makeHistoryStub(),
+        makeTasksStub(),
+        makeRecallStub(),
+        answerClient,
+      );
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(show).toHaveBeenCalledWith("missing");
+      const sendCall = mockedCallTelegramApi.mock.calls.find(
+        (c) => c[1] === "sendMessage",
+      );
+      expect(sendCall?.[2]).toMatchObject({
+        chat_id: FAKE_CHAT_ID,
+        text: 'No answer record found for id "missing".',
+      });
+    });
+
+    it("emits a fixed usage hint and never calls the namespace when no id is given", async () => {
+      const show = vi.fn();
+      const answerClient: AnswerClient = {
+        answer: vi.fn(),
+        log: vi.fn(),
+        show,
+      };
+      mockedCallTelegramApi
+        .mockResolvedValueOnce([
+          makeUpdate(1, Number(FAKE_CHAT_ID), "/answer-show"),
+          makeUpdate(2, Number(FAKE_CHAT_ID), "/answer-show    "),
+        ])
+        .mockResolvedValue([]);
+      stop = startTelegramStatusPoll(
+        FAKE_TOKEN,
+        FAKE_CHAT_ID,
+        FAKE_PROJECT_DIR,
+        makeStatusInfo,
+        makeKnowledgeStub(),
+        makeMemoryStub(),
+        makeHistoryStub(),
+        makeTasksStub(),
+        makeRecallStub(),
+        answerClient,
+      );
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(show).not.toHaveBeenCalled();
+      const sendCalls = mockedCallTelegramApi.mock.calls.filter(
+        (c) => c[1] === "sendMessage",
+      );
+      expect(sendCalls).toHaveLength(2);
+      for (const call of sendCalls) {
+        expect(call[2]).toMatchObject({
+          chat_id: FAKE_CHAT_ID,
+          text: "Usage: /answer-show <id>",
+        });
+      }
+    });
+
+    it("ignores /answer-show from chats outside the allowlist", async () => {
+      const show = vi.fn();
+      const answerClient: AnswerClient = {
+        answer: vi.fn(),
+        log: vi.fn(),
+        show,
+      };
+      mockedCallTelegramApi
+        .mockResolvedValueOnce([makeUpdate(1, 111111, "/answer-show abc")])
+        .mockResolvedValue([]);
+      stop = startTelegramStatusPoll(
+        FAKE_TOKEN,
+        FAKE_CHAT_ID,
+        FAKE_PROJECT_DIR,
+        makeStatusInfo,
+        makeKnowledgeStub(),
+        makeMemoryStub(),
+        makeHistoryStub(),
+        makeTasksStub(),
+        makeRecallStub(),
+        answerClient,
+      );
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(show).not.toHaveBeenCalled();
+      const sendCall = mockedCallTelegramApi.mock.calls.find(
+        (c) => c[1] === "sendMessage",
+      );
+      expect(sendCall).toBeUndefined();
+    });
   });
 
   it("ignores messages from other chat IDs", async () => {

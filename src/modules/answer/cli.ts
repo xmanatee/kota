@@ -14,14 +14,16 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import type {
   AnswerCitation,
   AnswerFilter,
-  AnswerHistoryEntry,
   AnswerHistoryRecord,
   RecallHit,
   RecallSource,
 } from "#core/server/kota-client.js";
 import { blank, line, plain, span } from "#modules/rendering/primitives.js";
 import { print, TerminalTransport } from "#modules/rendering/transport.js";
-import { renderAnswerCitationsPlain } from "./render.js";
+import {
+  renderAnswerCitationsPlain,
+  renderAnswerHistoryEntriesPlain,
+} from "./render.js";
 
 const ALLOWED_SOURCES: ReadonlyArray<RecallSource> = [
   "knowledge",
@@ -58,22 +60,10 @@ const FAILURE_MESSAGE: Record<
     "Synthesis failed (model unreachable or unable to cite resolvable sources).",
 };
 
-const QUERY_TRUNCATE = 60;
-
-function truncate(text: string, max: number): string {
-  if (text.length <= max) return text;
-  return `${text.slice(0, max - 1)}…`;
-}
-
-function formatTimestamp(iso: string): string {
+function formatRecordTimestamp(iso: string): string {
   const idx = iso.indexOf(".");
   const head = idx >= 0 ? iso.slice(0, idx) : iso;
   return `${head}Z`.replace(/Z+$/, "Z");
-}
-
-function badgeForEntry(entry: AnswerHistoryEntry): string {
-  if (entry.result.ok) return `ok(${entry.result.citationCount})`;
-  return entry.result.reason;
 }
 
 export function registerAnswerCommand(
@@ -122,19 +112,7 @@ export function registerAnswerCommand(
           );
           return;
         }
-        for (const entry of result.entries) {
-          const ts = formatTimestamp(entry.createdAt);
-          const badge = badgeForEntry(entry);
-          const query = truncate(entry.query, QUERY_TRUNCATE);
-          print(
-            line(
-              span(`${ts}  `, "muted"),
-              span(badge.padEnd(20), entry.result.ok ? "success" : "error"),
-              plain(`  ${entry.id}`),
-            ),
-          );
-          print(line(span(`    ${query}`, "muted")));
-        }
+        print(line(plain(renderAnswerHistoryEntriesPlain(result.entries))));
       },
     );
 
@@ -256,7 +234,7 @@ function renderResolvedAnswer(
 function renderRecord(record: AnswerHistoryRecord): void {
   print(
     line(
-      span(`${formatTimestamp(record.createdAt)}  `, "muted"),
+      span(`${formatRecordTimestamp(record.createdAt)}  `, "muted"),
       plain(record.id),
     ),
   );

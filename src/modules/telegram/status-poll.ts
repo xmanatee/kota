@@ -9,7 +9,10 @@ import type {
   RepoTasksClient,
 } from "#core/server/kota-client.js";
 import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
-import { renderAnswerCitationsPlain } from "#modules/answer/render.js";
+import {
+  renderAnswerCitationsPlain,
+  renderAnswerHistoryEntriesPlain,
+} from "#modules/answer/render.js";
 import { computeCostByWorkflow, loadRecentRuns } from "#modules/autonomy/shared.js";
 import { renderOnDemandAttention } from "#modules/autonomy/workflows/attention-digest/step.js";
 import { renderOnDemandDigest } from "#modules/autonomy/workflows/daily-digest/on-demand.js";
@@ -18,12 +21,14 @@ import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
 import { renderMemorySearchPlain } from "#modules/memory/render.js";
 import { renderRecallHitsPlain } from "#modules/recall/render.js";
 import { renderRepoTaskSearchPlain } from "#modules/repo-tasks/render.js";
-import { callTelegramApi } from "./client.js";
+import { callTelegramApi, splitMessage } from "./client.js";
 
 const POLL_INTERVAL_MS = 30_000;
 const ERROR_BACKOFF_MS = 5_000;
 /** Telegram sendMessage hard limit; longer bodies must be truncated client-side. */
 const TELEGRAM_MAX_MESSAGE_LENGTH = 4096;
+/** Default page size for the chat-side `/answer-log` projection. */
+const ANSWER_LOG_DEFAULT_LIMIT = 5;
 
 export type StatusInfo = {
   runtimeState: WorkflowRuntimeState;
@@ -309,6 +314,68 @@ export function startTelegramStatusPoll(
     });
   }
 
+  async function handleAnswerLog(text: string): Promise<void> {
+    const arg =
+      text === "/answer-log" ? "" : text.slice("/answer-log ".length).trim();
+    let limit = ANSWER_LOG_DEFAULT_LIMIT;
+    if (arg.length > 0) {
+      const parsed = Number.parseInt(arg, 10);
+      if (!Number.isFinite(parsed) || parsed <= 0 || String(parsed) !== arg) {
+        await callTelegramApi(token, "sendMessage", {
+          chat_id: chatId,
+          text: "Usage: /answer-log [N]",
+        });
+        return;
+      }
+      limit = parsed;
+    }
+    const result = await answer.log({ limit });
+    if (result.entries.length === 0) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: "No past answer records yet.",
+      });
+      return;
+    }
+    await callTelegramApi(token, "sendMessage", {
+      chat_id: chatId,
+      // Plain text — entry queries can carry Markdown-active characters
+      // and the rendered row deliberately reuses the CLI's plain layout.
+      text: truncateForTelegram(renderAnswerHistoryEntriesPlain(result.entries)),
+    });
+  }
+
+  async function handleAnswerShow(text: string): Promise<void> {
+    const id =
+      text === "/answer-show" ? "" : text.slice("/answer-show ".length).trim();
+    if (id.length === 0) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: "Usage: /answer-show <id>",
+      });
+      return;
+    }
+    const result = await answer.show(id);
+    if (!result.ok) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: `No answer record found for id "${id}".`,
+      });
+      return;
+    }
+    // Re-render byte-identically to /answer's reply by feeding the typed
+    // record's discriminated `result` back through the same renderer.
+    const body = renderAnswerReplyPlain(result.record.result);
+    // /answer-show may emit a long body with many citations; chunk on
+    // the shared splitter rather than truncating mid-citation.
+    for (const chunk of splitMessage(body)) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: chunk,
+      });
+    }
+  }
+
   async function handleTasks(text: string): Promise<void> {
     const query =
       text === "/tasks" ? "" : text.slice("/tasks ".length).trim();
@@ -393,6 +460,16 @@ export function startTelegramStatusPoll(
           msg.text.startsWith("/recall ")
         ) {
           await handleRecall(msg.text);
+        } else if (
+          msg.text === "/answer-log" ||
+          msg.text.startsWith("/answer-log ")
+        ) {
+          await handleAnswerLog(msg.text);
+        } else if (
+          msg.text === "/answer-show" ||
+          msg.text.startsWith("/answer-show ")
+        ) {
+          await handleAnswerShow(msg.text);
         } else if (
           msg.text === "/answer" ||
           msg.text.startsWith("/answer ")
