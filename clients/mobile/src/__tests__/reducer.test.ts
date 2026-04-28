@@ -13,6 +13,7 @@ import type {
   MemorySearchResponse,
   OwnerQuestion,
   RecallSearchResponse,
+  RetractResult,
   RunSummary,
   TasksResponse,
   TasksSearchResponse,
@@ -1422,5 +1423,157 @@ describe('reducer', () => {
     expect(offline.captureText).toBe('pending draft');
     expect(offline.captureTarget).toBe('tasks');
     expect(offline.captureHint).toBe('urgent');
+  });
+
+  test('initial state seeds the retract surface with memory, empty identifier, no result, no confirmation', () => {
+    expect(initialState.retractTarget).toBe('memory');
+    expect(initialState.retractIdentifier).toBe('');
+    expect(initialState.retractResult).toBeNull();
+    expect(initialState.retractLoading).toBe(false);
+    expect(initialState.retractError).toBeNull();
+    expect(initialState.retractConfirmed).toBe(false);
+  });
+
+  test('RETRACT_TARGET_SET clears identifier, result, error, and confirmation when the target actually changes', () => {
+    let s = reducer(initialState, {
+      type: 'RETRACT_IDENTIFIER_SET',
+      identifier: 'mem-7',
+    });
+    s = reducer(s, { type: 'RETRACT_CONFIRMED_SET', confirmed: true });
+    s = reducer(s, {
+      type: 'RETRACT_RESULT',
+      result: { ok: true, record: { target: 'memory', recordId: 'mem-7' } },
+    });
+    s = reducer(s, { type: 'RETRACT_ERROR', error: '503' });
+    const next = reducer(s, { type: 'RETRACT_TARGET_SET', target: 'inbox' });
+    expect(next.retractTarget).toBe('inbox');
+    expect(next.retractIdentifier).toBe('');
+    expect(next.retractResult).toBeNull();
+    expect(next.retractError).toBeNull();
+    expect(next.retractConfirmed).toBe(false);
+  });
+
+  test('RETRACT_TARGET_SET is a no-op when picking the same target (preserves identifier draft)', () => {
+    const seeded = reducer(initialState, {
+      type: 'RETRACT_IDENTIFIER_SET',
+      identifier: 'mem-7',
+    });
+    const same = reducer(seeded, {
+      type: 'RETRACT_TARGET_SET',
+      target: 'memory',
+    });
+    expect(same.retractIdentifier).toBe('mem-7');
+    expect(same).toBe(seeded);
+  });
+
+  test('RETRACT_IDENTIFIER_SET clears confirmation but preserves target', () => {
+    let s = reducer(initialState, {
+      type: 'RETRACT_TARGET_SET',
+      target: 'tasks',
+    });
+    s = reducer(s, {
+      type: 'RETRACT_IDENTIFIER_SET',
+      identifier: 'task-foo',
+    });
+    s = reducer(s, { type: 'RETRACT_CONFIRMED_SET', confirmed: true });
+    expect(s.retractConfirmed).toBe(true);
+    const next = reducer(s, {
+      type: 'RETRACT_IDENTIFIER_SET',
+      identifier: 'task-bar',
+    });
+    expect(next.retractIdentifier).toBe('task-bar');
+    expect(next.retractTarget).toBe('tasks');
+    expect(next.retractConfirmed).toBe(false);
+  });
+
+  test('RETRACT_LOADING flips loading flag, clears prior result/error, and resets confirmation', () => {
+    let s = reducer(initialState, { type: 'RETRACT_ERROR', error: 'boom' });
+    s = reducer(s, { type: 'RETRACT_CONFIRMED_SET', confirmed: true });
+    const next = reducer(s, { type: 'RETRACT_LOADING' });
+    expect(next.retractLoading).toBe(true);
+    expect(next.retractError).toBeNull();
+    expect(next.retractResult).toBeNull();
+    expect(next.retractConfirmed).toBe(false);
+  });
+
+  test('RETRACT_RESULT preserves each ok:false branch verbatim alongside the ok success arms', () => {
+    const arms: RetractResult[] = [
+      {
+        ok: true,
+        record: {
+          target: 'tasks',
+          recordId: 'task-foo',
+          previousPath: 'data/tasks/ready/task-foo.md',
+          path: 'data/tasks/dropped/task-foo.md',
+          toState: 'dropped',
+        },
+      },
+      { ok: false, reason: 'no_contributors' },
+      {
+        ok: false,
+        reason: 'not_found',
+        target: 'knowledge',
+        identifier: 'unknown-slug',
+      },
+      {
+        ok: false,
+        reason: 'contributor_failed',
+        target: 'inbox',
+        message: 'inbox writer cannot reach project root',
+      },
+    ];
+    for (const result of arms) {
+      const next = reducer(initialState, { type: 'RETRACT_RESULT', result });
+      expect(next.retractResult).toEqual(result);
+      expect(next.retractLoading).toBe(false);
+      expect(next.retractError).toBeNull();
+    }
+  });
+
+  test('RETRACT_ERROR clears stale retract result', () => {
+    const result: RetractResult = {
+      ok: true,
+      record: { target: 'memory', recordId: 'mem-7' },
+    };
+    const withResult = reducer(initialState, {
+      type: 'RETRACT_RESULT',
+      result,
+    });
+    const next = reducer(withResult, { type: 'RETRACT_ERROR', error: '503' });
+    expect(next.retractResult).toBeNull();
+    expect(next.retractError).toBe('503');
+    expect(next.retractLoading).toBe(false);
+  });
+
+  test('ONLINE false drops cached retract result/error/loading/confirmation but preserves target+identifier draft', () => {
+    let s: DaemonState = reducer(initialState, {
+      type: 'RETRACT_TARGET_SET',
+      target: 'tasks',
+    });
+    s = reducer(s, {
+      type: 'RETRACT_IDENTIFIER_SET',
+      identifier: 'task-foo',
+    });
+    s = reducer(s, { type: 'RETRACT_CONFIRMED_SET', confirmed: true });
+    s = reducer(s, {
+      type: 'RETRACT_RESULT',
+      result: {
+        ok: true,
+        record: {
+          target: 'tasks',
+          recordId: 'task-foo',
+          previousPath: 'data/tasks/ready/task-foo.md',
+          path: 'data/tasks/dropped/task-foo.md',
+          toState: 'dropped',
+        },
+      },
+    });
+    const offline = reducer(s, { type: 'ONLINE', online: false });
+    expect(offline.retractResult).toBeNull();
+    expect(offline.retractError).toBeNull();
+    expect(offline.retractLoading).toBe(false);
+    expect(offline.retractConfirmed).toBe(false);
+    expect(offline.retractTarget).toBe('tasks');
+    expect(offline.retractIdentifier).toBe('task-foo');
   });
 });

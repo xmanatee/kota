@@ -13,6 +13,8 @@ import type {
   MemorySearchResponse,
   OwnerQuestion,
   RecallSearchResponse,
+  RetractResult,
+  RetractTarget,
   RunSummary,
   TasksResponse,
   TasksSearchResponse,
@@ -85,6 +87,12 @@ export interface DaemonState {
   captureResult: CaptureResult | null;
   captureLoading: boolean;
   captureError: string | null;
+  retractTarget: RetractTarget;
+  retractIdentifier: string;
+  retractResult: RetractResult | null;
+  retractLoading: boolean;
+  retractError: string | null;
+  retractConfirmed: boolean;
 }
 
 export type DaemonAction =
@@ -149,7 +157,13 @@ export type DaemonAction =
   | { type: 'CAPTURE_HINT_SET'; hint: string }
   | { type: 'CAPTURE_LOADING' }
   | { type: 'CAPTURE_RESULT'; result: CaptureResult }
-  | { type: 'CAPTURE_ERROR'; error: string };
+  | { type: 'CAPTURE_ERROR'; error: string }
+  | { type: 'RETRACT_TARGET_SET'; target: RetractTarget }
+  | { type: 'RETRACT_IDENTIFIER_SET'; identifier: string }
+  | { type: 'RETRACT_CONFIRMED_SET'; confirmed: boolean }
+  | { type: 'RETRACT_LOADING' }
+  | { type: 'RETRACT_RESULT'; result: RetractResult }
+  | { type: 'RETRACT_ERROR'; error: string };
 
 export const initialState: DaemonState = {
   daemonUrl: '',
@@ -210,6 +224,12 @@ export const initialState: DaemonState = {
   captureResult: null,
   captureLoading: false,
   captureError: null,
+  retractTarget: 'memory',
+  retractIdentifier: '',
+  retractResult: null,
+  retractLoading: false,
+  retractError: null,
+  retractConfirmed: false,
 };
 
 export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
@@ -268,6 +288,10 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         captureResult: action.online ? state.captureResult : null,
         captureError: action.online ? state.captureError : null,
         captureLoading: action.online ? state.captureLoading : false,
+        retractResult: action.online ? state.retractResult : null,
+        retractError: action.online ? state.retractError : null,
+        retractLoading: action.online ? state.retractLoading : false,
+        retractConfirmed: action.online ? state.retractConfirmed : false,
       };
     case 'SSE_STATUS':
       return { ...state, sseConnected: action.connected };
@@ -548,6 +572,47 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         captureLoading: false,
         captureError: action.error,
         captureResult: null,
+      };
+    case 'RETRACT_TARGET_SET':
+      if (state.retractTarget === action.target) return state;
+      return {
+        ...state,
+        retractTarget: action.target,
+        retractIdentifier: '',
+        retractResult: null,
+        retractError: null,
+        retractConfirmed: false,
+      };
+    case 'RETRACT_IDENTIFIER_SET':
+      if (state.retractIdentifier === action.identifier) return state;
+      return {
+        ...state,
+        retractIdentifier: action.identifier,
+        retractConfirmed: false,
+      };
+    case 'RETRACT_CONFIRMED_SET':
+      return { ...state, retractConfirmed: action.confirmed };
+    case 'RETRACT_LOADING':
+      return {
+        ...state,
+        retractLoading: true,
+        retractError: null,
+        retractResult: null,
+        retractConfirmed: false,
+      };
+    case 'RETRACT_RESULT':
+      return {
+        ...state,
+        retractResult: action.result,
+        retractLoading: false,
+        retractError: null,
+      };
+    case 'RETRACT_ERROR':
+      return {
+        ...state,
+        retractLoading: false,
+        retractError: action.error,
+        retractResult: null,
       };
   }
 }

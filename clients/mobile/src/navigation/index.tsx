@@ -23,6 +23,7 @@ import { KnowledgeScreen } from '../screens/KnowledgeScreen';
 import { MemoryScreen } from '../screens/MemoryScreen';
 import { OwnerQuestionListScreen } from '../screens/OwnerQuestionListScreen';
 import { RecallScreen } from '../screens/RecallScreen';
+import { RetractScreen } from '../screens/RetractScreen';
 import { RunDetailScreen } from '../screens/RunDetailScreen';
 import { RunListScreen } from '../screens/RunListScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
@@ -68,6 +69,7 @@ export type TabParams = {
   Answer: undefined;
   AnswerHistory: undefined;
   Capture: undefined;
+  Retract: undefined;
   Chat: NavigatorScreenParams<ChatStackParams> | undefined;
 };
 
@@ -308,6 +310,11 @@ export function AppNavigator() {
           name="Capture"
           component={CaptureScreen}
           options={{ tabBarIcon: () => <Text>📝</Text>, headerShown: true, title: 'Capture' }}
+        />
+        <Tab.Screen
+          name="Retract"
+          component={RetractScreen}
+          options={{ tabBarIcon: () => <Text>🗑️</Text>, headerShown: true, title: 'Retract' }}
         />
         <Tab.Screen
           name="Chat"

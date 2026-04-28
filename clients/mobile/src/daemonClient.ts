@@ -15,6 +15,10 @@ import type {
   CaptureResult,
   CaptureTarget,
   ConversationRecord,
+  RetractRecord,
+  RetractRequest,
+  RetractResult,
+  RetractTarget,
   DaemonStatus,
   DigestResponse,
   HealthResponse,
@@ -38,7 +42,7 @@ import type {
   VoiceSynthesizeResult,
   VoiceTranscribeResult,
 } from './types';
-import { CAPTURE_TARGET_ORDER } from './types';
+import { CAPTURE_TARGET_ORDER, RETRACT_TARGET_ORDER } from './types';
 import { bytesToBase64, base64ToBytes } from './voice/base64';
 
 export class DaemonClient {
@@ -358,6 +362,26 @@ export class DaemonClient {
       body: JSON.stringify(body),
     });
     return parseCaptureResult(parsed);
+  }
+
+  /**
+   * Targets the daemon's `POST /api/retract` user-facing route — the
+   * same route the embedded web `RetractPanel` consumes — and decodes
+   * the discriminated four-arm `RetractResult`: one `ok: true` arm
+   * carrying the typed `RetractRecord`, plus three `ok: false` arms
+   * (`no_contributors`, `not_found`, `contributor_failed`). The wire
+   * shape mirrors the daemon's `RetractRequest` discriminated union:
+   * `{ target, id }` for memory/tasks, `{ target, slug }` for
+   * knowledge, `{ target, path }` for inbox. Mirrors the macOS
+   * `DaemonClient.retract` decode discipline: payload drift fails
+   * loudly instead of silently degrading the rendered surface.
+   */
+  async retract(request: RetractRequest): Promise<RetractResult> {
+    const parsed = await this.request<unknown>('/api/retract', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+    return parseRetractResult(parsed);
   }
 
   registerPushToken(deviceId: string, token: string): Promise<{ ok: boolean }> {
@@ -1109,4 +1133,101 @@ function parseCaptureResult(value: unknown): CaptureResult {
     );
   }
   throw new Error('Invalid capture response: missing ok flag');
+}
+
+const RETRACT_TARGETS: ReadonlyArray<RetractTarget> = RETRACT_TARGET_ORDER;
+
+function parseRetractTarget(value: unknown, context: string): RetractTarget {
+  if (
+    typeof value !== 'string' ||
+    !(RETRACT_TARGETS as readonly string[]).includes(value)
+  ) {
+    throw new Error(`Invalid retract ${context}: unknown target ${String(value)}`);
+  }
+  return value as RetractTarget;
+}
+
+function parseRetractRecord(value: unknown): RetractRecord {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid retract record: not an object');
+  }
+  const obj = value as Record<string, unknown>;
+  const target = parseRetractTarget(obj.target, 'record');
+  if (typeof obj.recordId !== 'string') {
+    throw new Error('Invalid retract record: recordId missing');
+  }
+  switch (target) {
+    case 'memory':
+      return { target: 'memory', recordId: obj.recordId };
+    case 'knowledge':
+      return { target: 'knowledge', recordId: obj.recordId };
+    case 'tasks':
+      if (typeof obj.previousPath !== 'string') {
+        throw new Error('Invalid retract record: tasks previousPath missing');
+      }
+      if (typeof obj.path !== 'string') {
+        throw new Error('Invalid retract record: tasks path missing');
+      }
+      if (obj.toState !== 'dropped') {
+        throw new Error(
+          `Invalid retract record: tasks toState must be "dropped" (got ${String(obj.toState)})`,
+        );
+      }
+      return {
+        target: 'tasks',
+        recordId: obj.recordId,
+        previousPath: obj.previousPath,
+        path: obj.path,
+        toState: 'dropped',
+      };
+    case 'inbox':
+      if (typeof obj.path !== 'string') {
+        throw new Error('Invalid retract record: inbox path missing');
+      }
+      return { target: 'inbox', recordId: obj.recordId, path: obj.path };
+  }
+}
+
+function parseRetractResult(value: unknown): RetractResult {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid retract response: not an object');
+  }
+  const obj = value as Record<string, unknown>;
+  if (obj.ok === true) {
+    return { ok: true, record: parseRetractRecord(obj.record) };
+  }
+  if (obj.ok === false) {
+    const reason = obj.reason;
+    if (reason === 'no_contributors') {
+      return { ok: false, reason: 'no_contributors' };
+    }
+    if (reason === 'not_found') {
+      const target = parseRetractTarget(obj.target, 'not_found');
+      if (typeof obj.identifier !== 'string') {
+        throw new Error('Invalid retract response: not_found identifier missing');
+      }
+      return {
+        ok: false,
+        reason: 'not_found',
+        target,
+        identifier: obj.identifier,
+      };
+    }
+    if (reason === 'contributor_failed') {
+      const target = parseRetractTarget(obj.target, 'contributor_failed');
+      if (typeof obj.message !== 'string') {
+        throw new Error('Invalid retract response: contributor_failed message missing');
+      }
+      return {
+        ok: false,
+        reason: 'contributor_failed',
+        target,
+        message: obj.message,
+      };
+    }
+    throw new Error(
+      `Invalid retract response: unknown reason ${String(reason)}`,
+    );
+  }
+  throw new Error('Invalid retract response: missing ok flag');
 }

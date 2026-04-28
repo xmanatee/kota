@@ -13,6 +13,8 @@ import { registerPushTokenWithDaemon } from '../pushNotifications';
 import type {
   AnswerHistoryListFilter,
   CaptureFilter,
+  RetractRequest,
+  RetractTarget,
   SseEvent,
 } from '../types';
 import {
@@ -54,6 +56,10 @@ interface DaemonContextValue {
   setCaptureTarget: (target: CaptureTargetChoice) => void;
   setCaptureHint: (hint: string) => void;
   capture: (text: string, options?: CaptureFilter) => Promise<void>;
+  setRetractTarget: (target: RetractTarget) => void;
+  setRetractIdentifier: (identifier: string) => void;
+  setRetractConfirmed: (confirmed: boolean) => void;
+  retract: (request: RetractRequest) => Promise<void>;
 }
 
 const DaemonContext = createContext<DaemonContextValue>({
@@ -84,6 +90,10 @@ const DaemonContext = createContext<DaemonContextValue>({
   setCaptureTarget: () => {},
   setCaptureHint: () => {},
   capture: async () => {},
+  setRetractTarget: () => {},
+  setRetractIdentifier: () => {},
+  setRetractConfirmed: () => {},
+  retract: async () => {},
 });
 
 export function DaemonProvider({ children }: { children: React.ReactNode }) {
@@ -496,6 +506,33 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const setRetractTarget = useCallback((target: RetractTarget) => {
+    dispatch({ type: 'RETRACT_TARGET_SET', target });
+  }, []);
+
+  const setRetractIdentifier = useCallback((identifier: string) => {
+    dispatch({ type: 'RETRACT_IDENTIFIER_SET', identifier });
+  }, []);
+
+  const setRetractConfirmed = useCallback((confirmed: boolean) => {
+    dispatch({ type: 'RETRACT_CONFIRMED_SET', confirmed });
+  }, []);
+
+  const retract = useCallback(async (request: RetractRequest) => {
+    const client = clientRef.current;
+    if (!client) return;
+    dispatch({ type: 'RETRACT_LOADING' });
+    try {
+      const result = await client.retract(request);
+      dispatch({ type: 'RETRACT_RESULT', result });
+    } catch (e) {
+      dispatch({
+        type: 'RETRACT_ERROR',
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }, []);
+
   return (
     <DaemonContext.Provider
       value={{
@@ -526,6 +563,10 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
         setCaptureTarget,
         setCaptureHint,
         capture,
+        setRetractTarget,
+        setRetractIdentifier,
+        setRetractConfirmed,
+        retract,
       }}
     >
       {children}

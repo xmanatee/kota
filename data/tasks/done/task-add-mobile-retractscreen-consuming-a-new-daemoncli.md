@@ -1,12 +1,12 @@
 ---
 id: task-add-mobile-retractscreen-consuming-a-new-daemoncli
 title: Add mobile RetractScreen consuming a new DaemonClient.retract
-status: ready
+status: done
 priority: p2
 area: client
 summary: Add a mobile RetractScreen at clients/mobile/src/screens/RetractScreen.tsx that calls POST /retract through a new DaemonClient.retract, exposes retract state on DaemonContext, and renders the four discriminated RetractResult arms (success across the four record arms memory/knowledge/tasks/inbox, no_contributors, not_found, contributor_failed) with a target picker, typed-per-target identifier control, and a confirmation gate before firing the dangerous mutation; closes the cross-store retract fan-out across CLI, Telegram, web, macOS DaemonClient, macOS RetractView, and mobile.
 created_at: 2026-04-28T13:33:41.193Z
-updated_at: 2026-04-28T13:33:41.193Z
+updated_at: 2026-04-28T13:48:04.453Z
 ---
 
 ## Problem

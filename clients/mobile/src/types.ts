@@ -696,3 +696,110 @@ export const CAPTURE_TARGET_ORDER: ReadonlyArray<CaptureTarget> = [
   'tasks',
   'inbox',
 ] as const;
+
+/**
+ * Target store for `DaemonClient.retract`. Mirrors the daemon's
+ * `RetractTarget` union exported from `src/core/server/kota-client.ts`.
+ * Adding a fifth contributor extends this union and the per-target arms
+ * of `RetractRequest` and `RetractRecord`.
+ */
+export type RetractTarget = 'memory' | 'knowledge' | 'tasks' | 'inbox';
+
+export interface RetractMemoryRecord {
+  target: 'memory';
+  recordId: string;
+}
+
+export interface RetractKnowledgeRecord {
+  target: 'knowledge';
+  recordId: string;
+}
+
+/**
+ * Tasks-store record dropped by a successful retract. The seam routes
+ * the task through the existing task-state machine into
+ * `data/tasks/dropped/`, so the arm carries the previous and resulting
+ * paths plus the explicit destination state.
+ */
+export interface RetractTasksRecord {
+  target: 'tasks';
+  recordId: string;
+  previousPath: string;
+  path: string;
+  toState: 'dropped';
+}
+
+export interface RetractInboxRecord {
+  target: 'inbox';
+  recordId: string;
+  path: string;
+}
+
+/**
+ * Discriminated mirror of the daemon's `RetractRecord` union
+ * (`src/core/server/kota-client.ts`). Each successful retract returns
+ * the typed identifier the underlying store removed; the
+ * filesystem-backed contributors carry the path metadata so the
+ * operator surface can render "moved to dropped" / "file deleted"
+ * without leaking internal moves into the seam.
+ */
+export type RetractRecord =
+  | RetractMemoryRecord
+  | RetractKnowledgeRecord
+  | RetractTasksRecord
+  | RetractInboxRecord;
+
+/**
+ * Discriminated mirror of the daemon's `RetractRequest` union
+ * (`src/core/server/kota-client.ts`). Each arm carries exactly the
+ * typed identifier its target needs — `id` for memory and tasks,
+ * `slug` for knowledge, `path` for inbox — so the type system rejects
+ * passing a memory `id` to the inbox contributor at compile time.
+ */
+export type RetractRequest =
+  | { target: 'memory'; id: string }
+  | { target: 'knowledge'; slug: string }
+  | { target: 'tasks'; id: string }
+  | { target: 'inbox'; path: string };
+
+/**
+ * Discriminated mirror of the daemon's `RetractResult` envelope
+ * (`src/core/server/kota-client.ts`): one `ok: true` arm carrying the
+ * typed `RetractRecord`, plus three `ok: false` failure arms tagged by
+ * `reason`. Strict so payload drift fails loudly instead of silently
+ * degrading the rendered surface.
+ *
+ * - `no_contributors` — the seam itself is unconfigured (zero
+ *   contributors registered, or the named target is not registered).
+ * - `not_found` — the named record is not present in the named target;
+ *   the seam never falls back into a different store.
+ * - `contributor_failed` — the chosen contributor threw; `target` is
+ *   the contributor that ran and `message` is the verbatim error.
+ */
+export type RetractResult =
+  | { ok: true; record: RetractRecord }
+  | { ok: false; reason: 'no_contributors' }
+  | {
+      ok: false;
+      reason: 'not_found';
+      target: RetractTarget;
+      identifier: string;
+    }
+  | {
+      ok: false;
+      reason: 'contributor_failed';
+      target: RetractTarget;
+      message: string;
+    };
+
+/**
+ * Stable retract-target ordering. Mirrors the seam's
+ * `RETRACT_TARGET_ORDER` so the mobile picker option order matches the
+ * agent, CLI, web, and macOS surfaces.
+ */
+export const RETRACT_TARGET_ORDER: ReadonlyArray<RetractTarget> = [
+  'memory',
+  'knowledge',
+  'tasks',
+  'inbox',
+] as const;
