@@ -9,6 +9,7 @@ import type {
   MemoryClient,
   RecallClient,
   RepoTasksClient,
+  RetractClient,
 } from "#core/server/kota-client.js";
 import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
 import {
@@ -25,6 +26,7 @@ import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
 import { renderMemorySearchPlain } from "#modules/memory/render.js";
 import { renderRecallHitsPlain } from "#modules/recall/render.js";
 import { renderRepoTaskSearchPlain } from "#modules/repo-tasks/render.js";
+import { renderRetractResultPlain } from "#modules/retract/render.js";
 import { callTelegramApi, splitMessage } from "./client.js";
 
 const POLL_INTERVAL_MS = 30_000;
@@ -33,6 +35,33 @@ const ERROR_BACKOFF_MS = 5_000;
 const TELEGRAM_MAX_MESSAGE_LENGTH = 4096;
 /** Default page size for the chat-side `/answer-log` projection. */
 const ANSWER_LOG_DEFAULT_LIMIT = 5;
+
+/**
+ * Fixed help body for the umbrella `/retract` command. The retract seam
+ * intentionally has no classifier, so the umbrella exists only to point
+ * the operator at the four explicit-target subcommands.
+ */
+const RETRACT_UMBRELLA_HELP_BODY =
+  "Retract removes one record from one named store. The seam has no classifier — pick the target explicitly:\n" +
+  "  /retract-memory <id>\n" +
+  "  /retract-knowledge <slug>\n" +
+  "  /retract-tasks <id>\n" +
+  "  /retract-inbox <path>";
+
+function retractUsageBody(
+  command: "/retract-memory" | "/retract-knowledge" | "/retract-tasks" | "/retract-inbox",
+): string {
+  switch (command) {
+    case "/retract-memory":
+      return "Usage: /retract-memory <id>";
+    case "/retract-knowledge":
+      return "Usage: /retract-knowledge <slug>";
+    case "/retract-tasks":
+      return "Usage: /retract-tasks <id>";
+    case "/retract-inbox":
+      return "Usage: /retract-inbox <path>";
+  }
+}
 
 export type StatusInfo = {
   runtimeState: WorkflowRuntimeState;
@@ -94,6 +123,7 @@ export function startTelegramStatusPoll(
   recall: RecallClient,
   answer: AnswerClient,
   capture: CaptureClient,
+  retract: RetractClient,
   log?: (message: string) => void,
 ): () => void {
   let running = true;
@@ -389,6 +419,54 @@ export function startTelegramStatusPoll(
     return text;
   }
 
+  /**
+   * One shared handler for the four `/retract-<target>` commands. The
+   * Telegram layer resolves the target from the command name and the
+   * per-target identifier from the slash-command argument before calling
+   * the seam. The retract seam has no classifier; there is no unguided
+   * `/retract <text>` primary, so an empty / whitespace-only argument
+   * short-circuits to a fixed usage body before the seam is called.
+   */
+  async function handleRetract(
+    command: "/retract-memory" | "/retract-knowledge" | "/retract-tasks" | "/retract-inbox",
+    body: string,
+  ): Promise<void> {
+    const trimmed = body.trim();
+    if (trimmed.length === 0) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: retractUsageBody(command),
+      });
+      return;
+    }
+    const result = await (() => {
+      switch (command) {
+        case "/retract-memory":
+          return retract.retract({ target: "memory", id: trimmed });
+        case "/retract-knowledge":
+          return retract.retract({ target: "knowledge", slug: trimmed });
+        case "/retract-tasks":
+          return retract.retract({ target: "tasks", id: trimmed });
+        case "/retract-inbox":
+          return retract.retract({ target: "inbox", path: trimmed });
+      }
+    })();
+    await callTelegramApi(token, "sendMessage", {
+      chat_id: chatId,
+      // Plain text — typed identifiers, slugs, paths, and contributor
+      // error messages can carry Markdown-active characters that would
+      // require escaping if Markdown parse_mode were enabled.
+      text: truncateForTelegram(renderRetractResultPlain(result)),
+    });
+  }
+
+  async function handleRetractHelp(): Promise<void> {
+    await callTelegramApi(token, "sendMessage", {
+      chat_id: chatId,
+      text: RETRACT_UMBRELLA_HELP_BODY,
+    });
+  }
+
   async function handleTasks(text: string): Promise<void> {
     const query =
       text === "/tasks" ? "" : text.slice("/tasks ".length).trim();
@@ -528,6 +606,43 @@ export function startTelegramStatusPoll(
             captureCommandBody(msg.text, "/capture"),
             undefined,
           );
+        } else if (
+          msg.text === "/retract-memory" ||
+          msg.text.startsWith("/retract-memory ")
+        ) {
+          await handleRetract(
+            "/retract-memory",
+            captureCommandBody(msg.text, "/retract-memory"),
+          );
+        } else if (
+          msg.text === "/retract-knowledge" ||
+          msg.text.startsWith("/retract-knowledge ")
+        ) {
+          await handleRetract(
+            "/retract-knowledge",
+            captureCommandBody(msg.text, "/retract-knowledge"),
+          );
+        } else if (
+          msg.text === "/retract-tasks" ||
+          msg.text.startsWith("/retract-tasks ")
+        ) {
+          await handleRetract(
+            "/retract-tasks",
+            captureCommandBody(msg.text, "/retract-tasks"),
+          );
+        } else if (
+          msg.text === "/retract-inbox" ||
+          msg.text.startsWith("/retract-inbox ")
+        ) {
+          await handleRetract(
+            "/retract-inbox",
+            captureCommandBody(msg.text, "/retract-inbox"),
+          );
+        } else if (
+          msg.text === "/retract" ||
+          msg.text.startsWith("/retract ")
+        ) {
+          await handleRetractHelp();
         }
       }
     } catch (err) {

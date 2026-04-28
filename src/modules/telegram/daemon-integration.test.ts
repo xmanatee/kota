@@ -262,6 +262,11 @@ describe("Telegram personal-assistant daemon integration", () => {
         throw new Error("not used");
       },
     } as unknown as Parameters<typeof startTelegramStatusPoll>[10];
+    const retractStub = {
+      async retract() {
+        throw new Error("not used");
+      },
+    } as unknown as Parameters<typeof startTelegramStatusPoll>[11];
     const telegramStatusChannel: ChannelDef = {
       name: "telegram-status-test",
       create(ctx) {
@@ -280,6 +285,7 @@ describe("Telegram personal-assistant daemon integration", () => {
               recallStub,
               answerStub,
               captureStub,
+              retractStub,
               ctx.log,
             );
           },

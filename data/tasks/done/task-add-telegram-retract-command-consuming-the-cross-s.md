@@ -1,12 +1,12 @@
 ---
 id: task-add-telegram-retract-command-consuming-the-cross-s
 title: Add Telegram /retract command consuming the cross-store retract seam
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Land /retract on the Telegram channel against POST /retract so an operator can correct or remove a prior capture from chat, mirroring the just-shipped retract seam plus the existing /capture fan-out pattern.
 created_at: 2026-04-28T10:57:37.254Z
-updated_at: 2026-04-28T10:57:37.254Z
+updated_at: 2026-04-28T11:11:36.190Z
 ---
 
 ## Problem

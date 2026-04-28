@@ -152,7 +152,7 @@ function makeTelegramStatusChannel(moduleCtx: ModuleContext): ChannelDef {
   return {
     name: "telegram-status",
     description:
-      "Responds to /status, /digest, /attention, /knowledge, /memory, /history, /tasks, /recall, /answer, /answer-log, /answer-show, /capture, /capture-to-memory, /capture-to-knowledge, /capture-to-tasks, and /capture-to-inbox in Telegram",
+      "Responds to /status, /digest, /attention, /knowledge, /memory, /history, /tasks, /recall, /answer, /answer-log, /answer-show, /capture, /capture-to-memory, /capture-to-knowledge, /capture-to-tasks, /capture-to-inbox, /retract, /retract-memory, /retract-knowledge, /retract-tasks, and /retract-inbox in Telegram",
     create(ctx) {
       const token = process.env.TELEGRAM_BOT_TOKEN;
       const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
@@ -173,6 +173,7 @@ function makeTelegramStatusChannel(moduleCtx: ModuleContext): ChannelDef {
             moduleCtx.client.recall,
             moduleCtx.client.answer,
             moduleCtx.client.capture,
+            moduleCtx.client.retract,
             ctx.log,
           );
         },
@@ -257,7 +258,7 @@ const telegramModule: KotaModule = {
   name: "telegram",
   version: "1.0.0",
   description: "Telegram bot frontend for KOTA",
-  dependencies: ["answer", "approval-queue", "autonomy", "capture", "history", "knowledge", "memory", "recall", "repo-tasks", "transcription"],
+  dependencies: ["answer", "approval-queue", "autonomy", "capture", "history", "knowledge", "memory", "recall", "repo-tasks", "retract", "transcription"],
   configSchema: {
     type: "object",
     additionalProperties: false,

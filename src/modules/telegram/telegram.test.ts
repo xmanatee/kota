@@ -87,6 +87,7 @@ describe("telegramModule", () => {
       "memory",
       "recall",
       "repo-tasks",
+      "retract",
       "transcription",
     ]);
   });
