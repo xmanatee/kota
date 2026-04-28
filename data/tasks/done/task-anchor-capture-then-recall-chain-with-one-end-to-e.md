@@ -1,12 +1,12 @@
 ---
 id: task-anchor-capture-then-recall-chain-with-one-end-to-e
 title: Anchor capture-then-recall chain with one end-to-end integration test against shared real stores
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Add one top-level integration test that boots the cross-store capture and recall route handlers against the same in-process MemoryStore, KnowledgeStore, and tasks/inbox project root, captures content via POST /api/capture for every CaptureTarget, then drives POST /api/recall through the production DaemonControlClient and asserts each captured item surfaces in the matching RecallSource hits — closing the gap between the capture-pipeline test (write-only) and the recall-answer-pipeline test (synthetic-data read-only) so a schema drift between capture writers and recall contributors fails loudly.
 created_at: 2026-04-28T07:22:39.275Z
-updated_at: 2026-04-28T07:22:39.275Z
+updated_at: 2026-04-28T07:33:00.146Z
 ---
 
 ## Problem
