@@ -6,7 +6,7 @@ priority: p1
 area: architecture
 summary: Define and enforce a repo policy that eliminates explicit any and confines unknown to validated boundary decoders, so protocol surfaces stay strongly typed instead of relying on casts.
 created_at: 2026-04-28T22:24:00.000Z
-updated_at: 2026-04-28T22:24:00.000Z
+updated_at: 2026-04-29T00:00:00.000Z
 ---
 
 ## Problem
@@ -71,6 +71,51 @@ unknown in the codebase and not allow it and this way force agents to figure
 out proper types and maintain them cleanly and nicely... maybe each module
 could declare their types if necessary and then their dependents would be
 forced to use them properly."
+
+Owner amplification on 2026-04-29
+(`data/inbox/protocols-for-all-comms.md`, captured pointing back at this
+task): "There should be strict typing everywhere! E.g. for every endpoint
+there should be strict type definition (e.g. using zod or protobuf or
+anything similar) so that if protocol changes all the clients of the
+endpoints or users of the endpoint break and must be updated to support
+the change! basically with this typesafety i want to make ci a lot more
+robust and reliable. on every change we should run some tests and if
+protocol changes which affects many clients or users it must be caught
+early and all the inconsistencies resolved. duplicate types and mixing of
+abstracts/concepts must be avoided! Also protocols must be as strict as
+possible! every time a new type is added or updated it should be
+thoroughly reviewed: They shouldn't be too allowing! nullability shouldn't
+be default! it should be there only in cases where it's actually
+relevant! All the main params must not be nullable! That should be kinda
+best practices for the repo... maybe some critic could know that to
+always direct builder in the right direction! basically right and clean
+and clear abstractions and protocols are VERY important for correct
+architecture and robustness and reliability and investing into keeping
+them such is EXTREMELY important!"
+
+This expands the scope from "no any, unknown only at boundaries" to also:
+
+- Every daemon control endpoint, channel transport, and module-public
+  protocol surface ships a single shared schema/type definition that all
+  clients import directly. CI must fail when a protocol change is not
+  reflected in every consumer.
+- No duplicate or near-duplicate types for the same wire concept across
+  daemon, modules, native clients, and tests. One owning module per
+  concept; consumers import.
+- Nullability is opt-in, not default. Required parameters are
+  non-nullable; optional fields are explicit and justified per
+  `AGENTS.md` strictness rules.
+- A reviewing critic role (e.g. the existing critic or an architect-mode
+  judge) is given enough signal to push back on lax type additions during
+  builder runs. Coordinate with the open critic/judge tasks instead of
+  introducing a parallel reviewer.
+
+The wire-contract sharing/conformance angle overlaps with
+`task-share-or-conformance-test-daemon-wire-contracts-ac` (already in
+backlog). Resolve the overlap when scheduling: this task owns the
+language-level strictness policy and the schema-source-of-truth rule;
+the wire-contract task owns conformance testing across clients. Keep
+both pointed at the same shared schema artifact.
 
 Investigation evidence:
 

@@ -6,7 +6,7 @@ priority: p1
 area: architecture
 summary: Define one durable way to share, generate, or conformance-test daemon wire contracts across web, mobile, and macOS clients so protocol drift is caught mechanically rather than discovered by manually comparing duplicated types.
 created_at: 2026-04-28T22:04:30.330Z
-updated_at: 2026-04-28T22:04:30.330Z
+updated_at: 2026-04-29T00:00:00.000Z
 ---
 
 ## Problem
@@ -79,6 +79,14 @@ These were two angles on the same problem in the original captures. The
 fixture-corpus conformance approach is one valid implementation of the
 durable wire-contract sharing mechanism; this task picks one solution rather
 than tracking the angles separately.
+
+Coordinate with `task-enforce-strict-typescript-boundary-typing`: the
+2026-04-29 owner amplification escalates protocol strictness (one shared
+schema per endpoint, no duplicate types, non-default nullability,
+critic-enforced strictness). That task owns the language-level rules and
+schema-source-of-truth policy; this task owns the cross-client
+conformance check that proves everyone is on the shared schema. Both
+should converge on the same shared artifact.
 
 ## Initiative
 

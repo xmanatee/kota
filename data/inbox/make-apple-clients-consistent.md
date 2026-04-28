@@ -1,1 +1,0 @@
-it probably makes sense to share the app for macos and ios ... maybe some would have additional functionality or different setup, but to avoid dupolication of similar pieces of logic they could share the codebase and have as much 'shared' as possible/reasonable... they must both be fully functional
