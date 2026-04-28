@@ -59,6 +59,7 @@ function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
         recall: moduleCtx.client.recall,
         answer: moduleCtx.client.answer,
         capture: moduleCtx.client.capture,
+        retract: moduleCtx.client.retract,
         memory: moduleCtx.client.memory,
         knowledge: moduleCtx.client.knowledge,
         history: moduleCtx.client.history,
@@ -114,6 +115,7 @@ const slackChannelModule: KotaModule = {
     "memory",
     "recall",
     "repo-tasks",
+    "retract",
   ],
   configSchema: {
     type: "object",

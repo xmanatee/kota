@@ -4,7 +4,8 @@
  * Parses the same slash-command surface the Telegram channel exposes —
  * `/recall`, `/answer`, `/answer-log`, `/answer-show`, `/capture` (plus
  * the four `/capture-to-{memory,knowledge,tasks,inbox}` twins), the
- * per-store semantic-search seams `/memory`, `/knowledge`, `/history`,
+ * four `/retract-{memory,knowledge,tasks,inbox}` correction commands,
+ * the per-store semantic-search seams `/memory`, `/knowledge`, `/history`,
  * `/tasks`, and the on-demand `/attention` and `/digest` seams — from
  * Slack DM text and
  * dispatches each through the matching `KotaClient` namespace or
@@ -26,6 +27,8 @@ import type {
   MemoryClient,
   RecallClient,
   RepoTasksClient,
+  RetractClient,
+  RetractRequest,
 } from "#core/server/kota-client.js";
 import {
   renderAnswerHistoryEntriesPlain,
@@ -38,6 +41,11 @@ import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
 import { renderMemorySearchPlain } from "#modules/memory/render.js";
 import { renderRecallHitsPlain } from "#modules/recall/render.js";
 import { renderRepoTaskSearchPlain } from "#modules/repo-tasks/render.js";
+import {
+  type RetractSlashCommand,
+  renderRetractResultPlain,
+  retractUsageBody,
+} from "#modules/retract/render.js";
 import { callSlackApi, splitText } from "./client.js";
 
 /**
@@ -62,6 +70,7 @@ export type SlackCommandClients = {
   recall: RecallClient;
   answer: AnswerClient;
   capture: CaptureClient;
+  retract: RetractClient;
   memory: MemoryClient;
   knowledge: KnowledgeClient;
   history: HistoryClient;
@@ -86,6 +95,29 @@ const CAPTURE_TO_COMMAND: Record<string, CaptureTarget> = {
   "/capture-to-tasks": "tasks",
   "/capture-to-inbox": "inbox",
 };
+
+const RETRACT_COMMANDS: Record<string, RetractSlashCommand> = {
+  "/retract-memory": "/retract-memory",
+  "/retract-knowledge": "/retract-knowledge",
+  "/retract-tasks": "/retract-tasks",
+  "/retract-inbox": "/retract-inbox",
+};
+
+function buildRetractRequest(
+  command: RetractSlashCommand,
+  identifier: string,
+): RetractRequest {
+  switch (command) {
+    case "/retract-memory":
+      return { target: "memory", id: identifier };
+    case "/retract-knowledge":
+      return { target: "knowledge", slug: identifier };
+    case "/retract-tasks":
+      return { target: "tasks", id: identifier };
+    case "/retract-inbox":
+      return { target: "inbox", path: identifier };
+  }
+}
 
 /** Default page size for the per-store semantic-search seams. Matches Telegram. */
 const SEARCH_DEFAULT_LIMIT = 10;
@@ -346,6 +378,21 @@ async function handleTasks(
   await postReply(token, channelId, renderRepoTaskSearchPlain(result.tasks));
 }
 
+async function handleRetract(
+  token: string,
+  channelId: string,
+  command: RetractSlashCommand,
+  body: string,
+  retract: RetractClient,
+): Promise<void> {
+  if (body.length === 0) {
+    await postReply(token, channelId, retractUsageBody(command));
+    return;
+  }
+  const result = await retract.retract(buildRetractRequest(command, body));
+  await postReply(token, channelId, renderRetractResultPlain(result));
+}
+
 async function handleAttention(
   token: string,
   channelId: string,
@@ -429,6 +476,17 @@ export async function dispatchSlackSlashCommand(args: {
       parsed.body,
       captureTarget,
       clients.capture,
+    );
+    return true;
+  }
+  const retractCommand = RETRACT_COMMANDS[parsed.command];
+  if (retractCommand !== undefined) {
+    await handleRetract(
+      token,
+      channelId,
+      retractCommand,
+      parsed.body,
+      clients.retract,
     );
     return true;
   }

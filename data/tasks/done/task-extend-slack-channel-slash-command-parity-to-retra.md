@@ -1,12 +1,12 @@
 ---
 id: task-extend-slack-channel-slash-command-parity-to-retra
 title: Extend Slack-channel slash-command parity to /retract-<store> closing the chat-channel parity gap
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Slack-channel commands.ts dispatches /recall /answer /answer-log /answer-show /capture (plus the /capture-to-{memory,knowledge,tasks,inbox} twins) and the per-store /memory /knowledge /history /tasks /attention /digest reads, but it does not yet recognize the four /retract-{memory,knowledge,tasks,inbox} commands Telegram exposes via status-poll.ts after the cross-store retract seam shipped. Extend Slack-channel commands.ts to dispatch each /retract-<store> through KotaClient.retract.retract using the same module-owned renderRetractResultPlain renderer Telegram uses, so Slack and Telegram replies match byte-for-byte for every retract envelope.
 created_at: 2026-04-28T14:09:42.133Z
-updated_at: 2026-04-28T14:09:42.133Z
+updated_at: 2026-04-28T14:19:31.354Z
 ---
 
 ## Problem

@@ -19,6 +19,7 @@ import type {
   MemoryClient,
   RecallClient,
   RepoTasksClient,
+  RetractClient,
 } from "#core/server/kota-client.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
@@ -46,10 +47,11 @@ export type SlackBotOptions = {
   verbose?: boolean;
   config?: KotaConfig;
   autonomyMode: AutonomyMode;
-  /** Cross-store seam clients used by `/recall`, `/answer`, `/capture`. */
+  /** Cross-store seam clients used by `/recall`, `/answer`, `/capture`, `/retract-<target>`. */
   recall: RecallClient;
   answer: AnswerClient;
   capture: CaptureClient;
+  retract: RetractClient;
   /** Per-store semantic-search seams used by `/memory`, `/knowledge`, `/history`, `/tasks`. */
   memory: MemoryClient;
   knowledge: KnowledgeClient;
@@ -273,6 +275,7 @@ export class SlackBot {
           recall: this.options.recall,
           answer: this.options.answer,
           capture: this.options.capture,
+          retract: this.options.retract,
           memory: this.options.memory,
           knowledge: this.options.knowledge,
           history: this.options.history,

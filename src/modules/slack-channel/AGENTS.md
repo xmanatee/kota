@@ -6,13 +6,14 @@ This directory owns the bidirectional Slack bot channel for KOTA.
 - One `AgentSession` per Slack user — free-form DMs go to that user's session.
 - First-class slash commands match the Telegram channel's surface
   (`/recall`, `/answer`, `/answer-log`, `/answer-show`, `/capture` plus the
-  four `/capture-to-{memory,knowledge,tasks,inbox}` twins, the per-store
-  semantic-search seams `/memory`, `/knowledge`, `/history`, `/tasks`, and
-  the on-demand `/attention` and `/digest` seams) — one-shot calls that
-  bypass the per-user session, route through the matching `KotaClient`
-  namespace (or attention/digest snapshot), and reuse the same module-owned
-  plain-text renderers Telegram uses, so a Slack reply matches the Telegram
-  reply byte-for-byte for the same envelope.
+  four `/capture-to-{memory,knowledge,tasks,inbox}` twins, the four
+  `/retract-{memory,knowledge,tasks,inbox}` correction commands, the
+  per-store semantic-search seams `/memory`, `/knowledge`, `/history`,
+  `/tasks`, and the on-demand `/attention` and `/digest` seams) — one-shot
+  calls that bypass the per-user session, route through the matching
+  `KotaClient` namespace (or attention/digest snapshot), and reuse the
+  same module-owned plain-text renderers Telegram uses, so a Slack reply
+  matches the Telegram reply byte-for-byte for the same envelope.
 - Slash-command parsing tolerates leading whitespace, a leading bot-mention
   prefix, and matches the command head case-insensitively.
 - Approval requests are posted as interactive Block Kit messages with Approve/Reject buttons.

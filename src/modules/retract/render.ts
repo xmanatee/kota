@@ -20,6 +20,37 @@ import type {
   RetractResult,
 } from "#core/server/kota-client.js";
 
+/**
+ * The four target-specific `/retract-<target>` slash commands chat
+ * channels expose. Sourced from this module so Telegram, Slack, and any
+ * future chat surface route the empty-body usage hint through one helper.
+ */
+export type RetractSlashCommand =
+  | "/retract-memory"
+  | "/retract-knowledge"
+  | "/retract-tasks"
+  | "/retract-inbox";
+
+/**
+ * Per-command empty-body usage hint shown by chat surfaces when an
+ * operator types `/retract-<target>` with no identifier. The wording is
+ * the seam's contract for "you forgot the identifier", not a per-channel
+ * cosmetic — keeping it here ensures Slack and Telegram emit the same
+ * line for the same input.
+ */
+export function retractUsageBody(command: RetractSlashCommand): string {
+  switch (command) {
+    case "/retract-memory":
+      return "Usage: /retract-memory <id>";
+    case "/retract-knowledge":
+      return "Usage: /retract-knowledge <slug>";
+    case "/retract-tasks":
+      return "Usage: /retract-tasks <id>";
+    case "/retract-inbox":
+      return "Usage: /retract-inbox <path>";
+  }
+}
+
 export function renderRetractRecordPlain(record: RetractRecord): string {
   switch (record.target) {
     case "memory":

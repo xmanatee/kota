@@ -7,6 +7,8 @@ import type {
   MemoryClient,
   RecallClient,
   RepoTasksClient,
+  RetractClient,
+  RetractResult,
 } from "#core/server/kota-client.js";
 import {
   renderAnswerHistoryEntriesPlain,
@@ -16,6 +18,7 @@ import { renderHistorySearchPlain } from "#modules/history/render.js";
 import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
 import { renderMemorySearchPlain } from "#modules/memory/render.js";
 import { renderRepoTaskSearchPlain } from "#modules/repo-tasks/render.js";
+import { renderRetractResultPlain } from "#modules/retract/render.js";
 import { SlackBot } from "./bot.js";
 import type {
   AttentionSnapshotClient,
@@ -78,6 +81,7 @@ function makeStubClients(): {
   recall: RecallClient;
   answer: AnswerClient;
   capture: CaptureClient;
+  retract: RetractClient;
   memory: MemoryClient;
   knowledge: KnowledgeClient;
   history: HistoryClient;
@@ -89,6 +93,7 @@ function makeStubClients(): {
     recall: { recall: vi.fn() },
     answer: { answer: vi.fn(), log: vi.fn(), show: vi.fn() },
     capture: { capture: vi.fn() },
+    retract: { retract: vi.fn() },
     memory: {
       list: vi.fn(),
       add: vi.fn(),
@@ -1599,6 +1604,280 @@ describe("SlackBot", () => {
       const post = await sendSlashAndAwait("D-DI", "/digest", ws, "env-di1");
       expect(snapshot).toHaveBeenCalled();
       expect(post.text).toBe("Daily digest:\nbuilder: 3 runs");
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/retract-memory <id> calls retract.retract and renders the success arm", async () => {
+      const result: RetractResult = {
+        ok: true,
+        record: { target: "memory", recordId: "mem-42" },
+      };
+      const retractFn = vi.fn().mockResolvedValue(result);
+      const bot = makeBot({ retract: { retract: retractFn } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait(
+        "D-RM",
+        "/retract-memory mem-42",
+        ws,
+        "env-rm1",
+      );
+
+      expect(retractFn).toHaveBeenCalledWith({ target: "memory", id: "mem-42" });
+      // Byte-identical parity with Telegram's /retract-<store> handler:
+      // both render the same envelope through `renderRetractResultPlain`.
+      expect(post.text).toBe(renderRetractResultPlain(result));
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/retract-knowledge <slug> dispatches with target=knowledge", async () => {
+      const result: RetractResult = {
+        ok: true,
+        record: { target: "knowledge", recordId: "kota-overview" },
+      };
+      const retractFn = vi.fn().mockResolvedValue(result);
+      const bot = makeBot({ retract: { retract: retractFn } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait(
+        "D-RK",
+        "/retract-knowledge kota-overview",
+        ws,
+        "env-rk1",
+      );
+
+      expect(retractFn).toHaveBeenCalledWith({
+        target: "knowledge",
+        slug: "kota-overview",
+      });
+      expect(post.text).toBe(renderRetractResultPlain(result));
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/retract-tasks <id> dispatches with target=tasks and renders the path-bearing success arm", async () => {
+      const result: RetractResult = {
+        ok: true,
+        record: {
+          target: "tasks",
+          recordId: "task-fix-redirect",
+          previousPath: "data/tasks/ready/task-fix-redirect.md",
+          path: "data/tasks/dropped/task-fix-redirect.md",
+          toState: "dropped",
+        },
+      };
+      const retractFn = vi.fn().mockResolvedValue(result);
+      const bot = makeBot({ retract: { retract: retractFn } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait(
+        "D-RT",
+        "/retract-tasks task-fix-redirect",
+        ws,
+        "env-rt1",
+      );
+
+      expect(retractFn).toHaveBeenCalledWith({
+        target: "tasks",
+        id: "task-fix-redirect",
+      });
+      expect(post.text).toBe(renderRetractResultPlain(result));
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/retract-inbox <path> dispatches with target=inbox", async () => {
+      const result: RetractResult = {
+        ok: true,
+        record: {
+          target: "inbox",
+          recordId: "note-foo",
+          path: "data/inbox/note-foo.md",
+        },
+      };
+      const retractFn = vi.fn().mockResolvedValue(result);
+      const bot = makeBot({ retract: { retract: retractFn } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait(
+        "D-RI",
+        "/retract-inbox data/inbox/note-foo.md",
+        ws,
+        "env-ri1",
+      );
+
+      expect(retractFn).toHaveBeenCalledWith({
+        target: "inbox",
+        path: "data/inbox/note-foo.md",
+      });
+      expect(post.text).toBe(renderRetractResultPlain(result));
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/retract-<target> with empty body replies with the per-target usage hint and skips the call", async () => {
+      const retractFn = vi.fn();
+      const bot = makeBot({ retract: { retract: retractFn } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post1 = await sendSlashAndAwait(
+        "D-RU1",
+        "/retract-memory",
+        ws,
+        "env-ru1",
+      );
+      expect(post1.text).toBe("Usage: /retract-memory <id>");
+
+      const post2 = await sendSlashAndAwait(
+        "D-RU2",
+        "/retract-knowledge   ",
+        ws,
+        "env-ru2",
+      );
+      expect(post2.text).toBe("Usage: /retract-knowledge <slug>");
+
+      const post3 = await sendSlashAndAwait(
+        "D-RU3",
+        "/retract-tasks",
+        ws,
+        "env-ru3",
+      );
+      expect(post3.text).toBe("Usage: /retract-tasks <id>");
+
+      const post4 = await sendSlashAndAwait(
+        "D-RU4",
+        "/retract-inbox",
+        ws,
+        "env-ru4",
+      );
+      expect(post4.text).toBe("Usage: /retract-inbox <path>");
+
+      expect(retractFn).not.toHaveBeenCalled();
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/retract-<target> renders not_found verbatim through the shared renderer", async () => {
+      const result: RetractResult = {
+        ok: false,
+        reason: "not_found",
+        target: "memory",
+        identifier: "mem-missing",
+      };
+      const retractFn = vi.fn().mockResolvedValue(result);
+      const bot = makeBot({ retract: { retract: retractFn } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post = await sendSlashAndAwait(
+        "D-RNF",
+        "/retract-memory mem-missing",
+        ws,
+        "env-rnf1",
+      );
+
+      expect(retractFn).toHaveBeenCalledWith({
+        target: "memory",
+        id: "mem-missing",
+      });
+      expect(post.text).toBe(renderRetractResultPlain(result));
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("/retract-<target> renders no_contributors and contributor_failed without throwing", async () => {
+      const noContributors: RetractResult = {
+        ok: false,
+        reason: "no_contributors",
+      };
+      const contributorFailed: RetractResult = {
+        ok: false,
+        reason: "contributor_failed",
+        target: "inbox",
+        message: "permission denied",
+      };
+      const retractFn = vi
+        .fn()
+        .mockResolvedValueOnce(noContributors)
+        .mockResolvedValueOnce(contributorFailed);
+      const bot = makeBot({ retract: { retract: retractFn } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      const post1 = await sendSlashAndAwait(
+        "D-RNC",
+        "/retract-knowledge ghost",
+        ws,
+        "env-rnc1",
+      );
+      expect(post1.text).toBe(renderRetractResultPlain(noContributors));
+
+      const post2 = await sendSlashAndAwait(
+        "D-RCF",
+        "/retract-inbox data/inbox/locked.md",
+        ws,
+        "env-rcf1",
+      );
+      expect(post2.text).toBe(renderRetractResultPlain(contributorFailed));
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
+    it("unknown slash commands fall through (no /retract umbrella, no /unknown reply)", async () => {
+      const retractFn = vi.fn();
+      const bot = makeBot({ retract: { retract: retractFn } });
+      const startPromise = bot.start();
+      await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+      const ws = MockWebSocket.instances[0];
+
+      ws.simulateMessage({
+        type: "events_api",
+        envelope_id: "env-unk1",
+        payload: {
+          event: {
+            type: "message",
+            text: "/retract memory mem-42",
+            user: "U-UNK",
+            channel: "D-UNK",
+          },
+        },
+      });
+
+      // Wait briefly to ensure no reply or seam call happens for the
+      // unknown umbrella `/retract` (Slack drops the four target-specific
+      // commands only).
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(retractFn).not.toHaveBeenCalled();
+      // No chat.postMessage to D-UNK either.
+      const calls = mockedCallSlackApi.mock.calls.filter(
+        (call) =>
+          call[1] === "chat.postMessage" &&
+          (call[2] as { channel?: string }).channel === "D-UNK",
+      );
+      expect(calls).toHaveLength(0);
 
       bot.stop();
       await startPromise.catch(() => {});

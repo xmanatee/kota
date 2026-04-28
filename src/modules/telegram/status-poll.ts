@@ -26,7 +26,11 @@ import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
 import { renderMemorySearchPlain } from "#modules/memory/render.js";
 import { renderRecallHitsPlain } from "#modules/recall/render.js";
 import { renderRepoTaskSearchPlain } from "#modules/repo-tasks/render.js";
-import { renderRetractResultPlain } from "#modules/retract/render.js";
+import {
+  type RetractSlashCommand,
+  renderRetractResultPlain,
+  retractUsageBody,
+} from "#modules/retract/render.js";
 import { callTelegramApi, splitMessage } from "./client.js";
 
 const POLL_INTERVAL_MS = 30_000;
@@ -47,21 +51,6 @@ const RETRACT_UMBRELLA_HELP_BODY =
   "  /retract-knowledge <slug>\n" +
   "  /retract-tasks <id>\n" +
   "  /retract-inbox <path>";
-
-function retractUsageBody(
-  command: "/retract-memory" | "/retract-knowledge" | "/retract-tasks" | "/retract-inbox",
-): string {
-  switch (command) {
-    case "/retract-memory":
-      return "Usage: /retract-memory <id>";
-    case "/retract-knowledge":
-      return "Usage: /retract-knowledge <slug>";
-    case "/retract-tasks":
-      return "Usage: /retract-tasks <id>";
-    case "/retract-inbox":
-      return "Usage: /retract-inbox <path>";
-  }
-}
 
 export type StatusInfo = {
   runtimeState: WorkflowRuntimeState;
@@ -428,7 +417,7 @@ export function startTelegramStatusPoll(
    * short-circuits to a fixed usage body before the seam is called.
    */
   async function handleRetract(
-    command: "/retract-memory" | "/retract-knowledge" | "/retract-tasks" | "/retract-inbox",
+    command: RetractSlashCommand,
     body: string,
   ): Promise<void> {
     const trimmed = body.trim();
