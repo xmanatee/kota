@@ -1,12 +1,12 @@
 ---
 id: task-add-cross-harness-mcpservers-parity-integration-te
 title: Add cross-harness mcpServers parity integration test
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Lock the mcpServers contract — claude-agent-sdk forwards through to the SDK executor (preserving caller servers and merging owner-questions when askOwner is set); openai-tools and thin both reject loudly with explicit messages — with a single src/mcp-servers-cross-harness.integration.test.ts mirroring the rails and abort cross-harness tests.
 created_at: 2026-04-28T21:49:00.659Z
-updated_at: 2026-04-28T21:49:00.659Z
+updated_at: 2026-04-28T21:56:42.370Z
 ---
 
 ## Problem
