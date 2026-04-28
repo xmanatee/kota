@@ -1601,6 +1601,244 @@ final class DaemonClientTests: XCTestCase {
         )
     }
 
+    /// Multi-arm success decode covering every `RetractRecord` variant
+    /// (memory + knowledge with bare `recordId`, tasks with
+    /// `previousPath`/`path`/`toState`, inbox with `path`) wired through
+    /// the same harness so every record-shape variant is exercised. Also
+    /// pins `renderRetractResultPlain` byte-for-byte against the TS
+    /// helper for each arm.
+    func testRetractDecodesSuccessAcrossArms() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        var nextRequestAssertion: ((URLRequest) -> Void)? = nil
+        var nextResponse: Data = Data()
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/retract")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+            nextRequestAssertion?(request)
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, nextResponse)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        // Memory arm — bare recordId, request body carries `id`.
+        nextRequestAssertion = { request in
+            let body = request.readBody()
+            XCTAssertNotNil(body)
+            let obj = try? JSONSerialization.jsonObject(with: body!) as? [String: Any]
+            XCTAssertEqual(obj?["target"] as? String, "memory")
+            XCTAssertEqual(obj?["id"] as? String, "mem-42")
+        }
+        nextResponse = #"""
+        {"ok": true, "record": {
+          "target": "memory",
+          "recordId": "mem-42"
+        }}
+        """#.data(using: .utf8)!
+        let memoryResult = try await client.retract(request: .memory(id: "mem-42"))
+        guard case let .success(memoryRecord) = memoryResult else {
+            XCTFail("expected success arm, got \(memoryResult)"); return
+        }
+        guard case let .memory(mid) = memoryRecord else {
+            XCTFail("expected memory record, got \(memoryRecord)"); return
+        }
+        XCTAssertEqual(mid, "mem-42")
+        XCTAssertEqual(
+            renderRetractResultPlain(memoryResult),
+            "Retracted: memory  mem-42"
+        )
+
+        // Knowledge arm — bare recordId, request body carries `slug`.
+        nextRequestAssertion = { request in
+            let body = request.readBody()
+            XCTAssertNotNil(body)
+            let obj = try? JSONSerialization.jsonObject(with: body!) as? [String: Any]
+            XCTAssertEqual(obj?["target"] as? String, "knowledge")
+            XCTAssertEqual(obj?["slug"] as? String, "operator-pull-parity")
+        }
+        nextResponse = #"""
+        {"ok": true, "record": {
+          "target": "knowledge",
+          "recordId": "operator-pull-parity"
+        }}
+        """#.data(using: .utf8)!
+        let knowledgeResult = try await client.retract(
+            request: .knowledge(slug: "operator-pull-parity")
+        )
+        guard case let .success(knowledgeRecord) = knowledgeResult else {
+            XCTFail("expected success arm, got \(knowledgeResult)"); return
+        }
+        guard case let .knowledge(kid) = knowledgeRecord else {
+            XCTFail("expected knowledge record, got \(knowledgeRecord)"); return
+        }
+        XCTAssertEqual(kid, "operator-pull-parity")
+        XCTAssertEqual(
+            renderRetractResultPlain(knowledgeResult),
+            "Retracted: knowledge  operator-pull-parity"
+        )
+
+        // Tasks arm — carries previousPath, path, toState; request body
+        // carries `id`.
+        nextRequestAssertion = { request in
+            let body = request.readBody()
+            XCTAssertNotNil(body)
+            let obj = try? JSONSerialization.jsonObject(with: body!) as? [String: Any]
+            XCTAssertEqual(obj?["target"] as? String, "tasks")
+            XCTAssertEqual(obj?["id"] as? String, "task-buy-milk")
+        }
+        nextResponse = #"""
+        {"ok": true, "record": {
+          "target": "tasks",
+          "recordId": "task-buy-milk",
+          "previousPath": "data/tasks/ready/task-buy-milk.md",
+          "path": "data/tasks/dropped/task-buy-milk.md",
+          "toState": "dropped"
+        }}
+        """#.data(using: .utf8)!
+        let tasksResult = try await client.retract(request: .tasks(id: "task-buy-milk"))
+        guard case let .success(tasksRecord) = tasksResult else {
+            XCTFail("expected success arm, got \(tasksResult)"); return
+        }
+        guard case let .tasks(tid, tprev, tpath, tstate) = tasksRecord else {
+            XCTFail("expected tasks record, got \(tasksRecord)"); return
+        }
+        XCTAssertEqual(tid, "task-buy-milk")
+        XCTAssertEqual(tprev, "data/tasks/ready/task-buy-milk.md")
+        XCTAssertEqual(tpath, "data/tasks/dropped/task-buy-milk.md")
+        XCTAssertEqual(tstate, "dropped")
+        XCTAssertEqual(
+            renderRetractResultPlain(tasksResult),
+            "Retracted: tasks  task-buy-milk  data/tasks/ready/task-buy-milk.md -> data/tasks/dropped/task-buy-milk.md (dropped)"
+        )
+
+        // Inbox arm — carries path; request body carries `path`.
+        nextRequestAssertion = { request in
+            let body = request.readBody()
+            XCTAssertNotNil(body)
+            let obj = try? JSONSerialization.jsonObject(with: body!) as? [String: Any]
+            XCTAssertEqual(obj?["target"] as? String, "inbox")
+            XCTAssertEqual(obj?["path"] as? String, "data/inbox/note-foo.md")
+        }
+        nextResponse = #"""
+        {"ok": true, "record": {
+          "target": "inbox",
+          "recordId": "note-foo",
+          "path": "data/inbox/note-foo.md"
+        }}
+        """#.data(using: .utf8)!
+        let inboxResult = try await client.retract(
+            request: .inbox(path: "data/inbox/note-foo.md")
+        )
+        guard case let .success(inboxRecord) = inboxResult else {
+            XCTFail("expected success arm, got \(inboxResult)"); return
+        }
+        guard case let .inbox(iid, ipath) = inboxRecord else {
+            XCTFail("expected inbox record, got \(inboxRecord)"); return
+        }
+        XCTAssertEqual(iid, "note-foo")
+        XCTAssertEqual(ipath, "data/inbox/note-foo.md")
+        XCTAssertEqual(
+            renderRetractResultPlain(inboxResult),
+            "Retracted: inbox  note-foo  data/inbox/note-foo.md"
+        )
+    }
+
+    func testRetractDecodesNoContributors() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/retract")
+            XCTAssertEqual(request.httpMethod, "POST")
+            let respBody = #"{"ok": false, "reason": "no_contributors"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.retract(request: .memory(id: "mem-1"))
+        guard case .noContributors = result else {
+            XCTFail("expected noContributors arm, got \(result)"); return
+        }
+        XCTAssertEqual(
+            renderRetractResultPlain(result),
+            "Cross-store retract has no registered contributors for the named target."
+        )
+    }
+
+    func testRetractDecodesNotFound() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/retract")
+            XCTAssertEqual(request.httpMethod, "POST")
+            let respBody = #"""
+            {"ok": false, "reason": "not_found", "target": "knowledge", "identifier": "missing-slug"}
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.retract(request: .knowledge(slug: "missing-slug"))
+        guard case let .notFound(target, identifier) = result else {
+            XCTFail("expected notFound arm, got \(result)"); return
+        }
+        XCTAssertEqual(target, .knowledge)
+        XCTAssertEqual(identifier, "missing-slug")
+        XCTAssertEqual(
+            renderRetractResultPlain(result),
+            "Retract knowledge: no record with identifier \"missing-slug\"."
+        )
+    }
+
+    func testRetractDecodesContributorFailed() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/retract")
+            XCTAssertEqual(request.httpMethod, "POST")
+            let respBody = #"""
+            {"ok": false, "reason": "contributor_failed", "target": "inbox", "message": "inbox writer cannot reach project root"}
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.retract(request: .inbox(path: "data/inbox/boom.md"))
+        guard case let .contributorFailed(target, message) = result else {
+            XCTFail("expected contributorFailed arm, got \(result)"); return
+        }
+        XCTAssertEqual(target, .inbox)
+        XCTAssertEqual(message, "inbox writer cannot reach project root")
+        XCTAssertEqual(
+            renderRetractResultPlain(result),
+            "Retract from inbox failed: inbox writer cannot reach project root"
+        )
+    }
+
     func testTriggerWorkflowSendsBody() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }

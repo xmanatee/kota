@@ -365,6 +365,40 @@ final class DaemonClient {
         }
     }
 
+    /// Targets the daemon's `POST /retract` daemon-control route (not under
+    /// `/api/`) and decodes the discriminated four-arm `RetractResult`:
+    /// one `ok: true` arm carrying the typed `RetractRecord`, plus three
+    /// `ok: false` failure arms (`no_contributors`, `not_found`,
+    /// `contributor_failed`). The request body is built via `JSONEncoder`
+    /// against `RetractRequest`, which encodes the discriminated
+    /// `{ "target": <string>, ...identifier }` wire shape so the type
+    /// system rejects passing an inbox `path` alongside a memory `id` at
+    /// compile time. HTTP errors surface one-to-one as
+    /// `DaemonClientError.httpError`.
+    func retract(request: RetractRequest) async throws -> RetractResult {
+        guard let conn = connection else { throw DaemonClientError.notConnected }
+        guard var components = URLComponents(url: conn.baseURL, resolvingAgainstBaseURL: false) else {
+            throw DaemonClientError.notConnected
+        }
+        components.path = "/retract"
+        guard let url = components.url else { throw DaemonClientError.notConnected }
+        let body = try JSONEncoder().encode(request)
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.httpBody = body
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw DaemonClientError.httpError(http.statusCode)
+        }
+        do {
+            return try decoder.decode(RetractResult.self, from: data)
+        } catch {
+            throw DaemonClientError.decodingError(error)
+        }
+    }
+
     func invokeSlashCommand(name: String) async throws -> InvokeCommandResponse {
         let body = try JSONEncoder().encode(InvokeCommandRequest(name: name))
         return try await post("/commands/invoke", body: body)

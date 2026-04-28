@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-daemonclientretract-with-discriminated-r
 title: Add macOS DaemonClient.retract with discriminated RetractResult types and unit tests
-status: ready
+status: done
 priority: p2
 area: client
 summary: Wire the daemon contract layer for the cross-store retract seam into the macOS menu-bar client: add the discriminated RetractRecord and RetractResult unions to Models.swift, add a typed retract(request:) method to DaemonClient.swift that targets POST /retract, mirror renderRetractResultPlain in Swift, and pair the four DaemonClientTests cases (success across all four record arms, no_contributors, not_found, contributor_failed) so the follow-up macOS RetractView and mobile RetractScreen subtasks consume a tested seam.
 created_at: 2026-04-28T12:05:48.826Z
-updated_at: 2026-04-28T12:05:48.826Z
+updated_at: 2026-04-28T12:10:57.748Z
 ---
 
 ## Problem

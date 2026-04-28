@@ -1171,6 +1171,204 @@ struct CaptureRequestBody: Encodable {
     let filter: CaptureRequestFilter?
 }
 
+// MARK: - Cross-store retract
+
+/// Target store for `DaemonClient.retract`. Mirrors the daemon's
+/// `RetractTarget` union (`src/core/server/kota-client.ts:867`). Adding a
+/// fifth contributor extends this enum and the record/result arms below.
+/// `CaseIterable` is here so any future menu-bar `RetractView` picker can
+/// list every target arm without an inline literal that drifts from the
+/// wire contract.
+enum RetractTarget: String, Codable, Equatable, CaseIterable {
+    case memory
+    case knowledge
+    case tasks
+    case inbox
+}
+
+/// Discriminated mirror of the daemon's `RetractRequest` union
+/// (`src/core/server/kota-client.ts:934-938`). Each arm carries the
+/// per-target identifier the contributor expects — `id` for memory and
+/// tasks, `slug` for knowledge, `path` for inbox — so the type system
+/// rejects passing an inbox `path` alongside a memory `id` at compile
+/// time. Encoded as the wire shape `{ "target": <string>, ...identifier }`
+/// without nullable identifier fields.
+enum RetractRequest: Encodable, Equatable {
+    case memory(id: String)
+    case knowledge(slug: String)
+    case tasks(id: String)
+    case inbox(path: String)
+
+    private enum CodingKeys: String, CodingKey {
+        case target, id, slug, path
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .memory(let id):
+            try container.encode("memory", forKey: .target)
+            try container.encode(id, forKey: .id)
+        case .knowledge(let slug):
+            try container.encode("knowledge", forKey: .target)
+            try container.encode(slug, forKey: .slug)
+        case .tasks(let id):
+            try container.encode("tasks", forKey: .target)
+            try container.encode(id, forKey: .id)
+        case .inbox(let path):
+            try container.encode("inbox", forKey: .target)
+            try container.encode(path, forKey: .path)
+        }
+    }
+}
+
+/// Discriminated mirror of the daemon's `RetractRecord` union
+/// (`src/core/server/kota-client.ts:914-918`). Each successful retract
+/// returns the typed identifier the underlying contributor removed; the
+/// tasks arm additionally carries `previousPath`, `path`, and the explicit
+/// destination state so an operator surface can render "moved to dropped",
+/// not "deleted", and the inbox arm carries the deleted file path. Decoding
+/// is keyed by the wire `target` field, with every per-arm field required
+/// on the daemon side — no nullable shape.
+enum RetractRecord: Decodable, Equatable {
+    case memory(recordId: String)
+    case knowledge(recordId: String)
+    case tasks(recordId: String, previousPath: String, path: String, toState: String)
+    case inbox(recordId: String, path: String)
+
+    private enum CodingKeys: String, CodingKey {
+        case target, recordId, previousPath, path, toState
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let target = try container.decode(RetractTarget.self, forKey: .target)
+        let recordId = try container.decode(String.self, forKey: .recordId)
+        switch target {
+        case .memory:
+            self = .memory(recordId: recordId)
+        case .knowledge:
+            self = .knowledge(recordId: recordId)
+        case .tasks:
+            let previousPath = try container.decode(String.self, forKey: .previousPath)
+            let path = try container.decode(String.self, forKey: .path)
+            let toState = try container.decode(String.self, forKey: .toState)
+            self = .tasks(recordId: recordId, previousPath: previousPath, path: path, toState: toState)
+        case .inbox:
+            let path = try container.decode(String.self, forKey: .path)
+            self = .inbox(recordId: recordId, path: path)
+        }
+    }
+
+    var target: RetractTarget {
+        switch self {
+        case .memory: return .memory
+        case .knowledge: return .knowledge
+        case .tasks: return .tasks
+        case .inbox: return .inbox
+        }
+    }
+
+    var recordId: String {
+        switch self {
+        case .memory(let id): return id
+        case .knowledge(let id): return id
+        case .tasks(let id, _, _, _): return id
+        case .inbox(let id, _): return id
+        }
+    }
+}
+
+/// Discriminated mirror of the daemon's `RetractResult` envelope
+/// (`src/core/server/kota-client.ts:956-970`): one `ok: true` arm carrying
+/// the typed `RetractRecord`, plus three `ok: false` arms tagged by
+/// `reason`. Strict decode so payload drift fails loudly instead of
+/// silently degrading the rendered surface.
+///
+/// - `noContributors` — the seam is unconfigured for the named target
+///   (zero contributors registered, or the explicit target is not
+///   registered).
+/// - `notFound` — the named record is not present in the named target.
+/// - `contributorFailed` — the chosen contributor threw mid-removal;
+///   `target` is the contributor that ran and `message` is the verbatim
+///   error.
+enum RetractResult: Decodable, Equatable {
+    case success(record: RetractRecord)
+    case noContributors
+    case notFound(target: RetractTarget, identifier: String)
+    case contributorFailed(target: RetractTarget, message: String)
+
+    private enum CodingKeys: String, CodingKey {
+        case ok, record, reason, target, identifier, message
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let ok = try container.decode(Bool.self, forKey: .ok)
+        if ok {
+            let record = try container.decode(RetractRecord.self, forKey: .record)
+            self = .success(record: record)
+            return
+        }
+        let reason = try container.decode(String.self, forKey: .reason)
+        switch reason {
+        case "no_contributors":
+            self = .noContributors
+        case "not_found":
+            let target = try container.decode(RetractTarget.self, forKey: .target)
+            let identifier = try container.decode(String.self, forKey: .identifier)
+            self = .notFound(target: target, identifier: identifier)
+        case "contributor_failed":
+            let target = try container.decode(RetractTarget.self, forKey: .target)
+            let message = try container.decode(String.self, forKey: .message)
+            self = .contributorFailed(target: target, message: message)
+        default:
+            throw DecodingError.dataCorruptedError(
+                forKey: .reason,
+                in: container,
+                debugDescription: "Unknown retract reason: \(reason)"
+            )
+        }
+    }
+}
+
+/// Renders one retract record one-to-one with the shared
+/// `renderRetractRecordPlain` helper exported by
+/// `src/modules/retract/render.ts:23-34`: `<target>  <recordId>` for
+/// memory/knowledge, `tasks  <recordId>  <previousPath> -> <path> (<toState>)`
+/// for tasks (so the surface reads "moved to dropped"), and
+/// `inbox  <recordId>  <path>` for inbox.
+private func renderRetractRecordPlain(_ record: RetractRecord) -> String {
+    switch record {
+    case .memory(let id):
+        return "memory  \(id)"
+    case .knowledge(let id):
+        return "knowledge  \(id)"
+    case .tasks(let id, let previousPath, let path, let toState):
+        return "tasks  \(id)  \(previousPath) -> \(path) (\(toState))"
+    case .inbox(let id, let path):
+        return "inbox  \(id)  \(path)"
+    }
+}
+
+/// Renders a `RetractResult` one-to-one with the shared
+/// `renderRetractResultPlain` helper exported by
+/// `src/modules/retract/render.ts:36-48`. Sharing this helper keeps the
+/// macOS menu bar body identical to the CLI, Telegram, and any other
+/// surface that consumes the helper.
+func renderRetractResultPlain(_ result: RetractResult) -> String {
+    switch result {
+    case .success(let record):
+        return "Retracted: \(renderRetractRecordPlain(record))"
+    case .noContributors:
+        return "Cross-store retract has no registered contributors for the named target."
+    case .notFound(let target, let identifier):
+        return "Retract \(target.rawValue): no record with identifier \"\(identifier)\"."
+    case .contributorFailed(let target, let message):
+        return "Retract from \(target.rawValue) failed: \(message)"
+    }
+}
+
 // MARK: - Daemon connectivity state
 
 enum DaemonHealth {
