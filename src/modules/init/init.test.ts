@@ -56,18 +56,20 @@ describe("runInit", () => {
     }
   });
 
-  it("creates AGENTS.md in inbox and each normalized task subdirectory", () => {
+  it("does not generate AGENTS.md instruction stubs", () => {
     runInit(tmpDir, false);
-    expect(existsSync(join(tmpDir, "data", "inbox", "AGENTS.md"))).toBe(true);
+    expect(existsSync(join(tmpDir, "data", "inbox", "AGENTS.md"))).toBe(false);
+    expect(existsSync(join(tmpDir, "data", "tasks", "AGENTS.md"))).toBe(false);
     const states = ["ready", "doing", "backlog", "blocked", "done", "dropped"];
     for (const state of states) {
-      expect(existsSync(join(tmpDir, "data", "tasks", state, "AGENTS.md"))).toBe(true);
+      expect(existsSync(join(tmpDir, "data", "tasks", state, "AGENTS.md"))).toBe(false);
     }
   });
 
-  it("creates docs/ directory with AGENTS.md", () => {
+  it("creates docs/ directory without instruction stubs", () => {
     runInit(tmpDir, false);
-    expect(existsSync(join(tmpDir, "docs", "AGENTS.md"))).toBe(true);
+    expect(existsSync(join(tmpDir, "docs"))).toBe(true);
+    expect(existsSync(join(tmpDir, "docs", "AGENTS.md"))).toBe(false);
   });
 
   it("creates .kota/ runtime directory", () => {
@@ -108,7 +110,7 @@ describe("runInit", () => {
     expect(readFileSync(configPath, "utf-8")).not.toBe("// my custom config");
   });
 
-  it("--force does not overwrite inbox AGENTS.md", () => {
+  it("--force does not create or overwrite inbox AGENTS.md", () => {
     runInit(tmpDir, false);
     const inboxAgents = join(tmpDir, "data", "inbox", "AGENTS.md");
     writeFileSync(inboxAgents, "# My custom inbox\n", "utf-8");
@@ -158,7 +160,7 @@ describe("kota init command", () => {
       makeProgram().parse(["node", "kota", "init"]);
     });
     expect(out).toContain("kota doctor");
-    expect(out).toContain("docs/");
+    expect(out).not.toContain("docs/");
   });
 
   it("second run shows skipped files", () => {

@@ -116,10 +116,10 @@ describe("kota module new (TypeScript, default)", () => {
     expect(content).toContain("export default module");
   });
 
-  it("creates AGENTS.md", () => {
+  it("does not generate AGENTS.md instruction stubs", () => {
     const program = makeProgram();
     program.parse(["module", "new", "my-ext", "--dir", scaffoldDir], { from: "user" });
-    expect(existsSync(join(scaffoldDir, "AGENTS.md"))).toBe(true);
+    expect(existsSync(join(scaffoldDir, "AGENTS.md"))).toBe(false);
   });
 
   it("prints scaffold path to stdout", () => {

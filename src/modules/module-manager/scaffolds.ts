@@ -8,7 +8,6 @@ export function generateModuleScaffold(name: string, safeName: string, dir: stri
   writeFileSync(join(dir, "package.json"), packageJson(safeName));
   writeFileSync(join(dir, "tsconfig.json"), tsconfig());
   writeFileSync(join(srcDir, "index.ts"), indexTs(name, safeName));
-  writeFileSync(join(dir, "AGENTS.md"), agentsMd(name, safeName));
 }
 
 function packageJson(safeName: string): string {
@@ -91,35 +90,6 @@ const module: KotaModule = {
 };
 
 export default module;
-`;
-}
-
-function agentsMd(name: string, safeName: string): string {
-  return `# ${name} Module
-
-This directory contains the \`${name}\` KOTA module.
-
-## Purpose
-
-<!-- Describe what this module does and why it exists. -->
-
-## Boundaries
-
-- Contribute tools, commands, routes, workflows, channels, skills, or agents
-  via the \`KotaModule\` export in \`src/index.ts\`.
-- Do not import KOTA internals directly; use the \`ModuleContext\` API
-  passed to \`onLoad\` for runtime services (storage, logging, config).
-
-## Development
-
-\`\`\`sh
-pnpm install         # install devDependencies (including kota for types)
-pnpm run typecheck   # verify types against KotaModule
-pnpm build           # compile to dist/
-\`\`\`
-
-For local drop-in use without npm, compile and copy \`dist/index.js\` to
-\`.kota/modules/${safeName}/index.js\` in your KOTA project.
 `;
 }
 
