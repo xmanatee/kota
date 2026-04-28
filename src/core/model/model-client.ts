@@ -41,6 +41,15 @@ export type MessageStreamParams = {
 	 * rather than silently falling back to the default reasoning budget.
 	 */
 	effort?: AgentEffort;
+	/**
+	 * Optional abort signal. Adapters propagate this to the underlying
+	 * request (Anthropic SDK request options, OpenAI-compatible `fetch`)
+	 * so an outer abort cancels the in-flight model call rather than
+	 * leaving the harness waiting for the model to return on its own.
+	 * The field is a request-level option; providers must not include it
+	 * in the wire body.
+	 */
+	signal?: AbortSignal;
 };
 
 /** Parameters for non-streaming message creation. */
@@ -49,6 +58,10 @@ export type MessageCreateParams = {
 	max_tokens: number;
 	system?: string;
 	messages: KotaMessage[];
+	/**
+	 * Optional abort signal. See {@link MessageStreamParams.signal}.
+	 */
+	signal?: AbortSignal;
 };
 
 /** Abstract LLM client — swap providers without changing agent code. */

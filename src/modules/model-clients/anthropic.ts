@@ -316,14 +316,18 @@ export class AnthropicModelClient implements ModelClient {
 		const sdk = new Anthropic(options);
 		this.messages = {
 			stream: (params: MessageStreamParams) => {
+				const requestOptions = params.signal ? { signal: params.signal } : undefined;
 				const sdkStream = sdk.messages.stream(
 					toAnthropicStreamParams(params) as Parameters<typeof sdk.messages.stream>[0],
+					requestOptions,
 				) as unknown as AnthropicMessageStreamLike;
 				return wrapAnthropicStream(sdkStream);
 			},
 			create: async (params: MessageCreateParams) => {
+				const requestOptions = params.signal ? { signal: params.signal } : undefined;
 				const sdkMessage = (await sdk.messages.create(
 					toAnthropicCreateParams(params) as Parameters<typeof sdk.messages.create>[0],
+					requestOptions,
 				)) as Anthropic.Message;
 				return anthropicMessageToKotaResponse(sdkMessage);
 			},
@@ -345,7 +349,7 @@ function toAnthropicStreamParams(
 	params: MessageStreamParams,
 ): AnthropicStreamParamsOnWire {
 	const withEffort = applyAnthropicEffort(params);
-	const { tools, thinking, system, messages, ...rest } = withEffort;
+	const { tools, thinking, system, messages, signal: _signal, ...rest } = withEffort;
 	return {
 		...rest,
 		messages: messages.map(kotaMessageToAnthropicMessage),
@@ -364,12 +368,13 @@ function toAnthropicStreamParams(
 
 function toAnthropicCreateParams(
 	params: MessageCreateParams,
-): Omit<MessageCreateParams, "messages"> & {
+): Omit<MessageCreateParams, "messages" | "signal"> & {
 	messages: Anthropic.MessageParam[];
 } {
+	const { signal: _signal, ...rest } = params;
 	return {
-		...params,
-		messages: params.messages.map(kotaMessageToAnthropicMessage),
+		...rest,
+		messages: rest.messages.map(kotaMessageToAnthropicMessage),
 	};
 }
 

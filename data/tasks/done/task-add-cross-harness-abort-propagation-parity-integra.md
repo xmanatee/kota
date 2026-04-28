@@ -1,12 +1,12 @@
 ---
 id: task-add-cross-harness-abort-propagation-parity-integra
 title: Add cross-harness abort propagation parity integration test
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Lock the abort-propagation contract — every registered AgentHarness must honor abortController so operator cancellation and daemon shutdown propagate cleanly — with a single src/abort-cross-harness.integration.test.ts mirroring the existing hooks/prompt-input/rails cross-harness integration tests. Expected to surface and fix a real gap in the thin adapter, which never passes the signal to the model call.
 created_at: 2026-04-28T21:15:43.221Z
-updated_at: 2026-04-28T21:15:43.221Z
+updated_at: 2026-04-28T21:31:07.333Z
 ---
 
 ## Problem

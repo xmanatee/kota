@@ -305,6 +305,7 @@ async function runOpenaiToolsLoop(
     for (let turn = 0; turn < maxTurns; turn += 1) {
       checkAborted(options.abortController?.signal);
 
+      const abortSignal = options.abortController?.signal;
       const stream = resolved.client.messages.stream({
         model: resolved.model,
         max_tokens: DEFAULT_MAX_TOKENS,
@@ -312,6 +313,7 @@ async function runOpenaiToolsLoop(
         messages,
         ...(tools.length > 0 ? { tools } : {}),
         effort: options.effort,
+        ...(abortSignal ? { signal: abortSignal } : {}),
       });
       stream.on("text", (delta) => {
         streamedChunks.push(delta);

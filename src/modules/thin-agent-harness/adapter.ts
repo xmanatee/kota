@@ -75,11 +75,13 @@ export const thinAgentHarness: AgentHarness = {
     const messages: KotaMessage[] = [
       { role: "user", content: options.prompt },
     ];
+    const signal = options.abortController?.signal;
     const response = await resolved.client.messages.create({
       model: resolved.model,
       max_tokens: DEFAULT_MAX_TOKENS,
       ...(system !== undefined ? { system } : {}),
       messages,
+      ...(signal ? { signal } : {}),
     });
 
     const text = extractText(response);

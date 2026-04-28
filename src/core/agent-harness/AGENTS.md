@@ -23,7 +23,9 @@ protocol live in modules — the core only owns the interface and the registry.
 - Tool risk gating, commit guards, daemon control guards, and injection-defense
   middleware are passed into the harness through standard fields
   (`canUseTool`, `mcpServers`, tool allow/deny lists). Every adapter must
-  apply them; `src/rails-cross-harness.integration.test.ts` enforces parity.
+  apply them; `src/rails-cross-harness.integration.test.ts` and
+  `src/abort-cross-harness.integration.test.ts` (for `abortController`
+  pre-run and mid-run propagation) enforce parity.
 - `guards.ts` hosts the harness-neutral `canUseTool` primitives
   (`createAgentCommitGuard`, `createDaemonHostControlGuard`,
   `composeCanUseTools`, `createWorkflowAgentGuards`). Callers that need the
@@ -102,13 +104,10 @@ New cross-adapter decoration uses the neutral harness hook, not that.
 ## Neutral wire-type declarations
 
 `types.ts` declares the neutral wire frames every harness adapter
-normalizes into — `AgentMessage` (with variants `AgentAssistantMessage`,
-`AgentResultMessage`, `AgentStatusMessage`, `AgentContentBlock`,
-`AgentMessageWithSession`), `AgentPermissionMode`, `AgentSettingSource`,
-`AgentEffort`, `AgentMcpServerConfig` (`stdio | sse | http`; non-claude
-adapters reject non-empty `mcpServers` at the boundary), and
-`AgentCanUseTool` / `AgentPermissionResult` (structurally aligned with
-the Claude SDK so guards flow through with one cast). The protocol
+normalizes into. `AgentMcpServerConfig` is `stdio | sse | http`;
+non-claude adapters reject non-empty `mcpServers` at the boundary.
+`AgentCanUseTool` / `AgentPermissionResult` are structurally aligned
+with the Claude SDK so guards flow through with one cast. The protocol
 treats these as neutral; nothing in core imports the claude-agent-sdk
 package. Harness-specific in-process MCP hosting (the claude-only
 `sdk` variant) stays inside the owning adapter.
@@ -123,8 +122,7 @@ sdk": *nothing in core treats the Anthropic SDK type surface as its
 internal protocol*. Every tool, message, block, thinking config, and
 model response on a core interface is a KOTA-owned neutral type from
 `message-protocol.ts`; adapter modules translate at their seam.
-`no-anthropic-imports-in-core.test.ts` enforces this mechanically. See
-`anthropic-type-audit.md` for the historical record.
+`no-anthropic-imports-in-core.test.ts` enforces this mechanically.
 
 ## Per-step harness-specific options
 

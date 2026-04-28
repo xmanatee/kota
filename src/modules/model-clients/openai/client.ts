@@ -67,9 +67,16 @@ export class OpenAIModelClient implements ModelClient {
 		const body = this.buildRequestBody(params, true);
 		const url = `${this.baseUrl}/chat/completions`;
 		const headers = this.buildHeaders();
+		const { signal } = params;
 
 		return new OpenAIStream(
-			() => fetch(url, { method: "POST", headers, body: JSON.stringify(body) }),
+			() =>
+				fetch(url, {
+					method: "POST",
+					headers,
+					body: JSON.stringify(body),
+					...(signal ? { signal } : {}),
+				}),
 			params.model,
 		);
 	}
@@ -84,6 +91,7 @@ export class OpenAIModelClient implements ModelClient {
 			method: "POST",
 			headers: this.buildHeaders(),
 			body: JSON.stringify(body),
+			...(params.signal ? { signal: params.signal } : {}),
 		});
 
 		if (!response.ok) {
