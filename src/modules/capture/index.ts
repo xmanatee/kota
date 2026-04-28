@@ -42,6 +42,10 @@ import {
   createTasksContributor,
 } from "./contributors.js";
 import { captureApiRoutes, captureControlRoutes } from "./routes.js";
+import {
+  buildCaptureDynamicStateProvider,
+  CAPTURE_DYNAMIC_STATE_NAME,
+} from "./system-prompt.js";
 import { createCaptureToolDef } from "./tool.js";
 
 const CLASSIFIER_MAX_OUTPUT_TOKENS = 32;
@@ -119,6 +123,10 @@ const captureModule: KotaModule = {
     provider.register(createInboxContributor(ctx.cwd));
     activeProvider = provider;
     ctx.registerProvider("capture", provider);
+    ctx.registerDynamicStateProvider(
+      CAPTURE_DYNAMIC_STATE_NAME,
+      buildCaptureDynamicStateProvider(),
+    );
     ctx.log.info(
       `capture: registered ${provider.contributors().length} contributor(s)`,
     );

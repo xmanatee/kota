@@ -94,18 +94,19 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
       });
     }
 
+    const activeTools = [...filterTools(getAllTools()), ...mcpTools];
+    const activeToolNames = new Set(activeTools.map((t) => t.name));
+
     const system: KotaTextBlock[] = [
       { type: "text", text: state.context.getStaticPrompt(), cache_control: { type: "ephemeral" } },
     ];
     const changesSummary = getChangeTracker()?.getSummary() ?? "";
     const telemetrySummary = getToolTelemetry().getSummary();
     const telemetryBlock = telemetrySummary ? `\n<tool-metrics>${telemetrySummary}</tool-metrics>` : "";
-    const dynamicState = state.context.getDynamicState() + state.verifyTracker.getState() + changesSummary + collectDynamicState() + telemetryBlock;
+    const dynamicState = state.context.getDynamicState() + state.verifyTracker.getState() + changesSummary + collectDynamicState({ activeTools: activeToolNames }) + telemetryBlock;
     if (dynamicState) {
       system.push({ type: "text", text: dynamicState });
     }
-
-    const activeTools = [...filterTools(getAllTools()), ...mcpTools];
 
     if (state.stateMachine.canTransition("thinking")) {
       state.stateMachine.transition("thinking", { turn: i + 1 });

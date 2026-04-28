@@ -40,6 +40,10 @@ import {
   ANSWER_SYNTHESIS_SYSTEM_PROMPT,
   buildSynthesisUserPrompt,
 } from "./synthesis-prompt.js";
+import {
+  ANSWER_DYNAMIC_STATE_NAME,
+  buildAnswerDynamicStateProvider,
+} from "./system-prompt.js";
 import { createAnswerToolDef } from "./tool.js";
 
 const ANSWER_MAX_OUTPUT_TOKENS = 1024;
@@ -119,6 +123,10 @@ const answerModule: KotaModule = {
       },
     });
     ctx.registerProvider("answer", activeProvider);
+    ctx.registerDynamicStateProvider(
+      ANSWER_DYNAMIC_STATE_NAME,
+      buildAnswerDynamicStateProvider(),
+    );
     ctx.log.info("answer: cited-answer seam ready");
   },
 

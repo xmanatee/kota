@@ -21,6 +21,17 @@ back to the underlying typed `RecallHit`s.
   other surface uses. Every successful tool call appends one record to
   the same `AnswerHistoryStore` `/answer-log` and `kota answer log`
   read from.
+- One per-turn dynamic system-prompt contributor (entry point
+  `buildAnswerDynamicStateProvider` in `system-prompt.ts`, registered
+  through `ctx.registerDynamicStateProvider` during `onLoad`). The
+  contributor emits the conversational-pattern block when the session's
+  effective tool policy admits `answer`, and the empty string otherwise
+  — so a session that cannot call the tool never sees instructions that
+  reference it. Tool descriptions cover shape; this block covers the
+  conversational trigger so the agent prefers a cited synthesized reply
+  over free-form text for fact-shaped questions, and so the answer-
+  history surface fills with conversational answers rather than only
+  explicit `/answer` traffic.
 
 ## Typed citation contract
 

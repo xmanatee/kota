@@ -24,6 +24,15 @@ store.
   registry without an explicit `/capture` slash command. The runner
   reuses `renderCaptureResultPlain` so the tool transcript matches the
   slash-command surface byte-for-byte.
+- One per-turn dynamic system-prompt contributor (entry point
+  `buildCaptureDynamicStateProvider` in `system-prompt.ts`, registered
+  through `ctx.registerDynamicStateProvider` during `onLoad`). The
+  contributor emits the conversational-pattern block when the session's
+  effective tool policy admits `capture`, and the empty string otherwise
+  — so a session that cannot call the tool never sees instructions that
+  reference it. Tool descriptions cover shape; this block covers the
+  conversational trigger so the agent reaches for `capture` mid-
+  conversation instead of waiting for an explicit `/capture` command.
 
 ## How a new store joins
 

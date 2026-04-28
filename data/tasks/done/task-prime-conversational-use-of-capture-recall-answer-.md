@@ -1,12 +1,12 @@
 ---
 id: task-prime-conversational-use-of-capture-recall-answer-
 title: Prime conversational use of capture / recall / answer agent tools via module-contributed system-prompt state
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Teach per-user agent sessions when to call the just-shipped capture/recall/answer tools mid-conversation by contributing module-owned system-prompt state from each owning module, so the cross-store seams stop being mechanically-available-but-conversationally-invisible.
 created_at: 2026-04-28T09:44:33.850Z
-updated_at: 2026-04-28T09:44:33.850Z
+updated_at: 2026-04-28T09:59:22.367Z
 ---
 
 ## Problem

@@ -15,6 +15,7 @@ import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { ModuleConfigSlice } from "#core/config/config-slice.js";
 import type { CapabilityScope } from "#core/daemon/daemon-control-types.js";
+import type { DynamicStateContext } from "#core/loop/dynamic-state.js";
 import type { PreSendHook } from "#core/loop/pre-send-hooks.js";
 import type {
   KotaClient,
@@ -229,11 +230,16 @@ export type ModuleContext = {
   getModuleSummaries: () => ModuleSummary[];
   /**
    * Register a per-turn dynamic system-prompt state provider.
-   * The function is called synchronously on every agent turn and its output
-   * is appended to the dynamic system-prompt block. Use this to contribute
-   * module state (e.g. working memory contents) without modifying core.
+   * The function is called synchronously on every agent turn with the
+   * effective tool set for the turn, and its output is appended to the
+   * dynamic system-prompt block. Use this to contribute module state
+   * (e.g. working memory contents, conversational-pattern guidance for a
+   * tool the session admits) without modifying core.
    */
-  registerDynamicStateProvider: (name: string, fn: () => string) => void;
+  registerDynamicStateProvider: (
+    name: string,
+    fn: (ctx: DynamicStateContext) => string,
+  ) => void;
   /** Register synchronous cleanup that should run before a session closes. */
   registerCleanupHook: (fn: () => void) => void;
   /**

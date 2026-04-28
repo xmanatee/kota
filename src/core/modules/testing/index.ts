@@ -14,6 +14,7 @@
 
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
+import type { DynamicStateContext } from "#core/loop/dynamic-state.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type {
   ControlRouteRegistration,
@@ -46,7 +47,10 @@ export class ModuleTestHarness {
   readonly #tools = new Map<string, ToolDef>();
   #routes: RouteRegistration[] = [];
   #controlRoutes: ControlRouteRegistration[] = [];
-  readonly #dynamicStateProviders = new Map<string, () => string>();
+  readonly #dynamicStateProviders = new Map<
+    string,
+    (ctx: DynamicStateContext) => string
+  >();
   readonly #eventHandlers = new Map<
     string,
     Array<(payload: Record<string, unknown>) => void>
@@ -159,11 +163,16 @@ export class ModuleTestHarness {
 
   /**
    * Call all registered dynamic state providers and return their concatenated output.
-   * Returns an empty string if no providers are registered.
+   * Returns an empty string if no providers are registered. Tests may pass an
+   * explicit `activeTools` set to exercise tool-policy gating; the default is
+   * the harness's currently-registered tool names.
    */
-  getDynamicState(): string {
+  getDynamicState(activeTools?: ReadonlySet<string>): string {
+    const ctx: DynamicStateContext = {
+      activeTools: activeTools ?? new Set(this.#tools.keys()),
+    };
     return [...this.#dynamicStateProviders.values()]
-      .map((fn) => fn())
+      .map((fn) => fn(ctx))
       .join("\n");
   }
 

@@ -28,6 +28,10 @@ import {
 import { RecallProviderImpl } from "./recall-provider.js";
 import type { RecallProvider } from "./recall-types.js";
 import { recallApiRoutes, recallControlRoutes } from "./routes.js";
+import {
+  buildRecallDynamicStateProvider,
+  RECALL_DYNAMIC_STATE_NAME,
+} from "./system-prompt.js";
 import { createRecallToolDef } from "./tool.js";
 
 let activeProvider: RecallProvider | null = null;
@@ -61,6 +65,10 @@ const recallModule: KotaModule = {
     provider.register(createTasksContributor(getRepoTasksProvider()));
     activeProvider = provider;
     ctx.registerProvider("recall", provider);
+    ctx.registerDynamicStateProvider(
+      RECALL_DYNAMIC_STATE_NAME,
+      buildRecallDynamicStateProvider(),
+    );
     ctx.log.info(
       `recall: registered ${provider.contributors().length} contributor(s)`,
     );
