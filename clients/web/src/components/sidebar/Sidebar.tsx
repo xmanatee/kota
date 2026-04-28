@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import type { ConnectionStatus } from "@/hooks/use-daemon-events";
 import { cn } from "@/lib/utils";
 import { ActiveSessionsPanel } from "./ActiveSessionsPanel";
+import { AnswerHistoryPanel } from "./AnswerHistoryPanel";
 import { AnswerPanel } from "./AnswerPanel";
 import { ApprovalList } from "./ApprovalList";
 import { AttentionPanel } from "./AttentionPanel";
@@ -136,6 +137,10 @@ export function Sidebar({
 
           <SidebarSection title="Answer" defaultOpen={false}>
             <AnswerPanel />
+          </SidebarSection>
+
+          <SidebarSection title="Answer History" defaultOpen={false}>
+            <AnswerHistoryPanel />
           </SidebarSection>
 
           <SidebarSection title="Knowledge" defaultOpen={false}>

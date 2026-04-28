@@ -1,4 +1,7 @@
 import type {
+  AnswerHistoryListFilter,
+  AnswerHistoryListResult,
+  AnswerHistoryShowResult,
   AnswerResult,
   AttentionResponse,
   AuditEntry,
@@ -302,6 +305,19 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
     }),
+
+  answerLog: (filter?: AnswerHistoryListFilter) => {
+    const search = new URLSearchParams();
+    if (filter?.limit !== undefined) search.set("limit", String(filter.limit));
+    if (filter?.beforeId !== undefined) search.set("beforeId", filter.beforeId);
+    const qs = search.toString();
+    return apiJson<AnswerHistoryListResult>(
+      `/api/answers${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  answerShow: (id: string) =>
+    apiJson<AnswerHistoryShowResult>(`/api/answers/${encodeURIComponent(id)}`),
 
   listSlashCommands: () =>
     apiJson<{ commands: SlashCommand[] }>("/api/commands"),

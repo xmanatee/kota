@@ -387,6 +387,46 @@ export type AnswerResult =
       reason: "no_hits" | "semantic_unavailable" | "synthesis_failed";
     };
 
+export type AnswerFilter = {
+  topK?: number;
+  minScore?: number;
+  sources?: RecallSource[];
+};
+
+export type AnswerHistoryRecord = {
+  id: string;
+  createdAt: string;
+  query: string;
+  filter: AnswerFilter;
+  recallHits: RecallHit[];
+  result: AnswerResult;
+};
+
+export type AnswerHistoryEntry = {
+  id: string;
+  createdAt: string;
+  query: string;
+  result:
+    | { ok: true; citationCount: number }
+    | {
+        ok: false;
+        reason: "no_hits" | "semantic_unavailable" | "synthesis_failed";
+      };
+};
+
+export type AnswerHistoryListFilter = {
+  limit?: number;
+  beforeId?: string;
+};
+
+export type AnswerHistoryListResult = {
+  entries: AnswerHistoryEntry[];
+};
+
+export type AnswerHistoryShowResult =
+  | { ok: true; record: AnswerHistoryRecord }
+  | { ok: false; reason: "not_found" };
+
 export type SlashCommandSource = "workflow" | "skill";
 
 export type SlashCommand = {

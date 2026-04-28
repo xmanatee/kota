@@ -1,12 +1,12 @@
 ---
 id: task-add-web-answerhistorypanel-consuming-the-answer-hi
 title: Add web AnswerHistoryPanel consuming the answer-history seam
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a sidebar AnswerHistoryPanel to the web client that consumes GET /api/answers + /api/answers/:id through DaemonControlClient.answer.log/show, so dashboard operators can scroll back through past synthesized answers and re-render any single record. Second-surface follow-up of the answer-history store after Telegram /answer-log + /answer-show; macOS and mobile adoption land later as separate tasks.
 created_at: 2026-04-28T01:58:12.373Z
-updated_at: 2026-04-28T01:58:12.373Z
+updated_at: 2026-04-28T02:05:23.137Z
 ---
 
 ## Problem
