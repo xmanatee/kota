@@ -1,4 +1,6 @@
 import type {
+  AnswerHistoryEntry,
+  AnswerHistoryRecord,
   AnswerResult,
   Approval,
   AttentionResponse,
@@ -69,6 +71,14 @@ export interface DaemonState {
   answerResult: AnswerResult | null;
   answerLoading: boolean;
   answerError: string | null;
+  answerLogEntries: AnswerHistoryEntry[];
+  answerLogLoading: boolean;
+  answerLogError: string | null;
+  answerLogHasMore: boolean;
+  answerShowRecord: AnswerHistoryRecord | null;
+  answerShowMissing: boolean;
+  answerShowLoading: boolean;
+  answerShowError: string | null;
   captureText: string;
   captureTarget: CaptureTargetChoice;
   captureHint: string;
@@ -121,6 +131,19 @@ export type DaemonAction =
   | { type: 'ANSWER_LOADING'; query: string }
   | { type: 'ANSWER_RESULT'; result: AnswerResult }
   | { type: 'ANSWER_ERROR'; error: string }
+  | { type: 'ANSWER_LOG_LOADING'; reset: boolean }
+  | {
+      type: 'ANSWER_LOG_RESULT';
+      entries: AnswerHistoryEntry[];
+      append: boolean;
+      hasMore: boolean;
+    }
+  | { type: 'ANSWER_LOG_ERROR'; error: string }
+  | { type: 'ANSWER_SHOW_LOADING'; id: string }
+  | { type: 'ANSWER_SHOW_RESULT'; record: AnswerHistoryRecord }
+  | { type: 'ANSWER_SHOW_NOT_FOUND' }
+  | { type: 'ANSWER_SHOW_ERROR'; error: string }
+  | { type: 'ANSWER_SHOW_CLOSE' }
   | { type: 'CAPTURE_TEXT_SET'; text: string }
   | { type: 'CAPTURE_TARGET_SET'; target: CaptureTargetChoice }
   | { type: 'CAPTURE_HINT_SET'; hint: string }
@@ -173,6 +196,14 @@ export const initialState: DaemonState = {
   answerResult: null,
   answerLoading: false,
   answerError: null,
+  answerLogEntries: [],
+  answerLogLoading: false,
+  answerLogError: null,
+  answerLogHasMore: false,
+  answerShowRecord: null,
+  answerShowMissing: false,
+  answerShowLoading: false,
+  answerShowError: null,
   captureText: '',
   captureTarget: 'auto',
   captureHint: '',
@@ -226,6 +257,14 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         answerResult: action.online ? state.answerResult : null,
         answerError: action.online ? state.answerError : null,
         answerLoading: action.online ? state.answerLoading : false,
+        answerLogEntries: action.online ? state.answerLogEntries : [],
+        answerLogError: action.online ? state.answerLogError : null,
+        answerLogLoading: action.online ? state.answerLogLoading : false,
+        answerLogHasMore: action.online ? state.answerLogHasMore : false,
+        answerShowRecord: action.online ? state.answerShowRecord : null,
+        answerShowMissing: action.online ? state.answerShowMissing : false,
+        answerShowError: action.online ? state.answerShowError : null,
+        answerShowLoading: action.online ? state.answerShowLoading : false,
         captureResult: action.online ? state.captureResult : null,
         captureError: action.online ? state.captureError : null,
         captureLoading: action.online ? state.captureLoading : false,
@@ -423,6 +462,70 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         answerLoading: false,
         answerError: action.error,
         answerResult: null,
+      };
+    case 'ANSWER_LOG_LOADING':
+      return {
+        ...state,
+        answerLogLoading: true,
+        answerLogError: null,
+        answerLogEntries: action.reset ? [] : state.answerLogEntries,
+        answerLogHasMore: action.reset ? false : state.answerLogHasMore,
+      };
+    case 'ANSWER_LOG_RESULT':
+      return {
+        ...state,
+        answerLogEntries: action.append
+          ? [...state.answerLogEntries, ...action.entries]
+          : action.entries,
+        answerLogLoading: false,
+        answerLogError: null,
+        answerLogHasMore: action.hasMore,
+      };
+    case 'ANSWER_LOG_ERROR':
+      return {
+        ...state,
+        answerLogLoading: false,
+        answerLogError: action.error,
+      };
+    case 'ANSWER_SHOW_LOADING':
+      return {
+        ...state,
+        answerShowLoading: true,
+        answerShowError: null,
+        answerShowRecord: null,
+        answerShowMissing: false,
+      };
+    case 'ANSWER_SHOW_RESULT':
+      return {
+        ...state,
+        answerShowRecord: action.record,
+        answerShowMissing: false,
+        answerShowLoading: false,
+        answerShowError: null,
+      };
+    case 'ANSWER_SHOW_NOT_FOUND':
+      return {
+        ...state,
+        answerShowRecord: null,
+        answerShowMissing: true,
+        answerShowLoading: false,
+        answerShowError: null,
+      };
+    case 'ANSWER_SHOW_ERROR':
+      return {
+        ...state,
+        answerShowLoading: false,
+        answerShowError: action.error,
+        answerShowRecord: null,
+        answerShowMissing: false,
+      };
+    case 'ANSWER_SHOW_CLOSE':
+      return {
+        ...state,
+        answerShowRecord: null,
+        answerShowMissing: false,
+        answerShowLoading: false,
+        answerShowError: null,
       };
     case 'CAPTURE_TEXT_SET':
       return { ...state, captureText: action.text };

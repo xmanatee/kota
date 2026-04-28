@@ -536,6 +536,69 @@ export type AnswerResult =
     };
 
 /**
+ * Mirror of the daemon's `AnswerHistoryRecord`
+ * (`src/core/server/kota-client.ts`). One persisted envelope per
+ * `AnswerProvider.answer(query, filter?)` call regardless of `ok`. The
+ * record carries the original query verbatim, the post-default filter
+ * actually used, the typed `RecallHit[]` the synthesizer was shown, and
+ * the discriminated `AnswerResult` envelope the caller saw — the same
+ * shape the CLI / web / Telegram / Slack surfaces consume through the
+ * `GET /api/answers/:id` route.
+ */
+export interface AnswerHistoryRecord {
+  id: string;
+  createdAt: string;
+  query: string;
+  filter: AnswerFilter;
+  recallHits: RecallHit[];
+  result: AnswerResult;
+}
+
+/**
+ * Compact projection of `AnswerHistoryRecord` for list rendering. The
+ * `result` field is closed over the discriminated shape so callers
+ * cannot accidentally read fields that only exist on the `ok: true`
+ * branch. Mirrors the daemon's `AnswerHistoryEntry`.
+ */
+export interface AnswerHistoryEntry {
+  id: string;
+  createdAt: string;
+  query: string;
+  result:
+    | { ok: true; citationCount: number }
+    | {
+        ok: false;
+        reason: 'no_hits' | 'semantic_unavailable' | 'synthesis_failed';
+      };
+}
+
+/**
+ * Filter accepted by `DaemonClient.answerLog`. Both fields are optional;
+ * the daemon store applies its own defaults (newest-first, capped page
+ * size). Passing `beforeId` returns the next older page after that id.
+ */
+export interface AnswerHistoryListFilter {
+  limit?: number;
+  beforeId?: string;
+}
+
+/** Mirror of the daemon's `AnswerHistoryListResult`. */
+export interface AnswerHistoryListResult {
+  entries: AnswerHistoryEntry[];
+}
+
+/**
+ * Discriminated mirror of the daemon's `AnswerHistoryShowResult`:
+ * `{ ok: true, record }` when the id resolved and
+ * `{ ok: false, reason: "not_found" }` when no envelope carries that id.
+ * Strict so payload drift fails loudly instead of silently degrading the
+ * rendered surface to a misleading "loading…" state.
+ */
+export type AnswerHistoryShowResult =
+  | { ok: true; record: AnswerHistoryRecord }
+  | { ok: false; reason: 'not_found' };
+
+/**
  * Target store for `DaemonClient.capture`. Mirrors the daemon's
  * `CaptureTarget` union exported from `src/core/server/kota-client.ts:758`.
  * Adding a fifth contributor extends this union and the `CaptureRecord`

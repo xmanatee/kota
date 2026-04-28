@@ -1,6 +1,11 @@
 import type {
   AnswerCitation,
   AnswerFilter,
+  AnswerHistoryEntry,
+  AnswerHistoryListFilter,
+  AnswerHistoryListResult,
+  AnswerHistoryRecord,
+  AnswerHistoryShowResult,
   AnswerResult,
   Approval,
   AttentionResponse,
@@ -285,6 +290,45 @@ export class DaemonClient {
       body: JSON.stringify(body),
     });
     return parseAnswerResult(parsed);
+  }
+
+  /**
+   * Targets the daemon's `GET /api/answers` route — the same route the
+   * web `AnswerHistoryPanel`, the Slack `/answer-log` reply, the
+   * Telegram `/answer-log` reply, and the `kota answer log` CLI all
+   * consume — and decodes the typed `AnswerHistoryListResult`. Mirrors
+   * the existing mobile `recall` / `answer` decode discipline: response
+   * shapes are validated explicitly so payload drift throws instead of
+   * silently degrading the rendered surface. The optional `beforeId`
+   * cursor and `limit` are emitted as query params only when set so the
+   * daemon store applies its own typed defaults (newest-first, capped
+   * page size).
+   */
+  async answerLog(
+    filter: AnswerHistoryListFilter = {},
+  ): Promise<AnswerHistoryListResult> {
+    const params = new URLSearchParams();
+    if (filter.limit !== undefined) params.set('limit', String(filter.limit));
+    if (filter.beforeId !== undefined) params.set('beforeId', filter.beforeId);
+    const qs = params.toString();
+    const path = `/api/answers${qs ? `?${qs}` : ''}`;
+    const parsed = await this.request<unknown>(path);
+    return parseAnswerHistoryListResult(parsed);
+  }
+
+  /**
+   * Targets the daemon's `GET /api/answers/:id` route and decodes the
+   * discriminated `AnswerHistoryShowResult`: `{ ok: true, record }` for
+   * a hit, `{ ok: false, reason: "not_found" }` for an id the store has
+   * no envelope for. Mirrors the existing mobile decode discipline:
+   * response shapes are validated explicitly so payload drift throws
+   * instead of silently degrading the rendered surface to a misleading
+   * "loading…" state.
+   */
+  async answerShow(id: string): Promise<AnswerHistoryShowResult> {
+    const path = `/api/answers/${encodeURIComponent(id)}`;
+    const parsed = await this.request<unknown>(path);
+    return parseAnswerHistoryShowResult(parsed);
   }
 
   /**
@@ -860,6 +904,170 @@ function parseCaptureRecord(value: unknown): CaptureRecord {
       }
       return { target: 'inbox', recordId: obj.recordId, path: obj.path };
   }
+}
+
+const ANSWER_HISTORY_REASONS: ReadonlyArray<
+  'no_hits' | 'semantic_unavailable' | 'synthesis_failed'
+> = ['no_hits', 'semantic_unavailable', 'synthesis_failed'];
+
+function parseAnswerFilter(value: unknown): AnswerFilter {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid answer history record: filter not an object');
+  }
+  const obj = value as Record<string, unknown>;
+  const filter: AnswerFilter = {};
+  if (obj.topK !== undefined) {
+    if (typeof obj.topK !== 'number') {
+      throw new Error('Invalid answer history record: filter.topK not a number');
+    }
+    filter.topK = obj.topK;
+  }
+  if (obj.minScore !== undefined) {
+    if (typeof obj.minScore !== 'number') {
+      throw new Error(
+        'Invalid answer history record: filter.minScore not a number',
+      );
+    }
+    filter.minScore = obj.minScore;
+  }
+  if (obj.sources !== undefined) {
+    if (!Array.isArray(obj.sources)) {
+      throw new Error(
+        'Invalid answer history record: filter.sources not an array',
+      );
+    }
+    const sources: RecallSource[] = obj.sources.map((s) => {
+      if (
+        typeof s !== 'string' ||
+        !(ANSWER_CITATION_SOURCES as readonly string[]).includes(s)
+      ) {
+        throw new Error(
+          `Invalid answer history record: unknown source ${String(s)}`,
+        );
+      }
+      return s as RecallSource;
+    });
+    filter.sources = sources;
+  }
+  return filter;
+}
+
+function parseAnswerHistoryEntry(value: unknown): AnswerHistoryEntry {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid answer history entry: not an object');
+  }
+  const obj = value as Record<string, unknown>;
+  if (
+    typeof obj.id !== 'string' ||
+    typeof obj.createdAt !== 'string' ||
+    typeof obj.query !== 'string'
+  ) {
+    throw new Error('Invalid answer history entry: missing required fields');
+  }
+  const result = obj.result;
+  if (result === null || typeof result !== 'object') {
+    throw new Error('Invalid answer history entry: result not an object');
+  }
+  const r = result as Record<string, unknown>;
+  if (r.ok === true) {
+    if (typeof r.citationCount !== 'number') {
+      throw new Error('Invalid answer history entry: citationCount not a number');
+    }
+    return {
+      id: obj.id,
+      createdAt: obj.createdAt,
+      query: obj.query,
+      result: { ok: true, citationCount: r.citationCount },
+    };
+  }
+  if (r.ok === false) {
+    if (
+      typeof r.reason !== 'string' ||
+      !(ANSWER_HISTORY_REASONS as readonly string[]).includes(r.reason)
+    ) {
+      throw new Error(
+        `Invalid answer history entry: unknown reason ${String(r.reason)}`,
+      );
+    }
+    return {
+      id: obj.id,
+      createdAt: obj.createdAt,
+      query: obj.query,
+      result: {
+        ok: false,
+        reason: r.reason as
+          | 'no_hits'
+          | 'semantic_unavailable'
+          | 'synthesis_failed',
+      },
+    };
+  }
+  throw new Error('Invalid answer history entry: missing ok flag');
+}
+
+function parseAnswerHistoryListResult(
+  value: unknown,
+): AnswerHistoryListResult {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid answer history list response: not an object');
+  }
+  const obj = value as Record<string, unknown>;
+  if (!Array.isArray(obj.entries)) {
+    throw new Error(
+      'Invalid answer history list response: entries missing',
+    );
+  }
+  const entries = obj.entries.map(parseAnswerHistoryEntry);
+  return { entries };
+}
+
+function parseAnswerHistoryRecord(value: unknown): AnswerHistoryRecord {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid answer history record: not an object');
+  }
+  const obj = value as Record<string, unknown>;
+  if (
+    typeof obj.id !== 'string' ||
+    typeof obj.createdAt !== 'string' ||
+    typeof obj.query !== 'string'
+  ) {
+    throw new Error('Invalid answer history record: missing required fields');
+  }
+  if (!Array.isArray(obj.recallHits)) {
+    throw new Error('Invalid answer history record: recallHits missing');
+  }
+  const filter = parseAnswerFilter(obj.filter);
+  const recallHits = obj.recallHits.map(parseRecallHit);
+  const result = parseAnswerResult(obj.result);
+  return {
+    id: obj.id,
+    createdAt: obj.createdAt,
+    query: obj.query,
+    filter,
+    recallHits,
+    result,
+  };
+}
+
+function parseAnswerHistoryShowResult(
+  value: unknown,
+): AnswerHistoryShowResult {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid answer history show response: not an object');
+  }
+  const obj = value as Record<string, unknown>;
+  if (obj.ok === true) {
+    return { ok: true, record: parseAnswerHistoryRecord(obj.record) };
+  }
+  if (obj.ok === false) {
+    if (obj.reason !== 'not_found') {
+      throw new Error(
+        `Invalid answer history show response: unknown reason ${String(obj.reason)}`,
+      );
+    }
+    return { ok: false, reason: 'not_found' };
+  }
+  throw new Error('Invalid answer history show response: missing ok flag');
 }
 
 function parseCaptureResult(value: unknown): CaptureResult {

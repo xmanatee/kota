@@ -1,5 +1,7 @@
 import { type DaemonState, initialState, reducer } from '../context/state';
 import type {
+  AnswerHistoryEntry,
+  AnswerHistoryRecord,
   AnswerResult,
   Approval,
   AttentionResponse,
@@ -25,6 +27,20 @@ function makeApproval(overrides: Partial<Approval> = {}): Approval {
     createdAt: 't',
     status: 'pending',
     ...overrides,
+  };
+}
+
+function sampleRecord(overrides: {
+  id?: string;
+  result: AnswerResult;
+}): AnswerHistoryRecord {
+  return {
+    id: overrides.id ?? '2026-04-26T12-00-00-000Z-aaa',
+    createdAt: '2026-04-26T12:00:00.000Z',
+    query: 'sample query',
+    filter: {},
+    recallHits: [],
+    result: overrides.result,
   };
 }
 
@@ -941,6 +957,322 @@ describe('reducer', () => {
     expect(withResult.answerResult).toBe(result);
     const offline = reducer(withResult, { type: 'ONLINE', online: false });
     expect(offline.answerResult).toBeNull();
+  });
+
+  test('initial state seeds the answer-history surface with empty log and no record', () => {
+    expect(initialState.answerLogEntries).toEqual([]);
+    expect(initialState.answerLogLoading).toBe(false);
+    expect(initialState.answerLogError).toBeNull();
+    expect(initialState.answerLogHasMore).toBe(false);
+    expect(initialState.answerShowRecord).toBeNull();
+    expect(initialState.answerShowMissing).toBe(false);
+    expect(initialState.answerShowLoading).toBe(false);
+    expect(initialState.answerShowError).toBeNull();
+  });
+
+  test('ANSWER_LOG_LOADING with reset clears stale entries', () => {
+    const seeded: AnswerHistoryEntry[] = [
+      {
+        id: 'r-1',
+        createdAt: 't',
+        query: 'q',
+        result: { ok: true, citationCount: 1 },
+      },
+    ];
+    const withEntries = reducer(initialState, {
+      type: 'ANSWER_LOG_RESULT',
+      entries: seeded,
+      append: false,
+      hasMore: true,
+    });
+    expect(withEntries.answerLogEntries).toHaveLength(1);
+    expect(withEntries.answerLogHasMore).toBe(true);
+    const next = reducer(withEntries, {
+      type: 'ANSWER_LOG_LOADING',
+      reset: true,
+    });
+    expect(next.answerLogLoading).toBe(true);
+    expect(next.answerLogEntries).toEqual([]);
+    expect(next.answerLogHasMore).toBe(false);
+  });
+
+  test('ANSWER_LOG_LOADING without reset preserves existing entries (append page)', () => {
+    const seeded: AnswerHistoryEntry[] = [
+      {
+        id: 'r-1',
+        createdAt: 't1',
+        query: 'q1',
+        result: { ok: true, citationCount: 1 },
+      },
+    ];
+    const withEntries = reducer(initialState, {
+      type: 'ANSWER_LOG_RESULT',
+      entries: seeded,
+      append: false,
+      hasMore: true,
+    });
+    const next = reducer(withEntries, {
+      type: 'ANSWER_LOG_LOADING',
+      reset: false,
+    });
+    expect(next.answerLogLoading).toBe(true);
+    expect(next.answerLogEntries).toBe(seeded);
+    expect(next.answerLogHasMore).toBe(true);
+  });
+
+  test('ANSWER_LOG_RESULT replaces entries by default (reset path)', () => {
+    const first: AnswerHistoryEntry[] = [
+      {
+        id: 'r-1',
+        createdAt: 't1',
+        query: 'q1',
+        result: { ok: true, citationCount: 1 },
+      },
+    ];
+    const replacement: AnswerHistoryEntry[] = [
+      {
+        id: 'r-2',
+        createdAt: 't2',
+        query: 'q2',
+        result: { ok: false, reason: 'no_hits' },
+      },
+    ];
+    const seeded = reducer(initialState, {
+      type: 'ANSWER_LOG_RESULT',
+      entries: first,
+      append: false,
+      hasMore: false,
+    });
+    const next = reducer(seeded, {
+      type: 'ANSWER_LOG_RESULT',
+      entries: replacement,
+      append: false,
+      hasMore: false,
+    });
+    expect(next.answerLogEntries).toEqual(replacement);
+    expect(next.answerLogHasMore).toBe(false);
+    expect(next.answerLogLoading).toBe(false);
+    expect(next.answerLogError).toBeNull();
+  });
+
+  test('ANSWER_LOG_RESULT with append concatenates the next page', () => {
+    const first: AnswerHistoryEntry[] = [
+      {
+        id: 'r-1',
+        createdAt: 't1',
+        query: 'q1',
+        result: { ok: true, citationCount: 1 },
+      },
+    ];
+    const second: AnswerHistoryEntry[] = [
+      {
+        id: 'r-2',
+        createdAt: 't2',
+        query: 'q2',
+        result: { ok: false, reason: 'no_hits' },
+      },
+    ];
+    const seeded = reducer(initialState, {
+      type: 'ANSWER_LOG_RESULT',
+      entries: first,
+      append: false,
+      hasMore: true,
+    });
+    const next = reducer(seeded, {
+      type: 'ANSWER_LOG_RESULT',
+      entries: second,
+      append: true,
+      hasMore: false,
+    });
+    expect(next.answerLogEntries.map((e) => e.id)).toEqual(['r-1', 'r-2']);
+    expect(next.answerLogHasMore).toBe(false);
+  });
+
+  test('ANSWER_LOG_ERROR records the error without dropping accumulated entries', () => {
+    const first: AnswerHistoryEntry[] = [
+      {
+        id: 'r-1',
+        createdAt: 't1',
+        query: 'q1',
+        result: { ok: true, citationCount: 1 },
+      },
+    ];
+    const seeded = reducer(initialState, {
+      type: 'ANSWER_LOG_RESULT',
+      entries: first,
+      append: false,
+      hasMore: false,
+    });
+    const next = reducer(seeded, {
+      type: 'ANSWER_LOG_ERROR',
+      error: '503',
+    });
+    expect(next.answerLogError).toBe('503');
+    expect(next.answerLogLoading).toBe(false);
+    expect(next.answerLogEntries).toEqual(first);
+  });
+
+  test('ANSWER_SHOW_LOADING clears prior record and missing flag', () => {
+    const record = sampleRecord({
+      id: 'r-1',
+      result: {
+        ok: true,
+        answer: 'verbatim [knowledge:k-1]',
+        citations: [{ source: 'knowledge', id: 'k-1' }],
+        hits: [
+          {
+            source: 'knowledge',
+            score: 0.91,
+            id: 'k-1',
+            title: 'title',
+            preview: 'preview',
+            updated: 't',
+          },
+        ],
+      },
+    });
+    const seeded = reducer(initialState, {
+      type: 'ANSWER_SHOW_RESULT',
+      record,
+    });
+    expect(seeded.answerShowRecord).toBe(record);
+    const next = reducer(seeded, {
+      type: 'ANSWER_SHOW_LOADING',
+      id: 'r-2',
+    });
+    expect(next.answerShowLoading).toBe(true);
+    expect(next.answerShowRecord).toBeNull();
+    expect(next.answerShowMissing).toBe(false);
+    expect(next.answerShowError).toBeNull();
+  });
+
+  test('ANSWER_SHOW_RESULT preserves the four AnswerResult arms verbatim', () => {
+    const records: AnswerHistoryRecord[] = [
+      sampleRecord({
+        id: 'r-ok',
+        result: {
+          ok: true,
+          answer: 'verbatim [knowledge:k-1]',
+          citations: [{ source: 'knowledge', id: 'k-1' }],
+          hits: [
+            {
+              source: 'knowledge',
+              score: 0.91,
+              id: 'k-1',
+              title: 'title',
+              preview: 'preview',
+              updated: 't',
+            },
+          ],
+        },
+      }),
+      sampleRecord({
+        id: 'r-no-hits',
+        result: { ok: false, reason: 'no_hits' },
+      }),
+      sampleRecord({
+        id: 'r-unavail',
+        result: { ok: false, reason: 'semantic_unavailable' },
+      }),
+      sampleRecord({
+        id: 'r-synth',
+        result: { ok: false, reason: 'synthesis_failed' },
+      }),
+    ];
+    for (const record of records) {
+      const next = reducer(initialState, {
+        type: 'ANSWER_SHOW_RESULT',
+        record,
+      });
+      expect(next.answerShowRecord).toBe(record);
+      expect(next.answerShowMissing).toBe(false);
+      expect(next.answerShowLoading).toBe(false);
+      expect(next.answerShowError).toBeNull();
+    }
+  });
+
+  test('ANSWER_SHOW_NOT_FOUND surfaces the missing-id arm without a record', () => {
+    const next = reducer(initialState, { type: 'ANSWER_SHOW_NOT_FOUND' });
+    expect(next.answerShowMissing).toBe(true);
+    expect(next.answerShowRecord).toBeNull();
+    expect(next.answerShowLoading).toBe(false);
+    expect(next.answerShowError).toBeNull();
+  });
+
+  test('ANSWER_SHOW_ERROR clears stale record and missing flag', () => {
+    const record = sampleRecord({
+      id: 'r-1',
+      result: {
+        ok: true,
+        answer: 'a',
+        citations: [],
+        hits: [],
+      },
+    });
+    const seeded = reducer(initialState, {
+      type: 'ANSWER_SHOW_RESULT',
+      record,
+    });
+    const next = reducer(seeded, {
+      type: 'ANSWER_SHOW_ERROR',
+      error: '503',
+    });
+    expect(next.answerShowError).toBe('503');
+    expect(next.answerShowLoading).toBe(false);
+    expect(next.answerShowRecord).toBeNull();
+    expect(next.answerShowMissing).toBe(false);
+  });
+
+  test('ANSWER_SHOW_CLOSE clears the show view back to idle', () => {
+    const record = sampleRecord({
+      id: 'r-1',
+      result: {
+        ok: true,
+        answer: 'a',
+        citations: [],
+        hits: [],
+      },
+    });
+    const seeded = reducer(initialState, {
+      type: 'ANSWER_SHOW_RESULT',
+      record,
+    });
+    const next = reducer(seeded, { type: 'ANSWER_SHOW_CLOSE' });
+    expect(next.answerShowRecord).toBeNull();
+    expect(next.answerShowMissing).toBe(false);
+    expect(next.answerShowLoading).toBe(false);
+    expect(next.answerShowError).toBeNull();
+  });
+
+  test('ONLINE false drops cached answer-log entries and answer-show record', () => {
+    const record = sampleRecord({
+      id: 'r-1',
+      result: {
+        ok: true,
+        answer: 'a',
+        citations: [],
+        hits: [],
+      },
+    });
+    let s = reducer(initialState, {
+      type: 'ANSWER_LOG_RESULT',
+      entries: [
+        {
+          id: 'r-1',
+          createdAt: 't',
+          query: 'q',
+          result: { ok: true, citationCount: 0 },
+        },
+      ],
+      append: false,
+      hasMore: true,
+    });
+    s = reducer(s, { type: 'ANSWER_SHOW_RESULT', record });
+    s = reducer(s, { type: 'ONLINE', online: false });
+    expect(s.answerLogEntries).toEqual([]);
+    expect(s.answerLogHasMore).toBe(false);
+    expect(s.answerShowRecord).toBeNull();
+    expect(s.answerShowMissing).toBe(false);
   });
 
   test('OWNER_QUESTIONS recomputes pending count', () => {

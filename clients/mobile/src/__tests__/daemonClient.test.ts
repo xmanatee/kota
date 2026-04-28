@@ -811,6 +811,224 @@ describe('DaemonClient', () => {
     await expect(client().answer('x')).rejects.toThrow('503');
   });
 
+  test('answerLog GETs /api/answers without query params by default and decodes the entries', async () => {
+    const success = {
+      entries: [
+        {
+          id: '2026-04-26T12-00-00-000Z-aaa',
+          createdAt: '2026-04-26T12:00:00.000Z',
+          query: 'how does recall fan out',
+          result: { ok: true, citationCount: 2 },
+        },
+        {
+          id: '2026-04-26T11-00-00-000Z-bbb',
+          createdAt: '2026-04-26T11:00:00.000Z',
+          query: 'a question with no hits',
+          result: { ok: false, reason: 'no_hits' },
+        },
+        {
+          id: '2026-04-26T10-00-00-000Z-ccc',
+          createdAt: '2026-04-26T10:00:00.000Z',
+          query: 'recall unavailable',
+          result: { ok: false, reason: 'semantic_unavailable' },
+        },
+        {
+          id: '2026-04-26T09-00-00-000Z-ddd',
+          createdAt: '2026-04-26T09:00:00.000Z',
+          query: 'synth failure',
+          result: { ok: false, reason: 'synthesis_failed' },
+        },
+      ],
+    };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(success));
+    const res = await client().answerLog();
+    expect(lastCall()[0]).toBe(`${baseUrl}/api/answers`);
+    expect(lastHeaders().Authorization).toBe(`Bearer ${token}`);
+    expect(res).toEqual(success);
+  });
+
+  test('answerLog encodes optional limit and beforeId on the wire', async () => {
+    fetchSpy.mockImplementation(async () => jsonResponse({ entries: [] }));
+    await client().answerLog({ limit: 5 });
+    expect(lastCall()[0]).toBe(`${baseUrl}/api/answers?limit=5`);
+    await client().answerLog({
+      beforeId: '2026-04-26T09-00-00-000Z-ddd',
+    });
+    expect(lastCall()[0]).toBe(
+      `${baseUrl}/api/answers?beforeId=2026-04-26T09-00-00-000Z-ddd`,
+    );
+    await client().answerLog({
+      limit: 10,
+      beforeId: '2026-04-26T09-00-00-000Z-ddd',
+    });
+    expect(lastCall()[0]).toBe(
+      `${baseUrl}/api/answers?limit=10&beforeId=2026-04-26T09-00-00-000Z-ddd`,
+    );
+  });
+
+  test('answerLog rejects an unknown reason on a list entry loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({
+        entries: [
+          {
+            id: 'x',
+            createdAt: 'y',
+            query: 'q',
+            result: { ok: false, reason: 'mystery' },
+          },
+        ],
+      }),
+    );
+    await expect(client().answerLog()).rejects.toThrow(/mystery/);
+  });
+
+  test('answerLog rejects a malformed entry loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ entries: [{ id: 'x' }] }),
+    );
+    await expect(client().answerLog()).rejects.toThrow(
+      /answer history entry/i,
+    );
+  });
+
+  test('answerLog rejects a missing entries field loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(jsonResponse({}));
+    await expect(client().answerLog()).rejects.toThrow(/entries missing/i);
+  });
+
+  test('answerLog surfaces the daemon HTTP error one-to-one', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response('', { status: 503, statusText: 'Service Unavailable' }),
+    );
+    await expect(client().answerLog()).rejects.toThrow('503');
+  });
+
+  test('answerShow GETs /api/answers/:id and decodes the ok-true record', async () => {
+    const success = {
+      ok: true,
+      record: {
+        id: '2026-04-26T12-00-00-000Z-aaa',
+        createdAt: '2026-04-26T12:00:00.000Z',
+        query: 'how does recall fan out',
+        filter: { topK: 5 },
+        recallHits: [
+          {
+            source: 'knowledge',
+            score: 0.91,
+            id: 'k-1',
+            title: 'Cross-store recall fan-out',
+            preview: 'preview',
+            updated: '2026-04-26T12:00:00.000Z',
+          },
+        ],
+        result: {
+          ok: true,
+          answer:
+            'Cross-store recall indexes [knowledge:k-1] and [memory:m-1] across the second brain.',
+          citations: [
+            { source: 'knowledge', id: 'k-1' },
+            { source: 'memory', id: 'm-1' },
+          ],
+          hits: [
+            {
+              source: 'knowledge',
+              score: 0.91,
+              id: 'k-1',
+              title: 'Cross-store recall fan-out',
+              preview: 'preview',
+              updated: '2026-04-26T12:00:00.000Z',
+            },
+            {
+              source: 'memory',
+              score: 0.83,
+              id: 'm-1',
+              preview: 'note about recall design',
+              created: '2026-04-25T18:30:00.000Z',
+            },
+          ],
+        },
+      },
+    };
+    fetchSpy.mockResolvedValueOnce(jsonResponse(success));
+    const res = await client().answerShow('2026-04-26T12-00-00-000Z-aaa');
+    expect(lastCall()[0]).toBe(
+      `${baseUrl}/api/answers/2026-04-26T12-00-00-000Z-aaa`,
+    );
+    expect(lastHeaders().Authorization).toBe(`Bearer ${token}`);
+    expect(res).toEqual(success);
+  });
+
+  test('answerShow decodes the not_found arm verbatim', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, reason: 'not_found' }),
+    );
+    const res = await client().answerShow('missing');
+    expect(res).toEqual({ ok: false, reason: 'not_found' });
+  });
+
+  test('answerShow rejects an unknown reason loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, reason: 'mystery' }),
+    );
+    await expect(client().answerShow('x')).rejects.toThrow(/mystery/);
+  });
+
+  test('answerShow rejects a malformed record (bad embedded result) loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({
+        ok: true,
+        record: {
+          id: 'x',
+          createdAt: 'y',
+          query: 'q',
+          filter: {},
+          recallHits: [],
+          result: { ok: false, reason: 'mystery' },
+        },
+      }),
+    );
+    await expect(client().answerShow('x')).rejects.toThrow(/mystery/);
+  });
+
+  test('answerShow rejects a malformed embedded recallHit loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({
+        ok: true,
+        record: {
+          id: 'x',
+          createdAt: 'y',
+          query: 'q',
+          filter: {},
+          recallHits: [{ source: 'knowledge', score: 0.5, id: 'k-1' }],
+          result: { ok: false, reason: 'no_hits' },
+        },
+      }),
+    );
+    await expect(client().answerShow('x')).rejects.toThrow(/knowledge fields/i);
+  });
+
+  test('answerShow rejects a missing ok flag loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ record: null }));
+    await expect(client().answerShow('x')).rejects.toThrow(/missing ok flag/i);
+  });
+
+  test('answerShow surfaces the daemon HTTP error one-to-one', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response('', { status: 503, statusText: 'Service Unavailable' }),
+    );
+    await expect(client().answerShow('x')).rejects.toThrow('503');
+  });
+
+  test('answerShow encodes the id one-to-one when it contains url-significant characters', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ ok: false, reason: 'not_found' }),
+    );
+    await client().answerShow('id with/space');
+    expect(lastCall()[0]).toBe(
+      `${baseUrl}/api/answers/id%20with%2Fspace`,
+    );
+  });
+
   test('capture posts text to /api/capture and decodes the success branch across record arms', async () => {
     const tasksSuccess = {
       ok: true,

@@ -1,12 +1,12 @@
 ---
 id: task-add-mobile-answerhistoryscreen-consuming-daemoncli
 title: Add mobile AnswerHistoryScreen consuming DaemonClient answer-log and answer-show
-status: ready
+status: done
 priority: p2
 area: client
 summary: Add an AnswerHistoryScreen to the mobile client that calls GET /api/answers and GET /api/answers/:id through new DaemonClient.answerLog and DaemonClient.answerShow methods, exposes log/show state on DaemonContext, and renders the AnswerHistoryEntry projection plus the discriminated AnswerHistoryRecord shape exhaustively, closing the answer-history fan-out across CLI, daemon HTTP, Telegram, Slack, web AnswerHistoryPanel, and mobile (macOS lands as a separate follow-up task).
 created_at: 2026-04-28T08:34:44.893Z
-updated_at: 2026-04-28T08:34:44.893Z
+updated_at: 2026-04-28T08:50:33.116Z
 ---
 
 ## Problem

@@ -10,7 +10,11 @@ import React, {
 import { DaemonClient } from '../daemonClient';
 import { useSSE } from '../hooks/useSSE';
 import { registerPushTokenWithDaemon } from '../pushNotifications';
-import type { CaptureFilter, SseEvent } from '../types';
+import type {
+  AnswerHistoryListFilter,
+  CaptureFilter,
+  SseEvent,
+} from '../types';
 import {
   type CaptureTargetChoice,
   type DaemonState,
@@ -42,6 +46,10 @@ interface DaemonContextValue {
   recall: (query: string) => Promise<void>;
   setAnswerQuery: (query: string) => void;
   answer: (query: string) => Promise<void>;
+  loadAnswerLog: (opts?: AnswerHistoryListFilter) => Promise<void>;
+  loadMoreAnswerLog: () => Promise<void>;
+  openAnswerShow: (id: string) => Promise<void>;
+  closeAnswerShow: () => void;
   setCaptureText: (text: string) => void;
   setCaptureTarget: (target: CaptureTargetChoice) => void;
   setCaptureHint: (hint: string) => void;
@@ -68,6 +76,10 @@ const DaemonContext = createContext<DaemonContextValue>({
   recall: async () => {},
   setAnswerQuery: () => {},
   answer: async () => {},
+  loadAnswerLog: async () => {},
+  loadMoreAnswerLog: async () => {},
+  openAnswerShow: async () => {},
+  closeAnswerShow: () => {},
   setCaptureText: () => {},
   setCaptureTarget: () => {},
   setCaptureHint: () => {},
@@ -395,6 +407,64 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const ANSWER_LOG_PAGE_SIZE = 20;
+
+  const loadAnswerLog = useCallback(
+    async (opts?: AnswerHistoryListFilter) => {
+      const client = clientRef.current;
+      if (!client) return;
+      const limit = opts?.limit ?? ANSWER_LOG_PAGE_SIZE;
+      const append = opts?.beforeId !== undefined;
+      dispatch({ type: 'ANSWER_LOG_LOADING', reset: !append });
+      try {
+        const filter: AnswerHistoryListFilter = { limit };
+        if (opts?.beforeId !== undefined) filter.beforeId = opts.beforeId;
+        const result = await client.answerLog(filter);
+        dispatch({
+          type: 'ANSWER_LOG_RESULT',
+          entries: result.entries,
+          append,
+          hasMore: result.entries.length >= limit,
+        });
+      } catch (e) {
+        dispatch({
+          type: 'ANSWER_LOG_ERROR',
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    },
+    [],
+  );
+
+  const loadMoreAnswerLog = useCallback(async () => {
+    const last = state.answerLogEntries[state.answerLogEntries.length - 1];
+    if (!last) return;
+    await loadAnswerLog({ beforeId: last.id });
+  }, [state.answerLogEntries, loadAnswerLog]);
+
+  const openAnswerShow = useCallback(async (id: string) => {
+    const client = clientRef.current;
+    if (!client) return;
+    dispatch({ type: 'ANSWER_SHOW_LOADING', id });
+    try {
+      const result = await client.answerShow(id);
+      if (result.ok) {
+        dispatch({ type: 'ANSWER_SHOW_RESULT', record: result.record });
+      } else {
+        dispatch({ type: 'ANSWER_SHOW_NOT_FOUND' });
+      }
+    } catch (e) {
+      dispatch({
+        type: 'ANSWER_SHOW_ERROR',
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }, []);
+
+  const closeAnswerShow = useCallback(() => {
+    dispatch({ type: 'ANSWER_SHOW_CLOSE' });
+  }, []);
+
   const setCaptureText = useCallback((text: string) => {
     dispatch({ type: 'CAPTURE_TEXT_SET', text });
   }, []);
@@ -448,6 +518,10 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
         recall,
         setAnswerQuery,
         answer,
+        loadAnswerLog,
+        loadMoreAnswerLog,
+        openAnswerShow,
+        closeAnswerShow,
         setCaptureText,
         setCaptureTarget,
         setCaptureHint,
