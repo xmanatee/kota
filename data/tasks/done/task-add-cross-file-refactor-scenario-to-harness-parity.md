@@ -1,12 +1,12 @@
 ---
 id: task-add-cross-file-refactor-scenario-to-harness-parity
 title: Add cross-file refactor scenario to harness-parity pack
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Add a fifth harness-parity scenario whose verification fails unless the agent updates every call site of a renamed function across multiple files; isolates the cross-file-refactor consistency property the existing four scenarios do not cover.
 created_at: 2026-04-28T19:59:28.399Z
-updated_at: 2026-04-28T19:59:28.399Z
+updated_at: 2026-04-28T20:15:29.722Z
 ---
 
 ## Problem

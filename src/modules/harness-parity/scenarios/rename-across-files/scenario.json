@@ -1,0 +1,9 @@
+{
+  "id": "rename-across-files",
+  "description": "A small Node.js project defines `format(label, body)` in one source file and uses it from several caller modules. The agent must rename the function to `renderLine` everywhere — at the definition and at every call site — for `node test.js` to pass.",
+  "prompt": "There is a small Node.js project in this directory. Rename the function `format` to `renderLine` everywhere it is defined and used. Update the definition, the export, and every call site so the project as a whole still works. Do not modify `test.js`. When the rename is complete and consistent across the project, `node test.js` will print `ok` and exit 0.",
+  "verification": {
+    "command": "node test.js",
+    "timeoutMs": 30000
+  }
+}

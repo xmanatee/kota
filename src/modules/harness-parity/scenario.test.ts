@@ -1,5 +1,15 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -151,7 +161,7 @@ describe("scenario loader", () => {
 });
 
 describe("shipped scenarios", () => {
-  it("covers the arithmetic-fix smoke, the multi-file workload, the failure-and-revise probe, and the discovery probe", () => {
+  it("covers the arithmetic-fix smoke, the multi-file workload, the failure-and-revise probe, the discovery probe, and the cross-file rename probe", () => {
     const all = loadAllScenarios(SHIPPED_SCENARIOS_ROOT);
     const ids = all.map((s) => s.spec.id);
     expect(ids).toEqual(
@@ -160,11 +170,12 @@ describe("shipped scenarios", () => {
         "extract-shared-helper",
         "revise-from-test-output",
         "discover-failing-source",
+        "rename-across-files",
       ]),
     );
     // Guard against regressions that accidentally drop coverage back to a
     // single fixture. If a new scenario is added, bump this bound deliberately.
-    expect(all.length).toBeGreaterThanOrEqual(4);
+    expect(all.length).toBeGreaterThanOrEqual(5);
   });
 
   it("extract-shared-helper loads with prompt and verification resolved", () => {
@@ -286,6 +297,107 @@ describe("shipped scenarios", () => {
       });
       expect(afterFix.status).toBe(0);
       expect(afterFix.stdout).toContain("ok");
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rename-across-files loads with a prompt that names the rename target and the verification command but does not enumerate caller files", () => {
+    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "rename-across-files");
+    expect(loaded.spec.id).toBe("rename-across-files");
+    expect(loaded.spec.prompt.length).toBeGreaterThan(0);
+    expect(loaded.spec.verification.command).toBe("node test.js");
+    // The prompt names the rename target verbatim and the verification
+    // command, so the agent has the contract.
+    expect(loaded.spec.prompt).toMatch(/format/);
+    expect(loaded.spec.prompt).toMatch(/renderLine/);
+    expect(loaded.spec.prompt).toMatch(/node test\.js/);
+    // The prompt does not enumerate the caller files. The agent must search
+    // the project to find every call site.
+    expect(loaded.spec.prompt).not.toMatch(/src\/greeting\.js/);
+    expect(loaded.spec.prompt).not.toMatch(/src\/warning\.js/);
+    expect(loaded.spec.prompt).not.toMatch(/src\/notice\.js/);
+    expect(existsSync(loaded.initialStateDir)).toBe(true);
+    expect(statSync(loaded.initialStateDir).isDirectory()).toBe(true);
+  });
+
+  it("rename-across-files isolates cross-file rename discipline: a partial rename leaves verification failing, and only a complete rename passes", () => {
+    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "rename-across-files");
+
+    // The fixture ships the renamed source plus three or more caller files
+    // and a test.js that exercises every caller path. test.js itself does
+    // not import the renamed function — every reference goes through one
+    // of the caller files via src/index.js.
+    const initialChildren = readdirSync(join(loaded.initialStateDir, "src"))
+      .filter((name) => name.endsWith(".js"))
+      .sort();
+    expect(initialChildren).toEqual(
+      ["format.js", "greeting.js", "index.js", "notice.js", "warning.js"].sort(),
+    );
+    const testSource = readFileSync(join(loaded.initialStateDir, "test.js"), "utf-8");
+    expect(testSource).not.toMatch(/require\(["'][^"']*format\.js["']\)/);
+
+    const workDir = mkdtempSync(join(tmpdir(), "kota-harness-parity-rename-"));
+    try {
+      cpSync(loaded.initialStateDir, workDir, { recursive: true });
+
+      // Apply a partial rename: the definition file is renamed and one
+      // caller (greeting.js) is updated, but warning.js and notice.js
+      // still destructure `format`. Verification must fail because the
+      // unchanged callers reference an undefined symbol that crashes
+      // when test.js exercises their code path.
+      writeFileSync(
+        join(workDir, "src/format.js"),
+        "function renderLine(label, body) {\n" +
+          "  return `[${label}] ${body}`;\n" +
+          "}\n\n" +
+          "module.exports = { renderLine };\n",
+      );
+      writeFileSync(
+        join(workDir, "src/greeting.js"),
+        'const { renderLine } = require("./format.js");\n\n' +
+          "function greeting(name) {\n" +
+          "  return renderLine(\"greet\", `hello ${name}`);\n" +
+          "}\n\n" +
+          "module.exports = { greeting };\n",
+      );
+      const partial = spawnSync(loaded.spec.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(partial.status).not.toBe(0);
+      expect(`${partial.stdout ?? ""}\n${partial.stderr ?? ""}`).toMatch(
+        /format is not a function/,
+      );
+
+      // Now finish the rename in the remaining callers. Verification must
+      // pass — every caller now refers to renderLine consistently.
+      writeFileSync(
+        join(workDir, "src/warning.js"),
+        'const { renderLine } = require("./format.js");\n\n' +
+          "function warning(message) {\n" +
+          '  return renderLine("warn", message);\n' +
+          "}\n\n" +
+          "module.exports = { warning };\n",
+      );
+      writeFileSync(
+        join(workDir, "src/notice.js"),
+        'const { renderLine } = require("./format.js");\n\n' +
+          "function notice(message) {\n" +
+          '  return renderLine("notice", message);\n' +
+          "}\n\n" +
+          "module.exports = { notice };\n",
+      );
+      const complete = spawnSync(loaded.spec.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(complete.status).toBe(0);
+      expect(complete.stdout).toContain("ok");
     } finally {
       rmSync(workDir, { recursive: true, force: true });
     }

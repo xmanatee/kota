@@ -43,7 +43,7 @@ Per harness run the module writes:
 
 ## Scenario Coverage
 
-The shipped scenarios span four coverage points by design, not by accident:
+The shipped scenarios span five coverage points by design, not by accident:
 
 - A minimal smoke scenario that any tool-calling harness can clear in a
   single round trip. Its job is to prove the parity plumbing — scenario
@@ -73,13 +73,27 @@ The shipped scenarios span four coverage points by design, not by accident:
   file it reads) clears the smoke / multi-file / failure-and-revise
   fixtures and quietly fails this one. Real operators say "this test is
   failing" and expect the agent to navigate the project on its own.
+- A cross-file rename scenario whose prompt names only the rename
+  target ("rename function `format` to `renderLine`") and the
+  verification command. The `initial/` tree defines the function in
+  one source file and exercises it through three or more caller files
+  via an entry module that `test.js` imports; `test.js` itself does
+  not import the renamed function. Its job is to probe the rename
+  discipline real refactor work depends on: a harness that touches the
+  definition but misses at least one call site leaves the project in a
+  partial state where the unchanged callers reference an undefined
+  symbol and crash the moment `test.js` exercises their code path.
+  This isolates cross-file consistency under rename — the property a
+  harness that "fixes" only files it already opened, or that stops
+  after the obvious first edit, silently fails.
 
-Keep all four coverage points alive. Adding a fifth scenario is fine,
+Keep all five coverage points alive. Adding a sixth scenario is fine,
 but do not delete any of the existing fixtures: the smoke fixture is the
 first thing to fail when plumbing regresses, the multi-file fixture
 probes multi-turn coding capability, the failure-and-revise fixture
-probes tool-result carry-over, and the discovery fixture probes
-project-navigation capability. Each isolates a different blast radius.
+probes tool-result carry-over, the discovery fixture probes
+project-navigation capability, and the rename fixture probes cross-file
+consistency under rename. Each isolates a different blast radius.
 
 ## Capability Gap Handling
 
