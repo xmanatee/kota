@@ -81,6 +81,7 @@ describe("telegramModule", () => {
       "answer",
       "approval-queue",
       "autonomy",
+      "capture",
       "history",
       "knowledge",
       "memory",

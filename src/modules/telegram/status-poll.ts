@@ -2,6 +2,9 @@ import { join } from "node:path";
 import type {
   AnswerClient,
   AnswerResult,
+  CaptureClient,
+  CaptureFilter,
+  CaptureTarget,
   HistoryClient,
   KnowledgeClient,
   MemoryClient,
@@ -16,6 +19,8 @@ import {
 import { computeCostByWorkflow, loadRecentRuns } from "#modules/autonomy/shared.js";
 import { renderOnDemandAttention } from "#modules/autonomy/workflows/attention-digest/step.js";
 import { renderOnDemandDigest } from "#modules/autonomy/workflows/daily-digest/on-demand.js";
+import { CAPTURE_TARGET_ORDER } from "#modules/capture/capture-types.js";
+import { renderCaptureReplyPlain } from "#modules/capture/render.js";
 import { renderHistorySearchPlain } from "#modules/history/render.js";
 import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
 import { renderMemorySearchPlain } from "#modules/memory/render.js";
@@ -124,6 +129,7 @@ export function startTelegramStatusPoll(
   tasks: RepoTasksClient,
   recall: RecallClient,
   answer: AnswerClient,
+  capture: CaptureClient,
   log?: (message: string) => void,
 ): () => void {
   let running = true;
@@ -376,6 +382,49 @@ export function startTelegramStatusPoll(
     }
   }
 
+  /**
+   * One shared handler for `/capture` plus the four explicit
+   * `/capture-to-<target>` twins. The classifier path corresponds to
+   * `target === undefined`; the explicit-target twins pass a literal
+   * `CaptureTarget`. Empty / whitespace-only bodies short-circuit to
+   * the seam's `ambiguous` envelope rendering rather than calling the
+   * seam — matching the seam's own empty-text contract while avoiding
+   * a wasted classifier call.
+   */
+  async function handleCapture(
+    body: string,
+    target: CaptureTarget | undefined,
+  ): Promise<void> {
+    const trimmed = body.trim();
+    if (trimmed.length === 0) {
+      await callTelegramApi(token, "sendMessage", {
+        chat_id: chatId,
+        text: renderCaptureReplyPlain({
+          ok: false,
+          reason: "ambiguous",
+          suggestions: CAPTURE_TARGET_ORDER,
+        }),
+      });
+      return;
+    }
+    const filter: CaptureFilter | undefined =
+      target === undefined ? undefined : { target };
+    const result = await capture.capture(trimmed, filter);
+    await callTelegramApi(token, "sendMessage", {
+      chat_id: chatId,
+      // Plain text — captured identifiers, slugs, and contributor error
+      // messages can carry Markdown-active characters that would require
+      // escaping if Markdown parse_mode were enabled.
+      text: truncateForTelegram(renderCaptureReplyPlain(result)),
+    });
+  }
+
+  function captureCommandBody(text: string, command: string): string {
+    if (text === command) return "";
+    if (text.startsWith(`${command} `)) return text.slice(command.length + 1);
+    return text;
+  }
+
   async function handleTasks(text: string): Promise<void> {
     const query =
       text === "/tasks" ? "" : text.slice("/tasks ".length).trim();
@@ -475,6 +524,46 @@ export function startTelegramStatusPoll(
           msg.text.startsWith("/answer ")
         ) {
           await handleAnswer(msg.text);
+        } else if (
+          msg.text === "/capture-to-memory" ||
+          msg.text.startsWith("/capture-to-memory ")
+        ) {
+          await handleCapture(
+            captureCommandBody(msg.text, "/capture-to-memory"),
+            "memory",
+          );
+        } else if (
+          msg.text === "/capture-to-knowledge" ||
+          msg.text.startsWith("/capture-to-knowledge ")
+        ) {
+          await handleCapture(
+            captureCommandBody(msg.text, "/capture-to-knowledge"),
+            "knowledge",
+          );
+        } else if (
+          msg.text === "/capture-to-tasks" ||
+          msg.text.startsWith("/capture-to-tasks ")
+        ) {
+          await handleCapture(
+            captureCommandBody(msg.text, "/capture-to-tasks"),
+            "tasks",
+          );
+        } else if (
+          msg.text === "/capture-to-inbox" ||
+          msg.text.startsWith("/capture-to-inbox ")
+        ) {
+          await handleCapture(
+            captureCommandBody(msg.text, "/capture-to-inbox"),
+            "inbox",
+          );
+        } else if (
+          msg.text === "/capture" ||
+          msg.text.startsWith("/capture ")
+        ) {
+          await handleCapture(
+            captureCommandBody(msg.text, "/capture"),
+            undefined,
+          );
         }
       }
     } catch (err) {

@@ -10,8 +10,17 @@
  * - On the no-contributors arm, render a single "unconfigured" line.
  * - On the contributor-failed arm, render the target and the error
  *   message verbatim.
+ *
+ * The chat-surface variant (`renderCaptureReplyPlain`) shares the
+ * success/no-contributors/contributor-failed bodies but rewrites the
+ * ambiguous body to point at the four `/capture-to-*` Telegram commands
+ * instead of the CLI `--target` flag.
  */
-import type { CaptureRecord, CaptureResult } from "#core/server/kota-client.js";
+import type {
+  CaptureRecord,
+  CaptureResult,
+  CaptureTarget,
+} from "#core/server/kota-client.js";
 
 export function renderCaptureRecordPlain(record: CaptureRecord): string {
   switch (record.target) {
@@ -33,6 +42,40 @@ export function renderCaptureResultPlain(result: CaptureResult): string {
   switch (result.reason) {
     case "ambiguous":
       return `Ambiguous capture. Re-run with --target <one of: ${result.suggestions.join(", ")}>.`;
+    case "no_contributors":
+      return "Cross-store capture has no registered contributors.";
+    case "contributor_failed":
+      return `Capture into ${result.target} failed: ${result.message}`;
+  }
+}
+
+function renderCaptureSuccessReplyPlain(record: CaptureRecord): string {
+  switch (record.target) {
+    case "memory":
+      return `Captured to memory: ${record.recordId}`;
+    case "knowledge":
+      return `Captured to knowledge: ${record.recordId}`;
+    case "tasks":
+      return `Captured to tasks: ${record.recordId} (${record.path})`;
+    case "inbox":
+      return `Captured to inbox: ${record.recordId} (${record.path})`;
+  }
+}
+
+function renderCaptureAmbiguousReplyPlain(
+  suggestions: ReadonlyArray<CaptureTarget>,
+): string {
+  const commands = suggestions.map((t) => `/capture-to-${t}`).join(", ");
+  return `Capture target ambiguous. Suggestions: ${suggestions.join(", ")}. Re-run with one of: ${commands}.`;
+}
+
+export function renderCaptureReplyPlain(result: CaptureResult): string {
+  if (result.ok) {
+    return renderCaptureSuccessReplyPlain(result.record);
+  }
+  switch (result.reason) {
+    case "ambiguous":
+      return renderCaptureAmbiguousReplyPlain(result.suggestions);
     case "no_contributors":
       return "Cross-store capture has no registered contributors.";
     case "contributor_failed":

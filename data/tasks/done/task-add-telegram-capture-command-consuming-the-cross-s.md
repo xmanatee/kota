@@ -1,12 +1,12 @@
 ---
 id: task-add-telegram-capture-command-consuming-the-cross-s
 title: Add Telegram /capture command consuming the cross-store capture seam
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Add a Telegram /capture <text> command that consumes the cross-store capture seam (KotaClient.capture) and routes one natural-language note into memory / knowledge / tasks / inbox via the seam's classifier, with explicit /capture-to-<store> twins for the four targets, mirroring the established Telegram /recall and /answer adoption pattern. First single honest surface follow-up of the capture seam; macOS, mobile, and web adoption land later as separate tasks.
 created_at: 2026-04-28T03:44:30.173Z
-updated_at: 2026-04-28T03:44:30.173Z
+updated_at: 2026-04-28T03:59:14.491Z
 ---
 
 ## Problem

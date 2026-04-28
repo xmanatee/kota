@@ -3,6 +3,8 @@ import type {
   AnswerClient,
   AnswerHistoryEntry,
   AnswerHistoryRecord,
+  CaptureClient,
+  CaptureResult,
   HistoryClient,
   KnowledgeClient,
   MemoryClient,
@@ -113,6 +115,12 @@ function makeAnswerStub(
   };
 }
 
+function makeCaptureStub(
+  capture: CaptureClient["capture"] = vi.fn(),
+): CaptureClient {
+  return { capture };
+}
+
 function makeStatusInfo(overrides: Partial<StatusInfo> = {}): StatusInfo {
   return {
     runtimeState: {
@@ -209,7 +217,7 @@ describe("startTelegramStatusPoll", () => {
 
   it("polls getUpdates on start", async () => {
     mockedCallTelegramApi.mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub());
     await new Promise((r) => setTimeout(r, 10));
     expect(mockedCallTelegramApi).toHaveBeenCalledWith(
       FAKE_TOKEN,
@@ -222,7 +230,7 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/status")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub());
     await new Promise((r) => setTimeout(r, 20));
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
     expect(sendCall).toBeDefined();
@@ -243,7 +251,7 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/digest")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub());
     await new Promise((r) => setTimeout(r, 20));
 
     expect(mockedRenderOnDemandDigest).toHaveBeenCalledWith({ projectDir: FAKE_PROJECT_DIR });
@@ -266,7 +274,7 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/attention")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub());
     await new Promise((r) => setTimeout(r, 20));
 
     expect(mockedRenderOnDemandAttention).toHaveBeenCalledWith({
@@ -290,7 +298,7 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, 111111, "/attention")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub());
     await new Promise((r) => setTimeout(r, 20));
     expect(mockedRenderOnDemandAttention).not.toHaveBeenCalled();
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
@@ -302,7 +310,7 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, 111111, "/digest")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub());
     await new Promise((r) => setTimeout(r, 20));
     expect(mockedRenderOnDemandDigest).not.toHaveBeenCalled();
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
@@ -354,6 +362,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -397,6 +406,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -428,6 +438,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -463,6 +474,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -492,6 +504,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -533,6 +546,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -575,6 +589,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -606,6 +621,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -641,6 +657,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -670,6 +687,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -719,6 +737,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -761,6 +780,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -792,6 +812,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -827,6 +848,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -856,6 +878,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -907,6 +930,7 @@ describe("startTelegramStatusPoll", () => {
       tasks,
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -950,6 +974,7 @@ describe("startTelegramStatusPoll", () => {
       tasks,
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -981,6 +1006,7 @@ describe("startTelegramStatusPoll", () => {
       tasks,
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -1016,6 +1042,7 @@ describe("startTelegramStatusPoll", () => {
       tasks,
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -1045,6 +1072,7 @@ describe("startTelegramStatusPoll", () => {
       tasks,
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -1099,6 +1127,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(recallFn),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -1144,6 +1173,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(recallFn),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -1174,6 +1204,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(recallFn),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -1208,6 +1239,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(recallFn),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -1236,6 +1268,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(recallFn),
       makeAnswerStub(),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -1287,6 +1320,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(),
       makeAnswerStub(answerFn),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -1339,6 +1373,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(),
       makeAnswerStub(answerFn),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -1391,6 +1426,7 @@ describe("startTelegramStatusPoll", () => {
         makeTasksStub(),
         makeRecallStub(),
         makeAnswerStub(answerFn),
+        makeCaptureStub(),
       );
       await new Promise((r) => setTimeout(r, 20));
       const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
@@ -1419,6 +1455,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(),
       makeAnswerStub(answerFn),
+      makeCaptureStub(),
     );
     await new Promise((r) => setTimeout(r, 20));
 
@@ -1433,7 +1470,7 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/digest")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub());
     await new Promise((r) => setTimeout(r, 20));
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
     const text = (sendCall?.[2] as { text: string }).text;
@@ -1486,6 +1523,7 @@ describe("startTelegramStatusPoll", () => {
         makeTasksStub(),
         makeRecallStub(),
         answerClient,
+        makeCaptureStub(),
       );
       await new Promise((r) => setTimeout(r, 20));
 
@@ -1539,6 +1577,7 @@ describe("startTelegramStatusPoll", () => {
         makeTasksStub(),
         makeRecallStub(),
         answerClient,
+        makeCaptureStub(),
       );
       await new Promise((r) => setTimeout(r, 20));
 
@@ -1575,6 +1614,7 @@ describe("startTelegramStatusPoll", () => {
         makeTasksStub(),
         makeRecallStub(),
         answerClient,
+        makeCaptureStub(),
       );
       await new Promise((r) => setTimeout(r, 20));
 
@@ -1606,6 +1646,7 @@ describe("startTelegramStatusPoll", () => {
         makeTasksStub(),
         makeRecallStub(),
         answerClient,
+        makeCaptureStub(),
       );
       await new Promise((r) => setTimeout(r, 20));
 
@@ -1643,6 +1684,7 @@ describe("startTelegramStatusPoll", () => {
         makeTasksStub(),
         makeRecallStub(),
         answerClient,
+        makeCaptureStub(),
       );
       await new Promise((r) => setTimeout(r, 20));
 
@@ -1725,6 +1767,7 @@ describe("startTelegramStatusPoll", () => {
         makeTasksStub(),
         makeRecallStub(),
         answerClient,
+        makeCaptureStub(),
       );
       await new Promise((r) => setTimeout(r, 20));
 
@@ -1772,6 +1815,7 @@ describe("startTelegramStatusPoll", () => {
         makeTasksStub(),
         makeRecallStub(),
         answerClient,
+        makeCaptureStub(),
       );
       await new Promise((r) => setTimeout(r, 20));
 
@@ -1813,6 +1857,7 @@ describe("startTelegramStatusPoll", () => {
         makeTasksStub(),
         makeRecallStub(),
         answerClient,
+        makeCaptureStub(),
       );
       await new Promise((r) => setTimeout(r, 20));
 
@@ -1850,6 +1895,7 @@ describe("startTelegramStatusPoll", () => {
         makeTasksStub(),
         makeRecallStub(),
         answerClient,
+        makeCaptureStub(),
       );
       await new Promise((r) => setTimeout(r, 20));
 
@@ -1887,6 +1933,7 @@ describe("startTelegramStatusPoll", () => {
         makeTasksStub(),
         makeRecallStub(),
         answerClient,
+        makeCaptureStub(),
       );
       await new Promise((r) => setTimeout(r, 20));
 
@@ -1898,11 +1945,254 @@ describe("startTelegramStatusPoll", () => {
     });
   });
 
+  describe("/capture", () => {
+    async function runCaptureCase(
+      command: string,
+      captureFn: CaptureClient["capture"],
+    ): Promise<{ text: string; parse_mode?: string; chat_id: string }> {
+      mockedCallTelegramApi
+        .mockResolvedValueOnce([
+          makeUpdate(1, Number(FAKE_CHAT_ID), command),
+        ])
+        .mockResolvedValue([]);
+      stop = startTelegramStatusPoll(
+        FAKE_TOKEN,
+        FAKE_CHAT_ID,
+        FAKE_PROJECT_DIR,
+        makeStatusInfo,
+        makeKnowledgeStub(),
+        makeMemoryStub(),
+        makeHistoryStub(),
+        makeTasksStub(),
+        makeRecallStub(),
+        makeAnswerStub(),
+        makeCaptureStub(captureFn),
+      );
+      await new Promise((r) => setTimeout(r, 20));
+      const sendCall = mockedCallTelegramApi.mock.calls.find(
+        (c) => c[1] === "sendMessage",
+      );
+      if (!sendCall) throw new Error("expected one sendMessage call");
+      return sendCall[2] as { text: string; parse_mode?: string; chat_id: string };
+    }
+
+    it("/capture <text> calls the seam without an explicit target and renders the memory success arm", async () => {
+      const captureFn = vi.fn().mockResolvedValue({
+        ok: true,
+        record: { target: "memory", recordId: "mem-001" },
+      } satisfies CaptureResult);
+      const payload = await runCaptureCase(
+        "/capture remember to call alice",
+        captureFn,
+      );
+      expect(captureFn).toHaveBeenCalledWith(
+        "remember to call alice",
+        undefined,
+      );
+      expect(payload.parse_mode).toBeUndefined();
+      expect(payload.chat_id).toBe(FAKE_CHAT_ID);
+      expect(payload.text).toBe("Captured to memory: mem-001");
+    });
+
+    it("/capture-to-knowledge <text> dispatches with target=knowledge and renders the knowledge success arm", async () => {
+      const captureFn = vi.fn().mockResolvedValue({
+        ok: true,
+        record: { target: "knowledge", recordId: "kn-arch-001" },
+      } satisfies CaptureResult);
+      const payload = await runCaptureCase(
+        "/capture-to-knowledge architecture decision",
+        captureFn,
+      );
+      expect(captureFn).toHaveBeenCalledWith("architecture decision", {
+        target: "knowledge",
+      });
+      expect(payload.text).toBe("Captured to knowledge: kn-arch-001");
+    });
+
+    it("/capture-to-memory dispatches with target=memory", async () => {
+      const captureFn = vi.fn().mockResolvedValue({
+        ok: true,
+        record: { target: "memory", recordId: "mem-007" },
+      } satisfies CaptureResult);
+      const payload = await runCaptureCase(
+        "/capture-to-memory owner prefers strict types",
+        captureFn,
+      );
+      expect(captureFn).toHaveBeenCalledWith(
+        "owner prefers strict types",
+        { target: "memory" },
+      );
+      expect(payload.text).toBe("Captured to memory: mem-007");
+    });
+
+    it("/capture-to-tasks dispatches with target=tasks and renders the tasks success arm with path", async () => {
+      const captureFn = vi.fn().mockResolvedValue({
+        ok: true,
+        record: {
+          target: "tasks",
+          recordId: "task-fix-login",
+          path: "data/tasks/inbox/task-fix-login.md",
+        },
+      } satisfies CaptureResult);
+      const payload = await runCaptureCase(
+        "/capture-to-tasks fix the login redirect",
+        captureFn,
+      );
+      expect(captureFn).toHaveBeenCalledWith(
+        "fix the login redirect",
+        { target: "tasks" },
+      );
+      expect(payload.text).toBe(
+        "Captured to tasks: task-fix-login (data/tasks/inbox/task-fix-login.md)",
+      );
+    });
+
+    it("/capture-to-inbox dispatches with target=inbox and renders the inbox success arm with path", async () => {
+      const captureFn = vi.fn().mockResolvedValue({
+        ok: true,
+        record: {
+          target: "inbox",
+          recordId: "thoughts-2026-04-28",
+          path: "data/inbox/thoughts-2026-04-28.md",
+        },
+      } satisfies CaptureResult);
+      const payload = await runCaptureCase(
+        "/capture-to-inbox raw morning thought",
+        captureFn,
+      );
+      expect(captureFn).toHaveBeenCalledWith(
+        "raw morning thought",
+        { target: "inbox" },
+      );
+      expect(payload.text).toBe(
+        "Captured to inbox: thoughts-2026-04-28 (data/inbox/thoughts-2026-04-28.md)",
+      );
+    });
+
+    it("renders the ambiguous arm pointing at the four /capture-to-* commands", async () => {
+      const captureFn = vi.fn().mockResolvedValue({
+        ok: false,
+        reason: "ambiguous",
+        suggestions: ["memory", "knowledge", "tasks", "inbox"],
+      } satisfies CaptureResult);
+      const payload = await runCaptureCase("/capture something vague", captureFn);
+      expect(captureFn).toHaveBeenCalledWith("something vague", undefined);
+      expect(payload.text).toBe(
+        "Capture target ambiguous. Suggestions: memory, knowledge, tasks, inbox. Re-run with one of: /capture-to-memory, /capture-to-knowledge, /capture-to-tasks, /capture-to-inbox.",
+      );
+    });
+
+    it("renders the no_contributors arm with a fixed unconfigured body", async () => {
+      const captureFn = vi.fn().mockResolvedValue({
+        ok: false,
+        reason: "no_contributors",
+      } satisfies CaptureResult);
+      const payload = await runCaptureCase(
+        "/capture-to-memory anything",
+        captureFn,
+      );
+      expect(payload.text).toBe(
+        "Cross-store capture has no registered contributors.",
+      );
+    });
+
+    it("renders the contributor_failed arm with the target and verbatim error message", async () => {
+      const captureFn = vi.fn().mockResolvedValue({
+        ok: false,
+        reason: "contributor_failed",
+        target: "tasks",
+        message: "ENOENT: data/tasks/inbox missing",
+      } satisfies CaptureResult);
+      const payload = await runCaptureCase(
+        "/capture-to-tasks file the bug",
+        captureFn,
+      );
+      expect(payload.text).toBe(
+        "Capture into tasks failed: ENOENT: data/tasks/inbox missing",
+      );
+    });
+
+    it("short-circuits empty-text /capture and /capture-to-* without calling the seam, surfacing the ambiguous body", async () => {
+      const captureFn = vi.fn();
+      mockedCallTelegramApi
+        .mockResolvedValueOnce([
+          makeUpdate(1, Number(FAKE_CHAT_ID), "/capture"),
+          makeUpdate(2, Number(FAKE_CHAT_ID), "/capture    "),
+          makeUpdate(3, Number(FAKE_CHAT_ID), "/capture-to-memory"),
+          makeUpdate(4, Number(FAKE_CHAT_ID), "/capture-to-knowledge   "),
+          makeUpdate(5, Number(FAKE_CHAT_ID), "/capture-to-tasks"),
+          makeUpdate(6, Number(FAKE_CHAT_ID), "/capture-to-inbox  "),
+        ])
+        .mockResolvedValue([]);
+      stop = startTelegramStatusPoll(
+        FAKE_TOKEN,
+        FAKE_CHAT_ID,
+        FAKE_PROJECT_DIR,
+        makeStatusInfo,
+        makeKnowledgeStub(),
+        makeMemoryStub(),
+        makeHistoryStub(),
+        makeTasksStub(),
+        makeRecallStub(),
+        makeAnswerStub(),
+        makeCaptureStub(captureFn),
+      );
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(captureFn).not.toHaveBeenCalled();
+      const sendCalls = mockedCallTelegramApi.mock.calls.filter(
+        (c) => c[1] === "sendMessage",
+      );
+      expect(sendCalls).toHaveLength(6);
+      const expectedBody =
+        "Capture target ambiguous. Suggestions: memory, knowledge, tasks, inbox. Re-run with one of: /capture-to-memory, /capture-to-knowledge, /capture-to-tasks, /capture-to-inbox.";
+      for (const call of sendCalls) {
+        expect(call[2]).toMatchObject({
+          chat_id: FAKE_CHAT_ID,
+          text: expectedBody,
+        });
+      }
+    });
+
+    it("ignores all five capture commands from chats outside the allowlist", async () => {
+      const captureFn = vi.fn();
+      mockedCallTelegramApi
+        .mockResolvedValueOnce([
+          makeUpdate(1, 111111, "/capture remember this"),
+          makeUpdate(2, 111111, "/capture-to-memory remember this"),
+          makeUpdate(3, 111111, "/capture-to-knowledge file this"),
+          makeUpdate(4, 111111, "/capture-to-tasks file this"),
+          makeUpdate(5, 111111, "/capture-to-inbox file this"),
+        ])
+        .mockResolvedValue([]);
+      stop = startTelegramStatusPoll(
+        FAKE_TOKEN,
+        FAKE_CHAT_ID,
+        FAKE_PROJECT_DIR,
+        makeStatusInfo,
+        makeKnowledgeStub(),
+        makeMemoryStub(),
+        makeHistoryStub(),
+        makeTasksStub(),
+        makeRecallStub(),
+        makeAnswerStub(),
+        makeCaptureStub(captureFn),
+      );
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(captureFn).not.toHaveBeenCalled();
+      const sendCall = mockedCallTelegramApi.mock.calls.find(
+        (c) => c[1] === "sendMessage",
+      );
+      expect(sendCall).toBeUndefined();
+    });
+  });
+
   it("ignores messages from other chat IDs", async () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, 111111, "/status")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub());
     await new Promise((r) => setTimeout(r, 20));
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
     expect(sendCall).toBeUndefined();
@@ -1912,7 +2202,7 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/help")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub());
     await new Promise((r) => setTimeout(r, 20));
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
     expect(sendCall).toBeUndefined();
@@ -1922,7 +2212,7 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(42, Number(FAKE_CHAT_ID), "/status")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub());
     await new Promise((r) => setTimeout(r, 20));
     const sendCalls = mockedCallTelegramApi.mock.calls.filter((c) => c[1] === "sendMessage");
     expect(sendCalls).toHaveLength(1);
@@ -1944,6 +2234,7 @@ describe("startTelegramStatusPoll", () => {
       makeTasksStub(),
       makeRecallStub(),
       makeAnswerStub(),
+      makeCaptureStub(),
       (msg) => logs.push(msg),
     );
     await new Promise((r) => setTimeout(r, 20));
@@ -1952,7 +2243,7 @@ describe("startTelegramStatusPoll", () => {
 
   it("stops polling after stop() is called", async () => {
     mockedCallTelegramApi.mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub());
     await new Promise((r) => setTimeout(r, 10));
     const callsBefore = mockedCallTelegramApi.mock.calls.length;
     stop();
