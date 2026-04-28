@@ -1,12 +1,12 @@
 ---
 id: task-add-a-unified-cross-store-capture-seam-routing-one
 title: Add a unified cross-store capture seam routing one natural-language note to the right store
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Add a CaptureProvider seam that takes one natural-language note (plus an optional explicit target) and routes it through typed CaptureContributors into the existing memory / knowledge / tasks / inbox stores, exposed as one daemon route, one KotaClient.capture namespace, and one kota capture CLI subcommand — the symmetric write-side counterpart to the recall seam.
 created_at: 2026-04-28T03:11:17.607Z
-updated_at: 2026-04-28T03:11:17.607Z
+updated_at: 2026-04-28T03:27:37.480Z
 ---
 
 ## Problem

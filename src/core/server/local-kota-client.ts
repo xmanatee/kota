@@ -63,6 +63,7 @@ export class LocalKotaClient implements KotaClient {
   readonly evalHarness: KotaClient["evalHarness"];
   readonly recall: KotaClient["recall"];
   readonly answer: KotaClient["answer"];
+  readonly capture: KotaClient["capture"];
 
   constructor(handlers: LocalClientHandlers) {
     this.workflow = handlers.workflow;
@@ -90,5 +91,6 @@ export class LocalKotaClient implements KotaClient {
     this.evalHarness = handlers.evalHarness;
     this.recall = handlers.recall;
     this.answer = handlers.answer;
+    this.capture = handlers.capture;
   }
 }

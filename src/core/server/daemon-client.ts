@@ -37,6 +37,9 @@ import type {
   AuditClient,
   AuditListFilter,
   AuditListResult,
+  CaptureClient,
+  CaptureFilter,
+  CaptureResult,
   ConfigClient,
   ConfigGetResult,
   ConfigSetResult,
@@ -271,6 +274,7 @@ export class DaemonControlClient implements KotaClient {
   readonly evalHarness: EvalHarnessClient;
   readonly recall: RecallClient;
   readonly answer: AnswerClient;
+  readonly capture: CaptureClient;
 
   private constructor(
     private readonly baseUrl: string,
@@ -572,6 +576,25 @@ export class DaemonControlClient implements KotaClient {
       log: async (filter) => this.answerLogHttp(filter),
       show: async (id) => this.answerShowHttp(id),
     };
+    this.capture = {
+      capture: async (text, filter) => this.captureHttp(text, filter),
+    };
+  }
+
+  private async captureHttp(
+    text: string,
+    filter?: CaptureFilter,
+  ): Promise<CaptureResult> {
+    const res = await fetchWithTimeout(`${this.baseUrl}/capture`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.authHeaders() },
+      body: JSON.stringify({ text, ...(filter && { filter }) }),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as CaptureResult;
   }
 
   private async recallHttp(query: string, filter?: RecallFilter): Promise<RecallResult> {

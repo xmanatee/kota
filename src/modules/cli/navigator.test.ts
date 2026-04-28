@@ -181,6 +181,9 @@ function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       log: stub({ entries: [] }),
       show: stub({ ok: false, reason: "not_found" }),
     },
+    capture: {
+      capture: stub({ ok: false, reason: "no_contributors" }),
+    },
   };
   return { ...base, ...overrides };
 }
