@@ -37,23 +37,6 @@ const webModule: KotaModule = {
       .option("--no-auth", "Disable bearer token auth (dev/localhost only)")
       .action(async (opts) => {
         const port = parseIntOption(opts.port, "port");
-        // Check the API key up front so the failure is reported the same way
-        // regardless of whether the selector picked the local or daemon
-        // transport. The local handler also reports `missing_api_key`, but
-        // routing through the daemon transport would mask it as
-        // `daemon_required`.
-        if (!process.env.ANTHROPIC_API_KEY) {
-          console.error(
-            "Error: ANTHROPIC_API_KEY environment variable is not set.\n",
-          );
-          console.error("To get started:");
-          console.error(
-            "  1. Get your API key at https://console.anthropic.com/settings/keys",
-          );
-          console.error("  2. Export it in your shell:\n");
-          console.error("     export ANTHROPIC_API_KEY=sk-ant-...\n");
-          process.exit(1);
-        }
         const result = await ctx.client.web.start({
           port,
           ...(opts.model !== undefined && { model: opts.model }),
@@ -62,9 +45,7 @@ const webModule: KotaModule = {
         });
         if (result.ok) return;
         if (result.reason === "missing_api_key") {
-          // Reachable only if the env var was set when the action started but
-          // unset by the time the local handler ran — keep the same hint.
-          console.error("Error: ANTHROPIC_API_KEY environment variable is not set.");
+          console.error("Error: No API key configured. Set ANTHROPIC_API_KEY or configure a provider.");
           process.exit(1);
         }
         // daemon_required: a daemon is already running. Two web servers in the

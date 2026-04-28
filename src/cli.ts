@@ -72,8 +72,7 @@ function ensureAnthropicApiKey(
   const message = formatAuthError(
     new Error("Could not resolve authentication method. Expected apiKey to be set."),
   ) ?? "Error: ANTHROPIC_API_KEY environment variable is not set.";
-  stderr().write(line(span(message, "error")));
-  process.exit(1);
+  stderr().write(line(span("Warning: ", "warn"), span(message, "muted")));
 }
 
 program

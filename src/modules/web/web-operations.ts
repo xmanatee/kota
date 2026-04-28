@@ -23,10 +23,6 @@ import { setWebUiDir } from "./static-routes.js";
 export function localWebClient(ctx: ModuleContext): WebClient {
   return {
     async start(options: WebStartOptions): Promise<WebStartResult> {
-      if (!process.env.ANTHROPIC_API_KEY) {
-        return { ok: false, reason: "missing_api_key" };
-      }
-
       warnUnknownConfigKeys(ctx.cwd, (msg) => console.warn(msg), ctx.getRegisteredConfigKeys());
 
       const webUiDir = resolve(ctx.cwd, "clients/web/dist");
