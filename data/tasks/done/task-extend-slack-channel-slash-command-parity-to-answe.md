@@ -1,12 +1,12 @@
 ---
 id: task-extend-slack-channel-slash-command-parity-to-answe
 title: Extend Slack-channel slash-command parity to /answer-log and /answer-show closing the answer-history surface gap
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Slack-channel slash commands today cover /recall /answer /capture and the just-landed /memory /knowledge /history /tasks /attention /digest set, but they still miss the answer-history reads /answer-log and /answer-show that Telegram already exposes. Extend Slack-channel commands.ts to dispatch both through KotaClient.answer.log and KotaClient.answer.show through the same module-owned renderAnswerHistoryEntriesPlain / renderAnswerReplyPlain renderers Telegram uses, so Slack and Telegram replies match byte-for-byte for the same envelope and Slack DMs reach every answer seam KOTA exposes.
 created_at: 2026-04-28T06:46:26.177Z
-updated_at: 2026-04-28T06:46:26.177Z
+updated_at: 2026-04-28T06:54:11.990Z
 ---
 
 ## Problem

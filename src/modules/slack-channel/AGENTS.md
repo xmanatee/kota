@@ -5,8 +5,8 @@ This directory owns the bidirectional Slack bot channel for KOTA.
 - Uses Slack Socket Mode (WebSocket) to receive messages without a public HTTP endpoint.
 - One `AgentSession` per Slack user — free-form DMs go to that user's session.
 - First-class slash commands match the Telegram channel's surface
-  (`/recall`, `/answer`, `/capture` plus the four
-  `/capture-to-{memory,knowledge,tasks,inbox}` twins, the per-store
+  (`/recall`, `/answer`, `/answer-log`, `/answer-show`, `/capture` plus the
+  four `/capture-to-{memory,knowledge,tasks,inbox}` twins, the per-store
   semantic-search seams `/memory`, `/knowledge`, `/history`, `/tasks`, and
   the on-demand `/attention` and `/digest` seams) — one-shot calls that
   bypass the per-user session, route through the matching `KotaClient`

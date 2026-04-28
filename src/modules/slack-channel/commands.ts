@@ -2,10 +2,11 @@
  * Slack-channel slash-command parsing and dispatch.
  *
  * Parses the same slash-command surface the Telegram channel exposes —
- * `/recall`, `/answer`, `/capture` (plus the four
- * `/capture-to-{memory,knowledge,tasks,inbox}` twins), the per-store
- * semantic-search seams `/memory`, `/knowledge`, `/history`, `/tasks`, and the
- * on-demand `/attention` and `/digest` seams — from Slack DM text and
+ * `/recall`, `/answer`, `/answer-log`, `/answer-show`, `/capture` (plus
+ * the four `/capture-to-{memory,knowledge,tasks,inbox}` twins), the
+ * per-store semantic-search seams `/memory`, `/knowledge`, `/history`,
+ * `/tasks`, and the on-demand `/attention` and `/digest` seams — from
+ * Slack DM text and
  * dispatches each through the matching `KotaClient` namespace or
  * snapshot client. Replies use the same module-owned plain-text renderers
  * the Telegram channel uses so a Slack reply body matches the Telegram
@@ -26,7 +27,10 @@ import type {
   RecallClient,
   RepoTasksClient,
 } from "#core/server/kota-client.js";
-import { renderAnswerReplyPlain } from "#modules/answer/render.js";
+import {
+  renderAnswerHistoryEntriesPlain,
+  renderAnswerReplyPlain,
+} from "#modules/answer/render.js";
 import { CAPTURE_TARGET_ORDER } from "#modules/capture/capture-types.js";
 import { renderCaptureReplyPlain } from "#modules/capture/render.js";
 import { renderHistorySearchPlain } from "#modules/history/render.js";
@@ -85,6 +89,9 @@ const CAPTURE_TO_COMMAND: Record<string, CaptureTarget> = {
 
 /** Default page size for the per-store semantic-search seams. Matches Telegram. */
 const SEARCH_DEFAULT_LIMIT = 10;
+
+/** Default page size for the `/answer-log` projection. Matches Telegram. */
+const ANSWER_LOG_DEFAULT_LIMIT = 5;
 
 /**
  * Parse a Slack DM into a slash command. Tolerates leading whitespace, a
@@ -151,6 +158,47 @@ async function handleAnswer(
   }
   const result = await answer.answer(body);
   await postReply(token, channelId, renderAnswerReplyPlain(result));
+}
+
+async function handleAnswerLog(
+  token: string,
+  channelId: string,
+  body: string,
+  answer: AnswerClient,
+): Promise<void> {
+  let limit = ANSWER_LOG_DEFAULT_LIMIT;
+  if (body.length > 0) {
+    const parsed = Number.parseInt(body, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0 || String(parsed) !== body) {
+      await postReply(token, channelId, "Usage: /answer-log [N]");
+      return;
+    }
+    limit = parsed;
+  }
+  const result = await answer.log({ limit });
+  if (result.entries.length === 0) {
+    await postReply(token, channelId, "No past answer records yet.");
+    return;
+  }
+  await postReply(token, channelId, renderAnswerHistoryEntriesPlain(result.entries));
+}
+
+async function handleAnswerShow(
+  token: string,
+  channelId: string,
+  body: string,
+  answer: AnswerClient,
+): Promise<void> {
+  if (body.length === 0) {
+    await postReply(token, channelId, "Usage: /answer-show <id>");
+    return;
+  }
+  const result = await answer.show(body);
+  if (!result.ok) {
+    await postReply(token, channelId, `No answer record found for id "${body}".`);
+    return;
+  }
+  await postReply(token, channelId, renderAnswerReplyPlain(result.record.result));
 }
 
 async function handleCapture(
@@ -338,6 +386,12 @@ export async function dispatchSlackSlashCommand(args: {
       return true;
     case "/answer":
       await handleAnswer(token, channelId, parsed.body, clients.answer);
+      return true;
+    case "/answer-log":
+      await handleAnswerLog(token, channelId, parsed.body, clients.answer);
+      return true;
+    case "/answer-show":
+      await handleAnswerShow(token, channelId, parsed.body, clients.answer);
       return true;
     case "/capture":
       await handleCapture(
