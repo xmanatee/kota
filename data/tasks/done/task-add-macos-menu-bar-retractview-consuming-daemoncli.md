@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-menu-bar-retractview-consuming-daemoncli
 title: Add macOS menu-bar RetractView consuming DaemonClient.retract
-status: ready
+status: done
 priority: p2
 area: client
 summary: Add a SwiftUI menu-bar RetractView at clients/macos/Sources/KotaMenuBar/RetractView.swift that consumes the just-landed DaemonClient.retract(request:) and renders the four discriminated RetractResult arms (success across the four record arms, no_contributors, not_found, contributor_failed) with target-aware feedback, target-first picker, per-arm identifier control, and a confirmation step before firing the dangerous mutation; mount in MenuBarView and wire AppState retract observables — closing macOS parity in the cross-store retract fan-out before mobile DaemonClient.retract and RetractScreen land as the final two steps.
 created_at: 2026-04-28T12:59:37.218Z
-updated_at: 2026-04-28T12:59:37.218Z
+updated_at: 2026-04-28T13:11:10.301Z
 ---
 
 ## Problem

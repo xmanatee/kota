@@ -54,6 +54,9 @@ struct MenuBarView: View {
             // Cross-store capture (on-demand POST /capture)
             CaptureView()
 
+            // Cross-store retract (on-demand POST /retract)
+            RetractView()
+
             // Task queue
             TaskQueueView()
 

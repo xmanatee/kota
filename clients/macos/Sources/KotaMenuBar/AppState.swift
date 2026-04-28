@@ -97,6 +97,25 @@ final class AppState: ObservableObject {
     @Published var captureResult: CaptureResult?
     @Published var captureError: String?
     @Published var isLoadingCapture: Bool = false
+    @Published var retractTarget: RetractTarget = .memory {
+        didSet {
+            guard retractTarget != oldValue else { return }
+            retractIdentifier = ""
+            retractConfirmed = false
+            retractResult = nil
+            retractError = nil
+        }
+    }
+    @Published var retractIdentifier: String = "" {
+        didSet {
+            guard retractIdentifier != oldValue else { return }
+            if retractConfirmed { retractConfirmed = false }
+        }
+    }
+    @Published var retractResult: RetractResult?
+    @Published var retractError: String?
+    @Published var isLoadingRetract: Bool = false
+    @Published var retractConfirmed: Bool = false
     @Published var projectDir: URL? {
         didSet {
             if let dir = projectDir {
@@ -249,6 +268,10 @@ final class AppState: ObservableObject {
         captureResult = nil
         captureError = nil
         isLoadingCapture = false
+        retractResult = nil
+        retractError = nil
+        isLoadingRetract = false
+        retractConfirmed = false
     }
 
     /// Pulls the on-demand 24h rollup from `/api/digest`. Errors land in
@@ -478,6 +501,49 @@ final class AppState: ObservableObject {
             captureError = error.localizedDescription
         }
         isLoadingCapture = false
+    }
+
+    /// Posts the current retract draft through the daemon's
+    /// `POST /retract` route. Submission is gated through the pure
+    /// `evaluateRetractSubmit` helper so the gate is unit-testable
+    /// without instantiating `AppState`. The first call with a non-empty
+    /// identifier flips `retractConfirmed` and returns without firing,
+    /// mirroring how `RetractPanel.tsx` already gates the dashboard
+    /// surface against the seam's `dangerous` risk classification. The
+    /// second call (once the operator has acknowledged) builds the typed
+    /// `RetractRequest` from the picker + identifier draft and consumes
+    /// `DaemonClient.retract`. Failures land in `retractError`; the four
+    /// typed `RetractResult` arms (`success`, `noContributors`,
+    /// `notFound`, `contributorFailed`) all land in `retractResult` so
+    /// the view renders the daemon's verdict without retrying. Empty /
+    /// whitespace identifiers clear any prior result and skip the
+    /// request — the view surfaces the inline usage hint instead.
+    func loadRetract() async {
+        let outcome = evaluateRetractSubmit(
+            target: retractTarget,
+            identifier: retractIdentifier,
+            confirmed: retractConfirmed
+        )
+        switch outcome {
+        case .skip:
+            retractResult = nil
+            retractError = nil
+            retractConfirmed = false
+            isLoadingRetract = false
+        case .requireConfirmation:
+            retractConfirmed = true
+        case .fire(let request):
+            isLoadingRetract = true
+            retractError = nil
+            do {
+                retractResult = try await client.retract(request: request)
+            } catch {
+                retractResult = nil
+                retractError = error.localizedDescription
+            }
+            retractConfirmed = false
+            isLoadingRetract = false
+        }
     }
 
     private func fetchAll() async {
