@@ -55,9 +55,9 @@ split mirrors the eval-harness regression pattern.
 
 ## External Pattern Decisions
 
-Verdicts on peer patterns vs KOTA's `workflow` + `agent` + `module` +
-bus-event + store model. Revisit only if a peer ships a primitive our
-protocols cannot express.
+Verdicts on peer patterns vs KOTA primitives. Per-verdict source, date,
+primitives, and revisit live in `external-pattern-decisions.ts`; the
+test enforces 1:1 match.
 
 - **Workflow DSLs (crewAI Flows, LangGraph Pregel).** Reject. Definition-
   driven routing + run artifacts + recovery cover durability.

@@ -1,12 +1,12 @@
 ---
 id: task-version-external-pattern-decision-memory
 title: Version external-pattern decision memory
-status: backlog
+status: done
 priority: p2
 area: modules
 summary: Add a lightweight evidence and revisit protocol for autonomy AGENTS decisions that reject external patterns, so prompt memory stays useful without freezing old biases.
 created_at: 2026-04-28T22:24:00.000Z
-updated_at: 2026-04-28T22:24:00.000Z
+updated_at: 2026-04-29T04:35:55.323Z
 ---
 
 ## Problem

@@ -57,3 +57,9 @@ reviewer trace the rule back to the traces that justified it.
 
 Prefer editing the narrowest applicable `AGENTS.md`. Do not accumulate
 subtree-specific guidance at the repo root.
+
+When an improver commit touches the "External Pattern Decisions" catalog in
+`src/modules/autonomy/AGENTS.md`, update the matching entry in
+`src/modules/autonomy/external-pattern-decisions.ts` in the same commit. New
+verdicts require a sidecar entry with source, ISO date, KOTA primitives, and
+a concrete revisit condition; the catalog test fails 1:1 match otherwise.
