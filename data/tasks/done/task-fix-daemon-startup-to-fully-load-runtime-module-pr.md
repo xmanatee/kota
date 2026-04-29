@@ -1,12 +1,12 @@
 ---
 id: task-fix-daemon-startup-to-fully-load-runtime-module-pr
 title: Fix daemon startup to fully load runtime module providers
-status: ready
+status: done
 priority: p0
 area: architecture
 summary: The daemon command currently passes module HTTP routes from a commandsOnly loader into the runtime, so routes exist while provider onLoad initialization is skipped. Rework daemon startup so runtime routes, provider-backed seams, workflows, channels, and health checks come from a fully loaded module context, with tests covering the actual CLI daemon path.
 created_at: 2026-04-28T22:35:06.195Z
-updated_at: 2026-04-28T22:35:06.195Z
+updated_at: 2026-04-29T00:41:34.732Z
 ---
 
 ## Problem

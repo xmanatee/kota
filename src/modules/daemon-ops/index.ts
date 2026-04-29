@@ -1,9 +1,11 @@
 import { spawn, spawnSync } from "node:child_process";
 import { Command } from "commander";
+import { loadConfig } from "#core/config/config.js";
 import { resolveProjectDir } from "#core/config/project-dir.js";
 import { Daemon, RESTART_EXIT_CODE } from "#core/daemon/daemon.js";
 import type { DaemonLiveStatus } from "#core/daemon/daemon-control.js";
 import type { KotaModule } from "#core/modules/module-types.js";
+import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import type { DaemonOpsClient } from "#core/server/kota-client.js";
 import type { LogFormat } from "#core/util/log-format.js";
 import {
@@ -221,21 +223,32 @@ const daemonModule: KotaModule = {
 
         const projectDir = resolveProjectDir(opts.projectDir);
 
+        // The CLI bootstraps a `commandsOnly` ModuleLoader for fast
+        // subcommand registration, but the daemon is a long-lived runtime
+        // host: serving `/api/knowledge`, `/api/memory`, `/recall`,
+        // `/answer`, etc. requires every module's `onLoad` to have
+        // registered its provider-backed seam. Drive a fresh full-runtime
+        // load here so the Daemon never reads contributions from the CLI's
+        // partial state.
+        const config = loadConfig(projectDir);
+        const verbose = opts.verbose || config.verbose || false;
+        const loader = await loadRuntimeModules({ config, cwd: projectDir, verbose });
+
         const daemon = new Daemon({
           projectDir,
-          verbose: opts.verbose || ctx.config.verbose,
-          config: ctx.config,
+          verbose,
+          config,
           idleIntervalMs: 30_000,
           pollIntervalMs: parseIntOption(opts.pollInterval, "poll-interval") * 1000,
-          workflows: ctx.getContributedWorkflows(),
-          channels: ctx.getContributedChannels(),
-          controlRoutes: ctx.getContributedControlRoutes(),
-          routes: ctx.getRoutes(),
+          workflows: loader.getContributedWorkflows(),
+          channels: loader.getContributedChannels(),
+          controlRoutes: loader.getContributedControlRoutes(),
+          routes: loader.getRoutes(),
           logFormat,
-          resolveAgentDef: (name) => ctx.resolveAgentDef(name),
-          resolveSkillsPrompt: (names, agentName) => ctx.resolveSkillsPrompt(names, agentName),
-          probeModuleHealthChecks: () => ctx.probeHealthChecks(),
-          moduleConfigKeys: ctx.getRegisteredConfigKeys(),
+          resolveAgentDef: (name) => loader.getAgentDef(name),
+          resolveSkillsPrompt: (names, agentName) => loader.getSkillsPromptFor(names, agentName),
+          probeModuleHealthChecks: () => loader.probeHealthChecks(),
+          moduleConfigKeys: loader.getRegisteredConfigKeys(),
         });
 
         if (useDashboard) {

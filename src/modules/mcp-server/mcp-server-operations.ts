@@ -7,15 +7,14 @@
  * space using stdin/stdout, so the daemon-side handler returns
  * `daemon_required` and the local handler runs the boot logic directly.
  *
- * The server requires fully-loaded modules (not commandsOnly), because
- * tool dispatch needs every contributed tool to be registered. The
- * operations file therefore re-loads the module set in non-commandsOnly
- * mode to mirror the existing pre-namespace behavior.
+ * The server requires fully-loaded modules (not commandsOnly) because tool
+ * dispatch needs every contributed tool registered and provider-backed
+ * routes need their `onLoad` to have run. The shared
+ * `loadRuntimeModules` helper drives that lifecycle for any long-lived
+ * host.
  */
 import { loadConfig } from "#core/config/config.js";
-import { discoverModules } from "#core/modules/module-discovery.js";
-import { ModuleLoader } from "#core/modules/module-loader.js";
-import { discoverProjectModules } from "#core/modules/project-discovery.js";
+import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import type {
   McpServerClient,
   McpServerStartOptions,
@@ -28,10 +27,7 @@ export function localMcpServerClient(): McpServerClient {
       const { McpServer } = await import("./server.js");
 
       const config = loadConfig(process.cwd());
-      const loader = new ModuleLoader(config, false);
-      const projectModules = await discoverProjectModules();
-      const modules = await discoverModules(process.cwd());
-      await loader.loadAll(projectModules, modules);
+      await loadRuntimeModules({ config, cwd: process.cwd() });
 
       const samplingEnabled = config.mcp?.sampling?.enabled === true;
       let modelClient;

@@ -26,9 +26,11 @@ vi.mock("#core/config/config.js", () => ({
 }));
 
 const mockLoadAll = vi.fn().mockResolvedValue(undefined);
+const mockSetCwd = vi.fn();
 vi.mock("#core/modules/module-loader.js", () => ({
   ModuleLoader: vi.fn(function (this: Record<string, unknown>) {
     this.loadAll = mockLoadAll;
+    this.setCwd = mockSetCwd;
   }),
 }));
 
