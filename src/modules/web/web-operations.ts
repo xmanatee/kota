@@ -40,11 +40,8 @@ export function localWebClient(ctx: ModuleContext): WebClient {
         verbose: (options.verbose ?? false) || ctx.config.verbose,
         config: ctx.config,
         noAuth: options.noAuth === true,
-        defaultAutonomyMode: resolveChannelAutonomyMode(
-          undefined,
-          ctx.config,
-          "web server",
-        ),
+        resolveDefaultAutonomyMode: () =>
+          resolveChannelAutonomyMode(undefined, ctx.config, "web server"),
         moduleRoutes,
       });
       return { ok: true };

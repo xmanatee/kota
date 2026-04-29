@@ -57,7 +57,7 @@ describe("GET /api/attention", () => {
           "makeAgent should not be invoked by /api/attention tests",
         );
       },
-      defaultAutonomyMode: "passive",
+      resolveDefaultAutonomyMode: () => "passive",
       authToken: TOKEN,
     });
     server = createServer(requestHandler);

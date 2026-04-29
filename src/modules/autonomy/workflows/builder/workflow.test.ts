@@ -343,11 +343,13 @@ describe("builder workflow", () => {
   });
 
   it("keeps task-selection detail in task docs instead of bloating the prompt", () => {
-    expect(promptContent).toMatch(/data\/tasks\/doing\//);
-    expect(promptContent).toMatch(/data\/tasks\/ready\//);
-    expect(promptContent).toMatch(/best backlog task/i);
+    // The prompt points at data/tasks/ but does not enumerate state-specific
+    // paths — state lifecycle detail belongs in the task queue docs.
+    expect(promptContent).toMatch(/data\/tasks\//);
+    expect(promptContent).not.toMatch(/data\/tasks\/doing\//);
+    expect(promptContent).not.toMatch(/data\/tasks\/ready\//);
     expect(promptContent).not.toMatch(/data\/tasks\/blocked\//);
-    expect(taskAgentsContent).toMatch(/blocked\//);
+    expect(taskAgentsContent).toMatch(/State directories define their own lifecycle/i);
   });
 
   it("keeps success-criteria protocol in local builder instructions, not repeated in the prompt", () => {

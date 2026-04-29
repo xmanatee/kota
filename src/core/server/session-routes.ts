@@ -13,14 +13,20 @@ import {
 
 function resolveAutonomyMode(
   body: Record<string, unknown>,
-  fallback: AutonomyMode,
+  resolveDefault: () => AutonomyMode,
 ): { ok: true; mode: AutonomyMode } | { ok: false; error: string } {
   const raw = body.autonomy_mode;
-  if (raw === undefined) return { ok: true, mode: fallback };
-  if (!isAutonomyMode(raw)) {
-    return { ok: false, error: "autonomy_mode must be one of: passive, supervised, autonomous" };
+  if (raw !== undefined) {
+    if (!isAutonomyMode(raw)) {
+      return { ok: false, error: "autonomy_mode must be one of: passive, supervised, autonomous" };
+    }
+    return { ok: true, mode: raw };
   }
-  return { ok: true, mode: raw };
+  try {
+    return { ok: true, mode: resolveDefault() };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
 }
 
 async function handleKotaChat(res: ServerResponse, session: ManagedSession, message: string): Promise<void> {
@@ -51,7 +57,7 @@ export async function handleChat(
   res: ServerResponse,
   pool: SessionPool,
   makeAgent: (transport: Transport, autonomyMode: AutonomyMode) => AgentSession,
-  defaultAutonomyMode: AutonomyMode,
+  resolveDefaultAutonomyMode: () => AutonomyMode,
   onSessionCreate?: (id: string) => void,
 ): Promise<void> {
   let body: Record<string, unknown>;
@@ -68,7 +74,7 @@ export async function handleChat(
     return;
   }
 
-  const modeResult = resolveAutonomyMode(body, defaultAutonomyMode);
+  const modeResult = resolveAutonomyMode(body, resolveDefaultAutonomyMode);
   if (!modeResult.ok) {
     jsonResponse(res, 400, { error: modeResult.error });
     return;
@@ -111,7 +117,7 @@ export async function handleCreateSession(
   res: ServerResponse,
   pool: SessionPool,
   makeAgent: (transport: Transport, autonomyMode: AutonomyMode) => AgentSession,
-  defaultAutonomyMode: AutonomyMode,
+  resolveDefaultAutonomyMode: () => AutonomyMode,
   onSessionCreate?: (id: string) => void,
 ): Promise<string | null> {
   let body: Record<string, unknown> = {};
@@ -122,7 +128,7 @@ export async function handleCreateSession(
     return null;
   }
 
-  const modeResult = resolveAutonomyMode(body, defaultAutonomyMode);
+  const modeResult = resolveAutonomyMode(body, resolveDefaultAutonomyMode);
   if (!modeResult.ok) {
     jsonResponse(res, 400, { error: modeResult.error });
     return null;

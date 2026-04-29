@@ -1,12 +1,12 @@
 ---
 id: task-fix-web-server-autonomy-configuration-crash
 title: Fix web server autonomy configuration crash
-status: ready
+status: done
 priority: p1
 area: core
 summary: Ensure the web server (kota serve) can start without a fatal autonomy posture error when unconfigured, while still maintaining Kota's security mandate of defined permissions for interactive agents.
 created_at: 2026-04-28T14:25:00.000Z
-updated_at: 2026-04-28T14:25:00.000Z
+updated_at: 2026-04-29T00:06:57.758Z
 ---
 
 ## Problem

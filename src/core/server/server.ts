@@ -34,11 +34,14 @@ export type ServerOptions = {
   config?: KotaConfig;
   noAuth?: boolean;
   /**
-   * Fallback autonomy mode applied to sessions when the request body does not
-   * specify one. There is no silent global default — callers must pass this
-   * explicitly.
+   * Lazy resolver for the fallback autonomy mode applied to sessions when the
+   * request body does not specify one. The resolver is invoked at
+   * session-creation time, not at server boot, so an unconfigured posture only
+   * blocks the request that actually needs it — monitoring and status routes
+   * still come up. The resolver must throw if no posture can be determined;
+   * silent global defaults are not allowed.
    */
-  defaultAutonomyMode: AutonomyMode;
+  resolveDefaultAutonomyMode: () => AutonomyMode;
   /**
    * Override the generated auth token. Useful in tests to use a known value.
    * Has no effect when noAuth is true.
@@ -114,7 +117,7 @@ export function startServer(options: ServerOptions): Server {
     bus,
     moduleRoutes: options.moduleRoutes ?? [],
     makeAgent,
-    defaultAutonomyMode: options.defaultAutonomyMode,
+    resolveDefaultAutonomyMode: options.resolveDefaultAutonomyMode,
     getDaemonClient: () => daemonLink.current(),
     authToken,
   });

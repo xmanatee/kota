@@ -23,8 +23,12 @@ export type ServerContext = {
   bus: EventBus;
   moduleRoutes: RouteRegistration[];
   makeAgent: (transport: Transport, autonomyMode: AutonomyMode) => AgentSession;
-  /** Autonomy mode applied when a request does not specify one. */
-  defaultAutonomyMode: AutonomyMode;
+  /**
+   * Lazy resolver for the autonomy mode applied when a request does not
+   * specify one. Invoked per-request so that an unconfigured posture only
+   * blocks session creation, not server boot.
+   */
+  resolveDefaultAutonomyMode: () => AutonomyMode;
   /**
    * Live accessor for the current daemon control client. Returns null when
    * no daemon is reachable. The indirection lets the server reconnect to a
@@ -84,14 +88,14 @@ export function buildRequestHandler(ctx: ServerContext) {
     };
 
     if (req.method === "POST" && path === "/api/sessions") {
-      handleCreateSession(req, res, ctx.pool, ctx.makeAgent, ctx.defaultAutonomyMode, registerSessionWithDaemon).catch((err) => {
+      handleCreateSession(req, res, ctx.pool, ctx.makeAgent, ctx.resolveDefaultAutonomyMode, registerSessionWithDaemon).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;
     }
 
     if (req.method === "POST" && path === "/api/chat") {
-      handleChat(req, res, ctx.pool, ctx.makeAgent, ctx.defaultAutonomyMode, registerSessionWithDaemon).catch((err) => {
+      handleChat(req, res, ctx.pool, ctx.makeAgent, ctx.resolveDefaultAutonomyMode, registerSessionWithDaemon).catch((err) => {
         if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
       });
       return;

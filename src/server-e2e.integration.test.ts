@@ -136,7 +136,7 @@ beforeAll(async () => {
     config: testConfig,
     moduleRoutes,
     authToken: TEST_AUTH_TOKEN,
-    defaultAutonomyMode: testConfig.serve.defaultAutonomyMode,
+    resolveDefaultAutonomyMode: () => testConfig.serve.defaultAutonomyMode,
   });
   const port = await waitForPort(server);
   console.log = origLog;

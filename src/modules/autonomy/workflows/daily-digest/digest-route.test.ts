@@ -71,7 +71,7 @@ describe("GET /api/digest", () => {
       makeAgent: () => {
         throw new Error("makeAgent should not be invoked by /api/digest tests");
       },
-      defaultAutonomyMode: "passive",
+      resolveDefaultAutonomyMode: () => "passive",
       authToken: TOKEN,
     });
     server = createServer(requestHandler);

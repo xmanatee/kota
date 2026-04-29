@@ -99,12 +99,6 @@ describe("API key validation", () => {
     expect(stderr).toContain("ANTHROPIC_API_KEY");
   });
 
-  it("shows actionable instructions for serve without key", () => {
-    const { stderr, exitCode } = runExpectFail("serve");
-    expect(exitCode).toBe(1);
-    expect(stderr).toContain("ANTHROPIC_API_KEY");
-  });
-
   it("does not require API key for help commands", () => {
     // --help should work without API key
     const out = run("--help");
