@@ -181,6 +181,13 @@ function makeWebhookHandler(
 
 // ─── Module ───────────────────────────────────────────────────────────────
 
+function resolveActiveSecret(ctx: ModuleContext): string | null {
+  const config = ctx.getModuleConfig<GitHubWebhookConfig>();
+  if (!config?.secret) return null;
+  const secret = resolveSecret(config.secret);
+  return secret || null;
+}
+
 const githubWebhookModule: KotaModule = {
   name: "github-webhook",
   version: "1.0.0",
@@ -188,21 +195,11 @@ const githubWebhookModule: KotaModule = {
     "GitHub webhook receiver — validates HMAC signatures and emits typed github.* bus events",
 
   routes: (ctx: ModuleContext): RouteRegistration[] => {
+    const secret = resolveActiveSecret(ctx);
+    if (!secret) return [];
+
     const config = ctx.getModuleConfig<GitHubWebhookConfig>();
-    if (!config?.secret) {
-      ctx.log.warn("github-webhook: no secret configured — webhook route not registered");
-      return [];
-    }
-
-    const secret = resolveSecret(config.secret);
-    if (!secret) {
-      ctx.log.warn(
-        "github-webhook: secret env var is unset — webhook route not registered",
-      );
-      return [];
-    }
-
-    const enabledEvents = new Set(config.events ?? DEFAULT_EVENTS);
+    const enabledEvents = new Set(config?.events ?? DEFAULT_EVENTS);
 
     return [
       {
@@ -212,6 +209,22 @@ const githubWebhookModule: KotaModule = {
         handler: makeWebhookHandler(secret, enabledEvents, ctx),
       },
     ];
+  },
+
+  onLoad: (ctx: ModuleContext) => {
+    const config = ctx.getModuleConfig<GitHubWebhookConfig>();
+    if (!config?.secret) {
+      ctx.log.warn(
+        "github-webhook: no secret configured — webhook route not registered",
+      );
+      return;
+    }
+    const secret = resolveSecret(config.secret);
+    if (!secret) {
+      ctx.log.warn(
+        "github-webhook: secret env var is unset — webhook route not registered",
+      );
+    }
   },
 };
 

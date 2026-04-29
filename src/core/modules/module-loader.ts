@@ -56,6 +56,12 @@ export class ModuleLoader {
   private moduleChannelDefs = new Map<string, readonly ChannelDef[]>();
   private moduleSkillDefs = new Map<string, readonly SkillDef[]>();
   private moduleAgentDefs = new Map<string, readonly AgentDef[]>();
+  private moduleRoutes = new Map<string, RouteRegistration[]>();
+  private moduleCommands = new Map<string, Command[]>();
+  private moduleControlRoutes = new Map<string, ControlRouteRegistration[]>();
+  private moduleRouteErrors = new Map<string, string>();
+  private moduleCommandErrors = new Map<string, string>();
+  private moduleControlRouteErrors = new Map<string, string>();
   private registeredConfigKeys = new Map<string, string>();
   private loadFailures = new Map<string, ModuleLoadFailure>();
   private moduleSources = new Map<string, ModuleSource>();
@@ -69,8 +75,6 @@ export class ModuleLoader {
   private config: KotaConfig;
   private cwd: string;
   private commandsOnly: boolean;
-  private collectingRoutes = false;
-  private collectingControlRoutes = false;
   private sessionFactory: ((opts: CreateSessionOptions) => ModuleSession) | null = null;
   private toolCallDepth = 0;
   private static MAX_TOOL_CALL_DEPTH = 10;
@@ -240,6 +244,36 @@ export class ModuleLoader {
 
     this.collectLocalClientHandlers(mod, ctx);
 
+    if (mod.commands) {
+      try {
+        this.moduleCommands.set(mod.name, mod.commands(ctx));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.moduleCommandErrors.set(mod.name, msg);
+        console.error(`[kota] Module "${mod.name}" command registration failed: ${msg}`);
+      }
+    }
+
+    if (mod.routes) {
+      try {
+        this.moduleRoutes.set(mod.name, [...mod.routes(ctx)]);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.moduleRouteErrors.set(mod.name, msg);
+        console.error(`[kota] Module "${mod.name}" route registration failed: ${msg}`);
+      }
+    }
+
+    if (mod.controlRoutes) {
+      try {
+        this.moduleControlRoutes.set(mod.name, [...mod.controlRoutes(ctx)]);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.moduleControlRouteErrors.set(mod.name, msg);
+        console.error(`[kota] Module "${mod.name}" control-route registration failed: ${msg}`);
+      }
+    }
+
     if (mod.onLoad && !this.commandsOnly) await mod.onLoad(ctx);
 
     const skills = await resolveModuleSkills(mod, ctx);
@@ -333,58 +367,28 @@ export class ModuleLoader {
   getCommands(): Command[] {
     const commands: Command[] = [];
     for (const mod of this.modules) {
-      if (mod.commands) {
-        try {
-          commands.push(...mod.commands(this.createContext(mod.name)));
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error(`[kota] Module "${mod.name}" command registration failed: ${msg}`);
-        }
-      }
+      const cached = this.moduleCommands.get(mod.name);
+      if (cached) commands.push(...cached);
     }
     return commands;
   }
 
   getRoutes(): RouteRegistration[] {
-    if (this.collectingRoutes) return [];
-    this.collectingRoutes = true;
-    try {
-      const routes: RouteRegistration[] = [];
-      for (const mod of this.modules) {
-        if (mod.routes) {
-          try {
-            routes.push(...mod.routes(this.createContext(mod.name)));
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            console.error(`[kota] Module "${mod.name}" route registration failed: ${msg}`);
-          }
-        }
-      }
-      return routes;
-    } finally {
-      this.collectingRoutes = false;
+    const routes: RouteRegistration[] = [];
+    for (const mod of this.modules) {
+      const cached = this.moduleRoutes.get(mod.name);
+      if (cached) routes.push(...cached);
     }
+    return routes;
   }
 
   getContributedControlRoutes(): ControlRouteRegistration[] {
-    if (this.collectingControlRoutes) return [];
-    this.collectingControlRoutes = true;
-    try {
-      const routes: ControlRouteRegistration[] = [];
-      for (const mod of this.modules) {
-        if (mod.controlRoutes) {
-          try {
-            routes.push(...mod.controlRoutes(this.createContext(mod.name)));
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            console.error(`[kota] Module "${mod.name}" control-route registration failed: ${msg}`);
-          }
-        }
-      }
-      return routes;
-    } finally {
-      this.collectingControlRoutes = false;
+    const routes: ControlRouteRegistration[] = [];
+    for (const mod of this.modules) {
+      const cached = this.moduleControlRoutes.get(mod.name);
+      if (cached) routes.push(...cached);
     }
+    return routes;
   }
 
   getContributedWorkflows(): RegisteredWorkflowDefinitionInput[] {
@@ -478,6 +482,12 @@ export class ModuleLoader {
     this.contributedChannels.splice(0);
     this.skillContentsByName.clear();
     this.skillDefsByName.clear();
+    this.moduleRoutes.clear();
+    this.moduleCommands.clear();
+    this.moduleControlRoutes.clear();
+    this.moduleRouteErrors.clear();
+    this.moduleCommandErrors.clear();
+    this.moduleControlRouteErrors.clear();
     this.moduleSources.clear();
     this.loadFailures.clear();
     this.bus = null;
@@ -488,6 +498,12 @@ export class ModuleLoader {
       if (owner === moduleName) this.registeredConfigKeys.delete(key);
     }
     unregisterConfigSlicesForOwner(moduleName);
+    this.moduleRoutes.delete(moduleName);
+    this.moduleCommands.delete(moduleName);
+    this.moduleControlRoutes.delete(moduleName);
+    this.moduleRouteErrors.delete(moduleName);
+    this.moduleCommandErrors.delete(moduleName);
+    this.moduleControlRouteErrors.delete(moduleName);
 
     const wfDefs = this.moduleWorkflowDefs.get(moduleName);
     if (wfDefs) {
@@ -565,27 +581,17 @@ export class ModuleLoader {
   getModuleSummaries(): ModuleSummary[] {
     const loaded = this.modules.map((mod) => {
       const commandNames: string[] = [];
-      let commandError: string | undefined;
-      if (mod.commands) {
-        try {
-          const cmds = mod.commands(this.createContext(mod.name));
-          for (const cmd of cmds) commandNames.push(cmd.name());
-        } catch (err) {
-          commandError = err instanceof Error ? err.message : String(err);
-          console.error(`[kota] Module "${mod.name}" command summary failed: ${commandError}`);
-        }
+      const cachedCommands = this.moduleCommands.get(mod.name);
+      if (cachedCommands) {
+        for (const cmd of cachedCommands) commandNames.push(cmd.name());
       }
+      const commandError = this.moduleCommandErrors.get(mod.name);
       const routeSummaries: string[] = [];
-      let routeError: string | undefined;
-      if (mod.routes) {
-        try {
-          const routes = mod.routes(this.createContext(mod.name));
-          for (const r of routes) routeSummaries.push(`${r.method} ${r.path}`);
-        } catch (err) {
-          routeError = err instanceof Error ? err.message : String(err);
-          console.error(`[kota] Module "${mod.name}" route summary failed: ${routeError}`);
-        }
+      const cachedRoutes = this.moduleRoutes.get(mod.name);
+      if (cachedRoutes) {
+        for (const r of cachedRoutes) routeSummaries.push(`${r.method} ${r.path}`);
       }
+      const routeError = this.moduleRouteErrors.get(mod.name);
       return {
         name: mod.name,
         source: this.moduleSources.get(mod.name) ?? "project",

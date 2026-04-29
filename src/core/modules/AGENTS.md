@@ -12,3 +12,11 @@ and foreign-module transports.
   types, schemas, examples, and focused tests instead of docs catalogs.
 - CLI-only provider loading should activate the configured provider modules and
   their declared dependencies without loading unrelated module side effects.
+- `mod.routes`, `mod.commands`, and `mod.controlRoutes` are pure-data
+  contributions: the loader invokes each factory once at module load and
+  caches the result. `getRoutes()`, `getCommands()`, `getContributedControlRoutes()`,
+  and `getModuleSummaries()` read those cached snapshots and never re-invoke
+  the factories. Module authors must not emit logs, register subscribers, or
+  perform other side effects from those factories — runtime warnings about
+  missing config belong in `onLoad` (one-shot at full-runtime boot) or in a
+  module `healthCheck` (surfaced through `kota doctor`).

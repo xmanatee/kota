@@ -121,13 +121,13 @@ describe("githubWebhookModule metadata", () => {
     expect(githubWebhookModule.description).toBeTruthy();
   });
 
-  it("has no tools, commands, channels, workflows, onLoad, or onUnload", () => {
+  it("contributes only routes and a one-time onLoad warning", () => {
     expect(githubWebhookModule.tools).toBeUndefined();
     expect(githubWebhookModule.commands).toBeUndefined();
     expect(githubWebhookModule.channels).toBeUndefined();
     expect(githubWebhookModule.workflows).toBeUndefined();
-    expect(githubWebhookModule.onLoad).toBeUndefined();
     expect(githubWebhookModule.onUnload).toBeUndefined();
+    expect(typeof githubWebhookModule.onLoad).toBe("function");
   });
 
   it("sets bypassAuth:true on its route so GitHub deliveries work without KOTA auth", () => {
@@ -140,22 +140,22 @@ describe("githubWebhookModule metadata", () => {
 });
 
 describe("githubWebhookModule routes registration", () => {
-  it("returns no routes when secret is missing", () => {
+  it("returns no routes and emits no warning when secret is missing", () => {
     const bus = new EventBus();
     const warnSpy = vi.fn();
     const ctx = makeStubCtx(bus, undefined, warnSpy);
     const routes = githubWebhookModule.routes!(ctx);
     expect(routes).toHaveLength(0);
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("no secret"));
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it("returns no routes when env var is unset", () => {
+  it("returns no routes and emits no warning when env var is unset", () => {
     const bus = new EventBus();
     const warnSpy = vi.fn();
     const ctx = makeStubCtx(bus, { secret: "$GITHUB_WEBHOOK_SECRET_UNSET_XYZ" }, warnSpy);
     const routes = githubWebhookModule.routes!(ctx);
     expect(routes).toHaveLength(0);
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("unset"));
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 
   it("registers POST /api/webhooks/github when secret is present", () => {
@@ -165,6 +165,44 @@ describe("githubWebhookModule routes registration", () => {
     expect(routes).toHaveLength(1);
     expect(routes[0].method).toBe("POST");
     expect(routes[0].path).toBe("/api/webhooks/github");
+  });
+
+  it("repeated routes() calls emit no warnings", () => {
+    const bus = new EventBus();
+    const warnSpy = vi.fn();
+    const ctx = makeStubCtx(bus, undefined, warnSpy);
+    githubWebhookModule.routes!(ctx);
+    githubWebhookModule.routes!(ctx);
+    githubWebhookModule.routes!(ctx);
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("githubWebhookModule onLoad warnings", () => {
+  it("warns once when secret is missing", () => {
+    const bus = new EventBus();
+    const warnSpy = vi.fn();
+    const ctx = makeStubCtx(bus, undefined, warnSpy);
+    githubWebhookModule.onLoad!(ctx);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("no secret"));
+  });
+
+  it("warns once when env var is unset", () => {
+    const bus = new EventBus();
+    const warnSpy = vi.fn();
+    const ctx = makeStubCtx(bus, { secret: "$GITHUB_WEBHOOK_SECRET_UNSET_XYZ" }, warnSpy);
+    githubWebhookModule.onLoad!(ctx);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("unset"));
+  });
+
+  it("does not warn when secret is configured and resolved", () => {
+    const bus = new EventBus();
+    const warnSpy = vi.fn();
+    const ctx = makeStubCtx(bus, { secret: SECRET }, warnSpy);
+    githubWebhookModule.onLoad!(ctx);
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });
 

@@ -196,7 +196,6 @@ describe("ModuleLoader", () => {
       },
     });
 
-    loader.getCommands(); // triggers commands() calls
     expect(discoveredRoutes).toHaveLength(1);
     expect(discoveredRoutes[0].path).toBe("/api/test");
   });
@@ -704,7 +703,7 @@ describe("source reimport", () => {
   });
 });
 
-describe("getRoutes reentrancy guard", () => {
+describe("route discovery caches snapshots", () => {
   beforeEach(() => {
     clearCustomTools();
     clearCustomGroups();
@@ -717,18 +716,44 @@ describe("getRoutes reentrancy guard", () => {
     resetGroups();
   });
 
-  it("returns empty array instead of infinite recursion when routes() calls ctx.getRoutes()", async () => {
+  it("calls each module's routes() factory exactly once during load", async () => {
+    const loader = new ModuleLoader({});
+    const handler = vi.fn();
+    const routesFactory = vi.fn(() => [{ method: "GET" as const, path: "/a", handler }]);
+
+    await loader.load({ name: "route-a", routes: routesFactory });
+
+    loader.getRoutes();
+    loader.getRoutes();
+    loader.getModuleSummaries();
+    loader.getModuleSummaries();
+
+    expect(routesFactory).toHaveBeenCalledOnce();
+  });
+
+  it("calls each module's commands() factory exactly once during load", async () => {
+    const loader = new ModuleLoader({});
+    const { Command } = await import("commander");
+    const commandsFactory = vi.fn(() => [new Command("test-cmd")]);
+
+    await loader.load({ name: "cmd-mod", commands: commandsFactory });
+
+    loader.getCommands();
+    loader.getCommands();
+    loader.getModuleSummaries();
+
+    expect(commandsFactory).toHaveBeenCalledOnce();
+  });
+
+  it("ctx.getRoutes() inside a routes() factory sees previously loaded modules' cached routes", async () => {
     const loader = new ModuleLoader({});
     const handler = vi.fn();
 
-    // Module A provides a route normally
     await loader.load({
       name: "route-a",
       routes: () => [{ method: "GET", path: "/a", handler }],
     });
 
-    // Module B tries to call ctx.getRoutes() from within its own routes()
-    // Without the guard, this would infinite-recurse
     let innerRoutes: any[] = [];
     await loader.load({
       name: "route-b",
@@ -739,14 +764,12 @@ describe("getRoutes reentrancy guard", () => {
     });
 
     const routes = loader.getRoutes();
-    // Both routes should be collected
     expect(routes).toHaveLength(2);
     expect(routes.map((r) => r.path).sort()).toEqual(["/a", "/b"]);
-    // Inner call returned empty (guard prevented recursion)
-    expect(innerRoutes).toEqual([]);
+    expect(innerRoutes.map((r: { path: string }) => r.path)).toEqual(["/a"]);
   });
 
-  it("allows getRoutes() after a previous call completes", async () => {
+  it("returns stable results across repeated calls", async () => {
     const loader = new ModuleLoader({});
     const handler = vi.fn();
 
@@ -755,16 +778,13 @@ describe("getRoutes reentrancy guard", () => {
       routes: () => [{ method: "GET", path: "/test", handler }],
     });
 
-    // First call
     const routes1 = loader.getRoutes();
-    expect(routes1).toHaveLength(1);
-
-    // Second call should work (guard reset)
     const routes2 = loader.getRoutes();
+    expect(routes1).toHaveLength(1);
     expect(routes2).toHaveLength(1);
   });
 
-  it("resets guard even if routes() throws", async () => {
+  it("caches the empty result when routes() throws and surfaces the error in summaries", async () => {
     const loader = new ModuleLoader({});
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const handler = vi.fn();
@@ -778,15 +798,57 @@ describe("getRoutes reentrancy guard", () => {
       routes: () => [{ method: "GET", path: "/ok", handler }],
     });
 
-    // First call — throws-mod errors but guard should still reset
-    const routes1 = loader.getRoutes();
-    expect(routes1).toHaveLength(1);
+    expect(loader.getRoutes()).toHaveLength(1);
+    expect(loader.getRoutes()).toHaveLength(1);
 
-    // Second call should still work
-    const routes2 = loader.getRoutes();
-    expect(routes2).toHaveLength(1);
+    const throwsSummary = loader.getModuleSummaries().find((s) => s.name === "throws-mod");
+    expect(throwsSummary?.routeError).toBe("bad routes");
 
     errSpy.mockRestore();
+  });
+});
+
+describe("module discovery is side-effect free across repeated reads", () => {
+  beforeEach(() => {
+    clearCustomTools();
+    clearCustomGroups();
+    resetGroups();
+  });
+
+  afterEach(() => {
+    clearCustomTools();
+    clearCustomGroups();
+    resetGroups();
+  });
+
+  it("invokes routes() exactly once during load even when getRoutes/getModuleSummaries are called many times", async () => {
+    const loader = new ModuleLoader({});
+    const routesFactory = vi.fn(() => []);
+
+    await loader.load({ name: "discovery-only", routes: routesFactory });
+
+    loader.getRoutes();
+    loader.getRoutes();
+    loader.getModuleSummaries();
+    loader.getModuleSummaries();
+    loader.getRoutes();
+
+    expect(routesFactory).toHaveBeenCalledOnce();
+  });
+
+  it("invokes routes() exactly once during commandsOnly load too", async () => {
+    const loader = new ModuleLoader({}, false, { commandsOnly: true });
+    const routesFactory = vi.fn(() => [
+      { method: "GET" as const, path: "/x", handler: () => {} },
+    ]);
+
+    await loader.load({ name: "discovery-only", routes: routesFactory });
+
+    expect(routesFactory).toHaveBeenCalledOnce();
+    loader.getRoutes();
+    loader.getRoutes();
+    loader.getModuleSummaries();
+    expect(routesFactory).toHaveBeenCalledOnce();
   });
 });
 

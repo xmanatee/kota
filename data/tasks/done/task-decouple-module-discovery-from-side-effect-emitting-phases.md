@@ -1,12 +1,12 @@
 ---
 id: task-decouple-module-discovery-from-side-effect-emitting-phases
 title: Decouple module discovery from side-effect emitting phases
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Separate the passive discovery of module capabilities (commands, routes, tools) from their active initialization and execution, preventing side effects like repetitive warnings during the CLI's discovery phase.
 created_at: 2026-04-28T14:25:00.000Z
-updated_at: 2026-04-28T14:25:00.000Z
+updated_at: 2026-04-29T01:11:13.180Z
 ---
 
 ## Problem
