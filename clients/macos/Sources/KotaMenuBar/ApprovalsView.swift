@@ -1,28 +1,7 @@
 import SwiftUI
 
-struct ApprovalsView: View {
-    @EnvironmentObject var appState: AppState
-
-    var body: some View {
-        if appState.pendingApprovals.isEmpty { return AnyView(EmptyView()) }
-
-        return AnyView(
-            VStack(alignment: .leading, spacing: 0) {
-                Divider()
-                Text("Pending Approvals")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.top, 8)
-                    .padding(.bottom, 4)
-
-                ForEach(appState.pendingApprovals) { approval in
-                    ApprovalRow(approval: approval)
-                }
-            }
-        )
-    }
-}
+// Pending approvals: `ApprovalRow` is mounted by `AttentionInboxView`
+// (`OperatorSections.swift`).
 
 struct ApprovalRow: View {
     @EnvironmentObject var appState: AppState

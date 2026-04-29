@@ -1,76 +1,10 @@
 import SwiftUI
 
-/// Menu-bar surface for the daemon's cited-answer seam. Mirrors the
-/// `kota answer`, daemon `POST /answer`, Telegram `/answer`, and web
-/// `AnswerPanel` consumers — one shared seam, one synthesized answer
-/// plus typed citations across surfaces. The view binds to
-/// `AppState.answer*` observables and uses `DaemonClient.answer` through
-/// the same wrapper every other section uses; per-citation rows resolve
-/// against the typed `RecallHit` payload by `{ source, id }` (the same
-/// key `renderAnswerCitationsPlain` reads), and per-source tints come
-/// from `RecallSourceBadge` so the cited-answer column stays visually
-/// consistent with `RecallView`.
-struct AnswerView: View {
-    @EnvironmentObject var appState: AppState
-    @State private var isExpanded = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Divider()
-            Button(action: { isExpanded.toggle() }) {
-                HStack {
-                    Image(systemName: "text.bubble")
-                        .imageScale(.small)
-                        .foregroundStyle(headerIconColor)
-                    Text("Answer")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if let badge = headerBadge {
-                        AnswerStateBadge(label: badge.label, isActive: badge.isActive)
-                    }
-                    Spacer()
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .imageScale(.small)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded {
-                AnswerExpandedContent()
-            }
-        }
-    }
-
-    private var headerIconColor: Color {
-        guard let result = appState.answerResult else { return .secondary }
-        switch result {
-        case .success: return .blue
-        case .noHits, .semanticUnavailable, .synthesisFailed:
-            return .orange
-        }
-    }
-
-    private var headerBadge: (label: String, isActive: Bool)? {
-        guard let result = appState.answerResult else { return nil }
-        switch result {
-        case .success(_, let citations, _):
-            if citations.isEmpty { return ("answered", true) }
-            return (citations.count == 1 ? "1 cite" : "\(citations.count) cites", true)
-        case .noHits: return ("no hits", false)
-        case .semanticUnavailable: return ("recall unavailable", false)
-        case .synthesisFailed: return ("synthesis failed", false)
-        }
-    }
-}
+// Cited-answer surface: the body, result switch, and citations list are
+// mounted inside `AskUnifiedView` (`OperatorSections.swift`).
 
 /// Active-vs-inactive label, driven by the typed `AnswerResult` branch —
-/// never inferred from the rendered text body. Mirrors `RecallStateBadge`
-/// one-to-one so the macOS surface speaks the same vocabulary across
-/// sibling per-store sections.
+/// never inferred from the rendered text body.
 struct AnswerStateBadge: View {
     let label: String
     let isActive: Bool
@@ -83,39 +17,6 @@ struct AnswerStateBadge: View {
             .padding(.vertical, 1)
             .background((isActive ? Color.blue : Color.secondary).opacity(0.15))
             .clipShape(RoundedRectangle(cornerRadius: 3))
-    }
-}
-
-struct AnswerExpandedContent: View {
-    @EnvironmentObject var appState: AppState
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            AnswerQueryField()
-            AnswerBodyView()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color.secondary.opacity(0.07))
-    }
-}
-
-struct AnswerQueryField: View {
-    @EnvironmentObject var appState: AppState
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "magnifyingglass")
-                .imageScale(.small)
-                .foregroundStyle(.secondary)
-            TextField("Ask the second brain…", text: $appState.answerQuery)
-                .textFieldStyle(.roundedBorder)
-                .font(.caption)
-                .onSubmit { Task { await appState.loadAnswer() } }
-            if appState.isLoadingAnswer {
-                ProgressView().scaleEffect(0.5)
-            }
-        }
     }
 }
 

@@ -1,68 +1,7 @@
 import SwiftUI
 
-/// Menu-bar surface for the daemon's on-demand history search. Mirrors the
-/// body the Telegram `/history`, terminal `kota history search`, and daemon
-/// HTTP `/api/history/search` already render — one shared search seam, one
-/// rendered line shape across surfaces. The view binds to `AppState.history*`
-/// observables and uses `DaemonClient.searchHistory` through the same wrapper
-/// every other section uses; it does not reach into a parallel data layer or
-/// read the file-backed `ConversationHistory` store directly.
-struct HistoryView: View {
-    @EnvironmentObject var appState: AppState
-    @State private var isExpanded = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Divider()
-            Button(action: { isExpanded.toggle() }) {
-                HStack {
-                    Image(systemName: "clock.arrow.2.circlepath")
-                        .imageScale(.small)
-                        .foregroundStyle(headerIconColor)
-                    Text("History")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if let badge = headerBadge {
-                        HistoryStateBadge(label: badge.label, isActive: badge.isActive)
-                    }
-                    Spacer()
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .imageScale(.small)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded {
-                HistoryExpandedContent()
-            }
-        }
-    }
-
-    private var headerIconColor: Color {
-        guard let result = appState.historyResult else { return .secondary }
-        switch result {
-        case .success(let conversations):
-            return conversations.isEmpty ? .secondary : .blue
-        case .semanticUnavailable:
-            return .orange
-        }
-    }
-
-    private var headerBadge: (label: String, isActive: Bool)? {
-        guard let result = appState.historyResult else { return nil }
-        switch result {
-        case .success(let conversations):
-            if conversations.isEmpty { return ("no matches", false) }
-            return (conversations.count == 1 ? "1 conversation" : "\(conversations.count) conversations", true)
-        case .semanticUnavailable:
-            return ("semantic unavailable", false)
-        }
-    }
-}
+// History surface: the body and helpers are mounted inside
+// `AskUnifiedView` (`OperatorSections.swift`).
 
 /// Active-vs-inactive label, driven by the typed `HistorySearchResponse`
 /// branch — never inferred from the rendered text body.
@@ -78,39 +17,6 @@ struct HistoryStateBadge: View {
             .padding(.vertical, 1)
             .background((isActive ? Color.blue : Color.secondary).opacity(0.15))
             .clipShape(RoundedRectangle(cornerRadius: 3))
-    }
-}
-
-struct HistoryExpandedContent: View {
-    @EnvironmentObject var appState: AppState
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HistoryQueryField()
-            HistoryBodyView()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color.secondary.opacity(0.07))
-    }
-}
-
-struct HistoryQueryField: View {
-    @EnvironmentObject var appState: AppState
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "magnifyingglass")
-                .imageScale(.small)
-                .foregroundStyle(.secondary)
-            TextField("Search history…", text: $appState.historyQuery)
-                .textFieldStyle(.roundedBorder)
-                .font(.caption)
-                .onSubmit { Task { await appState.loadHistory() } }
-            if appState.isLoadingHistory {
-                ProgressView().scaleEffect(0.5)
-            }
-        }
     }
 }
 

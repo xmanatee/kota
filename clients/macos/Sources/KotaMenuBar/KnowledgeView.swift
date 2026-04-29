@@ -1,69 +1,8 @@
 import SwiftUI
 
-/// Menu-bar surface for the daemon's on-demand knowledge search. Mirrors the
-/// body the Telegram `/knowledge`, terminal `kota knowledge search`, daemon
-/// HTTP `/api/knowledge/search`, and embedded web `KnowledgePanel` already
-/// render — one shared search seam, five operator pull-surfaces (this file
-/// is the fifth). The view binds to `AppState.knowledge*` observables and
-/// uses `DaemonClient.searchKnowledge` through the same wrapper every other
-/// section uses; it does not reach into a parallel data layer or read the
-/// file-backed `KnowledgeStore` directly.
-struct KnowledgeView: View {
-    @EnvironmentObject var appState: AppState
-    @State private var isExpanded = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Divider()
-            Button(action: { isExpanded.toggle() }) {
-                HStack {
-                    Image(systemName: "books.vertical")
-                        .imageScale(.small)
-                        .foregroundStyle(headerIconColor)
-                    Text("Knowledge")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if let badge = headerBadge {
-                        KnowledgeStateBadge(label: badge.label, isActive: badge.isActive)
-                    }
-                    Spacer()
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .imageScale(.small)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded {
-                KnowledgeExpandedContent()
-            }
-        }
-    }
-
-    private var headerIconColor: Color {
-        guard let result = appState.knowledgeResult else { return .secondary }
-        switch result {
-        case .success(let entries):
-            return entries.isEmpty ? .secondary : .blue
-        case .semanticUnavailable:
-            return .orange
-        }
-    }
-
-    private var headerBadge: (label: String, isActive: Bool)? {
-        guard let result = appState.knowledgeResult else { return nil }
-        switch result {
-        case .success(let entries):
-            if entries.isEmpty { return ("no matches", false) }
-            return (entries.count == 1 ? "1 entry" : "\(entries.count) entries", true)
-        case .semanticUnavailable:
-            return ("semantic unavailable", false)
-        }
-    }
-}
+// Knowledge surface: the body, the state badge, and the error view are
+// mounted inside `AskUnifiedView` (`OperatorSections.swift`) rather than
+// as a top-level disclosure section.
 
 /// Active-vs-inactive label, driven by the typed `KnowledgeSearchResponse`
 /// branch — never inferred from the rendered text body.
@@ -79,39 +18,6 @@ struct KnowledgeStateBadge: View {
             .padding(.vertical, 1)
             .background((isActive ? Color.blue : Color.secondary).opacity(0.15))
             .clipShape(RoundedRectangle(cornerRadius: 3))
-    }
-}
-
-struct KnowledgeExpandedContent: View {
-    @EnvironmentObject var appState: AppState
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            KnowledgeQueryField()
-            KnowledgeBodyView()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color.secondary.opacity(0.07))
-    }
-}
-
-struct KnowledgeQueryField: View {
-    @EnvironmentObject var appState: AppState
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "magnifyingglass")
-                .imageScale(.small)
-                .foregroundStyle(.secondary)
-            TextField("Search knowledge…", text: $appState.knowledgeQuery)
-                .textFieldStyle(.roundedBorder)
-                .font(.caption)
-                .onSubmit { Task { await appState.loadKnowledge() } }
-            if appState.isLoadingKnowledge {
-                ProgressView().scaleEffect(0.5)
-            }
-        }
     }
 }
 

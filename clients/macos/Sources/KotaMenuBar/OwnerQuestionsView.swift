@@ -1,28 +1,7 @@
 import SwiftUI
 
-struct OwnerQuestionsView: View {
-    @EnvironmentObject var appState: AppState
-
-    var body: some View {
-        if appState.pendingOwnerQuestions.isEmpty { return AnyView(EmptyView()) }
-
-        return AnyView(
-            VStack(alignment: .leading, spacing: 0) {
-                Divider()
-                Text("Owner Questions")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.top, 8)
-                    .padding(.bottom, 4)
-
-                ForEach(appState.pendingOwnerQuestions) { question in
-                    OwnerQuestionRow(question: question)
-                }
-            }
-        )
-    }
-}
+// Pending owner questions: `OwnerQuestionRow` is mounted by
+// `AttentionInboxView` (`OperatorSections.swift`).
 
 struct OwnerQuestionRow: View {
     @EnvironmentObject var appState: AppState

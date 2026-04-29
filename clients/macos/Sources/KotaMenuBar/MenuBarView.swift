@@ -1,107 +1,49 @@
 import SwiftUI
 
+/// Operator-first command center. The popover groups daemon surfaces
+/// by intent (monitor / respond / ask / capture / browse / configure)
+/// rather than mounting one collapsible section per backend seam. See
+/// `OperatorSections.swift` for the per-intent group implementations.
 struct MenuBarView: View {
     @EnvironmentObject var appState: AppState
     @State private var showTriggerSheet = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Status header
-            StatusHeaderView()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                // MONITOR: status + active runs
+                StatusHeaderView()
 
-            // Active runs
-            if !appState.activeRuns.isEmpty {
-                Divider()
-                Text("Active Runs")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.top, 8)
-                    .padding(.bottom, 4)
-
-                ForEach(appState.activeRuns) { run in
-                    ActiveRunRow(run: run)
-                }
-            }
-
-            // Recent runs history
-            RecentRunsView()
-
-            // Daily digest (on-demand /api/digest)
-            DigestView()
-
-            // Attention rollup (on-demand /api/attention)
-            AttentionView()
-
-            // Knowledge search (on-demand /api/knowledge/search)
-            KnowledgeView()
-
-            // Memory search (on-demand /api/memory/search)
-            MemoryView()
-
-            // History search (on-demand /api/history/search)
-            HistoryView()
-
-            // Repo task search (on-demand /tasks/search)
-            TaskSearchView()
-
-            // Cross-store recall (on-demand POST /recall)
-            RecallView()
-
-            // Cited answer (on-demand POST /answer)
-            AnswerView()
-
-            // Cross-store capture (on-demand POST /capture)
-            CaptureView()
-
-            // Cross-store retract (on-demand POST /retract)
-            RetractView()
-
-            // Task queue
-            TaskQueueView()
-
-            // Active sessions
-            SessionsView()
-
-            // Pending approvals
-            ApprovalsView()
-
-            // Pending owner questions
-            OwnerQuestionsView()
-
-            // Footer actions
-            Divider().padding(.top, 4)
-
-            VStack(spacing: 0) {
-                MenuActionButton(label: "Refresh", icon: "arrow.clockwise") {
-                    Task { await appState.refresh() }
-                }
-
-                MenuActionButton(label: "Trigger Workflow…", icon: "play.circle") {
-                    showTriggerSheet = true
-                }
-
-                if appState.isDashboardAvailable {
-                    MenuActionButton(label: "Open Dashboard", icon: "safari") {
-                        appState.openDashboard()
+                if !appState.activeRuns.isEmpty {
+                    Divider()
+                    OperatorSectionHeader(title: "Monitor")
+                    ForEach(appState.activeRuns) { run in
+                        ActiveRunRow(run: run)
                     }
                 }
 
-                MenuActionButton(label: "Set Project Directory…", icon: "folder") {
-                    appState.promptForProjectDirectory()
-                }
+                // RESPOND: approvals + owner questions + failed runs
+                AttentionInboxView()
 
-                NotificationToggleRow()
+                // ASK: unified search/answer over knowledge, memory,
+                // history, tasks, recall, and cited synthesis.
+                AskUnifiedView()
 
-                Divider()
+                // CAPTURE: capture by default, retract behind a
+                // segmented control to keep the destructive surface
+                // visually subordinate.
+                ComposeSection()
 
-                MenuActionButton(label: "Quit KOTA Menu Bar", icon: "xmark.circle") {
-                    NSApplication.shared.terminate(nil)
-                }
+                // BROWSE: tasks queue, sessions, recent runs, daily
+                // digest, attention rollup. Collapsed by default.
+                BrowseSection()
+
+                // CONFIGURE: trigger, dashboard (when advertised),
+                // settings, refresh, notifications, quit.
+                FooterActionsView(showTriggerSheet: $showTriggerSheet)
             }
-            .padding(.bottom, 4)
         }
-        .frame(width: 280)
+        .frame(width: 320, height: 520)
         .sheet(isPresented: $showTriggerSheet) {
             TriggerWorkflowView()
                 .environmentObject(appState)

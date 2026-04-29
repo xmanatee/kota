@@ -1,12 +1,12 @@
 ---
 id: task-rework-macos-menu-bar-into-an-operator-first-comma
 title: Rework macOS menu bar into an operator-first command center
-status: ready
+status: done
 priority: p1
 area: client
 summary: Consolidate the overloaded macOS menu-bar popover from one collapsible section per backend seam into a compact operator-first IA with status/runs, approvals/questions, a unified search/action surface, and settings, preserving existing daemon functionality while making the app usable.
 created_at: 2026-04-28T22:35:28.133Z
-updated_at: 2026-04-28T22:35:28.133Z
+updated_at: 2026-04-29T03:31:21.843Z
 ---
 
 ## Problem

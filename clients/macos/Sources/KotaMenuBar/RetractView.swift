@@ -1,71 +1,7 @@
 import SwiftUI
 
-/// Menu-bar surface for the cross-store retract seam. Mirrors `CaptureView`
-/// with two contract-driven adjustments: the picker exposes only the four
-/// `RetractTarget` arms (no `auto` — the seam never picks a target on
-/// retract) and the identifier control is typed against the chosen
-/// target's `RetractRequest` arm. Body text comes from
-/// `renderRetractResultPlain`, shared with the CLI / daemon / Telegram /
-/// web surfaces.
-struct RetractView: View {
-    @EnvironmentObject var appState: AppState
-    @State private var isExpanded = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Divider()
-            Button(action: { isExpanded.toggle() }) {
-                HStack {
-                    Image(systemName: "trash")
-                        .imageScale(.small)
-                        .foregroundStyle(headerIconColor)
-                    Text("Retract")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if let badge = headerBadge {
-                        CaptureStateBadge(label: badge.label, tint: badge.tint)
-                    }
-                    Spacer()
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .imageScale(.small)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded {
-                RetractExpandedContent()
-            }
-        }
-    }
-
-    private var headerIconColor: Color {
-        guard let result = appState.retractResult else { return .secondary }
-        switch result {
-        case .success: return .green
-        case .noContributors: return .orange
-        case .notFound: return .orange
-        case .contributorFailed: return .red
-        }
-    }
-
-    private var headerBadge: (label: String, tint: Color)? {
-        guard let result = appState.retractResult else { return nil }
-        switch result {
-        case .success(let record):
-            return (record.target.rawValue, retractTargetTint(record.target))
-        case .noContributors:
-            return ("no contributors", .orange)
-        case .notFound(let target, _):
-            return ("\(target.rawValue) not found", .orange)
-        case .contributorFailed(let target, _):
-            return ("\(target.rawValue) failed", .red)
-        }
-    }
-}
+// Cross-store retract surface: `RetractExpandedContent` is mounted by
+// `ComposeSection` (`OperatorSections.swift`).
 
 /// Per-target tint reused by every retract badge. Knowledge / memory /
 /// tasks match `captureTargetTint`; inbox uses `teal` (introduced for

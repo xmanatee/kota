@@ -1,70 +1,7 @@
 import SwiftUI
 
-/// Menu-bar surface for the daemon's cross-store capture seam. Mirrors the
-/// `kota capture`, daemon `POST /capture` (and `/api/capture`), Telegram
-/// `/capture` (plus the four `/capture-to-*` twins), and web `CapturePanel`
-/// consumers — one shared seam, one classifier-routed write across surfaces.
-/// The view binds to `AppState.capture*` observables and uses
-/// `DaemonClient.capture` through the same wrapper every other section uses;
-/// per-arm body text comes from `renderCaptureResultPlain` (the same helper
-/// `kota capture` and the daemon `/capture` route share), so no per-arm
-/// rendering logic is duplicated in SwiftUI — the SwiftUI layer only owns
-/// the layout, target badges, and the picker / hint / submit controls.
-struct CaptureView: View {
-    @EnvironmentObject var appState: AppState
-    @State private var isExpanded = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Divider()
-            Button(action: { isExpanded.toggle() }) {
-                HStack {
-                    Image(systemName: "tray.and.arrow.down")
-                        .imageScale(.small)
-                        .foregroundStyle(headerIconColor)
-                    Text("Capture")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if let badge = headerBadge {
-                        CaptureStateBadge(label: badge.label, tint: badge.tint)
-                    }
-                    Spacer()
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .imageScale(.small)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded {
-                CaptureExpandedContent()
-            }
-        }
-    }
-
-    private var headerIconColor: Color {
-        guard let result = appState.captureResult else { return .secondary }
-        switch result {
-        case .success: return .green
-        case .ambiguous: return .orange
-        case .noContributors: return .orange
-        case .contributorFailed: return .red
-        }
-    }
-
-    private var headerBadge: (label: String, tint: Color)? {
-        guard let result = appState.captureResult else { return nil }
-        switch result {
-        case .success(let record): return (record.target.rawValue, captureTargetTint(record.target))
-        case .ambiguous: return ("ambiguous", .orange)
-        case .noContributors: return ("no contributors", .orange)
-        case .contributorFailed(let target, _): return ("\(target.rawValue) failed", .red)
-        }
-    }
-}
+// Cross-store capture surface: `CaptureExpandedContent` is mounted by
+// `ComposeSection` (`OperatorSections.swift`).
 
 /// Per-target tint reused across the success, ambiguous suggestion chip,
 /// and contributor-failed badges. Knowledge / memory / tasks match

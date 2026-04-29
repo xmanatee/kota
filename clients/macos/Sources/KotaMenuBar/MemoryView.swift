@@ -1,68 +1,7 @@
 import SwiftUI
 
-/// Menu-bar surface for the daemon's on-demand memory search. Mirrors the
-/// body the Telegram `/memory`, terminal `kota memory search`, and daemon
-/// HTTP `/api/memory/search` already render — one shared search seam, one
-/// rendered line shape across surfaces. The view binds to `AppState.memory*`
-/// observables and uses `DaemonClient.searchMemory` through the same wrapper
-/// every other section uses; it does not reach into a parallel data layer or
-/// read the file-backed `MemoryStore` directly.
-struct MemoryView: View {
-    @EnvironmentObject var appState: AppState
-    @State private var isExpanded = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Divider()
-            Button(action: { isExpanded.toggle() }) {
-                HStack {
-                    Image(systemName: "brain")
-                        .imageScale(.small)
-                        .foregroundStyle(headerIconColor)
-                    Text("Memory")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if let badge = headerBadge {
-                        MemoryStateBadge(label: badge.label, isActive: badge.isActive)
-                    }
-                    Spacer()
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .imageScale(.small)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded {
-                MemoryExpandedContent()
-            }
-        }
-    }
-
-    private var headerIconColor: Color {
-        guard let result = appState.memoryResult else { return .secondary }
-        switch result {
-        case .success(let entries):
-            return entries.isEmpty ? .secondary : .blue
-        case .semanticUnavailable:
-            return .orange
-        }
-    }
-
-    private var headerBadge: (label: String, isActive: Bool)? {
-        guard let result = appState.memoryResult else { return nil }
-        switch result {
-        case .success(let entries):
-            if entries.isEmpty { return ("no matches", false) }
-            return (entries.count == 1 ? "1 entry" : "\(entries.count) entries", true)
-        case .semanticUnavailable:
-            return ("semantic unavailable", false)
-        }
-    }
-}
+// Memory surface: the body and helpers are mounted inside
+// `AskUnifiedView` (`OperatorSections.swift`).
 
 /// Active-vs-inactive label, driven by the typed `MemorySearchResponse`
 /// branch — never inferred from the rendered text body.
@@ -78,39 +17,6 @@ struct MemoryStateBadge: View {
             .padding(.vertical, 1)
             .background((isActive ? Color.blue : Color.secondary).opacity(0.15))
             .clipShape(RoundedRectangle(cornerRadius: 3))
-    }
-}
-
-struct MemoryExpandedContent: View {
-    @EnvironmentObject var appState: AppState
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            MemoryQueryField()
-            MemoryBodyView()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color.secondary.opacity(0.07))
-    }
-}
-
-struct MemoryQueryField: View {
-    @EnvironmentObject var appState: AppState
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "magnifyingglass")
-                .imageScale(.small)
-                .foregroundStyle(.secondary)
-            TextField("Search memory…", text: $appState.memoryQuery)
-                .textFieldStyle(.roundedBorder)
-                .font(.caption)
-                .onSubmit { Task { await appState.loadMemory() } }
-            if appState.isLoadingMemory {
-                ProgressView().scaleEffect(0.5)
-            }
-        }
     }
 }
 
