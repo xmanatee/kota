@@ -1,12 +1,12 @@
 ---
 id: task-measure-autonomy-task-balance-and-quality
 title: Measure autonomy task balance and quality
-status: backlog
+status: done
 priority: p2
 area: modules
 summary: Provide a kota report or dashboard panel that answers whether autonomy is balanced (priority/area mix, explorer strategic vs fan-out share, builder breakdown, blocker classes, cost per completed task) so reviews are repeatable instead of ad hoc shell analysis.
 created_at: 2026-04-28T22:04:38.177Z
-updated_at: 2026-04-28T22:04:38.177Z
+updated_at: 2026-04-29T06:18:38.452Z
 ---
 
 ## Problem

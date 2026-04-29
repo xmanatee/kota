@@ -59,48 +59,23 @@ Verdicts on peer patterns vs KOTA primitives. Per-verdict source, date,
 primitives, and revisit live in `external-pattern-decisions.ts`; the
 test enforces 1:1 match.
 
-- **Workflow DSLs (crewAI Flows, LangGraph Pregel).** Reject. Definition-
-  driven routing + run artifacts + recovery cover durability.
-- **Vercel AI SDK split.** Adopted — `daemon` + `client`.
-- **Typed multi-agent handoffs (OpenHands, AutoGen).** Adopted via bus
-  events and `trigger` steps.
-- **Labeled memory blocks (Letta) / runtime skill stores (Hermes).**
-  Reject. Typed stores cover labeled persistence; self-promoted runtime
-  skills are the forbidden second lessons store.
-- **Verbal self-reflection / strategy banks (Reflexion, ReasoningBank).**
-  Reject. Improver + scoped `AGENTS.md` is learn-from-failure.
+- **Workflow DSLs (crewAI Flows, LangGraph Pregel).** Reject — definition-driven routing + run artifacts cover durability.
+- **Vercel AI SDK split.** Adopt — `daemon` + `client`.
+- **Typed multi-agent handoffs (OpenHands, AutoGen).** Adopt — bus events + `trigger` steps.
+- **Labeled memory blocks (Letta) / runtime skill stores (Hermes).** Reject — typed stores cover persistence; runtime skill stores are the forbidden second lessons surface.
+- **Verbal self-reflection / strategy banks (Reflexion, ReasoningBank).** Reject — improver + scoped `AGENTS.md` is learn-from-failure.
 - **Routines / scheduled agents.** Already the `workflow` trigger.
-- **Multi-agent coordination patterns.** generator-verifier, orchestrator-
-  subagent, teams, bus, shared state map to builder/critic, `delegate` +
-  `composition`, dispatcher, bus, `composition.workspace` + stores.
-- **Parallel-agent desktop UIs.** Client-surface pattern; new clients use
-  the daemon control API. No second runtime host.
-- **Managed Agents / brain-hands decoupling.** Reject. Daemon + session
-  + workflow + run-artifact decouples brain/hands; credentials-never-in-
-  sandbox is `guardrails.ts` + `injection-defense`.
-- **Claude Code auto mode + sandboxing.** Read. Autonomy mode +
-  `approval-queue` + `injection-defense` + tool-risk guardrails realize
-  the input-probe/output-classifier split.
-- **Harness design for long-running apps.** Read — reinforces decomposer
-  + builder + critic + `success-criteria*.txt` as planner/generator/
-  evaluator + reset-over-compact + pre-code sprint contracts.
-- **Multi-Claude parallel builds.** Reject. Parallel-builder + git-locks
-  would be a second coordination surface; autonomy is one-task-WIP
-  through builder/critic.
-- **Claude Code 1M context + session management.** Reject at workflow
-  layer. Rewind/compact/clear is an interactive-session primitive; fresh-
-  session-per-step + run-artifact handoff is reset-over-compact.
-- **Production MCP agent integration.** Read; reinforces `mcp-server` —
-  MCP is a transport over KOTA capabilities, not a second registry.
-- **AGI capability scoring / behavioral-disposition alignment.** Reject.
-  `eval-harness` scores task outcomes; threat models do not apply to a
-  first-party daemon.
-- **Microsoft Agent Framework (AutoGen successor).** Reject. Graph-DSL +
-  checkpoint is rejected workflow-DSL; orchestration is bus +
-  `trigger` steps; Python+.NET parity is `daemon` + `client`.
-- **Harness-as-shell (inference.sh).** Read. Versioned-app-contract is
-  the typed `tool` protocol in pinned `module` code; scheduler/flows/
-  portability map onto `daemon` + `workflow` + `client`. No new primitive.
+- **Multi-agent coordination patterns.** Map to builder/critic, `delegate` + `composition`, dispatcher, bus, `composition.workspace` + stores.
+- **Parallel-agent desktop UIs.** Client-surface — new clients use the daemon control API.
+- **Managed Agents / brain-hands decoupling.** Reject — daemon + session + workflow + run-artifact already decouples; credentials-never-in-sandbox is `guardrails.ts` + `injection-defense`.
+- **Claude Code auto mode + sandboxing.** Read — autonomy mode + `approval-queue` + `injection-defense` realize input-probe/output-classifier.
+- **Harness design for long-running apps.** Read — reinforces decomposer/builder/critic + `success-criteria*.txt` + reset-over-compact.
+- **Multi-Claude parallel builds.** Reject — autonomy is one-task-WIP through builder/critic.
+- **Claude Code 1M context + session management.** Reject at workflow layer — fresh-session-per-step is reset-over-compact.
+- **Production MCP agent integration.** Read — MCP is a transport over KOTA capabilities, not a second registry.
+- **AGI capability scoring / behavioral-disposition alignment.** Reject — `eval-harness` scores task outcomes; threat models do not apply to a first-party daemon.
+- **Microsoft Agent Framework (AutoGen successor).** Reject — graph-DSL is rejected workflow-DSL; orchestration is bus + `trigger` steps.
+- **Harness-as-shell (inference.sh).** Read — versioned-app-contract is the typed `tool` protocol; scheduler/flows/portability map onto `daemon` + `workflow` + `client`.
 
 ## Prompt Hierarchy And Harness Posture
 
@@ -134,6 +109,15 @@ test enforces 1:1 match.
 - `src/modules/injection-defense/AGENTS.md` — content-ingest screening.
 - `src/modules/autonomy/workflows/builder/AGENTS.md` — critic runtime-probe
   protocol for non-artifact outcomes.
+
+## Operator Reports
+
+`kota report` (`src/modules/autonomy/report/`) prints the operator-facing
+balance and quality report. The strategic/fan-out heuristic lives in
+`aggregate.classifyArea` so the operator can audit and refine it instead
+of guessing behind agent traces. Per the no-cost-bias-in-autonomy
+contract this output is operator-only and must not be exposed to autonomy
+agents.
 
 ## Agent Judge Runtime Contract
 
