@@ -1,12 +1,12 @@
 ---
 id: task-make-operator-clients-show-explicit-project-and-da
 title: Make operator clients show explicit project and daemon identity
-status: ready
+status: done
 priority: p1
 area: client
 summary: Prevent wrong-project daemon confusion by making macOS, mobile, web, and CLI clients show the connected project identity, daemon control path/source, and mismatch/offline reasons instead of a generic daemon offline state.
 created_at: 2026-04-28T22:40:50.126Z
-updated_at: 2026-04-28T22:40:50.126Z
+updated_at: 2026-04-29T03:13:44.310Z
 ---
 
 ## Problem

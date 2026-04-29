@@ -115,30 +115,37 @@ struct StatusHeaderView: View {
     @EnvironmentObject var appState: AppState
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: appState.health.systemImageName)
-                .foregroundStyle(healthColor)
-                .imageScale(.medium)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Image(systemName: appState.health.systemImageName)
+                    .foregroundStyle(healthColor)
+                    .imageScale(.medium)
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text("KOTA")
-                    .font(.headline)
-                Text(appState.health.label)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(appState.diagnostic.headline)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text(appState.health.label)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                if appState.connectionMode == .remote {
+                    Label("Remote", systemImage: "network")
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
+                }
             }
 
-            Spacer()
-
-            if appState.connectionMode == .remote {
-                Label("Remote", systemImage: "network")
-                    .font(.caption2)
-                    .foregroundStyle(.blue)
-            } else if appState.projectDir == nil {
-                Text("No project")
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
-            }
+            Text(appState.diagnostic.detail)
+                .font(.caption2)
+                .foregroundStyle(diagnosticDetailColor)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("daemon-diagnostic-detail")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -150,6 +157,19 @@ struct StatusHeaderView: View {
         case .running: return .orange
         case .error: return .red
         case .offline, .unknown: return .secondary
+        }
+    }
+
+    /// Color for the diagnostic detail line. Distinct from `healthColor`
+    /// so the operator can tell "daemon is connected but idle" (green)
+    /// from "wrong project / stale lock / token rejected" (orange/red)
+    /// without overloading the existing health icon.
+    var diagnosticDetailColor: Color {
+        switch appState.diagnostic.severity {
+        case .ok: return .secondary
+        case .info: return .secondary
+        case .warn: return .orange
+        case .error: return .red
         }
     }
 }

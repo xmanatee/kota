@@ -127,6 +127,13 @@ final class AppState: ObservableObject {
     @Published var capabilities: CapabilityReadinessResponse?
     @Published var workflowDefinitions: [WorkflowDefinitionSummary] = []
 
+    /// Operator-facing classification of the current connection. Replaces
+    /// the historical "Daemon offline" collapse with a discriminated state
+    /// that names which project, base URL, pid, and failure mode the menu
+    /// bar should render. Updated on every refresh — see
+    /// `deriveLocalDaemonDiagnostic` / `deriveRemoteDaemonDiagnostic`.
+    @Published var diagnostic: DaemonConnectionDiagnostic = .noProject
+
     @Published var projectDir: URL? {
         didSet {
             if let dir = projectDir {
@@ -157,6 +164,7 @@ final class AppState: ObservableObject {
     private var knownApprovalIDs: Set<String> = []
     private var knownOwnerQuestionIDs: Set<String> = []
     private var notificationStateInitialized = false
+    private var lastIdentityProbe: DaemonIdentityProbe?
 
     init() {
         if let stored = UserDefaults.standard.string(forKey: "projectDirectory") {
@@ -228,39 +236,82 @@ final class AppState: ObservableObject {
     }
 
     private func refreshRemote() async {
-        guard let url = URL(string: remoteURL) else {
+        guard let url = URL(string: remoteURL), url.scheme != nil, url.host != nil else {
             health = .error("Invalid remote URL")
+            diagnostic = .remoteInvalidURL(input: remoteURL)
+            clearOnDemandForOffline()
+            identity = nil
+            capabilities = nil
+            workflowDefinitions = []
             return
         }
         let token = keychainRead() ?? ""
         client.setRemoteConnection(url: url, token: token)
         await fetchAll()
+        diagnostic = deriveRemoteDaemonDiagnostic(
+            remoteURL: remoteURL,
+            identityProbe: lastIdentityProbe
+        )
     }
 
     private func refreshLocal() async {
         guard let dir = projectDir else {
             health = .offline
-            clearOnDemandForOffline()
+            diagnostic = .noProject
+            resetOfflineDaemonState()
             return
+        }
+
+        let controlFileState = classifyDaemonControlFile(projectDir: dir)
+        switch controlFileState {
+        case .missing, .unreadable, .stale:
+            health = .offline
+            diagnostic = deriveLocalDaemonDiagnostic(
+                selectedProjectDir: dir,
+                controlFileState: controlFileState,
+                identityProbe: nil
+            )
+            resetOfflineDaemonState()
+            return
+        case .fresh:
+            break
         }
 
         let connected = client.refreshConnection(projectDir: dir)
         guard connected else {
+            // The control file went away (or became unreadable) between the
+            // classification above and the connection refresh — fall through
+            // to the same offline rendering instead of pretending we tried.
             health = .offline
-            activeRuns = []
-            pendingApprovals = []
-            pendingOwnerQuestions = []
-            taskQueue = nil
-            activeSessions = []
-            recentRuns = []
-            identity = nil
-            capabilities = nil
-            workflowDefinitions = []
-            clearOnDemandForOffline()
+            diagnostic = deriveLocalDaemonDiagnostic(
+                selectedProjectDir: dir,
+                controlFileState: classifyDaemonControlFile(projectDir: dir),
+                identityProbe: nil
+            )
+            resetOfflineDaemonState()
             return
         }
 
         await fetchAll()
+        diagnostic = deriveLocalDaemonDiagnostic(
+            selectedProjectDir: dir,
+            controlFileState: controlFileState,
+            identityProbe: lastIdentityProbe
+        )
+    }
+
+    private func resetOfflineDaemonState() {
+        activeRuns = []
+        pendingApprovals = []
+        pendingOwnerQuestions = []
+        taskQueue = nil
+        activeSessions = []
+        recentRuns = []
+        identity = nil
+        capabilities = nil
+        workflowDefinitions = []
+        lastIdentityProbe = nil
+        clearOnDemandForOffline()
     }
 
     /// Drops any cached on-demand body (digest, attention) when the daemon
@@ -615,8 +666,12 @@ final class AppState: ObservableObject {
         let (idr, capr, defsr) = await (identityResult, capabilitiesResult, definitionsResult)
 
         switch idr {
-        case .success(let id): identity = id
-        case .failure: identity = nil
+        case .success(let id):
+            identity = id
+            lastIdentityProbe = .ok(id)
+        case .failure(let error):
+            identity = nil
+            lastIdentityProbe = classifyIdentityFailure(error)
         }
         switch capr {
         case .success(let caps): capabilities = caps

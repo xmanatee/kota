@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { formatStatusOutput, type StatusSnapshot } from "./status-cli.js";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  classifyDaemonControlFile,
+  formatStatusOutput,
+  type StatusSnapshot,
+} from "./status-cli.js";
 
 function makeSnap(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
   return {
@@ -8,6 +15,9 @@ function makeSnap(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
     queuedRuns: 0,
     sessions: 0,
     pendingApprovals: 0,
+    projectDir: "/Users/op/Desktop/mono/apps/kota",
+    projectName: "kota",
+    controlFile: { kind: "missing" },
     ...overrides,
   };
 }
@@ -24,6 +34,7 @@ describe("formatStatusOutput", () => {
       daemonRunning: true,
       daemonPid: 12345,
       daemonUptimeMs: 2 * 60 * 60 * 1000 + 14 * 60 * 1000,
+      controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
     }));
     expect(out).toContain("running");
     expect(out).toContain("pid 12345");
@@ -57,8 +68,253 @@ describe("formatStatusOutput", () => {
       daemonRunning: true,
       daemonPid: 1,
       daemonUptimeMs: 45 * 60 * 1000,
+      controlFile: { kind: "fresh", pid: 1, baseURL: "http://127.0.0.1:8765" },
     }));
     expect(out).toContain("45m");
     expect(out).not.toContain("0h");
+  });
+
+  it("shows the project name and directory at the top of the snapshot", () => {
+    const out = formatStatusOutput(makeSnap());
+    expect(out).toContain("kota");
+    expect(out).toContain("/Users/op/Desktop/mono/apps/kota");
+    expect(out).toContain("Project");
+  });
+
+  it("reports a missing control file in the offline branch", () => {
+    const out = formatStatusOutput(makeSnap({ controlFile: { kind: "missing" } }));
+    expect(out).toContain("missing");
+    expect(out).toContain("daemon-control.json");
+  });
+
+  it("reports a stale control file with the doctor hint and base URL", () => {
+    const out = formatStatusOutput(makeSnap({
+      controlFile: { kind: "stale", pid: 99999, baseURL: "http://127.0.0.1:8765" },
+    }));
+    expect(out).toContain("stale");
+    expect(out).toContain("pid 99999");
+    expect(out).toContain("kota doctor --fix");
+    expect(out).toContain("http://127.0.0.1:8765");
+  });
+
+  it("reports a fresh control file and the daemon URL when running", () => {
+    const out = formatStatusOutput(makeSnap({
+      daemonRunning: true,
+      daemonPid: 12345,
+      controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
+    }));
+    expect(out).toContain("fresh");
+    expect(out).toContain("http://127.0.0.1:8765");
+    expect(out).toContain("Daemon URL");
+  });
+
+  it("flags a wrong-project mismatch when daemon /identity reports another project", () => {
+    const out = formatStatusOutput(makeSnap({
+      daemonRunning: true,
+      daemonPid: 12345,
+      controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
+      projectDir: "/Users/op/Desktop/other-project",
+      projectName: "other-project",
+      daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
+      daemonProjectName: "kota",
+      wrongProject: true,
+    }));
+    expect(out).toContain("Daemon project");
+    expect(out).toContain("/Users/op/Desktop/mono/apps/kota");
+    expect(out).toContain("MISMATCH");
+  });
+
+  it("shows the daemon's project alongside the selected project when they match", () => {
+    const out = formatStatusOutput(makeSnap({
+      daemonRunning: true,
+      daemonPid: 12345,
+      controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
+      daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
+      daemonProjectName: "kota",
+    }));
+    expect(out).toContain("Daemon project");
+    expect(out).not.toContain("MISMATCH");
+  });
+
+  it("never includes a Bearer token marker in the rendered output", () => {
+    const out = formatStatusOutput(makeSnap({
+      daemonRunning: true,
+      daemonPid: 12345,
+      controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
+      daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
+      daemonProjectName: "kota",
+    }));
+    expect(out).not.toContain("Bearer ");
+  });
+});
+
+/**
+ * Locate the latest run directory under `.kota/runs/` so the transcript
+ * artifact lands somewhere a reviewer can find. Honors `KOTA_RUN_DIR`
+ * when the workflow sets it. Returns `null` when no run directory is
+ * available; the test then becomes a no-op.
+ */
+function locateRunDir(): string | null {
+  const env = process.env.KOTA_RUN_DIR;
+  if (env && env.length > 0) return env;
+  let dir = process.cwd();
+  for (let depth = 0; depth < 6; depth++) {
+    const runs = join(dir, ".kota", "runs");
+    if (existsSync(runs)) {
+      const entries = readdirSync(runs)
+        .map((name) => ({ name, full: join(runs, name) }))
+        .filter((e) => statSync(e.full).isDirectory())
+        .map((e) => ({ ...e, mtime: statSync(e.full).mtimeMs }))
+        .sort((a, b) => b.mtime - a.mtime);
+      if (entries.length > 0) return entries[0]!.full;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
+describe("kota status — rendered transcript", () => {
+  it("writes a transcript snapshot covering connected, missing, stale, and wrong-project states", () => {
+    const scenarios: Array<{ label: string; snap: StatusSnapshot }> = [
+      {
+        label: "1. Connected — selected project matches daemon /identity",
+        snap: {
+          daemonRunning: true,
+          daemonPid: 4242,
+          daemonUptimeMs: 2 * 60 * 60 * 1000 + 14 * 60 * 1000,
+          activeRuns: 1,
+          queuedRuns: 2,
+          sessions: 1,
+          pendingApprovals: 0,
+          projectDir: "/Users/op/Desktop/mono/apps/kota",
+          projectName: "kota",
+          controlFile: { kind: "fresh", pid: 4242, baseURL: "http://127.0.0.1:8765" },
+          daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
+          daemonProjectName: "kota",
+        },
+      },
+      {
+        label: "2. No control file — selected project has no .kota/daemon-control.json",
+        snap: {
+          daemonRunning: false,
+          activeRuns: 0,
+          queuedRuns: 0,
+          sessions: 0,
+          pendingApprovals: 0,
+          projectDir: "/Users/op/Desktop/other-project",
+          projectName: "other-project",
+          controlFile: { kind: "missing" },
+        },
+      },
+      {
+        label: "3. Stale control file — pid 99999 not alive",
+        snap: {
+          daemonRunning: false,
+          activeRuns: 0,
+          queuedRuns: 0,
+          sessions: 0,
+          pendingApprovals: 0,
+          projectDir: "/Users/op/Desktop/mono/apps/kota",
+          projectName: "kota",
+          controlFile: { kind: "stale", pid: 99999, baseURL: "http://127.0.0.1:8765" },
+        },
+      },
+      {
+        label: "4. Wrong project — daemon /identity reports a different project",
+        snap: {
+          daemonRunning: true,
+          daemonPid: 4242,
+          daemonUptimeMs: 60_000,
+          activeRuns: 0,
+          queuedRuns: 0,
+          sessions: 0,
+          pendingApprovals: 1,
+          projectDir: "/Users/op/Desktop/other-project",
+          projectName: "other-project",
+          controlFile: { kind: "fresh", pid: 4242, baseURL: "http://127.0.0.1:8765" },
+          daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
+          daemonProjectName: "kota",
+          wrongProject: true,
+        },
+      },
+    ];
+
+    const lines: string[] = [
+      "# CLI transcript: kota status across daemon-identity diagnostic states",
+      "# Generated by status-cli.test.ts (deterministic, no daemon spawn).",
+      "# Each block shows the rendered output of `kota status` for one scenario.",
+      "# Bearer tokens are deliberately never rendered.",
+      "",
+    ];
+    for (const { label, snap } of scenarios) {
+      lines.push(`## ${label}`);
+      lines.push("$ kota status");
+      const rendered = formatStatusOutput(snap);
+      // Sanity-pin: no Bearer leak in the rendered output.
+      expect(rendered).not.toContain("Bearer ");
+      lines.push(rendered);
+      lines.push("");
+    }
+    const transcript = lines.join("\n");
+
+    const runDir = locateRunDir();
+    if (!runDir) return;
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "cli-status-transcript.txt"), transcript);
+  });
+});
+
+describe("classifyDaemonControlFile", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "kota-status-cli-"));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("returns missing when no control file exists", () => {
+    expect(classifyDaemonControlFile(dir)).toEqual({ kind: "missing" });
+  });
+
+  it("returns fresh when the recorded pid is alive", () => {
+    mkdirSync(join(dir, ".kota"), { recursive: true });
+    writeFileSync(
+      join(dir, ".kota", "daemon-control.json"),
+      JSON.stringify({ port: 8765, pid: 4242, startedAt: "2026-04-29T00:00:00Z", token: "t" }),
+    );
+    expect(
+      classifyDaemonControlFile(dir, { processIsAlive: (pid) => pid === 4242 }),
+    ).toEqual({ kind: "fresh", pid: 4242, baseURL: "http://127.0.0.1:8765" });
+  });
+
+  it("returns stale when the recorded pid is not alive", () => {
+    mkdirSync(join(dir, ".kota"), { recursive: true });
+    writeFileSync(
+      join(dir, ".kota", "daemon-control.json"),
+      JSON.stringify({ port: 8765, pid: 99999, startedAt: "2026-04-29T00:00:00Z", token: "t" }),
+    );
+    expect(
+      classifyDaemonControlFile(dir, { processIsAlive: () => false }),
+    ).toEqual({ kind: "stale", pid: 99999, baseURL: "http://127.0.0.1:8765" });
+  });
+
+  it("returns unreadable when the file is not valid JSON", () => {
+    mkdirSync(join(dir, ".kota"), { recursive: true });
+    writeFileSync(join(dir, ".kota", "daemon-control.json"), "<not json>");
+    expect(classifyDaemonControlFile(dir)).toEqual({ kind: "unreadable" });
+  });
+
+  it("returns unreadable when required fields are missing", () => {
+    mkdirSync(join(dir, ".kota"), { recursive: true });
+    writeFileSync(
+      join(dir, ".kota", "daemon-control.json"),
+      JSON.stringify({ token: "t" }),
+    );
+    expect(classifyDaemonControlFile(dir)).toEqual({ kind: "unreadable" });
   });
 });
