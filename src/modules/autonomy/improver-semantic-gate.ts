@@ -125,7 +125,7 @@ export function createImproverSemanticCheck(options?: {
         `${runDir}/steps/*.events.jsonl`,
       ].join("\n");
 
-      let response;
+      let response: Awaited<ReturnType<typeof invokeAgentJudge>>;
       try {
         response = await invokeAgentJudge(userMessage, ctx.projectDir, gateConfig);
       } catch (err) {

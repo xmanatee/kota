@@ -68,7 +68,7 @@ function createDefaultClassifier(ctx: ModuleContext): CaptureClassifier {
   return {
     async classify(input) {
       const config = loadConfig(ctx.cwd);
-      let resolved;
+      let resolved: ReturnType<typeof createModelClient>;
       try {
         resolved = createModelClient({
           model: config.model || "claude-sonnet-4-6",

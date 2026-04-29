@@ -349,7 +349,7 @@ function validateHarnessOptions(
     );
   }
 
-  let harness;
+  let harness: ReturnType<typeof resolveAgentHarness>;
   try {
     harness = resolveAgentHarness(harnessName);
   } catch {

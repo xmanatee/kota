@@ -23,7 +23,7 @@ export function registerDepsCommand(
       "table",
     )
     .action((opts: { format: string }) => {
-      let definitions;
+      let definitions: ReturnType<typeof getValidatedWorkflowDefinitions>;
       try {
         definitions = getValidatedWorkflowDefinitions(ctx);
       } catch (err) {

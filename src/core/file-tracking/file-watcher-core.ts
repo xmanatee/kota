@@ -1,3 +1,4 @@
+import type { Dirent } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { getEventBus } from "#core/events/event-bus.js";
@@ -135,7 +136,7 @@ export async function collectFileSnapshot(
 	const snapshot = new Map<string, number>();
 
 	async function visit(dir: string): Promise<void> {
-		let entries;
+		let entries: Dirent[];
 		try {
 			entries = await readdir(dir, { withFileTypes: true });
 		} catch (error) {

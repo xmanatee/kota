@@ -92,6 +92,23 @@ type RuntimeOnlyGetter = (typeof RUNTIME_ONLY_GETTERS)[number];
 
 type ModuleLoadFailure = { message: string; timestamp: string };
 
+/**
+ * Per-namespace assignment helper for the local client handler map.
+ *
+ * `Partial<LocalClientHandlers>[K] = LocalClientHandlers[K]` is sound for any
+ * fixed `K`, but TypeScript widens the union when the key is loop-typed and
+ * the value comes from an indexed read of the same map, leaving no single
+ * concrete `K` to bind the assignment to. Narrowing the helper to a single
+ * `K` per call expresses the per-key invariant that holds at runtime.
+ */
+function assignLocalClientHandler<K extends keyof LocalClientHandlers>(
+  target: Partial<LocalClientHandlers>,
+  namespace: K,
+  impl: LocalClientHandlers[K],
+): void {
+  target[namespace] = impl;
+}
+
 export class ModuleLoader {
   private modules: KotaModule[] = [];
   private moduleStorages = new Map<string, ModuleStorage>();
@@ -220,8 +237,7 @@ export class ModuleLoader {
             `"${namespace}" but one is already registered. Each KotaClient namespace has a single owner.`,
         );
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this.localClientHandlers as any)[namespace] = impl;
+      assignLocalClientHandler(this.localClientHandlers, namespace, impl);
     }
   }
 

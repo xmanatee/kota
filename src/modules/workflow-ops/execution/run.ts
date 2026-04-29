@@ -56,7 +56,7 @@ export function registerRunCommand(wfCmd: Command, ctx: ModuleContext): void {
         }
       }
 
-      let definitions;
+      let definitions: ReturnType<typeof getValidatedWorkflowDefinitions>;
       try {
         definitions = getValidatedWorkflowDefinitions(ctx);
       } catch (err) {

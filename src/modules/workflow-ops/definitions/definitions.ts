@@ -62,7 +62,7 @@ export function registerDefinitionsCommand(
     .option("-n, --name <name>", "Show full detail for a single definition")
     .option("--json", "Output as JSON")
     .action((opts: { name?: string; json?: boolean }) => {
-      let definitions;
+      let definitions: ReturnType<typeof getValidatedWorkflowDefinitions>;
       try {
         definitions = getValidatedWorkflowDefinitions(ctx);
       } catch (err) {

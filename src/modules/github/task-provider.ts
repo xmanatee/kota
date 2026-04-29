@@ -43,7 +43,8 @@ type GitHubIssue = {
   created_at: string;
   body: string | null;
   labels: Array<{ name: string }>;
-  pull_request?: unknown;
+  /** Marker the issues endpoint adds for issues that are actually pull requests. */
+  pullRequest: boolean;
 };
 
 export type FetchFn = (
@@ -51,6 +52,57 @@ export type FetchFn = (
   path: string,
   body?: unknown,
 ) => Promise<{ ok: boolean; status: number; data: unknown }>;
+
+/**
+ * Validate-and-narrow a raw GitHub issues-list response into typed `GitHubIssue`
+ * records. Drops malformed entries rather than crashing the provider — a single
+ * broken issue should not poison the queue. The boundary cast is contained to
+ * this decoder; downstream consumers see the typed shape only.
+ */
+function decodeGitHubIssueList(data: unknown): GitHubIssue[] {
+  if (!Array.isArray(data)) return [];
+  const out: GitHubIssue[] = [];
+  for (const raw of data) {
+    if (!raw || typeof raw !== "object") continue;
+    const r = raw as {
+      number?: unknown;
+      title?: unknown;
+      created_at?: unknown;
+      body?: unknown;
+      labels?: unknown;
+      pull_request?: unknown;
+    };
+    if (typeof r.number !== "number" || typeof r.title !== "string") continue;
+    if (typeof r.created_at !== "string") continue;
+    const body =
+      typeof r.body === "string" ? r.body : r.body === null ? null : null;
+    const labels: Array<{ name: string }> = [];
+    if (Array.isArray(r.labels)) {
+      for (const l of r.labels) {
+        if (l && typeof l === "object") {
+          const lr = l as { name?: unknown };
+          if (typeof lr.name === "string") labels.push({ name: lr.name });
+        }
+      }
+    }
+    out.push({
+      number: r.number,
+      title: r.title,
+      created_at: r.created_at,
+      body,
+      labels,
+      pullRequest: r.pull_request != null,
+    });
+  }
+  return out;
+}
+
+/** Decode the single-issue JSON returned by `POST /repos/.../issues`. */
+function decodeGitHubIssueNumber(data: unknown): number | null {
+  if (!data || typeof data !== "object") return null;
+  const num = (data as { number?: unknown }).number;
+  return typeof num === "number" ? num : null;
+}
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
@@ -78,7 +130,7 @@ export class GitHubTaskProvider implements TaskProvider {
       );
     }
 
-    const issues = (res.data as GitHubIssue[]).filter((i) => !i.pull_request);
+    const issues = decodeGitHubIssueList(res.data).filter((i) => !i.pullRequest);
     this.cache = issues.map((i) => this.issueToTask(i));
   }
 
@@ -139,11 +191,11 @@ export class GitHubTaskProvider implements TaskProvider {
 
     this.fetch("POST", `/repos/${this.repo}/issues`, issueBody)
       .then((res) => {
-        if (res.ok) {
-          const issue = res.data as GitHubIssue;
-          const entry = this.cache.find((t) => t.id === tempId);
-          if (entry) entry.id = issue.number;
-        }
+        if (!res.ok) return;
+        const issueNumber = decodeGitHubIssueNumber(res.data);
+        if (issueNumber === null) return;
+        const entry = this.cache.find((t) => t.id === tempId);
+        if (entry) entry.id = issueNumber;
       })
       .catch(() => {
         // Best-effort; task remains with temp ID in local cache.

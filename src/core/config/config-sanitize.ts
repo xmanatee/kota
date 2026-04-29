@@ -5,7 +5,7 @@
  * the canonical sanitize pass for fields declared on `CoreKotaConfig`.
  */
 
-import { type QuietHoursConfig, validateQuietHours } from "../daemon/notification-gate.js";
+import { parseQuietHours } from "../daemon/notification-gate.js";
 import type { ModelTiers } from "../model/model-router.js";
 import type { ForeignModuleConfig } from "../modules/foreign-module.js";
 import { type AutonomyMode, isAutonomyMode } from "../tools/autonomy-mode.js";
@@ -176,11 +176,9 @@ function sanitizeNotifications(out: Partial<CoreKotaConfig>, src: KotaConfig["no
   const obj = src as Record<string, unknown>;
   const n: NonNullable<CoreKotaConfig["notifications"]> = {};
   if (typeof obj.alertCooldownMs === "number" && obj.alertCooldownMs >= 0) n.alertCooldownMs = obj.alertCooldownMs;
-  if (obj.quietHours !== undefined && !validateQuietHours(obj.quietHours)) {
-    const qh = obj.quietHours as Record<string, unknown>;
-    const quietHours: QuietHoursConfig = { start: qh.start as string, end: qh.end as string };
-    if (typeof qh.allowCritical === "boolean") quietHours.allowCritical = qh.allowCritical;
-    n.quietHours = quietHours;
+  if (obj.quietHours !== undefined) {
+    const parsed = parseQuietHours(obj.quietHours);
+    if (parsed.ok) n.quietHours = parsed.config;
   }
   if (Object.keys(n).length > 0) out.notifications = n;
 }

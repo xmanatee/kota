@@ -1,12 +1,12 @@
 ---
 id: task-enforce-strict-typescript-boundary-typing
 title: Enforce strict TypeScript boundary typing
-status: backlog
+status: done
 priority: p1
 area: architecture
 summary: Define and enforce a repo policy that eliminates explicit any and confines unknown to validated boundary decoders, so protocol surfaces stay strongly typed instead of relying on casts.
 created_at: 2026-04-28T22:24:00.000Z
-updated_at: 2026-04-29T00:00:00.000Z
+updated_at: 2026-04-29T06:47:16.980Z
 ---
 
 ## Problem

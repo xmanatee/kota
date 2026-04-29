@@ -14,11 +14,11 @@
         "useExhaustiveDependencies": "off"
       },
       "suspicious": {
-        "noExplicitAny": "off",
+        "noExplicitAny": "error",
         "noConfusingVoidType": "off",
         "noAssignInExpressions": "off",
         "noTemplateCurlyInString": "off",
-        "noImplicitAnyLet": "off",
+        "noImplicitAnyLet": "error",
         "useIterableCallbackReturn": "off"
       },
       "style": {
@@ -47,6 +47,25 @@
     }
   },
   "overrides": [
+    {
+      "includes": [
+        "src/**/*.test.ts",
+        "src/**/*.integration.ts",
+        "src/**/*.integration.test.ts",
+        "src/**/testing/**",
+        "src/**/test-utils/**",
+        "src/**/__tests__/**",
+        "src/**/__test-utils__/**"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off",
+            "noImplicitAnyLet": "off"
+          }
+        }
+      }
+    },
     {
       "includes": [
         "src/cli.ts",

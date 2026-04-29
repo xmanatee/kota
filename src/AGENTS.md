@@ -45,3 +45,11 @@ it to `*.integration.test.ts`; otherwise move it to the owning subsystem.
 Core tests may not use `#modules/*` imports (`src/core/agent-harness/no-module-imports-in-core.test.ts`
 enforces this). A test that genuinely needs to load or reference project
 modules therefore belongs at the root integration tier, not under `src/core/`.
+
+## Strict Types Policy
+
+`src/strict-types-policy.integration.test.ts` ratchets `unknown` /
+`Record<string, unknown>` / `as unknown` usage in production `.ts` files
+against `src/strict-types-policy-baseline.json`. New offenders or count
+regressions fail the test. See `src/core/AGENTS.md` for the underlying rules
+and the regenerate-on-improvement flow.

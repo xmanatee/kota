@@ -133,7 +133,7 @@ export function evalHarnessRoutes(ctx: ModuleContext) {
           writeJson(res, 400, { error: (err as Error).message });
           return;
         }
-        let fixtures;
+        let fixtures: ReturnType<typeof loadAllFixtures>;
         try {
           fixtures = request.fixtureIds
             ? request.fixtureIds.map((id) => loadFixture(fixturesRoot, id))

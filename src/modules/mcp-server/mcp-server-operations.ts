@@ -14,6 +14,7 @@
  * long-lived host.
  */
 import { loadConfig } from "#core/config/config.js";
+import type { ModelClient } from "#core/model/model-client.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import type {
   McpServerClient,
@@ -30,7 +31,7 @@ export function localMcpServerClient(): McpServerClient {
       await loadRuntimeModules({ config, cwd: process.cwd() });
 
       const samplingEnabled = config.mcp?.sampling?.enabled === true;
-      let modelClient;
+      let modelClient: ModelClient | undefined;
       if (samplingEnabled) {
         const { createModelClient } = await import("#core/model/model-client.js");
         modelClient = createModelClient({

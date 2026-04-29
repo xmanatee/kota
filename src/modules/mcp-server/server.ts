@@ -70,6 +70,32 @@ export type ElicitationResponse =
 
 type McpContentBlock = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
 
+/** A workspace root advertised by the MCP client via the `roots/list` response. */
+export type McpRoot = { uri: string; name?: string };
+
+/**
+ * Decode a JSON-RPC `roots/list` response payload. The wire shape is JSON-
+ * RPC `result.roots: Array<{ uri: string, name?: string }>`. Malformed
+ * entries (missing `uri`, non-string fields) are dropped — the spec treats
+ * the server as best-effort here, and silently skipping a bad entry is less
+ * disruptive than rejecting the whole response.
+ */
+function decodeRootsListResult(result: unknown): McpRoot[] {
+	if (!result || typeof result !== "object") return [];
+	const rawRoots = (result as { roots?: unknown }).roots;
+	if (!Array.isArray(rawRoots)) return [];
+	const out: McpRoot[] = [];
+	for (const raw of rawRoots) {
+		if (!raw || typeof raw !== "object") continue;
+		const r = raw as { uri?: unknown; name?: unknown };
+		if (typeof r.uri !== "string") continue;
+		const root: McpRoot = { uri: r.uri };
+		if (typeof r.name === "string") root.name = r.name;
+		out.push(root);
+	}
+	return out;
+}
+
 export type McpServerOptions = {
 	/** Only expose tools matching these names. If empty/undefined, expose all. */
 	toolFilter?: string[];
@@ -130,10 +156,10 @@ export class McpServer {
 	private modelClient: ModelClient | null;
 	private samplingModel: string;
 	private clientSupportsRoots = false;
-	private clientRoots: Array<{ uri: string; name?: string }> = [];
+	private clientRoots: McpRoot[] = [];
 	private pendingRootsRequest: {
 		id: number | string;
-		resolve: (roots: Array<{ uri: string; name?: string }>) => void;
+		resolve: (roots: McpRoot[]) => void;
 		reject: (e: Error) => void;
 	} | null = null;
 	private rootsRequestIdCounter = 0;
@@ -237,8 +263,7 @@ export class McpServer {
 				pending.reject(new Error(msg.error.message));
 				return;
 			}
-			const roots = ((msg.result as Record<string, unknown>)?.roots ?? []) as Array<{ uri: string; name?: string }>;
-			pending.resolve(roots);
+			pending.resolve(decodeRootsListResult(msg.result));
 			return;
 		}
 		const pending = this.pendingElicitations.get(msg.id);
@@ -368,7 +393,7 @@ export class McpServer {
 	}
 
 	/** Returns the client-provided workspace roots, or an empty array if none. */
-	getClientRoots(): Array<{ uri: string; name?: string }> {
+	getClientRoots(): McpRoot[] {
 		return [...this.clientRoots];
 	}
 

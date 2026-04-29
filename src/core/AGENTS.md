@@ -46,3 +46,40 @@ into.
   already-expanded text.
 - New non-test source should land in `src/core/<subtree>/` or `src/modules/<name>/`,
   not as another loose `src/*.ts` file.
+
+## Strict Types Policy
+
+`any` is forbidden in production TypeScript and is enforced by Biome's
+`noExplicitAny` and `noImplicitAnyLet` rules. The same rules are intentionally
+relaxed for `*.test.ts`, `*.integration.test.ts`, and `*.integration.ts`
+fixtures so test scaffolding can mock partial shapes without ceremony.
+
+`unknown` (and the JSON-shaped alias `Record<string, unknown>`) is the right
+type for untrusted input at a system boundary:
+
+- JSON parse and disk-fixture loaders.
+- HTTP/SSE/JSON-RPC frames before they have been shaped.
+- External SDK adapter inputs and their raw event passthrough.
+- Caught errors (`catch (err: unknown)`).
+- Schema/decoder entry points whose only job is to narrow.
+
+Inside trusted domain code — agent loops, workflow execution, event handlers,
+business logic — values are expected to already carry their precise type. A
+`Record<string, unknown>` that flows past a decoder is a missing decoder.
+
+The mechanical guard for this policy is
+`src/strict-types-policy.integration.test.ts`. It scans every production
+`.ts` file under `src/` and counts the three boundary patterns (`: unknown`,
+`Record<string, unknown>`, `as unknown`) per file, ratcheting against the
+committed baseline:
+
+- A new file appearing with boundary patterns fails the test.
+- An existing file's count climbing past its baseline fails the test.
+- A reduction passes silently and the operator can regenerate via
+  `STRICT_TYPES_REGENERATE=1 pnpm test src/strict-types-policy.integration.test.ts`.
+
+When a runtime parser legitimately needs `unknown`, expose a typed decoder
+beside it (e.g. `parseQuietHours`, `decodeRootsListResult`,
+`decodeGitHubIssueList`) that returns either a precise shape or a
+discriminated `{ ok: false; error: string }` result. Downstream consumers
+must depend on the typed result, not on the raw boundary value.

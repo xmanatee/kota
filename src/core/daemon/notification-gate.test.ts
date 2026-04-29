@@ -4,8 +4,8 @@ import {
   isWithinQuietHours,
   msUntilQuietHoursEnd,
   NotificationGate,
+  parseQuietHours,
   type QuietHoursConfig,
-  validateQuietHours,
 } from "./notification-gate.js";
 
 function makeTime(h: number, m: number, s = 0, ms = 0): Date {
@@ -75,36 +75,41 @@ describe("msUntilQuietHoursEnd", () => {
   });
 });
 
-describe("validateQuietHours", () => {
+describe("parseQuietHours", () => {
   it("accepts valid midnight-spanning config", () => {
-    expect(validateQuietHours({ start: "22:00", end: "08:00" })).toBeNull();
+    const r = parseQuietHours({ start: "22:00", end: "08:00" });
+    expect(r).toEqual({ ok: true, config: { start: "22:00", end: "08:00" } });
   });
 
-  it("accepts valid same-day config", () => {
-    expect(validateQuietHours({ start: "01:00", end: "06:00", allowCritical: false })).toBeNull();
+  it("accepts valid same-day config and preserves allowCritical", () => {
+    const r = parseQuietHours({ start: "01:00", end: "06:00", allowCritical: false });
+    expect(r).toEqual({
+      ok: true,
+      config: { start: "01:00", end: "06:00", allowCritical: false },
+    });
   });
 
   it("rejects non-object", () => {
-    expect(validateQuietHours(null)).not.toBeNull();
-    expect(validateQuietHours("22:00")).not.toBeNull();
+    expect(parseQuietHours(null).ok).toBe(false);
+    expect(parseQuietHours("22:00").ok).toBe(false);
   });
 
   it("rejects bad HH:MM format", () => {
-    expect(validateQuietHours({ start: "9:00", end: "08:00" })).not.toBeNull();
-    expect(validateQuietHours({ start: "22:00", end: "8pm" })).not.toBeNull();
+    expect(parseQuietHours({ start: "9:00", end: "08:00" }).ok).toBe(false);
+    expect(parseQuietHours({ start: "22:00", end: "8pm" }).ok).toBe(false);
   });
 
   it("rejects out-of-range values", () => {
-    expect(validateQuietHours({ start: "25:00", end: "08:00" })).not.toBeNull();
-    expect(validateQuietHours({ start: "22:00", end: "08:60" })).not.toBeNull();
+    expect(parseQuietHours({ start: "25:00", end: "08:00" }).ok).toBe(false);
+    expect(parseQuietHours({ start: "22:00", end: "08:60" }).ok).toBe(false);
   });
 
   it("rejects equal start and end", () => {
-    expect(validateQuietHours({ start: "08:00", end: "08:00" })).not.toBeNull();
+    expect(parseQuietHours({ start: "08:00", end: "08:00" }).ok).toBe(false);
   });
 
   it("rejects non-boolean allowCritical", () => {
-    expect(validateQuietHours({ start: "22:00", end: "08:00", allowCritical: 1 })).not.toBeNull();
+    expect(parseQuietHours({ start: "22:00", end: "08:00", allowCritical: 1 }).ok).toBe(false);
   });
 });
 

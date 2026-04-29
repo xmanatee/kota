@@ -8,6 +8,14 @@ import { readOptionalJsonFile } from "#core/util/json-file.js";
 
 const require = createRequire(import.meta.url);
 
+type QrcodeTerminalModule = {
+  generate(
+    text: string,
+    options: { small: boolean },
+    callback: (qr: string) => void,
+  ): void;
+};
+
 function getLocalNetworkIp(): string | null {
   const nets = networkInterfaces();
   for (const iface of Object.values(nets)) {
@@ -22,10 +30,9 @@ function getLocalNetworkIp(): string | null {
 }
 
 function generateQr(text: string): Promise<string> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const qrcodeTerminal = require("qrcode-terminal") as any;
+  const qrcodeTerminal = require("qrcode-terminal") as QrcodeTerminalModule;
   return new Promise((resolve) => {
-    qrcodeTerminal.generate(text, { small: true }, (qr: string) => resolve(qr));
+    qrcodeTerminal.generate(text, { small: true }, (qr) => resolve(qr));
   });
 }
 

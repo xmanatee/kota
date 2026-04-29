@@ -78,7 +78,7 @@ export async function runEvalHarness(
   bus?: EventBus,
 ): Promise<EvalRunResult> {
   const fixturesRoot = fixturesRootFor(projectDir);
-  let fixtures;
+  let fixtures: ReturnType<typeof loadAllFixtures>;
   try {
     fixtures = options.fixtureIds && options.fixtureIds.length > 0
       ? options.fixtureIds.map((id) => loadFixture(fixturesRoot, id))

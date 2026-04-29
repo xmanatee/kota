@@ -65,39 +65,71 @@ export function msUntilQuietHoursEnd(config: QuietHoursConfig, now = new Date())
   return minsUntilEnd * 60 * 1000 - msElapsedInMinute;
 }
 
-/** Validates a QuietHoursConfig object. Returns an error string or null if valid. */
-export function validateQuietHours(q: unknown): string | null {
+/**
+ * Discriminated parse result for the notifications.quietHours config slice.
+ *
+ * The config sanitizer parses raw user JSON; the daemon constructor consumes
+ * an already-validated `QuietHoursConfig`. Splitting parse from consumption
+ * means the only `unknown → typed` narrowing happens here, and downstream
+ * code can rely on the type without reaching back into the raw record.
+ */
+export type ParsedQuietHours =
+  | { ok: true; config: QuietHoursConfig }
+  | { ok: false; error: string };
+
+/** Parse and validate a raw quiet-hours config slice. */
+export function parseQuietHours(q: unknown): ParsedQuietHours {
   if (typeof q !== "object" || q === null || Array.isArray(q)) {
-    return "notifications.quietHours must be an object";
+    return { ok: false, error: "notifications.quietHours must be an object" };
   }
   const obj = q as Record<string, unknown>;
 
   if (typeof obj.start !== "string" || !/^\d{2}:\d{2}$/.test(obj.start)) {
-    return 'notifications.quietHours.start must be a string in "HH:MM" format';
+    return {
+      ok: false,
+      error: 'notifications.quietHours.start must be a string in "HH:MM" format',
+    };
   }
   if (typeof obj.end !== "string" || !/^\d{2}:\d{2}$/.test(obj.end)) {
-    return 'notifications.quietHours.end must be a string in "HH:MM" format';
+    return {
+      ok: false,
+      error: 'notifications.quietHours.end must be a string in "HH:MM" format',
+    };
   }
 
   const { h: sh, m: sm } = parseHHMM(obj.start);
   const { h: eh, m: em } = parseHHMM(obj.end);
-  if (sh > 23 || sm > 59) return "notifications.quietHours.start has invalid time value";
-  if (eh > 23 || em > 59) return "notifications.quietHours.end has invalid time value";
+  if (sh > 23 || sm > 59) {
+    return { ok: false, error: "notifications.quietHours.start has invalid time value" };
+  }
+  if (eh > 23 || em > 59) {
+    return { ok: false, error: "notifications.quietHours.end has invalid time value" };
+  }
 
   if (sh * 60 + sm === eh * 60 + em) {
-    return "notifications.quietHours.start and end must not be equal";
+    return { ok: false, error: "notifications.quietHours.start and end must not be equal" };
   }
 
   if (obj.allowCritical !== undefined && typeof obj.allowCritical !== "boolean") {
-    return "notifications.quietHours.allowCritical must be a boolean";
+    return { ok: false, error: "notifications.quietHours.allowCritical must be a boolean" };
   }
 
-  return null;
+  const config: QuietHoursConfig = { start: obj.start, end: obj.end };
+  if (typeof obj.allowCritical === "boolean") config.allowCritical = obj.allowCritical;
+  return { ok: true, config };
 }
 
 type HeldEvent = { event: string; payload: Record<string, unknown> };
 
 type EmitFn = (event: string, payload: Record<string, unknown>) => void;
+
+/**
+ * Mutable view of EventBus.emit. The gate replaces the public method on the
+ * instance to intercept all emitters without changing channel modules. This
+ * is the cast surface for that monkey-patch — no other code should narrow to
+ * this shape.
+ */
+type EmitField = { emit: EmitFn };
 
 /**
  * NotificationGate holds non-critical bus events during quiet hours and
@@ -119,8 +151,7 @@ export class NotificationGate {
     const original = bus.emit.bind(bus) as EmitFn;
     this.originalEmit = original;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (bus as any).emit = (event: string, payload: Record<string, unknown>) => {
+    (bus as unknown as EmitField).emit = (event, payload) => {
       if (!this.disposed && GATED_EVENTS.has(event) && isWithinQuietHours(this.config)) {
         this.buffer.push({ event, payload });
         this.scheduleRelease();
@@ -158,8 +189,7 @@ export class NotificationGate {
       clearTimeout(this.timer);
       this.timer = null;
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (this.bus as any).emit = this.originalEmit;
+    (this.bus as unknown as EmitField).emit = this.originalEmit;
     this.buffer = [];
   }
 }

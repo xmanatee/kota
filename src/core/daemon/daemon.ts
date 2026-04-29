@@ -570,7 +570,7 @@ export class Daemon {
     channelCtx: ChannelStartContext,
   ): Promise<void> {
     const base = { name: def.name, ...(def.description ? { description: def.description } : {}) };
-    let result;
+    let result: ReturnType<typeof def.create>;
     try {
       result = def.create(channelCtx);
     } catch (err) {

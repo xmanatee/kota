@@ -423,7 +423,7 @@ export function createCriticCheck(options?: {
         diffContent,
       ].join("\n");
 
-      let response;
+      let response: Awaited<ReturnType<typeof invokeAgentJudge>>;
       try {
         response = await invokeAgentJudge(userMessage, ctx.projectDir, resolvedConfig);
       } catch (err) {
