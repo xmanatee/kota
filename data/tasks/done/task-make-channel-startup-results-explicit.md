@@ -1,12 +1,12 @@
 ---
 id: task-make-channel-startup-results-explicit
 title: Make channel startup results explicit
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Replace ChannelDef.create returning null with a typed startup result so disabled, unavailable, and failed channels are visible to operators instead of silently skipped.
 created_at: 2026-04-28T22:24:00.000Z
-updated_at: 2026-04-28T22:24:00.000Z
+updated_at: 2026-04-29T03:58:46.163Z
 ---
 
 ## Problem

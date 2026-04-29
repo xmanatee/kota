@@ -128,6 +128,101 @@ describe("Daemon", () => {
     expect(daemon.isRunning()).toBe(false);
   });
 
+  it("records each contributed channel's startup posture", async () => {
+    const daemon = makeDaemon({
+      workflows: [],
+      channels: [
+        {
+          name: "ch-started",
+          create() {
+            return {
+              status: "started",
+              adapter: { async start() {}, stop() {} },
+            };
+          },
+        },
+        {
+          name: "ch-disabled",
+          create() {
+            return { status: "disabled", reason: "operator turned it off" };
+          },
+        },
+        {
+          name: "ch-unavailable",
+          description: "missing creds",
+          create() {
+            return {
+              status: "unavailable",
+              reason: "secret SOME_TOKEN is not set",
+            };
+          },
+        },
+        {
+          name: "ch-failed-create",
+          create() {
+            throw new Error("create blew up");
+          },
+        },
+        {
+          name: "ch-failed-start",
+          create() {
+            return {
+              status: "started",
+              adapter: {
+                async start() {
+                  throw new Error("start blew up");
+                },
+                stop() {},
+              },
+            };
+          },
+        },
+        {
+          name: "ch-failed-result",
+          create() {
+            return { status: "failed", error: "deps unavailable" };
+          },
+        },
+      ],
+    });
+
+    const startPromise = daemon.start();
+    await wait(60);
+
+    const statuses = daemon.getChannelStatuses();
+    const byName = new Map(statuses.map((s) => [s.name, s]));
+
+    expect(byName.get("ch-started")).toMatchObject({ status: "started" });
+    expect(byName.get("ch-disabled")).toMatchObject({
+      status: "disabled",
+      reason: "operator turned it off",
+    });
+    expect(byName.get("ch-unavailable")).toMatchObject({
+      status: "unavailable",
+      reason: "secret SOME_TOKEN is not set",
+      description: "missing creds",
+    });
+    expect(byName.get("ch-failed-create")).toMatchObject({
+      status: "failed",
+      error: "create blew up",
+    });
+    expect(byName.get("ch-failed-start")).toMatchObject({
+      status: "failed",
+      error: "start blew up",
+    });
+    expect(byName.get("ch-failed-result")).toMatchObject({
+      status: "failed",
+      error: "deps unavailable",
+    });
+    // Daemon stays up despite failed channels: optional channels degrade cleanly.
+    expect(daemon.isRunning()).toBe(true);
+
+    await daemon.stop();
+    await startPromise;
+    // Posture clears on shutdown.
+    expect(daemon.getChannelStatuses()).toHaveLength(0);
+  });
+
   it("records completed autonomous runs in daemon state", async () => {
     writeFileSync(
       join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),

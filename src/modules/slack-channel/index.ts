@@ -40,7 +40,10 @@ function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
       const config = getConfig(moduleCtx);
       if (!config) {
         ctx.log("[kota-slack] No config — channel disabled");
-        return null;
+        return {
+          status: "disabled",
+          reason: "slack-channel config is missing — set botToken and appToken to enable",
+        };
       }
 
       const autonomyMode = resolveChannelAutonomyMode(
@@ -90,12 +93,15 @@ function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
       );
 
       return {
-        async start() {
-          await bot.start();
-        },
-        stop() {
-          approvalUnsub();
-          bot.stop();
+        status: "started",
+        adapter: {
+          async start() {
+            await bot.start();
+          },
+          stop() {
+            approvalUnsub();
+            bot.stop();
+          },
         },
       };
     },

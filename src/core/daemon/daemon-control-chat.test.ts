@@ -113,6 +113,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     })),
     getHealthStatus: vi.fn(() => ({ scheduler: "ok" as const, modules: "ok" as const })),
     getWorkflowLiveStatus: vi.fn(() => ({ ...defaultWorkflowStatus })),
+    listChannelStatuses: vi.fn(() => []),
     pauseWorkflowDispatch: vi.fn(() => ({ already: false })),
     resumeWorkflowDispatch: vi.fn(() => ({ already: false })),
     abortActiveRuns: vi.fn(() => ({ aborted: 0 })),

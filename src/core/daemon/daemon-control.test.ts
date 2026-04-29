@@ -29,6 +29,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     })),
     getHealthStatus: vi.fn(() => ({ scheduler: "ok" as const, modules: "ok" as const })),
     getWorkflowLiveStatus: vi.fn(() => ({ ...defaultWorkflowStatus })),
+    listChannelStatuses: vi.fn(() => []),
     pauseWorkflowDispatch: vi.fn(() => ({ already: false })),
     resumeWorkflowDispatch: vi.fn(() => ({ already: false })),
     abortActiveRuns: vi.fn(() => ({ aborted: 0 })),
@@ -155,6 +156,65 @@ describe("DaemonControlServer", () => {
           paused: false,
         },
       });
+      expect(body.channels).toEqual([]);
+    });
+
+    it("includes the channel posture array from the handle", async () => {
+      handle = makeHandle({
+        listChannelStatuses: vi.fn(() => [
+          { name: "alpha", status: "started" as const },
+          { name: "beta", status: "disabled" as const, reason: "off-by-config" },
+        ]),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/status");
+      const body = await res.json();
+      expect(body.channels).toEqual([
+        { name: "alpha", status: "started" },
+        { name: "beta", status: "disabled", reason: "off-by-config" },
+      ]);
+    });
+  });
+
+  describe("GET /channels", () => {
+    it("returns the channel posture from the handle", async () => {
+      handle = makeHandle({
+        listChannelStatuses: vi.fn(() => [
+          {
+            name: "telegram-status",
+            status: "unavailable" as const,
+            reason: "no creds",
+          },
+          {
+            name: "webhook-channel",
+            description: "Generic inbound HTTP webhook",
+            status: "started" as const,
+          },
+        ]),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/channels");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.channels).toEqual([
+        { name: "telegram-status", status: "unavailable", reason: "no creds" },
+        {
+          name: "webhook-channel",
+          description: "Generic inbound HTTP webhook",
+          status: "started",
+        },
+      ]);
+    });
+
+    it("requires the bearer token", async () => {
+      const res = await fetchNoToken(port, "/channels");
+      expect(res.status).toBe(401);
     });
   });
 

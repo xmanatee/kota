@@ -178,6 +178,7 @@ function makeLiveStatus(overrides: Partial<DaemonLiveStatus> = {}): DaemonLiveSt
       workflows: {},
     },
     sessions: [],
+    channels: [],
     ...overrides,
   };
 }

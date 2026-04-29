@@ -117,6 +117,28 @@ export type ChannelStartContext = {
 };
 
 /**
+ * ChannelStartResult — typed outcome of a channel factory's `create()` call.
+ *
+ * Channel startup is part of the operator surface: silently skipping a
+ * non-started channel hides why an integration is dark. Each variant maps
+ * to a distinct operational reason:
+ *
+ * - `started`: the channel built an adapter and is ready to serve traffic.
+ * - `disabled`: the operator turned the channel off via config — expected.
+ * - `unavailable`: required credentials, secrets, or capabilities are
+ *   missing — the channel cannot run, but is not configured to.
+ * - `failed`: the channel attempted to start and hit an unexpected error.
+ *
+ * Reason and error strings must not echo secret material (tokens, passwords,
+ * auth headers); they surface in operator status output.
+ */
+export type ChannelStartResult =
+  | { status: "started"; adapter: ChannelAdapter }
+  | { status: "disabled"; reason: string }
+  | { status: "unavailable"; reason: string }
+  | { status: "failed"; error: string };
+
+/**
  * ChannelDef — descriptor for a channel contributed by a module.
  *
  * Modules declare channels in `KotaModule.channels`. The daemon
@@ -129,9 +151,26 @@ export type ChannelDef = {
   /** Short description of what this channel does. */
   description?: string;
   /**
-   * Creates the ChannelAdapter that manages this channel's lifecycle.
-   * Return null if the channel cannot start (missing credentials, disabled
-   * config, etc.) — the daemon skips null channels silently.
+   * Creates the channel adapter or reports why it cannot start.
+   *
+   * Returning a non-`started` result is not an error — optional channels
+   * routinely report `disabled` or `unavailable` based on operator config.
+   * Throwing from `create()` (or rejecting from `adapter.start()`) is
+   * captured by the daemon as `failed` posture, not a daemon-level crash.
    */
-  create(ctx: ChannelStartContext): ChannelAdapter | null;
+  create(ctx: ChannelStartContext): ChannelStartResult;
 };
+
+/**
+ * ChannelStatus — runtime posture for a single channel after the daemon
+ * attempted to start it.
+ *
+ * Mirrors `ChannelStartResult` but pairs the reason with the channel's
+ * identity so operator surfaces (status output, dashboards) can show
+ * "channel X is unavailable because Y" without re-deriving names.
+ */
+export type ChannelStatus =
+  | { name: string; description?: string; status: "started" }
+  | { name: string; description?: string; status: "disabled"; reason: string }
+  | { name: string; description?: string; status: "unavailable"; reason: string }
+  | { name: string; description?: string; status: "failed"; error: string };

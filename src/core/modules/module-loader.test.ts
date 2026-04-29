@@ -222,7 +222,8 @@ describe("ModuleLoader", () => {
 
   it("collects channel definitions from modules and exposes via getContributedChannels", async () => {
     const loader = new ModuleLoader({});
-    const mockCreate = () => null;
+    const mockCreate = () =>
+      ({ status: "disabled", reason: "test stub" }) as const;
 
     await loader.load({
       name: "channel-provider",

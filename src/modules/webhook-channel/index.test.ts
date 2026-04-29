@@ -194,10 +194,10 @@ describe("webhookChannelModule metadata", () => {
 });
 
 describe("webhookChannelModule channel adapter", () => {
-  it("create returns adapter with start/stop", async () => {
+  it("create returns started result with adapter exposing start/stop", async () => {
     const ctx = makeStubCtx();
     const channels = await resolveModuleChannels(webhookChannelModule, ctx);
-    const adapter = channels[0].create({
+    const result = channels[0].create({
       projectDir: "/tmp",
       log: () => {},
       getWorkflowStatus: () => ({
@@ -206,9 +206,11 @@ describe("webhookChannelModule channel adapter", () => {
         runsDir: "/tmp/.kota/runs",
       }),
     });
-    expect(adapter).not.toBeNull();
-    expect(adapter).toHaveProperty("start");
-    expect(adapter).toHaveProperty("stop");
+    expect(result.status).toBe("started");
+    if (result.status === "started") {
+      expect(result.adapter).toHaveProperty("start");
+      expect(result.adapter).toHaveProperty("stop");
+    }
   });
 });
 

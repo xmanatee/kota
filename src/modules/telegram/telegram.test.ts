@@ -100,7 +100,7 @@ describe("telegramModule", () => {
     expect(channels).toHaveLength(2);
   });
 
-  it("telegram-status channel returns null when env vars are missing", async () => {
+  it("telegram-status channel reports unavailable when env vars are missing", async () => {
     const savedToken = process.env.TELEGRAM_BOT_TOKEN;
     const savedChatId = process.env.TELEGRAM_ALERT_CHAT_ID;
     delete process.env.TELEGRAM_BOT_TOKEN;
@@ -109,7 +109,7 @@ describe("telegramModule", () => {
       const channels = await resolveModuleChannels(telegramModule, makeStubCtx());
       const channel = channels.find((c) => c.name === "telegram-status");
       if (!channel) throw new Error("telegram-status channel missing");
-      const adapter = channel.create({
+      const result = channel.create({
         projectDir: "/tmp",
         log: () => {},
         getWorkflowStatus: () => ({
@@ -118,21 +118,25 @@ describe("telegramModule", () => {
           runsDir: "/tmp/.kota/runs",
         }),
       });
-      expect(adapter).toBeNull();
+      expect(result.status).toBe("unavailable");
+      if (result.status === "unavailable") {
+        expect(result.reason).toContain("TELEGRAM_BOT_TOKEN");
+        expect(result.reason).toContain("TELEGRAM_ALERT_CHAT_ID");
+      }
     } finally {
       if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
       if (savedChatId !== undefined) process.env.TELEGRAM_ALERT_CHAT_ID = savedChatId;
     }
   });
 
-  it("telegram-interactive channel returns null when token is missing", async () => {
+  it("telegram-interactive channel reports unavailable when token is missing", async () => {
     const savedToken = process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.TELEGRAM_BOT_TOKEN;
     try {
       const channels = await resolveModuleChannels(telegramModule, makeStubCtx());
       const channel = channels.find((c) => c.name === "telegram-interactive");
       if (!channel) throw new Error("telegram-interactive channel missing");
-      const adapter = channel.create({
+      const result = channel.create({
         projectDir: "/tmp",
         log: () => {},
         getWorkflowStatus: () => ({
@@ -141,7 +145,10 @@ describe("telegramModule", () => {
           runsDir: "/tmp/.kota/runs",
         }),
       });
-      expect(adapter).toBeNull();
+      expect(result.status).toBe("unavailable");
+      if (result.status === "unavailable") {
+        expect(result.reason).toContain("TELEGRAM_BOT_TOKEN");
+      }
     } finally {
       if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
     }

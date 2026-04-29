@@ -88,18 +88,26 @@ const emailAlertsChannel: ChannelDef = {
   name: "email-alerts",
   description: "Outbound email alerts for workflow events via SMTP",
   create(ctx) {
-    if (!mailer) return null;
+    if (!mailer) {
+      return {
+        status: "unavailable",
+        reason: "SMTP is not configured — set email.smtp.host, email.from, and email.to to enable",
+      };
+    }
     return {
-      async start() {
-        try {
-          await mailer?.verify();
-          ctx.log("[kota-email] SMTP connection verified");
-        } catch (err) {
-          ctx.log(`[kota-email] SMTP verify warning: ${(err as Error).message}`);
-        }
-      },
-      stop() {
-        // no-op: mailer is closed in onUnload
+      status: "started",
+      adapter: {
+        async start() {
+          try {
+            await mailer?.verify();
+            ctx.log("[kota-email] SMTP connection verified");
+          } catch (err) {
+            ctx.log(`[kota-email] SMTP verify warning: ${(err as Error).message}`);
+          }
+        },
+        stop() {
+          // no-op: mailer is closed in onUnload
+        },
       },
     };
   },

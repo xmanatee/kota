@@ -1,3 +1,4 @@
+import type { ChannelStatus } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { loadConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
@@ -34,6 +35,7 @@ export type DaemonHandleContext = {
   log: (message: string) => void;
   getModuleHealthChecks: () => Record<string, ModuleHealthCheckResult>;
   probeCapabilityReadiness: () => Promise<CapabilityReadinessResponse>;
+  getChannelStatuses: () => readonly ChannelStatus[];
 };
 
 export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle {
@@ -55,6 +57,7 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       };
     },
     getDaemonLiveState: () => ({ ...ctx.getState(), running: ctx.isRunning() }),
+    listChannelStatuses: () => [...ctx.getChannelStatuses()],
     getWorkflowLiveStatus: () => {
       const wfState = workflows.getState();
       const windowStatus = workflows.getDispatchWindowStatus();

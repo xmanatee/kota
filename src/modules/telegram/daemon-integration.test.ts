@@ -272,25 +272,28 @@ describe("Telegram personal-assistant daemon integration", () => {
       create(ctx) {
         let stop: (() => void) | null = null;
         return {
-          async start() {
-            stop = startTelegramStatusPoll(
-              "test-token",
-              String(statusChatId),
-              ctx.projectDir,
-              ctx.getWorkflowStatus,
-              knowledgeStub,
-              memoryStub,
-              historyStub,
-              tasksStub,
-              recallStub,
-              answerStub,
-              captureStub,
-              retractStub,
-              ctx.log,
-            );
-          },
-          stop() {
-            stop?.();
+          status: "started",
+          adapter: {
+            async start() {
+              stop = startTelegramStatusPoll(
+                "test-token",
+                String(statusChatId),
+                ctx.projectDir,
+                ctx.getWorkflowStatus,
+                knowledgeStub,
+                memoryStub,
+                historyStub,
+                tasksStub,
+                recallStub,
+                answerStub,
+                captureStub,
+                retractStub,
+                ctx.log,
+              );
+            },
+            stop() {
+              stop?.();
+            },
           },
         };
       },

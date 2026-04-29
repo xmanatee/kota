@@ -31,12 +31,15 @@ function makeChannelDef(ctx: ModuleContext): ChannelDef {
       "Generic inbound HTTP webhook channel — creates agent sessions from JSON payloads",
     create() {
       return {
-        async start() {
-          ctx.log.info("webhook-channel: channel started");
-        },
-        stop() {
-          clearSessions();
-          ctx.log.info("webhook-channel: channel stopped");
+        status: "started",
+        adapter: {
+          async start() {
+            ctx.log.info("webhook-channel: channel started");
+          },
+          stop() {
+            clearSessions();
+            ctx.log.info("webhook-channel: channel stopped");
+          },
         },
       };
     },

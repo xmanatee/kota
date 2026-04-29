@@ -84,10 +84,15 @@ function makeStubCtx(
   };
 }
 
-async function resolveAdapter(ctx: ModuleContext) {
+async function resolveStartResult(ctx: ModuleContext) {
   const channels = await resolveModuleChannels(slackChannelModule, ctx);
   const def = channels[0];
   return def.create(STUB_CHANNEL_START_CTX);
+}
+
+async function resolveAdapter(ctx: ModuleContext) {
+  const result = await resolveStartResult(ctx);
+  return result.status === "started" ? result.adapter : null;
 }
 
 describe("slackChannelModule metadata", () => {
@@ -163,15 +168,18 @@ describe("slackChannelModule channel adapter", () => {
     MockedSlackBot.mockClear();
   });
 
-  it("create returns null and logs when config is missing", async () => {
+  it("create returns disabled result and logs when config is missing", async () => {
     const logFn = vi.fn();
     const ctx = makeStubCtx(undefined, undefined);
     const channels = await resolveModuleChannels(slackChannelModule, ctx);
-    const adapter = channels[0].create({
+    const result = channels[0].create({
       ...STUB_CHANNEL_START_CTX,
       log: logFn,
     });
-    expect(adapter).toBeNull();
+    expect(result.status).toBe("disabled");
+    if (result.status === "disabled") {
+      expect(result.reason).toMatch(/botToken/);
+    }
     expect(logFn).toHaveBeenCalledWith(expect.stringContaining("No config"));
     expect(MockedSlackBot).not.toHaveBeenCalled();
   });

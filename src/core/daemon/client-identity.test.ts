@@ -61,6 +61,7 @@ function makeHandle(
       modules: "ok" as const,
     })),
     getWorkflowLiveStatus: vi.fn(() => ({ ...defaultWorkflowStatus })),
+    listChannelStatuses: vi.fn(() => []),
     pauseWorkflowDispatch: vi.fn(() => ({ already: false })),
     resumeWorkflowDispatch: vi.fn(() => ({ already: false })),
     abortActiveRuns: vi.fn(() => ({ aborted: 0 })),

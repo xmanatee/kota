@@ -156,29 +156,38 @@ function makeTelegramStatusChannel(moduleCtx: ModuleContext): ChannelDef {
     create(ctx) {
       const token = process.env.TELEGRAM_BOT_TOKEN;
       const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
-      if (!token || !chatId) return null;
+      if (!token || !chatId) {
+        return {
+          status: "unavailable",
+          reason:
+            "TELEGRAM_BOT_TOKEN and TELEGRAM_ALERT_CHAT_ID env vars are required",
+        };
+      }
 
       let stop: (() => void) | null = null;
       return {
-        async start() {
-          stop = startTelegramStatusPoll(
-            token,
-            chatId,
-            ctx.projectDir,
-            ctx.getWorkflowStatus,
-            moduleCtx.client.knowledge,
-            moduleCtx.client.memory,
-            moduleCtx.client.history,
-            moduleCtx.client.tasks,
-            moduleCtx.client.recall,
-            moduleCtx.client.answer,
-            moduleCtx.client.capture,
-            moduleCtx.client.retract,
-            ctx.log,
-          );
-        },
-        stop() {
-          stop?.();
+        status: "started",
+        adapter: {
+          async start() {
+            stop = startTelegramStatusPoll(
+              token,
+              chatId,
+              ctx.projectDir,
+              ctx.getWorkflowStatus,
+              moduleCtx.client.knowledge,
+              moduleCtx.client.memory,
+              moduleCtx.client.history,
+              moduleCtx.client.tasks,
+              moduleCtx.client.recall,
+              moduleCtx.client.answer,
+              moduleCtx.client.capture,
+              moduleCtx.client.retract,
+              ctx.log,
+            );
+          },
+          stop() {
+            stop?.();
+          },
         },
       };
     },
@@ -191,7 +200,12 @@ function makeTelegramInteractiveChannel(ctx: ModuleContext): ChannelDef {
     description: "Hosts the interactive Telegram bot as a daemon channel (one session per chat)",
     create() {
       const token = process.env.TELEGRAM_BOT_TOKEN;
-      if (!token) return null;
+      if (!token) {
+        return {
+          status: "unavailable",
+          reason: "TELEGRAM_BOT_TOKEN env var is required",
+        };
+      }
 
       const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
       const autonomyMode = resolveChannelAutonomyMode(
@@ -229,20 +243,23 @@ function makeTelegramInteractiveChannel(ctx: ModuleContext): ChannelDef {
 
       let startPromise: Promise<void> | null = null;
       return {
-        async start() {
-          startPromise = bot.start().catch((err) => {
-            ctx.log.error(
-              `telegram-interactive channel poll loop exited: ${(err as Error).message}`,
-            );
-          });
-        },
-        async stop() {
-          unsubscribeSchedule();
-          bot.stop();
-          if (startPromise) {
-            await startPromise;
-            startPromise = null;
-          }
+        status: "started",
+        adapter: {
+          async start() {
+            startPromise = bot.start().catch((err) => {
+              ctx.log.error(
+                `telegram-interactive channel poll loop exited: ${(err as Error).message}`,
+              );
+            });
+          },
+          async stop() {
+            unsubscribeSchedule();
+            bot.stop();
+            if (startPromise) {
+              await startPromise;
+              startPromise = null;
+            }
+          },
         },
       };
     },

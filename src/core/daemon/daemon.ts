@@ -2,7 +2,12 @@ import { randomBytes } from "node:crypto";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
-import type { ChannelAdapter, ChannelDef } from "#core/channels/channel.js";
+import type {
+  ChannelAdapter,
+  ChannelDef,
+  ChannelStartContext,
+  ChannelStatus,
+} from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { warnInvalidConcurrencyConfig, warnUnknownConfigKeys } from "#core/config/config-warnings.js";
 import { type EventBus, initEventBus } from "#core/events/event-bus.js";
@@ -112,6 +117,7 @@ export class Daemon {
   private unsubscribe: (() => void) | null = null;
   private notificationGate: NotificationGate | null = null;
   private activeChannels: ChannelAdapter[] = [];
+  private channelStatuses: ChannelStatus[] = [];
   private sessions = new Map<string, InteractiveSession>();
   private sessionSweepTimer: ReturnType<typeof setInterval> | null = null;
   private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
@@ -218,6 +224,7 @@ export class Daemon {
         for (const cap of merged) summary[cap.status] += 1;
         return { capabilities: merged, summary };
       },
+      getChannelStatuses: () => this.channelStatuses,
     });
     // Register the workflow-dispatcher seam so module-contributed
     // daemon-control routes can enqueue pending workflow runs without
@@ -373,13 +380,9 @@ export class Daemon {
         operator,
         identity: operator ? { operator } : undefined,
       };
+      this.channelStatuses = [];
       for (const def of this.config.channels ?? []) {
-        const adapter = def.create(channelCtx);
-        if (adapter) {
-          this.activeChannels.push(adapter);
-          await adapter.start();
-          this.log(`Channel started: ${def.name}`);
-        }
+        await this.startChannel(def, channelCtx);
       }
 
       this.saveState();
@@ -422,6 +425,7 @@ export class Daemon {
       await adapter.stop();
     }
     this.activeChannels = [];
+    this.channelStatuses = [];
 
     await this.workflows.stop(gracePeriodMs);
     await this.controlServer.stop();
@@ -556,6 +560,48 @@ export class Daemon {
       });
   }
 
+  /** Snapshot of every contributed channel's startup posture. */
+  getChannelStatuses(): readonly ChannelStatus[] {
+    return this.channelStatuses;
+  }
+
+  private async startChannel(
+    def: ChannelDef,
+    channelCtx: ChannelStartContext,
+  ): Promise<void> {
+    const base = { name: def.name, ...(def.description ? { description: def.description } : {}) };
+    let result;
+    try {
+      result = def.create(channelCtx);
+    } catch (err) {
+      const error = (err as Error)?.message ?? String(err);
+      this.channelStatuses.push({ ...base, status: "failed", error });
+      this.log(`Channel failed during create: ${def.name}: ${error}`);
+      return;
+    }
+    if (result.status === "started") {
+      try {
+        await result.adapter.start();
+      } catch (err) {
+        const error = (err as Error)?.message ?? String(err);
+        this.channelStatuses.push({ ...base, status: "failed", error });
+        this.log(`Channel failed during start: ${def.name}: ${error}`);
+        return;
+      }
+      this.activeChannels.push(result.adapter);
+      this.channelStatuses.push({ ...base, status: "started" });
+      this.log(`Channel started: ${def.name}`);
+      return;
+    }
+    if (result.status === "failed") {
+      this.channelStatuses.push({ ...base, status: "failed", error: result.error });
+      this.log(`Channel failed: ${def.name}: ${result.error}`);
+      return;
+    }
+    this.channelStatuses.push({ ...base, status: result.status, reason: result.reason });
+    this.log(`Channel ${result.status}: ${def.name}: ${result.reason}`);
+  }
+
   private requestRestart(reason: string): void {
     if (this.restartRequested) return;
     this.restartRequested = true;
@@ -591,6 +637,7 @@ export class Daemon {
       await adapter.stop();
     }
     this.activeChannels = [];
+    this.channelStatuses = [];
     await this.workflows.stop(1, 1_000);
     await this.controlServer.stop();
 

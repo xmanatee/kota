@@ -47,6 +47,7 @@ function makeHandle(): DaemonControlHandle {
       agentConcurrency: 1,
       codeConcurrency: 4,
     })),
+    listChannelStatuses: vi.fn(() => []),
     pauseWorkflowDispatch: vi.fn(() => ({ already: false })),
     resumeWorkflowDispatch: vi.fn(() => ({ already: false })),
     abortActiveRuns: vi.fn(() => ({ aborted: 0 })),

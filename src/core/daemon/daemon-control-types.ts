@@ -1,9 +1,12 @@
+import type { ChannelStatus } from "#core/channels/channel.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ToolCallSummaryEntry, WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState, WorkflowStepSkipReason } from "#core/workflow/run-types.js";
 import type { WorkflowAgentBackoffState } from "#core/workflow/types.js";
 import type { CapabilityReadinessResponse } from "./capability-readiness.js";
 import type { ClientIdentity } from "./client-identity.js";
 import type { DaemonState } from "./daemon-state.js";
+
+export type { ChannelStatus };
 
 export type WorkflowDefinitionTriggerSummary =
   | { type: "event"; event: string; filter?: Record<string, string | string[]> }
@@ -61,6 +64,7 @@ export type DaemonLiveStatus = DaemonState & {
   running: boolean;
   workflow: WorkflowLiveStatus;
   sessions: InteractiveSession[];
+  channels: ChannelStatus[];
 };
 
 export type DaemonSseEventType =
@@ -169,6 +173,8 @@ export type DaemonControlHandle = {
   getDaemonLiveState(): DaemonState & { running: boolean };
   getHealthStatus(): HealthStatus;
   getWorkflowLiveStatus(): WorkflowLiveStatus;
+  /** Snapshot of every contributed channel's startup posture. */
+  listChannelStatuses(): ChannelStatus[];
   pauseWorkflowDispatch(): { already: boolean };
   resumeWorkflowDispatch(): { already: boolean };
   abortActiveRuns(): { aborted: number };
