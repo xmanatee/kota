@@ -188,11 +188,9 @@ describe("kota retract", () => {
       target: "memory",
       identifier: "missing-mem",
     }));
-    const exitSpy = vi
-      .spyOn(process, "exit")
-      .mockImplementation(((code?: number) => {
-        throw new Error(`process.exit:${code}`);
-      }) as never);
+    vi.spyOn(process, "exit").mockImplementation(((code?: number) => {
+      throw new Error(`process.exit:${code}`);
+    }) as never);
     const stderrSpy = vi
       .spyOn(process.stderr, "write")
       .mockImplementation(() => true);
@@ -220,11 +218,9 @@ describe("kota retract", () => {
       ok: false,
       reason: "no_contributors",
     }));
-    const exitSpy = vi
-      .spyOn(process, "exit")
-      .mockImplementation(((code?: number) => {
-        throw new Error(`process.exit:${code}`);
-      }) as never);
+    vi.spyOn(process, "exit").mockImplementation(((code?: number) => {
+      throw new Error(`process.exit:${code}`);
+    }) as never);
     const stderrSpy = vi
       .spyOn(process.stderr, "write")
       .mockImplementation(() => true);
@@ -256,11 +252,9 @@ describe("kota retract", () => {
       target: "inbox",
       message: "disk read-only",
     }));
-    const exitSpy = vi
-      .spyOn(process, "exit")
-      .mockImplementation(((code?: number) => {
-        throw new Error(`process.exit:${code}`);
-      }) as never);
+    vi.spyOn(process, "exit").mockImplementation(((code?: number) => {
+      throw new Error(`process.exit:${code}`);
+    }) as never);
     const stderrSpy = vi
       .spyOn(process.stderr, "write")
       .mockImplementation(() => true);
@@ -287,11 +281,9 @@ describe("kota retract", () => {
     const program = makeProgram(async () => {
       throw new Error("provider should not be called");
     });
-    const exitSpy = vi
-      .spyOn(process, "exit")
-      .mockImplementation(((code?: number) => {
-        throw new Error(`process.exit:${code}`);
-      }) as never);
+    vi.spyOn(process, "exit").mockImplementation(((code?: number) => {
+      throw new Error(`process.exit:${code}`);
+    }) as never);
     const stderrSpy = vi
       .spyOn(process.stderr, "write")
       .mockImplementation(() => true);
@@ -318,11 +310,9 @@ describe("kota retract", () => {
     const program = makeProgram(async () => {
       throw new Error("provider should not be called");
     });
-    const exitSpy = vi
-      .spyOn(process, "exit")
-      .mockImplementation(((code?: number) => {
-        throw new Error(`process.exit:${code}`);
-      }) as never);
+    vi.spyOn(process, "exit").mockImplementation(((code?: number) => {
+      throw new Error(`process.exit:${code}`);
+    }) as never);
     const stderrSpy = vi
       .spyOn(process.stderr, "write")
       .mockImplementation(() => true);

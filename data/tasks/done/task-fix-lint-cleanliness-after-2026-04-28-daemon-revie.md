@@ -1,12 +1,12 @@
 ---
 id: task-fix-lint-cleanliness-after-2026-04-28-daemon-revie
 title: Fix lint cleanliness after 2026-04-28 daemon review
-status: backlog
+status: done
 priority: p3
 area: core
 summary: Make pnpm lint and pnpm --dir clients/web lint pass with no warnings/errors by fixing the specific items the 2026-04-28 daemon review surfaced, without weakening accessibility or removing meaningful test coverage.
 created_at: 2026-04-28T22:04:53.408Z
-updated_at: 2026-04-28T22:04:53.408Z
+updated_at: 2026-04-29T03:40:44.412Z
 ---
 
 ## Problem

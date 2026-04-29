@@ -39,17 +39,6 @@ async function fetchJson(port: number, path: string): Promise<{ status: number; 
   return { status: response.status, body };
 }
 
-function trackedServer(): { servers: Server[]; track: (s: Server) => Server } {
-  const servers: Server[] = [];
-  return {
-    servers,
-    track(s: Server) {
-      servers.push(s);
-      return s;
-    },
-  };
-}
-
 describe("web local handler cold-start", () => {
   let cwd: string;
   let savedKey: string | undefined;

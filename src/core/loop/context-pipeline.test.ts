@@ -2,9 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   KotaContentBlock,
   KotaMessage,
-  KotaTextBlock,
   KotaToolResultBlock,
-  KotaToolUseBlock,
 } from "#core/agent-harness/message-protocol.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import { compactMessages, extractWorkingState } from "./compaction.js";

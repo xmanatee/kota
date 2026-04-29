@@ -146,9 +146,9 @@ describe("api client", () => {
         expect.any(Object),
       );
       expect(result.summary.ready).toBe(3);
-      expect(result.capabilities.find((c) => c.id === "dashboard")?.status).toBe(
-        "ready",
-      );
+      expect(
+        result.capabilities.find((c) => c.id === "dashboard")?.status,
+      ).toBe("ready");
       expect(
         result.capabilities.find((c) => c.id === "knowledge.semantic_search")
           ?.reason,
