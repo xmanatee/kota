@@ -34,6 +34,14 @@ import {
 import { EventRingBuffer } from "./event-ring-buffer.js";
 
 export type {
+  ClientDashboardAvailability,
+  ClientIdentity,
+} from "./client-identity.js";
+export {
+  DASHBOARD_CAPABILITY_ID,
+  WORKFLOW_TRIGGER_CAPABILITY_ID,
+} from "./client-identity.js";
+export type {
   CapabilityScope,
   ComponentStatus,
   DaemonControlAddress,
@@ -62,6 +70,7 @@ export type {
 const BUILTIN_ROUTE_SCOPES: Record<string, CapabilityScope> = {
   "GET /status": "read",
   "GET /capabilities": "read",
+  "GET /identity": "read",
   "GET /workflow/status": "read",
   "GET /events": "read",
   "GET /api/events": "read",
@@ -426,6 +435,15 @@ export class DaemonControlServer {
     if (method === "GET" && path === "/capabilities") {
       h.probeCapabilityReadiness()
         .then((response) => jsonResponse(res, 200, response))
+        .catch((err: Error) => {
+          if (!res.headersSent) jsonResponse(res, 500, { error: err.message });
+        });
+      return;
+    }
+
+    if (method === "GET" && path === "/identity") {
+      h.getClientIdentity()
+        .then((identity) => jsonResponse(res, 200, identity))
         .catch((err: Error) => {
           if (!res.headersSent) jsonResponse(res, 500, { error: err.message });
         });

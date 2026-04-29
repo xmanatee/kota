@@ -1,3 +1,64 @@
+/**
+ * Capability readiness types — kept in sync with the daemon's
+ * `CapabilityReadiness` shape (see
+ * `src/core/daemon/capability-readiness.ts`).
+ */
+export type CapabilityStatus = "ready" | "unavailable" | "init_failed";
+
+export type CapabilityReadiness = {
+  id: string;
+  moduleName: string;
+  status: CapabilityStatus;
+  reason?: string;
+  message?: string;
+  meta?: Record<string, string | number | boolean>;
+};
+
+export type CapabilityReadinessSummary = {
+  ready: number;
+  unavailable: number;
+  init_failed: number;
+};
+
+export type CapabilityReadinessResponse = {
+  capabilities: CapabilityReadiness[];
+  summary: CapabilityReadinessSummary;
+};
+
+/** Stable capability id every client agrees on for the embedded dashboard. */
+export const DASHBOARD_CAPABILITY_ID = "dashboard";
+/** Stable capability id the daemon registers for workflow triggering. */
+export const WORKFLOW_TRIGGER_CAPABILITY_ID = "workflow.trigger";
+
+/**
+ * Identity payload — kept in sync with the daemon's `ClientIdentity`
+ * shape (see `src/core/daemon/client-identity.ts`).
+ */
+export type ClientDashboardAvailability =
+  | { available: true; path: string }
+  | { available: false; reason: string; message?: string };
+
+export type ClientIdentity = {
+  projectName: string;
+  projectDir: string;
+  daemonVersion: string;
+  pid: number;
+  startedAt: string;
+  dashboard: ClientDashboardAvailability;
+};
+
+/**
+ * Daemon error envelope shared by every thin-client decoder. Mirrors
+ * the typed shape `parseDaemonClientErrorBody` returns.
+ */
+export type DaemonClientErrorBody = {
+  error?: string;
+  code?: string;
+  reason?: string;
+  message?: string;
+  raw?: string;
+};
+
 export type WorkflowDefinitionTriggerSummary =
   | { type: "event"; event: string; filter?: Record<string, string | string[]> }
   | { type: "cron"; schedule: string }

@@ -116,6 +116,17 @@ final class AppState: ObservableObject {
     @Published var retractError: String?
     @Published var isLoadingRetract: Bool = false
     @Published var retractConfirmed: Bool = false
+
+    // Thin-client contract surfaces. `identity` and `capabilities` populate
+    // on every successful refresh so the UI can hide controls whose
+    // capability is `unavailable` (dashboard, semantic search) and label
+    // identity-aware status text without UserDefaults guessing. `workflowDefinitions`
+    // backs the workflow trigger picker so the operator never types free
+    // text. Each surface is `nil` when the daemon is unreachable.
+    @Published var identity: ClientIdentity?
+    @Published var capabilities: CapabilityReadinessResponse?
+    @Published var workflowDefinitions: [WorkflowDefinitionSummary] = []
+
     @Published var projectDir: URL? {
         didSet {
             if let dir = projectDir {
@@ -156,13 +167,26 @@ final class AppState: ObservableObject {
         startPolling()
     }
 
-    var webUIURL: URL {
-        if !remoteURL.isEmpty, let base = URL(string: remoteURL) {
-            // Best-effort: point web UI at the same host/port
-            return base
+    /// True only when the daemon currently advertises a `dashboard`
+    /// capability with `status: ready`. The MenuBarView hides the
+    /// "Open Dashboard" action when this is false so the operator never
+    /// chases a broken `localhost:3000` URL.
+    var isDashboardAvailable: Bool {
+        identity?.dashboard.isAvailable ?? false
+    }
+
+    /// Dashboard URL the operator should open. Returns nil when the
+    /// daemon does not advertise a ready dashboard capability — the UI
+    /// must hide the action in that case rather than constructing a URL.
+    var webUIURL: URL? {
+        guard let identity, case .available(let path) = identity.dashboard else {
+            return nil
         }
-        let port = UserDefaults.standard.integer(forKey: "webUIPort")
-        return URL(string: "http://localhost:\(port > 0 ? port : 3000)")!
+        if !remoteURL.isEmpty, let base = URL(string: remoteURL) {
+            return URL(string: path, relativeTo: base)?.absoluteURL
+        }
+        guard let connection = client.connection else { return nil }
+        return URL(string: path, relativeTo: connection.baseURL)?.absoluteURL
     }
 
     func startPolling() {
@@ -229,6 +253,9 @@ final class AppState: ObservableObject {
             taskQueue = nil
             activeSessions = []
             recentRuns = []
+            identity = nil
+            capabilities = nil
+            workflowDefinitions = []
             clearOnDemandForOffline()
             return
         }
@@ -571,8 +598,34 @@ final class AppState: ObservableObject {
             do { return .success(try await client.fetchRecentRuns()) }
             catch { return .failure(error) }
         }()
+        async let identityResult: Result<ClientIdentity, Error> = {
+            do { return .success(try await client.fetchIdentity()) }
+            catch { return .failure(error) }
+        }()
+        async let capabilitiesResult: Result<CapabilityReadinessResponse, Error> = {
+            do { return .success(try await client.fetchCapabilities()) }
+            catch { return .failure(error) }
+        }()
+        async let definitionsResult: Result<WorkflowDefinitionsResponse, Error> = {
+            do { return .success(try await client.fetchWorkflowDefinitions()) }
+            catch { return .failure(error) }
+        }()
 
         let (sr, ar, oqr, tr, sesr, rrr) = await (statusResult, approvalsResult, ownerQuestionsResult, tasksResult, sessionsResult, recentRunsResult)
+        let (idr, capr, defsr) = await (identityResult, capabilitiesResult, definitionsResult)
+
+        switch idr {
+        case .success(let id): identity = id
+        case .failure: identity = nil
+        }
+        switch capr {
+        case .success(let caps): capabilities = caps
+        case .failure: capabilities = nil
+        }
+        switch defsr {
+        case .success(let resp): workflowDefinitions = resp.definitions
+        case .failure: workflowDefinitions = []
+        }
 
         switch sr {
         case .success(let status):
@@ -717,7 +770,8 @@ final class AppState: ObservableObject {
     }
 
     func openDashboard() {
-        NSWorkspace.shared.open(webUIURL)
+        guard let url = webUIURL else { return }
+        NSWorkspace.shared.open(url)
     }
 
     func promptForProjectDirectory() {

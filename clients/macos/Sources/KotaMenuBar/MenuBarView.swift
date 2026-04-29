@@ -81,8 +81,10 @@ struct MenuBarView: View {
                     showTriggerSheet = true
                 }
 
-                MenuActionButton(label: "Open Dashboard", icon: "safari") {
-                    appState.openDashboard()
+                if appState.isDashboardAvailable {
+                    MenuActionButton(label: "Open Dashboard", icon: "safari") {
+                        appState.openDashboard()
+                    }
                 }
 
                 MenuActionButton(label: "Set Project Directory…", icon: "folder") {

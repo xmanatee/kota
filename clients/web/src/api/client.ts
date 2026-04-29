@@ -6,8 +6,10 @@ import type {
   AttentionResponse,
   AuditEntry,
   AutonomyMode,
+  CapabilityReadinessResponse,
   CaptureFilter,
   CaptureResult,
+  ClientIdentity,
   ConversationData,
   ConversationRecord,
   DaemonLiveStatus,
@@ -70,6 +72,10 @@ export const api = {
 
   getDaemonStatus: () =>
     apiJson<{ daemon: DaemonLiveStatus | null }>("/api/daemon/status"),
+
+  getCapabilities: () => apiJson<CapabilityReadinessResponse>("/capabilities"),
+
+  getIdentity: () => apiJson<ClientIdentity>("/identity"),
 
   getWorkflowStatus: () => apiJson<WorkflowLiveStatus>("/api/workflow/status"),
 

@@ -1,12 +1,12 @@
 ---
 id: task-define-and-enforce-thin-client-capability-contract
 title: Define and enforce thin-client capability contracts across clients
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Create one shared contract for thin clients covering capability discovery, provider readiness, dashboard availability, workflow definitions, action affordances, and error payloads, then align macOS, mobile, web, Telegram, Slack, and CLI consumers to it.
 created_at: 2026-04-28T22:35:51.407Z
-updated_at: 2026-04-28T22:35:51.407Z
+updated_at: 2026-04-29T02:33:42.005Z
 ---
 
 ## Problem

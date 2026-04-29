@@ -52,6 +52,18 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
       capabilities: [],
       summary: { ready: 0, unavailable: 0, init_failed: 0 },
     })),
+    getClientIdentity: vi.fn(async () => ({
+      projectName: "test-project",
+      projectDir: "/tmp/test-project",
+      daemonVersion: "0.1.0",
+      pid: 9999,
+      startedAt: "2026-01-01T00:00:00.000Z",
+      dashboard: {
+        available: false as const,
+        reason: "not_contributed",
+        message: "No module contributed a dashboard capability.",
+      },
+    })),
     ...overrides,
   };
 }

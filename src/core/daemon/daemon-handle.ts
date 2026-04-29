@@ -6,6 +6,7 @@ import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
 import type { CapabilityReadinessResponse } from "./capability-readiness.js";
+import { buildClientIdentity, type ClientIdentity } from "./client-identity.js";
 import { computeModuleConfigDiff } from "./config-reload-diff.js";
 import type {
   DaemonControlHandle,
@@ -86,6 +87,16 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       return { already };
     },
     probeCapabilityReadiness: () => ctx.probeCapabilityReadiness(),
+    getClientIdentity: async (): Promise<ClientIdentity> => {
+      const capabilities = await ctx.probeCapabilityReadiness();
+      const state = ctx.getState();
+      return buildClientIdentity({
+        projectDir,
+        pid: state.pid,
+        startedAt: state.startedAt,
+        capabilities,
+      });
+    },
     abortActiveRuns: () => workflows.abortActiveRuns(),
     abortActiveRun: (runId: string) => workflows.abortActiveRun(runId),
     reloadWorkflowDefinitions: () => workflows.reloadWorkflowDefinitions(),

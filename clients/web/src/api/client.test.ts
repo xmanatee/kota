@@ -111,4 +111,91 @@ describe("api client", () => {
       );
     });
   });
+
+  describe("thin-client contract", () => {
+    /**
+     * Decode the shared `clients/conformance/contract-fixture.json` through
+     * the daemon-style API surface. The fixture is the same blob the
+     * macOS Swift suite consumes — if the contract drifts here, the
+     * Vitest, Swift suite, and the TypeScript core conformance test all
+     * fail together rather than silently allowing different decoders to
+     * disagree.
+     */
+    beforeEach(() => {
+      Object.defineProperty(window, "location", {
+        value: { search: "", pathname: "/", hash: "" },
+        writable: true,
+      });
+    });
+
+    it("getCapabilities decodes the shared fixture through GET /capabilities", async () => {
+      const fixture = await import(
+        "../../../conformance/contract-fixture.json"
+      );
+      const capabilities = fixture.default.capabilities;
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(capabilities),
+      });
+
+      const { api } = await import("./client");
+      const result = await api.getCapabilities();
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        "/capabilities",
+        expect.any(Object),
+      );
+      expect(result.summary.ready).toBe(3);
+      expect(result.capabilities.find((c) => c.id === "dashboard")?.status).toBe(
+        "ready",
+      );
+      expect(
+        result.capabilities.find((c) => c.id === "knowledge.semantic_search")
+          ?.reason,
+      ).toBe("embedding_unsupported");
+    });
+
+    it("getIdentity decodes the dashboard-available identity arm", async () => {
+      const fixture = await import(
+        "../../../conformance/contract-fixture.json"
+      );
+      const identity = fixture.default.identity;
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(identity),
+      });
+
+      const { api } = await import("./client");
+      const result = await api.getIdentity();
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        "/identity",
+        expect.any(Object),
+      );
+      expect(result.projectName).toBe("kota");
+      if (!result.dashboard.available) {
+        throw new Error("expected dashboard.available=true");
+      }
+      expect(result.dashboard.path).toBe("/");
+    });
+
+    it("getIdentity decodes the dashboard-unavailable identity arm with reason", async () => {
+      const fixture = await import(
+        "../../../conformance/contract-fixture.json"
+      );
+      const identity = fixture.default.identityWithoutDashboard;
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(identity),
+      });
+
+      const { api } = await import("./client");
+      const result = await api.getIdentity();
+
+      if (result.dashboard.available) {
+        throw new Error("expected dashboard.available=false");
+      }
+      expect(result.dashboard.reason).toBe("web_ui_not_built");
+    });
+  });
 });

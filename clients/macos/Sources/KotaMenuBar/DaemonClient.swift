@@ -143,6 +143,29 @@ final class DaemonClient {
         try await get("/status")
     }
 
+    /// `GET /identity` — typed thin-client identity payload. Returns the
+    /// project the daemon is bound to, the daemon version, and the
+    /// dashboard availability discriminator. Mirrors the TypeScript
+    /// `ClientIdentity` contract one-to-one.
+    func fetchIdentity() async throws -> ClientIdentity {
+        try await get("/identity")
+    }
+
+    /// `GET /capabilities` — typed capability readiness payload. Each
+    /// entry carries a stable id, status, optional reason code, and short
+    /// operator-facing message. Clients should hide or disable controls
+    /// for capabilities whose status is not `ready`.
+    func fetchCapabilities() async throws -> CapabilityReadinessResponse {
+        try await get("/capabilities")
+    }
+
+    /// `GET /workflow/definitions` — typed workflow definition catalog.
+    /// Drives the workflow picker so the UI never asks the operator to
+    /// type a free-text workflow name.
+    func fetchWorkflowDefinitions() async throws -> WorkflowDefinitionsResponse {
+        try await get("/workflow/definitions")
+    }
+
     func fetchApprovals() async throws -> ApprovalsResponse {
         try await get("/approvals")
     }

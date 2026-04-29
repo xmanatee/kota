@@ -1,0 +1,94 @@
+{
+  "identity": {
+    "projectName": "kota",
+    "projectDir": "/Users/operator/projects/kota",
+    "daemonVersion": "0.1.0",
+    "pid": 12345,
+    "startedAt": "2026-04-29T01:00:00.000Z",
+    "dashboard": {
+      "available": true,
+      "path": "/"
+    }
+  },
+  "identityWithoutDashboard": {
+    "projectName": "kota",
+    "projectDir": "/Users/operator/projects/kota",
+    "daemonVersion": "0.1.0",
+    "pid": 12345,
+    "startedAt": "2026-04-29T01:00:00.000Z",
+    "dashboard": {
+      "available": false,
+      "reason": "web_ui_not_built",
+      "message": "Web dashboard is unavailable — run `pnpm --filter @kota/web build` to produce clients/web/dist."
+    }
+  },
+  "capabilities": {
+    "capabilities": [
+      {
+        "id": "dashboard",
+        "moduleName": "web",
+        "status": "ready",
+        "message": "Embedded web dashboard is built and ready to serve.",
+        "meta": { "distDir": "/Users/operator/projects/kota/clients/web/dist" }
+      },
+      {
+        "id": "knowledge.search",
+        "moduleName": "knowledge",
+        "status": "ready"
+      },
+      {
+        "id": "knowledge.semantic_search",
+        "moduleName": "knowledge",
+        "status": "unavailable",
+        "reason": "embedding_unsupported",
+        "message": "No embedding-backed knowledge provider is configured."
+      },
+      {
+        "id": "workflow.trigger",
+        "moduleName": "core",
+        "status": "ready",
+        "message": "8 of 12 workflow definition(s) currently enabled.",
+        "meta": { "enabled": 8, "total": 12 }
+      }
+    ],
+    "summary": { "ready": 3, "unavailable": 1, "init_failed": 0 }
+  },
+  "workflowDefinitions": {
+    "definitions": [
+      {
+        "name": "builder",
+        "enabled": true,
+        "stepCount": 4,
+        "triggers": [{ "type": "event", "event": "autonomy.queue.available" }]
+      },
+      {
+        "name": "decomposer",
+        "enabled": true,
+        "stepCount": 3,
+        "triggers": [{ "type": "event", "event": "autonomy.queue.available" }],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "taskId": { "type": "string" }
+          }
+        }
+      }
+    ]
+  },
+  "errorBodies": {
+    "json": {
+      "error": "Token rejected",
+      "code": "auth-invalid"
+    },
+    "typedFailure": {
+      "ok": false,
+      "reason": "semantic_unavailable"
+    },
+    "voiceFailure": {
+      "ok": false,
+      "error": "STT unavailable",
+      "code": "stt-unavailable"
+    },
+    "plainText": "<html><body>Bad gateway</body></html>"
+  }
+}

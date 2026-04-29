@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { resolveProjectDir } from "#core/config/project-dir.js";
 import type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
 import type { CapabilityReadinessResponse } from "#core/daemon/capability-readiness.js";
+import type { ClientIdentity } from "#core/daemon/client-identity.js";
 import type {
   DaemonControlAddress,
   DaemonLiveStatus,
@@ -1694,6 +1695,18 @@ export class DaemonControlClient implements KotaClient {
       });
       if (!res.ok) return null;
       return (await res.json()) as CapabilityReadinessResponse;
+    } catch {
+      return null;
+    }
+  }
+
+  async getIdentity(): Promise<ClientIdentity | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/identity`, {
+        headers: this.authHeaders(),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as ClientIdentity;
     } catch {
       return null;
     }

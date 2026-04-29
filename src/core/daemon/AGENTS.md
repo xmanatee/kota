@@ -57,6 +57,16 @@ workflow definitions are daemon-owned, not module-owned.
 `semantic_unavailable` envelopes on individual routes keep working
 unchanged; `/capabilities` is purely additive.
 
+## Client Identity
+
+`GET /identity` returns the `ClientIdentity` payload (project + daemon
+identity, dashboard availability). `getClientIdentity()` resolves the
+`dashboard` capability through the `/capabilities` readiness pipeline
+and collapses it into the discriminated `ClientDashboardAvailability`
+shape. Clients join `dashboard.path` onto the daemon base URL when
+`available` is true; otherwise hide the control. See
+`clients/AGENTS.md` for the contract.
+
 ## Multi-Project Runtime Shape
 
 The daemon is single-project today. Once KOTA targets more than one project,

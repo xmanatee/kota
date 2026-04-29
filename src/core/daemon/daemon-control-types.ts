@@ -2,6 +2,7 @@ import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ToolCallSummaryEntry, WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState, WorkflowStepSkipReason } from "#core/workflow/run-types.js";
 import type { WorkflowAgentBackoffState } from "#core/workflow/types.js";
 import type { CapabilityReadinessResponse } from "./capability-readiness.js";
+import type { ClientIdentity } from "./client-identity.js";
 import type { DaemonState } from "./daemon-state.js";
 
 export type WorkflowDefinitionTriggerSummary =
@@ -187,6 +188,8 @@ export type DaemonControlHandle = {
   getWorkflowMetricCounts(): WorkflowMetricCounts;
   // Capability readiness
   probeCapabilityReadiness(): Promise<CapabilityReadinessResponse>;
+  // Thin-client identity (project + dashboard availability)
+  getClientIdentity(): Promise<ClientIdentity>;
   // Interactive sessions
   registerSession(id: string, createdAt: string, autonomyMode: AutonomyMode): void;
   unregisterSession(id: string): void;
