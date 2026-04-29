@@ -16,8 +16,10 @@ import {
   assertStrategicReadyCoverage,
   assertTaskQueueRecommendations,
   assertTaskQueueValid,
+  declaresRenderedEvidence,
   hasArchitectureReadyCoverageGap,
   hasDishonestSourceAccessCompletion,
+  hasNamedRenderedEvidence,
   hasStrategicReadyCoverageGap,
   listRootKernelHelperDebt,
   listRootLevelCliArchitectureDebt,
@@ -791,6 +793,362 @@ Source inaccessible (HTTP 402). Created follow-up task for manual access.
 
     const result = validateTaskQueue(projectDir);
     expect(result.findings.some((f) => f.code === "done-task-inaccessible-source")).toBe(false);
+  });
+});
+
+describe("client-task-missing-rendered-evidence", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-rendered-evidence-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    );
+    initTaskRepo(projectDir);
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  function writeClientTaskBody(taskId: string, body: string): void {
+    const dir = join(projectDir, REPO_TASKS_DIR, "ready");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, `${taskId}.md`), body);
+    execSync("git add data && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+  }
+
+  it("flags an open client task that declares a screenshot but does not name one in evidence", () => {
+    writeClientTaskBody(
+      "task-screenshot-prose",
+      `---
+id: task-screenshot-prose
+title: Show degraded provider state in macOS popover
+status: ready
+priority: p2
+area: client
+summary: Render degraded provider state distinctly in the macOS menu bar.
+created_at: 2026-04-28T00:00:00Z
+updated_at: 2026-04-28T00:00:00Z
+---
+
+## Problem
+
+Operators cannot see when a provider is degraded.
+
+## Desired Outcome
+
+Operators see degraded provider state directly in the popover.
+
+## Constraints
+
+Keep the macOS app thin.
+
+## Done When
+
+- Degraded provider state renders in the popover with a clear visual indicator.
+- A screenshot proves the rendered degraded state.
+
+## Source / Intent
+
+Owner asked for it.
+
+## Initiative
+
+Operator UX consolidation.
+
+## Acceptance Evidence
+
+- Swift build/test output covers the view-model branch.
+- Branch description in the run notes covers the visual change.
+`,
+    );
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "client-task-missing-rendered-evidence")).toBe(true);
+  });
+
+  it("accepts an open client task that names a screenshot in evidence", () => {
+    writeClientTaskBody(
+      "task-screenshot-named",
+      `---
+id: task-screenshot-named
+title: Show degraded provider state in macOS popover
+status: ready
+priority: p2
+area: client
+summary: Render degraded provider state distinctly in the macOS menu bar.
+created_at: 2026-04-28T00:00:00Z
+updated_at: 2026-04-28T00:00:00Z
+---
+
+## Problem
+
+Operators cannot see when a provider is degraded.
+
+## Desired Outcome
+
+Operators see degraded provider state directly in the popover.
+
+## Constraints
+
+Keep the macOS app thin.
+
+## Done When
+
+- Degraded provider state renders in the popover with a clear visual indicator.
+- A screenshot proves the rendered degraded state.
+
+## Source / Intent
+
+Owner asked for it.
+
+## Initiative
+
+Operator UX consolidation.
+
+## Acceptance Evidence
+
+- Swift build/test output covering the view-model branch.
+- Screenshot under \`.kota/runs/<run-id>/\` showing the degraded provider state.
+`,
+    );
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "client-task-missing-rendered-evidence")).toBe(false);
+  });
+
+  it("accepts a CLI/channel task that names a transcript", () => {
+    writeClientTaskBody(
+      "task-cli-transcript",
+      `---
+id: task-cli-transcript
+title: Show daemon identity in kota status
+status: ready
+priority: p2
+area: client
+summary: Make CLI status report connection identity.
+created_at: 2026-04-28T00:00:00Z
+updated_at: 2026-04-28T00:00:00Z
+---
+
+## Problem
+
+CLI status hides the daemon URL.
+
+## Desired Outcome
+
+\`kota status\` prints the connected project, control file, and base URL.
+
+## Constraints
+
+Do not leak tokens.
+
+## Done When
+
+- \`kota status\` prints a transcript showing project identity and base URL.
+- Tokens redacted.
+
+## Source / Intent
+
+Operator request.
+
+## Initiative
+
+Daemon identity clarity.
+
+## Acceptance Evidence
+
+- Tests for the new status formatter.
+- Transcript of \`kota status\` against a wrong-project control file.
+`,
+    );
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "client-task-missing-rendered-evidence")).toBe(false);
+  });
+
+  it("accepts a runtime-probe declaration", () => {
+    writeClientTaskBody(
+      "task-runtime-probe",
+      `---
+id: task-runtime-probe
+title: Surface dashboard URL in /api/dashboard
+status: ready
+priority: p2
+area: client
+summary: Expose dashboard availability via daemon route.
+created_at: 2026-04-28T00:00:00Z
+updated_at: 2026-04-28T00:00:00Z
+---
+
+## Problem
+
+Dashboard URL is implicit.
+
+## Desired Outcome
+
+Daemon exposes dashboard availability through a typed runtime probe.
+
+## Constraints
+
+None.
+
+## Done When
+
+- Daemon exposes the URL.
+- Runtime probe verifies the URL and availability state.
+
+## Source / Intent
+
+Operator request.
+
+## Initiative
+
+Daemon identity clarity.
+
+## Acceptance Evidence
+
+- Tests cover decoder.
+- Runtime probe \`curl -fsS $DAEMON_URL/api/dashboard\` returns the typed shape.
+`,
+    );
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "client-task-missing-rendered-evidence")).toBe(false);
+  });
+
+  it("does not fire on area=autonomy tasks that discuss rendered evidence as a meta-policy", () => {
+    writeClientTaskBody(
+      "task-fanout-meta",
+      `---
+id: task-fanout-meta
+title: Add fan-out consolidation reviews
+status: ready
+priority: p2
+area: autonomy
+summary: Detect multi-client fan-out batches and seed a consolidation review.
+created_at: 2026-04-28T00:00:00Z
+updated_at: 2026-04-28T00:00:00Z
+---
+
+## Problem
+
+Fan-out cadence ships parity but no IA consolidation.
+
+## Desired Outcome
+
+Queue-shaping seeds a consolidation task that checks IA, runtime contract, screenshots, and transcripts.
+
+## Constraints
+
+Avoid endless review tasks.
+
+## Done When
+
+- Detector identifies fan-out batches and seeds a consolidation task.
+- Tests prove the detector behavior.
+
+## Source / Intent
+
+Owner request.
+
+## Initiative
+
+Autonomy quality control.
+
+## Acceptance Evidence
+
+- Workflow/unit test output for the detector.
+- Example generated consolidation task from a fixture sequence.
+`,
+    );
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "client-task-missing-rendered-evidence")).toBe(false);
+  });
+
+  it("does not fire on internal refactors that mention rendered artifacts only as coordination notes", () => {
+    writeClientTaskBody(
+      "task-refactor-state",
+      `---
+id: task-refactor-state
+title: Make AppState injectable in tests
+status: ready
+priority: p2
+area: client
+summary: Refactor macOS AppState to inject side effects.
+created_at: 2026-04-28T00:00:00Z
+updated_at: 2026-04-28T00:00:00Z
+---
+
+## Problem
+
+AppState calls notification APIs in init.
+
+## Desired Outcome
+
+AppState can be constructed without OS bundle requirements.
+
+## Constraints
+
+- Coordinate with visual/runtime evidence tasks so new tests support rendered artifacts where possible.
+
+## Done When
+
+- AppState can be constructed without notification authorization.
+- Existing Swift tests remain green.
+
+## Source / Intent
+
+Run evidence found AppState was hard to test.
+
+## Initiative
+
+Native-client testability.
+
+## Acceptance Evidence
+
+- Swift test output exercising AppState constructed in unit tests.
+- A short audit note for mobile/native side-effect initialization.
+`,
+    );
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "client-task-missing-rendered-evidence")).toBe(false);
+  });
+});
+
+describe("declaresRenderedEvidence / hasNamedRenderedEvidence", () => {
+  it("declares evidence on Done When mention of screenshot", () => {
+    expect(declaresRenderedEvidence([
+      "## Desired Outcome\n\nOperators see degraded state.\n",
+      "## Done When\n\n- A screenshot proves the rendered state.\n",
+      "## Acceptance Evidence\n\n- Tests pass.\n",
+    ].join("\n"))).toBe(true);
+  });
+
+  it("ignores evidence-keyword mention only inside Acceptance Evidence", () => {
+    expect(declaresRenderedEvidence([
+      "## Desired Outcome\n\nMake the type stricter.\n",
+      "## Done When\n\n- Strict type lands.\n",
+      "## Acceptance Evidence\n\n- Screenshot of typecheck.\n",
+    ].join("\n"))).toBe(false);
+  });
+
+  it("recognizes a named transcript in Acceptance Evidence", () => {
+    expect(hasNamedRenderedEvidence([
+      "## Acceptance Evidence\n\n- Transcript of `kota status`.\n",
+    ].join("\n"))).toBe(true);
+  });
+
+  it("rejects evidence sections that only name tests", () => {
+    expect(hasNamedRenderedEvidence([
+      "## Acceptance Evidence\n\n- Unit tests for the new branch.\n",
+    ].join("\n"))).toBe(false);
   });
 });
 

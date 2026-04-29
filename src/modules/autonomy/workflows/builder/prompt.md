@@ -19,6 +19,15 @@ Read and follow the root `AGENTS.md` and local `AGENTS.md` files in directories 
   full "Done When" section, but keep the criteria natural and non-duplicative.
   A critic will cross-reference your work against the full task; unaddressed
   requirements cause failure.
+- When the task declares a screenshot, screencast, transcript, rendered
+  fixture, or runtime-probe artifact (in `## Desired Outcome`, `## Done When`,
+  or `## Acceptance Evidence`), produce that artifact under
+  `<run-directory>/`. Prose descriptions of what the operator would see do
+  not satisfy a declared rendered-evidence requirement. If headless capture
+  is impossible, move the task to `blocked/` with an explicit
+  `operator-capture` precondition rather than completing it without the
+  artifact. See `data/tasks/AGENTS.md` for accepted artifact kinds per
+  surface.
 - Use `pnpm kota task move <id> <state>` for every task state transition.
 - Before staging, run the narrowest validation that proves the change, and
   broaden it when the touched behavior warrants more coverage. Fix failures

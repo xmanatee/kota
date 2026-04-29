@@ -1,12 +1,12 @@
 ---
 id: task-add-client-runtime-and-visual-evidence-gates-for-o
 title: Add client runtime and visual evidence gates for operator surfaces
-status: ready
+status: done
 priority: p1
 area: testing
 summary: Make user-facing client work prove live rendered behavior, not just mocked decoding, by adding reusable screenshot/transcript/runtime evidence gates for macOS, mobile, web, Telegram, Slack, and CLI fan-out tasks.
 created_at: 2026-04-28T22:35:56.055Z
-updated_at: 2026-04-28T22:35:56.055Z
+updated_at: 2026-04-29T02:55:10.006Z
 ---
 
 ## Problem

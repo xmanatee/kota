@@ -228,7 +228,14 @@ function isOpenTaskState(state: RepoTaskState): boolean {
 
 function extractSection(raw: string, heading: string): string | null {
   const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = raw.match(new RegExp(`^## ${escapedHeading}\\s*\\n([\\s\\S]*?)(?=^## |\\s*$)`, "m"));
+  // Capture from the heading up to the next `## ` heading or end of input.
+  // `(?![\s\S])` is the JS-compatible "end of input" assertion. Earlier
+  // versions used `\s*$` here, but with the `m` flag `$` matches every
+  // line end, which silently truncated multi-line evidence sections to
+  // just the first non-blank line.
+  const match = raw.match(
+    new RegExp(`^## ${escapedHeading}\\s*\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "m"),
+  );
   if (!match) return null;
   const body = match[1].trim();
   return body.length > 0 ? body : null;
@@ -250,6 +257,53 @@ function hasAcceptanceEvidence(raw: string): boolean {
     return false;
   }
   return /(?:^|\n)\s*-\s+\S/.test(section) || /\b(?:transcript|screenshot|fixture|test|command|artifact|validation|demo|snapshot)\b/i.test(section);
+}
+
+/**
+ * Areas that classify a task as user-facing client/channel work, where
+ * `## Acceptance Evidence` must name a rendered/runtime artifact when the
+ * task declares one in its outcome. Other areas (autonomy, architecture,
+ * core, ...) skip this gate even if they reference screenshots/transcripts
+ * as part of meta-discussion (e.g. validators that *enforce* evidence).
+ */
+const CLIENT_CHANNEL_AREAS: ReadonlySet<string> = new Set(["client", "channel"]);
+
+const RENDERED_EVIDENCE_DECLARATION_KEYWORDS = [
+  /\bscreenshots?\b/i,
+  /\bscreencasts?\b/i,
+  /\brendered (?:artifact|evidence|fixture|view|snapshot|output|screenshot)s?\b/i,
+  /\btranscripts?\b/i,
+  /\bruntime probes?\b/i,
+  /\bvisual evidence\b/i,
+] as const;
+
+const ACCEPTED_RENDERED_EVIDENCE_KEYWORDS = [
+  /\bscreenshots?\b/i,
+  /\bscreencasts?\b/i,
+  /\brendered (?:artifact|evidence|fixture|view|snapshot|output)s?\b/i,
+  /\btranscripts?\b/i,
+  /\bruntime probes?\b/i,
+  /\bsnapshot tests?\b/i,
+  /\b(?:rendered|output)\s+fixtures?\b/i,
+  /\boperator[- ]capture(?:d)?\b/i,
+] as const;
+
+function getDeliverableSections(raw: string): string {
+  return [
+    extractSection(raw, "Desired Outcome") ?? "",
+    extractSection(raw, "Done When") ?? "",
+  ].join("\n");
+}
+
+export function declaresRenderedEvidence(raw: string): boolean {
+  const text = getDeliverableSections(raw);
+  return RENDERED_EVIDENCE_DECLARATION_KEYWORDS.some((re) => re.test(text));
+}
+
+export function hasNamedRenderedEvidence(raw: string): boolean {
+  const section = extractSection(raw, "Acceptance Evidence");
+  if (!section) return false;
+  return ACCEPTED_RENDERED_EVIDENCE_KEYWORDS.some((re) => re.test(section));
 }
 
 export function listRootLevelBuiltInModuleFiles(projectDir: string): string[] {
@@ -481,6 +535,27 @@ export function validateTaskQueue(
           severity: "error",
           message: `${entry.path} needs concrete ## Acceptance Evidence bullets or artifact references. ` +
             "The task must say how completion will be demonstrated, not only what code may change.",
+          paths: [entry.path],
+        });
+      }
+
+      const area = readTaskArea(entry);
+      if (
+        area !== null &&
+        CLIENT_CHANNEL_AREAS.has(area) &&
+        declaresRenderedEvidence(entry.raw) &&
+        !hasNamedRenderedEvidence(entry.raw)
+      ) {
+        findings.push({
+          code: "client-task-missing-rendered-evidence",
+          severity: "error",
+          message: `${entry.path} is an area=${area} task that declares rendered/runtime evidence in its ` +
+            `Desired Outcome or Done When (screenshot, screencast, rendered artifact/fixture, transcript, ` +
+            `runtime probe, or visual evidence) but its ## Acceptance Evidence section does not name any of those ` +
+            `artifact kinds. User-facing client/channel work needs evidence an operator can inspect — not only ` +
+            `test logs. Add a screenshot/transcript/fixture/runtime-probe bullet, or document an operator-capture ` +
+            `precondition if the artifact must be captured manually. See data/tasks/AGENTS.md for accepted artifact ` +
+            `kinds per surface.`,
           paths: [entry.path],
         });
       }

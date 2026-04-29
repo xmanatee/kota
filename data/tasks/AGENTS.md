@@ -24,6 +24,40 @@ describes scheduling and lifecycle.
   source access fails, record the blocker honestly instead of treating the task
   as complete.
 
+## Acceptance Evidence For Client And Channel Work
+
+`area: client` and `area: channel` tasks that declare a screenshot, screencast,
+rendered artifact/fixture, transcript, runtime probe, or visual evidence in
+their `## Desired Outcome` or `## Done When` must also name at least one of
+those artifact kinds in `## Acceptance Evidence`. The validator enforces this
+as `client-task-missing-rendered-evidence`. Prose substitutes ("branch
+description covers the visual change", "implementation tests pass") do not
+satisfy the gate.
+
+Per surface, accepted artifact kinds:
+
+- macOS / iOS / native: PNG/screencast under `.kota/runs/<run-id>/`, or a
+  rendered Swift snapshot fixture committed alongside the test.
+- Mobile (React Native / web): rendered DOM or screenshot fixture, or a video
+  capture under `.kota/runs/<run-id>/`.
+- Web dashboard: screenshot under `.kota/runs/<run-id>/`, or a Playwright
+  trace/HTML report.
+- CLI: full transcript captured to `.kota/runs/<run-id>/transcript.txt`
+  showing the command, arguments, and output (with secrets redacted).
+- Telegram / Slack: rendered message fixture (JSON or markdown) checked in
+  with the test, or a screenshot of the actual conversation under
+  `.kota/runs/<run-id>/`.
+- Daemon route: a runtime probe (`## Runtime Probe` task section, see
+  `src/modules/autonomy/workflows/builder/AGENTS.md`) or a transcript of the
+  curl invocation in the run directory.
+
+If the artifact must be captured by an operator (no headless capture path
+exists), document an explicit operator-capture precondition in the task —
+either inline in `## Acceptance Evidence` or by moving the task to
+`blocked/` with an `operator-capture` precondition. Internal refactors that
+do not change visible behavior remain exempt; pick a non-client area
+(`architecture`, `core`, `modules`, ...) for those.
+
 ## Queue Rules
 
 - New rough ideas belong in `data/inbox/`.
