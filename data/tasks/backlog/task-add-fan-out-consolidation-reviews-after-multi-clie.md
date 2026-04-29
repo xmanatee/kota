@@ -35,6 +35,9 @@ after a multi-client fan-out batch. The consolidation task checks:
 - live runtime/screenshot/transcript evidence;
 - stale legacy affordances that no longer match newer daemon APIs;
 - whether docs/AGENTS still describe reality.
+- whether prior accepted critic warnings left compatibility shims, text-only
+  visual proof, or duplicated client state that should block the consolidation
+  from passing.
 
 ## Constraints
 
@@ -53,7 +56,8 @@ after a multi-client fan-out batch. The consolidation task checks:
 - Explorer/improver/dispatcher or queue-shaping logic can identify completed
   multi-client fan-out batches and seed a consolidation task.
 - The seeded consolidation task template includes IA, runtime contract,
-  rendered evidence, docs, and cross-client consistency checks.
+  rendered evidence, docs, accepted-warning review, and cross-client
+  consistency checks.
 - Tests or fixtures prove the detector does not fire on unrelated single-surface
   tasks and does fire on a representative fan-out sequence.
 - Existing autonomy workflow tests remain green.
@@ -78,3 +82,6 @@ just a checklist of parity commits.
 - Example generated consolidation task from a fixture fan-out sequence.
 - Updated autonomy guidance naming when consolidation is required and what it
   must inspect.
+- A critic/evaluator fixture showing a consolidation task cannot pass with
+  only per-surface unit tests when the requested outcome is visual/runtime
+  coherence across clients.

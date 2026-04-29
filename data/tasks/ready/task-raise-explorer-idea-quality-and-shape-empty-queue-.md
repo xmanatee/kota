@@ -1,12 +1,12 @@
 ---
 id: task-raise-explorer-idea-quality-and-shape-empty-queue-
 title: Raise explorer idea quality and shape empty-queue loop
-status: backlog
+status: ready
 priority: p1
 area: modules
 summary: Improve explorer so it more often proposes high-leverage, strategic, architecture-improving work when the queue is thin instead of small p2 fan-out, and reshape the empty-queue explorer-builder loop without adding blunt daily spend caps.
 created_at: 2026-04-28T22:04:35.308Z
-updated_at: 2026-04-28T22:04:35.308Z
+updated_at: 2026-04-29T12:53:30.000Z
 ---
 
 ## Problem
@@ -51,6 +51,10 @@ defaulting to hard caps stays intact.
   introduce a parallel automation engine.
 - Idea-quality decisions must be inspectable in run artifacts, not buried
   inside agent traces.
+- The strategic/fan-out heuristic must not rely only on task `area`; recent
+  report output showed some surface-parity tasks classified as strategic
+  because they were filed under `modules`. The workflow should inspect task
+  intent, title/body, affected surfaces, and blocked alternatives.
 
 ## Done When
 
@@ -67,6 +71,9 @@ defaulting to hard caps stays intact.
 - Acceptance evidence shows before/after run-stat comparisons demonstrating
   fewer narrow fan-out tasks and at least one example of explorer choosing
   a strategic blocker over new fan-out work.
+- Empty `ready/` is treated as a queue-health event that requires selection,
+  promotion, re-scope, or an explicit no-op reason; it is not treated as an
+  automatic invitation for builder to consume backlog in order.
 
 ## Source / Intent
 
@@ -90,6 +97,12 @@ spend caps."
 These two captures address the same dynamic and would be solved together;
 this task carries both intents.
 
+2026-04-29 follow-up analysis found the queue at 10 backlog, 8 blocked, 0
+ready, and 0 doing while builder runs continued. The same report classified
+77 explorer-created tasks as strategic and 25 as fan-out, but the underlying
+list still included surface-parity work under non-client areas. That makes the
+heuristic useful but insufficient as the only quality signal.
+
 ## Initiative
 
 Autonomy queue and idea quality: the empty-queue loop should advance the
@@ -106,3 +119,5 @@ reliability and honest source handling.
   with the decision rationale visible in the run artifact.
 - Documentation update under `src/modules/autonomy/AGENTS.md` describing
   the loop-shaping mechanism chosen.
+- A queue-health fixture proving empty-ready/backlog-present causes an
+  intentional promotion or no-op reason rather than silent backlog consumption.
