@@ -33,6 +33,35 @@ import { getActiveKotaClient } from "#core/server/client-holder.js";
 import type { LocalClientHandlers } from "#core/server/kota-client.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
+/**
+ * Build a minimal event proxy for ad-hoc test ModuleContext stubs.
+ *
+ * Forwards emit/subscribe to a typed bus, resolving `ModuleEventDef` and
+ * string-keyed inputs to their underlying name. Returns the same object for
+ * `emit` and `emitExternal` (and likewise for `subscribe`) — tests that pass
+ * arbitrary string event names should use the `External` form.
+ */
+export function makeStubEventProxy(
+  bus: { emit: (e: string, p: never) => void; on: (e: string, h: never) => () => void; listenerCount: (e?: string) => number },
+): ModuleContext["events"] {
+  const subscribe = (event: unknown, handler: (payload: never) => void): () => void => {
+    const name = typeof event === "string" ? event : (event as { name: string }).name;
+    return bus.on(name, handler as never);
+  };
+  const emit = (event: unknown, payload: Record<string, unknown>): void => {
+    const name = typeof event === "string" ? event : (event as { name: string }).name;
+    bus.emit(name, payload as never);
+  };
+  return {
+    emit,
+    subscribe,
+    emitExternal: (event: string, payload: Record<string, unknown>) => emit(event, payload),
+    subscribeExternal: (event: string, handler: (payload: Record<string, unknown>) => void) =>
+      subscribe(event, handler as (payload: never) => void),
+    listenerCount: (event?: string) => bus.listenerCount(event),
+  } as unknown as ModuleContext["events"];
+}
+
 export type ModuleHarnessOptions = {
   /** Working directory passed to ctx.cwd. Defaults to process.cwd(). */
   cwd?: string;
@@ -186,6 +215,53 @@ export class ModuleTestHarness {
     for (const h of handlers) h(payload);
   }
 
+  /**
+   * Convenience for ad-hoc tests that build their own ModuleContext stubs:
+   * returns an event-proxy implementation that delegates emit/subscribe to
+   * the harness's tracked handler map. Tests can also use the static
+   * `makeStubEventProxy` helper to wire a proxy onto a different bus.
+   */
+  events(): ModuleContext["events"] {
+    return this.#buildEventProxy();
+  }
+
+  #buildEventProxy(): ModuleContext["events"] {
+    const subscribe = (event: unknown, handler: (payload: never) => void): () => void => {
+      const name = typeof event === "string" ? event : (event as { name: string }).name;
+      const handlers = this.#eventHandlers.get(name) ?? [];
+      handlers.push(handler as (payload: Record<string, unknown>) => void);
+      this.#eventHandlers.set(name, handlers);
+      return () => {
+        const current = this.#eventHandlers.get(name);
+        if (current) {
+          this.#eventHandlers.set(
+            name,
+            current.filter((fn) => fn !== handler),
+          );
+        }
+      };
+    };
+    const emit = (event: unknown, payload: Record<string, unknown>): void => {
+      const name = typeof event === "string" ? event : (event as { name: string }).name;
+      this.emitEvent(name, payload);
+    };
+    return {
+      emit,
+      subscribe,
+      emitExternal: (event: string, payload: Record<string, unknown>) => emit(event, payload),
+      subscribeExternal: (event: string, handler: (payload: Record<string, unknown>) => void) =>
+        subscribe(event, handler as (payload: never) => void),
+      listenerCount: (event?: string) => {
+        if (event === undefined) {
+          let total = 0;
+          for (const handlers of this.#eventHandlers.values()) total += handlers.length;
+          return total;
+        }
+        return this.#eventHandlers.get(event)?.length ?? 0;
+      },
+    } as unknown as ModuleContext["events"];
+  }
+
   #buildContext(moduleName: string): ModuleContext {
     const cwd = this.#options.cwd ?? process.cwd();
     const config = this.#options.config ?? {};
@@ -213,31 +289,7 @@ export class ModuleTestHarness {
       },
       getSecret: (key) => secrets[key] ?? null,
       listTools: () => [...this.#tools.keys()],
-      events: {
-        emit: (event, payload) => this.emitEvent(event, payload),
-        subscribe: (event, handler) => {
-          const handlers = this.#eventHandlers.get(event) ?? [];
-          handlers.push(handler);
-          this.#eventHandlers.set(event, handlers);
-          return () => {
-            const current = this.#eventHandlers.get(event);
-            if (current) {
-              this.#eventHandlers.set(
-                event,
-                current.filter((fn) => fn !== handler),
-              );
-            }
-          };
-        },
-        listenerCount: (event?: string) => {
-          if (event === undefined) {
-            let total = 0;
-            for (const handlers of this.#eventHandlers.values()) total += handlers.length;
-            return total;
-          }
-          return this.#eventHandlers.get(event)?.length ?? 0;
-        },
-      },
+      events: this.#buildEventProxy(),
       createSession: () => {
         throw new Error("createSession is not supported in ModuleTestHarness");
       },

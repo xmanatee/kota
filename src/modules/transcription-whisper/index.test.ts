@@ -41,6 +41,8 @@ function makeContext(moduleConfig?: WhisperModuleConfig): ModuleContext {
     events: {
       emit: () => {},
       subscribe: () => () => {},
+      emitExternal: () => {},
+      subscribeExternal: () => () => {},
       listenerCount: () => 0,
     },
     createSession: () => {

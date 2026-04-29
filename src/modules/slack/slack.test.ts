@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import slackModule from "./index.js";
 
 const mockFetch = vi.fn();
@@ -26,11 +27,7 @@ function makeStubCtx(bus?: EventBus, slackConfig?: unknown): ModuleContext {
     log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
     getSecret: () => null,
     listTools: () => [],
-    events: {
-      emit: (event, payload) => b.emit(event, payload as never),
-      subscribe: (event, handler) => b.on(event, handler as never),
-      listenerCount: (event?: string) => b.listenerCount(event),
-    },
+    events: makeStubEventProxy(b),
     createSession: () => ({ send: async () => "", close: () => {} }),
     registerProvider: () => {},
     getProvider: () => null,

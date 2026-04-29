@@ -13,6 +13,7 @@ vi.mock("./bot.js", () => {
   return { SlackBot };
 });
 
+import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import { SlackBot } from "./bot.js";
 import slackChannelModule from "./index.js";
 
@@ -54,11 +55,7 @@ function makeStubCtx(
     }),
     getSecret: () => null,
     listTools: () => [],
-    events: {
-      emit: (event, payload) => b.emit(event, payload as never),
-      subscribe: (event, handler) => b.on(event, handler as never),
-      listenerCount: (event?: string) => b.listenerCount(event),
-    },
+    events: makeStubEventProxy(b),
     createSession: () => ({ send: async () => "", close: () => {} }),
     registerProvider: () => {},
     getProvider: () => null,

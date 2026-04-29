@@ -1,12 +1,12 @@
 ---
 id: task-type-module-event-contributions
 title: Type module event contributions
-status: backlog
+status: done
 priority: p1
 area: architecture
 summary: Give modules a typed event declaration and subscription protocol so event names and payloads are enforced instead of flowing through string plus Record<string, unknown>.
 created_at: 2026-04-28T22:24:00.000Z
-updated_at: 2026-04-28T22:24:00.000Z
+updated_at: 2026-04-29T05:38:55.876Z
 ---
 
 ## Problem

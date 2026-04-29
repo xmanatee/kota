@@ -12,6 +12,7 @@
 export type { BusEnvelope, BusEventHandler, BusEvents } from "./event-bus-types.js";
 
 import type { BusEnvelope, BusEventHandler, BusEvents } from "./event-bus-types.js";
+import type { ModuleEventDef, ModuleEventPayload } from "./module-event.js";
 
 /**
  * Typed event bus. Supports:
@@ -30,18 +31,27 @@ export class EventBus {
     event: K,
     handler: BusEventHandler<BusEvents[K]>,
   ): () => void;
+  /** Subscribe to a typed module-declared event. */
+  on<E extends ModuleEventDef>(
+    event: E,
+    handler: BusEventHandler<ModuleEventPayload<E>>,
+  ): () => void;
   /** Subscribe to a custom string event. */
   on(event: string, handler: BusEventHandler<Record<string, unknown>>): () => void;
   /** Wildcard: receive every event as a BusEnvelope. */
   on(event: "*", handler: BusEventHandler<BusEnvelope>): () => void;
-  on(event: string, handler: BusEventHandler<never>): () => void {
-    let set = this.handlers.get(event);
+  on(
+    event: string | ModuleEventDef,
+    handler: BusEventHandler<never>,
+  ): () => void {
+    const name = typeof event === "string" ? event : event.name;
+    let set = this.handlers.get(name);
     if (!set) {
       set = new Set();
-      this.handlers.set(event, set);
+      this.handlers.set(name, set);
     }
     set.add(handler);
-    return () => this.off(event, handler);
+    return () => this.off(name, handler);
   }
 
   /** Unsubscribe a handler from an event. */
@@ -57,37 +67,51 @@ export class EventBus {
     event: K,
     handler: BusEventHandler<BusEvents[K]>,
   ): () => void;
+  once<E extends ModuleEventDef>(
+    event: E,
+    handler: BusEventHandler<ModuleEventPayload<E>>,
+  ): () => void;
   once(event: string, handler: BusEventHandler<Record<string, unknown>>): () => void;
-  once(event: string, handler: BusEventHandler<never>): () => void {
+  once(
+    event: string | ModuleEventDef,
+    handler: BusEventHandler<never>,
+  ): () => void {
+    const name = typeof event === "string" ? event : event.name;
     const wrapper = ((payload: never) => {
-      this.off(event, wrapper);
+      this.off(name, wrapper);
       handler(payload);
     }) as BusEventHandler<never>;
-    let set = this.handlers.get(event);
+    let set = this.handlers.get(name);
     if (!set) {
       set = new Set();
-      this.handlers.set(event, set);
+      this.handlers.set(name, set);
     }
     set.add(wrapper);
-    return () => this.off(event, wrapper);
+    return () => this.off(name, wrapper);
   }
 
   /** Emit a typed event synchronously to all subscribers + wildcard listeners. */
   emit<K extends keyof BusEvents>(event: K, payload: BusEvents[K]): void;
+  /** Emit a typed module-declared event. */
+  emit<E extends ModuleEventDef>(event: E, payload: ModuleEventPayload<E>): void;
   /** Emit a custom string event. */
   emit(event: string, payload: Record<string, unknown>): void;
-  emit(event: string, payload: Record<string, unknown>): void {
-    const set = this.handlers.get(event);
+  emit(
+    event: string | ModuleEventDef,
+    payload: Record<string, unknown>,
+  ): void {
+    const name = typeof event === "string" ? event : event.name;
+    const set = this.handlers.get(name);
     if (set) {
       for (const handler of set) {
         (handler as BusEventHandler<Record<string, unknown>>)(payload);
       }
     }
     // Wildcard listeners
-    if (event !== "*") {
+    if (name !== "*") {
       const wildcardSet = this.handlers.get("*");
       if (wildcardSet) {
-        const envelope: BusEnvelope = { type: event, payload };
+        const envelope: BusEnvelope = { type: name, payload };
         for (const handler of wildcardSet) {
           (handler as BusEventHandler<BusEnvelope>)(envelope);
         }
@@ -137,6 +161,16 @@ export function resetEventBus(): void {
 export function tryEmit<K extends keyof BusEvents>(
   event: K,
   payload: BusEvents[K],
-): void {
-  instance?.emit(event, payload);
+): void;
+export function tryEmit<E extends ModuleEventDef>(
+  event: E,
+  payload: ModuleEventPayload<E>,
+): void;
+export function tryEmit(event: string | ModuleEventDef, payload: unknown): void {
+  if (!instance) return;
+  if (typeof event === "string") {
+    instance.emit(event, payload as Record<string, unknown>);
+  } else {
+    instance.emit(event, payload as Record<string, unknown>);
+  }
 }

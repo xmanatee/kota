@@ -223,7 +223,7 @@ function makeCtx(storage?: ReturnType<typeof makeMockStorage>) {
 		log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
 		getSecret: () => null,
 		listTools: () => [],
-		events: { emit: () => {} },
+		events: { emit: () => {}, subscribe: () => () => {}, emitExternal: () => {}, subscribeExternal: () => () => {}, listenerCount: () => 0 },
 		createSession: () => ({ send: async () => "", close: () => {} }),
 		registerProvider: () => {},
 		getProvider: () => null,

@@ -37,7 +37,7 @@ function makeStubCtx(storageDir: string): ModuleContext {
 		},
 		getSecret: () => null,
 		listTools: () => [],
-		events: { emit: () => {}, subscribe: () => () => {}, listenerCount: () => 0 },
+		events: { emit: () => {}, subscribe: () => () => {}, emitExternal: () => {}, subscribeExternal: () => () => {}, listenerCount: () => 0 },
 		createSession: vi.fn(() => ({ send: vi.fn(async () => ""), close: vi.fn() })),
 		registerProvider: vi.fn(),
 		getProvider: () => null,

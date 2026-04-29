@@ -64,6 +64,7 @@ vi.mock("#core/daemon/task-store.js", async (importOriginal) => {
 });
 
 import "#modules/claude-agent-harness/index.js";
+import { makeStubEventProxy } from "#core/modules/testing/index.js";
 
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 
@@ -425,11 +426,7 @@ describe("Telegram personal-assistant daemon integration", () => {
       log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
       getSecret: () => null,
       listTools: () => [],
-      events: {
-        emit: (event, payload) => bus.emit(event as never, payload as never),
-        subscribe: (event, handler) => bus.on(event, handler as never),
-        listenerCount: (event?: string) => bus.listenerCount(event),
-      },
+      events: makeStubEventProxy(bus),
       createSession: () => ({ send: async () => "", close: () => {} }),
       registerProvider: () => {},
       getProvider: () => null,

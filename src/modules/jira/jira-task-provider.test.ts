@@ -430,7 +430,7 @@ describe("JiraTaskProvider — onLoad integration in jira module", () => {
       log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
       getSecret: vi.fn(() => null),
       listTools: vi.fn(() => []),
-      events: { emit: vi.fn(), subscribe: vi.fn(() => () => {}) },
+      events: { emit: vi.fn(), subscribe: vi.fn(() => () => {}), emitExternal: vi.fn(), subscribeExternal: vi.fn(() => () => {}), listenerCount: vi.fn(() => 0) },
       createSession: vi.fn(),
       registerProvider: vi.fn(),
       getProvider: vi.fn(() => null),

@@ -1,4 +1,5 @@
 import { matchesGlob } from "node:path";
+import { getModuleEventRegistry } from "#core/events/module-event.js";
 import { validateCronExpr, validateTimezone } from "./cron.js";
 import type { WorkflowTrigger, WorkflowTriggerInput } from "./types.js";
 import {
@@ -161,13 +162,32 @@ export function validateTrigger(
     return { event, cooldownMs, intervalMs };
   }
 
+  const filter = expectOptionalScalarFilter(
+    trigger.filter,
+    `triggers[${index}].filter`,
+    definitionPath,
+  );
+
+  if (filter) {
+    const registry = getModuleEventRegistry();
+    const declared = registry?.get(event);
+    if (declared) {
+      const allowed = new Set(declared.fields);
+      for (const key of Object.keys(filter)) {
+        if (!allowed.has(key)) {
+          throw new WorkflowDefinitionError(
+            `triggers[${index}].filter references field "${key}" not declared on event "${event}" ` +
+              `(declared by module "${declared.module}"). Declared fields: ${declared.fields.join(", ") || "(none)"}.`,
+            definitionPath,
+          );
+        }
+      }
+    }
+  }
+
   return {
     event,
-    filter: expectOptionalScalarFilter(
-      trigger.filter,
-      `triggers[${index}].filter`,
-      definitionPath,
-    ),
+    filter,
     cooldownMs,
   };
 }

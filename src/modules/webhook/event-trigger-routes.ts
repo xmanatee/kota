@@ -51,7 +51,7 @@ function makeEventTriggerHandler(
       return;
     }
 
-    ctx.events.emit(eventName, payload);
+    ctx.events.emitExternal(eventName, payload);
     jsonResponse(res, 200, {
       ok: true,
       event: eventName,

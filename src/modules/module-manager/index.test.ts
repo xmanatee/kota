@@ -22,7 +22,7 @@ const stubCtx: ModuleContext = {
   log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
   getSecret: () => null,
   listTools: () => [],
-  events: { emit: () => {}, subscribe: () => () => {}, listenerCount: () => 0 },
+  events: { emit: () => {}, subscribe: () => () => {}, emitExternal: () => {}, subscribeExternal: () => () => {}, listenerCount: () => 0 },
   createSession: () => ({ send: async () => "", close: () => {} }),
   registerProvider: () => {},
   getProvider: () => null,

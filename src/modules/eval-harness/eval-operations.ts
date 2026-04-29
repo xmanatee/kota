@@ -22,6 +22,7 @@ import {
   evaluateCalibrationGate,
 } from "#modules/autonomy/evaluator-calibration.js";
 import { runEvalSet } from "./eval-set.js";
+import { evalHarnessSetCompleted } from "./events.js";
 import { FixtureProvenanceError, loadAllFixtures, loadFixture } from "./fixture.js";
 import type { ResourceProfile } from "./fixture-run.js";
 import { createSubprocessExecutor } from "./subprocess-executor.js";
@@ -108,7 +109,7 @@ export async function runEvalHarness(
   });
 
   if (bus) {
-    bus.emit("eval-harness.set.completed", {
+    bus.emit(evalHarnessSetCompleted, {
       fixtureCount: report.aggregate.fixtureCount,
       repeatCount: report.repeatCount,
       passAtK: report.aggregate.passAtK,

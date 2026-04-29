@@ -18,6 +18,7 @@ import {
 } from "./baseline-assessment.js";
 import { loadBaseline, saveBaseline } from "./baseline-store.js";
 import { runEvalSet } from "./eval-set.js";
+import { evalHarnessSetCompleted } from "./events.js";
 import { loadAllFixtures } from "./fixture.js";
 import type { ResourceProfile } from "./fixture-run.js";
 import { createSubprocessExecutor } from "./subprocess-executor.js";
@@ -124,7 +125,7 @@ const runHarness = typedCodeStep<CadenceResult>({
       ),
     );
 
-    emit("eval-harness.set.completed", {
+    emit(evalHarnessSetCompleted.name, {
       fixtureCount: report.aggregate.fixtureCount,
       repeatCount: report.repeatCount,
       passAtK: report.aggregate.passAtK,

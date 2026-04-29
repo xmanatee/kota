@@ -454,7 +454,7 @@ describe("GitHubTaskProvider — onLoad integration in github module", () => {
       log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
       getSecret: vi.fn(() => null),
       listTools: vi.fn(() => []),
-      events: { emit: vi.fn(), subscribe: vi.fn(() => () => {}) },
+      events: { emit: vi.fn(), subscribe: vi.fn(() => () => {}), emitExternal: vi.fn(), subscribeExternal: vi.fn(() => () => {}), listenerCount: vi.fn(() => 0) },
       createSession: vi.fn(),
       registerProvider: vi.fn((type: string, p: unknown) => registered.push({ type, p })),
       getProvider: vi.fn(() => null),

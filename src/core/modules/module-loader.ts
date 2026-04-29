@@ -9,6 +9,10 @@ import {
   unregisterConfigSlicesForOwner,
 } from "#core/config/config-slice.js";
 import type { EventBus } from "#core/events/event-bus.js";
+import {
+  getModuleEventRegistry,
+  initModuleEventRegistry,
+} from "#core/events/module-event.js";
 import type { LocalClientHandlers } from "#core/server/kota-client.js";
 import { executeTool, getModuleToolNames, registerTool } from "#core/tools/index.js";
 import { registerCustomGroup } from "#core/tools/tool-groups.js";
@@ -249,6 +253,13 @@ export class ModuleLoader {
         }
         registerConfigSlice(slice, mod.name);
         this.registeredConfigKeys.set(slice.key, mod.name);
+      }
+    }
+
+    if (mod.events && mod.events.length > 0) {
+      const registry = getModuleEventRegistry() ?? initModuleEventRegistry();
+      for (const def of mod.events) {
+        registry.register(mod.name, def);
       }
     }
 
@@ -536,8 +547,13 @@ export class ModuleLoader {
 
   async unloadAll(): Promise<void> {
     const owners = [...new Set(this.registeredConfigKeys.values())];
+    const eventOwners = this.modules.map((m) => m.name);
     await unloadAllModules(this.lifecycleState);
     for (const owner of owners) unregisterConfigSlicesForOwner(owner);
+    const registry = getModuleEventRegistry();
+    if (registry) {
+      for (const owner of eventOwners) registry.unregisterModule(owner);
+    }
     this.registeredConfigKeys.clear();
     this.contributedWorkflows.splice(0);
     this.contributedChannels.splice(0);
@@ -559,6 +575,7 @@ export class ModuleLoader {
       if (owner === moduleName) this.registeredConfigKeys.delete(key);
     }
     unregisterConfigSlicesForOwner(moduleName);
+    getModuleEventRegistry()?.unregisterModule(moduleName);
     this.moduleRoutes.delete(moduleName);
     this.moduleCommands.delete(moduleName);
     this.moduleControlRoutes.delete(moduleName);

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import githubWebhookModule from "./index.js";
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
@@ -29,11 +30,7 @@ function makeStubCtx(
     log: { info: () => {}, warn: logWarn, error: () => {}, debug: () => {} },
     getSecret: () => null,
     listTools: () => [],
-    events: {
-      emit: (event, payload) => bus.emit(event, payload as never),
-      subscribe: (event, handler) => bus.on(event, handler as never),
-      listenerCount: (event?: string) => bus.listenerCount(event),
-    },
+    events: makeStubEventProxy(bus),
     createSession: () => ({ send: async () => "", close: () => {} }),
     registerProvider: () => {},
     getProvider: () => null,

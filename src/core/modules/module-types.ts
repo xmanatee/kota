@@ -15,6 +15,11 @@ import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { ModuleConfigSlice } from "#core/config/config-slice.js";
 import type { CapabilityScope } from "#core/daemon/daemon-control-types.js";
+import type { BusEnvelope, BusEvents } from "#core/events/event-bus-types.js";
+import type {
+  ModuleEventDef,
+  ModuleEventPayload,
+} from "#core/events/module-event.js";
 import type { DynamicStateContext } from "#core/loop/dynamic-state.js";
 import type { PreSendHook } from "#core/loop/pre-send-hooks.js";
 import type {
@@ -76,15 +81,57 @@ export type ModuleLogger = {
   debug: (msg: string, data?: unknown) => void;
 };
 
-/** Event proxy available to modules via ModuleContext. */
+/**
+ * Event proxy available to modules via `ModuleContext`.
+ *
+ * The normal module path is typed: `emit` and `subscribe` accept either a
+ * core-typed `BusEvents` key or a `ModuleEventDef` declaration imported from
+ * the module that owns the event. The wildcard form receives a typed
+ * `BusEnvelope` for tracing and metrics.
+ *
+ * Truly external events (inbound webhook surfaces forwarding arbitrary
+ * remote event names, dynamic third-party event ids) use the visibly-unsafe
+ * `emitExternal` / `subscribeExternal` escape hatches and must validate at
+ * the boundary.
+ */
 export type ModuleEventProxy = {
-  /** Emit an event on the bus. No-op if bus not available. */
-  emit(event: string, payload: Record<string, unknown>): void;
-  /** Subscribe to a bus event. Returns an unsubscribe function. No-op (returns noop) if bus not available. */
-  subscribe(event: string, handler: (payload: Record<string, unknown>) => void): () => void;
+  /** Emit a core-typed `BusEvents` event. */
+  emit<K extends keyof BusEvents>(event: K, payload: BusEvents[K]): void;
+  /** Emit a module-declared typed event using its `ModuleEventDef`. */
+  emit<E extends ModuleEventDef>(event: E, payload: ModuleEventPayload<E>): void;
+  /** Subscribe to a core-typed `BusEvents` event. */
+  subscribe<K extends keyof BusEvents>(
+    event: K,
+    handler: (payload: BusEvents[K]) => void,
+  ): () => void;
+  /** Subscribe to a module-declared typed event using its `ModuleEventDef`. */
+  subscribe<E extends ModuleEventDef>(
+    event: E,
+    handler: (payload: ModuleEventPayload<E>) => void,
+  ): () => void;
+  /** Wildcard subscriber for tracing/metrics. Receives typed `BusEnvelope`s. */
+  subscribe(
+    event: "*",
+    handler: (envelope: BusEnvelope) => void,
+  ): () => void;
   /**
-   * Number of subscribers for the given event name (or all events if omitted).
-   * Returns 0 if the bus is not available.
+   * Visibly-unsafe escape hatch for events whose name and payload only become
+   * known at runtime (inbound webhook bridges, dynamic third-party event
+   * ids). Callers must validate the payload before forwarding it as a typed
+   * event to the rest of the system.
+   */
+  emitExternal(event: string, payload: Record<string, unknown>): void;
+  /**
+   * Visibly-unsafe escape hatch for subscribing to events whose payload type
+   * cannot be expressed in either `BusEvents` or a `ModuleEventDef`.
+   */
+  subscribeExternal(
+    event: string,
+    handler: (payload: Record<string, unknown>) => void,
+  ): () => void;
+  /**
+   * Number of subscribers for the given event name (or all events if
+   * omitted). Returns 0 if the bus is not available.
    */
   listenerCount(event?: string): number;
 };
@@ -325,6 +372,16 @@ export type KotaModule = {
 
   /** JSON Schema fragment for this module's config under `config.modules`. */
   configSchema?: Record<string, unknown>;
+
+  /**
+   * Typed event declarations contributed by this module. Each declaration
+   * names a module-owned event and the payload field set; cross-module
+   * subscribers import the declaration to get a typed handler. The loader
+   * registers contributions on load and unregisters them on unload, and
+   * workflow trigger validation rejects filters that reference unknown
+   * fields against these declarations.
+   */
+  events?: ReadonlyArray<ModuleEventDef>;
 
   /**
    * Tools this module provides. Registered during load.

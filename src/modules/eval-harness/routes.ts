@@ -10,6 +10,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { join, resolve } from "node:path";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { runEvalSet } from "./eval-set.js";
+import { evalHarnessSetCompleted } from "./events.js";
 import { loadAllFixtures, loadFixture } from "./fixture.js";
 import type { ResourceProfile } from "./fixture-run.js";
 import { createSubprocessExecutor } from "./subprocess-executor.js";
@@ -160,7 +161,7 @@ export function evalHarnessRoutes(ctx: ModuleContext) {
             repeatCount,
             keepWorkingDirs: request.keepWorkingDirs ?? false,
           });
-          ctx.events.emit("eval-harness.set.completed", {
+          ctx.events.emit(evalHarnessSetCompleted, {
             fixtureCount: report.aggregate.fixtureCount,
             repeatCount: report.repeatCount,
             passAtK: report.aggregate.passAtK,

@@ -6,6 +6,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initSecretStore, resetSecretStore } from "#core/config/secrets.js";
 import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
+import {
+  defineModuleEvent,
+  resetModuleEventRegistry,
+} from "#core/events/module-event.js";
 import { clearCustomTools, executeTool, registerTool } from "#core/tools/index.js";
 import { clearCustomGroups, resetGroups } from "#core/tools/tool-groups.js";
 import { ModuleLoader } from "./module-loader.js";
@@ -18,6 +22,7 @@ beforeEach(() => {
   resetGroups();
   resetSecretStore();
   resetEventBus();
+  resetModuleEventRegistry();
 });
 
 afterEach(() => {
@@ -26,6 +31,7 @@ afterEach(() => {
   resetGroups();
   resetSecretStore();
   resetEventBus();
+  resetModuleEventRegistry();
 });
 
 // ── ctx.log ──────────────────────────────────────────────────────────────
@@ -320,7 +326,7 @@ describe("resolveModuleTools", () => {
     log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
     getSecret: () => null,
     listTools: () => [],
-    events: { emit: () => {}, subscribe: () => () => {}, listenerCount: () => 0 },
+    events: { emit: () => {}, subscribe: () => () => {}, emitExternal: () => {}, subscribeExternal: () => () => {}, listenerCount: () => 0 },
     createSession: () => ({ send: async () => "", close: () => {} }),
     registerProvider: () => {},
     getProvider: () => null,
@@ -381,10 +387,10 @@ describe("ModuleContext.events", () => {
 
     const ctx: ModuleContext = onLoad.mock.calls[0][0];
     // Should not throw
-    ctx.events.emit("test.event", { value: 1 });
+    ctx.events.emitExternal("test.event", { value: 1 });
   });
 
-  it("emits events to the bus", async () => {
+  it("emits external events to the bus", async () => {
     const bus = initEventBus();
     const received: unknown[] = [];
     bus.on("custom.event", (payload) => received.push(payload));
@@ -395,13 +401,37 @@ describe("ModuleContext.events", () => {
     loader.setBus(bus);
 
     const ctx: ModuleContext = onLoad.mock.calls[0][0];
-    ctx.events.emit("custom.event", { key: "value" });
+    ctx.events.emitExternal("custom.event", { key: "value" });
 
     expect(received).toHaveLength(1);
     expect(received[0]).toEqual({ key: "value" });
   });
 
-  it("tool runner can use ctx.events.emit via closure", async () => {
+  it("emits typed module-declared events to the bus", async () => {
+    const bus = initEventBus();
+    const received: unknown[] = [];
+    bus.on("module-event-test.fired", (payload) => received.push(payload));
+
+    const onLoad = vi.fn();
+    const loader = new ModuleLoader({});
+    const fired = defineModuleEvent<{ value: number }>(
+      "module-event-test.fired",
+      ["value"],
+    );
+    await loader.load({
+      name: "module-event-test",
+      events: [fired],
+      onLoad,
+    });
+    loader.setBus(bus);
+
+    const ctx: ModuleContext = onLoad.mock.calls[0][0];
+    ctx.events.emit(fired, { value: 42 });
+
+    expect(received).toEqual([{ value: 42 }]);
+  });
+
+  it("tool runner can use ctx.events.emitExternal via closure", async () => {
     const bus = initEventBus();
     const emitted: unknown[] = [];
     bus.on("tool.ran", (p) => emitted.push(p));
@@ -416,7 +446,7 @@ describe("ModuleContext.events", () => {
           input_schema: { type: "object", properties: {} },
         },
         runner: async () => {
-          ctx.events.emit("tool.ran", { tool: "event_emitter_tool" });
+          ctx.events.emitExternal("tool.ran", { tool: "event_emitter_tool" });
           return { content: "emitted" };
         },
         risk: "safe" as const, kind: "discovery" as const,

@@ -6,6 +6,7 @@ import { AgentSession } from "#core/loop/loop.js";
 import { NullTransport } from "#core/loop/transport.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import { webhookChannelSession } from "./events.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -306,7 +307,7 @@ async function handleSourceRequest(
       meta: { source: sourceId, agent: sourceConfig.agent, ...payload.metadata },
     };
 
-    ctx.events.emit("webhook-channel.session", {
+    ctx.events.emit(webhookChannelSession, {
       sessionId: session.id,
       identity,
       source: sourceId,
@@ -377,7 +378,7 @@ async function handleDirectRequest(
       meta: payload.metadata,
     };
 
-    ctx.events.emit("webhook-channel.session", {
+    ctx.events.emit(webhookChannelSession, {
       sessionId: session.id,
       identity,
       resumed: !!existingId,

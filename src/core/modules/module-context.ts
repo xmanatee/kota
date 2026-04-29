@@ -8,6 +8,7 @@ import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { getSecretStore } from "#core/config/secrets.js";
 import type { EventBus } from "#core/events/event-bus.js";
+import type { ModuleEventDef } from "#core/events/module-event.js";
 import { registerCleanupHook } from "#core/loop/cleanup-hooks.js";
 import { registerDynamicStateProvider } from "#core/loop/dynamic-state.js";
 import { registerPreSendHook as registerPreSendHookImpl } from "#core/loop/pre-send-hooks.js";
@@ -57,14 +58,38 @@ function getOrCreateStorage(
   return storage;
 }
 
+function isModuleEventDef(value: unknown): value is ModuleEventDef {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { name?: unknown }).name === "string" &&
+    Array.isArray((value as { fields?: unknown }).fields)
+  );
+}
+
 function createEventProxy(
   getBus: () => EventBus | null,
 ): ModuleEventProxy {
-  return {
-    emit: (event: string, payload: Record<string, unknown>) => {
+  const proxy = {
+    emit: (event: unknown, payload: Record<string, unknown>): void => {
+      const bus = getBus();
+      if (!bus) return;
+      const name = isModuleEventDef(event) ? event.name : (event as string);
+      bus.emit(name, payload);
+    },
+    subscribe: (event: unknown, handler: (payload: never) => void): () => void => {
+      const bus = getBus();
+      if (!bus) return () => {};
+      const name = isModuleEventDef(event) ? event.name : (event as string);
+      return bus.on(name, handler as never);
+    },
+    emitExternal: (event: string, payload: Record<string, unknown>): void => {
       getBus()?.emit(event, payload);
     },
-    subscribe: (event: string, handler: (payload: Record<string, unknown>) => void): () => void => {
+    subscribeExternal: (
+      event: string,
+      handler: (payload: Record<string, unknown>) => void,
+    ): () => void => {
       const bus = getBus();
       if (!bus) return () => {};
       return bus.on(event, handler as never);
@@ -73,6 +98,7 @@ function createEventProxy(
       return getBus()?.listenerCount(event) ?? 0;
     },
   };
+  return proxy as unknown as ModuleEventProxy;
 }
 
 export function createModuleContext(params: ModuleContextParams, moduleName?: string): ModuleContext {

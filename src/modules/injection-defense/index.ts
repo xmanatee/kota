@@ -31,6 +31,7 @@ import {
   DEFAULT_TARGET_TOOLS,
   type InjectionAssessmentPayload,
 } from "./defense-middleware.js";
+import { injectionDefenseAssessed } from "./events.js";
 
 const MIDDLEWARE_NAME = "injection-defense";
 // Priority 40 — runs after the retry middleware (20) so retried responses are
@@ -70,6 +71,7 @@ const injectionDefenseModule: KotaModule = {
   version: "1.0.0",
   description:
     "Input-side injection defense for externally ingested content on autonomous runs",
+  events: [injectionDefenseAssessed],
 
   onLoad: (ctx) => {
     const { enabled, targetTools, targetModes } = resolveConfig(ctx);
@@ -79,10 +81,7 @@ const injectionDefenseModule: KotaModule = {
     }
 
     const emit = (payload: InjectionAssessmentPayload) => {
-      ctx.events.emit(
-        "injection.defense.assessed",
-        payload as unknown as Record<string, unknown>,
-      );
+      ctx.events.emit(injectionDefenseAssessed, payload);
     };
     const mw = createInjectionDefenseMiddleware({
       targetTools,

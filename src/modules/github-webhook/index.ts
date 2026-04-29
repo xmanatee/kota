@@ -171,7 +171,7 @@ function makeWebhookHandler(
     }
 
     const payload = normalizePayload(eventType, rawPayload);
-    ctx.events.emit(`github.${eventType}`, payload);
+    ctx.events.emitExternal(`github.${eventType}`, payload);
     ctx.log.info(`github-webhook: emitted github.${eventType}`, { repo: payload.repo });
 
     res.writeHead(200, { "Content-Type": "application/json" });

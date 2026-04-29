@@ -22,6 +22,16 @@ This directory contains the project-owned modules.
   local `AGENTS.md`, config type, and focused tests aligned. Exact event names,
   payload fields, and subscription lists belong in code and tests, not a shared
   docs catalog.
+- Module-owned events are typed declarations contributed through
+  `KotaModule.events`. Define each event with `defineModuleEvent<TPayload>(name,
+  fields)` in a co-located `events.ts`, register it in the module definition,
+  and import the declaration where another module subscribes. Cross-module
+  subscribers pass the declaration object, not the raw event name. Workflow
+  trigger filters that reference fields not declared on the matching event are
+  rejected at validation time. Use `ctx.events.emitExternal` /
+  `subscribeExternal` only for events whose name and payload arrive at runtime
+  (inbound webhook bridges, dynamic third-party event ids); validate the
+  payload at the boundary.
 
 ## Workflow contribution precedence
 

@@ -25,6 +25,7 @@ import {
   runEvalCalibration,
   runEvalHarness,
 } from "./eval-operations.js";
+import { evalHarnessSetCompleted } from "./events.js";
 import evalHarnessRegressionNotify from "./regression-notify-workflow.js";
 import {
   createReplayAgentHarness,
@@ -139,6 +140,7 @@ const evalHarnessModule: KotaModule = {
   // subprocess executor is the only production caller that sets that env,
   // so operator and daemon runs are unaffected.
   dependencies: ["autonomy", "rendering", "claude-agent-harness"],
+  events: [evalHarnessSetCompleted],
   commands: (ctx) => [buildEvalCommand(ctx)],
   routes: (ctx) => evalHarnessRoutes(ctx),
   controlRoutes: (ctx) => evalHarnessControlRoutes(ctx),

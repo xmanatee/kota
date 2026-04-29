@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import {
   clearSessions,
   makeWebhookChannelHandler,
@@ -53,11 +54,7 @@ function makeStubCtx(
     }),
     getSecret: () => null,
     listTools: () => [],
-    events: {
-      emit: (event, payload) => b.emit(event, payload as never),
-      subscribe: (event, handler) => b.on(event, handler as never),
-      listenerCount: (event?: string) => b.listenerCount(event),
-    },
+    events: makeStubEventProxy(b),
     createSession: vi.fn(() => ({
       send: vi.fn(async () => "agent response text"),
       close: vi.fn(),

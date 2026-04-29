@@ -14,6 +14,11 @@ import autonomyModule from "#modules/autonomy/index.js";
 // Side-effect import: registers the claude-agent-sdk harness so the step
 // validator can resolve it when a test exercises `harnessOptions`.
 import "#modules/claude-agent-harness/index.js";
+import {
+  defineModuleEvent,
+  initModuleEventRegistry,
+  resetModuleEventRegistry,
+} from "#core/events/module-event.js";
 
 function validateWorkflowDefinitions(
   definitions: readonly RegisteredWorkflowDefinitionInput[],
@@ -116,6 +121,77 @@ describe("workflow validation", () => {
       workflow: "builder",
       status: ["success", "failed"],
     });
+  });
+
+  it("rejects trigger filters that reference undeclared module-event fields", () => {
+    resetModuleEventRegistry();
+    const moduleEvents = initModuleEventRegistry();
+    moduleEvents.register(
+      "fixture-module",
+      defineModuleEvent<{ fixtureCount: number; passAtK: number }>(
+        "fixture.module.event",
+        ["fixtureCount", "passAtK"],
+      ),
+    );
+
+    try {
+      expect(() =>
+        validateWorkflowDefinitions(
+          [
+            registerWorkflowDefinition("test/observer.ts", {
+              name: "fixture-observer",
+              triggers: [
+                {
+                  event: "fixture.module.event",
+                  filter: { passAtK: 1, ghostField: "x" },
+                },
+              ],
+              steps: [
+                { id: "noop", type: "emit", event: "fixture.observer.done" },
+              ],
+            }),
+          ],
+          projectDir,
+        ),
+      ).toThrow(/ghostField.*not declared on event "fixture\.module\.event"/);
+    } finally {
+      resetModuleEventRegistry();
+    }
+  });
+
+  it("accepts trigger filters that reference declared module-event fields", () => {
+    resetModuleEventRegistry();
+    const moduleEvents = initModuleEventRegistry();
+    moduleEvents.register(
+      "fixture-module",
+      defineModuleEvent<{ fixtureCount: number; passAtK: number }>(
+        "fixture.module.event.ok",
+        ["fixtureCount", "passAtK"],
+      ),
+    );
+
+    try {
+      const definitions = validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/observer.ts", {
+            name: "fixture-observer-ok",
+            triggers: [
+              {
+                event: "fixture.module.event.ok",
+                filter: { passAtK: 1 },
+              },
+            ],
+            steps: [
+              { id: "noop", type: "emit", event: "fixture.observer.done" },
+            ],
+          }),
+        ],
+        projectDir,
+      );
+      expect(definitions[0]?.triggers[0]?.filter).toEqual({ passAtK: 1 });
+    } finally {
+      resetModuleEventRegistry();
+    }
   });
 
   it("accepts exposeOutputToAgent on workflow steps", () => {

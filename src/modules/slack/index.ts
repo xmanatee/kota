@@ -207,7 +207,7 @@ const slackModule: KotaModule = {
     const enabledEvents = new Set(config.events ?? NOTIFICATION_EVENTS);
     const retryOptions = { retries: config.retries, baseDelayMs: config.retryDelayMs };
 
-    const subscribe = (event: string) => {
+    const subscribe = (event: keyof BusEvents) => {
       const unsub = ctx.events.subscribe(event, (payload) => {
         const blocks = buildBlocks(event, payload as Record<string, unknown>);
         void postWithRetry(webhookUrl, JSON.stringify({ blocks }), ctx.log, retryOptions);
