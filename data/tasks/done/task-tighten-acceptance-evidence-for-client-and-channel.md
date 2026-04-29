@@ -1,12 +1,12 @@
 ---
 id: task-tighten-acceptance-evidence-for-client-and-channel
 title: Tighten acceptance evidence for client and channel fan-out
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Define a lightweight standard for client/channel fan-out tasks that requires at least one rendered-output artifact, screenshot, CLI transcript, or shared fixture per user-facing surface when visible behavior changes, without creating a parallel changelog or audit surface.
 created_at: 2026-04-28T22:04:50.721Z
-updated_at: 2026-04-28T22:04:50.721Z
+updated_at: 2026-04-29T04:42:34.563Z
 ---
 
 ## Problem
