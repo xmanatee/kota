@@ -183,7 +183,6 @@ export async function handleRejectAllApprovals(
 	jsonResponse(res, 200, rejectAllApprovalsLocal(queue, reason));
 }
 
-const APPROVAL_ACTION_PATTERN = /^\/api\/approvals\/([^/]+)\/(approve|reject)$/;
 
 export function approvalRoutes(): RouteRegistration[] {
 	return [
@@ -205,17 +204,15 @@ export function approvalRoutes(): RouteRegistration[] {
 		},
 		{
 			method: "POST",
-			path: "/api/approvals/",
-			pathPattern: APPROVAL_ACTION_PATTERN,
-			handler: (req, res) => {
-				const match = new URL(req.url!, "http://localhost").pathname.match(APPROVAL_ACTION_PATTERN);
-				const id = match![1];
-				const action = match![2];
-				if (action === "approve") {
-					return handleApproveApproval(req, res, id, DaemonControlClient.fromStateDir());
-				}
-				return handleRejectApproval(req, res, id, DaemonControlClient.fromStateDir());
-			},
+			path: "/api/approvals/:id/approve",
+			handler: (req, res, params) =>
+				handleApproveApproval(req, res, params.id, DaemonControlClient.fromStateDir()),
+		},
+		{
+			method: "POST",
+			path: "/api/approvals/:id/reject",
+			handler: (req, res, params) =>
+				handleRejectApproval(req, res, params.id, DaemonControlClient.fromStateDir()),
 		},
 	];
 }

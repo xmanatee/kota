@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import type { AuditEntry, AuditFilter } from "#core/tools/audit-store.js";
-import { handleListAudit } from "./routes.js";
+import { makeListAuditHandler } from "./routes.js";
 
 function mockReqRes(url = "/api/audit") {
 	const result = { status: 0, body: null as unknown };
@@ -42,7 +42,7 @@ describe("audit routes", () => {
 		it("returns 200 with empty entries when store is empty", () => {
 			const store = makeStore([]);
 			const { req, res, result } = mockReqRes();
-			handleListAudit(req, res, store);
+			makeListAuditHandler(() => store)(req, res, {});
 			expect(result.status).toBe(200);
 			const body = result.body as { entries: unknown[] };
 			expect(body.entries).toEqual([]);
@@ -52,7 +52,7 @@ describe("audit routes", () => {
 			const entry = makeEntry({ tool: "file_read", risk: "moderate", policy: "confirm" });
 			const store = makeStore([entry]);
 			const { req, res, result } = mockReqRes();
-			handleListAudit(req, res, store);
+			makeListAuditHandler(() => store)(req, res, {});
 			expect(result.status).toBe(200);
 			const body = result.body as { entries: AuditEntry[] };
 			expect(body.entries).toHaveLength(1);
@@ -67,7 +67,7 @@ describe("audit routes", () => {
 				query: (f) => { calls.push(f); return []; },
 			};
 			const { req, res } = mockReqRes("/api/audit?risk=dangerous");
-			handleListAudit(req, res, store);
+			makeListAuditHandler(() => store)(req, res, {});
 			expect(calls[0]).toMatchObject({ risk: "dangerous" });
 		});
 
@@ -77,7 +77,7 @@ describe("audit routes", () => {
 				query: (f) => { calls.push(f); return []; },
 			};
 			const { req, res } = mockReqRes("/api/audit?policy=deny");
-			handleListAudit(req, res, store);
+			makeListAuditHandler(() => store)(req, res, {});
 			expect(calls[0]).toMatchObject({ policy: "deny" });
 		});
 
@@ -87,7 +87,7 @@ describe("audit routes", () => {
 				query: (f) => { calls.push(f); return []; },
 			};
 			const { req, res } = mockReqRes("/api/audit");
-			handleListAudit(req, res, store);
+			makeListAuditHandler(() => store)(req, res, {});
 			expect(calls[0]).toMatchObject({ limit: 200 });
 		});
 
@@ -97,7 +97,7 @@ describe("audit routes", () => {
 				query: (f) => { calls.push(f); return []; },
 			};
 			const { req, res } = mockReqRes("/api/audit?limit=50");
-			handleListAudit(req, res, store);
+			makeListAuditHandler(() => store)(req, res, {});
 			expect(calls[0]).toMatchObject({ limit: 50 });
 		});
 
@@ -106,7 +106,7 @@ describe("audit routes", () => {
 				query: () => { throw new Error("disk error"); },
 			};
 			const { req, res, result } = mockReqRes();
-			handleListAudit(req, res, store);
+			makeListAuditHandler(() => store)(req, res, {});
 			expect(result.status).toBe(500);
 			expect((result.body as { error: string }).error).toBe("disk error");
 		});

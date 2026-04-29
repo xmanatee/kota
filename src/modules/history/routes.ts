@@ -135,7 +135,6 @@ export async function handleDeleteHistory(
   }
 }
 
-const HISTORY_ENTRY_PATTERN = /^\/api\/history\/([^/]+)$/;
 
 export function historyRoutes(): RouteRegistration[] {
   return [
@@ -154,21 +153,15 @@ export function historyRoutes(): RouteRegistration[] {
     },
     {
       method: "GET",
-      path: "/api/history/",
-      pathPattern: HISTORY_ENTRY_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(HISTORY_ENTRY_PATTERN);
-        return handleGetHistory(res, match![1], DaemonControlClient.fromStateDir());
-      },
+      path: "/api/history/:id",
+      handler: (_req, res, params) =>
+        handleGetHistory(res, params.id, DaemonControlClient.fromStateDir()),
     },
     {
       method: "DELETE",
-      path: "/api/history/",
-      pathPattern: HISTORY_ENTRY_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(HISTORY_ENTRY_PATTERN);
-        return handleDeleteHistory(req, res, match![1], DaemonControlClient.fromStateDir());
-      },
+      path: "/api/history/:id",
+      handler: (req, res, params) =>
+        handleDeleteHistory(req, res, params.id, DaemonControlClient.fromStateDir()),
     },
   ];
 }

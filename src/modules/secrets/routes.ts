@@ -3,7 +3,6 @@ import { getSecretStore, initSecretStore, type SecretScope } from "#core/config/
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 
-const SECRET_BY_NAME_PATTERN = /^\/api\/secrets\/([^/?]+)/;
 
 function ensureStore(): ReturnType<typeof getSecretStore> {
   return getSecretStore() ?? initSecretStore();
@@ -110,42 +109,18 @@ export function secretsRoutes(): RouteRegistration[] {
     },
     {
       method: "GET",
-      path: "/api/secrets/",
-      pathPattern: SECRET_BY_NAME_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url ?? "", "http://localhost").pathname.match(SECRET_BY_NAME_PATTERN);
-        if (!match) {
-          jsonResponse(res, 400, { error: "Missing secret name." });
-          return;
-        }
-        handleGetSecret(res, decodeURIComponent(match[1]));
-      },
+      path: "/api/secrets/:name",
+      handler: (_req, res, params) => handleGetSecret(res, params.name),
     },
     {
       method: "PUT",
-      path: "/api/secrets/",
-      pathPattern: SECRET_BY_NAME_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url ?? "", "http://localhost").pathname.match(SECRET_BY_NAME_PATTERN);
-        if (!match) {
-          jsonResponse(res, 400, { error: "Missing secret name." });
-          return;
-        }
-        return handleSetSecret(req, res, decodeURIComponent(match[1]));
-      },
+      path: "/api/secrets/:name",
+      handler: (req, res, params) => handleSetSecret(req, res, params.name),
     },
     {
       method: "DELETE",
-      path: "/api/secrets/",
-      pathPattern: SECRET_BY_NAME_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url ?? "", "http://localhost").pathname.match(SECRET_BY_NAME_PATTERN);
-        if (!match) {
-          jsonResponse(res, 400, { error: "Missing secret name." });
-          return;
-        }
-        handleRemoveSecret(req, res, decodeURIComponent(match[1]));
-      },
+      path: "/api/secrets/:name",
+      handler: (req, res, params) => handleRemoveSecret(req, res, params.name),
     },
   ];
 }

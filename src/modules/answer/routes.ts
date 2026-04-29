@@ -117,7 +117,6 @@ export function answerApiRoutes(
   resolveHistory: () => AnswerHistoryStore,
 ): RouteRegistration[] {
   const historyHandlers = createAnswerHistoryRouteHandler(resolveHistory);
-  const showPathPattern = /^\/api\/answers\/([^/]+)$/;
   return [
     {
       method: "POST",
@@ -131,18 +130,9 @@ export function answerApiRoutes(
     },
     {
       method: "GET",
-      path: "/api/answers",
-      pathPattern: showPathPattern,
-      handler: async (req, res) => {
-        const url = req.url ?? "";
-        const pathname = url.split("?")[0] ?? "";
-        const match = showPathPattern.exec(pathname);
-        if (!match) {
-          jsonResponse(res, 404, { error: "Not found" });
-          return;
-        }
-        const id = decodeURIComponent(match[1] ?? "");
-        await historyHandlers.showById(id, res);
+      path: "/api/answers/:id",
+      handler: async (_req, res, params) => {
+        await historyHandlers.showById(params.id, res);
       },
     },
   ];

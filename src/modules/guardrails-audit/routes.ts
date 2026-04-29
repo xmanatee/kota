@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { ModuleRouteHandler } from "#core/modules/module-types.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import type { AuditEntry, AuditFilter } from "#core/tools/audit-store.js";
 import { AuditStore, getAuditStore } from "#core/tools/audit-store.js";
@@ -17,18 +18,27 @@ function parseFilter(url: URL): AuditFilter {
 	return filter;
 }
 
-export function handleListAudit(
-	req: IncomingMessage,
-	res: ServerResponse,
-	store?: Pick<AuditStore, "query">,
-): void {
-	try {
-		const url = new URL(req.url ?? "/", "http://localhost");
-		const filter = parseFilter(url);
-		const auditStore = store ?? getAuditStore() ?? new AuditStore(process.cwd());
-		const entries: AuditEntry[] = auditStore.query(filter);
-		jsonResponse(res, 200, { entries });
-	} catch (err) {
-		jsonResponse(res, 500, { error: (err as Error).message });
-	}
+/** Build a `/api/audit` route handler against an explicit audit store. */
+export function makeListAuditHandler(
+	resolveStore: () => Pick<AuditStore, "query">,
+): ModuleRouteHandler {
+	return (req: IncomingMessage, res: ServerResponse) => {
+		try {
+			const url = new URL(req.url ?? "/", "http://localhost");
+			const filter = parseFilter(url);
+			const entries: AuditEntry[] = resolveStore().query(filter);
+			jsonResponse(res, 200, { entries });
+		} catch (err) {
+			jsonResponse(res, 500, { error: (err as Error).message });
+		}
+	};
 }
+
+/**
+ * Default `/api/audit` handler used by the loaded module. Resolves the
+ * runtime audit store on every request so reloads pick up the latest store
+ * instance.
+ */
+export const handleListAudit: ModuleRouteHandler = makeListAuditHandler(
+	() => getAuditStore() ?? new AuditStore(process.cwd()),
+);

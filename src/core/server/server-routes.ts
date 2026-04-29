@@ -4,6 +4,7 @@ import type { EventBus } from "#core/events/event-bus.js";
 import type { AgentSession } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
+import { findRouteMatch } from "#core/modules/route-matcher.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { DaemonControlClient } from "./daemon-client.js";
 import { queryDaemonStatus } from "./daemon-routes.js";
@@ -52,10 +53,9 @@ export function buildRequestHandler(ctx: ServerContext) {
     }
 
     if (ctx.authToken && path.startsWith("/api/")) {
-      const bypassRoute = ctx.moduleRoutes.find(
-        (r) => r.bypassAuth && r.path === path && r.method === req.method,
-      );
-      if (!bypassRoute) {
+      const moduleMatch = req.method ? findRouteMatch(ctx.moduleRoutes, req.method, path) : null;
+      const isBypass = moduleMatch?.route.bypassAuth ?? false;
+      if (!isBypass) {
         const header = req.headers.authorization;
         const queryToken = url.searchParams.get("token");
         if (header !== `Bearer ${ctx.authToken}` && queryToken !== ctx.authToken) {
@@ -154,9 +154,10 @@ export function buildRequestHandler(ctx: ServerContext) {
       return;
     }
 
-    for (const route of ctx.moduleRoutes) {
-      if (req.method === route.method && (route.pathPattern ? route.pathPattern.test(path) : path === route.path)) {
-        Promise.resolve(route.handler(req, res)).catch((err) => {
+    if (req.method) {
+      const match = findRouteMatch(ctx.moduleRoutes, req.method, path);
+      if (match) {
+        Promise.resolve(match.route.handler(req, res, match.params)).catch((err) => {
           if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
         });
         return;

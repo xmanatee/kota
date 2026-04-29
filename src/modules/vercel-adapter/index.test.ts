@@ -127,7 +127,7 @@ describe("vercel-adapter module", () => {
     });
     const res = makeResponse();
 
-    await route.handler(req, res);
+    await route.handler(req, res, {});
 
     expect(res.statusCodeSeen).toBe(400);
     expect(JSON.parse(res.body).error).toContain("autonomy mode is not configured");

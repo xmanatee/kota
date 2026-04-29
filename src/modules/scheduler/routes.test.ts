@@ -69,7 +69,7 @@ describe("scheduler routes", () => {
     const route = schedulerRoutes().find((r) => r.path === "/api/schedules");
     expect(route).toBeDefined();
     const captured = mockResponse();
-    route!.handler(mockRequest(), captured.res);
+    route!.handler(mockRequest(), captured.res, {});
 
     expect(captured.status).toBe(200);
     const body = JSON.parse(captured.bodyChunks.join(""));
@@ -83,7 +83,7 @@ describe("scheduler routes", () => {
     const route = schedulerRoutes().find((r) => r.path === "/api/notifications");
     expect(route).toBeDefined();
     const captured = mockResponse();
-    route!.handler(mockRequest(), captured.res);
+    route!.handler(mockRequest(), captured.res, {});
 
     expect(captured.status).toBe(200);
     expect(captured.headers?.["Content-Type"]).toBe("text/event-stream");
@@ -98,7 +98,7 @@ describe("scheduler routes", () => {
 
     const route = schedulerRoutes().find((r) => r.path === "/api/notifications");
     const captured = mockResponse();
-    route!.handler(mockRequest(), captured.res);
+    route!.handler(mockRequest(), captured.res, {});
 
     const written = captured.bodyChunks.join("");
     expect(written).toContain("event: notification");

@@ -27,14 +27,6 @@ import {
   handleWorkflowRunThinking,
 } from "./workflow-run-routes.js";
 
-const DEFINITION_ENABLE_PATTERN = /^\/api\/workflow\/definitions\/([^/]+)\/enable$/;
-const DEFINITION_DISABLE_PATTERN = /^\/api\/workflow\/definitions\/([^/]+)\/disable$/;
-const RUN_STREAM_PATTERN = /^\/api\/workflow\/runs\/([^/]+)\/stream$/;
-const RUN_ARTIFACTS_PATTERN = /^\/api\/workflow\/runs\/([^/]+)\/artifacts$/;
-const RUN_THINKING_PATTERN = /^\/api\/workflow\/runs\/([^/]+)\/thinking$/;
-const RUN_ABORT_PATTERN = /^\/api\/workflow\/runs\/([^/]+)\/abort$/;
-const RUN_MATCH_PATTERN = /^\/api\/workflow\/runs\/([^/]+)$/;
-
 export function workflowRoutes(ctx?: ModuleContext): RouteRegistration[] {
   return [
     {
@@ -60,21 +52,15 @@ export function workflowRoutes(ctx?: ModuleContext): RouteRegistration[] {
     },
     {
       method: "POST",
-      path: "/api/workflow/definitions/",
-      pathPattern: DEFINITION_ENABLE_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(DEFINITION_ENABLE_PATTERN);
-        return handleWorkflowEnable(res, decodeURIComponent(match![1]), DaemonControlClient.fromStateDir());
-      },
+      path: "/api/workflow/definitions/:name/enable",
+      handler: (_req, res, params) =>
+        handleWorkflowEnable(res, params.name, DaemonControlClient.fromStateDir()),
     },
     {
       method: "POST",
-      path: "/api/workflow/definitions/",
-      pathPattern: DEFINITION_DISABLE_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(DEFINITION_DISABLE_PATTERN);
-        return handleWorkflowDisable(res, decodeURIComponent(match![1]), DaemonControlClient.fromStateDir());
-      },
+      path: "/api/workflow/definitions/:name/disable",
+      handler: (_req, res, params) =>
+        handleWorkflowDisable(res, params.name, DaemonControlClient.fromStateDir()),
     },
     {
       method: "POST",
@@ -133,57 +119,35 @@ export function workflowRoutes(ctx?: ModuleContext): RouteRegistration[] {
     },
     {
       method: "GET",
-      path: "/api/workflow/runs/",
-      pathPattern: RUN_STREAM_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(RUN_STREAM_PATTERN);
-        handleWorkflowRunStream(res, match![1]);
-      },
+      path: "/api/workflow/runs/:id/stream",
+      handler: (_req, res, params) => handleWorkflowRunStream(res, params.id),
     },
     {
       method: "GET",
-      path: "/api/workflow/runs/",
-      pathPattern: RUN_ARTIFACTS_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(RUN_ARTIFACTS_PATTERN);
-        handleWorkflowRunArtifacts(res, match![1]);
-      },
+      path: "/api/workflow/runs/:id/artifacts",
+      handler: (_req, res, params) => handleWorkflowRunArtifacts(res, params.id),
     },
     {
       method: "GET",
-      path: "/api/workflow/runs/",
-      pathPattern: RUN_THINKING_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(RUN_THINKING_PATTERN);
-        handleWorkflowRunThinking(res, match![1]);
-      },
+      path: "/api/workflow/runs/:id/thinking",
+      handler: (_req, res, params) => handleWorkflowRunThinking(res, params.id),
     },
     {
       method: "GET",
-      path: "/api/workflow/runs/",
-      pathPattern: RUN_MATCH_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(RUN_MATCH_PATTERN);
-        handleWorkflowRunDetail(res, match![1]);
-      },
+      path: "/api/workflow/runs/:id",
+      handler: (_req, res, params) => handleWorkflowRunDetail(res, params.id),
     },
     {
       method: "DELETE",
-      path: "/api/workflow/runs/",
-      pathPattern: RUN_MATCH_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(RUN_MATCH_PATTERN);
-        return handleWorkflowCancel(res, match![1], DaemonControlClient.fromStateDir());
-      },
+      path: "/api/workflow/runs/:id",
+      handler: (_req, res, params) =>
+        handleWorkflowCancel(res, params.id, DaemonControlClient.fromStateDir()),
     },
     {
       method: "POST",
-      path: "/api/workflow/runs/",
-      pathPattern: RUN_ABORT_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(RUN_ABORT_PATTERN);
-        return handleWorkflowAbortRun(res, match![1], DaemonControlClient.fromStateDir());
-      },
+      path: "/api/workflow/runs/:id/abort",
+      handler: (_req, res, params) =>
+        handleWorkflowAbortRun(res, params.id, DaemonControlClient.fromStateDir()),
     },
   ];
 }

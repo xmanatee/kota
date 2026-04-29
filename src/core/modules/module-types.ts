@@ -162,71 +162,63 @@ export type ToolDef = {
   kind: "discovery" | "action";
 };
 
-/** An HTTP route registered by a module. */
-export type RouteRegistration = {
-  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
-  /**
-   * Exact path string for fixed routes. For routes with path parameters,
-   * provide `pathPattern` instead and leave `path` as the base prefix.
-   */
-  path: string;
-  /**
-   * Optional regex for routes with path parameters. When present, matched
-   * against the request pathname instead of exact `path` comparison.
-   * The handler must extract parameters from `req.url` itself.
-   */
-  pathPattern?: RegExp;
-  handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>;
-  /**
-   * When true, the server skips the bearer-token auth check for this route.
-   * Use for inbound webhook endpoints that receive external deliveries without
-   * a KOTA auth token (e.g. GitHub webhooks). The module must perform its
-   * own request authentication (signature validation, etc.).
-   */
-  bypassAuth?: boolean;
-};
+export type ModuleRouteMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
 /**
- * An HTTP route registered by a module on the daemon-control server.
- *
- * The daemon-control surface is capability-scoped: every request is
- * classified as a `read` or `control` call before the handler runs.
- * Modules contribute these routes through `KotaModule.controlRoutes`
- * instead of adding entries to a core-hosted route table. The method +
- * path must not collide with any built-in daemon-control route or with
- * another module's contribution — the server rejects collisions loudly at
- * startup.
- *
- * Paths may include `:name` segments to capture path parameters. The
- * router extracts them once and passes them to the handler as the third
- * argument.
+ * Handler signature for a module-contributed HTTP route. The router extracts
+ * any `:name` / `*name` path params once before invoking the handler.
  */
-export type ControlRouteRegistration = {
-  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
-  /**
-   * Request path. May include `:name` segments for path parameters; the
-   * extracted values arrive in the handler's `params` argument.
-   */
+export type ModuleRouteHandler = (
+  req: IncomingMessage,
+  res: ServerResponse,
+  params: Record<string, string>,
+) => void | Promise<void>;
+
+/**
+ * Shared shape for module-contributed HTTP routes. Both the public
+ * `RouteRegistration` surface and the daemon-control `ControlRouteRegistration`
+ * surface share this descriptor so path matching, param extraction, and auth
+ * posture follow one rule. Surface-specific fields (e.g. capability scope on
+ * the daemon-control surface) extend this base.
+ *
+ * Path grammar:
+ * - literal segments match exactly (`/api/tasks`)
+ * - `:name` captures a single decoded path segment (`/api/tasks/:id`)
+ * - `*name` as the final segment captures the rest of the path including
+ *   slashes (`/assets/*rest`)
+ *
+ * Method + path must not collide with another contribution; the daemon-control
+ * server rejects exact-key collisions loudly at startup.
+ */
+export type ModuleRouteBase = {
+  method: ModuleRouteMethod;
   path: string;
+  /**
+   * When true, the server skips the bearer-token auth check for this route.
+   * Use for inbound webhook endpoints whose auth is carried in a per-request
+   * signature header rather than the daemon's Bearer token (e.g. GitHub
+   * webhooks, `POST /webhooks/:name`). The module must perform its own
+   * request authentication.
+   */
+  bypassAuth?: boolean;
+  handler: ModuleRouteHandler;
+};
+
+/** An HTTP route registered by a module on the public `kota serve` surface. */
+export type RouteRegistration = ModuleRouteBase;
+
+/**
+ * An HTTP route registered by a module on the daemon-control server. The
+ * daemon-control surface is capability-scoped: every request is classified
+ * as a `read` or `control` call before the handler runs.
+ */
+export type ControlRouteRegistration = ModuleRouteBase & {
   /**
    * Capability scope required to invoke the route.
    * - "read": observe daemon state
    * - "control": mutate daemon state or trigger external side effects
    */
   capabilityScope: CapabilityScope;
-  /**
-   * When true, the daemon-control server skips the bearer-token auth check
-   * for this route. Use for inbound webhook endpoints whose auth is
-   * carried in a per-request signature header rather than the daemon's
-   * Bearer token (e.g. `POST /webhooks/:name`). The module must perform
-   * its own request authentication. Mirrors `RouteRegistration.bypassAuth`.
-   */
-  bypassAuth?: boolean;
-  handler: (
-    req: IncomingMessage,
-    res: ServerResponse,
-    params: Record<string, string>,
-  ) => void | Promise<void>;
 };
 
 export type ModuleContribution<T> =

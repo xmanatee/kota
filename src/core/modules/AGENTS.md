@@ -27,6 +27,16 @@ and foreign-module transports.
   perform other side effects from those factories — runtime warnings about
   missing config belong in `onLoad` (one-shot at runtime-mode boot) or in a
   module `healthCheck` (surfaced through `kota doctor`).
+- `RouteRegistration` (public `kota serve` surface) and
+  `ControlRouteRegistration` (daemon-control surface) share one descriptor
+  protocol (`ModuleRouteBase` in `module-types.ts`). Both surfaces use the
+  same `:name` and trailing `*name` path grammar, the same handler signature
+  `(req, res, params)`, and the same `bypassAuth` posture. Path matching is
+  owned by `route-matcher.ts` so both servers extract params and resolve
+  collisions identically. `ControlRouteRegistration` extends the base with
+  `capabilityScope: "read" | "control"`; the daemon-control server applies
+  the same capability gate to module-contributed control routes as to
+  built-in ones.
 
 ## Lifecycle Modes
 

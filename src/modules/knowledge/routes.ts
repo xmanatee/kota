@@ -193,7 +193,6 @@ export function handleDeleteKnowledge(res: ServerResponse, id: string): void {
   }
 }
 
-const KNOWLEDGE_ENTRY_PATTERN = /^\/api\/knowledge\/([^/]+)$/;
 
 export function knowledgeRoutes(): RouteRegistration[] {
   return [
@@ -219,30 +218,18 @@ export function knowledgeRoutes(): RouteRegistration[] {
     },
     {
       method: "GET",
-      path: "/api/knowledge/",
-      pathPattern: KNOWLEDGE_ENTRY_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(KNOWLEDGE_ENTRY_PATTERN);
-        handleGetKnowledge(res, match![1]);
-      },
+      path: "/api/knowledge/:id",
+      handler: (_req, res, params) => handleGetKnowledge(res, params.id),
     },
     {
       method: "DELETE",
-      path: "/api/knowledge/",
-      pathPattern: KNOWLEDGE_ENTRY_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(KNOWLEDGE_ENTRY_PATTERN);
-        handleDeleteKnowledge(res, match![1]);
-      },
+      path: "/api/knowledge/:id",
+      handler: (_req, res, params) => handleDeleteKnowledge(res, params.id),
     },
     {
       method: "PATCH",
-      path: "/api/knowledge/",
-      pathPattern: KNOWLEDGE_ENTRY_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(KNOWLEDGE_ENTRY_PATTERN);
-        return handleUpdateKnowledge(req, res, match![1]);
-      },
+      path: "/api/knowledge/:id",
+      handler: (req, res, params) => handleUpdateKnowledge(req, res, params.id),
     },
   ];
 }

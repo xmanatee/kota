@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { ControlRouteRegistration, RouteRegistration } from "#core/modules/module-types.js";
+import { findKeyedRouteMatch, findRouteMatch } from "#core/modules/route-matcher.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import {
@@ -96,37 +97,6 @@ const BUILTIN_ROUTE_SCOPES: Record<string, CapabilityScope> = {
   "DELETE /sessions/:id": "control",
 };
 
-function extractParams(pattern: string, path: string): Record<string, string> | null {
-  const patternParts = pattern.split("/");
-  const pathParts = path.split("/");
-  if (patternParts.length !== pathParts.length) return null;
-  const params: Record<string, string> = {};
-  for (let i = 0; i < patternParts.length; i++) {
-    if (patternParts[i].startsWith(":")) {
-      params[patternParts[i].slice(1)] = decodeURIComponent(pathParts[i]);
-    } else if (patternParts[i] !== pathParts[i]) {
-      return null;
-    }
-  }
-  return params;
-}
-
-function matchRouteKey(
-  routeScopes: Record<string, CapabilityScope>,
-  method: string,
-  path: string,
-): { key: string; params: Record<string, string> } | null {
-  const exactKey = `${method} ${path}`;
-  if (exactKey in routeScopes) return { key: exactKey, params: {} };
-  for (const key of Object.keys(routeScopes)) {
-    if (!key.startsWith(`${method} `)) continue;
-    const pattern = key.slice(method.length + 1);
-    if (!pattern.includes(":")) continue;
-    const params = extractParams(pattern, path);
-    if (params) return { key, params };
-  }
-  return null;
-}
 
 export type DaemonControlServerOptions = {
   /** Maximum number of events retained in the in-memory ring buffer. Default: 500. */
@@ -231,12 +201,12 @@ export class DaemonControlServer {
     }
     const moduleRoutes = options?.routes ?? [];
     for (const route of moduleRoutes) {
-      // Only flag a collision when a module route's exact path matches an
-      // already-registered control route. `routes()` with `pathPattern` use
-      // a base prefix that intentionally overlaps (e.g. `/api/tasks/`) with
-      // their own siblings, so the prefix string itself is not a useful
-      // collision key — the regex is the matcher.
-      if (!route.pathPattern) {
+      // Only flag a collision when a module route's literal (non-`:name`,
+      // non-`*name`) path matches an already-registered control route. Module
+      // routes with capture segments may intentionally overlap with sibling
+      // literal paths registered by other modules; the matcher prefers exact
+      // matches over capture patterns at request time.
+      if (!route.path.includes(":") && !route.path.includes("*")) {
         const key = `${route.method} ${route.path}`;
         if (key in routeScopes) {
           throw new Error(
@@ -305,16 +275,11 @@ export class DaemonControlServer {
     return header === `Bearer ${this.token}`;
   }
 
-  private findModuleRoute(method: string, path: string): RouteRegistration | null {
-    for (const route of this.moduleRoutes) {
-      if (route.method !== method) continue;
-      if (route.pathPattern) {
-        if (route.pathPattern.test(path)) return route;
-      } else if (route.path === path) {
-        return route;
-      }
-    }
-    return null;
+  private findModuleRoute(
+    method: string,
+    path: string,
+  ): { route: RouteRegistration; params: Record<string, string> } | null {
+    return findRouteMatch(this.moduleRoutes, method, path);
   }
 
   private broadcast(event: DaemonSseEvent): void {
@@ -348,15 +313,15 @@ export class DaemonControlServer {
       return;
     }
 
-    const match = matchRouteKey(this.routeScopes, method, path);
+    const match = findKeyedRouteMatch(Object.keys(this.routeScopes), method, path);
     if (!match) {
-      const moduleRoute = this.findModuleRoute(method, path);
-      if (moduleRoute) {
-        if (!moduleRoute.bypassAuth && !this.isAuthorized(req)) {
+      const moduleMatch = this.findModuleRoute(method, path);
+      if (moduleMatch) {
+        if (!moduleMatch.route.bypassAuth && !this.isAuthorized(req)) {
           jsonResponse(res, 401, { error: "Unauthorized" });
           return;
         }
-        Promise.resolve(moduleRoute.handler(req, res)).catch((err: Error) => {
+        Promise.resolve(moduleMatch.route.handler(req, res, moduleMatch.params)).catch((err: Error) => {
           if (!res.headersSent) jsonResponse(res, 500, { error: err.message });
         });
         return;

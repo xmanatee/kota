@@ -152,7 +152,6 @@ export async function handleReindexMemory(res: ServerResponse): Promise<void> {
   }
 }
 
-const MEMORY_ENTRY_PATTERN = /^\/api\/memory\/([^/]+)$/;
 
 export function memoryRoutes(): RouteRegistration[] {
   return [
@@ -178,30 +177,18 @@ export function memoryRoutes(): RouteRegistration[] {
     },
     {
       method: "GET",
-      path: "/api/memory/",
-      pathPattern: MEMORY_ENTRY_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(MEMORY_ENTRY_PATTERN);
-        handleGetMemory(res, match![1]);
-      },
+      path: "/api/memory/:id",
+      handler: (_req, res, params) => handleGetMemory(res, params.id),
     },
     {
       method: "DELETE",
-      path: "/api/memory/",
-      pathPattern: MEMORY_ENTRY_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(MEMORY_ENTRY_PATTERN);
-        handleDeleteMemory(res, match![1]);
-      },
+      path: "/api/memory/:id",
+      handler: (_req, res, params) => handleDeleteMemory(res, params.id),
     },
     {
       method: "PATCH",
-      path: "/api/memory/",
-      pathPattern: MEMORY_ENTRY_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(MEMORY_ENTRY_PATTERN);
-        return handleUpdateMemory(req, res, match![1]);
-      },
+      path: "/api/memory/:id",
+      handler: (req, res, params) => handleUpdateMemory(req, res, params.id),
     },
   ];
 }

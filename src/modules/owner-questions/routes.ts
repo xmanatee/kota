@@ -117,8 +117,6 @@ export async function handleDismissOwnerQuestion(
   jsonResponse(res, 200, { question: item });
 }
 
-const OWNER_QUESTION_ACTION_PATTERN = /^\/api\/owner-questions\/([^/]+)\/(answer|dismiss)$/;
-
 export function ownerQuestionRoutes(): RouteRegistration[] {
   return [
     {
@@ -129,17 +127,13 @@ export function ownerQuestionRoutes(): RouteRegistration[] {
     },
     {
       method: "POST",
-      path: "/api/owner-questions/",
-      pathPattern: OWNER_QUESTION_ACTION_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(OWNER_QUESTION_ACTION_PATTERN);
-        const id = match![1];
-        const action = match![2];
-        if (action === "answer") {
-          return handleAnswerOwnerQuestion(req, res, id);
-        }
-        return handleDismissOwnerQuestion(req, res, id);
-      },
+      path: "/api/owner-questions/:id/answer",
+      handler: (req, res, params) => handleAnswerOwnerQuestion(req, res, params.id),
+    },
+    {
+      method: "POST",
+      path: "/api/owner-questions/:id/dismiss",
+      handler: (req, res, params) => handleDismissOwnerQuestion(req, res, params.id),
     },
   ];
 }

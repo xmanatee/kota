@@ -105,7 +105,7 @@ async function invokeHandler(
   const route = routes[0];
   const req = makeFakeRequest(body, headers);
   const res = makeFakeResponse();
-  await route.handler(req, res as unknown as ServerResponse);
+  await route.handler(req, res as unknown as ServerResponse, {});
   return res;
 }
 

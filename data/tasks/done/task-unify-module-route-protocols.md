@@ -1,12 +1,12 @@
 ---
 id: task-unify-module-route-protocols
 title: Unify module route protocols
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Converge public module routes and daemon-control routes on one typed route registration protocol with shared parameter extraction, auth posture, capability scope, and request/response validation.
 created_at: 2026-04-28T22:24:00.000Z
-updated_at: 2026-04-28T22:24:00.000Z
+updated_at: 2026-04-29T05:59:44.506Z
 ---
 
 ## Problem

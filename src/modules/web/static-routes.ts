@@ -81,8 +81,7 @@ export function staticWebUiRoutes(): RouteRegistration[] {
     { method: "GET", path: "/index.html", handler: serveIndex },
     {
       method: "GET",
-      path: "/assets/",
-      pathPattern: /^\/assets\//,
+      path: "/assets/*rest",
       handler: serveAsset,
     },
   ];

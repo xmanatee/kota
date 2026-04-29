@@ -13,32 +13,21 @@
  * directly.
  */
 
-import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ModuleContext, RouteRegistration } from "#core/modules/module-types.js";
+import type { ModuleContext, ModuleRouteHandler, RouteRegistration } from "#core/modules/module-types.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 
-const EVENT_PATH_PATTERN = /^\/api\/events\/([^/]+)$/;
-
-function makeEventTriggerHandler(
-  ctx: ModuleContext,
-): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
-  return async (req, res) => {
-    const url = new URL(req.url ?? "/", "http://localhost");
-    const match = url.pathname.match(EVENT_PATH_PATTERN);
-    if (!match) {
-      jsonResponse(res, 404, { error: "Not found" });
-      return;
-    }
-
-    let eventName: string;
-    try {
-      eventName = decodeURIComponent(match[1]);
-    } catch {
+function makeEventTriggerHandler(ctx: ModuleContext): ModuleRouteHandler {
+  return async (req, res, params) => {
+    const rawName = params.name;
+    if (!rawName || /%(?![0-9A-Fa-f]{2})/.test(rawName)) {
+      // The matcher preserves the raw segment when decodeURIComponent fails;
+      // reject malformed percent-encoding here with a domain-specific 400.
       jsonResponse(res, 400, { error: "Invalid event name encoding" });
       return;
     }
+    const eventName = rawName;
 
-    if (!eventName || eventName.length > 256) {
+    if (eventName.length > 256) {
       jsonResponse(res, 400, { error: "Event name must be 1-256 characters" });
       return;
     }
@@ -64,8 +53,7 @@ export function eventTriggerRoutes(ctx: ModuleContext): RouteRegistration[] {
   return [
     {
       method: "POST",
-      path: "/api/events/",
-      pathPattern: EVENT_PATH_PATTERN,
+      path: "/api/events/:name",
       handler: makeEventTriggerHandler(ctx),
     },
   ];

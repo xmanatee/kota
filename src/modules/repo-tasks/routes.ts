@@ -347,10 +347,6 @@ export function handleTaskStatus(
   jsonResponse(res, 200, { counts, tasks } satisfies DaemonTaskStatusResponse);
 }
 
-const TASK_STATE_PATTERN = /^\/api\/tasks\/([^/]+)\/state$/;
-const TASK_BODY_PATTERN = /^\/api\/tasks\/([^/]+)\/body$/;
-const TASK_MOVE_PATTERN = /^\/api\/tasks\/([^/]+)\/move$/;
-const TASK_SHOW_PATTERN = /^\/api\/tasks\/([^/]+)$/;
 
 const ALLOWED_PRIORITIES: readonly RepoTaskPriority[] = ["p0", "p1", "p2", "p3"];
 
@@ -362,16 +358,12 @@ function isRepoTaskPriority(value: unknown): value is RepoTaskPriority {
   return typeof value === "string" && (ALLOWED_PRIORITIES as readonly string[]).includes(value);
 }
 
-function shouldHandleShowPath(path: string): boolean {
-  if (!TASK_SHOW_PATTERN.test(path)) return false;
-  // Reserve subpaths (/state, /body, /move, /normalized, /capture, /gc) for
-  // their dedicated handlers.
-  return ![
-    "normalized",
-    "capture",
-    "gc",
-  ].includes(path.slice("/api/tasks/".length));
-}
+// Sibling literal paths that share the `/api/tasks/<id>` shape with the
+// `/api/tasks/:id` show route. Their dedicated handlers are registered as
+// exact-path routes; the matcher prefers exact matches, but a `GET` on a
+// reserved name (e.g. `/api/tasks/normalized` without a POST/etc.) must still
+// 404 instead of being interpreted as a task id.
+const RESERVED_TASK_NAMES = new Set(["normalized", "capture", "gc"]);
 
 export async function handleTaskShow(
   res: ServerResponse,
@@ -620,43 +612,28 @@ export function taskRoutes(): RouteRegistration[] {
     },
     {
       method: "PATCH",
-      path: "/api/tasks/",
-      pathPattern: TASK_STATE_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(TASK_STATE_PATTERN);
-        return handleTaskStateChange(req, res, match![1]);
-      },
+      path: "/api/tasks/:id/state",
+      handler: (req, res, params) => handleTaskStateChange(req, res, params.id),
     },
     {
       method: "PATCH",
-      path: "/api/tasks/",
-      pathPattern: TASK_MOVE_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(TASK_MOVE_PATTERN);
-        return handleTaskMove(req, res, match![1]);
-      },
+      path: "/api/tasks/:id/move",
+      handler: (req, res, params) => handleTaskMove(req, res, params.id),
     },
     {
       method: "PATCH",
-      path: "/api/tasks/",
-      pathPattern: TASK_BODY_PATTERN,
-      handler: (req, res) => {
-        const match = new URL(req.url!, "http://localhost").pathname.match(TASK_BODY_PATTERN);
-        return handleTaskBodyUpdate(req, res, match![1]);
-      },
+      path: "/api/tasks/:id/body",
+      handler: (req, res, params) => handleTaskBodyUpdate(req, res, params.id),
     },
     {
       method: "GET",
-      path: "/api/tasks/",
-      pathPattern: TASK_SHOW_PATTERN,
-      handler: (req, res) => {
-        const path = new URL(req.url!, "http://localhost").pathname;
-        if (!shouldHandleShowPath(path)) {
+      path: "/api/tasks/:id",
+      handler: (_req, res, params) => {
+        if (RESERVED_TASK_NAMES.has(params.id)) {
           jsonResponse(res, 404, { error: "Not found" });
           return;
         }
-        const match = path.match(TASK_SHOW_PATTERN);
-        return handleTaskShow(res, decodeURIComponent(match![1]));
+        return handleTaskShow(res, params.id);
       },
     },
   ];

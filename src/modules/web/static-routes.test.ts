@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { matchRoutePath } from "#core/modules/route-matcher.js";
 import { setWebUiDir, staticWebUiRoutes } from "./static-routes.js";
 
 type Captured = {
@@ -50,15 +51,14 @@ afterEach(() => {
 });
 
 describe("staticWebUiRoutes", () => {
-  it("registers GET /, GET /index.html, and a /assets/* pattern route", () => {
+  it("registers GET /, GET /index.html, and a /assets/*rest pattern route", () => {
     const routes = staticWebUiRoutes();
     const summaries = routes.map((r) => `${r.method} ${r.path}`);
-    expect(summaries).toEqual(["GET /", "GET /index.html", "GET /assets/"]);
+    expect(summaries).toEqual(["GET /", "GET /index.html", "GET /assets/*rest"]);
     const assetsRoute = routes[2];
-    expect(assetsRoute.pathPattern).toBeInstanceOf(RegExp);
-    expect(assetsRoute.pathPattern!.test("/assets/app.js")).toBe(true);
-    expect(assetsRoute.pathPattern!.test("/assets/")).toBe(true);
-    expect(assetsRoute.pathPattern!.test("/api/health")).toBe(false);
+    expect(matchRoutePath(assetsRoute.path, "/assets/app.js")).toEqual({ rest: "app.js" });
+    expect(matchRoutePath(assetsRoute.path, "/assets/")).toEqual({ rest: "" });
+    expect(matchRoutePath(assetsRoute.path, "/api/health")).toBeNull();
   });
 
   it("does not request bypassAuth (static UI lives outside /api/)", () => {
@@ -71,7 +71,7 @@ describe("staticWebUiRoutes", () => {
     setWebUiDir(tmpDir);
     const routes = staticWebUiRoutes();
     const captured = mockResponse();
-    routes[0].handler(mockRequest("/"), captured.res);
+    routes[0].handler(mockRequest("/"), captured.res, {});
     expect(captured.status).toBe(200);
     expect(captured.headers?.["Content-Type"]).toBe("text/html; charset=utf-8");
     expect(captured.headers?.["Cache-Control"]).toBeUndefined();
@@ -82,7 +82,7 @@ describe("staticWebUiRoutes", () => {
     setWebUiDir(tmpDir);
     const routes = staticWebUiRoutes();
     const captured = mockResponse();
-    routes[1].handler(mockRequest("/index.html"), captured.res);
+    routes[1].handler(mockRequest("/index.html"), captured.res, {});
     expect(captured.status).toBe(200);
     expect(captured.headers?.["Content-Type"]).toBe("text/html; charset=utf-8");
   });
@@ -93,7 +93,7 @@ describe("staticWebUiRoutes", () => {
     const assetsRoute = routes[2];
 
     const js = mockResponse();
-    assetsRoute.handler(mockRequest("/assets/app.js"), js.res);
+    assetsRoute.handler(mockRequest("/assets/app.js"), js.res, { rest: "app.js" });
     expect(js.status).toBe(200);
     expect(js.headers?.["Content-Type"]).toBe("application/javascript");
     expect(js.headers?.["Cache-Control"]).toBe(
@@ -102,7 +102,7 @@ describe("staticWebUiRoutes", () => {
     expect(js.body.toString()).toContain("console.log");
 
     const css = mockResponse();
-    assetsRoute.handler(mockRequest("/assets/app.css"), css.res);
+    assetsRoute.handler(mockRequest("/assets/app.css"), css.res, { rest: "app.css" });
     expect(css.status).toBe(200);
     expect(css.headers?.["Content-Type"]).toBe("text/css");
   });
@@ -114,6 +114,7 @@ describe("staticWebUiRoutes", () => {
     staticWebUiRoutes()[2].handler(
       mockRequest("/assets/data.bin"),
       captured.res,
+      { rest: "data.bin" },
     );
     expect(captured.status).toBe(200);
     expect(captured.headers?.["Content-Type"]).toBe("application/octet-stream");
@@ -121,11 +122,12 @@ describe("staticWebUiRoutes", () => {
 
   it("rejects /assets/* requests that traverse out of the assets prefix", () => {
     // URL normalization collapses `/assets/../etc` to `/etc`, which the
-    // asset route's pathPattern then refuses to match.
+    // asset route's path pattern then refuses to match.
     const assetsRoute = staticWebUiRoutes()[2];
-    expect(assetsRoute.pathPattern!.test(
+    expect(matchRoutePath(
+      assetsRoute.path,
       new URL("/assets/../etc/passwd", "http://localhost").pathname,
-    )).toBe(false);
+    )).toBeNull();
   });
 
   it("strips literal .. segments from pathnames before joining", () => {
@@ -137,6 +139,7 @@ describe("staticWebUiRoutes", () => {
     staticWebUiRoutes()[2].handler(
       { url: "/assets/..%2Fsecret" } as IncomingMessage,
       captured.res,
+      { rest: "..%2Fsecret" },
     );
     // %2F survives URL.pathname; strip removes any literal `..`; join stays
     // inside webUiDir and the missing path returns 404.
@@ -146,7 +149,7 @@ describe("staticWebUiRoutes", () => {
   it("returns JSON 404 'Web UI not installed' for / when webUiDir unset", () => {
     setWebUiDir(undefined);
     const captured = mockResponse();
-    staticWebUiRoutes()[0].handler(mockRequest("/"), captured.res);
+    staticWebUiRoutes()[0].handler(mockRequest("/"), captured.res, {});
     expect(captured.status).toBe(404);
     expect(JSON.parse(captured.body.toString())).toEqual({
       error: "Web UI not installed",
@@ -156,7 +159,7 @@ describe("staticWebUiRoutes", () => {
   it("returns JSON 404 'Web UI not installed' for / when index.html missing", () => {
     setWebUiDir(join(tmpDir, "missing-subdir"));
     const captured = mockResponse();
-    staticWebUiRoutes()[0].handler(mockRequest("/"), captured.res);
+    staticWebUiRoutes()[0].handler(mockRequest("/"), captured.res, {});
     expect(captured.status).toBe(404);
     expect(JSON.parse(captured.body.toString())).toEqual({
       error: "Web UI not installed",
@@ -169,6 +172,7 @@ describe("staticWebUiRoutes", () => {
     staticWebUiRoutes()[2].handler(
       mockRequest("/assets/app.js"),
       captured.res,
+      { rest: "app.js" },
     );
     expect(captured.status).toBe(404);
     expect(JSON.parse(captured.body.toString())).toEqual({ error: "Not found" });
@@ -180,6 +184,7 @@ describe("staticWebUiRoutes", () => {
     staticWebUiRoutes()[2].handler(
       mockRequest("/assets/missing.js"),
       captured.res,
+      { rest: "missing.js" },
     );
     expect(captured.status).toBe(404);
     expect(JSON.parse(captured.body.toString())).toEqual({ error: "Not found" });
