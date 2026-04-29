@@ -9,6 +9,15 @@ created_at: 2026-03-19
 updated_at: 2026-03-19
 ---
 
+## Why Dropped
+
+Dropped in `ba97e267` because context-window handling moved below this task's
+level of responsibility: the SDK/runtime path already guards long sessions, and
+KOTA's autonomy guidance now prefers fresh-session handoffs over lossy
+in-session summarization. Current core loop tests cover message pruning and
+compaction behavior, so this standalone workflow task no longer belongs in the
+active queue.
+
 ## Problem
 
 KOTA's builder workflow runs multi-step agentic loops. There is currently no mechanism to detect or handle context window overflow. When a run grows long enough to hit the model's context limit, behavior becomes undefined — the runtime may truncate silently or the API call will fail.

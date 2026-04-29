@@ -9,6 +9,15 @@ created_at: 2026-03-25
 updated_at: 2026-03-25
 ---
 
+## Why Dropped
+
+Dropped in `60876a66` after the symptom was covered by a broader verify-test
+workaround and a separate flaky-suite repair task. This task should stay
+dropped: making post-builder verification failures nonblocking after a task is
+moved to `done/` would hide real regressions. The better direction is the
+current one: keep verification evidence strict and fix unrelated or flaky
+failures as their own queue items.
+
 ## Problem
 
 The builder's verify steps (verify-typecheck, verify-lint, verify-test) run after the build agent step. If any verify step fails, the run is marked failed and `request-restart` is skipped.

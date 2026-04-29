@@ -9,6 +9,14 @@ created_at: 2026-03-31T03:42:35Z
 updated_at: 2026-03-31T04:25:00Z
 ---
 
+## Why Dropped
+
+Dropped in `074e0e65` as pre-implemented, and the current React dashboard still
+covers it: `clients/web/src/components/sidebar/SessionList.tsx` and
+`ActiveSessionsPanel.tsx` consume `/api/sessions`, while daemon events
+invalidate session queries on `session.registered` and `session.unregistered`.
+The operator visibility need is not stale.
+
 ## Problem
 
 When `kota serve` is running, the daemon tracks the session via `POST /sessions/register`.

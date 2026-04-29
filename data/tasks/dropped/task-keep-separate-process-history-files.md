@@ -9,6 +9,14 @@ created_at: 2026-03-19
 updated_at: 2026-03-19
 ---
 
+## Why Dropped
+
+Dropped during the inbox/task split (`1717fcfd`) because this proposed keeping
+the exact parallel history surfaces KOTA intentionally removed. Current
+standards make git history and `.kota/runs/` the historical record, while
+active guidance lives in docs, tasks, and scoped `AGENTS.md` files. Reopening
+this would reintroduce duplicate process archives.
+
 ## Problem
 
 The repo had accumulated separate history and process files that duplicated git

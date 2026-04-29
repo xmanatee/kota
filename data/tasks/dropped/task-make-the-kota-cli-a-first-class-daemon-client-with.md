@@ -9,6 +9,15 @@ created_at: 2026-04-25T12:26:57.655Z
 updated_at: 2026-04-25T12:49:23.007Z
 ---
 
+## Why Dropped
+
+Dropped in `9f56decc` because this umbrella task was decomposed into focused
+client-contract and interactive-navigator children. Those child tasks are now
+done (`task-define-kota-client-contract-and-route-every-cli-su` and
+`task-add-interactive-runtime-navigator-as-a-cli-module`), and later CLI
+migration children covered the remaining command clusters. The parent should
+stay dropped so it does not duplicate completed architecture work.
+
 ## Problem
 
 The CLI today is a Commander program that talks to in-process state directly

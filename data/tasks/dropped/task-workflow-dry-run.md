@@ -9,6 +9,13 @@ created_at: 2026-03-31T05:28:00Z
 updated_at: 2026-03-31T06:00:00Z
 ---
 
+## Why Dropped
+
+Dropped in `9d8d4f2e` because workflow dry-run exists now. The current
+workflow-ops execution path includes `src/modules/workflow-ops/execution/dry-run.ts`,
+`kota workflow run --dry-run`, daemon dry-run support, and tests for validation
+and output formatting. The original operator need is covered.
+
 ## Problem
 
 Authoring a new workflow or modifying step conditions requires a live run to verify

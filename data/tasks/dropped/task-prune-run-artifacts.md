@@ -9,6 +9,14 @@ created_at: 2026-03-27T16:12:00Z
 updated_at: 2026-03-27T00:00:00Z
 ---
 
+## Why Dropped
+
+Dropped in `dd57bbff` because the work is implemented: `WorkflowRunStore`
+exposes `pruneRuns`, the runtime wires pruning on startup, workflow-ops exposes
+GC/prune commands, and `src/core/workflow/run-store-prune.test.ts` covers the
+retention floor and running-run protection. This is completed work, not a
+forgotten backlog item.
+
 ## Problem
 
 Every workflow execution writes a directory under `.kota/runs/` containing step outputs, cost records, and status. There is no cleanup mechanism. At 815+ completed runs the directory accumulates indefinitely, growing disk usage and slowing filesystem operations on the run index.
