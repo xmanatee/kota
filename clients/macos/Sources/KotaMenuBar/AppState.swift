@@ -284,7 +284,7 @@ final class AppState: ObservableObject {
             digest = try await client.fetchDigest()
         } catch {
             digest = nil
-            digestError = error.localizedDescription
+            digestError = DaemonErrorPresenter.message(for: error)
         }
         isLoadingDigest = false
     }
@@ -299,7 +299,7 @@ final class AppState: ObservableObject {
             attention = try await client.fetchAttention()
         } catch {
             attention = nil
-            attentionError = error.localizedDescription
+            attentionError = DaemonErrorPresenter.message(for: error)
         }
         isLoadingAttention = false
     }
@@ -324,7 +324,7 @@ final class AppState: ObservableObject {
             knowledgeResult = try await client.searchKnowledge(query: trimmed, limit: 10)
         } catch {
             knowledgeResult = nil
-            knowledgeError = error.localizedDescription
+            knowledgeError = DaemonErrorPresenter.message(for: error)
         }
         isLoadingKnowledge = false
     }
@@ -349,7 +349,7 @@ final class AppState: ObservableObject {
             memoryResult = try await client.searchMemory(query: trimmed, limit: 10)
         } catch {
             memoryResult = nil
-            memoryError = error.localizedDescription
+            memoryError = DaemonErrorPresenter.message(for: error)
         }
         isLoadingMemory = false
     }
@@ -374,7 +374,7 @@ final class AppState: ObservableObject {
             historyResult = try await client.searchHistory(query: trimmed, limit: 10)
         } catch {
             historyResult = nil
-            historyError = error.localizedDescription
+            historyError = DaemonErrorPresenter.message(for: error)
         }
         isLoadingHistory = false
     }
@@ -399,7 +399,7 @@ final class AppState: ObservableObject {
             tasksResult = try await client.searchTasks(query: trimmed, limit: 10, states: nil)
         } catch {
             tasksResult = nil
-            tasksError = error.localizedDescription
+            tasksError = DaemonErrorPresenter.message(for: error)
         }
         isLoadingTasksSearch = false
     }
@@ -431,7 +431,7 @@ final class AppState: ObservableObject {
             )
         } catch {
             recallResult = nil
-            recallError = error.localizedDescription
+            recallError = DaemonErrorPresenter.message(for: error)
         }
         isLoadingRecall = false
     }
@@ -463,7 +463,7 @@ final class AppState: ObservableObject {
             )
         } catch {
             answerResult = nil
-            answerError = error.localizedDescription
+            answerError = DaemonErrorPresenter.message(for: error)
         }
         isLoadingAnswer = false
     }
@@ -498,7 +498,7 @@ final class AppState: ObservableObject {
             )
         } catch {
             captureResult = nil
-            captureError = error.localizedDescription
+            captureError = DaemonErrorPresenter.message(for: error)
         }
         isLoadingCapture = false
     }
@@ -539,7 +539,7 @@ final class AppState: ObservableObject {
                 retractResult = try await client.retract(request: request)
             } catch {
                 retractResult = nil
-                retractError = error.localizedDescription
+                retractError = DaemonErrorPresenter.message(for: error)
             }
             retractConfirmed = false
             isLoadingRetract = false
@@ -580,7 +580,7 @@ final class AppState: ObservableObject {
             activeRuns = runs
             health = runs.isEmpty ? .idle : .running(runs.count)
         case .failure(let error):
-            health = .error(error.localizedDescription)
+            health = .error(DaemonErrorPresenter.message(for: error))
             activeRuns = []
             clearOnDemandForOffline()
         }

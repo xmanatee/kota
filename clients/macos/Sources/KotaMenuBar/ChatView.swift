@@ -357,12 +357,8 @@ struct ChatView: View {
                     role: .assistant,
                     content: final.isEmpty ? "(no response)" : final
                 ))
-            } catch DaemonClientError.httpError(let code) {
-                errorMessage = "HTTP \(code) — session may have expired"
-            } catch DaemonClientError.notConnected {
-                errorMessage = "Daemon not connected"
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = DaemonErrorPresenter.message(for: error)
             }
             isStreaming = false
             streamingContent = ""
@@ -404,7 +400,7 @@ struct ChatView: View {
                     ))
                 }
             } catch {
-                errorMessage = "Failed to invoke \(cmd.label): \(error.localizedDescription)"
+                errorMessage = "Failed to invoke \(cmd.label): \(DaemonErrorPresenter.message(for: error))"
             }
         }
     }

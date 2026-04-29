@@ -5,10 +5,113 @@ struct DaemonConnection {
     let token: String
 }
 
-enum DaemonClientError: Error {
+/// Decoded form of the daemon's JSON error responses.
+///
+/// The daemon emits `{ error: "<message>" }` for plain HTTP errors and may
+/// also include `code` (voice routes), `reason` (typed-failure shapes), or
+/// `message` (free-form). When the body is not JSON the decoder leaves all
+/// fields nil and the raw text is preserved separately.
+struct DaemonErrorBody: Equatable {
+    let error: String?
+    let code: String?
+    let reason: String?
+    let message: String?
+    let raw: String?
+
+    /// Single human-facing line summarizing what the daemon said. Returns
+    /// `nil` when the body had no recognizable text content.
+    var displaySummary: String? {
+        if let error, !error.isEmpty { return error }
+        if let message, !message.isEmpty { return message }
+        if let reason, !reason.isEmpty { return reason }
+        if let raw, !raw.isEmpty { return raw }
+        return nil
+    }
+}
+
+enum DaemonClientError: Error, Equatable {
+    /// No `DaemonConnection` is configured (no daemon-control file, no remote URL set).
     case notConnected
-    case httpError(Int)
-    case decodingError(Error)
+    /// Non-2xx HTTP response. `body` is decoded when the response carries JSON
+    /// in the documented `{ error, code, reason, message }` shape; raw text is
+    /// preserved otherwise.
+    case httpError(status: Int, body: DaemonErrorBody?)
+    /// 2xx response whose typed payload failed to decode. `description` is the
+    /// underlying decoder message so tests and the UI can show what drifted.
+    case decodingError(description: String)
+
+    static func == (lhs: DaemonClientError, rhs: DaemonClientError) -> Bool {
+        switch (lhs, rhs) {
+        case (.notConnected, .notConnected):
+            return true
+        case (.httpError(let ls, let lb), .httpError(let rs, let rb)):
+            return ls == rs && lb == rb
+        case (.decodingError(let ld), .decodingError(let rd)):
+            return ld == rd
+        default:
+            return false
+        }
+    }
+}
+
+extension DaemonClientError: LocalizedError {
+    var errorDescription: String? {
+        switch self {
+        case .notConnected:
+            return "Daemon offline — no connection configured."
+        case .httpError(let status, let body):
+            return DaemonClientError.describeHTTPError(status: status, body: body)
+        case .decodingError(let description):
+            return "Daemon response did not match the expected shape: \(description)"
+        }
+    }
+
+    /// Stable, operator-facing text for `httpError`. Exposed for tests and
+    /// for callers that want to format `(status, body)` without re-throwing.
+    static func describeHTTPError(status: Int, body: DaemonErrorBody?) -> String {
+        let summary = body?.displaySummary
+        let codeSuffix = (body?.code).flatMap { $0.isEmpty ? nil : " [\($0)]" } ?? ""
+        switch status {
+        case 401, 403:
+            if let summary { return "Daemon rejected request (\(status)): \(summary)\(codeSuffix)" }
+            return "Daemon rejected the request — token may be invalid or missing (HTTP \(status))."
+        case 404:
+            if let summary { return "Daemon endpoint not found: \(summary)\(codeSuffix)" }
+            return "Daemon endpoint not found (HTTP 404)."
+        case 409:
+            if let summary { return "Daemon refused — conflict: \(summary)\(codeSuffix)" }
+            return "Daemon refused the request — conflict (HTTP 409)."
+        case 503:
+            if let summary { return "Daemon unavailable: \(summary)\(codeSuffix)" }
+            return "Daemon unavailable (HTTP 503)."
+        case 500..<600:
+            if let summary { return "Daemon error (\(status)): \(summary)\(codeSuffix)" }
+            return "Daemon error (HTTP \(status))."
+        default:
+            if let summary { return "Daemon returned HTTP \(status): \(summary)\(codeSuffix)" }
+            return "Daemon returned HTTP \(status)."
+        }
+    }
+}
+
+/// Decodes the daemon's JSON error envelope. Falls back to UTF-8 text when
+/// the body is not JSON. Returns `nil` only when the body is empty.
+func decodeDaemonErrorBody(from data: Data) -> DaemonErrorBody? {
+    guard !data.isEmpty else { return nil }
+    let raw = String(data: data, encoding: .utf8)
+    guard
+        let object = try? JSONSerialization.jsonObject(with: data),
+        let dict = object as? [String: Any]
+    else {
+        return DaemonErrorBody(error: nil, code: nil, reason: nil, message: nil, raw: raw)
+    }
+    return DaemonErrorBody(
+        error: dict["error"] as? String,
+        code: dict["code"] as? String,
+        reason: dict["reason"] as? String,
+        message: dict["message"] as? String,
+        raw: raw
+    )
 }
 
 @MainActor
@@ -108,8 +211,8 @@ final class DaemonClient {
     /// route and decodes the discriminated `{ ok: true, entries }` /
     /// `{ ok: false, reason: "semantic_unavailable" }` response. The query
     /// string is built via `URLComponents` so `q` is percent-encoded
-    /// correctly. HTTP errors surface one-to-one as
-    /// `DaemonClientError.httpError`.
+    /// correctly. HTTP errors surface as `DaemonClientError.httpError` with
+    /// the decoded JSON error body when the daemon supplied one.
     func searchKnowledge(query: String, limit: Int) async throws -> KnowledgeSearchResponse {
         guard let conn = connection else { throw DaemonClientError.notConnected }
         guard var components = URLComponents(url: conn.baseURL, resolvingAgainstBaseURL: false) else {
@@ -125,22 +228,16 @@ final class DaemonClient {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
         let (data, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw DaemonClientError.httpError(http.statusCode)
-        }
-        do {
-            return try decoder.decode(KnowledgeSearchResponse.self, from: data)
-        } catch {
-            throw DaemonClientError.decodingError(error)
-        }
+        try throwIfHTTPError(response: response, data: data)
+        return try decode(data, as: KnowledgeSearchResponse.self)
     }
 
     /// Targets the daemon's `GET /api/memory/search?q=&semantic=true&limit=`
     /// route and decodes the discriminated `{ ok: true, entries }` /
     /// `{ ok: false, reason: "semantic_unavailable" }` response. The query
     /// string is built via `URLComponents` so `q` is percent-encoded
-    /// correctly. HTTP errors surface one-to-one as
-    /// `DaemonClientError.httpError`.
+    /// correctly. HTTP errors surface as `DaemonClientError.httpError` with
+    /// the decoded JSON error body when the daemon supplied one.
     func searchMemory(query: String, limit: Int) async throws -> MemorySearchResponse {
         guard let conn = connection else { throw DaemonClientError.notConnected }
         guard var components = URLComponents(url: conn.baseURL, resolvingAgainstBaseURL: false) else {
@@ -156,22 +253,16 @@ final class DaemonClient {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
         let (data, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw DaemonClientError.httpError(http.statusCode)
-        }
-        do {
-            return try decoder.decode(MemorySearchResponse.self, from: data)
-        } catch {
-            throw DaemonClientError.decodingError(error)
-        }
+        try throwIfHTTPError(response: response, data: data)
+        return try decode(data, as: MemorySearchResponse.self)
     }
 
     /// Targets the daemon's `GET /api/history/search?q=&semantic=true&limit=`
     /// route and decodes the discriminated `{ ok: true, conversations }` /
     /// `{ ok: false, reason: "semantic_unavailable" }` response. The query
     /// string is built via `URLComponents` so `q` is percent-encoded
-    /// correctly. HTTP errors surface one-to-one as
-    /// `DaemonClientError.httpError`.
+    /// correctly. HTTP errors surface as `DaemonClientError.httpError` with
+    /// the decoded JSON error body when the daemon supplied one.
     func searchHistory(query: String, limit: Int) async throws -> HistorySearchResponse {
         guard let conn = connection else { throw DaemonClientError.notConnected }
         guard var components = URLComponents(url: conn.baseURL, resolvingAgainstBaseURL: false) else {
@@ -187,14 +278,8 @@ final class DaemonClient {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
         let (data, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw DaemonClientError.httpError(http.statusCode)
-        }
-        do {
-            return try decoder.decode(HistorySearchResponse.self, from: data)
-        } catch {
-            throw DaemonClientError.decodingError(error)
-        }
+        try throwIfHTTPError(response: response, data: data)
+        return try decode(data, as: HistorySearchResponse.self)
     }
 
     /// Targets the daemon's `GET /tasks/search?q=&semantic=true&limit=` daemon
@@ -204,7 +289,8 @@ final class DaemonClient {
     /// percent-encoded correctly. When `states` is provided, each value is
     /// appended as a repeated `state=<value>` query item, matching the route
     /// handler's `url.searchParams.getAll("state")` behavior. HTTP errors
-    /// surface one-to-one as `DaemonClientError.httpError`.
+    /// surface as `DaemonClientError.httpError` with the decoded JSON error
+    /// body when the daemon supplied one.
     func searchTasks(query: String, limit: Int, states: [String]?) async throws -> TasksSearchResponse {
         guard let conn = connection else { throw DaemonClientError.notConnected }
         guard var components = URLComponents(url: conn.baseURL, resolvingAgainstBaseURL: false) else {
@@ -226,14 +312,8 @@ final class DaemonClient {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
         let (data, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw DaemonClientError.httpError(http.statusCode)
-        }
-        do {
-            return try decoder.decode(TasksSearchResponse.self, from: data)
-        } catch {
-            throw DaemonClientError.decodingError(error)
-        }
+        try throwIfHTTPError(response: response, data: data)
+        return try decode(data, as: TasksSearchResponse.self)
     }
 
     /// Targets the daemon's `POST /recall` daemon-control route (not under
@@ -243,8 +323,8 @@ final class DaemonClient {
     /// only emits optional filter fields (`topK`, `minScore`, `sources`)
     /// when set so the seam applies its own typed defaults
     /// (`RECALL_DEFAULT_TOP_K = 20`, no min-score floor, every registered
-    /// contributor). HTTP errors surface one-to-one as
-    /// `DaemonClientError.httpError`.
+    /// contributor). HTTP errors surface as `DaemonClientError.httpError`
+    /// with the decoded JSON error body when the daemon supplied one.
     func recall(
         query: String,
         topK: Int?,
@@ -269,14 +349,8 @@ final class DaemonClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
         let (data, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw DaemonClientError.httpError(http.statusCode)
-        }
-        do {
-            return try decoder.decode(RecallSearchResponse.self, from: data)
-        } catch {
-            throw DaemonClientError.decodingError(error)
-        }
+        try throwIfHTTPError(response: response, data: data)
+        return try decode(data, as: RecallSearchResponse.self)
     }
 
     /// Targets the daemon's `POST /answer` daemon-control route (not under
@@ -287,8 +361,8 @@ final class DaemonClient {
     /// The request body is built via `JSONEncoder` against the shared
     /// `RecallRequestBody`, which only emits optional filter fields
     /// (`topK`, `minScore`, `sources`) when set so the seam applies its own
-    /// typed defaults. HTTP errors surface one-to-one as
-    /// `DaemonClientError.httpError`.
+    /// typed defaults. HTTP errors surface as `DaemonClientError.httpError`
+    /// with the decoded JSON error body when the daemon supplied one.
     func answer(
         query: String,
         topK: Int?,
@@ -313,14 +387,8 @@ final class DaemonClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
         let (data, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw DaemonClientError.httpError(http.statusCode)
-        }
-        do {
-            return try decoder.decode(AnswerResult.self, from: data)
-        } catch {
-            throw DaemonClientError.decodingError(error)
-        }
+        try throwIfHTTPError(response: response, data: data)
+        return try decode(data, as: AnswerResult.self)
     }
 
     /// Targets the daemon's `POST /capture` daemon-control route (not under
@@ -332,8 +400,9 @@ final class DaemonClient {
     /// `filter` object when at least one filter field is set, and only
     /// emits per-field keys (`target`, `hint`) when those are set so the
     /// seam applies its own typed defaults (classifier picks the target;
-    /// no hint passed to the prompt). HTTP errors surface one-to-one as
-    /// `DaemonClientError.httpError`.
+    /// no hint passed to the prompt). HTTP errors surface as
+    /// `DaemonClientError.httpError` with the decoded JSON error body when
+    /// the daemon supplied one.
     func capture(
         text: String,
         target: CaptureTarget?,
@@ -355,14 +424,8 @@ final class DaemonClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
         let (data, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw DaemonClientError.httpError(http.statusCode)
-        }
-        do {
-            return try decoder.decode(CaptureResult.self, from: data)
-        } catch {
-            throw DaemonClientError.decodingError(error)
-        }
+        try throwIfHTTPError(response: response, data: data)
+        return try decode(data, as: CaptureResult.self)
     }
 
     /// Targets the daemon's `POST /retract` daemon-control route (not under
@@ -373,8 +436,8 @@ final class DaemonClient {
     /// against `RetractRequest`, which encodes the discriminated
     /// `{ "target": <string>, ...identifier }` wire shape so the type
     /// system rejects passing an inbox `path` alongside a memory `id` at
-    /// compile time. HTTP errors surface one-to-one as
-    /// `DaemonClientError.httpError`.
+    /// compile time. HTTP errors surface as `DaemonClientError.httpError`
+    /// with the decoded JSON error body when the daemon supplied one.
     func retract(request: RetractRequest) async throws -> RetractResult {
         guard let conn = connection else { throw DaemonClientError.notConnected }
         guard var components = URLComponents(url: conn.baseURL, resolvingAgainstBaseURL: false) else {
@@ -389,14 +452,8 @@ final class DaemonClient {
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.httpBody = body
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw DaemonClientError.httpError(http.statusCode)
-        }
-        do {
-            return try decoder.decode(RetractResult.self, from: data)
-        } catch {
-            throw DaemonClientError.decodingError(error)
-        }
+        try throwIfHTTPError(response: response, data: data)
+        return try decode(data, as: RetractResult.self)
     }
 
     func invokeSlashCommand(name: String) async throws -> InvokeCommandResponse {
@@ -520,7 +577,9 @@ final class DaemonClient {
 
         let (bytes, response) = try await URLSession.shared.bytes(for: request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw DaemonClientError.httpError(http.statusCode)
+            // SSE bodies cannot be drained twice through `bytes`; surface a
+            // body-less HTTP error rather than blocking on a partial read.
+            throw DaemonClientError.httpError(status: http.statusCode, body: nil)
         }
 
         var currentEvent = ""
@@ -537,19 +596,31 @@ final class DaemonClient {
 
     // MARK: - Private helpers
 
+    private func throwIfHTTPError(response: URLResponse, data: Data) throws {
+        guard let http = response as? HTTPURLResponse else { return }
+        if !(200..<300).contains(http.statusCode) {
+            throw DaemonClientError.httpError(
+                status: http.statusCode,
+                body: decodeDaemonErrorBody(from: data)
+            )
+        }
+    }
+
+    private func decode<T: Decodable>(_ data: Data, as type: T.Type) throws -> T {
+        do {
+            return try decoder.decode(type, from: data)
+        } catch {
+            throw DaemonClientError.decodingError(description: String(describing: error))
+        }
+    }
+
     private func get<T: Decodable>(_ path: String) async throws -> T {
         guard let conn = connection else { throw DaemonClientError.notConnected }
         var request = URLRequest(url: conn.baseURL.appendingPathComponent(path))
         request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
         let (data, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw DaemonClientError.httpError(http.statusCode)
-        }
-        do {
-            return try decoder.decode(T.self, from: data)
-        } catch {
-            throw DaemonClientError.decodingError(error)
-        }
+        try throwIfHTTPError(response: response, data: data)
+        return try decode(data, as: T.self)
     }
 
     @discardableResult
@@ -563,14 +634,8 @@ final class DaemonClient {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
         let (data, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw DaemonClientError.httpError(http.statusCode)
-        }
-        do {
-            return try decoder.decode(T.self, from: data)
-        } catch {
-            throw DaemonClientError.decodingError(error)
-        }
+        try throwIfHTTPError(response: response, data: data)
+        return try decode(data, as: T.self)
     }
 
     private func post(_ path: String, body: Data?) async throws {
@@ -582,10 +647,8 @@ final class DaemonClient {
             request.httpBody = body
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
-        let (_, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw DaemonClientError.httpError(http.statusCode)
-        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try throwIfHTTPError(response: response, data: data)
     }
 
     private func patch<T: Decodable>(_ path: String, body: Data) async throws -> T {
@@ -596,14 +659,8 @@ final class DaemonClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
         let (data, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw DaemonClientError.httpError(http.statusCode)
-        }
-        do {
-            return try decoder.decode(T.self, from: data)
-        } catch {
-            throw DaemonClientError.decodingError(error)
-        }
+        try throwIfHTTPError(response: response, data: data)
+        return try decode(data, as: T.self)
     }
 
     private func delete(_ path: String) async throws {
@@ -611,9 +668,7 @@ final class DaemonClient {
         var request = URLRequest(url: conn.baseURL.appendingPathComponent(path))
         request.httpMethod = "DELETE"
         request.setValue("Bearer \(conn.token)", forHTTPHeaderField: "Authorization")
-        let (_, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw DaemonClientError.httpError(http.statusCode)
-        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try throwIfHTTPError(response: response, data: data)
     }
 }

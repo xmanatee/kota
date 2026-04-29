@@ -209,7 +209,7 @@ struct ActiveRunRow: View {
         do {
             detail = try await appState.client.fetchRunDetail(runId: run.runId)
         } catch {
-            loadError = error.localizedDescription
+            loadError = DaemonErrorPresenter.message(for: error)
         }
         isLoading = false
     }
@@ -439,7 +439,7 @@ struct RecentRunRow: View {
         do {
             detail = try await appState.client.fetchRunDetail(runId: run.id)
         } catch {
-            loadError = error.localizedDescription
+            loadError = DaemonErrorPresenter.message(for: error)
         }
         isLoading = false
     }

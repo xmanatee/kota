@@ -102,7 +102,7 @@ final class DaemonClientTests: XCTestCase {
         do {
             _ = try await client.fetchStatus()
             XCTFail("expected httpError")
-        } catch DaemonClientError.httpError(let code) {
+        } catch DaemonClientError.httpError(let code, _) {
             XCTAssertEqual(code, 401)
         } catch {
             XCTFail("unexpected error: \(error)")
@@ -411,7 +411,7 @@ final class DaemonClientTests: XCTestCase {
         do {
             _ = try await client.fetchDigest()
             XCTFail("expected httpError")
-        } catch DaemonClientError.httpError(let code) {
+        } catch DaemonClientError.httpError(let code, _) {
             XCTAssertEqual(code, 400)
         } catch {
             XCTFail("unexpected error: \(error)")
@@ -493,7 +493,7 @@ final class DaemonClientTests: XCTestCase {
         do {
             _ = try await client.fetchAttention()
             XCTFail("expected httpError")
-        } catch DaemonClientError.httpError(let code) {
+        } catch DaemonClientError.httpError(let code, _) {
             XCTAssertEqual(code, 500)
         } catch {
             XCTFail("unexpected error: \(error)")
@@ -616,7 +616,7 @@ final class DaemonClientTests: XCTestCase {
         do {
             _ = try await client.searchKnowledge(query: "x", limit: 10)
             XCTFail("expected httpError")
-        } catch DaemonClientError.httpError(let code) {
+        } catch DaemonClientError.httpError(let code, _) {
             XCTAssertEqual(code, 500)
         } catch {
             XCTFail("unexpected error: \(error)")
@@ -737,7 +737,7 @@ final class DaemonClientTests: XCTestCase {
         do {
             _ = try await client.searchMemory(query: "x", limit: 10)
             XCTFail("expected httpError")
-        } catch DaemonClientError.httpError(let code) {
+        } catch DaemonClientError.httpError(let code, _) {
             XCTAssertEqual(code, 500)
         } catch {
             XCTFail("unexpected error: \(error)")
@@ -881,7 +881,7 @@ final class DaemonClientTests: XCTestCase {
         do {
             _ = try await client.searchHistory(query: "x", limit: 10)
             XCTFail("expected httpError")
-        } catch DaemonClientError.httpError(let code) {
+        } catch DaemonClientError.httpError(let code, _) {
             XCTAssertEqual(code, 500)
         } catch {
             XCTFail("unexpected error: \(error)")
@@ -1029,7 +1029,7 @@ final class DaemonClientTests: XCTestCase {
         do {
             _ = try await client.searchTasks(query: "x", limit: 10, states: nil)
             XCTFail("expected httpError")
-        } catch DaemonClientError.httpError(let code) {
+        } catch DaemonClientError.httpError(let code, _) {
             XCTAssertEqual(code, 500)
         } catch {
             XCTFail("unexpected error: \(error)")
@@ -1221,7 +1221,7 @@ final class DaemonClientTests: XCTestCase {
         do {
             _ = try await client.recall(query: "x", topK: nil, minScore: nil, sources: nil)
             XCTFail("expected httpError")
-        } catch DaemonClientError.httpError(let code) {
+        } catch DaemonClientError.httpError(let code, _) {
             XCTAssertEqual(code, 500)
         } catch {
             XCTFail("unexpected error: \(error)")
@@ -1419,7 +1419,7 @@ final class DaemonClientTests: XCTestCase {
         do {
             _ = try await client.answer(query: "x", topK: nil, minScore: nil, sources: nil)
             XCTFail("expected httpError")
-        } catch DaemonClientError.httpError(let code) {
+        } catch DaemonClientError.httpError(let code, _) {
             XCTAssertEqual(code, 500)
         } catch {
             XCTFail("unexpected error: \(error)")

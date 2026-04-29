@@ -1,12 +1,12 @@
 ---
 id: task-make-macos-daemon-errors-actionable-and-body-aware
 title: Make macOS daemon errors actionable and body-aware
-status: ready
+status: done
 priority: p1
 area: client
 summary: Teach the macOS DaemonClient and views to decode daemon error payloads and present actionable provider-unavailable or HTTP diagnostics instead of generic Swift LocalizedError text such as KotaMenuBar.DaemonClientError error 0.
 created_at: 2026-04-28T22:35:23.844Z
-updated_at: 2026-04-28T22:35:23.844Z
+updated_at: 2026-04-29T02:13:25.253Z
 ---
 
 ## Problem

@@ -46,10 +46,8 @@ struct TriggerWorkflowView: View {
             do {
                 try await appState.triggerWorkflow(name: name)
                 dismiss()
-            } catch DaemonClientError.httpError(let code) {
-                errorMessage = "HTTP \(code) — check workflow name"
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = DaemonErrorPresenter.message(for: error)
             }
             isTriggering = false
         }
