@@ -28,6 +28,7 @@ import {
   initProviderRegistry,
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
+import type { ProviderToken } from "#core/modules/provider-token.js";
 import { getActiveKotaClient } from "#core/server/client-holder.js";
 import type { LocalClientHandlers } from "#core/server/kota-client.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
@@ -240,13 +241,13 @@ export class ModuleTestHarness {
       createSession: () => {
         throw new Error("createSession is not supported in ModuleTestHarness");
       },
-      registerProvider: (type, provider) => {
+      registerProvider: <T>(token: ProviderToken<T>, provider: T) => {
         const reg = getProviderRegistry() ?? initProviderRegistry();
-        reg.register(type, moduleName, provider);
+        reg.register(token, moduleName, provider);
       },
-      getProvider: <T>(type: string) => {
+      getProvider: <T>(token: ProviderToken<T>) => {
         const reg = getProviderRegistry();
-        return reg?.get<T>(type) ?? null;
+        return reg?.get(token) ?? null;
       },
       callTool: async (name, input) => this.callTool(name, input),
       registerMiddleware: () => {},

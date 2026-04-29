@@ -8,6 +8,10 @@
  */
 
 import type { ScheduledItem } from "#core/daemon/scheduler.js";
+import {
+  defineProviderToken,
+  type ProviderToken,
+} from "#core/modules/provider-token.js";
 import type { SseTransport } from "./session-pool.js";
 
 export type NotificationHubProvider = {
@@ -17,5 +21,6 @@ export type NotificationHubProvider = {
   handleDueItems(dueItems: ScheduledItem[]): void;
 };
 
-/** Provider-registry key used to look up the active notification hub. */
-export const NOTIFICATION_HUB_PROVIDER_TYPE = "notification-hub";
+/** Provider-registry token used to look up the active notification hub. */
+export const NOTIFICATION_HUB_PROVIDER_TYPE: ProviderToken<NotificationHubProvider> =
+  defineProviderToken<NotificationHubProvider>("notification-hub");

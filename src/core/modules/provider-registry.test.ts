@@ -5,111 +5,119 @@ import {
 	getMemoryProvider,
 	getProviderRegistry,
 	getTaskProvider,
+	HISTORY_PROVIDER_TOKEN,
 	type HistoryProvider,
 	initProviderRegistry,
+	KNOWLEDGE_PROVIDER_TOKEN,
 	type KnowledgeProvider,
+	MEMORY_PROVIDER_TOKEN,
 	type MemoryProvider,
 	ProviderRegistry,
 	registerDefaultProviders,
 	resetProviderRegistry,
+	TASK_PROVIDER_TOKEN,
 	type TaskProvider,
 } from "./provider-registry.js";
+import { defineProviderToken } from "./provider-token.js";
+
+const TEST_SVC_TOKEN = defineProviderToken<{ id: string }>("svc");
+const TEST_UNKNOWN_TOKEN = defineProviderToken<unknown>("unknown");
 
 // --- ProviderRegistry unit tests ---
 
 describe("ProviderRegistry", () => {
 	it("register and get a provider", () => {
 		const reg = new ProviderRegistry();
-		const provider = { name: "test" };
-		reg.register("memory", "test", provider);
-		expect(reg.get("memory")).toBe(provider);
+		const provider: MemoryProvider = makeMemoryProvider();
+		reg.register(MEMORY_PROVIDER_TOKEN, "test", provider);
+		expect(reg.get(MEMORY_PROVIDER_TOKEN)).toBe(provider);
 	});
 
 	it("first registered becomes active by default", () => {
 		const reg = new ProviderRegistry();
-		const first = { id: 1 };
-		const second = { id: 2 };
-		reg.register("memory", "first", first);
-		reg.register("memory", "second", second);
-		expect(reg.get("memory")).toBe(first);
-		expect(reg.getActiveName("memory")).toBe("first");
+		const first = makeMemoryProvider();
+		const second = makeMemoryProvider();
+		reg.register(MEMORY_PROVIDER_TOKEN, "first", first);
+		reg.register(MEMORY_PROVIDER_TOKEN, "second", second);
+		expect(reg.get(MEMORY_PROVIDER_TOKEN)).toBe(first);
+		expect(reg.getActiveName(MEMORY_PROVIDER_TOKEN)).toBe("first");
 	});
 
 	it("setActive switches the active provider", () => {
 		const reg = new ProviderRegistry();
 		const a = { id: "a" };
 		const b = { id: "b" };
-		reg.register("svc", "a", a);
-		reg.register("svc", "b", b);
-		expect(reg.get("svc")).toBe(a);
+		reg.register(TEST_SVC_TOKEN, "a", a);
+		reg.register(TEST_SVC_TOKEN, "b", b);
+		expect(reg.get(TEST_SVC_TOKEN)).toBe(a);
 
-		const ok = reg.setActive("svc", "b");
+		const ok = reg.setActive(TEST_SVC_TOKEN, "b");
 		expect(ok).toBe(true);
-		expect(reg.get("svc")).toBe(b);
+		expect(reg.get(TEST_SVC_TOKEN)).toBe(b);
 	});
 
 	it("setActive returns false for unregistered provider", () => {
 		const reg = new ProviderRegistry();
-		reg.register("svc", "a", {});
-		expect(reg.setActive("svc", "nope")).toBe(false);
+		reg.register(TEST_SVC_TOKEN, "a", { id: "a" });
+		expect(reg.setActive(TEST_SVC_TOKEN, "nope")).toBe(false);
 	});
 
-	it("setActive returns false for unregistered type", () => {
+	it("setActive returns false for unregistered token", () => {
 		const reg = new ProviderRegistry();
-		expect(reg.setActive("nope", "a")).toBe(false);
+		expect(reg.setActive(TEST_SVC_TOKEN, "a")).toBe(false);
 	});
 
 	it("getByName retrieves a specific named provider", () => {
 		const reg = new ProviderRegistry();
 		const a = { id: "a" };
 		const b = { id: "b" };
-		reg.register("svc", "a", a);
-		reg.register("svc", "b", b);
-		expect(reg.getByName("svc", "a")).toBe(a);
-		expect(reg.getByName("svc", "b")).toBe(b);
-		expect(reg.getByName("svc", "c")).toBeNull();
+		reg.register(TEST_SVC_TOKEN, "a", a);
+		reg.register(TEST_SVC_TOKEN, "b", b);
+		expect(reg.getByName(TEST_SVC_TOKEN, "a")).toBe(a);
+		expect(reg.getByName(TEST_SVC_TOKEN, "b")).toBe(b);
+		expect(reg.getByName(TEST_SVC_TOKEN, "c")).toBeNull();
 	});
 
-	it("list returns provider names for a type", () => {
+	it("list returns provider names for a token", () => {
 		const reg = new ProviderRegistry();
-		reg.register("svc", "alpha", {});
-		reg.register("svc", "beta", {});
-		expect(reg.list("svc")).toEqual(["alpha", "beta"]);
-		expect(reg.list("unknown")).toEqual([]);
+		reg.register(TEST_SVC_TOKEN, "alpha", { id: "alpha" });
+		reg.register(TEST_SVC_TOKEN, "beta", { id: "beta" });
+		expect(reg.list(TEST_SVC_TOKEN)).toEqual(["alpha", "beta"]);
+		expect(reg.list(TEST_UNKNOWN_TOKEN)).toEqual([]);
 	});
 
-	it("listTypes returns all registered service types", () => {
+	it("listTokenIds returns all registered token ids", () => {
 		const reg = new ProviderRegistry();
-		reg.register("memory", "default", {});
-		reg.register("knowledge", "default", {});
-		expect(reg.listTypes().sort()).toEqual(["knowledge", "memory"]);
+		reg.register(MEMORY_PROVIDER_TOKEN, "default", makeMemoryProvider());
+		reg.register(KNOWLEDGE_PROVIDER_TOKEN, "default", makeKnowledgeProvider());
+		expect(reg.listTokenIds().sort()).toEqual(["knowledge", "memory"]);
 	});
 
 	it("register replaces an existing provider with the same name", () => {
 		const reg = new ProviderRegistry();
-		const v1 = { version: 1 };
-		const v2 = { version: 2 };
-		reg.register("svc", "impl", v1);
-		expect(reg.get("svc")).toBe(v1);
+		const v1 = { id: "v1" };
+		const v2 = { id: "v2" };
+		reg.register(TEST_SVC_TOKEN, "impl", v1);
+		expect(reg.get(TEST_SVC_TOKEN)).toBe(v1);
 
-		reg.register("svc", "impl", v2);
-		expect(reg.get("svc")).toBe(v2);
-		expect(reg.list("svc")).toEqual(["impl"]);
+		reg.register(TEST_SVC_TOKEN, "impl", v2);
+		expect(reg.get(TEST_SVC_TOKEN)).toBe(v2);
+		expect(reg.list(TEST_SVC_TOKEN)).toEqual(["impl"]);
 	});
 
-	it("get returns null for unregistered type", () => {
+	it("get returns null for unregistered token", () => {
 		const reg = new ProviderRegistry();
-		expect(reg.get("unknown")).toBeNull();
+		expect(reg.get(TEST_UNKNOWN_TOKEN)).toBeNull();
 	});
 
 	it("clear removes all providers", () => {
 		const reg = new ProviderRegistry();
-		reg.register("memory", "a", {});
-		reg.register("knowledge", "b", {});
+		reg.register(MEMORY_PROVIDER_TOKEN, "a", makeMemoryProvider());
+		reg.register(KNOWLEDGE_PROVIDER_TOKEN, "b", makeKnowledgeProvider());
 		reg.clear();
-		expect(reg.get("memory")).toBeNull();
-		expect(reg.get("knowledge")).toBeNull();
-		expect(reg.listTypes()).toEqual([]);
+		expect(reg.get(MEMORY_PROVIDER_TOKEN)).toBeNull();
+		expect(reg.get(KNOWLEDGE_PROVIDER_TOKEN)).toBeNull();
+		expect(reg.listTokenIds()).toEqual([]);
 	});
 });
 
@@ -183,8 +191,8 @@ describe("convenience getters", () => {
 			semanticSearch: async () => [],
 			reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
 		};
-		reg.register("memory", "custom", custom);
-		reg.setActive("memory", "custom");
+		reg.register(MEMORY_PROVIDER_TOKEN, "custom", custom);
+		reg.setActive(MEMORY_PROVIDER_TOKEN, "custom");
 
 		const provider = getMemoryProvider();
 		expect(provider).toBe(custom);
@@ -205,8 +213,8 @@ describe("convenience getters", () => {
 			semanticSearch: async () => [],
 			reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
 		};
-		reg.register("knowledge", "custom", custom);
-		reg.setActive("knowledge", "custom");
+		reg.register(KNOWLEDGE_PROVIDER_TOKEN, "custom", custom);
+		reg.setActive(KNOWLEDGE_PROVIDER_TOKEN, "custom");
 
 		const provider = getKnowledgeProvider();
 		expect(provider).toBe(custom);
@@ -234,8 +242,8 @@ describe("convenience getters", () => {
 			isEmpty: () => true,
 			count: () => 0,
 		};
-		reg.register("task", "custom", custom);
-		reg.setActive("task", "custom");
+		reg.register(TASK_PROVIDER_TOKEN, "custom", custom);
+		reg.setActive(TASK_PROVIDER_TOKEN, "custom");
 
 		const provider = getTaskProvider();
 		expect(provider).toBe(custom);
@@ -277,8 +285,8 @@ describe("convenience getters", () => {
 			semanticSearch: async () => [],
 			reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
 		};
-		reg.register("history", "custom", custom);
-		reg.setActive("history", "custom");
+		reg.register(HISTORY_PROVIDER_TOKEN, "custom", custom);
+		reg.setActive(HISTORY_PROVIDER_TOKEN, "custom");
 
 		const provider = getHistoryProvider();
 		expect(provider).toBe(custom);
@@ -295,11 +303,11 @@ describe("registerDefaultProviders", () => {
 	it("registers default providers for core-owned service types", () => {
 		const reg = initProviderRegistry();
 		registerDefaultProviders();
-		expect(reg.list("memory")).toEqual([]);
-		expect(reg.list("task")).toEqual(["default"]);
-		expect(reg.list("history")).toEqual([]);
-		expect(reg.list("knowledge")).toEqual([]);
-		expect(reg.getActiveName("task")).toBe("default");
+		expect(reg.list(MEMORY_PROVIDER_TOKEN)).toEqual([]);
+		expect(reg.list(TASK_PROVIDER_TOKEN)).toEqual(["default"]);
+		expect(reg.list(HISTORY_PROVIDER_TOKEN)).toEqual([]);
+		expect(reg.list(KNOWLEDGE_PROVIDER_TOKEN)).toEqual([]);
+		expect(reg.getActiveName(TASK_PROVIDER_TOKEN)).toBe("default");
 	});
 
 	it("default providers are functional", () => {
@@ -329,9 +337,37 @@ describe("registerDefaultProviders", () => {
 			semanticSearch: async () => [],
 			reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
 		};
-		reg.register("memory", "my-module", custom);
-		reg.setActive("memory", "my-module");
+		reg.register(MEMORY_PROVIDER_TOKEN, "my-module", custom);
+		reg.setActive(MEMORY_PROVIDER_TOKEN, "my-module");
 
 		expect(getMemoryProvider()).toBe(custom);
 	});
 });
+
+function makeMemoryProvider(): MemoryProvider {
+	return {
+		save: () => "id",
+		search: () => [],
+		list: () => [],
+		update: () => true,
+		delete: () => true,
+		supportsSemanticSearch: () => false,
+		semanticSearch: async () => [],
+		reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
+	};
+}
+
+function makeKnowledgeProvider(): KnowledgeProvider {
+	return {
+		create: () => "id",
+		read: () => null,
+		update: () => true,
+		delete: () => true,
+		search: () => [],
+		list: () => [],
+		count: () => 0,
+		supportsSemanticSearch: () => false,
+		semanticSearch: async () => [],
+		reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
+	};
+}

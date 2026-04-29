@@ -22,6 +22,7 @@
  */
 
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { TASK_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import type { JiraTaskProviderConfig } from "./task-provider.js";
 import { JiraTaskProvider } from "./task-provider.js";
 
@@ -114,7 +115,7 @@ const jiraModule: KotaModule = {
     const provider = new JiraTaskProvider(config.taskProvider, jiraFetch);
     try {
       await provider.init();
-      ctx.registerProvider("task", provider);
+      ctx.registerProvider(TASK_PROVIDER_TOKEN, provider);
       ctx.log.info("Jira Cloud task provider registered");
     } catch (err) {
       ctx.log.warn(

@@ -9,6 +9,10 @@
  * contributors at type-time — `register` accepts N typed contributors, so
  * adding a fifth store is a registration, not an enum edit.
  */
+import {
+  defineProviderToken,
+  type ProviderToken,
+} from "#core/modules/provider-token.js";
 import type {
   RecallFilter,
   RecallHit,
@@ -146,3 +150,7 @@ export interface RecallProvider {
   contributors(): ReadonlyArray<RecallSource>;
   recall(query: string, filter?: RecallFilter): Promise<RecallHit[]>;
 }
+
+/** Provider-registry token for the cross-store recall seam. */
+export const RECALL_PROVIDER_TOKEN: ProviderToken<RecallProvider> =
+  defineProviderToken<RecallProvider>("recall");

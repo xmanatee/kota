@@ -45,7 +45,7 @@ export async function ensureCliProvidersFor(
   const registry = getProviderRegistry();
   const unconfiguredNeedingLoad = types.filter((type) => {
     if (config.providers?.[type]) return false;
-    return !registry?.get(type);
+    return !registry?.introspect(type).active;
   });
 
   if (configuredEntries.length === 0 && unconfiguredNeedingLoad.length === 0) {

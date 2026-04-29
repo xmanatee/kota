@@ -6,6 +6,11 @@
  * provider registry without importing module code.
  */
 
+import {
+  defineProviderToken,
+  type ProviderToken,
+} from "./provider-token.js";
+
 export type SlashCommandSource = "workflow" | "skill";
 
 export type SlashCommand = {
@@ -28,5 +33,6 @@ export type SlashCommandCatalog = {
   resolve(name: string): SlashCommandAction | null;
 };
 
-/** Provider-registry key used to look up the active slash-command catalog. */
-export const SLASH_COMMAND_PROVIDER_TYPE = "slash-command-catalog";
+/** Provider-registry token used to look up the active slash-command catalog. */
+export const SLASH_COMMAND_PROVIDER_TYPE: ProviderToken<SlashCommandCatalog> =
+  defineProviderToken<SlashCommandCatalog>("slash-command-catalog");

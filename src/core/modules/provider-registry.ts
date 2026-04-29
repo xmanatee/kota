@@ -1,6 +1,10 @@
 /** Provider registry — swappable backends for core services. */
 
 import { getTaskStore } from "#core/daemon/task-store.js";
+import {
+	defineProviderToken,
+	type ProviderToken,
+} from "./provider-token.js";
 import type {
 	HistoryProvider,
 	KnowledgeProvider,
@@ -11,6 +15,8 @@ import type {
 	TaskProvider,
 } from "./provider-types.js";
 
+
+export { defineProviderToken, type ProviderToken } from "./provider-token.js";
 export type {
 	HistoryProvider,
 	KnowledgeProvider,
@@ -22,24 +28,44 @@ export type {
 	TaskProvider,
 } from "./provider-types.js";
 
-type ProviderEntry = {
+/**
+ * Tokens for the cross-cutting providers core itself looks up. Module-
+ * domain provider tokens live with their owning module (e.g. the recall
+ * module declares `RECALL_PROVIDER_TOKEN`).
+ */
+export const MEMORY_PROVIDER_TOKEN: ProviderToken<MemoryProvider> =
+	defineProviderToken<MemoryProvider>("memory");
+export const KNOWLEDGE_PROVIDER_TOKEN: ProviderToken<KnowledgeProvider> =
+	defineProviderToken<KnowledgeProvider>("knowledge");
+export const HISTORY_PROVIDER_TOKEN: ProviderToken<HistoryProvider> =
+	defineProviderToken<HistoryProvider>("history");
+export const TASK_PROVIDER_TOKEN: ProviderToken<TaskProvider> =
+	defineProviderToken<TaskProvider>("task");
+export const REPO_TASKS_PROVIDER_TOKEN: ProviderToken<RepoTasksProvider> =
+	defineProviderToken<RepoTasksProvider>("repo-tasks");
+export const RENDERING_PROVIDER_TOKEN: ProviderToken<RenderingProvider> =
+	defineProviderToken<RenderingProvider>("rendering");
+export const MODEL_PRICING_PROVIDER_TOKEN: ProviderToken<ModelPricingProvider> =
+	defineProviderToken<ModelPricingProvider>("model-pricing");
+
+type ProviderEntry<T> = {
 	name: string;
-	provider: unknown;
+	provider: T;
 };
 
-/** Registry for swappable service providers. Each service type can have multiple providers; one is active. */
+/** Registry for swappable service providers. Each token can have multiple providers; one is active. */
 export class ProviderRegistry {
-	/** Map from service type → array of registered providers. */
-	private providers = new Map<string, ProviderEntry[]>();
-	/** Map from service type → name of the active provider. */
+	/** Map from token id → array of registered providers. */
+	private providers = new Map<string, ProviderEntry<unknown>[]>();
+	/** Map from token id → name of the active provider. */
 	private active = new Map<string, string>();
 
-	/** Register a provider for a service type. First registered becomes active by default. */
-	register<T>(type: string, name: string, provider: T): void {
-		let entries = this.providers.get(type);
+	/** Register a provider for a token. First registered becomes active by default. */
+	register<T>(token: ProviderToken<T>, name: string, provider: T): void {
+		let entries = this.providers.get(token);
 		if (!entries) {
 			entries = [];
-			this.providers.set(type, entries);
+			this.providers.set(token, entries);
 		}
 
 		// Replace if same name already registered
@@ -51,48 +77,75 @@ export class ProviderRegistry {
 		}
 
 		// First provider becomes default active
-		if (!this.active.has(type)) {
-			this.active.set(type, name);
+		if (!this.active.has(token)) {
+			this.active.set(token, name);
 		}
 	}
 
-	/** Get the active provider for a service type. Returns null if none registered. */
-	get<T>(type: string): T | null {
-		const activeName = this.active.get(type);
+	/** Get the active provider for a token. Returns null if none registered. */
+	get<T>(token: ProviderToken<T>): T | null {
+		const activeName = this.active.get(token);
 		if (!activeName) return null;
-		return this.getByName<T>(type, activeName);
+		return this.getByName(token, activeName);
 	}
 
-	/** Get a specific named provider. Returns null if not found. */
-	getByName<T>(type: string, name: string): T | null {
-		const entries = this.providers.get(type);
+	/** Get a specific named provider for a token. Returns null if not found. */
+	getByName<T>(token: ProviderToken<T>, name: string): T | null {
+		const entries = this.providers.get(token);
 		if (!entries) return null;
 		const entry = entries.find((e) => e.name === name);
 		return entry ? (entry.provider as T) : null;
 	}
 
-	/** Set the active provider for a service type. Returns false if the provider isn't registered. */
-	setActive(type: string, name: string): boolean {
-		const entries = this.providers.get(type);
+	/** Set the active provider for a token. Returns false if the provider isn't registered. */
+	setActive<T>(token: ProviderToken<T>, name: string): boolean {
+		const entries = this.providers.get(token);
 		if (!entries?.some((e) => e.name === name)) return false;
-		this.active.set(type, name);
+		this.active.set(token, name);
 		return true;
 	}
 
-	/** List registered provider names for a service type. */
-	list(type: string): string[] {
-		const entries = this.providers.get(type);
+	/** List registered provider names for a token. */
+	list<T>(token: ProviderToken<T>): string[] {
+		const entries = this.providers.get(token);
 		return entries ? entries.map((e) => e.name) : [];
 	}
 
-	/** Get the name of the active provider for a service type. */
-	getActiveName(type: string): string | null {
-		return this.active.get(type) ?? null;
+	/** Get the name of the active provider for a token. */
+	getActiveName<T>(token: ProviderToken<T>): string | null {
+		return this.active.get(token) ?? null;
 	}
 
-	/** List all service types that have registered providers. */
-	listTypes(): string[] {
+	/** List all token ids that have registered providers. */
+	listTokenIds(): string[] {
 		return [...this.providers.keys()];
+	}
+
+	/**
+	 * Read-only diagnostic snapshot for a token id. Use only for status
+	 * surfaces and tooling that want to enumerate the registry without
+	 * holding the typed `ProviderToken`. Returns empty arrays / `null`
+	 * when the id has no registrations.
+	 */
+	introspect(id: string): { active: string | null; names: string[] } {
+		const entries = this.providers.get(id);
+		return {
+			active: this.active.get(id) ?? null,
+			names: entries ? entries.map((e) => e.name) : [],
+		};
+	}
+
+	/**
+	 * Activate a provider by token id without holding the typed
+	 * `ProviderToken`. Used by config-driven activation (`config.providers`)
+	 * where the id arrives as a plain string. Returns false if the
+	 * provider is not registered.
+	 */
+	setActiveById(id: string, name: string): boolean {
+		const entries = this.providers.get(id);
+		if (!entries?.some((e) => e.name === name)) return false;
+		this.active.set(id, name);
+		return true;
 	}
 
 	/** Clear all providers and active selections. */
@@ -120,7 +173,7 @@ export function resetProviderRegistry(): void {
 /** Register the in-process default stores for core-owned service types. */
 export function registerDefaultProviders(): void {
 	if (!registry) return;
-	registry.register("task", "default", getTaskStore());
+	registry.register(TASK_PROVIDER_TOKEN, "default", getTaskStore());
 }
 
 /**
@@ -130,7 +183,7 @@ export function registerDefaultProviders(): void {
  */
 export function getMemoryProvider(): MemoryProvider {
 	if (registry) {
-		const provider = registry.get<MemoryProvider>("memory");
+		const provider = registry.get(MEMORY_PROVIDER_TOKEN);
 		if (provider) return provider;
 	}
 	throw new Error(
@@ -145,7 +198,7 @@ export function getMemoryProvider(): MemoryProvider {
  */
 export function getKnowledgeProvider(): KnowledgeProvider {
 	if (registry) {
-		const provider = registry.get<KnowledgeProvider>("knowledge");
+		const provider = registry.get(KNOWLEDGE_PROVIDER_TOKEN);
 		if (provider) return provider;
 	}
 	throw new Error(
@@ -156,7 +209,7 @@ export function getKnowledgeProvider(): KnowledgeProvider {
 /** Get the active task provider, or the default TaskStore when no registry provider is active. */
 export function getTaskProvider(): TaskProvider {
 	if (registry) {
-		const provider = registry.get<TaskProvider>("task");
+		const provider = registry.get(TASK_PROVIDER_TOKEN);
 		if (provider) return provider;
 	}
 	return getTaskStore();
@@ -169,7 +222,7 @@ export function getTaskProvider(): TaskProvider {
  */
 export function getHistoryProvider(): HistoryProvider {
 	if (registry) {
-		const provider = registry.get<HistoryProvider>("history");
+		const provider = registry.get(HISTORY_PROVIDER_TOKEN);
 		if (provider) return provider;
 	}
 	throw new Error(
@@ -186,7 +239,7 @@ export function getHistoryProvider(): HistoryProvider {
  */
 export function getRepoTasksProvider(): RepoTasksProvider {
 	if (registry) {
-		const provider = registry.get<RepoTasksProvider>("repo-tasks");
+		const provider = registry.get(REPO_TASKS_PROVIDER_TOKEN);
 		if (provider) return provider;
 	}
 	throw new Error(
@@ -204,7 +257,7 @@ export function getRepoTasksProvider(): RepoTasksProvider {
  */
 export function getRenderingProvider(): RenderingProvider | null {
 	if (!registry) return null;
-	return registry.get<RenderingProvider>("rendering");
+	return registry.get(RENDERING_PROVIDER_TOKEN);
 }
 
 /**
@@ -218,5 +271,5 @@ export function getRenderingProvider(): RenderingProvider | null {
  */
 export function getModelPricingProvider(): ModelPricingProvider | null {
 	if (!registry) return null;
-	return registry.get<ModelPricingProvider>("model-pricing");
+	return registry.get(MODEL_PRICING_PROVIDER_TOKEN);
 }

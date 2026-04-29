@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+	HISTORY_PROVIDER_TOKEN,
 	initProviderRegistry,
 	resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
@@ -320,7 +321,7 @@ describe("conversation_recall through the semantic provider", () => {
 			onBackgroundError: () => {},
 		});
 		const registry = initProviderRegistry();
-		registry.register("history", "history-semantic", semantic);
+		registry.register(HISTORY_PROVIDER_TOKEN, "history-semantic", semantic);
 	});
 
 	afterEach(() => {
@@ -353,7 +354,7 @@ describe("conversation_recall through the semantic provider", () => {
 	it("falls back to the keyword list when no provider supports semantic search", async () => {
 		resetProviderRegistry();
 		const registry = initProviderRegistry();
-		registry.register("history", "default", base);
+		registry.register(HISTORY_PROVIDER_TOKEN, "default", base);
 
 		const id = saveConversation(base, "Help me fix the authentication bug");
 		const result = await runConversationRecall({

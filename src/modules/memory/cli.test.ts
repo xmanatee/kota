@@ -7,6 +7,7 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import {
 	getMemoryProvider,
 	initProviderRegistry,
+	MEMORY_PROVIDER_TOKEN,
 	resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import { registerMemoryCommands } from "./cli.js";
@@ -111,7 +112,7 @@ describe("kota memory add", () => {
 		resetMemoryStore();
 		resetProviderRegistry();
 		const reg = initProviderRegistry();
-		reg.register("memory", "memory", getMemoryStore(storeDir));
+		reg.register(MEMORY_PROVIDER_TOKEN, "memory", getMemoryStore(storeDir));
 	});
 
 	afterEach(() => {

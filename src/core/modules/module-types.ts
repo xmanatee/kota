@@ -25,6 +25,7 @@ import type { ToolMiddlewareFn } from "#core/tools/tool-middleware.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
 import type { ModuleStorage } from "./module-storage.js";
+import type { ProviderToken } from "./provider-token.js";
 
 /** Health state for a foreign (KEMP) module subprocess. */
 export type ModuleHealth = {
@@ -218,10 +219,14 @@ export type ModuleContext = {
   events: ModuleEventProxy;
   /** Create an agent session without importing core types. */
   createSession: (options?: CreateSessionOptions) => ModuleSession;
-  /** Register this module as a provider for a service type (e.g., "memory", "knowledge"). */
-  registerProvider: (type: string, provider: unknown) => void;
-  /** Get the active provider for a service type. Returns null if none registered. */
-  getProvider: <T>(type: string) => T | null;
+  /**
+   * Register this module as a provider for the given typed token. The
+   * token's value type is enforced at the call site, so a wrong-shape
+   * provider fails typecheck instead of being detected at runtime.
+   */
+  registerProvider: <T>(token: ProviderToken<T>, provider: T) => void;
+  /** Get the active provider for a typed token. Returns null if none registered. */
+  getProvider: <T>(token: ProviderToken<T>) => T | null;
   /** Invoke a registered tool directly without going through the LLM. Skips guardrails. */
   callTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
   /** Register a middleware that wraps tool execution. Lower priority runs first. */

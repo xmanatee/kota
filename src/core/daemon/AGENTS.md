@@ -45,7 +45,7 @@ mirroring `RouteRegistration.bypassAuth`.
 Thin clients distinguish "daemon online but capability unavailable" from
 "daemon offline" through `GET /capabilities`. The route aggregates
 typed `CapabilityReadinessSource` entries that modules contribute through
-`ctx.registerProvider("capability-readiness", source)` from their own
+the `CAPABILITY_READINESS_PROVIDER_TYPE` token from their own
 `onLoad`. Each entry reports a stable `id` (e.g. `knowledge.search`),
 status (`ready` | `unavailable` | `init_failed`), reason code, and short
 operator-facing message. Adding a new capability is a registration in the

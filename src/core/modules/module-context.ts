@@ -23,6 +23,7 @@ import { getModuleLogStore } from "./module-log.js";
 import { ModuleStorage } from "./module-storage.js";
 import type { ControlRouteRegistration, CreateSessionOptions, HealthCheckResult, ModuleContext, ModuleEventProxy, ModuleSession, ModuleSummary, RouteRegistration } from "./module-types.js";
 import { getProviderRegistry, initProviderRegistry } from "./provider-registry.js";
+import type { ProviderToken } from "./provider-token.js";
 
 export interface ModuleContextParams {
   cwd: string;
@@ -131,18 +132,18 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
       }
       return sessionFactory(opts ?? {});
     },
-    registerProvider: (type: string, provider: unknown): void => {
+    registerProvider: <T>(token: ProviderToken<T>, provider: T): void => {
       if (!moduleName) {
         log.warn(`Cannot register provider without a module name`);
         return;
       }
       const reg = getProviderRegistry() ?? initProviderRegistry();
-      reg.register(type, moduleName, provider);
-      log.info(`Registered as provider for "${type}"`);
+      reg.register(token, moduleName, provider);
+      log.info(`Registered as provider for "${token}"`);
     },
-    getProvider: <T>(type: string): T | null => {
+    getProvider: <T>(token: ProviderToken<T>): T | null => {
       const reg = getProviderRegistry();
-      return reg?.get<T>(type) ?? null;
+      return reg?.get(token) ?? null;
     },
     callTool,
     registerMiddleware: (name, fn, priority) => {

@@ -178,25 +178,24 @@ function formatProviders(filter: string): string {
 		return lines.join("\n");
 	}
 
-	const types = reg.listTypes();
-	if (types.length === 0) {
+	const ids = reg.listTokenIds();
+	if (ids.length === 0) {
 		lines.push("(no providers registered)");
 		return lines.join("\n");
 	}
 
-	const filtered = types.filter((t) => matches(t, filter));
+	const filtered = ids.filter((t) => matches(t, filter));
 	if (filtered.length === 0) {
 		lines.push("(no providers match filter)");
 		return lines.join("\n");
 	}
 
-	for (const type of filtered) {
-		const active = reg.getActiveName(type);
-		const all = reg.list(type);
-		const providerList = all
+	for (const id of filtered) {
+		const { active, names } = reg.introspect(id);
+		const providerList = names
 			.map((name) => (name === active ? `**${name}** (active)` : name))
 			.join(", ");
-		lines.push(`- ${type}: ${providerList}`);
+		lines.push(`- ${id}: ${providerList}`);
 	}
 
 	return lines.join("\n");

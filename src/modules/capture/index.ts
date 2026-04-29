@@ -27,9 +27,10 @@ import {
 import type { CaptureClient } from "#core/server/kota-client.js";
 import { createCaptureReadinessSource } from "./capability-readiness.js";
 import { CaptureProviderImpl } from "./capture-provider.js";
-import type {
-  CaptureClassifier,
-  CaptureProvider,
+import {
+  CAPTURE_PROVIDER_TOKEN,
+  type CaptureClassifier,
+  type CaptureProvider,
 } from "./capture-types.js";
 import {
   buildClassifierUserPrompt,
@@ -124,7 +125,7 @@ const captureModule: KotaModule = {
     provider.register(createTasksContributor(ctx.cwd));
     provider.register(createInboxContributor(ctx.cwd));
     activeProvider = provider;
-    ctx.registerProvider("capture", provider);
+    ctx.registerProvider(CAPTURE_PROVIDER_TOKEN, provider);
     ctx.registerProvider(
       CAPABILITY_READINESS_PROVIDER_TYPE,
       createCaptureReadinessSource(provider),

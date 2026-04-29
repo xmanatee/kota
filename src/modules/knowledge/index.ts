@@ -12,7 +12,10 @@
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
-import { getKnowledgeProvider } from "#core/modules/provider-registry.js";
+import {
+	getKnowledgeProvider,
+	KNOWLEDGE_PROVIDER_TOKEN,
+} from "#core/modules/provider-registry.js";
 import type { KnowledgeClient } from "#core/server/kota-client.js";
 import { createKnowledgeReadinessSource } from "./capability-readiness.js";
 import { registerKnowledgeCommands } from "./cli.js";
@@ -39,7 +42,7 @@ const knowledgeModule: KotaModule = {
 
 	onLoad: (ctx: ModuleContext) => {
 		const store = new KnowledgeStore(ctx.cwd);
-		ctx.registerProvider("knowledge", store);
+		ctx.registerProvider(KNOWLEDGE_PROVIDER_TOKEN, store);
 		ctx.registerProvider(
 			CAPABILITY_READINESS_PROVIDER_TYPE,
 			createKnowledgeReadinessSource(store),

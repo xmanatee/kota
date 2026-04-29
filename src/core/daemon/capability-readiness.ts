@@ -4,7 +4,7 @@
  *
  * Each provider-backed module contributes one
  * {@link CapabilityReadinessSource} through the provider-registry seam
- * (`ctx.registerProvider("capability-readiness", source)`). The daemon
+ * using the typed `CAPABILITY_READINESS_PROVIDER_TYPE` token. The daemon
  * aggregates every registered source into a stable typed response served
  * by `GET /capabilities`. Clients consume the same shape locally
  * (`probeCapabilityReadiness()`) when no daemon is running, so daemon-up
@@ -16,6 +16,10 @@
  */
 
 import type { ProviderRegistry } from "#core/modules/provider-registry.js";
+import {
+  defineProviderToken,
+  type ProviderToken,
+} from "#core/modules/provider-token.js";
 
 /**
  * Status of a single capability.
@@ -68,8 +72,9 @@ export type CapabilityReadinessSource = {
   probe(): CapabilityReadiness[] | Promise<CapabilityReadiness[]>;
 };
 
-/** Provider-registry type key for capability-readiness sources. */
-export const CAPABILITY_READINESS_PROVIDER_TYPE = "capability-readiness";
+/** Provider-registry token for capability-readiness sources. */
+export const CAPABILITY_READINESS_PROVIDER_TYPE: ProviderToken<CapabilityReadinessSource> =
+  defineProviderToken<CapabilityReadinessSource>("capability-readiness");
 
 export type CapabilityReadinessSummary = {
   ready: number;
@@ -100,7 +105,7 @@ export async function probeCapabilityReadiness(
   const sourceNames = registry.list(CAPABILITY_READINESS_PROVIDER_TYPE);
   const collected: CapabilityReadiness[] = [];
   for (const name of sourceNames) {
-    const source = registry.getByName<CapabilityReadinessSource>(
+    const source = registry.getByName(
       CAPABILITY_READINESS_PROVIDER_TYPE,
       name,
     );

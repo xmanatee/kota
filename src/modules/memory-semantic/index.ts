@@ -6,6 +6,7 @@
  */
 
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { MEMORY_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import { getMemoryStore } from "#modules/memory/store.js";
 import {
 	createEmbeddingProvider,
@@ -47,7 +48,7 @@ const memorySemanticModule: KotaModule = {
 				ctx.log.warn(`memory-semantic: embedding failed — ${msg}`);
 			},
 		});
-		ctx.registerProvider("memory", store);
+		ctx.registerProvider(MEMORY_PROVIDER_TOKEN, store);
 		ctx.log.info(
 			`memory-semantic: registered semantic memory provider (${config.provider}/${config.model})`,
 		);

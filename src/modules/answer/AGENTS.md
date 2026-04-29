@@ -102,7 +102,7 @@ The answer module owns its recall adapter end-to-end.
 `recall-contributor.ts` wraps `AnswerHistoryStore.searchAnswers` into a
 `RecallContributor` for the `answer` source; the module registers it
 from its own `onLoad` against the live `RecallProvider` (looked up
-through `ctx.getProvider<RecallProvider>("recall")` — the same
+through `ctx.getProvider(RECALL_PROVIDER_TOKEN)` — the same typed
 registry seam every other cross-module provider access uses) and
 `onUnload` calls `recallProvider.unregister("answer")`. The recall
 module does not import answer code; registration flows one-way

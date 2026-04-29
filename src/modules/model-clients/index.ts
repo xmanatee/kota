@@ -1,5 +1,6 @@
 import { registerModelClientFactory } from "#core/model/model-client.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { MODEL_PRICING_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import { createAnthropicModelPricingProvider } from "./anthropic-pricing.js";
 import { failoverConfigSlice, modelProviderConfigSlice } from "./config-slice.js";
 import {
@@ -16,7 +17,7 @@ const modelClientsModule: KotaModule = {
   configSlices: [modelProviderConfigSlice, failoverConfigSlice],
 
   onLoad(ctx: ModuleContext) {
-    ctx.registerProvider("model-pricing", createAnthropicModelPricingProvider());
+    ctx.registerProvider(MODEL_PRICING_PROVIDER_TOKEN, createAnthropicModelPricingProvider());
 
     const failoverConfig = ctx.config.failover;
     if (failoverConfig) {

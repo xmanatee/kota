@@ -6,6 +6,7 @@
  */
 
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { HISTORY_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import { getHistory } from "#modules/history/history.js";
 import {
 	createEmbeddingProvider,
@@ -47,7 +48,7 @@ const historySemanticModule: KotaModule = {
 				ctx.log.warn(`history-semantic: embedding failed — ${msg}`);
 			},
 		});
-		ctx.registerProvider("history", store);
+		ctx.registerProvider(HISTORY_PROVIDER_TOKEN, store);
 		ctx.log.info(
 			`history-semantic: registered semantic history provider (${config.provider}/${config.model})`,
 		);

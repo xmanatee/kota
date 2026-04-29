@@ -6,6 +6,7 @@
  */
 
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { REPO_TASKS_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import {
 	createEmbeddingProvider,
 	readEmbeddingProviderConfig,
@@ -45,7 +46,7 @@ const tasksSemanticModule: KotaModule = {
 				ctx.log.warn(`tasks-semantic: embedding failed — ${msg}`);
 			},
 		});
-		ctx.registerProvider("repo-tasks", store);
+		ctx.registerProvider(REPO_TASKS_PROVIDER_TOKEN, store);
 		ctx.log.info(
 			`tasks-semantic: registered semantic repo-tasks provider (${config.provider}/${config.model})`,
 		);

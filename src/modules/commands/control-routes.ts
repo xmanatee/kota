@@ -39,7 +39,7 @@ function readBody(req: IncomingMessage): Promise<Buffer> {
 function getCatalog(): SlashCommandCatalog | null {
   const registry = getProviderRegistry();
   if (!registry) return null;
-  return registry.get<SlashCommandCatalog>(SLASH_COMMAND_PROVIDER_TYPE);
+  return registry.get(SLASH_COMMAND_PROVIDER_TYPE);
 }
 
 export function handleListCommandsControl(

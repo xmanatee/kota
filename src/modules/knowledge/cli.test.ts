@@ -7,6 +7,7 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import {
 	getKnowledgeProvider,
 	initProviderRegistry,
+	KNOWLEDGE_PROVIDER_TOKEN,
 	resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import type {
@@ -117,7 +118,7 @@ describe("kota knowledge add", () => {
 		resetProviderRegistry();
 		const reg = initProviderRegistry();
 		store = new KnowledgeStore(projectDir);
-		reg.register("knowledge", "knowledge", store);
+		reg.register(KNOWLEDGE_PROVIDER_TOKEN, "knowledge", store);
 	});
 
 	afterEach(() => {
@@ -241,7 +242,7 @@ describe("kota knowledge export", () => {
 		resetProviderRegistry();
 		const reg = initProviderRegistry();
 		store = new KnowledgeStore(projectDir);
-		reg.register("knowledge", "knowledge", store);
+		reg.register(KNOWLEDGE_PROVIDER_TOKEN, "knowledge", store);
 	});
 
 	afterEach(() => {
@@ -332,7 +333,7 @@ describe("kota knowledge export", () => {
 		resetProviderRegistry();
 		const reg2 = initProviderRegistry();
 		const store2 = new KnowledgeStore(newDir);
-		reg2.register("knowledge", "knowledge", store2);
+		reg2.register(KNOWLEDGE_PROVIDER_TOKEN, "knowledge", store2);
 		for (const entry of parsed) {
 			store2.create({
 				title: entry.title as string,
@@ -394,7 +395,7 @@ describe("kota knowledge search", () => {
 		resetProviderRegistry();
 		const reg = initProviderRegistry();
 		store = new KnowledgeStore(projectDir);
-		reg.register("knowledge", "knowledge", store);
+		reg.register(KNOWLEDGE_PROVIDER_TOKEN, "knowledge", store);
 	});
 
 	afterEach(() => {

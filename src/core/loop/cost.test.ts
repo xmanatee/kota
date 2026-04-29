@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   initProviderRegistry,
+  MODEL_PRICING_PROVIDER_TOKEN,
   type ModelPricing,
   type ModelPricingProvider,
   resetProviderRegistry,
@@ -22,7 +23,7 @@ const testPricingProvider: ModelPricingProvider = {
 describe("CostTracker", () => {
   beforeEach(() => {
     const reg = initProviderRegistry();
-    reg.register("model-pricing", "test", testPricingProvider);
+    reg.register(MODEL_PRICING_PROVIDER_TOKEN, "test", testPricingProvider);
   });
 
   afterEach(() => {

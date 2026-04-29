@@ -8,7 +8,10 @@
 
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
-import { getHistoryProvider } from "#core/modules/provider-registry.js";
+import {
+	getHistoryProvider,
+	HISTORY_PROVIDER_TOKEN,
+} from "#core/modules/provider-registry.js";
 import type { HistoryClient } from "#core/server/kota-client.js";
 import { createHistoryReadinessSource } from "./capability-readiness.js";
 import {
@@ -37,7 +40,7 @@ const historyModule: KotaModule = {
 
 	onLoad: (ctx: ModuleContext) => {
 		const store = getHistory();
-		ctx.registerProvider("history", store);
+		ctx.registerProvider(HISTORY_PROVIDER_TOKEN, store);
 		ctx.registerProvider(
 			CAPABILITY_READINESS_PROVIDER_TYPE,
 			createHistoryReadinessSource(store),

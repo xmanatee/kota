@@ -1,4 +1,5 @@
 import type { KotaModule, ModuleContext, ToolDef } from "#core/modules/module-types.js";
+import { TASK_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import { makeLinearTools, resolveTeamContext } from "./linear-tools.js";
 import type { LinearTaskProviderConfig } from "./task-provider.js";
 import { LinearTaskProvider } from "./task-provider.js";
@@ -99,7 +100,7 @@ const linearModule: KotaModule = {
     const provider = new LinearTaskProvider(config.taskProvider, boundFetch);
     try {
       await provider.init();
-      ctx.registerProvider("task", provider);
+      ctx.registerProvider(TASK_PROVIDER_TOKEN, provider);
       ctx.log.info("Linear Issues task provider registered");
     } catch (err) {
       ctx.log.warn(

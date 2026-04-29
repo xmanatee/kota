@@ -30,7 +30,7 @@ import {
   createTasksContributor,
 } from "./contributors.js";
 import { RecallProviderImpl } from "./recall-provider.js";
-import type { RecallProvider } from "./recall-types.js";
+import { RECALL_PROVIDER_TOKEN, type RecallProvider } from "./recall-types.js";
 import { recallApiRoutes, recallControlRoutes } from "./routes.js";
 import {
   buildRecallDynamicStateProvider,
@@ -73,7 +73,7 @@ const recallModule: KotaModule = {
     // `onLoad` (e.g. the `answer` module registers an `answer`-source
     // contributor over the answer-history store). This is the public
     // registration seam — there is no second mechanism.
-    ctx.registerProvider("recall", provider);
+    ctx.registerProvider(RECALL_PROVIDER_TOKEN, provider);
     ctx.registerProvider(
       CAPABILITY_READINESS_PROVIDER_TYPE,
       createRecallReadinessSource(provider),

@@ -14,7 +14,7 @@ import {
  */
 export function getTranscriptionProvider(): TranscriptionProvider {
   const registry = getProviderRegistry();
-  const provider = registry?.get<TranscriptionProvider>(TRANSCRIPTION_PROVIDER_TYPE) ?? null;
+  const provider = registry?.get(TRANSCRIPTION_PROVIDER_TYPE) ?? null;
   if (!provider) {
     throw new TranscriptionProviderUnavailableError();
   }

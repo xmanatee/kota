@@ -24,18 +24,22 @@ import type {
   AnswerHistoryListFilter,
 } from "#core/server/kota-client.js";
 import { resolveApiKey } from "#modules/model-clients/factory.js";
-import type { RecallProvider } from "#modules/recall/recall-types.js";
+import {
+  RECALL_PROVIDER_TOKEN,
+  type RecallProvider,
+} from "#modules/recall/recall-types.js";
 import {
   type AnswerHistoryStore,
   answerHistoryRootForProject,
   DiskAnswerHistoryStore,
 } from "./answer-history-store.js";
 import { AnswerProviderImpl } from "./answer-provider.js";
-import type {
-  AnswerProvider,
-  AnswerRecallSeam,
-  SynthesisInput,
-  Synthesizer,
+import {
+  ANSWER_PROVIDER_TOKEN,
+  type AnswerProvider,
+  type AnswerRecallSeam,
+  type SynthesisInput,
+  type Synthesizer,
 } from "./answer-types.js";
 import { createAnswerReadinessSource } from "./capability-readiness.js";
 import { registerAnswerCommand } from "./cli.js";
@@ -128,7 +132,7 @@ const answerModule: KotaModule = {
         ctx.log.warn(`answer: history append failed — ${msg}`);
       },
     });
-    ctx.registerProvider("answer", activeProvider);
+    ctx.registerProvider(ANSWER_PROVIDER_TOKEN, activeProvider);
     ctx.registerProvider(
       CAPABILITY_READINESS_PROVIDER_TYPE,
       createAnswerReadinessSource({
@@ -148,11 +152,11 @@ const answerModule: KotaModule = {
 
     // Contribute the answer-history corpus to the cross-store recall seam
     // through `RecallProvider`'s public registration API. The recall module
-    // exposes its provider through the same `ctx.registerProvider("recall",
-    // …)` seam every other provider uses, and `recall` is declared in this
-    // module's `dependencies`, so the loader has already populated the
-    // registry by the time this `onLoad` runs.
-    const recallProvider = ctx.getProvider<RecallProvider>("recall");
+    // exposes its provider through the same typed-token seam every other
+    // provider uses, and `recall` is declared in this module's
+    // `dependencies`, so the loader has already populated the registry by
+    // the time this `onLoad` runs.
+    const recallProvider = ctx.getProvider(RECALL_PROVIDER_TOKEN);
     if (!recallProvider) {
       throw new Error(
         "answer module: `recall` provider is not registered. The recall module must load before answer (declared via dependencies).",

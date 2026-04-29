@@ -11,6 +11,10 @@
  * of contributors at type-time — `register` accepts N typed contributors,
  * so adding a fifth store is a registration, not an enum edit.
  */
+import {
+  defineProviderToken,
+  type ProviderToken,
+} from "#core/modules/provider-token.js";
 import type {
   CaptureFilter,
   CaptureRecord,
@@ -97,3 +101,7 @@ export interface CaptureProvider {
   contributors(): ReadonlyArray<CaptureTarget>;
   capture(text: string, filter?: CaptureFilter): Promise<CaptureResult>;
 }
+
+/** Provider-registry token for the cross-store capture seam. */
+export const CAPTURE_PROVIDER_TOKEN: ProviderToken<CaptureProvider> =
+  defineProviderToken<CaptureProvider>("capture");

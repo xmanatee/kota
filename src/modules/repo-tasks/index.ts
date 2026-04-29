@@ -10,7 +10,10 @@
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
-import { getRepoTasksProvider } from "#core/modules/provider-registry.js";
+import {
+	getRepoTasksProvider,
+	REPO_TASKS_PROVIDER_TOKEN,
+} from "#core/modules/provider-registry.js";
 import type {
 	RepoTaskListEntry,
 	RepoTaskSearchResult,
@@ -45,7 +48,7 @@ const repoTasksModule: KotaModule = {
 	dependencies: ["rendering"],
 
 	onLoad: (ctx: ModuleContext) => {
-		ctx.registerProvider("repo-tasks", new RepoTasksDefaultStore(ctx.cwd));
+		ctx.registerProvider(REPO_TASKS_PROVIDER_TOKEN, new RepoTasksDefaultStore(ctx.cwd));
 		ctx.registerProvider(
 			CAPABILITY_READINESS_PROVIDER_TYPE,
 			createRepoTasksReadinessSource(() => getRepoTasksProvider()),

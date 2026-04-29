@@ -11,6 +11,10 @@
  * N typed contributors so adding a fifth store is a registration, not an
  * enum edit.
  */
+import {
+  defineProviderToken,
+  type ProviderToken,
+} from "#core/modules/provider-token.js";
 import type {
   RetractRecord,
   RetractRequest,
@@ -94,3 +98,7 @@ export interface RetractProvider {
   contributors(): ReadonlyArray<RetractTarget>;
   retract(request: RetractRequest): Promise<RetractResult>;
 }
+
+/** Provider-registry token for the cross-store retract seam. */
+export const RETRACT_PROVIDER_TOKEN: ProviderToken<RetractProvider> =
+  defineProviderToken<RetractProvider>("retract");

@@ -12,6 +12,13 @@ and foreign-module transports.
   types, schemas, examples, and focused tests instead of docs catalogs.
 - CLI-only provider loading should activate the configured provider modules and
   their declared dependencies without loading unrelated module side effects.
+- Provider registration and lookup go through typed `ProviderToken<T>` values.
+  Cross-cutting tokens (memory/knowledge/history/task/repo-tasks/rendering/
+  model-pricing) are exported from `provider-registry.ts`; module-domain
+  tokens (recall/capture/retract/answer/transcription/speech-synthesis,
+  workflow dispatcher, metrics source, etc.) live with their owning type.
+  The repo guard at `provider-registration-guard.test.ts` rejects new raw
+  string registrations on the registry surface.
 - `mod.routes`, `mod.commands`, and `mod.controlRoutes` are pure-data
   contributions: the loader invokes each factory once at module load and
   caches the result. `getRoutes()`, `getCommands()`, `getContributedControlRoutes()`,

@@ -29,6 +29,7 @@
  */
 
 import type { KotaModule, ModuleContext, ToolDef } from "#core/modules/module-types.js";
+import { TASK_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import type { GitHubConfig } from "./github-auth.js";
 import { githubFetch, resolveRepo, resolveToken } from "./github-auth.js";
 import { makeIssueTools } from "./github-issues.js";
@@ -96,7 +97,7 @@ const githubModule: KotaModule = {
     const provider = new GitHubTaskProvider(repo, config.taskProvider, boundFetch);
     try {
       await provider.init();
-      ctx.registerProvider("task", provider);
+      ctx.registerProvider(TASK_PROVIDER_TOKEN, provider);
       ctx.log.info("GitHub Issues task provider registered");
     } catch (err) {
       ctx.log.warn(

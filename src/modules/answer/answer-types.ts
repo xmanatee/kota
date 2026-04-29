@@ -8,6 +8,10 @@
  * keyed by `{ source, id }`.
  */
 
+import {
+  defineProviderToken,
+  type ProviderToken,
+} from "#core/modules/provider-token.js";
 import type {
   AnswerCitation,
   AnswerFilter,
@@ -89,3 +93,7 @@ export type ParsedSynthesis = {
 export interface AnswerProvider {
   answer(query: string, filter?: AnswerFilter): Promise<AnswerResult>;
 }
+
+/** Provider-registry token for the cited-answer seam. */
+export const ANSWER_PROVIDER_TOKEN: ProviderToken<AnswerProvider> =
+  defineProviderToken<AnswerProvider>("answer");

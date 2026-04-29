@@ -12,9 +12,10 @@
  */
 
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
-
-/** Provider-registry key used to look up the active workflow-definitions source. */
-export const WORKFLOW_DEFINITIONS_PROVIDER_TYPE = "workflow-definitions";
+import {
+  defineProviderToken,
+  type ProviderToken,
+} from "#core/modules/provider-token.js";
 
 export type WorkflowDefinitionsSource = {
   /**
@@ -26,6 +27,10 @@ export type WorkflowDefinitionsSource = {
   getWebhookRateLimit(name: string): { maxPerMinute: number } | undefined;
 };
 
+/** Provider-registry token used to look up the active workflow-definitions source. */
+export const WORKFLOW_DEFINITIONS_PROVIDER_TYPE: ProviderToken<WorkflowDefinitionsSource> =
+  defineProviderToken<WorkflowDefinitionsSource>("workflow-definitions");
+
 /**
  * Look up the active workflow-definitions source. Returns `null` when no
  * daemon has registered one (e.g. a CLI process or a test that built routes
@@ -36,5 +41,5 @@ export type WorkflowDefinitionsSource = {
 export function getWorkflowDefinitionsSource(): WorkflowDefinitionsSource | null {
   const registry = getProviderRegistry();
   if (!registry) return null;
-  return registry.get<WorkflowDefinitionsSource>(WORKFLOW_DEFINITIONS_PROVIDER_TYPE);
+  return registry.get(WORKFLOW_DEFINITIONS_PROVIDER_TYPE);
 }

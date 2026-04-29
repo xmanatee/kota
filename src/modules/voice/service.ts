@@ -20,7 +20,7 @@ import {
 
 export function getSpeechSynthesisProvider(): SpeechSynthesisProvider {
   const registry = getProviderRegistry();
-  const provider = registry?.get<SpeechSynthesisProvider>(SPEECH_SYNTHESIS_PROVIDER_TYPE) ?? null;
+  const provider = registry?.get(SPEECH_SYNTHESIS_PROVIDER_TYPE) ?? null;
   if (!provider) {
     throw new SpeechSynthesisProviderUnavailableError();
   }

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type EventBus, initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import {
 	initProviderRegistry,
+	KNOWLEDGE_PROVIDER_TOKEN,
 	resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import { runKnowledge } from "./knowledge.js";
@@ -19,7 +20,7 @@ describe("knowledge events", () => {
 		bus = initEventBus();
 		resetKnowledgeStore();
 		const registry = initProviderRegistry();
-		registry.register("knowledge", "default", new KnowledgeStore(tmpDir));
+		registry.register(KNOWLEDGE_PROVIDER_TOKEN, "default", new KnowledgeStore(tmpDir));
 	});
 
 	afterEach(() => {

@@ -1,12 +1,12 @@
 ---
 id: task-introduce-typed-provider-tokens
 title: Introduce typed provider tokens
-status: backlog
+status: done
 priority: p1
 area: architecture
 summary: Replace the string-and-unknown provider registry with typed provider tokens so modules declare provider contracts and dependents resolve them without unsafe casts.
 created_at: 2026-04-28T22:24:00.000Z
-updated_at: 2026-04-28T22:24:00.000Z
+updated_at: 2026-04-29T05:09:39.680Z
 ---
 
 ## Problem

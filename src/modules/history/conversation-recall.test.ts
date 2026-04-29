@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+	HISTORY_PROVIDER_TOKEN,
 	initProviderRegistry,
 	resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
@@ -16,7 +17,7 @@ describe("runConversationRecall", () => {
 		const dir = mkdtempSync(join(tmpdir(), "kota-recall-test-"));
 		history = new ConversationHistory(dir);
 		const registry = initProviderRegistry();
-		registry.register("history", "test", history);
+		registry.register(HISTORY_PROVIDER_TOKEN, "test", history);
 	});
 
 	afterEach(() => {

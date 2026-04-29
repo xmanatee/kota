@@ -5,11 +5,12 @@ This directory owns the `knowledge` management tool — a structured, file-based
 - Owns the file-based `KnowledgeStore` implementation (`store.ts`,
   `store-helpers.ts`) that satisfies the `KnowledgeProvider` contract declared
   in `#core/modules/provider-types.js`.
-- Registers itself as the `knowledge` provider on module load via
-  `ctx.registerProvider("knowledge", new KnowledgeStore(ctx.cwd))`. Core does
-  not provide a fallback implementation; callers must ensure the module has
-  loaded (via the module runtime or `ensureCliProvidersFor(["knowledge"])`)
-  before invoking `getKnowledgeProvider()`.
+- Registers itself as the knowledge provider on module load via the typed
+  `KNOWLEDGE_PROVIDER_TOKEN` (re-exported from
+  `#core/modules/provider-registry.js`). Core does not provide a fallback
+  implementation; callers must ensure the module has loaded (via the
+  module runtime or `ensureCliProvidersFor(["knowledge"])`) before
+  invoking `getKnowledgeProvider()`.
 - Storage locations: `.kota/data/` (project-scoped) and `~/.kota/data/` (global).
 - Registers `knowledge` in the `management` tool group.
 - Contributes the `knowledge` skill (prompt guidance for storing and querying structured entries).

@@ -219,7 +219,8 @@ export type ModelPricing = {
 /**
  * Lookup contract for per-model token pricing. Module-owned: each
  * model-client module that ships pricing for its providers registers an
- * implementation through `ctx.registerProvider("model-pricing", ...)`.
+ * implementation through the typed `MODEL_PRICING_PROVIDER_TOKEN` from
+ * `#core/modules/provider-registry.js`.
  *
  * Returns `null` for any model id without a registered pricing row. Core
  * `CostTracker.addUsage` treats that null as an explicit zero-cost record

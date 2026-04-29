@@ -13,6 +13,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { HealthCheckResult, KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { MEMORY_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import { SQLiteMemoryProvider } from "./provider.js";
 
 let storageDir: string | null = null;
@@ -39,7 +40,7 @@ const sqliteMemoryModule: KotaModule = {
 	onLoad: (ctx: ModuleContext) => {
 		storageDir = ctx.storage.getDir();
 		const provider = new SQLiteMemoryProvider(storageDir);
-		ctx.registerProvider("memory", provider);
+		ctx.registerProvider(MEMORY_PROVIDER_TOKEN, provider);
 		ctx.log.info("SQLite memory provider registered");
 	},
 

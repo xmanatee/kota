@@ -6,6 +6,7 @@
  */
 
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { KNOWLEDGE_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import { getKnowledgeStore } from "#modules/knowledge/store.js";
 import {
 	createEmbeddingProvider,
@@ -47,7 +48,7 @@ const knowledgeSemanticModule: KotaModule = {
 				ctx.log.warn(`knowledge-semantic: embedding failed — ${msg}`);
 			},
 		});
-		ctx.registerProvider("knowledge", store);
+		ctx.registerProvider(KNOWLEDGE_PROVIDER_TOKEN, store);
 		ctx.log.info(
 			`knowledge-semantic: registered semantic knowledge provider (${config.provider}/${config.model})`,
 		);

@@ -2,10 +2,15 @@
  * Transcription provider protocol — audio → text.
  *
  * Channels that receive voice messages route them through the active
- * provider registered under the `"transcription"` service type. Absence of
- * a provider is an explicit, typed error; channels surface that failure to
- * the user instead of silently dropping the audio.
+ * provider registered under the `TRANSCRIPTION_PROVIDER_TYPE` token.
+ * Absence of a provider is an explicit, typed error; channels surface that
+ * failure to the user instead of silently dropping the audio.
  */
+
+import {
+  defineProviderToken,
+  type ProviderToken,
+} from "#core/modules/provider-token.js";
 
 export type TranscriptionInput = {
   /** Raw audio bytes. */
@@ -38,4 +43,5 @@ export class TranscriptionProviderUnavailableError extends Error {
   }
 }
 
-export const TRANSCRIPTION_PROVIDER_TYPE = "transcription" as const;
+export const TRANSCRIPTION_PROVIDER_TYPE: ProviderToken<TranscriptionProvider> =
+  defineProviderToken<TranscriptionProvider>("transcription");

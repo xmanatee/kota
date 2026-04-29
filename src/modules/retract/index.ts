@@ -34,7 +34,10 @@ import {
   createTasksContributor,
 } from "./contributors.js";
 import { RetractProviderImpl } from "./retract-provider.js";
-import type { RetractProvider } from "./retract-types.js";
+import {
+  RETRACT_PROVIDER_TOKEN,
+  type RetractProvider,
+} from "./retract-types.js";
 import { retractApiRoutes, retractControlRoutes } from "./routes.js";
 import {
   buildRetractDynamicStateProvider,
@@ -67,7 +70,7 @@ const retractModule: KotaModule = {
     provider.register(createTasksContributor(ctx.cwd));
     provider.register(createInboxContributor(ctx.cwd));
     activeProvider = provider;
-    ctx.registerProvider("retract", provider);
+    ctx.registerProvider(RETRACT_PROVIDER_TOKEN, provider);
     ctx.registerProvider(
       CAPABILITY_READINESS_PROVIDER_TYPE,
       createRetractReadinessSource(provider),

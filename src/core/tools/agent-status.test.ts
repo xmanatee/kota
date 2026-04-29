@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { initProviderRegistry, resetProviderRegistry } from "#core/modules/provider-registry.js";
+import { defineProviderToken, initProviderRegistry, resetProviderRegistry } from "#core/modules/provider-registry.js";
 import {
 	resetAgentStatusProviders,
 	runAgentStatus,
@@ -7,6 +7,9 @@ import {
 	setModuleInfoProvider,
 } from "./agent-status.js";
 import { clearCustomGroups, enableGroup, registerCustomGroup, resetGroups } from "./tool-groups.js";
+
+const MEMORY_TOKEN = defineProviderToken<object>("memory");
+const KNOWLEDGE_TOKEN = defineProviderToken<object>("knowledge");
 
 describe("agent_status", () => {
 	beforeEach(() => {
@@ -117,9 +120,9 @@ describe("agent_status", () => {
 
 		it("lists registered providers with active indicator", async () => {
 			const reg = initProviderRegistry();
-			reg.register("memory", "default", {});
-			reg.register("memory", "redis", {});
-			reg.register("knowledge", "default", {});
+			reg.register(MEMORY_TOKEN, "default", {});
+			reg.register(MEMORY_TOKEN, "redis", {});
+			reg.register(KNOWLEDGE_TOKEN, "default", {});
 
 			const result = await runAgentStatus({ query: "providers" });
 			expect(result.content).toContain("## Providers");
@@ -131,8 +134,8 @@ describe("agent_status", () => {
 
 		it("filters providers by type", async () => {
 			const reg = initProviderRegistry();
-			reg.register("memory", "default", {});
-			reg.register("knowledge", "default", {});
+			reg.register(MEMORY_TOKEN, "default", {});
+			reg.register(KNOWLEDGE_TOKEN, "default", {});
 
 			const result = await runAgentStatus({ query: "providers", filter: "know" });
 			expect(result.content).toContain("knowledge");

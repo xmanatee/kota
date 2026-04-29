@@ -20,6 +20,7 @@ import {
   type WorkflowMetricCounts,
 } from "#core/daemon/daemon-control.js";
 import {
+  HISTORY_PROVIDER_TOKEN,
   initProviderRegistry,
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
@@ -105,7 +106,7 @@ describe("history module daemon-control routes", () => {
     prevHome = process.env.HOME;
     process.env.HOME = homeDir;
     resetHistory();
-    initProviderRegistry().register("history", "default", getHistory());
+    initProviderRegistry().register(HISTORY_PROVIDER_TOKEN, "default", getHistory());
     server = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
       controlRoutes: historyControlRoutes(),
     });

@@ -5,11 +5,16 @@
  *
  * STT reuses the `TranscriptionProvider` protocol from the transcription
  * module. TTS introduces a `SpeechSynthesisProvider` protocol registered
- * under the `"speech-synthesis"` service type.
+ * under the `SPEECH_SYNTHESIS_PROVIDER_TYPE` token.
  *
  * Both sides surface absence with typed errors so callers can render a
  * single user-facing failure at each client surface.
  */
+
+import {
+  defineProviderToken,
+  type ProviderToken,
+} from "#core/modules/provider-token.js";
 
 export {
   TRANSCRIPTION_PROVIDER_TYPE as STT_PROVIDER_TYPE,
@@ -72,4 +77,5 @@ export class SpeechSynthesisFormatError extends Error {
   }
 }
 
-export const SPEECH_SYNTHESIS_PROVIDER_TYPE = "speech-synthesis" as const;
+export const SPEECH_SYNTHESIS_PROVIDER_TYPE: ProviderToken<SpeechSynthesisProvider> =
+  defineProviderToken<SpeechSynthesisProvider>("speech-synthesis");

@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KotaConfig } from "#core/config/config.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import {
+  defineProviderToken,
   getProviderRegistry,
   initProviderRegistry,
+  type ProviderToken,
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import {
@@ -44,10 +46,10 @@ function makeContext(moduleConfig?: WhisperModuleConfig): ModuleContext {
     createSession: () => {
       throw new Error("unused");
     },
-    registerProvider: (type, provider) => {
-      registry.register(type, whisperModule.name, provider);
+    registerProvider: <T>(token: ProviderToken<T>, provider: T) => {
+      registry.register(token, whisperModule.name, provider);
     },
-    getProvider: <T>(type: string) => registry.get<T>(type),
+    getProvider: <T>(token: ProviderToken<T>) => registry.get(token),
     callTool: () => {
       throw new Error("unused");
     },
@@ -135,7 +137,7 @@ describe("transcription-whisper module", () => {
   it("warns and stays inactive when registry already has a provider for another service", async () => {
     const registry = initProviderRegistry();
     // Unrelated service type should not block registration.
-    registry.register("something-else", "x", {});
+    registry.register(defineProviderToken<unknown>("something-else"), "x", {});
     await invokeOnLoad({ apiKey: "sk-literal" });
     expect(getTranscriptionProvider().name).toBe("openai-whisper");
     // Silence unused-lint warnings on the assertion helper.

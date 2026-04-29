@@ -614,9 +614,10 @@ export class ModuleLoader {
     if (!reg) return;
 
     for (const [type, name] of Object.entries(providers)) {
-      if (!reg.setActive(type, name)) {
+      if (!reg.setActiveById(type, name)) {
+        const available = reg.introspect(type).names.join(", ") || "(none)";
         console.error(
-          `[kota] Provider "${name}" for "${type}" not found. Available: ${reg.list(type).join(", ") || "(none)"}`,
+          `[kota] Provider "${name}" for "${type}" not found. Available: ${available}`,
         );
       } else if (this.verbose) {
         console.error(`[kota] Provider for "${type}" set to "${name}"`);

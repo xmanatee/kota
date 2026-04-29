@@ -2,7 +2,7 @@
  * Lifecycle test for the answer module's recall-contributor registration.
  *
  * Verifies the public registration seam: the answer module reads the live
- * `RecallProvider` through `ctx.getProvider("recall")`, calls
+ * `RecallProvider` through `ctx.getProvider(RECALL_PROVIDER_TOKEN)`, calls
  * `register(...)` from its `onLoad`, and calls `unregister("answer")` from
  * its `onUnload`. The recall module is exercised through a real
  * `RecallProviderImpl` rather than a stub so the test pins the same
@@ -19,6 +19,7 @@ import {
 } from "#core/modules/provider-registry.js";
 import { ModuleTestHarness } from "#core/modules/testing/index.js";
 import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
+import { RECALL_PROVIDER_TOKEN } from "#modules/recall/recall-types.js";
 import answerModule from "./index.js";
 
 let projectRoot: string;
@@ -29,7 +30,7 @@ beforeEach(() => {
   resetProviderRegistry();
   const reg = initProviderRegistry();
   recallProvider = new RecallProviderImpl({ onContributorError: () => {} });
-  reg.register("recall", "recall", recallProvider);
+  reg.register(RECALL_PROVIDER_TOKEN, "recall", recallProvider);
 });
 
 afterEach(() => {

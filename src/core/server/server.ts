@@ -20,10 +20,7 @@ import type { RouteRegistration } from "#core/modules/module-types.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { DaemonLink } from "./daemon-link.js";
-import {
-  NOTIFICATION_HUB_PROVIDER_TYPE,
-  type NotificationHubProvider,
-} from "./notification-hub-provider.js";
+import { NOTIFICATION_HUB_PROVIDER_TYPE } from "./notification-hub-provider.js";
 import { buildRequestHandler } from "./server-routes.js";
 import { SessionPool } from "./session-pool.js";
 
@@ -83,9 +80,7 @@ export function startServer(options: ServerOptions): Server {
   let stopBusConnection = (): void => {};
   let stopScheduler = (): void => {};
   if (!daemonRunning) {
-    const hub = getProviderRegistry()?.get<NotificationHubProvider>(
-      NOTIFICATION_HUB_PROVIDER_TYPE,
-    );
+    const hub = getProviderRegistry()?.get(NOTIFICATION_HUB_PROVIDER_TYPE);
     if (hub) {
       stopBusConnection = scheduler.connectBus(bus, (dueItems) => {
         hub.handleDueItems(dueItems);

@@ -14,9 +14,10 @@
  */
 
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
-
-/** Provider-registry key used to look up the active workflow dispatcher. */
-export const WORKFLOW_DISPATCHER_PROVIDER_TYPE = "workflow-dispatcher";
+import {
+  defineProviderToken,
+  type ProviderToken,
+} from "#core/modules/provider-token.js";
 
 export type EnqueuePendingRunResult = {
   ok: boolean;
@@ -40,6 +41,10 @@ export type EnqueueWebhookRunResult = {
   notFound?: boolean;
   error?: string;
 };
+
+/** Provider-registry token used to look up the active workflow dispatcher. */
+export const WORKFLOW_DISPATCHER_PROVIDER_TYPE: ProviderToken<WorkflowDispatcher> =
+  defineProviderToken<WorkflowDispatcher>("workflow-dispatcher");
 
 export type WorkflowDispatcher = {
   /**
@@ -70,5 +75,5 @@ export type WorkflowDispatcher = {
 export function getWorkflowDispatcher(): WorkflowDispatcher | null {
   const registry = getProviderRegistry();
   if (!registry) return null;
-  return registry.get<WorkflowDispatcher>(WORKFLOW_DISPATCHER_PROVIDER_TYPE);
+  return registry.get(WORKFLOW_DISPATCHER_PROVIDER_TYPE);
 }

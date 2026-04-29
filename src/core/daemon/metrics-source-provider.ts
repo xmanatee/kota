@@ -15,14 +15,15 @@
  */
 
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
+import {
+  defineProviderToken,
+  type ProviderToken,
+} from "#core/modules/provider-token.js";
 import type {
   InteractiveSession,
   WorkflowLiveStatus,
   WorkflowMetricCounts,
 } from "./daemon-control-types.js";
-
-/** Provider-registry key used to look up the active metrics source. */
-export const WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE = "workflow-metrics-source";
 
 export type WorkflowMetricsSource = {
   /** Lifetime workflow run counts, cost totals, and duration histogram. */
@@ -33,6 +34,10 @@ export type WorkflowMetricsSource = {
   getWorkflowLiveStatus(): WorkflowLiveStatus;
 };
 
+/** Provider-registry token used to look up the active metrics source. */
+export const WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE: ProviderToken<WorkflowMetricsSource> =
+  defineProviderToken<WorkflowMetricsSource>("workflow-metrics-source");
+
 /**
  * Look up the active metrics source. Returns `null` when no daemon has
  * registered one (e.g. a CLI process or a test that built routes against a
@@ -42,5 +47,5 @@ export type WorkflowMetricsSource = {
 export function getWorkflowMetricsSource(): WorkflowMetricsSource | null {
   const registry = getProviderRegistry();
   if (!registry) return null;
-  return registry.get<WorkflowMetricsSource>(WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE);
+  return registry.get(WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE);
 }
