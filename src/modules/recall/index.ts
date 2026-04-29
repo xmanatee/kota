@@ -12,6 +12,7 @@
  */
 
 import { Command } from "commander";
+import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import {
   getHistoryProvider,
@@ -20,6 +21,7 @@ import {
   getRepoTasksProvider,
 } from "#core/modules/provider-registry.js";
 import type { RecallClient } from "#core/server/kota-client.js";
+import { createRecallReadinessSource } from "./capability-readiness.js";
 import { registerRecallCommand } from "./cli.js";
 import {
   createHistoryContributor,
@@ -72,6 +74,10 @@ const recallModule: KotaModule = {
     // contributor over the answer-history store). This is the public
     // registration seam — there is no second mechanism.
     ctx.registerProvider("recall", provider);
+    ctx.registerProvider(
+      CAPABILITY_READINESS_PROVIDER_TYPE,
+      createRecallReadinessSource(provider),
+    );
     ctx.registerDynamicStateProvider(
       RECALL_DYNAMIC_STATE_NAME,
       buildRecallDynamicStateProvider(),

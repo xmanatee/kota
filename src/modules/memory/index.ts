@@ -10,9 +10,11 @@
  */
 
 import { Command } from "commander";
+import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import { getMemoryProvider } from "#core/modules/provider-registry.js";
 import type { MemoryClient } from "#core/server/kota-client.js";
+import { createMemoryReadinessSource } from "./capability-readiness.js";
 import { registerMemoryCommands } from "./cli.js";
 import { memoryTool, runMemory } from "./memory.js";
 import { memoryRoutes } from "./routes.js";
@@ -91,7 +93,12 @@ const memoryModule: KotaModule = {
   },
 
   onLoad: (ctx: ModuleContext) => {
-    ctx.registerProvider("memory", getMemoryStore());
+    const store = getMemoryStore();
+    ctx.registerProvider("memory", store);
+    ctx.registerProvider(
+      CAPABILITY_READINESS_PROVIDER_TYPE,
+      createMemoryReadinessSource(store),
+    );
   },
 
   commands: (ctx) => {

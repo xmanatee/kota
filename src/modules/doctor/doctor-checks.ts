@@ -336,6 +336,19 @@ export async function runDoctorChecks(
           }
         }
       }
+      const capabilities = await client.getCapabilities();
+      if (capabilities) {
+        for (const cap of capabilities.capabilities) {
+          const detail = cap.message ?? cap.reason ?? cap.status;
+          if (cap.status === "ready") {
+            results.push(pass(`Capability: ${cap.id}`, detail));
+          } else if (cap.status === "unavailable") {
+            results.push(warn(`Capability: ${cap.id}`, detail));
+          } else {
+            results.push(fail(`Capability: ${cap.id}`, detail));
+          }
+        }
+      }
     }
   } else {
     const extResults = await checkModules(projectDir);

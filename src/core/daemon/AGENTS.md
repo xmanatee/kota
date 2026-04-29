@@ -26,39 +26,36 @@ and live runtime state.
 - Process-manager integration and operator CLI behavior belongs in the
   daemon-ops module; the daemon core owns the runtime host itself.
 
-## Internal Subdomains
+## Module Control-Plane Seams
 
-- Daemon host: `daemon.ts`, `daemon-handle.ts`, `daemon-logger.ts`,
-  `daemon-state.ts`, `daemon-subscriptions.ts`.
-- Control API: `daemon-control.ts` (router), `daemon-control-types.ts`,
-  `daemon-control-utils.ts`, and per-domain handlers
-  (`-chat.ts`, `-sessions.ts`, `-workflow.ts`).
-  Module-owned endpoints (e.g. `/history/*`, `/voice/*`, `/approvals*`,
-  `/owner-questions*`, `/push-tokens`, `/commands*`, `/metrics`,
-  `/webhooks/:name`) live in their contributing module under
-  `#modules/<name>/routes.ts` (or `#modules/<name>/control-routes.ts`).
-  Module-owned routes that need to trigger workflow runs use the
-  `workflow-dispatcher` provider seam
-  (`#core/workflow/workflow-dispatcher-provider.js`); routes that need to
-  read live workflow runtime state (counts, sessions, paused/active/queued
-  status) use the `workflow-metrics-source` seam
-  (`#core/daemon/metrics-source-provider.js`); routes that need to read
-  pre-dispatch policy from a workflow definition (today the webhook
-  module's per-workflow `webhookRateLimit`) use the
-  `workflow-definitions` seam
-  (`#core/workflow/workflow-definitions-provider.js`). The daemon
-  registers all three at startup so contributed handlers can dispatch
-  and read without holding a `DaemonControlHandle`. Routes whose auth is
-  carried in a per-request signature header rather than the daemon
-  Bearer token (today the webhook module's `/webhooks/:name`) opt out of
-  the bearer-token middleware via `ControlRouteRegistration.bypassAuth`,
-  mirroring `RouteRegistration.bypassAuth`.
-- Scheduling: `scheduler.ts`, `scheduler-store.ts`, `schedule-parser.ts`.
-- Task management: `task-store.ts`, `task-store-types.ts`, `task-router.ts`,
-  `task-router-data.ts`.
-- Daemon primitives: `approval-queue.ts`, `notification-gate.ts`,
-  `event-ring-buffer.ts`, `config-reload-diff.ts`,
-  `module-crash-alert.ts`, `session-sweep.ts`.
+Module-owned control routes live in their contributing module under
+`#modules/<name>/routes.ts` (or `control-routes.ts`). Routes that need to
+dispatch workflow runs, read live runtime state (counts, sessions,
+paused/active/queued status), or read pre-dispatch policy from a workflow
+definition use the `workflow-dispatcher`, `workflow-metrics-source`, and
+`workflow-definitions` provider seams. The daemon registers all three at
+startup so contributed handlers do not need a `DaemonControlHandle`.
+Routes whose auth is carried in a per-request signature header rather than
+the daemon Bearer token (today the webhook module's `/webhooks/:name`) opt
+out of bearer-token middleware via `ControlRouteRegistration.bypassAuth`,
+mirroring `RouteRegistration.bypassAuth`.
+
+## Capability Readiness
+
+Thin clients distinguish "daemon online but capability unavailable" from
+"daemon offline" through `GET /capabilities`. The route aggregates
+typed `CapabilityReadinessSource` entries that modules contribute through
+`ctx.registerProvider("capability-readiness", source)` from their own
+`onLoad`. Each entry reports a stable `id` (e.g. `knowledge.search`),
+status (`ready` | `unavailable` | `init_failed`), reason code, and short
+operator-facing message. Adding a new capability is a registration in the
+owning module — there is no central catalog. Duplicate ids and probe
+exceptions surface as loud `init_failed` rows so wiring conflicts cannot
+silently win. The daemon adds a `workflow.trigger` row directly because
+workflow definitions are daemon-owned, not module-owned.
+
+`semantic_unavailable` envelopes on individual routes keep working
+unchanged; `/capabilities` is purely additive.
 
 ## Multi-Project Runtime Shape
 

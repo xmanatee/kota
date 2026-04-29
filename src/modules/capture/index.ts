@@ -17,6 +17,7 @@
 
 import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
+import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import { createModelClient } from "#core/model/model-client.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import {
@@ -24,6 +25,7 @@ import {
   getMemoryProvider,
 } from "#core/modules/provider-registry.js";
 import type { CaptureClient } from "#core/server/kota-client.js";
+import { createCaptureReadinessSource } from "./capability-readiness.js";
 import { CaptureProviderImpl } from "./capture-provider.js";
 import type {
   CaptureClassifier,
@@ -123,6 +125,10 @@ const captureModule: KotaModule = {
     provider.register(createInboxContributor(ctx.cwd));
     activeProvider = provider;
     ctx.registerProvider("capture", provider);
+    ctx.registerProvider(
+      CAPABILITY_READINESS_PROVIDER_TYPE,
+      createCaptureReadinessSource(provider),
+    );
     ctx.registerDynamicStateProvider(
       CAPTURE_DYNAMIC_STATE_NAME,
       buildCaptureDynamicStateProvider(),

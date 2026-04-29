@@ -5,6 +5,7 @@ import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
+import type { CapabilityReadinessResponse } from "./capability-readiness.js";
 import { computeModuleConfigDiff } from "./config-reload-diff.js";
 import type {
   DaemonControlHandle,
@@ -31,6 +32,7 @@ export type DaemonHandleContext = {
   config: { config?: KotaConfig; verbose?: boolean };
   log: (message: string) => void;
   getModuleHealthChecks: () => Record<string, ModuleHealthCheckResult>;
+  probeCapabilityReadiness: () => Promise<CapabilityReadinessResponse>;
 };
 
 export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle {
@@ -83,6 +85,7 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       if (!already) workflows.setDispatchPaused(false);
       return { already };
     },
+    probeCapabilityReadiness: () => ctx.probeCapabilityReadiness(),
     abortActiveRuns: () => workflows.abortActiveRuns(),
     abortActiveRun: (runId: string) => workflows.abortActiveRun(runId),
     reloadWorkflowDefinitions: () => workflows.reloadWorkflowDefinitions(),

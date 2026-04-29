@@ -132,6 +132,46 @@ describe("kota doctor — offline path", () => {
     expect(labels.some((l) => l.startsWith("Disk:"))).toBe(true);
   });
 
+  it("renders capability readiness rows when the daemon reports them", async () => {
+    const { DaemonControlClient } = await import("#core/server/daemon-client.js");
+    const fromStateDir = vi.mocked(DaemonControlClient.fromStateDir);
+    fromStateDir.mockReturnValueOnce({
+      getDaemonStatus: vi.fn(async () => ({ pid: 1234, startedAt: "2026-04-29T00:00:00.000Z" })),
+      getHealth: vi.fn(async () => ({ status: "ok", components: { scheduler: "ok", modules: "ok" } })),
+      getWorkflowDefinitions: vi.fn(async () => ({ definitions: [{ name: "builder" }] })),
+      getCapabilities: vi.fn(async () => ({
+        capabilities: [
+          { id: "knowledge.search", moduleName: "knowledge", status: "ready", message: "ready text" },
+          {
+            id: "knowledge.semantic_search",
+            moduleName: "knowledge",
+            status: "unavailable",
+            reason: "embedding_unsupported",
+            message: "load knowledge-semantic",
+          },
+          {
+            id: "broken",
+            moduleName: "broken",
+            status: "init_failed",
+            reason: "probe_threw",
+            message: "boom",
+          },
+        ],
+        summary: { ready: 1, unavailable: 1, init_failed: 1 },
+      })),
+    } as unknown as ReturnType<typeof DaemonControlClient.fromStateDir>);
+
+    const results = await runDoctorChecks(projectDir);
+    const ready = results.find((r) => r.label === "Capability: knowledge.search");
+    expect(ready?.status).toBe("pass");
+    expect(ready?.detail).toBe("ready text");
+    const unavailable = results.find((r) => r.label === "Capability: knowledge.semantic_search");
+    expect(unavailable?.status).toBe("warn");
+    expect(unavailable?.detail).toBe("load knowledge-semantic");
+    const broken = results.find((r) => r.label === "Capability: broken");
+    expect(broken?.status).toBe("fail");
+  });
+
   it("warns about unexpected module state and stray runtime directories", async () => {
     mkdirSync(join(projectDir, ".kota", "extensions", "tool-cache"), { recursive: true });
     mkdirSync(join(projectDir, "runs"), { recursive: true });

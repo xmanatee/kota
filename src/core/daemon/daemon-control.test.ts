@@ -48,6 +48,10 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     listSessions: vi.fn(() => []),
     setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
     reloadConfig: vi.fn(async () => ({ workflows: 3, changedModules: [] as string[] })),
+    probeCapabilityReadiness: vi.fn(async () => ({
+      capabilities: [],
+      summary: { ready: 0, unavailable: 0, init_failed: 0 },
+    })),
     ...overrides,
   };
 }
@@ -139,6 +143,45 @@ describe("DaemonControlServer", () => {
           paused: false,
         },
       });
+    });
+  });
+
+  describe("GET /capabilities", () => {
+    it("returns 200 with the readiness response from the handle", async () => {
+      handle = makeHandle({
+        probeCapabilityReadiness: vi.fn(async () => ({
+          capabilities: [
+            { id: "knowledge.search", moduleName: "knowledge", status: "ready" as const },
+            {
+              id: "knowledge.semantic_search",
+              moduleName: "knowledge",
+              status: "unavailable" as const,
+              reason: "embedding_unsupported",
+              message: "Semantic search is unavailable.",
+            },
+          ],
+          summary: { ready: 1, unavailable: 1, init_failed: 0 },
+        })),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/capabilities");
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.summary).toEqual({ ready: 1, unavailable: 1, init_failed: 0 });
+      expect(body.capabilities).toHaveLength(2);
+      expect(body.capabilities[1]).toMatchObject({
+        id: "knowledge.semantic_search",
+        status: "unavailable",
+        reason: "embedding_unsupported",
+      });
+    });
+
+    it("requires the bearer token", async () => {
+      const res = await fetchNoToken(port, "/capabilities");
+      expect(res.status).toBe(401);
     });
   });
 

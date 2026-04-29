@@ -61,6 +61,7 @@ export type {
 // module's contribution throw at server construction time.
 const BUILTIN_ROUTE_SCOPES: Record<string, CapabilityScope> = {
   "GET /status": "read",
+  "GET /capabilities": "read",
   "GET /workflow/status": "read",
   "GET /events": "read",
   "GET /api/events": "read",
@@ -419,6 +420,15 @@ export class DaemonControlServer {
       const sessions = h.listSessions();
       const body: DaemonLiveStatus = { ...daemonState, workflow: workflowStatus, sessions };
       jsonResponse(res, 200, body);
+      return;
+    }
+
+    if (method === "GET" && path === "/capabilities") {
+      h.probeCapabilityReadiness()
+        .then((response) => jsonResponse(res, 200, response))
+        .catch((err: Error) => {
+          if (!res.headersSent) jsonResponse(res, 500, { error: err.message });
+        });
       return;
     }
 

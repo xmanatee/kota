@@ -10,7 +10,9 @@
  */
 
 import { Command } from "commander";
+import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import type { KotaModule } from "#core/modules/module-types.js";
+import { createWebReadinessSource } from "./capability-readiness.js";
 import { staticWebUiRoutes } from "./static-routes.js";
 import { localWebClient } from "./web-operations.js";
 
@@ -27,6 +29,13 @@ const webModule: KotaModule = {
   name: "web",
   version: "1.0.0",
   description: "HTTP API server with SSE streaming and embedded web UI",
+
+  onLoad(ctx) {
+    ctx.registerProvider(
+      CAPABILITY_READINESS_PROVIDER_TYPE,
+      createWebReadinessSource({ projectDir: ctx.cwd }),
+    );
+  },
 
   commands: (ctx) => {
     const cmd = new Command("serve")

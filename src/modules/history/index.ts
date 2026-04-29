@@ -6,9 +6,11 @@
  * in the `management` group and the `/api/history` HTTP routes.
  */
 
+import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import { getHistoryProvider } from "#core/modules/provider-registry.js";
 import type { HistoryClient } from "#core/server/kota-client.js";
+import { createHistoryReadinessSource } from "./capability-readiness.js";
 import {
 	conversationRecallTool,
 	runConversationRecall,
@@ -34,7 +36,12 @@ const historyModule: KotaModule = {
 	skills: [{ name: "history", promptPath: "src/modules/history/history.md" }],
 
 	onLoad: (ctx: ModuleContext) => {
-		ctx.registerProvider("history", getHistory());
+		const store = getHistory();
+		ctx.registerProvider("history", store);
+		ctx.registerProvider(
+			CAPABILITY_READINESS_PROVIDER_TYPE,
+			createHistoryReadinessSource(store),
+		);
 	},
 
 	routes: () => historyRoutes(),

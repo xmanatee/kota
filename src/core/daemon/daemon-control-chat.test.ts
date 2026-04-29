@@ -132,6 +132,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     listSessions: vi.fn(() => []),
     setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
     reloadConfig: vi.fn(async () => ({ workflows: 0, changedModules: [] as string[] })),
+    probeCapabilityReadiness: vi.fn(async () => ({ capabilities: [], summary: { ready: 0, unavailable: 0, init_failed: 0 } })),
     ...overrides,
   };
 }

@@ -16,12 +16,14 @@
 import { join } from "node:path";
 import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
+import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import { createModelClient } from "#core/model/model-client.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type {
   AnswerClient,
   AnswerHistoryListFilter,
 } from "#core/server/kota-client.js";
+import { resolveApiKey } from "#modules/model-clients/factory.js";
 import type { RecallProvider } from "#modules/recall/recall-types.js";
 import {
   type AnswerHistoryStore,
@@ -35,6 +37,7 @@ import type {
   SynthesisInput,
   Synthesizer,
 } from "./answer-types.js";
+import { createAnswerReadinessSource } from "./capability-readiness.js";
 import { registerAnswerCommand } from "./cli.js";
 import { createAnswerRecallContributor } from "./recall-contributor.js";
 import { answerApiRoutes, answerControlRoutes } from "./routes.js";
@@ -126,6 +129,18 @@ const answerModule: KotaModule = {
       },
     });
     ctx.registerProvider("answer", activeProvider);
+    ctx.registerProvider(
+      CAPABILITY_READINESS_PROVIDER_TYPE,
+      createAnswerReadinessSource({
+        hasModelClient: () => {
+          const config = loadConfig(ctx.cwd);
+          const provider = config.modelProvider?.type ?? "anthropic";
+          const explicit = config.modelProvider?.apiKey;
+          const key = resolveApiKey(provider, explicit);
+          return Boolean(key);
+        },
+      }),
+    );
     ctx.registerDynamicStateProvider(
       ANSWER_DYNAMIC_STATE_NAME,
       buildAnswerDynamicStateProvider(),

@@ -1,12 +1,12 @@
 ---
 id: task-surface-daemon-provider-readiness-to-thin-clients
 title: Surface daemon provider readiness to thin clients
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Expose provider/capability readiness through daemon status or a focused endpoint so thin clients can distinguish daemon connectivity from unavailable knowledge, memory, history, recall, answer, capture, and task semantic providers before rendering broken controls.
 created_at: 2026-04-28T22:35:18.039Z
-updated_at: 2026-04-28T22:35:18.039Z
+updated_at: 2026-04-29T02:00:22.824Z
 ---
 
 ## Problem

@@ -26,6 +26,7 @@ import {
   WORKFLOW_DISPATCHER_PROVIDER_TYPE,
   type WorkflowDispatcher,
 } from "#core/workflow/workflow-dispatcher-provider.js";
+import { probeCapabilityReadiness } from "./capability-readiness.js";
 import { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import { DaemonControlServer, type InteractiveSession } from "./daemon-control.js";
 import { buildDaemonHandle } from "./daemon-handle.js";
@@ -184,6 +185,39 @@ export class Daemon {
       config: { config: config.config, verbose: config.verbose },
       log: (message) => this.log(message),
       getModuleHealthChecks: () => this.moduleHealthChecks,
+      probeCapabilityReadiness: async () => {
+        const registry = getProviderRegistry();
+        const aggregated = registry
+          ? await probeCapabilityReadiness(registry)
+          : { capabilities: [], summary: { ready: 0, unavailable: 0, init_failed: 0 } };
+        const definitions = this.workflows.getDefinitions();
+        const enabled = definitions.filter((d) => d.enabled).length;
+        const triggerReadiness = enabled > 0
+          ? {
+              id: "workflow.trigger",
+              moduleName: "core",
+              status: "ready" as const,
+              message: `${enabled} of ${definitions.length} workflow definition(s) currently enabled.`,
+              meta: { enabled, total: definitions.length },
+            }
+          : {
+              id: "workflow.trigger",
+              moduleName: "core",
+              status: "unavailable" as const,
+              reason: "no_enabled_workflows",
+              message:
+                definitions.length === 0
+                  ? "No workflow definitions are loaded."
+                  : `All ${definitions.length} workflow definition(s) are disabled.`,
+              meta: { enabled, total: definitions.length },
+            };
+        const merged = [...aggregated.capabilities, triggerReadiness].sort((a, b) =>
+          a.id.localeCompare(b.id),
+        );
+        const summary = { ready: 0, unavailable: 0, init_failed: 0 };
+        for (const cap of merged) summary[cap.status] += 1;
+        return { capabilities: merged, summary };
+      },
     });
     // Register the workflow-dispatcher seam so module-contributed
     // daemon-control routes can enqueue pending workflow runs without

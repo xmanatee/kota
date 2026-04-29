@@ -18,12 +18,14 @@
  */
 
 import { Command } from "commander";
+import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import {
   getKnowledgeProvider,
   getMemoryProvider,
 } from "#core/modules/provider-registry.js";
 import type { RetractClient } from "#core/server/kota-client.js";
+import { createRetractReadinessSource } from "./capability-readiness.js";
 import { registerRetractCommand } from "./cli.js";
 import {
   createInboxContributor,
@@ -66,6 +68,10 @@ const retractModule: KotaModule = {
     provider.register(createInboxContributor(ctx.cwd));
     activeProvider = provider;
     ctx.registerProvider("retract", provider);
+    ctx.registerProvider(
+      CAPABILITY_READINESS_PROVIDER_TYPE,
+      createRetractReadinessSource(provider),
+    );
     ctx.registerDynamicStateProvider(
       RETRACT_DYNAMIC_STATE_NAME,
       buildRetractDynamicStateProvider(),
