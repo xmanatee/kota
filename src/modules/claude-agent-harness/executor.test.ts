@@ -1,6 +1,13 @@
 import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentMessage } from "#core/agent-harness/types.js";
+
+/**
+ * Shape of the raw frames the SDK iterator yields. The executor consumes
+ * SDKMessage values internally and normalizes them to KotaAgentMessage at
+ * the `onMessage` callback boundary; tests work in the SDK shape so they
+ * exercise the executor's own normalization.
+ */
+type RawSdkTestMessage = Record<string, unknown> & { type: string };
 
 const mockQuery = vi.fn();
 const mockSpawn = vi.fn();
@@ -28,7 +35,9 @@ import {
   spawnClaudeCodeProcessWithAbortKill,
 } from "./executor.js";
 
-function makeIterable(messages: AgentMessage[]): AsyncIterable<AgentMessage> {
+function makeIterable(
+  messages: RawSdkTestMessage[],
+): AsyncIterable<RawSdkTestMessage> {
   return {
     async *[Symbol.asyncIterator]() {
       for (const message of messages) yield message;
@@ -192,7 +201,7 @@ describe("agent-sdk executor", () => {
 
   it("denies Bash daemon-host control commands through SDK permissions", async () => {
     const guard = createDaemonHostControlGuard(7315);
-    const options = { signal: new AbortController().signal, toolUseID: "tool-1" };
+    const options = { signal: new AbortController().signal, toolUseId: "tool-1" };
 
     await expect(
       guard("Read", { file_path: "src/index.ts" }, options),
@@ -294,6 +303,8 @@ describe("agent-sdk executor", () => {
     await expect(
       options.canUseTool?.("Bash", input, {
         signal: new AbortController().signal,
+        // SDK callback uses the SDK's `toolUseID` shape; the wrapper bridges
+        // it to the neutral `toolUseId` before calling the user's guard.
         toolUseID: "tool-1",
       }),
     ).resolves.toEqual({
@@ -323,7 +334,7 @@ describe("agent-sdk executor", () => {
 
   it("returns immediately after the terminal result frame even if the iterator yields more", async () => {
     let unreachableYielded = false;
-    const iterable: AsyncIterable<AgentMessage> = {
+    const iterable: AsyncIterable<RawSdkTestMessage> = {
       async *[Symbol.asyncIterator]() {
         yield { type: "assistant", message: { content: [{ type: "text", text: "ok" }] } };
         yield { type: "result", result: "done", subtype: "success", num_turns: 1 };

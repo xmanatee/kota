@@ -1,67 +1,15 @@
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { KotaAgentMessage } from "./agent-message.js";
+
+export type { KotaAgentMessage } from "./agent-message.js";
+
 import type { HarnessHookKind } from "./hooks.js";
 
 /**
- * Harness-neutral wire-frame and policy types every agent harness adapter
- * normalizes into. The shapes originated with the Claude Agent SDK but the
- * protocol treats them as neutral: workflow runtime, run stores, and step
- * executors consume them directly; non-claude adapters convert their native
- * payloads into these shapes at the boundary.
- */
-export type AgentPermissionMode =
-  | "default"
-  | "acceptEdits"
-  | "dontAsk"
-  | "bypassPermissions";
-
-export type AgentSettingSource = "project" | "local" | "user";
-
-export type AgentContentBlock = {
-  type: string;
-  text?: string;
-};
-
-export type AgentMessageWithSession = {
-  session_id?: string;
-  sessionId?: string;
-};
-
-export type AgentAssistantMessage = AgentMessageWithSession & {
-  type: "assistant";
-  message?: {
-    content?: AgentContentBlock[];
-  };
-  content?: AgentContentBlock[];
-};
-
-export type AgentResultMessage = AgentMessageWithSession & {
-  type: "result";
-  subtype?: string;
-  result?: string;
-  total_cost_usd?: number;
-  num_turns?: number;
-  is_error?: boolean;
-  usage?: { input_tokens: number; output_tokens: number };
-};
-
-export type AgentStatusMessage = AgentMessageWithSession & {
-  type: string;
-  subtype?: string;
-  message?: string | { content?: AgentContentBlock[] };
-  description?: string;
-  output?: string[];
-  tool_name?: string;
-};
-
-export type AgentMessage =
-  | AgentAssistantMessage
-  | AgentResultMessage
-  | AgentStatusMessage
-  | (AgentMessageWithSession & Record<string, unknown> & { type: string });
-/**
- * Portable system-prompt text every harness-neutral caller delivers. Adapters
- * that wrap prompts in a native envelope (e.g. the claude-agent-sdk
- * `claude_code` preset) do the wrapping inside the adapter; the protocol
- * surface is a plain string.
+ * KOTA-native portable system-prompt text every harness-neutral caller
+ * delivers. Adapters that wrap prompts in a native envelope (e.g. the
+ * claude-agent-sdk `claude_code` preset) do the wrapping inside the adapter;
+ * the protocol surface is a plain string.
  */
 export type AgentSystemPrompt = string;
 
@@ -73,37 +21,38 @@ export type AgentSystemPrompt = string;
 export type AgentEffort = "low" | "medium" | "high" | "xhigh" | "max";
 
 /**
- * Harness-neutral classification of a permission decision, surfaced to UIs
- * that record why a tool call was allowed or rejected. Mirrors the
- * claude-agent-sdk's `PermissionDecisionClassification` literals so adapters
- * can pass values through without translation.
+ * KOTA-native classification of a permission decision, surfaced to UIs that
+ * record why a tool call was allowed or rejected. Provider-specific
+ * decision-classification literals (claude SDK uses `user_…` shapes; other
+ * adapters carry their own) translate to and from this enum at the adapter
+ * boundary.
  */
-export type AgentPermissionDecisionClassification =
-  | "user_temporary"
-  | "user_permanent"
-  | "user_reject";
+export type AgentDecisionAttribution =
+  | "operator-allow-once"
+  | "operator-allow-always"
+  | "operator-deny";
 
 export type AgentPermissionResult =
   | {
       behavior: "allow";
       updatedInput?: Record<string, unknown>;
       updatedPermissions?: unknown[];
-      toolUseID?: string;
-      decisionClassification?: AgentPermissionDecisionClassification;
+      toolUseId?: string;
+      decisionAttribution?: AgentDecisionAttribution;
     }
   | {
       behavior: "deny";
       message: string;
       interrupt?: boolean;
-      toolUseID?: string;
-      decisionClassification?: AgentPermissionDecisionClassification;
+      toolUseId?: string;
+      decisionAttribution?: AgentDecisionAttribution;
     };
 
 /**
  * Context object the harness hands to a `canUseTool` callback for one tool
- * call. Adapters that route through the claude-agent-sdk hand the SDK's
- * native context object straight through; structurally compatible with this
- * neutral shape.
+ * call. The shape is KOTA-native; adapters that route through a native SDK
+ * (e.g. claude-agent-sdk) translate their context into this shape at the
+ * boundary.
  */
 export type AgentCanUseToolContext = {
   signal: AbortSignal;
@@ -113,8 +62,8 @@ export type AgentCanUseToolContext = {
   title?: string;
   displayName?: string;
   description?: string;
-  toolUseID: string;
-  agentID?: string;
+  toolUseId: string;
+  agentId?: string;
 };
 
 export type AgentCanUseTool = (
@@ -176,6 +125,24 @@ export type AgentAskOwnerOptions = {
 
 export type AgentHarnessWriter = { write(text: string): boolean };
 
+/**
+ * Per-step adapter-private fragment validated by `AgentHarness.validateStepOptions`.
+ * The neutral protocol carries this as opaque `unknown` — only the resolved
+ * adapter knows its real shape. The executor passes the validated value
+ * verbatim through `AgentHarnessRunOptions.harnessOverrides`.
+ */
+export type AgentHarnessStepOverrides = unknown;
+
+/**
+ * Neutral, KOTA-native run options every adapter consumes.
+ *
+ * Every field on this type is either a KOTA concept (autonomy mode, tools,
+ * effort, prompt, owner-questions, abort, MCP transport variants) or a
+ * harness-agnostic transport knob (cwd, model name, max turns, system
+ * prompt). Provider-specific knobs (claude SDK permission/setting fields,
+ * future Codex CLI flags, …) must travel inside `harnessOverrides` and be
+ * validated by the resolved adapter's `validateStepOptions`.
+ */
 export type AgentHarnessRunOptions = {
   prompt: string;
   model?: string;
@@ -186,13 +153,24 @@ export type AgentHarnessRunOptions = {
   allowedTools?: string[];
   disallowedTools?: string[];
   mcpServers?: AgentMcpServers;
-  permissionMode?: AgentPermissionMode;
+  /**
+   * KOTA-native session supervision posture. The adapter maps this onto its
+   * provider's native permission knob. Adapters without a permission UX
+   * must still honor the mode (passive read-only constraints come from
+   * `allowedTools`; supervised mode is rejected by every workflow agent
+   * step adapter at the boundary).
+   *
+   * Callers that do not care about supervision posture omit this field;
+   * adapters default to `"autonomous"`. Workflow agent steps always set it
+   * explicitly because the workflow validator requires
+   * `WorkflowAgentStep.autonomyMode`.
+   */
+  autonomyMode?: AutonomyMode;
   persistSession?: boolean;
   effort: AgentEffort;
-  settingSources?: AgentSettingSource[];
   abortController?: AbortController;
   enableFileCheckpointing?: boolean;
-  onMessage?: (message: AgentMessage) => void | Promise<void>;
+  onMessage?: (message: KotaAgentMessage) => void | Promise<void>;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
   canUseTool?: AgentCanUseTool;
@@ -203,6 +181,12 @@ export type AgentHarnessRunOptions = {
    * requests against adapters whose `askOwnerToolName` is `null`.
    */
   askOwner?: AgentAskOwnerOptions;
+  /**
+   * Adapter-private per-step overrides validated by the resolved adapter's
+   * `validateStepOptions`. The value is opaque to core; the adapter knows its
+   * shape. Core never reads or mutates this field.
+   */
+  harnessOverrides?: AgentHarnessStepOverrides;
 };
 
 export type AgentHarnessResult = {
@@ -258,20 +242,20 @@ export type AgentHarness = {
    */
   readonly askOwnerToolName: string | null;
   /**
-   * Whether this adapter emits `AgentMessage`-shaped frames to an
-   * `onMessage` callback. Claude-Agent-SDK sets this to `true`; the
-   * openai-tools and thin adapters have no such stream and reject
-   * `onMessage` at the boundary. Callers consult this flag to decide
-   * whether to subscribe — branching on a declared capability rather than
-   * the adapter name.
+   * Whether this adapter emits `KotaAgentMessage` frames to an `onMessage`
+   * callback. Adapters that do (claude-agent-sdk, future Codex/Vercel) set
+   * this to `true`; adapters without a streaming surface (openai-tools,
+   * thin) reject `onMessage` at the boundary. Callers consult this flag to
+   * decide whether to subscribe — branching on a declared capability rather
+   * than the adapter name.
    */
   readonly emitsAgentMessageStream: boolean;
   /**
    * Validates a per-step harness-specific options block and returns the
-   * neutral `AgentHarnessRunOptions` fragment to merge into the adapter run
-   * when the step executes. The returned object is also stored on the
-   * validated workflow step (under the step's `harnessOptions[harness.name]`
-   * slot) for history and recovery.
+   * adapter-private fragment to thread through as
+   * `AgentHarnessRunOptions.harnessOverrides`. The returned value is also
+   * stored on the validated workflow step (under the step's
+   * `harnessOptions[harness.name]` slot) for history and recovery.
    *
    * Declared only on harnesses that accept per-step options. Throws on
    * malformed input with a field-path message; the core step validator
@@ -286,7 +270,7 @@ export type AgentHarness = {
    */
   readonly validateStepOptions?: (
     raw: unknown,
-  ) => Partial<AgentHarnessRunOptions> | undefined;
+  ) => AgentHarnessStepOverrides;
   run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

@@ -1,12 +1,11 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
-import type { AgentPermissionMode } from "#core/agent-harness/index.js";
+import type { KotaAgentMessage } from "#core/agent-harness/index.js";
 import {
   createWorkflowAgentGuards,
   resolveAgentHarness,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
-import type { AgentMessage } from "#core/agent-harness/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
@@ -196,39 +195,30 @@ export function buildAgentPrompt(
 
 function makeToolTelemetryTracker(
   telemetry: ToolTelemetry,
-  onMessage: (message: AgentMessage) => void,
-): (message: AgentMessage) => void {
+  onMessage: (message: KotaAgentMessage) => void,
+): (message: KotaAgentMessage) => void {
   const pending = new Map<string, { name: string; startMs: number }>();
-  return (message: AgentMessage) => {
+  return (message: KotaAgentMessage) => {
     onMessage(message);
-    if (message.type === "assistant") {
-      const raw = message as unknown as { message?: { content?: unknown[] }; content?: unknown[] };
-      const content = raw.message?.content ?? raw.content ?? [];
-      for (const block of content) {
-        const b = block as { type?: string; id?: string; name?: string };
-        if (b.type === "tool_use" && b.id && b.name) {
-          pending.set(b.id, { name: b.name, startMs: Date.now() });
-        }
-      }
+    if (message.type === "tool_call") {
+      pending.set(message.toolUseId, {
+        name: message.toolName,
+        startMs: Date.now(),
+      });
+      return;
     }
-    if (message.type === "user") {
-      const raw = message as unknown as { message?: { content?: unknown[] } };
-      const content = raw.message?.content ?? [];
-      for (const block of content) {
-        const b = block as { type?: string; tool_use_id?: string; content?: unknown; is_error?: boolean };
-        if (b.type === "tool_result" && b.tool_use_id) {
-          const entry = pending.get(b.tool_use_id);
-          if (entry) {
-            const durationMs = Date.now() - entry.startMs;
-            const isError = b.is_error === true;
-            const errorMsg = isError
-              ? (typeof b.content === "string" ? b.content : JSON.stringify(b.content)).slice(0, 200)
-              : undefined;
-            telemetry.record(entry.name, durationMs, !isError, errorMsg);
-            pending.delete(b.tool_use_id);
-          }
-        }
-      }
+    if (message.type === "tool_result") {
+      const entry = pending.get(message.toolUseId);
+      if (!entry) return;
+      const durationMs = Date.now() - entry.startMs;
+      const errorMsg = message.isError
+        ? (typeof message.content === "string"
+            ? message.content
+            : JSON.stringify(message.content)
+          ).slice(0, 200)
+        : undefined;
+      telemetry.record(entry.name, durationMs, !message.isError, errorMsg);
+      pending.delete(message.toolUseId);
     }
   };
 }
@@ -312,24 +302,17 @@ function resolvePassiveAllowedTools(
   ) as string[];
 }
 
-function resolveAgentPermissions(
+function resolveAgentToolScope(
   mode: AutonomyMode,
-  permissionMode: AgentPermissionMode | undefined,
   allowedTools: string[] | undefined,
   disallowedTools: string[] | undefined,
   askOwnerToolName: string | null,
 ): {
-  permissionMode: AgentPermissionMode | undefined;
   allowedTools: string[] | undefined;
   disallowedTools: string[] | undefined;
 } {
   if (mode === "autonomous") {
     return {
-      // Undefined flows through to the harness neutral options; the claude
-      // adapter fills in its own default ("bypassPermissions") when unset.
-      // Other adapters either ignore the field or reject non-bypass values at
-      // their boundary.
-      permissionMode,
       allowedTools: includeAskOwnerTool(allowedTools, askOwnerToolName),
       disallowedTools: excludeAskOwnerTool(disallowedTools, askOwnerToolName),
     };
@@ -340,7 +323,6 @@ function resolveAgentPermissions(
     );
   }
   return {
-    permissionMode: "default",
     allowedTools: resolvePassiveAllowedTools(allowedTools, disallowedTools, askOwnerToolName),
     disallowedTools: undefined,
   };
@@ -352,7 +334,7 @@ export async function executeAgentStep(
   metadata: WorkflowRunMetadata,
   trigger: WorkflowRunTrigger,
   abortController: AbortController,
-  appendMessage: (message: AgentMessage) => void,
+  appendMessage: (message: KotaAgentMessage) => void,
   writeInputs: (systemPromptAppend: string | undefined, prompt: string) => void,
   agentConfig: AgentStepConfig,
   priorStepOutputs: Record<string, unknown> = {},
@@ -416,10 +398,9 @@ export async function executeAgentStep(
     const prompt = lastSchemaError
       ? `${agentPrompt.prompt}\n\n[Previous output failed schema validation: ${lastSchemaError}\nPlease include all required fields in your JSON block and try again.]`
       : agentPrompt.prompt;
-    const harnessRunOverrides = step.harnessOptions?.[resolvedHarness.name];
-    const permissions = resolveAgentPermissions(
+    const harnessOverrides = step.harnessOptions?.[resolvedHarness.name];
+    const toolScope = resolveAgentToolScope(
       step.autonomyMode,
-      harnessRunOverrides?.permissionMode,
       step.allowedTools,
       step.disallowedTools,
       resolvedHarness.askOwnerToolName,
@@ -436,16 +417,16 @@ export async function executeAgentStep(
           effort: step.effort,
           thinkingEnabled: step.thinkingEnabled,
           thinkingBudget: step.thinkingBudget,
-          allowedTools: permissions.allowedTools,
-          disallowedTools: permissions.disallowedTools,
+          allowedTools: toolScope.allowedTools,
+          disallowedTools: toolScope.disallowedTools,
           askOwner:
             resolvedHarness.askOwnerToolName !== null
               ? {
                   source: `workflow:${metadata.workflow}/${metadata.id}/${step.id}`,
                 }
               : undefined,
-          permissionMode: permissions.permissionMode,
-          settingSources: harnessRunOverrides?.settingSources,
+          autonomyMode: step.autonomyMode,
+          harnessOverrides,
           abortController,
           ...(trackedMessage !== undefined ? { onMessage: trackedMessage } : {}),
           canUseTool: createWorkflowAgentGuards(),

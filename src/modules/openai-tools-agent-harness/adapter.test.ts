@@ -477,15 +477,26 @@ describe("openaiToolsAgentHarness — unsupported options rejection", () => {
     ).rejects.toThrow(/does not host MCP servers/);
   });
 
-  it("rejects non-bypass permission modes", async () => {
+  it("rejects supervised autonomy mode", async () => {
     await expect(
       openaiToolsAgentHarness.run({
         prompt: "x",
         model: "openai/gpt-4o-mini",
         effort: "xhigh",
-        permissionMode: "default",
+        autonomyMode: "supervised",
       }),
-    ).rejects.toThrow(/permissionMode/);
+    ).rejects.toThrow(/operator approval queue/);
+  });
+
+  it("rejects per-step harness overrides (no validateStepOptions)", async () => {
+    await expect(
+      openaiToolsAgentHarness.run({
+        prompt: "x",
+        model: "openai/gpt-4o-mini",
+        effort: "xhigh",
+        harnessOverrides: { foo: "bar" },
+      }),
+    ).rejects.toThrow(/harnessOptions/);
   });
 
   it("rejects extended thinking", async () => {

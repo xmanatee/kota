@@ -1,3 +1,15 @@
+export type {
+  KotaAgentMessage,
+  KotaAgentMessageEnvelope,
+  KotaAgentMessageType,
+  KotaAgentRawMessage,
+  KotaAgentResultMessage,
+  KotaAgentStatusMessage,
+  KotaAgentTextMessage,
+  KotaAgentThinkingMessage,
+  KotaAgentToolCallMessage,
+  KotaAgentToolResultMessage,
+} from "./agent-message.js";
 export {
   composeCanUseTools,
   createAgentCommitGuard,
@@ -52,15 +64,19 @@ export { runAgentHarness } from "./runner.js";
 export type {
   AgentAskOwnerOptions,
   AgentCanUseTool,
+  AgentCanUseToolContext,
+  AgentDecisionAttribution,
   AgentEffort,
   AgentHarness,
   AgentHarnessResult,
   AgentHarnessRunOptions,
+  AgentHarnessStepOverrides,
   AgentHarnessWriter,
+  AgentMcpHttpServerConfig,
+  AgentMcpServerConfig,
   AgentMcpServers,
-  AgentMessage,
-  AgentPermissionMode,
+  AgentMcpSseServerConfig,
+  AgentMcpStdioServerConfig,
   AgentPermissionResult,
-  AgentSettingSource,
   AgentSystemPrompt,
 } from "./types.js";

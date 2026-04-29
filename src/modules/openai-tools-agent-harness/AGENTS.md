@@ -63,16 +63,16 @@ Guardrails are applied **inside the loop**, never delegated:
 
 ## Rejected Options
 
-The adapter rejects claude-agent-sdk-specific options at the boundary
-rather than silently ignoring them:
+The adapter rejects unsupported neutral options at the boundary rather
+than silently ignoring them:
 
 - `mcpServers` (would require a parallel MCP host)
-- `permissionMode` other than `bypassPermissions`
+- `autonomyMode === "supervised"` (no operator-approval-queue routing)
+- `harnessOverrides` of any shape (no per-step adapter fragment)
 - `persistSession: true`
-- `settingSources`
 - `enableFileCheckpointing: true`
 - `thinkingEnabled: true`
-- `onMessage` (no AgentMessage frames are emitted)
+- `onMessage` (no `KotaAgentMessage` frames are emitted)
 - A bare `claude_code` preset `systemPrompt` (no `append`); when the preset
   carries an `append` body the adapter uses that portable text so operator
   CLI paths (`kota run -i --harness openai-tools`) keep working without
@@ -81,7 +81,8 @@ rather than silently ignoring them:
 Operators that need any of these run the `claude-agent-sdk` harness
 instead. Callers avoid tripping these rejections by consulting the
 adapter-declared capabilities (`emitsAgentMessageStream`,
-`askOwnerToolName`) before wiring a claude-specific option path.
+`askOwnerToolName`) before wiring an option path that depends on a
+harness-specific feature.
 
 ## Declared Capabilities
 
@@ -91,9 +92,9 @@ adapter-declared capabilities (`emitsAgentMessageStream`,
   so `runAskOwner` reads the correct source from the async-local storage
   context without the adapter referencing the tool's runner directly.
 - `emitsAgentMessageStream = false` — the adapter does not produce
-  `AgentMessage` frames, so callers must not subscribe through `onMessage`.
-  The step-executor guards its tool telemetry wrapper on this flag so
-  openai-tools runs do not trigger the `onMessage` rejection.
+  `KotaAgentMessage` frames, so callers must not subscribe through
+  `onMessage`. The step-executor guards its tool telemetry wrapper on this
+  flag so openai-tools runs do not trigger the `onMessage` rejection.
 
 ## Reasoning Effort Passthrough
 

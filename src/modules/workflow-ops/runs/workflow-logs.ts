@@ -1,6 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { AgentMessage } from "#core/agent-harness/types.js";
+import type {
+  KotaAgentMessage,
+  KotaAgentResultMessage,
+  KotaAgentStatusMessage,
+  KotaAgentTextMessage,
+  KotaAgentToolCallMessage,
+  KotaAgentToolResultMessage,
+} from "#core/agent-harness/index.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata, WorkflowRuntimeState } from "#core/workflow/run-types.js";
 import { line, plain } from "#modules/rendering/primitives.js";
@@ -18,75 +25,88 @@ export function stepBanner(stepId: string): string {
   return `── Step: ${stepId} ${"─".repeat(Math.max(0, 60 - stepId.length))}`;
 }
 
-type ContentBlock = {
-  type: string;
-  text?: string;
-  name?: string;
-  input?: unknown;
-  content?: unknown;
-  thinking?: string;
-};
-
-export function formatContentBlock(block: ContentBlock, maxLen: number = DEFAULT_MAX_LEN): string | null {
-  switch (block.type) {
-    case "text":
-      return block.text ? truncateContent(block.text, maxLen) : null;
-    case "thinking":
-      return null;
-    case "tool_use": {
-      const inputStr = block.input != null ? JSON.stringify(block.input) : "";
-      return `[tool: ${block.name}] ${truncateContent(inputStr, maxLen)}`;
-    }
-    case "tool_result": {
-      const raw = typeof block.content === "string"
-        ? block.content
-        : JSON.stringify(block.content);
-      return `[tool result] ${truncateContent(raw, maxLen)}`;
-    }
-    default:
-      return null;
-  }
+function renderTextMessage(
+  message: KotaAgentTextMessage,
+  maxLen: number,
+): string | null {
+  if (!message.text) return null;
+  return `[assistant] ${truncateContent(message.text, maxLen)}`;
 }
 
-export function formatAgentMessage(msg: AgentMessage, maxLen: number = DEFAULT_MAX_LEN): string[] {
-  const lines: string[] = [];
+function renderToolCallMessage(
+  message: KotaAgentToolCallMessage,
+  maxLen: number,
+): string {
+  const inputStr = JSON.stringify(message.input);
+  return `[assistant] [tool: ${message.toolName}] ${truncateContent(inputStr, maxLen)}`;
+}
 
-  if (msg.type === "assistant") {
-    const content: ContentBlock[] = (msg as { message?: { content?: ContentBlock[] }; content?: ContentBlock[] }).message?.content
-      ?? (msg as { content?: ContentBlock[] }).content
-      ?? [];
-    for (const block of content) {
-      const line = formatContentBlock(block, maxLen);
-      if (line) lines.push(`[assistant] ${line}`);
-    }
-    return lines;
-  }
+function renderToolResultMessage(
+  message: KotaAgentToolResultMessage,
+  maxLen: number,
+): string {
+  const raw =
+    typeof message.content === "string"
+      ? message.content
+      : JSON.stringify(message.content);
+  return `[user]      [tool result] ${truncateContent(raw, maxLen)}`;
+}
 
-  if (msg.type === "user") {
-    const content: ContentBlock[] = (msg as { message?: { content?: ContentBlock[] }; content?: ContentBlock[] }).message?.content
-      ?? (msg as { content?: ContentBlock[] }).content
-      ?? [];
-    for (const block of content) {
-      const line = formatContentBlock(block, maxLen);
-      if (line) lines.push(`[user]      ${line}`);
-    }
-    return lines;
-  }
-
-  if (msg.type === "result") {
-    const r = msg as { total_cost_usd?: number; num_turns?: number; result?: string; subtype?: string };
-    const parts: string[] = [`[result]    ${r.subtype ?? "done"}`];
-    if (r.num_turns != null) parts.push(`turns=${r.num_turns}`);
-    if (r.total_cost_usd != null) parts.push(`cost=$${r.total_cost_usd.toFixed(4)}`);
-    lines.push(parts.join("  "));
-    if (r.result) lines.push(`            ${truncateContent(r.result, maxLen)}`);
-    return lines;
-  }
-
+function renderResultMessage(
+  message: KotaAgentResultMessage,
+  maxLen: number,
+): string[] {
+  const parts: string[] = [
+    `[result]    ${message.subtype ?? (message.isError ? "error" : "done")}`,
+  ];
+  if (message.numTurns !== undefined) parts.push(`turns=${message.numTurns}`);
+  if (message.totalCostUsd !== undefined)
+    parts.push(`cost=$${message.totalCostUsd.toFixed(4)}`);
+  const lines = [parts.join("  ")];
+  if (message.text) lines.push(`            ${truncateContent(message.text, maxLen)}`);
   return lines;
 }
 
-export function readStepEvents(eventsPath: string): AgentMessage[] {
+function renderStatusMessage(
+  message: KotaAgentStatusMessage,
+  maxLen: number,
+): string | null {
+  const detail =
+    message.text ?? message.description ?? message.toolName ?? null;
+  if (!detail) return null;
+  return `[status]    ${message.category}: ${truncateContent(detail, maxLen)}`;
+}
+
+export function formatAgentMessage(
+  msg: KotaAgentMessage,
+  maxLen: number = DEFAULT_MAX_LEN,
+): string[] {
+  switch (msg.type) {
+    case "text": {
+      const line = renderTextMessage(msg, maxLen);
+      return line ? [line] : [];
+    }
+    case "thinking":
+      // Thinking blocks have a dedicated route (see workflow-run-routes.ts)
+      // and stay out of the streaming log to avoid leaking reasoning into
+      // operator-facing transcripts.
+      return [];
+    case "tool_call":
+      return [renderToolCallMessage(msg, maxLen)];
+    case "tool_result":
+      return [renderToolResultMessage(msg, maxLen)];
+    case "result":
+      return renderResultMessage(msg, maxLen);
+    case "status": {
+      const line = renderStatusMessage(msg, maxLen);
+      return line ? [line] : [];
+    }
+    case "raw":
+      return [];
+  }
+}
+
+export function readStepEvents(eventsPath: string): KotaAgentMessage[] {
   if (!existsSync(eventsPath)) return [];
   let raw: string;
   try {
@@ -98,10 +118,10 @@ export function readStepEvents(eventsPath: string): AgentMessage[] {
     .split("\n")
     .filter((l) => l.trim())
     .map((l) => {
-      try { return JSON.parse(l) as AgentMessage; }
+      try { return JSON.parse(l) as KotaAgentMessage; }
       catch { return null; }
     })
-    .filter((m): m is AgentMessage => m !== null);
+    .filter((m): m is KotaAgentMessage => m !== null);
 }
 
 export function filterWithContext(

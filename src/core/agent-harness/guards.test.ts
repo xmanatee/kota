@@ -54,7 +54,7 @@ describe("isGitCommitCommand", () => {
 });
 
 describe("createAgentCommitGuard", () => {
-  const options = { signal: new AbortController().signal, toolUseID: "tool-1" };
+  const options = { signal: new AbortController().signal, toolUseId: "tool-1" };
 
   it("allows non-Bash tool calls", async () => {
     const guard = createAgentCommitGuard();
@@ -85,7 +85,7 @@ describe("createAgentCommitGuard", () => {
     );
     expect(result).toMatchObject({
       behavior: "deny",
-      decisionClassification: "user_reject",
+      decisionAttribution: "operator-deny",
     });
     expect(result).not.toHaveProperty("interrupt");
     if (result.behavior === "deny") {
@@ -106,7 +106,7 @@ describe("createAgentCommitGuard", () => {
 });
 
 describe("composeCanUseTools", () => {
-  const options = { signal: new AbortController().signal, toolUseID: "id-1" };
+  const options = { signal: new AbortController().signal, toolUseId: "id-1" };
 
   function allowGuard(update?: Record<string, unknown>): AgentCanUseTool {
     return async (_name, input): Promise<AgentPermissionResult> => ({
@@ -163,7 +163,7 @@ describe("composeCanUseTools", () => {
 });
 
 describe("createWorkflowAgentGuards", () => {
-  const options = { signal: new AbortController().signal, toolUseID: "id-1" };
+  const options = { signal: new AbortController().signal, toolUseId: "id-1" };
 
   it("denies `git commit` invocations", async () => {
     const guard = createWorkflowAgentGuards();

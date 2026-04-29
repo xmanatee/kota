@@ -1,4 +1,4 @@
-import type { AgentMessage } from "#core/agent-harness/types.js";
+import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { RepairCheckResult, RepairIteration } from "../repair-loop.js";
 import { buildRepairPrompt, runAgentRepairLoop } from "../repair-loop.js";
@@ -176,7 +176,7 @@ export async function executeStep(
   trigger: WorkflowRunTrigger,
   context: WorkflowStepContext,
   abortController: AbortController,
-  appendMessage: (message: AgentMessage) => void,
+  appendMessage: (message: KotaAgentMessage) => void,
   writeInputs: (systemPromptAppend: string | undefined, prompt: string) => void,
   agentConfig: AgentStepConfig,
   bus: EventBus,

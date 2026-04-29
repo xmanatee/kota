@@ -92,7 +92,7 @@ export async function runDelegateHarness(
       model: config.model,
       systemPrompt,
       allowedTools,
-      permissionMode: "bypassPermissions",
+      autonomyMode: "autonomous",
       cwd: config.cwd ?? process.cwd(),
       effort: "xhigh",
     },

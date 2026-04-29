@@ -59,7 +59,7 @@ export function createAgentCommitGuard(): AgentCanUseTool {
     return {
       behavior: "deny",
       message: COMMIT_DENIAL_MESSAGE,
-      decisionClassification: "user_reject",
+      decisionAttribution: "operator-deny",
     };
   };
 }
@@ -100,7 +100,7 @@ export function createDaemonHostControlGuard(daemonPid = process.pid): AgentCanU
     return {
       behavior: "deny",
       message: DAEMON_DENIAL_MESSAGE,
-      decisionClassification: "user_reject",
+      decisionAttribution: "operator-deny",
     };
   };
 }

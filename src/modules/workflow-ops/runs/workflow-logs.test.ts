@@ -2,10 +2,11 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { KotaAgentMessage } from "#core/agent-harness/index.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { setTerminalTransport, TerminalTransport } from "#modules/rendering/transport.js";
-import { filterWithContext, followRunLogs, formatAgentMessage, formatContentBlock, truncateContent } from "./workflow-logs.js";
+import { filterWithContext, followRunLogs, formatAgentMessage, truncateContent } from "./workflow-logs.js";
 
 function captureTransport(): { getLines: () => string[]; restore: () => void } {
   const chunks: string[] = [];
@@ -44,7 +45,6 @@ describe("filterWithContext", () => {
   });
 
   it("includes context up to boundary", () => {
-    // "beta" at index 1 with context 2 → indices 0..3 = alpha, beta, gamma, delta
     expect(filterWithContext(lines, "bet", false, 2)).toEqual(["alpha", "beta", "gamma", "delta"]);
   });
 
@@ -74,68 +74,49 @@ describe("truncateContent", () => {
   });
 });
 
-describe("formatContentBlock", () => {
-  it("formats text block", () => {
-    expect(formatContentBlock({ type: "text", text: "Hello!" })).toBe("Hello!");
-  });
-
-  it("returns null for thinking block", () => {
-    expect(formatContentBlock({ type: "thinking", thinking: "hidden" })).toBeNull();
-  });
-
-  it("formats tool_use block with name and input", () => {
-    const result = formatContentBlock({ type: "tool_use", name: "Bash", input: { command: "ls" } });
-    expect(result).toBe('[tool: Bash] {"command":"ls"}');
-  });
-
-  it("formats tool_result block", () => {
-    const result = formatContentBlock({ type: "tool_result", content: "output text" });
-    expect(result).toBe("[tool result] output text");
-  });
-
-  it("truncates long tool input", () => {
-    const long = "x".repeat(300);
-    const result = formatContentBlock({ type: "tool_use", name: "Read", input: long }, 50);
-    expect(result).toContain("… [+");
-    expect(result?.startsWith("[tool: Read]")).toBe(true);
-  });
-});
-
 describe("formatAgentMessage", () => {
-  it("formats assistant message with text content", () => {
-    const msg = {
-      type: "assistant" as const,
-      message: {
-        content: [{ type: "text", text: "I will help you." }],
-      },
-    };
-    const lines = formatAgentMessage(msg);
-    expect(lines).toHaveLength(1);
-    expect(lines[0]).toBe("[assistant] I will help you.");
+  it("formats a text message", () => {
+    const msg: KotaAgentMessage = { type: "text", text: "I will help you." };
+    expect(formatAgentMessage(msg)).toEqual(["[assistant] I will help you."]);
   });
 
-  it("skips thinking blocks in assistant message", () => {
-    const msg = {
-      type: "assistant" as const,
-      message: {
-        content: [
-          { type: "thinking", thinking: "internal thoughts" },
-          { type: "text", text: "Hello" },
-        ],
-      },
-    };
-    const lines = formatAgentMessage(msg);
-    expect(lines).toHaveLength(1);
-    expect(lines[0]).toContain("Hello");
+  it("returns no lines for empty text", () => {
+    const msg: KotaAgentMessage = { type: "text", text: "" };
+    expect(formatAgentMessage(msg)).toEqual([]);
   });
 
-  it("formats result message with cost and turns", () => {
-    const msg = {
-      type: "result" as const,
+  it("formats a tool_call message with name and input", () => {
+    const msg: KotaAgentMessage = {
+      type: "tool_call",
+      toolUseId: "t-1",
+      toolName: "Bash",
+      input: { command: "ls" },
+    };
+    expect(formatAgentMessage(msg)).toEqual([
+      '[assistant] [tool: Bash] {"command":"ls"}',
+    ]);
+  });
+
+  it("formats a tool_result message", () => {
+    const msg: KotaAgentMessage = {
+      type: "tool_result",
+      toolUseId: "t-1",
+      isError: false,
+      content: "file contents",
+    };
+    expect(formatAgentMessage(msg)).toEqual([
+      "[user]      [tool result] file contents",
+    ]);
+  });
+
+  it("formats a result message with cost and turns", () => {
+    const msg: KotaAgentMessage = {
+      type: "result",
+      isError: false,
       subtype: "success",
-      total_cost_usd: 0.5,
-      num_turns: 10,
-      result: "Done.",
+      totalCostUsd: 0.5,
+      numTurns: 10,
+      text: "Done.",
     };
     const lines = formatAgentMessage(msg);
     expect(lines[0]).toContain("success");
@@ -144,19 +125,40 @@ describe("formatAgentMessage", () => {
     expect(lines[1]).toContain("Done.");
   });
 
-  it("returns empty array for system message", () => {
-    const msg = { type: "system", subtype: "init" };
-    expect(formatAgentMessage(msg as never)).toHaveLength(0);
+  it("returns empty array for status messages with no detail", () => {
+    const msg: KotaAgentMessage = { type: "status", category: "system" };
+    expect(formatAgentMessage(msg)).toEqual([]);
   });
 
-  it("formats user message with tool_result", () => {
-    const msg = {
-      type: "user",
-      message: {
-        content: [{ type: "tool_result", content: "file contents" }],
-      },
+  it("formats a status message with text", () => {
+    const msg: KotaAgentMessage = {
+      type: "status",
+      category: "auth_status",
+      text: "logged in",
     };
-    expect(formatAgentMessage(msg as never)[0]).toBe("[user]      [tool result] file contents");
+    expect(formatAgentMessage(msg)).toEqual(["[status]    auth_status: logged in"]);
+  });
+
+  it("returns empty array for raw messages (opaque to core)", () => {
+    const msg: KotaAgentMessage = {
+      type: "raw",
+      adapter: "claude-agent-sdk",
+      payload: { foo: "bar" },
+    };
+    expect(formatAgentMessage(msg)).toEqual([]);
+  });
+
+  it("truncates long tool_call input", () => {
+    const long = "x".repeat(300);
+    const msg: KotaAgentMessage = {
+      type: "tool_call",
+      toolUseId: "t-2",
+      toolName: "Read",
+      input: { value: long },
+    };
+    const lines = formatAgentMessage(msg, 50);
+    expect(lines[0]).toContain("… [+");
+    expect(lines[0].startsWith("[assistant] [tool: Read]")).toBe(true);
   });
 });
 
@@ -168,9 +170,9 @@ describe("followRunLogs", () => {
   const RUN_ID = "2026-01-01T00-00-00-000Z-builder-abc123";
   const STEP_ID = "build";
 
-  const assistantEvent = {
-    type: "assistant",
-    message: { content: [{ type: "text", text: "Hello from agent" }] },
+  const assistantEvent: KotaAgentMessage = {
+    type: "text",
+    text: "Hello from agent",
   };
 
   function makeMetadata(status: "running" | "success" | "failed"): WorkflowRunMetadata {
@@ -192,7 +194,7 @@ describe("followRunLogs", () => {
     writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata), "utf-8");
   }
 
-  function writeEvents(events: object[]): void {
+  function writeEvents(events: KotaAgentMessage[]): void {
     writeFileSync(
       join(runsDir, RUN_ID, "steps", `${STEP_ID}.events.jsonl`),
       `${events.map((e) => JSON.stringify(e)).join("\n")}\n`,
@@ -282,7 +284,7 @@ describe("followRunLogs", () => {
 
       writeFileSync(
         join(runsDir, RUN_ID, "steps", `${STEP_ID}.events.jsonl`),
-        `${[assistantEvent, { type: "assistant", message: { content: [{ type: "text", text: "Second message" }] } }]
+        `${[assistantEvent, { type: "text", text: "Second message" } satisfies KotaAgentMessage]
           .map((e) => JSON.stringify(e))
           .join("\n")}\n`,
         "utf-8",

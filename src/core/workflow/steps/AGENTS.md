@@ -52,15 +52,17 @@ carve-out through the generic `harnessOptions` passthrough:
 
 ```ts
 { type: "agent", harness: "claude-agent-sdk",
-  harnessOptions: { "claude-agent-sdk": { permissionMode: "acceptEdits" } },
+  harnessOptions: { "claude-agent-sdk": { /* adapter-private fragment */ } },
   ... }
 ```
 
 The block is a single-key record whose key must equal the step's resolved
 harness name; the value is opaque to core and validated by that harness's
-registered `validateStepOptions` method. The core validator rejects
-mismatched keys, unknown harnesses, and harnesses that declare no per-step
-options. See `src/core/agent-harness/AGENTS.md` for the protocol surface.
+registered `validateStepOptions` method. The validated fragment travels to
+the adapter at runtime through `AgentHarnessRunOptions.harnessOverrides`.
+The core validator rejects mismatched keys, unknown harnesses, and harnesses
+that declare no per-step options. See `src/core/agent-harness/AGENTS.md` for
+the protocol surface.
 
 ## Resolved Harness And Model On Agent Step Results
 

@@ -5,7 +5,7 @@ import {
   resolveAgentHarness,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
-import type { AgentMessage } from "#core/agent-harness/types.js";
+import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
 import type { WorkflowRepairCheck, WorkflowStepContext } from "./run-types.js";
 import type { AgentStepConfig, AgentStepResult } from "./steps/step-executor-agent.js";
@@ -104,7 +104,7 @@ async function executeRepairAgentIteration(
   step: WorkflowAgentStep,
   repairPrompt: string,
   abortController: AbortController,
-  appendMessage: (message: AgentMessage) => void,
+  appendMessage: (message: KotaAgentMessage) => void,
   agentConfig: AgentStepConfig,
 ): Promise<{ text: string; turns?: number; totalCostUsd?: number }> {
   const promptBody = readFileSync(
@@ -120,7 +120,7 @@ async function executeRepairAgentIteration(
     agentConfig.projectDir,
   );
   const harness = resolveAgentHarness(step.harness);
-  const harnessRunOverrides = step.harnessOptions?.[harness.name];
+  const harnessOverrides = step.harnessOptions?.[harness.name];
   const result = await runAgentHarness(
     harness,
     {
@@ -134,8 +134,8 @@ async function executeRepairAgentIteration(
       thinkingBudget: step.thinkingBudget,
       allowedTools: step.allowedTools,
       disallowedTools: step.disallowedTools,
-      permissionMode: harnessRunOverrides?.permissionMode,
-      settingSources: harnessRunOverrides?.settingSources,
+      autonomyMode: step.autonomyMode,
+      harnessOverrides,
       abortController,
       onMessage: appendMessage,
       canUseTool: createWorkflowAgentGuards(),
@@ -207,7 +207,7 @@ export async function runAgentRepairLoop(
   initialResult: AgentStepResult,
   context: WorkflowStepContext,
   abortController: AbortController,
-  appendMessage: (message: AgentMessage) => void,
+  appendMessage: (message: KotaAgentMessage) => void,
   agentConfig: AgentStepConfig,
 ): Promise<AgentStepResult> {
   const { checks, maxRepairAttempts } = step.repairLoop!;

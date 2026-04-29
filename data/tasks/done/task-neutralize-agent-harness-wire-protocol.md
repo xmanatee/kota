@@ -1,12 +1,12 @@
 ---
 id: task-neutralize-agent-harness-wire-protocol
 title: Neutralize agent harness wire protocol
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Finish removing Claude-shaped assumptions from the core AgentHarness protocol by defining KOTA-native message, permission, option, and raw-adapter envelopes.
 created_at: 2026-04-28T22:24:00.000Z
-updated_at: 2026-04-28T22:24:00.000Z
+updated_at: 2026-04-29T07:51:27.892Z
 ---
 
 ## Problem

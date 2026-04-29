@@ -1,4 +1,4 @@
-import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
+import type { AgentHarnessStepOverrides } from "#core/agent-harness/types.js";
 import type { BusEvents } from "#core/events/event-bus.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
@@ -647,12 +647,13 @@ export type WorkflowAgentStep = WorkflowBaseStep & {
   disallowedTools?: string[];
   /**
    * Validated per-step harness-specific options. Single-key record whose key
-   * equals the step's resolved harness name and whose value is the fragment
-   * returned by `AgentHarness.validateStepOptions`. Opaque to core at
-   * runtime — the step executor merges the fragment into neutral run options
-   * before invoking the harness.
+   * equals the step's resolved harness name and whose value is the
+   * adapter-private fragment returned by `AgentHarness.validateStepOptions`.
+   * Opaque to core at runtime — the step executor threads the fragment to
+   * the resolved harness through `AgentHarnessRunOptions.harnessOverrides`,
+   * and only the adapter knows the fragment's shape.
    */
-  harnessOptions?: Record<string, Partial<AgentHarnessRunOptions>>;
+  harnessOptions?: Record<string, AgentHarnessStepOverrides>;
   /** Operator supervision mode applied to this agent step. */
   autonomyMode: AutonomyMode;
   retry?: WorkflowRetryConfig;

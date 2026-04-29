@@ -329,14 +329,8 @@ export function handleWorkflowRunThinking(
     const events = readStepEvents(eventsPath);
     const blocks: string[] = [];
     for (const event of events) {
-      if (event.type !== "assistant") continue;
-      const content = (event as { message?: { content?: Array<{ type: string; thinking?: string }> }; content?: Array<{ type: string; thinking?: string }> }).message?.content
-        ?? (event as { content?: Array<{ type: string; thinking?: string }> }).content
-        ?? [];
-      for (const block of content) {
-        if (block.type === "thinking" && block.thinking) {
-          blocks.push(block.thinking);
-        }
+      if (event.type === "thinking" && event.thinking) {
+        blocks.push(event.thinking);
       }
     }
     if (blocks.length > 0) {

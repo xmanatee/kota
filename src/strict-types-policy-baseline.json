@@ -1,6 +1,7 @@
 {
+  "src/core/agent-harness/agent-message.ts": 3,
   "src/core/agent-harness/message-protocol.ts": 3,
-  "src/core/agent-harness/types.ts": 8,
+  "src/core/agent-harness/types.ts": 7,
   "src/core/agents/delegate-prompts.ts": 1,
   "src/core/channels/channel.ts": 2,
   "src/core/config/autonomy-mode-resolver.ts": 1,
@@ -111,7 +112,7 @@
   "src/core/workflow/step-validators/validate-agent-step.ts": 10,
   "src/core/workflow/step-validators/validate-parallel-group.ts": 6,
   "src/core/workflow/steps/step-context.ts": 5,
-  "src/core/workflow/steps/step-executor-agent.ts": 17,
+  "src/core/workflow/steps/step-executor-agent.ts": 11,
   "src/core/workflow/steps/step-executor-await-event.ts": 4,
   "src/core/workflow/steps/step-executor-foreach.ts": 5,
   "src/core/workflow/steps/step-executor-parallel.ts": 3,
@@ -141,7 +142,7 @@
   "src/modules/capture/routes.ts": 3,
   "src/modules/capture/tool.ts": 1,
   "src/modules/claude-agent-harness/adapter.ts": 2,
-  "src/modules/claude-agent-harness/executor.ts": 3,
+  "src/modules/claude-agent-harness/executor.ts": 7,
   "src/modules/commands/control-routes.ts": 3,
   "src/modules/commands/routes.ts": 1,
   "src/modules/composition/batch.ts": 1,
@@ -287,6 +288,5 @@
   "src/modules/workflow-ops/runs/run-diff.ts": 3,
   "src/modules/workflow-ops/runs/run-export.ts": 1,
   "src/modules/workflow-ops/runs/step-inspect.ts": 1,
-  "src/modules/workflow-ops/runs/workflow-logs.ts": 2,
   "src/modules/working-memory/index.ts": 1
 }

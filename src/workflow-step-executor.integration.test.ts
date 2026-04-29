@@ -178,7 +178,7 @@ describe("executeAgentStep", () => {
     expect(guard).toEqual(expect.any(Function));
     const denied = await guard?.("Bash", { command: "pnpm kota daemon stop" }, {
       signal: new AbortController().signal,
-      toolUseID: "tool-1",
+      toolUseId: "tool-1",
     });
     expect(denied).toMatchObject({ behavior: "deny" });
     expect(denied).not.toHaveProperty("interrupt");
@@ -404,30 +404,29 @@ describe("executeAgentStep", () => {
     it("writes tool-telemetry.json when tool calls were recorded via SDK messages", async () => {
       mockedExecuteWithAgentSDK.mockImplementation(async (_prompt, options) => {
         options?.onMessage?.({
-          type: "assistant",
-          message: {
-            content: [
-              { type: "tool_use", id: "tu-1", name: "shell", input: {} },
-              { type: "tool_use", id: "tu-2", name: "file_read", input: {} },
-            ],
-          },
-        } as never);
+          type: "tool_call",
+          toolUseId: "tu-1",
+          toolName: "shell",
+          input: {},
+        });
         options?.onMessage?.({
-          type: "user",
-          message: {
-            content: [
-              { type: "tool_result", tool_use_id: "tu-1", content: "ok", is_error: false },
-            ],
-          },
-        } as never);
+          type: "tool_call",
+          toolUseId: "tu-2",
+          toolName: "file_read",
+          input: {},
+        });
         options?.onMessage?.({
-          type: "user",
-          message: {
-            content: [
-              { type: "tool_result", tool_use_id: "tu-2", content: "not found", is_error: true },
-            ],
-          },
-        } as never);
+          type: "tool_result",
+          toolUseId: "tu-1",
+          isError: false,
+          content: "ok",
+        });
+        options?.onMessage?.({
+          type: "tool_result",
+          toolUseId: "tu-2",
+          isError: true,
+          content: "not found",
+        });
         return SUCCESS_RESULT;
       });
       mkdirSync(join(projectDir, ".kota", "runs", "run-1", "steps"), { recursive: true });

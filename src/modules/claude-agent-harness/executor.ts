@@ -8,13 +8,63 @@ import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type {
   AgentCanUseTool,
   AgentEffort,
-  AgentMessage,
-  AgentPermissionMode,
   AgentPermissionResult,
-  AgentResultMessage,
-  AgentSettingSource,
+  KotaAgentMessage,
 } from "#core/agent-harness/types.js";
 import type { SDKQueryOptions, SDKSystemPrompt } from "./sdk-types.js";
+
+/**
+ * Claude-agent-sdk-shaped permission and setting-source literals. The
+ * neutral protocol no longer surfaces these names — they live on this
+ * adapter's per-step `harnessOptions["claude-agent-sdk"]` carve-out and
+ * inside the SDK options the executor builds.
+ */
+export type ClaudeAgentSdkPermissionMode =
+  | "default"
+  | "acceptEdits"
+  | "dontAsk"
+  | "bypassPermissions";
+
+export type ClaudeAgentSdkSettingSource = "project" | "local" | "user";
+
+export type ClaudeAgentSdkStepOverrides = {
+  permissionMode?: ClaudeAgentSdkPermissionMode;
+  settingSources?: readonly ClaudeAgentSdkSettingSource[];
+};
+
+/**
+ * Raw claude-agent-sdk frame the SDK iterator yields. The executor reads
+ * these directly to extract turn count, session id, terminal result fields,
+ * and verbose status output, then normalizes each frame to a
+ * `KotaAgentMessage` before invoking the caller's `onMessage` callback.
+ */
+type RawSdkContentBlock = {
+  type?: string;
+  text?: string;
+  thinking?: string;
+  id?: string;
+  name?: string;
+  input?: Record<string, unknown>;
+  tool_use_id?: string;
+  is_error?: boolean;
+  content?: unknown;
+};
+type RawSdkMessage = {
+  type: string;
+  subtype?: string;
+  session_id?: string;
+  sessionId?: string;
+  message?: { content?: RawSdkContentBlock[] } | string;
+  content?: RawSdkContentBlock[];
+  description?: string;
+  output?: string[];
+  tool_name?: string;
+  result?: string;
+  total_cost_usd?: number;
+  num_turns?: number;
+  is_error?: boolean;
+  usage?: { input_tokens: number; output_tokens: number };
+};
 
 /**
  * Claude-module-internal MCP server map: the harness-neutral transport
@@ -38,14 +88,14 @@ export type ExecutorOptions = {
   allowedTools?: string[];
   disallowedTools?: string[];
   mcpServers?: ClaudeAgentMcpServers;
-  permissionMode?: AgentPermissionMode;
+  permissionMode?: ClaudeAgentSdkPermissionMode;
   persistSession?: boolean;
   effort: AgentEffort;
-  settingSources?: AgentSettingSource[];
+  settingSources?: readonly ClaudeAgentSdkSettingSource[];
   pathToClaudeCodeExecutable?: string;
   abortController?: AbortController;
   enableFileCheckpointing?: boolean;
-  onMessage?: (message: AgentMessage) => void | Promise<void>;
+  onMessage?: (message: KotaAgentMessage) => void | Promise<void>;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
   canUseTool?: AgentCanUseTool;
@@ -65,7 +115,7 @@ export type ExecutorResult = {
   isError: boolean;
 };
 
-function extractTextBlocks(blocks?: Array<{ type?: string; text?: string }>): string {
+function extractTextBlocks(blocks?: RawSdkContentBlock[]): string {
   if (!blocks) return "";
   return blocks
     .filter((block) => block.type === "text" && typeof block.text === "string")
@@ -73,55 +123,154 @@ function extractTextBlocks(blocks?: Array<{ type?: string; text?: string }>): st
     .join("");
 }
 
-export function extractText(message: AgentMessage): string {
-  if (message.type === "assistant") {
-    if (message.message && typeof message.message === "object") {
-      return extractTextBlocks(
-        (message.message as { content?: Array<{ type?: string; text?: string }> }).content,
-      );
-    }
-    if ("content" in message && Array.isArray(message.content)) {
-      return extractTextBlocks(message.content);
-    }
-    return "";
-  }
-
+function extractMessageContent(message: RawSdkMessage): RawSdkContentBlock[] {
+  if (Array.isArray(message.content)) return message.content;
   if (
-    "message" in message &&
     message.message &&
     typeof message.message === "object" &&
-    !Array.isArray(message.message)
+    Array.isArray((message.message as { content?: RawSdkContentBlock[] }).content)
   ) {
-    return extractTextBlocks((message.message as { content?: Array<{ type?: string; text?: string }> }).content);
+    return (message.message as { content?: RawSdkContentBlock[] }).content ?? [];
   }
-
-  return "";
+  return [];
 }
 
-export function getSessionId(message: AgentMessage): string | undefined {
-  return message.session_id || message.sessionId;
+export function extractText(message: RawSdkMessage): string {
+  return extractTextBlocks(extractMessageContent(message));
 }
 
-function formatStatusMessage(message: AgentMessage): string | null {
+export function getSessionId(message: RawSdkMessage): string | undefined {
+  return message.session_id ?? message.sessionId;
+}
+
+function extractStatusText(message: RawSdkMessage): string | null {
   if (
     message.type === "auth_status" &&
-    "output" in message &&
     Array.isArray(message.output) &&
     message.output.length > 0
   ) {
     return message.output.join(" ").trim();
   }
-  if ("description" in message && typeof message.description === "string" && message.description) {
+  if (typeof message.description === "string" && message.description) {
     return message.description;
   }
-  if ("tool_name" in message && typeof message.tool_name === "string" && message.tool_name) {
+  if (typeof message.tool_name === "string" && message.tool_name) {
     return `${message.tool_name} running`;
   }
-  if ("message" in message && typeof message.message === "string" && message.message) {
+  if (typeof message.message === "string" && message.message) {
     return message.message;
   }
   const text = extractText(message);
   return text || null;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Normalize one raw SDK frame into one or more KOTA-native `KotaAgentMessage`
+ * envelopes. An assistant frame with mixed content (`thinking`, `text`,
+ * `tool_use`) fans out to one envelope per block so the neutral stream is a
+ * strict discriminated union — no per-variant content arrays. Unrecognized
+ * frame types fall through to a `status` envelope or the explicit `raw`
+ * variant for adapter-specific shapes.
+ */
+function toKotaAgentMessages(message: RawSdkMessage): KotaAgentMessage[] {
+  const sessionId = getSessionId(message);
+  const withSession = <T extends KotaAgentMessage>(value: T): T =>
+    sessionId !== undefined ? { ...value, sessionId } : value;
+
+  if (message.type === "assistant") {
+    const blocks = extractMessageContent(message);
+    const out: KotaAgentMessage[] = [];
+    for (const block of blocks) {
+      if (block.type === "text" && typeof block.text === "string") {
+        out.push(withSession({ type: "text", text: block.text }));
+      } else if (block.type === "thinking" && typeof block.thinking === "string") {
+        out.push(withSession({ type: "thinking", thinking: block.thinking }));
+      } else if (
+        block.type === "tool_use" &&
+        typeof block.id === "string" &&
+        typeof block.name === "string"
+      ) {
+        const input = isPlainRecord(block.input) ? block.input : {};
+        out.push(
+          withSession({
+            type: "tool_call",
+            toolUseId: block.id,
+            toolName: block.name,
+            input,
+          }),
+        );
+      }
+    }
+    return out;
+  }
+
+  if (message.type === "user") {
+    const blocks = extractMessageContent(message);
+    const out: KotaAgentMessage[] = [];
+    for (const block of blocks) {
+      if (
+        block.type === "tool_result" &&
+        typeof block.tool_use_id === "string"
+      ) {
+        const rawContent = block.content;
+        const content =
+          typeof rawContent === "string"
+            ? rawContent
+            : Array.isArray(rawContent)
+              ? JSON.stringify(rawContent)
+              : "";
+        out.push(
+          withSession({
+            type: "tool_result",
+            toolUseId: block.tool_use_id,
+            isError: block.is_error === true,
+            content,
+          }),
+        );
+      }
+    }
+    return out;
+  }
+
+  if (message.type === "result") {
+    const text = typeof message.result === "string" ? message.result : undefined;
+    return [
+      withSession({
+        type: "result",
+        isError:
+          message.is_error === true ||
+          Boolean(message.subtype?.startsWith("error_")),
+        ...(text !== undefined ? { text } : {}),
+        ...(message.subtype !== undefined ? { subtype: message.subtype } : {}),
+        ...(message.num_turns !== undefined ? { numTurns: message.num_turns } : {}),
+        ...(message.total_cost_usd !== undefined
+          ? { totalCostUsd: message.total_cost_usd }
+          : {}),
+        ...(message.usage?.input_tokens !== undefined
+          ? { inputTokens: message.usage.input_tokens }
+          : {}),
+        ...(message.usage?.output_tokens !== undefined
+          ? { outputTokens: message.usage.output_tokens }
+          : {}),
+      }),
+    ];
+  }
+
+  const text = extractStatusText(message);
+  return [
+    withSession({
+      type: "status",
+      category: message.type,
+      ...(message.subtype !== undefined ? { description: message.subtype } : {}),
+      ...(message.tool_name !== undefined ? { toolName: message.tool_name } : {}),
+      ...(message.output !== undefined ? { output: message.output } : {}),
+      ...(text !== null ? { text } : {}),
+    }),
+  ];
 }
 
 export function detectLocalClaudeCodeExecutable(): string | undefined {
@@ -205,7 +354,9 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
     cwd: options.cwd ?? process.cwd(),
     persistSession: options.persistSession,
     effort: options.effort,
-    settingSources: options.settingSources,
+    settingSources: options.settingSources
+      ? [...options.settingSources]
+      : undefined,
     pathToClaudeCodeExecutable:
       options.pathToClaudeCodeExecutable ?? detectLocalClaudeCodeExecutable(),
     abortController: options.abortController,
@@ -217,15 +368,34 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
   };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+/**
+ * Translate KOTA's neutral `decisionAttribution` literals into the
+ * claude-agent-sdk's native `decisionClassification` literals so the SDK
+ * sees the exact wire shape it expects. Adapters that route guards through
+ * the SDK are the only seam where this mapping happens.
+ */
+type SdkDecisionClassification = "user_temporary" | "user_permanent" | "user_reject";
+
+function attributionToSdk(
+  attribution: AgentPermissionResult["decisionAttribution"],
+): SdkDecisionClassification | undefined {
+  switch (attribution) {
+    case "operator-allow-once":
+      return "user_temporary";
+    case "operator-allow-always":
+      return "user_permanent";
+    case "operator-deny":
+      return "user_reject";
+    case undefined:
+      return undefined;
+  }
 }
 
 export function normalizePermissionResult(
   result: AgentPermissionResult,
   input: Record<string, unknown>,
 ): AgentPermissionResult {
-  if (!isRecord(result)) {
+  if (!isPlainRecord(result)) {
     throw new Error("SDK permission callback must return a permission decision object");
   }
   const behavior = result.behavior;
@@ -233,7 +403,7 @@ export function normalizePermissionResult(
   if (behavior === "allow") {
     return {
       ...result,
-      updatedInput: isRecord(result.updatedInput) ? result.updatedInput : input,
+      updatedInput: isPlainRecord(result.updatedInput) ? result.updatedInput : input,
     };
   }
 
@@ -253,13 +423,51 @@ function normalizeCanUseTool(
   if (!canUseTool) return undefined;
   // The neutral `AgentCanUseTool` is structurally compatible with the SDK's
   // `CanUseTool` (same callsite contract — `(toolName, input, context) =>
-  // Promise<PermissionResult>`); the adapter is the only place that bridges
-  // the two type names, so the cast happens here once.
-  return (async (toolName, input, callbackOptions) =>
-    normalizePermissionResult(
-      await canUseTool(toolName, input, callbackOptions),
-      input,
-    )) as SDKQueryOptions["canUseTool"];
+  // Promise<PermissionResult>`); the adapter bridges field names
+  // (`toolUseId` ↔ `toolUseID`, `decisionAttribution` ↔
+  // `decisionClassification`) at this single seam.
+  return (async (toolName, input, callbackOptions) => {
+    const sdkContext = callbackOptions as {
+      signal: AbortSignal;
+      suggestions?: unknown[];
+      blockedPath?: string;
+      decisionReason?: string;
+      title?: string;
+      displayName?: string;
+      description?: string;
+      toolUseID: string;
+      agentID?: string;
+    };
+    const decision = await canUseTool(toolName, input, {
+      signal: sdkContext.signal,
+      suggestions: sdkContext.suggestions,
+      blockedPath: sdkContext.blockedPath,
+      decisionReason: sdkContext.decisionReason,
+      title: sdkContext.title,
+      displayName: sdkContext.displayName,
+      description: sdkContext.description,
+      toolUseId: sdkContext.toolUseID,
+      agentId: sdkContext.agentID,
+    });
+    const normalized = normalizePermissionResult(decision, input);
+    const sdkResult: Record<string, unknown> = { ...normalized };
+    if ("toolUseId" in sdkResult) {
+      sdkResult.toolUseID = sdkResult.toolUseId;
+      delete sdkResult.toolUseId;
+    }
+    if ("decisionAttribution" in sdkResult) {
+      const sdkAttribution = attributionToSdk(
+        normalized.decisionAttribution,
+      );
+      if (sdkAttribution !== undefined) {
+        sdkResult.decisionClassification = sdkAttribution;
+      }
+      delete sdkResult.decisionAttribution;
+    }
+    return sdkResult as ReturnType<NonNullable<SDKQueryOptions["canUseTool"]>> extends Promise<infer R>
+      ? R
+      : never;
+  }) as SDKQueryOptions["canUseTool"];
 }
 
 export async function executeWithAgentSDK(
@@ -271,7 +479,7 @@ export async function executeWithAgentSDK(
   const queryOptions = buildQueryOptions(options);
 
   const streamedChunks: string[] = [];
-  let resultMessage: AgentResultMessage | undefined;
+  let resultMessage: RawSdkMessage | undefined;
   let sessionId: string | undefined;
   let turns = 0;
   const abortSignal = options.abortController?.signal;
@@ -280,13 +488,19 @@ export async function executeWithAgentSDK(
     throw reason instanceof Error ? reason : new Error("Agent execution aborted");
   }
 
-  for await (const message of sdkQuery({ prompt, options: queryOptions })) {
+  for await (const rawMessage of sdkQuery({ prompt, options: queryOptions })) {
     if (abortSignal?.aborted) {
       const reason = abortSignal.reason;
       throw reason instanceof Error ? reason : new Error("Agent execution aborted");
     }
 
-    await options.onMessage?.(message);
+    const message = rawMessage as RawSdkMessage;
+
+    if (options.onMessage) {
+      for (const frame of toKotaAgentMessages(message)) {
+        await options.onMessage(frame);
+      }
+    }
 
     const messageSessionId = getSessionId(message);
     if (messageSessionId) sessionId = messageSessionId;
@@ -315,8 +529,8 @@ export async function executeWithAgentSDK(
     }
 
     if (options.verbose) {
-      const statusMessage = formatStatusMessage(message);
-      if (statusMessage) process.stderr.write(`[agent-sdk] ${statusMessage}\n`);
+      const statusText = extractStatusText(message);
+      if (statusText) process.stderr.write(`[agent-sdk] ${statusText}\n`);
     }
   }
 

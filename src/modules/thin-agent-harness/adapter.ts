@@ -33,6 +33,24 @@ function rejectUnsupportedToolOptions(options: AgentHarnessRunOptions): void {
       'The "thin" agent harness is text-only; it has no tool loop for canUseTool to guard.',
     );
   }
+  if (options.autonomyMode === "supervised") {
+    throw new Error(
+      'The "thin" agent harness has no tool loop and cannot route calls through the operator approval queue. ' +
+        'Use autonomyMode "autonomous" or "passive", or run a tool-capable harness.',
+    );
+  }
+  if (options.harnessOverrides !== undefined) {
+    throw new Error(
+      'The "thin" agent harness does not accept per-step harnessOptions. ' +
+        "Drop harnessOptions[\"thin\"] or run an adapter that validates them.",
+    );
+  }
+  if (options.onMessage !== undefined) {
+    throw new Error(
+      'The "thin" agent harness does not emit KotaAgentMessage frames. ' +
+        "Drop onMessage or run a tool-capable harness.",
+    );
+  }
 }
 
 function extractText(message: KotaModelResponse): string {

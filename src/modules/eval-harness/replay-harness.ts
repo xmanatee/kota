@@ -22,7 +22,7 @@ import type {
   AgentHarness,
   AgentHarnessResult,
   AgentHarnessRunOptions,
-  AgentMessage,
+  KotaAgentMessage,
 } from "#core/agent-harness/types.js";
 import {
   type AgentStepFileOperation,
@@ -224,25 +224,35 @@ export function createReplayAgentHarness(recordingsRoot: string): AgentHarness {
       );
       stageReplayMutations(cwd, mutatedPaths);
 
-      // Emit a synthetic AgentMessage stream frame so the agent-step
+      // Emit a synthetic KotaAgentMessage stream frame so the agent-step
       // executor's tool-telemetry tracker and run-artifact appender see a
       // result message. Callers rely on `emitsAgentMessageStream: true` to
       // subscribe; skipping the emission would leave the run-level
       // message log empty in ways production never produces.
       if (options.onMessage) {
-        const resultMessage: AgentMessage = {
+        const resultMessage: KotaAgentMessage = {
           type: "result",
-          subtype: recording.response.subtype,
-          result: recording.response.text,
-          total_cost_usd: recording.response.totalCostUsd,
-          num_turns: recording.response.turns,
-          is_error: false,
-          usage: {
-            input_tokens: recording.response.inputTokens,
-            output_tokens: recording.response.outputTokens,
-          },
+          isError: false,
+          ...(recording.response.subtype !== undefined && {
+            subtype: recording.response.subtype,
+          }),
+          ...(recording.response.text !== undefined && {
+            text: recording.response.text,
+          }),
+          ...(recording.response.totalCostUsd !== undefined && {
+            totalCostUsd: recording.response.totalCostUsd,
+          }),
+          ...(recording.response.turns !== undefined && {
+            numTurns: recording.response.turns,
+          }),
+          ...(recording.response.inputTokens !== undefined && {
+            inputTokens: recording.response.inputTokens,
+          }),
+          ...(recording.response.outputTokens !== undefined && {
+            outputTokens: recording.response.outputTokens,
+          }),
           ...(recording.response.sessionId !== undefined && {
-            session_id: recording.response.sessionId,
+            sessionId: recording.response.sessionId,
           }),
         };
         await options.onMessage(resultMessage);

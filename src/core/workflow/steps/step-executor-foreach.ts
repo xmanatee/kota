@@ -1,4 +1,4 @@
-import type { AgentMessage } from "#core/agent-harness/types.js";
+import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
 import { buildStepCompletedPayload, buildStepStartedPayload, resolveStepAutonomyMode } from "../event-payloads.js";
@@ -111,7 +111,7 @@ async function executeInnerStep(
             deps.run.metadata,
             deps.trigger,
             stepAbortController,
-            (message: AgentMessage) => deps.run.appendAgentMessage(innerStep.id, message),
+            (message: KotaAgentMessage) => deps.run.appendAgentMessage(innerStep.id, message),
             (systemPromptAppend: string | undefined, prompt: string) =>
               deps.run.writeAgentInputs(innerStep.id, systemPromptAppend, prompt),
             deps.agentConfig,

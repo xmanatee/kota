@@ -9,11 +9,12 @@
  * agents use the same model rather than ad hoc prompt conventions scattered
  * across workflow files.
  *
- * Claude-agent-sdk-specific per-run options (permissionMode, settingSources)
- * live on the step's `harnessOptions["claude-agent-sdk"]` carve-out in
- * `#core/workflow/types.js` and are only interpreted by the claude-agent-sdk
- * harness. They are not a property of the agent itself — an agent may run on
- * any registered harness.
+ * Adapter-private per-run options (e.g. claude-agent-sdk's permission and
+ * setting fields, future Codex CLI flags) live on the step's
+ * `harnessOptions[<harness>]` carve-out in `#core/workflow/types.js` and
+ * are only interpreted by the matching harness adapter. They are not a
+ * property of the agent itself — an agent may run on any registered
+ * harness.
  */
 
 /**

@@ -2,12 +2,17 @@ import type {
   AgentHarness,
   AgentHarnessResult,
   AgentHarnessRunOptions,
+  AgentHarnessStepOverrides,
   AgentHarnessWriter,
   AgentMcpServers,
-  AgentPermissionMode,
-  AgentSettingSource,
 } from "#core/agent-harness/index.js";
-import type { ClaudeAgentMcpServers } from "./executor.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type {
+  ClaudeAgentMcpServers,
+  ClaudeAgentSdkPermissionMode,
+  ClaudeAgentSdkSettingSource,
+  ClaudeAgentSdkStepOverrides,
+} from "./executor.js";
 import { executeWithAgentSDK } from "./executor.js";
 import {
   createOwnerQuestionMcpServers,
@@ -18,13 +23,13 @@ import type { SDKSystemPrompt } from "./sdk-types.js";
 
 export const CLAUDE_AGENT_HARNESS_NAME = "claude-agent-sdk";
 
-const VALID_CLAUDE_SDK_PERMISSION_MODES: readonly AgentPermissionMode[] = [
+const VALID_CLAUDE_SDK_PERMISSION_MODES: readonly ClaudeAgentSdkPermissionMode[] = [
   "default",
   "acceptEdits",
   "dontAsk",
   "bypassPermissions",
 ];
-const VALID_CLAUDE_SDK_SETTING_SOURCES: readonly AgentSettingSource[] = [
+const VALID_CLAUDE_SDK_SETTING_SOURCES: readonly ClaudeAgentSdkSettingSource[] = [
   "project",
   "local",
   "user",
@@ -33,7 +38,7 @@ const CLAUDE_STEP_OPTION_KEYS = ["permissionMode", "settingSources"] as const;
 
 function validateClaudeSdkStepOptions(
   raw: unknown,
-): Partial<AgentHarnessRunOptions> | undefined {
+): AgentHarnessStepOverrides {
   if (raw === undefined) return undefined;
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new Error("must be an object");
@@ -47,7 +52,7 @@ function validateClaudeSdkStepOptions(
     );
   }
 
-  const out: Partial<AgentHarnessRunOptions> = {};
+  const out: ClaudeAgentSdkStepOverrides = {};
 
   if (value.permissionMode !== undefined) {
     if (typeof value.permissionMode !== "string") {
@@ -55,33 +60,35 @@ function validateClaudeSdkStepOptions(
     }
     if (
       !VALID_CLAUDE_SDK_PERMISSION_MODES.includes(
-        value.permissionMode as AgentPermissionMode,
+        value.permissionMode as ClaudeAgentSdkPermissionMode,
       )
     ) {
       throw new Error(
         `permissionMode must be one of ${VALID_CLAUDE_SDK_PERMISSION_MODES.join(", ")}`,
       );
     }
-    out.permissionMode = value.permissionMode as AgentPermissionMode;
+    out.permissionMode = value.permissionMode as ClaudeAgentSdkPermissionMode;
   }
 
   if (value.settingSources !== undefined) {
     if (!Array.isArray(value.settingSources)) {
       throw new Error("settingSources must be an array of strings");
     }
-    const normalized: AgentSettingSource[] = [];
+    const normalized: ClaudeAgentSdkSettingSource[] = [];
     for (const source of value.settingSources) {
       if (typeof source !== "string" || !source.trim()) {
         throw new Error("settingSources must be an array of non-empty strings");
       }
       if (
-        !VALID_CLAUDE_SDK_SETTING_SOURCES.includes(source as AgentSettingSource)
+        !VALID_CLAUDE_SDK_SETTING_SOURCES.includes(
+          source as ClaudeAgentSdkSettingSource,
+        )
       ) {
         throw new Error(
           `settingSources entries must be one of ${VALID_CLAUDE_SDK_SETTING_SOURCES.join(", ")}`,
         );
       }
-      normalized.push(source as AgentSettingSource);
+      normalized.push(source as ClaudeAgentSdkSettingSource);
     }
     out.settingSources = normalized;
   }
@@ -92,13 +99,37 @@ function validateClaudeSdkStepOptions(
   return out;
 }
 
-const DEFAULT_SETTING_SOURCES: NonNullable<AgentHarnessRunOptions["settingSources"]> = ["project"];
-// Workflow agent steps ran by this adapter skip the SDK permission prompt
-// unless the step explicitly opts into a stricter mode via its
-// `harnessOptions["claude-agent-sdk"].permissionMode` override. Declared
-// inside the adapter so the neutral step protocol stays harness-free.
-const DEFAULT_PERMISSION_MODE: NonNullable<AgentHarnessRunOptions["permissionMode"]> =
-  "bypassPermissions";
+const DEFAULT_SETTING_SOURCES: readonly ClaudeAgentSdkSettingSource[] = ["project"];
+
+/**
+ * Translate KOTA's autonomy posture into the claude-agent-sdk's native
+ * `permissionMode` knob. The mapping mirrors the historical executor
+ * defaults: `autonomous` runs without permission prompts, `passive` runs
+ * the SDK's interactive permission UX so the agent must ask before any
+ * write, and `supervised` is rejected because the SDK has no native
+ * "queue every call through the operator approval queue" mode.
+ */
+function autonomyModeToPermissionMode(
+  mode: AutonomyMode,
+): ClaudeAgentSdkPermissionMode {
+  switch (mode) {
+    case "autonomous":
+      return "bypassPermissions";
+    case "passive":
+      return "default";
+    case "supervised":
+      throw new Error(
+        'The "claude-agent-sdk" agent harness cannot route tool calls through the operator approval queue. ' +
+          "Use autonomyMode \"autonomous\" or \"passive\" instead.",
+      );
+  }
+}
+
+function isClaudeStepOverrides(
+  value: AgentHarnessStepOverrides,
+): value is ClaudeAgentSdkStepOverrides {
+  return typeof value === "object" && value !== null;
+}
 
 function mergeOwnerQuestionsMcpServer(
   existing: AgentMcpServers | undefined,
@@ -151,28 +182,44 @@ export const claudeAgentHarness: AgentHarness = {
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,
   ): Promise<AgentHarnessResult> {
-    const { prompt, askOwner, settingSources, permissionMode, systemPrompt, ...rest } = options;
+    const {
+      prompt,
+      askOwner,
+      systemPrompt,
+      autonomyMode,
+      harnessOverrides,
+      mcpServers: callerMcpServers,
+      ...rest
+    } = options;
     // Neutral transport entries (`stdio | sse | http`) are structurally
     // compatible with the SDK's same-named shapes apart from a stricter
     // `tools?` element type; the adapter is the only place the two views
     // meet, so the widening cast sits here once.
     const mcpServers: ClaudeAgentMcpServers | undefined = askOwner
-      ? mergeOwnerQuestionsMcpServer(rest.mcpServers, askOwner.source)
-      : (rest.mcpServers as ClaudeAgentMcpServers | undefined);
+      ? mergeOwnerQuestionsMcpServer(callerMcpServers, askOwner.source)
+      : (callerMcpServers as ClaudeAgentMcpServers | undefined);
+
+    const claudeOverrides = isClaudeStepOverrides(harnessOverrides)
+      ? harnessOverrides
+      : undefined;
+    // Per-step `harnessOptions["claude-agent-sdk"].permissionMode` wins when
+    // present; otherwise translate KOTA's autonomy posture to the SDK's
+    // native permission knob. Callers that omit `autonomyMode` get the
+    // adapter's default ("autonomous"), preserving the historical behavior
+    // of the bare `harness.run({ prompt })` call.
+    const permissionMode =
+      claudeOverrides?.permissionMode ??
+      autonomyModeToPermissionMode(autonomyMode ?? "autonomous");
+    const settingSources = claudeOverrides?.settingSources ?? DEFAULT_SETTING_SOURCES;
+
     return executeWithAgentSDK(
       prompt,
       {
         ...rest,
         mcpServers,
         systemPrompt: wrapSystemPromptForClaudeSDK(systemPrompt),
-        // Claude-SDK default: load project settings. Explicit caller values
-        // (including an empty array meaning "load nothing") win.
-        settingSources: settingSources ?? DEFAULT_SETTING_SOURCES,
-        // Workflow steps omit permissionMode on the neutral step shape; the
-        // adapter applies the workflow-agent default here so autonomy
-        // definitions do not re-state the field. Explicit caller values
-        // (including `"default"` from passive autonomy mode) still win.
-        permissionMode: permissionMode ?? DEFAULT_PERMISSION_MODE,
+        settingSources,
+        permissionMode,
       },
       writer,
     );

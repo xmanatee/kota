@@ -1,4 +1,4 @@
-import type { AgentMessage } from "#core/agent-harness/types.js";
+import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
 import { DEFAULT_STEP_TIMEOUT_MS } from "../run-executor-step.js";
 import type { WorkflowStepContext, WorkflowStepResult, WorkflowStepSkipReason } from "../run-types.js";
@@ -112,7 +112,7 @@ export async function executeParallelStepGroup(
               agentDeps.run.metadata,
               agentDeps.trigger,
               stepAbortController,
-              (message: AgentMessage) => agentDeps.run.appendAgentMessage(childStep.id, message),
+              (message: KotaAgentMessage) => agentDeps.run.appendAgentMessage(childStep.id, message),
               (systemPromptAppend: string | undefined, prompt: string) =>
                 agentDeps.run.writeAgentInputs(childStep.id, systemPromptAppend, prompt),
               agentDeps.agentConfig,

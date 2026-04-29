@@ -252,7 +252,7 @@ export async function invokeAgentJudge(
           maxTurns: config.maxTurns,
           effort: config.effort,
           disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
-          permissionMode: "bypassPermissions",
+          autonomyMode: "autonomous",
           canUseTool: createWorkflowAgentGuards(),
         },
         {

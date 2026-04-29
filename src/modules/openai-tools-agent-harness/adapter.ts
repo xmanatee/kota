@@ -41,20 +41,17 @@ function isTextBlock(block: KotaContentBlock): block is KotaTextBlock {
   return block.type === "text";
 }
 
-function rejectClaudeSpecificOptions(options: AgentHarnessRunOptions): void {
+function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
   if (options.mcpServers && Object.keys(options.mcpServers).length > 0) {
     throw new Error(
       'The "openai-tools" agent harness does not host MCP servers. Drop mcpServers ' +
         "or run the claude-agent-sdk harness which proxies them through the SDK.",
     );
   }
-  if (
-    options.permissionMode !== undefined &&
-    options.permissionMode !== "bypassPermissions"
-  ) {
+  if (options.autonomyMode === "supervised") {
     throw new Error(
-      `The "openai-tools" agent harness has no native permission UX; permissionMode "${options.permissionMode}" is unsupported. ` +
-        "Use canUseTool / allowedTools / disallowedTools for gating, or run claude-agent-sdk.",
+      'The "openai-tools" agent harness cannot route tool calls through the operator approval queue. ' +
+        'Use autonomyMode "autonomous" or "passive", or run claude-agent-sdk.',
     );
   }
   if (options.persistSession === true) {
@@ -63,10 +60,10 @@ function rejectClaudeSpecificOptions(options: AgentHarnessRunOptions): void {
         "Drop persistSession or run claude-agent-sdk for native session resumption.",
     );
   }
-  if (options.settingSources && options.settingSources.length > 0) {
+  if (options.harnessOverrides !== undefined) {
     throw new Error(
-      'The "openai-tools" agent harness ignores claude-agent-sdk settingSources. ' +
-        "Drop settingSources or run claude-agent-sdk.",
+      'The "openai-tools" agent harness does not accept per-step harnessOptions. ' +
+        "Drop harnessOptions[\"openai-tools\"] or run an adapter that validates them.",
     );
   }
   if (options.enableFileCheckpointing === true) {
@@ -83,7 +80,7 @@ function rejectClaudeSpecificOptions(options: AgentHarnessRunOptions): void {
   }
   if (options.onMessage !== undefined) {
     throw new Error(
-      'The "openai-tools" agent harness does not emit AgentMessage frames. ' +
+      'The "openai-tools" agent harness does not emit KotaAgentMessage frames. ' +
         "Drop onMessage or run claude-agent-sdk.",
     );
   }
@@ -208,7 +205,7 @@ async function dispatchToolCall(
     const decision = await options.canUseTool(call.name, validatedInput, {
       signal: abortController.signal,
       suggestions: [],
-      toolUseID: call.id,
+      toolUseId: call.id,
     });
     if (decision.behavior === "deny") {
       const denial: DenialOutcome = {
@@ -271,7 +268,7 @@ async function runOpenaiToolsLoop(
   options: AgentHarnessRunOptions,
   writer?: AgentHarnessWriter,
 ): Promise<AgentHarnessResult> {
-    rejectClaudeSpecificOptions(options);
+    rejectUnsupportedOptions(options);
     checkAborted(options.abortController?.signal);
 
     if (!options.model) {

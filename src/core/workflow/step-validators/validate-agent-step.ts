@@ -4,7 +4,7 @@ import {
   listAgentHarnessNames,
   resolveAgentHarness,
 } from "#core/agent-harness/registry.js";
-import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
+import type { AgentHarnessStepOverrides } from "#core/agent-harness/types.js";
 import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
   WorkflowRepairLoopConfig,
@@ -323,7 +323,7 @@ function validateHarnessOptions(
   harnessName: string,
   stepLabel: string,
   definitionPath: string,
-): Record<string, Partial<AgentHarnessRunOptions>> | undefined {
+): Record<string, AgentHarnessStepOverrides> | undefined {
   if (value === undefined) return undefined;
   if (!isPlainObject(value)) {
     throw new WorkflowDefinitionError(
@@ -371,7 +371,7 @@ function validateHarnessOptions(
     );
   }
 
-  let validated: Partial<AgentHarnessRunOptions> | undefined;
+  let validated: AgentHarnessStepOverrides;
   try {
     validated = harness.validateStepOptions(value[key]);
   } catch (err) {
