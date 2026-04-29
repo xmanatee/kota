@@ -1,12 +1,12 @@
 ---
 id: task-add-built-cli-daemon-smoke-coverage-for-provider-b
 title: Add built CLI daemon smoke coverage for provider-backed routes
-status: ready
+status: done
 priority: p0
 area: testing
 summary: Add deterministic coverage that builds or invokes the shipped CLI daemon command and verifies provider-backed HTTP routes fail or pass for the right reasons, so direct new Daemon tests cannot mask commandsOnly startup bugs again.
 created_at: 2026-04-28T22:35:13.394Z
-updated_at: 2026-04-28T22:35:13.394Z
+updated_at: 2026-04-29T00:55:09.724Z
 ---
 
 ## Problem
