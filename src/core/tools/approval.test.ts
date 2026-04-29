@@ -37,7 +37,8 @@ describe("approval tool", () => {
 
 	it("has correct registration metadata", () => {
 		expect(registration.tool.name).toBe("approval");
-		expect(registration.risk).toBe("safe");
+		expect(registration.effect.kind).toBe("write");
+		expect(registration.effect.scope).toBe("daemon-state");
 		expect(registration.group).toBe("management");
 	});
 

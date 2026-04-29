@@ -1,4 +1,5 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { queryOS, queryResources, queryRuntimes, queryServices } from "./env-probes.js";
 
@@ -58,6 +59,5 @@ export async function runEnvInfo(
 export const registration = {
 	tool: envInfoTool,
 	runner: runEnvInfo,
-	risk: "safe" as const,
-	kind: "discovery" as const,
+	effect: legacyEffect({ risk: "safe", kind: "discovery" }),
 };

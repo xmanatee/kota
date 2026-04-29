@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { riskFromEffect } from "./effect.js";
 import { clearCustomTools, deregisterModuleTools, executeTool, getAllTools, getCoreRegistrations, getRegisteredTools, registerTool } from "./index.js";
 
 const makeTool = (name: string) => ({
@@ -56,12 +57,14 @@ describe("getCoreRegistrations", () => {
     expect(regs).toHaveLength(10);
   });
 
-  it("each registration has tool, runner, and risk", () => {
+  it("each registration has tool, runner, and effect", () => {
     for (const reg of getCoreRegistrations()) {
       expect(reg.tool).toBeDefined();
       expect(typeof reg.tool.name).toBe("string");
       expect(typeof reg.runner).toBe("function");
-      expect(["safe", "moderate", "dangerous"]).toContain(reg.risk);
+      expect(reg.effect).toBeDefined();
+      expect(["read", "write", "destructive"]).toContain(reg.effect.kind);
+      expect(["safe", "moderate", "dangerous"]).toContain(riskFromEffect(reg.effect));
     }
   });
 
@@ -76,7 +79,7 @@ describe("getCoreRegistrations", () => {
 
   it("safe tools have read-only or coordination semantics", () => {
     const safeNames = getCoreRegistrations()
-      .filter((r) => r.risk === "safe")
+      .filter((r) => riskFromEffect(r.effect) === "safe")
       .map((r) => r.tool.name)
       .sort();
     expect(safeNames).toContain("ask_user");

@@ -6,6 +6,7 @@
  * in the `management` group and the `/api/history` HTTP routes.
  */
 
+
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import {
@@ -13,6 +14,7 @@ import {
 	HISTORY_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
 import type { HistoryClient } from "#core/server/kota-client.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import { createHistoryReadinessSource } from "./capability-readiness.js";
 import {
 	conversationRecallTool,
@@ -31,8 +33,7 @@ const historyModule: KotaModule = {
 		{
 			tool: conversationRecallTool,
 			runner: runConversationRecall,
-			risk: "safe",
-			kind: "discovery",
+			effect: legacyEffect({ risk: "safe", kind: "discovery" }),
 			group: "management",
 		},
 	],

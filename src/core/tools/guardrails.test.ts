@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { legacyEffect, riskFromEffect } from "./effect.js";
 import {
   assess,
   classifyRisk,
@@ -29,7 +30,7 @@ describe("classifyRisk", () => {
       { name: "ext_readonly", description: "read-only ext tool", input_schema: { type: "object", properties: {} } },
       async () => ({ content: "ok" }),
       "test-module",
-      { risk: "safe", kind: "discovery" },
+      { effect: legacyEffect({ risk: "safe", kind: "discovery" }), },
     );
     const { risk } = classifyRisk("ext_readonly", {});
     expect(risk).toBe("safe");
@@ -40,7 +41,7 @@ describe("classifyRisk", () => {
       { name: "ext_mutate", description: "mutating ext tool", input_schema: { type: "object", properties: {} } },
       async () => ({ content: "ok" }),
       "test-module",
-      { risk: "dangerous", kind: "action" },
+      { effect: legacyEffect({ risk: "dangerous", kind: "action" }), },
     );
     const { risk } = classifyRisk("ext_mutate", {});
     expect(risk).toBe("dangerous");
@@ -284,7 +285,7 @@ describe("sanitizeGuardrailsConfig", () => {
 
 describe("registry-derived risk", () => {
   it("safe registrations are classified as safe by guardrails", () => {
-    const safeRegs = getCoreRegistrations().filter((r) => r.risk === "safe");
+    const safeRegs = getCoreRegistrations().filter((r) => riskFromEffect(r.effect) === "safe");
     expect(safeRegs.length).toBeGreaterThan(0);
     for (const reg of safeRegs) {
       const { risk } = classifyRisk(reg.tool.name, {});
@@ -293,7 +294,7 @@ describe("registry-derived risk", () => {
   });
 
   it("moderate registrations are classified as moderate by guardrails (with benign input)", () => {
-    const moderateRegs = getCoreRegistrations().filter((r) => r.risk === "moderate");
+    const moderateRegs = getCoreRegistrations().filter((r) => riskFromEffect(r.effect) === "moderate");
     expect(moderateRegs.length).toBeGreaterThan(0);
     for (const reg of moderateRegs) {
       // Use benign input that won't trigger dangerous-content patterns

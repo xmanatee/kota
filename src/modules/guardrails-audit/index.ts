@@ -6,10 +6,12 @@
  * `kota audit` CLI subcommands and the `audit` KotaClient namespace.
  */
 
+
 import { Command } from "commander";
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
 import type { AuditClient } from "#core/server/kota-client.js";
 import { initAuditStore, resetAuditStore } from "#core/tools/audit-store.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import type { Policy, RiskLevel } from "#core/tools/guardrails.js";
 import { auditControlRoutes } from "./audit-control-routes.js";
 import { listAuditEntries } from "./audit-operations.js";
@@ -21,8 +23,7 @@ const tools: ToolDef[] = [
 	{
 		tool: auditTool,
 		runner: runAudit,
-		risk: "safe",
-		kind: "action",
+		effect: legacyEffect({ risk: "safe", kind: "action" }),
 		group: "management",
 	},
 ];

@@ -15,6 +15,7 @@ import {
   getExecuteToolSet,
   getExploreToolSet,
 } from "#core/agents/delegate-prompts.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import type { McpManager } from "./core/mcp/manager.js";
 import { type DelegateConfig, setDelegateConfig } from "./core/tools/delegate.js";
 import { clearCustomTools, getAllTools, registerTool } from "./core/tools/index.js";
@@ -60,7 +61,7 @@ function registerStubModuleTools(): void {
         { name, description: `stub: ${name}`, input_schema: { type: "object", properties: {} } },
         async () => ({ content: "stub" }),
         "test",
-        { risk: "safe", kind: "discovery" },
+        { effect: legacyEffect({ risk: "safe", kind: "discovery" }), },
       );
     }
   }

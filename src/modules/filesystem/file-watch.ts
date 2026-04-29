@@ -96,10 +96,3 @@ export async function runFileWatch(
 	}
 }
 
-export const registration = {
-	tool: fileWatchTool,
-	runner: runFileWatch,
-	risk: "moderate" as const,
-	kind: "action" as const,
-	group: "management",
-};

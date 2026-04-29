@@ -5,6 +5,7 @@
 import type { KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
 import { type CodeLanguage, runCode } from "#core/tools/code-runner.js";
+import { localWriteEffect } from "#core/tools/effect.js";
 import type { ManifestToolDef, ModuleManifest } from "./types.js";
 
 // ─── Tool runner builder ─────────────────────────────────────────────
@@ -33,8 +34,7 @@ export function manifestToModule(manifest: ModuleManifest): KotaModule {
 		},
 		runner: buildToolRunner(t),
 		group: t.group,
-		risk: "moderate",
-		kind: "action",
+		effect: localWriteEffect(),
 	}));
 
 	return {

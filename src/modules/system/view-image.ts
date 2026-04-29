@@ -3,6 +3,7 @@ import { copyFileSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { extname, join, resolve } from "node:path";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
 export const viewImageTool: KotaTool = {
@@ -168,7 +169,6 @@ function tryResize(srcPath: string, ext: string): string {
 export const registration = {
 	tool: viewImageTool,
 	runner: runViewImage,
-	risk: "safe" as const,
-	kind: "discovery" as const,
+	effect: legacyEffect({ risk: "safe", kind: "discovery" }),
 	group: "gui",
 };

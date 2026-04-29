@@ -31,10 +31,9 @@ describe("retract tool — schema", () => {
     expect(props.path).toBeDefined();
   });
 
-  it("declares destructive risk on the ToolDef", () => {
+  it("declares a destructive effect on the ToolDef", () => {
     const def = createRetractToolDef(() => new RetractProviderImpl());
-    expect(def.risk).toBe("dangerous");
-    expect(def.kind).toBe("action");
+    expect(def.effect.kind).toBe("destructive");
   });
 });
 

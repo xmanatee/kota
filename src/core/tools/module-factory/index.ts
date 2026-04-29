@@ -4,6 +4,7 @@
  * Implementation split into: definition, state, actions, logs.
  */
 
+import { localWriteEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { handleCreate, handleInfo, handleList, handleRemove } from "./actions.js";
 import { moduleFactoryTool } from "./definition.js";
@@ -45,6 +46,5 @@ export async function runModuleFactory(
 export const registration = {
 	tool: moduleFactoryTool,
 	runner: runModuleFactory,
-	risk: "moderate" as const,
-	kind: "action" as const,
+	effect: localWriteEffect(),
 };

@@ -6,15 +6,16 @@
  *   read_document — extract plain text from document files
  */
 
+
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import { readDocumentTool, runReadDocument } from "./read-document.js";
 
 const tools: ToolDef[] = [
   {
     tool: readDocumentTool,
     runner: runReadDocument,
-    risk: "safe",
-    kind: "discovery",
+    effect: legacyEffect({ risk: "safe", kind: "discovery" }),
   },
 ];
 

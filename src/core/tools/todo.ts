@@ -1,6 +1,7 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { Task, TaskPriority } from "#core/daemon/task-store.js";
 import { getTaskProvider } from "#core/modules/provider-registry.js";
+import { sessionWriteEffect } from "./effect.js";
 import type { ToolResult } from "./index.js";
 
 export type Priority = TaskPriority;
@@ -184,7 +185,6 @@ export function getTodoState(): string {
 export const registration = {
 	tool: todoTool,
 	runner: runTodo,
-	risk: "safe" as const,
-	kind: "action" as const,
+	effect: sessionWriteEffect(),
 	group: "management",
 };

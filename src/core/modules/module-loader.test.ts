@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredConfigSlices, type ModuleConfigSlice } from "#core/config/config-slice.js";
 import { EventBus } from "#core/events/event-bus.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import { clearCustomTools, executeTool, getAllTools } from "#core/tools/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "#core/tools/tool-groups.js";
 import { ModuleLoader } from "./module-loader.js";
@@ -28,8 +29,10 @@ function makeTool(name: string, opts?: { risk?: "safe" | "moderate" | "dangerous
       input_schema: { type: "object" as const, properties: {} },
     },
     runner: async () => ({ content: `result from ${name}` }),
-    risk: opts?.risk ?? ("safe" as const),
-    kind: opts?.kind ?? ("discovery" as const),
+    effect: legacyEffect({
+      risk: opts?.risk ?? "safe",
+      kind: opts?.kind ?? "discovery",
+    }),
   };
 }
 
@@ -92,24 +95,14 @@ describe("ModuleLoader", () => {
     expect(after.some((t) => t.name === "grouped_tool")).toBe(true);
   });
 
-  it("rejects a tool missing risk metadata", async () => {
+  it("rejects a tool missing effect metadata", async () => {
     const loader = new ModuleLoader({});
     const mod: KotaModule = {
-      name: "no-risk-mod",
-      tools: [makeToolWithoutMeta("no_risk_tool") as any],
+      name: "no-effect-mod",
+      tools: [makeToolWithoutMeta("no_effect_tool") as any],
     };
 
-    await expect(loader.load(mod)).rejects.toThrow("missing required metadata: risk, kind");
-  });
-
-  it("rejects a tool missing kind metadata", async () => {
-    const loader = new ModuleLoader({});
-    const mod: KotaModule = {
-      name: "no-kind-mod",
-      tools: [{ ...makeToolWithoutMeta("no_kind_tool"), risk: "safe" } as any],
-    };
-
-    await expect(loader.load(mod)).rejects.toThrow("missing required metadata: kind");
+    await expect(loader.load(mod)).rejects.toThrow("missing required metadata: effect");
   });
 
   it("loads a tool with complete metadata", async () => {
@@ -733,8 +726,7 @@ describe("source reimport", () => {
         tools: [{
           tool: { name: "disk_tool", description: "disk tool", input_schema: { type: "object", properties: {} } },
           runner: async () => ({ content: "v1" }),
-          risk: "safe",
-          kind: "discovery",
+          effect: { kind: "read", scope: "local-fs", idempotent: true, openWorld: false },
         }],
       };`,
     );
@@ -759,8 +751,7 @@ describe("source reimport", () => {
         tools: [{
           tool: { name: "disk_tool", description: "disk tool", input_schema: { type: "object", properties: {} } },
           runner: async () => ({ content: "v2" }),
-          risk: "safe",
-          kind: "discovery",
+          effect: { kind: "read", scope: "local-fs", idempotent: true, openWorld: false },
         }],
       };`,
     );
@@ -1142,7 +1133,7 @@ describe("ctx.callTool — direct tool invocation", () => {
           input_schema: { type: "object" as const, properties: {} },
         },
         runner: async () => { throw new Error("boom"); },
-        risk: "safe" as const, kind: "discovery" as const,
+        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
       }],
     });
 
@@ -1172,7 +1163,7 @@ describe("ctx.callTool — direct tool invocation", () => {
             input_schema: { type: "object" as const, properties: {} },
           },
           runner: async () => ctx.callTool("recursive_tool", {}),
-          risk: "safe" as const, kind: "discovery" as const,
+          effect: legacyEffect({ risk: "safe", kind: "discovery" }),
         }];
       },
     });
@@ -1215,7 +1206,7 @@ describe("ctx.callTool — direct tool invocation", () => {
           input_schema: { type: "object" as const, properties: { msg: { type: "string" } } },
         },
         runner: async (input: Record<string, unknown>) => ({ content: `echo: ${input.msg}` }),
-        risk: "safe" as const, kind: "discovery" as const,
+        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
       }],
     });
 
@@ -1243,7 +1234,7 @@ describe("ctx.callTool — direct tool invocation", () => {
             input_schema: { type: "object" as const, properties: {} },
           },
           runner: async () => ({ content: "leaf result" }),
-          risk: "safe" as const, kind: "discovery" as const,
+          effect: legacyEffect({ risk: "safe", kind: "discovery" }),
         },
         {
           tool: {
@@ -1255,7 +1246,7 @@ describe("ctx.callTool — direct tool invocation", () => {
             const inner = await ctx.callTool("tool_b", {});
             return { content: `chained: ${inner.content}` };
           },
-          risk: "safe" as const, kind: "discovery" as const,
+          effect: legacyEffect({ risk: "safe", kind: "discovery" }),
         },
       ],
     });

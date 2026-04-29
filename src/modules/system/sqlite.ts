@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
 export const sqliteTool: KotaTool = {
@@ -241,7 +242,6 @@ export async function runSqlite(
 export const registration = {
 	tool: sqliteTool,
 	runner: runSqlite,
-	risk: "moderate" as const,
-	kind: "action" as const,
+	effect: legacyEffect({ risk: "moderate", kind: "action" }),
 	group: "code",
 };

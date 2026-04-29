@@ -8,8 +8,10 @@
  * contributes the `/api/schedules` and `/api/notifications` HTTP routes.
  */
 
+
 import type { KotaModule } from "#core/modules/module-types.js";
 import { NOTIFICATION_HUB_PROVIDER_TYPE } from "#core/server/notification-hub-provider.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import { schedulerConfigSlice } from "./config-slice.js";
 import { getNotificationHub } from "./notification-hub.js";
 import { schedulerRoutes } from "./routes.js";
@@ -26,8 +28,7 @@ const schedulerModule: KotaModule = {
     {
       tool: scheduleTool,
       runner: runSchedule,
-      risk: "moderate",
-      kind: "action",
+      effect: legacyEffect({ risk: "moderate", kind: "action" }),
       group: "management",
     },
   ],

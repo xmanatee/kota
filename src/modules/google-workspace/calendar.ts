@@ -1,4 +1,5 @@
 import type { ToolDef } from "#core/modules/module-types.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { apiError, googleFetch } from "./auth.js";
 
@@ -7,8 +8,7 @@ export function makeCalendarListEvents(
   calendarId: string,
 ): ToolDef {
   return {
-    risk: "safe",
-    kind: "discovery",
+    effect: legacyEffect({ risk: "safe", kind: "discovery", openWorld: true }),
     group: "productivity",
     tool: {
       name: "calendar_list_events",
@@ -96,8 +96,7 @@ export function makeCalendarCreateEvent(
   calendarId: string,
 ): ToolDef {
   return {
-    risk: "dangerous",
-    kind: "action",
+    effect: legacyEffect({ risk: "dangerous", kind: "action", openWorld: true }),
     group: "productivity",
     tool: {
       name: "calendar_create_event",

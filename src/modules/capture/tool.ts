@@ -10,6 +10,7 @@
  */
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolDef } from "#core/modules/module-types.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type {
   CaptureFilter,
@@ -106,7 +107,6 @@ export function createCaptureToolDef(
   return {
     tool: captureTool,
     runner: createCaptureToolRunner(resolveProvider),
-    risk: "moderate",
-    kind: "action",
+    effect: legacyEffect({ risk: "moderate", kind: "action" }),
   };
 }

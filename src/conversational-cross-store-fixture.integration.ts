@@ -334,10 +334,7 @@ export function registerCrossStoreTools(fixture: CrossStoreFixture): void {
     },
   ];
   for (const { name, def } of defs) {
-    registerTool(def.tool, def.runner, name, {
-      risk: def.risk,
-      kind: def.kind,
-    });
+    registerTool(def.tool, def.runner, name, { effect: def.effect });
   }
 }
 

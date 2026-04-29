@@ -1,12 +1,12 @@
 ---
 id: task-make-tool-effects-first-class
 title: Make tool effects first-class
-status: backlog
+status: done
 priority: p1
 area: architecture
 summary: Replace coarse tool risk/kind metadata with a first-class effect protocol that captures read/write/destructive/idempotent/open-world/resource-scope semantics and derives MCP annotations from it.
 created_at: 2026-04-28T22:24:00.000Z
-updated_at: 2026-04-28T22:24:00.000Z
+updated_at: 2026-04-29T07:15:01.001Z
 ---
 
 ## Problem

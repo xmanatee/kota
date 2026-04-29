@@ -9,6 +9,7 @@
  * Storage: `.kota/memory.json` (project) and `~/.kota/memory.json` (global).
  */
 
+
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
@@ -17,6 +18,7 @@ import {
   MEMORY_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
 import type { MemoryClient } from "#core/server/kota-client.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import { createMemoryReadinessSource } from "./capability-readiness.js";
 import { registerMemoryCommands } from "./cli.js";
 import { memoryTool, runMemory } from "./memory.js";
@@ -32,8 +34,7 @@ const memoryModule: KotaModule = {
     {
       tool: memoryTool,
       runner: runMemory,
-      risk: "safe",
-      kind: "discovery",
+      effect: legacyEffect({ risk: "safe", kind: "discovery" }),
       group: "management",
     },
   ],

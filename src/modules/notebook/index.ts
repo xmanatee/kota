@@ -5,15 +5,16 @@
  *   notebook — create or extend .ipynb notebooks with code and markdown cells
  */
 
+
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import { notebookTool, runNotebook } from "./notebook.js";
 
 const tools: ToolDef[] = [
   {
     tool: notebookTool,
     runner: runNotebook,
-    risk: "moderate",
-    kind: "action",
+    effect: legacyEffect({ risk: "moderate", kind: "action" }),
     group: "code",
   },
 ];

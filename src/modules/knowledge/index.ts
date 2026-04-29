@@ -9,6 +9,7 @@
  * Storage: .kota/data/ (project) and ~/.kota/data/ (global).
  */
 
+
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
@@ -17,6 +18,7 @@ import {
 	KNOWLEDGE_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
 import type { KnowledgeClient } from "#core/server/kota-client.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import { createKnowledgeReadinessSource } from "./capability-readiness.js";
 import { registerKnowledgeCommands } from "./cli.js";
 import { knowledgeTool, runKnowledge } from "./knowledge.js";
@@ -34,8 +36,7 @@ const knowledgeModule: KotaModule = {
 			tool: knowledgeTool,
 			runner: runKnowledge,
 			group: "management",
-			risk: "moderate",
-			kind: "action",
+			effect: legacyEffect({ risk: "moderate", kind: "action" }),
 		},
 	],
 	skills: [{ name: "knowledge", promptPath: "src/modules/knowledge/knowledge.md" }],

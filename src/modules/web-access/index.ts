@@ -12,7 +12,9 @@
  * and is further classified by the guardrails layer at call time.
  */
 
+
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import { httpRequestTool, runHttpRequest } from "./http-request.js";
 import { runWebFetch, webFetchTool } from "./web-fetch.js";
 import { runWebSearch, webSearchTool } from "./web-search.js";
@@ -21,22 +23,19 @@ const tools: ToolDef[] = [
   {
     tool: webFetchTool,
     runner: runWebFetch,
-    risk: "moderate",
-    kind: "discovery",
+    effect: legacyEffect({ risk: "moderate", kind: "discovery", openWorld: true }),
     group: "web",
   },
   {
     tool: webSearchTool,
     runner: runWebSearch,
-    risk: "safe",
-    kind: "discovery",
+    effect: legacyEffect({ risk: "safe", kind: "discovery", openWorld: true }),
     group: "web",
   },
   {
     tool: httpRequestTool,
     runner: runHttpRequest,
-    risk: "moderate",
-    kind: "action",
+    effect: legacyEffect({ risk: "moderate", kind: "action", openWorld: true }),
     group: "web",
   },
 ];

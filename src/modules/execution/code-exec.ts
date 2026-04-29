@@ -186,10 +186,3 @@ async function tryAutoInstall(
     isError: result.isError,
   };
 }
-export const registration = {
-	tool: codeExecTool,
-	runner: runCodeExec,
-	risk: "moderate" as const,
-	kind: "action" as const,
-	group: "code",
-};

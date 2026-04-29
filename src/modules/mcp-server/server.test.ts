@@ -5,8 +5,15 @@ import { PassThrough } from "node:stream";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
+import {
+	legacyEffect,
+	networkDestructiveEffect,
+	networkReadEffect,
+	networkWriteEffect,
+} from "#core/tools/effect.js";
 import { getToolMcpAnnotations } from "#core/tools/guardrails-classify.js";
 import { clearCustomTools, registerTool } from "#core/tools/index.js";
+import executionModule from "#modules/execution/index.js";
 import filesystemModule from "#modules/filesystem/index.js";
 import { kotaToolToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
 
@@ -32,16 +39,29 @@ import { getKnowledgeProvider, getMemoryProvider } from "#core/modules/provider-
 
 beforeAll(async () => {
 	const loader = new ModuleLoader({});
-	await loader.loadAll([filesystemModule]);
+	await loader.loadAll([filesystemModule, executionModule]);
 
-	// Register stub for github read tool so MCP annotation tests can verify
-	// that module-declared safe network tools get readOnlyHint: true.
-	// This mirrors what the github module does when loaded with a real token.
+	// Register stubs for tools whose owning modules need real credentials at
+	// load time but whose effect declarations the MCP annotation tests want
+	// to verify. Each stub declares the same effect the production module
+	// would.
 	registerTool(
 		{ name: "github_list_prs", description: "stub", input_schema: { type: "object", properties: {} } },
 		async () => ({ content: "" }),
 		"github",
-		{ risk: "safe", kind: "discovery" },
+		{ effect: networkReadEffect() },
+	);
+	registerTool(
+		{ name: "github_merge_pr", description: "stub", input_schema: { type: "object", properties: {} } },
+		async () => ({ content: "" }),
+		"github",
+		{ effect: networkDestructiveEffect() },
+	);
+	registerTool(
+		{ name: "http_request", description: "stub", input_schema: { type: "object", properties: {} } },
+		async () => ({ content: "" }),
+		"web-access",
+		{ effect: networkWriteEffect() },
 	);
 });
 
@@ -267,7 +287,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "hello from module" }),
-						risk: "safe" as const, kind: "discovery" as const,
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
 					},
 				],
 			});
@@ -298,7 +318,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "hi" }),
-						risk: "safe" as const, kind: "discovery" as const,
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
 					},
 					{
 						tool: {
@@ -307,7 +327,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "secret" }),
-						risk: "safe" as const, kind: "discovery" as const,
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
 					},
 				],
 			});
@@ -472,7 +492,7 @@ describe("McpServer", () => {
 							},
 						},
 						runner: async (args: Record<string, unknown>) => ({ content: `Hello, ${args.name}!` }),
-						risk: "safe" as const, kind: "discovery" as const,
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
 					},
 				],
 			});
@@ -505,7 +525,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => { throw new Error("boom"); },
-						risk: "safe" as const, kind: "discovery" as const,
+						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
 					},
 				],
 			});

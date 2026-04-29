@@ -11,6 +11,7 @@
 
 import { resolve } from "node:path";
 import { tryEmit } from "#core/events/event-bus.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type {
   ForeignModuleConfig,
@@ -187,8 +188,7 @@ function buildToolDefs(
       description: def.description,
       input_schema: def.input_schema,
     },
-    risk: "moderate" as const,
-    kind: "action" as const,
+    effect: legacyEffect({ risk: "moderate", kind: "action" }),
     runner: async (input: Record<string, unknown>): Promise<ToolResult> => {
       try {
         const id = newId();

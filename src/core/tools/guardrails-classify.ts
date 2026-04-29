@@ -1,42 +1,33 @@
 /**
- * Guardrails risk classification — tool lists and input pattern analysis.
+ * Guardrails risk classification — derives policy-relevant risk from each
+ * tool's declared effect plus a small set of input-pattern guards for
+ * shell/file/code/HTTP shapes.
  *
- * Determines the risk level of a tool call based on the tool name and its
- * input. Consumed by guardrails.ts for policy resolution.
+ * Tools declare an effect at registration (see `./effect.ts`); this module
+ * is the single boundary that:
+ *   - asks the registry for a tool's effect and translates it into a risk
+ *     tier for guardrail policy resolution,
+ *   - escalates shell/process/code/file-write/HTTP calls when their input
+ *     contains a destructive pattern,
+ *   - exports MCP `tools/list` annotations derived from the same effect.
+ *
+ * Static name lists (NETWORK_TOOL_NAMES, DESTRUCTIVE_TOOL_NAMES, ...) used
+ * to live here. They were a parallel source of truth and have been removed:
+ * effects own that information now.
  */
 
-import { getCoreRegistrations, getModuleToolRisk } from "./index.js";
+import {
+  type McpToolAnnotations,
+  mcpAnnotationsFromEffect,
+  type RiskTier,
+  riskFromEffect,
+} from "./effect.js";
+import { getToolEffect } from "./index.js";
 
-export type RiskLevel = "safe" | "moderate" | "dangerous";
+export type RiskLevel = RiskTier;
+export type { McpToolAnnotations };
 
-// ─── Tool classification ──────────────────────────────────────────────
-// Core tool risk levels are derived from the tool registry.
-// Module-registered tools (not in coreRegistrations) are listed manually.
-// Lazy to avoid issues when tests mock tools/index.js.
-
-let _safeTools: Set<string> | null = null;
-let _moderateTools: Set<string> | null = null;
-
-/** Tools that only read data or coordinate — never mutate state. */
-export function safeTools(): Set<string> {
-  if (!_safeTools) {
-    _safeTools = new Set([
-      ...getCoreRegistrations().filter((r) => r.risk === "safe").map((r) => r.tool.name),
-      "enable_tools",
-    ]);
-  }
-  return _safeTools;
-}
-
-/** Tools that mutate local state in controlled ways. */
-export function moderateTools(): Set<string> {
-  if (!_moderateTools) {
-    _moderateTools = new Set([
-      ...getCoreRegistrations().filter((r) => r.risk === "moderate").map((r) => r.tool.name),
-    ]);
-  }
-  return _moderateTools;
-}
+// ─── Input-pattern guards ─────────────────────────────────────────────
 
 /** Patterns in shell/process commands that indicate destructive operations. */
 export const DANGEROUS_COMMAND_PATTERNS = [
@@ -72,7 +63,7 @@ export const DANGEROUS_CODE_PATTERNS = [
 /** HTTP methods that mutate remote state. */
 export const MUTATION_METHODS = new Set(["POST", "PUT", "DELETE", "PATCH"]);
 
-// ─── Risk classification ──────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────
 
 export function extractCommand(input: Record<string, unknown>): string {
   return ((input.command as string) || "").trim();
@@ -89,68 +80,72 @@ export function isDangerousCode(code: string): boolean {
 export function isOutsideProject(filePath: string): boolean {
   const cwd = process.cwd();
   const resolved = filePath.startsWith("/") ? filePath : `${cwd}/${filePath}`;
-  // Normalize: remove trailing slashes, resolve ..
   const normalizedCwd = cwd.replace(/\/+$/, "");
   return !resolved.startsWith(normalizedCwd);
 }
 
-/** Classify a tool call's risk level based on the tool name and its input. */
+// ─── Classification ───────────────────────────────────────────────────
+
+/**
+ * Classify a tool call's risk level based on its declared effect and a small
+ * set of input-pattern guards.
+ *
+ * Priority:
+ *   1. If the tool declares an effect, derive the base tier from it.
+ *   2. Escalate when the input matches a known-destructive pattern.
+ *   3. Tools without a declared effect default to moderate ("unclassified").
+ */
 export function classifyRisk(
   name: string,
   input: Record<string, unknown>,
 ): { risk: RiskLevel; reason: string } {
-  // Explicit safe tools (core registry)
-  if (safeTools().has(name)) {
-    return { risk: "safe", reason: "read-only tool" };
-  }
+  const effect = getToolEffect(name);
+  const baseTier: RiskLevel | undefined = effect ? riskFromEffect(effect) : undefined;
 
-  // Module-registered tools with explicit risk metadata
-  const extRisk = getModuleToolRisk(name);
-  if (extRisk === "safe") {
-    return { risk: "safe", reason: "read-only tool" };
-  }
-  if (extRisk === "moderate") {
-    return { risk: "moderate", reason: `${name} modifies state` };
-  }
-  if (extRisk === "dangerous") {
-    return { risk: "dangerous", reason: `${name} is a high-risk operation` };
-  }
-
-  // Shell and process: check command content
+  // Shell/process: escalate to dangerous when the command matches a
+  // destructive pattern, regardless of the declared base effect.
   if (name === "shell" || name === "process") {
     const command = extractCommand(input);
     if (isDangerousCommand(command)) {
-      return { risk: "dangerous", reason: `destructive command pattern detected` };
+      return { risk: "dangerous", reason: "destructive command pattern detected" };
     }
+    if (baseTier) return { risk: baseTier, reason: "shell execution" };
     return { risk: "moderate", reason: "shell execution" };
   }
 
-  // File operations: check if writing outside project
-  if (name === "file_write" || name === "file_edit" || name === "multi_edit" || name === "find_replace") {
+  // File write/edit family: escalate when the path leaves the project root.
+  if (
+    name === "file_write" ||
+    name === "file_edit" ||
+    name === "multi_edit" ||
+    name === "find_replace"
+  ) {
     const path = (input.path || input.file_path || input.file) as string;
     if (path && isOutsideProject(path)) {
-      return { risk: "dangerous", reason: `file operation outside project directory` };
+      return { risk: "dangerous", reason: "file operation outside project directory" };
     }
     if (name === "multi_edit" && Array.isArray(input.edits)) {
       for (const edit of input.edits as { file?: string }[]) {
         if (edit.file && isOutsideProject(edit.file)) {
-          return { risk: "dangerous", reason: `multi_edit targets file outside project directory` };
+          return { risk: "dangerous", reason: "multi_edit targets file outside project directory" };
         }
       }
     }
+    if (baseTier) return { risk: baseTier, reason: "file modification" };
     return { risk: "moderate", reason: "file modification" };
   }
 
-  // Code execution: check for system-level operations
+  // code_exec: escalate when code contains a system-level operation.
   if (name === "code_exec") {
     const code = (input.code as string) || "";
     if (isDangerousCode(code)) {
-      return { risk: "dangerous", reason: `code contains system-level operation` };
+      return { risk: "dangerous", reason: "code contains system-level operation" };
     }
+    if (baseTier) return { risk: baseTier, reason: "code execution" };
     return { risk: "moderate", reason: "code execution" };
   }
 
-  // HTTP: mutation methods are moderate, not dangerous (the agent often needs POST)
+  // http_request: GET keeps the safe-tier baseline; mutating methods are moderate.
   if (name === "http_request") {
     const method = ((input.method as string) || "GET").toUpperCase();
     if (MUTATION_METHODS.has(method)) {
@@ -159,102 +154,27 @@ export function classifyRisk(
     return { risk: "safe", reason: "HTTP GET request" };
   }
 
-  // Known moderate tools
-  if (moderateTools().has(name)) {
+  // Tools with a declared effect: derive tier directly.
+  if (effect) {
+    if (baseTier === "safe") return { risk: "safe", reason: "read-only tool" };
+    if (baseTier === "dangerous") return { risk: "dangerous", reason: `${name} is a high-risk operation` };
     return { risk: "moderate", reason: `${name} modifies state` };
   }
 
-  // Unknown tools (MCP, module-registered) default to moderate.
+  // Unknown tools default to moderate.
   return { risk: "moderate", reason: "unclassified tool" };
 }
 
-// ─── MCP tool annotations ─────────────────────────────────────────────
-
-/** MCP tool annotations derived from KOTA's guardrail risk tier. */
-export type McpToolAnnotations = {
-  readOnlyHint?: boolean;
-  destructiveHint?: boolean;
-  openWorldHint?: boolean;
-  idempotentHint?: boolean;
-};
-
-/** Tool names that communicate with external systems. */
-const NETWORK_TOOL_NAMES = new Set([
-  "http_request",
-  "github_get_pr",
-  "github_list_issues",
-  "github_list_prs",
-  "github_create_pr",
-  "github_comment",
-  "github_merge_pr",
-  "github_close_pr",
-  "github_create_issue",
-  "github_update_issue",
-  "github_add_label",
-  "github_remove_label",
-]);
-
-/** Tool names that are statically destructive (delete or overwrite external data). */
-const DESTRUCTIVE_TOOL_NAMES = new Set([
-  "github_create_pr",
-  "github_comment",
-  "github_merge_pr",
-  "github_close_pr",
-  "github_create_issue",
-  "github_update_issue",
-  "github_add_label",
-  "github_remove_label",
-]);
-
-/** Tool names that are write-tier (mutate local state, not inherently destructive). */
-const WRITE_TOOL_NAMES = new Set([
-  "shell",
-  "file_write",
-  "file_edit",
-  "multi_edit",
-  "find_replace",
-  "code_exec",
-]);
+// ─── MCP annotations ──────────────────────────────────────────────────
 
 /**
- * Derive MCP tool annotations from KOTA's guardrail risk classification.
- * Returns undefined when the tier cannot be determined statically (annotations omitted).
+ * Derive MCP tool annotations from the tool's declared effect.
+ *
+ * Returns undefined when the tool has no registered effect (the lookup
+ * cannot describe an unknown tool, and MCP omits annotations in that case).
  */
 export function getToolMcpAnnotations(toolName: string): McpToolAnnotations | undefined {
-  const annotations: McpToolAnnotations = {};
-  let hasAnnotation = false;
-
-  if (NETWORK_TOOL_NAMES.has(toolName)) {
-    annotations.openWorldHint = true;
-    hasAnnotation = true;
-  }
-
-  if (DESTRUCTIVE_TOOL_NAMES.has(toolName)) {
-    annotations.readOnlyHint = false;
-    annotations.destructiveHint = true;
-    hasAnnotation = true;
-  } else if (safeTools().has(toolName)) {
-    annotations.readOnlyHint = true;
-    hasAnnotation = true;
-  } else if (WRITE_TOOL_NAMES.has(toolName)) {
-    annotations.readOnlyHint = false;
-    annotations.destructiveHint = false;
-    hasAnnotation = true;
-  } else {
-    const extRisk = getModuleToolRisk(toolName);
-    if (extRisk === "safe") {
-      annotations.readOnlyHint = true;
-      hasAnnotation = true;
-    } else if (extRisk === "moderate") {
-      annotations.readOnlyHint = false;
-      annotations.destructiveHint = false;
-      hasAnnotation = true;
-    } else if (extRisk === "dangerous") {
-      annotations.readOnlyHint = false;
-      annotations.destructiveHint = true;
-      hasAnnotation = true;
-    }
-  }
-
-  return hasAnnotation ? annotations : undefined;
+  const effect = getToolEffect(toolName);
+  if (!effect) return undefined;
+  return mcpAnnotationsFromEffect(effect);
 }

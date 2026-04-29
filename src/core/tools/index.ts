@@ -7,6 +7,7 @@ import { registration as checkpoint } from "./checkpoint.js";
 import { registration as confirm } from "./confirm.js";
 import { registration as customTool, initCustomToolRegistry } from "./custom-tool.js";
 import { registration as delegate } from "./delegate.js";
+import type { ToolEffect } from "./effect.js";
 import { registration as moduleFactory } from "./module-factory/index.js";
 import { getTodoState, registration as todo } from "./todo.js";
 import { deregisterToolsFromGroups, registerCustomGroup, runEnableTools } from "./tool-groups.js";
@@ -20,16 +21,13 @@ type ToolRunner = (input: Record<string, unknown>) => Promise<ToolResult>;
 export type ToolRegistration = {
   tool: KotaTool;
   runner: ToolRunner;
-  /** Risk classification for guardrails. */
-  risk: "safe" | "moderate" | "dangerous";
+  /**
+   * First-class effect descriptor. Drives guardrail classification, MCP
+   * annotations, and autonomy-mode posture. See `./effect.ts`.
+   */
+  effect: ToolEffect;
   /** Tool group for progressive disclosure. Undefined = core (always available). */
   group?: string;
-  /**
-   * Capability category for phase-level safety checks.
-   * - discovery: read-only, no side effects (file reads, search, listing)
-   * - action: can modify state (writes, execution, network mutations, orchestration)
-   */
-  kind: "discovery" | "action";
 };
 
 // ─── Core tool registrations ──────────────────────────────────────────
@@ -65,15 +63,13 @@ export function getCoreRegistrations(): readonly ToolRegistration[] {
   return _coreRegistrations;
 }
 
-/** Returns the kind of a tool by name, checking core then module-registered tools. */
-export function getToolKind(name: string): "discovery" | "action" | undefined {
-  return getCoreRegistrations().find((r) => r.tool.name === name)?.kind
-    ?? moduleToolMeta.get(name)?.kind;
-}
-
-/** Returns the risk level of a module-registered tool by name. */
-export function getModuleToolRisk(name: string): "safe" | "moderate" | "dangerous" | undefined {
-  return moduleToolMeta.get(name)?.risk;
+/**
+ * Returns the effect descriptor of a tool by name, checking core then
+ * module-registered tools. Undefined when the tool is not registered.
+ */
+export function getToolEffect(name: string): ToolEffect | undefined {
+  return getCoreRegistrations().find((r) => r.tool.name === name)?.effect
+    ?? moduleToolMeta.get(name)?.effect;
 }
 
 // ─── Build runners and tools from registrations (lazy) ───────────────
@@ -120,14 +116,14 @@ export async function executeTool(
 const customToolNames = new Set<string>();
 /** Maps module name → set of tool names it registered. */
 const moduleToolOwners = new Map<string, Set<string>>();
-/** Risk/kind metadata for module-registered tools. */
-const moduleToolMeta = new Map<string, { risk: "safe" | "moderate" | "dangerous"; kind: "discovery" | "action" }>();
+/** Effect metadata for module-registered tools. */
+const moduleToolMeta = new Map<string, { effect: ToolEffect }>();
 
 export function registerTool(
   tool: KotaTool,
   runner: ToolRunner,
   moduleName?: string,
-  meta?: { risk: "safe" | "moderate" | "dangerous"; kind: "discovery" | "action" },
+  meta?: { effect: ToolEffect },
 ): void {
   ensureInit();
   if (runners[tool.name]) {
@@ -137,7 +133,7 @@ export function registerTool(
   runners[tool.name] = runner;
   customToolNames.add(tool.name);
   if (meta) {
-    moduleToolMeta.set(tool.name, { risk: meta.risk, kind: meta.kind });
+    moduleToolMeta.set(tool.name, { effect: meta.effect });
   }
   if (moduleName) {
     let owned = moduleToolOwners.get(moduleName);

@@ -15,6 +15,7 @@ import {
   getToolsDir,
   normalizeSchema,
 } from "./custom-tool-persistence.js";
+import { localWriteEffect } from "./effect.js";
 
 // Avoid circular dependency: index.ts imports from us, so we accept
 // registerTool/deregisterTool via injection instead of importing them.
@@ -161,6 +162,5 @@ export function resetCustomTools(): void {
 export const registration = {
   tool: customToolTool,
   runner: runCustomTool,
-  risk: "moderate" as const,
-  kind: "action" as const,
+  effect: localWriteEffect(),
 };

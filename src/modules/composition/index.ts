@@ -1,4 +1,5 @@
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import { batchTool, runBatch } from "./batch.js";
 import { mapTool, runMap } from "./map.js";
 import { pipeTool, runPipe } from "./pipe.js";
@@ -8,29 +9,25 @@ const tools: ToolDef[] = [
 	{
 		tool: batchTool,
 		runner: runBatch,
-		risk: "moderate",
-		kind: "action",
+		effect: legacyEffect({ risk: "moderate", kind: "action" }),
 		group: "orchestration",
 	},
 	{
 		tool: pipeTool,
 		runner: runPipe,
-		risk: "moderate",
-		kind: "action",
+		effect: legacyEffect({ risk: "moderate", kind: "action" }),
 		group: "orchestration",
 	},
 	{
 		tool: mapTool,
 		runner: runMap,
-		risk: "moderate",
-		kind: "action",
+		effect: legacyEffect({ risk: "moderate", kind: "action" }),
 		group: "orchestration",
 	},
 	{
 		tool: workspaceTool,
 		runner: runWorkspace,
-		risk: "safe",
-		kind: "action",
+		effect: legacyEffect({ risk: "safe", kind: "action" }),
 		group: "orchestration",
 	},
 ];

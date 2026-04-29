@@ -84,9 +84,3 @@ export async function runFileWrite(
   return { content: `Wrote ${lines} lines to ${path}` };
 }
 
-export const registration = {
-  tool: fileWriteTool,
-  runner: runFileWrite,
-  risk: "moderate" as const,
-  kind: "action" as const,
-};

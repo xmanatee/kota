@@ -139,8 +139,11 @@ export async function runDelegateTurns(opts: TurnLoopOptions): Promise<TurnLoopR
     const toolsSummary = toolNames.length > 0 ? ` — ${toolNames.join(", ")}` : "";
     if (transport) transport.emit({ type: "status", message: `[kota] delegate(${mode}) turn ${turn + 1}/${maxTurns}${toolsSummary}` });
     if (transport && (mode === "explore" || mode === "research") && toolNames.length > 0) {
-      const { getToolKind } = await import("./index.js");
-      const unexpected = toolNames.filter((n) => getToolKind(n) === "action");
+      const { getToolEffect } = await import("./index.js");
+      const unexpected = toolNames.filter((n) => {
+        const effect = getToolEffect(n);
+        return effect ? effect.kind !== "read" : false;
+      });
       if (unexpected.length > 0) {
         transport.emit({ type: "status", message: `[kota] delegate(${mode}) action tool(s) in exploration phase: ${unexpected.join(", ")}` });
       }

@@ -1,4 +1,5 @@
 import type { ToolDef } from "#core/modules/module-types.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type { LinearFetchFn } from "./task-provider.js";
 
@@ -67,8 +68,7 @@ function makeCreateIssue(
   getTeamContext: () => Promise<LinearTeamContext>,
 ): ToolDef {
   return {
-    risk: "dangerous",
-    kind: "action",
+    effect: legacyEffect({ risk: "dangerous", kind: "action", openWorld: true }),
     tool: {
       name: "linear_create_issue",
       description:
@@ -148,8 +148,7 @@ function makeUpdateIssueState(
   getTeamContext: () => Promise<LinearTeamContext>,
 ): ToolDef {
   return {
-    risk: "dangerous",
-    kind: "action",
+    effect: legacyEffect({ risk: "dangerous", kind: "action", openWorld: true }),
     tool: {
       name: "linear_update_issue_state",
       description:
@@ -210,8 +209,7 @@ function makeUpdateIssueState(
 
 function makeAddComment(fetch: LinearFetchFn): ToolDef {
   return {
-    risk: "dangerous",
-    kind: "action",
+    effect: legacyEffect({ risk: "dangerous", kind: "action", openWorld: true }),
     tool: {
       name: "linear_add_comment",
       description: "Post a comment on an existing Linear issue.",

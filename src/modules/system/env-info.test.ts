@@ -104,8 +104,10 @@ describe("runEnvInfo", () => {
 describe("registration", () => {
 	it("exports valid registration", async () => {
 		const { registration } = await import("./env-info.js");
+		const { riskFromEffect } = await import("#core/tools/effect.js");
 		expect(registration.tool.name).toBe("env_info");
 		expect(typeof registration.runner).toBe("function");
-		expect(registration.risk).toBe("safe");
+		expect(registration.effect).toBeDefined();
+		expect(riskFromEffect(registration.effect)).toBe("safe");
 	});
 });

@@ -245,9 +245,11 @@ describe("agent_status", () => {
 			expect(agentStatusTool.description).toContain("Introspect");
 		});
 
-		it("registration is safe risk with no group (core)", async () => {
+		it("registration declares a read-only session effect with no group (core)", async () => {
 			const { registration } = await import("./agent-status.js");
-			expect(registration.risk).toBe("safe");
+			const { riskFromEffect } = await import("./effect.js");
+			expect(registration.effect.kind).toBe("read");
+			expect(riskFromEffect(registration.effect)).toBe("safe");
 			expect(registration.group).toBeUndefined();
 		});
 	});

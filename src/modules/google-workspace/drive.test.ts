@@ -43,8 +43,8 @@ describe("drive_list_files: schema", () => {
 
   it("has correct tool name and metadata", () => {
     expect(def.tool.name).toBe("drive_list_files");
-    expect(def.risk).toBe("safe");
-    expect(def.kind).toBe("discovery");
+    expect(def.effect.kind).toBe("read");
+    expect(def.effect.openWorld).toBe(true);
     expect(def.group).toBe("productivity");
   });
 
@@ -117,8 +117,8 @@ describe("drive_read_file: schema", () => {
 
   it("has correct tool name and metadata", () => {
     expect(def.tool.name).toBe("drive_read_file");
-    expect(def.risk).toBe("safe");
-    expect(def.kind).toBe("discovery");
+    expect(def.effect.kind).toBe("read");
+    expect(def.effect.openWorld).toBe(true);
   });
 
   it("requires id", () => {

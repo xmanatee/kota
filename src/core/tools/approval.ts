@@ -8,6 +8,7 @@
 
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
+import { daemonWriteEffect } from "./effect.js";
 import { executeTool, type ToolResult } from "./index.js";
 
 const approvalTool: KotaTool = {
@@ -87,7 +88,6 @@ async function runApproval(input: Record<string, unknown>): Promise<ToolResult> 
 export const registration = {
 	tool: approvalTool,
 	runner: runApproval,
-	risk: "safe" as const,
-	kind: "action" as const,
+	effect: daemonWriteEffect(),
 	group: "management",
 };

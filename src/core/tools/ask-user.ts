@@ -1,6 +1,7 @@
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import { operatorSurfaceEffect } from "./effect.js";
 import type { ToolResult } from "./index.js";
 
 export const askUserTool: KotaTool = {
@@ -96,6 +97,5 @@ function promptFromTerminal(question: string): Promise<string> {
 export const registration = {
 	tool: askUserTool,
 	runner: runAskUser,
-	risk: "safe" as const,
-	kind: "action" as const,
+	effect: operatorSurfaceEffect(),
 };

@@ -26,8 +26,8 @@ describe("calendar_list_events: schema", () => {
 
   it("has correct tool name and metadata", () => {
     expect(def.tool.name).toBe("calendar_list_events");
-    expect(def.risk).toBe("safe");
-    expect(def.kind).toBe("discovery");
+    expect(def.effect.kind).toBe("read");
+    expect(def.effect.openWorld).toBe(true);
     expect(def.group).toBe("productivity");
   });
 
@@ -100,10 +100,10 @@ describe("calendar_list_events: runner", () => {
 describe("calendar_create_event: schema", () => {
   const def = makeCalendarCreateEvent(mockGetToken(), "primary");
 
-  it("has correct tool name and is marked dangerous", () => {
+  it("has correct tool name and is marked destructive", () => {
     expect(def.tool.name).toBe("calendar_create_event");
-    expect(def.risk).toBe("dangerous");
-    expect(def.kind).toBe("action");
+    expect(def.effect.kind).toBe("destructive");
+    expect(def.effect.openWorld).toBe(true);
   });
 
   it("requires summary, start, end", () => {

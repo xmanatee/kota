@@ -288,11 +288,10 @@ export class ModuleLoader {
 
     if (tools && !this.isCommandsMode) {
       for (const def of tools) {
-        if (!def.risk || !def.kind) {
-          const missing = [!def.risk && "risk", !def.kind && "kind"].filter(Boolean).join(", ");
-          throw new Error(`Module "${mod.name}" tool "${def.tool.name}" missing required metadata: ${missing}`);
+        if (!def.effect) {
+          throw new Error(`Module "${mod.name}" tool "${def.tool.name}" missing required metadata: effect`);
         }
-        registerTool(def.tool, def.runner, mod.name, { risk: def.risk, kind: def.kind });
+        registerTool(def.tool, def.runner, mod.name, { effect: def.effect });
         if (def.group) registerCustomGroup(def.group, [def.tool.name]);
       }
       this.moduleToolCounts.set(mod.name, tools.length);

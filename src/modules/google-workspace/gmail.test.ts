@@ -34,8 +34,8 @@ describe("gmail_list_messages: schema", () => {
 
   it("has correct tool name and metadata", () => {
     expect(def.tool.name).toBe("gmail_list_messages");
-    expect(def.risk).toBe("safe");
-    expect(def.kind).toBe("discovery");
+    expect(def.effect.kind).toBe("read");
+    expect(def.effect.openWorld).toBe(true);
     expect(def.group).toBe("productivity");
   });
 
@@ -106,8 +106,8 @@ describe("gmail_get_message: schema", () => {
 
   it("has correct tool name and metadata", () => {
     expect(def.tool.name).toBe("gmail_get_message");
-    expect(def.risk).toBe("safe");
-    expect(def.kind).toBe("discovery");
+    expect(def.effect.kind).toBe("read");
+    expect(def.effect.openWorld).toBe(true);
   });
 
   it("requires id", () => {
@@ -168,10 +168,10 @@ describe("gmail_get_message: runner", () => {
 describe("gmail_send: schema", () => {
   const def = makeGmailSend(mockGetToken(), "me");
 
-  it("has correct tool name and is marked dangerous", () => {
+  it("has correct tool name and is marked destructive", () => {
     expect(def.tool.name).toBe("gmail_send");
-    expect(def.risk).toBe("dangerous");
-    expect(def.kind).toBe("action");
+    expect(def.effect.kind).toBe("destructive");
+    expect(def.effect.openWorld).toBe(true);
   });
 
   it("requires to, subject, body", () => {

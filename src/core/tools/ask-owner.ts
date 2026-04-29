@@ -23,6 +23,7 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { reviewOwnerQuestion } from "#core/daemon/owner-question-review.js";
+import { operatorSurfaceEffect } from "./effect.js";
 import type { ToolResult } from "./index.js";
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
@@ -153,7 +154,6 @@ function normalizeProposed(value: unknown): string[] | undefined {
 export const registration = {
   tool: askOwnerTool,
   runner: runAskOwner,
-  risk: "safe" as const,
-  kind: "action" as const,
+  effect: operatorSurfaceEffect(),
   group: "management",
 };

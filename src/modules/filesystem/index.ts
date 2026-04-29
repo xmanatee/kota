@@ -14,6 +14,7 @@
  */
 
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
+import { localWriteEffect, readOnlyLocalEffect } from "#core/tools/effect.js";
 import { fileEditTool, runFileEdit } from "./file-edit.js";
 import { fileReadTool, runFileRead } from "./file-read.js";
 import { fileWatchTool, runFileWatch } from "./file-watch.js";
@@ -29,65 +30,55 @@ const tools: ToolDef[] = [
   {
     tool: fileReadTool,
     runner: runFileRead,
-    risk: "safe",
-    kind: "discovery",
+    effect: readOnlyLocalEffect(),
   },
   {
     tool: fileWriteTool,
     runner: runFileWrite,
-    risk: "moderate",
-    kind: "action",
+    effect: localWriteEffect(),
   },
   {
     tool: fileEditTool,
     runner: runFileEdit,
-    risk: "moderate",
-    kind: "action",
+    effect: localWriteEffect(),
   },
   {
     tool: multiEditTool,
     runner: runMultiEdit,
-    risk: "moderate",
-    kind: "action",
+    effect: localWriteEffect(),
     group: "advanced_editing",
   },
   {
     tool: findReplaceTool,
     runner: runFindReplace,
-    risk: "moderate",
-    kind: "action",
+    effect: localWriteEffect(),
     group: "advanced_editing",
   },
   {
     tool: globTool,
     runner: runGlob,
-    risk: "safe",
-    kind: "discovery",
+    effect: readOnlyLocalEffect(),
   },
   {
     tool: grepTool,
     runner: runGrep,
-    risk: "safe",
-    kind: "discovery",
+    effect: readOnlyLocalEffect(),
   },
   {
     tool: fileWatchTool,
     runner: runFileWatch,
-    risk: "moderate",
-    kind: "action",
+    effect: localWriteEffect(),
     group: "management",
   },
   {
     tool: filesOverviewTool,
     runner: runFilesOverview,
-    risk: "safe",
-    kind: "discovery",
+    effect: readOnlyLocalEffect(),
   },
   {
     tool: repoMapTool,
     runner: runRepoMap,
-    risk: "safe",
-    kind: "discovery",
+    effect: readOnlyLocalEffect(),
     group: "advanced_editing",
   },
 ];

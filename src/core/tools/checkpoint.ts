@@ -1,6 +1,7 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { recordModification } from "#core/file-tracking/file-tracker.js";
 import { getChangeTracker } from "#core/loop/file-changes.js";
+import { localWriteEffect } from "./effect.js";
 import type { ToolResult } from "./index.js";
 
 export const checkpointTool: KotaTool = {
@@ -132,6 +133,5 @@ function restoreAllFiles(tracker: ReturnType<typeof getChangeTracker> & object):
 export const registration = {
 	tool: checkpointTool,
 	runner: runCheckpoint,
-	risk: "safe" as const,
-	kind: "action" as const,
+	effect: localWriteEffect(),
 };

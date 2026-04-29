@@ -1,6 +1,7 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
-import { getCoreRegistrations, getModuleToolRisk, getRegisteredTools, type ToolRegistration, type ToolResult } from "./index.js";
+import { readOnlySessionEffect, riskFromEffect } from "./effect.js";
+import { getCoreRegistrations, getRegisteredTools, getToolEffect, type ToolRegistration, type ToolResult } from "./index.js";
 import { getEnabledGroups, TOOL_GROUPS } from "./tool-groups.js";
 
 export const agentStatusTool: KotaTool = {
@@ -112,7 +113,8 @@ function formatTools(filter: string): string {
 		lines.push(`\nModule tools (${moduleFiltered.length}):`);
 		for (const t of moduleFiltered) {
 			const group = findToolGroup(t.name);
-			const risk = getModuleToolRisk(t.name);
+			const effect = getToolEffect(t.name);
+			const risk = effect ? riskFromEffect(effect) : undefined;
 			const groupTag = group ? ` [${group}]` : "";
 			const riskTag = risk && risk !== "safe" ? ` (${risk})` : "";
 			lines.push(`- ${t.name}${groupTag}${riskTag}: ${truncate(t.description || "(no description)", 80)}`);
@@ -136,7 +138,8 @@ function findToolGroup(toolName: string): string | undefined {
 
 function formatToolLine(r: ToolRegistration): string {
 	const group = r.group ? ` [${r.group}]` : " [core]";
-	const risk = r.risk !== "safe" ? ` (${r.risk})` : "";
+	const tier = riskFromEffect(r.effect);
+	const risk = tier !== "safe" ? ` (${tier})` : "";
 	return `- ${r.tool.name}${group}${risk}: ${truncate(r.tool.description || "", 80)}`;
 }
 
@@ -258,6 +261,5 @@ function truncate(s: string, max: number): string {
 export const registration: ToolRegistration = {
 	tool: agentStatusTool,
 	runner: runAgentStatus,
-	risk: "safe" as const,
-	kind: "discovery" as const,
+	effect: readOnlySessionEffect(),
 };

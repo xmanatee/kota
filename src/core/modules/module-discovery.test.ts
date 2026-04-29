@@ -53,7 +53,7 @@ describe("discoverModules", () => {
             input_schema: { type: "object", properties: {} },
           },
           runner: async () => ({ content: "Hello from module!" }),
-          risk: "safe", kind: "discovery",
+          effect: { kind: "read", scope: "local-fs", idempotent: true, openWorld: false },
         }],
       };
     `);
@@ -81,7 +81,7 @@ describe("discoverModules", () => {
             input_schema: { type: "object", properties: {} },
           },
           runner: async () => ({ content: "analyzed" }),
-          risk: "safe", kind: "discovery",
+          effect: { kind: "read", scope: "local-fs", idempotent: true, openWorld: false },
           group: "analysis",
         }],
       };
@@ -112,7 +112,7 @@ describe("discoverModules", () => {
             input_schema: { type: "object", properties: {} },
           },
           runner: async () => ({ content: "always" }),
-          risk: "safe", kind: "discovery",
+          effect: { kind: "read", scope: "local-fs", idempotent: true, openWorld: false },
         }],
       };
     `);
@@ -142,7 +142,7 @@ describe("discoverModules", () => {
             input_schema: { type: "object", properties: {} },
           },
           runner: async () => ({ content: loaded ? "yes" : "no" }),
-          risk: "safe", kind: "discovery",
+          effect: { kind: "read", scope: "local-fs", idempotent: true, openWorld: false },
         }],
       };
     `);
@@ -230,7 +230,7 @@ describe("discoverModules", () => {
             input_schema: { type: "object", properties: {} },
           },
           runner: async () => ({ content: "temp" }),
-          risk: "safe", kind: "discovery",
+          effect: { kind: "read", scope: "local-fs", idempotent: true, openWorld: false },
           group: "temp_group",
         }],
       };
@@ -265,7 +265,7 @@ describe("discoverModules", () => {
               input_schema: { type: "object", properties: { to: { type: "string" } }, required: ["to"] },
             },
             runner: async (input) => ({ content: "sent to " + input.to }),
-            risk: "moderate", kind: "action",
+            effect: { kind: "write", scope: "local-fs", idempotent: false, openWorld: false },
             group: "email",
           },
           {
@@ -275,7 +275,7 @@ describe("discoverModules", () => {
               input_schema: { type: "object", properties: {} },
             },
             runner: async () => ({ content: "0 unread" }),
-            risk: "safe", kind: "discovery",
+            effect: { kind: "read", scope: "local-fs", idempotent: true, openWorld: false },
             group: "email",
           },
         ],

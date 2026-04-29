@@ -70,10 +70,3 @@ export async function runProcess(input: Record<string, unknown>): Promise<ToolRe
   }
 }
 
-export const registration = {
-  tool: processTool,
-  runner: runProcess,
-  risk: "moderate" as const,
-  kind: "action" as const,
-  group: "management",
-};

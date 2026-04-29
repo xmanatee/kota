@@ -95,26 +95,30 @@ describe("google-workspace module tools()", () => {
     ]);
   });
 
-  it("marks dangerous tools correctly", () => {
+  it("marks destructive tools correctly", () => {
     const ctx = makeCtx({
       clientId: "cid",
       clientSecret: "cs",
       refreshToken: "rt",
     });
     const tools = resolveModuleTools(googleWorkspaceModule, ctx);
-    const dangerous = tools.filter((t) => t.risk === "dangerous").map((t) => t.tool.name);
-    expect(dangerous).toEqual(["gmail_send", "calendar_create_event"]);
+    const destructive = tools
+      .filter((t) => t.effect.kind === "destructive")
+      .map((t) => t.tool.name);
+    expect(destructive).toEqual(["gmail_send", "calendar_create_event"]);
   });
 
-  it("marks safe tools correctly", () => {
+  it("marks read-only tools correctly", () => {
     const ctx = makeCtx({
       clientId: "cid",
       clientSecret: "cs",
       refreshToken: "rt",
     });
     const tools = resolveModuleTools(googleWorkspaceModule, ctx);
-    const safe = tools.filter((t) => t.risk === "safe").map((t) => t.tool.name);
-    expect(safe).toEqual([
+    const reads = tools
+      .filter((t) => t.effect.kind === "read")
+      .map((t) => t.tool.name);
+    expect(reads).toEqual([
       "gmail_list_messages",
       "gmail_get_message",
       "calendar_list_events",

@@ -11,9 +11,11 @@
  * Inspired by Letta/MemGPT's core memory blocks.
  */
 
+
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ModuleStorage } from "#core/modules/module-storage.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/index.js";
 import type { WorkingMemoryEntry } from "./store.js";
 import {
@@ -148,8 +150,7 @@ const workingMemoryModule: KotaModule = {
 		{
 			tool: workingMemoryTool,
 			runner: makeRunner(ctx),
-			risk: "safe",
-			kind: "action",
+			effect: legacyEffect({ risk: "safe", kind: "action" }),
 		},
 	],
 

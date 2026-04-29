@@ -146,9 +146,3 @@ export async function runFileEdit(
   return { content: `Replaced ${replacements} occurrence(s) in ${path}` };
 }
 
-export const registration = {
-  tool: fileEditTool,
-  runner: runFileEdit,
-  risk: "moderate" as const,
-  kind: "action" as const,
-};

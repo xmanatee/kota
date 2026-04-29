@@ -9,6 +9,7 @@
  */
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolDef } from "#core/modules/module-types.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type {
   RecallFilter,
@@ -132,7 +133,6 @@ export function createRecallToolDef(
   return {
     tool: recallTool,
     runner: createRecallToolRunner(resolveProvider),
-    risk: "safe",
-    kind: "discovery",
+    effect: legacyEffect({ risk: "safe", kind: "discovery" }),
   };
 }

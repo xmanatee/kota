@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { platform } from "node:os";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/index.js";
 
 export const notifyTool: KotaTool = {
@@ -139,7 +140,6 @@ export async function runNotify(
 export const registration = {
 	tool: notifyTool,
 	runner: runNotify,
-	risk: "safe" as const,
-	kind: "action" as const,
+	effect: legacyEffect({ risk: "safe", kind: "action" }),
 	group: "management",
 };

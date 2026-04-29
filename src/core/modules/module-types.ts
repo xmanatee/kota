@@ -26,6 +26,7 @@ import type {
   KotaClient,
   LocalClientHandlers,
 } from "#core/server/kota-client.js";
+import type { ToolEffect } from "#core/tools/effect.js";
 import type { ToolMiddlewareFn } from "#core/tools/tool-middleware.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -158,8 +159,11 @@ export type ToolDef = {
   runner: (input: Record<string, unknown>) => Promise<ToolResult>;
   /** Tool group for progressive disclosure. Ungrouped tools are always available. */
   group?: string;
-  risk: "safe" | "moderate" | "dangerous";
-  kind: "discovery" | "action";
+  /**
+   * First-class effect descriptor. Required: drives guardrail classification,
+   * autonomy-mode posture, and MCP annotations. See `#core/tools/effect.js`.
+   */
+  effect: ToolEffect;
 };
 
 export type ModuleRouteMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";

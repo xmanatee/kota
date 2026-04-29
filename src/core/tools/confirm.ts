@@ -2,6 +2,7 @@ import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getEventBus } from "#core/events/event-bus.js";
+import { operatorSurfaceEffect } from "./effect.js";
 import type { ToolResult } from "./index.js";
 
 export const confirmTool: KotaTool = {
@@ -159,7 +160,6 @@ function promptApproval(input: ConfirmInput): Promise<ConfirmResult> {
 export const registration = {
 	tool: confirmTool,
 	runner: runConfirm,
-	risk: "safe" as const,
-	kind: "action" as const,
+	effect: operatorSurfaceEffect(),
 	group: "management",
 };

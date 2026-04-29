@@ -18,6 +18,7 @@ import type {
   RetractRequest,
   RetractTarget,
 } from "#core/server/kota-client.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { renderRetractResultPlain } from "./render.js";
 import { RETRACT_TARGET_ORDER, type RetractProvider } from "./retract-types.js";
@@ -159,7 +160,6 @@ export function createRetractToolDef(
   return {
     tool: retractTool,
     runner: createRetractToolRunner(resolveProvider),
-    risk: "dangerous",
-    kind: "action",
+    effect: legacyEffect({ risk: "dangerous", kind: "action" }),
   };
 }

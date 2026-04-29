@@ -27,6 +27,7 @@ import {
   type DelegateMetadata,
 } from "./delegate-format.js";
 import { runDelegateTurns } from "./delegate-turn.js";
+import { localWriteEffect } from "./effect.js";
 import type { ToolResult } from "./index.js";
 
 export type { DelegateConfig, DelegateMode } from "./delegate-config.js";
@@ -185,6 +186,5 @@ export async function runDelegate(
 export const registration = {
   tool: delegateTool,
   runner: runDelegate,
-  risk: "moderate" as const,
-  kind: "action" as const,
+  effect: localWriteEffect(),
 };

@@ -12,7 +12,9 @@
  * registry.
  */
 
+
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import { clipboardTool, runClipboard } from "./clipboard.js";
 import { envInfoTool, runEnvInfo } from "./env-info.js";
 import { notifyTool, runNotify } from "./notify.js";
@@ -23,35 +25,30 @@ const tools: ToolDef[] = [
   {
     tool: clipboardTool,
     runner: runClipboard,
-    risk: "safe",
-    kind: "action",
+    effect: legacyEffect({ risk: "safe", kind: "action" }),
     group: "gui",
   },
   {
     tool: viewImageTool,
     runner: runViewImage,
-    risk: "safe",
-    kind: "discovery",
+    effect: legacyEffect({ risk: "safe", kind: "discovery" }),
     group: "gui",
   },
   {
     tool: envInfoTool,
     runner: runEnvInfo,
-    risk: "safe",
-    kind: "discovery",
+    effect: legacyEffect({ risk: "safe", kind: "discovery" }),
   },
   {
     tool: sqliteTool,
     runner: runSqlite,
-    risk: "moderate",
-    kind: "action",
+    effect: legacyEffect({ risk: "moderate", kind: "action" }),
     group: "code",
   },
   {
     tool: notifyTool,
     runner: runNotify,
-    risk: "safe",
-    kind: "action",
+    effect: legacyEffect({ risk: "safe", kind: "action" }),
     group: "management",
   },
 ];

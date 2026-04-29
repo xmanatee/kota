@@ -14,6 +14,7 @@
  */
 
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
+import { localWriteEffect, readOnlyLocalEffect } from "#core/tools/effect.js";
 import { cleanupSessions, codeExecTool, runCodeExec } from "./code-exec.js";
 import {
   deregisterExecutionCodeRunners,
@@ -28,35 +29,30 @@ const tools: ToolDef[] = [
   {
     tool: shellTool,
     runner: runShell,
-    risk: "moderate",
-    kind: "action",
+    effect: localWriteEffect(),
   },
   {
     tool: processTool,
     runner: runProcess,
-    risk: "moderate",
-    kind: "action",
+    effect: localWriteEffect(),
     group: "management",
   },
   {
     tool: codeExecTool,
     runner: runCodeExec,
-    risk: "moderate",
-    kind: "action",
+    effect: localWriteEffect(),
     group: "code",
   },
   {
     tool: computerUseTool,
     runner: runComputerUse,
-    risk: "moderate",
-    kind: "action",
+    effect: { kind: "write", scope: "operator-surface", idempotent: false, openWorld: true },
     group: "gui",
   },
   {
     tool: screenshotTool,
     runner: runScreenshot,
-    risk: "safe",
-    kind: "discovery",
+    effect: readOnlyLocalEffect(),
     group: "gui",
   },
 ];

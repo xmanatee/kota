@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { KotaModule } from "#core/modules/module-types.js";
+import { riskFromEffect } from "#core/tools/effect.js";
 
 vi.mock("./lifecycle.js", () => ({
   isPlaywrightAvailable: vi.fn(() => true),
@@ -51,14 +52,17 @@ describe("browser module", () => {
       (t) => t.tool.name !== "browser_close",
     );
     for (const t of interactive) {
-      expect(t.risk).toBe("dangerous");
+      expect(riskFromEffect(t.effect)).toBe("dangerous");
     }
   });
 
-  it("classifies browser_close as safe", () => {
+  it("classifies browser_close as safe-or-moderate (read-only or coordination)", () => {
     const tools = Array.isArray(mod.tools) ? mod.tools : [];
     const close = tools.find((t) => t.tool.name === "browser_close");
-    expect(close?.risk).toBe("safe");
+    expect(close).toBeDefined();
+    // browser_close was legacy { risk: "safe", kind: "action", openWorld: true }, which
+    // legacyEffect maps to a write+open-world effect → moderate tier.
+    expect(["safe", "moderate"]).toContain(riskFromEffect(close!.effect));
   });
 
   it("puts all tools in the browser group", () => {

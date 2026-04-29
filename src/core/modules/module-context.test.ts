@@ -3,6 +3,7 @@
  * and the tools-as-function pattern.
  */
 
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initSecretStore, resetSecretStore } from "#core/config/secrets.js";
 import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
@@ -10,6 +11,7 @@ import {
   defineModuleEvent,
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
+import { legacyEffect } from "#core/tools/effect.js";
 import { clearCustomTools, executeTool, registerTool } from "#core/tools/index.js";
 import { clearCustomGroups, resetGroups } from "#core/tools/tool-groups.js";
 import { ModuleLoader } from "./module-loader.js";
@@ -153,7 +155,7 @@ describe("ModuleContext.listTools", () => {
       tools: [{
         tool: { name: "provided_tool", description: "Provided", input_schema: { type: "object", properties: {} } },
         runner: async () => ({ content: "ok" }),
-        risk: "safe" as const, kind: "discovery" as const,
+        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
       }],
     });
 
@@ -180,7 +182,7 @@ describe("tools as factory function", () => {
           input_schema: { type: "object", properties: {} },
         },
         runner: async () => ({ content: `from factory in ${ctx.cwd}` }),
-        risk: "safe" as const, kind: "discovery" as const,
+        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
       }],
     };
 
@@ -209,7 +211,7 @@ describe("tools as factory function", () => {
           const value = ctx.getSecret("TOKEN");
           return { content: value ? "found" : "not found" };
         },
-        risk: "safe" as const, kind: "discovery" as const,
+        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
       }],
     };
 
@@ -234,7 +236,7 @@ describe("tools as factory function", () => {
           ctx.log.info("tool executed");
           return { content: "done" };
         },
-        risk: "safe" as const, kind: "discovery" as const,
+        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
       }],
     };
 
@@ -260,7 +262,7 @@ describe("tools as factory function", () => {
       tools: [{
         tool: { name: "static_tool", description: "Static", input_schema: { type: "object", properties: {} } },
         runner: async () => ({ content: "static" }),
-        risk: "safe" as const, kind: "discovery" as const,
+        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
       }],
     });
 
@@ -270,7 +272,7 @@ describe("tools as factory function", () => {
       tools: (_ctx) => [{
         tool: { name: "dynamic_tool", description: "Dynamic", input_schema: { type: "object", properties: {} } },
         runner: async () => ({ content: "dynamic" }),
-        risk: "safe" as const, kind: "discovery" as const,
+        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
       }],
     });
 
@@ -291,12 +293,12 @@ describe("tools as factory function", () => {
         {
           tool: { name: "ft1", description: "F1", input_schema: { type: "object", properties: {} } },
           runner: async () => ({ content: "1" }),
-          risk: "safe" as const, kind: "discovery" as const,
+          effect: legacyEffect({ risk: "safe", kind: "discovery" }),
         },
         {
           tool: { name: "ft2", description: "F2", input_schema: { type: "object", properties: {} } },
           runner: async () => ({ content: "2" }),
-          risk: "safe" as const, kind: "discovery" as const,
+          effect: legacyEffect({ risk: "safe", kind: "discovery" }),
         },
       ],
     });
@@ -351,7 +353,7 @@ describe("resolveModuleTools", () => {
     const tools: ToolDef[] = [{
       tool: { name: "t", description: "T", input_schema: { type: "object", properties: {} } },
       runner: async () => ({ content: "" }),
-      risk: "safe", kind: "discovery",
+      effect: legacyEffect({ risk: "safe", kind: "discovery" }),
     }];
     expect(resolveModuleTools({ name: "static", tools })).toBe(tools);
   });
@@ -449,7 +451,7 @@ describe("ModuleContext.events", () => {
           ctx.events.emitExternal("tool.ran", { tool: "event_emitter_tool" });
           return { content: "emitted" };
         },
-        risk: "safe" as const, kind: "discovery" as const,
+        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
       }],
     });
     loader.setBus(bus);
@@ -552,7 +554,7 @@ describe("ModuleContext.createSession", () => {
           session.close();
           return { content: result };
         },
-        risk: "safe" as const, kind: "discovery" as const,
+        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
       }],
     });
 
