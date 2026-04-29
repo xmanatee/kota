@@ -6,7 +6,7 @@ import { askOwnerSteps } from "#core/workflow/ask-owner-step.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { labeledPredicate } from "#core/workflow/run-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { typedCodeStep } from "#core/workflow/types.js";
+import { expectStructuredOutput, typedCodeStep } from "#core/workflow/types.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import {
   onRecoveryTrigger,
@@ -285,13 +285,22 @@ const assessFailure = typedCodeStep<DecomposerAssessment>({
   id: "assess-failure",
   type: "code",
   exposeOutputToAgent: true,
+  validate: (raw) =>
+    expectStructuredOutput<DecomposerAssessment>(raw, [
+      "reason",
+      "failedRunId",
+      "failedRunDir",
+      "isTimeout",
+      "escalation",
+      "shouldDecompose",
+    ]),
   run: ({ projectDir, trigger }) =>
     buildAssessment(projectDir, trigger.event, trigger.payload),
 });
 
 const escalationGate = labeledPredicate(
   "no-escalation-needed",
-  (ctx) => assessFailure.output(ctx).escalation !== null,
+  (ctx) => assessFailure.outputRequired(ctx).escalation !== null,
 );
 
 const escalationSteps = askOwnerSteps({
@@ -300,7 +309,7 @@ const escalationSteps = askOwnerSteps({
   // queue, long enough that a human checking notifications has a fair window.
   awaitTimeoutMs: 15 * 60 * 1000,
   input: (ctx) => {
-    const a = assessFailure.output(ctx);
+    const a = assessFailure.outputRequired(ctx);
     if (!a.escalation) {
       throw new Error(
         "decomposer escalation: ask step ran without an escalation on the assessment — gate predicate is broken",
@@ -335,12 +344,20 @@ const applyEscalationOutcome = typedCodeStep<EscalationResolution>({
   id: "apply-escalation-outcome",
   type: "code",
   exposeOutputToAgent: true,
+  validate: (raw): EscalationResolution => {
+    const obj = expectStructuredOutput<{ kind: EscalationResolution["kind"] }>(raw, ["kind"]);
+    const validKinds = ["no-escalation", "approved", "skipped"] as const;
+    if (!validKinds.includes(obj.kind)) {
+      throw new Error(`unknown EscalationResolution kind "${String(obj.kind)}"`);
+    }
+    return raw as EscalationResolution;
+  },
   run: (ctx): EscalationResolution => {
-    const assessment = assessFailure.output(ctx);
+    const assessment = assessFailure.outputRequired(ctx);
     if (!assessment.escalation) {
       return { kind: "no-escalation" };
     }
-    const outcome = escalationSteps.consume.output(ctx);
+    const outcome = escalationSteps.consume.outputRequired(ctx);
     const candidate = assessment.escalation.candidateTaskId;
     switch (outcome.kind) {
       case "answered": {
@@ -387,8 +404,8 @@ const applyEscalationOutcome = typedCodeStep<EscalationResolution>({
 const shouldRunDecompose = labeledPredicate(
   "no-decompose-target",
   (ctx) => {
-    if (assessFailure.output(ctx).shouldDecompose) return true;
-    return applyEscalationOutcome.output(ctx).kind === "approved";
+    if (assessFailure.outputRequired(ctx).shouldDecompose) return true;
+    return applyEscalationOutcome.outputRequired(ctx).kind === "approved";
   },
 );
 

@@ -16,6 +16,7 @@ import type {
   WorkflowToolStep,
   WorkflowTriggerStep,
 } from "../types.js";
+import { WorkflowStepOutputValidationError } from "../types.js";
 import type { AgentStepConfig, AgentStepResult, WorkflowStepOutput } from "./step-executor-agent.js";
 import {
   AgentStepRuntimeError,
@@ -158,7 +159,14 @@ export async function executeCodeStep(
   step: WorkflowCodeStep,
   context: WorkflowStepContext,
 ): Promise<WorkflowStepOutput> {
-  return (await step.run(context)) as WorkflowStepOutput;
+  const rawOutput = await step.run(context);
+  if (step.validate === undefined) return rawOutput as WorkflowStepOutput;
+  try {
+    return step.validate(rawOutput) as WorkflowStepOutput;
+  } catch (error) {
+    const cause = error instanceof Error ? error : new Error(String(error));
+    throw new WorkflowStepOutputValidationError(step.id, "run", cause);
+  }
 }
 
 export async function executeStep(

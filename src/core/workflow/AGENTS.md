@@ -112,24 +112,47 @@ read the await output from the resume run's trigger envelope under
 
 ## Typed Code Step Pattern
 
-Use `typedCodeStep<T>` from `types.ts` when a code step's output is consumed by downstream
-steps or `when` predicates. It returns a `TypedCodeStepInput<T>` that is assignable to any
-`WorkflowCodeStepInput` slot and adds an `output(context)` accessor typed as `T`:
+Use `typedCodeStep<T>` from `types.ts` when a code step's output is consumed by
+downstream steps or `when` predicates. It returns a `TypedCodeStepInput<T>` that
+is assignable to any `WorkflowCodeStepInput` slot and adds two accessors typed
+as `T`:
+
+- `output(ctx)` returns `T | undefined` — `undefined` for skipped or not-yet-run
+  steps. Use it when the caller already gates on optionality with `?.`.
+- `outputRequired(ctx)` returns `T` and throws if the step was skipped or has
+  not yet run. Use it from sites that gate themselves on the step having
+  succeeded so the type narrows without a manual undefined check.
+
+A `validate` decoder is required. It runs once after `run()` (catching shape
+drift in fresh executions) and again on every `output(ctx)` access (catching
+persisted/resumed/manually-loaded values that no longer match `T`). On
+rejection the runtime throws `WorkflowStepOutputValidationError` with the
+offending step id and surface (`run` vs `persisted`).
 
 ```ts
-import { typedCodeStep } from "../workflow/types.js";
+import {
+  expectStructuredOutput,
+  typedCodeStep,
+} from "../workflow/types.js";
 
 const myStep = typedCodeStep<MyOutputType>({
   id: "my-step",
   type: "code",
+  validate: (raw) => expectStructuredOutput<MyOutputType>(raw, ["someField"]),
   run: (): MyOutputType => ({ ... }),
 });
 
 // Use myStep directly in the steps array.
-// Downstream steps access the output without casts:
-when: (ctx) => myStep.output(ctx).someField > 0,
+when: (ctx) => myStep.outputRequired(ctx).someField > 0,
 ```
 
-The runtime representation is unchanged (`stepOutputs` remains `Record<string, unknown>`).
-Untyped code steps are still valid — only adopt this pattern when downstream type safety
-is needed.
+The validator decodes the persisted raw value into `T`. `expectStructuredOutput`
+and `expectArrayOutput` cover the common cases (object with required keys,
+array with optional per-item decoder); supply a custom function for anything
+more involved.
+
+Untyped `WorkflowCodeStepInput` (no `validate`, no typed accessor) is still
+valid for steps whose output is scalar or unread — only adopt this pattern when
+downstream type safety is needed. The runtime persists the post-validate value
+in `stepOutputs`, so it always matches the declared `T` for fresh runs; the
+on-access re-validation is the rail that catches resume-time drift.

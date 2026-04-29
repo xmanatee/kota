@@ -1,7 +1,7 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { typedCodeStep } from "#core/workflow/types.js";
+import { expectStructuredOutput, typedCodeStep } from "#core/workflow/types.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import {
   onRecoveryTrigger,
@@ -84,6 +84,18 @@ const inspectQueue = typedCodeStep<ExplorerAssessment>({
   id: "inspect-queue",
   type: "code",
   exposeOutputToAgent: true,
+  validate: (raw) =>
+    expectStructuredOutput<ExplorerAssessment>(raw, [
+      "counts",
+      "inboxCount",
+      "openCount",
+      "pullableCount",
+      "actionableCount",
+      "dirty",
+      "needsAttention",
+      "explorationRefreshDue",
+      "strategicReadyCoverageGap",
+    ]),
   run: ({ projectDir }) => {
     return buildExplorerAssessment(
       projectDir,
@@ -127,6 +139,8 @@ const inspectWatchlist = typedCodeStep<WatchlistInspection>({
   id: "inspect-watchlist",
   type: "code",
   exposeOutputToAgent: true,
+  validate: (raw) =>
+    expectStructuredOutput<WatchlistInspection>(raw, ["entries", "updateReportPath"]),
   run: ({ projectDir }) => {
     const file = readWatchlist(projectDir);
     return {
@@ -178,7 +192,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => {
         if (ctx.trigger.event === "runtime.recovered") return false;
-        return inspectQueue.output(ctx).needsAttention;
+        return inspectQueue.outputRequired(ctx).needsAttention;
       },
       repairLoop: {
         checks: [

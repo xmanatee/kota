@@ -1,10 +1,14 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
-import { type AwaitedOwnerOutcome, askOwnerSteps } from "#core/workflow/ask-owner-step.js";
+import { askOwnerSteps } from "#core/workflow/ask-owner-step.js";
 import { labeledPredicate } from "#core/workflow/run-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { typedCodeStep } from "#core/workflow/types.js";
+import {
+  expectArrayOutput,
+  expectStructuredOutput,
+  typedCodeStep,
+} from "#core/workflow/types.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import {
   onNormalTrigger,
@@ -38,6 +42,8 @@ const inspectBlocked = typedCodeStep<InspectResult>({
   id: "inspect-blocked",
   type: "code",
   when: onNormalTrigger,
+  validate: (raw) =>
+    expectStructuredOutput<InspectResult>(raw, ["dirty", "blockedCount", "ownerAsk"]),
   run: ({ projectDir }) => {
     const worktree = getRepoWorktreeStatus(projectDir);
     const dirty = worktree.available && worktree.trackedDirty;
@@ -60,9 +66,11 @@ const promoteDeterministic = typedCodeStep<DeterministicPromotion>({
   type: "code",
   when: (ctx) => {
     if (ctx.trigger.event === "runtime.recovered") return false;
-    const inspection = inspectBlocked.output(ctx);
+    const inspection = inspectBlocked.outputRequired(ctx);
     return !inspection.dirty && inspection.blockedCount > 0;
   },
+  validate: (raw) =>
+    expectStructuredOutput<DeterministicPromotion>(raw, ["promotions"]),
   run: ({ projectDir }) => promoteSatisfiedBlockedTasks(projectDir),
 });
 
@@ -70,7 +78,7 @@ const ownerAskGate = labeledPredicate(
   "no-owner-ask-due",
   (ctx) => {
     if (ctx.trigger.event === "runtime.recovered") return false;
-    const inspection = inspectBlocked.output(ctx);
+    const inspection = inspectBlocked.outputRequired(ctx);
     return !inspection.dirty && inspection.ownerAsk !== null;
   },
 );
@@ -79,7 +87,7 @@ const askSteps = askOwnerSteps({
   idPrefix: "blocked-promoter-ask",
   awaitTimeoutMs: 10 * 60 * 1000,
   input: (ctx) => {
-    const candidate = inspectBlocked.output(ctx).ownerAsk;
+    const candidate = inspectBlocked.outputRequired(ctx).ownerAsk;
     if (!candidate) {
       throw new Error(
         "blocked-promoter ask step ran without an owner-ask candidate — gate predicate is broken",
@@ -113,14 +121,18 @@ const applyOutcome = typedCodeStep<AskOutcomeApplication[]>({
   id: "apply-ask-outcome",
   type: "code",
   when: ownerAskGate,
+  validate: (raw) =>
+    expectArrayOutput<AskOutcomeApplication>(raw, (item) =>
+      expectStructuredOutput<AskOutcomeApplication>(item, ["kind", "slot"]),
+    ),
   run: (ctx) => {
-    const candidate = inspectBlocked.output(ctx).ownerAsk;
+    const candidate = inspectBlocked.outputRequired(ctx).ownerAsk;
     if (!candidate) {
       throw new Error(
         "blocked-promoter apply-ask-outcome ran without an owner-ask candidate",
       );
     }
-    const outcome = askSteps.consume.output(ctx) as AwaitedOwnerOutcome;
+    const outcome = askSteps.consume.outputRequired(ctx);
     let approved = false;
     if (outcome.kind === "answered") {
       approved = answerApprovesPromotion(outcome.answer, candidate.proposedAnswers);
@@ -138,6 +150,8 @@ const promoteAfterApproval = typedCodeStep<DeterministicPromotion>({
     if (!apps) return false;
     return apps.some((app) => app.kind === "resolved");
   },
+  validate: (raw) =>
+    expectStructuredOutput<DeterministicPromotion>(raw, ["promotions"]),
   run: ({ projectDir }) => promoteSatisfiedBlockedTasks(projectDir),
 });
 
@@ -152,6 +166,8 @@ function workflowChangedAnything(
 const writeCommitMessage = typedCodeStep<{ written: boolean }>({
   id: "write-commit-message",
   type: "code",
+  validate: (raw) =>
+    expectStructuredOutput<{ written: boolean }>(raw, ["written"]),
   when: (ctx) => {
     if (ctx.trigger.event === "runtime.recovered") return false;
     const promotions = (promoteDeterministic.output(ctx)?.promotions ?? []).length;
@@ -193,6 +209,11 @@ const validateBeforeCommit = typedCodeStep<{ ok: true }>({
   id: "validate-before-commit",
   type: "code",
   when: (ctx) => writeCommitMessage.output(ctx)?.written === true,
+  validate: (raw) => {
+    const obj = expectStructuredOutput<{ ok: true }>(raw, ["ok"]);
+    if (obj.ok !== true) throw new Error(`expected ok: true, got ${String(obj.ok)}`);
+    return obj;
+  },
   run: (ctx) => {
     runCheck("pnpm run validate-tasks", ctx.projectDir);
     checkNoScratchArtifacts(ctx.projectDir);
@@ -206,6 +227,8 @@ const commitChanges = typedCodeStep<{ committed: boolean }>({
   id: "commit",
   type: "code",
   when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
+  validate: (raw) =>
+    expectStructuredOutput<{ committed: boolean }>(raw, ["committed"]),
   run: ({ projectDir, workflow }) => {
     const result = commitWorkflowChanges(projectDir, workflow.runDirPath);
     return { committed: Boolean(result.committed) };

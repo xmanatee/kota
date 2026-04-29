@@ -1,7 +1,7 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { typedCodeStep } from "#core/workflow/types.js";
+import { expectStructuredOutput, typedCodeStep } from "#core/workflow/types.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import {
   onNormalTrigger,
@@ -37,6 +37,8 @@ const inspectInbox = typedCodeStep<InboxSorterAssessment>({
   id: "inspect-inbox",
   type: "code",
   when: onNormalTrigger,
+  validate: (raw) =>
+    expectStructuredOutput<InboxSorterAssessment>(raw, ["inboxCount", "needsAttention"]),
   run: ({ projectDir }) => {
     const status = getRepoWorktreeStatus(projectDir);
     const nonInboxTracked = status.entries.filter(
@@ -92,7 +94,7 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => {
         if (ctx.trigger.event === "runtime.recovered") return false;
-        return inspectInbox.output(ctx).needsAttention;
+        return inspectInbox.outputRequired(ctx).needsAttention;
       },
       repairLoop: {
         checks: [

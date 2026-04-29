@@ -1,7 +1,7 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { typedCodeStep } from "#core/workflow/types.js";
+import { expectStructuredOutput, typedCodeStep } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import {
   type EvaluatorCalibrationArtifact,
@@ -43,6 +43,13 @@ type InspectResult = RepoTaskQueueSnapshot & { dirty: boolean };
 const inspectReadyQueue = typedCodeStep<InspectResult>({
   id: "inspect-ready-queue",
   type: "code",
+  validate: (raw) =>
+    expectStructuredOutput<InspectResult>(raw, [
+      "dirty",
+      "pullableCount",
+      "actionableCount",
+      "counts",
+    ]),
   run: ({ projectDir }) => {
     const worktree = getRepoWorktreeStatus(projectDir);
     const dirty = worktree.available && worktree.trackedDirty;
@@ -93,7 +100,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => {
         if (ctx.trigger.event === "runtime.recovered") return false;
-        const { dirty, pullableCount } = inspectReadyQueue.output(ctx);
+        const { dirty, pullableCount } = inspectReadyQueue.outputRequired(ctx);
         return !dirty && pullableCount > 0;
       },
       repairLoop: {
@@ -104,6 +111,13 @@ const builderWorkflow: WorkflowDefinitionInput = {
       id: "create-task-branch",
       type: "code",
       when: stepSucceeded("build"),
+      validate: (raw) =>
+        expectStructuredOutput<BranchStepResult>(raw, [
+          "branchPerTask",
+          "branch",
+          "baseBranch",
+          "taskId",
+        ]),
       run: (ctx) => createTaskBranch(ctx),
     }),
     {
@@ -116,12 +130,27 @@ const builderWorkflow: WorkflowDefinitionInput = {
       id: "write-run-summary",
       type: "code",
       when: stepCommitted("commit"),
+      validate: (raw) =>
+        expectStructuredOutput<BuilderRunSummary>(raw, [
+          "runId",
+          "workflow",
+          "outcome",
+          "commitSha",
+          "commitMessage",
+          "filesChanged",
+        ]),
       run: (ctx) => writeBuilderRunSummary(ctx),
     }),
     typedCodeStep<EvaluatorCalibrationArtifact>({
       id: "write-calibration-artifact",
       type: "code",
       when: stepSucceeded("write-run-summary"),
+      validate: (raw) =>
+        expectStructuredOutput<EvaluatorCalibrationArtifact>(raw, [
+          "runId",
+          "workflow",
+          "verdict",
+        ]),
       run: (ctx) => writeCalibrationArtifact(ctx),
     }),
     {
@@ -141,6 +170,8 @@ const builderWorkflow: WorkflowDefinitionInput = {
         const branchInfo = ctx.stepOutputs["create-task-branch"] as BranchStepResult | undefined;
         return branchInfo?.branchPerTask === true;
       },
+      validate: (raw) =>
+        expectStructuredOutput<CleanupResult>(raw, ["cleaned", "warnings"]),
       run: (ctx) => cleanupMergedBranches(ctx),
     }),
     {

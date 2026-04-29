@@ -1,12 +1,12 @@
 ---
 id: task-runtime-validate-workflow-step-outputs
 title: Runtime-validate workflow step outputs
-status: backlog
+status: done
 priority: p1
 area: core
 summary: Replace compile-time-only typedCodeStep casts with runtime-validated output contracts for downstream-consumed workflow outputs, especially code steps and persisted resume paths.
 created_at: 2026-04-28T22:24:00.000Z
-updated_at: 2026-04-28T22:24:00.000Z
+updated_at: 2026-04-29T04:23:57.970Z
 ---
 
 ## Problem

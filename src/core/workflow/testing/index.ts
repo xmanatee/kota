@@ -16,6 +16,7 @@ import type {
   WorkflowParallelGroupInput,
   WorkflowStepInput,
 } from "#core/workflow/types.js";
+import { WorkflowStepOutputValidationError } from "#core/workflow/types.js";
 
 export type HarnessStepResult = {
   id: string;
@@ -383,7 +384,18 @@ export class WorkflowTestHarness {
                 }
                 innerOutput = stepMocks[innerStep.id];
               } else {
-                innerOutput = await (innerStep as WorkflowCodeStepInput).run(iterContext);
+                const innerCode = innerStep as WorkflowCodeStepInput;
+                const innerRaw = await innerCode.run(iterContext);
+                if (innerCode.validate !== undefined) {
+                  try {
+                    innerOutput = innerCode.validate(innerRaw);
+                  } catch (vErr) {
+                    const cause = vErr instanceof Error ? vErr : new Error(String(vErr));
+                    throw new WorkflowStepOutputValidationError(innerStep.id, "run", cause);
+                  }
+                } else {
+                  innerOutput = innerRaw;
+                }
               }
             } catch (err) {
               innerError = err instanceof Error ? err.message : String(err);
@@ -489,7 +501,18 @@ export class WorkflowTestHarness {
 
       try {
         if (step.type === "code") {
-          output = await (step as WorkflowCodeStepInput).run(context);
+          const codeStep = step as WorkflowCodeStepInput;
+          const rawOutput = await codeStep.run(context);
+          if (codeStep.validate !== undefined) {
+            try {
+              output = codeStep.validate(rawOutput);
+            } catch (error) {
+              const cause = error instanceof Error ? error : new Error(String(error));
+              throw new WorkflowStepOutputValidationError(step.id, "run", cause);
+            }
+          } else {
+            output = rawOutput;
+          }
         } else if (step.type === "agent") {
           if (!(step.id in stepMocks)) {
             throw new Error(

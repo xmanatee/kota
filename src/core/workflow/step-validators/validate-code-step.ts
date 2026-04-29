@@ -1,4 +1,8 @@
-import type { WorkflowCodeStep, WorkflowCodeStepInput } from "#core/workflow/types.js";
+import type {
+  CodeStepOutputValidator,
+  WorkflowCodeStep,
+  WorkflowCodeStepInput,
+} from "#core/workflow/types.js";
 import {
   expectName,
   expectOptionalBoolean,
@@ -14,6 +18,13 @@ export function validateCodeStep(
   if (typeof step.run !== "function") {
     throw new WorkflowDefinitionError(
       `steps[${index}].run must be a function`,
+      definitionPath,
+    );
+  }
+
+  if (step.validate !== undefined && typeof step.validate !== "function") {
+    throw new WorkflowDefinitionError(
+      `steps[${index}].validate must be a function`,
       definitionPath,
     );
   }
@@ -37,5 +48,8 @@ export function validateCodeStep(
       `steps[${index}].exposeOutputToAgent`,
       definitionPath,
     ),
+    ...(step.validate !== undefined
+      ? { validate: step.validate as CodeStepOutputValidator<unknown> }
+      : {}),
   };
 }

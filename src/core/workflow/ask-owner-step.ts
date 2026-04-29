@@ -29,6 +29,7 @@ import { reviewOwnerQuestion } from "#core/daemon/owner-question-review.js";
 import { detectInjection } from "#core/util/injection-detector.js";
 import type { AwaitEventStepOutput } from "./steps/step-executor-await-event.js";
 import {
+  expectStructuredOutput,
   type TypedCodeStepInput,
   typedCodeStep,
   type WorkflowAwaitEventStep,
@@ -162,6 +163,15 @@ export function askOwnerSteps(config: AskOwnerStepsConfig): AskOwnerSteps {
   const ask = typedCodeStep<AskOwnerStepOutput>({
     id: askId,
     type: "code",
+    validate: (raw) =>
+      expectStructuredOutput<AskOwnerStepOutput>(raw, [
+        "questionId",
+        "question",
+        "context",
+        "reason",
+        "source",
+        "enqueuedAt",
+      ]),
     run: (ctx): AskOwnerStepOutput => {
       const input =
         typeof config.input === "function" ? config.input(ctx) : config.input;
@@ -208,15 +218,39 @@ export function askOwnerSteps(config: AskOwnerStepsConfig): AskOwnerSteps {
     type: "await-event",
     event: "owner.question.resolved",
     matchField: "id",
-    matchValue: (ctx) => ask.output(ctx).questionId,
+    matchValue: (ctx) => {
+      const out = ask.output(ctx);
+      if (!out) {
+        throw new Error(
+          `askOwnerSteps: wait step "${waitId}" evaluated matchValue but ask step "${askId}" produced no output`,
+        );
+      }
+      return out.questionId;
+    },
     awaitTimeoutMs,
   };
 
   const consume = typedCodeStep<AwaitedOwnerOutcome>({
     id: consumeId,
     type: "code",
+    validate: (raw): AwaitedOwnerOutcome => {
+      const obj = expectStructuredOutput<{ kind: AwaitedOwnerOutcome["kind"]; questionId: string }>(
+        raw,
+        ["kind", "questionId"],
+      );
+      const validKinds = ["answered", "dismissed", "expired", "timeout"] as const;
+      if (!validKinds.includes(obj.kind)) {
+        throw new Error(`unknown AwaitedOwnerOutcome kind "${String(obj.kind)}"`);
+      }
+      return raw as AwaitedOwnerOutcome;
+    },
     run: (ctx): AwaitedOwnerOutcome => {
       const askOutput = ask.output(ctx);
+      if (!askOutput) {
+        throw new Error(
+          `askOwnerSteps: consume step "${consumeId}" ran but ask step "${askId}" produced no output`,
+        );
+      }
       const waitOutput = ctx.stepOutputs[waitId] as AwaitEventStepOutput;
       if (waitOutput.kind === "timeout") {
         return {

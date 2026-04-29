@@ -15,7 +15,7 @@
 
 import { join } from "node:path";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { typedCodeStep } from "#core/workflow/types.js";
+import { expectStructuredOutput, typedCodeStep } from "#core/workflow/types.js";
 import {
   aggregateCalibration,
   DEFAULT_CALIBRATION_MIN_SAMPLE,
@@ -45,6 +45,14 @@ function buildReason(aggregate: EvaluatorCalibrationAggregate, gateReason: strin
 const monitorStep = typedCodeStep<MonitorResult>({
   id: "evaluate-calibration",
   type: "code",
+  validate: (raw) =>
+    expectStructuredOutput<MonitorResult>(raw, [
+      "emitted",
+      "status",
+      "totalRuns",
+      "passVerdictCount",
+      "passContradictionRate",
+    ]),
   run: ({ projectDir, emit }) => {
     const runsDir = join(projectDir, ".kota", "runs");
     const thresholdRate = Number(

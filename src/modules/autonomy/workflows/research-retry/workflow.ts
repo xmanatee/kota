@@ -1,7 +1,7 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { typedCodeStep } from "#core/workflow/types.js";
+import { expectStructuredOutput, typedCodeStep } from "#core/workflow/types.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import {
   onNormalTrigger,
@@ -75,6 +75,16 @@ const inspectCandidates = typedCodeStep<InspectResult>({
   type: "code",
   when: onNormalTrigger,
   exposeOutputToAgent: true,
+  validate: (raw) =>
+    expectStructuredOutput<InspectResult>(raw, [
+      "dirty",
+      "candidateCount",
+      "capability",
+      "candidate",
+      "fingerprint",
+      "marker",
+      "examined",
+    ]),
   run: ({ projectDir }) => {
     const worktree = getRepoWorktreeStatus(projectDir);
     const dirty = worktree.available && worktree.trackedDirty;
@@ -123,8 +133,15 @@ const markAttempt = typedCodeStep<MarkAttemptResult>({
   id: "mark-attempt",
   type: "code",
   when: stepSucceeded("retry"),
+  validate: (raw): MarkAttemptResult => {
+    const obj = expectStructuredOutput<{ written: boolean }>(raw, ["written"]);
+    if (typeof obj.written !== "boolean") {
+      throw new Error(`expected written: boolean, got ${typeof obj.written}`);
+    }
+    return raw as MarkAttemptResult;
+  },
   run: (ctx) => {
-    const inspection = inspectCandidates.output(ctx);
+    const inspection = inspectCandidates.outputRequired(ctx);
     if (!inspection.candidate) {
       return { written: false, reason: "no candidate selected" };
     }
@@ -176,7 +193,7 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => {
         if (ctx.trigger.event === "runtime.recovered") return false;
-        const inspection = inspectCandidates.output(ctx);
+        const inspection = inspectCandidates.outputRequired(ctx);
         return !inspection.dirty && inspection.candidate !== null;
       },
       repairLoop: {

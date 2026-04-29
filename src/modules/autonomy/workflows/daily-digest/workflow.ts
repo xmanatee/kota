@@ -17,7 +17,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { typedCodeStep } from "#core/workflow/types.js";
+import { expectStructuredOutput, typedCodeStep } from "#core/workflow/types.js";
 import {
   type DailyDigestData,
   digestStateFromCounts,
@@ -35,6 +35,13 @@ export const DAILY_DIGEST_DIGEST_TXT = "digest.txt";
 const buildDigest = typedCodeStep<DailyDigestData>({
   id: "build-digest",
   type: "code",
+  validate: (raw) =>
+    expectStructuredOutput<DailyDigestData>(raw, [
+      "windowStartedAt",
+      "windowEndedAt",
+      "queueDelta",
+      "quiet",
+    ]),
   run: ({ projectDir, workflow, emit }) => {
     const statePath = join(projectDir, ".kota", DAILY_DIGEST_STATE_FILENAME);
     const snapshot = computeDigestSnapshot({ projectDir });

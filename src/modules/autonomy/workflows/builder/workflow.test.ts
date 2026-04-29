@@ -45,8 +45,17 @@ vi.mock("#modules/autonomy/commit.js", () => ({
 
 vi.mock("./run-summary.js", () => ({
   writeBuilderRunSummary: vi.fn(() => ({
-    runs: [],
-    costByWorkflow: {},
+    runId: "test-run-id",
+    workflow: "builder",
+    taskId: null,
+    taskTitle: null,
+    outcome: "success" as const,
+    commitSha: "abc1234",
+    commitMessage: "test commit",
+    filesChanged: [],
+    costUsd: null,
+    durationMs: null,
+    completedAt: new Date().toISOString(),
   })),
 }));
 

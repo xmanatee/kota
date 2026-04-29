@@ -1,6 +1,6 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { typedCodeStep } from "#core/workflow/types.js";
+import { expectStructuredOutput, typedCodeStep } from "#core/workflow/types.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
@@ -58,6 +58,13 @@ function skip(skipReason: string): PrReviewAssessment {
 const assessPr = typedCodeStep<PrReviewAssessment>({
   id: "assess-pr",
   type: "code",
+  validate: (raw): PrReviewAssessment => {
+    const obj = expectStructuredOutput<{ skip: boolean }>(raw, ["skip"]);
+    if (typeof obj.skip !== "boolean") {
+      throw new Error(`expected skip: boolean, got ${typeof obj.skip}`);
+    }
+    return raw as PrReviewAssessment;
+  },
   run: ({ trigger }) => {
     const p = trigger.payload as PrWebhookPayload;
 
@@ -117,7 +124,7 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
       effort: agent.effort,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-      when: (ctx) => !assessPr.output(ctx).skip,
+      when: (ctx) => !assessPr.outputRequired(ctx).skip,
       // The agent's prompt requires the response end with a fenced JSON
       // object containing `recommendation`; the emit step then reads that
       // recommendation off the structured step output. Without
@@ -145,7 +152,7 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
       when: stepSucceeded("review"),
       event: "workflow.pr.review.posted",
       payload: (ctx) => {
-        const assessment = assessPr.output(ctx);
+        const assessment = assessPr.outputRequired(ctx);
         if (assessment.skip) {
           throw new Error("pr-reviewer cannot emit review event for skipped assessment");
         }

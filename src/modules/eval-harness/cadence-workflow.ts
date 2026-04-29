@@ -11,7 +11,7 @@
 import { writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { typedCodeStep } from "#core/workflow/types.js";
+import { expectStructuredOutput, typedCodeStep } from "#core/workflow/types.js";
 import {
   assessAgainstBaseline,
   type BaselineAssessment,
@@ -44,6 +44,15 @@ const CADENCE_REPEAT_COUNT = 3;
 const runHarness = typedCodeStep<CadenceResult>({
   id: "run-harness",
   type: "code",
+  validate: (raw) =>
+    expectStructuredOutput<CadenceResult>(raw, [
+      "fixtureCount",
+      "repeatCount",
+      "passAtK",
+      "passHatK",
+      "runArtifactBaseDir",
+      "assessmentStatus",
+    ]),
   run: async ({ projectDir, workflow, emit }) => {
     const fixturesRoot = join(projectDir, "src/modules/eval-harness/fixtures");
     const fixtures = loadAllFixtures(fixturesRoot);

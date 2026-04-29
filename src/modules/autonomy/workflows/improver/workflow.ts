@@ -1,7 +1,7 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { typedCodeStep } from "#core/workflow/types.js";
+import { expectStructuredOutput, typedCodeStep } from "#core/workflow/types.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { checkDocBloat } from "#modules/autonomy/doc-bloat-check.js";
 import { createImproverSemanticCheck } from "#modules/autonomy/improver-semantic-gate.js";
@@ -42,6 +42,15 @@ const gatherRunDataStep = typedCodeStep<RunOutcomeAggregation>({
   id: "gather-run-data",
   type: "code",
   exposeOutputToAgent: true,
+  validate: (raw) =>
+    expectStructuredOutput<RunOutcomeAggregation>(raw, [
+      "failureRates24h",
+      "failureRates7d",
+      "topRepairFailures24h",
+      "topRepairFailures7d",
+      "durationOutliers",
+      "latestActionableRunAt",
+    ]),
   run: ({ projectDir }) => {
     const store = new WorkflowRunStore(projectDir);
     return aggregateRunOutcomes(store.runsDir);
@@ -51,9 +60,14 @@ const gatherRunDataStep = typedCodeStep<RunOutcomeAggregation>({
 const gateEvidenceStep = typedCodeStep<ReturnType<typeof decideImproverEvidenceGate>>({
   id: "gate-evidence",
   type: "code",
+  validate: (raw) =>
+    expectStructuredOutput<ReturnType<typeof decideImproverEvidenceGate>>(raw, [
+      "shouldRun",
+      "reason",
+    ]),
   run: (ctx) =>
     decideImproverEvidenceGate(
-      gatherRunDataStep.output(ctx),
+      gatherRunDataStep.outputRequired(ctx),
       readImproverEvidenceGateState(ctx.projectDir),
     ),
 });
@@ -168,7 +182,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
       run: (ctx) =>
         writeImproverEvidenceGateState(
           ctx.projectDir,
-          gateEvidenceStep.output(ctx),
+          gateEvidenceStep.outputRequired(ctx),
         ),
     },
     {
@@ -182,6 +196,15 @@ const improverWorkflow: WorkflowDefinitionInput = {
       id: "write-run-summary",
       type: "code",
       when: stepCommitted("commit"),
+      validate: (raw) =>
+        expectStructuredOutput<WorkflowRunSummary>(raw, [
+          "runId",
+          "workflow",
+          "outcome",
+          "commitSha",
+          "commitMessage",
+          "filesChanged",
+        ]),
       run: (ctx) => writeRunSummary(ctx, "improve"),
     }),
     {
