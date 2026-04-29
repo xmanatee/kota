@@ -5,8 +5,9 @@ the Model Context Protocol over stdio.
 
 - Registers the `kota mcp-server` CLI command. The action handler routes
   through `ctx.client.mcpServer.start(opts)`. The local handler in
-  `mcp-server-operations.ts` re-loads the full module set (non-commandsOnly)
-  before instantiating `McpServer` so every contributed tool is available.
+  `mcp-server-operations.ts` re-loads the full module set (lifecycle mode
+  `"runtime"`) before instantiating `McpServer` so every contributed tool
+  is available.
   The daemon-side handler returns `{ ok: false, reason: "daemon_required" }`
   because the daemon cannot start a stdio MCP server in another process;
   the CLI maps that to a "stop the daemon first" hint.

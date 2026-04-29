@@ -42,8 +42,8 @@ function buildFilter(filter?: AuditListFilter): AuditFilter {
  * Resolve the audit store for the active module context. Prefers the
  * already-initialized in-process store when present (the daemon path has
  * one set up by `guardrails-audit.onLoad`); falls back to a fresh
- * `AuditStore` rooted at `ctx.cwd` for the CLI commandsOnly path where
- * `onLoad` is skipped.
+ * `AuditStore` rooted at `ctx.cwd` for the CLI's `"commands"` lifecycle
+ * path where `onLoad` is skipped.
  */
 function resolveStore(ctx: ModuleContext): Pick<AuditStore, "query"> {
   const store = getAuditStore();

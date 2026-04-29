@@ -96,23 +96,24 @@ describe("module → CLI pipeline (full lifecycle)", () => {
     await loader.unloadAll();
   });
 
-  it("commandsOnly loader produces same commands as full loader (no tool side-effects)", async () => {
-    // Full loader registers tools
+  it("\"commands\" mode loader produces same commands as runtime loader (no tool side-effects)", async () => {
+    // Runtime loader registers tools
     const fullLoader = new ModuleLoader({});
     await fullLoader.loadAll(projectModules);
     const fullCommands = fullLoader.getCommands().map((c) => c.name()).sort();
 
     await fullLoader.unloadAll();
 
-    // commandsOnly loader should produce the same commands without registering tools
-    const cliLoader = new ModuleLoader({}, false, { commandsOnly: true });
+    // Commands-mode loader should produce the same commands without registering tools
+    const cliLoader = new ModuleLoader({}, false, { mode: "commands" });
     await cliLoader.loadAll(projectModules);
     const cliCommands = cliLoader.getCommands().map((c) => c.name()).sort();
 
     expect(cliCommands).toEqual(fullCommands);
     expect(cliCommands.length).toBeGreaterThanOrEqual(4);
 
-    // commandsOnly should NOT register tools (tool count stays at 0 in custom set)
+    // Commands mode should NOT register tools (tool count stays at 0 in custom set)
+    expect(cliLoader.getMode()).toBe("commands");
     expect(cliLoader.getToolCount()).toBe(0);
 
     await cliLoader.unloadAll();

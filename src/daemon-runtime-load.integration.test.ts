@@ -1,7 +1,7 @@
 /**
  * Integration test: the daemon must drive a full module-load lifecycle
  * before serving provider-backed routes. The CLI bootstraps its
- * `ModuleLoader` in `commandsOnly` mode for cheap subcommand registration,
+ * `ModuleLoader` in `"commands"` mode for cheap subcommand registration,
  * which intentionally skips every module's `onLoad` — including the
  * `registerProvider` calls that back `/api/knowledge`, `/api/memory`,
  * `/api/history`, `/recall`, `/answer`, etc.
@@ -16,9 +16,9 @@
  * The two cases below are the contract:
  *   - `loadRuntimeModules` registers provider-backed seams. A daemon built
  *     from its contributions serves `/api/knowledge` with 200.
- *   - A `commandsOnly` loader does not register those seams. A daemon
- *     built from its contributions still exposes the route, but the
- *     handler fails because `getKnowledgeProvider()` throws.
+ *   - A `"commands"` loader cannot hand back its routes at all: the typed
+ *     accessor throws so a runtime host can never silently ship with a
+ *     partial module lifecycle.
  */
 
 import { mkdirSync, readFileSync, rmSync } from "node:fs";
@@ -117,46 +117,34 @@ describe("daemon runtime module load", () => {
     }
   });
 
-  it("commandsOnly loader exposes provider-backed routes that fail without onLoad", async () => {
+  it("\"commands\" mode loader refuses to hand back routes/control-routes/health while exposing static contributions", async () => {
     const config = { defaultAgentHarness: "claude-agent-sdk" };
     const projectModules = await discoverProjectModules();
     const installedModules = await discoverModules(projectDir);
-    const loader = new ModuleLoader(config, false, { commandsOnly: true });
+    const loader = new ModuleLoader(config, false, { mode: "commands" });
     loader.setCwd(projectDir);
     await loader.loadAll(projectModules, installedModules);
 
+    // No provider was registered: the registry surfaces that directly,
+    // independent of the loader contract.
     expect(() => getKnowledgeProvider()).toThrow(/knowledge provider/);
 
-    const routes = loader.getRoutes();
-    expect(routes.some((r) => r.path === "/api/knowledge")).toBe(true);
+    // The lifecycle contract narrows to genuinely runtime-dependent accessors:
+    // route handlers and control-route handlers close over onLoad-initialized
+    // provider state, and module health probes do the same. Reading those from
+    // a commands-mode loader is the partial-context bug class; the typed
+    // boundary throws so a daemon cannot ingest them. There is no escape hatch.
+    expect(() => loader.getRoutes()).toThrow(/lifecycle mode "runtime"/);
+    expect(() => loader.getContributedControlRoutes()).toThrow(/lifecycle mode "runtime"/);
+    await expect(loader.probeHealthChecks()).rejects.toThrow(/lifecycle mode "runtime"/);
 
-    const daemon = new Daemon({
-      projectDir,
-      stateDir,
-      idleIntervalMs: 60_000,
-      pollIntervalMs: 60_000,
-      workflows: [],
-      channels: [],
-      controlRoutes: loader.getContributedControlRoutes(),
-      routes,
-      config,
-    });
-
-    const startPromise = daemon.start();
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 80));
-      const address = readControlAddress(stateDir);
-      const res = await fetchWithToken(
-        address.port,
-        "/api/knowledge",
-        address.token!,
-      );
-      expect(res.status).toBe(500);
-      const body = (await res.json()) as { error: string };
-      expect(body.error).toMatch(/knowledge provider/);
-    } finally {
-      await daemon.stop();
-      await startPromise;
-    }
+    // Static-data accessors stay safe in commands mode because they are
+    // populated from each module's definition during load(), independent of
+    // onLoad side effects. CLI surfaces (workflow validate/exec, daemon
+    // reload-config diff) read these without spinning up a runtime lifecycle.
+    expect(() => loader.getContributedWorkflows()).not.toThrow();
+    expect(() => loader.getContributedChannels()).not.toThrow();
+    expect(() => loader.getSkillsPrompt()).not.toThrow();
+    expect(() => loader.getAgentDef("nonexistent")).not.toThrow();
   });
 });

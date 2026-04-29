@@ -4,8 +4,9 @@
  * Commands route through the unified `KotaClient` namespace, which selects
  * the daemon-side or local handler at startup. Voice work always lives
  * daemon-side (the providers and their credentials register in module
- * onLoad, skipped in CLI commandsOnly mode), so the local handler returns
- * `daemon_required` and the CLI maps that to a single clear hint.
+ * onLoad, skipped on the CLI's `"commands"` lifecycle path), so the local
+ * handler returns `daemon_required` and the CLI maps that to a single
+ * clear hint.
  *
  * The CLI itself only reads input bytes and plays output bytes through a
  * platform-detected player; provider and credential handling stay

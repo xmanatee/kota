@@ -379,9 +379,9 @@ export type KotaModule = {
 
   /**
    * Local-side handlers for the KotaClient namespaces this module owns.
-   * The loader always invokes this factory at module load — including in
-   * the CLI's `commandsOnly` path — so the selector can assemble a
-   * complete `LocalKotaClient` before any subcommand runs. Heavy
+   * The loader always invokes this factory at module load — including on
+   * the CLI's `"commands"` lifecycle path — so the selector can assemble
+   * a complete `LocalKotaClient` before any subcommand runs. Heavy
    * initialization (event subscriptions, channel startup, provider
    * registration) belongs in `onLoad`; this hook should stay light and
    * idempotent.

@@ -297,7 +297,7 @@ async function main() {
   if (wasPiped) return;
 
   const config = loadConfig();
-  const loader = new ModuleLoader(config, false, { commandsOnly: true });
+  const loader = new ModuleLoader(config, false, { mode: "commands" });
   await loader.loadAll(projectModules, modules);
   // Resolve the active KotaClient exactly once: daemon when reachable,
   // otherwise a LocalKotaClient assembled from the namespace handlers

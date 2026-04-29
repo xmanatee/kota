@@ -223,13 +223,13 @@ const daemonModule: KotaModule = {
 
         const projectDir = resolveProjectDir(opts.projectDir);
 
-        // The CLI bootstraps a `commandsOnly` ModuleLoader for fast
+        // The CLI bootstraps a `"commands"` ModuleLoader for fast
         // subcommand registration, but the daemon is a long-lived runtime
         // host: serving `/api/knowledge`, `/api/memory`, `/recall`,
         // `/answer`, etc. requires every module's `onLoad` to have
-        // registered its provider-backed seam. Drive a fresh full-runtime
+        // registered its provider-backed seam. Drive a fresh runtime-mode
         // load here so the Daemon never reads contributions from the CLI's
-        // partial state.
+        // partial state — the loader's typed accessors enforce this too.
         const config = loadConfig(projectDir);
         const verbose = opts.verbose || config.verbose || false;
         const loader = await loadRuntimeModules({ config, cwd: projectDir, verbose });

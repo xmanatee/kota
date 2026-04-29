@@ -40,10 +40,51 @@ import { getProviderRegistry } from "./provider-registry.js";
 
 export type { ModuleSource, ModuleSummary } from "./module-types.js";
 
+/**
+ * Lifecycle mode the loader operates in.
+ *
+ * - `"commands"`: register CLI command shape and local-side `KotaClient`
+ *   handlers, and populate every statically-resolved module contribution
+ *   (workflows, channels, agents, skills, routes, control routes). Skips
+ *   `onLoad`, tool registration, foreign modules, and provider activation
+ *   so CLI startup stays cheap. The accessors that depend on those skipped
+ *   side effects — `getRoutes`, `getContributedControlRoutes`, and
+ *   `probeHealthChecks` — throw rather than hand back a silently partial
+ *   snapshot whose handlers or probes would call into unregistered
+ *   providers.
+ * - `"runtime"`: drives every module's lifecycle to completion. Required
+ *   for daemon, MCP, and any other long-lived runtime host that serves
+ *   provider-backed routes, runs workflows, or hosts channels.
+ *
+ * Splitting these two modes is deliberate. The 2026-04-28 daemon
+ * regression was the result of reading `ModuleLoader` route contributions
+ * from a `commands` snapshot whose `onLoad` hooks (and therefore the
+ * `registerProvider` calls behind `/api/knowledge`, `/api/memory`,
+ * `/api/history`, `/recall`, `/answer`) had never run. The typed accessor
+ * now fails loudly at the first call instead of letting a half-built
+ * runtime ship.
+ */
+export type ModuleLoaderMode = "commands" | "runtime";
+
 export type ModuleLoaderOptions = {
-  /** Skip tool registration — only load modules for command/route discovery. */
-  commandsOnly?: boolean;
+  /** Lifecycle mode this loader operates in. Defaults to `"runtime"`. */
+  mode?: ModuleLoaderMode;
 };
+
+/**
+ * Internal: getters whose results depend on side effects from `onLoad`
+ * (provider registration, foreign-module wiring) or per-module probes that
+ * close over runtime state. Statically-resolved contributions
+ * (`getContributedWorkflows`, `getContributedChannels`, `getAgentDef`,
+ * `getSkillsPrompt(For)`) populate from module definitions during `load()`
+ * and remain readable in commands mode.
+ */
+const RUNTIME_ONLY_GETTERS = [
+  "getRoutes",
+  "getContributedControlRoutes",
+  "probeHealthChecks",
+] as const;
+type RuntimeOnlyGetter = (typeof RUNTIME_ONLY_GETTERS)[number];
 
 type ModuleLoadFailure = { message: string; timestamp: string };
 
@@ -74,7 +115,7 @@ export class ModuleLoader {
   private verbose: boolean;
   private config: KotaConfig;
   private cwd: string;
-  private commandsOnly: boolean;
+  private readonly mode: ModuleLoaderMode;
   private sessionFactory: ((opts: CreateSessionOptions) => ModuleSession) | null = null;
   private toolCallDepth = 0;
   private static MAX_TOOL_CALL_DEPTH = 10;
@@ -83,7 +124,27 @@ export class ModuleLoader {
     this.config = config;
     this.verbose = verbose;
     this.cwd = process.cwd();
-    this.commandsOnly = options?.commandsOnly ?? false;
+    this.mode = options?.mode ?? "runtime";
+  }
+
+  /** Lifecycle mode this loader was constructed with. */
+  getMode(): ModuleLoaderMode {
+    return this.mode;
+  }
+
+  private get isCommandsMode(): boolean {
+    return this.mode === "commands";
+  }
+
+  private assertRuntime(getter: RuntimeOnlyGetter): void {
+    if (!this.isCommandsMode) return;
+    throw new Error(
+      `ModuleLoader.${getter}() requires lifecycle mode "runtime"; this loader is in "commands" mode. ` +
+        `A "commands" loader skips onLoad / provider activation, so route handlers and module health ` +
+        `probes would call into unregistered providers. Construct a runtime loader ` +
+        `(loadRuntimeModules() or new ModuleLoader(config, verbose, { mode: "runtime" })) before ` +
+        `consuming routes, control routes, or health checks.`,
+    );
   }
 
   setSessionFactory(factory: (opts: CreateSessionOptions) => ModuleSession): void {
@@ -192,13 +253,13 @@ export class ModuleLoader {
     }
 
     const ctx = this.createContext(mod.name);
-    const tools: ToolDef[] | undefined = this.commandsOnly
+    const tools: ToolDef[] | undefined = this.isCommandsMode
       ? undefined
       : mod.tools
         ? typeof mod.tools === "function" ? mod.tools(ctx) : mod.tools
         : undefined;
 
-    if (tools && !this.commandsOnly) {
+    if (tools && !this.isCommandsMode) {
       for (const def of tools) {
         if (!def.risk || !def.kind) {
           const missing = [!def.risk && "risk", !def.kind && "kind"].filter(Boolean).join(", ");
@@ -274,23 +335,21 @@ export class ModuleLoader {
       }
     }
 
-    if (mod.onLoad && !this.commandsOnly) await mod.onLoad(ctx);
+    if (mod.onLoad && !this.isCommandsMode) await mod.onLoad(ctx);
 
     const skills = await resolveModuleSkills(mod, ctx);
     if (skills.length > 0) {
       this.moduleSkillDefs.set(mod.name, skills);
-      if (!this.commandsOnly) {
-        for (const skill of skills) {
-          try {
-            const content = readFileSync(resolve(this.cwd, skill.promptPath), "utf8").trim();
-            if (content) {
-              this.skillContentsByName.set(skill.name, `### ${skill.name}\n${content}`);
-              this.skillDefsByName.set(skill.name, skill);
-            }
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            console.error(`[kota] Module "${mod.name}" skill "${skill.name}" failed to load: ${msg}`);
+      for (const skill of skills) {
+        try {
+          const content = readFileSync(resolve(this.cwd, skill.promptPath), "utf8").trim();
+          if (content) {
+            this.skillContentsByName.set(skill.name, `### ${skill.name}\n${content}`);
+            this.skillDefsByName.set(skill.name, skill);
           }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`[kota] Module "${mod.name}" skill "${skill.name}" failed to load: ${msg}`);
         }
       }
     }
@@ -331,7 +390,7 @@ export class ModuleLoader {
       }
     }
 
-    if (this.config.foreignModules && this.config.foreignModules.length > 0 && !this.commandsOnly) {
+    if (this.config.foreignModules && this.config.foreignModules.length > 0 && !this.isCommandsMode) {
       const foreign = await loadForeignModules(
         this.config.foreignModules,
         this.cwd,
@@ -374,6 +433,7 @@ export class ModuleLoader {
   }
 
   getRoutes(): RouteRegistration[] {
+    this.assertRuntime("getRoutes");
     const routes: RouteRegistration[] = [];
     for (const mod of this.modules) {
       const cached = this.moduleRoutes.get(mod.name);
@@ -383,6 +443,7 @@ export class ModuleLoader {
   }
 
   getContributedControlRoutes(): ControlRouteRegistration[] {
+    this.assertRuntime("getContributedControlRoutes");
     const routes: ControlRouteRegistration[] = [];
     for (const mod of this.modules) {
       const cached = this.moduleControlRoutes.get(mod.name);
@@ -572,7 +633,7 @@ export class ModuleLoader {
   }
 
   getToolCount(): number {
-    if (this.commandsOnly) return 0;
+    if (this.isCommandsMode) return 0;
     let total = 0;
     for (const count of this.moduleToolCounts.values()) total += count;
     return total;
@@ -634,6 +695,7 @@ export class ModuleLoader {
   }
 
   async probeHealthChecks(): Promise<Record<string, HealthCheckResult>> {
+    this.assertRuntime("probeHealthChecks");
     const results: Record<string, HealthCheckResult> = {};
     for (const mod of this.modules) {
       if (!mod.healthCheck) continue;

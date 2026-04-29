@@ -126,7 +126,11 @@ beforeAll(async () => {
   const origLog = console.log;
   console.log = () => {};
   const testConfig = { serve: { defaultAutonomyMode: "autonomous" } } as any;
-  const loader = new ModuleLoader(testConfig, false, { commandsOnly: true });
+  // The HTTP server e2e exercises module-contributed routes (history,
+  // notifications, vercel-adapter, ...). Use a runtime-mode loader so the
+  // typed `getRoutes()` accessor is callable: the lifecycle contract makes
+  // commands-mode contributions invisible to runtime hosts on purpose.
+  const loader = new ModuleLoader(testConfig, false, { mode: "runtime" });
   await loader.loadAll(projectModules);
   const webDir = resolve("clients/web/dist");
   setWebUiDir(existsSync(webDir) ? webDir : undefined);

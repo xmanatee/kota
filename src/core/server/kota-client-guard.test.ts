@@ -2,7 +2,7 @@
  * Guard test: every module that contributes CLI commands and a
  * KotaClient namespace must expose its local-side handler through the
  * top-level `localClient` factory so the loader can register it before
- * any subcommand runs (independent of `commandsOnly` mode).
+ * any subcommand runs (in either `"commands"` or `"runtime"` lifecycle mode).
  *
  * Newly-added namespaces fail the guard until both the owning module's
  * `localClient` factory returns a handler keyed by `<namespace>` AND the
@@ -68,7 +68,7 @@ describe("KotaClient namespace registration guard", () => {
       expect(
         /(\n|^)\s*localClient\s*:/.test(source),
         `Module "${owner}" must declare a top-level localClient factory in index.ts ` +
-          `so the loader can register the "${namespace}" handler in commandsOnly mode.`,
+          `so the loader can register the "${namespace}" handler on the "commands" lifecycle path.`,
       ).toBe(true);
       const returnsNamespace =
         new RegExp(`return\\s*\\{[^}]*\\b${namespace}\\b`).test(source) ||

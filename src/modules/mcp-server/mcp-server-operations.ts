@@ -7,11 +7,11 @@
  * space using stdin/stdout, so the daemon-side handler returns
  * `daemon_required` and the local handler runs the boot logic directly.
  *
- * The server requires fully-loaded modules (not commandsOnly) because tool
- * dispatch needs every contributed tool registered and provider-backed
- * routes need their `onLoad` to have run. The shared
- * `loadRuntimeModules` helper drives that lifecycle for any long-lived
- * host.
+ * The server requires fully-loaded modules (lifecycle mode `"runtime"`,
+ * not `"commands"`) because tool dispatch needs every contributed tool
+ * registered and provider-backed routes need their `onLoad` to have run.
+ * The shared `loadRuntimeModules` helper drives that lifecycle for any
+ * long-lived host.
  */
 import { loadConfig } from "#core/config/config.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";

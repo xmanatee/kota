@@ -411,9 +411,9 @@ describe("ModuleLoader", () => {
     errSpy.mockRestore();
   });
 
-  it("commandsOnly mode skips tool registration and onLoad", async () => {
+  it("\"commands\" mode skips tool registration and onLoad", async () => {
     const onLoad = vi.fn();
-    const loader = new ModuleLoader({}, false, { commandsOnly: true });
+    const loader = new ModuleLoader({}, false, { mode: "commands" });
     const { Command } = await import("commander");
 
     await loader.load({
@@ -425,6 +425,8 @@ describe("ModuleLoader", () => {
 
     // Module is loaded (tracked)
     expect(loader.getLoadedModules()).toEqual(["cmd-only-mod"]);
+    // The loader exposes its lifecycle mode
+    expect(loader.getMode()).toBe("commands");
     // But tools are NOT registered
     expect(loader.getToolCount()).toBe(0);
     const result = await executeTool("should_not_register", {});
@@ -436,6 +438,75 @@ describe("ModuleLoader", () => {
     const cmds = loader.getCommands();
     expect(cmds).toHaveLength(1);
     expect(cmds[0].name()).toBe("my-cmd");
+  });
+
+  it("\"commands\" mode rejects route/control-route/health-check accessors but exposes static contributions", async () => {
+    const loader = new ModuleLoader({}, false, { mode: "commands" });
+
+    // Load a module that contributes routes, control routes, workflows, channels,
+    // agents, and a health check. Routes/control-routes/health-checks depend on
+    // onLoad-driven provider state and must throw in commands mode; the static
+    // contributions remain readable from definitions.
+    await loader.load({
+      name: "everything-mod",
+      routes: () => [{ method: "GET", path: "/x", handler: () => undefined }],
+      controlRoutes: () => [
+        {
+          method: "GET",
+          path: "/control/y",
+          capabilityScope: "read",
+          handler: async () => undefined,
+        },
+      ],
+      workflows: [
+        {
+          name: "everything-mod/workflow",
+          triggers: [{ event: "runtime.idle", cooldownMs: 60_000 }],
+          steps: [{ id: "noop", type: "code", run: () => {} }],
+        },
+      ],
+      channels: [{ name: "everything-mod.chan", description: "x", create: () => null } as never],
+      agents: [{ name: "everything-mod.agent", role: "test", skills: [] } as never],
+      healthCheck: () => ({ status: "healthy" }),
+    });
+
+    expect(() => loader.getRoutes()).toThrow(/lifecycle mode "runtime"/);
+    expect(() => loader.getContributedControlRoutes()).toThrow(/lifecycle mode "runtime"/);
+    await expect(loader.probeHealthChecks()).rejects.toThrow(/lifecycle mode "runtime"/);
+
+    // Static-data accessors remain safe — they are populated from the module
+    // definition during load() regardless of mode.
+    expect(loader.getContributedWorkflows()).toHaveLength(1);
+    expect(loader.getContributedWorkflows()[0].name).toBe("everything-mod/workflow");
+    expect(loader.getContributedChannels()).toHaveLength(1);
+    expect(loader.getContributedChannels()[0].name).toBe("everything-mod.chan");
+    expect(loader.getAgentDef("everything-mod.agent")?.name).toBe("everything-mod.agent");
+    // No skill files registered in this fixture, so the prompt is empty —
+    // not a silent partial, just an empty contribution set.
+    expect(loader.getSkillsPrompt()).toBe("");
+
+    // Commands and module summaries remain readable in commands mode.
+    expect(loader.getCommands()).toEqual([]);
+    expect(loader.getModuleSummaries().map((s) => s.name)).toEqual(["everything-mod"]);
+  });
+
+  it("runtime mode permits every runtime-only contribution getter", async () => {
+    const loader = new ModuleLoader({}, false, { mode: "runtime" });
+
+    await loader.load({
+      name: "runtime-mod",
+      routes: () => [{ method: "GET", path: "/x", handler: () => undefined }],
+    });
+
+    expect(loader.getMode()).toBe("runtime");
+    expect(() => loader.getRoutes()).not.toThrow();
+    expect(loader.getRoutes()).toHaveLength(1);
+    expect(() => loader.getContributedControlRoutes()).not.toThrow();
+    expect(() => loader.getContributedWorkflows()).not.toThrow();
+    expect(() => loader.getContributedChannels()).not.toThrow();
+    expect(() => loader.getSkillsPrompt()).not.toThrow();
+    expect(() => loader.getAgentDef("nope")).not.toThrow();
+    await expect(loader.probeHealthChecks()).resolves.toBeDefined();
   });
 
   it("handles onUnload errors gracefully", async () => {
@@ -836,17 +907,19 @@ describe("module discovery is side-effect free across repeated reads", () => {
     expect(routesFactory).toHaveBeenCalledOnce();
   });
 
-  it("invokes routes() exactly once during commandsOnly load too", async () => {
-    const loader = new ModuleLoader({}, false, { commandsOnly: true });
+  it("invokes routes() exactly once during \"commands\" mode load too", async () => {
+    const loader = new ModuleLoader({}, false, { mode: "commands" });
     const routesFactory = vi.fn(() => [
       { method: "GET" as const, path: "/x", handler: () => {} },
     ]);
 
     await loader.load({ name: "discovery-only", routes: routesFactory });
 
+    // Factory ran once during load; getModuleSummaries reads the cached
+    // snapshot without re-invoking it. getRoutes is runtime-only and
+    // throws in commands mode (covered by the runtime-getter guard test).
     expect(routesFactory).toHaveBeenCalledOnce();
-    loader.getRoutes();
-    loader.getRoutes();
+    loader.getModuleSummaries();
     loader.getModuleSummaries();
     expect(routesFactory).toHaveBeenCalledOnce();
   });
@@ -994,17 +1067,22 @@ describe("Module SDK — storage, config, skills", () => {
     expect(loader.getModuleStorage("cleanup-storage")).toBeUndefined();
   });
 
-  it("commandsOnly mode skips skill loading", async () => {
+  it("\"commands\" mode loads skill prompt content so getSkillsPrompt returns the same text as runtime mode", async () => {
     const skillPath = join(tmpDir, "skill.md");
-    writeFileSync(skillPath, "Should not appear.");
-    const loader = new ModuleLoader({}, false, { commandsOnly: true });
+    writeFileSync(skillPath, "Should appear in commands mode too.");
+    const loader = new ModuleLoader({}, false, { mode: "commands" });
     loader.setCwd(tmpDir);
     await loader.load({
-      name: "skip-mod",
+      name: "skill-mod",
       skills: [{ name: "skill", promptPath: "skill.md" }],
     });
 
-    expect(loader.getSkillsPrompt()).toBe("");
+    // Skill prompt content is statically loaded during load() regardless of
+    // mode — it does not depend on onLoad side effects, so commands mode
+    // exposes the same text a runtime loader would.
+    const prompt = loader.getSkillsPrompt();
+    expect(prompt).toContain("### skill");
+    expect(prompt).toContain("Should appear in commands mode too.");
   });
 });
 

@@ -3,8 +3,8 @@
  *
  * Voice transcription and synthesis depend on STT/TTS providers and their
  * upstream credentials, both of which live on the daemon side (registered
- * in `onLoad`, which is skipped in `commandsOnly` CLI mode). The local
- * handler therefore surfaces `daemon_required` so the CLI renders a single
+ * in `onLoad`, which is skipped on the CLI's `"commands"` lifecycle path).
+ * The local handler therefore surfaces `daemon_required` so the CLI renders a single
  * clear "start the daemon" hint instead of trying to load and configure
  * providers in the operator's process.
  */

@@ -34,8 +34,9 @@ import { evalHarnessRoutes } from "./routes.js";
 
 // Register the replay adapter at import time when the env-gated seam is
 // armed. This has to happen outside `onLoad` because the CLI surface loads
-// modules in `commandsOnly` mode (onLoad skipped), and the subprocess
-// executor invokes `kota workflow exec` through that same CLI surface.
+// modules in `"commands"` lifecycle mode (onLoad skipped), and the
+// subprocess executor invokes `kota workflow exec` through that same CLI
+// surface.
 // Module discovery imports project modules in alphabetical directory order
 // — `claude-agent-harness` < `eval-harness` — so this registration runs
 // after the claude adapter's import-time `registerAgentHarness` and the

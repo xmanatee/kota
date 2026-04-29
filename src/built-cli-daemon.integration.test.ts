@@ -4,7 +4,7 @@
  * routes work, not just `/status`.
  *
  * The 2026-04-28 regression that drove this gate: the CLI loads modules
- * in `commandsOnly` mode for cheap subcommand registration, which
+ * in `"commands"` mode for cheap subcommand registration, which
  * intentionally skips every module's `onLoad`. The daemon command was
  * reading routes, controlRoutes, workflows, channels, agents, skills,
  * health checks, and config keys from that same partial context. The
@@ -13,7 +13,10 @@
  * "provider not initialized" — while `/status` looked healthy. Existing
  * coverage instantiated `new Daemon(...)` directly, so the broken
  * arm only surfaced through manual `pnpm build && node dist/cli.js
- * daemon`.
+ * daemon`. The lifecycle accessor on `ModuleLoader` now throws if a
+ * `"commands"` loader is asked for runtime contributions, but this smoke
+ * remains the end-to-end proof that the shipped binary boots through
+ * `loadRuntimeModules`.
  *
  * This test closes that gap by spawning the actual built CLI daemon
  * command against a temp project, reading the published bearer token
@@ -25,12 +28,12 @@
  * Failure-mode contract:
  *   - The in-process two-arm fixture lives in
  *     `daemon-runtime-load.integration.test.ts`. It encodes the inverse
- *     direction explicitly: a daemon constructed from a `commandsOnly`
- *     loader still registers `/api/knowledge` as a route, but the
- *     handler returns 500 because no provider was registered. If the
- *     daemon command in `src/modules/daemon-ops/index.ts` ever regresses
- *     back to reading contributions from the CLI's `commandsOnly`
- *     loader, this smoke flips to a 500 response and fails loudly.
+ *     direction explicitly: a `"commands"` loader's typed accessors throw
+ *     before a daemon can ever ingest its routes. If the daemon command
+ *     in `src/modules/daemon-ops/index.ts` ever regresses back to
+ *     reading contributions from the CLI's `"commands"` loader, the
+ *     loader-level guard fails loudly inside the daemon process and this
+ *     smoke loses the 200 it asserts below.
  *
  * Why the spawn shape:
  *   - `node dist/cli.js daemon` is the supervisor mode: the parent
@@ -59,7 +62,7 @@ beforeAll(() => {
     throw new Error(
       `dist/cli.js missing at ${CLI_PATH}. Run \`pnpm build\` before \`pnpm test\`. ` +
         `This smoke is intentionally tied to the shipped CLI binary: the failure ` +
-        `mode it pins down (commandsOnly-sourced daemon) only surfaces through ` +
+        `mode it pins down (commands-mode-sourced daemon) only surfaces through ` +
         `the full bootstrap, not through \`new Daemon(...)\`.`,
     );
   }

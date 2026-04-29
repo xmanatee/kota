@@ -36,7 +36,7 @@ control API, not through a per-client audio pipeline.
 - **CLI** (`kota voice transcribe <file>`, `kota voice speak <text>`):
   routes through `ctx.client.voice.{transcribe,synthesize}`. The local
   handler returns `daemon_required` (providers register in module onLoad,
-  which is skipped in CLI commandsOnly mode), so the CLI surfaces a
+  which is skipped on the CLI's `"commands"` lifecycle path), so the CLI surfaces a
   single "Daemon is not running" hint when no daemon is reachable. There
   is no local audio stack beyond reading input bytes and spawning a
   platform-detected player for output.

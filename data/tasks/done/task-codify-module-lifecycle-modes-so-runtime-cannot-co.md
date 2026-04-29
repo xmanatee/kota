@@ -1,12 +1,12 @@
 ---
 id: task-codify-module-lifecycle-modes-so-runtime-cannot-co
 title: Codify module lifecycle modes so runtime cannot consume partial contributions
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Turn the commandsOnly/full-runtime distinction into an explicit typed lifecycle contract with guardrails, so daemon runtime, MCP, CLI, tests, and future modules cannot accidentally consume routes, providers, workflows, health checks, or tools from a partially loaded context.
 created_at: 2026-04-28T22:35:43.974Z
-updated_at: 2026-04-28T22:35:43.974Z
+updated_at: 2026-04-29T01:26:35.644Z
 ---
 
 ## Problem

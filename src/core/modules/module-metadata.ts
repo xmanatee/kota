@@ -8,7 +8,7 @@ export async function loadModuleMetadata(
   projectDir = process.cwd(),
   verbose = false,
 ): Promise<ModuleLoader> {
-  const loader = new ModuleLoader(config, verbose, { commandsOnly: true });
+  const loader = new ModuleLoader(config, verbose, { mode: "commands" });
   loader.setCwd(projectDir);
   const projectModules = await discoverProjectModules();
   const userModules = await discoverModules(projectDir, verbose);
