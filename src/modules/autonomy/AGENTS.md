@@ -47,11 +47,16 @@ summaries live in run artifacts or `data/watchlist.yaml`.
 
 ## Live-Run Evaluator Calibration
 
-Fixture `pass^k` catches generator drift; per-run calibration artifacts
-catch evaluator drift. Contradiction needs a later overlapping run that
-also fails — file-overlap alone flags healthy refactor chains. Pass-with-
-warnings uses looser overlap (critic already hedged). Monitor/notify
-split mirrors the eval-harness regression pattern.
+Fixture `pass^k` catches generator drift; per-run artifacts catch
+evaluator drift. Contradiction needs a later overlapping run that also
+fails (overlap alone is healthy iteration). Pass-with-warnings uses
+looser overlap. Both drift kinds commit one corrective path:
+create/recreate/promote `task-evaluator-calibration-drift-repair` in
+`ready/` (noop when in-flight); the regression event still bridges to
+attention digest. Critic blocks weak rendered evidence, placeholder
+tests, untracked compatibility shims, baseline-only strictness
+ratchets, required-source dishonesty; warnings need a named trace
+(follow-up task, known-limitation, or non-action reason in summary).
 
 ## External Pattern Decisions
 
@@ -98,11 +103,9 @@ test enforces 1:1 match.
   surfaces (read, grep, scoped `AGENTS.md`, prompt state).
 - **`ask_owner` from autonomous workflows uses `askOwnerSteps`**
   (`#core/workflow/ask-owner-step.js`): ask → await-event → consume,
-  daemon-restart-safe via `installAwaitResumers`. Gate on real
-  prior-step output, budget 10 min, consume every
-  `AwaitedOwnerOutcome` kind. Do not import `#core/tools/ask-owner.js`
-  from an autonomy workflow. Contract + first consumer:
-  `workflows/decomposer/AGENTS.md`.
+  daemon-restart-safe. Gate on real prior-step output, 10 min budget,
+  consume every `AwaitedOwnerOutcome` kind. Do not import
+  `#core/tools/ask-owner.js` from an autonomy workflow.
 
 ## Scoped Contracts
 
@@ -112,18 +115,16 @@ test enforces 1:1 match.
 
 ## Operator Reports
 
-`kota report` (`src/modules/autonomy/report/`) prints the operator-facing
-balance and quality report. The strategic/fan-out heuristic lives in
-`aggregate.classifyArea` so the operator can audit and refine it instead
-of guessing behind agent traces. Per the no-cost-bias-in-autonomy
-contract this output is operator-only and must not be exposed to autonomy
-agents.
+`kota report` (`src/modules/autonomy/report/`) prints the operator
+balance/quality report; strategic/fan-out heuristic lives in
+`aggregate.classifyArea`. Per no-cost-bias-in-autonomy this output is
+operator-only and must not be exposed to autonomy agents.
 
 ## Agent Judge Runtime Contract
 
 The shared agent-step retry classifier (see
 `src/core/workflow/steps/AGENTS.md`) governs autonomy judges. Judge-
 backed repair checks (critic, improver semantic gate) catch runaway
-turn/token throws in their wrapper and return a warning — editing code
-cannot shrink a judge's budget — while the primitive still throws.
-Unclassified SDK failures reject the check.
+turn/token throws and return a warning — editing code cannot shrink
+a judge's budget — while the primitive still throws. Unclassified SDK
+failures reject the check.

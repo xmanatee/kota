@@ -189,6 +189,34 @@ describe("createCriticCheck", () => {
     expect(mockRunAgentHarness).toHaveBeenCalledOnce();
   });
 
+  it("classifies blocking and non-blocking warning kinds in the system prompt", async () => {
+    const dir = makeTmpDir();
+    const doingDir = join(dir, "data/tasks/doing");
+    mkdirSync(doingDir, { recursive: true });
+    writeFileSync(join(doingDir, "task-classify.md"), "---\ntitle: Classify\n---\nClassify.");
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+    setApiResponse({
+      verdict: "pass",
+      critical_issues: [],
+      warnings: [],
+      summary: "ok",
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
+
+    const options = getOptionsArg(mockRunAgentHarness.mock.calls[0]);
+    const systemPrompt = options.systemPrompt as string;
+    expect(systemPrompt).toContain("Critical-issue vs warning classification");
+    expect(systemPrompt).toContain("Weak rendered evidence");
+    expect(systemPrompt).toContain("Placeholder or no-value tests");
+    expect(systemPrompt).toContain("Untracked compatibility shims");
+    expect(systemPrompt).toContain("Baseline-only strictness ratchets");
+    expect(systemPrompt).toContain("durable trace");
+    expect(systemPrompt).toContain("name the trace");
+  });
+
   it("gives the critic optional run-trace affordances without requiring a fixed evidence file", async () => {
     const dir = makeTmpDir();
     const doingDir = join(dir, "data/tasks/doing");

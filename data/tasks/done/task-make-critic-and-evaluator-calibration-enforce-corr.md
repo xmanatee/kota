@@ -1,12 +1,12 @@
 ---
 id: task-make-critic-and-evaluator-calibration-enforce-corr
 title: Make critic and evaluator calibration enforce corrective action
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Tighten the builder critic and evaluator-calibration loop so high pass-contradiction rates, pass-with-warnings debt, and weak evidence cannot remain notification-only signals.
 created_at: 2026-04-29T12:52:55.387Z
-updated_at: 2026-04-29T12:52:55.387Z
+updated_at: 2026-05-02T16:11:26.089Z
 ---
 
 ## Problem

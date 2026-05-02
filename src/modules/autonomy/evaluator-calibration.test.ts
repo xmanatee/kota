@@ -457,7 +457,11 @@ describe("evaluateCalibrationGate", () => {
     overrides: Partial<
       Pick<
         ReturnType<typeof aggregateCalibration>,
-        "byVerdict" | "passContradictionCount" | "passContradictionRate"
+        | "byVerdict"
+        | "passContradictionCount"
+        | "passContradictionRate"
+        | "passWithWarningsFollowUpCount"
+        | "passWithWarningsFollowUpRate"
       >
     > = {},
   ): ReturnType<typeof aggregateCalibration> {
@@ -473,17 +477,24 @@ describe("evaluateCalibrationGate", () => {
       },
       passContradictionCount: overrides.passContradictionCount ?? 0,
       passContradictionRate: overrides.passContradictionRate ?? 0,
-      passWithWarningsFollowUpCount: 0,
-      passWithWarningsFollowUpRate: 0,
+      passWithWarningsFollowUpCount: overrides.passWithWarningsFollowUpCount ?? 0,
+      passWithWarningsFollowUpRate: overrides.passWithWarningsFollowUpRate ?? 0,
     };
   }
 
-  it("reports insufficient-sample when pass verdicts are below minSample", () => {
+  const baseConfig = {
+    thresholdRate: 0.25,
+    minSample: 8,
+    passWithWarningsThresholdRate: 0.4,
+    passWithWarningsMinSample: 5,
+  };
+
+  it("reports insufficient-sample when both samples are below their minimums", () => {
     const decision = evaluateCalibrationGate(
       baseAggregate({
-        byVerdict: { pass: 3, pass_with_warnings: 0, fail: 0, absent: 0 },
+        byVerdict: { pass: 3, pass_with_warnings: 1, fail: 0, absent: 0 },
       }),
-      { thresholdRate: 0.25, minSample: 8 },
+      baseConfig,
     );
     expect(decision.status).toBe("insufficient-sample");
   });
@@ -495,23 +506,77 @@ describe("evaluateCalibrationGate", () => {
         passContradictionCount: 2,
         passContradictionRate: 0.2,
       }),
-      { thresholdRate: 0.25, minSample: 8 },
+      baseConfig,
     );
     expect(decision.status).toBe("under-threshold");
   });
 
-  it("fires the gate when contradiction rate strictly exceeds threshold and sample is adequate", () => {
+  it("fires the gate with kind pass-contradiction when contradiction rate exceeds threshold and sample is adequate", () => {
     const decision = evaluateCalibrationGate(
       baseAggregate({
         byVerdict: { pass: 10, pass_with_warnings: 0, fail: 0, absent: 0 },
         passContradictionCount: 4,
         passContradictionRate: 0.4,
       }),
-      { thresholdRate: 0.25, minSample: 8 },
+      baseConfig,
     );
     expect(decision.status).toBe("gated");
+    if (decision.status !== "gated") return;
+    expect(decision.kinds).toEqual(["pass-contradiction"]);
     expect(decision.reason).toContain("40.0%");
     expect(decision.reason).toContain("25.0%");
+  });
+
+  it("fires the gate with kind pass-with-warnings-escalation when warnings follow-up rate exceeds its threshold", () => {
+    const decision = evaluateCalibrationGate(
+      baseAggregate({
+        byVerdict: { pass: 0, pass_with_warnings: 10, fail: 0, absent: 0 },
+        passWithWarningsFollowUpCount: 6,
+        passWithWarningsFollowUpRate: 0.6,
+      }),
+      baseConfig,
+    );
+    expect(decision.status).toBe("gated");
+    if (decision.status !== "gated") return;
+    expect(decision.kinds).toEqual(["pass-with-warnings-escalation"]);
+    expect(decision.reason).toContain("60.0%");
+    expect(decision.reason).toContain("40.0%");
+  });
+
+  it("can fire on both kinds at once", () => {
+    const decision = evaluateCalibrationGate(
+      baseAggregate({
+        byVerdict: { pass: 10, pass_with_warnings: 10, fail: 0, absent: 0 },
+        passContradictionCount: 4,
+        passContradictionRate: 0.4,
+        passWithWarningsFollowUpCount: 6,
+        passWithWarningsFollowUpRate: 0.6,
+      }),
+      baseConfig,
+    );
+    expect(decision.status).toBe("gated");
+    if (decision.status !== "gated") return;
+    expect(decision.kinds).toEqual([
+      "pass-contradiction",
+      "pass-with-warnings-escalation",
+    ]);
+  });
+
+  it("only fires the kinds whose sample is adequate", () => {
+    const decision = evaluateCalibrationGate(
+      baseAggregate({
+        // adequate pass sample with drift, but warnings sample below minimum
+        byVerdict: { pass: 10, pass_with_warnings: 2, fail: 0, absent: 0 },
+        passContradictionCount: 4,
+        passContradictionRate: 0.4,
+        passWithWarningsFollowUpCount: 2,
+        passWithWarningsFollowUpRate: 1,
+      }),
+      baseConfig,
+    );
+    expect(decision.status).toBe("gated");
+    if (decision.status !== "gated") return;
+    expect(decision.kinds).toEqual(["pass-contradiction"]);
   });
 
   it("uses documented defaults", () => {

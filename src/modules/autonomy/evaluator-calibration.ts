@@ -90,20 +90,42 @@ export type EvaluatorCalibrationAggregate = {
   passWithWarningsFollowUpRate: number;
 };
 
+/**
+ * Calibration drift kinds the monitor distinguishes when escalating to a
+ * repair task. Pass-contradiction = critic said pass but a later overlapping
+ * run failed (the historic gate). Pass-with-warnings escalation = the critic
+ * keeps hedging on overlapping work — the warnings already accepted as
+ * "remember this later" are recurring, which the task contract requires us to
+ * surface separately so it does not stay a notification-only signal.
+ */
+export type CalibrationDriftKind =
+  | "pass-contradiction"
+  | "pass-with-warnings-escalation";
+
 export type CalibrationGateConfig = {
   thresholdRate: number;
   minSample: number;
+  /**
+   * Threshold for the pass-with-warnings escalation kind. Pass-with-warnings
+   * follow-up correlates an already-hedged verdict with any later overlapping
+   * run, so the bar is intentionally higher than for pass contradictions.
+   */
+  passWithWarningsThresholdRate: number;
+  /** Minimum pass-with-warnings sample before the escalation kind can fire. */
+  passWithWarningsMinSample: number;
 };
 
 export type CalibrationGateDecision =
   | { status: "insufficient-sample"; reason: string }
   | { status: "under-threshold"; reason: string }
-  | { status: "gated"; reason: string };
+  | { status: "gated"; reason: string; kinds: CalibrationDriftKind[] };
 
 const DEFAULT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_FOLLOW_UP_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 export const DEFAULT_CALIBRATION_THRESHOLD_RATE = 0.25;
 export const DEFAULT_CALIBRATION_MIN_SAMPLE = 8;
+export const DEFAULT_PASS_WITH_WARNINGS_THRESHOLD_RATE = 0.4;
+export const DEFAULT_PASS_WITH_WARNINGS_MIN_SAMPLE = 5;
 
 function readCriticVerdict(runDir: string): CriticVerdict | null {
   const path = join(runDir, "critic-review.json");
@@ -369,32 +391,76 @@ export function aggregateCalibration(
 }
 
 /**
- * Apply the configured gate to an aggregate. The gate fires only when the
- * pass-verdict contradiction rate — critic said pass on a run whose later
- * overlapping-file follow-up itself failed — exceeds the threshold AND the
- * sample is large enough to be trustworthy.
+ * Apply the configured gate to an aggregate. The gate fires when either drift
+ * kind crosses its configured threshold:
+ *
+ * - `pass-contradiction`: critic said pass on a run whose later overlapping
+ *   follow-up itself failed.
+ * - `pass-with-warnings-escalation`: critic kept hedging on overlapping work
+ *   — already-accepted warnings are recurring against shared files instead of
+ *   being closed out.
+ *
+ * Each kind requires its own minimum sample to be trustworthy. Both can fire
+ * in the same decision so the corrective task can name every drift the run is
+ * proposing to fix. `insufficient-sample` only returns when neither kind has
+ * enough data, so a healthy pass-contradiction signal still surfaces even if
+ * the warnings sample is thin.
  */
 export function evaluateCalibrationGate(
   aggregate: EvaluatorCalibrationAggregate,
   config: CalibrationGateConfig,
 ): CalibrationGateDecision {
   const passCount = aggregate.byVerdict.pass;
-  if (passCount < config.minSample) {
+  const passWithWarningsCount = aggregate.byVerdict.pass_with_warnings;
+
+  const passSampleAdequate = passCount >= config.minSample;
+  const warningSampleAdequate = passWithWarningsCount >= config.passWithWarningsMinSample;
+
+  if (!passSampleAdequate && !warningSampleAdequate) {
     return {
       status: "insufficient-sample",
-      reason: `Only ${passCount} pass verdicts in window (minimum ${config.minSample}).`,
+      reason:
+        `Only ${passCount} pass verdicts and ${passWithWarningsCount} pass_with_warnings ` +
+        `verdicts in window (minimums ${config.minSample} / ${config.passWithWarningsMinSample}).`,
     };
   }
-  const observed = aggregate.passContradictionRate;
-  if (observed > config.thresholdRate) {
+
+  const kinds: CalibrationDriftKind[] = [];
+  const reasons: string[] = [];
+
+  if (passSampleAdequate) {
+    const observed = aggregate.passContradictionRate;
+    if (observed > config.thresholdRate) {
+      kinds.push("pass-contradiction");
+      reasons.push(
+        `Pass-verdict contradiction rate ${(observed * 100).toFixed(1)}% ` +
+          `exceeds threshold ${(config.thresholdRate * 100).toFixed(1)}% ` +
+          `(${aggregate.passContradictionCount} of ${passCount} pass verdicts).`,
+      );
+    }
+  }
+
+  if (warningSampleAdequate) {
+    const observed = aggregate.passWithWarningsFollowUpRate;
+    if (observed > config.passWithWarningsThresholdRate) {
+      kinds.push("pass-with-warnings-escalation");
+      reasons.push(
+        `Pass-with-warnings follow-up rate ${(observed * 100).toFixed(1)}% ` +
+          `exceeds threshold ${(config.passWithWarningsThresholdRate * 100).toFixed(1)}% ` +
+          `(${aggregate.passWithWarningsFollowUpCount} of ${passWithWarningsCount} pass_with_warnings verdicts).`,
+      );
+    }
+  }
+
+  if (kinds.length > 0) {
     return {
       status: "gated",
-      reason:
-        `Pass-verdict contradiction rate ${(observed * 100).toFixed(1)}% ` +
-        `exceeds threshold ${(config.thresholdRate * 100).toFixed(1)}% ` +
-        `(${aggregate.passContradictionCount} of ${passCount} pass verdicts).`,
+      reason: reasons.join(" "),
+      kinds,
     };
   }
+
+  const observed = aggregate.passContradictionRate;
   return {
     status: "under-threshold",
     reason:

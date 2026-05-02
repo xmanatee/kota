@@ -19,6 +19,8 @@ import {
   aggregateCalibration,
   DEFAULT_CALIBRATION_MIN_SAMPLE,
   DEFAULT_CALIBRATION_THRESHOLD_RATE,
+  DEFAULT_PASS_WITH_WARNINGS_MIN_SAMPLE,
+  DEFAULT_PASS_WITH_WARNINGS_THRESHOLD_RATE,
   evaluateCalibrationGate,
 } from "#modules/autonomy/evaluator-calibration.js";
 import { runEvalSet } from "./eval-set.js";
@@ -148,6 +150,8 @@ export function runEvalCalibration(
   const decision = evaluateCalibrationGate(aggregate, {
     thresholdRate,
     minSample,
+    passWithWarningsThresholdRate: DEFAULT_PASS_WITH_WARNINGS_THRESHOLD_RATE,
+    passWithWarningsMinSample: DEFAULT_PASS_WITH_WARNINGS_MIN_SAMPLE,
   });
   return {
     aggregate: aggregate as unknown as Record<string, unknown>,

@@ -332,6 +332,19 @@ export type BusEvents = {
     passWithWarningsFollowUpCount: number;
     passWithWarningsFollowUpRate: number;
     thresholdRate: number;
+    passWithWarningsThresholdRate: number;
+    /**
+     * Drift kinds the gate fired on. Both can fire in the same payload.
+     */
+    driftKinds: ("pass-contradiction" | "pass-with-warnings-escalation")[];
+    /**
+     * Outcome of the deterministic corrective action attempted by the
+     * monitor against the repo-tasks queue. `noop` means an existing repair
+     * task was already in flight; `created`/`recreated`/`promoted` mean a
+     * concrete next action lands in `ready/`. `skipped` means the monitor
+     * could not run the corrective path (worktree dirty or recovery trigger).
+     */
+    repairAction: "noop" | "created" | "recreated" | "promoted" | "skipped";
     reason: string;
   };
   /**
