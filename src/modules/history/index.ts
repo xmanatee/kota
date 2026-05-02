@@ -14,7 +14,7 @@ import {
 	HISTORY_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
 import type { HistoryClient } from "#core/server/kota-client.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import { readOnlyDaemonEffect } from "#core/tools/effect.js";
 import { createHistoryReadinessSource } from "./capability-readiness.js";
 import {
 	conversationRecallTool,
@@ -33,7 +33,7 @@ const historyModule: KotaModule = {
 		{
 			tool: conversationRecallTool,
 			runner: runConversationRecall,
-			effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+			effect: readOnlyDaemonEffect(),
 			group: "management",
 		},
 	],

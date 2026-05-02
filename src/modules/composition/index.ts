@@ -1,5 +1,5 @@
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import { localWriteEffect, sessionWriteEffect } from "#core/tools/effect.js";
 import { batchTool, runBatch } from "./batch.js";
 import { mapTool, runMap } from "./map.js";
 import { pipeTool, runPipe } from "./pipe.js";
@@ -9,25 +9,25 @@ const tools: ToolDef[] = [
 	{
 		tool: batchTool,
 		runner: runBatch,
-		effect: legacyEffect({ risk: "moderate", kind: "action" }),
+		effect: localWriteEffect(),
 		group: "orchestration",
 	},
 	{
 		tool: pipeTool,
 		runner: runPipe,
-		effect: legacyEffect({ risk: "moderate", kind: "action" }),
+		effect: localWriteEffect(),
 		group: "orchestration",
 	},
 	{
 		tool: mapTool,
 		runner: runMap,
-		effect: legacyEffect({ risk: "moderate", kind: "action" }),
+		effect: localWriteEffect(),
 		group: "orchestration",
 	},
 	{
 		tool: workspaceTool,
 		runner: runWorkspace,
-		effect: legacyEffect({ risk: "safe", kind: "action" }),
+		effect: sessionWriteEffect(),
 		group: "orchestration",
 	},
 ];

@@ -1,5 +1,5 @@
 import type { ToolDef } from "#core/modules/module-types.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import { networkDestructiveEffect, networkReadEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { apiError, googleFetch } from "./auth.js";
 
@@ -8,7 +8,7 @@ export function makeGmailListMessages(
   userId: string,
 ): ToolDef {
   return {
-    effect: legacyEffect({ risk: "safe", kind: "discovery", openWorld: true }),
+    effect: networkReadEffect(),
     group: "productivity",
     tool: {
       name: "gmail_list_messages",
@@ -84,7 +84,7 @@ export function makeGmailGetMessage(
   userId: string,
 ): ToolDef {
   return {
-    effect: legacyEffect({ risk: "safe", kind: "discovery", openWorld: true }),
+    effect: networkReadEffect(),
     group: "productivity",
     tool: {
       name: "gmail_get_message",
@@ -144,7 +144,7 @@ export function makeGmailGetMessage(
 
 export function makeGmailSend(getToken: () => Promise<string>, userId: string): ToolDef {
   return {
-    effect: legacyEffect({ risk: "dangerous", kind: "action", openWorld: true }),
+    effect: networkDestructiveEffect(),
     group: "productivity",
     tool: {
       name: "gmail_send",

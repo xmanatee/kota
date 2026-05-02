@@ -7,14 +7,15 @@
  *   http_request — make arbitrary HTTP requests with full method/header/body control
  *
  * All three tools are in the "web" group for progressive disclosure.
- * web_search is safe (read-only); web_fetch and http_request are moderate
- * (may POST or save files). http_request risk also depends on HTTP method
- * and is further classified by the guardrails layer at call time.
+ * web_search and web_fetch are open-world reads (moderate risk via
+ * exfiltration); http_request is an open-world write (moderate). The
+ * guardrails layer further classifies http_request at call time based on
+ * HTTP method.
  */
 
 
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import { networkReadEffect, networkWriteEffect } from "#core/tools/effect.js";
 import { httpRequestTool, runHttpRequest } from "./http-request.js";
 import { runWebFetch, webFetchTool } from "./web-fetch.js";
 import { runWebSearch, webSearchTool } from "./web-search.js";
@@ -23,19 +24,19 @@ const tools: ToolDef[] = [
   {
     tool: webFetchTool,
     runner: runWebFetch,
-    effect: legacyEffect({ risk: "moderate", kind: "discovery", openWorld: true }),
+    effect: networkReadEffect(),
     group: "web",
   },
   {
     tool: webSearchTool,
     runner: runWebSearch,
-    effect: legacyEffect({ risk: "safe", kind: "discovery", openWorld: true }),
+    effect: networkReadEffect(),
     group: "web",
   },
   {
     tool: httpRequestTool,
     runner: runHttpRequest,
-    effect: legacyEffect({ risk: "moderate", kind: "action", openWorld: true }),
+    effect: networkWriteEffect(),
     group: "web",
   },
 ];

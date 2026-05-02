@@ -124,6 +124,15 @@ export function networkDestructiveEffect(): ToolEffect {
   return { kind: "destructive", scope: "external-network", idempotent: false, openWorld: true };
 }
 
+/**
+ * Destructive mutation of state on the local filesystem (delete files, drop
+ * a database table, retract a captured store entry). Same risk tier as a
+ * destructive network call but without the open-world MCP hint.
+ */
+export function localDestructiveEffect(): ToolEffect {
+  return { kind: "destructive", scope: "local-fs", idempotent: false, openWorld: false };
+}
+
 /** Surfaces a request to the operator (ask_user, notification, approval). */
 export function operatorSurfaceEffect(opts?: { destructive?: boolean }): ToolEffect {
   return {
@@ -134,19 +143,30 @@ export function operatorSurfaceEffect(opts?: { destructive?: boolean }): ToolEff
   };
 }
 
-// ─── Compatibility helper ─────────────────────────────────────────────
+// ─── External-format adapter helper ───────────────────────────────────
+//
+// `legacyEffect` is the translation seam for *external* tool formats whose
+// public schema is the two-axis (risk, kind) classification — namely the
+// SimpleTool / OpenAIFunctionTool / Vercel AI SDK adapters in
+// `tool-adapters.ts`, plus tests that exercise effect-derivation paths.
+//
+// Production module code must not call `legacyEffect()` — declare the
+// concrete effect directly (e.g. `readOnlyLocalEffect()`,
+// `networkDestructiveEffect()`, etc.). The
+// `effect-no-legacy-callers.test.ts` guard enforces this mechanically: a
+// new caller in `src/modules/` or in a non-adapter file under `src/core/`
+// fails the test.
 
-/** Legacy coarse risk tier, retained only for migration helpers. */
+/** Legacy coarse risk tier, retained only for external-format adapters. */
 export type LegacyRisk = "safe" | "moderate" | "dangerous";
-/** Legacy coarse capability kind, retained only for migration helpers. */
+/** Legacy coarse capability kind, retained only for external-format adapters. */
 export type LegacyKind = "discovery" | "action";
 
 /**
- * Translate legacy `risk`/`kind` metadata into a conservative effect.
- *
- * Used by tool groups that have not yet declared an explicit effect. The
- * migration is conservative: when in doubt, callers may pass `openWorld: true`
- * to mark network-touching tools that the legacy mapping cannot infer.
+ * Translate the two-axis (risk, kind) classification used by external tool
+ * formats into a structured effect. Reserved for the
+ * `tool-adapters.ts` boundary; new production callers must use the
+ * concrete effect builders above.
  */
 export function legacyEffect(input: {
   risk: LegacyRisk;

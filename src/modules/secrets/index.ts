@@ -17,7 +17,7 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { getSecretStore, initSecretStore, type SecretScope } from "#core/config/secrets.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { SecretsClient } from "#core/server/kota-client.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import { readOnlyDaemonEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { secretsRoutes } from "./routes.js";
 
@@ -104,7 +104,7 @@ const secretsModule: KotaModule = {
     {
       tool: getSecretTool,
       runner: makeGetSecretRunner(ctx),
-      effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+      effect: readOnlyDaemonEffect(),
       group: "management",
     },
   ],

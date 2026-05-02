@@ -8,14 +8,14 @@
 
 
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import { readOnlyLocalEffect } from "#core/tools/effect.js";
 import { readDocumentTool, runReadDocument } from "./read-document.js";
 
 const tools: ToolDef[] = [
   {
     tool: readDocumentTool,
     runner: runReadDocument,
-    effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+    effect: readOnlyLocalEffect(),
   },
 ];
 

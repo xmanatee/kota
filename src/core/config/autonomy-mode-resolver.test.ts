@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { AutonomyMode } from "../tools/autonomy-mode.js";
 import { resolveChannelAutonomyMode } from "./autonomy-mode-resolver.js";
 import type { KotaConfig } from "./config.js";
 
@@ -26,7 +27,12 @@ describe("resolveChannelAutonomyMode", () => {
   });
 
   it("rejects a non-enum per-channel override", () => {
-    expect(() => resolveChannelAutonomyMode("banana", {}, "slack")).toThrow(
+    // Cast a malformed value through the typed boundary to exercise the
+    // runtime guard. Production callers have a typed `AutonomyMode | undefined`
+    // and cannot reach this branch without a similar escape hatch.
+    expect(() =>
+      resolveChannelAutonomyMode("banana" as AutonomyMode, {}, "slack"),
+    ).toThrow(
       /slack: defaultAutonomyMode must be one of passive, supervised, autonomous/,
     );
   });

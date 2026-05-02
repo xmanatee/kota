@@ -14,7 +14,12 @@
 
 
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import {
+  daemonWriteEffect,
+  localWriteEffect,
+  operatorSurfaceEffect,
+  readOnlyLocalEffect,
+} from "#core/tools/effect.js";
 import { clipboardTool, runClipboard } from "./clipboard.js";
 import { envInfoTool, runEnvInfo } from "./env-info.js";
 import { notifyTool, runNotify } from "./notify.js";
@@ -25,30 +30,30 @@ const tools: ToolDef[] = [
   {
     tool: clipboardTool,
     runner: runClipboard,
-    effect: legacyEffect({ risk: "safe", kind: "action" }),
+    effect: daemonWriteEffect(),
     group: "gui",
   },
   {
     tool: viewImageTool,
     runner: runViewImage,
-    effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+    effect: readOnlyLocalEffect(),
     group: "gui",
   },
   {
     tool: envInfoTool,
     runner: runEnvInfo,
-    effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+    effect: readOnlyLocalEffect(),
   },
   {
     tool: sqliteTool,
     runner: runSqlite,
-    effect: legacyEffect({ risk: "moderate", kind: "action" }),
+    effect: localWriteEffect(),
     group: "code",
   },
   {
     tool: notifyTool,
     runner: runNotify,
-    effect: legacyEffect({ risk: "safe", kind: "action" }),
+    effect: operatorSurfaceEffect(),
     group: "management",
   },
 ];

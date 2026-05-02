@@ -4,7 +4,6 @@
   "src/core/agent-harness/types.ts": 7,
   "src/core/agents/delegate-prompts.ts": 1,
   "src/core/channels/channel.ts": 2,
-  "src/core/config/autonomy-mode-resolver.ts": 1,
   "src/core/config/build-schema.ts": 15,
   "src/core/config/config-merge.ts": 6,
   "src/core/config/config-sanitize.ts": 20,

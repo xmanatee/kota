@@ -1,5 +1,5 @@
 import type { KotaModule, ModuleContext, ModuleRuntimeContext, ToolDef } from "#core/modules/module-types.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import { daemonWriteEffect, networkDestructiveEffect } from "#core/tools/effect.js";
 import {
   type BrowserProfileOptions,
   closeBrowser,
@@ -59,55 +59,55 @@ function buildTools(): ToolDef[] {
     {
       tool: browserNavigateTool,
       runner: runBrowserNavigate,
-      effect: legacyEffect({ risk: "dangerous", kind: "action", openWorld: true }),
+      effect: networkDestructiveEffect(),
       group: "browser",
     },
     {
       tool: browserClickTool,
       runner: runBrowserClick,
-      effect: legacyEffect({ risk: "dangerous", kind: "action", openWorld: true }),
+      effect: networkDestructiveEffect(),
       group: "browser",
     },
     {
       tool: browserTypeTool,
       runner: runBrowserType,
-      effect: legacyEffect({ risk: "dangerous", kind: "action", openWorld: true }),
+      effect: networkDestructiveEffect(),
       group: "browser",
     },
     {
       tool: browserScreenshotTool,
       runner: runBrowserScreenshot,
-      effect: legacyEffect({ risk: "dangerous", kind: "discovery", openWorld: true }),
+      effect: networkDestructiveEffect(),
       group: "browser",
     },
     {
       tool: browserEvaluateTool,
       runner: runBrowserEvaluate,
-      effect: legacyEffect({ risk: "dangerous", kind: "action", openWorld: true }),
+      effect: networkDestructiveEffect(),
       group: "browser",
     },
     {
       tool: browserGetTextTool,
       runner: runBrowserGetText,
-      effect: legacyEffect({ risk: "dangerous", kind: "discovery", openWorld: true }),
+      effect: networkDestructiveEffect(),
       group: "browser",
     },
     {
       tool: xPostReadTool,
       runner: runXPostRead,
-      effect: legacyEffect({ risk: "dangerous", kind: "discovery", openWorld: true }),
+      effect: networkDestructiveEffect(),
       group: "browser",
     },
     {
       tool: renderedArticleReadTool,
       runner: runRenderedArticleRead,
-      effect: legacyEffect({ risk: "dangerous", kind: "discovery", openWorld: true }),
+      effect: networkDestructiveEffect(),
       group: "browser",
     },
     {
       tool: browserCloseTool,
       runner: runBrowserClose,
-      effect: legacyEffect({ risk: "safe", kind: "action", openWorld: true }),
+      effect: daemonWriteEffect(),
       group: "browser",
     },
   ];

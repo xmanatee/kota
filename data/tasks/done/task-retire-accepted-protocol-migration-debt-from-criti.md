@@ -1,12 +1,12 @@
 ---
 id: task-retire-accepted-protocol-migration-debt-from-criti
 title: Retire accepted protocol-migration debt from critic warnings
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Close the concrete debt the critic accepted in recent protocol migrations: compatibility shims, placeholder tests, broad baselines, and textual-only guards.
 created_at: 2026-04-29T12:53:21.055Z
-updated_at: 2026-05-02T18:56:35.461Z
+updated_at: 2026-05-02T19:17:20.290Z
 ---
 
 ## Problem

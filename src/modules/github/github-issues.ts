@@ -1,11 +1,11 @@
 import type { ToolDef } from "#core/modules/module-types.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import { networkDestructiveEffect, networkReadEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { apiError, githubFetch } from "./github-auth.js";
 
 function makeListIssues(token: string, defaultRepo: string | null): ToolDef {
   return {
-    effect: legacyEffect({ risk: "safe", kind: "discovery", openWorld: true }),
+    effect: networkReadEffect(),
     tool: {
       name: "github_list_issues",
       description: "List GitHub issues with optional label filter.",
@@ -60,7 +60,7 @@ function makeListIssues(token: string, defaultRepo: string | null): ToolDef {
 
 function makeComment(token: string, defaultRepo: string | null): ToolDef {
   return {
-    effect: legacyEffect({ risk: "dangerous", kind: "action", openWorld: true }),
+    effect: networkDestructiveEffect(),
     tool: {
       name: "github_comment",
       description:
@@ -99,7 +99,7 @@ function makeComment(token: string, defaultRepo: string | null): ToolDef {
 
 function makeCreateIssue(token: string, defaultRepo: string | null): ToolDef {
   return {
-    effect: legacyEffect({ risk: "dangerous", kind: "action", openWorld: true }),
+    effect: networkDestructiveEffect(),
     tool: {
       name: "github_create_issue",
       description:
@@ -148,7 +148,7 @@ function makeCreateIssue(token: string, defaultRepo: string | null): ToolDef {
 
 function makeUpdateIssue(token: string, defaultRepo: string | null): ToolDef {
   return {
-    effect: legacyEffect({ risk: "dangerous", kind: "action", openWorld: true }),
+    effect: networkDestructiveEffect(),
     tool: {
       name: "github_update_issue",
       description:
@@ -193,7 +193,7 @@ function makeUpdateIssue(token: string, defaultRepo: string | null): ToolDef {
 
 function makeAddLabel(token: string, defaultRepo: string | null): ToolDef {
   return {
-    effect: legacyEffect({ risk: "dangerous", kind: "action", openWorld: true }),
+    effect: networkDestructiveEffect(),
     tool: {
       name: "github_add_label",
       description:
@@ -233,7 +233,7 @@ function makeAddLabel(token: string, defaultRepo: string | null): ToolDef {
 
 function makeRemoveLabel(token: string, defaultRepo: string | null): ToolDef {
   return {
-    effect: legacyEffect({ risk: "dangerous", kind: "action", openWorld: true }),
+    effect: networkDestructiveEffect(),
     tool: {
       name: "github_remove_label",
       description:

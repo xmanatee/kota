@@ -11,7 +11,7 @@
 
 import type { KotaModule } from "#core/modules/module-types.js";
 import { NOTIFICATION_HUB_PROVIDER_TYPE } from "#core/server/notification-hub-provider.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import { daemonWriteEffect } from "#core/tools/effect.js";
 import { schedulerConfigSlice } from "./config-slice.js";
 import { getNotificationHub } from "./notification-hub.js";
 import { schedulerRoutes } from "./routes.js";
@@ -28,7 +28,7 @@ const schedulerModule: KotaModule = {
     {
       tool: scheduleTool,
       runner: runSchedule,
-      effect: legacyEffect({ risk: "moderate", kind: "action" }),
+      effect: daemonWriteEffect(),
       group: "management",
     },
   ],

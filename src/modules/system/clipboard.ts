@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { platform } from "node:os";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import { daemonWriteEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
 export const clipboardTool: KotaTool = {
@@ -143,6 +143,6 @@ export async function runClipboard(
 export const registration = {
 	tool: clipboardTool,
 	runner: runClipboard,
-	effect: legacyEffect({ risk: "safe", kind: "action" }),
+	effect: daemonWriteEffect(),
 	group: "gui",
 };

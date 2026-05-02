@@ -10,14 +10,14 @@
 
 
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import { localWriteEffect } from "#core/tools/effect.js";
 import { gitTool, runGit } from "./git.js";
 
 const tools: ToolDef[] = [
   {
     tool: gitTool,
     runner: runGit,
-    effect: legacyEffect({ risk: "moderate", kind: "action" }),
+    effect: localWriteEffect(),
   },
 ];
 

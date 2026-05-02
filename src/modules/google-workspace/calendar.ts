@@ -1,5 +1,5 @@
 import type { ToolDef } from "#core/modules/module-types.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import { networkDestructiveEffect, networkReadEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { apiError, googleFetch } from "./auth.js";
 
@@ -8,7 +8,7 @@ export function makeCalendarListEvents(
   calendarId: string,
 ): ToolDef {
   return {
-    effect: legacyEffect({ risk: "safe", kind: "discovery", openWorld: true }),
+    effect: networkReadEffect(),
     group: "productivity",
     tool: {
       name: "calendar_list_events",
@@ -96,7 +96,7 @@ export function makeCalendarCreateEvent(
   calendarId: string,
 ): ToolDef {
   return {
-    effect: legacyEffect({ risk: "dangerous", kind: "action", openWorld: true }),
+    effect: networkDestructiveEffect(),
     group: "productivity",
     tool: {
       name: "calendar_create_event",

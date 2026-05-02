@@ -60,8 +60,9 @@ describe("browser module", () => {
     const tools = Array.isArray(mod.tools) ? mod.tools : [];
     const close = tools.find((t) => t.tool.name === "browser_close");
     expect(close).toBeDefined();
-    // browser_close was legacy { risk: "safe", kind: "action", openWorld: true }, which
-    // legacyEffect maps to a write+open-world effect → moderate tier.
+    // browser_close shuts down a daemon-managed Playwright resource — daemon-state
+    // coordination, not an external mutation. `riskFromEffect` treats daemon-state
+    // writes as safe; the test accepts either to allow future semantic refinement.
     expect(["safe", "moderate"]).toContain(riskFromEffect(close!.effect));
   });
 

@@ -1,11 +1,11 @@
 import type { ToolDef } from "#core/modules/module-types.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import { networkReadEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { apiError, googleFetch } from "./auth.js";
 
 export function makeDriveListFiles(getToken: () => Promise<string>): ToolDef {
   return {
-    effect: legacyEffect({ risk: "safe", kind: "discovery", openWorld: true }),
+    effect: networkReadEffect(),
     group: "productivity",
     tool: {
       name: "drive_list_files",
@@ -70,7 +70,7 @@ export function makeDriveListFiles(getToken: () => Promise<string>): ToolDef {
 
 export function makeDriveReadFile(getToken: () => Promise<string>): ToolDef {
   return {
-    effect: legacyEffect({ risk: "safe", kind: "discovery", openWorld: true }),
+    effect: networkReadEffect(),
     group: "productivity",
     tool: {
       name: "drive_read_file",

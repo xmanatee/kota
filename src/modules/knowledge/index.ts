@@ -18,7 +18,7 @@ import {
 	KNOWLEDGE_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
 import type { KnowledgeClient } from "#core/server/kota-client.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import { localWriteEffect } from "#core/tools/effect.js";
 import { createKnowledgeReadinessSource } from "./capability-readiness.js";
 import { registerKnowledgeCommands } from "./cli.js";
 import { knowledgeTool, runKnowledge } from "./knowledge.js";
@@ -36,7 +36,7 @@ const knowledgeModule: KotaModule = {
 			tool: knowledgeTool,
 			runner: runKnowledge,
 			group: "management",
-			effect: legacyEffect({ risk: "moderate", kind: "action" }),
+			effect: localWriteEffect(),
 		},
 	],
 	skills: [{ name: "knowledge", promptPath: "src/modules/knowledge/knowledge.md" }],

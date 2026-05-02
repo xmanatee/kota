@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
+import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import type { ToolDef } from "#core/modules/module-types.js";
 import {
   daemonWriteEffect,
   legacyEffect,
@@ -9,6 +11,7 @@ import {
   operatorSurfaceEffect,
   readOnlyLocalEffect,
   riskFromEffect,
+  type ToolEffect,
 } from "./effect.js";
 import { getToolMcpAnnotations } from "./guardrails-classify.js";
 import { clearCustomTools, registerTool } from "./index.js";
@@ -152,12 +155,46 @@ describe("getToolMcpAnnotations (effect-derived)", () => {
   });
 });
 
-describe("module loader effect guard", () => {
-  it("a ToolDef without an effect field fails type assertions", () => {
-    // This is a compile-time guarantee on the ToolDef type. The runtime
-    // module-loader test in `module-loader.test.ts` verifies the loader
-    // throws with `missing required metadata: effect` when a contributing
-    // module supplies a tool without one.
-    expect(true).toBe(true);
+describe("ToolDef requires an effect at compile time", () => {
+  it("a ToolDef literal without an effect field fails to typecheck", () => {
+    const tool: KotaTool = {
+      name: "no_effect",
+      description: "x",
+      input_schema: { type: "object", properties: {} },
+    };
+
+    // If a future change makes `effect` optional on `ToolDef`, the
+    // `@ts-expect-error` directive below becomes unused and the test file
+    // fails to typecheck — flagging the regression. The runtime guard in
+    // `module-loader.test.ts` ("rejects a tool missing effect metadata")
+    // covers the same invariant at load time.
+    // @ts-expect-error effect is a required field on ToolDef
+    const def: ToolDef = {
+      tool,
+      runner: async () => ({ content: "" }),
+    };
+    expect(def.tool.name).toBe("no_effect");
+  });
+
+  it("riskFromEffect returns a defined tier for every effect kind/scope combination", () => {
+    const kinds: ReadonlyArray<ToolEffect["kind"]> = ["read", "write", "destructive"];
+    const scopes: ReadonlyArray<ToolEffect["scope"]> = [
+      "session",
+      "local-fs",
+      "daemon-state",
+      "external-network",
+      "operator-surface",
+    ];
+    for (const kind of kinds) {
+      for (const scope of scopes) {
+        for (const openWorld of [false, true]) {
+          for (const idempotent of [false, true]) {
+            const effect: ToolEffect = { kind, scope, idempotent, openWorld };
+            const risk = riskFromEffect(effect);
+            expect(["safe", "moderate", "dangerous"]).toContain(risk);
+          }
+        }
+      }
+    }
   });
 });

@@ -1,6 +1,6 @@
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
 import { setPromptResolver } from "#core/tools/delegate-config.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import { readOnlyLocalEffect } from "#core/tools/effect.js";
 import { promptTool, runPromptTemplate } from "./prompt.js";
 import { PromptStore } from "./prompt-template.js";
 
@@ -31,7 +31,7 @@ const tools: ToolDef[] = [
 	{
 		tool: promptTool,
 		runner: runPromptTemplate,
-		effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+		effect: readOnlyLocalEffect(),
 		group: "management",
 	},
 ];

@@ -1,11 +1,11 @@
 import type { ToolDef } from "#core/modules/module-types.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import { networkDestructiveEffect, networkReadEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { apiError, githubFetch } from "./github-auth.js";
 
 function makeCreatePr(token: string, defaultRepo: string | null): ToolDef {
   return {
-    effect: legacyEffect({ risk: "dangerous", kind: "action", openWorld: true }),
+    effect: networkDestructiveEffect(),
     tool: {
       name: "github_create_pr",
       description:
@@ -48,7 +48,7 @@ function makeCreatePr(token: string, defaultRepo: string | null): ToolDef {
 
 function makeGetPr(token: string, defaultRepo: string | null): ToolDef {
   return {
-    effect: legacyEffect({ risk: "safe", kind: "discovery", openWorld: true }),
+    effect: networkReadEffect(),
     tool: {
       name: "github_get_pr",
       description:
@@ -124,7 +124,7 @@ function makeGetPr(token: string, defaultRepo: string | null): ToolDef {
 
 function makeListPrs(token: string, defaultRepo: string | null): ToolDef {
   return {
-    effect: legacyEffect({ risk: "safe", kind: "discovery", openWorld: true }),
+    effect: networkReadEffect(),
     tool: {
       name: "github_list_prs",
       description:
@@ -187,7 +187,7 @@ function makeListPrs(token: string, defaultRepo: string | null): ToolDef {
 
 function makeMergePr(token: string, defaultRepo: string | null): ToolDef {
   return {
-    effect: legacyEffect({ risk: "dangerous", kind: "action", openWorld: true }),
+    effect: networkDestructiveEffect(),
     tool: {
       name: "github_merge_pr",
       description:
@@ -243,7 +243,7 @@ function makeMergePr(token: string, defaultRepo: string | null): ToolDef {
 
 function makeClosePr(token: string, defaultRepo: string | null): ToolDef {
   return {
-    effect: legacyEffect({ risk: "dangerous", kind: "action", openWorld: true }),
+    effect: networkDestructiveEffect(),
     tool: {
       name: "github_close_pr",
       description:
