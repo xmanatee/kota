@@ -198,3 +198,9 @@ resources:
       fingerprint: sha256:2d645d1fffffc712c2b6505d2a27d814
       summary: "Continue (continuedev/continue) is now a CI-enforceable AI-checks platform: source-controlled markdown checks under .continue/checks/, run on PRs as GitHub status checks, primary surface is a cn CLI plus VS Code/JetBrains plugins. Single-agent per check, MCP-supported, config-as-code in version control. Verdict: read but reject as a parallel surface — KOTA's eval-harness + agent-judge contracts already cover agent evaluation, pr-reviewer covers the GitHub-PR signal, and scoped AGENTS.md already realizes repo-resident config-as-code; importing markdown checks would be a second governance surface."
       last_seen_at: "2026-04-26T02:48:28.586Z"
+  - url: https://github.com/livekit/agents
+    added: "2026-05-02"
+    notes: "LiveKit Agents is a real-time multi-modal voice/agent orchestration framework — peer to KOTA's voice module surface. Owner-flagged 2026-05-02 in inbox capture as relevant to voice-stack reevaluation. Snapshot and distill on the next explorer cycle."
+  - url: https://github.com/abhigyanpatwari/GitNexus
+    added: "2026-05-02"
+    notes: "GitNexus is a knowledge-base project owner-flagged 2026-05-02 as potentially relevant to KOTA's knowledge / memory subsystems. Snapshot and distill on the next explorer cycle to determine whether any primitive maps onto KOTA's existing knowledge module."
