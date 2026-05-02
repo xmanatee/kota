@@ -1,12 +1,12 @@
 ---
 id: task-fan-out-consolidation-memory
 title: Consolidate memory surfaces across clients
-status: ready
+status: blocked
 priority: p2
 area: client
 summary: Review the memory surface family across macos, daemon, mobile, telegram for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-02T21:31:53.684Z
+updated_at: 2026-05-02T21:54:36.307Z
 ---
 
 ## Problem
@@ -106,3 +106,36 @@ fan-out batch, and the review's output is operator-actionable follow-up tasks.
   stating no follow-up was needed and why.
 - Updated scoped `AGENTS.md` lines reflecting any convention adjustments arising from
   the review.
+
+## Headless Review (completed)
+
+Recorded under
+`.kota/runs/2026-05-02T21-46-19-670Z-builder-o6sqtm/memory-consolidation/`:
+
+- `contract-probe.json` — runtime probe of `src/modules/memory/routes.ts`
+  `handleSearchMemory` covering all five envelope arms every client
+  decodes (no-provider 500, semantic-unavailable 200, keyword success
+  200, empty-query 200, limit truncation 200).
+- `probe-contract.mjs` — the probe source kept alongside its artifact.
+- `cli-transcript.txt` — CLI transcript exercising
+  `kota memory --help`, `kota memory list`, `kota memory search` (with
+  match, with no match, empty query, semantic), and `kota memory
+  reindex` against the local store. Proves end-to-end propagation of
+  the daemon-issued `semantic_unavailable` arm and the
+  no-embedding-provider reindex message through the CLI surface.
+- `verdict.md` — written verdict for each of the 8 consolidation
+  dimensions; no follow-up tasks were warranted, and the only
+  convention adjustment surfaced (adding the mobile `MemoryScreen` to
+  the operator pull-surface list in `src/modules/memory/AGENTS.md`)
+  is applied in this same change.
+
+What is left is the per-surface visual evidence the autonomous
+builder cannot capture headlessly.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/memory-consolidation-screens-*
+description: live operator-captured screenshots/screencasts for the three visual memory surfaces — telegram (`/memory <query>` rendered message: populated, no-match, semantic-unavailable, and empty/usage-hint cases), mobile (`MemoryScreen` showing populated, empty-query hint, no-match card, semantic-unavailable banner, and offline banner), and macOS (`AskUnifiedView` with the Memory mode populated, no-match line, and semantic-unavailable orange caption). Operator runs each client against a daemon (with and without an embedding-backed memory provider configured) and commits the rendered artifacts under .kota/runs/memory-consolidation-screens-<stamp>/{telegram,mobile,macos}/. The daemon-side and CLI-side artifacts are already committed under .kota/runs/2026-05-02T21-46-19-670Z-builder-o6sqtm/memory-consolidation/.
+```
