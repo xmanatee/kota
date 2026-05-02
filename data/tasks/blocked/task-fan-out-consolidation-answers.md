@@ -1,12 +1,12 @@
 ---
 id: task-fan-out-consolidation-answers
 title: Consolidate answers surfaces across clients
-status: ready
+status: blocked
 priority: p2
 area: client
 summary: Review the answers surface family across macos, mobile, telegram, daemon for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-02T21:31:53.684Z
+updated_at: 2026-05-02T23:28:00.791Z
 ---
 
 ## Problem
@@ -102,3 +102,69 @@ fan-out batch, and the review's output is operator-actionable follow-up tasks.
   stating no follow-up was needed and why.
 - Updated scoped `AGENTS.md` lines reflecting any convention adjustments arising from
   the review.
+
+## Headless Review (completed)
+
+Recorded under
+`.kota/runs/2026-05-02T23-16-15-695Z-builder-c6bbto/answers-consolidation/`:
+
+- `contract-probe.json` — runtime probe of `src/modules/answer/routes.ts`
+  `createAnswerHistoryRouteHandler` exercising the seven envelope arms
+  every client decodes through the shared seam: `list-empty`,
+  `list-populated-default-limit` (pins the four-field
+  `AnswerHistoryEntry` projection with `result` discriminated on `ok`
+  carrying `citationCount` on success and `reason` on failure),
+  `list-with-limit-and-before-cursor` (pins the cursor pagination
+  shape), `list-store-throws` (500 typed daemon-error path),
+  `show-found` (pins the full `AnswerHistoryRecord` including the
+  persisted `RecallHit[]` the synthesizer was shown), `show-not-found`
+  (pins the `not_found` discriminated arm), and `show-store-throws`
+  (500 typed daemon-error path).
+- `probe-contract.mjs` — the probe source kept alongside its artifact.
+- `cli-transcript.txt` — `kota --help` discoverability (proves
+  `answer` is in the top-level command inventory), full
+  `kota answer --help` / `kota answer log --help` /
+  `kota answer show --help` surfaces, plus live `log` / `log --json` /
+  `log -n 5 --json` / `log -b nonexistent-id --json` /
+  `log --limit not-a-number` / `show missing-id` /
+  `show missing-id --json` / `ask ''` / `ask 'harness' --limit 0` /
+  `ask 'harness' --source unknown` runs against an isolated
+  `KOTA_PROJECT_DIR` empty store. Confirms the CLI surface decodes
+  the same `{ entries: [] }`, `{ ok: false, reason: "not_found" }`,
+  and typed input-validation envelopes the visual clients mirror.
+- `verdict.md` — written verdict for each of the 8 consolidation
+  dimensions.
+
+Follow-ups filed (or named) in this change:
+
+- `data/tasks/backlog/task-add-macos-daemonclientanswerloganswershow-and-answ.md`
+  (new in this run, `area: client`, `priority: p3`) — Add the
+  macOS `DaemonClient.answerLog`/`answerShow` methods and the
+  paired `AnswerHistoryView` consuming the persisted
+  answer-history routes. The Swift type mirrors are present and
+  decode strictly, but no `DaemonClient` route function or UI view
+  reaches them today, so the macOS operator cannot list or
+  re-read past cited answers from the menu bar.
+- `task-extend-cross-client-conformance-and-thin-client-de`
+  (already filed by the prior `answer` consolidation, `backlog/`,
+  p1 architecture) — named here for traceability. Relevant because
+  a persisted `AnswerHistoryRecord`'s `recallHits[]` carries
+  `source: "answer"` once the answer recall contributor surfaces a
+  prior cited answer; the load-bearing decoder gap that task
+  closes is the same shape that would block decode here.
+
+The answer module's `src/modules/answer/AGENTS.md` already
+accurately describes the shipped read surfaces (the prior
+`answer` consolidation in commit `e1144d13` updated the boundary
+line), so no docs touch is warranted in this consolidation.
+
+What is left is the per-surface visual evidence the autonomous
+builder cannot capture headlessly.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/answers-consolidation-screens-*
+description: live operator-captured screenshots/screencasts for the live answer-history visual surfaces — telegram (`/answer-log` rendered against an empty store, `/answer-log` rendered against a populated store, `/answer-log 3` paged listing, `/answer-show <id>` for a known id with citations, `/answer-show <missing>` showing the typed not_found copy, `/answer-show <id>` for a long body chunked on blank lines, and the `Usage: /answer-log [N]` / `Usage: /answer-show <id>` hints), slack (the same `/answer-log` / `/answer-show` slash commands rendered against a workspace covering the same arms), mobile (`AnswerHistoryScreen` covering loading, populated list with mixed success/failure entries, populated detail with citations, empty-list label, `not_found` show banner, error retry, offline banner, and `Load more` pagination), and web (`AnswerHistoryPanel` covering loading, populated list, populated detail, empty-list label, `not_found` banner, error toast, and pagination). macOS is intentionally excluded from this precondition because no UI consumes the answer-history routes today; the follow-up task `task-add-macos-daemonclientanswerloganswershow-and-answ` covers the missing macOS surface and ships its own operator-capture artifact when it lands. Operator runs each client against a daemon (with both an empty and a populated answer-history store) and commits the rendered artifacts under .kota/runs/answers-consolidation-screens-<stamp>/{telegram,slack,mobile,web}/. The daemon-side and CLI-side artifacts are already committed under .kota/runs/2026-05-02T23-16-15-695Z-builder-c6bbto/answers-consolidation/.
+```
