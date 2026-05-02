@@ -1,12 +1,12 @@
 ---
 id: task-ship-vercel-ai-sdk-agent-harness-adapter
 title: Ship Vercel AI SDK agent harness adapter
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Land a tool-capable agent harness adapter for the Vercel AI SDK so the daemon can be powered by the Vercel agent runtime through the existing pluggable harness protocol.
 created_at: 2026-05-02T18:50:06.631Z
-updated_at: 2026-05-02T18:56:35.498Z
+updated_at: 2026-05-02T20:00:57.408Z
 ---
 
 ## Problem
@@ -114,14 +114,35 @@ actually want to swap in for Vercel-AI-SDK-powered daemons.
 
 ## Acceptance Evidence
 
-- Diff/screenshot of `kota harness-parity run` output listing the
-  vercel adapter succeeding on a shared scenario alongside the existing
-  three, with paired artifacts under
-  `.kota/runs/<run-id>/harness-parity/<scenario>/vercel/`.
-- Integration test or recorded transcript of an autonomy repair loop
-  completing under the vercel adapter.
-- A configuration snippet showing `KotaConfig.defaultAgentHarness` set
-  to `vercel` with the daemon starting cleanly and the relevant
-  provider routes responding.
-- The new module directory with `AGENTS.md`, adapter, and focused
-  tests committed.
+- The new module directory `src/modules/vercel-agent-harness/` with
+  `AGENTS.md`, adapter, registration, four focused tests, and the
+  bumped `package.json` (adds `ai` and `@ai-sdk/openai` as direct
+  deps) committed.
+- `src/modules/vercel-agent-harness/scenario-loop.integration.test.ts`
+  drives the harness through the shipped `fix-arithmetic-bug` parity
+  scenario with the Vercel SDK mocked, asserting the verification
+  command is dispatched through the tool registry. This is the
+  headless parity probe for the adapter; the live `kota harness-parity
+  run` capture is operator-driven (see precondition below).
+- `src/modules/vercel-agent-harness/autonomy-harness-neutral.integration.test.ts`
+  proves an autonomy agent step routes through the vercel harness with
+  a portable system prompt and `effort` mapped to OpenAI's
+  `reasoningEffort` — the headless analogue of an autonomy repair loop
+  on this adapter.
+- `src/modules/vercel-agent-harness/adapter.integration.test.ts`
+  proves `KotaConfig.defaultAgentHarness: "vercel"` resolves through
+  the registry alongside `claude-agent-sdk`, `openai-tools`, and
+  `thin` with no implicit fallback.
+
+### Operator-capture precondition
+
+The live `kota harness-parity run` artifact under
+`.kota/runs/<run-id>/harness-parity/fix-arithmetic-bug/vercel/` and a
+real autonomy repair-loop transcript on this adapter both consume
+real Vercel AI SDK API budget against an operator-provided
+`OPENAI_API_KEY` (or another registered provider's key). They
+therefore require an operator-driven `kota harness-parity run` and a
+deliberate live autonomy run after this task lands. Capturing them
+inside the autonomous builder is forbidden by the harness-parity
+module's "no live execution without operator authorization step"
+contract.

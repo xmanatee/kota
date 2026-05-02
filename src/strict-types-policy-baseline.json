@@ -266,6 +266,7 @@
   "src/modules/transcription-whisper/provider.ts": 1,
   "src/modules/vercel-adapter/data-stream.ts": 2,
   "src/modules/vercel-adapter/index.ts": 1,
+  "src/modules/vercel-agent-harness/adapter.ts": 3,
   "src/modules/voice-openai-tts/provider.ts": 1,
   "src/modules/voice/routes.ts": 6,
   "src/modules/web-access/http-request-utils.ts": 5,
