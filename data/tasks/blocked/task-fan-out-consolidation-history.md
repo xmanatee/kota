@@ -1,12 +1,12 @@
 ---
 id: task-fan-out-consolidation-history
 title: Consolidate history surfaces across clients
-status: ready
+status: blocked
 priority: p2
 area: client
 summary: Review the history surface family across daemon, telegram, macos, mobile, cli for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-02T21:31:53.684Z
+updated_at: 2026-05-02T23:43:14.397Z
 ---
 
 ## Problem
@@ -111,3 +111,85 @@ fan-out batch, and the review's output is operator-actionable follow-up tasks.
   stating no follow-up was needed and why.
 - Updated scoped `AGENTS.md` lines reflecting any convention adjustments arising from
   the review.
+
+## Headless Review (completed)
+
+Recorded under
+`.kota/runs/2026-05-02T23-31-34-840Z-builder-2o6c4j/history-consolidation/`:
+
+- `contract-probe.json` — runtime probe of `src/modules/history/routes.ts`
+  `handleSearchHistory` exercising the six envelope arms every client
+  decodes through the shared seam: `semantic-true-unsupported` (200
+  with `{ ok: false, reason: "semantic_unavailable" }` against a
+  provider that returns `supportsSemanticSearch()=false`, the default
+  in-process `ConversationHistory`), `semantic-true-supported` (200
+  with `{ ok: true, conversations: [...] }` carrying the eight-field
+  `ConversationRecord` projection with optional `source`),
+  `semantic-true-empty` (200 with `{ ok: true, conversations: [] }`),
+  `semantic-true-filter-forwarding` (asserts `cwd` and `source=user`
+  reach `provider.semanticSearch` as `{ cwd, source }` per
+  `routes.ts:91-93`), `keyword-fallback` (`semantic=false` routes
+  through `provider.list({ search, limit, cwd, source })` and returns
+  the same envelope), and `provider-throws` (500 typed
+  `{ error: <message> }`).
+- `probe-contract.mjs` — the probe source kept alongside its artifact.
+- `cli-transcript.txt` — `kota --help` discoverability (proves
+  `history` is in the top-level command inventory), full
+  `kota history --help` / `kota history list --help` /
+  `kota history search --help` / `kota history show --help` surfaces,
+  plus live `list` / `list -n 5` / `list -s no-such-substring` /
+  `search ''` (typed usage hint, exit 1) / `search 'harness'` (typed
+  `Semantic conversation search requires an embedding-backed history
+  provider.`, exit 1) / `search 'harness' --json` (`{"ok":false,
+  "reason":"semantic_unavailable"}`, exit 0) / `search 'harness'
+  --keyword` (`No matching conversations.`) / `search 'harness'
+  --keyword --json` (`{"ok":true,"conversations":[]}`) / `search
+  'harness' --no-semantic` (alias for `--keyword`) / `show missing-id`
+  (`Conversation "missing-id" not found.`, exit 1) / `reindex`
+  (no-provider skip line) / `clear --yes` (empty store path) /
+  `search 'q' --limit not-a-number` (typed input validation, exit 1)
+  runs against an isolated `KOTA_PROJECT_DIR` empty store. Confirms
+  the CLI surface decodes the same `{ ok: true, conversations }` /
+  `{ ok: false, reason: "semantic_unavailable" }` envelopes the
+  visual clients mirror.
+- `verdict.md` — written verdict for each of the 8 consolidation
+  dimensions.
+
+Follow-ups filed (or named) in this change:
+
+- `data/tasks/backlog/task-tighten-macos-conversationrecordsource-to-closed-u.md`
+  (new in this run, `area: client`, `priority: p3`) — Tighten the
+  macOS `ConversationRecord.source` decoder in `HistoryModels.swift`
+  from the permissive `let source: String?` to a closed
+  `"user" | "action"` set, and add a
+  `historySearch.negative_unknownSource` arm to
+  `clients/conformance/contract-fixture.json` so the cross-client
+  conformance gate catches the drift. Mobile and conformance both
+  reject unknown source values today; macOS silently accepts them.
+- `task-share-or-conformance-test-daemon-wire-contracts-ac`
+  (already filed, `doing/`, p1 architecture) — named for traceability
+  because the mobile `historyRender.ts` and `parseConversationRecord`
+  cross-package mirrors are the same shape that umbrella covers.
+
+The history module's `src/modules/history/AGENTS.md` "Operator
+pull-surfaces" line is updated in this change to enumerate the
+mobile `HistoryScreen` alongside Telegram `/history`, terminal
+`kota history search`, and the macOS menu bar `HistoryView`. The
+mobile surface shipped during this fan-out batch (`6fe77680`,
+2026-04-27) and was missing from the inventory.
+
+The macOS `HistoryView` fan-out commit `af334e4d` accepted
+`pass_with_warnings` because the agent substituted a markdown
+description for screenshots; the operator-capture precondition
+below is the explicit retirement plan.
+
+What is left is the per-surface visual evidence the autonomous
+builder cannot capture headlessly.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/history-consolidation-screens-*
+description: live operator-captured screenshots/screencasts for the live history-search visual surfaces — telegram (`/history` against an empty store rendering `No matching conversations.`, `/history` against an embedding-backed populated store rendering the shared `id  YYYY-MM-DD HH:MM    N msgs  title` line shape, `/history` against the default in-process provider rendering the typed `Semantic conversation search requires an embedding-backed history provider.` body, and the `Usage: /history <query>` hint for empty/whitespace input), mobile (`HistoryScreen` covering loading via the RefreshControl, populated list with the shared line shape, empty list with the `No matching conversations.` label, the typed `semantic_unavailable` banner, error retry, offline banner, the `Type a query and tap Search to query history.` empty-query hint, and the cleared-on-reset state), and macOS (`HistoryView` covering the loading spinner with `Searching…` caption, populated body via the shared `renderHistorySearchPlain` helper, the muted `No matching conversations.` body, the orange `Semantic history search requires an embedding-backed history provider.` caption, the red `HistoryErrorView` with the Retry button, the `Type a query to search history.` empty-query hint, and the `Press return to search.` after-query-but-before-submit hint). CLI is excluded from this precondition because the headless transcript at `.kota/runs/2026-05-02T23-31-34-840Z-builder-2o6c4j/history-consolidation/cli-transcript.txt` already covers every CLI arm. Daemon is excluded because the runtime probe at `.kota/runs/2026-05-02T23-31-34-840Z-builder-2o6c4j/history-consolidation/contract-probe.json` covers every wire envelope. Operator runs each visual client against a daemon (with both an empty default-provider store and an embedding-backed populated store) and commits the rendered artifacts under .kota/runs/history-consolidation-screens-<stamp>/{telegram,mobile,macos}/.
+```
