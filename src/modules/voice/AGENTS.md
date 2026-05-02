@@ -64,6 +64,19 @@ Every client sees the same shape at the boundary:
 
 Mirror this shape exactly in any new client surface.
 
+### Surface-local codes
+
+Clients may extend the `code` field with platform-natural failure codes that
+do not exist on the daemon side: e.g., `stt-mic-denied`, `stt-empty-recording`,
+`stt-empty-transcript`, `stt-request-failed`, `tts-playback-failed`,
+`stt-unsupported` (web only), `daemon-offline` (macOS only). The intersection
+of all clients is exactly the daemon vocabulary above; surface-local codes
+encode browser/native-runtime conditions the daemon never observes (mic
+permission, missing `MediaRecorder`, broken connection state, ...). New
+clients should adopt the matching code from this list rather than minting
+synonyms; bring a new code only when no existing one fits the platform
+condition.
+
 ## Injection-defense parity
 
 Transcribed voice becomes a user turn at each client just like typed text

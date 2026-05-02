@@ -1,12 +1,12 @@
 ---
 id: task-fan-out-consolidation-voice
 title: Consolidate voice surfaces across clients
-status: ready
+status: blocked
 priority: p2
 area: client
 summary: Review the voice surface family across macos, mobile, web, cli for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-02T21:31:53.684Z
+updated_at: 2026-05-02T21:42:13.586Z
 ---
 
 ## Problem
@@ -102,3 +102,30 @@ fan-out batch, and the review's output is operator-actionable follow-up tasks.
   stating no follow-up was needed and why.
 - Updated scoped `AGENTS.md` lines reflecting any convention adjustments arising from
   the review.
+
+## Headless Review (completed)
+
+Recorded under
+`.kota/runs/2026-05-02T21-32-26-678Z-builder-ree4uo/voice-consolidation/`:
+
+- `contract-probe.json` — runtime probe of `src/modules/voice/routes.ts`
+  shared handlers (covers both `/api/voice/*` and `/voice/*` transports).
+- `cli-transcript.txt` — CLI transcript exercising
+  `kota voice transcribe` / `kota voice speak` against a live daemon with
+  no providers loaded (proves end-to-end propagation of the daemon-issued
+  `stt-unavailable` / `tts-unavailable` codes through the CLI surface).
+- `verdict.md` — written verdict for each of the 8 consolidation
+  dimensions; no follow-up tasks were warranted, and the
+  `src/modules/voice/AGENTS.md` update in this run captures the only
+  convention adjustment surfaced (surface-local code policy).
+
+What is left is the per-surface visual evidence the autonomous builder
+cannot capture headlessly.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/voice-consolidation-screens-*
+description: live operator-captured screenshots/screencasts for the three visual voice surfaces — web (`VoiceControls` in chat), mobile (`VoiceComposer` in `ChatDetailScreen`), and macOS (`ChatView` voice buttons). Operator runs each client against a daemon (with or without registered STT/TTS providers), captures one rendered artifact showing the mic+speaker controls and the failure-code banner state for an unavailable provider, and commits them under .kota/runs/voice-consolidation-screens-<stamp>/{web,mobile,macos}/. The daemon-side and CLI-side artifacts are already committed under .kota/runs/2026-05-02T21-32-26-678Z-builder-ree4uo/voice-consolidation/.
+```
