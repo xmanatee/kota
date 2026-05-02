@@ -25,6 +25,13 @@ import {
   type RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
+import {
+  type AreaClassification,
+  classifyTaskShape,
+} from "./task-classification.js";
+
+export type { AreaClassification } from "./task-classification.js";
+export { classifyTaskShape } from "./task-classification.js";
 
 export const DEFAULT_REPORT_WINDOW_DAYS = 7;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -37,25 +44,6 @@ function normalizePriority(raw: string): ReportPriority {
   return (KNOWN_PRIORITIES as readonly string[]).includes(raw)
     ? (raw as ReportPriority)
     : "unknown";
-}
-
-/**
- * Strategic vs fan-out classification for explorer-created and builder-closed
- * tasks. Heuristic and intentionally narrow: areas that move the architecture
- * front are "strategic", thin-client surface fan-out is "fan-out", and
- * everything else is "other". The classification ships in the report so the
- * operator can audit and refine it instead of being hidden inside agent traces.
- */
-export type AreaClassification = "strategic" | "fan-out" | "other";
-
-const STRATEGIC_AREAS = new Set(["architecture", "core", "modules"]);
-const FAN_OUT_AREAS = new Set(["client", "channel"]);
-
-export function classifyArea(area: string): AreaClassification {
-  const normalized = area.trim().toLowerCase();
-  if (STRATEGIC_AREAS.has(normalized)) return "strategic";
-  if (FAN_OUT_AREAS.has(normalized)) return "fan-out";
-  return "other";
 }
 
 export type PriorityCount = { priority: ReportPriority; count: number };
@@ -292,7 +280,11 @@ function buildExplorerBalance(
         title: task.title,
         area: task.area || "(unset)",
         priority: normalizePriority(task.priority),
-        classification: classifyArea(task.area),
+        classification: classifyTaskShape({
+          area: task.area,
+          title: task.title,
+          summary: task.summary,
+        }),
       });
     }
   }
@@ -377,7 +369,11 @@ function buildBuilderBreakdown(
       taskTitle: summary.taskTitle ?? task.title,
       area: task.area || "(unset)",
       priority: normalizePriority(task.priority),
-      classification: classifyArea(task.area),
+      classification: classifyTaskShape({
+        area: task.area,
+        title: task.title,
+        summary: task.summary,
+      }),
       costUsd: run.totalCostUsd ?? null,
       durationMs: run.durationMs ?? null,
     });

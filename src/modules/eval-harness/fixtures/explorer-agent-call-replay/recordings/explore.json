@@ -22,6 +22,11 @@
       "op": "write",
       "path": "{{runDir}}/commit-message.txt",
       "content": "Seed empty queue with p1 task to gate replay fixtures from pnpm test\n\nThe just-completed eval-harness initiative pinned the three load-bearing\nautonomy workflows through replay-backed fixtures, but the regression-\nsurfacing leg is half-built: nothing in pnpm test actually runs any\nshipped *-agent-call-replay fixture. Workflow-layer regressions reach\nthe next live autonomy run before any test catches them.\n\nAdd the new ready/ task pointing at the next leg of the same initiative:\nwire at least one shipped replay fixture into pnpm test through the same\nrunFixture + subprocess executor path the cadence workflow uses, so\nevery autonomy run's own pnpm test repair-loop check gates the replay\nplumbing.\n"
+    },
+    {
+      "op": "write",
+      "path": "{{runDir}}/exploration-rationale.json",
+      "content": "{\n  \"decision\": \"create-task\",\n  \"summary\": \"The eval-harness initiative shipped replay fixtures for the three load-bearing autonomy workflows but never wired any of them into pnpm test, so workflow-layer regressions only surface in the weekly cadence or in the next live autonomy run. Opened a p1 ready task to close that gate by running at least one shipped *-agent-call-replay fixture through the same runFixture + subprocess executor path the cadence uses, so every autonomy run's own pnpm test repair-loop check catches replay-plumbing regressions before they cost a real LLM bill.\",\n  \"blockedAlternativesConsidered\": [],\n  \"taskIdsTouched\": [\"task-gate-shipped-replay-fixtures-from-pnpm-test-so-wor\"]\n}\n"
     }
   ]
 }

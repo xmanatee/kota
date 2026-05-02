@@ -27,6 +27,11 @@ import {
   hasStrategicReadyCoverageGap,
 } from "#modules/repo-tasks/task-queue-validation.js";
 import {
+  checkExplorationRationale,
+  listStrategicBlockedAlternatives,
+  type StrategicBlockedSummary,
+} from "./exploration-rationale.js";
+import {
   readLastExplorationAt,
   writeLastExplorationAt,
 } from "./explorer-state.js";
@@ -56,6 +61,13 @@ type ExplorerAssessment = {
   needsAttention: boolean;
   explorationRefreshDue: boolean;
   strategicReadyCoverageGap: boolean;
+  /**
+   * Strategic-area blocked tasks the explorer must consider before opening
+   * unrelated narrow work. Surfaces existing blocked architecture/core/
+   * modules/autonomy work with parsed precondition kinds so the agent can
+   * choose to promote/decompose rather than seeding new fan-out tasks.
+   */
+  strategicBlockedAlternatives: StrategicBlockedSummary[];
 };
 
 function buildExplorerAssessment(
@@ -77,6 +89,7 @@ function buildExplorerAssessment(
     needsAttention: !dirty && (queueEmpty || queueThin) && explorationRefreshDue,
     explorationRefreshDue,
     strategicReadyCoverageGap: hasStrategicReadyCoverageGap(projectDir),
+    strategicBlockedAlternatives: listStrategicBlockedAlternatives(projectDir),
   };
 }
 
@@ -95,6 +108,7 @@ const inspectQueue = typedCodeStep<ExplorerAssessment>({
       "needsAttention",
       "explorationRefreshDue",
       "strategicReadyCoverageGap",
+      "strategicBlockedAlternatives",
     ]),
   run: ({ projectDir }) => {
     return buildExplorerAssessment(
@@ -212,6 +226,17 @@ const explorerWorkflow: WorkflowDefinitionInput = {
             type: "code" as const,
             phase: 1,
             run: ({ projectDir }) => assertStrategicReadyCoverage(projectDir),
+          },
+          {
+            id: "exploration-rationale",
+            type: "code" as const,
+            run: (ctx) => {
+              const rationale = checkExplorationRationale(
+                ctx.projectDir,
+                ctx.workflow.runDirPath,
+              );
+              return `exploration-rationale-ok: decision=${rationale.decision}`;
+            },
           },
           {
             id: "no-scratch-artifacts",

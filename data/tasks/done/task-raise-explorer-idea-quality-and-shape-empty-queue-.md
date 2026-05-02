@@ -1,12 +1,12 @@
 ---
 id: task-raise-explorer-idea-quality-and-shape-empty-queue-
 title: Raise explorer idea quality and shape empty-queue loop
-status: ready
+status: done
 priority: p1
 area: modules
 summary: Improve explorer so it more often proposes high-leverage, strategic, architecture-improving work when the queue is thin instead of small p2 fan-out, and reshape the empty-queue explorer-builder loop without adding blunt daily spend caps.
 created_at: 2026-04-28T22:04:35.308Z
-updated_at: 2026-04-29T12:53:30.000Z
+updated_at: 2026-05-02T17:25:37.477Z
 ---
 
 ## Problem

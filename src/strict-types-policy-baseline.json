@@ -135,6 +135,7 @@
   "src/modules/autonomy/workflows/attention-digest/step.ts": 1,
   "src/modules/autonomy/workflows/daily-digest/aggregate.ts": 1,
   "src/modules/autonomy/workflows/decomposer/workflow.ts": 2,
+  "src/modules/autonomy/workflows/explorer/exploration-rationale.ts": 4,
   "src/modules/autonomy/workflows/explorer/watchlist-updates.ts": 3,
   "src/modules/autonomy/workflows/improver/evidence-gate.ts": 3,
   "src/modules/autonomy/workflows/pr-reviewer/workflow.ts": 10,

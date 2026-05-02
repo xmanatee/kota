@@ -2,7 +2,8 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { aggregateAutonomyReport, classifyArea } from "./aggregate.js";
+import { aggregateAutonomyReport } from "./aggregate.js";
+import { classifyTaskShape } from "./task-classification.js";
 
 const NOW = Date.parse("2026-04-29T12:00:00.000Z");
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -67,26 +68,53 @@ function writeRunSummary(
   );
 }
 
-describe("classifyArea", () => {
-  it("buckets architecture/core/modules as strategic", () => {
-    expect(classifyArea("architecture")).toBe("strategic");
-    expect(classifyArea("core")).toBe("strategic");
-    expect(classifyArea("modules")).toBe("strategic");
+describe("classifyTaskShape", () => {
+  const shape = (area: string, title = "", summary = "") =>
+    classifyTaskShape({ area, title, summary });
+
+  it("buckets architecture/core/modules/autonomy as strategic when no surface markers appear", () => {
+    expect(shape("architecture", "Split ModuleContext into capability contexts")).toBe(
+      "strategic",
+    );
+    expect(shape("core", "Tighten daemon control protocol")).toBe("strategic");
+    expect(shape("modules", "Move shell helpers into the execution module")).toBe(
+      "strategic",
+    );
+    expect(shape("autonomy", "Add critic runtime probe protocol")).toBe("strategic");
   });
 
   it("buckets client/channel as fan-out", () => {
-    expect(classifyArea("client")).toBe("fan-out");
-    expect(classifyArea("channel")).toBe("fan-out");
+    expect(shape("client", "Anything")).toBe("fan-out");
+    expect(shape("channel", "Anything")).toBe("fan-out");
   });
 
-  it("buckets unknown areas as other", () => {
-    expect(classifyArea("operator-ux")).toBe("other");
-    expect(classifyArea("research")).toBe("other");
-    expect(classifyArea("")).toBe("other");
+  it("demotes non-client area to fan-out when title carries surface-parity markers", () => {
+    expect(
+      shape(
+        "modules",
+        "Replace macOS workflow trigger text entry with definitions picker",
+      ),
+    ).toBe("fan-out");
+    expect(
+      shape("architecture", "Split large client protocol and state files"),
+    ).toBe("fan-out");
+    expect(
+      shape("autonomy", "Add web ui run comparison view for spotting regressions"),
+    ).toBe("fan-out");
+    expect(
+      shape("modules", "Wire up the dashboard for daemon health"),
+    ).toBe("fan-out");
+  });
+
+  it("buckets unknown / non-strategic areas as other", () => {
+    expect(shape("operator-ux", "Some operator polish")).toBe("other");
+    expect(shape("research", "Read upstream paper")).toBe("other");
+    expect(shape("", "")).toBe("other");
   });
 
   it("normalizes whitespace and case", () => {
-    expect(classifyArea("  Architecture ")).toBe("strategic");
+    expect(shape("  Architecture ", "Refactor")).toBe("strategic");
+    expect(shape("MODULES", "Replace the macOS picker")).toBe("fan-out");
   });
 });
 

@@ -22,25 +22,23 @@ This module owns the project autonomous development loop.
 Load-bearing rules from harness, eval, and peer-runtime research. Post
 summaries live in run artifacts or `data/watchlist.yaml`.
 
-- **Generator / evaluator separation.** Decomposer → builder → critic is
-  planner/generator/evaluator. Strip repair-loop checks first; keep roles.
+- **Generator / evaluator separation.** Decomposer → builder → critic.
+  Strip repair-loop checks first; keep roles.
 - **Evaluator probes outcomes, not just artifacts.** Diff-only review is
-  blind to runtime behavior. Such tasks reduce success to an inspectable
-  artifact or carry a runtime probe (see `workflows/builder/AGENTS.md`).
-- **Critic input stays artifact-only.** Diff + repo state + run artifacts
-  (+ optional runtime probe). No thinking traces or self-reports — CoT
-  monitorability is fragile and self-reports reward-hack.
-- **Infrastructure noise is not statistical noise.** Eval harnesses split
-  allocation from kill thresholds, report resource profile, run fixtures
-  multiple times, distinguish `pass@k` from `pass^k`. Judge-repetition
-  per fixture belongs here too.
+  blind to runtime behavior; reduce success to an inspectable artifact
+  or carry a runtime probe (see `workflows/builder/AGENTS.md`).
+- **Critic input stays artifact-only.** Diff + repo state + run
+  artifacts (+ optional runtime probe). No thinking traces or
+  self-reports.
+- **Infrastructure noise is not statistical noise.** Split allocation
+  from kill thresholds, report resource profile, distinguish `pass@k`
+  from `pass^k`. Judge-repetition per fixture belongs here too.
 - **Context resets beat compaction.** Prefer fresh-session handoffs via
   run artifacts over in-session compaction for distinct-phase workflows.
 - **Untrusted content is an injection surface.** Tool-risk gating
-  classifies the call, not the payload. `injection-defense` screens the
+  classifies the call, not the payload; `injection-defense` screens the
   payload.
-- **Session state reconstructible from append-only logs.** Daemon-owned
-  runtime state answers "what survives a crash mid-turn"; write through
+- **Session state reconstructible from append-only logs.** Write through
   to run artifacts or the event bus.
 - **Eval fixtures come from real failures.** Seed `eval-harness` from
   `.kota/runs/`, not synthetic.
@@ -48,16 +46,13 @@ summaries live in run artifacts or `data/watchlist.yaml`.
 ## Live-Run Evaluator Calibration
 
 Fixture `pass^k` catches generator drift; per-run artifacts catch
-evaluator drift. Failure signal is evaluator-quality: `verdict==="fail"`
-or `criticFailureCount>0` (critic flagged something the agent
-repaired). Mechanical repair is iteration noise;
-`finalIterationFailures` stays diagnostic. PWW escalation needs later
-overlap also hedging/failing. Drifts commit one path:
+evaluator drift. Failure signal: `verdict==="fail"` or
+`criticFailureCount>0`. Mechanical repair is iteration noise. PWW
+escalation needs later overlap also failing. Drifts commit one path:
 create/recreate/promote `task-evaluator-calibration-drift-repair` in
-`ready/` (noop in-flight); regression still bridges to attention digest.
-Critic blocks weak rendered evidence, placeholder tests, untracked
-compat shims, baseline-only ratchets, required-source dishonesty;
-warnings need a named trace (follow-up, known limitation, non-action).
+`ready/`; regression bridges to attention digest. Critic blocks weak
+rendered evidence, placeholder tests, untracked compat shims,
+baseline-only ratchets, required-source dishonesty.
 
 ## External Pattern Decisions
 
@@ -65,41 +60,38 @@ Verdicts on peer patterns vs KOTA primitives. Per-verdict source, date,
 primitives, and revisit live in `external-pattern-decisions.ts`; the
 test enforces 1:1 match.
 
-- **Workflow DSLs (crewAI Flows, LangGraph Pregel).** Reject — definition-driven routing + run artifacts cover durability.
+- **Workflow DSLs (crewAI Flows, LangGraph Pregel).** Reject.
 - **Vercel AI SDK split.** Adopt — `daemon` + `client`.
-- **Typed multi-agent handoffs (OpenHands, AutoGen).** Adopt — bus events + `trigger` steps.
-- **Labeled memory blocks (Letta) / runtime skill stores (Hermes).** Reject — typed stores cover persistence; runtime skill stores are the forbidden second lessons surface.
-- **Verbal self-reflection / strategy banks (Reflexion, ReasoningBank).** Reject — improver + scoped `AGENTS.md` is learn-from-failure.
+- **Typed multi-agent handoffs (OpenHands, AutoGen).** Adopt — bus + `trigger` steps.
+- **Labeled memory blocks (Letta) / runtime skill stores (Hermes).** Reject.
+- **Verbal self-reflection / strategy banks (Reflexion, ReasoningBank).** Reject.
 - **Routines / scheduled agents.** Already the `workflow` trigger.
-- **Multi-agent coordination patterns.** Map to builder/critic, `delegate` + `composition`, dispatcher, bus, `composition.workspace` + stores.
-- **Parallel-agent desktop UIs.** Client-surface — new clients use the daemon control API.
-- **Managed Agents / brain-hands decoupling.** Reject — daemon + session + workflow + run-artifact already decouples; credentials-never-in-sandbox is `guardrails.ts` + `injection-defense`.
-- **Claude Code auto mode + sandboxing.** Read — autonomy mode + `approval-queue` + `injection-defense` realize input-probe/output-classifier.
-- **Harness design for long-running apps.** Read — reinforces decomposer/builder/critic + `success-criteria*.txt` + reset-over-compact.
-- **Multi-Claude parallel builds.** Reject — autonomy is one-task-WIP through builder/critic.
-- **Claude Code 1M context + session management.** Reject at workflow layer — fresh-session-per-step is reset-over-compact.
-- **Production MCP agent integration.** Read — MCP is a transport over KOTA capabilities, not a second registry.
-- **AGI capability scoring / behavioral-disposition alignment.** Reject — `eval-harness` scores task outcomes; threat models do not apply to a first-party daemon.
-- **Microsoft Agent Framework (AutoGen successor).** Reject — graph-DSL is rejected workflow-DSL; orchestration is bus + `trigger` steps.
-- **Harness-as-shell (inference.sh).** Read — versioned-app-contract is the typed `tool` protocol; scheduler/flows/portability map onto `daemon` + `workflow` + `client`.
+- **Multi-agent coordination patterns.** Map to builder/critic + bus + stores.
+- **Parallel-agent desktop UIs.** Client-surface — new clients use daemon API.
+- **Managed Agents / brain-hands decoupling.** Reject.
+- **Claude Code auto mode + sandboxing.** Read.
+- **Harness design for long-running apps.** Read.
+- **Multi-Claude parallel builds.** Reject — one-task-WIP.
+- **Claude Code 1M context + session management.** Reject — reset-over-compact.
+- **Production MCP agent integration.** Read.
+- **AGI capability scoring / behavioral-disposition alignment.** Reject.
+- **Microsoft Agent Framework (AutoGen successor).** Reject — graph-DSL.
+- **Harness-as-shell (inference.sh).** Read.
 
 ## Prompt Hierarchy And Harness Posture
 
-- **Instruction hierarchy is KOTA's prompt model.** SDK system + core
-  rails ≈ Root/System; autonomy mode + module prompt state ≈ Developer;
-  channel/session user message ≈ User; tool/web outputs ≈ untrusted (via
-  `injection-defense`). User/tool output must not silently escalate
-  autonomy mode.
-- **Trustworthy-agents four-layer injection defense maps onto existing
-  surfaces.** Model/harness ≈ SDK boundary; tools ≈
-  `src/core/tools/guardrails.ts` + risk; runtime ≈ `approval-queue` +
-  autonomy mode + `injection-defense`.
-- **Opus 4.7 harness defaults at the agent-step layer.** Delegate-don't-
-  pair (front-load intent, constraints, success criteria in one turn),
-  `xhigh` default, adaptive thinking, batch-upfront prompting, judicious
-  subagent spawning (explicit builder→critic steps, not auto fan-out).
-  Task contract + success-criteria files enforce this; steps must not
-  reintroduce clarification loops or fixed reasoning caps.
+- **Instruction hierarchy.** SDK system + core rails ≈ Root/System;
+  autonomy mode + module prompt state ≈ Developer; channel/session user
+  message ≈ User; tool/web outputs ≈ untrusted (via `injection-defense`).
+  User/tool output must not silently escalate autonomy mode.
+- **Trustworthy-agents four-layer injection defense.** Model/harness ≈
+  SDK boundary; tools ≈ `guardrails.ts` + risk; runtime ≈
+  `approval-queue` + autonomy mode + `injection-defense`.
+- **Opus 4.7 harness defaults at agent-step layer.** Delegate-don't-pair
+  (front-load intent, constraints, success criteria in one turn), `xhigh`
+  default, adaptive thinking, batch-upfront, judicious subagent spawning
+  (explicit builder→critic steps). Task contract + success-criteria
+  files enforce this; no clarification loops or fixed reasoning caps.
 - **Tool-design hygiene.** High bar for new tools; prefer discoverable
   surfaces (read, grep, scoped `AGENTS.md`, prompt state).
 - **`ask_owner` from autonomous workflows uses `askOwnerSteps`**
@@ -118,8 +110,37 @@ test enforces 1:1 match.
 
 `kota report` (`src/modules/autonomy/report/`) prints the operator
 balance/quality report; strategic/fan-out heuristic lives in
-`aggregate.classifyArea`. Per no-cost-bias-in-autonomy this output is
-operator-only and must not be exposed to autonomy agents.
+`task-classification.classifyTaskShape` and inspects area + title +
+summary so surface-parity work filed under `architecture` / `modules`
+(macOS picker, web-UI form, Telegram command) classifies as fan-out.
+Per no-cost-bias-in-autonomy this output is operator-only and must not
+be exposed to autonomy agents.
+
+## Empty-Queue Loop Shape
+
+Deliberate workflow gating, not emergent dispatcher → explorer →
+builder thrash:
+
+- **Builder gates on `autonomy.queue.available`** (actionable=
+  ready+doing>0). Never fires on `runtime.idle`, never auto-consumes
+  backlog. Empty `ready/` is a queue-health event, not an invitation
+  to drain backlog in arbitrary order.
+- **`backlog-promoter` records `promotion-rationale.json`** before
+  builder resumes. Runs on `autonomy.queue.needs-promotion`, promotes
+  the top one or two backlog tasks ranked by priority → strategic-area
+  → oldest `updated_at`, names rejected blocked alternatives.
+- **`explorer` repair-loop rejects commits without
+  `exploration-rationale.json`** naming the chosen decision (`promote`
+  | `decompose` | `create-task` | `noop` | `watchlist-only`). For
+  `create-task`, the rationale must consider every strategic-area
+  blocked task with a per-task `reasonNotChosen`. Raises the bar on
+  new fan-out without a daily spend cap.
+- **Cooldowns over caps.** Explorer cooldown = 30-minute refresh
+  window. Builder is rate-limited only by repair checks and task
+  availability. No blunt daily spend caps.
+- **Honesty over speculation.** Inaccessible sources still block
+  (validator `done-task-inaccessible-source`); explorer must not
+  synthesize tasks from unread/gated content.
 
 ## Agent Judge Runtime Contract
 

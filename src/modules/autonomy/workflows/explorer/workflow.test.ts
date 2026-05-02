@@ -26,6 +26,10 @@ vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
     return snapshot.inboxCount === 0 && waitingCount > 0 && waitingCount <= 2;
   }),
   REPO_TASK_STATES: ["backlog", "ready", "doing", "blocked", "done", "dropped"],
+  listFullRepoTasks: vi.fn(() => []),
+  getRepoTaskStateDir: vi.fn((projectDir: string, state: string) =>
+    `${projectDir}/data/tasks/${state}`,
+  ),
 }));
 
 vi.mock("#modules/autonomy/commit.js", () => ({
