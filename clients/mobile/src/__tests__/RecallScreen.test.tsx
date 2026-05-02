@@ -89,10 +89,21 @@ describe('RecallScreen', () => {
     const { getByText, queryByText } = render(<RecallScreen />);
     expect(
       getByText(
-        'Type a query and tap Search to recall across knowledge, memory, history, and tasks.',
+        'Type a query and tap Search to recall across knowledge, memory, history, tasks, and answer.',
       ),
     ).toBeTruthy();
     expect(queryByText('No matching hits.')).toBeNull();
+  });
+
+  test('rendered DOM of the empty-query pane matches the committed snapshot fixture', () => {
+    // Per `data/tasks/AGENTS.md`, mobile (React Native) accepts a rendered
+    // DOM fixture as the operator-cosmetic acceptance artifact. The
+    // snapshot file in `__snapshots__/RecallScreen.test.tsx.snap` is that
+    // fixture: a serialized render tree of the empty-query pane the
+    // operator sees on first paint, including the five-source hint text.
+    mockDaemon({});
+    const { toJSON } = render(<RecallScreen />);
+    expect(toJSON()).toMatchSnapshot();
   });
 
   test('disables the Search action and skips the request for a whitespace-only query', () => {

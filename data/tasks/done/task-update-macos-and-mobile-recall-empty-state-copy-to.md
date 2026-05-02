@@ -1,12 +1,12 @@
 ---
 id: task-update-macos-and-mobile-recall-empty-state-copy-to
 title: Update macOS and mobile recall empty-state copy to include the answer source
-status: ready
+status: done
 priority: p3
 area: client
 summary: Update macOS RecallView and mobile RecallScreen empty-state hints to enumerate the closed five-source contributor set (knowledge, memory, history, tasks, answer).
 created_at: 2026-05-02T22:28:38.152Z
-updated_at: 2026-05-02T22:28:38.152Z
+updated_at: 2026-05-02T22:39:54.079Z
 ---
 
 ## Problem

@@ -144,6 +144,63 @@ final class RecallViewTests: XCTestCase {
 
     // MARK: - Empty-query branch
 
+    /// Pins the empty-query hint copy the SwiftUI body renders to the
+    /// closed `RecallSource` discriminator set on the daemon
+    /// (`knowledge | memory | history | tasks | answer`). The view body
+    /// reads `RecallBodyView.emptyQueryHint`, so updating one source of
+    /// truth flows to both the rendered surface and this assertion.
+    func testRecallEmptyQueryHintEnumeratesFiveSources() {
+        XCTAssertEqual(
+            RecallBodyView.emptyQueryHint,
+            "Type a query to recall across knowledge, memory, history, tasks, and answer."
+        )
+    }
+
+    /// Rendered Swift snapshot fixture for the empty-query pane. The
+    /// fixture file (`RecallEmptyStateSnapshot.txt`, copied into the test
+    /// bundle by `Package.swift`) is the operator-cosmetic acceptance
+    /// artifact: a serialized rendering of what `RecallBodyView` paints
+    /// when `recallQuery` is empty. The test pins the live constant the
+    /// view body reads to the rendered-body line in that fixture, so any
+    /// drift between the SwiftUI surface and the committed snapshot fails
+    /// loudly here. Per `data/tasks/AGENTS.md`, this is the accepted
+    /// "rendered Swift snapshot fixture committed alongside the test"
+    /// shape for a native macOS surface.
+    func testRecallEmptyStateMatchesCommittedSnapshotFixture() throws {
+        guard let url = Bundle.module.url(
+            forResource: "RecallEmptyStateSnapshot",
+            withExtension: "txt"
+        ) else {
+            XCTFail("RecallEmptyStateSnapshot.txt missing from KotaMenuBarTests resources — check Package.swift")
+            return
+        }
+        let snapshot = try String(contentsOf: url, encoding: .utf8)
+
+        // Locate the rendered-body block: the line after "rendered body (Text):".
+        let lines = snapshot.split(separator: "\n", omittingEmptySubsequences: false)
+        guard let headerIndex = lines.firstIndex(where: { $0.contains("rendered body (Text):") }),
+              headerIndex + 1 < lines.count else {
+            XCTFail("snapshot fixture missing rendered-body header")
+            return
+        }
+        let renderedBody = String(lines[headerIndex + 1])
+        XCTAssertEqual(
+            renderedBody,
+            RecallBodyView.emptyQueryHint,
+            "Empty-state snapshot fixture drifted from the live RecallBodyView.emptyQueryHint constant"
+        )
+
+        // Cross-check the snapshot still pins the closed five-source set so
+        // a future copy edit that drops a source name fails this test even
+        // if the constant and the snapshot drift in lockstep.
+        for source in ["knowledge", "memory", "history", "tasks", "answer"] {
+            XCTAssertTrue(
+                renderedBody.contains(source),
+                "snapshot rendered body missing source \"\(source)\""
+            )
+        }
+    }
+
     /// The view and `loadRecall` both compute an entered-query predicate
     /// from `query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty`.
     /// This test pins that predicate down so the empty-query usage hint

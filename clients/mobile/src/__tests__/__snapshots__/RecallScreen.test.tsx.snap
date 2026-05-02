@@ -1,0 +1,139 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`RecallScreen rendered DOM of the empty-query pane matches the committed snapshot fixture 1`] = `
+<RCTScrollView
+  contentContainerStyle={
+    {
+      "padding": 16,
+    }
+  }
+  refreshControl={
+    <RefreshControlMock
+      onRefresh={[Function]}
+      refreshing={false}
+    />
+  }
+  style={
+    {
+      "backgroundColor": "#f2f2f7",
+      "flex": 1,
+    }
+  }
+>
+  <RCTRefreshControl />
+  <View>
+    <View
+      style={
+        {
+          "alignItems": "center",
+          "flexDirection": "row",
+          "gap": 10,
+          "marginBottom": 12,
+        }
+      }
+    >
+      <Text
+        style={
+          {
+            "color": "#1c1c1e",
+            "fontSize": 17,
+            "fontWeight": "600",
+          }
+        }
+      >
+        Recall
+      </Text>
+    </View>
+    <View
+      style={
+        {
+          "flexDirection": "row",
+          "gap": 8,
+          "marginBottom": 12,
+        }
+      }
+    >
+      <TextInput
+        autoCapitalize="none"
+        autoCorrect={false}
+        onChangeText={[MockFunction]}
+        onSubmitEditing={[Function]}
+        placeholder="Recall across stores…"
+        returnKeyType="search"
+        style={
+          {
+            "backgroundColor": "#fff",
+            "borderRadius": 10,
+            "color": "#1c1c1e",
+            "flex": 1,
+            "fontSize": 14,
+            "paddingHorizontal": 12,
+            "paddingVertical": 10,
+          }
+        }
+        value=""
+      />
+      <View
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": true,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={false}
+        onClick={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          {
+            "backgroundColor": "#a8a8ad",
+            "borderRadius": 10,
+            "justifyContent": "center",
+            "opacity": 1,
+            "paddingHorizontal": 16,
+          }
+        }
+      >
+        <Text
+          style={
+            {
+              "color": "#fff",
+              "fontSize": 14,
+              "fontWeight": "600",
+            }
+          }
+        >
+          Search
+        </Text>
+      </View>
+    </View>
+    <Text
+      style={
+        {
+          "color": "#8e8e93",
+          "fontSize": 13,
+        }
+      }
+    >
+      Type a query and tap Search to recall across knowledge, memory, history, tasks, and answer.
+    </Text>
+  </View>
+</RCTScrollView>
+`;

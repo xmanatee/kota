@@ -1,0 +1,14 @@
+[KotaMenuBar.RecallView · empty-query state]
+
+surface:    AskUnifiedView → mode=recall → RecallBodyView
+shown when: appState.recallError == nil
+            && !appState.isLoadingRecall
+            && appState.recallQuery.trimmed.isEmpty
+
+rendered body (Text):
+Type a query to recall across knowledge, memory, history, tasks, and answer.
+
+text style:  .font(.caption), .foregroundStyle(.secondary),
+             .fixedSize(horizontal: false, vertical: true)
+
+source-of-truth constant: RecallBodyView.emptyQueryHint

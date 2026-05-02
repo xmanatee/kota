@@ -17,7 +17,7 @@ const SEMANTIC_UNAVAILABLE_TEXT =
   'Recall unavailable — no embedding-backed contributors registered.';
 const EMPTY_RESULTS_TEXT = 'No matching hits.';
 const EMPTY_QUERY_HINT =
-  'Type a query and tap Search to recall across knowledge, memory, history, and tasks.';
+  'Type a query and tap Search to recall across knowledge, memory, history, tasks, and answer.';
 
 export function RecallScreen() {
   const { state, setRecallQuery, recall } = useDaemon();

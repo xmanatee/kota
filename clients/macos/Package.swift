@@ -13,7 +13,10 @@ let package = Package(
             name: "KotaMenuBarTests",
             dependencies: ["KotaMenuBar"],
             path: "Tests/KotaMenuBarTests",
-            resources: [.copy("contract-fixture.json")]
+            resources: [
+                .copy("contract-fixture.json"),
+                .copy("RecallEmptyStateSnapshot.txt"),
+            ]
         )
     ]
 )

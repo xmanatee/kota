@@ -24,6 +24,14 @@ struct RecallStateBadge: View {
 struct RecallBodyView: View {
     @EnvironmentObject var appState: AppState
 
+    /// Single source of truth for the empty-query hint copy. The view body
+    /// and `RecallViewTests.testRecallEmptyQueryHintEnumeratesFiveSources`
+    /// both read this constant so the rendered copy stays lockstep with
+    /// the closed `RecallSource` discriminator set
+    /// (`knowledge | memory | history | tasks | answer`).
+    static let emptyQueryHint =
+        "Type a query to recall across knowledge, memory, history, tasks, and answer."
+
     var body: some View {
         Group {
             if let err = appState.recallError {
@@ -36,7 +44,7 @@ struct RecallBodyView: View {
                         .foregroundStyle(.secondary)
                 }
             } else if !hasEnteredQuery {
-                Text("Type a query to recall across knowledge, memory, history, and tasks.")
+                Text(Self.emptyQueryHint)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
