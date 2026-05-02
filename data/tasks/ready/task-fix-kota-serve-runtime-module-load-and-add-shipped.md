@@ -1,12 +1,12 @@
 ---
 id: task-fix-kota-serve-runtime-module-load-and-add-shipped
 title: Fix kota serve runtime module load and add shipped CLI smoke for long-lived subcommands
-status: backlog
+status: ready
 priority: p0
 area: core
 summary: kota serve crashes on startup with ModuleLoader.getRoutes() lifecycle error; fix the runtime load and add deterministic shipped-CLI smoke for serve and other long-lived subcommands.
 created_at: 2026-05-02T15:27:33.724Z
-updated_at: 2026-05-02T15:27:33.724Z
+updated_at: 2026-05-02T17:35:17.121Z
 ---
 
 ## Problem
