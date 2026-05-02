@@ -1,12 +1,12 @@
 ---
 id: task-fan-out-consolidation-attention
 title: Consolidate attention surfaces across clients
-status: ready
+status: blocked
 priority: p2
 area: client
 summary: Review the attention surface family across telegram, cli, daemon, web, macos, mobile, slack for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-02T21:31:53.684Z
+updated_at: 2026-05-02T23:00:10.219Z
 ---
 
 ## Problem
@@ -123,3 +123,51 @@ fan-out batch, and the review's output is operator-actionable follow-up tasks.
   stating no follow-up was needed and why.
 - Updated scoped `AGENTS.md` lines reflecting any convention adjustments arising from
   the review.
+
+## Headless Review (completed)
+
+Recorded under
+`.kota/runs/2026-05-02T22-48-37-067Z-builder-4jyxov/attention-consolidation/`:
+
+- `contract-probe.json` — runtime probe of
+  `src/modules/autonomy/workflows/attention-digest/attention-route.ts`
+  `attentionRoutes` covering both documented envelope arms: quiet
+  project (no detector triggers, fixed `NO_ATTENTION_ITEMS_TEXT`
+  reply) and populated project (deterministic detector items —
+  stale-blocker entries, empty-ready, empty-backlog labels). The
+  route's defensive 500 fallback is documented but unexercisable in
+  practice because the underlying detectors (`countRepoTaskState`,
+  `listRepoTasksInState`, `loadRunsInWindow`) all swallow ENOENT.
+- `probe-contract.mjs` — the probe source kept alongside its
+  artifact.
+- `cli-transcript.txt` — CLI transcript exercising `kota --help`
+  (proves `attention` is in the top-level command inventory), full
+  `kota attention --help`, plus live `kota attention` /
+  `kota attention --json` runs against the real project tree which
+  surface the live `Blocked backlog`, multiple `Stale blocker`, and
+  `More long-blocked tasks` items. Both the rendered text and `--json`
+  shapes match the seam contract byte-for-byte.
+- `verdict.md` — written verdict for each of the 8 consolidation
+  dimensions.
+
+No follow-up tasks were warranted: the surface family is coherent,
+no fold-able decoder/error duplication exists, and the only
+adjustments needed were two doc lines (the macOS `AttentionView.swift`
+header doc-comment which still claimed five pull-surfaces was updated
+to the current seven, and
+`src/modules/autonomy/workflows/attention-digest/AGENTS.md` was
+updated to add Slack to the on-demand seam consumer list and to pin
+the no-provider-arm convention so future attention surface mirrors
+do not mint a phantom `semantic_unavailable` arm). Both doc updates
+land in this same change.
+
+What is left is the per-surface visual evidence the autonomous
+builder cannot capture headlessly.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/attention-consolidation-screens-*
+description: live operator-captured screenshots/screencasts for the five visual attention surfaces — telegram (`/attention` rendered messages: quiet project NO_ATTENTION_ITEMS_TEXT reply and populated multi-item digest), slack (`/attention` rendered against a workspace covering the same two arms), mobile (`AttentionScreen` covering the quiet `nothing pending` badge, populated badge with item count, the offline banner, and the error-with-retry state), macOS (`AttentionView` covering the collapsed badge, the expanded body with monospace text, the orange-foregrounded item-count badge, the loading state, and the error/retry surface), and web (`AttentionPanel` in the embedded sidebar covering the success-with-items state, the success-with-zero-items "nothing pending" badge, the loading state, and the error-with-retry state). Operator runs each client against a daemon backed by a project that exhibits both arms (a quiet project and the live multi-blocked project), and commits the rendered artifacts under .kota/runs/attention-consolidation-screens-<stamp>/{telegram,slack,mobile,macos,web}/. The daemon-side and CLI-side artifacts are already committed under .kota/runs/2026-05-02T22-48-37-067Z-builder-4jyxov/attention-consolidation/.
+```

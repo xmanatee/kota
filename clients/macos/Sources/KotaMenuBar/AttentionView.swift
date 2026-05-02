@@ -1,9 +1,11 @@
 import SwiftUI
 
 /// Menu-bar surface for the daemon's on-demand attention rollup. Mirrors the
-/// body the Telegram `/attention`, terminal `kota attention`, daemon HTTP
-/// `/api/attention`, and embedded web `AttentionPanel` already render — one
-/// shared on-demand seam, five operator pull-surfaces (this file is the fifth).
+/// body the Telegram `/attention`, Slack `/attention`, terminal `kota attention`,
+/// daemon HTTP `/api/attention`, embedded web `AttentionPanel`, and mobile
+/// `AttentionScreen` already render — one shared on-demand seam
+/// (`renderOnDemandAttention`), every operator pull-surface decodes the same
+/// `AttentionResponse` shape.
 struct AttentionView: View {
     @EnvironmentObject var appState: AppState
     @State private var isExpanded = false

@@ -12,8 +12,16 @@ This directory contains the attention digest workflow definition and test.
 detector + renderer the cadence path uses and returns
 `{ items: AttentionItem[]; text: string }`. The cadence step
 calls the same seam so the two paths cannot drift. Operator-facing pull
-surfaces such as Telegram, CLI, daemon HTTP, embedded web, macOS, and mobile
-should consume this seam directly.
+surfaces such as Telegram, Slack, CLI, daemon HTTP, embedded web, macOS, and
+mobile should consume this seam directly.
+
+No-provider arm: unlike the recall, answer, and voice surfaces, attention
+has no upstream provider seam — the body is deterministic over local task
+state and run history. The route therefore exposes only success (200) and
+a defensive try/catch fallback (500); there is no `semantic_unavailable`
+arm. New attention client surfaces must not mint a phantom unavailable
+arm — strict-decode `{ data: { items }, text }` and surface transport
+errors as plain failure banners.
 
 Counter invariant: the on-demand path must not write
 `<runsDir>/../attention-digest-counter.json`. That file is owned by the
