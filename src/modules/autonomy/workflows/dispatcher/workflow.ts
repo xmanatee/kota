@@ -26,14 +26,26 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         const queue = getRepoTaskQueueSnapshot(projectDir);
         const queueEmpty = queue.inboxCount === 0 && queue.pullableCount === 0;
         const queueThin = isThinPullQueue(queue);
+        // Builder runs only on actionable (ready+doing) work; backlog-only
+        // queues route through `autonomy.queue.needs-promotion` so a deliberate
+        // promotion decision lands first.
+        const queueActionable = queue.actionableCount > 0;
+        const queueNeedsPromotion =
+          queue.actionableCount === 0 && queue.counts.backlog > 0;
 
         if (queue.inboxCount > 0) {
           emit("autonomy.inbox.available", { inboxCount: queue.inboxCount });
         }
-        if (queue.pullableCount > 0) {
+        if (queueActionable) {
           emit("autonomy.queue.available", {
             pullableCount: queue.pullableCount,
             actionableCount: queue.actionableCount,
+            counts: queue.counts,
+          });
+        }
+        if (queueNeedsPromotion) {
+          emit("autonomy.queue.needs-promotion", {
+            backlogCount: queue.counts.backlog,
             counts: queue.counts,
           });
         }
@@ -53,7 +65,8 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           actionableCount: queue.actionableCount,
           emitted: [
             queue.inboxCount > 0 && "autonomy.inbox.available",
-            queue.pullableCount > 0 && "autonomy.queue.available",
+            queueActionable && "autonomy.queue.available",
+            queueNeedsPromotion && "autonomy.queue.needs-promotion",
             queueEmpty && "autonomy.queue.empty",
             queueThin && "autonomy.queue.thin",
           ].filter(Boolean),

@@ -5,8 +5,10 @@ Read and follow the root `AGENTS.md` and local `AGENTS.md` files in directories 
 ## Scope
 
 - Own one task from `data/tasks/`.
-- Resume active work first. If none exists, pull from the short execution
-  queue. Promote reserve work only when there is no short-queue task to run.
+- Resume active `doing/` work first. Otherwise pull one task from the short
+  `ready/` queue. Do not promote `backlog/` tasks yourself; the
+  `backlog-promoter` workflow shapes the ready queue and records its
+  rationale before builder runs.
 - Use `pnpm kota task move <id> doing` to pick up the task.
 - Treat the task as a contract, not a script. Own the technical plan yourself.
 - Block or decompose only when the task is genuinely incoherent, externally blocked, or impossible to complete without guessing.

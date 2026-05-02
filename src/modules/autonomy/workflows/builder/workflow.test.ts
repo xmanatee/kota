@@ -200,7 +200,7 @@ describe("builder workflow", () => {
     expect(result.steps["request-restart"].status).toBe("skipped");
   });
 
-  it("skips build and commit when no pullable queue work exists", async () => {
+  it("skips build and commit when no actionable queue work exists", async () => {
     const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeEmptySnapshot());
 
@@ -251,12 +251,9 @@ describe("builder workflow", () => {
     expect(result.steps.commit.status).toBe("success");
   });
 
-  it("runs build when backlog exists even if ready is empty", async () => {
+  it("skips build when only backlog tasks remain (promoter must shape ready first)", async () => {
     const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(0, 0, 2));
-
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true } as never);
 
     const harness = new WorkflowTestHarness(builderWorkflow, {
       trigger: {
@@ -282,8 +279,8 @@ describe("builder workflow", () => {
     const result = await harness.run();
 
     expect(result.status).toBe("success");
-    expect(result.steps.build.status).toBe("success");
-    expect(result.steps.commit.status).toBe("success");
+    expect(result.steps.build.status).toBe("skipped");
+    expect(result.steps.commit.status).toBe("skipped");
   });
 
   it("skips commit and write-run-summary when build fails", async () => {

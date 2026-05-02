@@ -38,15 +38,13 @@ Timeouts, trigger validation, dirty-worktree recovery, direct-commit
 prevention, and repair-loop checks are runtime rails, not prompt policy.
 Keep workflow code explicit and typed; keep prompts focused on the agent's
 role. Direct-commit prevention lives at the SDK `canUseTool` boundary
-(`createAgentCommitGuard`) so rogue `git commit` calls from any workflow
-agent fail before producing a commit, rather than being caught post-hoc.
-The guard denies without `interrupt: true`: the Agent SDK translates
-`interrupt` into an `abortController.abort()` that tears down the whole
-session (`terminal_reason: "aborted_tools"` / ede_diagnostic), so a single
-denied command — including a `git commit` inside a legitimate tempdir
-reproducer — would discard all of the agent's progress. A bare `deny`
-still blocks the command and feeds the denial back as a tool_result so the
-agent can adapt. The same rule applies to `createDaemonHostControlGuard`.
+(`createAgentCommitGuard`) so rogue `git commit` calls fail before
+producing a commit. The guard uses bare `deny`, not `interrupt: true` —
+`interrupt` triggers `abortController.abort()` and tears down the whole
+session, discarding all agent progress (e.g. when denying a `git commit`
+inside a legitimate tempdir reproducer). `deny` still blocks the command
+and surfaces the denial as a tool_result so the agent can adapt. Same
+rule applies to `createDaemonHostControlGuard`.
 
 Every workflow that calls `commitWorkflowChanges` must also wire
 `checkCommitStageable` into its repair loop. The terminal commit step's
@@ -65,13 +63,9 @@ the session's supervision posture, tool-level guardrails still apply.
 
 ### Agent-Step Retry and Error Classification
 
-The retry classifier and its application to autonomy agent judges are
-documented in scoped `AGENTS.md` files:
-
-- `src/core/workflow/steps/AGENTS.md` — `DEFAULT_AGENT_STEP_RETRY`, the
-  classified/unclassified signal table, and per-step override guidance.
-- `src/modules/autonomy/AGENTS.md` — judge-wrapper contract for repair
-  checks that invoke `invokeAgentJudge`.
+See `src/core/workflow/steps/AGENTS.md` (`DEFAULT_AGENT_STEP_RETRY`, signal
+table, per-step overrides) and `src/modules/autonomy/AGENTS.md` (judge-
+wrapper contract for repair checks invoking `invokeAgentJudge`).
 
 ## Unit Testing
 
@@ -98,6 +92,18 @@ Prefer explicit bus events over workflow-name inventories or secondary routing m
 - Queue-shaping events should describe repo state directly instead of
   overloading generic events or teaching consumers to infer state from
   unrelated workflow names.
+
+### Queue-shape events
+
+Dispatcher emits queue-shape events distinguishing actionable from
+backlog-only state:
+
+- `autonomy.queue.available` — actionable (`ready` + `doing`) exists; builder gates on this.
+- `autonomy.queue.needs-promotion` — actionable=0, backlog>0; `backlog-promoter` consumes this and writes a deterministic promotion rationale before builder resumes.
+- `autonomy.queue.empty` / `autonomy.queue.thin` — broader health signals routed to explorer.
+
+Builder must never silently consume the backlog — the rationale is the
+operator-auditable record of why the next ready batch is the right one.
 
 ## Repair-Loop Checks
 
@@ -140,11 +146,9 @@ in the recovery protocol. A workflow opts in by:
    dispatch — a network round-trip before the reset would leak side effects
    on every retry.
 
-A workflow that does not mutate tracked files but has a role on crash recovery
-(e.g. attention-digest notifying operators) may still declare
-`recoveryCapable: true` with a `runtime.recovered` trigger; the reset step can
-be omitted, but the workflow must stay idempotent with no pre-reset network
-effects. A workflow with neither role leaves `recoveryCapable` unset with a
-short comment explaining why (today: `dispatcher`, `pr-reviewer`). When adding
-a new autonomy workflow, decide which bucket it falls into deliberately — do
-not silently inherit another workflow's recovery posture.
+A workflow without file mutations but with a recovery role (e.g.
+attention-digest notifying operators) may still set `recoveryCapable: true`
+with a `runtime.recovered` trigger and skip the reset step, but it must stay
+idempotent with no pre-reset network effects. A workflow with neither role
+leaves `recoveryCapable` unset with a short comment (today: `dispatcher`,
+`pr-reviewer`). Decide deliberately when adding a new autonomy workflow.

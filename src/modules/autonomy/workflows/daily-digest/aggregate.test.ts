@@ -61,7 +61,7 @@ function writeBlockedTask(
 ): void {
   const dir = join(projectDir, "data", "tasks", "blocked");
   mkdirSync(dir, { recursive: true });
-  const updatedAt = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString();
+  const updatedAt = new Date(NOW - daysAgo * 24 * 60 * 60 * 1000).toISOString();
   const content = `---\nid: ${id}\ntitle: ${id}\nstatus: blocked\npriority: p2\narea: autonomy\nsummary: t\ncreated_at: ${updatedAt}\nupdated_at: ${updatedAt}\n---\n\n## Problem\n\nTest.\n\n${body}`;
   writeFileSync(join(dir, `${id}.md`), content, "utf-8");
 }

@@ -1,12 +1,12 @@
 ---
 id: task-enforce-ready-queue-discipline-and-backlog-promoti
 title: Enforce ready-queue discipline and backlog promotion rationale
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Make dispatcher, explorer, and builder maintain an intentional short execution queue so builders stop silently treating backlog as ready work when the ready queue is empty.
 created_at: 2026-04-29T12:53:09.377Z
-updated_at: 2026-04-29T12:53:09.377Z
+updated_at: 2026-05-02T15:42:38.417Z
 ---
 
 ## Problem

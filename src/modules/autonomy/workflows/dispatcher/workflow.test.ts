@@ -40,6 +40,7 @@ describe("dispatcher workflow", () => {
     expect(output.actionableCount).toBe(1);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(true);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
   });
 
   it("emits autonomy.inbox.available when inbox has items", async () => {
@@ -61,9 +62,10 @@ describe("dispatcher workflow", () => {
     expect(output.inboxCount).toBe(0);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(true);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
   });
 
-  it("emits autonomy.queue.available when backlog still exists", async () => {
+  it("emits autonomy.queue.needs-promotion when only backlog work remains", async () => {
     writeFileSync(
       join(projectDir, "data", "tasks", "backlog", "task-foo.md"),
       "---\nid: task-foo\ntitle: Foo\nstatus: backlog\npriority: p2\n---\n",
@@ -76,7 +78,24 @@ describe("dispatcher workflow", () => {
     expect(output.actionableCount).toBe(0);
     expect(output.inboxCount).toBe(0);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(true);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(true);
+  });
+
+  it("does not emit needs-promotion when only blocked work remains", async () => {
+    writeFileSync(
+      join(projectDir, "data", "tasks", "blocked", "task-foo.md"),
+      "---\nid: task-foo\ntitle: Foo\nstatus: blocked\npriority: p2\n---\n",
+    );
+    const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
+    const result = await harness.run();
+
+    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    expect(output.pullableCount).toBe(0);
+    expect(output.actionableCount).toBe(0);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(true);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
   });
 
   it("emits autonomy.queue.thin for a one-item backlog tail", async () => {

@@ -100,8 +100,11 @@ const builderWorkflow: WorkflowDefinitionInput = {
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => {
         if (ctx.trigger.event === "runtime.recovered") return false;
-        const { dirty, pullableCount } = inspectReadyQueue.outputRequired(ctx);
-        return !dirty && pullableCount > 0;
+        // Builder runs only on actionable (ready + doing) work. A backlog-only
+        // queue is shaped by `backlog-promoter` first so the build agent never
+        // silently consumes reserve work.
+        const { dirty, actionableCount } = inspectReadyQueue.outputRequired(ctx);
+        return !dirty && actionableCount > 0;
       },
       repairLoop: {
         checks: builderRepairChecks(),
