@@ -7,16 +7,30 @@
  *   routes stay reachable on a "cold" install.
  * - Per-session enforcement still runs through the same resolver and surfaces
  *   the canonical error if no posture is configured.
+ *
+ * The local handler drives `loadRuntimeModules` so module-contributed routes
+ * (provider-backed: `/api/knowledge`, `/api/memory`, ...) are registered
+ * before `startServer` runs. These tests stub the loader so they stay
+ * hermetic: only the server-boot behavior is under test here. The
+ * `built-cli-serve.integration.test.ts` smoke covers the real runtime-load
+ * path through `node dist/cli.js serve`.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";
 import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KotaConfig } from "#core/config/config.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { localWebClient } from "./web-operations.js";
+
+vi.mock("#core/modules/runtime-loader.js", () => ({
+  loadRuntimeModules: vi.fn(async () => ({
+    getRoutes: () => [],
+    getRegisteredConfigKeys: () => new Set<string>(),
+  })),
+}));
 
 function stubCtx(cwd: string, config: KotaConfig = {}): ModuleContext {
   return {
