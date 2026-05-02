@@ -10,6 +10,8 @@ import {
   aggregateCalibration,
   DEFAULT_CALIBRATION_MIN_SAMPLE,
   DEFAULT_CALIBRATION_THRESHOLD_RATE,
+  DEFAULT_PASS_WITH_WARNINGS_MIN_SAMPLE,
+  DEFAULT_PASS_WITH_WARNINGS_THRESHOLD_RATE,
   EVALUATOR_CALIBRATION_ARTIFACT,
   type EvaluatorCalibrationArtifact,
   evaluateCalibrationGate,
@@ -728,5 +730,12 @@ describe("evaluateCalibrationGate", () => {
   it("uses documented defaults", () => {
     expect(DEFAULT_CALIBRATION_THRESHOLD_RATE).toBe(0.25);
     expect(DEFAULT_CALIBRATION_MIN_SAMPLE).toBe(8);
+    // The 0.75 PWW threshold is a deliberate retune from 0.4 — autonomous
+    // loops concentrate work on shared files (autonomy module, scoped
+    // AGENTS.md, critic.ts), producing a high natural overlap rate
+    // independent of evaluator drift. Lowering it reintroduces the
+    // false-positive churn that gated the loop in early May 2026.
+    expect(DEFAULT_PASS_WITH_WARNINGS_THRESHOLD_RATE).toBe(0.75);
+    expect(DEFAULT_PASS_WITH_WARNINGS_MIN_SAMPLE).toBe(5);
   });
 });

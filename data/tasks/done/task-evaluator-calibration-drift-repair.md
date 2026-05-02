@@ -1,12 +1,12 @@
 ---
 id: task-evaluator-calibration-drift-repair
 title: Repair evaluator calibration drift
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Restore the live-run evaluator calibration loop to within threshold by tightening critic guidance, repair-loop checks, or the calibration gate itself.
 created_at: 2026-05-02T16:53:06.015Z
-updated_at: 2026-05-02T16:53:06.015Z
+updated_at: 2026-05-02T16:59:03.018Z
 ---
 
 ## Problem
