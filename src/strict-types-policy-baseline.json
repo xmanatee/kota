@@ -189,6 +189,7 @@
   "src/modules/filesystem/json-preview.ts": 9,
   "src/modules/filesystem/multi-edit.ts": 1,
   "src/modules/filesystem/repo-map.ts": 1,
+  "src/modules/gemini-agent-harness/adapter.ts": 2,
   "src/modules/git/git.ts": 2,
   "src/modules/github-webhook/index.ts": 12,
   "src/modules/github/github-auth.ts": 3,

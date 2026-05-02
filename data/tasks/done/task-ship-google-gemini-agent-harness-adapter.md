@@ -1,12 +1,12 @@
 ---
 id: task-ship-google-gemini-agent-harness-adapter
 title: Ship Google Gemini agent harness adapter
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Land a tool-capable agent harness adapter for the Google Gemini CLI agent runtime so the daemon can run on Gemini through the existing pluggable harness protocol.
 created_at: 2026-05-02T18:50:13.755Z
-updated_at: 2026-05-02T20:05:51.830Z
+updated_at: 2026-05-02T20:19:51.552Z
 ---
 
 ## Problem
