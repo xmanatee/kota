@@ -1,12 +1,12 @@
 ---
 id: task-ship-openai-codex-agent-harness-adapter
 title: Ship OpenAI Codex agent harness adapter
-status: backlog
+status: ready
 priority: p1
 area: architecture
 summary: Land a tool-capable agent harness adapter for the OpenAI Codex CLI agent runtime so the daemon can run on Codex through the existing pluggable harness protocol.
 created_at: 2026-05-02T18:50:10.163Z
-updated_at: 2026-05-02T18:50:10.163Z
+updated_at: 2026-05-02T20:05:51.805Z
 ---
 
 ## Problem
