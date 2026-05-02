@@ -153,6 +153,6 @@ contract.
 - No second persistence path. The store is the only on-disk record of
   cited-answer envelopes — no parallel logging, no second envelope
   shape elsewhere.
-- No fan-out from this module. Surface adoption (Telegram, macOS,
-  mobile, web) ships as honest single-task follow-ups, not a parallel
-  five-surface chain seeded here.
+- No fan-out from this module. Surface adoption ships as honest
+  single-task follow-ups owned by the surface module, not a parallel
+  multi-surface chain seeded here.

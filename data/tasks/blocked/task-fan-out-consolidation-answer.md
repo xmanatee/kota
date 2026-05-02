@@ -1,12 +1,12 @@
 ---
 id: task-fan-out-consolidation-answer
 title: Consolidate answer surfaces across clients
-status: ready
+status: blocked
 priority: p2
 area: client
 summary: Review the answer surface family across macos, mobile, telegram, web, daemon, cli, slack for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-02T21:31:53.684Z
+updated_at: 2026-05-02T22:11:26.069Z
 ---
 
 ## Problem
@@ -133,3 +133,48 @@ fan-out batch, and the review's output is operator-actionable follow-up tasks.
   stating no follow-up was needed and why.
 - Updated scoped `AGENTS.md` lines reflecting any convention adjustments arising from
   the review.
+
+## Headless Review (completed)
+
+Recorded under
+`.kota/runs/2026-05-02T21-58-27-752Z-builder-etz2oj/answer-consolidation/`:
+
+- `contract-probe.json` — runtime probe of `src/modules/answer/routes.ts`
+  `createAnswerRouteHandler` covering all six envelope arms every
+  client decodes (empty-query 400, `ok: true` success with mixed
+  `knowledge`/`answer` citations 200, `no_hits` 200,
+  `semantic_unavailable` 200, `synthesis_failed` 200, provider-throws
+  500). The success arm pins the daemon's full closed citation source
+  set `knowledge | memory | history | tasks | answer`.
+- `probe-contract.mjs` — the probe source kept alongside its artifact.
+- `cli-transcript.txt` — CLI transcript exercising
+  `kota --help` discoverability, full `kota answer --help` /
+  `ask --help` / `log --help` / `show --help` surface, plus live
+  `log` / `log --json` / `show <missing-id>` /
+  `show <missing-id> --json` / `ask ''` runs against an empty
+  isolated tempdir store. Proves end-to-end propagation of the
+  daemon-issued `not_found` arm and the seam's empty-query usage
+  hint through the CLI surface.
+- `verdict.md` — written verdict for each of the 8 consolidation
+  dimensions; one load-bearing follow-up task was filed and the
+  single docs touch (replacing a stale boundary line in
+  `src/modules/answer/AGENTS.md`) is applied in this same change.
+
+Follow-up filed in this change:
+
+- `data/tasks/backlog/task-extend-cross-client-conformance-and-thin-client-de.md`
+  — Extend the cross-client conformance fixture and thin-client
+  decoders so the daemon's `source: "answer"` `RecallHit` arm and
+  `AnswerCitation` source decode on every visual surface
+  (mobile, web, macOS).
+
+What is left is the per-surface visual evidence the autonomous
+builder cannot capture headlessly.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/answer-consolidation-screens-*
+description: live operator-captured screenshots/screencasts for the five visual answer surfaces — telegram (`/answer <query>`, `/answer-log`, `/answer-show <id>` rendered messages: populated, no-match, semantic-unavailable, synthesis-failed, not-found, and empty/usage-hint cases), slack (the same three slash commands rendered against a workspace), mobile (`AnswerScreen` and `AnswerHistoryScreen` covering populated, empty-query hint, no-match card, semantic-unavailable banner, synthesis-failed banner, and offline banner), macOS (`AskUnifiedView` with the Answer mode populated, the no-match line, the orange-foregrounded semantic-unavailable and synthesis-failed captions, and the answer-history list/show surfaces), and web (`AnswerPanel` and `AnswerHistoryPanel` covering the same arms). Operator runs each client against a daemon (with and without a configured model provider) and commits the rendered artifacts under .kota/runs/answer-consolidation-screens-<stamp>/{telegram,slack,mobile,macos,web}/. The daemon-side and CLI-side artifacts are already committed under .kota/runs/2026-05-02T21-58-27-752Z-builder-etz2oj/answer-consolidation/.
+```
