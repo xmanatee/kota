@@ -72,7 +72,10 @@ async function mockDirtyWorktree() {
 }
 
 type SeedOverrides = Partial<
-  Pick<EvaluatorCalibrationArtifact, "verdict" | "sourceFilesChanged" | "finalIterationFailures">
+  Pick<
+    EvaluatorCalibrationArtifact,
+    "verdict" | "sourceFilesChanged" | "finalIterationFailures" | "criticFailureCount"
+  >
 >;
 
 function seedCalibration(
@@ -92,6 +95,7 @@ function seedCalibration(
     criticalIssueCount: 0,
     repairIterations: 1,
     finalIterationFailures: overrides.finalIterationFailures ?? [],
+    criticFailureCount: overrides.criticFailureCount ?? 0,
     terminalRunStatus: "success",
     taskId: null,
     taskFinalState: null,

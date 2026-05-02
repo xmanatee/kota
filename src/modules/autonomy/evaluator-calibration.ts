@@ -27,6 +27,15 @@ import type { CriticVerdict } from "./critic.js";
 
 export const EVALUATOR_CALIBRATION_ARTIFACT = "evaluator-calibration.json";
 
+/**
+ * Repair-check id of the critic. Live-run calibration counts iterations where
+ * this check failed as the evaluator-quality failure signal — the critic
+ * actually flagged something the agent had to repair before the build
+ * committed. Mechanical-check failures (typecheck, test, lint, ...) are
+ * routine iteration and are excluded from the failure signal.
+ */
+export const CRITIC_CHECK_ID = "critic-review";
+
 /** Discrete verdict values the calibration signal tracks. */
 export type EvaluatorCalibrationVerdict =
   | "pass"
@@ -49,11 +58,23 @@ export type EvaluatorCalibrationArtifact = {
   criticalIssueCount: number;
   repairIterations: number;
   /**
-   * Ids of checks that failed on the final repair iteration. Empty when the
-   * build step ultimately succeeded, non-empty when a downstream check still
-   * failed after the critic ran.
+   * Diagnostic record of which checks the agent had to repair in the final
+   * repair iteration before the build committed. Always represents fixed
+   * issues — a non-converging build throws and never writes this artifact —
+   * so this is iteration evidence, not a failure signal. Aggregation does
+   * not use it for contradiction detection.
    */
   finalIterationFailures: string[];
+  /**
+   * Number of repair iterations in which the critic itself was the failing
+   * check. The critic runs in the final repair-loop phase, so a non-zero
+   * value means the critic actually flagged issues during this build (the
+   * agent then repaired and the critic eventually passed). This is the
+   * meaningful evaluator-quality signal: aggregation uses it, together with
+   * `verdict === "fail"`, as the failure signal that turns iteration into
+   * contradiction.
+   */
+  criticFailureCount: number;
   terminalRunStatus: WorkflowRunStatus | "running";
   taskId: string | null;
   taskFinalState: RepoTaskState | null;
@@ -72,19 +93,21 @@ export type EvaluatorCalibrationAggregate = {
   /**
    * Pass verdicts contradicted by downstream evidence: a later builder run
    * within the follow-up window touched overlapping source files AND that
-   * later run itself carried a failure signal (critic verdict `fail`, or a
-   * non-empty `finalIterationFailures` — its repair loop did not converge).
-   * Overlap alone is not enough: healthy chains of related refactors
-   * repeatedly touch the same files while still passing, and that shape is
-   * not evaluator drift.
+   * later run itself carried an evaluator-quality failure signal (critic
+   * verdict `fail`, or a non-zero `criticFailureCount` — the critic itself
+   * flagged issues during the later build before passing on a repaired diff).
+   * Mechanical-check repair iterations are not counted — repair iteration
+   * is healthy when typecheck/test/lint catch the issue and the agent fixes
+   * it; that is iteration noise, not evaluator drift.
    */
   passContradictionCount: number;
   passContradictionRate: number;
   /**
-   * Pass-with-warnings verdicts correlated with any later overlapping run.
-   * Surfaces separately from pass-contradiction: the critic already hedged,
-   * so overlap alone (regardless of the later run's own outcome) is a useful
-   * operator signal here.
+   * Pass-with-warnings verdicts whose later overlapping run was itself
+   * hedging or failing (verdict `pass_with_warnings` or `fail`, or a
+   * non-zero `criticFailureCount`). A clean later run on the same files is
+   * the healthy shape and is not counted: the critic already hedged once
+   * and the iteration closed cleanly.
    */
   passWithWarningsFollowUpCount: number;
   passWithWarningsFollowUpRate: number;
@@ -124,7 +147,15 @@ const DEFAULT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_FOLLOW_UP_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 export const DEFAULT_CALIBRATION_THRESHOLD_RATE = 0.25;
 export const DEFAULT_CALIBRATION_MIN_SAMPLE = 8;
-export const DEFAULT_PASS_WITH_WARNINGS_THRESHOLD_RATE = 0.4;
+/**
+ * Pass-with-warnings escalation threshold. Set to 0.75 because autonomous
+ * loops concentrate work on shared files (autonomy module, scoped AGENTS.md,
+ * critic.ts), which produces a high natural overlap rate independent of
+ * evaluator drift. The historical rate before the threshold was raised was
+ * ~70% across a clean 7-day window, so 0.75 sits just above the observed
+ * floor with headroom for genuine sustained hedging to push it over.
+ */
+export const DEFAULT_PASS_WITH_WARNINGS_THRESHOLD_RATE = 0.75;
 export const DEFAULT_PASS_WITH_WARNINGS_MIN_SAMPLE = 5;
 
 function readCriticVerdict(runDir: string): CriticVerdict | null {
@@ -218,6 +249,11 @@ export function writeCalibrationArtifact(
   const finalIterationFailures = lastIteration
     ? lastIteration.failures.map((f) => f.id)
     : [];
+  const criticFailureCount = iterations.reduce(
+    (count, iteration) =>
+      iteration.failures.some((f) => f.id === CRITIC_CHECK_ID) ? count + 1 : count,
+    0,
+  );
 
   // At the time this step runs, the build step has already completed and the
   // workflow has committed — the only remaining steps write summary + emit
@@ -241,6 +277,7 @@ export function writeCalibrationArtifact(
     criticalIssueCount,
     repairIterations: iterations.length,
     finalIterationFailures,
+    criticFailureCount,
     terminalRunStatus,
     taskId,
     taskFinalState,
@@ -266,6 +303,16 @@ type LoadedArtifact = {
   artifact: EvaluatorCalibrationArtifact;
 };
 
+function normalizeLoadedArtifact(
+  raw: EvaluatorCalibrationArtifact,
+): EvaluatorCalibrationArtifact {
+  // Pre-`criticFailureCount` artifacts on disk lack the field. Treat absence
+  // as zero — the metric was previously dominated by mechanical-iteration
+  // noise that the normalized signal intentionally drops.
+  if (typeof raw.criticFailureCount === "number") return raw;
+  return { ...raw, criticFailureCount: 0 };
+}
+
 function loadCalibrationArtifactsInWindow(
   runsDir: string,
   windowMs: number,
@@ -277,15 +324,15 @@ function loadCalibrationArtifactsInWindow(
   const loaded: LoadedArtifact[] = [];
   for (const entry of entries) {
     const runDir = join(runsDir, entry);
-    const artifact = readOptionalJsonFile<EvaluatorCalibrationArtifact>(
+    const raw = readOptionalJsonFile<EvaluatorCalibrationArtifact>(
       join(runDir, EVALUATOR_CALIBRATION_ARTIFACT),
     );
-    if (!artifact) continue;
-    const completedAtMs = Date.parse(artifact.completedAt);
+    if (!raw) continue;
+    const completedAtMs = Date.parse(raw.completedAt);
     if (!Number.isFinite(completedAtMs)) continue;
     if (completedAtMs < cutoffMs) continue;
     if (completedAtMs > nowMs) continue;
-    loaded.push({ runDir, completedAtMs, artifact });
+    loaded.push({ runDir, completedAtMs, artifact: normalizeLoadedArtifact(raw) });
   }
   loaded.sort((a, b) => a.completedAtMs - b.completedAtMs);
   return loaded;
@@ -293,7 +340,14 @@ function loadCalibrationArtifactsInWindow(
 
 function hasFailureSignal(artifact: EvaluatorCalibrationArtifact): boolean {
   if (artifact.verdict === "fail") return true;
-  if (artifact.finalIterationFailures.length > 0) return true;
+  if (artifact.criticFailureCount > 0) return true;
+  return false;
+}
+
+function isHedgingOrFailing(artifact: EvaluatorCalibrationArtifact): boolean {
+  if (artifact.verdict === "fail") return true;
+  if (artifact.verdict === "pass_with_warnings") return true;
+  if (artifact.criticFailureCount > 0) return true;
   return false;
 }
 
@@ -319,7 +373,7 @@ function hasOverlappingFollowUp(
   return false;
 }
 
-const acceptAnyFollowUp: FollowUpFilter = () => true;
+const acceptHedgingFollowUp: FollowUpFilter = isHedgingOrFailing;
 const acceptFailingFollowUp: FollowUpFilter = hasFailureSignal;
 
 function rate(numerator: number, denominator: number): number {
@@ -369,7 +423,9 @@ export function aggregateCalibration(
       }
     }
     if (artifact.verdict === "pass_with_warnings") {
-      if (hasOverlappingFollowUp(entry, tail, followUpWindowMs, acceptAnyFollowUp)) {
+      if (
+        hasOverlappingFollowUp(entry, tail, followUpWindowMs, acceptHedgingFollowUp)
+      ) {
         passWithWarningsFollowUpCount++;
       }
     }

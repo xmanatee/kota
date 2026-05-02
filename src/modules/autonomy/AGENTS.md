@@ -9,8 +9,8 @@ This module owns the project autonomous development loop.
   history; no second lessons store or injected summaries.
 - Promote a lesson only when repeated run evidence shows a durable pattern;
   retract or narrow when code, behavior, or ownership changes.
-- Workflow-specific prompts stay role-focused. Shared policy and operating
-  conventions belong in this module's `AGENTS.md` hierarchy.
+- Workflow prompts stay role-focused. Shared policy belongs in this
+  module's `AGENTS.md` hierarchy.
 - Shipped autonomy workflows declare their harness in code so the repo
   boots cleanly without an operator `.kota/config.json`. Generic project
   workflows may still inherit `KotaConfig.defaultAgentHarness`.
@@ -48,15 +48,16 @@ summaries live in run artifacts or `data/watchlist.yaml`.
 ## Live-Run Evaluator Calibration
 
 Fixture `pass^k` catches generator drift; per-run artifacts catch
-evaluator drift. Contradiction needs a later overlapping run that also
-fails (overlap alone is healthy iteration). Pass-with-warnings uses
-looser overlap. Both drift kinds commit one corrective path:
+evaluator drift. Failure signal is evaluator-quality: `verdict==="fail"`
+or `criticFailureCount>0` (critic flagged something the agent
+repaired). Mechanical repair is iteration noise;
+`finalIterationFailures` stays diagnostic. PWW escalation needs later
+overlap also hedging/failing. Drifts commit one path:
 create/recreate/promote `task-evaluator-calibration-drift-repair` in
-`ready/` (noop when in-flight); the regression event still bridges to
-attention digest. Critic blocks weak rendered evidence, placeholder
-tests, untracked compatibility shims, baseline-only strictness
-ratchets, required-source dishonesty; warnings need a named trace
-(follow-up task, known-limitation, or non-action reason in summary).
+`ready/` (noop in-flight); regression still bridges to attention digest.
+Critic blocks weak rendered evidence, placeholder tests, untracked
+compat shims, baseline-only ratchets, required-source dishonesty;
+warnings need a named trace (follow-up, known limitation, non-action).
 
 ## External Pattern Decisions
 

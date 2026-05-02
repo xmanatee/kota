@@ -49,6 +49,7 @@ function seedCalibration(
     criticalIssueCount: 0,
     repairIterations: 1,
     finalIterationFailures: [],
+    criticFailureCount: 0,
     terminalRunStatus: "success",
     taskId: null,
     taskFinalState: null,

@@ -25,6 +25,7 @@ type CalibrationSeed = {
   criticalIssueCount?: number;
   repairIterations?: number;
   finalIterationFailures?: string[];
+  criticFailureCount?: number;
   taskId?: string | null;
   taskFinalState?: EvaluatorCalibrationArtifact["taskFinalState"];
 };
@@ -41,6 +42,7 @@ function seedRun(runsDir: string, seed: CalibrationSeed): void {
     criticalIssueCount: seed.criticalIssueCount ?? 0,
     repairIterations: seed.repairIterations ?? 1,
     finalIterationFailures: seed.finalIterationFailures ?? [],
+    criticFailureCount: seed.criticFailureCount ?? 0,
     terminalRunStatus: "success",
     taskId: seed.taskId ?? null,
     taskFinalState: seed.taskFinalState ?? null,
@@ -157,6 +159,7 @@ describe("writeCalibrationArtifact", () => {
     expect(artifact.warningCount).toBe(1);
     expect(artifact.repairIterations).toBe(2);
     expect(artifact.finalIterationFailures).toEqual([]);
+    expect(artifact.criticFailureCount).toBe(1);
     expect(artifact.taskId).toBe("task-1");
     expect(artifact.sourceFilesChanged).toEqual([
       "src/modules/autonomy/evaluator-calibration.ts",
@@ -164,7 +167,52 @@ describe("writeCalibrationArtifact", () => {
     ]);
   });
 
-  it("captures verdict-vs-repair-loop contradiction: pass verdict with a non-empty final iteration", () => {
+  it("counts critic-review failures across all repair iterations", () => {
+    writeFileSync(
+      join(runDir, "critic-review.json"),
+      JSON.stringify({ verdict: "pass", critical_issues: [], warnings: [], summary: "ok" }),
+    );
+    writeFileSync(
+      join(runDir, "run-summary.json"),
+      JSON.stringify({
+        runId: "run-test",
+        workflow: "builder",
+        taskId: null,
+        filesChanged: ["src/core/foo.ts"],
+        completedAt: "2026-04-20T12:00:00.000Z",
+      }),
+    );
+
+    const ctx = makeStepContext({
+      runDir,
+      projectDir: root,
+      stepOutputs: {
+        build: {
+          repairIterations: [
+            { attempt: 1, failures: [{ id: "test" }] },
+            { attempt: 2, failures: [{ id: "critic-review" }] },
+            { attempt: 3, failures: [{ id: "critic-review" }, { id: "lint" }] },
+          ],
+        },
+      },
+      stepResults: {
+        build: {
+          id: "build",
+          type: "agent",
+          status: "success",
+          startedAt: "2026-04-20T11:59:00.000Z",
+          completedAt: "2026-04-20T12:00:00.000Z",
+          durationMs: 60000,
+        },
+      },
+    });
+
+    const artifact = writeCalibrationArtifact(ctx);
+    expect(artifact.criticFailureCount).toBe(2);
+    expect(artifact.repairIterations).toBe(3);
+  });
+
+  it("records the diagnostic finalIterationFailures even when the critic was never the failing check", () => {
     writeFileSync(
       join(runDir, "critic-review.json"),
       JSON.stringify({
@@ -213,6 +261,8 @@ describe("writeCalibrationArtifact", () => {
     const artifact = writeCalibrationArtifact(ctx);
     expect(artifact.verdict).toBe("pass");
     expect(artifact.finalIterationFailures).toEqual(["typecheck", "lint"]);
+    // typecheck/lint repair is iteration noise — not a critic catch.
+    expect(artifact.criticFailureCount).toBe(0);
   });
 
   it("records verdict=absent when critic-review.json is missing", () => {
@@ -322,9 +372,10 @@ describe("aggregateCalibration", () => {
     expect(agg.passContradictionRate).toBe(0);
   });
 
-  it("flags contradiction when the later overlapping run's repair loop did not converge", () => {
-    // The later overlapping run has a pass verdict but its build step left
-    // finalIterationFailures non-empty, so it carries a failure signal.
+  it("flags contradiction when the later overlapping run's critic itself failed", () => {
+    // The later overlapping run has a pass verdict but its build's critic
+    // ran more than once because it flagged something the agent had to
+    // repair. That critic catch is the evaluator-quality failure signal.
     seedRun(runsDir, {
       runId: "2026-04-20T10-00-00-000Z-builder-a",
       completedAt: "2026-04-20T10:00:00.000Z",
@@ -336,7 +387,7 @@ describe("aggregateCalibration", () => {
       completedAt: "2026-04-20T11:00:00.000Z",
       verdict: "pass",
       sourceFilesChanged: ["src/core/a.ts"],
-      finalIterationFailures: ["typecheck"],
+      criticFailureCount: 1,
     });
 
     const agg = aggregateCalibration(runsDir, {
@@ -348,7 +399,102 @@ describe("aggregateCalibration", () => {
     expect(agg.passContradictionCount).toBe(1);
   });
 
-  it("correlates pass_with_warnings verdicts with a later follow-up run independently of pass contradiction", () => {
+  it("does not flag contradiction when the later overlapping run only needed mechanical-check repair", () => {
+    // typecheck/test/lint repair is healthy iteration, not evaluator drift.
+    seedRun(runsDir, {
+      runId: "2026-04-20T10-00-00-000Z-builder-a",
+      completedAt: "2026-04-20T10:00:00.000Z",
+      verdict: "pass",
+      sourceFilesChanged: ["src/core/a.ts"],
+    });
+    seedRun(runsDir, {
+      runId: "2026-04-20T11-00-00-000Z-builder-b",
+      completedAt: "2026-04-20T11:00:00.000Z",
+      verdict: "pass",
+      sourceFilesChanged: ["src/core/a.ts"],
+      finalIterationFailures: ["test", "lint"],
+      criticFailureCount: 0,
+    });
+
+    const agg = aggregateCalibration(runsDir, {
+      windowMs: 7 * 24 * 60 * 60 * 1000,
+      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
+      nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
+    });
+    expect(agg.byVerdict.pass).toBe(2);
+    expect(agg.passContradictionCount).toBe(0);
+  });
+
+  it("treats a pre-criticFailureCount artifact as zero critic failures", () => {
+    // Backward compatibility: an artifact written before the field existed
+    // must not silently inflate the contradiction count.
+    const olderRun = "2026-04-20T10-00-00-000Z-builder-a";
+    const laterRun = "2026-04-20T11-00-00-000Z-builder-b";
+    seedRun(runsDir, {
+      runId: olderRun,
+      completedAt: "2026-04-20T10:00:00.000Z",
+      verdict: "pass",
+      sourceFilesChanged: ["src/core/a.ts"],
+    });
+    // Write a later artifact missing the criticFailureCount field but with
+    // mechanical-iteration noise — this is the historical shape.
+    const legacyDir = join(runsDir, laterRun);
+    mkdirSync(legacyDir, { recursive: true });
+    writeFileSync(
+      join(legacyDir, EVALUATOR_CALIBRATION_ARTIFACT),
+      JSON.stringify({
+        runId: laterRun,
+        workflow: "builder",
+        completedAt: "2026-04-20T11:00:00.000Z",
+        verdict: "pass",
+        warningCount: 0,
+        criticalIssueCount: 0,
+        repairIterations: 1,
+        finalIterationFailures: ["test"],
+        terminalRunStatus: "success",
+        taskId: null,
+        taskFinalState: null,
+        sourceFilesChanged: ["src/core/a.ts"],
+      }),
+    );
+
+    const agg = aggregateCalibration(runsDir, {
+      windowMs: 7 * 24 * 60 * 60 * 1000,
+      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
+      nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
+    });
+    expect(agg.byVerdict.pass).toBe(2);
+    expect(agg.passContradictionCount).toBe(0);
+  });
+
+  it("flags pass_with_warnings escalation when the later overlapping run is itself hedging", () => {
+    seedRun(runsDir, {
+      runId: "2026-04-20T10-00-00-000Z-builder-a",
+      completedAt: "2026-04-20T10:00:00.000Z",
+      verdict: "pass_with_warnings",
+      sourceFilesChanged: ["src/modules/x.ts"],
+    });
+    seedRun(runsDir, {
+      runId: "2026-04-20T11-00-00-000Z-builder-b",
+      completedAt: "2026-04-20T11:00:00.000Z",
+      verdict: "pass_with_warnings",
+      sourceFilesChanged: ["src/modules/x.ts"],
+    });
+
+    const agg = aggregateCalibration(runsDir, {
+      windowMs: 7 * 24 * 60 * 60 * 1000,
+      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
+      nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
+    });
+    expect(agg.byVerdict.pass_with_warnings).toBe(2);
+    expect(agg.passWithWarningsFollowUpCount).toBe(1);
+    expect(agg.passWithWarningsFollowUpRate).toBe(0.5);
+    expect(agg.passContradictionCount).toBe(0);
+  });
+
+  it("does not flag pass_with_warnings escalation when the later overlapping run closed cleanly", () => {
+    // The critic hedged once, the next run touching the same files passed
+    // cleanly with no critic catch — the warning closed out, healthy shape.
     seedRun(runsDir, {
       runId: "2026-04-20T10-00-00-000Z-builder-a",
       completedAt: "2026-04-20T10:00:00.000Z",
@@ -368,8 +514,8 @@ describe("aggregateCalibration", () => {
       nowMs: Date.parse("2026-04-20T12:00:00.000Z"),
     });
     expect(agg.byVerdict.pass_with_warnings).toBe(1);
-    expect(agg.passWithWarningsFollowUpCount).toBe(1);
-    expect(agg.passWithWarningsFollowUpRate).toBe(1);
+    expect(agg.passWithWarningsFollowUpCount).toBe(0);
+    expect(agg.passWithWarningsFollowUpRate).toBe(0);
     expect(agg.passContradictionCount).toBe(0);
   });
 
