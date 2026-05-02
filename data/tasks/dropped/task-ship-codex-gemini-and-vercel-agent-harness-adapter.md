@@ -1,13 +1,30 @@
 ---
 id: task-ship-codex-gemini-and-vercel-agent-harness-adapter
 title: Ship Codex Gemini and Vercel agent harness adapters
-status: ready
+status: dropped
 priority: p1
 area: architecture
 summary: Land tool-capable agent harness adapters for Codex CLI, Gemini CLI, and Vercel AI agent SDK so the daemon can be powered by non-Claude agent runtimes through the existing pluggable harness protocol.
 created_at: 2026-04-28T23:56:36.787Z
-updated_at: 2026-05-02T18:14:24.473Z
+updated_at: 2026-05-02T18:52:29.123Z
 ---
+
+## Drop Reason
+
+Decomposed on 2026-05-02 into three per-vendor implementation tasks
+because each adapter requires distinct vendor SDK research, dependency
+wiring, adapter implementation, and live parity evidence — a scope that
+cannot be honestly completed in a single builder run. The owner intent
+is preserved verbatim in each child task. The replacements live under
+backlog:
+
+- `task-ship-vercel-ai-sdk-agent-harness-adapter`
+- `task-ship-openai-codex-agent-harness-adapter`
+- `task-ship-google-gemini-agent-harness-adapter`
+
+The original problem and outcome statements below are kept as the
+authoritative source for why this work matters; the child tasks slice
+the deliverables across vendors so each can be picked up independently.
 
 ## Problem
 
