@@ -1,7 +1,11 @@
 import { join } from "node:path";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
 import { loadRecentRuns, type RunSummary } from "#modules/autonomy/shared.js";
-import { parseBlockedPrecondition } from "#modules/repo-tasks/blocked-precondition.js";
+import {
+  parseBlockedPrecondition,
+  readOperatorCaptureInstructedMarker,
+  readOwnerAskMarkers,
+} from "#modules/repo-tasks/blocked-precondition.js";
 import {
   countRepoTaskState,
   listRepoTasksInState,
@@ -24,6 +28,15 @@ const DEFAULT_BLOCKED_AGE_DAYS = 3;
 const DEFAULT_BLOCKED_AGED_DAYS = 14;
 const MAX_INDIVIDUAL_BLOCKED_ITEMS = 5;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+/**
+ * Cooldown window the digest honors when blocked-promoter has already
+ * surfaced a concrete action for an operator-gated blocker. Matches the
+ * 14-day owner-ask cadence and the operator-capture instruction cadence
+ * so a single round-trip suppresses duplicate digest noise for the same
+ * cycle. Operator-gated entries within this window are dropped from the
+ * "Operator-gated blocker aged" list.
+ */
+const ACTION_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
 
 export type AttentionItem = { label: string; detail: string };
 
@@ -86,6 +99,27 @@ function hasOwnerBlocker(body: string): boolean {
 
 type LongBlockedEntry = { record: RepoTaskRecord; ageDays: number };
 
+function hasFreshActionMarker(record: RepoTaskRecord, nowMs: number): boolean {
+  const parsed = parseBlockedPrecondition(`---\n---\n${record.body}`);
+  if (!parsed.ok) return false;
+  const precondition = parsed.precondition;
+  if (precondition.kind === "owner-decision") {
+    const askMarkers = readOwnerAskMarkers(record.body);
+    return askMarkers.some((m) => {
+      if (m.slot !== precondition.slot) return false;
+      const ms = Date.parse(m.lastAskedAt);
+      return !Number.isNaN(ms) && nowMs - ms < ACTION_COOLDOWN_MS;
+    });
+  }
+  if (precondition.kind === "operator-capture") {
+    const marker = readOperatorCaptureInstructedMarker(record.body);
+    if (!marker) return false;
+    const ms = Date.parse(marker.lastInstructedAt);
+    return !Number.isNaN(ms) && nowMs - ms < ACTION_COOLDOWN_MS;
+  }
+  return false;
+}
+
 function findLongBlocked(
   records: RepoTaskRecord[],
   thresholdDays: number,
@@ -96,7 +130,9 @@ function findLongBlocked(
     const updatedMs = Date.parse(record.frontmatter.updatedAt);
     if (Number.isNaN(updatedMs)) continue;
     const ageDays = Math.floor((nowMs - updatedMs) / MS_PER_DAY);
-    if (ageDays >= thresholdDays) entries.push({ record, ageDays });
+    if (ageDays < thresholdDays) continue;
+    if (hasFreshActionMarker(record, nowMs)) continue;
+    entries.push({ record, ageDays });
   }
   entries.sort((a, b) => b.ageDays - a.ageDays);
   return entries;
@@ -117,10 +153,24 @@ function findOperatorGatedAged(
       `---\n---\n${record.body}`,
     );
     if (!parsed.ok) continue;
-    if (
-      parsed.precondition.kind === "owner-decision" ||
-      parsed.precondition.kind === "operator-capture"
-    ) {
+    const precondition = parsed.precondition;
+    if (precondition.kind === "owner-decision") {
+      const askMarkers = readOwnerAskMarkers(record.body);
+      const fresh = askMarkers.find((m) => {
+        if (m.slot !== precondition.slot) return false;
+        const ms = Date.parse(m.lastAskedAt);
+        return !Number.isNaN(ms) && nowMs - ms < ACTION_COOLDOWN_MS;
+      });
+      if (fresh) continue;
+      entries.push({ record, ageDays });
+      continue;
+    }
+    if (precondition.kind === "operator-capture") {
+      const marker = readOperatorCaptureInstructedMarker(record.body);
+      if (marker) {
+        const ms = Date.parse(marker.lastInstructedAt);
+        if (!Number.isNaN(ms) && nowMs - ms < ACTION_COOLDOWN_MS) continue;
+      }
       entries.push({ record, ageDays });
     }
   }

@@ -338,6 +338,55 @@ export function renderOwnerResolvedMarker(marker: OwnerResolvedMarker): string {
   return `<!-- blocked-promoter-resolved: slot=${marker.slot} resolved_at=${marker.resolvedAt} -->`;
 }
 
+/**
+ * Per-task marker the `blocked-promoter` writes after surfacing operator-
+ * capture instructions for an aged blocker. The marker tracks the cadence so
+ * downstream consumers (notably `attention-digest`) can suppress repeated
+ * noise about a blocker the workflow has already actioned within the
+ * cadence window.
+ *
+ * Operator-capture preconditions are at most one-per-task today, so the
+ * marker carries no slot — the task body itself is the scope.
+ */
+export type OperatorCaptureInstructedMarker = {
+  lastInstructedAt: string;
+};
+
+const OPERATOR_CAPTURE_INSTRUCTED_RE =
+  /<!--\s*blocked-promoter-operator-capture-instructed:\s*last_instructed_at=([^\s>]+)\s*-->/;
+
+export function readOperatorCaptureInstructedMarker(
+  body: string,
+): OperatorCaptureInstructedMarker | null {
+  const match = body.match(OPERATOR_CAPTURE_INSTRUCTED_RE);
+  return match ? { lastInstructedAt: match[1] } : null;
+}
+
+export function renderOperatorCaptureInstructedMarker(
+  marker: OperatorCaptureInstructedMarker,
+): string {
+  return `<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=${marker.lastInstructedAt} -->`;
+}
+
+const OPERATOR_CAPTURE_INSTRUCTED_GLOBAL_RE =
+  /<!--\s*blocked-promoter-operator-capture-instructed:\s*last_instructed_at=[^\s>]+\s*-->/g;
+
+export function upsertOperatorCaptureInstructedMarker(
+  body: string,
+  marker: OperatorCaptureInstructedMarker,
+): string {
+  if (OPERATOR_CAPTURE_INSTRUCTED_GLOBAL_RE.test(body)) {
+    OPERATOR_CAPTURE_INSTRUCTED_GLOBAL_RE.lastIndex = 0;
+    return body.replace(
+      OPERATOR_CAPTURE_INSTRUCTED_GLOBAL_RE,
+      renderOperatorCaptureInstructedMarker(marker),
+    );
+  }
+  OPERATOR_CAPTURE_INSTRUCTED_GLOBAL_RE.lastIndex = 0;
+  const trimmed = body.replace(/\n+$/, "");
+  return `${trimmed}\n\n${renderOperatorCaptureInstructedMarker(marker)}\n`;
+}
+
 export type EvaluationContext = {
   projectDir: string;
   taskBody: string;

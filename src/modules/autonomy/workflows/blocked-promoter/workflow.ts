@@ -26,7 +26,12 @@ import {
   type AskOutcomeApplication,
   answerApprovesPromotion,
   applyAskOutcome,
+  applyOperatorCaptureInstruction,
+  type BlockerAction,
+  classifyBlockedActions,
   listBlockedTasksWithPreconditions,
+  listOperatorCaptureInstructCandidates,
+  type OperatorCaptureInstruction,
   type OwnerAskCandidate,
   pickOwnerAskCandidate,
   promoteSatisfiedBlockedTasks,
@@ -36,6 +41,7 @@ type InspectResult = {
   dirty: boolean;
   blockedCount: number;
   ownerAsk: OwnerAskCandidate | null;
+  actions: BlockerAction[];
 };
 
 const inspectBlocked = typedCodeStep<InspectResult>({
@@ -43,16 +49,24 @@ const inspectBlocked = typedCodeStep<InspectResult>({
   type: "code",
   when: onNormalTrigger,
   validate: (raw) =>
-    expectStructuredOutput<InspectResult>(raw, ["dirty", "blockedCount", "ownerAsk"]),
+    expectStructuredOutput<InspectResult>(raw, [
+      "dirty",
+      "blockedCount",
+      "ownerAsk",
+      "actions",
+    ]),
   run: ({ projectDir }) => {
     const worktree = getRepoWorktreeStatus(projectDir);
     const dirty = worktree.available && worktree.trackedDirty;
     const records = listBlockedTasksWithPreconditions(projectDir);
-    const ownerAsk = pickOwnerAskCandidate(records, Date.now());
+    const now = Date.now();
+    const ownerAsk = pickOwnerAskCandidate(records, now);
+    const actions = classifyBlockedActions(records, projectDir, now);
     return {
       dirty,
       blockedCount: records.length,
       ownerAsk,
+      actions,
     };
   },
 });
@@ -83,6 +97,19 @@ const ownerAskGate = labeledPredicate(
   },
 );
 
+function reorderProposedAnswers(
+  proposed: string[],
+  recommended: string | null,
+): string[] {
+  if (!recommended) return proposed;
+  const idx = proposed.findIndex(
+    (a) => a.trim().toLowerCase() === recommended.trim().toLowerCase(),
+  );
+  if (idx <= 0) return proposed;
+  const head = proposed[idx];
+  return [head, ...proposed.slice(0, idx), ...proposed.slice(idx + 1)];
+}
+
 const askSteps = askOwnerSteps({
   idPrefix: "blocked-promoter-ask",
   awaitTimeoutMs: 10 * 60 * 1000,
@@ -93,20 +120,35 @@ const askSteps = askOwnerSteps({
         "blocked-promoter ask step ran without an owner-ask candidate — gate predicate is broken",
       );
     }
-    const proposed = candidate.proposedAnswers.length > 0
-      ? candidate.proposedAnswers
-      : ["unblock"];
-    const ensureUnblock = proposed.includes("unblock") ? proposed : [...proposed, "unblock"];
+    const baseProposed =
+      candidate.proposedAnswers.length > 0
+        ? candidate.proposedAnswers
+        : ["unblock"];
+    const reordered = reorderProposedAnswers(
+      baseProposed,
+      candidate.recommendedAnswer,
+    );
+    const ensureUnblock = reordered.includes("unblock")
+      ? reordered
+      : [...reordered, "unblock"];
+    const recommendationLine = candidate.recommendedAnswer
+      ? `\n\nRecommended option: ${candidate.recommendedAnswer}.`
+      : "";
     return {
       context: candidate.context
-        ? `${candidate.context}\n\nBlocked task: ${candidate.taskId} (slot ${candidate.slot}).`
-        : `Blocked task: ${candidate.taskId} (slot ${candidate.slot}).`,
+        ? `${candidate.context}\n\nBlocked task: ${candidate.taskId} (slot ${candidate.slot}).${recommendationLine}`
+        : `Blocked task: ${candidate.taskId} (slot ${candidate.slot}).${recommendationLine}`,
       question: candidate.question,
-      reason:
-        "Re-asking on the 14-day cadence so a stale owner-decision blocker " +
-        "does not silently absorb queue capacity. Reply with the chosen " +
-        "variant or 'unblock' to promote the task; any other answer just " +
-        "refreshes the asked marker.",
+      reason: candidate.recommendedAnswer
+        ? "Re-asking on the 14-day cadence so a stale owner-decision blocker " +
+          "does not silently absorb queue capacity. Recommended default: " +
+          `'${candidate.recommendedAnswer}'. Reply with the chosen variant or ` +
+          "'unblock' to promote the task; any other answer just refreshes the " +
+          "asked marker."
+        : "Re-asking on the 14-day cadence so a stale owner-decision blocker " +
+          "does not silently absorb queue capacity. Reply with the chosen " +
+          "variant or 'unblock' to promote the task; any other answer just " +
+          "refreshes the asked marker.",
       proposedAnswers: ensureUnblock,
       source: "blocked-promoter",
     };
@@ -155,12 +197,74 @@ const promoteAfterApproval = typedCodeStep<DeterministicPromotion>({
   run: ({ projectDir }) => promoteSatisfiedBlockedTasks(projectDir),
 });
 
+const instructOperatorCapture = typedCodeStep<{
+  instructions: OperatorCaptureInstruction[];
+}>({
+  id: "instruct-operator-capture",
+  type: "code",
+  when: (ctx) => {
+    if (ctx.trigger.event === "runtime.recovered") return false;
+    const inspection = inspectBlocked.outputRequired(ctx);
+    if (inspection.dirty) return false;
+    return inspection.actions.some((a) => a.kind === "operator-capture-due");
+  },
+  validate: (raw) =>
+    expectStructuredOutput<{ instructions: OperatorCaptureInstruction[] }>(raw, [
+      "instructions",
+    ]),
+  run: ({ projectDir }) => {
+    const records = listBlockedTasksWithPreconditions(projectDir);
+    const candidates = listOperatorCaptureInstructCandidates(records, Date.now());
+    const now = new Date();
+    const instructions = candidates.map((candidate) =>
+      applyOperatorCaptureInstruction({ candidate, now }),
+    );
+    return { instructions };
+  },
+});
+
+const writeBlockerActions = typedCodeStep<{ written: boolean; path: string }>({
+  id: "write-blocker-actions",
+  type: "code",
+  when: (ctx) => {
+    if (ctx.trigger.event === "runtime.recovered") return false;
+    const inspection = inspectBlocked.output(ctx);
+    return inspection !== undefined && inspection.actions.length > 0;
+  },
+  validate: (raw) =>
+    expectStructuredOutput<{ written: boolean; path: string }>(raw, [
+      "written",
+      "path",
+    ]),
+  run: (ctx) => {
+    const inspection = inspectBlocked.outputRequired(ctx);
+    const instructions =
+      instructOperatorCapture.output(ctx)?.instructions ?? [];
+    mkdirSync(ctx.workflow.runDirPath, { recursive: true });
+    const filePath = join(ctx.workflow.runDirPath, "blocker-actions.json");
+    writeFileSync(
+      filePath,
+      `${JSON.stringify(
+        {
+          generatedAt: new Date().toISOString(),
+          actions: inspection.actions,
+          operatorCaptureInstructionsEmitted: instructions,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    return { written: true, path: filePath };
+  },
+});
+
 function workflowChangedAnything(
   promotions: number,
   followups: number,
   applications: number,
+  instructions: number,
 ): boolean {
-  return promotions + followups + applications > 0;
+  return promotions + followups + applications + instructions > 0;
 }
 
 const writeCommitMessage = typedCodeStep<{ written: boolean }>({
@@ -173,14 +277,18 @@ const writeCommitMessage = typedCodeStep<{ written: boolean }>({
     const promotions = (promoteDeterministic.output(ctx)?.promotions ?? []).length;
     const followups = (promoteAfterApproval.output(ctx)?.promotions ?? []).length;
     const apps = (applyOutcome.output(ctx) ?? []).length;
-    return workflowChangedAnything(promotions, followups, apps);
+    const instructions =
+      (instructOperatorCapture.output(ctx)?.instructions ?? []).length;
+    return workflowChangedAnything(promotions, followups, apps, instructions);
   },
   run: (ctx) => {
     const deterministic = promoteDeterministic.output(ctx)?.promotions ?? [];
     const followups = promoteAfterApproval.output(ctx)?.promotions ?? [];
     const apps = applyOutcome.output(ctx) ?? [];
+    const instructions =
+      instructOperatorCapture.output(ctx)?.instructions ?? [];
     const lines: string[] = [
-      "blocked-promoter: auto-promote satisfied blocked tasks and refresh owner-ask cadence",
+      "blocked-promoter: auto-promote satisfied blocked tasks, refresh owner-ask cadence, and refresh operator-capture instruction markers",
       "",
     ];
     for (const move of deterministic) {
@@ -195,6 +303,11 @@ const writeCommitMessage = typedCodeStep<{ written: boolean }>({
       } else {
         lines.push(`- write resolved marker for slot ${app.slot} at ${app.resolvedAt}`);
       }
+    }
+    for (const instruction of instructions) {
+      lines.push(
+        `- instruct operator capture for ${instruction.taskId} (${instruction.capturePath}, blocked ${instruction.ageDays}d)`,
+      );
     }
     mkdirSync(ctx.workflow.runDirPath, { recursive: true });
     writeFileSync(
@@ -267,6 +380,8 @@ const blockedPromoterWorkflow: WorkflowDefinitionInput = {
     consumeStep,
     applyOutcome,
     promoteAfterApproval,
+    instructOperatorCapture,
+    writeBlockerActions,
     writeCommitMessage,
     validateBeforeCommit,
     commitChanges,
@@ -290,6 +405,31 @@ const blockedPromoterWorkflow: WorkflowDefinitionInput = {
           promotedTaskIds: all.map((m) => m.id),
           promotedToReady: all.filter((m) => m.toState === "ready").map((m) => m.id),
           promotedToBacklog: all.filter((m) => m.toState === "backlog").map((m) => m.id),
+        };
+      },
+    },
+    {
+      id: "emit-operator-capture-instructed",
+      type: "emit",
+      when: (ctx) => {
+        if (!stepCommitted("commit")(ctx)) return false;
+        const instructions =
+          instructOperatorCapture.output(ctx)?.instructions ?? [];
+        return instructions.length > 0;
+      },
+      event: "autonomy.blocked.operator-capture-instructed",
+      payload: (ctx) => {
+        const instructions =
+          instructOperatorCapture.output(ctx)?.instructions ?? [];
+        return {
+          runId: ctx.workflow.runId,
+          instructions: instructions.map((i) => ({
+            taskId: i.taskId,
+            capturePath: i.capturePath,
+            description: i.description,
+            ageDays: i.ageDays,
+            instructedAt: i.instructedAt,
+          })),
         };
       },
     },

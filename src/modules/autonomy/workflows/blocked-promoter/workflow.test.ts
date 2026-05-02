@@ -7,6 +7,8 @@ import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js"
 import type { AwaitEventStepOutput } from "#core/workflow/steps/step-executor-await-event.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import {
+  readOperatorCaptureInstructedMarker,
+  renderOperatorCaptureInstructedMarker,
   renderOwnerAskMarker,
   renderOwnerResolvedMarker,
 } from "#modules/repo-tasks/blocked-precondition.js";
@@ -110,12 +112,15 @@ function awaitAnsweredOutput(): AwaitEventStepOutput {
   };
 }
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 const TASK_TEMPLATE = (
   id: string,
   preconditionSection: string,
   extras = "",
+  updatedAt = "2026-04-25T00:00:00.000Z",
 ): string => {
-  const now = "2026-04-25T00:00:00.000Z";
+  const now = updatedAt;
   return [
     "---",
     `id: ${id}`,
@@ -428,6 +433,171 @@ describe("blocked-promoter workflow", () => {
     expect(result.steps["inspect-blocked"].status).toBe("skipped");
     expect(result.steps["promote-deterministic"].status).toBe("skipped");
     expect(result.steps.commit.status).toBe("skipped");
+  });
+
+  it("instructs an aged operator-capture blocker and writes the run artifact", async () => {
+    await mockCleanWorktree();
+    const projectDir = makeProjectDir();
+    const oldUpdatedAt = new Date(Date.now() - 30 * MS_PER_DAY).toISOString();
+    writeFileSync(
+      join(projectDir, "data", "tasks", "blocked", "task-aged-capture.md"),
+      TASK_TEMPLATE(
+        "task-aged-capture",
+        [
+          "## Unblock Precondition",
+          "",
+          "```",
+          "kind: operator-capture",
+          "path: .kota/runs/peer-cli-comparison",
+          "description: peer-CLI captures",
+          "```",
+        ].join("\n"),
+        "",
+        oldUpdatedAt,
+      ),
+    );
+    commitInitial(projectDir);
+
+    const harness = new WorkflowTestHarness(blockedPromoterWorkflow, {
+      trigger: { event: "autonomy.queue.available", payload: {} },
+      projectDir,
+    });
+    const result = await harness.run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["instruct-operator-capture"].status).toBe("success");
+    const instructions = (
+      result.steps["instruct-operator-capture"].output as {
+        instructions: Array<{ taskId: string; capturePath: string }>;
+      }
+    ).instructions;
+    expect(instructions.map((i) => i.taskId)).toEqual(["task-aged-capture"]);
+    // The marker is written to the task body.
+    const body = readFileSync(
+      join(projectDir, "data", "tasks", "blocked", "task-aged-capture.md"),
+      "utf-8",
+    );
+    expect(readOperatorCaptureInstructedMarker(body)).not.toBeNull();
+    // The blocker-actions artifact is present in the run dir.
+    expect(result.steps["write-blocker-actions"].status).toBe("success");
+    const artifactPath = (
+      result.steps["write-blocker-actions"].output as {
+        path: string;
+      }
+    ).path;
+    const artifact = JSON.parse(readFileSync(artifactPath, "utf-8")) as {
+      actions: Array<{ kind: string; taskId: string }>;
+      operatorCaptureInstructionsEmitted: Array<{ taskId: string; capturePath: string }>;
+    };
+    expect(artifact.actions[0].kind).toBe("operator-capture-due");
+    expect(artifact.operatorCaptureInstructionsEmitted[0].capturePath).toBe(
+      ".kota/runs/peer-cli-comparison",
+    );
+  });
+
+  it("does not re-instruct an aged operator-capture within the cadence", async () => {
+    await mockCleanWorktree();
+    const projectDir = makeProjectDir();
+    const oldUpdatedAt = new Date(Date.now() - 30 * MS_PER_DAY).toISOString();
+    const recentMarker = renderOperatorCaptureInstructedMarker({
+      lastInstructedAt: new Date(Date.now() - 1 * MS_PER_DAY).toISOString(),
+    });
+    writeFileSync(
+      join(projectDir, "data", "tasks", "blocked", "task-aged-capture.md"),
+      TASK_TEMPLATE(
+        "task-aged-capture",
+        [
+          "## Unblock Precondition",
+          "",
+          "```",
+          "kind: operator-capture",
+          "path: .kota/runs/peer-cli-comparison",
+          "description: peer-CLI captures",
+          "```",
+        ].join("\n"),
+        recentMarker,
+        oldUpdatedAt,
+      ),
+    );
+    commitInitial(projectDir);
+
+    const harness = new WorkflowTestHarness(blockedPromoterWorkflow, {
+      trigger: { event: "autonomy.queue.available", payload: {} },
+      projectDir,
+    });
+    const result = await harness.run();
+
+    expect(result.steps["instruct-operator-capture"].status).toBe("skipped");
+    // The artifact still records the recent classification but no new instruction.
+    expect(result.steps["write-blocker-actions"].status).toBe("success");
+    const artifactPath = (
+      result.steps["write-blocker-actions"].output as { path: string }
+    ).path;
+    const artifact = JSON.parse(readFileSync(artifactPath, "utf-8")) as {
+      actions: Array<{ kind: string }>;
+      operatorCaptureInstructionsEmitted: unknown[];
+    };
+    expect(artifact.actions[0].kind).toBe("operator-capture-recent");
+    expect(artifact.operatorCaptureInstructionsEmitted).toHaveLength(0);
+  });
+
+  it("surfaces the recommended option in the owner-ask question", async () => {
+    await mockCleanWorktree();
+    const projectDir = makeProjectDir();
+    writeFileSync(
+      join(projectDir, "data", "tasks", "blocked", "task-pick-variant.md"),
+      TASK_TEMPLATE(
+        "task-pick-variant",
+        [
+          "## Unblock Precondition",
+          "",
+          "```",
+          "kind: owner-decision",
+          "slot: pick-variant",
+          "question: Which variant?",
+          "context: Recommended: variant-a. Rationale: x.",
+          "proposed_answers: variant-a, variant-b, hybrid, unblock",
+          "```",
+        ].join("\n"),
+      ),
+    );
+    commitInitial(projectDir);
+
+    const recordedEnqueueArgs: Array<{
+      proposedAnswers?: string[];
+      reason: string;
+      context: string;
+    }> = [];
+    const queue = makeStubQueue({ status: "answered", answer: "variant-a" });
+    const baseEnqueue = queue.enqueue;
+    queue.enqueue = (input) => {
+      recordedEnqueueArgs.push({
+        ...(input.proposedAnswers && { proposedAnswers: input.proposedAnswers }),
+        reason: input.reason,
+        context: input.context,
+      });
+      return baseEnqueue(input);
+    };
+    const { getOwnerQuestionQueue } = await import(
+      "#core/daemon/owner-question-queue.js"
+    );
+    vi.mocked(getOwnerQuestionQueue).mockReturnValue(
+      queue as unknown as ReturnType<typeof getOwnerQuestionQueue>,
+    );
+
+    const harness = new WorkflowTestHarness(blockedPromoterWorkflow, {
+      trigger: { event: "autonomy.queue.available", payload: {} },
+      projectDir,
+      stepMocks: {
+        "blocked-promoter-ask-wait": awaitAnsweredOutput(),
+      },
+    });
+    await harness.run();
+
+    expect(recordedEnqueueArgs).toHaveLength(1);
+    expect(recordedEnqueueArgs[0].proposedAnswers?.[0]).toBe("variant-a");
+    expect(recordedEnqueueArgs[0].reason).toContain("variant-a");
+    expect(recordedEnqueueArgs[0].context).toContain("Recommended option: variant-a");
   });
 
   it("promotes already-resolved owner-decision tasks deterministically", async () => {

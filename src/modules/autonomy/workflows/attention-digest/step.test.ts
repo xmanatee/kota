@@ -472,6 +472,90 @@ describe("runAttentionDigestStep", () => {
     });
   });
 
+  describe("operator-gated action-cooldown suppression", () => {
+    afterEach(() => {
+      delete process.env.KOTA_DIGEST_BLOCKED_AGE_DAYS;
+      delete process.env.KOTA_DIGEST_BLOCKED_AGED_DAYS;
+    });
+
+    it("suppresses an aged owner-decision when a fresh ask marker is on the body", () => {
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+      const recentAsk = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString();
+      writeBlockedTask(projectDir, "task-actioned-owner", {
+        daysAgo: 20,
+        body: [
+          "## Unblock Precondition",
+          "",
+          "```",
+          "kind: owner-decision",
+          "slot: pick-variant",
+          "question: Which variant?",
+          "context: ctx.",
+          "```",
+          "",
+          `<!-- blocked-promoter-asked: slot=pick-variant last_asked_at=${recentAsk} -->`,
+          "",
+        ].join("\n"),
+      });
+      runSteps(10);
+      const text = emittedEvents[0]?.payload.text as string | undefined;
+      // The aged escalation row is suppressed because blocked-promoter already actioned the slot.
+      expect(text ?? "").not.toContain("Operator-gated blocker aged");
+      expect(text ?? "").not.toContain("task-actioned-owner");
+    });
+
+    it("suppresses an aged operator-capture when a fresh instructed marker is on the body", () => {
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+      const recentInstruct = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString();
+      writeBlockedTask(projectDir, "task-actioned-capture", {
+        daysAgo: 30,
+        body: [
+          "## Unblock Precondition",
+          "",
+          "```",
+          "kind: operator-capture",
+          "path: .kota/runs/x",
+          "description: y",
+          "```",
+          "",
+          `<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=${recentInstruct} -->`,
+          "",
+        ].join("\n"),
+      });
+      runSteps(10);
+      const text = emittedEvents[0]?.payload.text as string | undefined;
+      expect(text ?? "").not.toContain("Operator-gated blocker aged");
+      expect(text ?? "").not.toContain("task-actioned-capture");
+    });
+
+    it("surfaces an aged operator-capture again once the marker ages past 14 days", () => {
+      makeTaskDir(projectDir, "ready", 1);
+      makeTaskDir(projectDir, "backlog", 1);
+      const staleInstruct = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString();
+      writeBlockedTask(projectDir, "task-stale-marker", {
+        daysAgo: 60,
+        body: [
+          "## Unblock Precondition",
+          "",
+          "```",
+          "kind: operator-capture",
+          "path: .kota/runs/x",
+          "description: y",
+          "```",
+          "",
+          `<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=${staleInstruct} -->`,
+          "",
+        ].join("\n"),
+      });
+      runSteps(10);
+      const text = emittedEvents[0].payload.text as string;
+      expect(text).toContain("Operator-gated blocker aged");
+      expect(text).toContain("task-stale-marker");
+    });
+  });
+
   describe("operator-gated precondition aging", () => {
     afterEach(() => {
       delete process.env.KOTA_DIGEST_BLOCKED_AGE_DAYS;

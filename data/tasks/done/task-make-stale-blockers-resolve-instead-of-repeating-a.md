@@ -1,12 +1,12 @@
 ---
 id: task-make-stale-blockers-resolve-instead-of-repeating-a
 title: Make stale blockers resolve instead of repeating attention noise
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Upgrade attention-digest and blocked-promoter behavior so stale owner-decision and operator-capture blockers either progress, re-ask with concrete choices, or become explicitly re-scoped.
 created_at: 2026-04-29T12:53:17.230Z
-updated_at: 2026-04-29T12:53:17.230Z
+updated_at: 2026-05-02T16:28:23.937Z
 ---
 
 ## Problem
