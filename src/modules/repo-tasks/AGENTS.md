@@ -16,7 +16,12 @@ served at `/api/tasks`.
   against `title + summary + indexable body sections` answers `kota task
   search --keyword`. The `tasks-semantic` module overrides this when an
   embedding provider is configured.
-- `kota task search` and `kota task reindex` use the same control plane the
-  CLI consumes for `tasks.show`/`tasks.move`. There is no public
-  `/api/tasks/search` route — fan-out to Telegram/macOS/mobile is left to
-  follow-up tasks in the established cadence.
+- `kota task search` and `kota task reindex` use the same daemon control
+  plane the CLI consumes for `tasks.show`/`tasks.move`. The single seam is
+  the bearer-auth `GET /tasks/search` control route; there is intentionally
+  no `/api/tasks/search` HTTP mirror — every visual client (macOS
+  `DaemonClient.searchTasks`, mobile `searchTasks`, Telegram `/tasks`,
+  Slack `/tasks`) calls the same control route or the same in-process
+  `RepoTasksClient.search` seam, and the wire envelope is pinned by the
+  cross-client conformance fixture (`tasksSearch.{success,
+  semanticUnavailable, negative_unknownReason}`).

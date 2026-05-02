@@ -1,12 +1,12 @@
 ---
 id: task-fan-out-consolidation-task
 title: Consolidate task surfaces across clients
-status: ready
+status: blocked
 priority: p2
 area: client
 summary: Review the task surface family across macos, mobile, telegram, cli, daemon for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-02T21:31:53.684Z
+updated_at: 2026-05-02T23:13:00.770Z
 ---
 
 ## Problem
@@ -104,3 +104,55 @@ fan-out batch, and the review's output is operator-actionable follow-up tasks.
   stating no follow-up was needed and why.
 - Updated scoped `AGENTS.md` lines reflecting any convention adjustments arising from
   the review.
+
+## Headless Review (completed)
+
+Recorded under
+`.kota/runs/2026-05-02T23-03-38-854Z-builder-l9eg76/task-consolidation/`:
+
+- `contract-probe.json` — runtime probe of
+  `src/modules/repo-tasks/routes.ts` `taskControlRoutes`
+  `GET /tasks/search` covering five envelope arms: semantic search
+  with no embedding provider configured (default keyword-only
+  `RepoTasksDefaultStore`, returns `semantic_unavailable`); keyword
+  search success against the same default provider (pins the eight-
+  field `RepoTaskSearchHit` shape); semantic success against a stub
+  embedding provider; semantic degrade-on-throw (provider raises →
+  `semantic_unavailable`); `state=ready&state=doing` filter
+  passthrough on the keyword path. The cross-client conformance gate
+  (`clients/conformance/contract-fixture.json` `tasksSearch.*`)
+  already pins the same envelope across TypeScript, Vitest web,
+  mobile Jest, and macOS Swift decoders.
+- `probe-contract.mjs` — the probe source kept alongside its
+  artifact.
+- `cli-transcript.txt` — CLI transcript exercising `kota --help`
+  discoverability (proves `task` is in the top-level command
+  inventory), full `kota task --help` and `kota task search --help`
+  surfaces, `kota task list` against the live project tree, plus
+  semantic / `--keyword` / `--keyword --json` / `--json` /
+  empty-query / bad `--limit` / bad `--state` arms — confirming the
+  CLI surface decodes the same `{ ok, tasks | reason }` envelope
+  every visual client mirrors.
+- `verdict.md` — written verdict for each of the 8 consolidation
+  dimensions.
+
+The single docs touch (replacing the stale "fan-out to Telegram/
+macOS/mobile is left to follow-up tasks" line in
+`src/modules/repo-tasks/AGENTS.md` with the durable rule that the
+shipped surface family speaks one bearer-auth `/tasks/search`
+control route pinned by the cross-client conformance fixture)
+lands in this same change. No follow-up tasks are warranted: the
+contract is already pinned by the conformance gate, no foldable
+decoder duplication exists, and no compatibility shim or
+baseline-only ratchet from this fan-out batch is outstanding.
+
+What is left is the per-surface visual evidence the autonomous
+builder cannot capture headlessly.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/task-consolidation-screens-*
+description: live operator-captured screenshots/screencasts for the four visual task-search surfaces — telegram (`/tasks <query>` rendered messages: usage hint for empty/whitespace-only query, `No matching tasks.` body, populated rendered table from the shared renderRepoTaskSearchPlain helper, and the semantic-unavailable caption), slack (`/tasks <query>` rendered against a workspace covering the same four arms), mobile (`TaskSearchScreen` covering the empty-query hint, populated hits inside the bodyCard with the typed badge, the `No matching tasks.` body, the orange `semanticBox` semantic-unavailable banner, the offline banner, and the error-with-retry state), and macOS (`TaskSearchBodyView` mounted in `AskUnifiedView` covering the empty-query hint, the populated monospaced hit list, the `No matching tasks.` line, the orange-foregrounded semantic-unavailable caption, the loading state, and the error/retry surface). Operator runs each client against a daemon (with and without an embedding-backed `tasks-semantic` provider configured) and commits the rendered artifacts under .kota/runs/task-consolidation-screens-<stamp>/{telegram,slack,mobile,macos}/. The daemon-side and CLI-side artifacts are already committed under .kota/runs/2026-05-02T23-03-38-854Z-builder-l9eg76/task-consolidation/.
+```
