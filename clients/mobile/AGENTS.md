@@ -11,6 +11,27 @@ React Native mobile client for the KOTA daemon.
 - Setup flows may read operator-provided daemon connection details, but parsing
   and persistence belong in shared mobile helpers.
 
+## Daemon Contract Layout
+
+Daemon contract types and per-route wire-shaping live under
+`src/daemon/<namespace>.ts`, split per capability namespace (knowledge,
+memory, history, repoTasks, recall, answer, capture, retract, sessions,
+voice, digest, attention, approvals, ownerQuestions, tasks, sse, push,
+core). Each namespace file owns its types, parsers, and the
+`(http, …) => Promise` operation functions for its routes.
+
+- `src/daemon/http.ts` is the shared `DaemonHttp` context plus the
+  `daemonRequest<T>` helper every namespace uses for bearer-auth JSON
+  calls.
+- `src/daemon/index.ts` re-exports every namespace; `src/types.ts` is
+  a thin barrel onto that index so existing `from '../types'` imports
+  keep working.
+- `src/daemonClient.ts` is the public `DaemonClient` facade — a thin
+  class that owns `(baseUrl, token)` and delegates each method to the
+  per-namespace function. Add a new route by adding the operation
+  function to the matching namespace file and a one-line dispatch
+  method on `DaemonClient`.
+
 ## Push Notification Deep Links
 
 Push notification routing is owned by the daemon payload contract and the mobile
