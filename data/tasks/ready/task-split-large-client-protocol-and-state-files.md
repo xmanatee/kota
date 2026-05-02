@@ -1,12 +1,12 @@
 ---
 id: task-split-large-client-protocol-and-state-files
 title: Split large client protocol and state files
-status: backlog
+status: ready
 priority: p2
 area: architecture
 summary: Split oversized client files (mobile daemonClient, mobile types, macOS Models, macOS DaemonClient) by capability namespace or protocol area so each client stays thin, strict, and daemon-backed.
 created_at: 2026-04-28T22:04:45.570Z
-updated_at: 2026-04-28T22:04:45.570Z
+updated_at: 2026-05-02T20:43:44.736Z
 ---
 
 ## Problem

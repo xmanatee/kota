@@ -1,12 +1,12 @@
 ---
 id: task-add-fan-out-consolidation-reviews-after-multi-clie
 title: Add fan-out consolidation reviews after multi-client surface batches
-status: backlog
+status: ready
 priority: p2
 area: autonomy
 summary: Teach the queue-shaping/autonomy process to create a consolidation task after capability fan-out across clients, checking IA, duplication, runtime contracts, screenshots, and cross-client consistency before declaring the surface family healthy.
 created_at: 2026-04-28T22:36:11.452Z
-updated_at: 2026-04-28T22:36:11.452Z
+updated_at: 2026-05-02T20:43:44.761Z
 ---
 
 ## Problem
