@@ -116,6 +116,14 @@ summary so surface-parity work filed under `architecture` / `modules`
 Per no-cost-bias-in-autonomy this output is operator-only and must not
 be exposed to autonomy agents.
 
+## Multi-Client Fan-Out Consolidation
+
+`fan-out-consolidator` deterministically seeds one consolidation review
+task per completed multi-client fan-out batch. Detection + body live in
+`fan-out-consolidation.ts`; idempotent by capability key. Seeded task is
+`area: client` so the rendered-evidence gate rejects clearing it with
+prose-only test logs.
+
 ## Empty-Queue Loop Shape
 
 Deliberate workflow gating, not emergent dispatcher → explorer →
@@ -123,24 +131,20 @@ builder thrash:
 
 - **Builder gates on `autonomy.queue.available`** (actionable=
   ready+doing>0). Never fires on `runtime.idle`, never auto-consumes
-  backlog. Empty `ready/` is a queue-health event, not an invitation
-  to drain backlog in arbitrary order.
+  backlog.
 - **`backlog-promoter` records `promotion-rationale.json`** before
   builder resumes. Runs on `autonomy.queue.needs-promotion`, promotes
-  the top one or two backlog tasks ranked by priority → strategic-area
-  → oldest `updated_at`, names rejected blocked alternatives.
+  one or two backlog tasks ranked by priority → strategic-area →
+  oldest `updated_at`.
 - **`explorer` repair-loop rejects commits without
-  `exploration-rationale.json`** naming the chosen decision (`promote`
-  | `decompose` | `create-task` | `noop` | `watchlist-only`). For
-  `create-task`, the rationale must consider every strategic-area
-  blocked task with a per-task `reasonNotChosen`. Raises the bar on
-  new fan-out without a daily spend cap.
-- **Cooldowns over caps.** Explorer cooldown = 30-minute refresh
-  window. Builder is rate-limited only by repair checks and task
-  availability. No blunt daily spend caps.
+  `exploration-rationale.json`** naming the decision (promote |
+  decompose | create-task | noop | watchlist-only). `create-task`
+  must consider every strategic-area blocked task by id.
+- **Cooldowns over caps.** Explorer 30-minute refresh; builder rate-
+  limited only by repair checks and task availability. No daily spend
+  caps.
 - **Honesty over speculation.** Inaccessible sources still block
-  (validator `done-task-inaccessible-source`); explorer must not
-  synthesize tasks from unread/gated content.
+  (`done-task-inaccessible-source`); no synthesis from unread content.
 
 ## Agent Judge Runtime Contract
 
