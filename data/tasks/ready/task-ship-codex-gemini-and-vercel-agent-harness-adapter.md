@@ -1,12 +1,12 @@
 ---
 id: task-ship-codex-gemini-and-vercel-agent-harness-adapter
 title: Ship Codex Gemini and Vercel agent harness adapters
-status: backlog
+status: ready
 priority: p1
 area: architecture
 summary: Land tool-capable agent harness adapters for Codex CLI, Gemini CLI, and Vercel AI agent SDK so the daemon can be powered by non-Claude agent runtimes through the existing pluggable harness protocol.
 created_at: 2026-04-28T23:56:36.787Z
-updated_at: 2026-04-28T23:56:36.787Z
+updated_at: 2026-05-02T18:14:24.473Z
 ---
 
 ## Problem
