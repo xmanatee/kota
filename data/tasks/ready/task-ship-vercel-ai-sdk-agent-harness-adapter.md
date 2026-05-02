@@ -1,12 +1,12 @@
 ---
 id: task-ship-vercel-ai-sdk-agent-harness-adapter
 title: Ship Vercel AI SDK agent harness adapter
-status: backlog
+status: ready
 priority: p1
 area: architecture
 summary: Land a tool-capable agent harness adapter for the Vercel AI SDK so the daemon can be powered by the Vercel agent runtime through the existing pluggable harness protocol.
 created_at: 2026-05-02T18:50:06.631Z
-updated_at: 2026-05-02T18:50:06.631Z
+updated_at: 2026-05-02T18:56:35.498Z
 ---
 
 ## Problem
