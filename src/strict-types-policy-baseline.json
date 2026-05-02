@@ -143,6 +143,7 @@
   "src/modules/capture/tool.ts": 1,
   "src/modules/claude-agent-harness/adapter.ts": 2,
   "src/modules/claude-agent-harness/executor.ts": 7,
+  "src/modules/codex-agent-harness/adapter.ts": 4,
   "src/modules/commands/control-routes.ts": 3,
   "src/modules/commands/routes.ts": 1,
   "src/modules/composition/batch.ts": 1,
