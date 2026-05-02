@@ -7,7 +7,7 @@
  */
 
 import { accessSync, constants } from "node:fs";
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { STT_PROVIDER_TYPE } from "#modules/voice/types.js";
 import { WhisperLocalProvider } from "./provider.js";
 
@@ -50,7 +50,7 @@ const whisperLocalModule: KotaModule = {
     },
   },
 
-  onLoad(ctx: ModuleContext) {
+  onLoad(ctx: ModuleRuntimeContext) {
     const config = ctx.getModuleConfig<WhisperLocalModuleConfig>();
     if (!config?.binaryPath || !config.modelPath) {
       ctx.log.info(

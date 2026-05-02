@@ -4,7 +4,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleContext } from "#core/modules/module-types.js";
+import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import githubWebhookModule from "./index.js";
 
@@ -14,11 +14,11 @@ function makeStubCtx(
   bus: EventBus,
   config?: unknown,
   logWarn = vi.fn(),
-): ModuleContext {
+): ModuleRuntimeContext {
   return {
     cwd: "/tmp/test",
     verbose: false,
-    config: {} as ModuleContext["config"],
+    config: {} as ModuleRuntimeContext["config"],
     storage: new ModuleStorage("/tmp/test", "github-webhook"),
     registerGroup: () => {},
     getRoutes: () => [],
@@ -97,7 +97,7 @@ const PUSH_BODY = JSON.stringify({
 
 async function invokeHandler(
   module: typeof githubWebhookModule,
-  ctx: ModuleContext,
+  ctx: ModuleRuntimeContext,
   body: string,
   headers: Record<string, string>,
 ): Promise<FakeResponse> {

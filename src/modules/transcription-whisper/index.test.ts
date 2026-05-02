@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KotaConfig } from "#core/config/config.js";
-import type { ModuleContext } from "#core/modules/module-types.js";
+import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
   defineProviderToken,
   getProviderRegistry,
@@ -15,7 +15,7 @@ import {
 } from "#modules/transcription/index.js";
 import whisperModule, { type WhisperModuleConfig } from "./index.js";
 
-function makeContext(moduleConfig?: WhisperModuleConfig): ModuleContext {
+function makeContext(moduleConfig?: WhisperModuleConfig): ModuleRuntimeContext {
   const registry = initProviderRegistry();
   return {
     cwd: process.cwd(),

@@ -23,7 +23,7 @@ import {
 } from "#core/daemon/scheduler.js";
 import { resetEventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleContext } from "#core/modules/module-types.js";
+import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
@@ -410,10 +410,10 @@ describe("Telegram personal-assistant daemon integration", () => {
     const { initEventBus } = await import("#core/events/event-bus.js");
     const bus = initEventBus();
 
-    const stubCtx: ModuleContext = {
+    const stubCtx: ModuleRuntimeContext = {
       cwd: projectDir,
       verbose: false,
-      config: { model: "claude-sonnet-4-6" } as ModuleContext["config"],
+      config: { model: "claude-sonnet-4-6" } as ModuleRuntimeContext["config"],
       storage: new ModuleStorage(projectDir, "telegram"),
       registerGroup: () => {},
       getRoutes: () => [],

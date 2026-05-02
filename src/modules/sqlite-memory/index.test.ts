@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleContext } from "#core/modules/module-types.js";
+import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { resolveModuleSkills } from "#core/modules/module-types.js";
 import sqliteMemoryModule from "./index.js";
 
@@ -16,11 +16,11 @@ try {
 
 const describeIfSqlite = hasSqlite ? describe : describe.skip;
 
-function makeStubCtx(storageDir: string): ModuleContext {
+function makeStubCtx(storageDir: string): ModuleRuntimeContext {
 	return {
 		cwd: "/tmp/test",
 		verbose: false,
-		config: {} as ModuleContext["config"],
+		config: {} as ModuleRuntimeContext["config"],
 		storage: new ModuleStorage(storageDir, "sqlite-memory"),
 		registerGroup: () => {},
 		getRoutes: () => [],

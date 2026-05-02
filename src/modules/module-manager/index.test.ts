@@ -4,13 +4,13 @@ import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleContext } from "#core/modules/module-types.js";
+import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import moduleManagerModule from "./index.js";
 
-const stubCtx: ModuleContext = {
+const stubCtx: ModuleRuntimeContext = {
   cwd: "/tmp/test",
   verbose: false,
-  config: {} as ModuleContext["config"],
+  config: {} as ModuleRuntimeContext["config"],
   storage: new ModuleStorage("/tmp/test", "module-manager"),
   registerGroup: () => {},
   getRoutes: () => [],

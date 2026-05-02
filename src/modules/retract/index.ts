@@ -19,7 +19,7 @@
 
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
   getKnowledgeProvider,
   getMemoryProvider,
@@ -63,7 +63,7 @@ const retractModule: KotaModule = {
     "Cross-store retract seam — typed removal of one prior capture from memory, knowledge, tasks, or inbox through the same contributor pattern capture uses.",
   dependencies: ["memory", "knowledge", "repo-tasks", "rendering"],
 
-  onLoad(ctx: ModuleContext) {
+  onLoad(ctx: ModuleRuntimeContext) {
     const provider = new RetractProviderImpl();
     provider.register(createMemoryContributor(getMemoryProvider()));
     provider.register(createKnowledgeContributor(getKnowledgeProvider()));

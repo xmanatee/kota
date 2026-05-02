@@ -19,7 +19,7 @@ import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import { createModelClient } from "#core/model/model-client.js";
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleContext, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
   getKnowledgeProvider,
   getMemoryProvider,
@@ -116,7 +116,7 @@ const captureModule: KotaModule = {
     "Cross-store capture seam — one natural-language note routed to memory, knowledge, tasks, or inbox through typed contributors.",
   dependencies: ["memory", "knowledge", "repo-tasks", "rendering"],
 
-  onLoad(ctx: ModuleContext) {
+  onLoad(ctx: ModuleRuntimeContext) {
     const provider = new CaptureProviderImpl({
       classifier: createDefaultClassifier(ctx),
     });

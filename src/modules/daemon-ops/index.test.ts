@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DaemonLiveStatus } from "#core/daemon/daemon-control.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleContext } from "#core/modules/module-types.js";
+import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import daemonModule, {
   buildLaunchdPlist,
   buildSystemdUnit,
@@ -12,10 +12,10 @@ import daemonModule, {
   getSystemdServicePath,
 } from "./index.js";
 
-const stubCtx: ModuleContext = {
+const stubCtx: ModuleRuntimeContext = {
   cwd: "/tmp/test",
   verbose: false,
-  config: {} as ModuleContext["config"],
+  config: {} as ModuleRuntimeContext["config"],
   storage: new ModuleStorage("/tmp/test", "daemon"),
   registerGroup: () => {},
   getRoutes: () => [],

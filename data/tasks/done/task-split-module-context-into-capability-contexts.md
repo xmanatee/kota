@@ -1,12 +1,12 @@
 ---
 id: task-split-module-context-into-capability-contexts
 title: Split ModuleContext into capability contexts
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Replace the broad ModuleContext service-locator surface with smaller capability-scoped contexts so modules only receive the protocol powers they need.
 created_at: 2026-04-28T22:24:00.000Z
-updated_at: 2026-05-02T17:35:17.157Z
+updated_at: 2026-05-02T18:11:13.372Z
 ---
 
 ## Problem

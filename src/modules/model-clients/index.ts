@@ -1,5 +1,5 @@
 import { registerModelClientFactory } from "#core/model/model-client.js";
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { MODEL_PRICING_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import { createAnthropicModelPricingProvider } from "./anthropic-pricing.js";
 import { failoverConfigSlice, modelProviderConfigSlice } from "./config-slice.js";
@@ -16,7 +16,7 @@ const modelClientsModule: KotaModule = {
   description: "ModelClient implementations: Anthropic SDK and OpenAI-compatible providers, with optional failover.",
   configSlices: [modelProviderConfigSlice, failoverConfigSlice],
 
-  onLoad(ctx: ModuleContext) {
+  onLoad(ctx: ModuleRuntimeContext) {
     ctx.registerProvider(MODEL_PRICING_PROVIDER_TOKEN, createAnthropicModelPricingProvider());
 
     const failoverConfig = ctx.config.failover;

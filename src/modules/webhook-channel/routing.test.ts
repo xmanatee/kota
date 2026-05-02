@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleContext } from "#core/modules/module-types.js";
+import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import {
   clearSessions,
@@ -32,12 +32,12 @@ function makeSessionFactory(created: CreatedWebhookSession[] = []): WebhookSessi
 function makeStubCtx(
   bus?: EventBus,
   moduleConfig?: Record<string, unknown>,
-): ModuleContext {
+): ModuleRuntimeContext {
   const b = bus ?? new EventBus();
   return {
     cwd: "/tmp/test",
     verbose: false,
-    config: { serve: { defaultAutonomyMode: "supervised" } } as ModuleContext["config"],
+    config: { serve: { defaultAutonomyMode: "supervised" } } as ModuleRuntimeContext["config"],
     storage: new ModuleStorage("/tmp/test", "webhook-channel"),
     registerGroup: () => {},
     getRoutes: () => [],
@@ -118,7 +118,7 @@ function makeFakeRequest(
 }
 
 async function invokeHandler(
-  ctx: ModuleContext,
+  ctx: ModuleRuntimeContext,
   body: string,
   headers: Record<string, string> = {},
   url?: string,

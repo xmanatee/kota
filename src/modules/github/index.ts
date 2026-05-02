@@ -28,7 +28,7 @@
  * Token is never logged or included in error messages.
  */
 
-import type { KotaModule, ModuleContext, ToolDef } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleContext, ModuleRuntimeContext, ToolDef } from "#core/modules/module-types.js";
 import { TASK_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import type { GitHubConfig } from "./github-auth.js";
 import { githubFetch, resolveRepo, resolveToken } from "./github-auth.js";
@@ -66,7 +66,7 @@ const githubModule: KotaModule = {
     ];
   },
 
-  async onLoad(ctx: ModuleContext): Promise<void> {
+  async onLoad(ctx: ModuleRuntimeContext): Promise<void> {
     const config = ctx.getModuleConfig<GitHubConfig>();
     if (!config?.taskProvider?.enabled) return;
 

@@ -8,7 +8,7 @@
 
 
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
 	getHistoryProvider,
 	HISTORY_PROVIDER_TOKEN,
@@ -39,7 +39,7 @@ const historyModule: KotaModule = {
 	],
 	skills: [{ name: "history", promptPath: "src/modules/history/history.md" }],
 
-	onLoad: (ctx: ModuleContext) => {
+	onLoad: (ctx: ModuleRuntimeContext) => {
 		const store = getHistory();
 		ctx.registerProvider(HISTORY_PROVIDER_TOKEN, store);
 		ctx.registerProvider(

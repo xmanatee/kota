@@ -12,7 +12,7 @@
 
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
   getMemoryProvider,
   MEMORY_PROVIDER_TOKEN,
@@ -96,7 +96,7 @@ const memoryModule: KotaModule = {
     return { memory: handler };
   },
 
-  onLoad: (ctx: ModuleContext) => {
+  onLoad: (ctx: ModuleRuntimeContext) => {
     const store = getMemoryStore();
     ctx.registerProvider(MEMORY_PROVIDER_TOKEN, store);
     ctx.registerProvider(

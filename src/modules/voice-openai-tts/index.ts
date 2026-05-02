@@ -4,7 +4,7 @@
  * configure an API key under `modules.voice-openai-tts`.
  */
 
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import type { SpeechAudioFormat } from "#modules/voice/types.js";
 import { SPEECH_SYNTHESIS_PROVIDER_TYPE } from "#modules/voice/types.js";
 import { OpenAiTtsProvider } from "./provider.js";
@@ -63,7 +63,7 @@ const openaiTtsModule: KotaModule = {
     },
   },
 
-  onLoad(ctx: ModuleContext) {
+  onLoad(ctx: ModuleRuntimeContext) {
     const config = ctx.getModuleConfig<OpenAiTtsModuleConfig>();
     if (!config?.apiKey) {
       ctx.log.warn(

@@ -4,7 +4,7 @@
  * configure an API key under `modules.transcription-whisper`.
  */
 
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { TRANSCRIPTION_PROVIDER_TYPE } from "#modules/transcription/types.js";
 import { WhisperTranscriptionProvider } from "./provider.js";
 
@@ -51,7 +51,7 @@ const whisperModule: KotaModule = {
     },
   },
 
-  onLoad(ctx: ModuleContext) {
+  onLoad(ctx: ModuleRuntimeContext) {
     const config = ctx.getModuleConfig<WhisperModuleConfig>();
     if (!config?.apiKey) {
       ctx.log.warn(

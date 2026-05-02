@@ -3,10 +3,10 @@ import type { IncomingMessage, OutgoingHttpHeader, OutgoingHttpHeaders, ServerRe
 import { describe, expect, it } from "vitest";
 import type { KotaConfig } from "#core/config/config.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleContext } from "#core/modules/module-types.js";
+import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import vercelAdapterModule from "./index.js";
 
-function makeContext(config: KotaConfig = { model: "test-model" } as KotaConfig): ModuleContext {
+function makeContext(config: KotaConfig = { model: "test-model" } as KotaConfig): ModuleRuntimeContext {
   return {
     cwd: "/tmp",
     verbose: false,

@@ -20,6 +20,7 @@ import type {
   ControlRouteRegistration,
   KotaModule,
   ModuleContext,
+  ModuleRuntimeContext,
   RouteRegistration,
   ToolDef,
 } from "#core/modules/module-types.js";
@@ -262,7 +263,7 @@ export class ModuleTestHarness {
     } as unknown as ModuleContext["events"];
   }
 
-  #buildContext(moduleName: string): ModuleContext {
+  #buildContext(moduleName: string): ModuleRuntimeContext {
     const cwd = this.#options.cwd ?? process.cwd();
     const config = this.#options.config ?? {};
     const secrets = this.#options.secrets ?? {};

@@ -5,7 +5,7 @@
  * in KOTA config after providing the module config (provider/model/apiKey).
  */
 
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { KNOWLEDGE_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import { getKnowledgeStore } from "#modules/knowledge/store.js";
 import {
@@ -23,7 +23,7 @@ const knowledgeSemanticModule: KotaModule = {
 		"Semantic search over the knowledge store via embedding-backed cosine ranking.",
 	dependencies: ["knowledge", "semantic-index"],
 
-	onLoad(ctx: ModuleContext) {
+	onLoad(ctx: ModuleRuntimeContext) {
 		const config = readEmbeddingProviderConfig(ctx.getModuleConfig());
 		if (!config) {
 			ctx.log.debug(

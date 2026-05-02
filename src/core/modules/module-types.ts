@@ -233,16 +233,36 @@ export type ModuleWorkflowContribution =
   | WorkflowDefinitionInput
   | RegisteredWorkflowDefinitionInput;
 
-/** Context provided to modules during initialization. */
-export type ModuleContext = {
+/**
+ * Static metadata available to every module hook.
+ *
+ * `cwd`, `config`, `storage`, scoped `log`, `getSecret`, and the module's own
+ * config slice. No invocation, no registration — just the surrounding world.
+ */
+export type ModuleBaseContext = {
   cwd: string;
   verbose: boolean;
   config: KotaConfig;
   /** Scoped file-based storage for this module (`.kota/modules/<name>/`). */
   storage: ModuleStorage;
-  /** Register a custom tool group with optional auto-detect regex. */
-  registerGroup: (name: string, toolNames: string[], pattern?: RegExp) => void;
-  /** Get HTTP routes registered by all loaded modules. Decouples modules from each other. */
+  /** Scoped logger — messages prefixed with `[module:<name>]`. */
+  log: ModuleLogger;
+  /** Get a secret value by name. Returns null if not found or store not initialized. */
+  getSecret: (key: string) => string | null;
+  /** Get this module's config section from the KOTA config. */
+  getModuleConfig: <T = Record<string, unknown>>() => T | undefined;
+  /** Top-level config keys registered by loaded modules. */
+  getRegisteredConfigKeys: () => ReadonlySet<string>;
+};
+
+/**
+ * Read-only inspection of the module landscape.
+ *
+ * Module hooks call these accessors to discover what other modules have
+ * contributed. They never mutate runtime state.
+ */
+export type ModuleInspectionContext = {
+  /** Get HTTP routes registered by all loaded modules. */
   getRoutes: () => RouteRegistration[];
   /** Get daemon-control HTTP routes contributed by all loaded modules. */
   getContributedControlRoutes: () => ControlRouteRegistration[];
@@ -250,39 +270,86 @@ export type ModuleContext = {
   getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
   /** Get channel definitions contributed by loaded modules. */
   getContributedChannels: () => ChannelDef[];
-  /** Get this module's config section from the KOTA config. */
-  getModuleConfig: <T = Record<string, unknown>>() => T | undefined;
-  /** Scoped logger — messages prefixed with `[module:<name>]`. */
-  log: ModuleLogger;
-  /** Get a secret value by name. Returns null if not found or store not initialized. */
-  getSecret: (key: string) => string | null;
+  /** Get summaries of all loaded modules (name, version, contribution counts). */
+  getModuleSummaries: () => ModuleSummary[];
+  /** Look up a registered agent definition by name. */
+  resolveAgentDef: (name: string) => AgentDef | undefined;
+  /** Build the skills prompt for a set of skill names or "all", optionally filtered by agent name. */
+  resolveSkillsPrompt: (skillNames: string[] | "all", agentName?: string) => string;
+  /** Probe all modules that declare a healthCheck and return results. */
+  probeHealthChecks: () => Promise<Record<string, HealthCheckResult>>;
+};
+
+/** Tool invocation surface — call other modules' tools at request time. */
+export type ToolInvocationContext = {
+  /** Invoke a registered tool directly without going through the LLM. Skips guardrails. */
+  callTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
   /** List names of all currently registered tools. */
   listTools: () => string[];
+};
+
+/** Typed event emit/subscribe through the module event proxy. */
+export type ModuleEventContext = {
   /** Event proxy for emitting and subscribing to bus events. */
   events: ModuleEventProxy;
+};
+
+/** Read-side typed provider lookup. Available everywhere providers are observed. */
+export type ProviderLookupContext = {
+  /** Get the active provider for a typed token. Returns null if none registered. */
+  getProvider: <T>(token: ProviderToken<T>) => T | null;
+};
+
+/** Per-call session creation. Available for command/route handlers via closure. */
+export type ModuleSessionContext = {
   /** Create an agent session without importing core types. */
   createSession: (options?: CreateSessionOptions) => ModuleSession;
+};
+
+/** Local-side `KotaClient` access for CLI subcommand handlers. */
+export type ModuleClientContext = {
+  /**
+   * The resolved KotaClient for the current CLI invocation. Subcommands
+   * read this to talk to KOTA capabilities — workflows, approvals, secrets,
+   * tasks, memory — without deciding "daemon vs local" themselves. The
+   * CLI startup runs the selector once before commands execute; throws
+   * loudly if accessed before resolution.
+   */
+  readonly client: KotaClient;
+};
+
+/**
+ * Provider registration capability — load-time only.
+ *
+ * Available to `onLoad` so a module can announce itself as the implementation
+ * for a typed provider token. Excluded from contribution hooks because
+ * registration outside the lifecycle boundary is meaningless: the registry is
+ * already wired up and providers may already have been activated.
+ */
+export type ProviderRegistrationContext = {
   /**
    * Register this module as a provider for the given typed token. The
    * token's value type is enforced at the call site, so a wrong-shape
    * provider fails typecheck instead of being detected at runtime.
    */
   registerProvider: <T>(token: ProviderToken<T>, provider: T) => void;
-  /** Get the active provider for a typed token. Returns null if none registered. */
-  getProvider: <T>(token: ProviderToken<T>) => T | null;
-  /** Invoke a registered tool directly without going through the LLM. Skips guardrails. */
-  callTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
+};
+
+/** Tool registration capability — load-time only. */
+export type ToolRegistrationContext = {
+  /** Register a custom tool group with optional auto-detect regex. */
+  registerGroup: (name: string, toolNames: string[], pattern?: RegExp) => void;
   /** Register a middleware that wraps tool execution. Lower priority runs first. */
   registerMiddleware: (name: string, fn: ToolMiddlewareFn, priority?: number) => void;
-  /** Get summaries of all loaded modules (name, version, contribution counts). */
-  getModuleSummaries: () => ModuleSummary[];
+};
+
+/** Loop and harness decoration hooks — load-time only. */
+export type LoopDecorationContext = {
   /**
    * Register a per-turn dynamic system-prompt state provider.
    * The function is called synchronously on every agent turn with the
    * effective tool set for the turn, and its output is appended to the
-   * dynamic system-prompt block. Use this to contribute module state
-   * (e.g. working memory contents, conversational-pattern guidance for a
-   * tool the session admits) without modifying core.
+   * dynamic system-prompt block.
    */
   registerDynamicStateProvider: (
     name: string,
@@ -316,23 +383,39 @@ export type ModuleContext = {
       | { kind: "preRun"; name: string; handler: PreRunHook }
       | { kind: "postRun"; name: string; handler: PostRunHook },
   ) => void;
-  /** Look up a registered agent definition by name. */
-  resolveAgentDef: (name: string) => AgentDef | undefined;
-  /** Build the skills prompt for a set of skill names or "all", optionally filtered by agent name. */
-  resolveSkillsPrompt: (skillNames: string[] | "all", agentName?: string) => string;
-  /** Probe all modules that declare a healthCheck and return results. */
-  probeHealthChecks: () => Promise<Record<string, HealthCheckResult>>;
-  /** Top-level config keys registered by loaded modules. */
-  getRegisteredConfigKeys: () => ReadonlySet<string>;
-  /**
-   * The resolved KotaClient for the current CLI invocation. Subcommands
-   * read this to talk to KOTA capabilities — workflows, approvals, secrets,
-   * tasks, memory — without deciding "daemon vs local" themselves. The
-   * CLI startup runs the selector once before commands execute; throws
-   * loudly if accessed before resolution.
-   */
-  readonly client: KotaClient;
 };
+
+/**
+ * Contribution context — the surface available to module hooks that declare
+ * static contributions or build closures whose handlers run at request time:
+ * `tools`, `commands`, `routes`, `controlRoutes`, `localClient`, plus the
+ * `workflows` / `channels` / `skills` / `agents` factories.
+ *
+ * Excludes lifecycle registration. A module that needs to register a provider,
+ * a tool middleware, or a loop/harness hook must do so from `onLoad`, where
+ * `ModuleRuntimeContext` exposes the registration capabilities.
+ */
+export type ModuleContext =
+  & ModuleBaseContext
+  & ModuleInspectionContext
+  & ToolInvocationContext
+  & ModuleEventContext
+  & ProviderLookupContext
+  & ModuleSessionContext
+  & ModuleClientContext;
+
+/**
+ * Runtime context — the surface available during `onLoad`.
+ *
+ * Extends `ModuleContext` with the registration capabilities that mutate
+ * load-time runtime state: provider registration, tool middleware/groups,
+ * and the loop/harness decoration hooks.
+ */
+export type ModuleRuntimeContext =
+  & ModuleContext
+  & ProviderRegistrationContext
+  & ToolRegistrationContext
+  & LoopDecorationContext;
 
 /**
  * KotaModule — the pluggable unit of KOTA functionality.
@@ -447,7 +530,7 @@ export type KotaModule = {
   localClient?: (ctx: ModuleContext) => Partial<LocalClientHandlers>;
 
   /** Called after the module is loaded and tools are registered. */
-  onLoad?: (ctx: ModuleContext) => Promise<void> | void;
+  onLoad?: (ctx: ModuleRuntimeContext) => Promise<void> | void;
 
   /** Called on shutdown — clean up resources, close connections. */
   onUnload?: () => Promise<void> | void;

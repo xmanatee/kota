@@ -4,7 +4,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleContext } from "#core/modules/module-types.js";
+import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { resolveModuleChannels } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import {
@@ -35,12 +35,12 @@ function makeSessionFactory(created: CreatedWebhookSession[] = []): WebhookSessi
 function makeStubCtx(
   bus?: EventBus,
   moduleConfig?: Record<string, unknown>,
-): ModuleContext {
+): ModuleRuntimeContext {
   const b = bus ?? new EventBus();
   return {
     cwd: "/tmp/test",
     verbose: false,
-    config: { serve: { defaultAutonomyMode: "supervised" } } as ModuleContext["config"],
+    config: { serve: { defaultAutonomyMode: "supervised" } } as ModuleRuntimeContext["config"],
     storage: new ModuleStorage("/tmp/test", "webhook-channel"),
     registerGroup: () => {},
     getRoutes: () => [],
@@ -122,7 +122,7 @@ function sign(secret: string, body: string): string {
 }
 
 async function invokeHandler(
-  ctx: ModuleContext,
+  ctx: ModuleRuntimeContext,
   body: string,
   headers: Record<string, string> = {},
   url?: string,
@@ -170,7 +170,7 @@ describe("webhookChannelModule metadata", () => {
 
   it("registers routes even when session autonomy is not configured", () => {
     const ctx = makeStubCtx();
-    ctx.config = {} as ModuleContext["config"];
+    ctx.config = {} as ModuleRuntimeContext["config"];
 
     expect(() => webhookChannelModule.routes!(ctx)).not.toThrow();
   });
@@ -247,7 +247,7 @@ describe("handler — open mode", () => {
 
   it("rejects requests when session autonomy is not configured", async () => {
     const ctx = makeStubCtx();
-    ctx.config = {} as ModuleContext["config"];
+    ctx.config = {} as ModuleRuntimeContext["config"];
 
     const res = await invokeHandler(ctx, JSON.stringify({ message: "Test" }));
 

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleContext } from "#core/modules/module-types.js";
+import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { resolveModuleChannels } from "#core/modules/module-types.js";
 
 vi.mock("./bot.js", () => {
@@ -32,13 +32,13 @@ const STUB_CHANNEL_START_CTX = {
 function makeStubCtx(
   bus?: EventBus,
   moduleConfig?: Record<string, unknown>,
-  kotaConfig?: ModuleContext["config"],
-): ModuleContext {
+  kotaConfig?: ModuleRuntimeContext["config"],
+): ModuleRuntimeContext {
   const b = bus ?? new EventBus();
   return {
     cwd: "/tmp/test",
     verbose: false,
-    config: kotaConfig ?? ({ serve: { defaultAutonomyMode: "supervised" } } as ModuleContext["config"]),
+    config: kotaConfig ?? ({ serve: { defaultAutonomyMode: "supervised" } } as ModuleRuntimeContext["config"]),
     storage: new ModuleStorage("/tmp/test", "slack-channel"),
     registerGroup: () => {},
     getRoutes: () => [],
@@ -81,13 +81,13 @@ function makeStubCtx(
   };
 }
 
-async function resolveStartResult(ctx: ModuleContext) {
+async function resolveStartResult(ctx: ModuleRuntimeContext) {
   const channels = await resolveModuleChannels(slackChannelModule, ctx);
   const def = channels[0];
   return def.create(STUB_CHANNEL_START_CTX);
 }
 
-async function resolveAdapter(ctx: ModuleContext) {
+async function resolveAdapter(ctx: ModuleRuntimeContext) {
   const result = await resolveStartResult(ctx);
   return result.status === "started" ? result.adapter : null;
 }
@@ -152,7 +152,7 @@ describe("slackChannelModule onLoad", () => {
     const ctx = makeStubCtx(
       undefined,
       { botToken: "xoxb-test", appToken: "xapp-test" },
-      {} as ModuleContext["config"],
+      {} as ModuleRuntimeContext["config"],
     );
     expect(() => slackChannelModule.onLoad!(ctx)).toThrow(
       /slack-channel: autonomy mode is not configured/,
@@ -213,7 +213,7 @@ describe("slackChannelModule channel adapter", () => {
         appToken: "xapp-test",
         defaultAutonomyMode: "autonomous",
       },
-      { serve: { defaultAutonomyMode: "passive" } } as ModuleContext["config"],
+      { serve: { defaultAutonomyMode: "passive" } } as ModuleRuntimeContext["config"],
     );
     await resolveAdapter(ctx);
     expect(MockedSlackBot).toHaveBeenCalledWith(
@@ -225,7 +225,7 @@ describe("slackChannelModule channel adapter", () => {
     const ctx = makeStubCtx(
       undefined,
       { botToken: "xoxb-test", appToken: "xapp-test" },
-      { serve: { defaultAutonomyMode: "passive" } } as ModuleContext["config"],
+      { serve: { defaultAutonomyMode: "passive" } } as ModuleRuntimeContext["config"],
     );
     await resolveAdapter(ctx);
     expect(MockedSlackBot).toHaveBeenCalledWith(

@@ -9,7 +9,7 @@
  *   daily-digest screen.
  *
  * The module is exercised through its real `onLoad` against a stub
- * `ModuleContext` whose event proxy is backed by a real `EventBus`. Each
+ * `ModuleRuntimeContext` whose event proxy is backed by a real `EventBus`. Each
  * test emits the corresponding event and asserts the resulting `fetch`
  * payload. `onUnload` is also exercised: after unload, the bus has no
  * listeners for the three events, proving every subscription is released.
@@ -21,17 +21,17 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleContext } from "#core/modules/module-types.js";
+import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import pushNotificationModule from "./index.js";
 
 const REGISTERED_TOKEN = "ExponentPushToken[aaa]";
 
-function makeStubCtx(cwd: string, bus: EventBus): ModuleContext {
+function makeStubCtx(cwd: string, bus: EventBus): ModuleRuntimeContext {
   return {
     cwd,
     verbose: false,
-    config: {} as ModuleContext["config"],
+    config: {} as ModuleRuntimeContext["config"],
     storage: new ModuleStorage(cwd, "push-notification"),
     registerGroup: () => {},
     getRoutes: () => [],

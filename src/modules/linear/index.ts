@@ -1,4 +1,4 @@
-import type { KotaModule, ModuleContext, ToolDef } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleContext, ModuleRuntimeContext, ToolDef } from "#core/modules/module-types.js";
 import { TASK_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import { makeLinearTools, resolveTeamContext } from "./linear-tools.js";
 import type { LinearTaskProviderConfig } from "./task-provider.js";
@@ -68,7 +68,7 @@ const linearModule: KotaModule = {
     return makeLinearTools(boundFetch, getTeamContext);
   },
 
-  async onLoad(ctx: ModuleContext): Promise<void> {
+  async onLoad(ctx: ModuleRuntimeContext): Promise<void> {
     const config = ctx.getModuleConfig<LinearConfig>();
     if (!config?.taskProvider?.enabled) return;
 

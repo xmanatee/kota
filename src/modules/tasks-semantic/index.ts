@@ -5,7 +5,7 @@
  * config after providing the module config (provider/model/apiKey).
  */
 
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { REPO_TASKS_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import {
 	createEmbeddingProvider,
@@ -22,7 +22,7 @@ const tasksSemanticModule: KotaModule = {
 		"Semantic search over the repo task queue via embedding-backed cosine ranking.",
 	dependencies: ["repo-tasks", "semantic-index"],
 
-	onLoad(ctx: ModuleContext) {
+	onLoad(ctx: ModuleRuntimeContext) {
 		const config = readEmbeddingProviderConfig(ctx.getModuleConfig());
 		if (!config) {
 			ctx.log.debug(

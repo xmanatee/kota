@@ -13,7 +13,7 @@
 
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
   getHistoryProvider,
   getKnowledgeProvider,
@@ -56,7 +56,7 @@ const recallModule: KotaModule = {
     "Cross-store recall seam — one query returns ranked, source-tagged hits across knowledge, memory, history, and the repo task queue.",
   dependencies: ["knowledge", "memory", "history", "repo-tasks", "rendering"],
 
-  onLoad(ctx: ModuleContext) {
+  onLoad(ctx: ModuleRuntimeContext) {
     const provider = new RecallProviderImpl({
       onContributorError: (source, err) => {
         const msg = err instanceof Error ? err.message : String(err);

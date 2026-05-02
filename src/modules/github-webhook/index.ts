@@ -18,6 +18,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type {
   KotaModule,
   ModuleContext,
+  ModuleRuntimeContext,
   RouteRegistration,
 } from "#core/modules/module-types.js";
 
@@ -211,7 +212,7 @@ const githubWebhookModule: KotaModule = {
     ];
   },
 
-  onLoad: (ctx: ModuleContext) => {
+  onLoad: (ctx: ModuleRuntimeContext) => {
     const config = ctx.getModuleConfig<GitHubWebhookConfig>();
     if (!config?.secret) {
       ctx.log.warn(

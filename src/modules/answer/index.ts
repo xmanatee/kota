@@ -18,7 +18,7 @@ import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import { createModelClient } from "#core/model/model-client.js";
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleContext, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import type {
   AnswerClient,
   AnswerHistoryListFilter,
@@ -108,7 +108,7 @@ const answerModule: KotaModule = {
     "Cited-answer seam — one query returns one short composed answer plus typed citations resolving back to the underlying RecallHits, with persisted history for re-read and eval-corpus seeding.",
   dependencies: ["recall", "model-clients", "rendering"],
 
-  onLoad(ctx: ModuleContext) {
+  onLoad(ctx: ModuleRuntimeContext) {
     const recallSeam: AnswerRecallSeam = {
       async recall(query, filter) {
         return ctx.client.recall.recall(query, filter);

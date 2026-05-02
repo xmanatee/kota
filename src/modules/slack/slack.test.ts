@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleContext } from "#core/modules/module-types.js";
+import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import slackModule from "./index.js";
 
@@ -10,12 +10,12 @@ vi.stubGlobal("fetch", mockFetch);
 
 const FAKE_WEBHOOK = "https://hooks.slack.com/services/T000/B000/xxxx";
 
-function makeStubCtx(bus?: EventBus, slackConfig?: unknown): ModuleContext {
+function makeStubCtx(bus?: EventBus, slackConfig?: unknown): ModuleRuntimeContext {
   const b = bus ?? new EventBus();
   return {
     cwd: "/tmp/test",
     verbose: false,
-    config: {} as ModuleContext["config"],
+    config: {} as ModuleRuntimeContext["config"],
     storage: new ModuleStorage("/tmp/test", "slack"),
     registerGroup: () => {},
     getRoutes: () => [],

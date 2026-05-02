@@ -12,7 +12,7 @@
 
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
 	getKnowledgeProvider,
 	KNOWLEDGE_PROVIDER_TOKEN,
@@ -41,7 +41,7 @@ const knowledgeModule: KotaModule = {
 	],
 	skills: [{ name: "knowledge", promptPath: "src/modules/knowledge/knowledge.md" }],
 
-	onLoad: (ctx: ModuleContext) => {
+	onLoad: (ctx: ModuleRuntimeContext) => {
 		const store = new KnowledgeStore(ctx.cwd);
 		ctx.registerProvider(KNOWLEDGE_PROVIDER_TOKEN, store);
 		ctx.registerProvider(

@@ -22,7 +22,7 @@ import { resolveLogFormatter } from "#core/util/log-format.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { getModuleLogStore } from "./module-log.js";
 import { ModuleStorage } from "./module-storage.js";
-import type { ControlRouteRegistration, CreateSessionOptions, HealthCheckResult, ModuleContext, ModuleEventProxy, ModuleSession, ModuleSummary, RouteRegistration } from "./module-types.js";
+import type { ControlRouteRegistration, CreateSessionOptions, HealthCheckResult, ModuleEventProxy, ModuleRuntimeContext, ModuleSession, ModuleSummary, RouteRegistration } from "./module-types.js";
 import { getProviderRegistry, initProviderRegistry } from "./provider-registry.js";
 import type { ProviderToken } from "./provider-token.js";
 
@@ -101,7 +101,7 @@ function createEventProxy(
   return proxy as unknown as ModuleEventProxy;
 }
 
-export function createModuleContext(params: ModuleContextParams, moduleName?: string): ModuleContext {
+export function createModuleContext(params: ModuleContextParams, moduleName?: string): ModuleRuntimeContext {
   const { cwd, verbose, config, moduleStorages, getBus, getRoutes, getContributedControlRoutes, getContributedWorkflows, getContributedChannels, getModuleSummaries, resolveAgentDef, resolveSkillsPrompt, sessionFactory, callTool, probeHealthChecks, getRegisteredConfigKeys } = params;
   const storage = moduleName
     ? getOrCreateStorage(moduleName, cwd, moduleStorages)

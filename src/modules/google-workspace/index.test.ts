@@ -1,28 +1,28 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ModuleContext } from "#core/modules/module-types.js";
+import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { resolveModuleTools } from "#core/modules/module-types.js";
 import googleWorkspaceModule from "./index.js";
 
-function makeCtx(config?: Record<string, unknown>): ModuleContext {
+function makeCtx(config?: Record<string, unknown>): ModuleRuntimeContext {
   return {
     cwd: "/tmp/test",
     verbose: false,
-    config: {} as ModuleContext["config"],
-    storage: {} as ModuleContext["storage"],
+    config: {} as ModuleRuntimeContext["config"],
+    storage: {} as ModuleRuntimeContext["storage"],
     registerGroup: vi.fn(),
     getRoutes: vi.fn().mockReturnValue([]),
     getContributedControlRoutes: vi.fn().mockReturnValue([]),
     getContributedWorkflows: vi.fn().mockReturnValue([]),
     getContributedChannels: vi.fn().mockReturnValue([]),
     getModuleConfig: vi.fn().mockReturnValue(config),
-    log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as unknown as ModuleContext["log"],
+    log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as unknown as ModuleRuntimeContext["log"],
     getSecret: vi.fn().mockReturnValue(null),
     listTools: vi.fn().mockReturnValue([]),
-    events: {} as ModuleContext["events"],
-    createSession: vi.fn() as unknown as ModuleContext["createSession"],
+    events: {} as ModuleRuntimeContext["events"],
+    createSession: vi.fn() as unknown as ModuleRuntimeContext["createSession"],
     registerProvider: vi.fn(),
     getProvider: vi.fn().mockReturnValue(null),
-    callTool: vi.fn() as unknown as ModuleContext["callTool"],
+    callTool: vi.fn() as unknown as ModuleRuntimeContext["callTool"],
     registerMiddleware: vi.fn(),
     getModuleSummaries: vi.fn().mockReturnValue([]),
     registerDynamicStateProvider: vi.fn(),

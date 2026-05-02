@@ -1,19 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleContext } from "#core/modules/module-types.js";
+import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import webhookModule from "./index.js";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
-function makeStubCtx(bus?: EventBus, webhookConfig?: unknown): ModuleContext {
+function makeStubCtx(bus?: EventBus, webhookConfig?: unknown): ModuleRuntimeContext {
   const b = bus ?? new EventBus();
   return {
     cwd: "/tmp/test",
     verbose: false,
-    config: {} as ModuleContext["config"],
+    config: {} as ModuleRuntimeContext["config"],
     storage: new ModuleStorage("/tmp/test", "webhook"),
     registerGroup: () => {},
     getRoutes: () => [],

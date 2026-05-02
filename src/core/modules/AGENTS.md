@@ -3,6 +3,37 @@
 This directory owns module discovery, loading, lifecycle, provider registration,
 and foreign-module transports.
 
+## Module Context Surfaces
+
+The runtime hands every module hook the same physical context object, but the
+typed protocol exposes fewer capabilities to non-`onLoad` hooks. Two surfaces
+matter:
+
+- `ModuleContext` — the **contribution context**. Available to `tools`,
+  `commands`, `routes`, `controlRoutes`, `localClient`, plus the `workflows`,
+  `channels`, `skills`, and `agents` factories (and any handler closure built
+  from them). Read access, tool invocation, provider lookup, event emit,
+  per-call session creation, and CLI-local `KotaClient` access. No lifecycle
+  registration.
+- `ModuleRuntimeContext` — the **runtime context**, used only for `onLoad`.
+  Extends `ModuleContext` with the registration capabilities that mutate
+  load-time runtime state: `registerProvider`, `registerMiddleware`,
+  `registerGroup`, and the loop/harness decoration hooks
+  (`registerCleanupHook`, `registerDynamicStateProvider`, `registerPreSendHook`,
+  `registerHarnessHook`).
+
+Lifecycle registration belongs in `onLoad`. A factory hook that reaches for
+`registerProvider` is doing something the protocol forbids — providers may
+already be activated by the time a route handler runs, and a contribution
+factory's idempotency story is much weaker than the lifecycle's. The capability
+boundary is enforced at compile time by
+`module-context-capabilities.test.ts`. The narrower contribution surface is
+also composed from smaller capability types (`ModuleBaseContext`,
+`ModuleInspectionContext`, `ToolInvocationContext`, `ModuleEventContext`,
+`ProviderLookupContext`, `ModuleSessionContext`, `ModuleClientContext`) so a
+future refinement can hand a hook an even narrower view without disturbing
+the public `ModuleContext` shape.
+
 - Keep modules as the single contribution boundary for tools, workflows,
   channels, providers, agents, and related runtime services.
 - Foreign modules are a transport variant of the same module model, not a

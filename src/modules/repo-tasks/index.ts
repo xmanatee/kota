@@ -9,7 +9,7 @@
 
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
 	getRepoTasksProvider,
 	REPO_TASKS_PROVIDER_TOKEN,
@@ -47,7 +47,7 @@ const repoTasksModule: KotaModule = {
 	description: "Operator CLI for the KOTA repo task queue",
 	dependencies: ["rendering"],
 
-	onLoad: (ctx: ModuleContext) => {
+	onLoad: (ctx: ModuleRuntimeContext) => {
 		ctx.registerProvider(REPO_TASKS_PROVIDER_TOKEN, new RepoTasksDefaultStore(ctx.cwd));
 		ctx.registerProvider(
 			CAPABILITY_READINESS_PROVIDER_TYPE,

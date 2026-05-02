@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleContext } from "#core/modules/module-types.js";
+import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import webModule from "./index.js";
 
-const stubCtx: ModuleContext = {
+const stubCtx: ModuleRuntimeContext = {
   cwd: "/tmp/test",
   verbose: false,
-  config: {} as ModuleContext["config"],
+  config: {} as ModuleRuntimeContext["config"],
   storage: new ModuleStorage("/tmp/test", "web"),
   registerGroup: () => {},
   getRoutes: () => [],

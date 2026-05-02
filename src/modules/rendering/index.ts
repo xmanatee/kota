@@ -13,7 +13,7 @@
  * `#modules/rendering/*` directly.
  */
 
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { RENDERING_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 
 export { CliTransport } from "./cli-transport.js";
@@ -28,7 +28,7 @@ const renderingModule: KotaModule = {
   version: "1.0.0",
   description:
     "Typed terminal rendering: primitive vocabulary, pure renderer, and theme/width-aware transport.",
-  onLoad: async (ctx: ModuleContext) => {
+  onLoad: async (ctx: ModuleRuntimeContext) => {
     const { createRenderingProvider } = await import("./rendering-provider.js");
     ctx.registerProvider(RENDERING_PROVIDER_TOKEN, createRenderingProvider());
   },

@@ -1,4 +1,4 @@
-import type { KotaModule, ModuleContext, ToolDef } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleContext, ModuleRuntimeContext, ToolDef } from "#core/modules/module-types.js";
 import { legacyEffect } from "#core/tools/effect.js";
 import {
   type BrowserProfileOptions,
@@ -120,7 +120,7 @@ const browserModule: KotaModule = {
     "Headless browser automation tools powered by Playwright: navigation, interaction, screenshots, JS evaluation, and scoped content-ingest tools for auth-walled / JS-gated sources",
   tools: buildTools(),
 
-  onLoad(ctx: ModuleContext) {
+  onLoad(ctx: ModuleRuntimeContext) {
     if (!isPlaywrightAvailable()) {
       ctx.log.warn(
         "Playwright is not installed — browser tools will fail at runtime. " +

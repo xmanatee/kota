@@ -12,7 +12,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { HealthCheckResult, KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { HealthCheckResult, KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { MEMORY_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import { SQLiteMemoryProvider } from "./provider.js";
 
@@ -37,7 +37,7 @@ const sqliteMemoryModule: KotaModule = {
 	description: "SQLite-backed memory provider — SQL-powered search, no size limits",
 	dependencies: ["memory"],
 
-	onLoad: (ctx: ModuleContext) => {
+	onLoad: (ctx: ModuleRuntimeContext) => {
 		storageDir = ctx.storage.getDir();
 		const provider = new SQLiteMemoryProvider(storageDir);
 		ctx.registerProvider(MEMORY_PROVIDER_TOKEN, provider);

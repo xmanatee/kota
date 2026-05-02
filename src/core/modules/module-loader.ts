@@ -29,6 +29,7 @@ import {
   type HealthCheckResult,
   type KotaModule,
   type ModuleContext,
+  type ModuleRuntimeContext,
   type ModuleSession,
   type ModuleSource,
   type ModuleSummary,
@@ -190,7 +191,7 @@ export class ModuleLoader {
     };
   }
 
-  private createContext(moduleName?: string): ModuleContext {
+  private createContext(moduleName?: string): ModuleRuntimeContext {
     const params: ModuleContextParams = {
       cwd: this.cwd,
       verbose: this.verbose,
@@ -224,7 +225,7 @@ export class ModuleLoader {
 
   private collectLocalClientHandlers(
     mod: KotaModule,
-    ctx: ModuleContext,
+    ctx: ModuleRuntimeContext,
   ): void {
     if (!mod.localClient) return;
     const handlers = mod.localClient(ctx) as Partial<LocalClientHandlers>;

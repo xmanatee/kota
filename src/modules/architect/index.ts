@@ -8,7 +8,7 @@
  * session execution.
  */
 
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { runArchitectStep } from "./runner.js";
 
 type ArchitectModuleConfig = {
@@ -20,7 +20,7 @@ const architectModule: KotaModule = {
   version: "1.0.0",
   description: "Two-pass plan-then-edit pipeline for complex task execution",
 
-  onLoad: (ctx: ModuleContext) => {
+  onLoad: (ctx: ModuleRuntimeContext) => {
     const moduleConfig = ctx.getModuleConfig<ArchitectModuleConfig>();
     if (!moduleConfig?.enabled) return;
 

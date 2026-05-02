@@ -21,7 +21,7 @@
  * Credentials are never logged.
  */
 
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { TASK_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import type { JiraTaskProviderConfig } from "./task-provider.js";
 import { JiraTaskProvider } from "./task-provider.js";
@@ -79,7 +79,7 @@ const jiraModule: KotaModule = {
   name: "jira",
   tools: [],
 
-  async onLoad(ctx: ModuleContext): Promise<void> {
+  async onLoad(ctx: ModuleRuntimeContext): Promise<void> {
     const config = ctx.getModuleConfig<JiraConfig>();
     if (!config?.taskProvider?.enabled) return;
 
