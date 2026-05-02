@@ -82,6 +82,9 @@ cannot answer.
   contributors delegate to each store's existing semantic-search interface.
 - No replacement of the per-store query paths. `searchKnowledge`,
   `searchMemory`, `searchHistory`, and `searchTasks` remain as-is.
-- No fan-out to other operator surfaces from this module — Telegram,
-  macOS, and mobile adoption land later as their own follow-ups. The web
-  client consumes `POST /api/recall` (same handler as `POST /recall`).
+- The recall module does not seed a parallel multi-surface fan-out chain
+  by itself. Surface adoption (Telegram, Slack, macOS, mobile, web) lands
+  as honest single-task follow-ups owned by the surface module. Each
+  surface consumes the same `createRecallRouteHandler` envelope through
+  `POST /api/recall` (visual clients) or `POST /recall` (other daemon
+  clients via `KotaClient.recall.recall`).

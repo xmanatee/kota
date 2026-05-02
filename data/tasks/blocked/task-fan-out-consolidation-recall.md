@@ -1,12 +1,12 @@
 ---
 id: task-fan-out-consolidation-recall
 title: Consolidate recall surfaces across clients
-status: ready
+status: blocked
 priority: p2
 area: client
 summary: Review the recall surface family across telegram, macos, mobile, daemon for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-02T21:31:53.684Z
+updated_at: 2026-05-02T22:29:15.356Z
 ---
 
 ## Problem
@@ -107,3 +107,56 @@ fan-out batch, and the review's output is operator-actionable follow-up tasks.
   stating no follow-up was needed and why.
 - Updated scoped `AGENTS.md` lines reflecting any convention adjustments arising from
   the review.
+
+## Headless Review (completed)
+
+Recorded under
+`.kota/runs/2026-05-02T22-17-31-479Z-builder-e794xy/recall-consolidation/`:
+
+- `contract-probe.json` — runtime probe of `src/modules/recall/routes.ts`
+  `createRecallRouteHandler` covering five envelope arms every client
+  decodes (empty-query 400, no-contributors `semantic_unavailable` 200,
+  mixed-source success 200 carrying one positive arm per closed
+  `RecallSource` discriminator including `answer`, filter-coercion 200,
+  provider-throws 500). The success arm pins the daemon's full closed
+  source set `knowledge | memory | history | tasks | answer`.
+- `probe-contract.mjs` — the probe source kept alongside its artifact.
+- `cli-transcript.txt` — CLI transcript exercising `kota --help`
+  discoverability, full `kota recall --help` surface, plus live
+  `recall ''` empty-query hint, `recall 'harness boundary'` /
+  `recall 'harness boundary' --json` against the project's real
+  knowledge/tasks store, and the three input-validation arms
+  (`--source unknown`, `--limit not-a-number`, `--min-score 5`)
+  exiting with the typed error lines.
+- `verdict.md` — written verdict for each of the 8 consolidation
+  dimensions.
+
+Follow-ups filed (or named) in this change:
+
+- `data/tasks/ready/task-update-macos-and-mobile-recall-empty-state-copy-to.md`
+  (new in this run, p3 client) — Update the macOS `RecallView.swift`
+  and mobile `RecallScreen.tsx` empty-state hints to enumerate the
+  closed five-source contributor set so operator copy matches the
+  daemon's actual contributor set.
+- `task-extend-cross-client-conformance-and-thin-client-de`
+  (already filed by the answer consolidation, `backlog/`,
+  p1 architecture) — named here for traceability. The same load-
+  bearing drift (daemon's `source: "answer"` recall arm rejected by
+  the four-arm thin-client decoders on mobile, web, and macOS) blocks
+  the recall surface family from being decode-clean end-to-end. No
+  duplicate filed.
+
+The single docs touch (replacing the stale "no fan-out to other
+operator surfaces" boundary line with the durable rule in
+`src/modules/recall/AGENTS.md`) is applied in this same change.
+
+What is left is the per-surface visual evidence the autonomous
+builder cannot capture headlessly.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/recall-consolidation-screens-*
+description: live operator-captured screenshots/screencasts for the five visual recall surfaces — telegram (`/recall <query>` rendered messages: populated hits, no-contributors semantic-unavailable, no-match, and offline cases), slack (`/recall <query>` rendered against a workspace covering the same arms), mobile (`RecallScreen` covering populated hits, empty-query hint, no-match, semantic-unavailable banner, and offline banner), macOS (`RecallView` populated hit list with source badges, the empty-state hint, the orange-foregrounded semantic-unavailable caption, no-match line, and the offline state), and web (`RecallPanel` covering the same arms). Operator runs each client against a daemon (with and without registered contributors) and commits the rendered artifacts under .kota/runs/recall-consolidation-screens-<stamp>/{telegram,slack,mobile,macos,web}/. The daemon-side and CLI-side artifacts are already committed under .kota/runs/2026-05-02T22-17-31-479Z-builder-e794xy/recall-consolidation/.
+```
