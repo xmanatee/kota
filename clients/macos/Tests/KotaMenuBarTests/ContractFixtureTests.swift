@@ -4,172 +4,105 @@ import XCTest
 /// Cross-client contract conformance.
 ///
 /// Decodes the shared JSON fixture from
-/// `clients/conformance/contract-fixture.json` through the macOS Codable
-/// types in `ContractTypes.swift`. The same JSON tree is also exercised
-/// by the TypeScript suites
+/// `clients/conformance/contract-fixture.json` (copied into this test
+/// target as a SwiftPM resource — see `Package.swift`) through the macOS
+/// Codable types in `Models.swift` and `ContractTypes.swift`. The same
+/// JSON tree is also exercised by the TypeScript suites
 /// (`src/core/daemon/client-contract.test.ts`,
-/// `clients/web/src/api/client.test.ts`). When the contract drifts, all
-/// three suites fail together.
+/// `clients/web/src/api/client.test.ts`,
+/// `clients/mobile/src/__tests__/contractFixture.test.ts`). When the
+/// contract drifts, every suite fails together.
 ///
-/// The fixture is duplicated here as a string literal so SwiftPM does
-/// not need to reach outside its target directory for resources; a
-/// TypeScript guard (`contract-fixture-cross-client.test.ts`) asserts
-/// this literal parses to the same JSON tree as the canonical file.
+/// The cross-client integration test
+/// (`src/contract-fixture-cross-client.integration.test.ts`) keeps the
+/// embedded resource file byte-identical to the canonical fixture.
 final class ContractFixtureTests: XCTestCase {
-    private static let fixtureJSON = """
-{
-  "identity": {
-    "projectName": "kota",
-    "projectDir": "/Users/operator/projects/kota",
-    "daemonVersion": "0.1.0",
-    "pid": 12345,
-    "startedAt": "2026-04-29T01:00:00.000Z",
-    "dashboard": {
-      "available": true,
-      "path": "/"
-    }
-  },
-  "identityWithoutDashboard": {
-    "projectName": "kota",
-    "projectDir": "/Users/operator/projects/kota",
-    "daemonVersion": "0.1.0",
-    "pid": 12345,
-    "startedAt": "2026-04-29T01:00:00.000Z",
-    "dashboard": {
-      "available": false,
-      "reason": "web_ui_not_built",
-      "message": "Web dashboard is unavailable — run `pnpm --filter @kota/web build` to produce clients/web/dist."
-    }
-  },
-  "capabilities": {
-    "capabilities": [
-      {
-        "id": "dashboard",
-        "moduleName": "web",
-        "status": "ready",
-        "message": "Embedded web dashboard is built and ready to serve.",
-        "meta": { "distDir": "/Users/operator/projects/kota/clients/web/dist" }
-      },
-      {
-        "id": "knowledge.search",
-        "moduleName": "knowledge",
-        "status": "ready"
-      },
-      {
-        "id": "knowledge.semantic_search",
-        "moduleName": "knowledge",
-        "status": "unavailable",
-        "reason": "embedding_unsupported",
-        "message": "No embedding-backed knowledge provider is configured."
-      },
-      {
-        "id": "workflow.trigger",
-        "moduleName": "core",
-        "status": "ready",
-        "message": "8 of 12 workflow definition(s) currently enabled.",
-        "meta": { "enabled": 8, "total": 12 }
-      }
-    ],
-    "summary": { "ready": 3, "unavailable": 1, "init_failed": 0 }
-  },
-  "workflowDefinitions": {
-    "definitions": [
-      {
-        "name": "builder",
-        "enabled": true,
-        "stepCount": 4,
-        "triggers": [{ "type": "event", "event": "autonomy.queue.available" }]
-      },
-      {
-        "name": "decomposer",
-        "enabled": true,
-        "stepCount": 3,
-        "triggers": [{ "type": "event", "event": "autonomy.queue.available" }],
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "taskId": { "type": "string" }
-          }
-        }
-      }
-    ]
-  },
-  "errorBodies": {
-    "json": {
-      "error": "Token rejected",
-      "code": "auth-invalid"
-    },
-    "typedFailure": {
-      "ok": false,
-      "reason": "semantic_unavailable"
-    },
-    "voiceFailure": {
-      "ok": false,
-      "error": "STT unavailable",
-      "code": "stt-unavailable"
-    },
-    "plainText": "<html><body>Bad gateway</body></html>"
-  }
-}
-"""
-
-    private struct Fixture: Decodable {
-        let identity: ClientIdentity
-        let identityWithoutDashboard: ClientIdentity
-        let capabilities: CapabilityReadinessResponse
-        let workflowDefinitions: WorkflowDefinitionsResponse
-    }
-
-    private func loadFixture() throws -> Fixture {
-        guard let data = ContractFixtureTests.fixtureJSON.data(using: .utf8) else {
-            XCTFail("fixture JSON is not valid UTF-8")
+    private static func loadFixtureData() throws -> Data {
+        guard let url = Bundle.module.url(
+            forResource: "contract-fixture",
+            withExtension: "json"
+        ) else {
+            XCTFail("contract-fixture.json missing from KotaMenuBarTests resources — check Package.swift")
             throw NSError(domain: "fixture", code: -1)
         }
-        return try JSONDecoder().decode(Fixture.self, from: data)
+        return try Data(contentsOf: url)
     }
 
+    private static func loadFixtureTree() throws -> [String: Any] {
+        let data = try loadFixtureData()
+        guard let tree = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            XCTFail("contract-fixture.json did not parse as a JSON object")
+            throw NSError(domain: "fixture", code: -1)
+        }
+        return tree
+    }
+
+    private static func sectionData(_ key: String) throws -> Data {
+        let tree = try loadFixtureTree()
+        guard let sub = tree[key] else {
+            XCTFail("contract-fixture.json missing top-level key \"\(key)\"")
+            throw NSError(domain: "fixture", code: -1)
+        }
+        return try JSONSerialization.data(withJSONObject: sub, options: [.sortedKeys])
+    }
+
+    private static func nestedData(_ path: [String]) throws -> Data {
+        var current: Any = try loadFixtureTree()
+        for key in path {
+            guard let dict = current as? [String: Any], let next = dict[key] else {
+                XCTFail("contract-fixture.json missing path \(path.joined(separator: "."))")
+                throw NSError(domain: "fixture", code: -1)
+            }
+            current = next
+        }
+        return try JSONSerialization.data(withJSONObject: current, options: [.sortedKeys])
+    }
+
+    // MARK: - Identity
+
     func testDecodesDashboardAvailableIdentity() throws {
-        let fixture = try loadFixture()
-        XCTAssertEqual(fixture.identity.projectName, "kota")
-        XCTAssertEqual(fixture.identity.projectDir, "/Users/operator/projects/kota")
-        XCTAssertEqual(fixture.identity.daemonVersion, "0.1.0")
-        XCTAssertEqual(fixture.identity.pid, 12345)
-        XCTAssertEqual(fixture.identity.dashboard.isAvailable, true)
-        XCTAssertEqual(fixture.identity.dashboard.path, "/")
+        let data = try Self.sectionData("identity")
+        let identity = try JSONDecoder().decode(ClientIdentity.self, from: data)
+        XCTAssertEqual(identity.projectName, "kota")
+        XCTAssertEqual(identity.projectDir, "/Users/operator/projects/kota")
+        XCTAssertEqual(identity.daemonVersion, "0.1.0")
+        XCTAssertEqual(identity.pid, 12345)
+        XCTAssertEqual(identity.dashboard.isAvailable, true)
+        XCTAssertEqual(identity.dashboard.path, "/")
     }
 
     func testDecodesDashboardUnavailableIdentity() throws {
-        let fixture = try loadFixture()
-        XCTAssertEqual(fixture.identityWithoutDashboard.dashboard.isAvailable, false)
-        XCTAssertEqual(fixture.identityWithoutDashboard.dashboard.reason, "web_ui_not_built")
-        XCTAssertNotNil(fixture.identityWithoutDashboard.dashboard.message)
+        let data = try Self.sectionData("identityWithoutDashboard")
+        let identity = try JSONDecoder().decode(ClientIdentity.self, from: data)
+        XCTAssertEqual(identity.dashboard.isAvailable, false)
+        XCTAssertEqual(identity.dashboard.reason, "web_ui_not_built")
+        XCTAssertNotNil(identity.dashboard.message)
     }
 
+    // MARK: - Capabilities
+
     func testDecodesCapabilityReadinessResponse() throws {
-        let fixture = try loadFixture()
-        XCTAssertEqual(fixture.capabilities.summary.ready, 3)
-        XCTAssertEqual(fixture.capabilities.summary.unavailable, 1)
-        XCTAssertEqual(fixture.capabilities.summary.initFailed, 0)
-        let dashboard = fixture.capabilities.capabilities.first {
-            $0.id == DASHBOARD_CAPABILITY_ID
-        }
+        let data = try Self.sectionData("capabilities")
+        let caps = try JSONDecoder().decode(CapabilityReadinessResponse.self, from: data)
+        XCTAssertEqual(caps.summary.ready, 3)
+        XCTAssertEqual(caps.summary.unavailable, 1)
+        XCTAssertEqual(caps.summary.initFailed, 0)
+        let dashboard = caps.capabilities.first { $0.id == DASHBOARD_CAPABILITY_ID }
         XCTAssertEqual(dashboard?.status, .ready)
-        let trigger = fixture.capabilities.capabilities.first {
-            $0.id == WORKFLOW_TRIGGER_CAPABILITY_ID
-        }
+        let trigger = caps.capabilities.first { $0.id == WORKFLOW_TRIGGER_CAPABILITY_ID }
         XCTAssertEqual(trigger?.meta?["enabled"]?.intValue, 8)
-        let semantic = fixture.capabilities.capabilities.first {
-            $0.id == "knowledge.semantic_search"
-        }
+        let semantic = caps.capabilities.first { $0.id == "knowledge.semantic_search" }
         XCTAssertEqual(semantic?.status, .unavailable)
         XCTAssertEqual(semantic?.reason, "embedding_unsupported")
     }
 
+    // MARK: - Workflow definitions
+
     func testDecodesWorkflowDefinitions() throws {
-        let fixture = try loadFixture()
-        let defs = fixture.workflowDefinitions.definitions
-        XCTAssertEqual(defs.count, 2)
-        let decomposer = defs.first { $0.name == "decomposer" }
+        let data = try Self.sectionData("workflowDefinitions")
+        let response = try JSONDecoder().decode(WorkflowDefinitionsResponse.self, from: data)
+        XCTAssertEqual(response.definitions.count, 2)
+        let decomposer = response.definitions.first { $0.name == "decomposer" }
         XCTAssertNotNil(decomposer?.inputSchema)
         switch decomposer?.triggers.first {
         case .event(let event)?:
@@ -177,5 +110,328 @@ final class ContractFixtureTests: XCTestCase {
         default:
             XCTFail("expected event trigger on decomposer")
         }
+    }
+
+    // MARK: - Recall
+
+    func testDecodesRecallSuccessMixedSources() throws {
+        let data = try Self.nestedData(["recall", "successMixedSources"])
+        let result = try JSONDecoder().decode(RecallSearchResponse.self, from: data)
+        guard case .success(let hits) = result else {
+            XCTFail("expected ok=true recall response")
+            return
+        }
+        XCTAssertEqual(hits.count, 4)
+        XCTAssertEqual(hits.map { $0.source }, ["knowledge", "memory", "history", "tasks"])
+    }
+
+    func testDecodesRecallSemanticUnavailable() throws {
+        let data = try Self.nestedData(["recall", "semanticUnavailable"])
+        let result = try JSONDecoder().decode(RecallSearchResponse.self, from: data)
+        if case .semanticUnavailable = result { return }
+        XCTFail("expected semantic_unavailable arm")
+    }
+
+    func testRecallNegativeUnknownSourceFails() throws {
+        let data = try Self.nestedData(["recall", "negative_unknownSource"])
+        XCTAssertThrowsError(try JSONDecoder().decode(RecallSearchResponse.self, from: data))
+    }
+
+    func testRecallNegativeUnknownReasonFails() throws {
+        let data = try Self.nestedData(["recall", "negative_unknownReason"])
+        XCTAssertThrowsError(try JSONDecoder().decode(RecallSearchResponse.self, from: data))
+    }
+
+    // MARK: - Answer
+
+    func testDecodesAnswerSuccess() throws {
+        let data = try Self.nestedData(["answer", "success"])
+        let result = try JSONDecoder().decode(AnswerResult.self, from: data)
+        guard case .success(let answer, let citations, let hits) = result else {
+            XCTFail("expected ok=true answer result")
+            return
+        }
+        XCTAssertFalse(answer.isEmpty)
+        XCTAssertEqual(citations.count, 2)
+        XCTAssertEqual(hits.count, 2)
+    }
+
+    func testDecodesAnswerNoHits() throws {
+        let data = try Self.nestedData(["answer", "noHits"])
+        let result = try JSONDecoder().decode(AnswerResult.self, from: data)
+        if case .noHits = result { return }
+        XCTFail("expected no_hits arm")
+    }
+
+    func testDecodesAnswerSemanticUnavailable() throws {
+        let data = try Self.nestedData(["answer", "semanticUnavailable"])
+        let result = try JSONDecoder().decode(AnswerResult.self, from: data)
+        if case .semanticUnavailable = result { return }
+        XCTFail("expected semantic_unavailable arm")
+    }
+
+    func testDecodesAnswerSynthesisFailed() throws {
+        let data = try Self.nestedData(["answer", "synthesisFailed"])
+        let result = try JSONDecoder().decode(AnswerResult.self, from: data)
+        if case .synthesisFailed = result { return }
+        XCTFail("expected synthesis_failed arm")
+    }
+
+    func testAnswerNegativeUnknownReasonFails() throws {
+        let data = try Self.nestedData(["answer", "negative_unknownReason"])
+        XCTAssertThrowsError(try JSONDecoder().decode(AnswerResult.self, from: data))
+    }
+
+    // MARK: - Answer history
+
+    func testDecodesAnswerHistoryList() throws {
+        let data = try Self.nestedData(["answerHistory", "list"])
+        let result = try JSONDecoder().decode(AnswerHistoryListResult.self, from: data)
+        XCTAssertEqual(result.entries.count, 2)
+        switch result.entries[0].result {
+        case .success(let count): XCTAssertEqual(count, 2)
+        default: XCTFail("expected ok=true entry first")
+        }
+        switch result.entries[1].result {
+        case .noHits: break
+        default: XCTFail("expected no_hits entry second")
+        }
+    }
+
+    func testDecodesAnswerHistoryShowFound() throws {
+        let data = try Self.nestedData(["answerHistory", "showFound"])
+        let result = try JSONDecoder().decode(AnswerHistoryShowResult.self, from: data)
+        guard case .success(let record) = result else {
+            XCTFail("expected ok=true show result")
+            return
+        }
+        XCTAssertEqual(record.id, "ans-1")
+        XCTAssertFalse(record.recallHits.isEmpty)
+    }
+
+    func testDecodesAnswerHistoryShowNotFound() throws {
+        let data = try Self.nestedData(["answerHistory", "showNotFound"])
+        let result = try JSONDecoder().decode(AnswerHistoryShowResult.self, from: data)
+        if case .notFound = result { return }
+        XCTFail("expected not_found arm")
+    }
+
+    func testAnswerHistoryNegativeUnknownReasonFails() throws {
+        let data = try Self.nestedData(["answerHistory", "negative_unknownReason"])
+        XCTAssertThrowsError(try JSONDecoder().decode(AnswerHistoryShowResult.self, from: data))
+    }
+
+    // MARK: - Capture
+
+    func testDecodesCaptureSuccessMemory() throws {
+        let data = try Self.nestedData(["capture", "successMemory"])
+        let result = try JSONDecoder().decode(CaptureResult.self, from: data)
+        guard case .success(let record) = result, case .memory = record else {
+            XCTFail("expected ok=true memory record")
+            return
+        }
+    }
+
+    func testDecodesCaptureSuccessTasks() throws {
+        let data = try Self.nestedData(["capture", "successTasks"])
+        let result = try JSONDecoder().decode(CaptureResult.self, from: data)
+        guard case .success(let record) = result,
+              case .tasks(_, let path) = record else {
+            XCTFail("expected ok=true tasks record")
+            return
+        }
+        XCTAssertTrue(path.contains("data/tasks/"))
+    }
+
+    func testDecodesCaptureAmbiguous() throws {
+        let data = try Self.nestedData(["capture", "ambiguous"])
+        let result = try JSONDecoder().decode(CaptureResult.self, from: data)
+        guard case .ambiguous(let suggestions) = result else {
+            XCTFail("expected ambiguous arm")
+            return
+        }
+        XCTAssertEqual(suggestions, [.memory, .knowledge])
+    }
+
+    func testDecodesCaptureContributorFailed() throws {
+        let data = try Self.nestedData(["capture", "contributorFailed"])
+        let result = try JSONDecoder().decode(CaptureResult.self, from: data)
+        guard case .contributorFailed(let target, let message) = result else {
+            XCTFail("expected contributor_failed arm")
+            return
+        }
+        XCTAssertEqual(target, .tasks)
+        XCTAssertEqual(message, "filesystem unavailable")
+    }
+
+    func testCaptureNegativeUnknownTargetFails() throws {
+        let data = try Self.nestedData(["capture", "negative_unknownTarget"])
+        XCTAssertThrowsError(try JSONDecoder().decode(CaptureResult.self, from: data))
+    }
+
+    func testCaptureNegativeUnknownReasonFails() throws {
+        let data = try Self.nestedData(["capture", "negative_unknownReason"])
+        XCTAssertThrowsError(try JSONDecoder().decode(CaptureResult.self, from: data))
+    }
+
+    // MARK: - Retract
+
+    func testDecodesRetractSuccessTasksMovedToDropped() throws {
+        let data = try Self.nestedData(["retract", "successTasks"])
+        let result = try JSONDecoder().decode(RetractResult.self, from: data)
+        guard case .success(let record) = result,
+              case .tasks(_, let previousPath, let path, let toState) = record else {
+            XCTFail("expected ok=true tasks record")
+            return
+        }
+        XCTAssertTrue(previousPath.hasSuffix(".md"))
+        XCTAssertTrue(path.contains("dropped"))
+        XCTAssertEqual(toState, "dropped")
+    }
+
+    func testDecodesRetractNotFound() throws {
+        let data = try Self.nestedData(["retract", "notFound"])
+        let result = try JSONDecoder().decode(RetractResult.self, from: data)
+        guard case .notFound(let target, let identifier) = result else {
+            XCTFail("expected not_found arm")
+            return
+        }
+        XCTAssertEqual(target, .tasks)
+        XCTAssertEqual(identifier, "task-missing")
+    }
+
+    func testRetractNegativeUnknownTargetFails() throws {
+        let data = try Self.nestedData(["retract", "negative_unknownTarget"])
+        XCTAssertThrowsError(try JSONDecoder().decode(RetractResult.self, from: data))
+    }
+
+    func testRetractNegativeUnknownReasonFails() throws {
+        let data = try Self.nestedData(["retract", "negative_unknownReason"])
+        XCTAssertThrowsError(try JSONDecoder().decode(RetractResult.self, from: data))
+    }
+
+    // MARK: - Per-store semantic search
+
+    func testDecodesKnowledgeSearchSuccess() throws {
+        let data = try Self.nestedData(["knowledgeSearch", "success"])
+        let result = try JSONDecoder().decode(KnowledgeSearchResponse.self, from: data)
+        if case .success(let entries) = result {
+            XCTAssertEqual(entries.count, 2)
+            return
+        }
+        XCTFail("expected ok=true entries")
+    }
+
+    func testDecodesKnowledgeSearchSemanticUnavailable() throws {
+        let data = try Self.nestedData(["knowledgeSearch", "semanticUnavailable"])
+        let result = try JSONDecoder().decode(KnowledgeSearchResponse.self, from: data)
+        if case .semanticUnavailable = result { return }
+        XCTFail("expected semantic_unavailable arm")
+    }
+
+    func testKnowledgeSearchNegativeUnknownReasonFails() throws {
+        let data = try Self.nestedData(["knowledgeSearch", "negative_unknownReason"])
+        XCTAssertThrowsError(try JSONDecoder().decode(KnowledgeSearchResponse.self, from: data))
+    }
+
+    func testDecodesMemorySearchSuccess() throws {
+        let data = try Self.nestedData(["memorySearch", "success"])
+        let result = try JSONDecoder().decode(MemorySearchResponse.self, from: data)
+        if case .success(let entries) = result {
+            XCTAssertEqual(entries.count, 1)
+            return
+        }
+        XCTFail("expected ok=true entries")
+    }
+
+    func testMemorySearchNegativeUnknownReasonFails() throws {
+        let data = try Self.nestedData(["memorySearch", "negative_unknownReason"])
+        XCTAssertThrowsError(try JSONDecoder().decode(MemorySearchResponse.self, from: data))
+    }
+
+    func testDecodesHistorySearchSuccess() throws {
+        let data = try Self.nestedData(["historySearch", "success"])
+        let result = try JSONDecoder().decode(HistorySearchResponse.self, from: data)
+        if case .success(let conversations) = result {
+            XCTAssertEqual(conversations.count, 1)
+            XCTAssertEqual(conversations[0].source, "user")
+            return
+        }
+        XCTFail("expected ok=true conversations")
+    }
+
+    func testHistorySearchNegativeUnknownReasonFails() throws {
+        let data = try Self.nestedData(["historySearch", "negative_unknownReason"])
+        XCTAssertThrowsError(try JSONDecoder().decode(HistorySearchResponse.self, from: data))
+    }
+
+    func testDecodesTasksSearchSuccess() throws {
+        let data = try Self.nestedData(["tasksSearch", "success"])
+        let result = try JSONDecoder().decode(TasksSearchResponse.self, from: data)
+        if case .success(let tasks) = result {
+            XCTAssertEqual(tasks.count, 1)
+            XCTAssertEqual(tasks[0].priority, "p1")
+            return
+        }
+        XCTFail("expected ok=true tasks")
+    }
+
+    func testTasksSearchNegativeUnknownReasonFails() throws {
+        let data = try Self.nestedData(["tasksSearch", "negative_unknownReason"])
+        XCTAssertThrowsError(try JSONDecoder().decode(TasksSearchResponse.self, from: data))
+    }
+
+    // MARK: - Attention
+
+    func testDecodesAttentionResponse() throws {
+        let data = try Self.sectionData("attention")
+        let response = try JSONDecoder().decode(AttentionResponse.self, from: data)
+        XCTAssertEqual(response.data.items.count, 2)
+        XCTAssertFalse(response.text.isEmpty)
+    }
+
+    // MARK: - Digest
+
+    func testDecodesDigestResponse() throws {
+        let data = try Self.sectionData("digest")
+        let response = try JSONDecoder().decode(DigestResponse.self, from: data)
+        XCTAssertEqual(response.data.builderCommits.count, 1)
+        XCTAssertEqual(response.data.queueDelta.current.ready, 2)
+        XCTAssertEqual(response.data.queueDelta.delta.ready, 1)
+        XCTAssertEqual(response.data.quiet, false)
+    }
+
+    // MARK: - Error bodies
+
+    func testDecodesErrorBodyJson() throws {
+        let data = try Self.nestedData(["errorBodies", "json"])
+        guard let body = decodeDaemonErrorBody(from: data) else {
+            XCTFail("expected JSON error body to decode")
+            return
+        }
+        XCTAssertEqual(body.error, "Token rejected")
+        XCTAssertEqual(body.code, "auth-invalid")
+    }
+
+    // MARK: - Voice failure envelopes
+
+    func testDecodesVoiceTranscribeFailureSttUnavailable() throws {
+        let data = try Self.nestedData(["voice", "transcribeFailureSttUnavailable"])
+        guard let body = decodeDaemonErrorBody(from: data) else {
+            XCTFail("expected voice failure body to decode")
+            return
+        }
+        XCTAssertEqual(body.error, "STT unavailable")
+        XCTAssertEqual(body.code, "stt-unavailable")
+    }
+
+    func testDecodesVoiceSynthesizeFailureFormatUnsupported() throws {
+        let data = try Self.nestedData(["voice", "synthesizeFailureTtsFormatUnsupported"])
+        guard let body = decodeDaemonErrorBody(from: data) else {
+            XCTFail("expected voice failure body to decode")
+            return
+        }
+        XCTAssertEqual(body.error, "TTS format unsupported")
+        XCTAssertEqual(body.code, "tts-format-unsupported")
     }
 }

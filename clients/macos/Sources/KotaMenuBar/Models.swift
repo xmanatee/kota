@@ -994,6 +994,126 @@ enum AnswerResult: Decodable, Equatable {
     }
 }
 
+// MARK: - Answer history
+
+/// Mirror of the daemon's `AnswerHistoryEntry`
+/// (`src/core/server/kota-client.ts`). Compact projection of one persisted
+/// `AnswerProvider.answer(query)` call, with the result discriminated so a
+/// caller cannot accidentally read fields that only exist on the success
+/// branch.
+struct AnswerHistoryEntry: Decodable, Equatable, Identifiable {
+    enum Result: Decodable, Equatable {
+        case success(citationCount: Int)
+        case noHits
+        case semanticUnavailable
+        case synthesisFailed
+
+        private enum CodingKeys: String, CodingKey {
+            case ok, citationCount, reason
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let ok = try container.decode(Bool.self, forKey: .ok)
+            if ok {
+                let citationCount = try container.decode(Int.self, forKey: .citationCount)
+                self = .success(citationCount: citationCount)
+                return
+            }
+            let reason = try container.decode(String.self, forKey: .reason)
+            switch reason {
+            case "no_hits": self = .noHits
+            case "semantic_unavailable": self = .semanticUnavailable
+            case "synthesis_failed": self = .synthesisFailed
+            default:
+                throw DecodingError.dataCorruptedError(
+                    forKey: .reason,
+                    in: container,
+                    debugDescription: "Unknown answer history entry reason: \(reason)"
+                )
+            }
+        }
+    }
+
+    let id: String
+    let createdAt: String
+    let query: String
+    let result: Result
+}
+
+/// Mirror of the daemon's `AnswerHistoryListResult`. Every entry is a
+/// strict `AnswerHistoryEntry`.
+struct AnswerHistoryListResult: Decodable, Equatable {
+    let entries: [AnswerHistoryEntry]
+}
+
+/// Filter accepted by `DaemonClient.answerLog`. Mirror of the daemon's
+/// `AnswerHistoryListFilter`.
+struct AnswerHistoryListFilter: Encodable, Equatable {
+    let limit: Int?
+    let beforeId: String?
+}
+
+/// Mirror of the daemon's `AnswerHistoryRecord`
+/// (`src/core/server/kota-client.ts`). One persisted envelope per
+/// `AnswerProvider.answer(query, filter?)` call regardless of `ok`, carrying
+/// the original query verbatim, the post-default filter actually used, the
+/// typed `RecallHit[]` the synthesizer was shown, and the discriminated
+/// `AnswerResult` envelope the caller saw.
+struct AnswerHistoryRecord: Decodable, Equatable, Identifiable {
+    let id: String
+    let createdAt: String
+    let query: String
+    let filter: RecallRequestFilterDecoded
+    let recallHits: [RecallHit]
+    let result: AnswerResult
+}
+
+/// Decode-side mirror of `RecallRequestFilter`. The encode-side struct lives
+/// near the recall request body and only emits set keys on the wire; this
+/// struct is the read-side counterpart used by `AnswerHistoryRecord` so the
+/// store-snapshot decode path stays symmetric.
+struct RecallRequestFilterDecoded: Decodable, Equatable {
+    let topK: Int?
+    let minScore: Double?
+    let sources: [String]?
+}
+
+/// Discriminated mirror of the daemon's `AnswerHistoryShowResult`:
+/// `{ ok: true, record }` when the id resolved and
+/// `{ ok: false, reason: "not_found" }` when no envelope carries that id.
+/// Strict decode so payload drift fails loudly instead of silently degrading
+/// the rendered surface to a misleading "loading…" state.
+enum AnswerHistoryShowResult: Decodable, Equatable {
+    case success(record: AnswerHistoryRecord)
+    case notFound
+
+    private enum CodingKeys: String, CodingKey {
+        case ok, record, reason
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let ok = try container.decode(Bool.self, forKey: .ok)
+        if ok {
+            let record = try container.decode(AnswerHistoryRecord.self, forKey: .record)
+            self = .success(record: record)
+            return
+        }
+        let reason = try container.decode(String.self, forKey: .reason)
+        switch reason {
+        case "not_found":
+            self = .notFound
+        default:
+            throw DecodingError.dataCorruptedError(
+                forKey: .reason,
+                in: container,
+                debugDescription: "Unknown answer history show reason: \(reason)"
+            )
+        }
+    }
+}
+
 // MARK: - Cross-store capture
 
 /// Target store for `DaemonClient.capture`. Mirrors the daemon's

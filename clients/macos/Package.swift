@@ -12,7 +12,8 @@ let package = Package(
         .testTarget(
             name: "KotaMenuBarTests",
             dependencies: ["KotaMenuBar"],
-            path: "Tests/KotaMenuBarTests"
+            path: "Tests/KotaMenuBarTests",
+            resources: [.copy("contract-fixture.json")]
         )
     ]
 )

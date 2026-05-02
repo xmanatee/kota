@@ -1,8 +1,8 @@
 /**
- * Thin-client contract conformance test.
+ * Thin-client contract conformance test (daemon-side).
  *
- * Decodes the shared JSON fixture under `clients/conformance/` and
- * exercises every typed surface the contract promises:
+ * Decodes the shared JSON fixture under `clients/conformance/` through
+ * the daemon's source-of-truth typed shapes:
  *
  * - `GET /identity` returns the typed `ClientIdentity` payload built by
  *   `buildClientIdentity`, including the `dashboard.available` discriminator
@@ -15,9 +15,14 @@
  *   `parseDaemonClientErrorBody` for JSON, typed-failure, voice-route,
  *   and plain-text bodies.
  *
- * Both the macOS Swift suite and the web Vitest exercise the same
- * fixture file, so this test plus the macOS `ContractFixtureTests` plus
- * the web `client.test.ts` form the cross-client conformance gate.
+ * The cross-store and digest/attention/voice surfaces are exercised by
+ * the per-client conformance suites that consume
+ * `clients/conformance/decoders.ts` and `decoders.test-cases.ts` through
+ * the canonical fixture: the web Vitest
+ * (`clients/web/src/api/contractFixture.test.ts`), the mobile Jest
+ * (`clients/mobile/src/__tests__/contractFixture.test.ts`), and the
+ * macOS Swift suite (`ContractFixtureTests.swift`). When the contract
+ * drifts, every conformance suite fails together.
  */
 
 import { readFileSync } from "node:fs";

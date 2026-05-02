@@ -1,21 +1,33 @@
 /**
- * Cross-client guard for the thin-client contract conformance fixture.
+ * Cross-client guard for the thin-client contract conformance gate.
  *
  * The canonical JSON tree lives at
- * `clients/conformance/contract-fixture.json`. The macOS Swift suite
- * embeds the same tree as a string literal inside
- * `clients/macos/Tests/KotaMenuBarTests/ContractFixtureTests.swift` so
- * SwiftPM does not need to reach outside its target for resources.
+ * `clients/conformance/contract-fixture.json` and the canonical TypeScript
+ * decoders live at `clients/conformance/decoders.ts` and
+ * `clients/conformance/decoders.test-cases.ts`. Each client target embeds a
+ * byte-identical copy of the artifacts it consumes so its test runner can
+ * resolve them locally without reaching outside its workspace:
  *
- * This test extracts the Swift literal, parses both blobs as JSON, and
- * asserts the trees match. Any drift between the canonical fixture and
- * the embedded macOS copy fails this guard, which keeps the cross-
- * client conformance promise honest without giving up the single source
- * of truth.
+ * - macOS Swift suite —
+ *   `clients/macos/Tests/KotaMenuBarTests/contract-fixture.json`
+ *   (declared in `Package.swift` via `resources: [.copy(...)]`).
+ * - Mobile Jest suite —
+ *   `clients/mobile/src/__tests__/__fixtures__/{contract-fixture.json,
+ *   decoders.ts, decoders.test-cases.ts}`. The TypeScript copies are kept
+ *   in lockstep with the canonical files because Jest's expo babel
+ *   transform cannot resolve helpers when transforming files outside the
+ *   mobile workspace.
+ *
+ * This test asserts every client copy is byte-identical to its canonical
+ * source. Any drift between them fails this guard, which keeps the
+ * cross-client conformance promise honest without giving up the single
+ * source of truth.
  *
  * The fixture itself is exercised by:
  * - `src/core/daemon/client-contract.test.ts` — TypeScript decoders.
- * - `clients/web/src/api/client.test.ts` — web client decoders.
+ * - `clients/web/src/api/client.test.ts` — original thin-client surfaces.
+ * - `clients/web/src/api/contractFixture.test.ts` — extended cross-store surfaces.
+ * - `clients/mobile/src/__tests__/contractFixture.test.ts` — mobile surfaces.
  * - `ContractFixtureTests.swift` — macOS Swift Codable decoders.
  */
 
@@ -26,38 +38,61 @@ import { describe, expect, it } from "vitest";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const CANONICAL = resolve(
+const CANONICAL_FIXTURE = resolve(
   __dirname,
   "../clients/conformance/contract-fixture.json",
 );
-const SWIFT_TEST = resolve(
+const CANONICAL_DECODERS = resolve(
   __dirname,
-  "../clients/macos/Tests/KotaMenuBarTests/ContractFixtureTests.swift",
+  "../clients/conformance/decoders.ts",
+);
+const CANONICAL_CASES = resolve(
+  __dirname,
+  "../clients/conformance/decoders.test-cases.ts",
+);
+const SWIFT_FIXTURE_COPY = resolve(
+  __dirname,
+  "../clients/macos/Tests/KotaMenuBarTests/contract-fixture.json",
+);
+const MOBILE_FIXTURE_COPY = resolve(
+  __dirname,
+  "../clients/mobile/src/__tests__/__fixtures__/contract-fixture.json",
+);
+const MOBILE_DECODERS_COPY = resolve(
+  __dirname,
+  "../clients/mobile/src/__tests__/__fixtures__/decoders.ts",
+);
+const MOBILE_CASES_COPY = resolve(
+  __dirname,
+  "../clients/mobile/src/__tests__/__fixtures__/decoders.test-cases.ts",
 );
 
-/**
- * Extract the multi-line string literal Swift assigns to
- * `fixtureJSON`. The literal is delimited by `"""` on its own line at
- * the open and close so this regex is unambiguous.
- */
-function extractSwiftFixtureLiteral(source: string): string {
-  const match = source.match(
-    /private static let fixtureJSON = """\n([\s\S]+?)\n"""/,
-  );
-  if (!match || match[1] === undefined) {
-    throw new Error(
-      "Could not locate the Swift fixtureJSON literal — has the test file changed?",
-    );
-  }
-  return match[1];
+function readJsonTree(path: string): unknown {
+  return JSON.parse(readFileSync(path, "utf8"));
+}
+
+function readBytes(path: string): string {
+  return readFileSync(path, "utf8");
 }
 
 describe("contract fixture cross-client parity", () => {
   it("the macOS embedded fixture parses to the same JSON tree as the canonical file", () => {
-    const canonical = JSON.parse(readFileSync(CANONICAL, "utf8"));
-    const swiftSource = readFileSync(SWIFT_TEST, "utf8");
-    const swiftLiteral = extractSwiftFixtureLiteral(swiftSource);
-    const swiftTree = JSON.parse(swiftLiteral);
-    expect(swiftTree).toEqual(canonical);
+    expect(readJsonTree(SWIFT_FIXTURE_COPY)).toEqual(
+      readJsonTree(CANONICAL_FIXTURE),
+    );
+  });
+
+  it("the mobile embedded fixture parses to the same JSON tree as the canonical file", () => {
+    expect(readJsonTree(MOBILE_FIXTURE_COPY)).toEqual(
+      readJsonTree(CANONICAL_FIXTURE),
+    );
+  });
+
+  it("the mobile decoder copy is byte-identical to the canonical decoder", () => {
+    expect(readBytes(MOBILE_DECODERS_COPY)).toBe(readBytes(CANONICAL_DECODERS));
+  });
+
+  it("the mobile decoder-cases copy is byte-identical to the canonical cases file", () => {
+    expect(readBytes(MOBILE_CASES_COPY)).toBe(readBytes(CANONICAL_CASES));
   });
 });

@@ -1,12 +1,12 @@
 ---
 id: task-share-or-conformance-test-daemon-wire-contracts-ac
 title: Share or conformance-test daemon wire contracts across clients
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Define one durable way to share, generate, or conformance-test daemon wire contracts across web, mobile, and macOS clients so protocol drift is caught mechanically rather than discovered by manually comparing duplicated types.
 created_at: 2026-04-28T22:04:30.330Z
-updated_at: 2026-05-02T18:14:24.509Z
+updated_at: 2026-05-02T18:36:51.048Z
 ---
 
 ## Problem
