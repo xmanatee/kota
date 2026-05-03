@@ -1,3 +1,17 @@
+import {
+  parseAnswerHistoryListResult,
+  parseAnswerHistoryShowResult,
+  parseAnswerResult,
+  parseAttentionResponse,
+  parseCaptureResult,
+  parseDigestResponse,
+  parseHistorySearchResponse,
+  parseKnowledgeSearchResponse,
+  parseMemorySearchResponse,
+  parseRecallResult,
+  parseRetractResult,
+  parseTasksSearchResponse,
+} from "../../../conformance/decoders";
 import type {
   AnswerHistoryListFilter,
   AnswerHistoryListResult,
@@ -16,9 +30,12 @@ import type {
   DaemonTaskStatusResponse,
   DigestResponse,
   HealthStatus,
+  HistorySearchResponse,
   InteractiveSession,
   KnowledgeEntry,
+  KnowledgeSearchResponse,
   MemoryEntry,
+  MemorySearchResponse,
   ModuleInfo,
   PendingApproval,
   PendingOwnerQuestion,
@@ -28,6 +45,7 @@ import type {
   ScheduleEntry,
   SlashCommand,
   SlashCommandInvocation,
+  TasksSearchResponse,
   WorkflowDefinitionSummary,
   WorkflowLiveStatus,
   WorkflowRunDetail,
@@ -65,6 +83,25 @@ async function apiJson<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await apiFetch(path, options);
   if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
   return res.json() as Promise<T>;
+}
+
+/**
+ * Strict-decoded request — fetches `path`, parses the body as JSON, then
+ * runs `decode` over the raw value. The decoder mirrors the macOS Swift
+ * Codable / mobile parse* boundary contract: unknown discriminator values
+ * throw `ContractDecodeError` from `clients/conformance/decoders.ts` so
+ * payload drift fails loudly instead of silently flowing into the UI as
+ * a typed-but-invalid object. React Query surfaces the throw through the
+ * mutation/query `error` channel, which the panels render in the existing
+ * destructive-banner style.
+ */
+async function apiDecoded<T>(
+  path: string,
+  decode: (raw: unknown) => T,
+  options?: RequestInit,
+): Promise<T> {
+  const raw = await apiJson<unknown>(path, options);
+  return decode(raw);
 }
 
 export const api = {
@@ -298,50 +335,131 @@ export const api = {
 
   getConfig: () => apiJson<Record<string, unknown>>("/api/config"),
 
-  getDigest: () => apiJson<DigestResponse>("/api/digest"),
+  getDigest: (): Promise<DigestResponse> =>
+    apiDecoded("/api/digest", parseDigestResponse),
 
-  getAttention: () => apiJson<AttentionResponse>("/api/attention"),
+  getAttention: (): Promise<AttentionResponse> =>
+    apiDecoded("/api/attention", parseAttentionResponse),
 
-  recall: (query: string) =>
-    apiJson<RecallResult>("/api/recall", {
+  recall: (query: string): Promise<RecallResult> =>
+    apiDecoded("/api/recall", parseRecallResult, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
     }),
 
-  answer: (query: string) =>
-    apiJson<AnswerResult>("/api/answer", {
+  answer: (query: string): Promise<AnswerResult> =>
+    apiDecoded("/api/answer", parseAnswerResult, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
     }),
 
-  capture: (text: string, filter?: CaptureFilter) =>
-    apiJson<CaptureResult>("/api/capture", {
+  capture: (text: string, filter?: CaptureFilter): Promise<CaptureResult> =>
+    apiDecoded("/api/capture", parseCaptureResult, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(filter ? { text, filter } : { text }),
     }),
 
-  retract: (request: RetractRequest) =>
-    apiJson<RetractResult>("/api/retract", {
+  retract: (request: RetractRequest): Promise<RetractResult> =>
+    apiDecoded("/api/retract", parseRetractResult, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
     }),
 
-  answerLog: (filter?: AnswerHistoryListFilter) => {
+  answerLog: (
+    filter?: AnswerHistoryListFilter,
+  ): Promise<AnswerHistoryListResult> => {
     const search = new URLSearchParams();
     if (filter?.limit !== undefined) search.set("limit", String(filter.limit));
     if (filter?.beforeId !== undefined) search.set("beforeId", filter.beforeId);
     const qs = search.toString();
-    return apiJson<AnswerHistoryListResult>(
+    return apiDecoded(
       `/api/answers${qs ? `?${qs}` : ""}`,
+      parseAnswerHistoryListResult,
     );
   },
 
-  answerShow: (id: string) =>
-    apiJson<AnswerHistoryShowResult>(`/api/answers/${encodeURIComponent(id)}`),
+  answerShow: (id: string): Promise<AnswerHistoryShowResult> =>
+    apiDecoded(
+      `/api/answers/${encodeURIComponent(id)}`,
+      parseAnswerHistoryShowResult,
+    ),
+
+  knowledge: {
+    /**
+     * Targets the daemon's `GET /api/knowledge/search?q=&semantic=true&limit=`
+     * route and decodes the discriminated success / `semantic_unavailable`
+     * envelope through the shared conformance decoder. Mirrors mobile
+     * `searchKnowledge` and macOS `DaemonClient.searchKnowledge`.
+     */
+    search: (query: string, limit = 10): Promise<KnowledgeSearchResponse> => {
+      const params = new URLSearchParams();
+      params.set("q", query);
+      params.set("semantic", "true");
+      params.set("limit", String(limit));
+      return apiDecoded(
+        `/api/knowledge/search?${params.toString()}`,
+        parseKnowledgeSearchResponse,
+      );
+    },
+  },
+
+  memory: {
+    /**
+     * Targets the daemon's `GET /api/memory/search?q=&semantic=true&limit=`
+     * route and decodes the discriminated envelope through the shared
+     * conformance decoder.
+     */
+    search: (query: string, limit = 10): Promise<MemorySearchResponse> => {
+      const params = new URLSearchParams();
+      params.set("q", query);
+      params.set("semantic", "true");
+      params.set("limit", String(limit));
+      return apiDecoded(
+        `/api/memory/search?${params.toString()}`,
+        parseMemorySearchResponse,
+      );
+    },
+  },
+
+  history: {
+    /**
+     * Targets the daemon's `GET /api/history/search?q=&semantic=true&limit=`
+     * route and decodes the discriminated envelope through the shared
+     * conformance decoder.
+     */
+    search: (query: string, limit = 10): Promise<HistorySearchResponse> => {
+      const params = new URLSearchParams();
+      params.set("q", query);
+      params.set("semantic", "true");
+      params.set("limit", String(limit));
+      return apiDecoded(
+        `/api/history/search?${params.toString()}`,
+        parseHistorySearchResponse,
+      );
+    },
+  },
+
+  tasks: {
+    /**
+     * Targets the daemon's `GET /tasks/search?q=&semantic=true&limit=`
+     * control route (note: not under `/api/`) and decodes the discriminated
+     * envelope through the shared conformance decoder.
+     */
+    search: (query: string, limit = 10): Promise<TasksSearchResponse> => {
+      const params = new URLSearchParams();
+      params.set("q", query);
+      params.set("semantic", "true");
+      params.set("limit", String(limit));
+      return apiDecoded(
+        `/tasks/search?${params.toString()}`,
+        parseTasksSearchResponse,
+      );
+    },
+  },
 
   listSlashCommands: () =>
     apiJson<{ commands: SlashCommand[] }>("/api/commands"),

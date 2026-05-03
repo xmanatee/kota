@@ -1,12 +1,12 @@
 ---
 id: task-fold-conformance-decoders-into-web-client-runtime-
 title: Fold conformance decoders into web client runtime api paths
-status: ready
+status: done
 priority: p3
 area: client
 summary: Fold the conformance parseCaptureResult / parseRetractResult / parseRecallResult / parseAnswerResult / parseAnswerHistoryShowResult / parseKnowledgeSearchResponse / parseMemorySearchResponse / parseHistorySearchResponse / parseTasksSearchResponse decoders into the web client's production api.* paths so web matches mobile and macOS strict runtime decode.
 created_at: 2026-05-03T00:14:37.935Z
-updated_at: 2026-05-03T03:28:46.032Z
+updated_at: 2026-05-03T03:39:17.614Z
 ---
 
 ## Problem

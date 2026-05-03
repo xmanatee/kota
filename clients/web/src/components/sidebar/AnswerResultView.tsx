@@ -38,9 +38,7 @@ function describeHit(hit: RecallHit): string {
     case "tasks":
       return `[${hit.state}/${hit.priority}] ${hit.title}`;
     case "answer":
-      return hit.result.ok
-        ? hit.query
-        : `[${hit.result.reason}] ${hit.query}`;
+      return hit.result.ok ? hit.query : `[${hit.result.reason}] ${hit.query}`;
   }
 }
 

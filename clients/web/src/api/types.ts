@@ -287,218 +287,66 @@ export type CostSummary = {
   workflows: Array<{ workflow: string; costUsd: number }>;
 };
 
-export type DigestBuilderCommitItem = {
-  runId: string;
-  taskId: string | null;
-  taskTitle: string | null;
-  commitSubject: string;
-  durationMs: number | null;
-};
+/**
+ * Cross-client wire-contract types — re-exported from the shared
+ * conformance decoders in `clients/conformance/decoders.ts`. Production
+ * `api.*` paths run those decoders at the boundary, mirroring the macOS
+ * Swift Codable and mobile parse* runtime posture: unknown discriminator
+ * values throw `ContractDecodeError` instead of silently coercing the
+ * payload into a typed-but-invalid object.
+ */
+export { ContractDecodeError } from "../../../conformance/decoders";
 
-export type DigestExplorerAdditionItem = {
-  runId: string;
-  taskCount: number;
-  watchlistAdds: number;
-};
+export type {
+  AnswerCitation,
+  AnswerHistoryEntry,
+  AnswerHistoryListResult,
+  AnswerHistoryRecord,
+  AnswerHistoryShowResult,
+  AnswerResult,
+  AttentionItem,
+  AttentionResponse,
+  CaptureRecord,
+  CaptureResult,
+  CaptureTarget,
+  DigestData,
+  DigestQueueCounts,
+  DigestQueueDelta,
+  DigestResponse,
+  HistorySearchResponse,
+  KnowledgeSearchResponse,
+  MemorySearchResponse,
+  RecallAnswerHit,
+  RecallAnswerHitResult,
+  RecallHistoryHit,
+  RecallHit,
+  RecallKnowledgeHit,
+  RecallMemoryHit,
+  RecallResult,
+  RecallSource,
+  RecallTasksHit,
+  RetractRecord,
+  RetractResult,
+  RetractTarget,
+  TasksSearchResponse,
+} from "../../../conformance/decoders";
 
-export type DigestDecomposerSplitItem = {
-  runId: string;
-  parentTaskId: string | null;
-  childTaskCount: number;
-};
-
-export type DigestBlockedPromoterMoveItem = {
-  runId: string;
-  promotedTaskIds: string[];
-  toReady: string[];
-  toBacklog: string[];
-};
-
-export type DigestFailedRunItem = {
-  runId: string;
-  workflow: string;
-  status: "failed" | "interrupted";
-  startedAt: string;
-};
-
-export type DigestPendingOwnerQuestionItem = {
-  id: string;
-  question: string;
-  source: string;
-  ageDays: number;
-};
-
-export type DigestAgingOperatorCaptureItem = {
-  taskId: string;
-  ageDays: number;
-  path: string;
-};
-
-export type DigestQueueCounts = {
-  backlog: number;
-  ready: number;
-  doing: number;
-  blocked: number;
-};
-
-export type DigestQueueDelta = {
-  current: DigestQueueCounts;
-  previous: DigestQueueCounts | null;
-  delta: { [K in keyof DigestQueueCounts]: number | null };
-};
-
-export type DailyDigestData = {
-  windowStartedAt: string;
-  windowEndedAt: string;
-  builderCommits: DigestBuilderCommitItem[];
-  explorerAdditions: DigestExplorerAdditionItem[];
-  decomposerSplits: DigestDecomposerSplitItem[];
-  blockedPromoterMoves: DigestBlockedPromoterMoveItem[];
-  failedMonitoredRuns: DigestFailedRunItem[];
-  pendingOwnerQuestions: DigestPendingOwnerQuestionItem[];
-  agingOperatorCaptures: DigestAgingOperatorCaptureItem[];
-  queueDelta: DigestQueueDelta;
-  quiet: boolean;
-};
-
-export type DigestResponse = {
-  data: DailyDigestData;
-  text: string;
-};
-
-export type AttentionItem = {
-  label: string;
-  detail: string;
-};
-
-export type AttentionResponse = {
-  data: { items: AttentionItem[] };
-  text: string;
-};
+import type {
+  CaptureTarget,
+  RecallSource,
+  RetractTarget,
+} from "../../../conformance/decoders";
 
 /**
- * Cross-store recall types — kept in sync with the daemon's
- * `RecallResult` discriminated union (see
- * `src/core/server/kota-client.ts`).
+ * Request-side filter the panel passes to `api.answer`. The response
+ * shape's `filter.sources` arrives as `string[]` from the daemon, but the
+ * request side sends a typed `RecallSource[]` so the picker can only
+ * propose known sources.
  */
-export type RecallSource =
-  | "knowledge"
-  | "memory"
-  | "history"
-  | "tasks"
-  | "answer";
-
-export type RecallKnowledgeHit = {
-  source: "knowledge";
-  score: number;
-  id: string;
-  title: string;
-  preview: string;
-  updated: string;
-};
-
-export type RecallMemoryHit = {
-  source: "memory";
-  score: number;
-  id: string;
-  preview: string;
-  created: string;
-};
-
-export type RecallHistoryHit = {
-  source: "history";
-  score: number;
-  id: string;
-  title: string;
-  cwd: string;
-  updatedAt: string;
-};
-
-export type RecallTasksHit = {
-  source: "tasks";
-  score: number;
-  id: string;
-  title: string;
-  state: string;
-  priority: string;
-  updatedAt: string;
-};
-
-export type RecallAnswerHitResult =
-  | { ok: true }
-  | {
-      ok: false;
-      reason: "no_hits" | "semantic_unavailable" | "synthesis_failed";
-    };
-
-export type RecallAnswerHit = {
-  source: "answer";
-  score: number;
-  id: string;
-  query: string;
-  preview: string;
-  citationCount: number;
-  createdAt: string;
-  result: RecallAnswerHitResult;
-};
-
-export type RecallHit =
-  | RecallKnowledgeHit
-  | RecallMemoryHit
-  | RecallHistoryHit
-  | RecallTasksHit
-  | RecallAnswerHit;
-
-export type RecallResult =
-  | { ok: true; hits: RecallHit[] }
-  | { ok: false; reason: "semantic_unavailable" };
-
-/**
- * Cited-answer types — kept in sync with the daemon's `AnswerResult`
- * discriminated union (see `src/core/server/kota-client.ts`).
- */
-export type AnswerCitation = {
-  source: RecallSource;
-  id: string;
-};
-
-export type AnswerResult =
-  | {
-      ok: true;
-      answer: string;
-      citations: AnswerCitation[];
-      hits: RecallHit[];
-    }
-  | {
-      ok: false;
-      reason: "no_hits" | "semantic_unavailable" | "synthesis_failed";
-    };
-
 export type AnswerFilter = {
   topK?: number;
   minScore?: number;
   sources?: RecallSource[];
-};
-
-export type AnswerHistoryRecord = {
-  id: string;
-  createdAt: string;
-  query: string;
-  filter: AnswerFilter;
-  recallHits: RecallHit[];
-  result: AnswerResult;
-};
-
-export type AnswerHistoryEntry = {
-  id: string;
-  createdAt: string;
-  query: string;
-  result:
-    | { ok: true; citationCount: number }
-    | {
-        ok: false;
-        reason: "no_hits" | "semantic_unavailable" | "synthesis_failed";
-      };
 };
 
 export type AnswerHistoryListFilter = {
@@ -506,68 +354,16 @@ export type AnswerHistoryListFilter = {
   beforeId?: string;
 };
 
-export type AnswerHistoryListResult = {
-  entries: AnswerHistoryEntry[];
-};
-
-export type AnswerHistoryShowResult =
-  | { ok: true; record: AnswerHistoryRecord }
-  | { ok: false; reason: "not_found" };
-
-/**
- * Cross-store capture types — kept in sync with the daemon's
- * `CaptureResult` discriminated union (see
- * `src/core/server/kota-client.ts`).
- */
-export type CaptureTarget = "memory" | "knowledge" | "tasks" | "inbox";
-
-export type CaptureMemoryRecord = {
-  target: "memory";
-  recordId: string;
-};
-
-export type CaptureKnowledgeRecord = {
-  target: "knowledge";
-  recordId: string;
-};
-
-export type CaptureTasksRecord = {
-  target: "tasks";
-  recordId: string;
-  path: string;
-};
-
-export type CaptureInboxRecord = {
-  target: "inbox";
-  recordId: string;
-  path: string;
-};
-
-export type CaptureRecord =
-  | CaptureMemoryRecord
-  | CaptureKnowledgeRecord
-  | CaptureTasksRecord
-  | CaptureInboxRecord;
-
 export type CaptureFilter = {
   target?: CaptureTarget;
   hint?: string;
 };
 
-export type CaptureResult =
-  | { ok: true; record: CaptureRecord }
-  | {
-      ok: false;
-      reason: "ambiguous";
-      suggestions: ReadonlyArray<CaptureTarget>;
-    }
-  | { ok: false; reason: "no_contributors" }
-  | {
-      ok: false;
-      reason: "contributor_failed";
-      target: CaptureTarget;
-      message: string;
-    };
+export type RetractRequest =
+  | { target: "memory"; id: string }
+  | { target: "knowledge"; slug: string }
+  | { target: "tasks"; id: string }
+  | { target: "inbox"; path: string };
 
 /**
  * Stable contributor ordering used by the seam to render `suggestions`
@@ -580,65 +376,6 @@ export const CAPTURE_TARGET_ORDER: ReadonlyArray<CaptureTarget> = [
   "tasks",
   "inbox",
 ] as const;
-
-/**
- * Cross-store retract types — kept in sync with the daemon's
- * `RetractResult` discriminated union (see
- * `src/core/server/kota-client.ts`).
- */
-export type RetractTarget = "memory" | "knowledge" | "tasks" | "inbox";
-
-export type RetractMemoryRecord = {
-  target: "memory";
-  recordId: string;
-};
-
-export type RetractKnowledgeRecord = {
-  target: "knowledge";
-  recordId: string;
-};
-
-export type RetractTasksRecord = {
-  target: "tasks";
-  recordId: string;
-  previousPath: string;
-  path: string;
-  toState: "dropped";
-};
-
-export type RetractInboxRecord = {
-  target: "inbox";
-  recordId: string;
-  path: string;
-};
-
-export type RetractRecord =
-  | RetractMemoryRecord
-  | RetractKnowledgeRecord
-  | RetractTasksRecord
-  | RetractInboxRecord;
-
-export type RetractRequest =
-  | { target: "memory"; id: string }
-  | { target: "knowledge"; slug: string }
-  | { target: "tasks"; id: string }
-  | { target: "inbox"; path: string };
-
-export type RetractResult =
-  | { ok: true; record: RetractRecord }
-  | { ok: false; reason: "no_contributors" }
-  | {
-      ok: false;
-      reason: "not_found";
-      target: RetractTarget;
-      identifier: string;
-    }
-  | {
-      ok: false;
-      reason: "contributor_failed";
-      target: RetractTarget;
-      message: string;
-    };
 
 /**
  * Stable retract-target ordering. Mirrors the seam's `RETRACT_TARGET_ORDER`

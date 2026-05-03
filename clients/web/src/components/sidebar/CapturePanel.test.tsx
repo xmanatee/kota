@@ -294,6 +294,31 @@ describe("CapturePanel", () => {
     );
   });
 
+  it("renders the strict-decode boundary error in the destructive banner when the daemon ships an unknown reason", async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({ ok: false, reason: "future_unknown_reason" }),
+    });
+
+    const { Wrapper } = makeWrapper();
+    render(
+      <Wrapper>
+        <CapturePanel />
+      </Wrapper>,
+    );
+    typeDraft("anything");
+    submit();
+
+    const banner = await waitFor(() =>
+      screen.getByText(/unknown capture reason/i),
+    );
+    expect(banner).toHaveClass("text-destructive");
+    expect(
+      screen.queryByText(/Capture target is ambiguous/),
+    ).not.toBeInTheDocument();
+  });
+
   it("does not call /api/capture on submit with a blank draft", () => {
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
