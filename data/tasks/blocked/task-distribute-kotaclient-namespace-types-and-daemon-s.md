@@ -203,6 +203,20 @@ remaining namespace using the established foundation+pilot pattern.
 Each follow-up is the size of one builder run; the parent task only
 moves to `done` once all 22 plus the file-size guideline are satisfied.
 
+**Orthogonal prelude (extracted 2026-05-03)** — the non-namespace
+transport refactor (item 3 of the foundation task above) is needed
+under all five proposed chunking answers, not only answer (d), because
+every chunking strategy still requires module callers to stop reaching
+into the central `DaemonControlClient` for `getDaemonStatus`, `pause`,
+`reload`, `events`, `voiceTranscribe`, `registerSession`,
+`unregisterSession`, `queryEvents`, and the related session/run
+helpers. That work is now tracked as
+`task-decouple-non-namespace-daemon-transport-methods-fr` in `ready/`
+and can land independently of the open chunking decision. Picking it
+up does not commit the owner to any specific chunking answer; it
+shrinks this parent task's scope so any answer the owner picks lands
+on a smaller surface.
+
 ## Acceptance Evidence
 
 - Diff covering namespace type and wire-code moves out of
