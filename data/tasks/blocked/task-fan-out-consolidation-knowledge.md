@@ -1,12 +1,12 @@
 ---
 id: task-fan-out-consolidation-knowledge
 title: Consolidate knowledge surfaces across clients
-status: ready
+status: blocked
 priority: p2
 area: client
 summary: Review the knowledge surface family across telegram, macos, daemon, mobile, cli for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-02T21:31:53.684Z
+updated_at: 2026-05-02T23:58:26.507Z
 ---
 
 ## Problem
@@ -114,3 +114,87 @@ fan-out batch, and the review's output is operator-actionable follow-up tasks.
   stating no follow-up was needed and why.
 - Updated scoped `AGENTS.md` lines reflecting any convention adjustments arising from
   the review.
+
+## Headless Review (completed)
+
+Recorded under
+`.kota/runs/2026-05-02T23-48-49-379Z-builder-xqo3ac/knowledge-consolidation/`:
+
+- `contract-probe.json` — runtime probe of `src/modules/knowledge/routes.ts`
+  `handleSearchKnowledge` exercising the six envelope arms every fan-out
+  client decodes through the shared seam: `semantic-true-unsupported` (200
+  with `{ ok: false, reason: "semantic_unavailable" }` against a provider
+  that returns `supportsSemanticSearch()=false`, the default file-based
+  `KnowledgeStore`), `semantic-true-supported` (200 with `{ ok: true,
+  entries: [...] }` carrying the full daemon-side `KnowledgeEntry`
+  projection, narrowed by every client decoder to the four-field
+  cross-client projection `id`, `type`, `status`, `title`),
+  `semantic-true-empty` (200 with `{ ok: true, entries: [] }`),
+  `semantic-true-filter-forwarding` (asserts `tag`, `type`, `status`, and
+  `scope=project|global|all` reach `provider.semanticSearch` as
+  `{ tag, type, status, scope }` per `routes.ts:118-130`),
+  `keyword-fallback` (`semantic=false` routes through
+  `provider.search(query, filters).slice(0, limit)` and returns the same
+  envelope), and `provider-throws` (500 typed `{ error: <message> }`).
+- `probe-contract.mjs` — the probe source kept alongside its artifact.
+- `cli-transcript.txt` — `pnpm kota --help` discoverability (proves
+  `knowledge` is in the top-level command inventory), full
+  `pnpm kota knowledge --help` / `list --help` / `search --help` /
+  `show --help` surfaces, plus live `list` / `list -n 5` /
+  `list --tag missing` / `search 'harness'` / `search 'harness' --semantic`
+  (typed `Semantic knowledge search requires an embedding-backed knowledge
+  provider.`, exit 1) / `show missing-id` (`Knowledge entry "missing-id"
+  not found.`, exit 1) / `add` (transient `Probe entry` written and
+  cleaned up after capture) / `delete missing-id` /
+  `add --scope bogus` (typed input validation, exit 1) /
+  `reindex` (no-provider skip line) / `export --format json`
+  (full JSON dump of existing entries) runs against the live KOTA
+  project store. Confirms the CLI surface decodes the same
+  `{ ok: true, entries }` / `{ ok: false, reason: "semantic_unavailable" }`
+  envelopes the visual clients mirror.
+- `verdict.md` — written verdict for each of the 8 consolidation
+  dimensions.
+
+Follow-ups filed (or named) in this change:
+
+- `data/tasks/backlog/task-replace-web-knowledgepanel-stale-shape-with-cross-.md`
+  (new in this run, `area: client`, `priority: p3`) — the legacy web
+  sidebar `KnowledgePanel` consumes `GET /api/knowledge` (the list
+  endpoint) with a stale local `KnowledgeEntry` shape
+  (`{ id, title, category, content, createdAt }`) that disagrees with
+  the daemon's actual `KnowledgeEntry` contract on every field but
+  `id` and `title`. The follow-up rewrites the panel to consume the
+  shared `GET /api/knowledge/search` seam with the four-field
+  cross-client projection, removing the silent runtime drift where
+  `e.category` is undefined against any real daemon response.
+- `task-share-or-conformance-test-daemon-wire-contracts-ac`
+  (already filed, `doing/`, p1 architecture) — named for traceability
+  because mobile `parseKnowledgeEntry` and macOS `KnowledgeEntry`
+  Codable are the same kind of cross-package decoder mirrors that
+  umbrella covers.
+
+The knowledge module's `src/modules/knowledge/AGENTS.md`
+"Operator pull-surfaces" line is updated in this change to enumerate
+Telegram `/knowledge`, terminal `kota knowledge search`, mobile
+`KnowledgeScreen`, and macOS `KnowledgeView`, plus a note naming the
+legacy web `KnowledgePanel` and the follow-up task that retires it.
+The mobile `KnowledgeScreen` shipped during this fan-out batch
+(`48674b03`, 2026-04-27) and was missing from the inventory; the
+web `KnowledgePanel` was wrongly listed as a search-seam consumer.
+
+The macOS `KnowledgeView` and mobile `KnowledgeScreen` fan-out
+commits were spot-checked for accepted critic warnings; neither
+relied on a markdown-description-instead-of-screenshots substitution.
+The visual-evidence gap is captured by the operator-capture
+precondition below, not as a separate retirement plan.
+
+What is left is the per-surface visual evidence the autonomous
+builder cannot capture headlessly.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/knowledge-consolidation-screens-*
+description: live operator-captured screenshots/screencasts for the live knowledge-search visual surfaces — telegram (`/knowledge` against an empty store rendering `No matching knowledge entries.`, `/knowledge` against an embedding-backed populated store rendering the shared `id  type  status  title` line shape, `/knowledge` against the default file-based provider rendering the typed `Semantic knowledge search requires an embedding-backed knowledge provider.` body, and the `Usage: /knowledge <query>` hint for empty/whitespace input), mobile (`KnowledgeScreen` covering loading via the RefreshControl, populated list with the shared line shape, empty list with the `No matching knowledge entries.` label, the typed `semantic_unavailable` orange banner, error retry, offline banner, the `Type a query and tap Search to query knowledge.` empty-query hint, and the cleared-on-reset state), and macOS (`KnowledgeView` covering the loading spinner with `Searching…` caption, populated body via the shared `renderKnowledgeSearchPlain` helper, the muted `No matching knowledge entries.` body, the orange `Semantic knowledge search requires an embedding-backed knowledge provider.` caption, the red `KnowledgeErrorView` with the Retry button, the `Type a query to search knowledge.` empty-query hint, and the `Press return to search.` after-query-but-before-submit hint). CLI is excluded from this precondition because the headless transcript at `.kota/runs/2026-05-02T23-48-49-379Z-builder-xqo3ac/knowledge-consolidation/cli-transcript.txt` already covers every CLI arm. Daemon is excluded because the runtime probe at `.kota/runs/2026-05-02T23-48-49-379Z-builder-xqo3ac/knowledge-consolidation/contract-probe.json` covers every wire envelope. Web is excluded because the legacy `KnowledgePanel` is not yet a search-seam consumer; visual evidence for the web surface lands with the follow-up task `task-replace-web-knowledgepanel-stale-shape-with-cross-`. Operator runs each visual client against a daemon (with both an empty default-provider store and an embedding-backed populated store) and commits the rendered artifacts under .kota/runs/knowledge-consolidation-screens-<stamp>/{telegram,mobile,macos}/.
+```
