@@ -67,6 +67,9 @@
 - Every meaningful repo directory should have a local `AGENTS.md`.
 - Each file should explain what belongs in the directory, its role in the system, and any important boundaries.
 - Avoid implementation detail, file-by-file inventories, or repeated content from nearby docs.
+- Aim for short files (~100 lines or less). When a file outgrows that, split detail into narrower-scope `AGENTS.md` files at child directories rather than expanding the parent.
+- When two or three reasonable patterns exist for a recurring decision, name the choice and pick one as the default. Record rejected alternatives only when their rejection is load-bearing.
+- Pair prohibitions with the canonical alternative ("don't X; use Y"). A bare "don't" without an alternative pushes agents into exploration.
 
 ## Maintenance
 

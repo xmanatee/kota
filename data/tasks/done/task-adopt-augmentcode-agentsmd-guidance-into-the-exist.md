@@ -1,12 +1,12 @@
 ---
 id: task-adopt-augmentcode-agentsmd-guidance-into-the-exist
 title: Adopt augmentcode AGENTS.md guidance into the existing AGENTS.md hierarchy
-status: ready
+status: done
 priority: p2
 area: docs
 summary: Read the augmentcode AGENTS.md guide, distill durable items, and extend the existing AGENTS.md hierarchy where they raise the bar without duplicating current rules.
 created_at: 2026-05-02T15:28:19.137Z
-updated_at: 2026-05-03T02:48:12.565Z
+updated_at: 2026-05-03T02:51:41.840Z
 ---
 
 ## Problem
