@@ -1,12 +1,12 @@
 ---
 id: task-extend-cross-client-conformance-and-thin-client-de
 title: Extend cross-client conformance and thin-client decoders to the answer recall arm
-status: backlog
+status: ready
 priority: p1
 area: architecture
 summary: Extend the cross-client conformance fixture and thin-client decoders so the daemon's source "answer" RecallHit arm and AnswerCitation source decode on every visual surface (mobile, web, macOS).
 created_at: 2026-05-02T22:09:39.207Z
-updated_at: 2026-05-02T22:09:39.207Z
+updated_at: 2026-05-03T00:52:39.172Z
 ---
 
 ## Problem
