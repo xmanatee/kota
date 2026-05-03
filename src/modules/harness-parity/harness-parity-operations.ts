@@ -13,7 +13,7 @@ import type {
   HarnessParityListResult,
   HarnessParityRunOptions,
   HarnessParityRunResult,
-} from "#core/server/kota-client.js";
+} from "./client.js";
 import { runScenarioAcrossHarnesses } from "./runner.js";
 import {
   type LoadedScenario,

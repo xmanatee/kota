@@ -42,9 +42,6 @@ import type {
   EvalListResult,
   EvalRunOptions,
   EvalRunResult,
-  HarnessParityListResult,
-  HarnessParityRunOptions,
-  HarnessParityRunResult,
   HistoryDeleteResult,
   HistoryListFilter,
   HistoryListResult,
@@ -756,38 +753,6 @@ async function importSkillHttp(
     throw new Error(body.error ?? `HTTP ${res.status}`);
   }
   return (await res.json()) as SkillImportResult;
-}
-
-async function listHarnessParityScenariosHttp(
-  transport: DaemonTransport,
-): Promise<HarnessParityListResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/harness-parity/scenarios`, {
-    headers: transport.authHeaders(),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as HarnessParityListResult;
-}
-
-async function runHarnessParityHttp(
-  transport: DaemonTransport,
-  options?: HarnessParityRunOptions,
-): Promise<HarnessParityRunResult> {
-  const res = await fetch(`${transport.baseUrl}/harness-parity/run`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...transport.authHeaders() },
-    body: JSON.stringify(options ?? {}),
-  });
-  if (res.status === 400) {
-    return (await res.json()) as HarnessParityRunResult;
-  }
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as HarnessParityRunResult;
 }
 
 async function listSessionsHttp(
@@ -1892,10 +1857,6 @@ export function buildCoreStubDaemonClientHandlers(
     skills: {
       list: async () => listSkillsHttp(transport),
       import: async (source, options) => importSkillHttp(transport, source, options),
-    },
-    harnessParity: {
-      list: async () => listHarnessParityScenariosHttp(transport),
-      run: async (options) => runHarnessParityHttp(transport, options),
     },
     webhook: {
       list: async () => listWebhooksHttp(transport),

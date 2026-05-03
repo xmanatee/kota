@@ -18,6 +18,7 @@
 
 import { describe, expect, it } from "vitest";
 import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
+import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import doctorModule from "./index.js";
 
@@ -99,11 +100,15 @@ describe("doctor module daemonClient(link)", () => {
     const { transport } = makeRecordingTransport({});
     // Simulate the loader having no doctor contribution. The core stub no
     // longer covers this namespace, so assembly must throw and name doctor
-    // explicitly — there is intentionally no silent fallback.
-    expect(() => assembleDaemonClientHandlers(transport)).toThrow(
+    // explicitly — there is intentionally no silent fallback. Other migrated
+    // namespaces are stubbed via the shared test-stub helper so the only
+    // coverage gap is the doctor namespace.
+    const others = buildMigratedNamespaceTestStubs();
+    delete others.doctor;
+    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
       /doctor/,
     );
-    expect(() => assembleDaemonClientHandlers(transport)).toThrow(
+    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
       /missing daemon handler/,
     );
   });
@@ -111,6 +116,10 @@ describe("doctor module daemonClient(link)", () => {
   it("supplying the doctor module's contribution to the assembly path satisfies coverage", () => {
     const { transport } = makeRecordingTransport({});
     const contributed = doctorModule.daemonClient!(transport);
-    expect(() => assembleDaemonClientHandlers(transport, contributed)).not.toThrow();
+    const others = buildMigratedNamespaceTestStubs();
+    delete others.doctor;
+    expect(() =>
+      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
+    ).not.toThrow();
   });
 });

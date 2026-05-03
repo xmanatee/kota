@@ -9,7 +9,6 @@
 
 import { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { HarnessParityArtifactSummary } from "#core/server/kota-client.js";
 import {
   blank,
   line,
@@ -18,6 +17,7 @@ import {
   stack,
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
+import type { HarnessParityArtifactSummary } from "./client.js";
 
 export type BuildHarnessParityCommandDeps = {
   ctx: ModuleContext;

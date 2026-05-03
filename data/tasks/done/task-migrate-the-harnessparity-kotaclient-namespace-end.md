@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-harnessparity-kotaclient-namespace-end
 title: Migrate the harnessParity KotaClient namespace end-to-end through the daemonClient(link) factory hook (foundation pilot follow-up)
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move HarnessParityClient interface, HarnessParityListResult, HarnessParityRunOptions, HarnessParityArtifactSummary, HarnessParityRunResult, and HarnessParityScenarioSummary from src/core/server/kota-client.ts into src/modules/harness-parity/client.ts; add a daemonClient(link) factory to the harness-parity module that calls /harness-parity/scenarios and /harness-parity/run through the typed DaemonTransport; remove listHarnessParityScenariosHttp, runHarnessParityHttp, and the inline harnessParity handler closure from src/core/server/daemon-client.ts.
 created_at: 2026-05-03T07:05:08.000Z
-updated_at: 2026-05-03T07:05:08.000Z
+updated_at: 2026-05-03T07:18:24.087Z
 ---
 
 ## Problem

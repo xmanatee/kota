@@ -7,8 +7,8 @@
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ControlRouteRegistration } from "#core/modules/module-types.js";
-import type { HarnessParityRunOptions } from "#core/server/kota-client.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
+import type { HarnessParityRunOptions } from "./client.js";
 import {
   type HarnessParityDeps,
   listHarnessParityScenarios,

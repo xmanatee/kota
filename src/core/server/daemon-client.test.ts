@@ -27,6 +27,7 @@ import {
  */
 const STUB_OMITTED_NAMESPACES: ReadonlySet<string> = new Set<string>([
   "doctor",
+  "harnessParity",
 ]);
 
 function makeFakeTransport(): DaemonTransport {
@@ -51,6 +52,13 @@ function makeStubDoctor(): DaemonClientHandlers["doctor"] {
   };
 }
 
+function makeStubHarnessParity(): DaemonClientHandlers["harnessParity"] {
+  return {
+    list: async () => ({ scenarios: [] }),
+    run: async () => ({ ok: true, outBaseDir: "", artifacts: [] }),
+  };
+}
+
 describe("assembleDaemonClientHandlers", () => {
   const transport = makeFakeTransport();
 
@@ -71,6 +79,7 @@ describe("assembleDaemonClientHandlers", () => {
   it("assembly succeeds when migrated namespaces are contributed by a module", () => {
     const handlers = assembleDaemonClientHandlers(transport, {
       doctor: makeStubDoctor(),
+      harnessParity: makeStubHarnessParity(),
     });
     for (const name of KOTA_CLIENT_NAMESPACES) {
       expect(handlers[name], `assembled client must cover "${name}"`).toBeDefined();
@@ -88,6 +97,7 @@ describe("assembleDaemonClientHandlers", () => {
     };
     const merged = assembleDaemonClientHandlers(transport, {
       doctor: makeStubDoctor(),
+      harnessParity: makeStubHarnessParity(),
       memory: customMemory,
     });
     expect(merged.memory).toBe(customMemory);
@@ -96,7 +106,7 @@ describe("assembleDaemonClientHandlers", () => {
 
   it("throws naming each migrated namespace when no module contributes it", () => {
     expect(() => assembleDaemonClientHandlers(transport)).toThrow(
-      /missing daemon handler\(s\) for: doctor/,
+      /missing daemon handler\(s\) for: harnessParity, doctor/,
     );
   });
 });
