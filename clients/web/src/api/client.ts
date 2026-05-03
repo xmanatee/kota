@@ -32,7 +32,6 @@ import type {
   HealthStatus,
   HistorySearchResponse,
   InteractiveSession,
-  KnowledgeEntry,
   KnowledgeSearchResponse,
   MemoryEntry,
   MemorySearchResponse,
@@ -326,8 +325,6 @@ export const api = {
   getSchedules: () => apiJson<{ schedules: ScheduleEntry[] }>("/api/schedules"),
 
   getModules: () => apiJson<{ modules: ModuleInfo[] }>("/api/modules"),
-
-  getKnowledge: () => apiJson<{ entries: KnowledgeEntry[] }>("/api/knowledge"),
 
   getMemory: () => apiJson<{ entries: MemoryEntry[] }>("/api/memory"),
 

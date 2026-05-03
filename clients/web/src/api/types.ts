@@ -249,14 +249,6 @@ export type ModuleInfo = {
   health?: { status: string; message?: string };
 };
 
-export type KnowledgeEntry = {
-  id: string;
-  title: string;
-  category: string;
-  content: string;
-  createdAt: string;
-};
-
 export type MemoryEntry = {
   id: string;
   key: string;
@@ -314,6 +306,7 @@ export type {
   DigestQueueDelta,
   DigestResponse,
   HistorySearchResponse,
+  KnowledgeEntry,
   KnowledgeSearchResponse,
   MemorySearchResponse,
   RecallAnswerHit,

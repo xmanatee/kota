@@ -18,7 +18,6 @@ export const queryKeys = {
   sessions: ["sessions"] as const,
   schedules: ["schedules"] as const,
   modules: ["modules"] as const,
-  knowledge: ["knowledge"] as const,
   memory: ["memory"] as const,
   audit: ["audit"] as const,
   config: ["config"] as const,
@@ -118,11 +117,6 @@ export const modulesQuery = queryOptions({
   queryKey: queryKeys.modules,
   queryFn: api.getModules,
   refetchInterval: 300000,
-});
-
-export const knowledgeQuery = queryOptions({
-  queryKey: queryKeys.knowledge,
-  queryFn: api.getKnowledge,
 });
 
 export const memoryQuery = queryOptions({
