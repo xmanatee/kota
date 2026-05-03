@@ -10,7 +10,7 @@ import type {
   AgentInspectResult,
   AgentSummary,
   AgentsListResult,
-} from "#core/server/kota-client.js";
+} from "./client.js";
 
 /**
  * Build the resolved per-source agent list.

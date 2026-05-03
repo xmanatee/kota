@@ -20,7 +20,6 @@
  * implementations are registered through ModuleContext and assembled
  * into the `LocalKotaClient` by the selector.
  */
-import type { AgentToolPolicy } from "#core/agents/agent-types.js";
 import type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
 import type {
   DaemonLiveStatus,
@@ -42,6 +41,7 @@ import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 // imports them back to compose the contract — this is the only sanctioned
 // `#modules/*` import direction in `src/core/server/`. The narrow exception
 // is enforced in `src/core/agent-harness/no-module-imports-in-core.test.ts`.
+import type { AgentsClient } from "#modules/agent-ops/client.js";
 import type { AnswerClient } from "#modules/answer/client.js";
 import type { DoctorClient } from "#modules/doctor/client.js";
 import type { AuditClient } from "#modules/guardrails-audit/client.js";
@@ -983,51 +983,6 @@ export type SessionsSetAutonomyModeResult =
 export interface SessionsClient {
   list(): Promise<SessionsListResult>;
   setAutonomyMode(id: string, mode: AutonomyMode): Promise<SessionsSetAutonomyModeResult>;
-}
-
-/**
- * A registered agent definition as the CLI surfaces it.
- *
- * `source` carries the contributing module name so the navigator can render
- * attribution. `model` reflects the agent's default after operator overrides
- * from `config.agentModels` are applied — the contract pre-resolves that
- * mapping so no caller has to repeat it. `effort` is required on every
- * `AgentDef`, but the contract types it as optional because some legacy
- * agent definitions surfaced through `getModuleSummaries()` predate the
- * required field; absence renders as the empty string in CLI output.
- */
-export type AgentSummary = {
-  name: string;
-  source: string;
-  role: string;
-  model: string;
-  effort?: "low" | "medium" | "high" | "xhigh" | "max";
-  promptPath: string;
-  writeScope: string[];
-  skills?: string[] | "all";
-  tools?: AgentToolPolicy;
-};
-
-export type AgentsListResult = {
-  agents: AgentSummary[];
-};
-
-export type AgentInspectResult =
-  | { found: true; agent: AgentSummary }
-  | { found: false };
-
-/**
- * Agent definition operations.
- *
- * `list` returns every agent contributed by the loaded module set, with the
- * operator's `agentModels` overrides already resolved. `inspect` returns the
- * full detail for a single agent. Both reads work daemon-up and daemon-down;
- * the daemon-side route reflects the daemon's loaded module set, the local
- * handler reflects the CLI's.
- */
-export interface AgentsClient {
-  list(): Promise<AgentsListResult>;
-  inspect(name: string): Promise<AgentInspectResult>;
 }
 
 /**

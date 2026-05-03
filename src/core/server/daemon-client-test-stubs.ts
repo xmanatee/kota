@@ -59,5 +59,9 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       inspect: async () => ({ found: false }),
       reload: async () => ({ ok: false, reason: "not_found" }),
     },
+    agents: {
+      list: async () => ({ agents: [] }),
+      inspect: async () => ({ found: false }),
+    },
   };
 }

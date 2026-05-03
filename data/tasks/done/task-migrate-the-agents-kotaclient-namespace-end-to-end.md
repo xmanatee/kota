@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-agents-kotaclient-namespace-end-to-end
 title: Migrate the agents KotaClient namespace end-to-end through the daemonClient(link) factory hook
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move AgentsClient interface, AgentSummary, AgentsListResult, and AgentInspectResult from src/core/server/kota-client.ts into src/modules/agent-ops/client.ts; add a daemonClient(link) factory on agentsModule contributing the agents namespace backed by the typed DaemonTransport with two GETs; remove listAgentsHttp, inspectAgentHttp, and the inline agents closure from src/core/server/daemon-client.ts.
 created_at: 2026-05-03T11:20:20.671Z
-updated_at: 2026-05-03T11:20:20.671Z
+updated_at: 2026-05-03T11:32:59.156Z
 ---
 
 ## Problem

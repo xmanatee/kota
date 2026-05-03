@@ -27,12 +27,7 @@ function handleInspect(
   res: ServerResponse,
   params: Record<string, string>,
 ): void {
-  const result = inspectAgent(ctx, params.name);
-  if (!result.found) {
-    jsonResponse(res, 404, { error: `Agent "${params.name}" not found` });
-    return;
-  }
-  jsonResponse(res, 200, result);
+  jsonResponse(res, 200, inspectAgent(ctx, params.name));
 }
 
 export function agentControlRoutes(ctx: ModuleContext): ControlRouteRegistration[] {

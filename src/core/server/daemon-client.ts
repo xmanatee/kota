@@ -19,8 +19,6 @@ import type {
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { type DaemonTransport, daemonTransportFromAddress } from "./daemon-transport.js";
 import type {
-  AgentInspectResult,
-  AgentsListResult,
   CaptureFilter,
   CaptureResult,
   ConfigGetResult,
@@ -478,35 +476,6 @@ async function voiceSynthesizeNamespaceHttp(
     message: result.error,
     ...(result.code !== undefined && { code: result.code }),
   };
-}
-
-async function listAgentsHttp(
-  transport: DaemonTransport,
-): Promise<AgentsListResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/agents`, {
-    headers: transport.authHeaders(),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as AgentsListResult;
-}
-
-async function inspectAgentHttp(
-  transport: DaemonTransport,
-  name: string,
-): Promise<AgentInspectResult> {
-  const res = await fetchWithTimeout(
-    `${transport.baseUrl}/agents/${encodeURIComponent(name)}`,
-    { headers: transport.authHeaders() },
-  );
-  if (res.status === 404) return { found: false };
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as AgentInspectResult;
 }
 
 async function listSkillsHttp(
@@ -1541,10 +1510,6 @@ export function buildCoreStubDaemonClientHandlers(
         return { sessions: result.sessions };
       },
       setAutonomyMode: async (id, mode) => setSessionAutonomyModeHttp(transport, id, mode),
-    },
-    agents: {
-      list: async () => listAgentsHttp(transport),
-      inspect: async (name) => inspectAgentHttp(transport, name),
     },
     skills: {
       list: async () => listSkillsHttp(transport),
