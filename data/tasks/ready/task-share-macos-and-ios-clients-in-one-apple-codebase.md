@@ -1,12 +1,12 @@
 ---
 id: task-share-macos-and-ios-clients-in-one-apple-codebase
 title: Share macOS and iOS clients in one Apple codebase
-status: backlog
+status: ready
 priority: p2
 area: client
 summary: Restructure the macOS menu bar app and a new iOS app so they share Swift sources for daemon transport, state, and views, with platform-specific shells, instead of duplicating logic across separate trees.
 created_at: 2026-04-28T23:56:41.196Z
-updated_at: 2026-04-28T23:56:41.196Z
+updated_at: 2026-05-03T01:37:47.449Z
 ---
 
 ## Problem
