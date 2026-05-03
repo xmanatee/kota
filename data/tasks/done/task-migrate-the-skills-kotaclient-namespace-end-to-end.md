@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-skills-kotaclient-namespace-end-to-end
 title: Migrate the skills KotaClient namespace end-to-end through the daemonClient(link) factory hook
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move SkillsClient interface, SkillSummary, SkillsListResult, SkillImportOptions, and SkillImportResult from src/core/server/kota-client.ts into src/modules/skill-ops/client.ts; add a daemonClient(link) factory on skillsModule contributing the skills namespace backed by the typed DaemonTransport with one GET and one POST; align skills/import route to 200 for both ok and not-ok arms; remove listSkillsHttp, importSkillHttp, and the inline skills closure from src/core/server/daemon-client.ts.
 created_at: 2026-05-03T11:58:16.352Z
-updated_at: 2026-05-03T11:58:16.352Z
+updated_at: 2026-05-03T12:11:47.676Z
 ---
 
 ## Problem

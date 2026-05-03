@@ -8,13 +8,13 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import type {
   SkillImportOptions,
   SkillImportResult,
   SkillSummary,
   SkillsListResult,
-} from "#core/server/kota-client.js";
-import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
+} from "./client.js";
 
 const IMPORTED_SOURCE_NAME = "imported";
 

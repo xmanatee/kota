@@ -52,6 +52,7 @@ import type {
 } from "#modules/module-manager/client.js";
 import type { OwnerQuestionsClient } from "#modules/owner-questions/client.js";
 import type { RetractClient } from "#modules/retract/client.js";
+import type { SkillsClient } from "#modules/skill-ops/client.js";
 
 /** A masked entry in the secret store (name and source only — never the value). */
 export type SecretListEntry = {
@@ -983,56 +984,6 @@ export type SessionsSetAutonomyModeResult =
 export interface SessionsClient {
   list(): Promise<SessionsListResult>;
   setAutonomyMode(id: string, mode: AutonomyMode): Promise<SessionsSetAutonomyModeResult>;
-}
-
-/**
- * A registered skill as the CLI surfaces it. `source` is the contributing
- * module name, or the literal string `"imported"` for skills installed under
- * `.kota/skills/` via `kota skill import`.
- */
-export type SkillSummary = {
-  name: string;
-  source: string;
-  description?: string;
-  promptPath: string;
-  roles?: string[];
-};
-
-export type SkillsListResult = {
-  skills: SkillSummary[];
-};
-
-export type SkillImportOptions = {
-  /** Override the skill name (and on-disk filename) declared in frontmatter. */
-  name?: string;
-};
-
-/**
- * Result of `skills.import`.
- *
- * `fetch_failed` covers HTTP and missing-local-file errors uniformly;
- * `missing_name` fires when the skill source has no `name` frontmatter and
- * the caller passed no override. The CLI maps both to a single error
- * message regardless of which transport answered.
- */
-export type SkillImportResult =
-  | { ok: true; name: string; path: string }
-  | {
-      ok: false;
-      reason: "fetch_failed" | "missing_name";
-      message: string;
-    };
-
-/**
- * Skill operations.
- *
- * `list` enumerates every registered skill — module-contributed plus
- * imported — with the contributor name. `import` fetches a skill from a URL
- * or local file and writes it under `.kota/skills/`.
- */
-export interface SkillsClient {
-  list(): Promise<SkillsListResult>;
-  import(source: string, options?: SkillImportOptions): Promise<SkillImportResult>;
 }
 
 /**

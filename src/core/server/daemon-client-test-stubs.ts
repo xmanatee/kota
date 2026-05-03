@@ -63,5 +63,9 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       list: async () => ({ agents: [] }),
       inspect: async () => ({ found: false }),
     },
+    skills: {
+      list: async () => ({ skills: [] }),
+      import: async () => ({ ok: true, name: "stub", path: "stub" }),
+    },
   };
 }

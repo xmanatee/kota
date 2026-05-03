@@ -37,11 +37,6 @@ async function handleImport(
   }
   const name = typeof body.name === "string" ? body.name : undefined;
   const result = await importSkill(ctx, source, name !== undefined ? { name } : undefined);
-  if (!result.ok) {
-    const status = result.reason === "fetch_failed" ? 502 : 400;
-    jsonResponse(res, status, result);
-    return;
-  }
   jsonResponse(res, 200, result);
 }
 

@@ -71,9 +71,6 @@ import type {
   SecretMutateResult,
   SecretScope,
   SessionsSetAutonomyModeResult,
-  SkillImportOptions,
-  SkillImportResult,
-  SkillsListResult,
   VoiceSynthesizeOptions,
   VoiceSynthesizeResult,
   VoiceTranscribeOptions,
@@ -476,43 +473,6 @@ async function voiceSynthesizeNamespaceHttp(
     message: result.error,
     ...(result.code !== undefined && { code: result.code }),
   };
-}
-
-async function listSkillsHttp(
-  transport: DaemonTransport,
-): Promise<SkillsListResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/skills`, {
-    headers: transport.authHeaders(),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as SkillsListResult;
-}
-
-async function importSkillHttp(
-  transport: DaemonTransport,
-  source: string,
-  options?: SkillImportOptions,
-): Promise<SkillImportResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/skills/import`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...transport.authHeaders() },
-    body: JSON.stringify({
-      source,
-      ...(options?.name !== undefined && { name: options.name }),
-    }),
-  });
-  if (res.status === 400 || res.status === 502) {
-    const body = (await res.json()) as SkillImportResult;
-    return body;
-  }
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as SkillImportResult;
 }
 
 async function listSessionsHttp(
@@ -1510,10 +1470,6 @@ export function buildCoreStubDaemonClientHandlers(
         return { sessions: result.sessions };
       },
       setAutonomyMode: async (id, mode) => setSessionAutonomyModeHttp(transport, id, mode),
-    },
-    skills: {
-      list: async () => listSkillsHttp(transport),
-      import: async (source, options) => importSkillHttp(transport, source, options),
     },
     webhook: {
       list: async () => listWebhooksHttp(transport),
