@@ -3,12 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ROOT_ENTRYPOINT_SOURCES } from "#core/root-layout.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import {
   checkModuleBoundary,
   checkSuccessCriteriaDeclared,
   checkSuccessCriteriaVerified,
-  ROOT_PRODUCTION_ALLOWLIST,
 } from "./repair-checks.js";
 import builderWorkflow from "./workflow.js";
 
@@ -745,10 +745,10 @@ describe("checkModuleBoundary", () => {
 
   it("the allowlist matches current root production files", () => {
     // Smoke test: the allowlist should contain known entrypoints
-    expect(ROOT_PRODUCTION_ALLOWLIST.has("cli.ts")).toBe(true);
-    expect(ROOT_PRODUCTION_ALLOWLIST.has("init.ts")).toBe(true);
-    expect(ROOT_PRODUCTION_ALLOWLIST.has("module-api.ts")).toBe(true);
-    expect(ROOT_PRODUCTION_ALLOWLIST.has("validate-queue.ts")).toBe(true);
+    expect(ROOT_ENTRYPOINT_SOURCES.has("cli.ts")).toBe(true);
+    expect(ROOT_ENTRYPOINT_SOURCES.has("init.ts")).toBe(true);
+    expect(ROOT_ENTRYPOINT_SOURCES.has("module-api.ts")).toBe(true);
+    expect(ROOT_ENTRYPOINT_SOURCES.has("validate-queue.ts")).toBe(true);
   });
 });
 

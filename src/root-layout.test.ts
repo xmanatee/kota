@@ -12,41 +12,14 @@
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+  ROOT_CROSS_CUTTING_FIXTURES,
+  ROOT_CROSS_CUTTING_TESTS,
+  ROOT_ENTRYPOINT_PAIRED_TESTS,
+  ROOT_ENTRYPOINT_SOURCES,
+} from "#core/root-layout.js";
 
 const SRC_DIR = import.meta.dirname;
-
-const ENTRYPOINT_SOURCES = new Set([
-  "cli.ts",
-  "init.ts",
-  "module-api.ts",
-  "validate-queue.ts",
-  // The guard file itself counts as a repo-wide check, co-located with the
-  // whitelist it enforces.
-  "root-layout.ts",
-]);
-
-const ENTRYPOINT_PAIRED_TESTS = new Set([
-  "cli.test.ts",
-  "init.test.ts",
-  "root-layout.test.ts",
-]);
-
-const CROSS_CUTTING_TESTS = new Set([
-  "distributable-surfaces.test.ts",
-  "docs-surface.test.ts",
-  "e2e-advanced.test.ts",
-  "e2e.test.ts",
-  "integration.test.ts",
-  "module-e2e.test.ts",
-  "task-files.test.ts",
-]);
-
-// Shared fixtures co-located with the cross-cutting integration tests
-// they support. Limited to fixtures that span multiple subsystems and
-// therefore have no single owning module to live under.
-const CROSS_CUTTING_FIXTURES = new Set([
-  "conversational-cross-store-fixture.integration.ts",
-]);
 
 function listTopLevelTsFiles(): string[] {
   return readdirSync(SRC_DIR)
@@ -63,10 +36,10 @@ describe("src/ root layout", () => {
     const unexpected: string[] = [];
 
     for (const name of files) {
-      if (ENTRYPOINT_SOURCES.has(name)) continue;
-      if (ENTRYPOINT_PAIRED_TESTS.has(name)) continue;
-      if (CROSS_CUTTING_TESTS.has(name)) continue;
-      if (CROSS_CUTTING_FIXTURES.has(name)) continue;
+      if (ROOT_ENTRYPOINT_SOURCES.has(name)) continue;
+      if (ROOT_ENTRYPOINT_PAIRED_TESTS.has(name)) continue;
+      if (ROOT_CROSS_CUTTING_TESTS.has(name)) continue;
+      if (ROOT_CROSS_CUTTING_FIXTURES.has(name)) continue;
       if (name.endsWith(".integration.test.ts")) continue;
       unexpected.push(name);
     }
@@ -90,12 +63,9 @@ describe("src/ root layout", () => {
   it("every whitelisted entrypoint source has a matching file on disk", () => {
     const files = new Set(listTopLevelTsFiles());
     const missing: string[] = [];
-    for (const name of ENTRYPOINT_SOURCES) {
+    for (const name of ROOT_ENTRYPOINT_SOURCES) {
       if (!files.has(name)) missing.push(name);
     }
-    // `root-layout.ts` is reserved for potential future non-test companion
-    // code and may legitimately be absent.
-    const stillMissing = missing.filter((n) => n !== "root-layout.ts");
-    expect(stillMissing).toEqual([]);
+    expect(missing).toEqual([]);
   });
 });

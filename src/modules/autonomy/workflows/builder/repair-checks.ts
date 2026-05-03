@@ -1,5 +1,9 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  ROOT_CROSS_CUTTING_FIXTURES,
+  ROOT_ENTRYPOINT_SOURCES,
+} from "#core/root-layout.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import { checkCommitStageable } from "#modules/autonomy/commit.js";
 import { createCriticCheck } from "#modules/autonomy/critic.js";
@@ -101,27 +105,6 @@ export function checkSuccessCriteriaVerified(runDirPath: string): string {
   return `OK: success criteria verified (${verifiedCount} ${unit}s for ${criteriaCount} criteria)`;
 }
 
-/**
- * Approved root src/*.ts production files. New capabilities belong in
- * src/core/ or src/modules/, not here. Update this set only when
- * intentionally adding a root entrypoint or thin glue file.
- */
-export const ROOT_PRODUCTION_ALLOWLIST = new Set([
-  "cli.ts",
-  "init.ts",
-  "module-api.ts",
-  "validate-queue.ts",
-]);
-
-/**
- * Shared fixtures co-located with cross-cutting integration tests when they
- * span multiple subsystems and have no single owning module. Mirrors the
- * authoritative whitelist in src/root-layout.test.ts.
- */
-export const CROSS_CUTTING_FIXTURES = new Set([
-  "conversational-cross-store-fixture.integration.ts",
-]);
-
 export function checkModuleBoundary(projectDir: string): string {
   const srcDir = join(projectDir, "src");
   if (!existsSync(srcDir)) return "OK: no src/ directory";
@@ -133,20 +116,20 @@ export function checkModuleBoundary(projectDir: string): string {
       !f.includes(".test.") &&
       !f.includes(".integration.") &&
       !f.endsWith(".d.ts") &&
-      !CROSS_CUTTING_FIXTURES.has(f),
+      !ROOT_CROSS_CUTTING_FIXTURES.has(f),
   );
-  const fileViolations = rootFiles.filter((f) => !ROOT_PRODUCTION_ALLOWLIST.has(f));
+  const fileViolations = rootFiles.filter((f) => !ROOT_ENTRYPOINT_SOURCES.has(f));
   if (fileViolations.length) {
     throw new Error(
       `Unexpected production files in src/ root: ${fileViolations.join(", ")}. ` +
         `New capabilities belong in src/core/ or src/modules/. ` +
-        `If this file is intentional, add it to ROOT_PRODUCTION_ALLOWLIST in repair-checks.ts.`,
+        `If this file is intentional, add it to ROOT_ENTRYPOINT_SOURCES in src/core/root-layout.ts.`,
     );
   }
 
   // 2. Check for #root/* imports targeting non-allowlisted modules.
   const allowedImportTargets = new Set(
-    [...ROOT_PRODUCTION_ALLOWLIST].map((f) => f.replace(/\.ts$/, ".js")),
+    [...ROOT_ENTRYPOINT_SOURCES].map((f) => f.replace(/\.ts$/, ".js")),
   );
   const importViolations = findDisallowedRootImports(srcDir, allowedImportTargets);
   if (importViolations.length) {

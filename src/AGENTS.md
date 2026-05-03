@@ -32,9 +32,13 @@ The `src/` root holds only:
 - Shared fixtures co-located with cross-cutting integration tests when
   they span multiple subsystems and have no single owning module
   (e.g. `conversational-cross-store-fixture.integration.ts`). The fixture name must
-  also be added to the `CROSS_CUTTING_FIXTURES` whitelist in
-  `src/root-layout.test.ts`.
-- `root-layout.test.ts`, the whitelist guard itself.
+  also be added to the `ROOT_CROSS_CUTTING_FIXTURES` set in
+  `src/core/root-layout.ts`, the single source of truth that the layout
+  guard, the queue validator, and the autonomy module-boundary check all
+  import.
+- `root-layout.test.ts`, the guard test that enforces the layout. Its
+  whitelist data lives at `src/core/root-layout.ts` so non-test code can
+  import it without depending on a test file or on a `#root/*` import.
 
 Every other unit test lives next to the code it exercises under
 `src/core/<area>/` or `src/modules/<module>/`. `src/root-layout.test.ts`

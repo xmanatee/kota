@@ -23,6 +23,7 @@ import {
   hasStrategicReadyCoverageGap,
   listRootKernelHelperDebt,
   listRootLevelCliArchitectureDebt,
+  listVisibleArchitectureDebt,
   type TaskFileEntry,
   validateTaskQueue,
 } from "./task-queue-validation.js";
@@ -518,6 +519,55 @@ Has an outcome.
       join("src", "config.ts"),
       join("src", "frontmatter.ts"),
     ]);
+  });
+
+  it("does not report whitelisted cross-cutting fixtures as kernel-helper debt", () => {
+    mkdirSync(join(projectDir, "src"), { recursive: true });
+    // The fixture is on the layout whitelist (`ROOT_CROSS_CUTTING_FIXTURES`
+    // in src/core/root-layout.ts), so the queue validator must agree with
+    // the layout policy that this is not architecture debt.
+    writeFileSync(
+      join(projectDir, "src", "conversational-cross-store-fixture.integration.ts"),
+      "export {};\n",
+    );
+
+    expect(listRootKernelHelperDebt(projectDir)).toEqual([]);
+    expect(listVisibleArchitectureDebt(projectDir)).toEqual([]);
+  });
+
+  it("still reports an unauthorized .integration.ts fixture as kernel-helper debt", () => {
+    mkdirSync(join(projectDir, "src"), { recursive: true });
+    // Same .integration.ts extension as a whitelisted fixture, but the
+    // filename is not on `ROOT_CROSS_CUTTING_FIXTURES`. The validator must
+    // still surface it as debt — the whitelist is by exact name, not by
+    // extension.
+    writeFileSync(
+      join(projectDir, "src", "phantom-helper.integration.ts"),
+      "export {};\n",
+    );
+
+    expect(listRootKernelHelperDebt(projectDir)).toEqual([
+      join("src", "phantom-helper.integration.ts"),
+    ]);
+  });
+
+  it("accepts architecture-ready coverage when only debt is a whitelisted fixture", () => {
+    mkdirSync(join(projectDir, "src"), { recursive: true });
+    writeFileSync(
+      join(projectDir, "src", "conversational-cross-store-fixture.integration.ts"),
+      "export {};\n",
+    );
+    writeTask(projectDir, "ready", "task-ops", { area: "runtime" });
+    execSync("git add data src && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    // No ready architecture task, but the only file at src/ root is on the
+    // shared whitelist — so the validator must not manufacture phantom
+    // architecture debt for the autonomy queue-shaping repair loop.
+    expect(hasArchitectureReadyCoverageGap(projectDir)).toBe(false);
+    expect(assertArchitectureReadyCoverage(projectDir)).toBe("architecture-ready-coverage-ok");
   });
 
   it("reports architecture coverage gap when loose root kernel helpers exist", () => {

@@ -1,6 +1,10 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
+import {
+  ROOT_CROSS_CUTTING_FIXTURES,
+  ROOT_ENTRYPOINT_SOURCES,
+} from "#core/root-layout.js";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import { parseBlockedPrecondition } from "./blocked-precondition.js";
 import {
@@ -333,20 +337,14 @@ export function listRootLevelCliArchitectureDebt(projectDir: string): string[] {
     .sort();
 }
 
-const ROOT_SRC_KNOWN_ENTRYPOINTS = new Set([
-  "cli.ts",
-  "init.ts",
-  "module-api.ts",
-  "validate-queue.ts",
-]);
-
 export function listRootKernelHelperDebt(projectDir: string): string[] {
   const dir = join(projectDir, "src");
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((f) => f.endsWith(".ts"))
     .filter((f) => !f.endsWith(".test.ts") && !f.endsWith(".integration.test.ts"))
-    .filter((f) => !ROOT_SRC_KNOWN_ENTRYPOINTS.has(f))
+    .filter((f) => !ROOT_ENTRYPOINT_SOURCES.has(f))
+    .filter((f) => !ROOT_CROSS_CUTTING_FIXTURES.has(f))
     .map((f) => join("src", f))
     .sort();
 }

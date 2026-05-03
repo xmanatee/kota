@@ -1,12 +1,12 @@
 ---
 id: task-stop-reporting-whitelisted-cross-cutting-fixtures-
 title: Stop reporting whitelisted cross-cutting fixtures as root-kernel-helper architecture debt
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Align listRootKernelHelperDebt with the root-layout fixture whitelist so legitimate cross-cutting shared fixtures (e.g. conversational-cross-store-fixture.integration.ts) stop being reported as architecture debt and stop distorting autonomy queue-shaping.
 created_at: 2026-05-03T04:02:19.968Z
-updated_at: 2026-05-03T04:02:19.968Z
+updated_at: 2026-05-03T04:12:32.668Z
 ---
 
 ## Problem
