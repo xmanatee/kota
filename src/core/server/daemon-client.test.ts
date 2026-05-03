@@ -31,6 +31,7 @@ const STUB_OMITTED_NAMESPACES: ReadonlySet<string> = new Set<string>([
   "audit",
   "retract",
   "answer",
+  "ownerQuestions",
 ]);
 
 function makeFakeTransport(): DaemonTransport {
@@ -82,6 +83,14 @@ function makeStubAnswer(): DaemonClientHandlers["answer"] {
   };
 }
 
+function makeStubOwnerQuestions(): DaemonClientHandlers["ownerQuestions"] {
+  return {
+    list: async () => ({ questions: [] }),
+    answer: async () => ({ ok: false, reason: "not_found" }),
+    dismiss: async () => ({ ok: false, reason: "not_found" }),
+  };
+}
+
 describe("assembleDaemonClientHandlers", () => {
   const transport = makeFakeTransport();
 
@@ -106,6 +115,7 @@ describe("assembleDaemonClientHandlers", () => {
       audit: makeStubAudit(),
       retract: makeStubRetract(),
       answer: makeStubAnswer(),
+      ownerQuestions: makeStubOwnerQuestions(),
     });
     for (const name of KOTA_CLIENT_NAMESPACES) {
       expect(handlers[name], `assembled client must cover "${name}"`).toBeDefined();
@@ -127,6 +137,7 @@ describe("assembleDaemonClientHandlers", () => {
       audit: makeStubAudit(),
       retract: makeStubRetract(),
       answer: makeStubAnswer(),
+      ownerQuestions: makeStubOwnerQuestions(),
       memory: customMemory,
     });
     expect(merged.memory).toBe(customMemory);
@@ -135,7 +146,7 @@ describe("assembleDaemonClientHandlers", () => {
 
   it("throws naming each migrated namespace when no module contributes it", () => {
     expect(() => assembleDaemonClientHandlers(transport)).toThrow(
-      /missing daemon handler\(s\) for: harnessParity, audit, doctor, answer, retract/,
+      /missing daemon handler\(s\) for: ownerQuestions, harnessParity, audit, doctor, answer, retract/,
     );
   });
 });

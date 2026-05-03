@@ -13,10 +13,6 @@ import type {
   WorkflowRunSummary,
 } from "#core/daemon/daemon-control.js";
 import type {
-  OwnerQuestionStatus,
-  PendingOwnerQuestion,
-} from "#core/daemon/owner-question-queue.js";
-import type {
   ConversationData,
   KnowledgeEntry,
 } from "#core/modules/provider-types.js";
@@ -62,7 +58,6 @@ import type {
   ModuleInspectResult,
   ModuleListEntry,
   ModuleReloadResult,
-  OwnerQuestionMutateResult,
   RecallFilter,
   RecallResult,
   RepoTaskCaptureResult,
@@ -844,76 +839,6 @@ async function searchHistoryHttp(
   return (await res.json()) as HistorySearchResult;
 }
 
-async function answerOwnerQuestionHttp(
-  transport: DaemonTransport,
-  id: string,
-  answer: string,
-): Promise<OwnerQuestionMutateResult> {
-  try {
-    const res = await fetchWithTimeout(
-      `${transport.baseUrl}/owner-questions/${encodeURIComponent(id)}/answer`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...transport.authHeaders() },
-        body: JSON.stringify({ answer }),
-      },
-    );
-    if (res.status === 404) return { ok: false, reason: "not_found" };
-    if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      throw new Error(body.error ?? `HTTP ${res.status}`);
-    }
-    const body = (await res.json()) as { question: PendingOwnerQuestion };
-    return { ok: true, question: body.question };
-  } catch (err) {
-    if (err instanceof Error && err.message.startsWith("HTTP ")) throw err;
-    return { ok: false, reason: "not_found" };
-  }
-}
-
-async function dismissOwnerQuestionHttp(
-  transport: DaemonTransport,
-  id: string,
-  reason?: string,
-): Promise<OwnerQuestionMutateResult> {
-  try {
-    const res = await fetchWithTimeout(
-      `${transport.baseUrl}/owner-questions/${encodeURIComponent(id)}/dismiss`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...transport.authHeaders() },
-        body: JSON.stringify(reason !== undefined ? { reason } : {}),
-      },
-    );
-    if (res.status === 404) return { ok: false, reason: "not_found" };
-    if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      throw new Error(body.error ?? `HTTP ${res.status}`);
-    }
-    const body = (await res.json()) as { question: PendingOwnerQuestion };
-    return { ok: true, question: body.question };
-  } catch (err) {
-    if (err instanceof Error && err.message.startsWith("HTTP ")) throw err;
-    return { ok: false, reason: "not_found" };
-  }
-}
-
-async function listOwnerQuestionsHttp(
-  transport: DaemonTransport,
-  status?: OwnerQuestionStatus | "all",
-): Promise<{ questions: PendingOwnerQuestion[] } | null> {
-  try {
-    const query = status ? `?status=${encodeURIComponent(status)}` : "";
-    const res = await fetchWithTimeout(`${transport.baseUrl}/owner-questions${query}`, {
-      headers: transport.authHeaders(),
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as { questions: PendingOwnerQuestion[] };
-  } catch {
-    return null;
-  }
-}
-
 async function addMemoryHttp(
   transport: DaemonTransport,
   content: string,
@@ -1644,14 +1569,6 @@ export function buildCoreStubDaemonClientHandlers(
       search: async (query, filter) => searchMemoryHttp(transport, query, filter),
       reindex: async () => reindexMemoryHttp(transport),
     },
-    ownerQuestions: {
-      list: async (filter) => {
-        const result = await listOwnerQuestionsHttp(transport, filter?.status);
-        return { questions: result?.questions ?? [] };
-      },
-      answer: async (id, answer) => answerOwnerQuestionHttp(transport, id, answer),
-      dismiss: async (id, reason) => dismissOwnerQuestionHttp(transport, id, reason),
-    },
     history: {
       list: async (filter) => historyListHttp(transport, filter),
       show: async (id) => historyShowHttp(transport, id),
@@ -2032,10 +1949,6 @@ export class DaemonControlClient implements KotaClient {
 
   getWorkflowRun(id: string): Promise<WorkflowRunDetail | null> {
     return getWorkflowRunHttp(this.transport, id);
-  }
-
-  listOwnerQuestions(status?: OwnerQuestionStatus | "all"): Promise<{ questions: PendingOwnerQuestion[] } | null> {
-    return listOwnerQuestionsHttp(this.transport, status);
   }
 
   async registerSession(id: string, createdAt: string, autonomyMode: AutonomyMode): Promise<boolean> {

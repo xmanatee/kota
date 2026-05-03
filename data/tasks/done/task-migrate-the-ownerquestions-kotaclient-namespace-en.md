@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-ownerquestions-kotaclient-namespace-en
 title: Migrate the ownerQuestions KotaClient namespace end-to-end through the daemonClient(link) factory hook (foundation pilot follow-up)
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move OwnerQuestionsClient interface, OwnerQuestionListFilter, OwnerQuestionsListResult, and OwnerQuestionMutateResult from src/core/server/kota-client.ts into src/modules/owner-questions/client.ts; add a daemonClient(link) factory that wires list (GET /owner-questions), answer (POST /owner-questions/:id/answer), and dismiss (POST /owner-questions/:id/dismiss) through the typed DaemonTransport; remove answerOwnerQuestionHttp, dismissOwnerQuestionHttp, listOwnerQuestionsHttp, the inline ownerQuestions handler closure, and the OwnerQuestionStatus/PendingOwnerQuestion/OwnerQuestionMutateResult imports from src/core/server/daemon-client.ts.
 created_at: 2026-05-03T09:31:40.245Z
-updated_at: 2026-05-03T09:31:40.245Z
+updated_at: 2026-05-03T09:53:09.970Z
 ---
 
 ## Problem

@@ -31,10 +31,6 @@ import type {
   WorkflowRunSummary,
 } from "#core/daemon/daemon-control.js";
 import type {
-  OwnerQuestionStatus,
-  PendingOwnerQuestion,
-} from "#core/daemon/owner-question-queue.js";
-import type {
   ConversationData,
   ConversationRecord,
   KnowledgeEntry,
@@ -50,6 +46,7 @@ import type { AnswerClient } from "#modules/answer/client.js";
 import type { DoctorClient } from "#modules/doctor/client.js";
 import type { AuditClient } from "#modules/guardrails-audit/client.js";
 import type { HarnessParityClient } from "#modules/harness-parity/client.js";
+import type { OwnerQuestionsClient } from "#modules/owner-questions/client.js";
 import type { RetractClient } from "#modules/retract/client.js";
 
 /** A masked entry in the secret store (name and source only — never the value). */
@@ -387,27 +384,6 @@ export type ApprovalListFilter = {
 /** Result of an approval mutation (`approve`, `reject`). */
 export type ApprovalMutateResult =
   | { ok: true; approval: PendingApproval }
-  | { ok: false; reason: "not_found" };
-
-/**
- * Filter for `OwnerQuestionsClient.list`.
- *
- * `status` defaults to `"pending"` so the common "what's blocking the owner?"
- * call stays a one-liner. Pass a specific resolved status (`"answered"`,
- * `"dismissed"`, `"expired"`) or `"all"` to include resolved items used by
- * `kota owner-question history` and any caller that needs the full archive.
- */
-export type OwnerQuestionListFilter = {
-  status?: OwnerQuestionStatus | "all";
-};
-
-export type OwnerQuestionsListResult = {
-  questions: PendingOwnerQuestion[];
-};
-
-/** Result of an owner-question mutation (`answer`, `dismiss`). */
-export type OwnerQuestionMutateResult =
-  | { ok: true; question: PendingOwnerQuestion }
   | { ok: false; reason: "not_found" };
 
 /**
@@ -922,24 +898,6 @@ export interface MemoryClient {
   delete(id: string): Promise<MemoryDeleteResult>;
   search(query: string, filter?: MemorySearchFilter): Promise<MemorySearchResult>;
   reindex(): Promise<MemoryReindexResult>;
-}
-
-/**
- * Owner-question queue operations.
- *
- * `list` reads the queue (filterable by status). `answer` resolves a pending
- * question with the operator's answer; `dismiss` resolves a pending question
- * without a substantive answer. Both mutations return the resolved question
- * so callers can render attribution (`resolutionSource`, `resolvedAt`) or
- * surface follow-up details. Resolved-question history (CLI `history --since`,
- * `--status`, `-n`) is composed from `list({ status: "all" })` plus CLI-side
- * filtering — the contract carries the queue snapshot, not the filter
- * derivation.
- */
-export interface OwnerQuestionsClient {
-  list(filter?: OwnerQuestionListFilter): Promise<OwnerQuestionsListResult>;
-  answer(id: string, answer: string): Promise<OwnerQuestionMutateResult>;
-  dismiss(id: string, reason?: string): Promise<OwnerQuestionMutateResult>;
 }
 
 /**
