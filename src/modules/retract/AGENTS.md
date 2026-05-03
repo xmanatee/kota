@@ -98,6 +98,30 @@ its `register()` API; nothing in core hard-codes the contributor set.
   invariants and `updated_at` / `git mv` semantics stay intact.
 - No second registry, no second public retract path. `register()` is
   the single way new stores join.
-- No fan-out from this module. Telegram, web, macOS, and mobile
-  adoption land later as their own honest single-task follow-ups,
-  matching the capture+recall+answer pattern.
+
+## Live consumers
+
+The cross-store seam ships across these surfaces, all sharing the
+single `createRetractRouteHandler` and `renderRetractResultPlain`:
+
+- daemon: `POST /retract` (control) + `POST /api/retract` (user-facing).
+- CLI: `kota retract --target <store> --id|--slug|--path <ident>`.
+- macOS: `RetractView` (menu-bar section) via `DaemonClient.retract`,
+  hits the daemon-control `/retract` route.
+- mobile: `RetractScreen` via `retract(http, request)` against
+  `/api/retract`.
+- web: sidebar `RetractPanel` via `api.retract(request)` against
+  `/api/retract`.
+- Telegram: umbrella `/retract` (fixed help body — the seam has no
+  classifier) plus the four `/retract-{memory,knowledge,tasks,inbox}`
+  explicit-target commands.
+- Slack-channel: the four `/retract-{memory,knowledge,tasks,inbox}`
+  explicit-target commands.
+
+The cross-client conformance fixture at
+`clients/conformance/contract-fixture.json` (`retract.{successMemory,
+successKnowledge,successTasks,successInbox,noContributors,notFound,
+contributorFailed,negative_unknownTarget,negative_unknownReason}`)
+plus the matching `parseRetractResult` decoder at
+`clients/conformance/decoders.ts` pin the wire shape across web
+Vitest, mobile Jest, and macOS Swift conformance suites.
