@@ -3,6 +3,7 @@ import { basename, join } from "node:path";
 import { Command } from "commander";
 import { resolveProjectDir } from "#core/config/project-dir.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
+import type { ClientDashboardAvailability } from "#core/daemon/client-identity.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
@@ -51,7 +52,29 @@ export type StatusSnapshot = {
    * mismatch from the 2026-04-28 incident.
    */
   wrongProject?: boolean;
+  /**
+   * Dashboard availability the daemon reports through `GET /identity`,
+   * paired with the daemon base URL so the CLI surfaces the exact URL
+   * an operator can open instead of guessing `localhost:3000`. Present
+   * only when the identity probe succeeded; the field is omitted when
+   * the daemon is unreachable so the CLI never renders a stale verdict.
+   */
+  dashboard?: StatusDashboard;
 };
+
+/**
+ * Resolved dashboard verdict for one snapshot. The `available` arm
+ * carries the fully qualified URL (daemon base URL joined with the
+ * advertised path) so the CLI can render an exact target instead of
+ * teaching every reader to splice base+path themselves. The
+ * `unavailable` arm preserves the same `reason` / `message` the
+ * daemon emitted so the CLI can explain *why* the dashboard is missing
+ * (web UI not built, module disabled, init failed, …) without ad-hoc
+ * string parsing.
+ */
+export type StatusDashboard =
+  | { available: true; url: string }
+  | { available: false; reason: string; message?: string };
 
 function formatUptime(ms: number): string {
   return formatUptimeFromIso(new Date(Date.now() - ms).toISOString());
@@ -74,6 +97,48 @@ function describeControlFile(identity: DaemonControlIdentity): {
     case "fresh":
       return { value: `fresh  (pid ${identity.pid})`, role: "success" };
   }
+}
+
+/**
+ * Derive the CLI-facing dashboard verdict from the daemon's typed
+ * {@link ClientDashboardAvailability} payload and the daemon base URL.
+ *
+ * The daemon advertises `path` relative to its own base URL because the
+ * request host the client used to reach the daemon (loopback, LAN IP,
+ * remote tunnel) is the same host that should serve the dashboard. The
+ * CLI joins the two so `kota status` prints a fully qualified URL — the
+ * exact target an operator should paste into a browser, never a guessed
+ * `localhost:3000`. Absolute URLs in `path` (e.g. an external dev server)
+ * pass through unchanged because `new URL(absolute, base).toString()`
+ * returns the absolute URL.
+ */
+export function resolveDashboardForStatus(
+  dashboard: ClientDashboardAvailability,
+  baseURL: string,
+): StatusDashboard {
+  if (dashboard.available) {
+    const url = new URL(dashboard.path, baseURL).toString();
+    return { available: true, url };
+  }
+  return {
+    available: false,
+    reason: dashboard.reason,
+    ...(dashboard.message !== undefined && { message: dashboard.message }),
+  };
+}
+
+function describeDashboard(dashboard: StatusDashboard): {
+  value: string;
+  role: "success" | "warn" | "muted";
+} {
+  if (dashboard.available) {
+    return { value: `available  (${dashboard.url})`, role: "success" };
+  }
+  const suffix = dashboard.message ? `  — ${dashboard.message}` : "";
+  return {
+    value: `not available  (${dashboard.reason})${suffix}`,
+    role: "warn",
+  };
 }
 
 export function buildStatusNode(snap: StatusSnapshot): RenderNode {
@@ -108,6 +173,10 @@ export function buildStatusNode(snap: StatusSnapshot): RenderNode {
       value: `${snap.daemonProjectName ?? basename(snap.daemonProjectDir)}  (${snap.daemonProjectDir})`,
       role: "muted" as const,
     });
+  }
+  if (snap.dashboard) {
+    const dash = describeDashboard(snap.dashboard);
+    entries.push({ label: "Dashboard", value: dash.value, role: dash.role });
   }
   entries.push(
     { label: "Daemon", value: daemonValue, role: snap.daemonRunning ? "success" as const : "muted" as const },
@@ -180,6 +249,14 @@ export async function gatherStatus(projectDir: string): Promise<StatusSnapshot> 
       const daemonProjectDir = identity?.projectDir;
       const daemonProjectName = identity?.projectName;
       const wrongProject = daemonProjectDir != null && daemonProjectDir !== projectDir;
+      const baseURL =
+        controlFile.kind === "fresh" || controlFile.kind === "stale"
+          ? controlFile.baseURL
+          : null;
+      const dashboard =
+        identity != null && baseURL != null
+          ? resolveDashboardForStatus(identity.dashboard, baseURL)
+          : undefined;
 
       return {
         daemonRunning: true,
@@ -195,6 +272,7 @@ export async function gatherStatus(projectDir: string): Promise<StatusSnapshot> 
         ...(daemonProjectDir != null && { daemonProjectDir }),
         ...(daemonProjectName != null && { daemonProjectName }),
         ...(wrongProject && { wrongProject }),
+        ...(dashboard != null && { dashboard }),
       };
     }
   }

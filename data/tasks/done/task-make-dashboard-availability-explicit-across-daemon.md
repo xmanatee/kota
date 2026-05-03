@@ -1,12 +1,12 @@
 ---
 id: task-make-dashboard-availability-explicit-across-daemon
 title: Make dashboard availability explicit across daemon and clients
-status: ready
+status: done
 priority: p2
 area: client
 summary: Replace hardcoded dashboard URLs and blind Open Dashboard actions with daemon-reported web UI availability and exact URL handling across macOS, mobile, web shells, and CLI/operator clients.
 created_at: 2026-04-28T22:36:05.792Z
-updated_at: 2026-05-03T01:19:29.902Z
+updated_at: 2026-05-03T01:25:52.322Z
 ---
 
 ## Problem

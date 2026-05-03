@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   classifyDaemonControlFile,
   formatStatusOutput,
+  resolveDashboardForStatus,
   type StatusSnapshot,
 } from "./status-cli.js";
 
@@ -146,6 +147,104 @@ describe("formatStatusOutput", () => {
     }));
     expect(out).not.toContain("Bearer ");
   });
+
+  it("renders the daemon-served dashboard URL when /identity advertises it", () => {
+    const out = formatStatusOutput(
+      makeSnap({
+        daemonRunning: true,
+        daemonPid: 12345,
+        controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
+        dashboard: { available: true, url: "http://127.0.0.1:8765/" },
+      }),
+    );
+    expect(out).toContain("Dashboard");
+    expect(out).toContain("available");
+    expect(out).toContain("http://127.0.0.1:8765/");
+  });
+
+  it("explains why the dashboard is not available when /identity reports an unavailable capability", () => {
+    const out = formatStatusOutput(
+      makeSnap({
+        daemonRunning: true,
+        daemonPid: 12345,
+        controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
+        dashboard: {
+          available: false,
+          reason: "web_ui_not_built",
+          message: "Run `pnpm --filter @kota/web build`.",
+        },
+      }),
+    );
+    expect(out).toContain("Dashboard");
+    expect(out).toContain("not available");
+    expect(out).toContain("web_ui_not_built");
+    expect(out).toContain("Run `pnpm --filter @kota/web build`.");
+    expect(out).not.toContain("localhost:3000");
+  });
+
+  it("omits the Dashboard line when the daemon never answered /identity", () => {
+    const out = formatStatusOutput(
+      makeSnap({
+        daemonRunning: false,
+        controlFile: { kind: "stale", pid: 99999, baseURL: "http://127.0.0.1:8765" },
+      }),
+    );
+    expect(out).not.toContain("Dashboard");
+  });
+});
+
+describe("resolveDashboardForStatus", () => {
+  it("joins the daemon base URL with the advertised relative path", () => {
+    expect(
+      resolveDashboardForStatus(
+        { available: true, path: "/" },
+        "http://127.0.0.1:8765",
+      ),
+    ).toEqual({ available: true, url: "http://127.0.0.1:8765/" });
+  });
+
+  it("preserves a fully qualified path so a configured external dev URL passes through unchanged", () => {
+    // The dashboard contract types `path` as a string. A daemon that
+    // configures the dashboard at an external URL (e.g. the local Vite
+    // dev server during web client development) emits the absolute URL
+    // and the CLI surfaces it verbatim instead of stitching loopback in
+    // front of `localhost:3000`.
+    expect(
+      resolveDashboardForStatus(
+        { available: true, path: "http://localhost:3000/" },
+        "http://127.0.0.1:8765",
+      ),
+    ).toEqual({
+      available: true,
+      url: "http://localhost:3000/",
+    });
+  });
+
+  it("forwards the unavailable reason and message verbatim", () => {
+    expect(
+      resolveDashboardForStatus(
+        {
+          available: false,
+          reason: "web_ui_not_built",
+          message: "Run `pnpm --filter @kota/web build`.",
+        },
+        "http://127.0.0.1:8765",
+      ),
+    ).toEqual({
+      available: false,
+      reason: "web_ui_not_built",
+      message: "Run `pnpm --filter @kota/web build`.",
+    });
+  });
+
+  it("omits the message when the daemon does not include one", () => {
+    expect(
+      resolveDashboardForStatus(
+        { available: false, reason: "not_contributed" },
+        "http://127.0.0.1:8765",
+      ),
+    ).toEqual({ available: false, reason: "not_contributed" });
+  });
 });
 
 /**
@@ -179,7 +278,7 @@ describe("kota status — rendered transcript", () => {
   it("writes a transcript snapshot covering connected, missing, stale, and wrong-project states", () => {
     const scenarios: Array<{ label: string; snap: StatusSnapshot }> = [
       {
-        label: "1. Connected — selected project matches daemon /identity",
+        label: "1. Connected — selected project matches daemon /identity, dashboard available",
         snap: {
           daemonRunning: true,
           daemonPid: 4242,
@@ -193,6 +292,7 @@ describe("kota status — rendered transcript", () => {
           controlFile: { kind: "fresh", pid: 4242, baseURL: "http://127.0.0.1:8765" },
           daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
           daemonProjectName: "kota",
+          dashboard: { available: true, url: "http://127.0.0.1:8765/" },
         },
       },
       {
@@ -237,6 +337,50 @@ describe("kota status — rendered transcript", () => {
           daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
           daemonProjectName: "kota",
           wrongProject: true,
+          dashboard: { available: true, url: "http://127.0.0.1:8765/" },
+        },
+      },
+      {
+        label: "5. Dashboard not built — daemon running but the embedded web UI was never compiled",
+        snap: {
+          daemonRunning: true,
+          daemonPid: 4242,
+          daemonUptimeMs: 30_000,
+          activeRuns: 0,
+          queuedRuns: 0,
+          sessions: 0,
+          pendingApprovals: 0,
+          projectDir: "/Users/op/Desktop/mono/apps/kota",
+          projectName: "kota",
+          controlFile: { kind: "fresh", pid: 4242, baseURL: "http://127.0.0.1:8765" },
+          daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
+          daemonProjectName: "kota",
+          dashboard: {
+            available: false,
+            reason: "web_ui_not_built",
+            message: "Run `pnpm --filter @kota/web build`.",
+          },
+        },
+      },
+      {
+        label: "6. Dashboard configured at an external URL — daemon advertises the dev server",
+        snap: {
+          daemonRunning: true,
+          daemonPid: 4242,
+          daemonUptimeMs: 60_000,
+          activeRuns: 0,
+          queuedRuns: 0,
+          sessions: 0,
+          pendingApprovals: 0,
+          projectDir: "/Users/op/Desktop/mono/apps/kota",
+          projectName: "kota",
+          controlFile: { kind: "fresh", pid: 4242, baseURL: "http://127.0.0.1:8765" },
+          daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
+          daemonProjectName: "kota",
+          dashboard: {
+            available: true,
+            url: "http://localhost:3000/",
+          },
         },
       },
     ];
