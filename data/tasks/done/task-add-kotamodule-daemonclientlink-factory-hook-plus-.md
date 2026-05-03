@@ -1,12 +1,12 @@
 ---
 id: task-add-kotamodule-daemonclientlink-factory-hook-plus-
 title: Add KotaModule daemonClient(link) factory hook plus DaemonControlClient handler-assembly for namespace migrations
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Add a daemonClient(link) factory hook on KotaModule parallel to localClient(ctx) plus a DaemonClientHandlers assembly path on DaemonControlClient, so per-namespace migrations from src/core/server/daemon-client.ts become mechanical moves into the owning module — orthogonal to the parent KotaClient namespace chunking decision and required for every variant the owner can pick.
 created_at: 2026-05-03T05:37:56.551Z
-updated_at: 2026-05-03T05:37:56.551Z
+updated_at: 2026-05-03T06:04:02.545Z
 ---
 
 ## Problem

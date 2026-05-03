@@ -13,7 +13,11 @@ import {
   getModuleEventRegistry,
   initModuleEventRegistry,
 } from "#core/events/module-event.js";
-import type { LocalClientHandlers } from "#core/server/kota-client.js";
+import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import type {
+  DaemonClientHandlers,
+  LocalClientHandlers,
+} from "#core/server/kota-client.js";
 import { executeTool, getModuleToolNames, registerTool } from "#core/tools/index.js";
 import { registerCustomGroup } from "#core/tools/tool-groups.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -28,7 +32,6 @@ import {
   type CreateSessionOptions,
   type HealthCheckResult,
   type KotaModule,
-  type ModuleContext,
   type ModuleRuntimeContext,
   type ModuleSession,
   type ModuleSource,
@@ -110,6 +113,30 @@ function assignLocalClientHandler<K extends keyof LocalClientHandlers>(
   target[namespace] = impl;
 }
 
+/**
+ * Per-namespace assignment helper for the daemon client handler map.
+ * Mirrors {@link assignLocalClientHandler} for the daemon-side hook so the
+ * loader can narrow the per-namespace assignment under TypeScript's
+ * indexed-keyed-mapped-type rules.
+ */
+function assignDaemonClientHandler<K extends keyof DaemonClientHandlers>(
+  target: Partial<DaemonClientHandlers>,
+  namespace: K,
+  impl: DaemonClientHandlers[K],
+): void {
+  target[namespace] = impl;
+}
+
+/**
+ * A registered `daemonClient(link)` factory. The loader invokes the factory
+ * lazily when the selector resolves to a daemon transport — the transport
+ * does not exist at module load time.
+ */
+type DaemonClientFactoryEntry = {
+  moduleName: string;
+  factory: (link: DaemonTransport) => Partial<DaemonClientHandlers>;
+};
+
 export class ModuleLoader {
   private modules: KotaModule[] = [];
   private moduleStorages = new Map<string, ModuleStorage>();
@@ -134,6 +161,7 @@ export class ModuleLoader {
   private contributedChannels: ChannelDef[] = [];
   private bus: EventBus | null = null;
   private localClientHandlers: Partial<LocalClientHandlers> = {};
+  private daemonClientFactories: DaemonClientFactoryEntry[] = [];
   private verbose: boolean;
   private config: KotaConfig;
   private cwd: string;
@@ -247,6 +275,46 @@ export class ModuleLoader {
     return { ...this.localClientHandlers };
   }
 
+  /**
+   * Register the module's `daemonClient(link)` factory. The factory is
+   * invoked lazily by `assembleDaemonClientHandlers(transport)` once the
+   * selector resolves a daemon transport — the transport does not exist
+   * during module load.
+   */
+  private collectDaemonClientFactory(mod: KotaModule): void {
+    if (!mod.daemonClient) return;
+    const factory = mod.daemonClient;
+    this.daemonClientFactories.push({ moduleName: mod.name, factory });
+  }
+
+  /**
+   * Build the contributed `Partial<DaemonClientHandlers>` map by invoking
+   * each registered module's `daemonClient(link)` factory with the live
+   * transport. Throws if two modules contribute the same namespace — each
+   * KotaClient namespace has a single owner. The selector merges this on
+   * top of the core stub before constructing `DaemonControlClient`.
+   */
+  assembleDaemonClientHandlers(
+    transport: DaemonTransport,
+  ): Partial<DaemonClientHandlers> {
+    const handlers: Partial<DaemonClientHandlers> = {};
+    for (const { moduleName, factory } of this.daemonClientFactories) {
+      const partial = factory(transport) as Partial<DaemonClientHandlers>;
+      for (const namespace of Object.keys(partial) as (keyof DaemonClientHandlers)[]) {
+        const impl = partial[namespace];
+        if (!impl) continue;
+        if (handlers[namespace]) {
+          throw new Error(
+            `Module "${moduleName}" tried to register a daemon client handler for ` +
+              `"${namespace}" but one is already registered. Each KotaClient namespace has a single owner.`,
+          );
+        }
+        assignDaemonClientHandler(handlers, namespace, impl);
+      }
+    }
+    return handlers;
+  }
+
   async load(mod: KotaModule): Promise<void> {
     if (this.modules.some((m) => m.name === mod.name)) {
       throw new Error(`Duplicate module name: "${mod.name}"`);
@@ -331,6 +399,7 @@ export class ModuleLoader {
     }
 
     this.collectLocalClientHandlers(mod, ctx);
+    this.collectDaemonClientFactory(mod);
 
     if (mod.commands) {
       try {

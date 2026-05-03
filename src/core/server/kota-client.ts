@@ -2058,3 +2058,16 @@ export type KotaClientNamespace = (typeof KOTA_CLIENT_NAMESPACES)[number];
 export type LocalClientHandlers = {
   [K in KotaClientNamespace]: KotaClient[K];
 };
+
+/**
+ * Daemon-side handler bundle: one namespace impl per declared capability.
+ *
+ * Symmetric to `LocalClientHandlers`. `DaemonControlClient` is built by
+ * assembling a `DaemonClientHandlers` map from a core-side stub plus any
+ * module that contributes a `daemonClient(link)` factory on its
+ * `KotaModule`. The selector validates full coverage and rejects partially
+ * wired clients.
+ */
+export type DaemonClientHandlers = {
+  [K in KotaClientNamespace]: KotaClient[K];
+};

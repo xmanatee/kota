@@ -3,7 +3,9 @@
  *
  * Policy:
  *   - If `.kota/daemon-control.json` is present and reachable, return the
- *     `DaemonControlClient` for that daemon.
+ *     `DaemonControlClient` for that daemon. Module-contributed
+ *     `daemonClient(link)` handlers override the same namespace in the
+ *     core stub.
  *   - Otherwise build a `LocalKotaClient` from the local namespace
  *     handlers registered by modules during load.
  *
@@ -15,7 +17,12 @@ import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { setActiveKotaClient } from "./client-holder.js";
 import { DaemonControlClient } from "./daemon-client.js";
-import type { KotaClient, LocalClientHandlers } from "./kota-client.js";
+import { type DaemonTransport, daemonTransportFromAddress } from "./daemon-transport.js";
+import type {
+  DaemonClientHandlers,
+  KotaClient,
+  LocalClientHandlers,
+} from "./kota-client.js";
 import { buildLocalKotaClient } from "./local-kota-client.js";
 
 export type ClientSelection =
@@ -27,6 +34,16 @@ export type ResolveKotaClientOptions = {
   stateDir?: string;
   /** Local-side handlers contributed by modules during load. */
   localHandlers: Partial<LocalClientHandlers>;
+  /**
+   * Daemon-side handler factory. Invoked with the resolved transport when
+   * the daemon is reachable; the returned partial map overrides the same
+   * namespaces in the core stub. The selector still falls back to the
+   * fully-stubbed `DaemonControlClient.fromAddress(address)` shape when
+   * the caller does not provide this hook.
+   */
+  assembleDaemonHandlers?: (
+    transport: DaemonTransport,
+  ) => Partial<DaemonClientHandlers>;
 };
 
 /**
@@ -52,7 +69,9 @@ export function resolveKotaClient(
 ): ClientSelection {
   const address = readDaemonAddress(opts.stateDir);
   if (address) {
-    const client = DaemonControlClient.fromAddress(address);
+    const transport = daemonTransportFromAddress(address);
+    const contributed = opts.assembleDaemonHandlers?.(transport);
+    const client = DaemonControlClient.fromTransport(transport, contributed);
     setActiveKotaClient(client);
     return {
       kind: "daemon",

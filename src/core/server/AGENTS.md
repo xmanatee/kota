@@ -39,6 +39,17 @@ daemon-vs-local policy.
   validates that every namespace has a registered handler when no daemon
   is reachable; missing handlers are a load-time failure with no silent
   fallback.
+- The owning module exposes its daemon-side handler through a top-level
+  `daemonClient(link)` factory on its `KotaModule` definition, symmetric
+  with `localClient(ctx)`. The factory takes the resolved
+  `DaemonTransport` (typed link from `daemon-transport.ts`) and returns
+  `{ <namespace>: handler }`. The loader registers contributed factories
+  during module load; the selector invokes them with the live transport
+  and overlays the result on top of the core stub in `daemon-client.ts`.
+  A namespace contributed by a module overrides the same namespace in
+  the stub. As each namespace migrates to its owning module, its closure
+  is removed from the core stub. Missing handlers (no contributor and no
+  stub) fail loudly at construction.
 - The owning module also contributes any HTTP routes the daemon-side
   client calls (under `KotaModule.routes`). Add routes to the same
   module that owns the underlying state.
@@ -58,10 +69,15 @@ daemon-vs-local policy.
 ## Adding a new namespace
 
 1. Add the namespace interface to `kota-client.ts` and append its name
-   to `KOTA_CLIENT_NAMESPACES`. Keep types small and explicit.
-2. Wire the daemon-side implementation as a class-field property on
-   `DaemonControlClient`. Reuse an existing HTTP route or contribute a
-   new one from the owning module.
+   to `KOTA_CLIENT_NAMESPACES`. Keep types small and explicit. Per-
+   namespace request/response/options types live in `kota-client.ts` or
+   the owning module — never in adjacent core-server files
+   (`kota-client-namespace-types-guard.test.ts` enforces this).
+2. Expose the daemon-side implementation through the owning module's
+   top-level `daemonClient(link)` factory. Return
+   `{ <namespace>: impl }`. The factory receives a typed
+   `DaemonTransport`; reuse an existing HTTP route or contribute a new
+   one from the owning module.
 3. Expose the local-side implementation through the owning module's
    top-level `localClient(ctx)` factory. Return `{ <namespace>: impl }`.
 4. Migrate the CLI subcommand to consume `ctx.client.<namespace>.<m>()`.

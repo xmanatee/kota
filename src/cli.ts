@@ -302,8 +302,14 @@ async function main() {
   // Resolve the active KotaClient exactly once: daemon when reachable,
   // otherwise a LocalKotaClient assembled from the namespace handlers
   // modules registered during load. CLI subcommands consume this through
-  // ctx.client and never re-decide the daemon-vs-local policy.
-  resolveKotaClient({ localHandlers: loader.getLocalClientHandlers() });
+  // ctx.client and never re-decide the daemon-vs-local policy. On the
+  // daemon-up path the selector also queries the loader's daemonClient
+  // factories so module-contributed handlers can override the core stub.
+  resolveKotaClient({
+    localHandlers: loader.getLocalClientHandlers(),
+    assembleDaemonHandlers: (transport) =>
+      loader.assembleDaemonClientHandlers(transport),
+  });
   for (const cmd of loader.getCommands()) {
     program.addCommand(cmd);
   }

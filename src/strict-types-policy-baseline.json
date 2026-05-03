@@ -58,7 +58,7 @@
   "src/core/modules/provider-token.ts": 1,
   "src/core/modules/registry-installers.ts": 4,
   "src/core/modules/testing/index.ts": 18,
-  "src/core/server/daemon-client.ts": 23,
+  "src/core/server/daemon-client.ts": 24,
   "src/core/server/daemon-transport.ts": 6,
   "src/core/server/kota-client.ts": 6,
   "src/core/server/notification-hub-provider.ts": 1,

@@ -22,7 +22,9 @@ import type {
 } from "#core/events/module-event.js";
 import type { DynamicStateContext } from "#core/loop/dynamic-state.js";
 import type { PreSendHook } from "#core/loop/pre-send-hooks.js";
+import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type {
+  DaemonClientHandlers,
   KotaClient,
   LocalClientHandlers,
 } from "#core/server/kota-client.js";
@@ -528,6 +530,23 @@ export type KotaModule = {
    * idempotent.
    */
   localClient?: (ctx: ModuleContext) => Partial<LocalClientHandlers>;
+
+  /**
+   * Daemon-side handlers for the KotaClient namespaces this module owns.
+   * Symmetric to `localClient(ctx)`. Invoked by the selector with the
+   * resolved `DaemonTransport` when the daemon is reachable, so the
+   * factory can wire HTTP-backed namespace impls without depending on
+   * `DaemonControlClient`. The loader registers these factories during
+   * module load; the selector assembles them on top of a core-side stub
+   * holding closures for the namespaces that have not yet migrated to
+   * their owning module. A namespace contributed by a module overrides
+   * the stub. Missing handlers (no contributor and no stub) are a
+   * load-time error with no silent fallback.
+   *
+   * Heavy initialization (HTTP probes, retries) belongs elsewhere; this
+   * factory should stay light and synchronous.
+   */
+  daemonClient?: (link: DaemonTransport) => Partial<DaemonClientHandlers>;
 
   /** Called after the module is loaded and tools are registered. */
   onLoad?: (ctx: ModuleRuntimeContext) => Promise<void> | void;
