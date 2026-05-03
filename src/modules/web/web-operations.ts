@@ -63,6 +63,8 @@ export function localWebClient(ctx: ModuleContext): WebClient {
         resolveDefaultAutonomyMode: () =>
           resolveChannelAutonomyMode(undefined, ctx.config, "web server"),
         moduleRoutes,
+        assembleDaemonHandlers: (transport) =>
+          runtimeLoader.assembleDaemonClientHandlers(transport),
       });
       return { ok: true };
     },

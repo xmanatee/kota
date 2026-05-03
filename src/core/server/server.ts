@@ -20,6 +20,8 @@ import type { RouteRegistration } from "#core/modules/module-types.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { DaemonLink } from "./daemon-link.js";
+import type { DaemonTransport } from "./daemon-transport.js";
+import type { DaemonClientHandlers } from "./kota-client.js";
 import { NOTIFICATION_HUB_PROVIDER_TYPE } from "./notification-hub-provider.js";
 import { buildRequestHandler } from "./server-routes.js";
 import { SessionPool } from "./session-pool.js";
@@ -30,6 +32,15 @@ export type ServerOptions = {
   verbose?: boolean;
   config?: KotaConfig;
   noAuth?: boolean;
+  /**
+   * Module-contributed daemon handler factory threaded through to
+   * `DaemonLink` so its `DaemonControlClient` can satisfy the
+   * `assembleDaemonClientHandlers` coverage check. The factory captures
+   * the live module loader's `daemonClient(link)` factories.
+   */
+  assembleDaemonHandlers?: (
+    transport: DaemonTransport,
+  ) => Partial<DaemonClientHandlers>;
   /**
    * Lazy resolver for the fallback autonomy mode applied to sessions when the
    * request body does not specify one. The resolver is invoked at
@@ -63,6 +74,9 @@ export function startServer(options: ServerOptions): Server {
         await client.registerSession(info.id, info.createdAt, info.autonomyMode);
       }
     },
+    ...(options.assembleDaemonHandlers && {
+      assembleDaemonHandlers: options.assembleDaemonHandlers,
+    }),
   });
   const daemonRunning = daemonLink.current() !== null;
 

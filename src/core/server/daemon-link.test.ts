@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
+import { buildMigratedNamespaceTestStubs } from "./daemon-client-test-stubs.js";
 import { DaemonLink } from "./daemon-link.js";
 
 type MockDaemon = {
@@ -105,6 +106,7 @@ describe("DaemonLink", () => {
     link = new DaemonLink({
       stateDir,
       onReconnect: () => { reconnects.push("reconnect"); },
+      assembleDaemonHandlers: () => buildMigratedNamespaceTestStubs(),
     });
 
     expect(link.current()).not.toBeNull();
@@ -125,6 +127,7 @@ describe("DaemonLink", () => {
       onReconnect: async (client) => {
         await client.registerSession(session.id, session.createdAt, session.autonomyMode);
       },
+      assembleDaemonHandlers: () => buildMigratedNamespaceTestStubs(),
     });
 
     await link.refresh();
@@ -162,7 +165,11 @@ describe("DaemonLink", () => {
   });
 
   it("reports no client while the control file is absent and recovers when it reappears", async () => {
-    link = new DaemonLink({ stateDir, onReconnect: () => { /* no-op */ } });
+    link = new DaemonLink({
+      stateDir,
+      onReconnect: () => { /* no-op */ },
+      assembleDaemonHandlers: () => buildMigratedNamespaceTestStubs(),
+    });
     await link.refresh();
     expect(link.current()).toBeNull();
 
@@ -182,6 +189,7 @@ describe("DaemonLink", () => {
     link = new DaemonLink({
       stateDir,
       onReconnect: () => { reconnects += 1; },
+      assembleDaemonHandlers: () => buildMigratedNamespaceTestStubs(),
     });
     await link.refresh();
     expect(reconnects).toBe(1);

@@ -6,15 +6,25 @@
  * workflow definitions, and disk state. The CLI handler routes through
  * `ctx.client.doctor.{run,fix}()` so daemon-up and daemon-down operators
  * see the same diagnostics for the same project state.
+ *
+ * The doctor namespace is fully module-owned: types live in `./client.ts`,
+ * the daemon HTTP routes live in `./doctor-control-routes.ts`,
+ * `localClient(ctx)` exposes the in-process handler, and `daemonClient(link)`
+ * exposes the daemon-up handler that calls the same routes through the
+ * typed `DaemonTransport`.
  */
 
 import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type {
   DoctorCheckResult,
   DoctorClient,
+  DoctorFixResult,
   DoctorRepairResult,
-} from "#core/server/kota-client.js";
+  DoctorRunOptions,
+  DoctorRunResult,
+} from "./client.js";
 import { runDoctorChecks, runDoctorFixes } from "./doctor-checks.js";
 import { doctorControlRoutes } from "./doctor-control-routes.js";
 
@@ -102,6 +112,26 @@ function buildDoctorCommand(ctx: ModuleContext): Command {
   return cmd;
 }
 
+/**
+ * Daemon-side `DoctorClient` backed by the typed `DaemonTransport`. Calls
+ * the same `/doctor/run` and `/doctor/fix` HTTP routes the daemon registers
+ * through `doctorControlRoutes(ctx)`. The transport surface owns the bearer
+ * token, base URL, and timeout policy — this factory only encodes the wire
+ * shape.
+ */
+function buildDoctorDaemonHandler(link: DaemonTransport): DoctorClient {
+  return {
+    run: async (options?: DoctorRunOptions): Promise<DoctorRunResult> => {
+      const params = new URLSearchParams();
+      if (options?.skipConnectivity) params.set("skipConnectivity", "true");
+      const query = params.toString() ? `?${params.toString()}` : "";
+      return link.requestStrict<DoctorRunResult>("GET", `/doctor/run${query}`);
+    },
+    fix: async (): Promise<DoctorFixResult> =>
+      link.requestStrict<DoctorFixResult>("POST", "/doctor/fix"),
+  };
+}
+
 const doctorModule: KotaModule = {
   name: "doctor",
   version: "1.0.0",
@@ -123,6 +153,7 @@ const doctorModule: KotaModule = {
     };
     return { doctor };
   },
+  daemonClient: (link) => ({ doctor: buildDoctorDaemonHandler(link) }),
 };
 
 export default doctorModule;

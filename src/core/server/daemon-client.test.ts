@@ -19,6 +19,16 @@ import {
   KOTA_CLIENT_NAMESPACES,
 } from "./kota-client.js";
 
+/**
+ * Namespaces already migrated out of the core stub into their owning
+ * module's `daemonClient(link)` factory. The stub no longer covers them;
+ * `assembleDaemonClientHandlers` requires the matching contributed handler
+ * to land before construction.
+ */
+const STUB_OMITTED_NAMESPACES: ReadonlySet<string> = new Set<string>([
+  "doctor",
+]);
+
 function makeFakeTransport(): DaemonTransport {
   return {
     baseUrl: "http://127.0.0.1:0",
@@ -34,13 +44,36 @@ function makeFakeTransport(): DaemonTransport {
   };
 }
 
+function makeStubDoctor(): DaemonClientHandlers["doctor"] {
+  return {
+    run: async () => ({ checks: [] }),
+    fix: async () => ({ repairs: [] }),
+  };
+}
+
 describe("assembleDaemonClientHandlers", () => {
   const transport = makeFakeTransport();
 
-  it("returns the core stub when no module contributes any handlers", () => {
-    const handlers = assembleDaemonClientHandlers(transport);
+  it("the core stub covers every non-migrated namespace", () => {
+    const stub = buildCoreStubDaemonClientHandlers(transport);
     for (const name of KOTA_CLIENT_NAMESPACES) {
-      expect(handlers[name], `core stub must cover "${name}"`).toBeDefined();
+      if (STUB_OMITTED_NAMESPACES.has(name)) {
+        expect(
+          stub[name],
+          `migrated namespace "${name}" must not appear in the core stub`,
+        ).toBeUndefined();
+        continue;
+      }
+      expect(stub[name], `core stub must cover "${name}"`).toBeDefined();
+    }
+  });
+
+  it("assembly succeeds when migrated namespaces are contributed by a module", () => {
+    const handlers = assembleDaemonClientHandlers(transport, {
+      doctor: makeStubDoctor(),
+    });
+    for (const name of KOTA_CLIENT_NAMESPACES) {
+      expect(handlers[name], `assembled client must cover "${name}"`).toBeDefined();
     }
   });
 
@@ -53,29 +86,17 @@ describe("assembleDaemonClientHandlers", () => {
       search: async () => ({ ok: true, entries: [] }),
       reindex: async () => ({ indexed: 0, failed: 0 }),
     };
-    const merged = assembleDaemonClientHandlers(transport, { memory: customMemory });
+    const merged = assembleDaemonClientHandlers(transport, {
+      doctor: makeStubDoctor(),
+      memory: customMemory,
+    });
     expect(merged.memory).toBe(customMemory);
     expect(merged.memory).not.toBe(stub.memory);
   });
 
-  it("throws when assembly is asked to drop a namespace that has no fallback", () => {
-    // The public `assembleDaemonClientHandlers` cannot reach an empty stub,
-    // so simulate the no-coverage path by manually building the shape the
-    // selector would assemble — namespace assignments only present from
-    // contributed handlers, no stub. The validation logic shape mirrors
-    // `LocalKotaClient`'s missing-coverage error: it names every missing
-    // namespace.
-    const partial: Partial<DaemonClientHandlers> = {};
-    expect(() => {
-      const missing: string[] = [];
-      for (const name of KOTA_CLIENT_NAMESPACES) {
-        if (!partial[name]) missing.push(name);
-      }
-      if (missing.length > 0) {
-        throw new Error(
-          `DaemonControlClient is missing daemon handler(s) for: ${missing.join(", ")}.`,
-        );
-      }
-    }).toThrow(/missing daemon handler/);
+  it("throws naming each migrated namespace when no module contributes it", () => {
+    expect(() => assembleDaemonClientHandlers(transport)).toThrow(
+      /missing daemon handler\(s\) for: doctor/,
+    );
   });
 });

@@ -6,8 +6,7 @@ import type { Transport } from "#core/loop/transport.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import { findRouteMatch } from "#core/modules/route-matcher.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import { DaemonControlClient } from "./daemon-client.js";
-import { queryDaemonStatus } from "./daemon-routes.js";
+import type { DaemonControlClient } from "./daemon-client.js";
 import { jsonResponse, type SessionPool, setCors } from "./session-pool.js";
 import {
   handleChat,
@@ -121,7 +120,13 @@ export function buildRequestHandler(ctx: ServerContext) {
     }
 
     if (req.method === "GET" && path === "/api/daemon/events") {
-      const client = DaemonControlClient.fromStateDir();
+      // Reuse the live daemon client assembled by DaemonLink — it carries
+      // the module-contributed daemon handlers needed to satisfy
+      // assembleDaemonClientHandlers' coverage check. Falling back to
+      // DaemonControlClient.fromStateDir() here would re-assemble the
+      // client without contributed handlers and fail loudly for migrated
+      // namespaces.
+      const client = ctx.getDaemonClient?.() ?? null;
       if (!client) {
         jsonResponse(res, 503, { error: "Daemon not running" });
         return;
@@ -139,7 +144,9 @@ export function buildRequestHandler(ctx: ServerContext) {
     }
 
     if (req.method === "GET" && path === "/api/daemon/status") {
-      queryDaemonStatus().then((daemon) => {
+      const client = ctx.getDaemonClient?.() ?? null;
+      const daemonPromise = client ? client.getDaemonStatus() : Promise.resolve(null);
+      daemonPromise.then((daemon) => {
         jsonResponse(res, 200, {
           daemon: daemon ?? null,
           server: {

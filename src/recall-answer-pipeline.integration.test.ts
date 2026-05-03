@@ -24,6 +24,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
+import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type {
   AnswerHistoryRecord,
   AnswerResult,
@@ -276,12 +277,15 @@ describe("recall + cited-answer + answer-history pipeline (HTTP)", () => {
 
     const started = await createPipelineServer(routeSpecs);
     server = started.server;
-    client = DaemonControlClient.fromAddress({
-      port: started.port,
-      pid: 0,
-      startedAt: new Date().toISOString(),
-      token: "",
-    });
+    client = DaemonControlClient.fromAddress(
+      {
+        port: started.port,
+        pid: 0,
+        startedAt: new Date().toISOString(),
+        token: "",
+      },
+      buildMigratedNamespaceTestStubs(),
+    );
   });
 
   afterAll(async () => {
@@ -433,12 +437,15 @@ describe("recall + cited-answer + answer-history pipeline (HTTP)", () => {
     );
 
     try {
-      const localClient = DaemonControlClient.fromAddress({
-        port: oneShot.port,
-        pid: 0,
-        startedAt: new Date().toISOString(),
-        token: "",
-      });
+      const localClient = DaemonControlClient.fromAddress(
+        {
+          port: oneShot.port,
+          pid: 0,
+          startedAt: new Date().toISOString(),
+          token: "",
+        },
+        buildMigratedNamespaceTestStubs(),
+      );
       const result: RecallResult = await localClient.recall.recall("anything");
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("expected ok:false");

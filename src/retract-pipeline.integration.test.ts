@@ -39,6 +39,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
+import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
 import { MemoryStore } from "#modules/memory/store.js";
 import {
@@ -164,12 +165,15 @@ describe("cross-store retract pipeline (HTTP)", () => {
       { method: "POST", path: "/api/retract", handler },
     ]);
     server = started.server;
-    client = DaemonControlClient.fromAddress({
-      port: started.port,
-      pid: 0,
-      startedAt: new Date().toISOString(),
-      token: "",
-    });
+    client = DaemonControlClient.fromAddress(
+      {
+        port: started.port,
+        pid: 0,
+        startedAt: new Date().toISOString(),
+        token: "",
+      },
+      buildMigratedNamespaceTestStubs(),
+    );
   });
 
   afterAll(async () => {
@@ -299,12 +303,15 @@ describe("cross-store retract pipeline (HTTP)", () => {
     const started = await startServer([
       { method: "POST", path: "/retract", handler },
     ]);
-    const isolatedClient = DaemonControlClient.fromAddress({
-      port: started.port,
-      pid: 0,
-      startedAt: new Date().toISOString(),
-      token: "",
-    });
+    const isolatedClient = DaemonControlClient.fromAddress(
+      {
+        port: started.port,
+        pid: 0,
+        startedAt: new Date().toISOString(),
+        token: "",
+      },
+      buildMigratedNamespaceTestStubs(),
+    );
     try {
       const result = await isolatedClient.retract.retract({
         target: "memory",

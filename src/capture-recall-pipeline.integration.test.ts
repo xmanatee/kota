@@ -57,6 +57,7 @@ import type {
   ReindexResult,
 } from "#core/modules/provider-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
+import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type {
   CaptureResult,
   RecallHit,
@@ -306,12 +307,15 @@ describe("capture↔recall pipeline (HTTP)", () => {
       { method: "POST", path: "/api/recall", handler: recallHandler },
     ]);
     server = started.server;
-    client = DaemonControlClient.fromAddress({
-      port: started.port,
-      pid: 0,
-      startedAt: new Date().toISOString(),
-      token: "",
-    });
+    client = DaemonControlClient.fromAddress(
+      {
+        port: started.port,
+        pid: 0,
+        startedAt: new Date().toISOString(),
+        token: "",
+      },
+      buildMigratedNamespaceTestStubs(),
+    );
   });
 
   afterAll(async () => {

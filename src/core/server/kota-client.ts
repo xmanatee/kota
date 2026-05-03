@@ -42,6 +42,11 @@ import type {
   RepoTaskSearchHit,
 } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+// Per-namespace client interfaces are owned by their module. The aggregate
+// imports them back to compose the contract — this is the only sanctioned
+// `#modules/*` import direction in `src/core/server/`. The narrow exception
+// is enforced in `src/core/agent-harness/no-module-imports-in-core.test.ts`.
+import type { DoctorClient } from "#modules/doctor/client.js";
 
 /** A masked entry in the secret store (name and source only — never the value). */
 export type SecretListEntry = {
@@ -1782,47 +1787,6 @@ export interface DaemonOpsClient {
   pid(): Promise<DaemonOpsPidResult>;
   stop(options?: { timeoutSec?: number }): Promise<DaemonOpsStopResult>;
   reload(): Promise<DaemonOpsReloadResult>;
-}
-
-/** A single doctor health-check result. Mirrors the module's internal type. */
-export type DoctorCheckResult = {
-  label: string;
-  status: "pass" | "warn" | "fail";
-  detail?: string;
-};
-
-/** A single doctor auto-repair result. Mirrors the module's internal type. */
-export type DoctorRepairResult = {
-  item: string;
-  action: "repaired" | "skipped" | "manual";
-  detail?: string;
-};
-
-export type DoctorRunOptions = {
-  skipConnectivity?: boolean;
-};
-
-export type DoctorRunResult = {
-  checks: DoctorCheckResult[];
-};
-
-export type DoctorFixResult = {
-  repairs: DoctorRepairResult[];
-};
-
-/**
- * Doctor operations.
- *
- * `run` executes the pass/warn/fail health checks (provider connectivity
- * is opt-out via `skipConnectivity`); `fix` applies the safe automatic
- * repairs (stale control file, missing canonical directories, stray
- * runtime directories). Both operations work daemon-up and daemon-down
- * — the daemon-side handler runs against the daemon's own runtime view,
- * the local handler runs against the CLI process view.
- */
-export interface DoctorClient {
-  run(options?: DoctorRunOptions): Promise<DoctorRunResult>;
-  fix(): Promise<DoctorFixResult>;
 }
 
 /** A fixture surfaced by `evalHarness.list`. */

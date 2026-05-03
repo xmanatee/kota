@@ -60,6 +60,7 @@ import type {
   ReindexResult,
 } from "#core/modules/provider-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
+import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { RecallHit } from "#core/server/kota-client.js";
 import {
   type AnswerHistorySink,
@@ -321,12 +322,15 @@ describe("capture → recall → answer → answer-history pipeline (HTTP)", () 
       },
     ]);
     server = started.server;
-    client = DaemonControlClient.fromAddress({
-      port: started.port,
-      pid: 0,
-      startedAt: new Date().toISOString(),
-      token: "",
-    });
+    client = DaemonControlClient.fromAddress(
+      {
+        port: started.port,
+        pid: 0,
+        startedAt: new Date().toISOString(),
+        token: "",
+      },
+      buildMigratedNamespaceTestStubs(),
+    );
     recallSeam = {
       async recall(query, filter) {
         return client.recall.recall(query, filter);

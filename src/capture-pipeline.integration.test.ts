@@ -39,6 +39,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
+import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { CaptureResult } from "#core/server/kota-client.js";
 import { CaptureProviderImpl } from "#modules/capture/capture-provider.js";
 import {
@@ -215,12 +216,15 @@ describe("cross-store capture pipeline (HTTP)", () => {
     ]);
     server = started.server;
     baseUrl = `http://127.0.0.1:${started.port}`;
-    client = DaemonControlClient.fromAddress({
-      port: started.port,
-      pid: 0,
-      startedAt: new Date().toISOString(),
-      token: "",
-    });
+    client = DaemonControlClient.fromAddress(
+      {
+        port: started.port,
+        pid: 0,
+        startedAt: new Date().toISOString(),
+        token: "",
+      },
+      buildMigratedNamespaceTestStubs(),
+    );
   });
 
   afterAll(async () => {
@@ -439,12 +443,15 @@ describe("cross-store capture pipeline — contributor failure isolation", () =>
       { method: "POST", path: "/api/capture", handler },
     ]);
     server = started.server;
-    client = DaemonControlClient.fromAddress({
-      port: started.port,
-      pid: 0,
-      startedAt: new Date().toISOString(),
-      token: "",
-    });
+    client = DaemonControlClient.fromAddress(
+      {
+        port: started.port,
+        pid: 0,
+        startedAt: new Date().toISOString(),
+        token: "",
+      },
+      buildMigratedNamespaceTestStubs(),
+    );
   });
 
   afterAll(async () => {

@@ -9,6 +9,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
+import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import { localMcpServerClient } from "./mcp-server-operations.js";
 
 const mockStart = vi.fn().mockResolvedValue(undefined);
@@ -44,12 +45,15 @@ vi.mock("#core/modules/module-discovery.js", () => ({
 
 describe("mcp-server daemon-side handler", () => {
   it("returns daemon_required from DaemonControlClient.mcpServer.start", async () => {
-    const client = DaemonControlClient.fromAddress({
-      port: 0,
-      pid: 0,
-      startedAt: new Date().toISOString(),
-      token: "test",
-    });
+    const client = DaemonControlClient.fromAddress(
+      {
+        port: 0,
+        pid: 0,
+        startedAt: new Date().toISOString(),
+        token: "test",
+      },
+      buildMigratedNamespaceTestStubs(),
+    );
     const result = await client.mcpServer.start({ name: "kota" });
     expect(result).toEqual({ ok: false, reason: "daemon_required" });
   });

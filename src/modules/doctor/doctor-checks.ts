@@ -26,13 +26,10 @@ import type {
 import { createModelClient } from "#core/model/model-client.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
-import type {
-  DoctorCheckResult,
-  DoctorRepairResult,
-} from "#core/server/kota-client.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "#core/workflow/validation.js";
 import { resolveApiKey } from "#modules/model-clients/factory.js";
+import type { DoctorCheckResult, DoctorRepairResult } from "./client.js";
 
 export type CheckResult = DoctorCheckResult;
 export type RepairResult = DoctorRepairResult;

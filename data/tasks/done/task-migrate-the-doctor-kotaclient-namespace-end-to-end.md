@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-doctor-kotaclient-namespace-end-to-end
 title: Migrate the doctor KotaClient namespace end-to-end through the new daemonClient(link) factory hook (foundation pilot)
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Migrate the doctor KotaClient namespace end-to-end through the new daemonClient(link) factory hook: move DoctorClient and its request/response types out of src/core/server/kota-client.ts into the doctor module, register the doctor module's daemonClient(link) factory, and remove doctorRunHttp/doctorFixHttp plus the doctor closure from src/core/server/daemon-client.ts so the foundation pattern is validated end-to-end on the smallest namespace before the per-namespace fan-out lands.
 created_at: 2026-05-03T06:20:34.376Z
-updated_at: 2026-05-03T06:20:34.376Z
+updated_at: 2026-05-03T06:47:05.725Z
 ---
 
 ## Problem

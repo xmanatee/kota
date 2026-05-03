@@ -25,12 +25,20 @@ import type { KotaConfig } from "#core/config/config.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { localWebClient } from "./web-operations.js";
 
-vi.mock("#core/modules/runtime-loader.js", () => ({
-  loadRuntimeModules: vi.fn(async () => ({
-    getRoutes: () => [],
-    getRegisteredConfigKeys: () => new Set<string>(),
-  })),
-}));
+// The daemon-link inside startServer asks the runtime loader to assemble
+// module-contributed daemon handlers. As namespaces migrate out of
+// buildCoreStubDaemonClientHandlers, the hermetic stub here must cover
+// each migrated namespace through `buildMigratedNamespaceTestStubs`.
+vi.mock("#core/modules/runtime-loader.js", async () => {
+  const stubs = await import("#core/server/daemon-client-test-stubs.js");
+  return {
+    loadRuntimeModules: vi.fn(async () => ({
+      getRoutes: () => [],
+      getRegisteredConfigKeys: () => new Set<string>(),
+      assembleDaemonClientHandlers: () => stubs.buildMigratedNamespaceTestStubs(),
+    })),
+  };
+});
 
 function stubCtx(cwd: string, config: KotaConfig = {}): ModuleContext {
   return {

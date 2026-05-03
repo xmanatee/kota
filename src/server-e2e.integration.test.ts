@@ -141,6 +141,7 @@ beforeAll(async () => {
     moduleRoutes,
     authToken: TEST_AUTH_TOKEN,
     resolveDefaultAutonomyMode: () => testConfig.serve.defaultAutonomyMode,
+    assembleDaemonHandlers: (transport) => loader.assembleDaemonClientHandlers(transport),
   });
   const port = await waitForPort(server);
   console.log = origLog;

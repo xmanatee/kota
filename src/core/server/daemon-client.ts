@@ -1,5 +1,3 @@
-import { join } from "node:path";
-import { resolveProjectDir } from "#core/config/project-dir.js";
 import type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
 import type { CapabilityReadinessResponse } from "#core/daemon/capability-readiness.js";
 import type { ClientIdentity } from "#core/daemon/client-identity.js";
@@ -23,7 +21,6 @@ import type {
   KnowledgeEntry,
 } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { type DaemonTransport, daemonTransportFromAddress } from "./daemon-transport.js";
 import type {
   AgentInspectResult,
@@ -40,9 +37,6 @@ import type {
   ConfigGetResult,
   ConfigSetResult,
   ConfigValidateResult,
-  DoctorFixResult,
-  DoctorRunOptions,
-  DoctorRunResult,
   EvalCalibrationOptions,
   EvalCalibrationResult,
   EvalListResult,
@@ -490,37 +484,6 @@ async function modulesReloadHttp(
     reloaded: result.changedModules.includes(name),
     workflowsActive: result.workflows,
   };
-}
-
-async function doctorRunHttp(
-  transport: DaemonTransport,
-  options?: DoctorRunOptions,
-): Promise<DoctorRunResult> {
-  const params = new URLSearchParams();
-  if (options?.skipConnectivity) params.set("skipConnectivity", "true");
-  const query = params.toString() ? `?${params.toString()}` : "";
-  const res = await fetchWithTimeout(`${transport.baseUrl}/doctor/run${query}`, {
-    headers: transport.authHeaders(),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as DoctorRunResult;
-}
-
-async function doctorFixHttp(
-  transport: DaemonTransport,
-): Promise<DoctorFixResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/doctor/fix`, {
-    method: "POST",
-    headers: transport.authHeaders(),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as DoctorFixResult;
 }
 
 async function evalListHttp(
@@ -1692,16 +1655,21 @@ async function daemonManagedHttp(): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------------------
-// Core stub: the 27 namespace closures that have not yet migrated to their
+// Core stub: the namespace closures that have not yet migrated to their
 // owning module's `daemonClient(link)` factory. Module-contributed handlers
-// override the same namespace at assembly time. As each namespace migrates
-// out, its closure is removed from the stub.
+// fill the gaps at assembly time. As each namespace migrates out, its
+// closure is removed from the stub. The doctor pilot (2026-05-03) is the
+// first namespace to leave; its handler is contributed by the doctor
+// module instead.
 // ---------------------------------------------------------------------------
 
 /**
- * Build the core-side stub `DaemonClientHandlers` map from a typed
+ * Build the core-side stub partial `DaemonClientHandlers` map from a typed
  * `DaemonTransport`. Each closure corresponds to a `KotaClient` namespace
- * that has not yet been migrated to its owning module.
+ * that has not yet been migrated to its owning module. Migrated namespaces
+ * are absent from the returned map and must be contributed by their owning
+ * module's `daemonClient(link)` factory; missing handlers are a load-time
+ * error in `assembleDaemonClientHandlers`, not a silent fallback.
  *
  * `kota serve` and `kota mcp-server` start a long-running process in the
  * caller's address space. The daemon cannot start either on the caller's
@@ -1716,7 +1684,7 @@ async function daemonManagedHttp(): Promise<boolean> {
  */
 export function buildCoreStubDaemonClientHandlers(
   transport: DaemonTransport,
-): DaemonClientHandlers {
+): Partial<DaemonClientHandlers> {
   return {
     workflow: {
       listRuns: async (filter) => {
@@ -1985,10 +1953,6 @@ export function buildCoreStubDaemonClientHandlers(
         return { ok: true, workflows: result.workflows, changedModules: result.changedModules };
       },
     },
-    doctor: {
-      run: async (options) => doctorRunHttp(transport, options),
-      fix: async () => doctorFixHttp(transport),
-    },
     evalHarness: {
       list: async () => evalListHttp(transport),
       run: async (options) => evalRunHttp(transport, options),
@@ -2133,11 +2097,23 @@ export class DaemonControlClient implements KotaClient {
     return new DaemonControlClient(transport, handlers);
   }
 
-  static fromStateDir(stateDir?: string): DaemonControlClient | null {
-    const dir = stateDir ?? join(resolveProjectDir(), ".kota");
-    const address = readOptionalJsonFile<DaemonControlAddress>(join(dir, "daemon-control.json"));
-    if (!address || typeof address.port !== "number") return null;
-    return DaemonControlClient.fromAddress(address);
+  /**
+   * Build a `DaemonControlClient` from an address using a factory that
+   * derives the contributed handlers from the live transport. The factory
+   * is what the module loader provides — its closure captures the loaded
+   * modules' `daemonClient(link)` factories, which need a transport to
+   * realize their handler maps. Used by long-lived consumers (e.g.
+   * `DaemonLink`) that rebuild the client when the daemon identity
+   * changes.
+   */
+  static fromAddressWithFactory(
+    address: DaemonControlAddress,
+    assembleDaemonHandlers: (
+      transport: DaemonTransport,
+    ) => Partial<DaemonClientHandlers>,
+  ): DaemonControlClient {
+    const transport = daemonTransportFromAddress(address);
+    return DaemonControlClient.fromTransport(transport, assembleDaemonHandlers(transport));
   }
 
   // -------------------------------------------------------------------------

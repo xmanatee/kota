@@ -3,6 +3,8 @@ import { join } from "node:path";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { DaemonControlClient } from "./daemon-client.js";
+import type { DaemonTransport } from "./daemon-transport.js";
+import type { DaemonClientHandlers } from "./kota-client.js";
 
 export type DaemonLinkOptions = {
   stateDir: string;
@@ -13,6 +15,17 @@ export type DaemonLinkOptions = {
    * caller's advisory state (e.g. re-registering live sessions).
    */
   onReconnect: (client: DaemonControlClient) => void | Promise<void>;
+  /**
+   * Module-contributed daemon handler factory. Invoked with the live
+   * transport when a new `DaemonControlClient` is built so module-owned
+   * namespaces (e.g. `doctor`) are filled in alongside the core stub.
+   * Required when the link runs inside a process that has loaded modules
+   * contributing namespaces; tests for non-namespace methods can omit it
+   * and rely on the core stub covering the remaining namespaces.
+   */
+  assembleDaemonHandlers?: (
+    transport: DaemonTransport,
+  ) => Partial<DaemonClientHandlers>;
   /**
    * Fallback polling interval for platforms where fs.watch misses
    * rename-based atomic writes. Default: 5s.
@@ -35,6 +48,7 @@ export class DaemonLink {
   private readonly stateDir: string;
   private readonly controlFile: string;
   private readonly onReconnect: DaemonLinkOptions["onReconnect"];
+  private readonly assembleDaemonHandlers: DaemonLinkOptions["assembleDaemonHandlers"];
   private watcher: FSWatcher | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private client: DaemonControlClient | null = null;
@@ -48,6 +62,7 @@ export class DaemonLink {
     this.stateDir = opts.stateDir;
     this.controlFile = "daemon-control.json";
     this.onReconnect = opts.onReconnect;
+    this.assembleDaemonHandlers = opts.assembleDaemonHandlers;
     this.inflight = this.reconcile();
     try {
       this.watcher = watch(this.stateDir, (_type, filename) => {
@@ -120,7 +135,9 @@ export class DaemonLink {
       startedAt === this.lastStartedAt &&
       token === this.lastToken;
     if (sameIdentity) return;
-    const client = DaemonControlClient.fromAddress(address);
+    const client = this.assembleDaemonHandlers
+      ? DaemonControlClient.fromAddressWithFactory(address, this.assembleDaemonHandlers)
+      : DaemonControlClient.fromAddress(address);
     this.client = client;
     this.lastStartedAt = startedAt;
     this.lastToken = token;
