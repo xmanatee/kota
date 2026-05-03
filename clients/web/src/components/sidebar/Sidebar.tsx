@@ -33,6 +33,7 @@ export function Sidebar({
   onSessionSelect,
   onHistorySelect,
   onRunSelect,
+  onCompareRuns,
   onNewChat,
   connectionStatus,
   darkMode,
@@ -44,6 +45,7 @@ export function Sidebar({
   onSessionSelect: (id: string) => void;
   onHistorySelect: (id: string) => void;
   onRunSelect: (id: string) => void;
+  onCompareRuns: (idA: string, idB: string) => void;
   onNewChat: () => void;
   connectionStatus: ConnectionStatus;
   darkMode: boolean;
@@ -114,7 +116,10 @@ export function Sidebar({
           </SidebarSection>
 
           <SidebarSection title="Workflows">
-            <WorkflowPanel onRunSelect={onRunSelect} />
+            <WorkflowPanel
+              onRunSelect={onRunSelect}
+              onCompareRuns={onCompareRuns}
+            />
           </SidebarSection>
 
           <SidebarSection title="Active Sessions" defaultOpen={false}>

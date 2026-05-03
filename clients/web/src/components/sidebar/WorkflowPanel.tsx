@@ -29,7 +29,11 @@ type WorkflowFilter = {
 
 export function WorkflowPanel({
   onRunSelect,
-}: { onRunSelect: (id: string) => void }) {
+  onCompareRuns,
+}: {
+  onRunSelect: (id: string) => void;
+  onCompareRuns: (idA: string, idB: string) => void;
+}) {
   const queryClient = useQueryClient();
   const { data: statusData } = useQuery(workflowStatusQuery);
   const { data: definitionsData } = useQuery(workflowDefinitionsQuery);
@@ -42,6 +46,7 @@ export function WorkflowPanel({
     search: "",
   });
   const [openFormFor, setOpenFormFor] = useState<string | null>(null);
+  const [compareSelection, setCompareSelection] = useState<string[]>([]);
 
   const activeRuns = statusData?.activeRuns ?? [];
   const pendingRuns = statusData?.pendingRuns ?? [];
@@ -111,6 +116,22 @@ export function WorkflowPanel({
 
   const filtered = filterRuns(recentRuns, filter);
   const activeIds = new Set(activeRuns.map((r) => r.runId));
+  const runById = new Map(recentRuns.map((r) => [r.id, r]));
+  const selectedRuns = compareSelection
+    .map((id) => runById.get(id))
+    .filter((r): r is WorkflowRunSummary => r !== undefined);
+  const compareWorkflowMismatch =
+    selectedRuns.length === 2 &&
+    selectedRuns[0]!.workflow !== selectedRuns[1]!.workflow;
+  const canCompare = selectedRuns.length === 2 && !compareWorkflowMismatch;
+
+  function toggleCompare(id: string): void {
+    setCompareSelection((current) => {
+      if (current.includes(id)) return current.filter((x) => x !== id);
+      if (current.length >= 2) return [current[1]!, id];
+      return [...current, id];
+    });
+  }
 
   return (
     <div className="space-y-2">
@@ -239,6 +260,41 @@ export function WorkflowPanel({
         ))}
       </div>
 
+      {compareSelection.length > 0 && (
+        <section
+          className="flex items-center gap-1.5 rounded border border-border bg-accent/50 px-2 py-1 text-xs"
+          aria-label="Compare runs"
+        >
+          <span className="font-medium">
+            Compare {compareSelection.length}/2
+          </span>
+          {compareWorkflowMismatch && (
+            <span className="text-yellow-600 dark:text-yellow-400">
+              same workflow only
+            </span>
+          )}
+          <Button
+            size="sm"
+            variant={canCompare ? "default" : "ghost"}
+            className="ml-auto h-6 text-xs"
+            disabled={!canCompare}
+            onClick={() =>
+              onCompareRuns(compareSelection[0]!, compareSelection[1]!)
+            }
+          >
+            Compare
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 text-xs"
+            onClick={() => setCompareSelection([])}
+          >
+            Clear
+          </Button>
+        </section>
+      )}
+
       <div className="space-y-0.5">
         {pendingRuns.map((p) => (
           <div
@@ -282,7 +338,9 @@ export function WorkflowPanel({
             <RunItem
               key={r.id}
               run={r}
+              compareSelected={compareSelection.includes(r.id)}
               onClick={() => onRunSelect(r.id)}
+              onToggleCompare={() => toggleCompare(r.id)}
               onRetry={() => retryMutation.mutate(r.id)}
             />
           ))}
@@ -298,9 +356,17 @@ export function WorkflowPanel({
 
 function RunItem({
   run,
+  compareSelected,
   onClick,
+  onToggleCompare,
   onRetry,
-}: { run: WorkflowRunSummary; onClick: () => void; onRetry: () => void }) {
+}: {
+  run: WorkflowRunSummary;
+  compareSelected: boolean;
+  onClick: () => void;
+  onToggleCompare: () => void;
+  onRetry: () => void;
+}) {
   const statusBadge =
     run.status === "success"
       ? { variant: "success" as const, icon: "\u2713" }
@@ -318,27 +384,41 @@ function RunItem({
     .join(" ");
 
   return (
-    <button
-      type="button"
-      className="group flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-xs hover:bg-accent"
-      onClick={onClick}
+    <div
+      className={`group flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-xs hover:bg-accent ${
+        compareSelected ? "ring-1 ring-primary" : ""
+      }`}
     >
-      <Badge variant={statusBadge.variant} className="h-4 px-1 text-[10px]">
-        {statusBadge.icon}
-      </Badge>
-      <span className="flex-1 truncate text-left">
-        {run.workflow}
-        {run.tags?.map((t) => (
-          <Badge
-            key={t}
-            variant="outline"
-            className="ml-0.5 h-3.5 px-1 text-[9px]"
-          >
-            {t}
-          </Badge>
-        ))}
-      </span>
-      <span className="text-muted-foreground">{meta}</span>
+      <input
+        type="checkbox"
+        className="h-3 w-3 cursor-pointer"
+        aria-label={`Mark ${run.workflow} run ${run.id.slice(0, 8)} for comparison`}
+        checked={compareSelected}
+        onChange={onToggleCompare}
+        onClick={(e) => e.stopPropagation()}
+      />
+      <button
+        type="button"
+        className="flex flex-1 items-center gap-1.5 text-left"
+        onClick={onClick}
+      >
+        <Badge variant={statusBadge.variant} className="h-4 px-1 text-[10px]">
+          {statusBadge.icon}
+        </Badge>
+        <span className="flex-1 truncate text-left">
+          {run.workflow}
+          {run.tags?.map((t) => (
+            <Badge
+              key={t}
+              variant="outline"
+              className="ml-0.5 h-3.5 px-1 text-[9px]"
+            >
+              {t}
+            </Badge>
+          ))}
+        </span>
+        <span className="text-muted-foreground">{meta}</span>
+      </button>
       {(run.status === "failed" || run.status === "interrupted") && (
         <span
           className="hidden text-[10px] text-muted-foreground group-hover:inline"
@@ -350,7 +430,7 @@ function RunItem({
           \u21BA Retry
         </span>
       )}
-    </button>
+    </div>
   );
 }
 

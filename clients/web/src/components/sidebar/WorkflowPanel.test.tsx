@@ -14,14 +14,14 @@
  *    trigger endpoint, with values typed as the schema declares.
  */
 
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import type {
   WorkflowDefinitionSummary,
   WorkflowLiveStatus,
 } from "@/api/types";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
 import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowPanel } from "./WorkflowPanel";
@@ -148,7 +148,10 @@ async function renderPanel(): Promise<{
   const { Wrapper } = makeWrapper();
   render(
     <Wrapper>
-      <WorkflowPanel onRunSelect={() => undefined} />
+      <WorkflowPanel
+        onRunSelect={() => undefined}
+        onCompareRuns={() => undefined}
+      />
     </Wrapper>,
   );
   await waitFor(() =>
@@ -301,7 +304,10 @@ describe("WorkflowPanel — trigger surface", () => {
     const { Wrapper } = makeWrapper();
     render(
       <Wrapper>
-        <WorkflowPanel onRunSelect={() => undefined} />
+        <WorkflowPanel
+          onRunSelect={() => undefined}
+          onCompareRuns={() => undefined}
+        />
       </Wrapper>,
     );
     await waitFor(() =>

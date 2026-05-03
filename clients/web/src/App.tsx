@@ -1,5 +1,6 @@
 import { ChatArea } from "@/components/chat/ChatArea";
 import { HistoryView } from "@/components/chat/HistoryView";
+import { RunCompare } from "@/components/run-detail/RunCompare";
 import { RunDetail } from "@/components/run-detail/RunDetail";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { useDaemonEvents } from "@/hooks/use-daemon-events";
@@ -23,6 +24,9 @@ function AppContent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [viewingHistoryId, setViewingHistoryId] = useState<string | null>(null);
   const [viewingRunId, setViewingRunId] = useState<string | null>(null);
+  const [comparingRunIds, setComparingRunIds] = useState<
+    [string, string] | null
+  >(null);
   const [darkMode, setDarkMode] = useState(() => {
     const stored = localStorage.getItem("kota-theme");
     return stored
@@ -39,7 +43,12 @@ function AppContent() {
 
   useEffect(() => {
     const hash = window.location.hash.slice(1);
-    if (hash.startsWith("run/")) {
+    if (hash.startsWith("compare/")) {
+      const ids = hash.slice("compare/".length).split("/");
+      if (ids.length === 2 && ids[0] && ids[1]) {
+        setComparingRunIds([ids[0], ids[1]]);
+      }
+    } else if (hash.startsWith("run/")) {
       setViewingRunId(hash.slice(4));
     }
   }, []);
@@ -47,13 +56,22 @@ function AppContent() {
   const showChat = useCallback(() => {
     setViewingHistoryId(null);
     setViewingRunId(null);
+    setComparingRunIds(null);
     window.location.hash = "";
   }, []);
 
   const handleRunSelect = useCallback((id: string) => {
     setViewingRunId(id);
     setViewingHistoryId(null);
+    setComparingRunIds(null);
     window.location.hash = `run/${id}`;
+  }, []);
+
+  const handleCompareRuns = useCallback((idA: string, idB: string) => {
+    setComparingRunIds([idA, idB]);
+    setViewingRunId(null);
+    setViewingHistoryId(null);
+    window.location.hash = `compare/${idA}/${idB}`;
   }, []);
 
   const handleHistorySelect = useCallback((id: string) => {
@@ -67,7 +85,15 @@ function AppContent() {
   }, [showChat]);
 
   let mainContent: React.ReactNode;
-  if (viewingRunId) {
+  if (comparingRunIds) {
+    mainContent = (
+      <RunCompare
+        runIdA={comparingRunIds[0]}
+        runIdB={comparingRunIds[1]}
+        onClose={showChat}
+      />
+    );
+  } else if (viewingRunId) {
     mainContent = <RunDetail runId={viewingRunId} onClose={showChat} />;
   } else if (viewingHistoryId) {
     mainContent = <HistoryView id={viewingHistoryId} onBack={showChat} />;
@@ -96,6 +122,7 @@ function AppContent() {
         onSessionSelect={setSessionId}
         onHistorySelect={handleHistorySelect}
         onRunSelect={handleRunSelect}
+        onCompareRuns={handleCompareRuns}
         onNewChat={handleNewChat}
         connectionStatus={connectionStatus}
         darkMode={darkMode}
