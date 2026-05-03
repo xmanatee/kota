@@ -805,8 +805,8 @@ final class AppState: ObservableObject {
         await refresh()
     }
 
-    func triggerWorkflow(name: String) async throws {
-        _ = try await client.triggerWorkflow(name: name)
+    func triggerWorkflow(name: String, payload: Data? = nil) async throws {
+        _ = try await client.triggerWorkflow(name: name, payload: payload)
         await refresh()
     }
 

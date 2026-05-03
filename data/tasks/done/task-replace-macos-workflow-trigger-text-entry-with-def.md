@@ -1,12 +1,12 @@
 ---
 id: task-replace-macos-workflow-trigger-text-entry-with-def
 title: Replace macOS workflow trigger text entry with definitions picker
-status: ready
+status: done
 priority: p2
 area: client
 summary: Use the daemon workflow definitions endpoint in the macOS menu-bar app so triggering a workflow is a selectable, schema-aware action instead of a fragile free-text workflow-name dialog.
 created_at: 2026-04-28T22:35:35.379Z
-updated_at: 2026-05-03T00:52:39.198Z
+updated_at: 2026-05-03T01:17:10.270Z
 ---
 
 ## Problem

@@ -1839,7 +1839,7 @@ final class DaemonClientTests: XCTestCase {
         )
     }
 
-    func testTriggerWorkflowSendsBody() async throws {
+    func testTriggerWorkflowSendsNameField() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
 
@@ -1849,9 +1849,11 @@ final class DaemonClientTests: XCTestCase {
             let body = request.readBody()
             XCTAssertNotNil(body)
             let obj = try? JSONSerialization.jsonObject(with: body!) as? [String: Any]
-            XCTAssertEqual(obj?["workflow"] as? String, "builder")
+            XCTAssertEqual(obj?["name"] as? String, "builder",
+                           "daemon /workflow/trigger expects {name}; the legacy {workflow} body always 400s")
+            XCTAssertNil(obj?["payload"], "no payload was supplied so the body must omit it entirely")
 
-            let respBody = #"{"runId": "run-1"}"#.data(using: .utf8)!
+            let respBody = #"{"ok": true, "queued": "builder", "runId": "run-1"}"#.data(using: .utf8)!
             let response = HTTPURLResponse(
                 url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
             )!
@@ -1863,6 +1865,88 @@ final class DaemonClientTests: XCTestCase {
 
         let resp = try await client.triggerWorkflow(name: "builder")
         XCTAssertEqual(resp.runId, "run-1")
+    }
+
+    func testTriggerWorkflowForwardsPayload() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/workflow/trigger")
+            let body = request.readBody()
+            let obj = try? JSONSerialization.jsonObject(with: body!) as? [String: Any]
+            XCTAssertEqual(obj?["name"] as? String, "decomposer")
+            let payload = obj?["payload"] as? [String: Any]
+            XCTAssertEqual(payload?["taskId"] as? String, "task-42")
+            XCTAssertEqual(payload?["force"] as? Bool, true)
+
+            let respBody = #"{"ok": true, "queued": "decomposer", "runId": "run-2"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+
+        let payload = #"{"taskId": "task-42", "force": true}"#.data(using: .utf8)!
+        let resp = try await client.triggerWorkflow(name: "decomposer", payload: payload)
+        XCTAssertEqual(resp.runId, "run-2")
+    }
+
+    func testFetchWorkflowDefinitionsDecodesAndUsesGetEndpoint() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/workflow/definitions")
+            XCTAssertEqual(request.httpMethod, "GET")
+
+            let body = #"""
+            {
+              "definitions": [
+                {
+                  "name": "builder",
+                  "enabled": true,
+                  "runtimeEnabled": true,
+                  "stepCount": 6,
+                  "triggers": [{"type": "event", "event": "autonomy.queue.available"}]
+                },
+                {
+                  "name": "decomposer",
+                  "enabled": true,
+                  "runtimeEnabled": true,
+                  "stepCount": 4,
+                  "triggers": [{"type": "cron", "schedule": "0 */4 * * *"}],
+                  "inputSchema": {"type": "object", "required": ["taskId"]}
+                },
+                {
+                  "name": "improver",
+                  "enabled": false,
+                  "runtimeEnabled": false,
+                  "stepCount": 3,
+                  "triggers": [{"type": "event", "event": "runtime.recovered"}]
+                }
+              ]
+            }
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, body)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+
+        let resp = try await client.fetchWorkflowDefinitions()
+        XCTAssertEqual(resp.definitions.count, 3)
+        XCTAssertEqual(resp.definitions.map(\.name), ["builder", "decomposer", "improver"])
+        XCTAssertEqual(resp.definitions[0].enabled, true)
+        XCTAssertEqual(resp.definitions[2].enabled, false)
+        XCTAssertNotNil(resp.definitions[1].inputSchema, "decomposer carries an inputSchema")
+        XCTAssertNil(resp.definitions[0].inputSchema, "builder has no inputSchema")
     }
 }
 

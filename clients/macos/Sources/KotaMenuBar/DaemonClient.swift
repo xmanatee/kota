@@ -180,8 +180,12 @@ final class DaemonClient {
         try await get("/workflow/runs/\(runId)")
     }
 
-    func triggerWorkflow(name: String) async throws -> TriggerResponse {
-        let body = try JSONEncoder().encode(TriggerRequest(workflow: name))
+    /// `POST /workflow/trigger` — enqueue a manual workflow run. The
+    /// daemon expects `{ name, payload? }`; the macOS surface forwards
+    /// the picker's selected definition name and the operator-supplied
+    /// JSON payload (validated up-front in `TriggerRequest.wireBody`).
+    func triggerWorkflow(name: String, payload: Data? = nil) async throws -> TriggerResponse {
+        let body = try TriggerRequest(name: name, payload: payload).wireBody()
         return try await post("/workflow/trigger", body: body)
     }
 

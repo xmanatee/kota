@@ -38,10 +38,47 @@ struct SetAutonomyModeResponse: Codable {
 
 // MARK: - Trigger
 
-struct TriggerRequest: Codable {
-    let workflow: String
+/// Daemon `POST /workflow/trigger` request body. The daemon's typed
+/// contract reads `name` (validator regex `/^[a-zA-Z0-9_-]+$/`) and an
+/// optional `payload` object that is merged into the synthetic `manual`
+/// trigger payload. `payload` is carried as raw JSON `Data` so the macOS
+/// surface can validate the operator's pasted JSON once and forward it
+/// byte-for-byte without round-tripping through a permissive enum.
+struct TriggerRequest {
+    let name: String
+    let payload: Data?
+
+    /// Render the wire body. Validates that `payload` (when present) is
+    /// a JSON object; the daemon ignores arrays and primitives so the
+    /// macOS surface refuses them up-front instead of silently dropping
+    /// them.
+    func wireBody() throws -> Data {
+        var dict: [String: Any] = ["name": name]
+        if let payload {
+            let parsed = try JSONSerialization.jsonObject(with: payload, options: [])
+            guard parsed is [String: Any] else {
+                throw TriggerRequestError.payloadNotObject
+            }
+            dict["payload"] = parsed
+        }
+        return try JSONSerialization.data(withJSONObject: dict, options: [.sortedKeys])
+    }
 }
 
+enum TriggerRequestError: Error, LocalizedError, Equatable {
+    case payloadNotObject
+
+    var errorDescription: String? {
+        switch self {
+        case .payloadNotObject:
+            return "Workflow payload must be a JSON object."
+        }
+    }
+}
+
+/// Daemon `POST /workflow/trigger` response envelope. The daemon emits
+/// `{ ok: true, queued: <name>, runId: <id> }` for typed enqueues; older
+/// pending-only paths can omit `runId`, so it stays optional.
 struct TriggerResponse: Codable {
     let runId: String?
 }

@@ -258,11 +258,29 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(DaemonHealth.error("boom").label, "Error: boom")
     }
 
-    func testTriggerRequestEncodes() throws {
-        let req = TriggerRequest(workflow: "builder")
-        let data = try JSONEncoder().encode(req)
+    func testTriggerRequestEncodesNameOnly() throws {
+        let data = try TriggerRequest(name: "builder", payload: nil).wireBody()
         let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        XCTAssertEqual(obj?["workflow"] as? String, "builder")
+        XCTAssertEqual(obj?["name"] as? String, "builder")
+        XCTAssertNil(obj?["payload"])
+        XCTAssertNil(obj?["workflow"], "wire body must use the daemon's `name` key, not the legacy `workflow` key")
+    }
+
+    func testTriggerRequestEncodesPayloadObject() throws {
+        let payload = #"{"force": true, "limit": 5}"#.data(using: .utf8)!
+        let data = try TriggerRequest(name: "builder", payload: payload).wireBody()
+        let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        XCTAssertEqual(obj?["name"] as? String, "builder")
+        let payloadObj = obj?["payload"] as? [String: Any]
+        XCTAssertEqual(payloadObj?["force"] as? Bool, true)
+        XCTAssertEqual(payloadObj?["limit"] as? Int, 5)
+    }
+
+    func testTriggerRequestRejectsNonObjectPayload() throws {
+        let payload = #"[1, 2, 3]"#.data(using: .utf8)!
+        XCTAssertThrowsError(try TriggerRequest(name: "builder", payload: payload).wireBody()) { err in
+            XCTAssertEqual(err as? TriggerRequestError, .payloadNotObject)
+        }
     }
 
     func testCreateSessionResponseDecodes() throws {
