@@ -1,12 +1,12 @@
 ---
 id: task-replace-web-knowledgepanel-stale-shape-with-cross-
 title: Replace web KnowledgePanel stale shape with cross-store knowledge contract
-status: backlog
+status: ready
 priority: p3
 area: client
 summary: Web sidebar KnowledgePanel renders fields (category, createdAt) absent from the daemon's KnowledgeEntry contract and consumes /api/knowledge instead of the shared search seam; rewrite to consume GET /api/knowledge/search with the four-field cross-client projection.
 created_at: 2026-05-02T23:55:44.166Z
-updated_at: 2026-05-02T23:55:44.166Z
+updated_at: 2026-05-03T03:28:46.008Z
 ---
 
 ## Problem
