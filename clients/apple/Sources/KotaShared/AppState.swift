@@ -91,6 +91,15 @@ public final class AppState: ObservableObject {
     @Published var answerResult: AnswerResult?
     @Published var answerError: String?
     @Published var isLoadingAnswer: Bool = false
+    @Published var answerLogEntries: [AnswerHistoryEntry] = []
+    @Published var answerLogError: String?
+    @Published var isLoadingAnswerLog: Bool = false
+    @Published var answerLogHasMore: Bool = false
+    @Published var answerShowOpenId: String?
+    @Published var answerShowRecord: AnswerHistoryRecord?
+    @Published var answerShowMissing: Bool = false
+    @Published var answerShowError: String?
+    @Published var isLoadingAnswerShow: Bool = false
     @Published var captureDraft: String = ""
     @Published var captureTarget: CaptureTargetChoice = .auto
     @Published var captureHint: String = ""
@@ -364,6 +373,15 @@ public final class AppState: ObservableObject {
         answerResult = nil
         answerError = nil
         isLoadingAnswer = false
+        answerLogEntries = []
+        answerLogError = nil
+        isLoadingAnswerLog = false
+        answerLogHasMore = false
+        answerShowOpenId = nil
+        answerShowRecord = nil
+        answerShowMissing = false
+        answerShowError = nil
+        isLoadingAnswerShow = false
         captureResult = nil
         captureError = nil
         isLoadingCapture = false
@@ -565,6 +583,100 @@ public final class AppState: ObservableObject {
             answerError = DaemonErrorPresenter.message(for: error)
         }
         isLoadingAnswer = false
+    }
+
+    /// Page size for the persisted answer-history list. Mirrors the
+    /// mobile `ANSWER_LOG_PAGE_SIZE` so a paginated request returns the
+    /// same row count on every operator surface, and the
+    /// `entries.count >= limit` heuristic the daemon's list route exposes
+    /// translates to the same `answerLogHasMore` truth value.
+    static let answerLogPageSize: Int = 20
+
+    /// Pulls the persisted cited-answer history from the daemon's
+    /// `GET /answers` daemon-control route. The first call clears any
+    /// prior list, error, or open-detail state. A `beforeId` cursor
+    /// appends to the existing list instead of resetting, mirroring the
+    /// mobile `loadAnswerLog({ beforeId })` paginate path. Failures land
+    /// in `answerLogError`; successful loads update `answerLogHasMore`
+    /// from the cursor heuristic (`entries.count >= limit`).
+    func loadAnswerLog(beforeId: String? = nil) async {
+        let append = beforeId != nil
+        isLoadingAnswerLog = true
+        answerLogError = nil
+        if !append {
+            answerShowOpenId = nil
+            answerShowRecord = nil
+            answerShowMissing = false
+            answerShowError = nil
+            isLoadingAnswerShow = false
+        }
+        let limit = AppState.answerLogPageSize
+        do {
+            let result = try await client.answerLog(
+                filter: AnswerHistoryListFilter(limit: limit, beforeId: beforeId)
+            )
+            if append {
+                answerLogEntries.append(contentsOf: result.entries)
+            } else {
+                answerLogEntries = result.entries
+            }
+            answerLogHasMore = result.entries.count >= limit
+        } catch {
+            answerLogError = DaemonErrorPresenter.message(for: error)
+            answerLogHasMore = false
+        }
+        isLoadingAnswerLog = false
+    }
+
+    /// Cursor paginate. Reads the last entry's id and asks the daemon for
+    /// the next page before it. A no-op when the list is empty (which
+    /// also keeps `answerLogHasMore` honest after a refresh).
+    func loadMoreAnswerLog() async {
+        guard let last = answerLogEntries.last else { return }
+        await loadAnswerLog(beforeId: last.id)
+    }
+
+    /// Pulls the full persisted envelope for one record from the daemon's
+    /// `GET /answers/:id` route. Sets `answerShowOpenId` so the view can
+    /// pin which row the operator opened, and folds the discriminated
+    /// `AnswerHistoryShowResult` into typed view state: `notFound` lands
+    /// in `answerShowMissing` (the typed banner), `success` lands in
+    /// `answerShowRecord`. Transport / decode failures land in
+    /// `answerShowError`.
+    func openAnswerShow(id: String) async {
+        answerShowOpenId = id
+        answerShowRecord = nil
+        answerShowMissing = false
+        answerShowError = nil
+        isLoadingAnswerShow = true
+        do {
+            let result = try await client.answerShow(id: id)
+            switch result {
+            case .success(let record):
+                answerShowRecord = record
+                answerShowMissing = false
+            case .notFound:
+                answerShowRecord = nil
+                answerShowMissing = true
+            }
+        } catch {
+            answerShowRecord = nil
+            answerShowMissing = false
+            answerShowError = DaemonErrorPresenter.message(for: error)
+        }
+        isLoadingAnswerShow = false
+    }
+
+    /// Drops any open answer-history detail state without touching the
+    /// list. Mirrors mobile's `closeAnswerShow` so the operator can
+    /// collapse the detail back to the list view from the macOS surface
+    /// without re-loading the list.
+    func closeAnswerShow() {
+        answerShowOpenId = nil
+        answerShowRecord = nil
+        answerShowMissing = false
+        answerShowError = nil
+        isLoadingAnswerShow = false
     }
 
     /// Posts the current draft through the daemon's `POST /capture` route.

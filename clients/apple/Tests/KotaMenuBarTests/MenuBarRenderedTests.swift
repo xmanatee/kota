@@ -152,7 +152,7 @@ final class MenuBarRenderedTests: XCTestCase {
         ("RESPOND", "AttentionInboxView (approvals + owner questions + failed runs)"),
         ("ASK",     "AskUnifiedView (mode picker: ask/recall/knowledge/memory/history/tasks)"),
         ("CAPTURE", "ComposeSection (segmented: capture / retract)"),
-        ("BROWSE",  "BrowseSection (collapsed: tasks queue, sessions, recent runs, digest, attention)"),
+        ("BROWSE",  "BrowseSection (collapsed: tasks queue, sessions, recent runs, digest, attention, answer history)"),
         ("CONFIGURE", "FooterActionsView (trigger workflow, dashboard?, settings, refresh, notifications, quit)"),
     ]
 
@@ -169,6 +169,7 @@ final class MenuBarRenderedTests: XCTestCase {
         ("Repo task search",                 "TaskSearchView (own collapsible)",          "ASK → mode=tasks"),
         ("Cross-store recall",               "RecallView (own collapsible)",              "ASK → mode=recall"),
         ("Cited answer",                     "AnswerView (own collapsible)",              "ASK → mode=ask (default)"),
+        ("Answer history",                   "(macOS surface absent)",                    "BROWSE → AnswerHistoryView"),
         ("Cross-store capture",              "CaptureView (own collapsible)",             "CAPTURE → mode=capture (default)"),
         ("Cross-store retract",              "RetractView (own collapsible)",             "CAPTURE → mode=retract"),
         ("Task queue",                       "TaskQueueView (own collapsible)",           "BROWSE → TaskQueueView"),

@@ -530,6 +530,7 @@ struct BrowseSection: View {
                         RecentRunsView()
                         DigestView()
                         AttentionView()
+                        AnswerHistoryView()
                     }
                 }
             }

@@ -1426,6 +1426,241 @@ final class DaemonClientTests: XCTestCase {
         }
     }
 
+    // MARK: - Answer history list
+
+    func testAnswerLogTargetsBareControlRouteWithoutQueryParamsByDefault() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/answers")
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertNil(
+                request.url?.query,
+                "Empty filter must omit the query string entirely so the daemon store applies its own typed defaults."
+            )
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+            let respBody = #"""
+            {"entries": [
+              {"id": "ans-1", "createdAt": "2026-04-26T12:34:56Z", "query": "what is recall?",
+               "result": {"ok": true, "citationCount": 2}},
+              {"id": "ans-2", "createdAt": "2026-04-25T08:00:00Z", "query": "no-match",
+               "result": {"ok": false, "reason": "no_hits"}}
+            ]}
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.answerLog(filter: AnswerHistoryListFilter(limit: nil, beforeId: nil))
+        XCTAssertEqual(result.entries.count, 2)
+        XCTAssertEqual(result.entries[0].id, "ans-1")
+        if case .success(let count) = result.entries[0].result {
+            XCTAssertEqual(count, 2)
+        } else {
+            XCTFail("expected success arm at index 0")
+        }
+        if case .noHits = result.entries[1].result {
+            // expected
+        } else {
+            XCTFail("expected no_hits arm at index 1")
+        }
+    }
+
+    func testAnswerLogEmitsLimitAndBeforeIdQueryParamsWhenSet() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/answers")
+            let comps = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)
+            let queryItems = comps?.queryItems ?? []
+            let pairs = Dictionary(
+                uniqueKeysWithValues: queryItems.map { ($0.name, $0.value ?? "") }
+            )
+            XCTAssertEqual(pairs["limit"], "20")
+            XCTAssertEqual(pairs["beforeId"], "ans-cursor")
+            let respBody = #"{"entries": []}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.answerLog(
+            filter: AnswerHistoryListFilter(limit: 20, beforeId: "ans-cursor")
+        )
+        XCTAssertTrue(result.entries.isEmpty)
+    }
+
+    func testAnswerLogSurfacesHttpError() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            let respBody = #"{"error": "store down"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+
+        do {
+            _ = try await client.answerLog(filter: AnswerHistoryListFilter(limit: nil, beforeId: nil))
+            XCTFail("expected httpError")
+        } catch DaemonClientError.httpError(let code, _) {
+            XCTAssertEqual(code, 500)
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+    }
+
+    // MARK: - Answer history show
+
+    func testAnswerShowDecodesFoundRecord() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/answers/ans-1")
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+            let respBody = #"""
+            {"ok": true,
+             "record": {
+               "id": "ans-1",
+               "createdAt": "2026-04-26T12:34:56Z",
+               "query": "what is recall?",
+               "filter": {"topK": 8},
+               "recallHits": [
+                 {"source": "knowledge", "score": 0.91, "id": "k-1",
+                  "title": "Cross-store recall", "preview": "preview",
+                  "updated": "2026-04-26T12:34:56Z"}
+               ],
+               "result": {
+                 "ok": true,
+                 "answer": "Recall fans out [knowledge:k-1].",
+                 "citations": [{"source": "knowledge", "id": "k-1"}],
+                 "hits": [
+                   {"source": "knowledge", "score": 0.91, "id": "k-1",
+                    "title": "Cross-store recall", "preview": "preview",
+                    "updated": "2026-04-26T12:34:56Z"}
+                 ]
+               }
+             }}
+            """#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.answerShow(id: "ans-1")
+        guard case .success(let record) = result else {
+            XCTFail("expected ok=true show result"); return
+        }
+        XCTAssertEqual(record.id, "ans-1")
+        XCTAssertEqual(record.query, "what is recall?")
+        XCTAssertEqual(record.filter.topK, 8)
+        XCTAssertEqual(record.recallHits.count, 1)
+        if case .success(let answer, let citations, _) = record.result {
+            XCTAssertTrue(answer.contains("[knowledge:k-1]"))
+            XCTAssertEqual(citations.count, 1)
+        } else {
+            XCTFail("expected success result arm")
+        }
+    }
+
+    func testAnswerShowDecodesNotFoundArm() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/answers/missing-id")
+            let respBody = #"{"ok": false, "reason": "not_found"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
+
+        let result = try await client.answerShow(id: "missing-id")
+        if case .notFound = result {
+            // expected
+        } else {
+            XCTFail("expected not_found arm")
+        }
+    }
+
+    func testAnswerShowPercentEncodesIdWithReservedCharacters() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            // The raw `/` and `?` would otherwise tear the path apart;
+            // mirror mobile's `encodeURIComponent(id)` so the daemon
+            // sees one segment. `URL.path` returns the decoded form, so
+            // assert against the encoded surface.
+            let absolute = request.url?.absoluteString ?? ""
+            XCTAssertTrue(
+                absolute.hasSuffix("/answers/weird%2Fid%3Fquery"),
+                "expected absolute URL to keep id percent-encoded — got \(absolute)"
+            )
+            let respBody = #"{"ok": false, "reason": "not_found"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+
+        _ = try await client.answerShow(id: "weird/id?query")
+    }
+
+    func testAnswerShowSurfacesHttpError() async throws {
+        URLProtocol.registerClass(MockURLProtocol.self)
+        defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
+
+        MockURLProtocol.handler = { request in
+            let respBody = #"{"error": "broken"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil
+            )!
+            return (response, respBody)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
+
+        do {
+            _ = try await client.answerShow(id: "ans-1")
+            XCTFail("expected httpError")
+        } catch DaemonClientError.httpError(let code, _) {
+            XCTAssertEqual(code, 500)
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+    }
+
     /// Multi-arm success decode: a `tasks` record (carries `path`) plus a
     /// second decode of a `memory` record (no `path`) wired through the
     /// same harness so both record-shape variants are exercised. Also

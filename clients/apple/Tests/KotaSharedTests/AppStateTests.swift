@@ -173,6 +173,21 @@ final class AppStateTests: XCTestCase {
         state.isLoadingCapture = true
         state.isLoadingRetract = true
         state.retractConfirmed = true
+        state.answerLogEntries = [
+            AnswerHistoryEntry(
+                id: "ans-stale",
+                createdAt: "2026-04-29T00:00:00Z",
+                query: "stale",
+                result: .noHits
+            )
+        ]
+        state.answerLogError = "stale"
+        state.isLoadingAnswerLog = true
+        state.answerLogHasMore = true
+        state.answerShowOpenId = "ans-stale"
+        state.answerShowMissing = true
+        state.answerShowError = "stale"
+        state.isLoadingAnswerShow = true
         state.projectDir = nil
         state.remoteURL = ""
 
@@ -220,6 +235,15 @@ final class AppStateTests: XCTestCase {
         XCTAssertNil(state.retractError)
         XCTAssertFalse(state.isLoadingRetract)
         XCTAssertFalse(state.retractConfirmed)
+        XCTAssertTrue(state.answerLogEntries.isEmpty)
+        XCTAssertNil(state.answerLogError)
+        XCTAssertFalse(state.isLoadingAnswerLog)
+        XCTAssertFalse(state.answerLogHasMore)
+        XCTAssertNil(state.answerShowOpenId)
+        XCTAssertNil(state.answerShowRecord)
+        XCTAssertFalse(state.answerShowMissing)
+        XCTAssertNil(state.answerShowError)
+        XCTAssertFalse(state.isLoadingAnswerShow)
     }
 
     // MARK: - Notification fan-out across attention surfaces
