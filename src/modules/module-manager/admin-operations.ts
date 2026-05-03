@@ -10,7 +10,7 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import type {
   ModuleInspectEntry,
   ModuleInspectResult,
-} from "#core/server/kota-client.js";
+} from "./client.js";
 
 function summaryToEntry(s: ReturnType<ModuleContext["getModuleSummaries"]>[number]): ModuleInspectEntry {
   const entry: ModuleInspectEntry = {

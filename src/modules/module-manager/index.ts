@@ -3,10 +3,6 @@ import { resolve } from "node:path";
 import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
-import type {
-  ModuleInspectEntry,
-  ModulesAdminClient,
-} from "#core/server/kota-client.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import {
   blank,
@@ -20,7 +16,14 @@ import {
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 import { inspectModule } from "./admin-operations.js";
-import type { ModulesClient, ModulesListResult } from "./client.js";
+import type {
+  ModuleInspectEntry,
+  ModuleInspectResult,
+  ModuleReloadResult,
+  ModulesAdminClient,
+  ModulesClient,
+  ModulesListResult,
+} from "./client.js";
 import { buildModuleListEntries, handleListModules } from "./routes.js";
 import { generateModuleScaffold, generatePythonScaffold } from "./scaffolds.js";
 
@@ -274,12 +277,7 @@ const moduleManagerModule: KotaModule = {
       path: "/modules/:name",
       capabilityScope: "read",
       handler: (_req, res, params) => {
-        const result = inspectModule(ctx, params.name);
-        if (!result.found) {
-          jsonResponse(res, 404, result);
-          return;
-        }
-        jsonResponse(res, 200, result);
+        jsonResponse(res, 200, inspectModule(ctx, params.name));
       },
     },
   ],
@@ -303,6 +301,7 @@ const moduleManagerModule: KotaModule = {
 
   daemonClient: (link: DaemonTransport) => ({
     modules: buildModulesDaemonHandler(link),
+    modulesAdmin: buildModulesAdminDaemonHandler(link),
   }),
 };
 
@@ -316,6 +315,52 @@ function buildModulesDaemonHandler(link: DaemonTransport): ModulesClient {
   return {
     list: async (): Promise<ModulesListResult> =>
       link.requestStrict<ModulesListResult>("GET", "/modules"),
+  };
+}
+
+/**
+ * Daemon-side `ModulesAdminClient` backed by the typed `DaemonTransport`.
+ *
+ * `inspect` issues a single strict `GET /modules/{name}` and decodes the
+ * canonical `ModuleInspectResult` envelope the daemon route emits — both
+ * the `{ found: true; module }` and `{ found: false }` variants ride the
+ * same 200 status, matching every other migrated namespace's strict-
+ * transport posture.
+ *
+ * `reload` composes the strict `POST /reload` config-reload call with
+ * the same `GET /modules` wire shape the `modules.list` namespace already
+ * consumes; the existence check is reused via `buildModulesDaemonHandler`
+ * so the cross-namespace dependency stays inside this module. The
+ * `daemon_required` variant is unreachable from the daemon-side factory
+ * by construction (the daemon is the thing servicing the call); the
+ * local-side handler still surfaces it.
+ */
+function buildModulesAdminDaemonHandler(
+  link: DaemonTransport,
+): ModulesAdminClient {
+  const modules = buildModulesDaemonHandler(link);
+  return {
+    inspect: async (name) =>
+      link.requestStrict<ModuleInspectResult>(
+        "GET",
+        `/modules/${encodeURIComponent(name)}`,
+      ),
+    reload: async (name): Promise<ModuleReloadResult> => {
+      const result = await link.requestStrict<{
+        ok: boolean;
+        workflows: number;
+        changedModules: string[];
+      }>("POST", "/reload");
+      const list = await modules.list();
+      if (!list.modules.some((m) => m.name === name)) {
+        return { ok: false, reason: "not_found" };
+      }
+      return {
+        ok: true,
+        reloaded: result.changedModules.includes(name),
+        workflowsActive: result.workflows,
+      };
+    },
   };
 }
 

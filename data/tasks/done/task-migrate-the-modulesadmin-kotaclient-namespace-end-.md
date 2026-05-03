@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-modulesadmin-kotaclient-namespace-end-
 title: Migrate the modulesAdmin KotaClient namespace end-to-end through the daemonClient(link) factory hook (foundation pilot follow-up)
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move ModulesAdminClient interface, ModuleInspectResult, ModuleInspectEntry, and ModuleReloadResult from src/core/server/kota-client.ts into src/modules/module-manager/client.ts; extend the module-manager daemonClient(link) factory to contribute modulesAdmin (inspect/reload) backed by the typed DaemonTransport; remove modulesInspectHttp, modulesReloadHttp, the temporary inline existence-check GET, and the inline modulesAdmin closure from src/core/server/daemon-client.ts.
 created_at: 2026-05-03T10:43:33.538Z
-updated_at: 2026-05-03T10:43:33.538Z
+updated_at: 2026-05-03T10:56:13.680Z
 ---
 
 ## Problem

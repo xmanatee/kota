@@ -55,8 +55,6 @@ import type {
   MemoryReindexResult,
   MemorySearchFilter,
   MemorySearchResult,
-  ModuleInspectResult,
-  ModuleReloadResult,
   RecallFilter,
   RecallResult,
   RepoTaskCaptureResult,
@@ -274,50 +272,6 @@ async function configSchemaContentHttp(
     throw new Error(body.error ?? `HTTP ${res.status}`);
   }
   return (await res.json()) as { content: string };
-}
-
-async function modulesInspectHttp(
-  transport: DaemonTransport,
-  name: string,
-): Promise<ModuleInspectResult> {
-  const res = await fetchWithTimeout(
-    `${transport.baseUrl}/modules/${encodeURIComponent(name)}`,
-    { headers: transport.authHeaders() },
-  );
-  if (res.status === 404) return { found: false };
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as ModuleInspectResult;
-}
-
-async function modulesReloadHttp(
-  transport: DaemonTransport,
-  name: string,
-): Promise<ModuleReloadResult> {
-  const result = await reloadConfigHttp(transport);
-  if (!result) return { ok: false, reason: "daemon_required" };
-  // Existence-check GET against `/modules`. The `modules.list` namespace
-  // migrated to `module-manager`'s `daemonClient(link)` factory; rather than
-  // import the namespace handler back into core, `modulesAdmin.reload`
-  // issues its own minimal `{ name }`-shaped GET. The follow-on
-  // `modulesAdmin` migration consumes the same route through
-  // `link.requestStrict<ModulesListResult>` and removes this inline GET.
-  const listRes = await fetchWithTimeout(`${transport.baseUrl}/modules`, {
-    headers: transport.authHeaders(),
-  }).catch(() => null);
-  if (listRes?.ok) {
-    const body = (await listRes.json()) as { modules: { name: string }[] };
-    if (!body.modules.some((m) => m.name === name)) {
-      return { ok: false, reason: "not_found" };
-    }
-  }
-  return {
-    ok: true,
-    reloaded: result.changedModules.includes(name),
-    workflowsActive: result.workflows,
-  };
 }
 
 async function evalListHttp(
@@ -1617,10 +1571,6 @@ export function buildCoreStubDaemonClientHandlers(
       set: async (key, rawValue) => configSetHttp(transport, key, rawValue),
       schemaPath: async () => configSchemaPathHttp(transport),
       schemaContent: async () => configSchemaContentHttp(transport),
-    },
-    modulesAdmin: {
-      inspect: async (name) => modulesInspectHttp(transport, name),
-      reload: async (name) => modulesReloadHttp(transport, name),
     },
     daemonOps: {
       status: async () => {

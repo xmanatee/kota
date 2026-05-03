@@ -24,7 +24,12 @@ import { describe, expect, it } from "vitest";
 import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
-import type { ModuleListEntry, ModulesListResult } from "./client.js";
+import type {
+  ModuleInspectEntry,
+  ModuleInspectResult,
+  ModuleListEntry,
+  ModulesListResult,
+} from "./client.js";
 import moduleManagerModule from "./index.js";
 
 type RecordedRequestStrict = {
@@ -148,6 +153,250 @@ describe("module-manager module daemonClient(link)", () => {
     const contributed = moduleManagerModule.daemonClient!(transport);
     const others = buildMigratedNamespaceTestStubs();
     delete others.modules;
+    delete others.modulesAdmin;
+    expect(() =>
+      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
+    ).not.toThrow();
+  });
+});
+
+function makeInspectEntry(name: string): ModuleInspectEntry {
+  return {
+    name,
+    source: "project",
+    status: "loaded",
+    dependencies: [],
+    toolNames: [],
+    workflowNames: [],
+    commandNames: [],
+    routeSummaries: [],
+    channelNames: [],
+    skillNames: [],
+    agentNames: [],
+  };
+}
+
+describe("module-manager module daemonClient(link) — modulesAdmin", () => {
+  it("contributes a modulesAdmin namespace handler with both methods", () => {
+    expect(moduleManagerModule.daemonClient).toBeTypeOf("function");
+    const { transport } = makeRecordingTransport({});
+    const contributed = moduleManagerModule.daemonClient!(transport);
+    expect(contributed.modulesAdmin).toBeDefined();
+    expect(typeof contributed.modulesAdmin!.inspect).toBe("function");
+    expect(typeof contributed.modulesAdmin!.reload).toBe("function");
+  });
+
+  it("routes inspect through GET /modules/{encodeURIComponent(name)} with no body", async () => {
+    const entry = makeInspectEntry("module-manager");
+    const expected: ModuleInspectResult = { found: true, module: entry };
+    const { transport, calls } = makeRecordingTransport({
+      requestStrictResponder: () => expected,
+    });
+    const contributed = moduleManagerModule.daemonClient!(transport);
+    const result = await contributed.modulesAdmin!.inspect("module-manager");
+    expect(result).toEqual(expected);
+    expect(calls).toEqual([
+      {
+        kind: "requestStrict",
+        method: "GET",
+        path: "/modules/module-manager",
+        body: undefined,
+      },
+    ]);
+  });
+
+  it("URL-encodes the name segment when inspect is called with a special-character name", async () => {
+    const expected: ModuleInspectResult = { found: false };
+    const { transport, calls } = makeRecordingTransport({
+      requestStrictResponder: () => expected,
+    });
+    const contributed = moduleManagerModule.daemonClient!(transport);
+    await contributed.modulesAdmin!.inspect("name with/slash");
+    expect(calls).toEqual([
+      {
+        kind: "requestStrict",
+        method: "GET",
+        path: "/modules/name%20with%2Fslash",
+        body: undefined,
+      },
+    ]);
+  });
+
+  it("decodes a successful { found: true; module } response verbatim", async () => {
+    const entry: ModuleInspectEntry = {
+      ...makeInspectEntry("doctor"),
+      version: "1.0.0",
+      description: "health checks",
+      toolNames: ["check"],
+      health: { status: "healthy", restartCount: 0 },
+    };
+    const expected: ModuleInspectResult = { found: true, module: entry };
+    const { transport } = makeRecordingTransport({
+      requestStrictResponder: () => expected,
+    });
+    const contributed = moduleManagerModule.daemonClient!(transport);
+    const result = await contributed.modulesAdmin!.inspect("doctor");
+    expect(result).toEqual(expected);
+  });
+
+  it("decodes a { found: false } response verbatim", async () => {
+    const expected: ModuleInspectResult = { found: false };
+    const { transport } = makeRecordingTransport({
+      requestStrictResponder: () => expected,
+    });
+    const contributed = moduleManagerModule.daemonClient!(transport);
+    const result = await contributed.modulesAdmin!.inspect("missing");
+    expect(result).toEqual(expected);
+  });
+
+  it("propagates inspect transport failures rather than masquerading as { found: false }", async () => {
+    const { transport } = makeRecordingTransport({
+      requestStrictResponder: () => {
+        throw new Error("boom");
+      },
+    });
+    const contributed = moduleManagerModule.daemonClient!(transport);
+    await expect(contributed.modulesAdmin!.inspect("any")).rejects.toThrow(
+      /boom/,
+    );
+  });
+
+  it("routes reload through POST /reload then GET /modules and assembles ok=true when the name is present and changed", async () => {
+    const moduleListEntry: ModuleListEntry = {
+      name: "doctor",
+      source: "project",
+      status: "loaded",
+      toolCount: 0,
+      workflowCount: 0,
+      commandCount: 0,
+      channelCount: 0,
+      skillCount: 0,
+      agentCount: 0,
+    };
+    const reloadResponse = {
+      ok: true,
+      workflows: 7,
+      changedModules: ["doctor"],
+    };
+    const listResponse: ModulesListResult = { modules: [moduleListEntry] };
+    const { transport, calls } = makeRecordingTransport({
+      requestStrictResponder: (method, path) => {
+        if (method === "POST" && path === "/reload") return reloadResponse;
+        if (method === "GET" && path === "/modules") return listResponse;
+        throw new Error(`unexpected ${method} ${path}`);
+      },
+    });
+    const contributed = moduleManagerModule.daemonClient!(transport);
+    const result = await contributed.modulesAdmin!.reload("doctor");
+    expect(result).toEqual({ ok: true, reloaded: true, workflowsActive: 7 });
+    expect(calls).toEqual([
+      { kind: "requestStrict", method: "POST", path: "/reload", body: undefined },
+      { kind: "requestStrict", method: "GET", path: "/modules", body: undefined },
+    ]);
+  });
+
+  it("assembles ok=true with reloaded=false when the name is present but unchanged", async () => {
+    const reloadResponse = { ok: true, workflows: 4, changedModules: [] };
+    const listResponse: ModulesListResult = {
+      modules: [
+        {
+          name: "doctor",
+          source: "project",
+          status: "loaded",
+          toolCount: 0,
+          workflowCount: 0,
+          commandCount: 0,
+          channelCount: 0,
+          skillCount: 0,
+          agentCount: 0,
+        },
+      ],
+    };
+    const { transport } = makeRecordingTransport({
+      requestStrictResponder: (method, path) => {
+        if (method === "POST" && path === "/reload") return reloadResponse;
+        if (method === "GET" && path === "/modules") return listResponse;
+        throw new Error(`unexpected ${method} ${path}`);
+      },
+    });
+    const contributed = moduleManagerModule.daemonClient!(transport);
+    const result = await contributed.modulesAdmin!.reload("doctor");
+    expect(result).toEqual({ ok: true, reloaded: false, workflowsActive: 4 });
+  });
+
+  it("assembles { ok: false, reason: 'not_found' } when the name is absent from the modules list", async () => {
+    const reloadResponse = {
+      ok: true,
+      workflows: 4,
+      changedModules: ["other"],
+    };
+    const listResponse: ModulesListResult = { modules: [] };
+    const { transport } = makeRecordingTransport({
+      requestStrictResponder: (method, path) => {
+        if (method === "POST" && path === "/reload") return reloadResponse;
+        if (method === "GET" && path === "/modules") return listResponse;
+        throw new Error(`unexpected ${method} ${path}`);
+      },
+    });
+    const contributed = moduleManagerModule.daemonClient!(transport);
+    const result = await contributed.modulesAdmin!.reload("missing");
+    expect(result).toEqual({ ok: false, reason: "not_found" });
+  });
+
+  it("propagates a /reload transport failure rather than silently swallowing it", async () => {
+    const { transport } = makeRecordingTransport({
+      requestStrictResponder: (method, path) => {
+        if (method === "POST" && path === "/reload") {
+          throw new Error("reload-down");
+        }
+        throw new Error(`unexpected ${method} ${path}`);
+      },
+    });
+    const contributed = moduleManagerModule.daemonClient!(transport);
+    await expect(contributed.modulesAdmin!.reload("doctor")).rejects.toThrow(
+      /reload-down/,
+    );
+  });
+
+  it("propagates a /modules existence-check transport failure rather than silently swallowing it", async () => {
+    const reloadResponse = {
+      ok: true,
+      workflows: 4,
+      changedModules: ["doctor"],
+    };
+    const { transport } = makeRecordingTransport({
+      requestStrictResponder: (method, path) => {
+        if (method === "POST" && path === "/reload") return reloadResponse;
+        if (method === "GET" && path === "/modules") {
+          throw new Error("list-down");
+        }
+        throw new Error(`unexpected ${method} ${path}`);
+      },
+    });
+    const contributed = moduleManagerModule.daemonClient!(transport);
+    await expect(contributed.modulesAdmin!.reload("doctor")).rejects.toThrow(
+      /list-down/,
+    );
+  });
+
+  it("the assembly path fails loudly when the modulesAdmin contribution is removed", () => {
+    const { transport } = makeRecordingTransport({});
+    const others = buildMigratedNamespaceTestStubs();
+    delete others.modulesAdmin;
+    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
+      /modulesAdmin/,
+    );
+    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
+      /missing daemon handler/,
+    );
+  });
+
+  it("supplying the modulesAdmin contribution to the assembly path satisfies coverage", () => {
+    const { transport } = makeRecordingTransport({});
+    const contributed = moduleManagerModule.daemonClient!(transport);
+    const others = buildMigratedNamespaceTestStubs();
+    delete others.modules;
+    delete others.modulesAdmin;
     expect(() =>
       assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
     ).not.toThrow();
