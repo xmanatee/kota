@@ -56,7 +56,6 @@ import type {
   MemorySearchFilter,
   MemorySearchResult,
   ModuleInspectResult,
-  ModuleListEntry,
   ModuleReloadResult,
   RecallFilter,
   RecallResult,
@@ -299,9 +298,20 @@ async function modulesReloadHttp(
 ): Promise<ModuleReloadResult> {
   const result = await reloadConfigHttp(transport);
   if (!result) return { ok: false, reason: "daemon_required" };
-  const modulesRes = await listModulesHttp(transport);
-  if (modulesRes && !modulesRes.modules.some((m) => m.name === name)) {
-    return { ok: false, reason: "not_found" };
+  // Existence-check GET against `/modules`. The `modules.list` namespace
+  // migrated to `module-manager`'s `daemonClient(link)` factory; rather than
+  // import the namespace handler back into core, `modulesAdmin.reload`
+  // issues its own minimal `{ name }`-shaped GET. The follow-on
+  // `modulesAdmin` migration consumes the same route through
+  // `link.requestStrict<ModulesListResult>` and removes this inline GET.
+  const listRes = await fetchWithTimeout(`${transport.baseUrl}/modules`, {
+    headers: transport.authHeaders(),
+  }).catch(() => null);
+  if (listRes?.ok) {
+    const body = (await listRes.json()) as { modules: { name: string }[] };
+    if (!body.modules.some((m) => m.name === name)) {
+      return { ok: false, reason: "not_found" };
+    }
   }
   return {
     ok: true,
@@ -626,20 +636,6 @@ async function setSessionAutonomyModeHttp(
   } catch (err) {
     if (err instanceof Error && /HTTP/.test(err.message)) throw err;
     return { ok: false, reason: "daemon_required" };
-  }
-}
-
-async function listModulesHttp(
-  transport: DaemonTransport,
-): Promise<{ modules: ModuleListEntry[] } | null> {
-  try {
-    const res = await fetchWithTimeout(`${transport.baseUrl}/modules`, {
-      headers: transport.authHeaders(),
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as { modules: ModuleListEntry[] };
-  } catch {
-    return null;
   }
 }
 
@@ -1591,13 +1587,6 @@ export function buildCoreStubDaemonClientHandlers(
         return { sessions: result.sessions };
       },
       setAutonomyMode: async (id, mode) => setSessionAutonomyModeHttp(transport, id, mode),
-    },
-    modules: {
-      list: async () => {
-        const result = await listModulesHttp(transport);
-        if (!result) throw new Error("Daemon unreachable while listing modules");
-        return { modules: result.modules };
-      },
     },
     agents: {
       list: async () => listAgentsHttp(transport),

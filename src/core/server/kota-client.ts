@@ -46,6 +46,7 @@ import type { AnswerClient } from "#modules/answer/client.js";
 import type { DoctorClient } from "#modules/doctor/client.js";
 import type { AuditClient } from "#modules/guardrails-audit/client.js";
 import type { HarnessParityClient } from "#modules/harness-parity/client.js";
+import type { ModulesClient } from "#modules/module-manager/client.js";
 import type { OwnerQuestionsClient } from "#modules/owner-questions/client.js";
 import type { RetractClient } from "#modules/retract/client.js";
 
@@ -963,33 +964,6 @@ export type SessionsSetAutonomyModeResult =
   | { ok: false; reason: "daemon_required" };
 
 /**
- * Loaded-module summary surfaced by `modules.list`.
- *
- * The shape mirrors `ModuleSummary` but is intentionally narrower: only fields
- * an operator browsing the runtime needs to make sense of what is loaded and
- * what each module contributes. Fuller introspection (per-tool listing,
- * full skill bodies) stays on the module-manager CLI/route surface.
- */
-export type ModuleListEntry = {
-  name: string;
-  source: "project" | "installed" | "foreign";
-  status: "loaded" | "failed";
-  version?: string;
-  description?: string;
-  toolCount: number;
-  workflowCount: number;
-  commandCount: number;
-  channelCount: number;
-  skillCount: number;
-  agentCount: number;
-  loadError?: string;
-};
-
-export type ModulesListResult = {
-  modules: ModuleListEntry[];
-};
-
-/**
  * Interactive-session operations.
  *
  * `list` enumerates sessions registered with the daemon — both `kota serve`
@@ -1006,19 +980,6 @@ export type ModulesListResult = {
 export interface SessionsClient {
   list(): Promise<SessionsListResult>;
   setAutonomyMode(id: string, mode: AutonomyMode): Promise<SessionsSetAutonomyModeResult>;
-}
-
-/**
- * Loaded-module operations.
- *
- * `list` returns the runtime view of loaded modules. Daemon mode reports
- * the modules loaded by the daemon process; local mode reports the modules
- * loaded by the CLI process (the same view `kota module list` already
- * exposes). `failed` entries carry the load error so the navigator can
- * show why a module is not available without falling back to log scraping.
- */
-export interface ModulesClient {
-  list(): Promise<ModulesListResult>;
 }
 
 /**

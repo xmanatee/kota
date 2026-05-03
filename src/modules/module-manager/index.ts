@@ -2,10 +2,10 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type {
   ModuleInspectEntry,
   ModulesAdminClient,
-  ModulesClient,
 } from "#core/server/kota-client.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import {
@@ -20,6 +20,7 @@ import {
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 import { inspectModule } from "./admin-operations.js";
+import type { ModulesClient, ModulesListResult } from "./client.js";
 import { buildModuleListEntries, handleListModules } from "./routes.js";
 import { generateModuleScaffold, generatePythonScaffold } from "./scaffolds.js";
 
@@ -299,6 +300,23 @@ const moduleManagerModule: KotaModule = {
     };
     return { modules, modulesAdmin };
   },
+
+  daemonClient: (link: DaemonTransport) => ({
+    modules: buildModulesDaemonHandler(link),
+  }),
 };
+
+/**
+ * Daemon-side `ModulesClient` backed by the typed `DaemonTransport`. Calls
+ * the same `GET /modules` control route the daemon registers through
+ * `controlRoutes`. The transport surface owns the bearer token, base URL,
+ * and timeout policy — this factory only encodes the wire shape.
+ */
+function buildModulesDaemonHandler(link: DaemonTransport): ModulesClient {
+  return {
+    list: async (): Promise<ModulesListResult> =>
+      link.requestStrict<ModulesListResult>("GET", "/modules"),
+  };
+}
 
 export default moduleManagerModule;

@@ -5,9 +5,9 @@ import type { PendingApproval } from "#core/daemon/approval-queue.js";
 import type { InteractiveSession, WorkflowDefinitionSummary } from "#core/daemon/daemon-control.js";
 import type {
   KotaClient,
-  ModuleListEntry,
   WorkflowEnableResult,
 } from "#core/server/kota-client.js";
+import type { ModuleListEntry } from "#modules/module-manager/client.js";
 import type { RenderNode } from "#modules/rendering/primitives.js";
 import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";

@@ -52,5 +52,8 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       answer: async () => ({ ok: false, reason: "not_found" }),
       dismiss: async () => ({ ok: false, reason: "not_found" }),
     },
+    modules: {
+      list: async () => ({ modules: [] }),
+    },
   };
 }

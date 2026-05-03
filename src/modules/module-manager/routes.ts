@@ -1,7 +1,7 @@
 import type { ServerResponse } from "node:http";
 import type { ModuleHealth, ModuleSummary } from "#core/modules/module-types.js";
-import type { ModuleListEntry } from "#core/server/kota-client.js";
 import { jsonResponse } from "#core/server/session-pool.js";
+import type { ModuleListEntry } from "./client.js";
 
 export type ModuleStatusEntry = {
   name: string;

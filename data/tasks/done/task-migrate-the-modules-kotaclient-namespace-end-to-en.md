@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-modules-kotaclient-namespace-end-to-en
 title: Migrate the modules KotaClient namespace end-to-end through the daemonClient(link) factory hook (foundation pilot follow-up)
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move ModulesClient interface, ModulesListResult, and ModuleListEntry from src/core/server/kota-client.ts into src/modules/module-manager/client.ts; add a daemonClient(link) factory on the module-manager module that wires list (GET /modules) through the typed DaemonTransport; remove listModulesHttp and the inline modules handler closure from src/core/server/daemon-client.ts; inline the existence-check GET in modulesReloadHttp so modulesAdmin remains unmigrated and untouched.
 created_at: 2026-05-03T10:08:34.834Z
-updated_at: 2026-05-03T10:08:34.834Z
+updated_at: 2026-05-03T10:19:19.367Z
 ---
 
 ## Problem

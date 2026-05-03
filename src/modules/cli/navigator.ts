@@ -14,10 +14,10 @@
 import { createInterface } from "node:readline";
 import type {
   KotaClient,
-  ModuleListEntry,
   SessionsSetAutonomyModeResult,
 } from "#core/server/kota-client.js";
 import { isAutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { ModuleListEntry } from "#modules/module-manager/client.js";
 import {
   blank,
   heading,
