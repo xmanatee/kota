@@ -89,8 +89,15 @@ its `register()` API; nothing in core hard-codes the contributor set.
 
 - Empty / whitespace-only text → `ambiguous` with the full suggestions
   list. The seam refuses to ship an empty record into any store.
-- Classifier throws → treated as ambiguous. The seam logs the failure
-  through the module's warn channel and surfaces `ambiguous`.
+- Classifier throws → the production default classifier wrapper
+  (`createDefaultClassifier` in `index.ts`) catches its own
+  `createModelClient` and `messages.create` throws inside two `try/catch`
+  blocks, logs through the module's warn channel, and returns
+  `{ kind: "ambiguous" }`. The underlying `CaptureProviderImpl.capture`
+  does not catch classifier exceptions itself; a custom
+  `CaptureClassifier` handed to the seam that does NOT wrap its own
+  throws will surface as a 500 at the route boundary. The wrapper layer
+  is where the "treat as ambiguous" guarantee lives.
 - Contributor throws → `contributor_failed` carries the target plus the
   error message verbatim.
 - An explicit `target` is always honored regardless of classifier
@@ -108,9 +115,17 @@ its `register()` API; nothing in core hard-codes the contributor set.
 - No cost surfacing into autonomy-facing context. The classifier uses
   the project's configured model client; per-call cost stays in the
   cost tracker the recall and answer seams already share.
-- No fan-out from this module. Telegram, web, macOS, and mobile
-  adoption land later as their own honest single-task follow-ups,
-  matching the recall+answer pattern. The web client will consume
-  `POST /api/capture` later through the same handler.
+- The cross-store capture fan-out has shipped. Live consumers of
+  `client.capture.capture` and the shared `createCaptureRouteHandler`
+  are: the daemon's own `POST /capture` and `POST /api/capture` routes,
+  the `kota capture <text>` CLI, the macOS menu-bar `CaptureView` (via
+  `DaemonClient.capture`), the mobile `CaptureScreen` (via
+  `clients/mobile/src/daemon/capture.ts`), the web sidebar
+  `CapturePanel` (via `api.capture`), the Telegram `/capture` plus
+  four `/capture-to-{memory,knowledge,tasks,inbox}` slash commands,
+  and the Slack-channel `/capture` plus the matching four
+  `/capture-to-*` commands. The wire shape is pinned by
+  `clients/conformance/contract-fixture.json` `capture.*` and exercised
+  by web Vitest, mobile Jest, and macOS Swift conformance suites.
 - No second registry, no second public capture path. `register()` is
   the single way new stores join.
