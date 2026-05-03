@@ -201,6 +201,14 @@ resources:
   - url: https://github.com/livekit/agents
     added: "2026-05-02"
     notes: "LiveKit Agents is a real-time multi-modal voice/agent orchestration framework — peer to KOTA's voice module surface. Owner-flagged 2026-05-02 in inbox capture as relevant to voice-stack reevaluation. Snapshot and distill on the next explorer cycle."
+    snapshot:
+      fingerprint: sha256:6d0c0b4e5dd9bafe7a1717c282cfae33
+      summary: "LiveKit Agents is a Python realtime voice/multimodal agent framework built around Agent + AgentSession + entrypoint + AgentServer; multi-agent handoff via tool-returned successor agents, native MCP tool support, built-in test framework with judges, and WebRTC/telephony transport. Patterns map cleanly onto KOTA's session/daemon/tool/bus/eval-harness primitives — voice/WebRTC transport is the only differentiator and it lives at the channel layer, not as a new autonomy primitive."
+      last_seen_at: "2026-05-03T04:04:20.334Z"
   - url: https://github.com/abhigyanpatwari/GitNexus
     added: "2026-05-02"
     notes: "GitNexus is a knowledge-base project owner-flagged 2026-05-02 as potentially relevant to KOTA's knowledge / memory subsystems. Snapshot and distill on the next explorer cycle to determine whether any primitive maps onto KOTA's existing knowledge module."
+    snapshot:
+      fingerprint: sha256:8f0080bad00e5ff8f850d84d55e5ba4b
+      summary: "GitNexus is a code knowledge-graph + MCP server (16 tools — query/context/impact/detect_changes/rename/cypher plus group-scope multi-repo tools) for AI coding agents (Claude Code, Cursor, Codex, Windsurf, OpenCode). Integrates as an external MCP-tools provider, not a peer agent runtime; impact/blast-radius and rename tools could augment KOTA's pr-reviewer/critic flows if operators install it. PolyForm Noncommercial; commercial use via Akon Labs SaaS."
+      last_seen_at: "2026-05-03T04:04:20.334Z"

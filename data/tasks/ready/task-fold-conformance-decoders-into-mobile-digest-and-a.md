@@ -1,12 +1,12 @@
 ---
 id: task-fold-conformance-decoders-into-mobile-digest-and-a
 title: Fold conformance decoders into mobile digest and attention runtime paths
-status: backlog
+status: ready
 priority: p3
 area: client
 summary: Fold the conformance parseDigestResponse and parseAttentionResponse decoders into the mobile clients/mobile/src/daemon/digest.ts and attention.ts runtime paths so a daemon-shipped malformed payload throws at the mobile boundary instead of silently flowing into DigestScreen / AttentionScreen as a typed-but-invalid object.
 created_at: 2026-05-03T00:30:17.374Z
-updated_at: 2026-05-03T00:30:17.374Z
+updated_at: 2026-05-03T03:59:21.332Z
 ---
 
 ## Problem
