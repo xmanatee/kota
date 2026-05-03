@@ -1948,6 +1948,62 @@ final class DaemonClientTests: XCTestCase {
         XCTAssertNotNil(resp.definitions[1].inputSchema, "decomposer carries an inputSchema")
         XCTAssertNil(resp.definitions[0].inputSchema, "builder has no inputSchema")
     }
+
+    // MARK: - ConversationRecord closed-set decode
+
+    func testConversationRecordRejectsUnknownSource() throws {
+        let payload = #"""
+        {
+          "id": "conv-13",
+          "title": "Drift case for the conversation source closed set",
+          "createdAt": "2026-04-29T17:00:00.000Z",
+          "updatedAt": "2026-04-29T18:30:00.000Z",
+          "model": "claude-opus-4-7",
+          "messageCount": 1,
+          "cwd": "/Users/operator/projects/kota",
+          "source": "system"
+        }
+        """#.data(using: .utf8)!
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(ConversationRecord.self, from: payload),
+            "ConversationRecord.source must reject values outside the closed user|action set"
+        )
+    }
+
+    func testConversationRecordAcceptsClosedSetSources() throws {
+        for value in ["user", "action"] {
+            let payload = #"""
+            {
+              "id": "conv-12",
+              "title": "Closed-set arm for \#(value)",
+              "createdAt": "2026-04-28T17:00:00.000Z",
+              "updatedAt": "2026-04-28T18:30:00.000Z",
+              "model": "claude-opus-4-7",
+              "messageCount": 1,
+              "cwd": "/Users/operator/projects/kota",
+              "source": "\#(value)"
+            }
+            """#.data(using: .utf8)!
+            let record = try JSONDecoder().decode(ConversationRecord.self, from: payload)
+            XCTAssertEqual(record.source, value)
+        }
+    }
+
+    func testConversationRecordAcceptsAbsentSource() throws {
+        let payload = #"""
+        {
+          "id": "conv-12",
+          "title": "Absent source field — preserved as nil",
+          "createdAt": "2026-04-28T17:00:00.000Z",
+          "updatedAt": "2026-04-28T18:30:00.000Z",
+          "model": "claude-opus-4-7",
+          "messageCount": 1,
+          "cwd": "/Users/operator/projects/kota"
+        }
+        """#.data(using: .utf8)!
+        let record = try JSONDecoder().decode(ConversationRecord.self, from: payload)
+        XCTAssertNil(record.source)
+    }
 }
 
 // MARK: - URL protocol mock

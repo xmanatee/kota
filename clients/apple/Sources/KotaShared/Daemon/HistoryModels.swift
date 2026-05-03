@@ -8,7 +8,18 @@ import Foundation
 // speaks the same line shape as Telegram, the CLI, and any other
 // surface that consumes the helper. `source` is the only optional
 // field, matching the upstream type one-to-one.
+//
+// `source` decodes through a closed `"user" | "action"` set: any other
+// value is a typed decode failure rather than a silently-accepted
+// future value. The mobile decoder
+// (`clients/mobile/src/daemon/history.ts:103-109`) and the cross-client
+// conformance decoder (`clients/conformance/decoders.ts`
+// `parseHistorySearchResponse`) enforce the same closed set so a
+// future-source addition is a coordinated contract bump on every
+// visual surface, not a quiet drift.
 struct ConversationRecord: Codable, Identifiable, Equatable {
+    static let allowedSources: Set<String> = ["user", "action"]
+
     let id: String
     let title: String
     let createdAt: String
@@ -17,6 +28,53 @@ struct ConversationRecord: Codable, Identifiable, Equatable {
     let messageCount: Int
     let cwd: String
     let source: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, title, createdAt, updatedAt, model, messageCount, cwd, source
+    }
+
+    init(
+        id: String,
+        title: String,
+        createdAt: String,
+        updatedAt: String,
+        model: String,
+        messageCount: Int,
+        cwd: String,
+        source: String?
+    ) {
+        self.id = id
+        self.title = title
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.model = model
+        self.messageCount = messageCount
+        self.cwd = cwd
+        self.source = source
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.title = try container.decode(String.self, forKey: .title)
+        self.createdAt = try container.decode(String.self, forKey: .createdAt)
+        self.updatedAt = try container.decode(String.self, forKey: .updatedAt)
+        self.model = try container.decode(String.self, forKey: .model)
+        self.messageCount = try container.decode(Int.self, forKey: .messageCount)
+        self.cwd = try container.decode(String.self, forKey: .cwd)
+        if let raw = try container.decodeIfPresent(String.self, forKey: .source) {
+            guard Self.allowedSources.contains(raw) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .source,
+                    in: container,
+                    debugDescription: "Unknown conversation source: \(raw)"
+                )
+            }
+            self.source = raw
+        } else {
+            self.source = nil
+        }
+    }
 }
 
 /// Renders conversation records one-to-one with the shared

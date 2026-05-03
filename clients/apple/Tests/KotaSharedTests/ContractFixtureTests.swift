@@ -397,6 +397,14 @@ final class ContractFixtureTests: XCTestCase {
         XCTAssertThrowsError(try JSONDecoder().decode(HistorySearchResponse.self, from: data))
     }
 
+    func testHistorySearchNegativeUnknownSourceFails() throws {
+        let data = try Self.nestedData(["historySearch", "negative_unknownSource"])
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(HistorySearchResponse.self, from: data),
+            "Expected ConversationRecord.source decode to reject the unknown closed-set value"
+        )
+    }
+
     func testDecodesTasksSearchSuccess() throws {
         let data = try Self.nestedData(["tasksSearch", "success"])
         let result = try JSONDecoder().decode(TasksSearchResponse.self, from: data)

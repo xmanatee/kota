@@ -323,6 +323,12 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
     expectThrow: true,
   },
   {
+    name: "historySearch: unknown conversation source rejected",
+    path: "historySearch.negative_unknownSource",
+    parse: parseHistorySearchResponse,
+    expectThrow: true,
+  },
+  {
     name: "tasksSearch: success",
     path: "tasksSearch.success",
     parse: parseTasksSearchResponse,
