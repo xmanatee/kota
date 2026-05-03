@@ -1,12 +1,12 @@
 ---
 id: task-make-native-client-state-models-testable-without-o
 title: Make native client state models testable without OS side effects
-status: backlog
+status: ready
 priority: p2
 area: client
 summary: Refactor macOS and mobile client state initialization so notification, filesystem, network, and daemon discovery side effects are injectable, enabling real AppState/view tests instead of avoiding integrated coverage.
 created_at: 2026-04-28T22:36:01.524Z
-updated_at: 2026-04-28T22:36:01.524Z
+updated_at: 2026-05-03T01:19:29.874Z
 ---
 
 ## Problem
