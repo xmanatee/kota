@@ -10,10 +10,12 @@ import type {
   MemoryClient,
   RecallClient,
   RepoTasksClient,
-  RetractClient,
-  RetractResult,
 } from "#core/server/kota-client.js";
 import { renderAnswerReplyPlain } from "#modules/answer/render.js";
+import type {
+  RetractClient,
+  RetractResult,
+} from "#modules/retract/client.js";
 import { callTelegramApi } from "./client.js";
 import {
   buildStatusText,

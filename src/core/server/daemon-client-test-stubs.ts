@@ -39,5 +39,8 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
     audit: {
       list: async () => ({ entries: [] }),
     },
+    retract: {
+      retract: async () => ({ ok: false, reason: "no_contributors" }),
+    },
   };
 }

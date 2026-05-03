@@ -13,10 +13,7 @@
  *   envelope. There is no implicit cross-target search.
  * - A contributor that throws becomes a typed `contributor_failed` arm.
  */
-import type {
-  RetractRequest,
-  RetractResult,
-} from "#core/server/kota-client.js";
+import type { RetractRequest, RetractResult } from "./client.js";
 import type {
   RetractContributor,
   RetractContributorResult,

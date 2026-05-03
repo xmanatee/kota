@@ -14,12 +14,9 @@
  */
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolDef } from "#core/modules/module-types.js";
-import type {
-  RetractRequest,
-  RetractTarget,
-} from "#core/server/kota-client.js";
 import { localDestructiveEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import type { RetractRequest, RetractTarget } from "./client.js";
 import { renderRetractResultPlain } from "./render.js";
 import { RETRACT_TARGET_ORDER, type RetractProvider } from "./retract-types.js";
 

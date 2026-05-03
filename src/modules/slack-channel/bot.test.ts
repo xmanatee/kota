@@ -7,8 +7,6 @@ import type {
   MemoryClient,
   RecallClient,
   RepoTasksClient,
-  RetractClient,
-  RetractResult,
 } from "#core/server/kota-client.js";
 import {
   renderAnswerHistoryEntriesPlain,
@@ -18,6 +16,10 @@ import { renderHistorySearchPlain } from "#modules/history/render.js";
 import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
 import { renderMemorySearchPlain } from "#modules/memory/render.js";
 import { renderRepoTaskSearchPlain } from "#modules/repo-tasks/render.js";
+import type {
+  RetractClient,
+  RetractResult,
+} from "#modules/retract/client.js";
 import { renderRetractResultPlain } from "#modules/retract/render.js";
 import { SlackBot } from "./bot.js";
 import type {

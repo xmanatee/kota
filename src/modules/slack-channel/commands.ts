@@ -27,8 +27,6 @@ import type {
   MemoryClient,
   RecallClient,
   RepoTasksClient,
-  RetractClient,
-  RetractRequest,
 } from "#core/server/kota-client.js";
 import {
   renderAnswerHistoryEntriesPlain,
@@ -41,6 +39,10 @@ import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
 import { renderMemorySearchPlain } from "#modules/memory/render.js";
 import { renderRecallHitsPlain } from "#modules/recall/render.js";
 import { renderRepoTaskSearchPlain } from "#modules/repo-tasks/render.js";
+import type {
+  RetractClient,
+  RetractRequest,
+} from "#modules/retract/client.js";
 import {
   type RetractSlashCommand,
   renderRetractResultPlain,

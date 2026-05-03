@@ -20,7 +20,7 @@ import type {
   RetractRequest,
   RetractResult,
   RetractTarget,
-} from "#core/server/kota-client.js";
+} from "./client.js";
 
 export type {
   RetractInboxRecord,
@@ -31,7 +31,7 @@ export type {
   RetractResult,
   RetractTarget,
   RetractTasksRecord,
-} from "#core/server/kota-client.js";
+} from "./client.js";
 
 /**
  * Stable contributor ordering used by render/test surfaces. Adding a new

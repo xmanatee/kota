@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-retract-kotaclient-namespace-end-to-en
 title: Migrate the retract KotaClient namespace end-to-end through the daemonClient(link) factory hook (foundation pilot follow-up)
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move RetractClient interface, RetractTarget/RetractRecord/RetractRequest/RetractResult discriminated types, and the per-target *Record arms from src/core/server/kota-client.ts into src/modules/retract/client.ts; add a daemonClient(link) factory to the retract module that POSTs to /retract through the typed DaemonTransport; remove retractHttp and the inline retract handler closure from src/core/server/daemon-client.ts.
 created_at: 2026-05-03T08:17:43.463Z
-updated_at: 2026-05-03T08:17:43.463Z
+updated_at: 2026-05-03T08:35:00.644Z
 ---
 
 ## Problem

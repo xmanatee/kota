@@ -82,8 +82,6 @@ import type {
   RepoTaskSearchResult,
   RepoTaskShowResult,
   RepoTaskState,
-  RetractRequest,
-  RetractResult,
   SecretGetResult,
   SecretMutateResult,
   SecretScope,
@@ -267,22 +265,6 @@ async function captureHttp(
     throw new Error(body.error ?? `HTTP ${res.status}`);
   }
   return (await res.json()) as CaptureResult;
-}
-
-async function retractHttp(
-  transport: DaemonTransport,
-  request: RetractRequest,
-): Promise<RetractResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/retract`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...transport.authHeaders() },
-    body: JSON.stringify(request),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as RetractResult;
 }
 
 async function recallHttp(
@@ -1902,9 +1884,6 @@ export function buildCoreStubDaemonClientHandlers(
     },
     capture: {
       capture: async (text, filter) => captureHttp(transport, text, filter),
-    },
-    retract: {
-      retract: async (request) => retractHttp(transport, request),
     },
   };
 }

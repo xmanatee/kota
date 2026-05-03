@@ -1,9 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
-import type {
-  RetractRequest,
-  RetractResult,
-} from "#core/server/kota-client.js";
+import type { RetractRequest, RetractResult } from "./client.js";
 import type { RetractProvider } from "./retract-types.js";
 import { createRetractRouteHandler } from "./routes.js";
 

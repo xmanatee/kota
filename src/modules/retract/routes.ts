@@ -14,11 +14,8 @@ import type {
   ControlRouteRegistration,
   RouteRegistration,
 } from "#core/modules/module-types.js";
-import type {
-  RetractRequest,
-  RetractResult,
-} from "#core/server/kota-client.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
+import type { RetractRequest, RetractResult } from "./client.js";
 import type { RetractProvider } from "./retract-types.js";
 
 type RequestParseResult =

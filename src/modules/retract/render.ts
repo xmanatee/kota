@@ -15,10 +15,7 @@
  * agent-tool runner all consume this single helper so the seam cannot
  * drift between surfaces.
  */
-import type {
-  RetractRecord,
-  RetractResult,
-} from "#core/server/kota-client.js";
+import type { RetractRecord, RetractResult } from "./client.js";
 
 /**
  * The four target-specific `/retract-<target>` slash commands chat

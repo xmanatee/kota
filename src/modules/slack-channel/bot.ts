@@ -19,9 +19,9 @@ import type {
   MemoryClient,
   RecallClient,
   RepoTasksClient,
-  RetractClient,
 } from "#core/server/kota-client.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { RetractClient } from "#modules/retract/client.js";
 import {
   callSlackApi,
   openSocketModeUrl,

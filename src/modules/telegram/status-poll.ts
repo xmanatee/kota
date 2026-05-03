@@ -9,7 +9,6 @@ import type {
   MemoryClient,
   RecallClient,
   RepoTasksClient,
-  RetractClient,
 } from "#core/server/kota-client.js";
 import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
 import {
@@ -26,6 +25,7 @@ import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
 import { renderMemorySearchPlain } from "#modules/memory/render.js";
 import { renderRecallHitsPlain } from "#modules/recall/render.js";
 import { renderRepoTaskSearchPlain } from "#modules/repo-tasks/render.js";
+import type { RetractClient } from "#modules/retract/client.js";
 import {
   type RetractSlashCommand,
   renderRetractResultPlain,

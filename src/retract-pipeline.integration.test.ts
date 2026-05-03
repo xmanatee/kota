@@ -54,6 +54,7 @@ import {
   createMemoryContributor,
   createTasksContributor,
 } from "#modules/retract/contributors.js";
+import retractModule from "#modules/retract/index.js";
 import { RetractProviderImpl } from "#modules/retract/retract-provider.js";
 import { createRetractRouteHandler } from "#modules/retract/routes.js";
 
@@ -165,14 +166,18 @@ describe("cross-store retract pipeline (HTTP)", () => {
       { method: "POST", path: "/api/retract", handler },
     ]);
     server = started.server;
-    client = DaemonControlClient.fromAddress(
+    client = DaemonControlClient.fromAddressWithFactory(
       {
         port: started.port,
         pid: 0,
         startedAt: new Date().toISOString(),
         token: "",
       },
-      buildMigratedNamespaceTestStubs(),
+      (transport) => {
+        const stubs = buildMigratedNamespaceTestStubs();
+        delete stubs.retract;
+        return { ...stubs, ...retractModule.daemonClient!(transport) };
+      },
     );
   });
 

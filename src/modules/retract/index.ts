@@ -24,9 +24,10 @@ import {
   getKnowledgeProvider,
   getMemoryProvider,
 } from "#core/modules/provider-registry.js";
-import type { RetractClient } from "#core/server/kota-client.js";
+import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { createRetractReadinessSource } from "./capability-readiness.js";
 import { registerRetractCommand } from "./cli.js";
+import type { RetractClient, RetractRequest, RetractResult } from "./client.js";
 import {
   createInboxContributor,
   createKnowledgeContributor,
@@ -54,6 +55,25 @@ function resolveActiveProvider(): RetractProvider {
     );
   }
   return activeProvider;
+}
+
+/**
+ * Daemon-side `RetractClient` backed by the typed `DaemonTransport`. Calls the
+ * same `/retract` HTTP route the daemon registers through
+ * `retractControlRoutes(resolveActiveProvider)`. The transport surface owns
+ * the bearer token, base URL, and timeout policy — this factory only encodes
+ * the wire shape.
+ *
+ * The JSON body is the `RetractRequest` discriminated union threaded through
+ * verbatim; `parseRetractRequestBody` on the route side accepts it
+ * byte-for-byte. Daemon-up callers exercise the same parsing path as direct
+ * HTTP clients.
+ */
+function buildRetractDaemonHandler(link: DaemonTransport): RetractClient {
+  return {
+    retract: async (request: RetractRequest): Promise<RetractResult> =>
+      link.requestStrict<RetractResult>("POST", "/retract", request),
+  };
 }
 
 const retractModule: KotaModule = {
@@ -104,6 +124,8 @@ const retractModule: KotaModule = {
     };
     return { retract: handler };
   },
+
+  daemonClient: (link) => ({ retract: buildRetractDaemonHandler(link) }),
 
   onUnload() {
     activeProvider = null;
