@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WorkflowDefinitionSummary, WorkflowLiveStatus } from "#core/daemon/daemon-control.js";
-import type { DaemonControlClient } from "#core/server/daemon-client.js";
+import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { formatRunId } from "#core/workflow/run-store-helpers.js";
@@ -21,37 +21,43 @@ const EMPTY_WORKFLOW_STATUS: WorkflowLiveStatus = {
 
 export async function handleWorkflowStatus(
   res: ServerResponse,
-  client: DaemonControlClient | null = null,
+  link: DaemonTransport | null = null,
 ): Promise<void> {
-  if (!client) {
+  if (!link) {
     jsonResponse(res, 200, EMPTY_WORKFLOW_STATUS);
     return;
   }
-  const status = await client.getWorkflowStatus();
+  const status = await link.request<WorkflowLiveStatus>("GET", "/workflow/status");
   jsonResponse(res, 200, status ?? EMPTY_WORKFLOW_STATUS);
 }
 
 export async function handleWorkflowDefinitions(
   res: ServerResponse,
-  client: DaemonControlClient | null = null,
+  link: DaemonTransport | null = null,
 ): Promise<void> {
-  if (!client) {
+  if (!link) {
     jsonResponse(res, 200, { definitions: [] as WorkflowDefinitionSummary[] });
     return;
   }
-  const result = await client.getWorkflowDefinitions();
+  const result = await link.request<{ definitions: WorkflowDefinitionSummary[] }>(
+    "GET",
+    "/workflow/definitions",
+  );
   jsonResponse(res, 200, result ?? { definitions: [] });
 }
 
 export async function handleWorkflowPause(
   res: ServerResponse,
-  client: DaemonControlClient | null = null,
+  link: DaemonTransport | null = null,
 ): Promise<void> {
-  if (!client) {
+  if (!link) {
     jsonResponse(res, 503, { error: "Daemon not running" });
     return;
   }
-  const result = await client.pause();
+  const result = await link.request<{ ok: boolean; paused: boolean; already?: boolean }>(
+    "POST",
+    "/workflow/pause",
+  );
   if (!result) {
     jsonResponse(res, 503, { error: "Daemon not reachable" });
     return;
@@ -61,13 +67,16 @@ export async function handleWorkflowPause(
 
 export async function handleWorkflowResume(
   res: ServerResponse,
-  client: DaemonControlClient | null = null,
+  link: DaemonTransport | null = null,
 ): Promise<void> {
-  if (!client) {
+  if (!link) {
     jsonResponse(res, 503, { error: "Daemon not running" });
     return;
   }
-  const result = await client.resume();
+  const result = await link.request<{ ok: boolean; paused: boolean; already?: boolean }>(
+    "POST",
+    "/workflow/resume",
+  );
   if (!result) {
     jsonResponse(res, 503, { error: "Daemon not reachable" });
     return;
@@ -77,13 +86,16 @@ export async function handleWorkflowResume(
 
 export async function handleWorkflowAbort(
   res: ServerResponse,
-  client: DaemonControlClient | null = null,
+  link: DaemonTransport | null = null,
 ): Promise<void> {
-  if (!client) {
+  if (!link) {
     jsonResponse(res, 503, { error: "Daemon not running" });
     return;
   }
-  const result = await client.abort();
+  const result = await link.request<{ ok: boolean; aborted: number }>(
+    "POST",
+    "/workflow/abort",
+  );
   if (!result) {
     jsonResponse(res, 503, { error: "Daemon not reachable" });
     return;
@@ -95,9 +107,9 @@ export async function handleWorkflowRetry(
   req: IncomingMessage,
   res: ServerResponse,
   store = new WorkflowRunStore(),
-  client: DaemonControlClient | null = null,
+  link: DaemonTransport | null = null,
 ): Promise<void> {
-  if (!client) {
+  if (!link) {
     jsonResponse(res, 503, { error: "Daemon not running" });
     return;
   }
@@ -146,9 +158,9 @@ export async function handleWorkflowRetry(
 export async function handleWorkflowAbortRun(
   res: ServerResponse,
   runId: string,
-  client: DaemonControlClient | null = null,
+  link: DaemonTransport | null = null,
 ): Promise<void> {
-  if (!client) {
+  if (!link) {
     jsonResponse(res, 503, { error: "Daemon not running" });
     return;
   }
@@ -156,17 +168,25 @@ export async function handleWorkflowAbortRun(
     jsonResponse(res, 400, { error: "Invalid run ID" });
     return;
   }
-  const result = await client.abortRun(runId);
-  if (!result) {
+  let resp: Response;
+  try {
+    resp = await link.fetchRaw(`/workflow/runs/${encodeURIComponent(runId)}/abort`, {
+      method: "POST",
+    });
+  } catch {
     jsonResponse(res, 503, { error: "Daemon not reachable" });
     return;
   }
-  if (result.notFound) {
+  if (resp.status === 404) {
     jsonResponse(res, 404, { error: `Run "${runId}" not found` });
     return;
   }
-  if (result.queued) {
+  if (resp.status === 409) {
     jsonResponse(res, 409, { error: `Run "${runId}" is queued, not active; use DELETE to cancel it` });
+    return;
+  }
+  if (!resp.ok) {
+    jsonResponse(res, 503, { error: "Daemon not reachable" });
     return;
   }
   jsonResponse(res, 200, { ok: true });
@@ -175,9 +195,9 @@ export async function handleWorkflowAbortRun(
 export async function handleWorkflowCancel(
   res: ServerResponse,
   runId: string,
-  client: DaemonControlClient | null = null,
+  link: DaemonTransport | null = null,
 ): Promise<void> {
-  if (!client) {
+  if (!link) {
     jsonResponse(res, 503, { error: "Daemon not running" });
     return;
   }
@@ -185,17 +205,25 @@ export async function handleWorkflowCancel(
     jsonResponse(res, 400, { error: "Invalid run ID" });
     return;
   }
-  const result = await client.cancelRun(runId);
-  if (!result) {
+  let resp: Response;
+  try {
+    resp = await link.fetchRaw(`/workflow/runs/${encodeURIComponent(runId)}`, {
+      method: "DELETE",
+    });
+  } catch {
     jsonResponse(res, 503, { error: "Daemon not reachable" });
     return;
   }
-  if (result.notFound) {
+  if (resp.status === 404) {
     jsonResponse(res, 404, { error: `Run "${runId}" not found` });
     return;
   }
-  if (result.active) {
+  if (resp.status === 409) {
     jsonResponse(res, 409, { error: `Run "${runId}" is already active and cannot be cancelled` });
+    return;
+  }
+  if (!resp.ok) {
+    jsonResponse(res, 503, { error: "Daemon not reachable" });
     return;
   }
   jsonResponse(res, 200, { ok: true });
@@ -269,50 +297,68 @@ export async function handleWorkflowReplay(
 export async function handleWorkflowEnable(
   res: ServerResponse,
   name: string,
-  client: DaemonControlClient | null = null,
+  link: DaemonTransport | null = null,
 ): Promise<void> {
-  if (!client) {
+  if (!link) {
     jsonResponse(res, 503, { error: "Daemon not running" });
     return;
   }
-  const result = await client.enableWorkflow(name);
-  if (!result) {
+  let resp: Response;
+  try {
+    resp = await link.fetchRaw(`/workflow/definitions/${encodeURIComponent(name)}/enable`, {
+      method: "POST",
+    });
+  } catch {
     jsonResponse(res, 503, { error: "Daemon not reachable" });
     return;
   }
-  if (result.notFound) {
+  if (resp.status === 404) {
     jsonResponse(res, 404, { error: `Workflow "${name}" not found` });
     return;
   }
-  jsonResponse(res, 200, result);
+  if (!resp.ok) {
+    jsonResponse(res, 503, { error: "Daemon not reachable" });
+    return;
+  }
+  const body = (await resp.json()) as { ok: boolean };
+  jsonResponse(res, 200, body);
 }
 
 export async function handleWorkflowDisable(
   res: ServerResponse,
   name: string,
-  client: DaemonControlClient | null = null,
+  link: DaemonTransport | null = null,
 ): Promise<void> {
-  if (!client) {
+  if (!link) {
     jsonResponse(res, 503, { error: "Daemon not running" });
     return;
   }
-  const result = await client.disableWorkflow(name);
-  if (!result) {
+  let resp: Response;
+  try {
+    resp = await link.fetchRaw(`/workflow/definitions/${encodeURIComponent(name)}/disable`, {
+      method: "POST",
+    });
+  } catch {
     jsonResponse(res, 503, { error: "Daemon not reachable" });
     return;
   }
-  if (result.notFound) {
+  if (resp.status === 404) {
     jsonResponse(res, 404, { error: `Workflow "${name}" not found` });
     return;
   }
-  jsonResponse(res, 200, result);
+  if (!resp.ok) {
+    jsonResponse(res, 503, { error: "Daemon not reachable" });
+    return;
+  }
+  const body = (await resp.json()) as { ok: boolean };
+  jsonResponse(res, 200, body);
 }
 
 export async function handleWorkflowTrigger(
   req: IncomingMessage,
   res: ServerResponse,
   store = new WorkflowRunStore(),
-  client: DaemonControlClient | null = null,
+  link: DaemonTransport | null = null,
 ): Promise<void> {
   let body: Record<string, unknown>;
   try {
@@ -338,15 +384,31 @@ export async function handleWorkflowTrigger(
       ? (body.payload as Record<string, unknown>)
       : undefined;
 
-  if (client) {
-    const result = await client.trigger(name, tags, extraPayload);
-    if (result) {
-      if (result.alreadyQueued) {
+  if (link) {
+    let resp: Response | null = null;
+    try {
+      resp = await link.fetchRaw("/workflow/trigger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          ...(tags && tags.length > 0 && { tags }),
+          ...(extraPayload && { payload: extraPayload }),
+        }),
+      });
+    } catch {
+      // fall through to local enqueue
+    }
+    if (resp) {
+      if (resp.status === 409) {
         jsonResponse(res, 409, { error: `Workflow "${name}" is already queued` });
         return;
       }
-      jsonResponse(res, 200, { ok: true, queued: result.queued ?? name });
-      return;
+      if (resp.ok) {
+        const body = (await resp.json()) as { queued?: string; runId?: string };
+        jsonResponse(res, 200, { ok: true, queued: body.queued ?? name });
+        return;
+      }
     }
   }
 

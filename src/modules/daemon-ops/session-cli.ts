@@ -1,8 +1,14 @@
 import { Command } from "commander";
-import type { InteractiveSession } from "#core/daemon/daemon-control.js";
-import { DaemonControlClient } from "#core/server/daemon-client.js";
+import type { DaemonLiveStatus, InteractiveSession } from "#core/daemon/daemon-control.js";
+import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowActiveRun } from "#core/workflow/run-types.js";
+
+type SessionAutonomyResponse = {
+  autonomy_mode?: string;
+  source?: string;
+  serveOwned?: boolean;
+};
 
 type SessionEntry =
   | {
@@ -45,8 +51,8 @@ export function buildSessionCommand(): Command {
     .description("List all active sessions (interactive and workflow)")
     .option("--json", "Output as JSON")
     .action(async (opts: { json?: boolean }) => {
-      const client = DaemonControlClient.fromStateDir();
-      if (!client) {
+      const link = getDaemonTransport();
+      if (!link) {
         if (opts.json) {
           console.log(JSON.stringify({ sessions: [], offline: true }));
         } else {
@@ -55,7 +61,7 @@ export function buildSessionCommand(): Command {
         return;
       }
 
-      const status = await client.getDaemonStatus();
+      const status = await link.request<DaemonLiveStatus>("GET", "/status");
       if (!status) {
         if (opts.json) {
           console.log(JSON.stringify({ sessions: [], offline: true }));
@@ -101,13 +107,13 @@ export function buildSessionCommand(): Command {
     .description("Show detail for a single active session")
     .option("--json", "Output as JSON")
     .action(async (id: string, opts: { json?: boolean }) => {
-      const client = DaemonControlClient.fromStateDir();
-      if (!client) {
+      const link = getDaemonTransport();
+      if (!link) {
         console.error("Daemon is offline.");
         process.exit(1);
       }
 
-      const status = await client.getDaemonStatus();
+      const status = await link.request<DaemonLiveStatus>("GET", "/status");
       if (!status) {
         console.error("Daemon is offline.");
         process.exit(1);
@@ -166,27 +172,46 @@ export function buildSessionCommand(): Command {
         console.error(`Invalid mode "${mode}". Expected one of: passive, supervised, autonomous.`);
         process.exit(1);
       }
-      const client = DaemonControlClient.fromStateDir();
-      if (!client) {
+      const link = getDaemonTransport();
+      if (!link) {
         console.error("Daemon is offline.");
         process.exit(1);
       }
-      const result = await client.setSessionAutonomyMode(id, mode);
-      if (!result) {
+      let res: Response;
+      try {
+        res = await link.fetchRaw(`/sessions/${encodeURIComponent(id)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ autonomy_mode: mode }),
+        });
+      } catch {
         console.error("Failed to reach the daemon.");
         process.exit(1);
       }
-      if (result.notFound) {
+      if (res.status === 404) {
         console.error(`Session "${id}" not found.`);
         process.exit(1);
       }
+      if (!res.ok) {
+        console.error("Failed to reach the daemon.");
+        process.exit(1);
+      }
+      const body = (await res.json()) as SessionAutonomyResponse;
+      const autonomyMode = (body.autonomy_mode ?? mode) as AutonomyMode;
       if (opts.json) {
-        console.log(JSON.stringify(result));
+        console.log(
+          JSON.stringify({
+            ok: true,
+            autonomyMode,
+            ...(body.source !== undefined && { source: body.source }),
+            ...(body.serveOwned !== undefined && { serveOwned: body.serveOwned }),
+          }),
+        );
         return;
       }
-      console.log(`Session ${id} autonomy mode → ${result.autonomyMode}`);
-      if (result.source) console.log(`source: ${result.source}`);
-      if (result.serveOwned) {
+      console.log(`Session ${id} autonomy mode → ${autonomyMode}`);
+      if (body.source) console.log(`source: ${body.source}`);
+      if (body.serveOwned) {
         console.log("note: session is owned by a kota serve process; daemon updated registration metadata only");
       }
     });

@@ -9,7 +9,10 @@ import type {
 	ControlRouteRegistration,
 	RouteRegistration,
 } from "#core/modules/module-types.js";
-import { DaemonControlClient } from "#core/server/daemon-client.js";
+import {
+	type DaemonTransport,
+	getDaemonTransport,
+} from "#core/server/daemon-transport.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 
 const VALID_STATUSES: readonly (ApprovalStatus | "all")[] = [
@@ -85,12 +88,16 @@ async function readOptionalStringField(
 
 export async function handleListApprovals(
 	res: ServerResponse,
-	client: DaemonControlClient | null = null,
+	link: DaemonTransport | null = null,
 	queue: ApprovalQueue = getApprovalQueue(),
 	status?: ApprovalStatus | "all",
 ): Promise<void> {
-	if (client) {
-		const result = await client.listApprovals(status);
+	if (link) {
+		const query = status ? `?status=${encodeURIComponent(status)}` : "";
+		const result = await link.request<{ approvals: PendingApproval[] }>(
+			"GET",
+			`/approvals${query}`,
+		);
 		if (result) {
 			jsonResponse(res, 200, result);
 			return;
@@ -103,13 +110,17 @@ export async function handleApproveApproval(
 	req: IncomingMessage,
 	res: ServerResponse,
 	id: string,
-	client: DaemonControlClient | null = null,
+	link: DaemonTransport | null = null,
 	queue: ApprovalQueue = getApprovalQueue(),
 ): Promise<void> {
 	const note = await readOptionalStringField(req, "note");
 
-	if (client) {
-		const result = await client.approveApproval(id, note);
+	if (link) {
+		const result = await link.request<{ approval: PendingApproval }>(
+			"POST",
+			`/approvals/${encodeURIComponent(id)}/approve`,
+			{ note },
+		);
 		if (result) {
 			jsonResponse(res, 200, result);
 			return;
@@ -127,13 +138,17 @@ export async function handleRejectApproval(
 	req: IncomingMessage,
 	res: ServerResponse,
 	id: string,
-	client: DaemonControlClient | null = null,
+	link: DaemonTransport | null = null,
 	queue: ApprovalQueue = getApprovalQueue(),
 ): Promise<void> {
 	const reason = await readOptionalStringField(req, "reason");
 
-	if (client) {
-		const result = await client.rejectApproval(id, reason);
+	if (link) {
+		const result = await link.request<{ approval: PendingApproval }>(
+			"POST",
+			`/approvals/${encodeURIComponent(id)}/reject`,
+			{ reason },
+		);
 		if (result) {
 			jsonResponse(res, 200, result);
 			return;
@@ -150,13 +165,17 @@ export async function handleRejectApproval(
 export async function handleApproveAllApprovals(
 	req: IncomingMessage,
 	res: ServerResponse,
-	client: DaemonControlClient | null = null,
+	link: DaemonTransport | null = null,
 	queue: ApprovalQueue = getApprovalQueue(),
 ): Promise<void> {
 	const note = await readOptionalStringField(req, "note");
 
-	if (client) {
-		const result = await client.approveAllApprovals(note);
+	if (link) {
+		const result = await link.request<{ approvals: PendingApproval[]; count: number }>(
+			"POST",
+			"/approvals/approve-all",
+			{ note },
+		);
 		if (result) {
 			jsonResponse(res, 200, result);
 			return;
@@ -168,13 +187,17 @@ export async function handleApproveAllApprovals(
 export async function handleRejectAllApprovals(
 	req: IncomingMessage,
 	res: ServerResponse,
-	client: DaemonControlClient | null = null,
+	link: DaemonTransport | null = null,
 	queue: ApprovalQueue = getApprovalQueue(),
 ): Promise<void> {
 	const reason = await readOptionalStringField(req, "reason");
 
-	if (client) {
-		const result = await client.rejectAllApprovals(reason);
+	if (link) {
+		const result = await link.request<{ approvals: PendingApproval[]; count: number }>(
+			"POST",
+			"/approvals/reject-all",
+			{ reason },
+		);
 		if (result) {
 			jsonResponse(res, 200, result);
 			return;
@@ -190,29 +213,29 @@ export function approvalRoutes(): RouteRegistration[] {
 			method: "GET",
 			path: "/api/approvals",
 			handler: (req, res) =>
-				handleListApprovals(res, DaemonControlClient.fromStateDir(), undefined, readStatusFilter(req)),
+				handleListApprovals(res, getDaemonTransport(), undefined, readStatusFilter(req)),
 		},
 		{
 			method: "POST",
 			path: "/api/approvals/approve-all",
-			handler: (req, res) => handleApproveAllApprovals(req, res, DaemonControlClient.fromStateDir()),
+			handler: (req, res) => handleApproveAllApprovals(req, res, getDaemonTransport()),
 		},
 		{
 			method: "POST",
 			path: "/api/approvals/reject-all",
-			handler: (req, res) => handleRejectAllApprovals(req, res, DaemonControlClient.fromStateDir()),
+			handler: (req, res) => handleRejectAllApprovals(req, res, getDaemonTransport()),
 		},
 		{
 			method: "POST",
 			path: "/api/approvals/:id/approve",
 			handler: (req, res, params) =>
-				handleApproveApproval(req, res, params.id, DaemonControlClient.fromStateDir()),
+				handleApproveApproval(req, res, params.id, getDaemonTransport()),
 		},
 		{
 			method: "POST",
 			path: "/api/approvals/:id/reject",
 			handler: (req, res, params) =>
-				handleRejectApproval(req, res, params.id, DaemonControlClient.fromStateDir()),
+				handleRejectApproval(req, res, params.id, getDaemonTransport()),
 		},
 	];
 }

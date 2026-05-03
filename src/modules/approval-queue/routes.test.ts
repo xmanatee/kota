@@ -55,15 +55,49 @@ function mockRequest(body: Record<string, unknown> = {}): IncomingMessage {
 	return req as unknown as IncomingMessage;
 }
 
-function mockClient(overrides: Partial<Record<string, unknown>> = {}) {
+type RouteResponseSpec = {
+	list?: { approvals: unknown[] } | null;
+	approve?: { approval: unknown } | null;
+	reject?: { approval: unknown } | null;
+	approveAll?: { approvals: unknown[]; count: number } | null;
+	rejectAll?: { approvals: unknown[]; count: number } | null;
+	listFilter?: { capturedStatus?: string };
+};
+
+function mockTransport(spec: RouteResponseSpec = {}): import("#core/server/daemon-transport.js").DaemonTransport {
 	return {
-		listApprovals: vi.fn(async () => null),
-		approveApproval: vi.fn(async () => null),
-		rejectApproval: vi.fn(async () => null),
-		approveAllApprovals: vi.fn(async () => null),
-		rejectAllApprovals: vi.fn(async () => null),
-		...overrides,
-	} as unknown as import("#core/server/daemon-client.js").DaemonControlClient;
+		baseUrl: "http://127.0.0.1:0",
+		authHeaders: () => ({}),
+		request: async <T,>(method: string, path: string, _body?: unknown) => {
+			if (method === "GET" && path.startsWith("/approvals")) {
+				const url = new URL(path, "http://127.0.0.1");
+				if (spec.listFilter) spec.listFilter.capturedStatus = url.searchParams.get("status") ?? undefined;
+				return ("list" in spec ? spec.list : null) as T | null;
+			}
+			if (method === "POST" && /\/approvals\/[^/]+\/approve$/.test(path)) {
+				return ("approve" in spec ? spec.approve : null) as T | null;
+			}
+			if (method === "POST" && /\/approvals\/[^/]+\/reject$/.test(path)) {
+				return ("reject" in spec ? spec.reject : null) as T | null;
+			}
+			if (method === "POST" && path === "/approvals/approve-all") {
+				return ("approveAll" in spec ? spec.approveAll : null) as T | null;
+			}
+			if (method === "POST" && path === "/approvals/reject-all") {
+				return ("rejectAll" in spec ? spec.rejectAll : null) as T | null;
+			}
+			return null;
+		},
+		requestStrict: async () => {
+			throw new Error("requestStrict not configured for tests");
+		},
+		fetchRaw: async () => {
+			throw new Error("fetchRaw not configured for tests");
+		},
+		events: async function* () {
+			// no events
+		},
+	};
 }
 
 describe("approval-routes", () => {
@@ -80,37 +114,37 @@ describe("approval-routes", () => {
 	describe("daemon client proxy", () => {
 		it("handleListApprovals returns daemon response when client succeeds", async () => {
 			const approvals = [{ id: "a1", tool: "shell", status: "pending" }];
-			const client = mockClient({ listApprovals: vi.fn(async () => ({ approvals })) });
+			const link = mockTransport({ list: { approvals } });
 			const { res, result } = mockResponse();
-			await handleListApprovals(res, client, makeQueue());
+			await handleListApprovals(res, link, makeQueue());
 			expect(result.status).toBe(200);
 			expect((result.body as { approvals: unknown[] }).approvals).toEqual(approvals);
 		});
 
 		it("handleListApprovals falls back to direct read when client returns null", async () => {
-			const client = mockClient({ listApprovals: vi.fn(async () => null) });
+			const link = mockTransport({ list: null });
 			const q = makeQueue();
 			q.enqueue("shell", { command: "echo" }, "safe", "test");
 			const { res, result } = mockResponse();
-			await handleListApprovals(res, client, q);
+			await handleListApprovals(res, link, q);
 			expect(result.status).toBe(200);
 			expect((result.body as { approvals: unknown[] }).approvals).toHaveLength(1);
 		});
 
 		it("handleApproveApproval returns daemon response when client succeeds", async () => {
 			const approval = { id: "a1", tool: "shell", status: "approved" };
-			const client = mockClient({ approveApproval: vi.fn(async () => ({ approval })) });
+			const link = mockTransport({ approve: { approval } });
 			const { res, result } = mockResponse();
-			await handleApproveApproval(mockRequest(), res, "a1", client, makeQueue());
+			await handleApproveApproval(mockRequest(), res, "a1", link, makeQueue());
 			expect(result.status).toBe(200);
 			expect((result.body as { approval: unknown }).approval).toEqual(approval);
 		});
 
 		it("handleRejectApproval returns daemon response when client succeeds", async () => {
 			const approval = { id: "a1", tool: "shell", status: "rejected" };
-			const client = mockClient({ rejectApproval: vi.fn(async () => ({ approval })) });
+			const link = mockTransport({ reject: { approval } });
 			const { res, result } = mockResponse();
-			await handleRejectApproval(mockRequest(), res, "a1", client, makeQueue());
+			await handleRejectApproval(mockRequest(), res, "a1", link, makeQueue());
 			expect(result.status).toBe(200);
 			expect((result.body as { approval: unknown }).approval).toEqual(approval);
 		});
@@ -182,12 +216,12 @@ describe("approval-routes", () => {
 		});
 
 		it("forwards the status filter to the daemon client when one is configured", async () => {
-			const listSpy = vi.fn(async () => ({ approvals: [] }));
-			const client = mockClient({ listApprovals: listSpy });
+			const filter: { capturedStatus?: string } = {};
+			const link = mockTransport({ list: { approvals: [] }, listFilter: filter });
 			const { res, result } = mockResponse();
-			await handleListApprovals(res, client, makeQueue(), "all");
+			await handleListApprovals(res, link, makeQueue(), "all");
 			expect(result.status).toBe(200);
-			expect(listSpy).toHaveBeenCalledWith("all");
+			expect(filter.capturedStatus).toBe("all");
 		});
 	});
 
@@ -304,9 +338,9 @@ describe("approval-routes", () => {
 
 		it("uses daemon client when available", async () => {
 			const approvals = [{ id: "a1", tool: "shell", status: "approved" }];
-			const client = mockClient({ approveAllApprovals: vi.fn(async () => ({ approvals, count: 1 })) });
+			const link = mockTransport({ approveAll: { approvals, count: 1 } });
 			const { res, result } = mockResponse();
-			await handleApproveAllApprovals(mockRequest(), res, client, makeQueue());
+			await handleApproveAllApprovals(mockRequest(), res, link, makeQueue());
 			expect(result.status).toBe(200);
 			expect((result.body as { count: number }).count).toBe(1);
 		});

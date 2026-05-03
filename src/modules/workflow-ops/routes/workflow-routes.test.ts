@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkflowLiveStatus } from "#core/daemon/daemon-control.js";
-import type { DaemonControlClient } from "#core/server/daemon-client.js";
+import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import {
   handleWorkflowAbort,
@@ -84,29 +84,126 @@ function mockResponse() {
   return { res, result };
 }
 
-function mockClient(overrides: Partial<{
-  getWorkflowStatus: () => Promise<WorkflowLiveStatus | null>;
-  pause: () => Promise<{ ok: boolean; paused: boolean; already?: boolean } | null>;
-  resume: () => Promise<{ ok: boolean; paused: boolean; already?: boolean } | null>;
-  abort: () => Promise<{ ok: boolean; aborted: number } | null>;
-  trigger: (name: string, tags?: string[], payload?: Record<string, unknown>) => Promise<{ ok: boolean; queued?: string; alreadyQueued?: boolean } | null>;
-}>): DaemonControlClient {
-  return {
-    getWorkflowStatus: vi.fn().mockResolvedValue({
-      activeRuns: [],
-      queueLength: 0,
-      completedRuns: 0,
-      workflows: {},
-      paused: false,
+type MockTransportSpec = Partial<{
+  status: WorkflowLiveStatus | null;
+  definitions: { definitions: unknown[] } | null;
+  pause: { ok: boolean; paused: boolean; already?: boolean } | null;
+  resume: { ok: boolean; paused: boolean; already?: boolean } | null;
+  abort: { ok: boolean; aborted: number } | null;
+  /**
+   * Trigger response. Use a thrower (`{ throws: true }`) to simulate a
+   * network error and force the offline-fallback path.
+   */
+  trigger: { ok: true; queued: string; runId?: string } | { ok: false; alreadyQueued: true } | { throws: true } | null;
+  cancel: { status: number; body?: unknown };
+  abortRun: { status: number; body?: unknown };
+  enable: { status: number; body?: unknown };
+  disable: { status: number; body?: unknown };
+  /**
+   * Captured call log; tests inspect this to assert paths/bodies.
+   */
+  log?: Array<{ method: string; path: string; body?: unknown }>;
+}>;
+
+function mockTransport(spec: MockTransportSpec = {}): DaemonTransport & {
+  /** Recorded calls; useful for assertions on path/payload. */
+  calls: Array<{ method: string; path: string; body?: unknown }>;
+} {
+  const calls: Array<{ method: string; path: string; body?: unknown }> = [];
+
+  const transport = {
+    baseUrl: "http://127.0.0.1:0",
+    authHeaders: () => ({}),
+    calls,
+    request: vi.fn(async <T,>(method: string, path: string, body?: unknown) => {
+      calls.push({ method, path, body });
+      if (method === "GET" && path === "/workflow/status") {
+        const v = "status" in spec ? spec.status : {
+          activeRuns: [],
+          pendingRuns: [],
+          queueLength: 0,
+          completedRuns: 0,
+          workflows: {},
+          paused: false,
+          agentConcurrency: 1,
+          codeConcurrency: 4,
+        };
+        return v as T | null;
+      }
+      if (method === "GET" && path === "/workflow/definitions") {
+        return ("definitions" in spec ? spec.definitions : { definitions: [] }) as T | null;
+      }
+      if (method === "POST" && path === "/workflow/pause") {
+        return ("pause" in spec ? spec.pause : { ok: true, paused: true }) as T | null;
+      }
+      if (method === "POST" && path === "/workflow/resume") {
+        return ("resume" in spec ? spec.resume : { ok: true, paused: false }) as T | null;
+      }
+      if (method === "POST" && path === "/workflow/abort") {
+        return ("abort" in spec ? spec.abort : { ok: true, aborted: 0 }) as T | null;
+      }
+      return null;
     }),
-    pause: vi.fn().mockResolvedValue({ ok: true, paused: true }),
-    resume: vi.fn().mockResolvedValue({ ok: true, paused: false }),
-    abort: vi.fn().mockResolvedValue({ ok: true, aborted: 0 }),
-    trigger: vi.fn().mockResolvedValue(null),
-    getDaemonStatus: vi.fn().mockResolvedValue(null),
-    ...overrides,
-  } as unknown as DaemonControlClient;
+    requestStrict: vi.fn(async () => {
+      throw new Error("requestStrict not configured");
+    }),
+    fetchRaw: vi.fn(async (path: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      let body: unknown ;
+      if (init?.body !== undefined && init.body !== null) {
+        try {
+          body = JSON.parse(String(init.body));
+        } catch {
+          body = init.body;
+        }
+      }
+      calls.push({ method, path, body });
+      if (path === "/workflow/trigger" && method === "POST") {
+        const t = spec.trigger;
+        if (t == null) return makeFakeResponse(503, { error: "Daemon not reachable" });
+        if ("throws" in t) throw new Error("network");
+        if ("alreadyQueued" in t && t.alreadyQueued) return makeFakeResponse(409, { error: "queued" });
+        return makeFakeResponse(200, t);
+      }
+      if (path.endsWith("/abort") && path.startsWith("/workflow/runs/") && method === "POST") {
+        const r = spec.abortRun ?? { status: 200, body: { ok: true } };
+        return makeFakeResponse(r.status, r.body ?? {});
+      }
+      if (path.startsWith("/workflow/runs/") && method === "DELETE") {
+        const r = spec.cancel ?? { status: 200, body: { ok: true } };
+        return makeFakeResponse(r.status, r.body ?? {});
+      }
+      if (path.startsWith("/workflow/definitions/") && path.endsWith("/enable") && method === "POST") {
+        const r = spec.enable ?? { status: 200, body: { ok: true } };
+        return makeFakeResponse(r.status, r.body ?? {});
+      }
+      if (path.startsWith("/workflow/definitions/") && path.endsWith("/disable") && method === "POST") {
+        const r = spec.disable ?? { status: 200, body: { ok: true } };
+        return makeFakeResponse(r.status, r.body ?? {});
+      }
+      return makeFakeResponse(200, {});
+    }),
+    events: vi.fn(async function* () {
+      // No events by default.
+    }),
+  };
+  return transport as unknown as DaemonTransport & {
+    calls: Array<{ method: string; path: string; body?: unknown }>;
+  };
 }
+
+function makeFakeResponse(status: number, body: unknown): Response {
+  const text = JSON.stringify(body);
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+    text: async () => text,
+    body: null,
+    headers: new Headers(),
+  } as unknown as Response;
+}
+
 
 describe("workflow-routes", () => {
   let projectDir: string;
@@ -138,7 +235,7 @@ describe("workflow-routes", () => {
     });
 
     it("returns empty state when daemon unreachable (client returns null)", async () => {
-      const client = mockClient({ getWorkflowStatus: async () => null });
+      const client = mockTransport({ status: null });
       const { res, result } = mockResponse();
       await handleWorkflowStatus(res, client);
       expect(result.status).toBe(200);
@@ -156,7 +253,7 @@ describe("workflow-routes", () => {
         agentConcurrency: 1,
         codeConcurrency: 4,
       };
-      const client = mockClient({ getWorkflowStatus: async () => liveStatus });
+      const client = mockTransport({ status: liveStatus });
       const { res, result } = mockResponse();
       await handleWorkflowStatus(res, client);
       expect(result.status).toBe(200);
@@ -167,8 +264,8 @@ describe("workflow-routes", () => {
     });
 
     it("reflects paused state from daemon", async () => {
-      const client = mockClient({
-        getWorkflowStatus: async () => ({
+      const client = mockTransport({
+        status: {
           activeRuns: [],
           pendingRuns: [],
           queueLength: 0,
@@ -177,7 +274,7 @@ describe("workflow-routes", () => {
           paused: true,
           agentConcurrency: 1,
           codeConcurrency: 4,
-        }),
+        },
       });
       const { res, result } = mockResponse();
       await handleWorkflowStatus(res, client);
@@ -194,7 +291,7 @@ describe("workflow-routes", () => {
     });
 
     it("returns empty definitions when daemon unreachable (client returns null)", async () => {
-      const client = { getWorkflowDefinitions: vi.fn().mockResolvedValue(null) } as unknown as DaemonControlClient;
+      const client = mockTransport({ definitions: null });
       const { res, result } = mockResponse();
       await handleWorkflowDefinitions(res, client);
       expect(result.status).toBe(200);
@@ -206,7 +303,7 @@ describe("workflow-routes", () => {
         { name: "builder", enabled: true, stepCount: 2, triggers: [{ type: "event", event: "runtime.idle" }] },
         { name: "hourly", enabled: true, stepCount: 1, triggers: [{ type: "interval", intervalMs: 3600000 }] },
       ];
-      const client = { getWorkflowDefinitions: vi.fn().mockResolvedValue({ definitions: defs }) } as unknown as DaemonControlClient;
+      const client = mockTransport({ definitions: { definitions: defs } });
       const { res, result } = mockResponse();
       await handleWorkflowDefinitions(res, client);
       expect(result.status).toBe(200);
@@ -223,14 +320,14 @@ describe("workflow-routes", () => {
     });
 
     it("returns 503 when daemon unreachable (client returns null)", async () => {
-      const client = mockClient({ pause: async () => null });
+      const client = mockTransport({ pause: null });
       const { res, result } = mockResponse();
       await handleWorkflowPause(res, client);
       expect(result.status).toBe(503);
     });
 
     it("returns paused true from daemon", async () => {
-      const client = mockClient({ pause: async () => ({ ok: true, paused: true }) });
+      const client = mockTransport({ pause: { ok: true, paused: true } });
       const { res, result } = mockResponse();
       await handleWorkflowPause(res, client);
       expect(result.status).toBe(200);
@@ -238,7 +335,7 @@ describe("workflow-routes", () => {
     });
 
     it("passes through already flag from daemon", async () => {
-      const client = mockClient({ pause: async () => ({ ok: true, paused: true, already: true }) });
+      const client = mockTransport({ pause: { ok: true, paused: true, already: true } });
       const { res, result } = mockResponse();
       await handleWorkflowPause(res, client);
       expect((result.body as Record<string, unknown>).already).toBe(true);
@@ -253,14 +350,14 @@ describe("workflow-routes", () => {
     });
 
     it("returns 503 when daemon unreachable (client returns null)", async () => {
-      const client = mockClient({ resume: async () => null });
+      const client = mockTransport({ resume: null });
       const { res, result } = mockResponse();
       await handleWorkflowResume(res, client);
       expect(result.status).toBe(503);
     });
 
     it("returns paused false from daemon", async () => {
-      const client = mockClient({ resume: async () => ({ ok: true, paused: false }) });
+      const client = mockTransport({ resume: { ok: true, paused: false } });
       const { res, result } = mockResponse();
       await handleWorkflowResume(res, client);
       expect(result.status).toBe(200);
@@ -268,7 +365,7 @@ describe("workflow-routes", () => {
     });
 
     it("passes through already flag from daemon", async () => {
-      const client = mockClient({ resume: async () => ({ ok: true, paused: false, already: true }) });
+      const client = mockTransport({ resume: { ok: true, paused: false, already: true } });
       const { res, result } = mockResponse();
       await handleWorkflowResume(res, client);
       expect((result.body as Record<string, unknown>).already).toBe(true);
@@ -283,14 +380,14 @@ describe("workflow-routes", () => {
     });
 
     it("returns 503 when daemon unreachable (client returns null)", async () => {
-      const client = mockClient({ abort: async () => null });
+      const client = mockTransport({ abort: null });
       const { res, result } = mockResponse();
       await handleWorkflowAbort(res, client);
       expect(result.status).toBe(503);
     });
 
     it("returns ok and aborted count from daemon", async () => {
-      const client = mockClient({ abort: async () => ({ ok: true, aborted: 2 }) });
+      const client = mockTransport({ abort: { ok: true, aborted: 2 } });
       const { res, result } = mockResponse();
       await handleWorkflowAbort(res, client);
       expect(result.status).toBe(200);
@@ -306,36 +403,40 @@ describe("workflow-routes", () => {
       expect(result.status).toBe(503);
     });
 
-    it("returns 503 when daemon unreachable (client returns null)", async () => {
-      const client = { cancelRun: vi.fn().mockResolvedValue(null) } as unknown as DaemonControlClient;
+    it("returns 503 when daemon unreachable (network error)", async () => {
+      const client = mockTransport({ cancel: { status: 500 } });
+      // Force a network error in fetchRaw rather than a 500.
+      (client.fetchRaw as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+        throw new Error("network");
+      });
       const { res, result } = mockResponse();
       await handleWorkflowCancel(res, "run-abc", client);
       expect(result.status).toBe(503);
     });
 
     it("returns 400 for invalid run ID with path traversal", async () => {
-      const client = { cancelRun: vi.fn() } as unknown as DaemonControlClient;
+      const client = mockTransport({});
       const { res, result } = mockResponse();
       await handleWorkflowCancel(res, "../etc/passwd", client);
       expect(result.status).toBe(400);
     });
 
     it("returns 404 when run not found", async () => {
-      const client = { cancelRun: vi.fn().mockResolvedValue({ ok: false, notFound: true }) } as unknown as DaemonControlClient;
+      const client = mockTransport({ cancel: { status: 404 } });
       const { res, result } = mockResponse();
       await handleWorkflowCancel(res, "run-abc", client);
       expect(result.status).toBe(404);
     });
 
     it("returns 409 when run is already active", async () => {
-      const client = { cancelRun: vi.fn().mockResolvedValue({ ok: false, active: true }) } as unknown as DaemonControlClient;
+      const client = mockTransport({ cancel: { status: 409 } });
       const { res, result } = mockResponse();
       await handleWorkflowCancel(res, "run-abc", client);
       expect(result.status).toBe(409);
     });
 
     it("returns 200 ok when run is cancelled successfully", async () => {
-      const client = { cancelRun: vi.fn().mockResolvedValue({ ok: true }) } as unknown as DaemonControlClient;
+      const client = mockTransport({ cancel: { status: 200 } });
       const { res, result } = mockResponse();
       await handleWorkflowCancel(res, "run-abc", client);
       expect(result.status).toBe(200);
@@ -343,11 +444,13 @@ describe("workflow-routes", () => {
     });
 
     it("calls cancelRun with the provided runId", async () => {
-      const cancelRun = vi.fn().mockResolvedValue({ ok: true });
-      const client = { cancelRun } as unknown as DaemonControlClient;
+      const client = mockTransport({ cancel: { status: 200 } });
       const { res } = mockResponse();
       await handleWorkflowCancel(res, "run-xyz-123", client);
-      expect(cancelRun).toHaveBeenCalledWith("run-xyz-123");
+      expect(client.calls).toContainEqual({
+        method: "DELETE",
+        path: "/workflow/runs/run-xyz-123",
+      });
     });
   });
 
@@ -370,21 +473,21 @@ describe("workflow-routes", () => {
     });
 
     it("returns 400 for missing runId", async () => {
-      const client = mockClient({});
+      const client = mockTransport({});
       const { res, result } = mockResponse();
       await handleWorkflowRetry(makeRequest({}), res, store, client);
       expect(result.status).toBe(400);
     });
 
     it("returns 400 for invalid runId characters", async () => {
-      const client = mockClient({});
+      const client = mockTransport({});
       const { res, result } = mockResponse();
       await handleWorkflowRetry(makeRequest({ runId: "../etc/passwd" }), res, store, client);
       expect(result.status).toBe(400);
     });
 
     it("returns 404 when run does not exist", async () => {
-      const client = mockClient({});
+      const client = mockTransport({});
       const { res, result } = mockResponse();
       await handleWorkflowRetry(makeRequest({ runId: "nonexistent" }), res, store, client);
       expect(result.status).toBe(404);
@@ -392,7 +495,7 @@ describe("workflow-routes", () => {
 
     it("returns 409 for successful run", async () => {
       writeRunMetadata(runsDir, "run-success-01", "builder", "success");
-      const client = mockClient({});
+      const client = mockTransport({});
       const { res, result } = mockResponse();
       await handleWorkflowRetry(makeRequest({ runId: "run-success-01" }), res, store, client);
       expect(result.status).toBe(409);
@@ -400,7 +503,7 @@ describe("workflow-routes", () => {
 
     it("returns 409 for running run", async () => {
       writeRunMetadata(runsDir, "run-running-01", "builder", "running");
-      const client = mockClient({});
+      const client = mockTransport({});
       const { res, result } = mockResponse();
       await handleWorkflowRetry(makeRequest({ runId: "run-running-01" }), res, store, client);
       expect(result.status).toBe(409);
@@ -408,7 +511,7 @@ describe("workflow-routes", () => {
 
     it("enqueues retry for failed run and returns ok", async () => {
       writeRunMetadata(runsDir, "run-failed-01", "builder", "failed");
-      const client = mockClient({});
+      const client = mockTransport({});
       const { res, result } = mockResponse();
       await handleWorkflowRetry(makeRequest({ runId: "run-failed-01" }), res, store, client);
       expect(result.status).toBe(200);
@@ -422,7 +525,7 @@ describe("workflow-routes", () => {
 
     it("enqueues retry for interrupted run and returns ok", async () => {
       writeRunMetadata(runsDir, "run-interrupted-01", "builder", "interrupted");
-      const client = mockClient({});
+      const client = mockTransport({});
       const { res, result } = mockResponse();
       await handleWorkflowRetry(makeRequest({ runId: "run-interrupted-01" }), res, store, client);
       expect(result.status).toBe(200);
@@ -442,7 +545,7 @@ describe("workflow-routes", () => {
       }];
       store.setPendingRuns(state.pendingRuns);
 
-      const client = mockClient({});
+      const client = mockTransport({});
       const { res, result } = mockResponse();
       await handleWorkflowRetry(makeRequest({ runId: "run-failed-02" }), res, store, client);
       expect(result.status).toBe(409);
@@ -577,7 +680,7 @@ describe("workflow-routes", () => {
     });
 
     it("routes through daemon client when available and returns ok", async () => {
-      const client = mockClient({ trigger: async () => ({ ok: true, queued: "builder" }) });
+      const client = mockTransport({ trigger: { ok: true, queued: "builder" } });
       const { res, result } = mockResponse();
       await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, store, client);
       expect(result.status).toBe(200);
@@ -587,14 +690,14 @@ describe("workflow-routes", () => {
     });
 
     it("returns 409 when daemon reports already queued", async () => {
-      const client = mockClient({ trigger: async () => ({ ok: false, alreadyQueued: true }) });
+      const client = mockTransport({ trigger: { ok: false, alreadyQueued: true } });
       const { res, result } = mockResponse();
       await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, store, client);
       expect(result.status).toBe(409);
     });
 
-    it("falls back to direct write when daemon client returns null", async () => {
-      const client = mockClient({ trigger: async () => null });
+    it("falls back to direct write when daemon network error", async () => {
+      const client = mockTransport({ trigger: { throws: true } });
       const { res, result } = mockResponse();
       await handleWorkflowTrigger(makeRequest({ name: "builder" }), res, store, client);
       expect(result.status).toBe(200);
@@ -609,17 +712,14 @@ describe("workflow-routes", () => {
     });
 
     it("passes tags to daemon client", async () => {
-      let capturedTags: string[] | undefined;
-      const client = mockClient({
-        trigger: async (name, tags) => {
-          capturedTags = tags;
-          return { ok: true, queued: name };
-        },
-      });
+      const client = mockTransport({ trigger: { ok: true, queued: "builder" } });
       const { res, result } = mockResponse();
       await handleWorkflowTrigger(makeRequest({ name: "builder", tags: ["ci", "pr-42"] }), res, store, client);
       expect(result.status).toBe(200);
-      expect(capturedTags).toEqual(["ci", "pr-42"]);
+      const triggerCall = client.calls.find((c) => c.path === "/workflow/trigger");
+      expect(triggerCall).toBeDefined();
+      const payload = triggerCall?.body as { tags?: string[] };
+      expect(payload.tags).toEqual(["ci", "pr-42"]);
     });
 
     it("includes tags in trigger payload for offline path", async () => {
@@ -660,17 +760,14 @@ describe("workflow-routes", () => {
     });
 
     it("passes extra payload to daemon client", async () => {
-      let capturedPayload: Record<string, unknown> | undefined;
-      const client = mockClient({
-        trigger: async (name, _tags, payload) => {
-          capturedPayload = payload;
-          return { ok: true, queued: name };
-        },
-      });
+      const client = mockTransport({ trigger: { ok: true, queued: "builder" } });
       const { res, result } = mockResponse();
       await handleWorkflowTrigger(makeRequest({ name: "builder", payload: { taskId: "abc" } }), res, store, client);
       expect(result.status).toBe(200);
-      expect(capturedPayload).toEqual({ taskId: "abc" });
+      const triggerCall = client.calls.find((c) => c.path === "/workflow/trigger");
+      expect(triggerCall).toBeDefined();
+      const payload = triggerCall?.body as { payload?: Record<string, unknown> };
+      expect(payload.payload).toEqual({ taskId: "abc" });
     });
 
     it("ignores invalid payload field (non-object)", async () => {

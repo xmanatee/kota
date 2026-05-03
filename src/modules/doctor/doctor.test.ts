@@ -20,10 +20,8 @@ vi.mock("#core/config/config.js", () => ({
   loadConfig: vi.fn(() => ({})),
 }));
 
-vi.mock("#core/server/daemon-client.js", () => ({
-  DaemonControlClient: {
-    fromStateDir: vi.fn(() => null),
-  },
+vi.mock("#core/server/daemon-transport.js", () => ({
+  getDaemonTransport: vi.fn(() => null),
 }));
 
 vi.mock("#core/model/model-client.js", () => ({
@@ -133,33 +131,46 @@ describe("kota doctor — offline path", () => {
   });
 
   it("renders capability readiness rows when the daemon reports them", async () => {
-    const { DaemonControlClient } = await import("#core/server/daemon-client.js");
-    const fromStateDir = vi.mocked(DaemonControlClient.fromStateDir);
-    fromStateDir.mockReturnValueOnce({
-      getDaemonStatus: vi.fn(async () => ({ pid: 1234, startedAt: "2026-04-29T00:00:00.000Z" })),
-      getHealth: vi.fn(async () => ({ status: "ok", components: { scheduler: "ok", modules: "ok" } })),
-      getWorkflowDefinitions: vi.fn(async () => ({ definitions: [{ name: "builder" }] })),
-      getCapabilities: vi.fn(async () => ({
-        capabilities: [
-          { id: "knowledge.search", moduleName: "knowledge", status: "ready", message: "ready text" },
-          {
-            id: "knowledge.semantic_search",
-            moduleName: "knowledge",
-            status: "unavailable",
-            reason: "embedding_unsupported",
-            message: "load knowledge-semantic",
-          },
-          {
-            id: "broken",
-            moduleName: "broken",
-            status: "init_failed",
-            reason: "probe_threw",
-            message: "boom",
-          },
-        ],
-        summary: { ready: 1, unavailable: 1, init_failed: 1 },
-      })),
-    } as unknown as ReturnType<typeof DaemonControlClient.fromStateDir>);
+    const { getDaemonTransport } = await import("#core/server/daemon-transport.js");
+    const stub = vi.mocked(getDaemonTransport);
+    const transport = {
+      baseUrl: "http://127.0.0.1:0",
+      authHeaders: () => ({}),
+      request: async <T,>(_method: string, path: string) => {
+        if (path === "/status") return { pid: 1234, startedAt: "2026-04-29T00:00:00.000Z" } as T;
+        if (path === "/health") return { status: "ok", components: { scheduler: "ok", modules: "ok" } } as T;
+        if (path === "/workflow/definitions") return { definitions: [{ name: "builder" }] } as T;
+        if (path === "/capabilities") return {
+          capabilities: [
+            { id: "knowledge.search", moduleName: "knowledge", status: "ready", message: "ready text" },
+            {
+              id: "knowledge.semantic_search",
+              moduleName: "knowledge",
+              status: "unavailable",
+              reason: "embedding_unsupported",
+              message: "load knowledge-semantic",
+            },
+            {
+              id: "broken",
+              moduleName: "broken",
+              status: "init_failed",
+              reason: "probe_threw",
+              message: "boom",
+            },
+          ],
+          summary: { ready: 1, unavailable: 1, init_failed: 1 },
+        } as T;
+        return null;
+      },
+      requestStrict: async () => {
+        throw new Error("not implemented in test");
+      },
+      fetchRaw: async () => {
+        throw new Error("not implemented in test");
+      },
+      events: async function* () { /* no events */ },
+    };
+    stub.mockReturnValueOnce(transport);
 
     const results = await runDoctorChecks(projectDir);
     const ready = results.find((r) => r.label === "Capability: knowledge.search");

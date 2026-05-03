@@ -1,8 +1,11 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
-import type { DaemonSseEvent } from "#core/daemon/daemon-control.js";
-import { DaemonControlClient } from "#core/server/daemon-client.js";
+import type { DaemonSseEvent, WorkflowLiveStatus } from "#core/daemon/daemon-control.js";
+import {
+  type DaemonTransport,
+  getDaemonTransport,
+} from "#core/server/daemon-transport.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata, WorkflowRuntimeState } from "#core/workflow/run-types.js";
@@ -54,14 +57,14 @@ function emitPendingStepOutput(
 }
 
 async function followWithSse(
-  client: DaemonControlClient,
+  link: DaemonTransport,
   store: WorkflowRunStore,
   targetRunId: string | undefined,
 ): Promise<void> {
   let activeRunId = targetRunId;
 
   if (!activeRunId) {
-    const wfStatus = await client.getWorkflowStatus();
+    const wfStatus = await link.request<WorkflowLiveStatus>("GET", "/workflow/status");
     if (wfStatus && wfStatus.activeRuns.length > 0) {
       activeRunId = wfStatus.activeRuns[0].runId;
       print(line(plain(`Following run: ${activeRunId}`)));
@@ -137,7 +140,7 @@ async function followWithSse(
             clearInterval(pollTimer);
             return;
           }
-          const wfStatus = await client.getWorkflowStatus();
+          const wfStatus = await link.request<WorkflowLiveStatus>("GET", "/workflow/status");
           if (wfStatus && wfStatus.activeRuns.length > 0) {
             activeRunId = wfStatus.activeRuns[0].runId;
             print(line(plain(`Following run: ${activeRunId}`)));
@@ -151,7 +154,7 @@ async function followWithSse(
     }
 
     async function streamEvents(): Promise<void> {
-      for await (const event of client.events()) {
+      for await (const event of link.events()) {
         if (done) break;
         await handleEvent(event);
       }
@@ -172,7 +175,7 @@ export function registerFollowCommand(wfCmd: Command): void {
     )
     .action(async (runId: string | undefined) => {
       const store = new WorkflowRunStore();
-      const client = DaemonControlClient.fromStateDir();
+      const link = getDaemonTransport();
 
       let resolvedId = runId;
       if (runId && !runId.includes("Z-")) {
@@ -205,8 +208,8 @@ export function registerFollowCommand(wfCmd: Command): void {
         }
       }
 
-      if (client) {
-        await followWithSse(client, store, resolvedId);
+      if (link) {
+        await followWithSse(link, store, resolvedId);
       } else {
         if (!resolvedId) {
           const wfState = readOptionalJsonFile<WorkflowRuntimeState>(store.statePath);

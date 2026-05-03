@@ -7,7 +7,6 @@ import type {
   DaemonControlAddress,
   DaemonLiveStatus,
   DaemonSseEvent,
-  DaemonSseEventType,
   HealthStatus,
   InteractiveSession,
   WorkflowDefinitionSummary,
@@ -25,6 +24,7 @@ import type {
 } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { type DaemonTransport, daemonTransportFromAddress } from "./daemon-transport.js";
 import type {
   AgentInspectResult,
   AgentsClient,
@@ -185,6 +185,31 @@ function fetchWithTimeout(url: string, options?: RequestInit): Promise<Response>
 }
 
 /**
+ * Fetch through the typed link, swallowing transport errors and returning
+ * null on network failure. Used by methods that distinguish between several
+ * HTTP status codes (e.g. 404 vs 409) where the link's `request<T>` shape
+ * (which only returns `T | null`) is too narrow.
+ */
+async function safeFetchRaw(
+  link: DaemonTransport,
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<Response | null> {
+  try {
+    return await link.fetchRaw(path, {
+      method,
+      ...(body !== undefined && {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Strict decoder for `GET /answers` responses. Rejects loud rather than
  * silently dropping malformed shapes — same discipline `KotaClient.answer`
  * already follows for the synthesizer envelope.
@@ -282,10 +307,14 @@ export class DaemonControlClient implements KotaClient {
   readonly capture: CaptureClient;
   readonly retract: RetractClient;
 
+  private readonly transport: DaemonTransport;
+
   private constructor(
     private readonly baseUrl: string,
-    private readonly token?: string,
+    private readonly token: string | undefined,
+    transport: DaemonTransport,
   ) {
+    this.transport = transport;
     this.workflow = {
       listRuns: async (filter) => {
         const result = await this.listWorkflowRuns(
@@ -1661,6 +1690,7 @@ export class DaemonControlClient implements KotaClient {
     return new DaemonControlClient(
       `http://127.0.0.1:${address.port}`,
       typeof address.token === "string" ? address.token : undefined,
+      daemonTransportFromAddress(address),
     );
   }
 
@@ -1669,220 +1699,104 @@ export class DaemonControlClient implements KotaClient {
   }
 
   async getHealth(): Promise<{ status: string; components: HealthStatus } | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/health`);
-      if (!res.ok) return null;
-      return (await res.json()) as { status: string; components: HealthStatus };
-    } catch {
-      return null;
-    }
+    return this.transport.request("GET", "/health");
   }
 
   async getDaemonStatus(): Promise<DaemonLiveStatus | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/status`, { headers: this.authHeaders() });
-      if (!res.ok) return null;
-      return (await res.json()) as DaemonLiveStatus;
-    } catch {
-      return null;
-    }
+    return this.transport.request("GET", "/status");
   }
 
   async getCapabilities(): Promise<CapabilityReadinessResponse | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/capabilities`, {
-        headers: this.authHeaders(),
-      });
-      if (!res.ok) return null;
-      return (await res.json()) as CapabilityReadinessResponse;
-    } catch {
-      return null;
-    }
+    return this.transport.request("GET", "/capabilities");
   }
 
   async getIdentity(): Promise<ClientIdentity | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/identity`, {
-        headers: this.authHeaders(),
-      });
-      if (!res.ok) return null;
-      return (await res.json()) as ClientIdentity;
-    } catch {
-      return null;
-    }
+    return this.transport.request("GET", "/identity");
   }
 
   async getWorkflowStatus(): Promise<WorkflowLiveStatus | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/status`, { headers: this.authHeaders() });
-      if (!res.ok) return null;
-      return (await res.json()) as WorkflowLiveStatus;
-    } catch {
-      return null;
-    }
+    return this.transport.request("GET", "/workflow/status");
   }
 
   async getWorkflowDefinitions(): Promise<{ definitions: WorkflowDefinitionSummary[] } | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/definitions`, { headers: this.authHeaders() });
-      if (!res.ok) return null;
-      return (await res.json()) as { definitions: WorkflowDefinitionSummary[] };
-    } catch {
-      return null;
-    }
+    return this.transport.request("GET", "/workflow/definitions");
   }
 
   async pause(): Promise<{ ok: boolean; paused: boolean; already?: boolean } | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/pause`, {
-        method: "POST",
-        headers: this.authHeaders(),
-      });
-      if (!res.ok) return null;
-      return (await res.json()) as { ok: boolean; paused: boolean; already?: boolean };
-    } catch {
-      return null;
-    }
+    return this.transport.request("POST", "/workflow/pause");
   }
 
   async resume(): Promise<{ ok: boolean; paused: boolean; already?: boolean } | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/resume`, {
-        method: "POST",
-        headers: this.authHeaders(),
-      });
-      if (!res.ok) return null;
-      return (await res.json()) as { ok: boolean; paused: boolean; already?: boolean };
-    } catch {
-      return null;
-    }
+    return this.transport.request("POST", "/workflow/resume");
   }
 
   async abort(): Promise<{ ok: boolean; aborted: number } | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/abort`, {
-        method: "POST",
-        headers: this.authHeaders(),
-      });
-      if (!res.ok) return null;
-      return (await res.json()) as { ok: boolean; aborted: number };
-    } catch {
-      return null;
-    }
+    return this.transport.request("POST", "/workflow/abort");
   }
 
   async reload(): Promise<{ ok: boolean; count: number } | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/reload`, {
-        method: "POST",
-        headers: this.authHeaders(),
-      });
-      if (!res.ok) return null;
-      return (await res.json()) as { ok: boolean; count: number };
-    } catch {
-      return null;
-    }
+    return this.transport.request("POST", "/workflow/reload");
   }
 
   async reloadConfig(): Promise<{ ok: boolean; workflows: number; changedModules: string[] } | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/reload`, {
-        method: "POST",
-        headers: this.authHeaders(),
-      });
-      if (!res.ok) return null;
-      return (await res.json()) as { ok: boolean; workflows: number; changedModules: string[] };
-    } catch {
-      return null;
-    }
+    return this.transport.request("POST", "/reload");
   }
 
   async enableWorkflow(name: string): Promise<{ ok: boolean; notFound?: boolean } | null> {
-    try {
-      const res = await fetchWithTimeout(
-        `${this.baseUrl}/workflow/definitions/${encodeURIComponent(name)}/enable`,
-        { method: "POST", headers: this.authHeaders() },
-      );
-      if (res.status === 404) return { ok: false, notFound: true };
-      if (!res.ok) return null;
-      return (await res.json()) as { ok: boolean };
-    } catch {
-      return null;
-    }
+    const resp = await safeFetchRaw(this.transport, "POST", `/workflow/definitions/${encodeURIComponent(name)}/enable`);
+    if (!resp) return null;
+    if (resp.status === 404) return { ok: false, notFound: true };
+    if (!resp.ok) return null;
+    return (await resp.json()) as { ok: boolean };
   }
 
   async disableWorkflow(name: string): Promise<{ ok: boolean; notFound?: boolean } | null> {
-    try {
-      const res = await fetchWithTimeout(
-        `${this.baseUrl}/workflow/definitions/${encodeURIComponent(name)}/disable`,
-        { method: "POST", headers: this.authHeaders() },
-      );
-      if (res.status === 404) return { ok: false, notFound: true };
-      if (!res.ok) return null;
-      return (await res.json()) as { ok: boolean };
-    } catch {
-      return null;
-    }
+    const resp = await safeFetchRaw(this.transport, "POST", `/workflow/definitions/${encodeURIComponent(name)}/disable`);
+    if (!resp) return null;
+    if (resp.status === 404) return { ok: false, notFound: true };
+    if (!resp.ok) return null;
+    return (await resp.json()) as { ok: boolean };
   }
 
   async trigger(name: string, tags?: string[], payload?: Record<string, unknown>): Promise<{ ok: boolean; queued?: string; runId?: string; alreadyQueued?: boolean } | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/trigger`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...this.authHeaders() },
-        body: JSON.stringify({ name, ...(tags && tags.length > 0 && { tags }), ...(payload && { payload }) }),
-      });
-      if (res.status === 409) return { ok: false, alreadyQueued: true };
-      if (!res.ok) return null;
-      return (await res.json()) as { ok: boolean; queued?: string; runId?: string };
-    } catch {
-      return null;
-    }
+    const resp = await safeFetchRaw(this.transport, "POST", "/workflow/trigger", {
+      name,
+      ...(tags && tags.length > 0 && { tags }),
+      ...(payload && { payload }),
+    });
+    if (!resp) return null;
+    if (resp.status === 409) return { ok: false, alreadyQueued: true };
+    if (!resp.ok) return null;
+    return (await resp.json()) as { ok: boolean; queued?: string; runId?: string };
   }
 
   async dryRun(name: string, payload?: Record<string, unknown>): Promise<{ pass: boolean; notFound?: boolean; [key: string]: unknown } | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/api/workflow/dry-run`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...this.authHeaders() },
-        body: JSON.stringify({ name, ...(payload && { payload }) }),
-      });
-      if (res.status === 404) return { pass: false, notFound: true };
-      if (!res.ok && res.status !== 422) return null;
-      return (await res.json()) as { pass: boolean; [key: string]: unknown };
-    } catch {
-      return null;
-    }
+    const resp = await safeFetchRaw(this.transport, "POST", "/api/workflow/dry-run", {
+      name,
+      ...(payload && { payload }),
+    });
+    if (!resp) return null;
+    if (resp.status === 404) return { pass: false, notFound: true };
+    if (!resp.ok && resp.status !== 422) return null;
+    return (await resp.json()) as { pass: boolean; [key: string]: unknown };
   }
 
   async abortRun(runId: string): Promise<{ ok: boolean; notFound?: boolean; queued?: boolean } | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/runs/${encodeURIComponent(runId)}/abort`, {
-        method: "POST",
-        headers: this.authHeaders(),
-      });
-      if (res.status === 404) return { ok: false, notFound: true };
-      if (res.status === 409) return { ok: false, queued: true };
-      if (!res.ok) return null;
-      return (await res.json()) as { ok: boolean };
-    } catch {
-      return null;
-    }
+    const resp = await safeFetchRaw(this.transport, "POST", `/workflow/runs/${encodeURIComponent(runId)}/abort`);
+    if (!resp) return null;
+    if (resp.status === 404) return { ok: false, notFound: true };
+    if (resp.status === 409) return { ok: false, queued: true };
+    if (!resp.ok) return null;
+    return (await resp.json()) as { ok: boolean };
   }
 
   async cancelRun(runId: string): Promise<{ ok: boolean; notFound?: boolean; active?: boolean } | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/runs/${encodeURIComponent(runId)}`, {
-        method: "DELETE",
-        headers: this.authHeaders(),
-      });
-      if (res.status === 404) return { ok: false, notFound: true };
-      if (res.status === 409) return { ok: false, active: true };
-      if (!res.ok) return null;
-      return (await res.json()) as { ok: boolean };
-    } catch {
-      return null;
-    }
+    const resp = await safeFetchRaw(this.transport, "DELETE", `/workflow/runs/${encodeURIComponent(runId)}`);
+    if (!resp) return null;
+    if (resp.status === 404) return { ok: false, notFound: true };
+    if (resp.status === 409) return { ok: false, active: true };
+    if (!resp.ok) return null;
+    return (await resp.json()) as { ok: boolean };
   }
 
   async listHistory(
@@ -1916,109 +1830,43 @@ export class DaemonControlClient implements KotaClient {
   async listApprovals(
     status?: ApprovalStatus | "all",
   ): Promise<{ approvals: PendingApproval[] } | null> {
-    try {
-      const query = status ? `?status=${encodeURIComponent(status)}` : "";
-      const res = await fetchWithTimeout(`${this.baseUrl}/approvals${query}`, { headers: this.authHeaders() });
-      if (!res.ok) return null;
-      return (await res.json()) as { approvals: PendingApproval[] };
-    } catch {
-      return null;
-    }
+    const query = status ? `?status=${encodeURIComponent(status)}` : "";
+    return this.transport.request("GET", `/approvals${query}`);
   }
 
   async approveApproval(id: string, note?: string): Promise<{ approval: PendingApproval } | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/approvals/${encodeURIComponent(id)}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...this.authHeaders() },
-        body: JSON.stringify({ note }),
-      });
-      if (!res.ok) return null;
-      return (await res.json()) as { approval: PendingApproval };
-    } catch {
-      return null;
-    }
+    return this.transport.request("POST", `/approvals/${encodeURIComponent(id)}/approve`, { note });
   }
 
   async rejectApproval(id: string, reason?: string): Promise<{ approval: PendingApproval } | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/approvals/${encodeURIComponent(id)}/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...this.authHeaders() },
-        body: JSON.stringify({ reason }),
-      });
-      if (!res.ok) return null;
-      return (await res.json()) as { approval: PendingApproval };
-    } catch {
-      return null;
-    }
+    return this.transport.request("POST", `/approvals/${encodeURIComponent(id)}/reject`, { reason });
   }
 
   async approveAllApprovals(note?: string): Promise<{ approvals: PendingApproval[]; count: number } | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/approvals/approve-all`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...this.authHeaders() },
-        body: JSON.stringify({ note }),
-      });
-      if (!res.ok) return null;
-      return (await res.json()) as { approvals: PendingApproval[]; count: number };
-    } catch {
-      return null;
-    }
+    return this.transport.request("POST", "/approvals/approve-all", { note });
   }
 
   async rejectAllApprovals(reason?: string): Promise<{ approvals: PendingApproval[]; count: number } | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/approvals/reject-all`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...this.authHeaders() },
-        body: JSON.stringify({ reason }),
-      });
-      if (!res.ok) return null;
-      return (await res.json()) as { approvals: PendingApproval[]; count: number };
-    } catch {
-      return null;
-    }
+    return this.transport.request("POST", "/approvals/reject-all", { reason });
   }
 
   async listWorkflowRuns(workflow?: string, limit?: number, tag?: string, causedByRunId?: string): Promise<{ runs: WorkflowRunSummary[] } | null> {
-    try {
-      const params = new URLSearchParams();
-      if (workflow) params.set("workflow", workflow);
-      if (limit !== undefined) params.set("limit", String(limit));
-      if (tag) params.set("tag", tag);
-      if (causedByRunId) params.set("causedByRunId", causedByRunId);
-      const query = params.toString() ? `?${params.toString()}` : "";
-      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/runs${query}`, { headers: this.authHeaders() });
-      if (!res.ok) return null;
-      return (await res.json()) as { runs: WorkflowRunSummary[] };
-    } catch {
-      return null;
-    }
+    const params = new URLSearchParams();
+    if (workflow) params.set("workflow", workflow);
+    if (limit !== undefined) params.set("limit", String(limit));
+    if (tag) params.set("tag", tag);
+    if (causedByRunId) params.set("causedByRunId", causedByRunId);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return this.transport.request("GET", `/workflow/runs${query}`);
   }
 
   async getWorkflowRun(id: string): Promise<WorkflowRunDetail | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/workflow/runs/${encodeURIComponent(id)}`, { headers: this.authHeaders() });
-      if (!res.ok) return null;
-      return (await res.json()) as WorkflowRunDetail;
-    } catch {
-      return null;
-    }
+    return this.transport.request("GET", `/workflow/runs/${encodeURIComponent(id)}`);
   }
 
   async registerSession(id: string, createdAt: string, autonomyMode: AutonomyMode): Promise<boolean> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/sessions/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...this.authHeaders() },
-        body: JSON.stringify({ id, createdAt, autonomyMode }),
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+    const resp = await safeFetchRaw(this.transport, "POST", "/sessions/register", { id, createdAt, autonomyMode });
+    return resp?.ok ?? false;
   }
 
   async setSessionAutonomyMode(id: string, autonomyMode: AutonomyMode): Promise<{
@@ -2028,36 +1876,24 @@ export class DaemonControlClient implements KotaClient {
     source?: string;
     serveOwned?: boolean;
   } | null> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/sessions/${encodeURIComponent(id)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", ...this.authHeaders() },
-        body: JSON.stringify({ autonomy_mode: autonomyMode }),
-      });
-      if (res.status === 404) return { ok: false, notFound: true };
-      if (!res.ok) return null;
-      const body = (await res.json()) as { autonomy_mode?: string; source?: string; serveOwned?: boolean };
-      return {
-        ok: true,
-        autonomyMode: (body.autonomy_mode ?? autonomyMode) as AutonomyMode,
-        source: body.source,
-        serveOwned: body.serveOwned,
-      };
-    } catch {
-      return null;
-    }
+    const resp = await safeFetchRaw(this.transport, "PATCH", `/sessions/${encodeURIComponent(id)}`, {
+      autonomy_mode: autonomyMode,
+    });
+    if (!resp) return null;
+    if (resp.status === 404) return { ok: false, notFound: true };
+    if (!resp.ok) return null;
+    const body = (await resp.json()) as { autonomy_mode?: string; source?: string; serveOwned?: boolean };
+    return {
+      ok: true,
+      autonomyMode: (body.autonomy_mode ?? autonomyMode) as AutonomyMode,
+      source: body.source,
+      serveOwned: body.serveOwned,
+    };
   }
 
   async unregisterSession(id: string): Promise<boolean> {
-    try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/sessions/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-        headers: this.authHeaders(),
-      });
-      return res.ok || res.status === 204;
-    } catch {
-      return false;
-    }
+    const resp = await safeFetchRaw(this.transport, "DELETE", `/sessions/${encodeURIComponent(id)}`);
+    return (resp?.ok ?? false) || resp?.status === 204;
   }
 
   async queryEvents(opts?: {
@@ -2065,19 +1901,12 @@ export class DaemonControlClient implements KotaClient {
     since?: string;
     limit?: number;
   }): Promise<{ events: Array<{ type: string; payload: Record<string, unknown>; timestamp: string }> } | null> {
-    try {
-      const params = new URLSearchParams();
-      if (opts?.type) params.set("type", opts.type);
-      if (opts?.since) params.set("since", opts.since);
-      if (opts?.limit != null) params.set("limit", String(opts.limit));
-      const qs = params.toString();
-      const url = `${this.baseUrl}/api/events${qs ? `?${qs}` : ""}`;
-      const res = await fetchWithTimeout(url, { headers: this.authHeaders() });
-      if (!res.ok) return null;
-      return (await res.json()) as { events: Array<{ type: string; payload: Record<string, unknown>; timestamp: string }> };
-    } catch {
-      return null;
-    }
+    const params = new URLSearchParams();
+    if (opts?.type) params.set("type", opts.type);
+    if (opts?.since) params.set("since", opts.since);
+    if (opts?.limit != null) params.set("limit", String(opts.limit));
+    const qs = params.toString();
+    return this.transport.request("GET", `/api/events${qs ? `?${qs}` : ""}`);
   }
 
   async voiceTranscribe(input: {
@@ -2092,9 +1921,9 @@ export class DaemonControlClient implements KotaClient {
       ...(input.filename !== undefined && { filename: input.filename }),
       ...(input.languageHint !== undefined && { languageHint: input.languageHint }),
     };
-    const res = await fetch(`${this.baseUrl}/voice/transcribe`, {
+    const res = await this.transport.fetchRaw("/voice/transcribe", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...this.authHeaders() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     const parsed = (await res.json()) as Record<string, unknown>;
@@ -2114,9 +1943,9 @@ export class DaemonControlClient implements KotaClient {
     languageHint?: string;
     format?: string;
   }): Promise<VoiceSynthesizeResponse> {
-    const res = await fetch(`${this.baseUrl}/voice/synthesize`, {
+    const res = await this.transport.fetchRaw("/voice/synthesize", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...this.authHeaders() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     });
     const parsed = (await res.json()) as Record<string, unknown>;
@@ -2131,54 +1960,7 @@ export class DaemonControlClient implements KotaClient {
     };
   }
 
-  async *events(): AsyncGenerator<DaemonSseEvent> {
-    let res: Response;
-    try {
-      res = await fetch(`${this.baseUrl}/events`, { headers: this.authHeaders() });
-      if (!res.ok || !res.body) return;
-    } catch {
-      return;
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const messages = buffer.split("\n\n");
-        buffer = messages.pop() ?? "";
-
-        for (const message of messages) {
-          if (!message.trim()) continue;
-          const lines = message.split("\n");
-          let eventType = "";
-          let data = "";
-          for (const line of lines) {
-            if (line.startsWith("event: ")) eventType = line.slice(7).trim();
-            else if (line.startsWith("data: ")) data = line.slice(6).trim();
-          }
-          if (eventType && data) {
-            try {
-              yield {
-                type: eventType as DaemonSseEventType,
-                payload: JSON.parse(data) as Record<string, unknown>,
-              };
-            } catch (err) {
-              console.warn("[kota-daemon-client] Failed to parse daemon SSE event:", err instanceof Error ? err.message : String(err));
-            }
-          }
-        }
-      }
-    } finally {
-      try {
-        await reader.cancel();
-      } catch (err) {
-        console.warn("[kota-daemon-client] Failed to cancel daemon SSE reader:", err instanceof Error ? err.message : String(err));
-      }
-    }
+  events(): AsyncGenerator<DaemonSseEvent> {
+    return this.transport.events();
   }
 }

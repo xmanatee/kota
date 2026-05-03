@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { DaemonControlClient } from "#core/server/daemon-client.js";
+import { getDaemonTransport } from "#core/server/daemon-transport.js";
 
 function formatEventSummary(type: string, payload: Record<string, unknown>): string {
   if (type.startsWith("workflow.")) {
@@ -38,8 +38,8 @@ export function buildEventsCommand(): Command {
     .option("--json", "Emit raw NDJSON instead of formatted output")
     .option("--filter <prefix>", "Show only events whose type starts with <prefix>")
     .action(async (opts: { json?: boolean; filter?: string }) => {
-      const client = DaemonControlClient.fromStateDir();
-      if (!client) {
+      const link = getDaemonTransport();
+      if (!link) {
         console.error("Daemon is not running. Start the daemon with `kota daemon start`.");
         process.exit(1);
       }
@@ -49,7 +49,7 @@ export function buildEventsCommand(): Command {
         done = true;
       });
 
-      for await (const event of client.events()) {
+      for await (const event of link.events()) {
         if (done) break;
         if (opts.filter && !event.type.startsWith(opts.filter)) continue;
 
@@ -79,8 +79,8 @@ export function buildEventsCommand(): Command {
     .option("--limit <n>", "Maximum number of events to return", "50")
     .option("--json", "Output raw NDJSON for scripting")
     .action(async (opts: { type?: string; since?: string; limit: string; json?: boolean }) => {
-      const client = DaemonControlClient.fromStateDir();
-      if (!client) {
+      const link = getDaemonTransport();
+      if (!link) {
         console.error("Daemon is not running. Start the daemon with `kota daemon start`.");
         process.exitCode = 1;
         return;
@@ -98,11 +98,13 @@ export function buildEventsCommand(): Command {
       }
 
       const limit = parseInt(opts.limit, 10);
-      const result = await client.queryEvents({
-        type: opts.type,
-        since: sinceIso,
-        limit: Number.isNaN(limit) ? 50 : limit,
-      });
+      const params = new URLSearchParams();
+      if (opts.type) params.set("type", opts.type);
+      if (sinceIso) params.set("since", sinceIso);
+      params.set("limit", String(Number.isNaN(limit) ? 50 : limit));
+      const result = await link.request<{
+        events: Array<{ type: string; payload: Record<string, unknown>; timestamp: string }>;
+      }>("GET", `/api/events?${params.toString()}`);
 
       if (!result) {
         console.error("Failed to query events from daemon.");

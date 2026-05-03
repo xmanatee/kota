@@ -1,5 +1,5 @@
 import type { ModuleContext, RouteRegistration } from "#core/modules/module-types.js";
-import { DaemonControlClient } from "#core/server/daemon-client.js";
+import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
@@ -42,49 +42,49 @@ export function workflowRoutes(ctx?: ModuleContext): RouteRegistration[] {
       method: "GET",
       path: "/api/workflow/status",
       handler: (_req, res) =>
-        handleWorkflowStatus(res, DaemonControlClient.fromStateDir()),
+        handleWorkflowStatus(res, getDaemonTransport()),
     },
     {
       method: "GET",
       path: "/api/workflow/definitions",
       handler: (_req, res) =>
-        handleWorkflowDefinitions(res, DaemonControlClient.fromStateDir()),
+        handleWorkflowDefinitions(res, getDaemonTransport()),
     },
     {
       method: "POST",
       path: "/api/workflow/definitions/:name/enable",
       handler: (_req, res, params) =>
-        handleWorkflowEnable(res, params.name, DaemonControlClient.fromStateDir()),
+        handleWorkflowEnable(res, params.name, getDaemonTransport()),
     },
     {
       method: "POST",
       path: "/api/workflow/definitions/:name/disable",
       handler: (_req, res, params) =>
-        handleWorkflowDisable(res, params.name, DaemonControlClient.fromStateDir()),
+        handleWorkflowDisable(res, params.name, getDaemonTransport()),
     },
     {
       method: "POST",
       path: "/api/workflow/pause",
       handler: (_req, res) =>
-        handleWorkflowPause(res, DaemonControlClient.fromStateDir()),
+        handleWorkflowPause(res, getDaemonTransport()),
     },
     {
       method: "POST",
       path: "/api/workflow/resume",
       handler: (_req, res) =>
-        handleWorkflowResume(res, DaemonControlClient.fromStateDir()),
+        handleWorkflowResume(res, getDaemonTransport()),
     },
     {
       method: "POST",
       path: "/api/workflow/abort",
       handler: (_req, res) =>
-        handleWorkflowAbort(res, DaemonControlClient.fromStateDir()),
+        handleWorkflowAbort(res, getDaemonTransport()),
     },
     {
       method: "POST",
       path: "/api/workflow/retry",
       handler: (req, res) =>
-        handleWorkflowRetry(req, res, new WorkflowRunStore(), DaemonControlClient.fromStateDir()),
+        handleWorkflowRetry(req, res, new WorkflowRunStore(), getDaemonTransport()),
     },
     {
       method: "POST",
@@ -107,7 +107,7 @@ export function workflowRoutes(ctx?: ModuleContext): RouteRegistration[] {
       method: "POST",
       path: "/api/workflow/trigger",
       handler: (req, res) =>
-        handleWorkflowTrigger(req, res, new WorkflowRunStore(), DaemonControlClient.fromStateDir()),
+        handleWorkflowTrigger(req, res, new WorkflowRunStore(), getDaemonTransport()),
     },
     {
       method: "GET",
@@ -141,13 +141,13 @@ export function workflowRoutes(ctx?: ModuleContext): RouteRegistration[] {
       method: "DELETE",
       path: "/api/workflow/runs/:id",
       handler: (_req, res, params) =>
-        handleWorkflowCancel(res, params.id, DaemonControlClient.fromStateDir()),
+        handleWorkflowCancel(res, params.id, getDaemonTransport()),
     },
     {
       method: "POST",
       path: "/api/workflow/runs/:id/abort",
       handler: (_req, res, params) =>
-        handleWorkflowAbortRun(res, params.id, DaemonControlClient.fromStateDir()),
+        handleWorkflowAbortRun(res, params.id, getDaemonTransport()),
     },
   ];
 }

@@ -1,12 +1,12 @@
 ---
 id: task-decouple-non-namespace-daemon-transport-methods-fr
 title: Decouple non-namespace daemon transport methods from DaemonControlClient
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Refactor the ~20 non-namespace transport methods (getDaemonStatus, pause, events, voiceTranscribe, registerSession, queryEvents, reload, …) off direct DaemonControlClient consumers in workflow-ops, daemon-ops, push-notification, mcp-server, approval-queue, history, commands, secrets, and doctor so each module consumes a small typed daemon-link surface instead of importing the central class — orthogonal to the parent KotaClient namespace chunking decision and required for all five proposed chunking answers.
 created_at: 2026-05-03T04:56:19.212Z
-updated_at: 2026-05-03T04:56:19.212Z
+updated_at: 2026-05-03T05:33:40.108Z
 ---
 
 ## Problem

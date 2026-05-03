@@ -90,3 +90,72 @@ describe("KotaClient namespace registration guard", () => {
     }
   });
 });
+
+/**
+ * Guard test: production module code under `src/modules/*` should not
+ * import `DaemonControlClient` directly to call non-namespace transport
+ * methods. Modules consume the typed `DaemonTransport` link or a module-
+ * owned wrapper that uses it. The allowlist names test files that
+ * exercise namespace-handler wire shapes (handlers that still live in
+ * `src/core/server/daemon-client.ts` until the parent KotaClient
+ * namespace distribution task moves them out).
+ */
+const DAEMON_CONTROL_CLIENT_IMPORT_ALLOWLIST: ReadonlySet<string> = new Set([
+  // Tests that exercise daemon-side namespace handler wire format. Once
+  // the parent task moves the namespace closures into their owning
+  // modules, these tests move alongside the closures and can drop
+  // off the allowlist.
+  "history/client.test.ts",
+  "mcp-server/mcp-server-operations.test.ts",
+]);
+
+function listModuleTsFiles(dir: string, rel: string): { rel: string; abs: string }[] {
+  const entries = readdirSync(dir, { withFileTypes: true });
+  const out: { rel: string; abs: string }[] = [];
+  for (const entry of entries) {
+    if (entry.name.startsWith(".")) continue;
+    if (entry.name === "node_modules") continue;
+    const abs = join(dir, entry.name);
+    const next = rel ? `${rel}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      out.push(...listModuleTsFiles(abs, next));
+      continue;
+    }
+    if (entry.name.endsWith(".ts")) {
+      out.push({ rel: next, abs });
+    }
+  }
+  return out;
+}
+
+describe("daemon-client import boundary guard", () => {
+  it("no module under src/modules/* imports DaemonControlClient outside the allowlist", () => {
+    const files = listModuleTsFiles(MODULES_DIR, "");
+    const offenders: string[] = [];
+    for (const file of files) {
+      const src = readFileSync(file.abs, "utf-8");
+      const importsClass =
+        /from\s+["']#core\/server\/daemon-client\.js["']/.test(src) &&
+        /\bDaemonControlClient\b/.test(src);
+      if (!importsClass) continue;
+      if (DAEMON_CONTROL_CLIENT_IMPORT_ALLOWLIST.has(file.rel)) continue;
+      offenders.push(file.rel);
+    }
+    expect(
+      offenders,
+      "Module files must use #core/server/daemon-transport.js (DaemonTransport / getDaemonTransport) " +
+        "or a module-owned wrapper around it instead of importing DaemonControlClient directly. " +
+        `Offenders:\n  ${offenders.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
+  it("the allowlist itself only references existing files", () => {
+    for (const rel of DAEMON_CONTROL_CLIENT_IMPORT_ALLOWLIST) {
+      const abs = join(MODULES_DIR, rel);
+      expect(
+        () => readFileSync(abs, "utf-8"),
+        `DAEMON_CONTROL_CLIENT_IMPORT_ALLOWLIST entry "${rel}" does not point at an existing file.`,
+      ).not.toThrow();
+    }
+  });
+});

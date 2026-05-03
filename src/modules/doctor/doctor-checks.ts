@@ -17,9 +17,15 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import { loadConfig } from "#core/config/config.js";
+import type { CapabilityReadinessResponse } from "#core/daemon/capability-readiness.js";
+import type {
+  DaemonLiveStatus,
+  HealthStatus,
+  WorkflowDefinitionSummary,
+} from "#core/daemon/daemon-control.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
-import { DaemonControlClient } from "#core/server/daemon-client.js";
+import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import type {
   DoctorCheckResult,
   DoctorRepairResult,
@@ -298,11 +304,11 @@ export async function runDoctorChecks(
   const results: CheckResult[] = [];
 
   const kotaDir = join(projectDir, ".kota");
-  const client = DaemonControlClient.fromStateDir(kotaDir);
-  const status = client ? await client.getDaemonStatus() : null;
+  const link = getDaemonTransport(kotaDir);
+  const status = link ? await link.request<DaemonLiveStatus>("GET", "/status") : null;
   const controlFilePid = readDaemonPid(join(kotaDir, "daemon-control.json"));
 
-  if (!client) {
+  if (!link) {
     results.push(warn("Daemon", "No daemon-control.json found — daemon is not running"));
   } else if (!status) {
     if (typeof controlFilePid === "number" && !isProcessAlive(controlFilePid)) {
@@ -321,8 +327,11 @@ export async function runDoctorChecks(
 
   if (status) {
     results.push(pass("Modules", "Managed by daemon (use `kota module list` for details)"));
-    if (client) {
-      const healthResp = await client.getHealth();
+    if (link) {
+      const healthResp = await link.request<{ status: string; components: HealthStatus }>(
+        "GET",
+        "/health",
+      );
       const moduleChecks = healthResp?.components?.moduleHealthChecks;
       if (moduleChecks && Object.keys(moduleChecks).length > 0) {
         for (const [name, check] of Object.entries(moduleChecks)) {
@@ -336,7 +345,10 @@ export async function runDoctorChecks(
           }
         }
       }
-      const capabilities = await client.getCapabilities();
+      const capabilities = await link.request<CapabilityReadinessResponse>(
+        "GET",
+        "/capabilities",
+      );
       if (capabilities) {
         for (const cap of capabilities.capabilities) {
           const detail = cap.message ?? cap.reason ?? cap.status;
@@ -363,8 +375,11 @@ export async function runDoctorChecks(
     results.push(...(await checkProviderConnectivity(projectDir)));
   }
 
-  if (status && client) {
-    const defResult = await client.getWorkflowDefinitions();
+  if (status && link) {
+    const defResult = await link.request<{ definitions: WorkflowDefinitionSummary[] }>(
+      "GET",
+      "/workflow/definitions",
+    );
     if (!defResult) {
       results.push(warn("Workflows", "Could not fetch definitions from daemon"));
     } else {

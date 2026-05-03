@@ -1,6 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { RouteRegistration } from "#core/modules/module-types.js";
-import { DaemonControlClient } from "#core/server/daemon-client.js";
+import {
+  type DaemonTransport,
+  getDaemonTransport,
+} from "#core/server/daemon-transport.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import type { SlashCommandCatalog } from "./catalog.js";
 
@@ -10,21 +13,35 @@ type InvokeResult =
 
 async function invokeWorkflow(
   workflow: string,
-  client: DaemonControlClient | null,
+  link: DaemonTransport | null,
 ): Promise<{ status: number; body: InvokeResult | { error: string } }> {
-  if (!client) {
+  if (!link) {
     return { status: 503, body: { error: "Daemon not reachable" } };
   }
-  const result = await client.trigger(workflow);
-  if (!result) {
+  let resp: Response;
+  try {
+    resp = await link.fetchRaw("/workflow/trigger", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: workflow }),
+    });
+  } catch {
     return { status: 503, body: { error: "Daemon not reachable" } };
   }
-  if (result.alreadyQueued) {
+  if (resp.status === 409) {
     return { status: 409, body: { error: `Workflow "${workflow}" is already queued` } };
   }
+  if (!resp.ok) {
+    return { status: 503, body: { error: "Daemon not reachable" } };
+  }
+  const body = (await resp.json()) as { queued?: string; runId?: string };
   return {
     status: 200,
-    body: { kind: "workflow", queued: result.queued ?? workflow, runId: result.runId },
+    body: {
+      kind: "workflow",
+      queued: body.queued ?? workflow,
+      ...(body.runId !== undefined && { runId: body.runId }),
+    },
   };
 }
 
@@ -32,7 +49,7 @@ async function handleInvoke(
   req: IncomingMessage,
   res: ServerResponse,
   catalog: SlashCommandCatalog,
-  client: DaemonControlClient | null,
+  link: DaemonTransport | null,
 ): Promise<void> {
   let body: Record<string, unknown>;
   try {
@@ -55,7 +72,7 @@ async function handleInvoke(
     jsonResponse(res, 200, { kind: "skill", prompt: action.prompt });
     return;
   }
-  const result = await invokeWorkflow(action.workflow, client);
+  const result = await invokeWorkflow(action.workflow, link);
   jsonResponse(res, result.status, result.body);
 }
 
@@ -72,7 +89,7 @@ export function commandRoutes(catalog: SlashCommandCatalog): RouteRegistration[]
       method: "POST",
       path: "/api/commands/invoke",
       handler: (req, res) =>
-        handleInvoke(req, res, catalog, DaemonControlClient.fromStateDir()),
+        handleInvoke(req, res, catalog, getDaemonTransport()),
     },
   ];
 }

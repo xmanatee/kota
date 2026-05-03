@@ -2,10 +2,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { Command } from "commander";
 import { resolveProjectDir } from "#core/config/project-dir.js";
+import type { PendingApproval } from "#core/daemon/approval-queue.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
-import type { ClientDashboardAvailability } from "#core/daemon/client-identity.js";
+import type { ClientDashboardAvailability, ClientIdentity } from "#core/daemon/client-identity.js";
+import type { DaemonLiveStatus } from "#core/daemon/daemon-control.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control-types.js";
-import { DaemonControlClient } from "#core/server/daemon-client.js";
+import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { kvBlock, type RenderNode } from "#modules/rendering/primitives.js";
@@ -230,22 +232,25 @@ export function classifyDaemonControlFile(
 
 export async function gatherStatus(projectDir: string): Promise<StatusSnapshot> {
   const stateDir = join(projectDir, ".kota");
-  const client = DaemonControlClient.fromStateDir(stateDir);
+  const link = getDaemonTransport(stateDir);
   const controlFile = classifyDaemonControlFile(projectDir);
   const projectName = basename(projectDir) || projectDir;
 
-  if (client) {
-    const status = await client.getDaemonStatus();
+  if (link) {
+    const status = await link.request<DaemonLiveStatus>("GET", "/status");
     if (status) {
       const uptimeMs = status.startedAt
         ? Date.now() - new Date(status.startedAt).getTime()
         : undefined;
-      const approvalResult = await client.listApprovals();
+      const approvalResult = await link.request<{ approvals: PendingApproval[] }>(
+        "GET",
+        "/approvals?status=pending",
+      );
       const pendingApprovals = approvalResult
-        ? approvalResult.approvals.filter((a) => a.status === "pending").length
+        ? approvalResult.approvals.filter((a: PendingApproval) => a.status === "pending").length
         : 0;
 
-      const identity = await client.getIdentity();
+      const identity = await link.request<ClientIdentity>("GET", "/identity");
       const daemonProjectDir = identity?.projectDir;
       const daemonProjectName = identity?.projectName;
       const wrongProject = daemonProjectDir != null && daemonProjectDir !== projectDir;

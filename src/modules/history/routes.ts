@@ -8,7 +8,10 @@ import type {
   ConversationData,
   ConversationRecord,
 } from "#core/modules/provider-types.js";
-import { DaemonControlClient } from "#core/server/daemon-client.js";
+import {
+  type DaemonTransport,
+  getDaemonTransport,
+} from "#core/server/daemon-transport.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import { getHistory } from "./history.js";
 
@@ -36,20 +39,22 @@ function removeHistoryLocal(id: string): boolean {
 export async function handleListHistory(
   res: ServerResponse,
   url: URL,
-  client: DaemonControlClient | null = null,
+  link: DaemonTransport | null = null,
 ): Promise<void> {
-  if (client) {
+  if (link) {
+    const params = new URLSearchParams();
+    const search = url.searchParams.get("search");
+    if (search != null) params.set("search", search);
+    if (url.searchParams.has("limit")) params.set("limit", url.searchParams.get("limit")!);
+    const cwd = url.searchParams.get("cwd");
+    if (cwd != null) params.set("cwd", cwd);
     const sourceParam = url.searchParams.get("source") ?? undefined;
-    const source =
-      sourceParam === "user" || sourceParam === "action" ? sourceParam : undefined;
-    const result = await client.listHistory({
-      search: url.searchParams.get("search") ?? undefined,
-      limit: url.searchParams.has("limit")
-        ? Number.parseInt(url.searchParams.get("limit")!, 10)
-        : undefined,
-      cwd: url.searchParams.get("cwd") ?? undefined,
-      source,
-    });
+    if (sourceParam === "user" || sourceParam === "action") params.set("source", sourceParam);
+    const qs = params.toString();
+    const result = await link.request<{ conversations: ConversationRecord[] }>(
+      "GET",
+      `/history${qs ? `?${qs}` : ""}`,
+    );
     if (result) {
       jsonResponse(res, 200, result);
       return;
@@ -62,10 +67,13 @@ export async function handleListHistory(
 export async function handleGetHistory(
   res: ServerResponse,
   conversationId: string,
-  client: DaemonControlClient | null = null,
+  link: DaemonTransport | null = null,
 ): Promise<void> {
-  if (client) {
-    const data = await client.getHistory(conversationId);
+  if (link) {
+    const data = await link.request<ConversationData>(
+      "GET",
+      `/history/${encodeURIComponent(conversationId)}`,
+    );
     if (data !== null) {
       jsonResponse(res, 200, data);
       return;
@@ -115,16 +123,23 @@ export async function handleDeleteHistory(
   _req: IncomingMessage,
   res: ServerResponse,
   conversationId: string,
-  client: DaemonControlClient | null = null,
+  link: DaemonTransport | null = null,
 ): Promise<void> {
-  if (client) {
-    const deleted = await client.deleteHistory(conversationId);
-    if (deleted) {
+  if (link) {
+    let resp: Response | null = null;
+    try {
+      resp = await link.fetchRaw(`/history/${encodeURIComponent(conversationId)}`, {
+        method: "DELETE",
+      });
+    } catch {
+      resp = null;
+    }
+    if (resp && (resp.ok || resp.status === 204)) {
       res.writeHead(204);
       res.end();
       return;
     }
-    // deleted=false may mean not found OR daemon unreachable; check local
+    // 404 or daemon unreachable; fall through to local
   }
 
   if (removeHistoryLocal(conversationId)) {
@@ -143,7 +158,7 @@ export function historyRoutes(): RouteRegistration[] {
       path: "/api/history",
       handler: (req, res) => {
         const url = new URL(req.url!, `http://localhost`);
-        return handleListHistory(res, url, DaemonControlClient.fromStateDir());
+        return handleListHistory(res, url, getDaemonTransport());
       },
     },
     {
@@ -155,13 +170,13 @@ export function historyRoutes(): RouteRegistration[] {
       method: "GET",
       path: "/api/history/:id",
       handler: (_req, res, params) =>
-        handleGetHistory(res, params.id, DaemonControlClient.fromStateDir()),
+        handleGetHistory(res, params.id, getDaemonTransport()),
     },
     {
       method: "DELETE",
       path: "/api/history/:id",
       handler: (req, res, params) =>
-        handleDeleteHistory(req, res, params.id, DaemonControlClient.fromStateDir()),
+        handleDeleteHistory(req, res, params.id, getDaemonTransport()),
     },
   ];
 }
