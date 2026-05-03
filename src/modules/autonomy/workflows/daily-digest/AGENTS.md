@@ -35,8 +35,12 @@ per-category rendering short so chat surfaces stay readable.
   and emits even when the window is quiet so operator silence is never
   ambiguous.
 - The two events flow through the same notification module subscriptions
-  (Telegram, Slack, email, webhook), so operators do not configure separate
-  delivery for them.
+  (Telegram, Slack, email, webhook, push-notification), so operators do not
+  configure separate delivery for them. `push-notification` ships an Expo
+  push with `data.screen = "digest"` for `workflow.daily.digest` and
+  `data.screen = "attention"` for `workflow.attention.digest` so the
+  mobile DigestScreen and AttentionScreen wake on the same cadence as
+  every other channel.
 
 ## Outputs
 
@@ -52,9 +56,13 @@ body. The workflow must not branch on channel-specific formatting.
 
 `renderOnDemandDigest({ projectDir, windowEndMs? })` in `on-demand.ts`
 produces the same body the cadence step emits, evaluated against a
-rolling window ending at the call moment. Telegram, CLI, daemon HTTP, embedded
-web, macOS, and mobile pull surfaces should consume this seam so cadence and
-on-demand rendering cannot drift.
+rolling window ending at the call moment. Telegram, CLI, slack-channel
+(`/digest` slash command via `DigestSnapshotClient`), daemon HTTP
+(`GET /api/digest`), embedded web, macOS, and mobile pull surfaces
+should consume this seam so cadence and on-demand rendering cannot
+drift. The cross-client conformance fixture
+`clients/conformance/contract-fixture.json` `digest` arm pins the wire
+shape every fan-out client decoder must accept.
 
 Snapshot invariant: the on-demand path does not write
 `.kota/daily-digest-state.json`. That file is owned by the cadence run
