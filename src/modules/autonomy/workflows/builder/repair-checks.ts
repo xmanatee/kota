@@ -204,11 +204,11 @@ function checkMobileTypecheck(projectDir: string): string {
 }
 
 function checkMacosSwiftBuild(projectDir: string): string {
-  const macosDir = join(projectDir, "clients/macos");
-  if (!existsSync(join(macosDir, "Package.swift"))) {
-    return "OK: no macOS client present";
+  const appleDir = join(projectDir, "clients/apple");
+  if (!existsSync(join(appleDir, "Package.swift"))) {
+    return "OK: no Apple client present";
   }
-  return runCheck("swift build", macosDir, 120_000);
+  return runCheck("swift build", appleDir, 180_000);
 }
 
 export function builderRepairChecks(): WorkflowRepairCheck[] {

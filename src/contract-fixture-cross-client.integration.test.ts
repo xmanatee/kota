@@ -8,8 +8,8 @@
  * byte-identical copy of the artifacts it consumes so its test runner can
  * resolve them locally without reaching outside its workspace:
  *
- * - macOS Swift suite —
- *   `clients/macos/Tests/KotaMenuBarTests/contract-fixture.json`
+ * - Apple Swift suite —
+ *   `clients/apple/Tests/KotaSharedTests/contract-fixture.json`
  *   (declared in `Package.swift` via `resources: [.copy(...)]`).
  * - Mobile Jest suite —
  *   `clients/mobile/src/__tests__/__fixtures__/{contract-fixture.json,
@@ -52,7 +52,7 @@ const CANONICAL_CASES = resolve(
 );
 const SWIFT_FIXTURE_COPY = resolve(
   __dirname,
-  "../clients/macos/Tests/KotaMenuBarTests/contract-fixture.json",
+  "../clients/apple/Tests/KotaSharedTests/contract-fixture.json",
 );
 const MOBILE_FIXTURE_COPY = resolve(
   __dirname,

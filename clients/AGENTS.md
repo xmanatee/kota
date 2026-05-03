@@ -13,8 +13,11 @@ This directory contains native client apps that connect to the KOTA daemon contr
 ## Clients
 
 - `web/` — browser dashboard served by the daemon.
-- `macos/` — native menu bar client.
-- `mobile/` — mobile client.
+- `apple/` — native macOS menu-bar app and native iOS app, sharing
+  Swift sources (daemon transport, `AppState`, SwiftUI views) through
+  a single Swift package with three targets (`KotaShared`,
+  `KotaMenuBar`, `KotaiOS`).
+- `mobile/` — React Native mobile client.
 
 ## Adding a New Client
 
@@ -72,8 +75,8 @@ The contract conformance gate has three pieces:
 2. `src/core/daemon/client-contract.test.ts` and
    `src/core/daemon/client-identity.test.ts` — TypeScript decoders
    exercise the fixture and the live `/identity` route.
-3. `clients/macos/Tests/.../ContractFixtureTests.swift` — Swift
-   decoders parse the same JSON tree (kept in lockstep by
+3. `clients/apple/Tests/KotaSharedTests/ContractFixtureTests.swift` —
+   Swift decoders parse the same JSON tree (kept in lockstep by
    `src/contract-fixture-cross-client.integration.test.ts`).
 
 Add a contract surface only after extending all three pieces in the
