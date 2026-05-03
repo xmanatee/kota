@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-run-comparison
 title: Add run comparison view to web UI for spotting regressions between runs
-status: backlog
+status: ready
 priority: p3
 area: client
 summary: The React web dashboard has no way to compare two runs of the same workflow side-by-side. Add a comparison view using the existing run detail API and the workflow-ops diff behavior so regressions are visible without manual log archaeology.
 created_at: 2026-04-02T12:44:00Z
-updated_at: 2026-04-29T00:00:00Z
+updated_at: 2026-05-03T02:48:12.588Z
 ---
 
 ## Source / Intent
