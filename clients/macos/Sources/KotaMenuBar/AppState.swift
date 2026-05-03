@@ -157,7 +157,8 @@ final class AppState: ObservableObject {
         remoteURL.isEmpty ? .local : .remote
     }
 
-    let client = DaemonClient()
+    let client: DaemonClient
+    let notifications: NotificationManaging
     private var pollTask: Task<Void, Never>?
 
     private var knownFailedRunIDs: Set<String> = []
@@ -166,13 +167,28 @@ final class AppState: ObservableObject {
     private var notificationStateInitialized = false
     private var lastIdentityProbe: DaemonIdentityProbe?
 
-    init() {
+    /// Production callers use the no-argument form, which binds the live
+    /// notification surface and starts the polling task immediately.
+    /// Tests inject a stub manager and pass `startPollingOnInit: false` so
+    /// `AppState` can be constructed without touching
+    /// `UNUserNotificationCenter.current()` (which crashes when the Swift
+    /// test runner is launched outside a `.app` bundle) and without
+    /// spawning a background `Task` that the test harness cannot observe.
+    init(
+        client: DaemonClient? = nil,
+        notifications: NotificationManaging = NotificationManager.shared,
+        startPollingOnInit: Bool = true
+    ) {
+        self.client = client ?? DaemonClient()
+        self.notifications = notifications
         if let stored = UserDefaults.standard.string(forKey: "projectDirectory") {
             projectDir = URL(fileURLWithPath: stored)
         }
         remoteURL = UserDefaults.standard.string(forKey: "remoteDaemonURL") ?? ""
-        NotificationManager.shared.requestAuthorization()
-        startPolling()
+        if startPollingOnInit {
+            notifications.requestAuthorization()
+            startPolling()
+        }
     }
 
     /// True only when the daemon currently advertises a `dashboard`
@@ -731,7 +747,7 @@ final class AppState: ObservableObject {
         checkForNotifications()
     }
 
-    private func checkForNotifications() {
+    func checkForNotifications() {
         guard notificationsEnabled && !isPopoverOpen else {
             // Seed known state so we don't fire stale notifications when re-enabled
             if !notificationStateInitialized {
@@ -750,7 +766,7 @@ final class AppState: ObservableObject {
         if notificationStateInitialized {
             for id in currentFailedIDs.subtracting(knownFailedRunIDs) {
                 if let run = recentRuns.first(where: { $0.id == id }) {
-                    NotificationManager.shared.notify(
+                    notifications.notify(
                         title: "Workflow failed",
                         body: run.workflow,
                         identifier: "workflow-failure-\(id)"
@@ -761,7 +777,7 @@ final class AppState: ObservableObject {
                 if let approval = pendingApprovals.first(where: { $0.id == id }) {
                     let excerpt = approval.reason.flatMap { $0.isEmpty ? nil : String($0.prefix(100)) }
                     let body = excerpt.map { "\(approval.tool): \($0)" } ?? approval.tool
-                    NotificationManager.shared.notify(
+                    notifications.notify(
                         title: "Approval needed",
                         body: body,
                         identifier: "approval-\(id)"
@@ -770,7 +786,7 @@ final class AppState: ObservableObject {
             }
             for id in currentOwnerQuestionIDs.subtracting(knownOwnerQuestionIDs) {
                 if let question = pendingOwnerQuestions.first(where: { $0.id == id }) {
-                    NotificationManager.shared.notify(
+                    notifications.notify(
                         title: "Owner question",
                         body: "\(question.source): \(String(question.question.prefix(100)))",
                         identifier: "owner-question-\(id)"

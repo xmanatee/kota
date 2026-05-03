@@ -21,10 +21,12 @@ import XCTest
 ///   the rejection of any *other* `ok: false` reason so the view never
 ///   silently degrades.
 ///
-/// `AppState` is intentionally not constructed here: its `init` reaches into
-/// `UNUserNotificationCenter.current()`, which crashes when the Swift test
-/// runner is launched outside a `.app` bundle. The transport-layer branches
-/// are exercised in `DaemonClientTests` against the same `MockURLProtocol`.
+/// `AppState` is intentionally not constructed here. The transport-layer
+/// branches are exercised in `DaemonClientTests` against the same
+/// `MockURLProtocol`, and the integrated state container is covered by
+/// `AppStateTests` (which uses the `startPollingOnInit: false` /
+/// `NotificationManaging` injection seam to avoid the
+/// `UNUserNotificationCenter.current()` crash outside an `.app` bundle).
 final class TaskSearchViewTests: XCTestCase {
     private let decoder = JSONDecoder()
 

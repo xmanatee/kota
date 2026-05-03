@@ -47,8 +47,8 @@ func buildRetractRequest(target: RetractTarget, identifier: String) -> RetractRe
 }
 
 /// Pure outcome of a retract submit attempt. Encodes the two-submit gate
-/// so it is unit-testable without instantiating `AppState` (whose `init`
-/// reaches into `UNUserNotificationCenter.current()`).
+/// so it stays unit-testable without booting a `DaemonClient` or
+/// constructing the full `AppState`.
 enum RetractSubmitOutcome: Equatable {
     case skip
     case requireConfirmation

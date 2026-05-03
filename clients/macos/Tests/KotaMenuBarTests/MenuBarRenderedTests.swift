@@ -9,10 +9,10 @@ import XCTest
 ///
 /// Per `data/tasks/AGENTS.md`, native macOS surfaces accept a rendered
 /// Swift snapshot fixture as the acceptance artifact. This file is that
-/// fixture for the IA rework. It does not instantiate `AppState`
-/// (`UNUserNotificationCenter.current()` crashes outside a `.app`
-/// bundle), so each scenario is driven through the same pure helpers
-/// the SwiftUI body folds into:
+/// fixture for the IA rework. It drives each scenario through the same
+/// pure helpers the SwiftUI body folds into so the rendered shape stays
+/// independent of the live state container (which is now covered
+/// separately by `AppStateTests`):
 ///
 ///   - `attentionInboxSummary` for the Respond group's badge and tint
 ///   - `AskMode` for the unified search/answer arms

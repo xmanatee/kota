@@ -1,7 +1,18 @@
 import AppKit
 import UserNotifications
 
-final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
+/// Injection seam for the menu-bar notification surface. Production code
+/// uses `NotificationManager.shared`, which lazily binds to
+/// `UNUserNotificationCenter.current()` only when running inside a real
+/// `.app` bundle. Tests pass a recording stub so `AppState` can be
+/// constructed without crashing in `swift test`, which runs outside any
+/// bundle. Calls are fire-and-forget — the protocol mirrors that.
+protocol NotificationManaging {
+    func requestAuthorization()
+    func notify(title: String, body: String, identifier: String)
+}
+
+final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, NotificationManaging {
     static let shared = NotificationManager()
 
     private lazy var center: UNUserNotificationCenter? = {

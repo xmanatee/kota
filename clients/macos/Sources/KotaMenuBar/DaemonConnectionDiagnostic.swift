@@ -270,7 +270,10 @@ func classifyDaemonControlFile(
 /// Pure derivation of the operator-facing diagnostic from inputs the
 /// `AppState` already has. Splitting this out keeps the thin client's
 /// connection-identity rules unit-testable without instantiating
-/// `AppState` (whose `init` reaches into `UNUserNotificationCenter`).
+/// `AppState`. (`AppState.init` now accepts a notification stub and a
+/// `startPollingOnInit: false` flag so the state container is also
+/// test-constructible — see `AppStateTests` — but a pure helper still
+/// keeps the menu bar header classification reusable.)
 ///
 /// `selectedProjectDir` is the operator's chosen project (UserDefaults
 /// `projectDirectory`). `controlFileState` is the result of
