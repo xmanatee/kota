@@ -1,8 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
-  AnswerClient,
-  AnswerHistoryEntry,
-  AnswerHistoryRecord,
   CaptureClient,
   CaptureResult,
   HistoryClient,
@@ -11,6 +8,11 @@ import type {
   RecallClient,
   RepoTasksClient,
 } from "#core/server/kota-client.js";
+import type {
+  AnswerClient,
+  AnswerHistoryEntry,
+  AnswerHistoryRecord,
+} from "#modules/answer/client.js";
 import { renderAnswerReplyPlain } from "#modules/answer/render.js";
 import type {
   RetractClient,

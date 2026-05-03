@@ -12,12 +12,9 @@
  * decides whether to retry the synthesis or surface `synthesis_failed`.
  */
 
-import type {
-  AnswerCitation,
-  RecallHit,
-  RecallSource,
-} from "#core/server/kota-client.js";
+import type { RecallHit, RecallSource } from "#core/server/kota-client.js";
 import { ANSWER_MAX_CITATIONS, type ParsedSynthesis } from "./answer-types.js";
+import type { AnswerCitation } from "./client.js";
 
 const RECALL_SOURCES: ReadonlyArray<RecallSource> = [
   "knowledge",

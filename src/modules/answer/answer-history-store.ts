@@ -19,15 +19,15 @@
 import { randomBytes } from "node:crypto";
 import { mkdirSync, readdirSync, readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
+import type { RecallHit } from "#core/server/kota-client.js";
+import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import type {
   AnswerFilter,
   AnswerHistoryEntry,
   AnswerHistoryListFilter,
   AnswerHistoryRecord,
   AnswerResult,
-  RecallHit,
-} from "#core/server/kota-client.js";
-import { writeJsonFileAtomic } from "#core/util/json-file.js";
+} from "./client.js";
 
 export const ANSWER_HISTORY_DIR_NAME = "answer-history";
 export const ANSWER_HISTORY_DEFAULT_CAP = 1000;

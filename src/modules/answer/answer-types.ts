@@ -13,19 +13,17 @@ import {
   type ProviderToken,
 } from "#core/modules/provider-token.js";
 import type {
-  AnswerCitation,
-  AnswerFilter,
-  AnswerResult,
   RecallFilter,
   RecallHit,
   RecallResult,
 } from "#core/server/kota-client.js";
-
-export type {
+import type {
   AnswerCitation,
   AnswerFilter,
   AnswerResult,
-} from "#core/server/kota-client.js";
+} from "./client.js";
+
+export type { AnswerCitation, AnswerFilter, AnswerResult } from "./client.js";
 
 /**
  * Hard cap on the typed citation list returned to the operator. Citations

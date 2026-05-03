@@ -25,11 +25,6 @@ import { type DaemonTransport, daemonTransportFromAddress } from "./daemon-trans
 import type {
   AgentInspectResult,
   AgentsListResult,
-  AnswerFilter,
-  AnswerHistoryListFilter,
-  AnswerHistoryListResult,
-  AnswerHistoryShowResult,
-  AnswerResult,
   CaptureFilter,
   CaptureResult,
   ConfigGetResult,
@@ -174,75 +169,6 @@ async function safeFetchRaw(
   }
 }
 
-/**
- * Strict decoder for `GET /answers` responses. Rejects loud rather than
- * silently dropping malformed shapes — same discipline `KotaClient.answer`
- * already follows for the synthesizer envelope.
- */
-function decodeAnswerHistoryListResult(value: unknown): AnswerHistoryListResult {
-  if (!isObject(value)) {
-    throw new Error("Malformed answer history list payload: not an object");
-  }
-  const entries = (value as { entries?: unknown }).entries;
-  if (!Array.isArray(entries)) {
-    throw new Error("Malformed answer history list payload: entries not an array");
-  }
-  for (const entry of entries) {
-    if (!isObject(entry)) {
-      throw new Error("Malformed answer history entry: not an object");
-    }
-    const obj = entry as Record<string, unknown>;
-    if (typeof obj.id !== "string") {
-      throw new Error("Malformed answer history entry: missing id");
-    }
-    if (typeof obj.createdAt !== "string") {
-      throw new Error("Malformed answer history entry: missing createdAt");
-    }
-    if (typeof obj.query !== "string") {
-      throw new Error("Malformed answer history entry: missing query");
-    }
-    const result = obj.result as { ok?: unknown } | undefined;
-    if (!result || typeof result.ok !== "boolean") {
-      throw new Error("Malformed answer history entry: missing result.ok");
-    }
-  }
-  return value as AnswerHistoryListResult;
-}
-
-function decodeAnswerHistoryShowResult(value: unknown): AnswerHistoryShowResult {
-  if (!isObject(value)) {
-    throw new Error("Malformed answer history show payload: not an object");
-  }
-  const obj = value as { ok?: unknown };
-  if (obj.ok === false) {
-    const reason = (value as { reason?: unknown }).reason;
-    if (reason !== "not_found") {
-      throw new Error(`Malformed answer history show payload: reason=${String(reason)}`);
-    }
-    return { ok: false, reason: "not_found" };
-  }
-  if (obj.ok === true) {
-    const record = (value as { record?: unknown }).record;
-    if (!isObject(record)) {
-      throw new Error("Malformed answer history show payload: missing record");
-    }
-    const r = record as Record<string, unknown>;
-    if (
-      typeof r.id !== "string" ||
-      typeof r.createdAt !== "string" ||
-      typeof r.query !== "string"
-    ) {
-      throw new Error("Malformed answer history record: missing core fields");
-    }
-    return value as AnswerHistoryShowResult;
-  }
-  throw new Error("Malformed answer history show payload: ok not boolean");
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 // ---------------------------------------------------------------------------
 // HTTP helpers — transport-bound free functions used by the core stub
 // closures and by `DaemonControlClient` public class methods. They take a
@@ -282,58 +208,6 @@ async function recallHttp(
     throw new Error(body.error ?? `HTTP ${res.status}`);
   }
   return (await res.json()) as RecallResult;
-}
-
-async function answerHttp(
-  transport: DaemonTransport,
-  query: string,
-  filter?: AnswerFilter,
-): Promise<AnswerResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/answer`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...transport.authHeaders() },
-    body: JSON.stringify({ query, ...(filter && { filter }) }),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as AnswerResult;
-}
-
-async function answerLogHttp(
-  transport: DaemonTransport,
-  filter?: AnswerHistoryListFilter,
-): Promise<AnswerHistoryListResult> {
-  const params = new URLSearchParams();
-  if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-  if (filter?.beforeId !== undefined) params.set("beforeId", filter.beforeId);
-  const query = params.toString() ? `?${params.toString()}` : "";
-  const res = await fetchWithTimeout(`${transport.baseUrl}/answers${query}`, {
-    headers: transport.authHeaders(),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  const decoded = (await res.json()) as unknown;
-  return decodeAnswerHistoryListResult(decoded);
-}
-
-async function answerShowHttp(
-  transport: DaemonTransport,
-  id: string,
-): Promise<AnswerHistoryShowResult> {
-  const res = await fetchWithTimeout(
-    `${transport.baseUrl}/answers/${encodeURIComponent(id)}`,
-    { headers: transport.authHeaders() },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  const decoded = (await res.json()) as unknown;
-  return decodeAnswerHistoryShowResult(decoded);
 }
 
 async function configValidateHttp(
@@ -1876,11 +1750,6 @@ export function buildCoreStubDaemonClientHandlers(
     },
     recall: {
       recall: async (query, filter) => recallHttp(transport, query, filter),
-    },
-    answer: {
-      answer: async (query, filter) => answerHttp(transport, query, filter),
-      log: async (filter) => answerLogHttp(transport, filter),
-      show: async (id) => answerShowHttp(transport, id),
     },
     capture: {
       capture: async (text, filter) => captureHttp(transport, text, filter),

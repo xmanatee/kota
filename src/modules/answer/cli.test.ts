@@ -1,14 +1,14 @@
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { registerAnswerCommand } from "./cli.js";
 import type {
   AnswerHistoryListFilter,
   AnswerHistoryListResult,
   AnswerHistoryRecord,
   AnswerHistoryShowResult,
   AnswerResult,
-} from "#core/server/kota-client.js";
-import { registerAnswerCommand } from "./cli.js";
+} from "./client.js";
 
 type AnswerOverride = (
   query: string,

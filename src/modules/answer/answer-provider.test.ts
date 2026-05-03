@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import type {
-  AnswerHistoryRecord,
   RecallFilter,
   RecallHit,
   RecallResult,
@@ -8,6 +7,7 @@ import type {
 import type { AnswerHistorySink } from "./answer-history-store.js";
 import { AnswerProviderImpl } from "./answer-provider.js";
 import type { AnswerRecallSeam, Synthesizer } from "./answer-types.js";
+import type { AnswerHistoryRecord } from "./client.js";
 
 function fixedRecall(result: RecallResult): AnswerRecallSeam {
   return {

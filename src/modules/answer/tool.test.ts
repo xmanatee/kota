@@ -1,12 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type {
-  AnswerHistoryRecord,
-  RecallHit,
-  RecallResult,
-} from "#core/server/kota-client.js";
+import type { RecallHit, RecallResult } from "#core/server/kota-client.js";
 import type { AnswerHistorySink } from "./answer-history-store.js";
 import { AnswerProviderImpl } from "./answer-provider.js";
 import type { AnswerRecallSeam, Synthesizer } from "./answer-types.js";
+import type { AnswerHistoryRecord } from "./client.js";
 import { answerTool, createAnswerToolRunner } from "./tool.js";
 
 function fixedRecall(result: RecallResult): AnswerRecallSeam {

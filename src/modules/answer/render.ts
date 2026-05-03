@@ -23,12 +23,12 @@
  *      channels.
  */
 
+import type { RecallHit } from "#core/server/kota-client.js";
 import type {
   AnswerCitation,
   AnswerHistoryEntry,
   AnswerResult,
-  RecallHit,
-} from "#core/server/kota-client.js";
+} from "./client.js";
 
 const SCORE_PRECISION = 3;
 const ANSWER_LOG_QUERY_TRUNCATE = 60;

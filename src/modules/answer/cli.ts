@@ -11,15 +11,14 @@
  */
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import type { RecallHit, RecallSource } from "#core/server/kota-client.js";
+import { blank, line, plain, span } from "#modules/rendering/primitives.js";
+import { print, TerminalTransport } from "#modules/rendering/transport.js";
 import type {
   AnswerCitation,
   AnswerFilter,
   AnswerHistoryRecord,
-  RecallHit,
-  RecallSource,
-} from "#core/server/kota-client.js";
-import { blank, line, plain, span } from "#modules/rendering/primitives.js";
-import { print, TerminalTransport } from "#modules/rendering/transport.js";
+} from "./client.js";
 import {
   renderAnswerCitationsPlain,
   renderAnswerHistoryEntriesPlain,

@@ -25,9 +25,8 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
+import { daemonTransportFromAddress } from "#core/server/daemon-transport.js";
 import type {
-  AnswerHistoryRecord,
-  AnswerResult,
   RecallHit,
   RecallResult,
   RecallSource,
@@ -44,6 +43,11 @@ import {
   type SynthesisInput,
   type Synthesizer,
 } from "#modules/answer/answer-types.js";
+import type {
+  AnswerHistoryRecord,
+  AnswerResult,
+} from "#modules/answer/client.js";
+import answerModule from "#modules/answer/index.js";
 import { createAnswerHistoryRouteHandler, createAnswerRouteHandler } from "#modules/answer/routes.js";
 import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
 import {
@@ -277,15 +281,23 @@ describe("recall + cited-answer + answer-history pipeline (HTTP)", () => {
 
     const started = await createPipelineServer(routeSpecs);
     server = started.server;
-    client = DaemonControlClient.fromAddress(
-      {
-        port: started.port,
-        pid: 0,
-        startedAt: new Date().toISOString(),
-        token: "",
-      },
-      buildMigratedNamespaceTestStubs(),
-    );
+    const transport = daemonTransportFromAddress({
+      port: started.port,
+      pid: 0,
+      startedAt: new Date().toISOString(),
+      token: "",
+    });
+    // Migrated namespaces normally land on the assembled client through their
+    // owning module's `daemonClient(link)` factory. The pipeline test does not
+    // load modules, so build the answer namespace handler against the test
+    // transport explicitly and stub the rest.
+    const otherMigratedStubs = buildMigratedNamespaceTestStubs();
+    delete otherMigratedStubs.answer;
+    const answerDaemonHandler = answerModule.daemonClient!(transport);
+    client = DaemonControlClient.fromTransport(transport, {
+      ...otherMigratedStubs,
+      ...answerDaemonHandler,
+    });
   });
 
   afterAll(async () => {

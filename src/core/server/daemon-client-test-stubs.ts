@@ -42,5 +42,10 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
     retract: {
       retract: async () => ({ ok: false, reason: "no_contributors" }),
     },
+    answer: {
+      answer: async () => ({ ok: false, reason: "no_hits" }),
+      log: async () => ({ entries: [] }),
+      show: async () => ({ ok: false, reason: "not_found" }),
+    },
   };
 }

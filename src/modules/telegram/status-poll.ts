@@ -1,6 +1,5 @@
 import { join } from "node:path";
 import type {
-  AnswerClient,
   CaptureClient,
   CaptureFilter,
   CaptureTarget,
@@ -11,6 +10,7 @@ import type {
   RepoTasksClient,
 } from "#core/server/kota-client.js";
 import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
+import type { AnswerClient } from "#modules/answer/client.js";
 import {
   renderAnswerHistoryEntriesPlain,
   renderAnswerReplyPlain,

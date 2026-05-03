@@ -23,11 +23,7 @@
  * that does not resolve against the typed hit pile.
  */
 
-import type {
-  AnswerFilter,
-  AnswerResult,
-  RecallHit,
-} from "#core/server/kota-client.js";
+import type { RecallHit } from "#core/server/kota-client.js";
 import {
   type AnswerHistorySink,
   buildAnswerHistoryRecord,
@@ -40,6 +36,7 @@ import {
   type Synthesizer,
 } from "./answer-types.js";
 import { parseCitations, selectCitedHits } from "./citation-parser.js";
+import type { AnswerFilter, AnswerResult } from "./client.js";
 
 export type AnswerProviderOptions = {
   recall: AnswerRecallSeam;

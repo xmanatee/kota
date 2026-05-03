@@ -18,7 +18,6 @@
  */
 
 import type {
-  AnswerClient,
   CaptureClient,
   CaptureFilter,
   CaptureTarget,
@@ -28,6 +27,7 @@ import type {
   RecallClient,
   RepoTasksClient,
 } from "#core/server/kota-client.js";
+import type { AnswerClient } from "#modules/answer/client.js";
 import {
   renderAnswerHistoryEntriesPlain,
   renderAnswerReplyPlain,

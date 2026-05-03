@@ -19,10 +19,7 @@ import { loadConfig } from "#core/config/config.js";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import { createModelClient } from "#core/model/model-client.js";
 import type { KotaModule, ModuleContext, ModuleRuntimeContext } from "#core/modules/module-types.js";
-import type {
-  AnswerClient,
-  AnswerHistoryListFilter,
-} from "#core/server/kota-client.js";
+import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { resolveApiKey } from "#modules/model-clients/factory.js";
 import {
   RECALL_PROVIDER_TOKEN,
@@ -43,6 +40,16 @@ import {
 } from "./answer-types.js";
 import { createAnswerReadinessSource } from "./capability-readiness.js";
 import { registerAnswerCommand } from "./cli.js";
+import {
+  type AnswerClient,
+  type AnswerFilter,
+  type AnswerHistoryListFilter,
+  type AnswerHistoryListResult,
+  type AnswerHistoryShowResult,
+  type AnswerResult,
+  decodeAnswerHistoryListResult,
+  decodeAnswerHistoryShowResult,
+} from "./client.js";
 import { createAnswerRecallContributor } from "./recall-contributor.js";
 import { answerApiRoutes, answerControlRoutes } from "./routes.js";
 import {
@@ -77,6 +84,45 @@ function resolveActiveHistory(): AnswerHistoryStore {
     );
   }
   return activeHistory;
+}
+
+/**
+ * Daemon-side `AnswerClient` backed by the typed `DaemonTransport`. Calls the
+ * same `/answer`, `/answers`, and `/answers/:id` HTTP routes the daemon
+ * registers through `answerControlRoutes(...)`. The transport surface owns
+ * the bearer token, base URL, and timeout policy — this factory only encodes
+ * the wire shape and runs the strict decoders for the persisted-history reads.
+ *
+ * The JSON body for `POST /answer`, the URLSearchParams encoding for
+ * `GET /answers`, and the path-encoded id segment for `GET /answers/:id`
+ * match the existing route handlers byte-for-byte. Daemon-up callers
+ * exercise the same parsing paths as direct HTTP clients.
+ */
+function buildAnswerDaemonHandler(link: DaemonTransport): AnswerClient {
+  return {
+    answer: async (query: string, filter?: AnswerFilter): Promise<AnswerResult> =>
+      link.requestStrict<AnswerResult>("POST", "/answer", {
+        query,
+        ...(filter && { filter }),
+      }),
+    log: async (
+      filter?: AnswerHistoryListFilter,
+    ): Promise<AnswerHistoryListResult> => {
+      const params = new URLSearchParams();
+      if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
+      if (filter?.beforeId !== undefined) params.set("beforeId", filter.beforeId);
+      const query = params.toString() ? `?${params.toString()}` : "";
+      const decoded = await link.requestStrict<unknown>("GET", `/answers${query}`);
+      return decodeAnswerHistoryListResult(decoded);
+    },
+    show: async (id: string): Promise<AnswerHistoryShowResult> => {
+      const decoded = await link.requestStrict<unknown>(
+        "GET",
+        `/answers/${encodeURIComponent(id)}`,
+      );
+      return decodeAnswerHistoryShowResult(decoded);
+    },
+  };
 }
 
 function createDefaultSynthesizer(ctx: ModuleContext): Synthesizer {
@@ -203,6 +249,8 @@ const answerModule: KotaModule = {
     };
     return { answer: handler };
   },
+
+  daemonClient: (link) => ({ answer: buildAnswerDaemonHandler(link) }),
 
   onUnload() {
     if (recallContributorHost) {

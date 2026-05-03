@@ -61,6 +61,7 @@ import type {
 } from "#core/modules/provider-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
+import { daemonTransportFromAddress } from "#core/server/daemon-transport.js";
 import type { RecallHit } from "#core/server/kota-client.js";
 import {
   type AnswerHistorySink,
@@ -72,6 +73,7 @@ import type {
   AnswerRecallSeam,
   Synthesizer,
 } from "#modules/answer/answer-types.js";
+import answerModule from "#modules/answer/index.js";
 import {
   createAnswerHistoryRouteHandler,
   createAnswerRouteHandler,
@@ -322,15 +324,23 @@ describe("capture → recall → answer → answer-history pipeline (HTTP)", () 
       },
     ]);
     server = started.server;
-    client = DaemonControlClient.fromAddress(
-      {
-        port: started.port,
-        pid: 0,
-        startedAt: new Date().toISOString(),
-        token: "",
-      },
-      buildMigratedNamespaceTestStubs(),
-    );
+    const transport = daemonTransportFromAddress({
+      port: started.port,
+      pid: 0,
+      startedAt: new Date().toISOString(),
+      token: "",
+    });
+    // Migrated namespaces normally land on the assembled client through their
+    // owning module's `daemonClient(link)` factory. The pipeline test does not
+    // load modules, so build the answer namespace handler against the test
+    // transport explicitly and stub the rest.
+    const otherMigratedStubs = buildMigratedNamespaceTestStubs();
+    delete otherMigratedStubs.answer;
+    const answerDaemonHandler = answerModule.daemonClient!(transport);
+    client = DaemonControlClient.fromTransport(transport, {
+      ...otherMigratedStubs,
+      ...answerDaemonHandler,
+    });
     recallSeam = {
       async recall(query, filter) {
         return client.recall.recall(query, filter);

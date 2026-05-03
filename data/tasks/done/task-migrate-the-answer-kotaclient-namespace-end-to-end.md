@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-answer-kotaclient-namespace-end-to-end
 title: Migrate the answer KotaClient namespace end-to-end through the daemonClient(link) factory hook (foundation pilot follow-up)
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move AnswerClient interface, AnswerFilter/AnswerResult/AnswerCitation/AnswerHistoryRecord/AnswerHistoryListFilter/AnswerHistoryListResult/AnswerHistoryShowResult/AnswerHistoryEntry types from src/core/server/kota-client.ts into src/modules/answer/client.ts; add a daemonClient(link) factory to the answer module that wires answer (POST /answer), log (GET /answers with URLSearchParams), and show (GET /answers/:id) through the typed DaemonTransport; move decodeAnswerHistoryListResult and decodeAnswerHistoryShowResult into the module; remove answerHttp, answerLogHttp, answerShowHttp and the inline answer handler closure from src/core/server/daemon-client.ts.
 created_at: 2026-05-03T08:53:36.546Z
-updated_at: 2026-05-03T08:53:36.546Z
+updated_at: 2026-05-03T09:18:38.324Z
 ---
 
 ## Problem
