@@ -1,12 +1,12 @@
 ---
 id: task-add-macos-daemonclientanswerloganswershow-and-answ
 title: Add macOS DaemonClient.answerLog/answerShow and AnswerHistoryView consuming the persisted answer-history routes
-status: backlog
+status: ready
 priority: p3
 area: client
 summary: Add macOS DaemonClient.answerLog and answerShow methods plus an AnswerHistoryView so the persisted answer-history surface is discoverable on macOS, mirroring the mobile, web, and Telegram answer-log/show fan-out.
 created_at: 2026-05-02T23:26:03.049Z
-updated_at: 2026-05-02T23:26:03.049Z
+updated_at: 2026-05-03T03:04:09.919Z
 ---
 
 ## Problem

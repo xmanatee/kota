@@ -1,12 +1,12 @@
 ---
 id: task-tighten-macos-conversationrecordsource-to-closed-u
 title: Tighten macOS ConversationRecord.source to closed user|action set and add historySearch.negative_unknownSource conformance arm
-status: backlog
+status: ready
 priority: p3
 area: client
 summary: Make macOS HistoryModels.swift reject unknown ConversationRecord.source values and extend the cross-client conformance fixture with a historySearch.negative_unknownSource negative arm so drift is caught at the gate.
 created_at: 2026-05-02T23:41:33.824Z
-updated_at: 2026-05-02T23:41:33.824Z
+updated_at: 2026-05-03T03:04:09.942Z
 ---
 
 ## Problem
