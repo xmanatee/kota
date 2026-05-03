@@ -1,21 +1,22 @@
-// Mirror of the daemon's on-demand attention envelope exported from
-// `src/modules/autonomy/workflows/attention-digest/step.ts`. The same
-// shape backs the Telegram `/attention`, `kota attention` CLI, daemon
-// HTTP `GET /api/attention`, embedded web `AttentionPanel`, and macOS
-// `AttentionView` surfaces; the mobile AttentionScreen is the seventh.
+// `GET /api/attention` mobile seam. The shared conformance decoder under
+// `./conformance/decoders` matches the daemon's on-demand attention envelope
+// exported from `src/modules/autonomy/workflows/attention-digest/step.ts`,
+// the macOS Swift `Codable` decoder, and the mobile per-store search seams'
+// strict posture: a daemon-shipped malformed payload throws a
+// `ContractDecodeError` at the mobile boundary instead of flowing into
+// `AttentionScreen` as a typed-but-invalid object.
 
+import {
+  parseAttentionResponse,
+  type AttentionResponse,
+} from './conformance/decoders';
 import { daemonRequest, type DaemonHttp } from './http';
 
-export interface AttentionItem {
-  label: string;
-  detail: string;
-}
+export type { AttentionItem, AttentionResponse } from './conformance/decoders';
 
-export interface AttentionResponse {
-  data: { items: AttentionItem[] };
-  text: string;
-}
-
-export function getAttention(http: DaemonHttp): Promise<AttentionResponse> {
-  return daemonRequest<AttentionResponse>(http, '/api/attention');
+export async function getAttention(
+  http: DaemonHttp,
+): Promise<AttentionResponse> {
+  const raw = await daemonRequest<unknown>(http, '/api/attention');
+  return parseAttentionResponse(raw);
 }

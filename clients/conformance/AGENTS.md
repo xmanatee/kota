@@ -17,8 +17,12 @@ so strict decoding stays intentional rather than accidentally lax.
   decoding load-bearing and must reject on unknown discriminators.
 - Web and core import the canonical TypeScript catalog directly. The
   mobile workspace cannot resolve helpers outside its tree (expo babel
-  transform), so byte-identical copies live under the mobile fixtures
-  directory and a cross-client integration test enforces byte-identity.
+  transform), so byte-identical copies live under
+  `clients/mobile/src/daemon/conformance/` and a cross-client integration
+  test enforces byte-identity. The mobile copies sit in the production
+  tree (not under `__tests__/`) so the same strict-decode parsers back
+  both the conformance fixture suite and the mobile production runtime
+  paths (`clients/mobile/src/daemon/digest.ts`, `attention.ts`, …).
 - The macOS suite consumes a `Bundle.module` resource copy declared in
   the Swift package manifest; the same cross-client guard asserts the
   copy parses to the same JSON tree as the canonical file.

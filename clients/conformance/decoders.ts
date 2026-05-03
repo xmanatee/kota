@@ -14,8 +14,11 @@
  * The decoders are deliberately scoped to the surfaces named on
  * `task-share-or-conformance-test-daemon-wire-contracts-ac` (recall,
  * answer, answer-history, capture, retract, per-store semantic search,
- * attention, digest, voice failure envelopes) — the cross-client
- * conformance gate, not a runtime parser layer for production callers.
+ * attention, digest, voice failure envelopes). The web client's
+ * `clients/web/src/api/client.ts` and the mobile client's
+ * `clients/mobile/src/daemon/{digest,attention,…}.ts` import these
+ * decoders directly so the same strict-decode contract that backs the
+ * conformance fixture suite also gates the production runtime path.
  */
 
 export class ContractDecodeError extends Error {

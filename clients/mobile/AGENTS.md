@@ -23,6 +23,13 @@ core). Each namespace file owns its types, parsers, and the
 - `src/daemon/http.ts` is the shared `DaemonHttp` context plus the
   `daemonRequest<T>` helper every namespace uses for bearer-auth JSON
   calls.
+- `src/daemon/conformance/` carries the byte-identical mirror of
+  `clients/conformance/decoders.ts` and `decoders.test-cases.ts`. The
+  per-namespace files call into `parse*Response` from this directory so
+  the daemon boundary throws a `ContractDecodeError` on a malformed
+  payload instead of silently flowing into the screens. The cross-client
+  integration test (`src/contract-fixture-cross-client.integration.test.ts`)
+  enforces byte-identity with the canonical files.
 - `src/daemon/index.ts` re-exports every namespace; `src/types.ts` is
   a thin barrel onto that index so existing `from '../types'` imports
   keep working.

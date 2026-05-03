@@ -20,7 +20,7 @@ import fixture from './__fixtures__/contract-fixture.json';
 import {
   CONFORMANCE_CASES,
   readFixturePath,
-} from './__fixtures__/decoders.test-cases';
+} from '../daemon/conformance/decoders.test-cases';
 
 describe('mobile client — thin-client contract conformance fixtures', () => {
   for (const testCase of CONFORMANCE_CASES) {

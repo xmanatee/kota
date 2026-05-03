@@ -12,11 +12,14 @@
  *   `clients/apple/Tests/KotaSharedTests/contract-fixture.json`
  *   (declared in `Package.swift` via `resources: [.copy(...)]`).
  * - Mobile Jest suite —
- *   `clients/mobile/src/__tests__/__fixtures__/{contract-fixture.json,
- *   decoders.ts, decoders.test-cases.ts}`. The TypeScript copies are kept
- *   in lockstep with the canonical files because Jest's expo babel
- *   transform cannot resolve helpers when transforming files outside the
- *   mobile workspace.
+ *   `clients/mobile/src/__tests__/__fixtures__/contract-fixture.json` and
+ *   `clients/mobile/src/daemon/conformance/{decoders.ts,
+ *   decoders.test-cases.ts}`. The TypeScript copies are kept in lockstep
+ *   with the canonical files because Jest's expo babel transform cannot
+ *   resolve helpers when transforming files outside the mobile workspace.
+ *   The decoders live under `src/daemon/conformance/` (production tree)
+ *   so the same parsers back the mobile production runtime as well as
+ *   the conformance fixture suite.
  *
  * This test asserts every client copy is byte-identical to its canonical
  * source. Any drift between them fails this guard, which keeps the
@@ -60,11 +63,11 @@ const MOBILE_FIXTURE_COPY = resolve(
 );
 const MOBILE_DECODERS_COPY = resolve(
   __dirname,
-  "../clients/mobile/src/__tests__/__fixtures__/decoders.ts",
+  "../clients/mobile/src/daemon/conformance/decoders.ts",
 );
 const MOBILE_CASES_COPY = resolve(
   __dirname,
-  "../clients/mobile/src/__tests__/__fixtures__/decoders.test-cases.ts",
+  "../clients/mobile/src/daemon/conformance/decoders.test-cases.ts",
 );
 
 function readJsonTree(path: string): unknown {
