@@ -10,9 +10,9 @@ import type {
   ControlRouteRegistration,
   ModuleContext,
 } from "#core/modules/module-types.js";
-import type { AuditListFilter } from "#core/server/kota-client.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import { listAuditEntries } from "./audit-operations.js";
+import type { AuditListFilter } from "./client.js";
 
 function parseFilter(url: URL): AuditListFilter {
   const filter: AuditListFilter = {};

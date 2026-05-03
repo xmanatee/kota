@@ -36,5 +36,8 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       list: async () => ({ scenarios: [] }),
       run: async () => ({ ok: true, outBaseDir: "", artifacts: [] }),
     },
+    audit: {
+      list: async () => ({ entries: [] }),
+    },
   };
 }

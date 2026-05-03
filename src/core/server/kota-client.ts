@@ -47,6 +47,7 @@ import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 // `#modules/*` import direction in `src/core/server/`. The narrow exception
 // is enforced in `src/core/agent-harness/no-module-imports-in-core.test.ts`.
 import type { DoctorClient } from "#modules/doctor/client.js";
+import type { AuditClient } from "#modules/guardrails-audit/client.js";
 import type { HarnessParityClient } from "#modules/harness-parity/client.js";
 
 /** A masked entry in the secret store (name and source only — never the value). */
@@ -1563,51 +1564,6 @@ export type McpServerStartResult =
 
 export interface McpServerClient {
   start(options: McpServerStartOptions): Promise<McpServerStartResult>;
-}
-
-/**
- * A guardrail audit entry as the CLI surfaces it. Mirrors `AuditEntry`
- * but is declared on the contract surface so the daemon and local
- * implementors share the same wire shape without coupling clients to
- * the core audit-store types.
- */
-export type AuditListEntry = {
-  ts: string;
-  tool: string;
-  risk: string;
-  policy: string;
-  reason: string;
-  session?: string;
-};
-
-/**
- * Filter for `AuditClient.list`. Mirrors the existing CLI flags and
- * HTTP `/api/audit` query params so callers do not need to know which
- * transport answered.
- */
-export type AuditListFilter = {
-  tool?: string;
-  risk?: "safe" | "low" | "moderate" | "dangerous" | "critical";
-  policy?: "allow" | "confirm" | "deny";
-  since?: string;
-  session?: string;
-  limit?: number;
-};
-
-export type AuditListResult = {
-  entries: AuditListEntry[];
-};
-
-/**
- * Audit-trail operations.
- *
- * `list` returns guardrail assessments newest-first. The local handler
- * reads `.kota/audit.jsonl` through the audit store; the daemon handler
- * reads through the same store the daemon-loaded `guardrails-audit`
- * module owns. Both transports return the same shape.
- */
-export interface AuditClient {
-  list(filter?: AuditListFilter): Promise<AuditListResult>;
 }
 
 /**

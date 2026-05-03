@@ -7,12 +7,9 @@
  * for a given filter.
  */
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type {
-  AuditListFilter,
-  AuditListResult,
-} from "#core/server/kota-client.js";
 import type { AuditEntry, AuditFilter } from "#core/tools/audit-store.js";
 import { AuditStore, getAuditStore } from "#core/tools/audit-store.js";
+import type { AuditListFilter, AuditListResult } from "./client.js";
 
 const DEFAULT_LIMIT = 50;
 

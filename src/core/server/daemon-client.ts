@@ -30,8 +30,6 @@ import type {
   AnswerHistoryListResult,
   AnswerHistoryShowResult,
   AnswerResult,
-  AuditListFilter,
-  AuditListResult,
   CaptureFilter,
   CaptureResult,
   ConfigGetResult,
@@ -354,28 +352,6 @@ async function answerShowHttp(
   }
   const decoded = (await res.json()) as unknown;
   return decodeAnswerHistoryShowResult(decoded);
-}
-
-async function listAuditHttp(
-  transport: DaemonTransport,
-  filter?: AuditListFilter,
-): Promise<AuditListResult> {
-  const params = new URLSearchParams();
-  if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-  if (filter?.tool) params.set("tool", filter.tool);
-  if (filter?.risk) params.set("risk", filter.risk);
-  if (filter?.policy) params.set("policy", filter.policy);
-  if (filter?.since) params.set("since", filter.since);
-  if (filter?.session) params.set("session", filter.session);
-  const query = params.toString() ? `?${params.toString()}` : "";
-  const res = await fetchWithTimeout(`${transport.baseUrl}/audit${query}`, {
-    headers: transport.authHeaders(),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as AuditListResult;
 }
 
 async function configValidateHttp(
@@ -1872,9 +1848,6 @@ export function buildCoreStubDaemonClientHandlers(
     },
     mcpServer: {
       start: async (_options): Promise<McpServerStartResult> => ({ ok: false, reason: "daemon_required" }),
-    },
-    audit: {
-      list: async (filter) => listAuditHttp(transport, filter),
     },
     config: {
       validate: async () => configValidateHttp(transport),

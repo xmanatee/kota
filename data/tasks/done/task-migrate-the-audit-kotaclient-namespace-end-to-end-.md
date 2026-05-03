@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-audit-kotaclient-namespace-end-to-end-
 title: Migrate the audit KotaClient namespace end-to-end through the daemonClient(link) factory hook (foundation pilot follow-up)
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move AuditClient interface and AuditListEntry/AuditListFilter/AuditListResult from src/core/server/kota-client.ts into src/modules/guardrails-audit/client.ts; add a daemonClient(link) factory to the guardrails-audit module that calls /audit through the typed DaemonTransport; remove listAuditHttp and the inline audit handler closure from src/core/server/daemon-client.ts.
 created_at: 2026-05-03T07:42:02.895Z
-updated_at: 2026-05-03T07:42:02.895Z
+updated_at: 2026-05-03T07:52:26.322Z
 ---
 
 ## Problem

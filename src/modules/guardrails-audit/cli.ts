@@ -1,9 +1,5 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type {
-	AuditListEntry,
-	AuditListFilter,
-} from "#core/server/kota-client.js";
 import {
 	type LineNode,
 	line,
@@ -12,6 +8,7 @@ import {
 	stack,
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
+import type { AuditListEntry, AuditListFilter } from "./client.js";
 
 const DEFAULT_LIMIT = 50;
 
