@@ -72,6 +72,8 @@ export type WorkflowDefinitionSummary = {
   runtimeEnabled?: boolean;
   stepCount: number;
   triggers: WorkflowDefinitionTriggerSummary[];
+  inputSchema?: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
 };
 
 export type WorkflowActiveRun = {

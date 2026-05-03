@@ -1,17 +1,23 @@
 import { api } from "@/api/client";
 import {
   queryKeys,
+  workflowDefinitionsQuery,
   workflowRunsQuery,
   workflowStatusQuery,
 } from "@/api/queries";
-import type { WorkflowRunSummary } from "@/api/types";
+import type {
+  WorkflowDefinitionSummary,
+  WorkflowRunSummary,
+} from "@/api/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { fmtDuration } from "@/lib/utils";
+import { parseTriggerFields } from "@/lib/workflow-trigger-schema";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { WorkflowTriggerForm } from "./WorkflowTriggerForm";
 
 type WorkflowFilter = {
   workflow: string;
@@ -26,6 +32,7 @@ export function WorkflowPanel({
 }: { onRunSelect: (id: string) => void }) {
   const queryClient = useQueryClient();
   const { data: statusData } = useQuery(workflowStatusQuery);
+  const { data: definitionsData } = useQuery(workflowDefinitionsQuery);
   const { data: runsData } = useQuery(workflowRunsQuery({ limit: 50 }));
   const [filter, setFilter] = useState<WorkflowFilter>({
     workflow: "",
@@ -34,12 +41,19 @@ export function WorkflowPanel({
     tag: "",
     search: "",
   });
+  const [openFormFor, setOpenFormFor] = useState<string | null>(null);
 
   const activeRuns = statusData?.activeRuns ?? [];
   const pendingRuns = statusData?.pendingRuns ?? [];
   const recentRuns = runsData?.runs ?? [];
   const paused = statusData?.paused ?? false;
-  const workflowNames = Object.keys(statusData?.workflows ?? {}).sort();
+  const definitions: WorkflowDefinitionSummary[] =
+    definitionsData?.definitions ?? [];
+  const definitionByName = new Map(definitions.map((d) => [d.name, d]));
+  const workflowNames =
+    definitions.length > 0
+      ? definitions.map((d) => d.name).sort()
+      : Object.keys(statusData?.workflows ?? {}).sort();
 
   const tagSet = new Set<string>();
   for (const r of recentRuns) {
@@ -61,9 +75,31 @@ export function WorkflowPanel({
     onSuccess: invalidate,
   });
   const triggerMutation = useMutation({
-    mutationFn: (name: string) => api.triggerWorkflow(name),
-    onSuccess: invalidate,
+    mutationFn: ({
+      name,
+      payload,
+    }: { name: string; payload?: Record<string, string | number | boolean> }) =>
+      api.triggerWorkflow(name, payload),
+    onSuccess: () => {
+      setOpenFormFor(null);
+      invalidate();
+    },
   });
+
+  function handleTriggerClick(name: string): void {
+    const def = definitionByName.get(name);
+    const fields = parseTriggerFields(def?.inputSchema);
+    if (fields.length === 0) {
+      triggerMutation.mutate({ name });
+      return;
+    }
+    setOpenFormFor((current) => (current === name ? null : name));
+  }
+
+  const openForm = openFormFor ? definitionByName.get(openFormFor) : undefined;
+  const openFormFields = openForm
+    ? parseTriggerFields(openForm.inputSchema)
+    : [];
   const cancelMutation = useMutation({
     mutationFn: (id: string) => api.cancelWorkflowRun(id),
     onSuccess: invalidate,
@@ -104,18 +140,38 @@ export function WorkflowPanel({
             \u23F9 Abort
           </Button>
         )}
-        {workflowNames.map((name) => (
-          <Button
-            key={name}
-            size="sm"
-            variant="ghost"
-            className="h-6 text-xs"
-            onClick={() => triggerMutation.mutate(name)}
-          >
-            \u25B6 {name}
-          </Button>
-        ))}
+        {workflowNames.map((name) => {
+          const def = definitionByName.get(name);
+          const hasInput =
+            def != null && parseTriggerFields(def.inputSchema).length > 0;
+          return (
+            <Button
+              key={name}
+              size="sm"
+              variant="ghost"
+              className="h-6 text-xs"
+              onClick={() => handleTriggerClick(name)}
+            >
+              \u25B6 {name}
+              {hasInput && (
+                <span className="ml-1 text-muted-foreground">\u2026</span>
+              )}
+            </Button>
+          );
+        })}
       </div>
+
+      {openForm && openFormFields.length > 0 && (
+        <WorkflowTriggerForm
+          workflowName={openForm.name}
+          fields={openFormFields}
+          busy={triggerMutation.isPending}
+          onSubmit={(payload) =>
+            triggerMutation.mutate({ name: openForm.name, payload })
+          }
+          onCancel={() => setOpenFormFor(null)}
+        />
+      )}
 
       <div className="flex flex-wrap gap-1">
         <Select

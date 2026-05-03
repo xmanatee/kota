@@ -1,12 +1,12 @@
 ---
 id: task-web-ui-workflow-trigger-form
 title: Show input form when manually triggering a parameterized workflow from the web UI
-status: ready
+status: done
 priority: p2
 area: client
 summary: The React web workflow controls trigger each workflow with no payload, while daemon workflow definitions can include inputSchema. Show a generated input form before triggering parameterized workflows so operators do not need to drop to the CLI.
 created_at: 2026-04-08T19:09:14Z
-updated_at: 2026-05-03T01:37:47.476Z
+updated_at: 2026-05-03T01:46:37.877Z
 ---
 
 ## Source / Intent
