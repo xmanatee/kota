@@ -22,6 +22,40 @@ struct RecallRequestBody: Encodable {
     let filter: RecallRequestFilter
 }
 
+/// Mirror of the daemon's `RecallAnswerHit.result` discriminated union:
+/// either `{ ok: true }` (the prior cited answer succeeded) or
+/// `{ ok: false, reason: ... }` over the same closed reason set as
+/// `AnswerResult`. Strict decode so payload drift fails loudly instead of
+/// silently degrading the rendered surface.
+enum RecallAnswerHitResult: Decodable, Equatable {
+    case success
+    case failure(reason: String)
+
+    private enum CodingKeys: String, CodingKey {
+        case ok, reason
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let ok = try container.decode(Bool.self, forKey: .ok)
+        if ok {
+            self = .success
+            return
+        }
+        let reason = try container.decode(String.self, forKey: .reason)
+        switch reason {
+        case "no_hits", "semantic_unavailable", "synthesis_failed":
+            self = .failure(reason: reason)
+        default:
+            throw DecodingError.dataCorruptedError(
+                forKey: .reason,
+                in: container,
+                debugDescription: "Unknown recall answer-hit result reason: \(reason)"
+            )
+        }
+    }
+}
+
 /// Mirror of one ranked, source-tagged hit returned by the daemon's
 /// cross-store recall seam. Decoded as a Swift enum with associated
 /// values so each arm carries exactly the fields its surface needs —
@@ -32,9 +66,19 @@ enum RecallHit: Decodable, Equatable {
     case memory(score: Double, id: String, preview: String, created: String)
     case history(score: Double, id: String, title: String, cwd: String, updatedAt: String)
     case tasks(score: Double, id: String, title: String, state: String, priority: String, updatedAt: String)
+    case answer(
+        score: Double,
+        id: String,
+        query: String,
+        preview: String,
+        citationCount: Int,
+        createdAt: String,
+        result: RecallAnswerHitResult
+    )
 
     private enum CodingKeys: String, CodingKey {
-        case source, score, id, title, preview, updated, created, cwd, updatedAt, state, priority
+        case source, score, id, title, preview, updated, created, cwd, updatedAt, state, priority,
+             query, citationCount, createdAt, result
     }
 
     init(from decoder: Decoder) throws {
@@ -63,6 +107,21 @@ enum RecallHit: Decodable, Equatable {
             let priority = try container.decode(String.self, forKey: .priority)
             let updatedAt = try container.decode(String.self, forKey: .updatedAt)
             self = .tasks(score: score, id: id, title: title, state: state, priority: priority, updatedAt: updatedAt)
+        case "answer":
+            let query = try container.decode(String.self, forKey: .query)
+            let preview = try container.decode(String.self, forKey: .preview)
+            let citationCount = try container.decode(Int.self, forKey: .citationCount)
+            let createdAt = try container.decode(String.self, forKey: .createdAt)
+            let result = try container.decode(RecallAnswerHitResult.self, forKey: .result)
+            self = .answer(
+                score: score,
+                id: id,
+                query: query,
+                preview: preview,
+                citationCount: citationCount,
+                createdAt: createdAt,
+                result: result
+            )
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .source,
@@ -78,6 +137,7 @@ enum RecallHit: Decodable, Equatable {
         case .memory: return "memory"
         case .history: return "history"
         case .tasks: return "tasks"
+        case .answer: return "answer"
         }
     }
 
@@ -87,6 +147,7 @@ enum RecallHit: Decodable, Equatable {
         case .memory(_, let id, _, _): return id
         case .history(_, let id, _, _, _): return id
         case .tasks(_, let id, _, _, _, _): return id
+        case .answer(_, let id, _, _, _, _, _): return id
         }
     }
 
@@ -96,6 +157,7 @@ enum RecallHit: Decodable, Equatable {
         case .memory(let score, _, _, _): return score
         case .history(let score, _, _, _, _): return score
         case .tasks(let score, _, _, _, _, _): return score
+        case .answer(let score, _, _, _, _, _, _): return score
         }
     }
 
@@ -105,6 +167,11 @@ enum RecallHit: Decodable, Equatable {
         case .memory(_, _, let preview, _): return preview
         case .history(_, _, let title, _, _): return title
         case .tasks(_, _, let title, let state, let priority, _): return "[\(state)/\(priority)] \(title)"
+        case .answer(_, _, let query, _, _, _, let result):
+            switch result {
+            case .success: return query
+            case .failure(let reason): return "[\(reason)] \(query)"
+            }
         }
     }
 }

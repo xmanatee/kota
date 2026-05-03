@@ -14,6 +14,7 @@ const SOURCE_BADGE_VARIANT: Record<
   memory: "secondary",
   history: "running",
   tasks: "warning",
+  answer: "success",
 };
 
 export const ANSWER_FAILURE_MESSAGE: Record<
@@ -36,6 +37,10 @@ function describeHit(hit: RecallHit): string {
       return hit.title;
     case "tasks":
       return `[${hit.state}/${hit.priority}] ${hit.title}`;
+    case "answer":
+      return hit.result.ok
+        ? hit.query
+        : `[${hit.result.reason}] ${hit.query}`;
   }
 }
 
@@ -59,6 +64,9 @@ function findHit(hits: RecallHit[], citation: AnswerCitation): RecallHit {
       break;
     case "tasks":
       match = hits.find((h) => h.source === "tasks" && h.id === citation.id);
+      break;
+    case "answer":
+      match = hits.find((h) => h.source === "answer" && h.id === citation.id);
       break;
   }
   if (!match) {

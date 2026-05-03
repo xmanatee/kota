@@ -121,8 +121,22 @@ final class ContractFixtureTests: XCTestCase {
             XCTFail("expected ok=true recall response")
             return
         }
-        XCTAssertEqual(hits.count, 4)
-        XCTAssertEqual(hits.map { $0.source }, ["knowledge", "memory", "history", "tasks"])
+        XCTAssertEqual(hits.count, 5)
+        XCTAssertEqual(
+            hits.map { $0.source },
+            ["knowledge", "memory", "history", "tasks", "answer"]
+        )
+    }
+
+    func testDecodesRecallSuccessAnswerHitFailureArm() throws {
+        let data = try Self.nestedData(["recall", "successAnswerHitFailureArm"])
+        let result = try JSONDecoder().decode(RecallSearchResponse.self, from: data)
+        guard case .success(let hits) = result, hits.count == 1 else {
+            XCTFail("expected single answer hit")
+            return
+        }
+        XCTAssertEqual(hits[0].source, "answer")
+        XCTAssertEqual(hits[0].describe, "[no_hits] What is the latest deploy status?")
     }
 
     func testDecodesRecallSemanticUnavailable() throws {
@@ -134,6 +148,11 @@ final class ContractFixtureTests: XCTestCase {
 
     func testRecallNegativeUnknownSourceFails() throws {
         let data = try Self.nestedData(["recall", "negative_unknownSource"])
+        XCTAssertThrowsError(try JSONDecoder().decode(RecallSearchResponse.self, from: data))
+    }
+
+    func testRecallNegativeUnknownAnswerResultReasonFails() throws {
+        let data = try Self.nestedData(["recall", "negative_unknownAnswerResultReason"])
         XCTAssertThrowsError(try JSONDecoder().decode(RecallSearchResponse.self, from: data))
     }
 
@@ -152,8 +171,16 @@ final class ContractFixtureTests: XCTestCase {
             return
         }
         XCTAssertFalse(answer.isEmpty)
-        XCTAssertEqual(citations.count, 2)
-        XCTAssertEqual(hits.count, 2)
+        XCTAssertEqual(citations.count, 3)
+        XCTAssertEqual(hits.count, 3)
+        XCTAssertTrue(
+            citations.contains { $0.source == "answer" && $0.id == "ans-1" },
+            "expected the success arm to include a source: 'answer' citation"
+        )
+        XCTAssertTrue(
+            hits.contains { $0.source == "answer" && $0.id == "ans-1" },
+            "expected the success arm to include a matching source: 'answer' hit"
+        )
     }
 
     func testDecodesAnswerNoHits() throws {
@@ -179,6 +206,11 @@ final class ContractFixtureTests: XCTestCase {
 
     func testAnswerNegativeUnknownReasonFails() throws {
         let data = try Self.nestedData(["answer", "negative_unknownReason"])
+        XCTAssertThrowsError(try JSONDecoder().decode(AnswerResult.self, from: data))
+    }
+
+    func testAnswerNegativeUnknownCitationSourceFails() throws {
+        let data = try Self.nestedData(["answer", "negative_unknownCitationSource"])
         XCTAssertThrowsError(try JSONDecoder().decode(AnswerResult.self, from: data))
     }
 

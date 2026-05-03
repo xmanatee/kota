@@ -247,4 +247,93 @@ final class RecallViewTests: XCTestCase {
         """#.data(using: .utf8)!
         XCTAssertThrowsError(try decoder.decode(RecallSearchResponse.self, from: json))
     }
+
+    // MARK: - Answer-source arm
+
+    /// Pins the `RecallAnswerHit` shape mirrored from
+    /// `src/core/server/kota-client.ts`. The success-result variant
+    /// decodes through every accessor (`source`, `id`, `score`,
+    /// `describe`) so the per-arm view rows render identically with the
+    /// other four sources.
+    func testRecallSearchResponseDecodesAnswerHitSuccessArm() throws {
+        let json = #"""
+        {"ok": true, "hits": [
+          {
+            "source": "answer",
+            "score": 0.49,
+            "id": "ans-1",
+            "query": "How does the harness boundary work?",
+            "preview": "The harness boundary is a typed protocol; see kn-42.",
+            "citationCount": 1,
+            "createdAt": "2026-05-01T12:00:00.000Z",
+            "result": { "ok": true }
+          }
+        ]}
+        """#.data(using: .utf8)!
+        let response = try decoder.decode(RecallSearchResponse.self, from: json)
+        guard case .success(let hits) = response, hits.count == 1 else {
+            XCTFail("expected single answer hit")
+            return
+        }
+        let hit = hits[0]
+        XCTAssertEqual(hit.source, "answer")
+        XCTAssertEqual(hit.id, "ans-1")
+        XCTAssertEqual(hit.score, 0.49, accuracy: 1e-6)
+        XCTAssertEqual(hit.describe, "How does the harness boundary work?")
+        if case .answer(_, _, _, _, let citationCount, _, let result) = hit {
+            XCTAssertEqual(citationCount, 1)
+            XCTAssertEqual(result, .success)
+        } else {
+            XCTFail("expected .answer arm")
+        }
+    }
+
+    /// The failure-arm variant carries the prior synthesizer's failure
+    /// `reason` over the same closed set as `AnswerResult`. The
+    /// `describe` projection paints the failure inline so the operator
+    /// can tell a failed prior synthesis from a successful one without
+    /// drilling into the record.
+    func testRecallSearchResponseDecodesAnswerHitFailureArm() throws {
+        let json = #"""
+        {"ok": true, "hits": [
+          {
+            "source": "answer",
+            "score": 0.31,
+            "id": "ans-2",
+            "query": "What is the latest deploy status?",
+            "preview": "Recall returned no hits for this question.",
+            "citationCount": 0,
+            "createdAt": "2026-05-01T12:05:00.000Z",
+            "result": { "ok": false, "reason": "no_hits" }
+          }
+        ]}
+        """#.data(using: .utf8)!
+        let response = try decoder.decode(RecallSearchResponse.self, from: json)
+        guard case .success(let hits) = response, hits.count == 1 else {
+            XCTFail("expected single answer hit")
+            return
+        }
+        XCTAssertEqual(hits[0].describe, "[no_hits] What is the latest deploy status?")
+    }
+
+    /// An unknown `reason` on the nested `result` discriminator must
+    /// throw rather than silently degrading the rendered surface — the
+    /// closed reason set is load-bearing on every visual surface.
+    func testRecallSearchResponseRejectsUnknownAnswerResultReason() {
+        let json = #"""
+        {"ok": true, "hits": [
+          {
+            "source": "answer",
+            "score": 0.31,
+            "id": "ans-3",
+            "query": "Drift case",
+            "preview": "future_reason should not decode",
+            "citationCount": 0,
+            "createdAt": "2026-05-01T12:10:00.000Z",
+            "result": { "ok": false, "reason": "future_reason" }
+          }
+        ]}
+        """#.data(using: .utf8)!
+        XCTAssertThrowsError(try decoder.decode(RecallSearchResponse.self, from: json))
+    }
 }

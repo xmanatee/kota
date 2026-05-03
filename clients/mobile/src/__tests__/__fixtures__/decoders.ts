@@ -97,7 +97,12 @@ function asOptionalStringArray(
 
 // MARK: - Recall
 
-export type RecallSource = "knowledge" | "memory" | "history" | "tasks";
+export type RecallSource =
+  | "knowledge"
+  | "memory"
+  | "history"
+  | "tasks"
+  | "answer";
 
 export type RecallKnowledgeHit = {
   source: "knowledge";
@@ -135,15 +140,49 @@ export type RecallTasksHit = {
   updatedAt: string;
 };
 
+export type RecallAnswerHitResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: "no_hits" | "semantic_unavailable" | "synthesis_failed";
+    };
+
+export type RecallAnswerHit = {
+  source: "answer";
+  score: number;
+  id: string;
+  query: string;
+  preview: string;
+  citationCount: number;
+  createdAt: string;
+  result: RecallAnswerHitResult;
+};
+
 export type RecallHit =
   | RecallKnowledgeHit
   | RecallMemoryHit
   | RecallHistoryHit
-  | RecallTasksHit;
+  | RecallTasksHit
+  | RecallAnswerHit;
 
 export type RecallResult =
   | { ok: true; hits: RecallHit[] }
   | { ok: false; reason: "semantic_unavailable" };
+
+function parseRecallAnswerHitResult(raw: unknown): RecallAnswerHitResult {
+  const obj = asObject(raw, "recallHit[answer].result");
+  const ok = asBool(obj.ok, "recallHit[answer].result.ok");
+  if (ok) return { ok: true };
+  const reason = asString(obj.reason, "recallHit[answer].result.reason");
+  if (
+    reason === "no_hits" ||
+    reason === "semantic_unavailable" ||
+    reason === "synthesis_failed"
+  ) {
+    return { ok: false, reason };
+  }
+  return fail(`unknown recall answer-hit result reason: ${reason}`);
+}
 
 export function parseRecallHit(raw: unknown): RecallHit {
   const obj = asObject(raw, "recallHit");
@@ -187,6 +226,20 @@ export function parseRecallHit(raw: unknown): RecallHit {
         priority: asString(obj.priority, "recallHit[tasks].priority"),
         updatedAt: asString(obj.updatedAt, "recallHit[tasks].updatedAt"),
       };
+    case "answer":
+      return {
+        source: "answer",
+        score,
+        id,
+        query: asString(obj.query, "recallHit[answer].query"),
+        preview: asString(obj.preview, "recallHit[answer].preview"),
+        citationCount: asInt(
+          obj.citationCount,
+          "recallHit[answer].citationCount",
+        ),
+        createdAt: asString(obj.createdAt, "recallHit[answer].createdAt"),
+        result: parseRecallAnswerHitResult(obj.result),
+      };
     default:
       return fail(`unknown recall hit source: ${source}`);
   }
@@ -227,7 +280,8 @@ function parseAnswerCitation(raw: unknown): AnswerCitation {
     source !== "knowledge" &&
     source !== "memory" &&
     source !== "history" &&
-    source !== "tasks"
+    source !== "tasks" &&
+    source !== "answer"
   ) {
     return fail(`unknown answer citation source: ${source}`);
   }

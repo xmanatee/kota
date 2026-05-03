@@ -379,7 +379,12 @@ export type AttentionResponse = {
  * `RecallResult` discriminated union (see
  * `src/core/server/kota-client.ts`).
  */
-export type RecallSource = "knowledge" | "memory" | "history" | "tasks";
+export type RecallSource =
+  | "knowledge"
+  | "memory"
+  | "history"
+  | "tasks"
+  | "answer";
 
 export type RecallKnowledgeHit = {
   source: "knowledge";
@@ -417,11 +422,30 @@ export type RecallTasksHit = {
   updatedAt: string;
 };
 
+export type RecallAnswerHitResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: "no_hits" | "semantic_unavailable" | "synthesis_failed";
+    };
+
+export type RecallAnswerHit = {
+  source: "answer";
+  score: number;
+  id: string;
+  query: string;
+  preview: string;
+  citationCount: number;
+  createdAt: string;
+  result: RecallAnswerHitResult;
+};
+
 export type RecallHit =
   | RecallKnowledgeHit
   | RecallMemoryHit
   | RecallHistoryHit
-  | RecallTasksHit;
+  | RecallTasksHit
+  | RecallAnswerHit;
 
 export type RecallResult =
   | { ok: true; hits: RecallHit[] }

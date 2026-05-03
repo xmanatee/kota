@@ -6,7 +6,12 @@
 
 import { daemonRequest, type DaemonHttp } from './http';
 
-export type RecallSource = 'knowledge' | 'memory' | 'history' | 'tasks';
+export type RecallSource =
+  | 'knowledge'
+  | 'memory'
+  | 'history'
+  | 'tasks'
+  | 'answer';
 
 export interface RecallKnowledgeHit {
   source: 'knowledge';
@@ -44,11 +49,30 @@ export interface RecallTasksHit {
   updatedAt: string;
 }
 
+export type RecallAnswerHitResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: 'no_hits' | 'semantic_unavailable' | 'synthesis_failed';
+    };
+
+export interface RecallAnswerHit {
+  source: 'answer';
+  score: number;
+  id: string;
+  query: string;
+  preview: string;
+  citationCount: number;
+  createdAt: string;
+  result: RecallAnswerHitResult;
+}
+
 export type RecallHit =
   | RecallKnowledgeHit
   | RecallMemoryHit
   | RecallHistoryHit
-  | RecallTasksHit;
+  | RecallTasksHit
+  | RecallAnswerHit;
 
 export type RecallSearchResponse =
   | { ok: true; hits: RecallHit[] }
@@ -189,7 +213,51 @@ export function parseRecallHit(value: unknown): RecallHit {
         priority: obj.priority,
         updatedAt: obj.updatedAt,
       };
+    case 'answer':
+      if (
+        typeof obj.query !== 'string' ||
+        typeof obj.preview !== 'string' ||
+        typeof obj.citationCount !== 'number' ||
+        !Number.isInteger(obj.citationCount) ||
+        typeof obj.createdAt !== 'string'
+      ) {
+        throw new Error('Invalid recall hit: missing answer fields');
+      }
+      return {
+        source: 'answer',
+        score: obj.score,
+        id: obj.id,
+        query: obj.query,
+        preview: obj.preview,
+        citationCount: obj.citationCount,
+        createdAt: obj.createdAt,
+        result: parseRecallAnswerHitResult(obj.result),
+      };
     default:
       throw new Error(`Invalid recall hit: unknown source ${String(obj.source)}`);
   }
+}
+
+function parseRecallAnswerHitResult(value: unknown): RecallAnswerHitResult {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('Invalid recall answer hit: result not an object');
+  }
+  const obj = value as Record<string, unknown>;
+  if (obj.ok === true) {
+    return { ok: true };
+  }
+  if (obj.ok === false) {
+    const reason = obj.reason;
+    if (
+      reason !== 'no_hits' &&
+      reason !== 'semantic_unavailable' &&
+      reason !== 'synthesis_failed'
+    ) {
+      throw new Error(
+        `Invalid recall answer hit: unknown result reason ${String(reason)}`,
+      );
+    }
+    return { ok: false, reason };
+  }
+  throw new Error('Invalid recall answer hit: missing result.ok flag');
 }

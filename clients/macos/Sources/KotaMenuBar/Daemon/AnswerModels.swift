@@ -9,9 +9,46 @@ import Foundation
 /// the same `{ source, id }` discriminator as the underlying
 /// `RecallHit` so the response is always reconstructable against the
 /// `hits` list — no free-form prose pointers, no hallucinated sources.
+///
+/// `source` is validated against the daemon's closed `RecallSource`
+/// set (`knowledge | memory | history | tasks | answer`). Strict decode
+/// keeps the closed-set discipline load-bearing rather than accidentally
+/// lax: any drift to a future source fails decode here, the same way it
+/// fails the web TS and mobile TS decoders.
 struct AnswerCitation: Codable, Equatable {
+    static let allowedSources: Set<String> = [
+        "knowledge",
+        "memory",
+        "history",
+        "tasks",
+        "answer",
+    ]
+
     let source: String
     let id: String
+
+    private enum CodingKeys: String, CodingKey {
+        case source, id
+    }
+
+    init(source: String, id: String) {
+        self.source = source
+        self.id = id
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let source = try container.decode(String.self, forKey: .source)
+        guard Self.allowedSources.contains(source) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .source,
+                in: container,
+                debugDescription: "Unknown answer citation source: \(source)"
+            )
+        }
+        self.source = source
+        self.id = try container.decode(String.self, forKey: .id)
+    }
 }
 
 /// Renders cited-answer citations one-to-one with the shared

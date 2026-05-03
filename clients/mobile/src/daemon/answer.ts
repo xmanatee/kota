@@ -68,6 +68,7 @@ const ANSWER_CITATION_SOURCES: ReadonlyArray<RecallSource> = [
   'memory',
   'history',
   'tasks',
+  'answer',
 ];
 
 // Targets the daemon's `POST /api/answer` user-facing route — the same

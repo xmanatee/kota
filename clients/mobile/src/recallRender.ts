@@ -6,10 +6,10 @@ const SCORE_PRECISION = 3;
  * Per-source tint mapping shared by every mobile-side surface that
  * paints a `{ source }` badge: the recall surface (`RecallScreen`) and
  * the cited-answer surface (`AnswerScreen`). Mirrors the same
- * `knowledge`→blue, `memory`→purple, `history`→green, `tasks`→orange
- * vocabulary the macOS `RecallSourceBadge` and the web recall/answer
- * panels speak. Centralizing the table avoids two parallel four-source
- * color maps drifting on the mobile side.
+ * `knowledge`→blue, `memory`→purple, `history`→green, `tasks`→orange,
+ * `answer`→pink vocabulary the macOS `RecallSourceBadge` and the web
+ * recall/answer panels speak. Centralizing the table avoids two
+ * parallel five-source color maps drifting on the mobile side.
  */
 export const RECALL_SOURCE_TINT: Record<
   RecallSource,
@@ -19,6 +19,7 @@ export const RECALL_SOURCE_TINT: Record<
   memory: { bg: 'rgba(175, 82, 222, 0.15)', fg: '#7d3fb0' },
   history: { bg: 'rgba(52, 199, 89, 0.18)', fg: '#1f7a3a' },
   tasks: { bg: 'rgba(255, 149, 0, 0.18)', fg: '#a85a00' },
+  answer: { bg: 'rgba(255, 45, 85, 0.15)', fg: '#a8002b' },
 };
 
 function formatScore(score: number): string {
@@ -43,6 +44,10 @@ export function describeRecallHit(hit: RecallHit): string {
       return hit.title;
     case 'tasks':
       return `[${hit.state}/${hit.priority}] ${hit.title}`;
+    case 'answer':
+      return hit.result.ok
+        ? hit.query
+        : `[${hit.result.reason}] ${hit.query}`;
   }
 }
 

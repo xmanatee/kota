@@ -14,6 +14,7 @@ const SOURCE_BADGE_VARIANT: Record<
   memory: "secondary",
   history: "running",
   tasks: "warning",
+  answer: "success",
 };
 
 function describeHit(hit: RecallHit): string {
@@ -26,6 +27,10 @@ function describeHit(hit: RecallHit): string {
       return hit.title;
     case "tasks":
       return `[${hit.state}/${hit.priority}] ${hit.title}`;
+    case "answer":
+      return hit.result.ok
+        ? hit.query
+        : `[${hit.result.reason}] ${hit.query}`;
   }
 }
 

@@ -137,6 +137,7 @@ struct RecallSourceBadge: View {
         case "memory": return .purple
         case "history": return .green
         case "tasks": return .orange
+        case "answer": return .pink
         default: return .secondary
         }
     }

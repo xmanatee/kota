@@ -40,13 +40,35 @@ export type ConformanceCase = {
 export const CONFORMANCE_CASES: ConformanceCase[] = [
   // recall
   {
-    name: "recall: success across knowledge/memory/history/tasks sources",
+    name: "recall: success across knowledge/memory/history/tasks/answer sources",
     path: "recall.successMixedSources",
     parse: parseRecallResult,
     assertPositive: (decoded) => {
       const r = decoded as { ok: true; hits: Array<{ source: string }> };
-      if (!r.ok || r.hits.length !== 4) {
-        throw new Error("expected 4-hit ok result");
+      if (!r.ok || r.hits.length !== 5) {
+        throw new Error("expected 5-hit ok result");
+      }
+      if (!r.hits.some((h) => h.source === "answer")) {
+        throw new Error(
+          "expected the mixed-source arm to include a source: 'answer' hit",
+        );
+      }
+    },
+  },
+  {
+    name: "recall: success with answer hit carrying failure arm",
+    path: "recall.successAnswerHitFailureArm",
+    parse: parseRecallResult,
+    assertPositive: (decoded) => {
+      const r = decoded as {
+        ok: true;
+        hits: Array<{ source: string; result?: { ok: boolean } }>;
+      };
+      if (!r.ok || r.hits.length !== 1 || r.hits[0]!.source !== "answer") {
+        throw new Error("expected single answer-hit result");
+      }
+      if (r.hits[0]!.result?.ok !== false) {
+        throw new Error("expected nested answer-hit result to be ok=false");
       }
     },
   },
@@ -62,6 +84,12 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
     expectThrow: true,
   },
   {
+    name: "recall: unknown nested answer-hit result reason rejected",
+    path: "recall.negative_unknownAnswerResultReason",
+    parse: parseRecallResult,
+    expectThrow: true,
+  },
+  {
     name: "recall: unknown reason rejected",
     path: "recall.negative_unknownReason",
     parse: parseRecallResult,
@@ -70,15 +98,26 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
 
   // answer
   {
-    name: "answer: success with citations",
+    name: "answer: success with citations across knowledge/memory/answer sources",
     path: "answer.success",
     parse: parseAnswerResult,
     assertPositive: (decoded) => {
       const r = decoded as {
         ok: true;
         citations: Array<{ source: string; id: string }>;
+        hits: Array<{ source: string }>;
       };
       if (!r.ok || r.citations.length === 0) throw new Error("expected citations");
+      if (!r.citations.some((c) => c.source === "answer")) {
+        throw new Error(
+          "expected the success arm to include a source: 'answer' citation",
+        );
+      }
+      if (!r.hits.some((h) => h.source === "answer")) {
+        throw new Error(
+          "expected the success arm to include a matching source: 'answer' hit",
+        );
+      }
     },
   },
   {
@@ -99,6 +138,12 @@ export const CONFORMANCE_CASES: ConformanceCase[] = [
   {
     name: "answer: unknown reason rejected",
     path: "answer.negative_unknownReason",
+    parse: parseAnswerResult,
+    expectThrow: true,
+  },
+  {
+    name: "answer: unknown citation source rejected",
+    path: "answer.negative_unknownCitationSource",
     parse: parseAnswerResult,
     expectThrow: true,
   },

@@ -126,12 +126,37 @@
           "state": "doing",
           "priority": "p1",
           "updatedAt": "2026-05-02T18:14:24.509Z"
+        },
+        {
+          "source": "answer",
+          "score": 0.49,
+          "id": "ans-1",
+          "query": "How does the harness boundary work?",
+          "preview": "The harness boundary is a typed protocol; see kn-42.",
+          "citationCount": 1,
+          "createdAt": "2026-05-01T12:00:00.000Z",
+          "result": { "ok": true }
         }
       ]
     },
     "semanticUnavailable": {
       "ok": false,
       "reason": "semantic_unavailable"
+    },
+    "successAnswerHitFailureArm": {
+      "ok": true,
+      "hits": [
+        {
+          "source": "answer",
+          "score": 0.31,
+          "id": "ans-2",
+          "query": "What is the latest deploy status?",
+          "preview": "Recall returned no hits for this question.",
+          "citationCount": 0,
+          "createdAt": "2026-05-01T12:05:00.000Z",
+          "result": { "ok": false, "reason": "no_hits" }
+        }
+      ]
     },
     "negative_unknownSource": {
       "ok": true,
@@ -144,6 +169,21 @@
         }
       ]
     },
+    "negative_unknownAnswerResultReason": {
+      "ok": true,
+      "hits": [
+        {
+          "source": "answer",
+          "score": 0.31,
+          "id": "ans-3",
+          "query": "Drift case for the nested reason discriminator",
+          "preview": "Should fail strict decoders — future_reason is not in the closed set.",
+          "citationCount": 0,
+          "createdAt": "2026-05-01T12:10:00.000Z",
+          "result": { "ok": false, "reason": "future_reason" }
+        }
+      ]
+    },
     "negative_unknownReason": {
       "ok": false,
       "reason": "future_reason"
@@ -152,10 +192,11 @@
   "answer": {
     "success": {
       "ok": true,
-      "answer": "The harness boundary is a typed protocol; see kn-42 and mem-7.",
+      "answer": "Typed protocols are the boundary [knowledge:kn-42]; an earlier synthesis covered the same ground [answer:ans-1].",
       "citations": [
         { "source": "knowledge", "id": "kn-42" },
-        { "source": "memory", "id": "mem-7" }
+        { "source": "memory", "id": "mem-7" },
+        { "source": "answer", "id": "ans-1" }
       ],
       "hits": [
         {
@@ -172,13 +213,40 @@
           "id": "mem-7",
           "preview": "User prefers terse end-of-turn summaries.",
           "created": "2026-04-15T09:30:00.000Z"
+        },
+        {
+          "source": "answer",
+          "score": 0.49,
+          "id": "ans-1",
+          "query": "How does the harness boundary work?",
+          "preview": "The harness boundary is a typed protocol; see kn-42.",
+          "citationCount": 1,
+          "createdAt": "2026-05-01T12:00:00.000Z",
+          "result": { "ok": true }
         }
       ]
     },
     "noHits": { "ok": false, "reason": "no_hits" },
     "semanticUnavailable": { "ok": false, "reason": "semantic_unavailable" },
     "synthesisFailed": { "ok": false, "reason": "synthesis_failed" },
-    "negative_unknownReason": { "ok": false, "reason": "future_reason" }
+    "negative_unknownReason": { "ok": false, "reason": "future_reason" },
+    "negative_unknownCitationSource": {
+      "ok": true,
+      "answer": "Drift case — citation source not in the closed five-source set.",
+      "citations": [
+        { "source": "future_source", "id": "fut-1" }
+      ],
+      "hits": [
+        {
+          "source": "knowledge",
+          "score": 0.91,
+          "id": "kn-42",
+          "title": "Pluggable harness protocol",
+          "preview": "The harness boundary is a typed protocol with…",
+          "updated": "2026-04-20T12:00:00.000Z"
+        }
+      ]
+    }
   },
   "answerHistory": {
     "list": {
