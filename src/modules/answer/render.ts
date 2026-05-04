@@ -23,7 +23,7 @@
  *      channels.
  */
 
-import type { RecallHit } from "#core/server/kota-client.js";
+import type { RecallHit } from "#modules/recall/client.js";
 import type {
   AnswerCitation,
   AnswerHistoryEntry,

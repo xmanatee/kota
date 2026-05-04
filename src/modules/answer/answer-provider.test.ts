@@ -3,7 +3,7 @@ import type {
   RecallFilter,
   RecallHit,
   RecallResult,
-} from "#core/server/kota-client.js";
+} from "#modules/recall/client.js";
 import type { AnswerHistorySink } from "./answer-history-store.js";
 import { AnswerProviderImpl } from "./answer-provider.js";
 import type { AnswerRecallSeam, Synthesizer } from "./answer-types.js";

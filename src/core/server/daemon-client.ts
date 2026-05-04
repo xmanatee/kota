@@ -50,8 +50,6 @@ import type {
   MemoryReindexResult,
   MemorySearchFilter,
   MemorySearchResult,
-  RecallFilter,
-  RecallResult,
   RepoTaskCaptureResult,
   RepoTaskCreateOptions,
   RepoTaskCreateResult,
@@ -158,23 +156,6 @@ async function safeFetchRaw(
 // `DaemonTransport` and call its `baseUrl` / `authHeaders()` / `fetchRaw()`
 // directly so closures can be assembled without a class instance.
 // ---------------------------------------------------------------------------
-
-async function recallHttp(
-  transport: DaemonTransport,
-  query: string,
-  filter?: RecallFilter,
-): Promise<RecallResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/recall`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...transport.authHeaders() },
-    body: JSON.stringify({ query, ...(filter && { filter }) }),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as RecallResult;
-}
 
 async function configValidateHttp(
   transport: DaemonTransport,
@@ -1497,9 +1478,6 @@ export function buildCoreStubDaemonClientHandlers(
       list: async () => evalListHttp(transport),
       run: async (options) => evalRunHttp(transport, options),
       calibration: async (options) => evalCalibrationHttp(transport, options),
-    },
-    recall: {
-      recall: async (query, filter) => recallHttp(transport, query, filter),
     },
   };
 }

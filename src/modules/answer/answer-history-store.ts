@@ -19,8 +19,8 @@
 import { randomBytes } from "node:crypto";
 import { mkdirSync, readdirSync, readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
-import type { RecallHit } from "#core/server/kota-client.js";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
+import type { RecallHit } from "#modules/recall/client.js";
 import type {
   AnswerFilter,
   AnswerHistoryEntry,

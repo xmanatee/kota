@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { RecallHit, RecallResult } from "#core/server/kota-client.js";
+import type { RecallHit, RecallResult } from "#modules/recall/client.js";
 import type { AnswerHistorySink } from "./answer-history-store.js";
 import { AnswerProviderImpl } from "./answer-provider.js";
 import type { AnswerRecallSeam, Synthesizer } from "./answer-types.js";

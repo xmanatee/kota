@@ -1,8 +1,8 @@
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { RecallHit, RecallResult } from "#core/server/kota-client.js";
 import { registerRecallCommand } from "./cli.js";
+import type { RecallHit, RecallResult } from "./client.js";
 
 type RecallOverride = (
   query: string,

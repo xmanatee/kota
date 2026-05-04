@@ -62,7 +62,6 @@ import type {
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import { daemonTransportFromAddress } from "#core/server/daemon-transport.js";
-import type { RecallHit } from "#core/server/kota-client.js";
 import {
   type AnswerHistorySink,
   answerHistoryRootForProject,
@@ -93,12 +92,14 @@ import captureModule from "#modules/capture/index.js";
 import { createCaptureRouteHandler } from "#modules/capture/routes.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
 import { MemoryStore } from "#modules/memory/store.js";
+import type { RecallHit } from "#modules/recall/client.js";
 import {
   createHistoryContributor,
   createKnowledgeContributor as createKnowledgeRecallContributor,
   createMemoryContributor as createMemoryRecallContributor,
   createTasksContributor as createTasksRecallContributor,
 } from "#modules/recall/contributors.js";
+import recallModule from "#modules/recall/index.js";
 import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
 import { createRecallRouteHandler } from "#modules/recall/routes.js";
 import { RepoTasksDefaultStore } from "#modules/repo-tasks/repo-tasks-store.js";
@@ -338,12 +339,15 @@ describe("capture → recall → answer → answer-history pipeline (HTTP)", () 
     const otherMigratedStubs = buildMigratedNamespaceTestStubs();
     delete otherMigratedStubs.answer;
     delete otherMigratedStubs.capture;
+    delete otherMigratedStubs.recall;
     const answerDaemonHandler = answerModule.daemonClient!(transport);
     const captureDaemonHandler = captureModule.daemonClient!(transport);
+    const recallDaemonHandler = recallModule.daemonClient!(transport);
     client = DaemonControlClient.fromTransport(transport, {
       ...otherMigratedStubs,
       ...answerDaemonHandler,
       ...captureDaemonHandler,
+      ...recallDaemonHandler,
     });
     recallSeam = {
       async recall(query, filter) {

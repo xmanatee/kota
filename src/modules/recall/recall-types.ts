@@ -13,11 +13,7 @@ import {
   defineProviderToken,
   type ProviderToken,
 } from "#core/modules/provider-token.js";
-import type {
-  RecallFilter,
-  RecallHit,
-  RecallSource,
-} from "#core/server/kota-client.js";
+import type { RecallFilter, RecallHit, RecallSource } from "./client.js";
 
 export type {
   RecallAnswerHit,
@@ -29,7 +25,7 @@ export type {
   RecallResult,
   RecallSource,
   RecallTasksHit,
-} from "#core/server/kota-client.js";
+} from "./client.js";
 
 /**
  * Stable source ordering used as a tertiary sort key after score and id.

@@ -7,7 +7,7 @@
  * operators see consistent output across `kota recall` and the existing
  * per-store search commands.
  */
-import type { RecallHit } from "#core/server/kota-client.js";
+import type { RecallHit } from "./client.js";
 
 const SCORE_PRECISION = 3;
 

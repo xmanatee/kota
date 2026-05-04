@@ -58,10 +58,6 @@ import type {
 } from "#core/modules/provider-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
-import type {
-  RecallHit,
-  RecallResult,
-} from "#core/server/kota-client.js";
 import { CaptureProviderImpl } from "#modules/capture/capture-provider.js";
 import {
   CAPTURE_TARGET_ORDER,
@@ -80,12 +76,14 @@ import captureModule from "#modules/capture/index.js";
 import { createCaptureRouteHandler } from "#modules/capture/routes.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
 import { MemoryStore } from "#modules/memory/store.js";
+import type { RecallHit, RecallResult } from "#modules/recall/client.js";
 import {
   createHistoryContributor,
   createKnowledgeContributor as createKnowledgeRecallContributor,
   createMemoryContributor as createMemoryRecallContributor,
   createTasksContributor as createTasksRecallContributor,
 } from "#modules/recall/contributors.js";
+import recallModule from "#modules/recall/index.js";
 import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
 import {
   RECALL_SOURCE_ORDER,
@@ -318,6 +316,7 @@ describe("capture↔recall pipeline (HTTP)", () => {
       (link) => ({
         ...buildMigratedNamespaceTestStubs(),
         ...captureModule.daemonClient!(link),
+        ...recallModule.daemonClient!(link),
       }),
     );
   });

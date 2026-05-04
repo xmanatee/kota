@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
-import type { RecallHit } from "#core/server/kota-client.js";
+import type { RecallHit } from "./client.js";
 import type { RecallProvider } from "./recall-types.js";
 import { createRecallRouteHandler } from "./routes.js";
 

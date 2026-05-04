@@ -11,7 +11,7 @@
  * (ASCII compare). The same query against the same data therefore returns
  * the same ordering on repeat calls.
  */
-import type { RecallFilter, RecallHit } from "#core/server/kota-client.js";
+import type { RecallFilter, RecallHit } from "./client.js";
 import {
   type RawRecallEntry,
   RECALL_DEFAULT_TOP_K,

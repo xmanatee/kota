@@ -33,9 +33,9 @@
 
 import { rmSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { RecallHit } from "#core/server/kota-client.js";
 import { clearCustomTools } from "#core/tools/index.js";
 import type { Synthesizer } from "#modules/answer/answer-types.js";
+import type { RecallHit } from "#modules/recall/client.js";
 import {
   buildCrossStoreFixture,
   type CrossStoreFixture,

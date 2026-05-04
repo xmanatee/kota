@@ -26,7 +26,7 @@ import type {
   RecallFilter,
   RecallHit,
   RecallSource,
-} from "#core/server/kota-client.js";
+} from "#modules/recall/client.js";
 
 /**
  * Filter accepted by `AnswerClient.answer`. Forwarded to the underlying

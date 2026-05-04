@@ -7,7 +7,7 @@
  * for tuning it from this task.
  */
 
-import type { RecallHit } from "#core/server/kota-client.js";
+import type { RecallHit } from "#modules/recall/client.js";
 import type { SynthesisInput } from "./answer-types.js";
 
 const SYSTEM_PROMPT = [

@@ -76,5 +76,8 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
     capture: {
       capture: async () => ({ ok: false, reason: "no_contributors" as const }),
     },
+    recall: {
+      recall: async () => ({ ok: false, reason: "semantic_unavailable" as const }),
+    },
   };
 }

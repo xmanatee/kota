@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-recall-kotaclient-namespace-end-to-end
 title: Migrate the recall KotaClient namespace end-to-end through the daemonClient(link) factory hook
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move RecallClient interface and the RecallSource/RecallHit (knowledge/memory/history/tasks/answer arms)/RecallFilter/RecallResult discriminated types from src/core/server/kota-client.ts into src/modules/recall/client.ts; add a daemonClient(link) factory to the recall module that POSTs to /recall through the typed DaemonTransport; remove recallHttp and the inline recall handler closure from src/core/server/daemon-client.ts.
 created_at: 2026-05-04T13:40:58.570Z
-updated_at: 2026-05-04T13:40:58.570Z
+updated_at: 2026-05-04T14:10:27.000Z
 ---
 
 ## Problem

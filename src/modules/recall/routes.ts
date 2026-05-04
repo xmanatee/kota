@@ -13,12 +13,12 @@ import type {
   ControlRouteRegistration,
   RouteRegistration,
 } from "#core/modules/module-types.js";
+import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import type {
   RecallFilter,
   RecallResult,
   RecallSource,
-} from "#core/server/kota-client.js";
-import { jsonResponse, readBody } from "#core/server/session-pool.js";
+} from "./client.js";
 import type { RecallProvider } from "./recall-types.js";
 
 const ALLOWED_SOURCES: ReadonlyArray<RecallSource> = [

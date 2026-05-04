@@ -23,7 +23,7 @@
  * that does not resolve against the typed hit pile.
  */
 
-import type { RecallHit } from "#core/server/kota-client.js";
+import type { RecallHit } from "#modules/recall/client.js";
 import {
   type AnswerHistorySink,
   buildAnswerHistoryRecord,

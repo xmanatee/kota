@@ -11,9 +11,9 @@
  */
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolDef } from "#core/modules/module-types.js";
-import type { RecallSource } from "#core/server/kota-client.js";
 import { daemonWriteEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import type { RecallSource } from "#modules/recall/client.js";
 import type {
   AnswerFilter,
   AnswerProvider,

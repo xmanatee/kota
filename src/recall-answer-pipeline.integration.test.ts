@@ -26,11 +26,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import { daemonTransportFromAddress } from "#core/server/daemon-transport.js";
-import type {
-  RecallHit,
-  RecallResult,
-  RecallSource,
-} from "#core/server/kota-client.js";
 import {
   type AnswerHistorySink,
   answerHistoryRootForProject,
@@ -49,6 +44,12 @@ import type {
 } from "#modules/answer/client.js";
 import answerModule from "#modules/answer/index.js";
 import { createAnswerHistoryRouteHandler, createAnswerRouteHandler } from "#modules/answer/routes.js";
+import type {
+  RecallHit,
+  RecallResult,
+  RecallSource,
+} from "#modules/recall/client.js";
+import recallModule from "#modules/recall/index.js";
 import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
 import {
   type RawRecallEntry,
@@ -293,10 +294,13 @@ describe("recall + cited-answer + answer-history pipeline (HTTP)", () => {
     // transport explicitly and stub the rest.
     const otherMigratedStubs = buildMigratedNamespaceTestStubs();
     delete otherMigratedStubs.answer;
+    delete otherMigratedStubs.recall;
     const answerDaemonHandler = answerModule.daemonClient!(transport);
+    const recallDaemonHandler = recallModule.daemonClient!(transport);
     client = DaemonControlClient.fromTransport(transport, {
       ...otherMigratedStubs,
       ...answerDaemonHandler,
+      ...recallDaemonHandler,
     });
   });
 

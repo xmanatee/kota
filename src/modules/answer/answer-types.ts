@@ -16,7 +16,7 @@ import type {
   RecallFilter,
   RecallHit,
   RecallResult,
-} from "#core/server/kota-client.js";
+} from "#modules/recall/client.js";
 import type {
   AnswerCitation,
   AnswerFilter,

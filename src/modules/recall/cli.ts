@@ -8,12 +8,9 @@
  */
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type {
-  RecallFilter,
-  RecallSource,
-} from "#core/server/kota-client.js";
 import { line, plain, span } from "#modules/rendering/primitives.js";
 import { print, TerminalTransport } from "#modules/rendering/transport.js";
+import type { RecallFilter, RecallSource } from "./client.js";
 import { renderRecallHitsPlain } from "./render.js";
 
 const ALLOWED_SOURCES: ReadonlyArray<RecallSource> = [
