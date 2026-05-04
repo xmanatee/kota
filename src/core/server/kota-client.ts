@@ -54,6 +54,7 @@ import type {
 import type { OwnerQuestionsClient } from "#modules/owner-questions/client.js";
 import type { RetractClient } from "#modules/retract/client.js";
 import type { SkillsClient } from "#modules/skill-ops/client.js";
+import type { WebClient } from "#modules/web/client.js";
 
 /** A masked entry in the secret store (name and source only — never the value). */
 export type SecretListEntry = {
@@ -1084,41 +1085,6 @@ export type VoiceSynthesizeResult =
 export interface VoiceClient {
   transcribe(options: VoiceTranscribeOptions): Promise<VoiceTranscribeResult>;
   synthesize(options: VoiceSynthesizeOptions): Promise<VoiceSynthesizeResult>;
-}
-
-/**
- * Options accepted by `web.start`.
- *
- * `port`, `model`, `verbose`, and `noAuth` map directly to the existing
- * `kota serve` flags. `defaultAutonomyMode` and `webUiBuilt` are resolved
- * by the local handler from the operator's environment and aren't exposed
- * on the namespace contract.
- */
-export type WebStartOptions = {
-  port: number;
-  model?: string;
-  verbose?: boolean;
-  noAuth?: boolean;
-};
-
-/**
- * Result of `web.start`.
- *
- * The local handler drives a long-running HTTP server; resolution of the
- * promise is therefore a server-shutdown signal rather than a normal
- * response. `daemon_required` surfaces from the daemon-side handler because
- * the daemon cannot start a fresh `kota serve` process in another address
- * space — running `kota serve` with a daemon already up is ambiguous, so
- * the contract refuses uniformly and the CLI maps that to a clear
- * "stop the daemon first" hint.
- */
-export type WebStartResult =
-  | { ok: true }
-  | { ok: false; reason: "daemon_required" }
-  | { ok: false; reason: "missing_api_key" };
-
-export interface WebClient {
-  start(options: WebStartOptions): Promise<WebStartResult>;
 }
 
 /**

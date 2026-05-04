@@ -77,7 +77,6 @@ import type {
   WebhookListResult,
   WebhookSecretGenerateResult,
   WebhookSecretRemoveResult,
-  WebStartResult,
   WorkflowTriggerOptions,
 } from "./kota-client.js";
 import {
@@ -1478,9 +1477,6 @@ export function buildCoreStubDaemonClientHandlers(
     voice: {
       transcribe: async (options) => voiceTranscribeNamespaceHttp(transport, options),
       synthesize: async (options) => voiceSynthesizeNamespaceHttp(transport, options),
-    },
-    web: {
-      start: async (_options): Promise<WebStartResult> => ({ ok: false, reason: "daemon_required" }),
     },
     config: {
       validate: async () => configValidateHttp(transport),

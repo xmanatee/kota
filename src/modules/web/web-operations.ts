@@ -21,12 +21,8 @@ import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.
 import { warnUnknownConfigKeys } from "#core/config/config-warnings.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
-import type {
-  WebClient,
-  WebStartOptions,
-  WebStartResult,
-} from "#core/server/kota-client.js";
 import { startServer } from "#core/server/server.js";
+import type { WebClient, WebStartOptions, WebStartResult } from "./client.js";
 import { setWebUiDir } from "./static-routes.js";
 
 export function localWebClient(ctx: ModuleContext): WebClient {

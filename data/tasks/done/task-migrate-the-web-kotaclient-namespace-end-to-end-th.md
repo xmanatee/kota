@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-web-kotaclient-namespace-end-to-end-th
 title: Migrate the web KotaClient namespace end-to-end through the daemonClient(link) factory hook
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move WebStartOptions, WebStartResult, and WebClient from src/core/server/kota-client.ts into src/modules/web/client.ts; add a daemonClient(_link) factory on webModule contributing the web namespace as a stub-only handler that returns { ok: false, reason: 'daemon_required' } without touching the link transport; remove the inline web closure and the WebStartResult import from src/core/server/daemon-client.ts.
 created_at: 2026-05-04T12:29:24.110Z
-updated_at: 2026-05-04T12:29:24.110Z
+updated_at: 2026-05-04T12:39:46.898Z
 ---
 
 ## Problem

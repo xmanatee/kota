@@ -12,7 +12,9 @@
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import type { KotaModule } from "#core/modules/module-types.js";
+import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { createWebReadinessSource } from "./capability-readiness.js";
+import type { WebClient } from "./client.js";
 import { staticWebUiRoutes } from "./static-routes.js";
 import { localWebClient } from "./web-operations.js";
 
@@ -71,6 +73,29 @@ const webModule: KotaModule = {
 
   routes: () => staticWebUiRoutes(),
   localClient: (ctx) => ({ web: localWebClient(ctx) }),
+
+  daemonClient: (_link: DaemonTransport) => ({
+    web: buildWebDaemonHandler(),
+  }),
 };
+
+/**
+ * Daemon-side `WebClient` — a stub-only handler that never reaches into
+ * the typed `DaemonTransport`. The capability under this namespace is a
+ * long-running HTTP API server with SSE streaming and the embedded web UI
+ * in the operator's address space; the daemon cannot start one on the
+ * operator's behalf, so the handler refuses uniformly with
+ * `{ ok: false, reason: "daemon_required" }`. The CLI maps that to a
+ * clear "stop the daemon first" hint. The `_link` parameter on the
+ * factory is intentionally unused: this is the second namespace (after
+ * mcp-server) whose entire daemon contract is a constant refusal,
+ * generalizing the precedent that the foundation hook supports stub-only
+ * contributions whose semantics are inherently local-only.
+ */
+function buildWebDaemonHandler(): WebClient {
+  return {
+    start: async () => ({ ok: false, reason: "daemon_required" as const }),
+  };
+}
 
 export default webModule;

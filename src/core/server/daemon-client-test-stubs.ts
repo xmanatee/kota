@@ -70,5 +70,8 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
     mcpServer: {
       start: async () => ({ ok: false, reason: "daemon_required" as const }),
     },
+    web: {
+      start: async () => ({ ok: false, reason: "daemon_required" as const }),
+    },
   };
 }
