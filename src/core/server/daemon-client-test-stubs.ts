@@ -79,5 +79,18 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
     recall: {
       recall: async () => ({ ok: false, reason: "semantic_unavailable" as const }),
     },
+    webhook: {
+      list: async () => ({ entries: [] }),
+      secretGenerate: async (workflow: string) => ({
+        workflow,
+        secret: "stub-secret",
+        overwrote: false,
+      }),
+      secretRemove: async (workflow: string) => ({
+        ok: true as const,
+        workflow,
+        removed: false as const,
+      }),
+    },
   };
 }

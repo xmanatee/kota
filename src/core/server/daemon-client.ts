@@ -70,9 +70,6 @@ import type {
   VoiceSynthesizeResult,
   VoiceTranscribeOptions,
   VoiceTranscribeResult,
-  WebhookListResult,
-  WebhookSecretGenerateResult,
-  WebhookSecretRemoveResult,
   WorkflowTriggerOptions,
 } from "./kota-client.js";
 import {
@@ -290,49 +287,6 @@ async function evalCalibrationHttp(
     throw new Error(body.error ?? `HTTP ${res.status}`);
   }
   return (await res.json()) as EvalCalibrationResult;
-}
-
-async function listWebhooksHttp(
-  transport: DaemonTransport,
-): Promise<WebhookListResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/webhooks`, {
-    headers: transport.authHeaders(),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as WebhookListResult;
-}
-
-async function generateWebhookSecretHttp(
-  transport: DaemonTransport,
-  workflow: string,
-): Promise<WebhookSecretGenerateResult> {
-  const res = await fetchWithTimeout(
-    `${transport.baseUrl}/webhooks/${encodeURIComponent(workflow)}/secret`,
-    { method: "POST", headers: transport.authHeaders() },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as WebhookSecretGenerateResult;
-}
-
-async function removeWebhookSecretHttp(
-  transport: DaemonTransport,
-  workflow: string,
-): Promise<WebhookSecretRemoveResult> {
-  const res = await fetchWithTimeout(
-    `${transport.baseUrl}/webhooks/${encodeURIComponent(workflow)}/secret`,
-    { method: "DELETE", headers: transport.authHeaders() },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as WebhookSecretRemoveResult;
 }
 
 async function voiceTranscribeHttp(
@@ -1430,11 +1384,6 @@ export function buildCoreStubDaemonClientHandlers(
         return { sessions: result.sessions };
       },
       setAutonomyMode: async (id, mode) => setSessionAutonomyModeHttp(transport, id, mode),
-    },
-    webhook: {
-      list: async () => listWebhooksHttp(transport),
-      secretGenerate: async (workflow) => generateWebhookSecretHttp(transport, workflow),
-      secretRemove: async (workflow) => removeWebhookSecretHttp(transport, workflow),
     },
     voice: {
       transcribe: async (options) => voiceTranscribeNamespaceHttp(transport, options),

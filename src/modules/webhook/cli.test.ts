@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { WebhookClient } from "#core/server/kota-client.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { registerWebhookCommands } from "./cli.js";
+import type { WebhookClient } from "./client.js";
 import {
   generateWebhookSecret,
   listWebhooks,

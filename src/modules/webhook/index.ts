@@ -23,9 +23,15 @@ import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import type { BusEvents } from "#core/events/event-bus.js";
 import type { KotaModule } from "#core/modules/module-types.js";
-import type { WebhookClient } from "#core/server/kota-client.js";
+import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { postWithRetry } from "#modules/notification/index.js";
 import { registerWebhookCommands } from "./cli.js";
+import type {
+  WebhookClient,
+  WebhookListResult,
+  WebhookSecretGenerateResult,
+  WebhookSecretRemoveResult,
+} from "./client.js";
 import { webhookConfigSlice } from "./config-slice.js";
 import { eventTriggerRoutes } from "./event-trigger-routes.js";
 import { webhookSecretControlRoutes } from "./secret-routes.js";
@@ -131,6 +137,40 @@ const webhookModule: KotaModule = {
     };
     return { webhook };
   },
+
+  daemonClient: (link) => ({ webhook: buildWebhookDaemonHandler(link) }),
 };
+
+/**
+ * Daemon-side `WebhookClient` backed by the typed `DaemonTransport`. Calls
+ * the same `/webhooks` and `/webhooks/:workflow/secret` HTTP routes the
+ * webhook module registers through `webhookSecretControlRoutes`. The
+ * transport surface owns the bearer token, base URL, and timeout policy —
+ * this factory only encodes the wire shape.
+ *
+ * `encodeURIComponent(workflow)` is preserved on both secret routes so
+ * embedded slashes, percents, or spaces in the workflow id continue to
+ * round-trip safely. None of the three methods carry a request body.
+ */
+function buildWebhookDaemonHandler(link: DaemonTransport): WebhookClient {
+  return {
+    list: async (): Promise<WebhookListResult> =>
+      link.requestStrict<WebhookListResult>("GET", "/webhooks"),
+    secretGenerate: async (
+      workflow: string,
+    ): Promise<WebhookSecretGenerateResult> =>
+      link.requestStrict<WebhookSecretGenerateResult>(
+        "POST",
+        `/webhooks/${encodeURIComponent(workflow)}/secret`,
+      ),
+    secretRemove: async (
+      workflow: string,
+    ): Promise<WebhookSecretRemoveResult> =>
+      link.requestStrict<WebhookSecretRemoveResult>(
+        "DELETE",
+        `/webhooks/${encodeURIComponent(workflow)}/secret`,
+      ),
+  };
+}
 
 export default webhookModule;

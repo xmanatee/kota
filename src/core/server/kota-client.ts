@@ -57,6 +57,7 @@ import type { RecallClient } from "#modules/recall/client.js";
 import type { RetractClient } from "#modules/retract/client.js";
 import type { SkillsClient } from "#modules/skill-ops/client.js";
 import type { WebClient } from "#modules/web/client.js";
+import type { WebhookClient } from "#modules/webhook/client.js";
 
 /** A masked entry in the secret store (name and source only — never the value). */
 export type SecretListEntry = {
@@ -732,55 +733,6 @@ export type SessionsSetAutonomyModeResult =
 export interface SessionsClient {
   list(): Promise<SessionsListResult>;
   setAutonomyMode(id: string, mode: AutonomyMode): Promise<SessionsSetAutonomyModeResult>;
-}
-
-/**
- * A workflow surfaced by `webhook.list` with whether a webhook secret is
- * configured for it. The list reflects the loaded workflow definition set
- * filtered to webhook-triggered workflows.
- */
-export type WebhookListEntry = {
-  workflow: string;
-  hasSecret: boolean;
-};
-
-export type WebhookListResult = {
-  entries: WebhookListEntry[];
-};
-
-/**
- * Result of `webhook.secretGenerate`. The secret is returned exactly once at
- * generation time so the caller can echo it to the operator.
- */
-export type WebhookSecretGenerateResult = {
-  workflow: string;
-  secret: string;
-  /** True when an existing secret was overwritten. */
-  overwrote: boolean;
-};
-
-/**
- * Result of `webhook.secretRemove`. `removed: false` indicates the workflow
- * had no secret configured; the operation is a no-op in that case.
- */
-export type WebhookSecretRemoveResult =
-  | { ok: true; workflow: string; removed: true }
-  | { ok: true; workflow: string; removed: false };
-
-/**
- * Webhook-secret operations.
- *
- * `list` enumerates workflows with webhook triggers and whether a secret is
- * configured for each. `secretGenerate` writes a new HMAC secret into
- * `.kota/config.json` for the given workflow and returns the secret once.
- * `secretRemove` clears the secret. All three operations work daemon-up and
- * daemon-down — the daemon-side persists through the same updateProjectConfig
- * helper the local handler uses, so config-file mutation cannot diverge.
- */
-export interface WebhookClient {
-  list(): Promise<WebhookListResult>;
-  secretGenerate(workflow: string): Promise<WebhookSecretGenerateResult>;
-  secretRemove(workflow: string): Promise<WebhookSecretRemoveResult>;
 }
 
 /**

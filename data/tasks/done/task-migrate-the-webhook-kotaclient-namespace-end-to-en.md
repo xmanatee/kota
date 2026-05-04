@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-webhook-kotaclient-namespace-end-to-en
 title: Migrate the webhook KotaClient namespace end-to-end through the daemonClient(link) factory hook
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move WebhookClient interface and the WebhookListEntry/WebhookListResult/WebhookSecretGenerateResult/WebhookSecretRemoveResult types from src/core/server/kota-client.ts into src/modules/webhook/client.ts; add a daemonClient(link) factory to the webhook module that wires GET /webhooks, POST /webhooks/:workflow/secret, and DELETE /webhooks/:workflow/secret through the typed DaemonTransport; remove listWebhooksHttp/generateWebhookSecretHttp/removeWebhookSecretHttp and the inline webhook handler closure from src/core/server/daemon-client.ts.
 created_at: 2026-05-04T14:17:40.526Z
-updated_at: 2026-05-04T14:17:40.526Z
+updated_at: 2026-05-04T14:31:06.822Z
 ---
 
 ## Problem
