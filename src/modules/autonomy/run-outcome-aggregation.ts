@@ -29,12 +29,28 @@ type DurationOutlier = {
   commitSubject?: string;
 };
 
+type AgentStepTimeout = {
+  runId: string;
+  workflow: string;
+  stepId: string;
+  completedAt: string;
+  error: string;
+};
+
 export type RunOutcomeAggregation = {
   failureRates24h: WorkflowFailureRate[];
   failureRates7d: WorkflowFailureRate[];
   topRepairFailures24h: RepairCheckTally[];
   topRepairFailures7d: RepairCheckTally[];
   durationOutliers: DurationOutlier[];
+  // Runs whose terminal failure was an agent step hitting its wall-clock
+  // `timeoutMs` rail. These are infrastructure signals (SDK transport stalls,
+  // upstream provider hangs), not autonomy-quality signals: editing prompts,
+  // validators, or queue shaping cannot fix a stuck SDK stream. They are
+  // surfaced here so improver can still see the pattern when it fires for a
+  // genuine reason, but they are excluded from `latestActionableRunAt` below
+  // so they do not by themselves trigger another improver pass.
+  agentStepTimeouts7d: AgentStepTimeout[];
   // Max completedAt across actionable non-improver runs (terminal failures
   // only). Used by the improver evidence gate to distinguish "new actionable
   // evidence arrived" from "old evidence aged out of the window" — the latter
@@ -55,6 +71,17 @@ export type RunOutcomeAggregation = {
   // confirming an SDK api_retry stall was a one-off transport blip and
   // no-oped. The outlier list still ships to the agent in `durationOutliers`
   // so it can be inspected when improver does fire on a real failure.
+  //
+  // Agent-step wall-clock timeouts are likewise excluded: 24h evidence
+  // around 2026-05-04 showed three consecutive improver runs (1vzoz9,
+  // fqo7wk, 3b34za) and one builder/decomposer pair (18hn1h, y7gom0)
+  // all hit the 3-hour `timeoutMs` rail with the same shape — only an
+  // `api_retry` system event between meaningful frames, and the run sum
+  // never finalized. The cause is upstream-SDK transport, not the
+  // autonomy prompt/process surface improver tunes; firing on those
+  // signals burns 3-hour slots while the same outage persists. The
+  // pattern is preserved as `agentStepTimeouts7d` so it remains visible
+  // when improver next wakes on a real signal.
   latestActionableRunAt: string | null;
 };
 
@@ -184,6 +211,51 @@ function enrichOutliersWithSubjects(
   });
 }
 
+// Anchored to the literal text the run executor writes when the step-level
+// hang rail fires (see `executeWorkflowStep` in run-executor-step.ts). Matching
+// only this exact prefix avoids catching unrelated user-supplied error
+// messages that happen to contain the word "timed out".
+const AGENT_STEP_TIMEOUT_ERROR = /^Step "[^"]+" timed out after \d+ms$/;
+
+type AgentStepTimeoutCandidate = {
+  run: WorkflowRunMetadata;
+  step: WorkflowRunMetadata["steps"][number];
+};
+
+function findAgentStepTimeout(
+  run: WorkflowRunMetadata,
+): AgentStepTimeoutCandidate | null {
+  if (run.status !== "failed") return null;
+  for (const step of run.steps) {
+    if (step.type !== "agent") continue;
+    if (step.status !== "failed") continue;
+    if (typeof step.error !== "string") continue;
+    if (AGENT_STEP_TIMEOUT_ERROR.test(step.error)) {
+      return { run, step };
+    }
+  }
+  return null;
+}
+
+function collectAgentStepTimeouts(
+  runs: WorkflowRunMetadata[],
+): AgentStepTimeout[] {
+  const out: AgentStepTimeout[] = [];
+  for (const run of runs) {
+    const found = findAgentStepTimeout(run);
+    if (!found) continue;
+    if (!found.step.completedAt) continue;
+    out.push({
+      runId: run.id,
+      workflow: run.workflow,
+      stepId: found.step.id,
+      completedAt: found.step.completedAt,
+      error: found.step.error!,
+    });
+  }
+  return out.sort((a, b) => (a.completedAt < b.completedAt ? 1 : -1));
+}
+
 function latestActionableCompletedAt(
   all24h: WorkflowRunMetadata[],
 ): string | null {
@@ -192,6 +264,7 @@ function latestActionableCompletedAt(
     if (run.workflow === "improver") continue;
     if (!run.completedAt) continue;
     if (run.status !== "failed") continue;
+    if (findAgentStepTimeout(run) !== null) continue;
     if (latest === null || run.completedAt > latest) latest = run.completedAt;
   }
   return latest;
@@ -219,6 +292,7 @@ export function aggregateRunOutcomes(runsDir: string): RunOutcomeAggregation {
     topRepairFailures24h: tallyRepairFailures(all24h).slice(0, 10),
     topRepairFailures7d: tallyRepairFailures(all7d).slice(0, 10),
     durationOutliers,
+    agentStepTimeouts7d: collectAgentStepTimeouts(all7d).slice(0, 10),
     latestActionableRunAt: latestActionableCompletedAt(all24h),
   };
 }

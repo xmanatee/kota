@@ -570,6 +570,95 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
     expect(result.latestActionableRunAt).toBeNull();
   });
 
+  function writeAgentStepTimeoutRun(
+    id: string,
+    workflow: string,
+    stepId: string,
+    completedAt: string,
+    timeoutMs = 10_800_000,
+  ): void {
+    const runDir = join(runsDir, id);
+    mkdirSync(runDir, { recursive: true });
+    const metadata: WorkflowRunMetadata = {
+      id,
+      workflow,
+      definitionPath: `src/modules/autonomy/workflows/${workflow}/workflow.ts`,
+      trigger: { event: "runtime.idle", payload: {} },
+      startedAt: new Date(Date.now() - 60_000).toISOString(),
+      completedAt,
+      status: "failed",
+      durationMs: timeoutMs + 200,
+      runDir: id,
+      steps: [
+        {
+          id: stepId,
+          type: "agent",
+          status: "failed",
+          startedAt: "2026-04-16T00:00:00.000Z",
+          completedAt,
+          durationMs: timeoutMs,
+          error: `Step "${stepId}" timed out after ${timeoutMs}ms`,
+        },
+      ],
+    };
+    writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata));
+  }
+
+  it("does not advance latestActionableRunAt for an agent-step wall-clock timeout", () => {
+    // 24h-around-2026-05-04 evidence: three improver, one decomposer, and one
+    // builder run all hit the 3-hour `timeoutMs` rail with the same SDK-stall
+    // shape ($0 cost, only an api_retry between meaningful frames). Treating
+    // those as actionable autonomy evidence triggered the next improver, which
+    // hit the same outage and burned another 3-hour slot.
+    writeAgentStepTimeoutRun(
+      "stalled-builder",
+      "builder",
+      "build",
+      "2026-04-21T01:00:00.000Z",
+    );
+    writeAgentStepTimeoutRun(
+      "stalled-decomposer",
+      "decomposer",
+      "decompose",
+      "2026-04-21T02:00:00.000Z",
+    );
+
+    const result = aggregateRunOutcomes(runsDir);
+    expect(result.latestActionableRunAt).toBeNull();
+    expect(result.agentStepTimeouts7d.map((t) => t.runId)).toEqual([
+      "stalled-decomposer",
+      "stalled-builder",
+    ]);
+    expect(result.agentStepTimeouts7d[0]).toMatchObject({
+      workflow: "decomposer",
+      stepId: "decompose",
+      completedAt: "2026-04-21T02:00:00.000Z",
+    });
+  });
+
+  it("still advances latestActionableRunAt for a non-timeout terminal failure even when an agent-step timeout coexists", () => {
+    writeAgentStepTimeoutRun(
+      "stalled-decomposer",
+      "decomposer",
+      "decompose",
+      "2026-04-21T01:00:00.000Z",
+    );
+    writeRun(
+      "real-failure",
+      "builder",
+      600_000,
+      599_000,
+      undefined,
+      "failed",
+      "2026-04-21T02:00:00.000Z",
+    );
+
+    const result = aggregateRunOutcomes(runsDir);
+    expect(result.latestActionableRunAt).toBe("2026-04-21T02:00:00.000Z");
+    expect(result.agentStepTimeouts7d).toHaveLength(1);
+    expect(result.agentStepTimeouts7d[0].runId).toBe("stalled-decomposer");
+  });
+
   it("does not treat numeric repair iteration summaries as repair trips", () => {
     const runDir = join(runsDir, "summary-only-builder");
     mkdirSync(runDir, { recursive: true });

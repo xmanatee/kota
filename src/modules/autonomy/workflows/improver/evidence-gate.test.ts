@@ -16,6 +16,7 @@ function emptyAggregation(): RunOutcomeAggregation {
     topRepairFailures24h: [],
     topRepairFailures7d: [],
     durationOutliers: [],
+    agentStepTimeouts7d: [],
     latestActionableRunAt: null,
   };
 }

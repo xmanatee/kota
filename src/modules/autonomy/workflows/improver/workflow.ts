@@ -49,6 +49,7 @@ const gatherRunDataStep = typedCodeStep<RunOutcomeAggregation>({
       "topRepairFailures24h",
       "topRepairFailures7d",
       "durationOutliers",
+      "agentStepTimeouts7d",
       "latestActionableRunAt",
     ]),
   run: ({ projectDir }) => {

@@ -31,6 +31,23 @@ This directory contains the improver workflow definition and prompt.
   retired this trigger. Outlier rows still ship to the agent in
   `durationOutliers` so they can be inspected when improver fires on a real
   failure.
+- Agent-step wall-clock timeouts are likewise excluded from the actionable
+  signal and surfaced as a separate `agentStepTimeouts7d` aggregate. Around
+  2026-05-04 a single SDK transport outage hit five consecutive autonomous
+  runs (`2026-05-03T12-38-42-870Z-builder-18hn1h`,
+  `2026-05-03T15-45-42-243Z-decomposer-y7gom0`,
+  `2026-05-03T19-49-39-479Z-improver-1vzoz9`,
+  `2026-05-03T22-52-39-315Z-improver-fqo7wk`,
+  `2026-05-04T08-01-44-733Z-improver-3b34za`); every one stalled with the
+  same shape (a single `api_retry` between meaningful frames, no `result`
+  frame, the run sum never finalized) and burned the full
+  `AUTONOMY_AGENT_HANG_TIMEOUT_MS` slot before the rail fired. Each terminal
+  failure re-triggered improver, which hit the same outage and wasted
+  another 3-hour slot. Editing prompts, validators, or queue shaping cannot
+  fix a stuck SDK stream, so the gate ignores those runs while keeping them
+  visible in `agentStepTimeouts7d` for review on the next real-evidence
+  pass. The runtime fix (an inactivity watchdog at the executor) belongs to
+  a builder task, not this workflow.
 
 ## Doc-Bloat Repair Check
 
