@@ -67,5 +67,8 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       list: async () => ({ skills: [] }),
       import: async () => ({ ok: true, name: "stub", path: "stub" }),
     },
+    mcpServer: {
+      start: async () => ({ ok: false, reason: "daemon_required" as const }),
+    },
   };
 }

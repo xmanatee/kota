@@ -46,6 +46,7 @@ import type { AnswerClient } from "#modules/answer/client.js";
 import type { DoctorClient } from "#modules/doctor/client.js";
 import type { AuditClient } from "#modules/guardrails-audit/client.js";
 import type { HarnessParityClient } from "#modules/harness-parity/client.js";
+import type { McpServerClient } from "#modules/mcp-server/client.js";
 import type {
   ModulesAdminClient,
   ModulesClient,
@@ -1118,33 +1119,6 @@ export type WebStartResult =
 
 export interface WebClient {
   start(options: WebStartOptions): Promise<WebStartResult>;
-}
-
-/**
- * Options accepted by `mcpServer.start`.
- *
- * `toolFilter` restricts which KOTA tools the MCP server exposes; absent /
- * empty means every registered tool. `name` is the server identity reported
- * to MCP clients and defaults to `"kota"`.
- */
-export type McpServerStartOptions = {
-  toolFilter?: string[];
-  name: string;
-};
-
-/**
- * Result of `mcpServer.start`.
- *
- * Mirrors `WebStartResult`: the local handler runs a long-running stdio
- * server, while the daemon-side handler returns `daemon_required` because
- * the daemon cannot start a stdio server in another process.
- */
-export type McpServerStartResult =
-  | { ok: true }
-  | { ok: false; reason: "daemon_required" };
-
-export interface McpServerClient {
-  start(options: McpServerStartOptions): Promise<McpServerStartResult>;
 }
 
 /**

@@ -46,7 +46,6 @@ import type {
   KnowledgeSearchResult,
   KnowledgeShowResult,
   KotaClient,
-  McpServerStartResult,
   MemoryAddResult,
   MemoryDeleteResult,
   MemoryListEntry,
@@ -1482,9 +1481,6 @@ export function buildCoreStubDaemonClientHandlers(
     },
     web: {
       start: async (_options): Promise<WebStartResult> => ({ ok: false, reason: "daemon_required" }),
-    },
-    mcpServer: {
-      start: async (_options): Promise<McpServerStartResult> => ({ ok: false, reason: "daemon_required" }),
     },
     config: {
       validate: async () => configValidateHttp(transport),

@@ -20,7 +20,7 @@ import type {
   McpServerClient,
   McpServerStartOptions,
   McpServerStartResult,
-} from "#core/server/kota-client.js";
+} from "./client.js";
 
 export function localMcpServerClient(): McpServerClient {
   return {

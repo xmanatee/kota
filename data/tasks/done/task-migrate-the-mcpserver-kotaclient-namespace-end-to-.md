@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-mcpserver-kotaclient-namespace-end-to-
 title: Migrate the mcpServer KotaClient namespace end-to-end through the daemonClient(link) factory hook
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move McpServerClient, McpServerStartOptions, and McpServerStartResult from src/core/server/kota-client.ts into src/modules/mcp-server/client.ts; add a daemonClient(_link) factory on mcpServerModule contributing the mcpServer namespace as a stub-only handler that returns { ok: false, reason: 'daemon_required' } without touching the link transport; remove the inline mcpServer closure and the McpServerStartResult import from src/core/server/daemon-client.ts.
 created_at: 2026-05-03T12:35:37.906Z
-updated_at: 2026-05-03T12:35:37.906Z
+updated_at: 2026-05-04T12:24:51.945Z
 ---
 
 ## Problem

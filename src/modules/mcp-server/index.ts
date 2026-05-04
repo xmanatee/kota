@@ -11,6 +11,8 @@
 
 import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import type { McpServerClient } from "./client.js";
 import { mcpConfigSlice } from "./config-slice.js";
 import { localMcpServerClient } from "./mcp-server-operations.js";
 
@@ -48,6 +50,28 @@ const mcpServerModule: KotaModule = {
 	},
 
 	localClient: () => ({ mcpServer: localMcpServerClient() }),
+
+	daemonClient: (_link: DaemonTransport) => ({
+		mcpServer: buildMcpServerDaemonHandler(),
+	}),
 };
+
+/**
+ * Daemon-side `McpServerClient` — a stub-only handler that never reaches
+ * into the typed `DaemonTransport`. The capability under this namespace is
+ * a long-running stdio MCP server in the operator's address space; the
+ * daemon cannot start one on the operator's behalf, so the handler refuses
+ * uniformly with `{ ok: false, reason: "daemon_required" }`. The CLI maps
+ * that to a clear "stop the daemon first" hint. The `_link` parameter on
+ * the factory is intentionally unused: this validates that the foundation
+ * hook supports namespaces whose entire daemon contract is a constant
+ * refusal, mirroring the eventual shape for `web` and any future namespace
+ * whose semantics are inherently local-only.
+ */
+function buildMcpServerDaemonHandler(): McpServerClient {
+	return {
+		start: async () => ({ ok: false, reason: "daemon_required" as const }),
+	};
+}
 
 export default mcpServerModule;
