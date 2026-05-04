@@ -89,6 +89,7 @@ import {
   createMemoryContributor as createMemoryCaptureContributor,
   createTasksContributor as createTasksCaptureContributor,
 } from "#modules/capture/contributors.js";
+import captureModule from "#modules/capture/index.js";
 import { createCaptureRouteHandler } from "#modules/capture/routes.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
 import { MemoryStore } from "#modules/memory/store.js";
@@ -332,14 +333,17 @@ describe("capture → recall → answer → answer-history pipeline (HTTP)", () 
     });
     // Migrated namespaces normally land on the assembled client through their
     // owning module's `daemonClient(link)` factory. The pipeline test does not
-    // load modules, so build the answer namespace handler against the test
-    // transport explicitly and stub the rest.
+    // load modules, so build the answer and capture namespace handlers against
+    // the test transport explicitly and stub the rest.
     const otherMigratedStubs = buildMigratedNamespaceTestStubs();
     delete otherMigratedStubs.answer;
+    delete otherMigratedStubs.capture;
     const answerDaemonHandler = answerModule.daemonClient!(transport);
+    const captureDaemonHandler = captureModule.daemonClient!(transport);
     client = DaemonControlClient.fromTransport(transport, {
       ...otherMigratedStubs,
       ...answerDaemonHandler,
+      ...captureDaemonHandler,
     });
     recallSeam = {
       async recall(query, filter) {

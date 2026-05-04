@@ -18,7 +18,7 @@
  * `contributor_failed` arm so the operator surface can decide whether
  * to re-issue the call against a different store.
  */
-import type { CaptureFilter, CaptureResult } from "#core/server/kota-client.js";
+
 import {
   CAPTURE_TARGET_ORDER,
   type CaptureClassifier,
@@ -26,6 +26,7 @@ import {
   type CaptureProvider,
   type CaptureTarget,
 } from "./capture-types.js";
+import type { CaptureFilter, CaptureResult } from "./client.js";
 
 export type CaptureProviderOptions = {
   /**

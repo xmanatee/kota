@@ -40,7 +40,6 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
-import type { CaptureResult } from "#core/server/kota-client.js";
 import { CaptureProviderImpl } from "#modules/capture/capture-provider.js";
 import {
   CAPTURE_TARGET_ORDER,
@@ -49,12 +48,14 @@ import {
   type CaptureContributor,
   type CaptureProvider,
 } from "#modules/capture/capture-types.js";
+import type { CaptureResult } from "#modules/capture/client.js";
 import {
   createInboxContributor,
   createKnowledgeContributor,
   createMemoryContributor,
   createTasksContributor,
 } from "#modules/capture/contributors.js";
+import captureModule from "#modules/capture/index.js";
 import { createCaptureRouteHandler } from "#modules/capture/routes.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
 import { MemoryStore } from "#modules/memory/store.js";
@@ -216,14 +217,17 @@ describe("cross-store capture pipeline (HTTP)", () => {
     ]);
     server = started.server;
     baseUrl = `http://127.0.0.1:${started.port}`;
-    client = DaemonControlClient.fromAddress(
+    client = DaemonControlClient.fromAddressWithFactory(
       {
         port: started.port,
         pid: 0,
         startedAt: new Date().toISOString(),
         token: "",
       },
-      buildMigratedNamespaceTestStubs(),
+      (link) => ({
+        ...buildMigratedNamespaceTestStubs(),
+        ...captureModule.daemonClient!(link),
+      }),
     );
   });
 
@@ -443,14 +447,17 @@ describe("cross-store capture pipeline — contributor failure isolation", () =>
       { method: "POST", path: "/api/capture", handler },
     ]);
     server = started.server;
-    client = DaemonControlClient.fromAddress(
+    client = DaemonControlClient.fromAddressWithFactory(
       {
         port: started.port,
         pid: 0,
         startedAt: new Date().toISOString(),
         token: "",
       },
-      buildMigratedNamespaceTestStubs(),
+      (link) => ({
+        ...buildMigratedNamespaceTestStubs(),
+        ...captureModule.daemonClient!(link),
+      }),
     );
   });
 

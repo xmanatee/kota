@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
-import type { CaptureFilter, CaptureResult } from "#core/server/kota-client.js";
 import type { CaptureProvider } from "./capture-types.js";
+import type { CaptureFilter, CaptureResult } from "./client.js";
 import { createCaptureRouteHandler } from "./routes.js";
 
 function mockResponse() {

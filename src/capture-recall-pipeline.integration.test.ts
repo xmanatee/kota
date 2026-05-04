@@ -59,7 +59,6 @@ import type {
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type {
-  CaptureResult,
   RecallHit,
   RecallResult,
 } from "#core/server/kota-client.js";
@@ -70,12 +69,14 @@ import {
   type CaptureClassifier,
   type CaptureProvider,
 } from "#modules/capture/capture-types.js";
+import type { CaptureResult } from "#modules/capture/client.js";
 import {
   createInboxContributor,
   createKnowledgeContributor as createKnowledgeCaptureContributor,
   createMemoryContributor as createMemoryCaptureContributor,
   createTasksContributor as createTasksCaptureContributor,
 } from "#modules/capture/contributors.js";
+import captureModule from "#modules/capture/index.js";
 import { createCaptureRouteHandler } from "#modules/capture/routes.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
 import { MemoryStore } from "#modules/memory/store.js";
@@ -307,14 +308,17 @@ describe("capture↔recall pipeline (HTTP)", () => {
       { method: "POST", path: "/api/recall", handler: recallHandler },
     ]);
     server = started.server;
-    client = DaemonControlClient.fromAddress(
+    client = DaemonControlClient.fromAddressWithFactory(
       {
         port: started.port,
         pid: 0,
         startedAt: new Date().toISOString(),
         token: "",
       },
-      buildMigratedNamespaceTestStubs(),
+      (link) => ({
+        ...buildMigratedNamespaceTestStubs(),
+        ...captureModule.daemonClient!(link),
+      }),
     );
   });
 

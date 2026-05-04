@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
-  CaptureClient,
   HistoryClient,
   KnowledgeClient,
   MemoryClient,
@@ -12,6 +11,7 @@ import {
   renderAnswerHistoryEntriesPlain,
   renderAnswerReplyPlain,
 } from "#modules/answer/render.js";
+import type { CaptureClient } from "#modules/capture/client.js";
 import { renderHistorySearchPlain } from "#modules/history/render.js";
 import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
 import { renderMemorySearchPlain } from "#modules/memory/render.js";

@@ -12,7 +12,6 @@ import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
 import { NullTransport, ProxyTransport } from "#core/loop/transport.js";
 import type {
-  CaptureClient,
   HistoryClient,
   KnowledgeClient,
   MemoryClient,
@@ -21,6 +20,7 @@ import type {
 } from "#core/server/kota-client.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { AnswerClient } from "#modules/answer/client.js";
+import type { CaptureClient } from "#modules/capture/client.js";
 import type { RetractClient } from "#modules/retract/client.js";
 import {
   callSlackApi,

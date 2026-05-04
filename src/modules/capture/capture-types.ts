@@ -20,7 +20,7 @@ import type {
   CaptureRecord,
   CaptureResult,
   CaptureTarget,
-} from "#core/server/kota-client.js";
+} from "./client.js";
 
 export type {
   CaptureFilter,
@@ -31,7 +31,7 @@ export type {
   CaptureResult,
   CaptureTarget,
   CaptureTasksRecord,
-} from "#core/server/kota-client.js";
+} from "./client.js";
 
 /**
  * Stable contributor ordering used by the seam to render `suggestions`

@@ -1,11 +1,8 @@
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type {
-  CaptureFilter,
-  CaptureResult,
-} from "#core/server/kota-client.js";
 import { registerCaptureCommand } from "./cli.js";
+import type { CaptureFilter, CaptureResult } from "./client.js";
 
 vi.mock("#core/modules/cli-providers.js", () => ({
   ensureCliProvidersFor: vi.fn(async () => {}),

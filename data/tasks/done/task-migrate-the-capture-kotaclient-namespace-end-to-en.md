@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-capture-kotaclient-namespace-end-to-en
 title: Migrate the capture KotaClient namespace end-to-end through the daemonClient(link) factory hook
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move CaptureClient interface and CaptureFilter/CaptureTarget/CaptureRecord/CaptureResult discriminated types from src/core/server/kota-client.ts into src/modules/capture/client.ts; add a daemonClient(link) factory to the capture module that POSTs to /capture through the typed DaemonTransport; remove captureHttp and the inline capture handler closure from src/core/server/daemon-client.ts.
 created_at: 2026-05-04T13:05:25.600Z
-updated_at: 2026-05-04T13:05:25.600Z
+updated_at: 2026-05-04T13:22:29.570Z
 ---
 
 ## Problem

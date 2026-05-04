@@ -19,8 +19,6 @@ import type {
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { type DaemonTransport, daemonTransportFromAddress } from "./daemon-transport.js";
 import type {
-  CaptureFilter,
-  CaptureResult,
   ConfigGetResult,
   ConfigSetResult,
   ConfigValidateResult,
@@ -160,23 +158,6 @@ async function safeFetchRaw(
 // `DaemonTransport` and call its `baseUrl` / `authHeaders()` / `fetchRaw()`
 // directly so closures can be assembled without a class instance.
 // ---------------------------------------------------------------------------
-
-async function captureHttp(
-  transport: DaemonTransport,
-  text: string,
-  filter?: CaptureFilter,
-): Promise<CaptureResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/capture`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...transport.authHeaders() },
-    body: JSON.stringify({ text, ...(filter && { filter }) }),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as CaptureResult;
-}
 
 async function recallHttp(
   transport: DaemonTransport,
@@ -1519,9 +1500,6 @@ export function buildCoreStubDaemonClientHandlers(
     },
     recall: {
       recall: async (query, filter) => recallHttp(transport, query, filter),
-    },
-    capture: {
-      capture: async (text, filter) => captureHttp(transport, text, filter),
     },
   };
 }

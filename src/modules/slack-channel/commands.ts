@@ -18,9 +18,6 @@
  */
 
 import type {
-  CaptureClient,
-  CaptureFilter,
-  CaptureTarget,
   HistoryClient,
   KnowledgeClient,
   MemoryClient,
@@ -33,6 +30,11 @@ import {
   renderAnswerReplyPlain,
 } from "#modules/answer/render.js";
 import { CAPTURE_TARGET_ORDER } from "#modules/capture/capture-types.js";
+import type {
+  CaptureClient,
+  CaptureFilter,
+  CaptureTarget,
+} from "#modules/capture/client.js";
 import { renderCaptureReplyPlain } from "#modules/capture/render.js";
 import { renderHistorySearchPlain } from "#modules/history/render.js";
 import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";

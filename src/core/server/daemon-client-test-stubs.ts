@@ -73,5 +73,8 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
     web: {
       start: async () => ({ ok: false, reason: "daemon_required" as const }),
     },
+    capture: {
+      capture: async () => ({ ok: false, reason: "no_contributors" as const }),
+    },
   };
 }

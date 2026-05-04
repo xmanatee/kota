@@ -1,8 +1,5 @@
 import { join } from "node:path";
 import type {
-  CaptureClient,
-  CaptureFilter,
-  CaptureTarget,
   HistoryClient,
   KnowledgeClient,
   MemoryClient,
@@ -19,6 +16,11 @@ import { computeCostByWorkflow, loadRecentRuns } from "#modules/autonomy/shared.
 import { renderOnDemandAttention } from "#modules/autonomy/workflows/attention-digest/step.js";
 import { renderOnDemandDigest } from "#modules/autonomy/workflows/daily-digest/on-demand.js";
 import { CAPTURE_TARGET_ORDER } from "#modules/capture/capture-types.js";
+import type {
+  CaptureClient,
+  CaptureFilter,
+  CaptureTarget,
+} from "#modules/capture/client.js";
 import { renderCaptureReplyPlain } from "#modules/capture/render.js";
 import { renderHistorySearchPlain } from "#modules/history/render.js";
 import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";

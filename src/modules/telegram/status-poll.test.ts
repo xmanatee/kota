@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
-  CaptureClient,
-  CaptureResult,
   HistoryClient,
   KnowledgeClient,
   MemoryClient,
@@ -14,6 +12,7 @@ import type {
   AnswerHistoryRecord,
 } from "#modules/answer/client.js";
 import { renderAnswerReplyPlain } from "#modules/answer/render.js";
+import type { CaptureClient, CaptureResult } from "#modules/capture/client.js";
 import type {
   RetractClient,
   RetractResult,

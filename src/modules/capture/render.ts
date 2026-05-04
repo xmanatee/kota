@@ -20,7 +20,7 @@ import type {
   CaptureRecord,
   CaptureResult,
   CaptureTarget,
-} from "#core/server/kota-client.js";
+} from "./client.js";
 
 export function renderCaptureRecordPlain(record: CaptureRecord): string {
   switch (record.target) {

@@ -10,10 +10,10 @@
 import type { Command } from "commander";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { CaptureFilter, CaptureTarget } from "#core/server/kota-client.js";
 import { line, plain, span } from "#modules/rendering/primitives.js";
 import { print, TerminalTransport } from "#modules/rendering/transport.js";
 import { CAPTURE_TARGET_ORDER } from "./capture-types.js";
+import type { CaptureFilter, CaptureTarget } from "./client.js";
 import { renderCaptureResultPlain } from "./render.js";
 
 let stderrRenderer: TerminalTransport | null = null;

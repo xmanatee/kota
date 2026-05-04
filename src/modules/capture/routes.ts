@@ -14,16 +14,16 @@ import type {
   ControlRouteRegistration,
   RouteRegistration,
 } from "#core/modules/module-types.js";
-import type {
-  CaptureFilter,
-  CaptureResult,
-  CaptureTarget,
-} from "#core/server/kota-client.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import {
   CAPTURE_TARGET_ORDER,
   type CaptureProvider,
 } from "./capture-types.js";
+import type {
+  CaptureFilter,
+  CaptureResult,
+  CaptureTarget,
+} from "./client.js";
 
 function parseFilter(value: unknown): CaptureFilter | undefined {
   if (!value || typeof value !== "object") return undefined;
