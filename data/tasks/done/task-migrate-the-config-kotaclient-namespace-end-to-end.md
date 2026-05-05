@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-config-kotaclient-namespace-end-to-end
 title: Migrate the config KotaClient namespace end-to-end through the daemonClient(link) factory hook
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move ConfigClient, ConfigValidateResult, ConfigGetResult, ConfigSetResult from src/core/server/kota-client.ts into src/modules/config/client.ts; add a daemonClient(link) factory to src/modules/config/index.ts that contributes the config namespace handler routing GET /config/validate, GET /config/value, PUT /config/value, GET /config/schema-path, GET /config/schema through the typed DaemonTransport; remove the inline config closure plus the configValidateHttp/configGetHttp/configSetHttp/configSchemaPathHttp/configSchemaContentHttp helper functions from src/core/server/daemon-client.ts; extend STUB_OMITTED_NAMESPACES and buildMigratedNamespaceTestStubs() with the config stub.
 created_at: 2026-05-05T06:18:30.901Z
-updated_at: 2026-05-05T06:18:30.901Z
+updated_at: 2026-05-05T06:33:12.704Z
 ---
 
 ## Problem

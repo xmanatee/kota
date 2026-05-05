@@ -50,6 +50,7 @@ const STUB_OMITTED_NAMESPACES: ReadonlySet<string> = new Set<string>([
   "voice",
   "sessions",
   "daemonOps",
+  "config",
 ]);
 
 function makeFakeTransport(): DaemonTransport {
@@ -269,6 +270,21 @@ function makeStubDaemonOps(): DaemonClientHandlers["daemonOps"] {
   };
 }
 
+function makeStubConfig(): DaemonClientHandlers["config"] {
+  return {
+    validate: async () => ({ sources: [], warnings: [], resolved: {} }),
+    get: async () => ({ found: false, reason: "not_found" }),
+    set: async () => ({
+      ok: true,
+      unknownKey: false,
+      topKey: "stub",
+      value: null,
+    }),
+    schemaPath: async () => ({ path: "" }),
+    schemaContent: async () => ({ content: "" }),
+  };
+}
+
 describe("assembleDaemonClientHandlers", () => {
   const transport = makeFakeTransport();
 
@@ -312,6 +328,7 @@ describe("assembleDaemonClientHandlers", () => {
       voice: makeStubVoice(),
       sessions: makeStubSessions(),
       daemonOps: makeStubDaemonOps(),
+      config: makeStubConfig(),
     });
     for (const name of KOTA_CLIENT_NAMESPACES) {
       expect(handlers[name], `assembled client must cover "${name}"`).toBeDefined();
@@ -355,6 +372,7 @@ describe("assembleDaemonClientHandlers", () => {
       voice: makeStubVoice(),
       sessions: makeStubSessions(),
       daemonOps: makeStubDaemonOps(),
+      config: makeStubConfig(),
       tasks: customTasks,
     });
     expect(merged.tasks).toBe(customTasks);
@@ -363,7 +381,7 @@ describe("assembleDaemonClientHandlers", () => {
 
   it("throws naming each migrated namespace when no module contributes it", () => {
     expect(() => assembleDaemonClientHandlers(transport)).toThrow(
-      /missing daemon handler\(s\) for: approvals, secrets, memory, ownerQuestions, history, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, modulesAdmin, daemonOps, doctor, evalHarness, recall, answer, capture, retract/,
+      /missing daemon handler\(s\) for: approvals, secrets, memory, ownerQuestions, history, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, config, modulesAdmin, daemonOps, doctor, evalHarness, recall, answer, capture, retract/,
     );
   });
 });

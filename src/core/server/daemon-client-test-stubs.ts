@@ -167,5 +167,17 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
         reason: "reload_failed" as const,
       }),
     },
+    config: {
+      validate: async () => ({ sources: [], warnings: [], resolved: {} }),
+      get: async () => ({ found: false as const, reason: "not_found" as const }),
+      set: async () => ({
+        ok: true as const,
+        unknownKey: false,
+        topKey: "stub",
+        value: null,
+      }),
+      schemaPath: async () => ({ path: "" }),
+      schemaContent: async () => ({ content: "" }),
+    },
   };
 }

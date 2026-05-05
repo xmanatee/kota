@@ -8,7 +8,13 @@
 
 import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
-import type { ConfigClient } from "#core/server/kota-client.js";
+import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import type {
+  ConfigClient,
+  ConfigGetResult,
+  ConfigSetResult,
+  ConfigValidateResult,
+} from "./client.js";
 import { configControlRoutes } from "./config-control-routes.js";
 import {
   configSchemaContent,
@@ -127,6 +133,83 @@ const configModule: KotaModule = {
     };
     return { config };
   },
+  daemonClient: (link) => ({ config: buildConfigDaemonHandler(link) }),
 };
+
+/**
+ * Daemon-side `ConfigClient` backed by the typed `DaemonTransport`. Calls
+ * the `/config/validate`, `/config/value`, `/config/schema-path`, and
+ * `/config/schema` control routes the daemon owns.
+ *
+ *  - `validate()` calls `link.request<ConfigValidateResult>("GET",
+ *    "/config/validate")`. On `null` (transport failure or non-ok response)
+ *    it throws `"Daemon unreachable while validating config"`. On success
+ *    it returns the typed body verbatim.
+ *  - `get(key)` uses `link.fetchRaw` so the `404 → { found: false, reason:
+ *    "not_found" }` arm is distinguishable from generic transport failure.
+ *    On non-ok statuses other than 404 it throws the daemon's `error` field
+ *    (or `HTTP <status>` when no error body is parseable).
+ *  - `set(key, rawValue)` PUTs `/config/value` with a JSON body via
+ *    `link.fetchRaw`. The daemon's `Authorization` header is attached
+ *    automatically by the link.
+ *  - `schemaPath()` and `schemaContent()` are pure GETs through
+ *    `link.request<T>` and throw `"Daemon unreachable …"` on `null`.
+ */
+function buildConfigDaemonHandler(link: DaemonTransport): ConfigClient {
+  return {
+    validate: async () => {
+      const result = await link.request<ConfigValidateResult>(
+        "GET",
+        "/config/validate",
+      );
+      if (!result) throw new Error("Daemon unreachable while validating config");
+      return result;
+    },
+    get: async (key: string) => {
+      const res = await link.fetchRaw(
+        `/config/value?key=${encodeURIComponent(key)}`,
+        { method: "GET" },
+      );
+      if (res.status === 404) return { found: false, reason: "not_found" };
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      return (await res.json()) as ConfigGetResult;
+    },
+    set: async (key: string, rawValue: string) => {
+      const res = await link.fetchRaw("/config/value", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...link.authHeaders() },
+        body: JSON.stringify({ key, rawValue }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      return (await res.json()) as ConfigSetResult;
+    },
+    schemaPath: async () => {
+      const result = await link.request<{ path: string }>(
+        "GET",
+        "/config/schema-path",
+      );
+      if (!result) {
+        throw new Error("Daemon unreachable while reading config schema path");
+      }
+      return result;
+    },
+    schemaContent: async () => {
+      const result = await link.request<{ content: string }>(
+        "GET",
+        "/config/schema",
+      );
+      if (!result) {
+        throw new Error("Daemon unreachable while reading config schema content");
+      }
+      return result;
+    },
+  };
+}
 
 export default configModule;

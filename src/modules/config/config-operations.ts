@@ -17,7 +17,7 @@ import type {
   ConfigGetResult,
   ConfigSetResult,
   ConfigValidateResult,
-} from "#core/server/kota-client.js";
+} from "./client.js";
 
 function readRawKeys(path: string): string[] | null {
   if (!existsSync(path)) return null;

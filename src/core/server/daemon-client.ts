@@ -14,9 +14,6 @@ import type {
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { type DaemonTransport, daemonTransportFromAddress } from "./daemon-transport.js";
 import type {
-  ConfigGetResult,
-  ConfigSetResult,
-  ConfigValidateResult,
   KotaClient,
   RepoTaskCaptureResult,
   RepoTaskCreateOptions,
@@ -101,78 +98,6 @@ async function safeFetchRaw(
 // `DaemonTransport` and call its `baseUrl` / `authHeaders()` / `fetchRaw()`
 // directly so closures can be assembled without a class instance.
 // ---------------------------------------------------------------------------
-
-async function configValidateHttp(
-  transport: DaemonTransport,
-): Promise<ConfigValidateResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/config/validate`, {
-    headers: transport.authHeaders(),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as ConfigValidateResult;
-}
-
-async function configGetHttp(
-  transport: DaemonTransport,
-  key: string,
-): Promise<ConfigGetResult> {
-  const res = await fetchWithTimeout(
-    `${transport.baseUrl}/config/value?key=${encodeURIComponent(key)}`,
-    { headers: transport.authHeaders() },
-  );
-  if (res.status === 404) return { found: false, reason: "not_found" };
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as ConfigGetResult;
-}
-
-async function configSetHttp(
-  transport: DaemonTransport,
-  key: string,
-  rawValue: string,
-): Promise<ConfigSetResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/config/value`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", ...transport.authHeaders() },
-    body: JSON.stringify({ key, rawValue }),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as ConfigSetResult;
-}
-
-async function configSchemaPathHttp(
-  transport: DaemonTransport,
-): Promise<{ path: string }> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/config/schema-path`, {
-    headers: transport.authHeaders(),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as { path: string };
-}
-
-async function configSchemaContentHttp(
-  transport: DaemonTransport,
-): Promise<{ content: string }> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/config/schema`, {
-    headers: transport.authHeaders(),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as { content: string };
-}
 
 async function showTaskHttp(
   transport: DaemonTransport,
@@ -672,13 +597,6 @@ export function buildCoreStubDaemonClientHandlers(
       gc: async (options) => gcTasksHttp(transport, options ?? {}),
       search: async (query, filter) => searchTasksHttp(transport, query, filter),
       reindex: async () => reindexTasksHttp(transport),
-    },
-    config: {
-      validate: async () => configValidateHttp(transport),
-      get: async (key) => configGetHttp(transport, key),
-      set: async (key, rawValue) => configSetHttp(transport, key, rawValue),
-      schemaPath: async () => configSchemaPathHttp(transport),
-      schemaContent: async () => configSchemaContentHttp(transport),
     },
   };
 }
