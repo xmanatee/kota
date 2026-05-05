@@ -148,5 +148,12 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
         message: "stub",
       }),
     },
+    sessions: {
+      list: async () => ({ sessions: [] }),
+      setAutonomyMode: async () => ({
+        ok: false as const,
+        reason: "daemon_required" as const,
+      }),
+    },
   };
 }

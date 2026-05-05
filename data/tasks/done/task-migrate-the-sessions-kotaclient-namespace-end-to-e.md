@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-sessions-kotaclient-namespace-end-to-e
 title: Migrate the sessions KotaClient namespace end-to-end through the daemonClient(link) factory hook
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move SessionsClient interface and SessionsListResult/SessionsSetAutonomyModeResult types from src/core/server/kota-client.ts into src/modules/daemon-ops/client.ts; add a daemonClient(link) factory to the daemon-ops module that wires GET /sessions and PATCH /sessions/:id through the typed DaemonTransport, contributing the sessions namespace handler; remove listSessionsHttp/setSessionAutonomyModeHttp wire functions, the inline sessions handler closure on buildCoreStubDaemonClientHandlers, and the DaemonControlClient.setSessionAutonomyMode direct method from src/core/server/daemon-client.ts.
 created_at: 2026-05-05T05:01:02.365Z
-updated_at: 2026-05-05T05:01:02.365Z
+updated_at: 2026-05-05T05:20:58.743Z
 ---
 
 ## Problem

@@ -3,10 +3,12 @@ import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import { resolveProjectDir } from "#core/config/project-dir.js";
 import { Daemon, RESTART_EXIT_CODE } from "#core/daemon/daemon.js";
-import type { DaemonLiveStatus } from "#core/daemon/daemon-control.js";
+import type { DaemonLiveStatus, InteractiveSession } from "#core/daemon/daemon-control.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
+import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { DaemonOpsClient } from "#core/server/kota-client.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { LogFormat } from "#core/util/log-format.js";
 import {
   blank,
@@ -19,6 +21,7 @@ import {
 } from "#modules/rendering/primitives.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
+import type { SessionsClient, SessionsSetAutonomyModeResult } from "./client.js";
 import {
   localDaemonPid,
   localDaemonReload,
@@ -488,6 +491,86 @@ const daemonModule: KotaModule = {
     };
     return { sessions: sessionsLocalClient(), daemonOps };
   },
+  daemonClient: (link) => ({ sessions: buildSessionsDaemonHandler(link) }),
 };
+
+/**
+ * Wire shape returned by the daemon's `PATCH /sessions/:id` route. The success
+ * envelope carries snake_case `autonomy_mode` plus optional `source` /
+ * `serveOwned` fields the namespace contract reshapes to camelCase
+ * `autonomyMode` with explicit defaults.
+ */
+type SessionsSetAutonomyModeWireBody = {
+  autonomy_mode: AutonomyMode;
+  source?: "daemon" | "serve";
+  serveOwned?: boolean;
+};
+
+/**
+ * Daemon-side `SessionsClient` backed by the typed `DaemonTransport`. Calls
+ * the `GET /sessions` and `PATCH /sessions/:id` control routes the daemon
+ * owns. The PATCH wire shape uses the snake_case `autonomy_mode` key on both
+ * the request body and the response — `handlePatchDaemonSession` parses
+ * `body.autonomy_mode` and emits `body.autonomy_mode` back, so the namespace
+ * contract's camelCase `autonomyMode` is the typed client-side shape, not
+ * the wire shape.
+ *
+ * `list()` throws on non-ok HTTP responses and on transport failure — the
+ * `sessions.list()` namespace shape does not include a `daemon_required` arm,
+ * matching today's pre-migration behavior.
+ *
+ * `setAutonomyMode(id, mode)` distinguishes three failure classes:
+ *  - `404 → { ok: false, reason: "not_found" }`,
+ *  - other non-ok HTTP responses → throw the daemon's error message,
+ *  - transient transport failures (network error, JSON parse failure inside
+ *    the `try` block) → `{ ok: false, reason: "daemon_required" }`.
+ *
+ * The success arm reshapes the daemon's snake_case `autonomy_mode` field to
+ * camelCase `autonomyMode`, defaults `source` to `"daemon"` and `serveOwned`
+ * to `false` when the daemon response omits either.
+ */
+function buildSessionsDaemonHandler(link: DaemonTransport): SessionsClient {
+  return {
+    list: async () => {
+      const res = await link.fetchRaw("/sessions", {
+        method: "GET",
+        headers: link.authHeaders(),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      const parsed = (await res.json()) as { sessions: InteractiveSession[] };
+      return { sessions: parsed.sessions };
+    },
+    setAutonomyMode: async (
+      id: string,
+      mode: AutonomyMode,
+    ): Promise<SessionsSetAutonomyModeResult> => {
+      try {
+        const res = await link.fetchRaw(`/sessions/${encodeURIComponent(id)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...link.authHeaders() },
+          body: JSON.stringify({ autonomy_mode: mode }),
+        });
+        if (res.status === 404) return { ok: false, reason: "not_found" };
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(body.error ?? `HTTP ${res.status}`);
+        }
+        const body = (await res.json()) as SessionsSetAutonomyModeWireBody;
+        return {
+          ok: true,
+          autonomyMode: body.autonomy_mode,
+          source: body.source ?? "daemon",
+          serveOwned: body.serveOwned === true,
+        };
+      } catch (err) {
+        if (err instanceof Error && /HTTP/.test(err.message)) throw err;
+        return { ok: false, reason: "daemon_required" };
+      }
+    },
+  };
+}
 
 export default daemonModule;

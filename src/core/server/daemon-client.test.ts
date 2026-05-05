@@ -48,6 +48,7 @@ const STUB_OMITTED_NAMESPACES: ReadonlySet<string> = new Set<string>([
   "history",
   "evalHarness",
   "voice",
+  "sessions",
 ]);
 
 function makeFakeTransport(): DaemonTransport {
@@ -251,6 +252,13 @@ function makeStubVoice(): DaemonClientHandlers["voice"] {
   };
 }
 
+function makeStubSessions(): DaemonClientHandlers["sessions"] {
+  return {
+    list: async () => ({ sessions: [] }),
+    setAutonomyMode: async () => ({ ok: false, reason: "daemon_required" }),
+  };
+}
+
 describe("assembleDaemonClientHandlers", () => {
   const transport = makeFakeTransport();
 
@@ -292,6 +300,7 @@ describe("assembleDaemonClientHandlers", () => {
       history: makeStubHistory(),
       evalHarness: makeStubEvalHarness(),
       voice: makeStubVoice(),
+      sessions: makeStubSessions(),
     });
     for (const name of KOTA_CLIENT_NAMESPACES) {
       expect(handlers[name], `assembled client must cover "${name}"`).toBeDefined();
@@ -333,6 +342,7 @@ describe("assembleDaemonClientHandlers", () => {
       history: makeStubHistory(),
       evalHarness: makeStubEvalHarness(),
       voice: makeStubVoice(),
+      sessions: makeStubSessions(),
       tasks: customTasks,
     });
     expect(merged.tasks).toBe(customTasks);
@@ -341,7 +351,7 @@ describe("assembleDaemonClientHandlers", () => {
 
   it("throws naming each migrated namespace when no module contributes it", () => {
     expect(() => assembleDaemonClientHandlers(transport)).toThrow(
-      /missing daemon handler\(s\) for: approvals, secrets, memory, ownerQuestions, history, knowledge, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, modulesAdmin, doctor, evalHarness, recall, answer, capture, retract/,
+      /missing daemon handler\(s\) for: approvals, secrets, memory, ownerQuestions, history, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, modulesAdmin, doctor, evalHarness, recall, answer, capture, retract/,
     );
   });
 });

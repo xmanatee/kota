@@ -12,11 +12,9 @@
  * `TerminalTransport`.
  */
 import { createInterface } from "node:readline";
-import type {
-  KotaClient,
-  SessionsSetAutonomyModeResult,
-} from "#core/server/kota-client.js";
+import type { KotaClient } from "#core/server/kota-client.js";
 import { isAutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { SessionsSetAutonomyModeResult } from "#modules/daemon-ops/client.js";
 import type { ModuleListEntry } from "#modules/module-manager/client.js";
 import {
   blank,

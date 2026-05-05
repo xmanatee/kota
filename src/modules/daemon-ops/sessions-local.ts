@@ -7,7 +7,7 @@
  * contract namespaces that depend on the running daemon for
  * authoritative state.
  */
-import type { SessionsClient } from "#core/server/kota-client.js";
+import type { SessionsClient } from "./client.js";
 
 export function sessionsLocalClient(): SessionsClient {
   return {

@@ -22,7 +22,6 @@
  */
 import type {
   DaemonLiveStatus,
-  InteractiveSession,
   WorkflowDefinitionSummary,
   WorkflowLiveStatus,
   WorkflowRunDetail,
@@ -32,7 +31,6 @@ import type {
   ReindexResult,
   RepoTaskSearchHit,
 } from "#core/modules/provider-types.js";
-import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 // Per-namespace client interfaces are owned by their module. The aggregate
 // imports them back to compose the contract — this is the only sanctioned
 // `#modules/*` import direction in `src/core/server/`. The narrow exception
@@ -41,6 +39,7 @@ import type { AgentsClient } from "#modules/agent-ops/client.js";
 import type { AnswerClient } from "#modules/answer/client.js";
 import type { ApprovalsClient } from "#modules/approval-queue/client.js";
 import type { CaptureClient } from "#modules/capture/client.js";
+import type { SessionsClient } from "#modules/daemon-ops/client.js";
 import type { DoctorClient } from "#modules/doctor/client.js";
 import type { EvalHarnessClient } from "#modules/eval-harness/client.js";
 import type { AuditClient } from "#modules/guardrails-audit/client.js";
@@ -402,40 +401,6 @@ export interface RepoTasksClient {
   search(query: string, filter?: RepoTaskSearchFilter): Promise<RepoTaskSearchResult>;
   /** Rebuild the semantic index over the repo task queue when the active provider supports it. */
   reindex(): Promise<RepoTaskReindexResult>;
-}
-
-export type SessionsListResult = {
-  sessions: InteractiveSession[];
-};
-
-/**
- * Result of `sessions.setAutonomyMode`. `serveOwned` indicates the session is
- * registered through `kota serve` rather than owned by the daemon directly;
- * the daemon updates its advisory metadata and returns success, but the
- * authoritative change must reach the owning serve process.
- */
-export type SessionsSetAutonomyModeResult =
-  | { ok: true; autonomyMode: AutonomyMode; source: "daemon" | "serve"; serveOwned: boolean }
-  | { ok: false; reason: "not_found" }
-  | { ok: false; reason: "daemon_required" };
-
-/**
- * Interactive-session operations.
- *
- * `list` enumerates sessions registered with the daemon — both `kota serve`
- * registrations and daemon-owned chat sessions. `setAutonomyMode` mutates a
- * session's supervision posture; daemon-owned sessions update in-place and
- * serve-registered sessions get advisory metadata updated with `serveOwned:
- * true` so the caller knows the authoritative change must reach the owning
- * serve process.
- *
- * Local mode (no daemon reachable) returns an empty session list and
- * surfaces `daemon_required` from `setAutonomyMode` — interactive sessions
- * only exist while a runtime host is alive.
- */
-export interface SessionsClient {
-  list(): Promise<SessionsListResult>;
-  setAutonomyMode(id: string, mode: AutonomyMode): Promise<SessionsSetAutonomyModeResult>;
 }
 
 /**

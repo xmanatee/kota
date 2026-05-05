@@ -6,7 +6,6 @@ import type {
   DaemonLiveStatus,
   DaemonSseEvent,
   HealthStatus,
-  InteractiveSession,
   WorkflowDefinitionSummary,
   WorkflowLiveStatus,
   WorkflowRunDetail,
@@ -31,7 +30,6 @@ import type {
   RepoTaskSearchResult,
   RepoTaskShowResult,
   RepoTaskState,
-  SessionsSetAutonomyModeResult,
   WorkflowTriggerOptions,
 } from "./kota-client.js";
 import {
@@ -174,53 +172,6 @@ async function configSchemaContentHttp(
     throw new Error(body.error ?? `HTTP ${res.status}`);
   }
   return (await res.json()) as { content: string };
-}
-
-async function listSessionsHttp(
-  transport: DaemonTransport,
-): Promise<{ sessions: InteractiveSession[] } | null> {
-  try {
-    const res = await fetchWithTimeout(`${transport.baseUrl}/sessions`, {
-      headers: transport.authHeaders(),
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as { sessions: InteractiveSession[] };
-  } catch {
-    return null;
-  }
-}
-
-async function setSessionAutonomyModeHttp(
-  transport: DaemonTransport,
-  id: string,
-  mode: AutonomyMode,
-): Promise<SessionsSetAutonomyModeResult> {
-  try {
-    const res = await fetchWithTimeout(`${transport.baseUrl}/sessions/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", ...transport.authHeaders() },
-      body: JSON.stringify({ autonomy_mode: mode }),
-    });
-    if (res.status === 404) return { ok: false, reason: "not_found" };
-    if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      throw new Error(body.error ?? `HTTP ${res.status}`);
-    }
-    const body = (await res.json()) as {
-      autonomy_mode: AutonomyMode;
-      source?: "daemon" | "serve";
-      serveOwned?: boolean;
-    };
-    return {
-      ok: true,
-      autonomyMode: body.autonomy_mode,
-      source: body.source ?? "daemon",
-      serveOwned: body.serveOwned === true,
-    };
-  } catch (err) {
-    if (err instanceof Error && /HTTP/.test(err.message)) throw err;
-    return { ok: false, reason: "daemon_required" };
-  }
 }
 
 async function showTaskHttp(
@@ -725,14 +676,6 @@ export function buildCoreStubDaemonClientHandlers(
       search: async (query, filter) => searchTasksHttp(transport, query, filter),
       reindex: async () => reindexTasksHttp(transport),
     },
-    sessions: {
-      list: async () => {
-        const result = await listSessionsHttp(transport);
-        if (!result) throw new Error("Daemon unreachable while listing sessions");
-        return { sessions: result.sessions };
-      },
-      setAutonomyMode: async (id, mode) => setSessionAutonomyModeHttp(transport, id, mode),
-    },
     config: {
       validate: async () => configValidateHttp(transport),
       get: async (key) => configGetHttp(transport, key),
@@ -1025,28 +968,6 @@ export class DaemonControlClient implements KotaClient {
   async registerSession(id: string, createdAt: string, autonomyMode: AutonomyMode): Promise<boolean> {
     const resp = await safeFetchRaw(this.transport, "POST", "/sessions/register", { id, createdAt, autonomyMode });
     return resp?.ok ?? false;
-  }
-
-  async setSessionAutonomyMode(id: string, autonomyMode: AutonomyMode): Promise<{
-    ok: boolean;
-    notFound?: boolean;
-    autonomyMode?: AutonomyMode;
-    source?: string;
-    serveOwned?: boolean;
-  } | null> {
-    const resp = await safeFetchRaw(this.transport, "PATCH", `/sessions/${encodeURIComponent(id)}`, {
-      autonomy_mode: autonomyMode,
-    });
-    if (!resp) return null;
-    if (resp.status === 404) return { ok: false, notFound: true };
-    if (!resp.ok) return null;
-    const body = (await resp.json()) as { autonomy_mode?: string; source?: string; serveOwned?: boolean };
-    return {
-      ok: true,
-      autonomyMode: (body.autonomy_mode ?? autonomyMode) as AutonomyMode,
-      source: body.source,
-      serveOwned: body.serveOwned,
-    };
   }
 
   async unregisterSession(id: string): Promise<boolean> {

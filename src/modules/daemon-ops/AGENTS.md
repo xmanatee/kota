@@ -14,10 +14,13 @@ CLI commands.
 - The daemon runtime itself lives in core; this module wires it into the CLI and
   supervisor surface.
 - Session autonomy mode is part of that operator surface. This module owns the
-  `kota session` CLI: listing sessions with their current mode and changing a
-  running session's mode through the daemon control API. Validate mode values
-  before issuing the HTTP call. Do not embed mode-change flow into any other
-  subcommand (e.g. approval resolution) — mode is a session-level control.
+  `kota session` CLI plus the `sessions` `KotaClient` namespace
+  (`client.sessions.list()` / `client.sessions.setAutonomyMode()`) end-to-end.
+  Both the local-side handler (`sessionsLocalClient`) and the daemon-side
+  handler (`daemonClient(link)` factory in `index.ts`) realize the contract
+  declared in `client.ts`. Validate mode values before issuing the HTTP call.
+  Do not embed mode-change flow into any other subcommand (e.g. approval
+  resolution) — mode is a session-level control.
 
 ## Presentation Boundaries
 
