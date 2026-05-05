@@ -3,14 +3,12 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { PendingApproval } from "#core/daemon/approval-queue.js";
 import type { InteractiveSession, WorkflowDefinitionSummary } from "#core/daemon/daemon-control.js";
-import type {
-  KotaClient,
-  WorkflowEnableResult,
-} from "#core/server/kota-client.js";
+import type { KotaClient } from "#core/server/kota-client.js";
 import type { ModuleListEntry } from "#modules/module-manager/client.js";
 import type { RenderNode } from "#modules/rendering/primitives.js";
 import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
+import type { WorkflowEnableResult } from "#modules/workflow-ops/client.js";
 import {
   type NavigatorOutput,
   type NavigatorPrompt,

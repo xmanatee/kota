@@ -2,12 +2,12 @@ import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { WorkflowGetRunResult } from "#core/server/kota-client.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { getEligibleAtMs } from "#core/workflow/run-executor-utils.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { formatRunId } from "#core/workflow/run-store-helpers.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import type { WorkflowGetRunResult } from "../client.js";
 import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
 
 /**

@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { WorkflowStatusSnapshot } from "#core/server/kota-client.js";
+import type { WorkflowStatusSnapshot } from "../client.js";
 import { formatDate, formatDuration, statusIcon } from "../utils.js";
 
 export function registerControlCommands(wfCmd: Command, ctx: ModuleContext): void {

@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-workflow-kotaclient-namespace-end-to-end
 title: Migrate the workflow KotaClient namespace end-to-end through the daemonClient(link) factory hook
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move WorkflowClient and its 14 supporting result/option types (WorkflowRunsListFilter/WorkflowRunsListResult/WorkflowStatusSnapshot/WorkflowPauseResult/WorkflowAbortResult/WorkflowReloadResult/WorkflowEnableResult/WorkflowDisableResult/WorkflowCancelRunResult/WorkflowAbortRunResult/WorkflowDaemonRequiredResult/WorkflowGetRunResult/WorkflowTriggerOptions/WorkflowTriggerResult/WorkflowDefinitionsResult) from src/core/server/kota-client.ts into src/modules/workflow-ops/client.ts; add a daemonClient(link) factory to src/modules/workflow-ops/index.ts that contributes the workflow namespace handler routing GET /workflow/status, GET /workflow/definitions, GET /workflow/runs, GET /workflow/runs/<id>, POST /workflow/pause, POST /workflow/resume, POST /workflow/abort, POST /workflow/reload, POST /workflow/definitions/<name>/enable, POST /workflow/definitions/<name>/disable, POST /workflow/trigger, POST /workflow/runs/<id>/abort, DELETE /workflow/runs/<id> through the typed DaemonTransport, plus the buildTriggerHttpPayload reshape helper; delete the inline workflow closure on buildCoreStubDaemonClientHandlers from src/core/server/daemon-client.ts; extend STUB_OMITTED_NAMESPACES and buildMigratedNamespaceTestStubs() with the workflow stub. Helpers stay in daemon-client.ts because the non-namespace direct DaemonControlClient methods (pause/resume/abort/reload/trigger/etc.) still consume them.
 created_at: 2026-05-05T07:32:17.923Z
-updated_at: 2026-05-05T07:32:17.923Z
+updated_at: 2026-05-05T07:53:43.248Z
 ---
 
 ## Problem

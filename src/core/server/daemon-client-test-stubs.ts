@@ -189,5 +189,36 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       search: async () => ({ ok: true as const, tasks: [] }),
       reindex: async () => ({ indexed: 0, failed: 0 }),
     },
+    workflow: {
+      listRuns: async () => ({ runs: [] }),
+      status: async () => ({
+        activeRuns: [],
+        pendingRuns: [],
+        queueLength: 0,
+        completedRuns: 0,
+        workflows: {},
+        paused: false,
+        pendingAbort: false,
+        agentConcurrency: 1,
+        codeConcurrency: 4,
+      }),
+      pause: async () => ({ paused: true, already: false }),
+      resume: async () => ({ paused: false, already: false }),
+      abort: async () => ({ status: "applied" as const, count: 0 }),
+      reload: async () => ({ status: "applied" as const, count: 0 }),
+      enable: async () => ({ ok: false as const, reason: "not_found" as const }),
+      disable: async () => ({ ok: false as const, reason: "not_found" as const }),
+      cancelRun: async () => ({ ok: false as const, reason: "not_found" as const }),
+      abortRun: async () => ({ ok: false as const, reason: "not_found" as const }),
+      getRun: async () => ({ found: false as const }),
+      listDefinitions: async () => ({
+        source: "static" as const,
+        definitions: [],
+      }),
+      triggerByName: async () => ({
+        ok: false as const,
+        reason: "already_queued" as const,
+      }),
+    },
   };
 }

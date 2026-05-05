@@ -13,10 +13,12 @@ import { loadConfig } from "#core/config/config.js";
 import type {
   WorkflowDefinitionSummary,
   WorkflowDefinitionTriggerSummary,
+  WorkflowLiveStatus,
   WorkflowRunDetail,
+  WorkflowRunSummary,
 } from "#core/daemon/daemon-control.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
-import type { WorkflowClient } from "#core/server/kota-client.js";
+import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import {
   isWithinDispatchWindow,
   msUntilDispatchWindowOpens,
@@ -33,6 +35,7 @@ import type {
   RegisteredWorkflowDefinitionInput,
   WorkflowRunTrigger,
 } from "#core/workflow/types.js";
+import { buildTriggerHttpPayload, type WorkflowClient } from "./client.js";
 import { registerDefinitionLogCommand } from "./definitions/definition-log.js";
 import { registerDefinitionsCommand } from "./definitions/definitions.js";
 import { registerDepsCommand } from "./definitions/deps.js";
@@ -243,7 +246,236 @@ const workflowModule: KotaModule = {
     };
     return { workflow: handler };
   },
+  daemonClient: (link) => ({ workflow: buildWorkflowDaemonHandler(link) }),
 };
+
+/**
+ * Daemon-side `WorkflowClient` backed by the typed `DaemonTransport`. Routes
+ * the thirteen `workflow` namespace methods through the daemon HTTP control
+ * routes.
+ *
+ * Wire contract per method (preserved byte-for-byte from the prior core stub):
+ *
+ *  - `listRuns(filter)` → `GET /workflow/runs[?workflow=...&limit=...&tag=...&causedByRunId=...]`.
+ *    Soft-falls through on transport failure: returns `{ runs: [] }`.
+ *  - `status()` → `GET /workflow/status`. Throws `"Daemon unreachable while
+ *    reading workflow status"` on transport failure. Wraps the daemon's
+ *    `WorkflowLiveStatus` with `pendingAbort: false` (the daemon-up branch
+ *    never observes a stale abort signal file).
+ *  - `pause()` / `resume()` → `POST /workflow/pause` / `/workflow/resume`.
+ *    Throws on transport failure.
+ *  - `abort()` → `POST /workflow/abort`. Throws on transport failure;
+ *    success returns `{ status: "applied", count }`. The `signaled` arm is
+ *    daemon-down only.
+ *  - `reload()` → `POST /workflow/reload`. Throws on transport failure;
+ *    success returns `{ status: "applied", count }`. The `signaled` arm is
+ *    daemon-down only.
+ *  - `enable(name)` / `disable(name)` → `POST
+ *    /workflow/definitions/<encodeURIComponent(name)>/enable` / `/disable`.
+ *    Throws on transport failure; 404 → `{ ok: false, reason: "not_found" }`.
+ *  - `cancelRun(id)` → `DELETE /workflow/runs/<encodeURIComponent(id)>`.
+ *    Throws on transport failure; 404 → `{ ok: false, reason: "not_found" }`,
+ *    409 → `{ ok: false, reason: "active" }`.
+ *  - `abortRun(id)` → `POST /workflow/runs/<encodeURIComponent(id)>/abort`.
+ *    Throws on transport failure; 404 → `{ ok: false, reason: "not_found" }`,
+ *    409 → `{ ok: false, reason: "queued" }`.
+ *  - `getRun(id)` → `GET /workflow/runs/<encodeURIComponent(id)>`. Soft-falls
+ *    through on transport failure: returns `{ found: false }`.
+ *  - `listDefinitions()` → `GET /workflow/definitions`. Throws on transport
+ *    failure; success returns `{ source: "daemon", definitions }`.
+ *  - `triggerByName(name, options)` → `POST /workflow/trigger` with body
+ *    `{ name, ...(tags && tags.length > 0 && { tags }), ...(payload && { payload }) }`.
+ *    Only the user-extension `payload` survives `buildTriggerHttpPayload`.
+ *    Throws on transport failure; 409 → `{ ok: false, reason: "already_queued" }`;
+ *    success returns `{ ok: true, path: "daemon", queued: result.queued ?? name,
+ *    ...(result.runId !== undefined && { runId: result.runId }) }`.
+ */
+export function buildWorkflowDaemonHandler(
+  link: DaemonTransport,
+): WorkflowClient {
+  const fetchJson = async (
+    method: string,
+    path: string,
+    body?: unknown,
+  ): Promise<Response | null> => {
+    try {
+      return await link.fetchRaw(path, {
+        method,
+        ...(body !== undefined && {
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  return {
+    listRuns: async (filter) => {
+      const params = new URLSearchParams();
+      if (filter?.workflow) params.set("workflow", filter.workflow);
+      if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
+      if (filter?.tag) params.set("tag", filter.tag);
+      if (filter?.causedByRunId) params.set("causedByRunId", filter.causedByRunId);
+      const query = params.toString() ? `?${params.toString()}` : "";
+      const result = await link.request<{ runs: WorkflowRunSummary[] }>(
+        "GET",
+        `/workflow/runs${query}`,
+      );
+      return { runs: result?.runs ?? [] };
+    },
+    status: async () => {
+      const result = await link.request<WorkflowLiveStatus>(
+        "GET",
+        "/workflow/status",
+      );
+      if (!result) {
+        throw new Error("Daemon unreachable while reading workflow status");
+      }
+      return { ...result, pendingAbort: false };
+    },
+    pause: async () => {
+      const result = await link.request<{ paused: boolean; already?: boolean }>(
+        "POST",
+        "/workflow/pause",
+      );
+      if (!result) throw new Error("Daemon unreachable while pausing dispatch");
+      return { paused: result.paused, already: result.already ?? false };
+    },
+    resume: async () => {
+      const result = await link.request<{ paused: boolean; already?: boolean }>(
+        "POST",
+        "/workflow/resume",
+      );
+      if (!result) throw new Error("Daemon unreachable while resuming dispatch");
+      return { paused: result.paused, already: result.already ?? false };
+    },
+    abort: async () => {
+      const result = await link.request<{ aborted: number }>(
+        "POST",
+        "/workflow/abort",
+      );
+      if (!result) {
+        throw new Error("Daemon unreachable while aborting active runs");
+      }
+      return { status: "applied", count: result.aborted };
+    },
+    reload: async () => {
+      const result = await link.request<{ count: number }>(
+        "POST",
+        "/workflow/reload",
+      );
+      if (!result) {
+        throw new Error("Daemon unreachable while reloading definitions");
+      }
+      return { status: "applied", count: result.count };
+    },
+    enable: async (name) => {
+      const resp = await fetchJson(
+        "POST",
+        `/workflow/definitions/${encodeURIComponent(name)}/enable`,
+      );
+      if (!resp) {
+        throw new Error(`Daemon unreachable while enabling workflow "${name}"`);
+      }
+      if (resp.status === 404) return { ok: false, reason: "not_found" };
+      if (!resp.ok) {
+        throw new Error(`Daemon unreachable while enabling workflow "${name}"`);
+      }
+      return { ok: true };
+    },
+    disable: async (name) => {
+      const resp = await fetchJson(
+        "POST",
+        `/workflow/definitions/${encodeURIComponent(name)}/disable`,
+      );
+      if (!resp) {
+        throw new Error(`Daemon unreachable while disabling workflow "${name}"`);
+      }
+      if (resp.status === 404) return { ok: false, reason: "not_found" };
+      if (!resp.ok) {
+        throw new Error(`Daemon unreachable while disabling workflow "${name}"`);
+      }
+      return { ok: true };
+    },
+    cancelRun: async (id) => {
+      const resp = await fetchJson(
+        "DELETE",
+        `/workflow/runs/${encodeURIComponent(id)}`,
+      );
+      if (!resp) {
+        throw new Error(`Daemon unreachable while cancelling run "${id}"`);
+      }
+      if (resp.status === 404) return { ok: false, reason: "not_found" };
+      if (resp.status === 409) return { ok: false, reason: "active" };
+      if (!resp.ok) {
+        throw new Error(`Daemon unreachable while cancelling run "${id}"`);
+      }
+      return { ok: true };
+    },
+    abortRun: async (id) => {
+      const resp = await fetchJson(
+        "POST",
+        `/workflow/runs/${encodeURIComponent(id)}/abort`,
+      );
+      if (!resp) {
+        throw new Error(`Daemon unreachable while aborting run "${id}"`);
+      }
+      if (resp.status === 404) return { ok: false, reason: "not_found" };
+      if (resp.status === 409) return { ok: false, reason: "queued" };
+      if (!resp.ok) {
+        throw new Error(`Daemon unreachable while aborting run "${id}"`);
+      }
+      return { ok: true };
+    },
+    getRun: async (id) => {
+      const run = await link.request<WorkflowRunDetail>(
+        "GET",
+        `/workflow/runs/${encodeURIComponent(id)}`,
+      );
+      return run ? { found: true, run } : { found: false };
+    },
+    listDefinitions: async () => {
+      const result = await link.request<{
+        definitions: WorkflowDefinitionSummary[];
+      }>("GET", "/workflow/definitions");
+      if (!result) {
+        throw new Error("Daemon unreachable while listing workflow definitions");
+      }
+      return { source: "daemon", definitions: result.definitions };
+    },
+    triggerByName: async (name, options) => {
+      const tags = options?.tags;
+      const payload = buildTriggerHttpPayload(options);
+      const body = {
+        name,
+        ...(tags && tags.length > 0 && { tags }),
+        ...(payload && { payload }),
+      };
+      const resp = await fetchJson("POST", "/workflow/trigger", body);
+      if (!resp) {
+        throw new Error(`Daemon unreachable while triggering workflow "${name}"`);
+      }
+      if (resp.status === 409) {
+        return { ok: false, reason: "already_queued" };
+      }
+      if (!resp.ok) {
+        throw new Error(`Daemon unreachable while triggering workflow "${name}"`);
+      }
+      const result = (await resp.json()) as {
+        queued?: string;
+        runId?: string;
+      };
+      return {
+        ok: true,
+        path: "daemon",
+        queued: result.queued ?? name,
+        ...(result.runId !== undefined && { runId: result.runId }),
+      };
+    },
+  };
+}
 
 /**
  * Read a single run's `metadata.json`. The CLI's `run show` and chain-tree

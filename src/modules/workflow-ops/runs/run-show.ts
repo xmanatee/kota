@@ -3,7 +3,6 @@ import { join } from "node:path";
 import type { Command } from "commander";
 import type { WorkflowRunDetail } from "#core/daemon/daemon-control.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { WorkflowClient } from "#core/server/kota-client.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { RepairSummary } from "#core/workflow/run-store-helpers.js";
 import { extractRepairSummary } from "#core/workflow/run-store-helpers.js";
@@ -20,6 +19,7 @@ import {
   type TextSpan,
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
+import type { WorkflowClient } from "../client.js";
 import { formatDuration, statusIcon } from "../utils.js";
 
 export function formatSkipReason(reason: WorkflowStepSkipReason): string {

@@ -52,6 +52,7 @@ const STUB_OMITTED_NAMESPACES: ReadonlySet<string> = new Set<string>([
   "daemonOps",
   "config",
   "tasks",
+  "workflow",
 ]);
 
 function makeFakeTransport(): DaemonTransport {
@@ -299,6 +300,34 @@ function makeStubTasks(): DaemonClientHandlers["tasks"] {
   };
 }
 
+function makeStubWorkflow(): DaemonClientHandlers["workflow"] {
+  return {
+    listRuns: async () => ({ runs: [] }),
+    status: async () => ({
+      activeRuns: [],
+      pendingRuns: [],
+      queueLength: 0,
+      completedRuns: 0,
+      workflows: {},
+      paused: false,
+      agentConcurrency: 1,
+      codeConcurrency: 4,
+      pendingAbort: false,
+    }),
+    pause: async () => ({ paused: true, already: false }),
+    resume: async () => ({ paused: false, already: false }),
+    abort: async () => ({ status: "applied", count: 0 }),
+    reload: async () => ({ status: "applied", count: 0 }),
+    enable: async () => ({ ok: true }),
+    disable: async () => ({ ok: true }),
+    cancelRun: async () => ({ ok: true }),
+    abortRun: async () => ({ ok: true }),
+    getRun: async () => ({ found: false }),
+    listDefinitions: async () => ({ source: "daemon", definitions: [] }),
+    triggerByName: async () => ({ ok: true, path: "daemon", queued: "x" }),
+  };
+}
+
 describe("assembleDaemonClientHandlers", () => {
   const transport = makeFakeTransport();
 
@@ -344,39 +373,15 @@ describe("assembleDaemonClientHandlers", () => {
       daemonOps: makeStubDaemonOps(),
       config: makeStubConfig(),
       tasks: makeStubTasks(),
+      workflow: makeStubWorkflow(),
     });
     for (const name of KOTA_CLIENT_NAMESPACES) {
       expect(handlers[name], `assembled client must cover "${name}"`).toBeDefined();
     }
   });
 
-  it("overrides the stub when a module contributes the same namespace", () => {
-    const stub = buildCoreStubDaemonClientHandlers(transport);
-    const customWorkflow: DaemonClientHandlers["workflow"] = {
-      listRuns: async () => ({ runs: [] }),
-      status: async () => ({
-        activeRuns: [],
-        pendingRuns: [],
-        queueLength: 0,
-        completedRuns: 0,
-        workflows: {},
-        paused: false,
-        agentConcurrency: 1,
-        codeConcurrency: 4,
-        pendingAbort: false,
-      }),
-      pause: async () => ({ paused: true, already: false }),
-      resume: async () => ({ paused: false, already: false }),
-      abort: async () => ({ status: "applied", count: 0 }),
-      reload: async () => ({ status: "applied", count: 0 }),
-      enable: async () => ({ ok: true }),
-      disable: async () => ({ ok: true }),
-      cancelRun: async () => ({ ok: true }),
-      abortRun: async () => ({ ok: true }),
-      getRun: async () => ({ found: false }),
-      listDefinitions: async () => ({ source: "daemon", definitions: [] }),
-      triggerByName: async () => ({ ok: true, path: "daemon", queued: "x" }),
-    };
+  it("module-contributed handlers land verbatim on the assembled map", () => {
+    const customWorkflow = makeStubWorkflow();
     const merged = assembleDaemonClientHandlers(transport, {
       doctor: makeStubDoctor(),
       harnessParity: makeStubHarnessParity(),
@@ -407,12 +412,16 @@ describe("assembleDaemonClientHandlers", () => {
       workflow: customWorkflow,
     });
     expect(merged.workflow).toBe(customWorkflow);
-    expect(merged.workflow).not.toBe(stub.workflow);
+  });
+
+  it("the core stub is empty now that every namespace has migrated", () => {
+    const stub = buildCoreStubDaemonClientHandlers(transport);
+    expect(Object.keys(stub)).toEqual([]);
   });
 
   it("throws naming each migrated namespace when no module contributes it", () => {
     expect(() => assembleDaemonClientHandlers(transport)).toThrow(
-      /missing daemon handler\(s\) for: approvals, secrets, tasks, memory, ownerQuestions, history, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, config, modulesAdmin, daemonOps, doctor, evalHarness, recall, answer, capture, retract/,
+      /missing daemon handler\(s\) for: workflow, approvals, secrets, tasks, memory, ownerQuestions, history, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, config, modulesAdmin, daemonOps, doctor, evalHarness, recall, answer, capture, retract/,
     );
   });
 });

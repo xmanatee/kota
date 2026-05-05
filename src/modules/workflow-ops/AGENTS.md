@@ -16,3 +16,13 @@ Shared utilities (`utils.ts`, `definitions-source.ts`) stay at the module root.
 - No change to command names, flags, aliases, or output without updating docs.
 - Tests are co-located with the code they cover inside each subdomain.
 - HTTP routes are contributed via `routes/routes.ts` using handlers in the same subdirectory.
+
+## KotaClient Surface
+
+The `workflow` namespace contract lives in `client.ts` (`WorkflowClient`,
+result/option types, and the `buildTriggerHttpPayload` reshape helper).
+`localClient(ctx)` and `daemonClient(link)` factories in `index.ts` realize
+the contract; `buildWorkflowDaemonHandler(link)` is the daemon-side factory
+that routes the thirteen namespace methods through the typed
+`DaemonTransport`. Wire paths and reshape semantics are pinned in
+`daemon-client.test.ts`.

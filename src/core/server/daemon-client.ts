@@ -13,27 +13,12 @@ import type {
 } from "#core/daemon/daemon-control.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { type DaemonTransport, daemonTransportFromAddress } from "./daemon-transport.js";
-import type { KotaClient, WorkflowTriggerOptions } from "./kota-client.js";
+import type { KotaClient } from "./kota-client.js";
 import {
   type DaemonClientHandlers,
   KOTA_CLIENT_NAMESPACES,
   type KotaClientNamespace,
 } from "./kota-client.js";
-
-/**
- * Daemon `/workflow/trigger` only accepts a `payload` object that the
- * runtime spreads into the run's trigger payload. The daemon imposes its own
- * `event` ("manual") and `_runId` (generated server-side), so the CLI-side
- * `event`, `runId`, `force`, and `notBeforeMs` options on
- * `WorkflowTriggerOptions` are honored only on the daemon-down enqueue path.
- * The HTTP request carries the user-extension payload alone.
- */
-function buildTriggerHttpPayload(
-  options: WorkflowTriggerOptions | undefined,
-): Record<string, unknown> | undefined {
-  if (!options?.payload) return undefined;
-  return Object.keys(options.payload).length > 0 ? options.payload : undefined;
-}
 
 /**
  * Fetch through the typed link, swallowing transport errors and returning
@@ -230,123 +215,25 @@ export async function daemonManagedHttp(): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------------------
-// Core stub: the namespace closures that have not yet migrated to their
-// owning module's `daemonClient(link)` factory. Module-contributed handlers
-// fill the gaps at assembly time. As each namespace migrates out, its
-// closure is removed from the stub. The doctor pilot (2026-05-03) is the
-// first namespace to leave; its handler is contributed by the doctor
-// module instead.
+// Core stub: empty after every namespace migrated to its owning module's
+// `daemonClient(link)` factory. The function exists so the assembly path
+// keeps a single, named integration point — module contributions overlay
+// against this empty stub, and `assembleDaemonClientHandlers` validates
+// full namespace coverage. If a future capability lands as a core-only
+// namespace (no module ownership), it can be added back here.
 // ---------------------------------------------------------------------------
 
 /**
- * Build the core-side stub partial `DaemonClientHandlers` map from a typed
- * `DaemonTransport`. Each closure corresponds to a `KotaClient` namespace
- * that has not yet been migrated to its owning module. Migrated namespaces
- * are absent from the returned map and must be contributed by their owning
- * module's `daemonClient(link)` factory; missing handlers are a load-time
- * error in `assembleDaemonClientHandlers`, not a silent fallback.
- *
- * `kota serve` and `kota mcp-server` start a long-running process in the
- * caller's address space. The daemon cannot start either on the caller's
- * behalf, so the `web` and `mcpServer` namespaces surface
- * `daemon_required` uniformly when the selector picked the daemon
- * transport. The CLI maps that to a clear "stop the daemon first" hint.
+ * Build the core-side stub partial `DaemonClientHandlers` map. Every
+ * namespace currently migrates through its owning module's
+ * `daemonClient(link)` factory; the stub is empty. Missing handlers at
+ * assembly time are a load-time error in `assembleDaemonClientHandlers`,
+ * not a silent fallback.
  */
 export function buildCoreStubDaemonClientHandlers(
-  transport: DaemonTransport,
+  _transport: DaemonTransport,
 ): Partial<DaemonClientHandlers> {
-  return {
-    workflow: {
-      listRuns: async (filter) => {
-        const result = await listWorkflowRunsHttp(
-          transport,
-          filter?.workflow,
-          filter?.limit,
-          filter?.tag,
-          filter?.causedByRunId,
-        );
-        return { runs: result?.runs ?? [] };
-      },
-      status: async () => {
-        const result = await getWorkflowStatusHttp(transport);
-        if (!result) throw new Error("Daemon unreachable while reading workflow status");
-        return { ...result, pendingAbort: false };
-      },
-      pause: async () => {
-        const result = await pauseHttp(transport);
-        if (!result) throw new Error("Daemon unreachable while pausing dispatch");
-        return { paused: result.paused, already: result.already ?? false };
-      },
-      resume: async () => {
-        const result = await resumeHttp(transport);
-        if (!result) throw new Error("Daemon unreachable while resuming dispatch");
-        return { paused: result.paused, already: result.already ?? false };
-      },
-      abort: async () => {
-        const result = await abortHttp(transport);
-        if (!result) throw new Error("Daemon unreachable while aborting active runs");
-        return { status: "applied", count: result.aborted };
-      },
-      reload: async () => {
-        const result = await reloadHttp(transport);
-        if (!result) throw new Error("Daemon unreachable while reloading definitions");
-        return { status: "applied", count: result.count };
-      },
-      enable: async (name) => {
-        const result = await enableWorkflowHttp(transport, name);
-        if (!result) throw new Error(`Daemon unreachable while enabling workflow "${name}"`);
-        return result.notFound ? { ok: false, reason: "not_found" } : { ok: true };
-      },
-      disable: async (name) => {
-        const result = await disableWorkflowHttp(transport, name);
-        if (!result) throw new Error(`Daemon unreachable while disabling workflow "${name}"`);
-        return result.notFound ? { ok: false, reason: "not_found" } : { ok: true };
-      },
-      cancelRun: async (id) => {
-        const result = await cancelRunHttp(transport, id);
-        if (!result) throw new Error(`Daemon unreachable while cancelling run "${id}"`);
-        if (result.notFound) return { ok: false, reason: "not_found" };
-        if (result.active) return { ok: false, reason: "active" };
-        return { ok: true };
-      },
-      abortRun: async (id) => {
-        const result = await abortRunHttp(transport, id);
-        if (!result) throw new Error(`Daemon unreachable while aborting run "${id}"`);
-        if (result.notFound) return { ok: false, reason: "not_found" };
-        if (result.queued) return { ok: false, reason: "queued" };
-        return { ok: true };
-      },
-      getRun: async (id) => {
-        const run = await getWorkflowRunHttp(transport, id);
-        return run ? { found: true, run } : { found: false };
-      },
-      listDefinitions: async () => {
-        const result = await getWorkflowDefinitionsHttp(transport);
-        if (!result) {
-          throw new Error("Daemon unreachable while listing workflow definitions");
-        }
-        return { source: "daemon", definitions: result.definitions };
-      },
-      triggerByName: async (name, options) => {
-        const result = await triggerWorkflowHttp(
-          transport,
-          name,
-          options?.tags,
-          buildTriggerHttpPayload(options),
-        );
-        if (!result) {
-          throw new Error(`Daemon unreachable while triggering workflow "${name}"`);
-        }
-        if (result.alreadyQueued) return { ok: false, reason: "already_queued" };
-        return {
-          ok: true,
-          path: "daemon",
-          queued: result.queued ?? name,
-          ...(result.runId !== undefined && { runId: result.runId }),
-        };
-      },
-    },
-  };
+  return {};
 }
 
 /**

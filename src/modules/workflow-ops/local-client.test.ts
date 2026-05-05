@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { WorkflowClient } from "#core/server/kota-client.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import {
   ABORT_SIGNAL_FILE,
@@ -14,6 +13,7 @@ import type {
   RegisteredWorkflowDefinitionInput,
   WorkflowRunTrigger,
 } from "#core/workflow/types.js";
+import type { WorkflowClient } from "./client.js";
 import workflowOpsModule from "./index.js";
 
 function makeProjectDir(): string {
