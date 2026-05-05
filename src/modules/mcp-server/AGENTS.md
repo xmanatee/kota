@@ -11,8 +11,12 @@ the Model Context Protocol over stdio.
   The daemon-side handler returns `{ ok: false, reason: "daemon_required" }`
   because the daemon cannot start a stdio MCP server in another process;
   the CLI maps that to a "stop the daemon first" hint.
-- Owns the `McpServer` class plus its prompt and resource helpers and the
-  co-located server tests.
+- Owns the `McpServer` orchestrator, the per-feature handler files, prompt
+  and resource helpers, and the co-located server tests. New MCP method
+  handlers go in the `mcp-handlers-<feature>.ts` sibling that owns that
+  feature area (initialize, resources, prompts, tools, sampling,
+  elicitation, completion). `server.ts` only owns lifecycle, transport, and
+  method-name dispatch; one feature area per file.
 - Treat MCP as a transport over KOTA capabilities, not a second capability
   registry. Tools, resources, prompts, sampling, roots, and elicitation are
   adapters around existing runtime contracts.

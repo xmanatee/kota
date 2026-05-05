@@ -1,12 +1,12 @@
 ---
 id: task-split-mcpserver-class-into-per-mcp-feature-handler
 title: Split McpServer class into per-MCP-feature handler files
-status: ready
+status: done
 priority: p1
 area: modules
 summary: Split McpServer (mcp-server module) into per-MCP-feature handler files so the central server.ts drops well under the 300-line guideline
 created_at: 2026-05-05T09:29:57.647Z
-updated_at: 2026-05-05T09:29:57.647Z
+updated_at: 2026-05-05T09:44:13.466Z
 ---
 
 ## Problem
