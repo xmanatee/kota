@@ -90,3 +90,28 @@ daemon-vs-local policy.
   inside.
 - A namespace whose daemon-side and local-side return different data
   shapes — both implementors share one type per method.
+
+## Non-namespace transport surface
+
+`DaemonControlClient` may keep a non-namespace method only when every
+condition holds:
+
+- The caller already holds a `DaemonControlClient`, not a
+  `DaemonTransport`. Module CLI code does not — it consumes
+  `getDaemonTransport()` directly through `daemon-transport.ts` (the
+  `kota-client-guard.test.ts` boundary check enforces this).
+- No operator-facing CLI invokes the method. Anything reachable from
+  `kota <subcommand>` must go through a `KotaClient` namespace so the
+  daemon-up and daemon-down branches share one typed result.
+- The daemon RPC has no natural namespace home, or wrapping it in a
+  discriminated namespace result would distort the wire shape the
+  caller needs (e.g. an SSE proxy or a dashboard payload that must
+  re-emit the raw daemon body).
+
+The current set is `registerSession`, `unregisterSession`,
+`getDaemonStatus`, and `events()` — all consumed by the in-process
+`kota serve` HTTP server when it bridges its sessions, status page,
+and event stream to the running daemon. Adding a method here is a
+"prove no namespace fits" decision, not a default. If a CLI ever
+needs the same RPC, promote it to a `KotaClient` namespace and remove
+the non-namespace method in the same change.

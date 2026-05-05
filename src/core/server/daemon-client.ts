@@ -1,16 +1,4 @@
-import type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
-import type { CapabilityReadinessResponse } from "#core/daemon/capability-readiness.js";
-import type { ClientIdentity } from "#core/daemon/client-identity.js";
-import type {
-  DaemonControlAddress,
-  DaemonLiveStatus,
-  DaemonSseEvent,
-  HealthStatus,
-  WorkflowDefinitionSummary,
-  WorkflowLiveStatus,
-  WorkflowRunDetail,
-  WorkflowRunSummary,
-} from "#core/daemon/daemon-control.js";
+import type { DaemonControlAddress, DaemonLiveStatus, DaemonSseEvent } from "#core/daemon/daemon-control.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import * as methods from "./daemon-control-methods.js";
 import { type DaemonTransport, daemonTransportFromAddress } from "./daemon-transport.js";
@@ -85,9 +73,11 @@ export function assembleDaemonClientHandlers(
 
 // ---------------------------------------------------------------------------
 // DaemonControlClient — the daemon-online implementor of `KotaClient`.
-// Namespace fields are populated from the assembled handlers map. Public
-// non-namespace methods delegate to standalone functions in
-// `daemon-control-methods.ts`; this class is the façade callers hold.
+// Namespace fields are populated from the assembled handlers map. The
+// remaining non-namespace methods are server-internal transport primitives
+// (session registration, SSE proxy, raw daemon-status proxy) with no
+// CLI-facing equivalent; they delegate to standalone functions in
+// `daemon-control-methods.ts`.
 // ---------------------------------------------------------------------------
 
 export class DaemonControlClient implements KotaClient {
@@ -198,96 +188,20 @@ export class DaemonControlClient implements KotaClient {
   }
 
   // -------------------------------------------------------------------------
-  // Non-namespace methods. These wrap the typed transport directly and are
-  // consumed by callers that hold a `DaemonControlClient` (DaemonLink, the
-  // server's daemon proxy routes, integration tests). They are not part of
-  // any `KotaClient` namespace.
+  // Non-namespace methods. Server-internal transport primitives only.
+  // The `kota serve` HTTP API holds a `DaemonControlClient` (not the raw
+  // transport) and uses these to proxy daemon events/status and to register
+  // its sessions with the running daemon's session list.
   // -------------------------------------------------------------------------
 
-  getHealth(): Promise<{ status: string; components: HealthStatus } | null> {
-    return methods.getHealth(this.transport);
-  }
   getDaemonStatus(): Promise<DaemonLiveStatus | null> {
     return methods.getDaemonStatus(this.transport);
-  }
-  getCapabilities(): Promise<CapabilityReadinessResponse | null> {
-    return methods.getCapabilities(this.transport);
-  }
-  getIdentity(): Promise<ClientIdentity | null> {
-    return methods.getIdentity(this.transport);
-  }
-  getWorkflowStatus(): Promise<WorkflowLiveStatus | null> {
-    return methods.getWorkflowStatus(this.transport);
-  }
-  getWorkflowDefinitions(): Promise<{ definitions: WorkflowDefinitionSummary[] } | null> {
-    return methods.getWorkflowDefinitions(this.transport);
-  }
-  pause(): Promise<{ ok: boolean; paused: boolean; already?: boolean } | null> {
-    return methods.pause(this.transport);
-  }
-  resume(): Promise<{ ok: boolean; paused: boolean; already?: boolean } | null> {
-    return methods.resume(this.transport);
-  }
-  abort(): Promise<{ ok: boolean; aborted: number } | null> {
-    return methods.abort(this.transport);
-  }
-  reload(): Promise<{ ok: boolean; count: number } | null> {
-    return methods.reload(this.transport);
-  }
-  reloadConfig(): Promise<{ ok: boolean; workflows: number; changedModules: string[] } | null> {
-    return methods.reloadConfig(this.transport);
-  }
-  enableWorkflow(name: string): Promise<{ ok: boolean; notFound?: boolean } | null> {
-    return methods.enableWorkflow(this.transport, name);
-  }
-  disableWorkflow(name: string): Promise<{ ok: boolean; notFound?: boolean } | null> {
-    return methods.disableWorkflow(this.transport, name);
-  }
-  trigger(name: string, tags?: string[], payload?: Record<string, unknown>): Promise<{ ok: boolean; queued?: string; runId?: string; alreadyQueued?: boolean } | null> {
-    return methods.trigger(this.transport, name, tags, payload);
-  }
-  dryRun(name: string, payload?: Record<string, unknown>): Promise<{ pass: boolean; notFound?: boolean; [key: string]: unknown } | null> {
-    return methods.dryRun(this.transport, name, payload);
-  }
-  abortRun(runId: string): Promise<{ ok: boolean; notFound?: boolean; queued?: boolean } | null> {
-    return methods.abortRun(this.transport, runId);
-  }
-  cancelRun(runId: string): Promise<{ ok: boolean; notFound?: boolean; active?: boolean } | null> {
-    return methods.cancelRun(this.transport, runId);
-  }
-  listApprovals(status?: ApprovalStatus | "all"): Promise<{ approvals: PendingApproval[] } | null> {
-    return methods.listApprovals(this.transport, status);
-  }
-  approveApproval(id: string, note?: string): Promise<{ approval: PendingApproval } | null> {
-    return methods.approveApproval(this.transport, id, note);
-  }
-  rejectApproval(id: string, reason?: string): Promise<{ approval: PendingApproval } | null> {
-    return methods.rejectApproval(this.transport, id, reason);
-  }
-  approveAllApprovals(note?: string): Promise<{ approvals: PendingApproval[]; count: number } | null> {
-    return methods.approveAllApprovals(this.transport, note);
-  }
-  rejectAllApprovals(reason?: string): Promise<{ approvals: PendingApproval[]; count: number } | null> {
-    return methods.rejectAllApprovals(this.transport, reason);
-  }
-  listWorkflowRuns(workflow?: string, limit?: number, tag?: string, causedByRunId?: string): Promise<{ runs: WorkflowRunSummary[] } | null> {
-    return methods.listWorkflowRuns(this.transport, workflow, limit, tag, causedByRunId);
-  }
-  getWorkflowRun(id: string): Promise<WorkflowRunDetail | null> {
-    return methods.getWorkflowRun(this.transport, id);
   }
   registerSession(id: string, createdAt: string, autonomyMode: AutonomyMode): Promise<boolean> {
     return methods.registerSession(this.transport, id, createdAt, autonomyMode);
   }
   unregisterSession(id: string): Promise<boolean> {
     return methods.unregisterSession(this.transport, id);
-  }
-  queryEvents(opts?: {
-    type?: string;
-    since?: string;
-    limit?: number;
-  }): Promise<{ events: Array<{ type: string; payload: Record<string, unknown>; timestamp: string }> } | null> {
-    return methods.queryEvents(this.transport, opts);
   }
   events(): AsyncGenerator<DaemonSseEvent> {
     return methods.events(this.transport);

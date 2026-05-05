@@ -1,12 +1,12 @@
 ---
 id: task-audit-daemoncontrolclient-non-namespace-surface-fo
 title: Audit DaemonControlClient non-namespace surface for residual duplication
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Audit DaemonControlClient non-namespace methods (workflow control, approvals, sessions, events) for residual duplication against the typed KotaClient namespace contract; record verdict per method and either delete duplicates or document why they must remain transport-only primitives.
 created_at: 2026-05-05T08:51:50.441Z
-updated_at: 2026-05-05T08:51:50.441Z
+updated_at: 2026-05-05T09:03:30.496Z
 ---
 
 ## Problem
