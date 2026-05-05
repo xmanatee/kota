@@ -118,5 +118,12 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       delete: async () => ({ ok: true as const }),
       reindex: async () => ({ indexed: 0, failed: 0 }),
     },
+    history: {
+      list: async () => ({ conversations: [] }),
+      show: async () => ({ found: false as const }),
+      delete: async () => ({ ok: true as const }),
+      search: async () => ({ ok: true as const, conversations: [] }),
+      reindex: async () => ({ indexed: 0, failed: 0 }),
+    },
   };
 }

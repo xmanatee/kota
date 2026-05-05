@@ -223,13 +223,14 @@ describe("history module daemon-control routes", () => {
   });
 
   describe("DELETE /history/:id", () => {
-    it("returns 204 and removes the conversation", async () => {
+    it("returns 200 with { deleted: id } and removes the conversation", async () => {
       const { getHistory } = await import("./history.js");
       const history = getHistory();
       const id = history.create("claude-sonnet-4-6", "/tmp/project");
 
       const res = await fetchWith(port, `/history/${id}`, { method: "DELETE" });
-      expect(res.status).toBe(204);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ deleted: id });
       expect(history.load(id)).toBeNull();
     });
 

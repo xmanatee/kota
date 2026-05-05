@@ -12,9 +12,6 @@ import type {
   WorkflowRunDetail,
   WorkflowRunSummary,
 } from "#core/daemon/daemon-control.js";
-import type {
-  ConversationData,
-} from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { type DaemonTransport, daemonTransportFromAddress } from "./daemon-transport.js";
 import type {
@@ -26,13 +23,6 @@ import type {
   EvalListResult,
   EvalRunOptions,
   EvalRunResult,
-  HistoryDeleteResult,
-  HistoryListFilter,
-  HistoryListResult,
-  HistoryReindexResult,
-  HistorySearchFilter,
-  HistorySearchResult,
-  HistoryShowResult,
   KotaClient,
   RepoTaskCaptureResult,
   RepoTaskCreateOptions,
@@ -415,93 +405,6 @@ async function setSessionAutonomyModeHttp(
     if (err instanceof Error && /HTTP/.test(err.message)) throw err;
     return { ok: false, reason: "daemon_required" };
   }
-}
-
-async function historyListHttp(
-  transport: DaemonTransport,
-  filter?: HistoryListFilter,
-): Promise<HistoryListResult> {
-  const params = new URLSearchParams();
-  if (filter?.search) params.set("search", filter.search);
-  if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-  if (filter?.cwd) params.set("cwd", filter.cwd);
-  if (filter?.source) params.set("source", filter.source);
-  const query = params.toString() ? `?${params.toString()}` : "";
-  const res = await fetchWithTimeout(`${transport.baseUrl}/history${query}`, {
-    headers: transport.authHeaders(),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as HistoryListResult;
-}
-
-async function historyShowHttp(
-  transport: DaemonTransport,
-  id: string,
-): Promise<HistoryShowResult> {
-  const res = await fetchWithTimeout(
-    `${transport.baseUrl}/history/${encodeURIComponent(id)}`,
-    { headers: transport.authHeaders() },
-  );
-  if (res.status === 404) return { found: false };
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  const data = (await res.json()) as ConversationData;
-  return { found: true, data };
-}
-
-async function historyDeleteHttp(
-  transport: DaemonTransport,
-  id: string,
-): Promise<HistoryDeleteResult> {
-  const res = await fetchWithTimeout(
-    `${transport.baseUrl}/history/${encodeURIComponent(id)}`,
-    { method: "DELETE", headers: transport.authHeaders() },
-  );
-  if (res.status === 204) return { ok: true };
-  if (res.status === 404) return { ok: false, reason: "not_found" };
-  const body = (await res.json().catch(() => ({}))) as { error?: string };
-  throw new Error(body.error ?? `HTTP ${res.status}`);
-}
-
-async function reindexHistoryHttp(
-  transport: DaemonTransport,
-): Promise<HistoryReindexResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/history/reindex`, {
-    method: "POST",
-    headers: transport.authHeaders(),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as HistoryReindexResult;
-}
-
-async function searchHistoryHttp(
-  transport: DaemonTransport,
-  query: string,
-  filter?: HistorySearchFilter,
-): Promise<HistorySearchResult> {
-  const params = new URLSearchParams();
-  params.set("q", query);
-  if (filter?.cwd) params.set("cwd", filter.cwd);
-  if (filter?.source) params.set("source", filter.source);
-  if (filter?.semantic) params.set("semantic", "true");
-  if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-  const res = await fetchWithTimeout(
-    `${transport.baseUrl}/api/history/search?${params.toString()}`,
-    { headers: transport.authHeaders() },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as HistorySearchResult;
 }
 
 async function showTaskHttp(
@@ -1006,13 +909,6 @@ export function buildCoreStubDaemonClientHandlers(
       search: async (query, filter) => searchTasksHttp(transport, query, filter),
       reindex: async () => reindexTasksHttp(transport),
     },
-    history: {
-      list: async (filter) => historyListHttp(transport, filter),
-      show: async (id) => historyShowHttp(transport, id),
-      delete: async (id) => historyDeleteHttp(transport, id),
-      search: async (query, filter) => searchHistoryHttp(transport, query, filter),
-      reindex: async () => reindexHistoryHttp(transport),
-    },
     sessions: {
       list: async () => {
         const result = await listSessionsHttp(transport);
@@ -1288,32 +1184,6 @@ export class DaemonControlClient implements KotaClient {
 
   cancelRun(runId: string): Promise<{ ok: boolean; notFound?: boolean; active?: boolean } | null> {
     return cancelRunHttp(this.transport, runId);
-  }
-
-  async listHistory(filter?: HistoryListFilter): Promise<HistoryListResult | null> {
-    try {
-      return await historyListHttp(this.transport, filter);
-    } catch {
-      return null;
-    }
-  }
-
-  async getHistory(id: string): Promise<ConversationData | null> {
-    try {
-      const result = await historyShowHttp(this.transport, id);
-      return result.found ? result.data : null;
-    } catch {
-      return null;
-    }
-  }
-
-  async deleteHistory(id: string): Promise<boolean> {
-    try {
-      const result = await historyDeleteHttp(this.transport, id);
-      return result.ok;
-    } catch {
-      return false;
-    }
   }
 
   listApprovals(status?: ApprovalStatus | "all"): Promise<{ approvals: PendingApproval[] } | null> {

@@ -29,8 +29,6 @@ import type {
   WorkflowRunSummary,
 } from "#core/daemon/daemon-control.js";
 import type {
-  ConversationData,
-  ConversationRecord,
   ReindexResult,
   RepoTaskSearchHit,
 } from "#core/modules/provider-types.js";
@@ -46,6 +44,7 @@ import type { CaptureClient } from "#modules/capture/client.js";
 import type { DoctorClient } from "#modules/doctor/client.js";
 import type { AuditClient } from "#modules/guardrails-audit/client.js";
 import type { HarnessParityClient } from "#modules/harness-parity/client.js";
+import type { HistoryClient } from "#modules/history/client.js";
 import type { KnowledgeClient } from "#modules/knowledge/client.js";
 import type { McpServerClient } from "#modules/mcp-server/client.js";
 import type { MemoryClient } from "#modules/memory/client.js";
@@ -317,57 +316,6 @@ export type WorkflowDefinitionsResult = {
 };
 
 /**
- * Filter for `HistoryClient.list`.
- *
- * The CLI uses `cwd` to scope the per-directory list (default `kota history list`),
- * `--all` to include every directory, and `search` for substring matching against
- * title or cwd. `source` distinguishes user-initiated chats from internal
- * action-driven sessions. Defaults match the underlying store: when `limit` is
- * absent the implementor returns the same default the store would (20).
- */
-export type HistoryListFilter = {
-  search?: string;
-  limit?: number;
-  cwd?: string;
-  source?: "user" | "action";
-};
-
-export type HistoryListResult = {
-  conversations: ConversationRecord[];
-};
-
-/** Result of `history.show(id)`. Returns the full conversation data on success. */
-export type HistoryShowResult =
-  | { found: true; data: ConversationData }
-  | { found: false };
-
-/** Result of `history.delete(id)`. */
-export type HistoryDeleteResult =
-  | { ok: true }
-  | { ok: false; reason: "not_found" };
-
-/** Result of `history.reindex`. Mirrors the provider's `ReindexResult`. */
-export type HistoryReindexResult = ReindexResult;
-
-/** Filter for `history.search`. */
-export type HistorySearchFilter = {
-  cwd?: string;
-  source?: "user" | "action";
-  semantic?: boolean;
-  limit?: number;
-};
-
-/**
- * Result of `history.search`. Semantic ranking requires an embedding-backed
- * provider; when the caller asks for `semantic: true` and the active provider
- * cannot satisfy that, the contract surfaces an explicit
- * `semantic_unavailable` rather than silently falling back to keyword search.
- */
-export type HistorySearchResult =
-  | { ok: true; conversations: ConversationRecord[] }
-  | { ok: false; reason: "semantic_unavailable" };
-
-/**
  * Workflow runtime operations.
  *
  * Reads (`listRuns`, `status`) work both daemon-up and daemon-down — the
@@ -452,33 +400,6 @@ export interface RepoTasksClient {
   search(query: string, filter?: RepoTaskSearchFilter): Promise<RepoTaskSearchResult>;
   /** Rebuild the semantic index over the repo task queue when the active provider supports it. */
   reindex(): Promise<RepoTaskReindexResult>;
-}
-
-/**
- * Conversation-history operations.
- *
- * `list` returns conversation records filtered by `search` / `limit` /
- * `cwd` / `source`. `show` returns the full `ConversationData`
- * (record + messages + compaction metadata) for a single conversation.
- * `delete` removes a conversation. The contract is intentionally minimal:
- * id-prefix and most-recent-by-cwd resolution are derived in the CLI from
- * `list` (see `resolveConversationId`) so the contract stays a single
- * pass-through for stored state, not a query DSL.
- */
-export interface HistoryClient {
-  list(filter?: HistoryListFilter): Promise<HistoryListResult>;
-  show(id: string): Promise<HistoryShowResult>;
-  delete(id: string): Promise<HistoryDeleteResult>;
-  /**
-   * Run semantic or keyword search across stored conversations. Semantic
-   * ranking requires an embedding-backed provider; when the caller asks for
-   * `semantic: true` and the active provider cannot satisfy that, the
-   * contract surfaces an explicit `semantic_unavailable` rather than silently
-   * falling back to keyword search.
-   */
-  search(query: string, filter?: HistorySearchFilter): Promise<HistorySearchResult>;
-  /** Rebuild the semantic index over all conversations when the active provider supports it. */
-  reindex(): Promise<HistoryReindexResult>;
 }
 
 export type SessionsListResult = {

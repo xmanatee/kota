@@ -11,13 +11,11 @@ import type { KotaConfig } from "#core/config/config.js";
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
 import { NullTransport, ProxyTransport } from "#core/loop/transport.js";
-import type {
-  HistoryClient,
-  RepoTasksClient,
-} from "#core/server/kota-client.js";
+import type { RepoTasksClient } from "#core/server/kota-client.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { AnswerClient } from "#modules/answer/client.js";
 import type { CaptureClient } from "#modules/capture/client.js";
+import type { HistoryClient } from "#modules/history/client.js";
 import type { KnowledgeClient } from "#modules/knowledge/client.js";
 import type { MemoryClient } from "#modules/memory/client.js";
 import type { RecallClient } from "#modules/recall/client.js";

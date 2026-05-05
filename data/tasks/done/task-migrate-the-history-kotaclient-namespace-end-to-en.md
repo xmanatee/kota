@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-history-kotaclient-namespace-end-to-en
 title: Migrate the history KotaClient namespace end-to-end through the daemonClient(link) factory hook
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move HistoryClient interface and the HistoryListFilter/HistoryListResult/HistoryShowResult/HistorySearchFilter/HistorySearchResult/HistoryDeleteResult/HistoryReindexResult types from src/core/server/kota-client.ts into src/modules/history/client.ts; add a daemonClient(link) factory to the history module that wires GET /history, GET /history/:id, GET /api/history/search, DELETE /history/:id, POST /history/reindex through the typed DaemonTransport; remove historyListHttp/historyShowHttp/historyDeleteHttp/searchHistoryHttp/reindexHistoryHttp and the inline history handler closure from src/core/server/daemon-client.ts.
 created_at: 2026-05-05T03:06:57.482Z
-updated_at: 2026-05-05T03:06:57.482Z
+updated_at: 2026-05-05T03:27:56.883Z
 ---
 
 ## Problem

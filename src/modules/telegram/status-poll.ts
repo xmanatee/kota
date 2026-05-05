@@ -1,8 +1,5 @@
 import { join } from "node:path";
-import type {
-  HistoryClient,
-  RepoTasksClient,
-} from "#core/server/kota-client.js";
+import type { RepoTasksClient } from "#core/server/kota-client.js";
 import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
 import type { AnswerClient } from "#modules/answer/client.js";
 import {
@@ -19,6 +16,7 @@ import type {
   CaptureTarget,
 } from "#modules/capture/client.js";
 import { renderCaptureReplyPlain } from "#modules/capture/render.js";
+import type { HistoryClient } from "#modules/history/client.js";
 import { renderHistorySearchPlain } from "#modules/history/render.js";
 import type { KnowledgeClient } from "#modules/knowledge/client.js";
 import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";

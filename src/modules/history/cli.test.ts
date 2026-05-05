@@ -15,17 +15,17 @@ import {
 	resetActiveKotaClient,
 	setActiveKotaClient,
 } from "#core/server/client-holder.js";
-import type {
-	HistorySearchFilter,
-	HistorySearchResult,
-	KotaClient,
-} from "#core/server/kota-client.js";
+import type { KotaClient } from "#core/server/kota-client.js";
 import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import {
 	setTerminalTransport,
 	TerminalTransport,
 } from "#modules/rendering/transport.js";
 import { registerHistoryCommands } from "./cli-commands.js";
+import type {
+	HistorySearchFilter,
+	HistorySearchResult,
+} from "./client.js";
 
 vi.mock("#core/modules/cli-providers.js", () => ({
 	ensureCliProvidersFor: vi.fn(async () => {}),

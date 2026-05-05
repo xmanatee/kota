@@ -17,10 +17,7 @@
  * non-slash DM path keeps owning multi-turn agent conversations unchanged.
  */
 
-import type {
-  HistoryClient,
-  RepoTasksClient,
-} from "#core/server/kota-client.js";
+import type { RepoTasksClient } from "#core/server/kota-client.js";
 import type { AnswerClient } from "#modules/answer/client.js";
 import {
   renderAnswerHistoryEntriesPlain,
@@ -33,6 +30,7 @@ import type {
   CaptureTarget,
 } from "#modules/capture/client.js";
 import { renderCaptureReplyPlain } from "#modules/capture/render.js";
+import type { HistoryClient } from "#modules/history/client.js";
 import { renderHistorySearchPlain } from "#modules/history/render.js";
 import type { KnowledgeClient } from "#modules/knowledge/client.js";
 import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";

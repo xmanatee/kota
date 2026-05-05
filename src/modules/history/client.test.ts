@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ConversationRecord } from "#core/modules/provider-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
+import historyModule from "./index.js";
 
 type SearchResponder = (
   query: URLSearchParams,
@@ -80,14 +81,18 @@ describe("DaemonControlClient.history.search", () => {
 
   beforeEach(async () => {
     mock = await startMockServer();
-    client = DaemonControlClient.fromAddress(
+    client = DaemonControlClient.fromAddressWithFactory(
       {
         port: mock.port,
         pid: process.pid,
         startedAt: new Date().toISOString(),
         token: "test-token",
       },
-      buildMigratedNamespaceTestStubs(),
+      (link) => {
+        const stubs = buildMigratedNamespaceTestStubs();
+        delete stubs.history;
+        return { ...stubs, ...historyModule.daemonClient!(link) };
+      },
     );
   });
 

@@ -134,7 +134,7 @@ export async function handleDeleteHistory(
     } catch {
       resp = null;
     }
-    if (resp && (resp.ok || resp.status === 204)) {
+    if (resp?.ok) {
       res.writeHead(204);
       res.end();
       return;
@@ -221,8 +221,7 @@ function handleDeleteHistoryControl(
     jsonResponse(res, 404, { error: "Conversation not found" });
     return;
   }
-  res.writeHead(204);
-  res.end();
+  jsonResponse(res, 200, { deleted: params.id });
 }
 
 export function historyControlRoutes(): ControlRouteRegistration[] {

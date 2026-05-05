@@ -45,6 +45,7 @@ const STUB_OMITTED_NAMESPACES: ReadonlySet<string> = new Set<string>([
   "secrets",
   "memory",
   "knowledge",
+  "history",
 ]);
 
 function makeFakeTransport(): DaemonTransport {
@@ -209,6 +210,16 @@ function makeStubKnowledge(): DaemonClientHandlers["knowledge"] {
   };
 }
 
+function makeStubHistory(): DaemonClientHandlers["history"] {
+  return {
+    list: async () => ({ conversations: [] }),
+    show: async () => ({ found: false }),
+    delete: async () => ({ ok: true }),
+    search: async () => ({ ok: true, conversations: [] }),
+    reindex: async () => ({ indexed: 0, failed: 0 }),
+  };
+}
+
 describe("assembleDaemonClientHandlers", () => {
   const transport = makeFakeTransport();
 
@@ -247,6 +258,7 @@ describe("assembleDaemonClientHandlers", () => {
       secrets: makeStubSecrets(),
       memory: makeStubMemory(),
       knowledge: makeStubKnowledge(),
+      history: makeStubHistory(),
     });
     for (const name of KOTA_CLIENT_NAMESPACES) {
       expect(handlers[name], `assembled client must cover "${name}"`).toBeDefined();
@@ -285,6 +297,7 @@ describe("assembleDaemonClientHandlers", () => {
       secrets: makeStubSecrets(),
       memory: makeStubMemory(),
       knowledge: makeStubKnowledge(),
+      history: makeStubHistory(),
       tasks: customTasks,
     });
     expect(merged.tasks).toBe(customTasks);
@@ -293,7 +306,7 @@ describe("assembleDaemonClientHandlers", () => {
 
   it("throws naming each migrated namespace when no module contributes it", () => {
     expect(() => assembleDaemonClientHandlers(transport)).toThrow(
-      /missing daemon handler\(s\) for: approvals, secrets, memory, ownerQuestions, knowledge, modules, agents, skills, harnessParity, webhook, web, mcpServer, audit, modulesAdmin, doctor, recall, answer, capture, retract/,
+      /missing daemon handler\(s\) for: approvals, secrets, memory, ownerQuestions, history, knowledge, modules, agents, skills, harnessParity, webhook, web, mcpServer, audit, modulesAdmin, doctor, recall, answer, capture, retract/,
     );
   });
 });
