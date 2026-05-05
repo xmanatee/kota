@@ -13,36 +13,12 @@ import type {
 } from "#core/daemon/daemon-control.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { type DaemonTransport, daemonTransportFromAddress } from "./daemon-transport.js";
-import type {
-  KotaClient,
-  RepoTaskCaptureResult,
-  RepoTaskCreateOptions,
-  RepoTaskCreateResult,
-  RepoTaskGcOptions,
-  RepoTaskGcResult,
-  RepoTaskListEntry,
-  RepoTaskMoveResult,
-  RepoTaskReindexResult,
-  RepoTaskSearchFilter,
-  RepoTaskSearchResult,
-  RepoTaskShowResult,
-  RepoTaskState,
-  WorkflowTriggerOptions,
-} from "./kota-client.js";
+import type { KotaClient, WorkflowTriggerOptions } from "./kota-client.js";
 import {
   type DaemonClientHandlers,
   KOTA_CLIENT_NAMESPACES,
   type KotaClientNamespace,
 } from "./kota-client.js";
-
-const REPO_TASK_OPEN_STATES: RepoTaskState[] = [
-  "backlog",
-  "ready",
-  "doing",
-  "blocked",
-];
-
-const FETCH_TIMEOUT_MS = 2_000;
 
 /**
  * Daemon `/workflow/trigger` only accepts a `payload` object that the
@@ -57,14 +33,6 @@ function buildTriggerHttpPayload(
 ): Record<string, unknown> | undefined {
   if (!options?.payload) return undefined;
   return Object.keys(options.payload).length > 0 ? options.payload : undefined;
-}
-
-function fetchWithTimeout(url: string, options?: RequestInit): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  return fetch(url, { ...options, signal: controller.signal }).finally(() =>
-    clearTimeout(timer),
-  );
 }
 
 /**
@@ -93,195 +61,6 @@ async function safeFetchRaw(
 }
 
 // ---------------------------------------------------------------------------
-// HTTP helpers — transport-bound free functions used by the core stub
-// closures and by `DaemonControlClient` public class methods. They take a
-// `DaemonTransport` and call its `baseUrl` / `authHeaders()` / `fetchRaw()`
-// directly so closures can be assembled without a class instance.
-// ---------------------------------------------------------------------------
-
-async function showTaskHttp(
-  transport: DaemonTransport,
-  id: string,
-): Promise<RepoTaskShowResult> {
-  const res = await fetchWithTimeout(
-    `${transport.baseUrl}/api/tasks/${encodeURIComponent(id)}`,
-    { headers: transport.authHeaders() },
-  );
-  if (res.status === 404) return { found: false };
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  const body = (await res.json()) as { state: RepoTaskState; content: string };
-  return { found: true, state: body.state, content: body.content };
-}
-
-async function moveTaskHttp(
-  transport: DaemonTransport,
-  id: string,
-  toState: RepoTaskState,
-): Promise<RepoTaskMoveResult> {
-  const res = await fetchWithTimeout(
-    `${transport.baseUrl}/api/tasks/${encodeURIComponent(id)}/move`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", ...transport.authHeaders() },
-      body: JSON.stringify({ state: toState }),
-    },
-  );
-  if (res.status === 404) return { ok: false, reason: "not_found" };
-  if (res.status === 409) {
-    const body = (await res.json().catch(() => ({}))) as { state?: RepoTaskState };
-    return { ok: false, reason: "already_in_state", state: body.state ?? toState };
-  }
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  const body = (await res.json()) as {
-    id: string;
-    fromState: RepoTaskState;
-    toState: RepoTaskState;
-    path: string;
-    previousPath: string;
-  };
-  return {
-    ok: true,
-    id: body.id,
-    fromState: body.fromState,
-    toState: body.toState,
-    path: body.path,
-    previousPath: body.previousPath,
-  };
-}
-
-async function createTaskHttp(
-  transport: DaemonTransport,
-  options: RepoTaskCreateOptions,
-): Promise<RepoTaskCreateResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/api/tasks/normalized`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...transport.authHeaders() },
-    body: JSON.stringify(options),
-  });
-  if (res.status === 409) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    return { ok: false, reason: "already_exists", message: body.error };
-  }
-  if (res.status === 400) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string; reason?: string };
-    const reason = body.reason === "invalid_slug" ? "invalid_slug" : "invalid_slug";
-    return { ok: false, reason, message: body.error };
-  }
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  const body = (await res.json()) as { id: string; path: string };
-  return { ok: true, id: body.id, path: body.path };
-}
-
-async function captureTaskHttp(
-  transport: DaemonTransport,
-  title: string,
-): Promise<RepoTaskCaptureResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/api/tasks/capture`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...transport.authHeaders() },
-    body: JSON.stringify({ title }),
-  });
-  if (res.status === 409) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    return { ok: false, reason: "already_exists", message: body.error };
-  }
-  if (res.status === 400) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    return { ok: false, reason: "invalid_slug", message: body.error };
-  }
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  const body = (await res.json()) as { id: string; path: string };
-  return { ok: true, id: body.id, path: body.path };
-}
-
-async function gcTasksHttp(
-  transport: DaemonTransport,
-  options: RepoTaskGcOptions,
-): Promise<RepoTaskGcResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/api/tasks/gc`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...transport.authHeaders() },
-    body: JSON.stringify(options),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as RepoTaskGcResult;
-}
-
-async function searchTasksHttp(
-  transport: DaemonTransport,
-  query: string,
-  filter?: RepoTaskSearchFilter,
-): Promise<RepoTaskSearchResult> {
-  const params = new URLSearchParams();
-  params.set("q", query);
-  if (filter?.semantic === false) params.set("semantic", "false");
-  if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-  if (filter?.states) {
-    for (const state of filter.states) params.append("state", state);
-  }
-  const res = await fetchWithTimeout(
-    `${transport.baseUrl}/tasks/search?${params.toString()}`,
-    { headers: transport.authHeaders() },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as RepoTaskSearchResult;
-}
-
-async function reindexTasksHttp(
-  transport: DaemonTransport,
-): Promise<RepoTaskReindexResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/tasks/reindex`, {
-    method: "POST",
-    headers: transport.authHeaders(),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as RepoTaskReindexResult;
-}
-
-async function listTasksHttp(
-  transport: DaemonTransport,
-): Promise<
-  | {
-      counts: Record<string, number>;
-      tasks: Record<string, { id: string; title: string; priority: string; area: string; summary: string; body: string }[]>;
-    }
-  | null
-> {
-  try {
-    const res = await fetchWithTimeout(`${transport.baseUrl}/api/tasks`, {
-      headers: transport.authHeaders(),
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as {
-      counts: Record<string, number>;
-      tasks: Record<string, { id: string; title: string; priority: string; area: string; summary: string; body: string }[]>;
-    };
-  } catch {
-    return null;
-  }
-}
-
 // Transport-bound wrappers around `transport.request<T>` / `safeFetchRaw`.
 // Used by both class methods and stub closures.
 
@@ -566,37 +345,6 @@ export function buildCoreStubDaemonClientHandlers(
           ...(result.runId !== undefined && { runId: result.runId }),
         };
       },
-    },
-    tasks: {
-      list: async (states) => {
-        const result = await listTasksHttp(transport);
-        const wantedStates = states && states.length > 0 ? states : REPO_TASK_OPEN_STATES;
-        const tasks: RepoTaskListEntry[] = [];
-        if (result) {
-          for (const state of wantedStates) {
-            if (state === "done" || state === "dropped") {
-              continue;
-            }
-            const stateTasks = result.tasks[state] ?? [];
-            for (const task of stateTasks) {
-              tasks.push({
-                id: task.id,
-                priority: task.priority,
-                title: task.title,
-                state,
-              });
-            }
-          }
-        }
-        return { tasks };
-      },
-      show: async (id) => showTaskHttp(transport, id),
-      move: async (id, toState) => moveTaskHttp(transport, id, toState),
-      create: async (options) => createTaskHttp(transport, options),
-      capture: async (title) => captureTaskHttp(transport, title),
-      gc: async (options) => gcTasksHttp(transport, options ?? {}),
-      search: async (query, filter) => searchTasksHttp(transport, query, filter),
-      reindex: async () => reindexTasksHttp(transport),
     },
   };
 }

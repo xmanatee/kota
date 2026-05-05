@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { RepoTasksClient } from "#core/server/kota-client.js";
 import type { AnswerClient } from "#modules/answer/client.js";
 import {
   renderAnswerHistoryEntriesPlain,
@@ -13,6 +12,7 @@ import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
 import type { MemoryClient } from "#modules/memory/client.js";
 import { renderMemorySearchPlain } from "#modules/memory/render.js";
 import type { RecallClient } from "#modules/recall/client.js";
+import type { RepoTasksClient } from "#modules/repo-tasks/client.js";
 import { renderRepoTaskSearchPlain } from "#modules/repo-tasks/render.js";
 import type {
   RetractClient,

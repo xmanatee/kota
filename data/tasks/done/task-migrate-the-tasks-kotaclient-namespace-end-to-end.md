@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-tasks-kotaclient-namespace-end-to-end
 title: Migrate the tasks KotaClient namespace end-to-end through the daemonClient(link) factory hook
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move RepoTasksClient and its 13 supporting types (RepoTaskState/ListEntry/ListResult/ShowResult/MoveResult/Priority/CreateOptions/CreateResult/CaptureResult/GcOptions/GcResult/SearchFilter/SearchResult/ReindexResult) from src/core/server/kota-client.ts into src/modules/repo-tasks/client.ts; add a daemonClient(link) factory to src/modules/repo-tasks/index.ts that contributes the tasks namespace handler routing GET /api/tasks, GET /api/tasks/<id>, PATCH /api/tasks/<id>/move, POST /api/tasks/normalized, POST /api/tasks/capture, POST /api/tasks/gc, GET /tasks/search, POST /tasks/reindex through the typed DaemonTransport; delete the inline tasks closure plus the 8 namespace-only helpers (showTaskHttp, moveTaskHttp, createTaskHttp, captureTaskHttp, gcTasksHttp, searchTasksHttp, reindexTasksHttp, listTasksHttp) from src/core/server/daemon-client.ts; extend STUB_OMITTED_NAMESPACES and buildMigratedNamespaceTestStubs() with the tasks stub.
 created_at: 2026-05-05T06:51:55.284Z
-updated_at: 2026-05-05T06:51:55.284Z
+updated_at: 2026-05-05T07:19:06.180Z
 ---
 
 ## Problem

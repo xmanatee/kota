@@ -7,12 +7,12 @@ import type {
   RouteRegistration,
 } from "#core/modules/module-types.js";
 import { getRepoTasksProvider } from "#core/modules/provider-registry.js";
+import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import type {
   RepoTaskState as ContractRepoTaskState,
   RepoTaskCreateOptions,
   RepoTaskPriority,
-} from "#core/server/kota-client.js";
-import { jsonResponse, readBody } from "#core/server/session-pool.js";
+} from "./client.js";
 import type { DaemonTaskDetail, DaemonTaskStatusResponse } from "./repo-tasks-domain.js";
 import {
   getRepoInboxDir,

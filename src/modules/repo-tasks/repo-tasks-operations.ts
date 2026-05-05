@@ -16,6 +16,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import type {
   RepoTaskCaptureResult,
   RepoTaskCreateOptions,
@@ -24,8 +25,7 @@ import type {
   RepoTaskGcResult,
   RepoTaskShowResult,
   RepoTaskState,
-} from "#core/server/kota-client.js";
-import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
+} from "./client.js";
 import {
   getRepoInboxDir,
   getRepoTasksDir,

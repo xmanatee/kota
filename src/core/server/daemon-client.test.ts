@@ -51,6 +51,7 @@ const STUB_OMITTED_NAMESPACES: ReadonlySet<string> = new Set<string>([
   "sessions",
   "daemonOps",
   "config",
+  "tasks",
 ]);
 
 function makeFakeTransport(): DaemonTransport {
@@ -285,6 +286,19 @@ function makeStubConfig(): DaemonClientHandlers["config"] {
   };
 }
 
+function makeStubTasks(): DaemonClientHandlers["tasks"] {
+  return {
+    list: async () => ({ tasks: [] }),
+    show: async () => ({ found: false }),
+    move: async () => ({ ok: false, reason: "not_found" }),
+    create: async () => ({ ok: true, id: "stub", path: "stub" }),
+    capture: async () => ({ ok: true, id: "stub", path: "stub" }),
+    gc: async () => ({ archived: [], deleted: [] }),
+    search: async () => ({ ok: true, tasks: [] }),
+    reindex: async () => ({ indexed: 0, failed: 0 }),
+  };
+}
+
 describe("assembleDaemonClientHandlers", () => {
   const transport = makeFakeTransport();
 
@@ -329,6 +343,7 @@ describe("assembleDaemonClientHandlers", () => {
       sessions: makeStubSessions(),
       daemonOps: makeStubDaemonOps(),
       config: makeStubConfig(),
+      tasks: makeStubTasks(),
     });
     for (const name of KOTA_CLIENT_NAMESPACES) {
       expect(handlers[name], `assembled client must cover "${name}"`).toBeDefined();
@@ -337,15 +352,30 @@ describe("assembleDaemonClientHandlers", () => {
 
   it("overrides the stub when a module contributes the same namespace", () => {
     const stub = buildCoreStubDaemonClientHandlers(transport);
-    const customTasks: DaemonClientHandlers["tasks"] = {
-      list: async () => ({ tasks: [] }),
-      show: async () => ({ found: false }),
-      move: async () => ({ ok: false, reason: "not_found" }),
-      create: async () => ({ ok: true, id: "mod", path: "mod" }),
-      capture: async () => ({ ok: true, id: "mod", path: "mod" }),
-      gc: async () => ({ archived: [], deleted: [] }),
-      search: async () => ({ ok: true, tasks: [] }),
-      reindex: async () => ({ indexed: 0, failed: 0 }),
+    const customWorkflow: DaemonClientHandlers["workflow"] = {
+      listRuns: async () => ({ runs: [] }),
+      status: async () => ({
+        activeRuns: [],
+        pendingRuns: [],
+        queueLength: 0,
+        completedRuns: 0,
+        workflows: {},
+        paused: false,
+        agentConcurrency: 1,
+        codeConcurrency: 4,
+        pendingAbort: false,
+      }),
+      pause: async () => ({ paused: true, already: false }),
+      resume: async () => ({ paused: false, already: false }),
+      abort: async () => ({ status: "applied", count: 0 }),
+      reload: async () => ({ status: "applied", count: 0 }),
+      enable: async () => ({ ok: true }),
+      disable: async () => ({ ok: true }),
+      cancelRun: async () => ({ ok: true }),
+      abortRun: async () => ({ ok: true }),
+      getRun: async () => ({ found: false }),
+      listDefinitions: async () => ({ source: "daemon", definitions: [] }),
+      triggerByName: async () => ({ ok: true, path: "daemon", queued: "x" }),
     };
     const merged = assembleDaemonClientHandlers(transport, {
       doctor: makeStubDoctor(),
@@ -373,15 +403,16 @@ describe("assembleDaemonClientHandlers", () => {
       sessions: makeStubSessions(),
       daemonOps: makeStubDaemonOps(),
       config: makeStubConfig(),
-      tasks: customTasks,
+      tasks: makeStubTasks(),
+      workflow: customWorkflow,
     });
-    expect(merged.tasks).toBe(customTasks);
-    expect(merged.tasks).not.toBe(stub.tasks);
+    expect(merged.workflow).toBe(customWorkflow);
+    expect(merged.workflow).not.toBe(stub.workflow);
   });
 
   it("throws naming each migrated namespace when no module contributes it", () => {
     expect(() => assembleDaemonClientHandlers(transport)).toThrow(
-      /missing daemon handler\(s\) for: approvals, secrets, memory, ownerQuestions, history, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, config, modulesAdmin, daemonOps, doctor, evalHarness, recall, answer, capture, retract/,
+      /missing daemon handler\(s\) for: approvals, secrets, tasks, memory, ownerQuestions, history, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, config, modulesAdmin, daemonOps, doctor, evalHarness, recall, answer, capture, retract/,
     );
   });
 });

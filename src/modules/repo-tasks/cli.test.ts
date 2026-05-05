@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { listTasksForStates, registerTaskCommands } from "./cli.js";
 import type {
   RepoTaskCreateOptions,
   RepoTaskGcOptions,
@@ -11,8 +12,7 @@ import type {
   RepoTaskSearchFilter,
   RepoTaskSearchResult,
   RepoTaskState,
-} from "#core/server/kota-client.js";
-import { listTasksForStates, registerTaskCommands } from "./cli.js";
+} from "./client.js";
 import { getRepoTasksDir, moveTaskById } from "./repo-tasks-domain.js";
 import {
   captureInboxTask,

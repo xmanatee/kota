@@ -179,5 +179,15 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       schemaPath: async () => ({ path: "" }),
       schemaContent: async () => ({ content: "" }),
     },
+    tasks: {
+      list: async () => ({ tasks: [] }),
+      show: async () => ({ found: false as const }),
+      move: async () => ({ ok: false as const, reason: "not_found" as const }),
+      create: async () => ({ ok: true as const, id: "stub", path: "stub" }),
+      capture: async () => ({ ok: true as const, id: "stub", path: "stub" }),
+      gc: async () => ({ archived: [], deleted: [] }),
+      search: async () => ({ ok: true as const, tasks: [] }),
+      reindex: async () => ({ indexed: 0, failed: 0 }),
+    },
   };
 }

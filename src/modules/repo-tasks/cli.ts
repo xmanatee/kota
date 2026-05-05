@@ -2,11 +2,6 @@ import { readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type {
-	RepoTaskState as ContractRepoTaskState,
-	RepoTaskPriority,
-	RepoTaskSearchFilter,
-} from "#core/server/kota-client.js";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import {
 	blank,
@@ -17,6 +12,11 @@ import {
 	stack,
 } from "#modules/rendering/primitives.js";
 import { print, TerminalTransport } from "#modules/rendering/transport.js";
+import type {
+	RepoTaskState as ContractRepoTaskState,
+	RepoTaskPriority,
+	RepoTaskSearchFilter,
+} from "./client.js";
 import { renderRepoTaskSearchPlain } from "./render.js";
 import {
 	REPO_INBOX_DIR,

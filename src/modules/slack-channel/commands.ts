@@ -17,7 +17,6 @@
  * non-slash DM path keeps owning multi-turn agent conversations unchanged.
  */
 
-import type { RepoTasksClient } from "#core/server/kota-client.js";
 import type { AnswerClient } from "#modules/answer/client.js";
 import {
   renderAnswerHistoryEntriesPlain,
@@ -38,6 +37,7 @@ import type { MemoryClient } from "#modules/memory/client.js";
 import { renderMemorySearchPlain } from "#modules/memory/render.js";
 import type { RecallClient } from "#modules/recall/client.js";
 import { renderRecallHitsPlain } from "#modules/recall/render.js";
+import type { RepoTasksClient } from "#modules/repo-tasks/client.js";
 import { renderRepoTaskSearchPlain } from "#modules/repo-tasks/render.js";
 import type {
   RetractClient,
