@@ -26,6 +26,12 @@ and live runtime state.
 - Process-manager integration and operator CLI behavior belongs in the
   daemon-ops module; the daemon core owns the runtime host itself.
 
+## Lifecycle Phases
+
+`daemon.ts` is a thin orchestrator. Lifecycle-time concerns live in
+`daemon-*.ts` sibling phase files. `runDaemonShutdown` is the single
+teardown body shared by normal stop and failed-start — do not fork it.
+
 ## Module Control-Plane Seams
 
 Module-owned control routes live in their contributing module under
@@ -53,9 +59,6 @@ owning module — there is no central catalog. Duplicate ids and probe
 exceptions surface as loud `init_failed` rows so wiring conflicts cannot
 silently win. The daemon adds a `workflow.trigger` row directly because
 workflow definitions are daemon-owned, not module-owned.
-
-`semantic_unavailable` envelopes on individual routes keep working
-unchanged; `/capabilities` is purely additive.
 
 ## Client Identity
 

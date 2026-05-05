@@ -1,12 +1,12 @@
 ---
 id: task-split-daemon-class-into-per-lifecycle-phase-handle
 title: Split Daemon class into per-lifecycle-phase handler files
-status: ready
+status: done
 priority: p1
 area: core
 summary: Split Daemon (core/daemon/daemon.ts) into per-lifecycle-phase sibling files so daemon.ts drops well under the 300-line guideline
 created_at: 2026-05-05T10:38:51.353Z
-updated_at: 2026-05-05T10:38:51.353Z
+updated_at: 2026-05-05T10:57:35.126Z
 ---
 
 ## Problem
