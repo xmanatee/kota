@@ -14,7 +14,6 @@ import type {
 } from "#core/daemon/daemon-control.js";
 import type {
   ConversationData,
-  KnowledgeEntry,
 } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { type DaemonTransport, daemonTransportFromAddress } from "./daemon-transport.js";
@@ -34,15 +33,6 @@ import type {
   HistorySearchFilter,
   HistorySearchResult,
   HistoryShowResult,
-  KnowledgeAddOptions,
-  KnowledgeAddResult,
-  KnowledgeDeleteResult,
-  KnowledgeListFilter,
-  KnowledgeListResult,
-  KnowledgeReindexResult,
-  KnowledgeSearchFilter,
-  KnowledgeSearchResult,
-  KnowledgeShowResult,
   KotaClient,
   RepoTaskCaptureResult,
   RepoTaskCreateOptions,
@@ -425,115 +415,6 @@ async function setSessionAutonomyModeHttp(
     if (err instanceof Error && /HTTP/.test(err.message)) throw err;
     return { ok: false, reason: "daemon_required" };
   }
-}
-
-async function listKnowledgeHttp(
-  transport: DaemonTransport,
-  filter?: KnowledgeListFilter,
-): Promise<KnowledgeListResult> {
-  const params = new URLSearchParams();
-  if (filter?.tag) params.set("tag", filter.tag);
-  if (filter?.type) params.set("type", filter.type);
-  if (filter?.status) params.set("status", filter.status);
-  if (filter?.scope) params.set("scope", filter.scope);
-  const query = params.toString() ? `?${params.toString()}` : "";
-  const res = await fetchWithTimeout(`${transport.baseUrl}/api/knowledge${query}`, {
-    headers: transport.authHeaders(),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  const body = (await res.json()) as { entries: KnowledgeEntry[] };
-  return { entries: body.entries };
-}
-
-async function showKnowledgeHttp(
-  transport: DaemonTransport,
-  id: string,
-): Promise<KnowledgeShowResult> {
-  const res = await fetchWithTimeout(
-    `${transport.baseUrl}/api/knowledge/${encodeURIComponent(id)}`,
-    { headers: transport.authHeaders() },
-  );
-  if (res.status === 404) return { found: false };
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  const entry = (await res.json()) as KnowledgeEntry;
-  return { found: true, entry };
-}
-
-async function searchKnowledgeHttp(
-  transport: DaemonTransport,
-  query: string,
-  filter?: KnowledgeSearchFilter,
-): Promise<KnowledgeSearchResult> {
-  const params = new URLSearchParams();
-  params.set("q", query);
-  if (filter?.tag) params.set("tag", filter.tag);
-  if (filter?.type) params.set("type", filter.type);
-  if (filter?.status) params.set("status", filter.status);
-  if (filter?.scope) params.set("scope", filter.scope);
-  if (filter?.semantic) params.set("semantic", "true");
-  if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-  const res = await fetchWithTimeout(
-    `${transport.baseUrl}/api/knowledge/search?${params.toString()}`,
-    { headers: transport.authHeaders() },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as KnowledgeSearchResult;
-}
-
-async function addKnowledgeHttp(
-  transport: DaemonTransport,
-  options: KnowledgeAddOptions,
-): Promise<KnowledgeAddResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/api/knowledge`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...transport.authHeaders() },
-    body: JSON.stringify(options),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  const body = (await res.json()) as { id: string };
-  return { id: body.id };
-}
-
-async function deleteKnowledgeHttp(
-  transport: DaemonTransport,
-  id: string,
-): Promise<KnowledgeDeleteResult> {
-  const res = await fetchWithTimeout(
-    `${transport.baseUrl}/api/knowledge/${encodeURIComponent(id)}`,
-    { method: "DELETE", headers: transport.authHeaders() },
-  );
-  if (res.status === 404) return { ok: false, reason: "not_found" };
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return { ok: true };
-}
-
-async function reindexKnowledgeHttp(
-  transport: DaemonTransport,
-): Promise<KnowledgeReindexResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/api/knowledge/reindex`, {
-    method: "POST",
-    headers: transport.authHeaders(),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as KnowledgeReindexResult;
 }
 
 async function historyListHttp(
@@ -1131,14 +1012,6 @@ export function buildCoreStubDaemonClientHandlers(
       delete: async (id) => historyDeleteHttp(transport, id),
       search: async (query, filter) => searchHistoryHttp(transport, query, filter),
       reindex: async () => reindexHistoryHttp(transport),
-    },
-    knowledge: {
-      list: async (filter) => listKnowledgeHttp(transport, filter),
-      show: async (id) => showKnowledgeHttp(transport, id),
-      search: async (query, filter) => searchKnowledgeHttp(transport, query, filter),
-      add: async (options) => addKnowledgeHttp(transport, options),
-      delete: async (id) => deleteKnowledgeHttp(transport, id),
-      reindex: async () => reindexKnowledgeHttp(transport),
     },
     sessions: {
       list: async () => {

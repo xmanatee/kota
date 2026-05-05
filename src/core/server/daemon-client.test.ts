@@ -44,6 +44,7 @@ const STUB_OMITTED_NAMESPACES: ReadonlySet<string> = new Set<string>([
   "approvals",
   "secrets",
   "memory",
+  "knowledge",
 ]);
 
 function makeFakeTransport(): DaemonTransport {
@@ -197,6 +198,17 @@ function makeStubMemory(): DaemonClientHandlers["memory"] {
   };
 }
 
+function makeStubKnowledge(): DaemonClientHandlers["knowledge"] {
+  return {
+    list: async () => ({ entries: [] }),
+    show: async () => ({ found: false }),
+    search: async () => ({ ok: true, entries: [] }),
+    add: async () => ({ id: "stub" }),
+    delete: async () => ({ ok: true }),
+    reindex: async () => ({ indexed: 0, failed: 0 }),
+  };
+}
+
 describe("assembleDaemonClientHandlers", () => {
   const transport = makeFakeTransport();
 
@@ -234,6 +246,7 @@ describe("assembleDaemonClientHandlers", () => {
       approvals: makeStubApprovals(),
       secrets: makeStubSecrets(),
       memory: makeStubMemory(),
+      knowledge: makeStubKnowledge(),
     });
     for (const name of KOTA_CLIENT_NAMESPACES) {
       expect(handlers[name], `assembled client must cover "${name}"`).toBeDefined();
@@ -271,6 +284,7 @@ describe("assembleDaemonClientHandlers", () => {
       approvals: makeStubApprovals(),
       secrets: makeStubSecrets(),
       memory: makeStubMemory(),
+      knowledge: makeStubKnowledge(),
       tasks: customTasks,
     });
     expect(merged.tasks).toBe(customTasks);
@@ -279,7 +293,7 @@ describe("assembleDaemonClientHandlers", () => {
 
   it("throws naming each migrated namespace when no module contributes it", () => {
     expect(() => assembleDaemonClientHandlers(transport)).toThrow(
-      /missing daemon handler\(s\) for: approvals, secrets, memory, ownerQuestions, modules, agents, skills, harnessParity, webhook, web, mcpServer, audit, modulesAdmin, doctor, recall, answer, capture, retract/,
+      /missing daemon handler\(s\) for: approvals, secrets, memory, ownerQuestions, knowledge, modules, agents, skills, harnessParity, webhook, web, mcpServer, audit, modulesAdmin, doctor, recall, answer, capture, retract/,
     );
   });
 });

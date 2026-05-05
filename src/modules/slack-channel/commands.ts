@@ -19,7 +19,6 @@
 
 import type {
   HistoryClient,
-  KnowledgeClient,
   RepoTasksClient,
 } from "#core/server/kota-client.js";
 import type { AnswerClient } from "#modules/answer/client.js";
@@ -35,6 +34,7 @@ import type {
 } from "#modules/capture/client.js";
 import { renderCaptureReplyPlain } from "#modules/capture/render.js";
 import { renderHistorySearchPlain } from "#modules/history/render.js";
+import type { KnowledgeClient } from "#modules/knowledge/client.js";
 import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
 import type { MemoryClient } from "#modules/memory/client.js";
 import { renderMemorySearchPlain } from "#modules/memory/render.js";

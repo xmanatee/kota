@@ -10,12 +10,12 @@ import {
 	KNOWLEDGE_PROVIDER_TOKEN,
 	resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
+import { parseImportEntries, registerKnowledgeCommands } from "./cli.js";
 import type {
 	KnowledgeAddOptions,
 	KnowledgeListFilter,
 	KnowledgeSearchFilter,
-} from "#core/server/kota-client.js";
-import { parseImportEntries, registerKnowledgeCommands } from "./cli.js";
+} from "./client.js";
 import { KnowledgeStore, resetKnowledgeStore } from "./store.js";
 
 function stubCtx(): ModuleContext {

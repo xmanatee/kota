@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-knowledge-kotaclient-namespace-end-to-
 title: Migrate the knowledge KotaClient namespace end-to-end through the daemonClient(link) factory hook
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move KnowledgeClient interface and the KnowledgeListFilter/KnowledgeListResult/KnowledgeShowResult/KnowledgeSearchFilter/KnowledgeSearchResult/KnowledgeAddOptions/KnowledgeAddResult/KnowledgeDeleteResult/KnowledgeReindexResult/KnowledgeScope/KnowledgeWritableScope types from src/core/server/kota-client.ts into src/modules/knowledge/client.ts; add a daemonClient(link) factory to the knowledge module that wires GET /api/knowledge, GET /api/knowledge/:id, GET /api/knowledge/search, POST /api/knowledge, DELETE /api/knowledge/:id, POST /api/knowledge/reindex through the typed DaemonTransport; remove listKnowledgeHttp/showKnowledgeHttp/searchKnowledgeHttp/addKnowledgeHttp/deleteKnowledgeHttp/reindexKnowledgeHttp and the inline knowledge handler closure from src/core/server/daemon-client.ts.
 created_at: 2026-05-05T02:30:46.839Z
-updated_at: 2026-05-05T02:30:46.839Z
+updated_at: 2026-05-05T02:46:16.254Z
 ---
 
 ## Problem
