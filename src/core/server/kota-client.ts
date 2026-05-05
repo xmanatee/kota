@@ -20,7 +20,6 @@
  * implementations are registered through ModuleContext and assembled
  * into the `LocalKotaClient` by the selector.
  */
-import type { ApprovalStatus, PendingApproval } from "#core/daemon/approval-queue.js";
 import type {
   DaemonLiveStatus,
   InteractiveSession,
@@ -43,6 +42,7 @@ import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 // is enforced in `src/core/agent-harness/no-module-imports-in-core.test.ts`.
 import type { AgentsClient } from "#modules/agent-ops/client.js";
 import type { AnswerClient } from "#modules/answer/client.js";
+import type { ApprovalsClient } from "#modules/approval-queue/client.js";
 import type { CaptureClient } from "#modules/capture/client.js";
 import type { DoctorClient } from "#modules/doctor/client.js";
 import type { AuditClient } from "#modules/guardrails-audit/client.js";
@@ -375,27 +375,6 @@ export type WorkflowDefinitionsResult = {
   definitions: WorkflowDefinitionSummary[];
 };
 
-export type ApprovalsListResult = {
-  approvals: PendingApproval[];
-};
-
-/**
- * Filter for `ApprovalsClient.list`.
- *
- * `status` defaults to `"pending"` so the common "what needs my
- * attention?" call stays a one-liner. Pass `"all"` to include every
- * status (used by `kota approval history` and by callers that need to
- * count or render resolved items).
- */
-export type ApprovalListFilter = {
-  status?: ApprovalStatus | "all";
-};
-
-/** Result of an approval mutation (`approve`, `reject`). */
-export type ApprovalMutateResult =
-  | { ok: true; approval: PendingApproval }
-  | { ok: false; reason: "not_found" };
-
 /**
  * Filter for `HistoryClient.list`.
  *
@@ -569,21 +548,6 @@ export interface WorkflowClient {
   abortRun(
     id: string,
   ): Promise<WorkflowAbortRunResult | WorkflowDaemonRequiredResult>;
-}
-
-/**
- * Approval-queue operations.
- *
- * `list` reads the queue (filterable by status). `approve` / `reject`
- * mutate a single pending entry; the daemon implementor talks to the
- * running daemon's queue, and the local implementor talks to the
- * in-process queue. Tool execution that follows a successful approve
- * stays in the CLI — the contract carries only the queue-state change.
- */
-export interface ApprovalsClient {
-  list(filter?: ApprovalListFilter): Promise<ApprovalsListResult>;
-  approve(id: string, note?: string): Promise<ApprovalMutateResult>;
-  reject(id: string, reason?: string): Promise<ApprovalMutateResult>;
 }
 
 /**

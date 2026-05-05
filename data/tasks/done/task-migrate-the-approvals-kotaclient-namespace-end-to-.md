@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-approvals-kotaclient-namespace-end-to-
 title: Migrate the approvals KotaClient namespace end-to-end through the daemonClient(link) factory hook
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move ApprovalsClient interface and the ApprovalsListResult/ApprovalListFilter/ApprovalMutateResult types from src/core/server/kota-client.ts into src/modules/approval-queue/client.ts; add a daemonClient(link) factory to the approval-queue module that wires GET /approvals, POST /approvals/:id/approve, and POST /approvals/:id/reject through the typed DaemonTransport; remove listApprovalsHttp/approveApprovalHttp/rejectApprovalHttp and the inline approvals handler closure from src/core/server/daemon-client.ts.
 created_at: 2026-05-05T00:42:17.508Z
-updated_at: 2026-05-05T00:42:17.508Z
+updated_at: 2026-05-05T00:58:55.118Z
 ---
 
 ## Problem

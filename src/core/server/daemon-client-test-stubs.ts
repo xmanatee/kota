@@ -92,5 +92,10 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
         removed: false as const,
       }),
     },
+    approvals: {
+      list: async () => ({ approvals: [] }),
+      approve: async () => ({ ok: false as const, reason: "not_found" as const }),
+      reject: async () => ({ ok: false as const, reason: "not_found" as const }),
+    },
   };
 }

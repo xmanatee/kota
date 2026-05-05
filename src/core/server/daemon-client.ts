@@ -1134,30 +1134,6 @@ function getWorkflowRunHttp(
   return transport.request("GET", `/workflow/runs/${encodeURIComponent(id)}`);
 }
 
-function listApprovalsHttp(
-  transport: DaemonTransport,
-  status?: ApprovalStatus | "all",
-): Promise<{ approvals: PendingApproval[] } | null> {
-  const query = status ? `?status=${encodeURIComponent(status)}` : "";
-  return transport.request("GET", `/approvals${query}`);
-}
-
-function approveApprovalHttp(
-  transport: DaemonTransport,
-  id: string,
-  note?: string,
-): Promise<{ approval: PendingApproval } | null> {
-  return transport.request("POST", `/approvals/${encodeURIComponent(id)}/approve`, { note });
-}
-
-function rejectApprovalHttp(
-  transport: DaemonTransport,
-  id: string,
-  reason?: string,
-): Promise<{ approval: PendingApproval } | null> {
-  return transport.request("POST", `/approvals/${encodeURIComponent(id)}/reject`, { reason });
-}
-
 /**
  * The OS-managed daemon flag is filesystem-scoped (it checks for a
  * launchd plist or systemd unit on the operator host). The daemon
@@ -1289,20 +1265,6 @@ export function buildCoreStubDaemonClientHandlers(
           queued: result.queued ?? name,
           ...(result.runId !== undefined && { runId: result.runId }),
         };
-      },
-    },
-    approvals: {
-      list: async (filter) => {
-        const result = await listApprovalsHttp(transport, filter?.status);
-        return { approvals: result?.approvals ?? [] };
-      },
-      approve: async (id, note) => {
-        const result = await approveApprovalHttp(transport, id, note);
-        return result ? { ok: true, approval: result.approval } : { ok: false, reason: "not_found" };
-      },
-      reject: async (id, reason) => {
-        const result = await rejectApprovalHttp(transport, id, reason);
-        return result ? { ok: true, approval: result.approval } : { ok: false, reason: "not_found" };
       },
     },
     secrets: {
@@ -1681,15 +1643,16 @@ export class DaemonControlClient implements KotaClient {
   }
 
   listApprovals(status?: ApprovalStatus | "all"): Promise<{ approvals: PendingApproval[] } | null> {
-    return listApprovalsHttp(this.transport, status);
+    const query = status ? `?status=${encodeURIComponent(status)}` : "";
+    return this.transport.request("GET", `/approvals${query}`);
   }
 
   approveApproval(id: string, note?: string): Promise<{ approval: PendingApproval } | null> {
-    return approveApprovalHttp(this.transport, id, note);
+    return this.transport.request("POST", `/approvals/${encodeURIComponent(id)}/approve`, { note });
   }
 
   rejectApproval(id: string, reason?: string): Promise<{ approval: PendingApproval } | null> {
-    return rejectApprovalHttp(this.transport, id, reason);
+    return this.transport.request("POST", `/approvals/${encodeURIComponent(id)}/reject`, { reason });
   }
 
   approveAllApprovals(note?: string): Promise<{ approvals: PendingApproval[]; count: number } | null> {
