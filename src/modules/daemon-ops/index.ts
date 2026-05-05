@@ -6,8 +6,8 @@ import { Daemon, RESTART_EXIT_CODE } from "#core/daemon/daemon.js";
 import type { DaemonLiveStatus, InteractiveSession } from "#core/daemon/daemon-control.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
+import { daemonManagedHttp } from "#core/server/daemon-client.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
-import type { DaemonOpsClient } from "#core/server/kota-client.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { LogFormat } from "#core/util/log-format.js";
 import {
@@ -21,7 +21,11 @@ import {
 } from "#modules/rendering/primitives.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
-import type { SessionsClient, SessionsSetAutonomyModeResult } from "./client.js";
+import type {
+  DaemonOpsClient,
+  SessionsClient,
+  SessionsSetAutonomyModeResult,
+} from "./client.js";
 import {
   localDaemonPid,
   localDaemonReload,
@@ -491,8 +495,74 @@ const daemonModule: KotaModule = {
     };
     return { sessions: sessionsLocalClient(), daemonOps };
   },
-  daemonClient: (link) => ({ sessions: buildSessionsDaemonHandler(link) }),
+  daemonClient: (link) => ({
+    sessions: buildSessionsDaemonHandler(link),
+    daemonOps: buildDaemonOpsDaemonHandler(link),
+  }),
 };
+
+/**
+ * Daemon-side `DaemonOpsClient` backed by the typed `DaemonTransport`. Calls
+ * the `GET /status` and `POST /reload` control routes the daemon owns.
+ *
+ *  - `status()` calls `link.request<DaemonLiveStatus>("GET", "/status")`. On
+ *    `null` (transport failure or non-ok response) it throws `"Daemon
+ *    unreachable while reading daemon status"`. On success it probes
+ *    `daemonManagedHttp` (the daemon-up `managed` policy stub) and returns
+ *    `{ state: "running", managed, status }`. Only the local handler emits
+ *    `not_running` / `stale` arms — the daemon-up branch only exists when
+ *    the selector resolved to a daemon address.
+ *  - `pid()` calls `link.request<DaemonLiveStatus>("GET", "/status")`
+ *    independently (no caching across calls). On `null` or missing
+ *    `status.pid` it throws `"Daemon unreachable while reading daemon
+ *    pid"`. On success it returns `{ state: "running", pid: status.pid }`.
+ *  - `stop(options)` throws `"daemonOps.stop is owned by the local handler
+ *    — the daemon cannot SIGTERM itself."`. The arm exists to satisfy the
+ *    typed contract; runtime callers always reach the local handler.
+ *  - `reload()` calls `link.request<{ ok: boolean; workflows: number;
+ *    changedModules: string[] }>("POST", "/reload")`. On `null` it returns
+ *    `{ ok: false, reason: "reload_failed" }`. On success it returns `{ ok:
+ *    true, workflows, changedModules }`. The daemon-up branch never returns
+ *    `not_running` because the client only exists when the selector resolved
+ *    to a daemon address.
+ */
+function buildDaemonOpsDaemonHandler(link: DaemonTransport): DaemonOpsClient {
+  return {
+    status: async () => {
+      const status = await link.request<DaemonLiveStatus>("GET", "/status");
+      if (!status) {
+        throw new Error("Daemon unreachable while reading daemon status");
+      }
+      const managed = await daemonManagedHttp();
+      return { state: "running", managed, status };
+    },
+    pid: async () => {
+      const status = await link.request<DaemonLiveStatus>("GET", "/status");
+      if (!status || typeof status.pid !== "number") {
+        throw new Error("Daemon unreachable while reading daemon pid");
+      }
+      return { state: "running", pid: status.pid };
+    },
+    stop: async (_options) => {
+      throw new Error(
+        "daemonOps.stop is owned by the local handler — the daemon cannot SIGTERM itself.",
+      );
+    },
+    reload: async () => {
+      const result = await link.request<{
+        ok: boolean;
+        workflows: number;
+        changedModules: string[];
+      }>("POST", "/reload");
+      if (!result) return { ok: false, reason: "reload_failed" };
+      return {
+        ok: true,
+        workflows: result.workflows,
+        changedModules: result.changedModules,
+      };
+    },
+  };
+}
 
 /**
  * Wire shape returned by the daemon's `PATCH /sessions/:id` route. The success

@@ -517,9 +517,11 @@ function getWorkflowRunHttp(
  * launchd plist or systemd unit on the operator host). The daemon
  * cannot answer that for the calling host, so the daemon-up branch
  * always reports `false`; the local handler is the one that probes
- * the operator filesystem.
+ * the operator filesystem. Exported because the daemon-ops module's
+ * `daemonClient(link)` factory consumes the same stub when it composes
+ * the `daemonOps.status()` arm.
  */
-async function daemonManagedHttp(): Promise<boolean> {
+export async function daemonManagedHttp(): Promise<boolean> {
   return false;
 }
 
@@ -545,11 +547,6 @@ async function daemonManagedHttp(): Promise<boolean> {
  * behalf, so the `web` and `mcpServer` namespaces surface
  * `daemon_required` uniformly when the selector picked the daemon
  * transport. The CLI maps that to a clear "stop the daemon first" hint.
- *
- * The daemon-up `daemonOps` namespace always reports `running` because
- * the client only exists when the selector resolved to a daemon address.
- * The local handler is the one that distinguishes "not running" from
- * "stale control file"; the daemon-up branch never sees those states.
  */
 export function buildCoreStubDaemonClientHandlers(
   transport: DaemonTransport,
@@ -682,33 +679,6 @@ export function buildCoreStubDaemonClientHandlers(
       set: async (key, rawValue) => configSetHttp(transport, key, rawValue),
       schemaPath: async () => configSchemaPathHttp(transport),
       schemaContent: async () => configSchemaContentHttp(transport),
-    },
-    daemonOps: {
-      status: async () => {
-        const status = await getDaemonStatusHttp(transport);
-        if (!status) {
-          throw new Error("Daemon unreachable while reading daemon status");
-        }
-        const managed = await daemonManagedHttp();
-        return { state: "running", managed, status };
-      },
-      pid: async () => {
-        const status = await getDaemonStatusHttp(transport);
-        if (!status || typeof status.pid !== "number") {
-          throw new Error("Daemon unreachable while reading daemon pid");
-        }
-        return { state: "running", pid: status.pid };
-      },
-      stop: async (_options) => {
-        throw new Error(
-          "daemonOps.stop is owned by the local handler — the daemon cannot SIGTERM itself.",
-        );
-      },
-      reload: async () => {
-        const result = await reloadConfigHttp(transport);
-        if (!result) return { ok: false, reason: "reload_failed" };
-        return { ok: true, workflows: result.workflows, changedModules: result.changedModules };
-      },
     },
   };
 }

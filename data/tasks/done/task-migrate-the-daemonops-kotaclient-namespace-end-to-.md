@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-daemonops-kotaclient-namespace-end-to-
 title: Migrate the daemonOps KotaClient namespace end-to-end through the daemonClient(link) factory hook
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move DaemonOpsClient interface and DaemonOpsStatusResult/DaemonOpsPidResult/DaemonOpsStopResult/DaemonOpsReloadResult types from src/core/server/kota-client.ts into src/modules/daemon-ops/client.ts; extend the daemon-ops module's daemonClient(link) factory (which already contributes sessions) to also contribute the daemonOps namespace handler wiring GET /status and POST /reload through the typed DaemonTransport while throwing on the daemon-up stop arm; remove the inline daemonOps handler closure from buildCoreStubDaemonClientHandlers and leave getDaemonStatusHttp/reloadConfigHttp/daemonManagedHttp in src/core/server/daemon-client.ts only because non-namespace direct methods (getDaemonStatus, reloadConfig) on DaemonControlClient still consume getDaemonStatusHttp/reloadConfigHttp.
 created_at: 2026-05-05T05:42:55.850Z
-updated_at: 2026-05-05T05:42:55.850Z
+updated_at: 2026-05-05T05:56:18.652Z
 ---
 
 ## Problem

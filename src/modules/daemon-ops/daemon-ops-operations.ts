@@ -10,14 +10,14 @@
 import { join } from "node:path";
 import { resolveProjectDir } from "#core/config/project-dir.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
+import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { isProcessAlive } from "#core/util/process-alive.js";
 import type {
   DaemonOpsPidResult,
   DaemonOpsReloadResult,
   DaemonOpsStatusResult,
   DaemonOpsStopResult,
-} from "#core/server/kota-client.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
-import { isProcessAlive } from "#core/util/process-alive.js";
+} from "./client.js";
 import { isServiceInstalled } from "./service-install.js";
 
 function readControlAddress(): DaemonControlAddress | null {

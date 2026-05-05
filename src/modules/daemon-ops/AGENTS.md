@@ -17,10 +17,25 @@ CLI commands.
   `kota session` CLI plus the `sessions` `KotaClient` namespace
   (`client.sessions.list()` / `client.sessions.setAutonomyMode()`) end-to-end.
   Both the local-side handler (`sessionsLocalClient`) and the daemon-side
-  handler (`daemonClient(link)` factory in `index.ts`) realize the contract
-  declared in `client.ts`. Validate mode values before issuing the HTTP call.
-  Do not embed mode-change flow into any other subcommand (e.g. approval
-  resolution) — mode is a session-level control.
+  handler (`buildSessionsDaemonHandler` in `index.ts`, contributed through the
+  `daemonClient(link)` factory) realize the contract declared in `client.ts`.
+  Validate mode values before issuing the HTTP call. Do not embed mode-change
+  flow into any other subcommand (e.g. approval resolution) — mode is a
+  session-level control.
+- The `daemonOps` `KotaClient` namespace (`client.daemonOps.status()`,
+  `pid()`, `stop()`, `reload()`) is also owned end-to-end by this module.
+  The local handler (`localClient` in `index.ts` backed by
+  `daemon-ops-operations.ts`) reads `.kota/daemon-control.json` to
+  distinguish "not running" from "stale control file"; the daemon-side
+  handler (`buildDaemonOpsDaemonHandler` in `index.ts`, contributed through
+  the same `daemonClient(link)` factory alongside `sessions`) routes
+  `status()`/`pid()` through `GET /status` and `reload()` through
+  `POST /reload`. `stop()` always throws on the daemon-up branch — the
+  daemon cannot SIGTERM itself, so the local handler is the only one that
+  performs the actual stop. The non-namespace direct methods
+  `DaemonControlClient.getDaemonStatus()` and `reloadConfig()` continue to
+  consume the helpers in `src/core/server/daemon-client.ts` because they
+  bridge `kota serve` ⇄ daemon and are not part of the namespace contract.
 
 ## Presentation Boundaries
 

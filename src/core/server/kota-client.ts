@@ -21,7 +21,6 @@
  * into the `LocalKotaClient` by the selector.
  */
 import type {
-  DaemonLiveStatus,
   WorkflowDefinitionSummary,
   WorkflowLiveStatus,
   WorkflowRunDetail,
@@ -39,7 +38,10 @@ import type { AgentsClient } from "#modules/agent-ops/client.js";
 import type { AnswerClient } from "#modules/answer/client.js";
 import type { ApprovalsClient } from "#modules/approval-queue/client.js";
 import type { CaptureClient } from "#modules/capture/client.js";
-import type { SessionsClient } from "#modules/daemon-ops/client.js";
+import type {
+  DaemonOpsClient,
+  SessionsClient,
+} from "#modules/daemon-ops/client.js";
 import type { DoctorClient } from "#modules/doctor/client.js";
 import type { EvalHarnessClient } from "#modules/eval-harness/client.js";
 import type { AuditClient } from "#modules/guardrails-audit/client.js";
@@ -467,55 +469,6 @@ export interface ConfigClient {
   set(key: string, rawValue: string): Promise<ConfigSetResult>;
   schemaPath(): Promise<{ path: string }>;
   schemaContent(): Promise<{ content: string }>;
-}
-
-/**
- * Result of `daemonOps.status()`.
- *
- * `running` carries the live daemon status payload (already shaped like
- * `DaemonLiveStatus`); `not_running` surfaces when no daemon is
- * reachable; `stale` surfaces when a control file points at a pid that
- * is no longer alive. The operator CLI maps each variant to its
- * existing exit-code path. `managed` reflects whether an OS service
- * unit is installed for the daemon.
- */
-export type DaemonOpsStatusResult =
-  | { state: "running"; managed: boolean; status: DaemonLiveStatus }
-  | { state: "not_running"; managed: boolean }
-  | { state: "stale"; managed: boolean; pid: number };
-
-/** Result of `daemonOps.pid()`. */
-export type DaemonOpsPidResult =
-  | { state: "running"; pid: number }
-  | { state: "not_running" }
-  | { state: "stale"; pid: number };
-
-/** Result of `daemonOps.stop(opts)`. */
-export type DaemonOpsStopResult =
-  | { ok: true }
-  | { ok: false; reason: "not_running" }
-  | { ok: false; reason: "stale"; pid: number }
-  | { ok: false; reason: "timeout"; pid: number };
-
-/** Result of `daemonOps.reload()`. */
-export type DaemonOpsReloadResult =
-  | { ok: true; workflows: number; changedModules: string[] }
-  | { ok: false; reason: "not_running" }
-  | { ok: false; reason: "reload_failed" };
-
-/**
- * Daemon-supervisor operations exposed to operator CLIs.
- *
- * Every method works daemon-up by definition (the supervisor is the
- * thing being inspected); the local handler reads `.kota/daemon-control.json`
- * to detect not-running and stale-control-file states without re-doing
- * that file logic in the CLI handler.
- */
-export interface DaemonOpsClient {
-  status(): Promise<DaemonOpsStatusResult>;
-  pid(): Promise<DaemonOpsPidResult>;
-  stop(options?: { timeoutSec?: number }): Promise<DaemonOpsStopResult>;
-  reload(): Promise<DaemonOpsReloadResult>;
 }
 
 /**

@@ -155,5 +155,17 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
         reason: "daemon_required" as const,
       }),
     },
+    daemonOps: {
+      status: async () => ({
+        state: "not_running" as const,
+        managed: false,
+      }),
+      pid: async () => ({ state: "not_running" as const }),
+      stop: async () => ({ ok: false as const, reason: "not_running" as const }),
+      reload: async () => ({
+        ok: false as const,
+        reason: "reload_failed" as const,
+      }),
+    },
   };
 }
