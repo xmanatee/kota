@@ -46,6 +46,7 @@ const STUB_OMITTED_NAMESPACES: ReadonlySet<string> = new Set<string>([
   "memory",
   "knowledge",
   "history",
+  "evalHarness",
 ]);
 
 function makeFakeTransport(): DaemonTransport {
@@ -220,6 +221,18 @@ function makeStubHistory(): DaemonClientHandlers["history"] {
   };
 }
 
+function makeStubEvalHarness(): DaemonClientHandlers["evalHarness"] {
+  return {
+    list: async () => ({ fixtures: [] }),
+    run: async () => ({
+      ok: false,
+      reason: "no_fixtures",
+      message: "stub",
+    }),
+    calibration: async () => ({ aggregate: {}, decision: {} }),
+  };
+}
+
 describe("assembleDaemonClientHandlers", () => {
   const transport = makeFakeTransport();
 
@@ -259,6 +272,7 @@ describe("assembleDaemonClientHandlers", () => {
       memory: makeStubMemory(),
       knowledge: makeStubKnowledge(),
       history: makeStubHistory(),
+      evalHarness: makeStubEvalHarness(),
     });
     for (const name of KOTA_CLIENT_NAMESPACES) {
       expect(handlers[name], `assembled client must cover "${name}"`).toBeDefined();
@@ -298,6 +312,7 @@ describe("assembleDaemonClientHandlers", () => {
       memory: makeStubMemory(),
       knowledge: makeStubKnowledge(),
       history: makeStubHistory(),
+      evalHarness: makeStubEvalHarness(),
       tasks: customTasks,
     });
     expect(merged.tasks).toBe(customTasks);
@@ -306,7 +321,7 @@ describe("assembleDaemonClientHandlers", () => {
 
   it("throws naming each migrated namespace when no module contributes it", () => {
     expect(() => assembleDaemonClientHandlers(transport)).toThrow(
-      /missing daemon handler\(s\) for: approvals, secrets, memory, ownerQuestions, history, knowledge, modules, agents, skills, harnessParity, webhook, web, mcpServer, audit, modulesAdmin, doctor, recall, answer, capture, retract/,
+      /missing daemon handler\(s\) for: approvals, secrets, memory, ownerQuestions, history, knowledge, modules, agents, skills, harnessParity, webhook, web, mcpServer, audit, modulesAdmin, doctor, evalHarness, recall, answer, capture, retract/,
     );
   });
 });

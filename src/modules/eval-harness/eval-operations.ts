@@ -8,13 +8,6 @@
 import { mkdirSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { EventBus } from "#core/events/event-bus.js";
-import type {
-  EvalCalibrationOptions,
-  EvalCalibrationResult,
-  EvalListResult,
-  EvalRunOptions,
-  EvalRunResult,
-} from "#core/server/kota-client.js";
 import {
   aggregateCalibration,
   DEFAULT_CALIBRATION_MIN_SAMPLE,
@@ -23,9 +16,16 @@ import {
   DEFAULT_PASS_WITH_WARNINGS_THRESHOLD_RATE,
   evaluateCalibrationGate,
 } from "#modules/autonomy/evaluator-calibration.js";
+import type {
+  EvalCalibrationOptions,
+  EvalCalibrationResult,
+  EvalListResult,
+  EvalRunOptions,
+  EvalRunResult,
+} from "./client.js";
 import { runEvalSet } from "./eval-set.js";
 import { evalHarnessSetCompleted } from "./events.js";
-import { FixtureProvenanceError, loadAllFixtures, loadFixture } from "./fixture.js";
+import { loadAllFixtures, loadFixture } from "./fixture.js";
 import type { ResourceProfile } from "./fixture-run.js";
 import { createSubprocessExecutor } from "./subprocess-executor.js";
 
@@ -86,10 +86,11 @@ export async function runEvalHarness(
       ? options.fixtureIds.map((id) => loadFixture(fixturesRoot, id))
       : loadAllFixtures(fixturesRoot);
   } catch (err) {
-    if (err instanceof FixtureProvenanceError) {
-      return { ok: false, reason: "fixture_provenance", message: err.message };
-    }
-    throw err;
+    return {
+      ok: false,
+      reason: "fixture_provenance",
+      message: (err as Error).message,
+    };
   }
   if (fixtures.length === 0) {
     return { ok: false, reason: "no_fixtures", message: `No fixtures under "${fixturesRoot}".` };

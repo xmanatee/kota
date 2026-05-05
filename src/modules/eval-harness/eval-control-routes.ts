@@ -12,8 +12,8 @@ import type {
   ControlRouteRegistration,
   ModuleContext,
 } from "#core/modules/module-types.js";
-import type { EvalCalibrationOptions } from "#core/server/kota-client.js";
 import { jsonResponse } from "#core/server/session-pool.js";
+import type { EvalCalibrationOptions } from "./client.js";
 import { listEvalFixtures, runEvalCalibration } from "./eval-operations.js";
 
 function parseCalibrationOptions(url: URL): EvalCalibrationOptions {

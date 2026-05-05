@@ -18,11 +18,6 @@ import type {
   ConfigGetResult,
   ConfigSetResult,
   ConfigValidateResult,
-  EvalCalibrationOptions,
-  EvalCalibrationResult,
-  EvalListResult,
-  EvalRunOptions,
-  EvalRunResult,
   KotaClient,
   RepoTaskCaptureResult,
   RepoTaskCreateOptions,
@@ -195,69 +190,6 @@ async function configSchemaContentHttp(
     throw new Error(body.error ?? `HTTP ${res.status}`);
   }
   return (await res.json()) as { content: string };
-}
-
-async function evalListHttp(
-  transport: DaemonTransport,
-): Promise<EvalListResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/eval/list`, {
-    headers: transport.authHeaders(),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as EvalListResult;
-}
-
-async function evalRunHttp(
-  transport: DaemonTransport,
-  options?: EvalRunOptions,
-): Promise<EvalRunResult> {
-  const res = await fetch(`${transport.baseUrl}/api/eval/run`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...transport.authHeaders() },
-    body: JSON.stringify(options ?? {}),
-  });
-  if (res.status === 400) {
-    const body = (await res.json()) as { error: string };
-    const msg = body.error;
-    if (/no fixtures/i.test(msg)) return { ok: false, reason: "no_fixtures", message: msg };
-    return { ok: false, reason: "fixture_provenance", message: msg };
-  }
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  const body = (await res.json()) as {
-    fixtureCount: number;
-    repeatCount: number;
-    passAtK: number;
-    passHatK: number;
-    runArtifactBaseDir: string;
-  };
-  return { ok: true, ...body };
-}
-
-async function evalCalibrationHttp(
-  transport: DaemonTransport,
-  options?: EvalCalibrationOptions,
-): Promise<EvalCalibrationResult> {
-  const params = new URLSearchParams();
-  if (options?.windowDays !== undefined) params.set("windowDays", String(options.windowDays));
-  if (options?.followUpDays !== undefined) params.set("followUpDays", String(options.followUpDays));
-  if (options?.thresholdRate !== undefined) params.set("thresholdRate", String(options.thresholdRate));
-  if (options?.minSample !== undefined) params.set("minSample", String(options.minSample));
-  if (options?.runsDir) params.set("runsDir", options.runsDir);
-  const query = params.toString() ? `?${params.toString()}` : "";
-  const res = await fetchWithTimeout(`${transport.baseUrl}/eval/calibration${query}`, {
-    headers: transport.authHeaders(),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as EvalCalibrationResult;
 }
 
 async function voiceTranscribeHttp(
@@ -954,11 +886,6 @@ export function buildCoreStubDaemonClientHandlers(
         if (!result) return { ok: false, reason: "reload_failed" };
         return { ok: true, workflows: result.workflows, changedModules: result.changedModules };
       },
-    },
-    evalHarness: {
-      list: async () => evalListHttp(transport),
-      run: async (options) => evalRunHttp(transport, options),
-      calibration: async (options) => evalCalibrationHttp(transport, options),
     },
   };
 }

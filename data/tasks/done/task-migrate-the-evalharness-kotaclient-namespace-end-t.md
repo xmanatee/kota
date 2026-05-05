@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-evalharness-kotaclient-namespace-end-t
 title: Migrate the evalHarness KotaClient namespace end-to-end through the daemonClient(link) factory hook
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move EvalHarnessClient interface and the EvalFixtureSummary/EvalListResult/EvalRunOptions/EvalRunResult/EvalCalibrationOptions/EvalCalibrationResult types from src/core/server/kota-client.ts into src/modules/eval-harness/client.ts; add a daemonClient(link) factory to the eval-harness module that wires GET /eval/list, POST /api/eval/run, GET /eval/calibration through the typed DaemonTransport; remove evalListHttp/evalRunHttp/evalCalibrationHttp and the inline evalHarness handler closure from src/core/server/daemon-client.ts.
 created_at: 2026-05-05T03:43:44.450Z
-updated_at: 2026-05-05T03:43:44.450Z
+updated_at: 2026-05-05T04:03:47.147Z
 ---
 
 ## Problem

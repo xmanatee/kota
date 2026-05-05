@@ -3,12 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { EvalHarnessClient, KotaClient } from "#core/server/kota-client.js";
+import type { KotaClient } from "#core/server/kota-client.js";
 import {
   EVALUATOR_CALIBRATION_ARTIFACT,
   type EvaluatorCalibrationArtifact,
 } from "#modules/autonomy/evaluator-calibration.js";
 import { buildEvalCommand } from "./cli.js";
+import type { EvalHarnessClient } from "./client.js";
 import {
   listEvalFixtures,
   runEvalCalibration,

@@ -125,5 +125,14 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       search: async () => ({ ok: true as const, conversations: [] }),
       reindex: async () => ({ indexed: 0, failed: 0 }),
     },
+    evalHarness: {
+      list: async () => ({ fixtures: [] }),
+      run: async () => ({
+        ok: false as const,
+        reason: "no_fixtures" as const,
+        message: "stub",
+      }),
+      calibration: async () => ({ aggregate: {}, decision: {} }),
+    },
   };
 }

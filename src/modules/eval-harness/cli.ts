@@ -13,10 +13,6 @@
 import { join } from "node:path";
 import { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type {
-  EvalCalibrationOptions,
-  EvalRunOptions,
-} from "#core/server/kota-client.js";
 import {
   DEFAULT_CALIBRATION_MIN_SAMPLE,
   DEFAULT_CALIBRATION_THRESHOLD_RATE,
@@ -29,6 +25,10 @@ import {
   stack,
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
+import type {
+  EvalCalibrationOptions,
+  EvalRunOptions,
+} from "./client.js";
 import {
   extractAgentStepRecording,
   extractJudgeCallRecording,

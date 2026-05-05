@@ -3,28 +3,19 @@
  * server surface. The route accepts a typed body, validates it, kicks off the
  * run via the subprocess executor, and emits the aggregate telemetry event
  * when the run completes.
+ *
+ * Wire shape: typed eval failures (`no_fixtures`, `fixture_provenance`)
+ * collapse to `200 + EvalRunResult` discriminated body, matching the skills
+ * migration precedent. The `400` status is reserved for genuine protocol
+ * errors (malformed JSON, type mismatch in the request envelope).
  */
 
-import { mkdirSync, realpathSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { join, resolve } from "node:path";
+import { EventBus } from "#core/events/event-bus.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { runEvalSet } from "./eval-set.js";
+import type { EvalRunOptions, EvalRunResult } from "./client.js";
+import { runEvalHarness } from "./eval-operations.js";
 import { evalHarnessSetCompleted } from "./events.js";
-import { loadAllFixtures, loadFixture } from "./fixture.js";
-import type { ResourceProfile } from "./fixture-run.js";
-import { createSubprocessExecutor } from "./subprocess-executor.js";
-
-type EvalRunRequest = {
-  fixtureIds?: readonly string[];
-  repeatCount?: number;
-  hostClass?: string;
-  cpuAllocationCores?: number;
-  cpuKillThresholdCores?: number;
-  memoryAllocationMB?: number;
-  memoryKillThresholdMB?: number;
-  keepWorkingDirs?: boolean;
-};
 
 function writeJson(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -44,12 +35,12 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   return JSON.parse(text);
 }
 
-function validateRequest(raw: unknown): EvalRunRequest {
+function validateRequest(raw: unknown): EvalRunOptions {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new Error("Body must be a JSON object.");
   }
   const r = raw as Record<string, unknown>;
-  const out: EvalRunRequest = {};
+  const out: EvalRunOptions = {};
   if (r.fixtureIds !== undefined) {
     if (
       !Array.isArray(r.fixtureIds) ||
@@ -59,7 +50,7 @@ function validateRequest(raw: unknown): EvalRunRequest {
     }
     out.fixtureIds = r.fixtureIds as string[];
   }
-  const numericKeys: Array<keyof EvalRunRequest> = [
+  const numericKeys: Array<keyof EvalRunOptions> = [
     "repeatCount",
     "cpuAllocationCores",
     "cpuKillThresholdCores",
@@ -90,30 +81,11 @@ function validateRequest(raw: unknown): EvalRunRequest {
   return out;
 }
 
-function buildProfile(request: EvalRunRequest): ResourceProfile {
-  const cpuAllocationCores = request.cpuAllocationCores ?? 2;
-  const cpuKillThresholdCores = request.cpuKillThresholdCores ?? cpuAllocationCores;
-  const memoryAllocationMB = request.memoryAllocationMB ?? 4096;
-  const memoryKillThresholdMB = request.memoryKillThresholdMB ?? memoryAllocationMB;
-  return {
-    hostClass: request.hostClass ?? "daemon",
-    cpuAllocationCores,
-    cpuKillThresholdCores,
-    memoryAllocationMB,
-    memoryKillThresholdMB,
-  };
-}
-
 /**
  * Build the route registration for the eval-harness module. Called from
  * `index.ts` via `routes: (ctx) => evalHarnessRoutes(ctx)`.
  */
 export function evalHarnessRoutes(ctx: ModuleContext) {
-  const projectDir = ctx.cwd;
-  const fixturesRoot = join(projectDir, "src/modules/eval-harness/fixtures");
-  const evalRunsRoot = join(projectDir, ".kota/eval-runs");
-  const kotaBinaryPath = resolve(join(projectDir, "bin/kota.mjs"));
-
   return [
     {
       method: "POST" as const,
@@ -126,61 +98,25 @@ export function evalHarnessRoutes(ctx: ModuleContext) {
           writeJson(res, 400, { error: (err as Error).message });
           return;
         }
-        let request: EvalRunRequest;
+        let options: EvalRunOptions;
         try {
-          request = validateRequest(body);
+          options = validateRequest(body);
         } catch (err) {
           writeJson(res, 400, { error: (err as Error).message });
           return;
         }
-        let fixtures: ReturnType<typeof loadAllFixtures>;
+        const bus = new EventBus();
+        bus.on(evalHarnessSetCompleted, (payload) => {
+          ctx.events.emit(evalHarnessSetCompleted, payload);
+        });
+        let result: EvalRunResult;
         try {
-          fixtures = request.fixtureIds
-            ? request.fixtureIds.map((id) => loadFixture(fixturesRoot, id))
-            : loadAllFixtures(fixturesRoot);
-        } catch (err) {
-          writeJson(res, 400, { error: (err as Error).message });
-          return;
-        }
-        if (fixtures.length === 0) {
-          writeJson(res, 400, { error: `No fixtures under "${fixturesRoot}".` });
-          return;
-        }
-        const repeatCount = request.repeatCount ?? 3;
-        const profile = buildProfile(request);
-        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-        const runArtifactBaseDir = join(evalRunsRoot, stamp);
-        mkdirSync(runArtifactBaseDir, { recursive: true });
-        const executor = createSubprocessExecutor({ kotaBinaryPath });
-        try {
-          const report = await runEvalSet({
-            fixtures,
-            executor,
-            resourceProfile: profile,
-            runArtifactBaseDir: realpathSync(runArtifactBaseDir),
-            repeatCount,
-            keepWorkingDirs: request.keepWorkingDirs ?? false,
-          });
-          ctx.events.emit(evalHarnessSetCompleted, {
-            fixtureCount: report.aggregate.fixtureCount,
-            repeatCount: report.repeatCount,
-            passAtK: report.aggregate.passAtK,
-            passHatK: report.aggregate.passHatK,
-            hostClass: profile.hostClass,
-            runArtifactBaseDir: report.runArtifactBaseDir,
-            startedAt: report.startedAt,
-            completedAt: report.completedAt,
-          });
-          writeJson(res, 200, {
-            fixtureCount: report.aggregate.fixtureCount,
-            repeatCount: report.repeatCount,
-            passAtK: report.aggregate.passAtK,
-            passHatK: report.aggregate.passHatK,
-            runArtifactBaseDir: report.runArtifactBaseDir,
-          });
+          result = await runEvalHarness(ctx.cwd, options, bus);
         } catch (err) {
           writeJson(res, 500, { error: (err as Error).message });
+          return;
         }
+        writeJson(res, 200, result);
       },
     },
   ];
