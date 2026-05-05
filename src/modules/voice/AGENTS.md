@@ -28,8 +28,11 @@ control API, not through a per-client audio pipeline.
 ## Client surfaces
 
 - **Daemon control API** (`POST /voice/transcribe`, `POST /voice/synthesize`):
-  the primary surface. `DaemonControlClient` exposes `voiceTranscribe` and
-  `voiceSynthesize` so any daemon-aware client can call voice uniformly.
+  the primary surface. The `voice` `KotaClient` namespace
+  (`client.voice.transcribe()` / `client.voice.synthesize()`) routes
+  through these routes via the module's `daemonClient(link)` factory, so
+  every daemon-aware client calls voice uniformly through the shared
+  namespace contract.
 - **`kota serve` HTTP** (`POST /api/voice/transcribe`,
   `POST /api/voice/synthesize`): the mirror surface for web / macOS /
   mobile clients that target the HTTP API server rather than daemon-control.
@@ -44,13 +47,13 @@ control API, not through a per-client audio pipeline.
   posts to `/api/voice/transcribe` and TTS replies stream back through
   `/api/voice/synthesize`; no vendor SDK in the browser.
 - **Apple clients** (`clients/apple`): `AVAudioRecorder` capture and
-  `AVAudioPlayer` playback through `DaemonClient.voiceTranscribe` /
-  `voiceSynthesize` against the daemon control API. Shared between
+  `AVAudioPlayer` playback against the daemon control API's
+  `/voice/transcribe` and `/voice/synthesize` routes. Shared between
   the macOS menu-bar shell and the iOS app via the `KotaShared`
   target.
 - **Mobile client** (`clients/mobile`): `expo-av` capture and playback
-  through `DaemonClient.voiceTranscribe` / `voiceSynthesize` against the
-  daemon control API.
+  against the daemon control API's `/voice/transcribe` and
+  `/voice/synthesize` routes.
 
 ## Failure modes
 

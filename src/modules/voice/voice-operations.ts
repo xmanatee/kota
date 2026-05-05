@@ -12,7 +12,7 @@ import type {
   VoiceClient,
   VoiceSynthesizeResult,
   VoiceTranscribeResult,
-} from "#core/server/kota-client.js";
+} from "./client.js";
 
 export function localVoiceClient(): VoiceClient {
   return {

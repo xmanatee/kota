@@ -29,16 +29,12 @@ const SERVER_DIR = import.meta.dirname;
 
 /**
  * Pre-existing types whose names match the per-namespace pattern but are
- * legitimate infrastructure-level declarations. The voice transport
- * `*Response` types are the daemon HTTP wire shape (distinct from the
- * `VoiceTranscribeResult` namespace shape exposed through `KotaClient`).
- * The remaining entries are configuration shapes for the server runtime,
- * the daemon-link watcher, the session-pool, and the client-selector
- * itself — none of them are per-namespace request/response types.
+ * legitimate infrastructure-level declarations. These entries are
+ * configuration shapes for the server runtime, the daemon-link watcher, the
+ * session-pool, and the client-selector itself — none of them are
+ * per-namespace request/response types.
  */
 const NAMESPACE_TYPE_ALLOWLIST: ReadonlySet<string> = new Set<string>([
-  "VoiceTranscribeResponse",
-  "VoiceSynthesizeResponse",
   "DaemonLinkOptions",
   "ServerOptions",
   "SessionPoolOptions",

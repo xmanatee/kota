@@ -11,12 +11,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { buildVoiceCommand } from "./cli.js";
 import type {
   VoiceClient,
   VoiceSynthesizeResult,
   VoiceTranscribeResult,
-} from "#core/server/kota-client.js";
-import { buildVoiceCommand } from "./cli.js";
+} from "./client.js";
 import { localVoiceClient } from "./voice-operations.js";
 
 function stubCtx(voice: VoiceClient): ModuleContext {

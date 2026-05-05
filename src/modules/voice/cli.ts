@@ -22,7 +22,7 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import type {
   VoiceSynthesizeResult,
   VoiceTranscribeResult,
-} from "#core/server/kota-client.js";
+} from "./client.js";
 
 const EXT_TO_MIME: Record<string, string> = {
   ".mp3": "audio/mpeg",

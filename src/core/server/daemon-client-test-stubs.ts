@@ -134,5 +134,19 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       }),
       calibration: async () => ({ aggregate: {}, decision: {} }),
     },
+    voice: {
+      transcribe: async () => ({
+        ok: false as const,
+        reason: "transport_error" as const,
+        status: 503,
+        message: "stub",
+      }),
+      synthesize: async () => ({
+        ok: false as const,
+        reason: "transport_error" as const,
+        status: 503,
+        message: "stub",
+      }),
+    },
   };
 }

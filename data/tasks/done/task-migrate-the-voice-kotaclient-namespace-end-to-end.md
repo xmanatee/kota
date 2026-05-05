@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-voice-kotaclient-namespace-end-to-end
 title: Migrate the voice KotaClient namespace end-to-end through the daemonClient(link) factory hook
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move VoiceClient interface and the VoiceTranscribeOptions/VoiceTranscribeResult/VoiceSynthesizeOptions/VoiceSynthesizeResult types from src/core/server/kota-client.ts into src/modules/voice/client.ts; add a daemonClient(link) factory to the voice module that wires POST /voice/transcribe and POST /voice/synthesize through the typed DaemonTransport with base64 JSON binary-payload encoding/decoding; remove voiceTranscribeHttp/voiceSynthesizeHttp/voiceTranscribeNamespaceHttp/voiceSynthesizeNamespaceHttp, the VoiceTranscribeResponse/VoiceSynthesizeResponse types, the inline voice handler closure, and the DaemonControlClient.voiceTranscribe()/voiceSynthesize() direct methods from src/core/server/daemon-client.ts.
 created_at: 2026-05-05T04:18:37.745Z
-updated_at: 2026-05-05T04:18:37.745Z
+updated_at: 2026-05-05T04:37:40.459Z
 ---
 
 ## Problem

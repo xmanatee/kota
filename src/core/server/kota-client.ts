@@ -58,6 +58,7 @@ import type { RecallClient } from "#modules/recall/client.js";
 import type { RetractClient } from "#modules/retract/client.js";
 import type { SecretsClient } from "#modules/secrets/client.js";
 import type { SkillsClient } from "#modules/skill-ops/client.js";
+import type { VoiceClient } from "#modules/voice/client.js";
 import type { WebClient } from "#modules/web/client.js";
 import type { WebhookClient } from "#modules/webhook/client.js";
 
@@ -435,56 +436,6 @@ export type SessionsSetAutonomyModeResult =
 export interface SessionsClient {
   list(): Promise<SessionsListResult>;
   setAutonomyMode(id: string, mode: AutonomyMode): Promise<SessionsSetAutonomyModeResult>;
-}
-
-/**
- * Voice operations.
- *
- * `transcribe` and `synthesize` consume the daemon's STT and TTS providers,
- * which own the upstream credentials and provider client. Local mode (no
- * daemon reachable) surfaces `daemon_required` so the CLI can render a
- * single clear "start the daemon" hint instead of trying to load and
- * configure providers in the operator process.
- */
-export type VoiceTranscribeOptions = {
-  audio: Uint8Array;
-  mimeType: string;
-  filename?: string;
-  languageHint?: string;
-};
-
-export type VoiceTranscribeResult =
-  | { ok: true; text: string; language?: string }
-  | { ok: false; reason: "daemon_required" }
-  | {
-      ok: false;
-      reason: "transport_error";
-      status: number;
-      message: string;
-      code?: string;
-    };
-
-export type VoiceSynthesizeOptions = {
-  text: string;
-  voice?: string;
-  languageHint?: string;
-  format?: string;
-};
-
-export type VoiceSynthesizeResult =
-  | { ok: true; audio: Buffer; mimeType: string; format: string }
-  | { ok: false; reason: "daemon_required" }
-  | {
-      ok: false;
-      reason: "transport_error";
-      status: number;
-      message: string;
-      code?: string;
-    };
-
-export interface VoiceClient {
-  transcribe(options: VoiceTranscribeOptions): Promise<VoiceTranscribeResult>;
-  synthesize(options: VoiceSynthesizeOptions): Promise<VoiceSynthesizeResult>;
 }
 
 /**

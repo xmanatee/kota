@@ -47,6 +47,7 @@ const STUB_OMITTED_NAMESPACES: ReadonlySet<string> = new Set<string>([
   "knowledge",
   "history",
   "evalHarness",
+  "voice",
 ]);
 
 function makeFakeTransport(): DaemonTransport {
@@ -233,6 +234,23 @@ function makeStubEvalHarness(): DaemonClientHandlers["evalHarness"] {
   };
 }
 
+function makeStubVoice(): DaemonClientHandlers["voice"] {
+  return {
+    transcribe: async () => ({
+      ok: false,
+      reason: "transport_error",
+      status: 503,
+      message: "stub",
+    }),
+    synthesize: async () => ({
+      ok: false,
+      reason: "transport_error",
+      status: 503,
+      message: "stub",
+    }),
+  };
+}
+
 describe("assembleDaemonClientHandlers", () => {
   const transport = makeFakeTransport();
 
@@ -273,6 +291,7 @@ describe("assembleDaemonClientHandlers", () => {
       knowledge: makeStubKnowledge(),
       history: makeStubHistory(),
       evalHarness: makeStubEvalHarness(),
+      voice: makeStubVoice(),
     });
     for (const name of KOTA_CLIENT_NAMESPACES) {
       expect(handlers[name], `assembled client must cover "${name}"`).toBeDefined();
@@ -313,6 +332,7 @@ describe("assembleDaemonClientHandlers", () => {
       knowledge: makeStubKnowledge(),
       history: makeStubHistory(),
       evalHarness: makeStubEvalHarness(),
+      voice: makeStubVoice(),
       tasks: customTasks,
     });
     expect(merged.tasks).toBe(customTasks);
@@ -321,7 +341,7 @@ describe("assembleDaemonClientHandlers", () => {
 
   it("throws naming each migrated namespace when no module contributes it", () => {
     expect(() => assembleDaemonClientHandlers(transport)).toThrow(
-      /missing daemon handler\(s\) for: approvals, secrets, memory, ownerQuestions, history, knowledge, modules, agents, skills, harnessParity, webhook, web, mcpServer, audit, modulesAdmin, doctor, evalHarness, recall, answer, capture, retract/,
+      /missing daemon handler\(s\) for: approvals, secrets, memory, ownerQuestions, history, knowledge, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, modulesAdmin, doctor, evalHarness, recall, answer, capture, retract/,
     );
   });
 });

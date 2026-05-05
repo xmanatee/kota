@@ -32,10 +32,6 @@ import type {
   RepoTaskShowResult,
   RepoTaskState,
   SessionsSetAutonomyModeResult,
-  VoiceSynthesizeOptions,
-  VoiceSynthesizeResult,
-  VoiceTranscribeOptions,
-  VoiceTranscribeResult,
   WorkflowTriggerOptions,
 } from "./kota-client.js";
 import {
@@ -52,18 +48,6 @@ const REPO_TASK_OPEN_STATES: RepoTaskState[] = [
 ];
 
 const FETCH_TIMEOUT_MS = 2_000;
-
-export type VoiceTranscribeResponse =
-  | { ok: true; text: string; language?: string }
-  | { ok: false; status: number; error: string; code?: string };
-
-export type VoiceSynthesizeResponse =
-  | { ok: true; audio: Buffer; mimeType: string; format: string }
-  | { ok: false; status: number; error: string; code?: string };
-
-function asString(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
 
 /**
  * Daemon `/workflow/trigger` only accepts a `payload` object that the
@@ -190,106 +174,6 @@ async function configSchemaContentHttp(
     throw new Error(body.error ?? `HTTP ${res.status}`);
   }
   return (await res.json()) as { content: string };
-}
-
-async function voiceTranscribeHttp(
-  transport: DaemonTransport,
-  input: {
-    audio: Uint8Array;
-    mimeType: string;
-    filename?: string;
-    languageHint?: string;
-  },
-): Promise<VoiceTranscribeResponse> {
-  const body = {
-    audioBase64: Buffer.from(input.audio).toString("base64"),
-    mimeType: input.mimeType,
-    ...(input.filename !== undefined && { filename: input.filename }),
-    ...(input.languageHint !== undefined && { languageHint: input.languageHint }),
-  };
-  const res = await transport.fetchRaw("/voice/transcribe", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const parsed = (await res.json()) as Record<string, unknown>;
-  if (!res.ok) {
-    return { ok: false, status: res.status, error: asString(parsed.error), code: asString(parsed.code) };
-  }
-  return {
-    ok: true,
-    text: String(parsed.text ?? ""),
-    ...(typeof parsed.language === "string" && { language: parsed.language }),
-  };
-}
-
-async function voiceSynthesizeHttp(
-  transport: DaemonTransport,
-  input: {
-    text: string;
-    voice?: string;
-    languageHint?: string;
-    format?: string;
-  },
-): Promise<VoiceSynthesizeResponse> {
-  const res = await transport.fetchRaw("/voice/synthesize", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  const parsed = (await res.json()) as Record<string, unknown>;
-  if (!res.ok) {
-    return { ok: false, status: res.status, error: asString(parsed.error), code: asString(parsed.code) };
-  }
-  return {
-    ok: true,
-    audio: Buffer.from(String(parsed.audioBase64 ?? ""), "base64"),
-    mimeType: String(parsed.mimeType ?? ""),
-    format: String(parsed.format ?? ""),
-  };
-}
-
-async function voiceTranscribeNamespaceHttp(
-  transport: DaemonTransport,
-  options: VoiceTranscribeOptions,
-): Promise<VoiceTranscribeResult> {
-  const result = await voiceTranscribeHttp(transport, options);
-  if (result.ok) {
-    return {
-      ok: true,
-      text: result.text,
-      ...(result.language !== undefined && { language: result.language }),
-    };
-  }
-  return {
-    ok: false,
-    reason: "transport_error",
-    status: result.status,
-    message: result.error,
-    ...(result.code !== undefined && { code: result.code }),
-  };
-}
-
-async function voiceSynthesizeNamespaceHttp(
-  transport: DaemonTransport,
-  options: VoiceSynthesizeOptions,
-): Promise<VoiceSynthesizeResult> {
-  const result = await voiceSynthesizeHttp(transport, options);
-  if (result.ok) {
-    return {
-      ok: true,
-      audio: result.audio,
-      mimeType: result.mimeType,
-      format: result.format,
-    };
-  }
-  return {
-    ok: false,
-    reason: "transport_error",
-    status: result.status,
-    message: result.error,
-    ...(result.code !== undefined && { code: result.code }),
-  };
 }
 
 async function listSessionsHttp(
@@ -849,10 +733,6 @@ export function buildCoreStubDaemonClientHandlers(
       },
       setAutonomyMode: async (id, mode) => setSessionAutonomyModeHttp(transport, id, mode),
     },
-    voice: {
-      transcribe: async (options) => voiceTranscribeNamespaceHttp(transport, options),
-      synthesize: async (options) => voiceSynthesizeNamespaceHttp(transport, options),
-    },
     config: {
       validate: async () => configValidateHttp(transport),
       get: async (key) => configGetHttp(transport, key),
@@ -1185,24 +1065,6 @@ export class DaemonControlClient implements KotaClient {
     if (opts?.limit != null) params.set("limit", String(opts.limit));
     const qs = params.toString();
     return this.transport.request("GET", `/api/events${qs ? `?${qs}` : ""}`);
-  }
-
-  voiceTranscribe(input: {
-    audio: Uint8Array;
-    mimeType: string;
-    filename?: string;
-    languageHint?: string;
-  }): Promise<VoiceTranscribeResponse> {
-    return voiceTranscribeHttp(this.transport, input);
-  }
-
-  voiceSynthesize(input: {
-    text: string;
-    voice?: string;
-    languageHint?: string;
-    format?: string;
-  }): Promise<VoiceSynthesizeResponse> {
-    return voiceSynthesizeHttp(this.transport, input);
   }
 
   events(): AsyncGenerator<DaemonSseEvent> {
