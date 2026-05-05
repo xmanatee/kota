@@ -12,6 +12,7 @@ import type {
   WorkflowRunSummary,
 } from "#core/daemon/daemon-control.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import * as methods from "./daemon-control-methods.js";
 import { type DaemonTransport, daemonTransportFromAddress } from "./daemon-transport.js";
 import type { KotaClient } from "./kota-client.js";
 import {
@@ -19,187 +20,6 @@ import {
   KOTA_CLIENT_NAMESPACES,
   type KotaClientNamespace,
 } from "./kota-client.js";
-
-/**
- * Fetch through the typed link, swallowing transport errors and returning
- * null on network failure. Used by methods that distinguish between several
- * HTTP status codes (e.g. 404 vs 409) where the link's `request<T>` shape
- * (which only returns `T | null`) is too narrow.
- */
-async function safeFetchRaw(
-  link: DaemonTransport,
-  method: string,
-  path: string,
-  body?: unknown,
-): Promise<Response | null> {
-  try {
-    return await link.fetchRaw(path, {
-      method,
-      ...(body !== undefined && {
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      }),
-    });
-  } catch {
-    return null;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Transport-bound wrappers around `transport.request<T>` / `safeFetchRaw`.
-// Used by both class methods and stub closures.
-
-function getHealthHttp(
-  transport: DaemonTransport,
-): Promise<{ status: string; components: HealthStatus } | null> {
-  return transport.request("GET", "/health");
-}
-
-function getDaemonStatusHttp(
-  transport: DaemonTransport,
-): Promise<DaemonLiveStatus | null> {
-  return transport.request("GET", "/status");
-}
-
-function getCapabilitiesHttp(
-  transport: DaemonTransport,
-): Promise<CapabilityReadinessResponse | null> {
-  return transport.request("GET", "/capabilities");
-}
-
-function getIdentityHttp(
-  transport: DaemonTransport,
-): Promise<ClientIdentity | null> {
-  return transport.request("GET", "/identity");
-}
-
-function getWorkflowStatusHttp(
-  transport: DaemonTransport,
-): Promise<WorkflowLiveStatus | null> {
-  return transport.request("GET", "/workflow/status");
-}
-
-function getWorkflowDefinitionsHttp(
-  transport: DaemonTransport,
-): Promise<{ definitions: WorkflowDefinitionSummary[] } | null> {
-  return transport.request("GET", "/workflow/definitions");
-}
-
-function pauseHttp(
-  transport: DaemonTransport,
-): Promise<{ ok: boolean; paused: boolean; already?: boolean } | null> {
-  return transport.request("POST", "/workflow/pause");
-}
-
-function resumeHttp(
-  transport: DaemonTransport,
-): Promise<{ ok: boolean; paused: boolean; already?: boolean } | null> {
-  return transport.request("POST", "/workflow/resume");
-}
-
-function abortHttp(
-  transport: DaemonTransport,
-): Promise<{ ok: boolean; aborted: number } | null> {
-  return transport.request("POST", "/workflow/abort");
-}
-
-function reloadHttp(
-  transport: DaemonTransport,
-): Promise<{ ok: boolean; count: number } | null> {
-  return transport.request("POST", "/workflow/reload");
-}
-
-function reloadConfigHttp(
-  transport: DaemonTransport,
-): Promise<{ ok: boolean; workflows: number; changedModules: string[] } | null> {
-  return transport.request("POST", "/reload");
-}
-
-async function enableWorkflowHttp(
-  transport: DaemonTransport,
-  name: string,
-): Promise<{ ok: boolean; notFound?: boolean } | null> {
-  const resp = await safeFetchRaw(transport, "POST", `/workflow/definitions/${encodeURIComponent(name)}/enable`);
-  if (!resp) return null;
-  if (resp.status === 404) return { ok: false, notFound: true };
-  if (!resp.ok) return null;
-  return (await resp.json()) as { ok: boolean };
-}
-
-async function disableWorkflowHttp(
-  transport: DaemonTransport,
-  name: string,
-): Promise<{ ok: boolean; notFound?: boolean } | null> {
-  const resp = await safeFetchRaw(transport, "POST", `/workflow/definitions/${encodeURIComponent(name)}/disable`);
-  if (!resp) return null;
-  if (resp.status === 404) return { ok: false, notFound: true };
-  if (!resp.ok) return null;
-  return (await resp.json()) as { ok: boolean };
-}
-
-async function triggerWorkflowHttp(
-  transport: DaemonTransport,
-  name: string,
-  tags?: string[],
-  payload?: Record<string, unknown>,
-): Promise<{ ok: boolean; queued?: string; runId?: string; alreadyQueued?: boolean } | null> {
-  const resp = await safeFetchRaw(transport, "POST", "/workflow/trigger", {
-    name,
-    ...(tags && tags.length > 0 && { tags }),
-    ...(payload && { payload }),
-  });
-  if (!resp) return null;
-  if (resp.status === 409) return { ok: false, alreadyQueued: true };
-  if (!resp.ok) return null;
-  return (await resp.json()) as { ok: boolean; queued?: string; runId?: string };
-}
-
-async function abortRunHttp(
-  transport: DaemonTransport,
-  runId: string,
-): Promise<{ ok: boolean; notFound?: boolean; queued?: boolean } | null> {
-  const resp = await safeFetchRaw(transport, "POST", `/workflow/runs/${encodeURIComponent(runId)}/abort`);
-  if (!resp) return null;
-  if (resp.status === 404) return { ok: false, notFound: true };
-  if (resp.status === 409) return { ok: false, queued: true };
-  if (!resp.ok) return null;
-  return (await resp.json()) as { ok: boolean };
-}
-
-async function cancelRunHttp(
-  transport: DaemonTransport,
-  runId: string,
-): Promise<{ ok: boolean; notFound?: boolean; active?: boolean } | null> {
-  const resp = await safeFetchRaw(transport, "DELETE", `/workflow/runs/${encodeURIComponent(runId)}`);
-  if (!resp) return null;
-  if (resp.status === 404) return { ok: false, notFound: true };
-  if (resp.status === 409) return { ok: false, active: true };
-  if (!resp.ok) return null;
-  return (await resp.json()) as { ok: boolean };
-}
-
-function listWorkflowRunsHttp(
-  transport: DaemonTransport,
-  workflow?: string,
-  limit?: number,
-  tag?: string,
-  causedByRunId?: string,
-): Promise<{ runs: WorkflowRunSummary[] } | null> {
-  const params = new URLSearchParams();
-  if (workflow) params.set("workflow", workflow);
-  if (limit !== undefined) params.set("limit", String(limit));
-  if (tag) params.set("tag", tag);
-  if (causedByRunId) params.set("causedByRunId", causedByRunId);
-  const query = params.toString() ? `?${params.toString()}` : "";
-  return transport.request("GET", `/workflow/runs${query}`);
-}
-
-function getWorkflowRunHttp(
-  transport: DaemonTransport,
-  id: string,
-): Promise<WorkflowRunDetail | null> {
-  return transport.request("GET", `/workflow/runs/${encodeURIComponent(id)}`);
-}
 
 /**
  * The OS-managed daemon flag is filesystem-scoped (it checks for a
@@ -266,8 +86,8 @@ export function assembleDaemonClientHandlers(
 // ---------------------------------------------------------------------------
 // DaemonControlClient — the daemon-online implementor of `KotaClient`.
 // Namespace fields are populated from the assembled handlers map. Public
-// non-namespace methods (`getHealth`, `events`, etc.) wrap the typed
-// `DaemonTransport` directly.
+// non-namespace methods delegate to standalone functions in
+// `daemon-control-methods.ts`; this class is the façade callers hold.
 // ---------------------------------------------------------------------------
 
 export class DaemonControlClient implements KotaClient {
@@ -385,133 +205,91 @@ export class DaemonControlClient implements KotaClient {
   // -------------------------------------------------------------------------
 
   getHealth(): Promise<{ status: string; components: HealthStatus } | null> {
-    return getHealthHttp(this.transport);
+    return methods.getHealth(this.transport);
   }
-
   getDaemonStatus(): Promise<DaemonLiveStatus | null> {
-    return getDaemonStatusHttp(this.transport);
+    return methods.getDaemonStatus(this.transport);
   }
-
   getCapabilities(): Promise<CapabilityReadinessResponse | null> {
-    return getCapabilitiesHttp(this.transport);
+    return methods.getCapabilities(this.transport);
   }
-
   getIdentity(): Promise<ClientIdentity | null> {
-    return getIdentityHttp(this.transport);
+    return methods.getIdentity(this.transport);
   }
-
   getWorkflowStatus(): Promise<WorkflowLiveStatus | null> {
-    return getWorkflowStatusHttp(this.transport);
+    return methods.getWorkflowStatus(this.transport);
   }
-
   getWorkflowDefinitions(): Promise<{ definitions: WorkflowDefinitionSummary[] } | null> {
-    return getWorkflowDefinitionsHttp(this.transport);
+    return methods.getWorkflowDefinitions(this.transport);
   }
-
   pause(): Promise<{ ok: boolean; paused: boolean; already?: boolean } | null> {
-    return pauseHttp(this.transport);
+    return methods.pause(this.transport);
   }
-
   resume(): Promise<{ ok: boolean; paused: boolean; already?: boolean } | null> {
-    return resumeHttp(this.transport);
+    return methods.resume(this.transport);
   }
-
   abort(): Promise<{ ok: boolean; aborted: number } | null> {
-    return abortHttp(this.transport);
+    return methods.abort(this.transport);
   }
-
   reload(): Promise<{ ok: boolean; count: number } | null> {
-    return reloadHttp(this.transport);
+    return methods.reload(this.transport);
   }
-
   reloadConfig(): Promise<{ ok: boolean; workflows: number; changedModules: string[] } | null> {
-    return reloadConfigHttp(this.transport);
+    return methods.reloadConfig(this.transport);
   }
-
   enableWorkflow(name: string): Promise<{ ok: boolean; notFound?: boolean } | null> {
-    return enableWorkflowHttp(this.transport, name);
+    return methods.enableWorkflow(this.transport, name);
   }
-
   disableWorkflow(name: string): Promise<{ ok: boolean; notFound?: boolean } | null> {
-    return disableWorkflowHttp(this.transport, name);
+    return methods.disableWorkflow(this.transport, name);
   }
-
   trigger(name: string, tags?: string[], payload?: Record<string, unknown>): Promise<{ ok: boolean; queued?: string; runId?: string; alreadyQueued?: boolean } | null> {
-    return triggerWorkflowHttp(this.transport, name, tags, payload);
+    return methods.trigger(this.transport, name, tags, payload);
   }
-
-  async dryRun(name: string, payload?: Record<string, unknown>): Promise<{ pass: boolean; notFound?: boolean; [key: string]: unknown } | null> {
-    const resp = await safeFetchRaw(this.transport, "POST", "/api/workflow/dry-run", {
-      name,
-      ...(payload && { payload }),
-    });
-    if (!resp) return null;
-    if (resp.status === 404) return { pass: false, notFound: true };
-    if (!resp.ok && resp.status !== 422) return null;
-    return (await resp.json()) as { pass: boolean; [key: string]: unknown };
+  dryRun(name: string, payload?: Record<string, unknown>): Promise<{ pass: boolean; notFound?: boolean; [key: string]: unknown } | null> {
+    return methods.dryRun(this.transport, name, payload);
   }
-
   abortRun(runId: string): Promise<{ ok: boolean; notFound?: boolean; queued?: boolean } | null> {
-    return abortRunHttp(this.transport, runId);
+    return methods.abortRun(this.transport, runId);
   }
-
   cancelRun(runId: string): Promise<{ ok: boolean; notFound?: boolean; active?: boolean } | null> {
-    return cancelRunHttp(this.transport, runId);
+    return methods.cancelRun(this.transport, runId);
   }
-
   listApprovals(status?: ApprovalStatus | "all"): Promise<{ approvals: PendingApproval[] } | null> {
-    const query = status ? `?status=${encodeURIComponent(status)}` : "";
-    return this.transport.request("GET", `/approvals${query}`);
+    return methods.listApprovals(this.transport, status);
   }
-
   approveApproval(id: string, note?: string): Promise<{ approval: PendingApproval } | null> {
-    return this.transport.request("POST", `/approvals/${encodeURIComponent(id)}/approve`, { note });
+    return methods.approveApproval(this.transport, id, note);
   }
-
   rejectApproval(id: string, reason?: string): Promise<{ approval: PendingApproval } | null> {
-    return this.transport.request("POST", `/approvals/${encodeURIComponent(id)}/reject`, { reason });
+    return methods.rejectApproval(this.transport, id, reason);
   }
-
   approveAllApprovals(note?: string): Promise<{ approvals: PendingApproval[]; count: number } | null> {
-    return this.transport.request("POST", "/approvals/approve-all", { note });
+    return methods.approveAllApprovals(this.transport, note);
   }
-
   rejectAllApprovals(reason?: string): Promise<{ approvals: PendingApproval[]; count: number } | null> {
-    return this.transport.request("POST", "/approvals/reject-all", { reason });
+    return methods.rejectAllApprovals(this.transport, reason);
   }
-
   listWorkflowRuns(workflow?: string, limit?: number, tag?: string, causedByRunId?: string): Promise<{ runs: WorkflowRunSummary[] } | null> {
-    return listWorkflowRunsHttp(this.transport, workflow, limit, tag, causedByRunId);
+    return methods.listWorkflowRuns(this.transport, workflow, limit, tag, causedByRunId);
   }
-
   getWorkflowRun(id: string): Promise<WorkflowRunDetail | null> {
-    return getWorkflowRunHttp(this.transport, id);
+    return methods.getWorkflowRun(this.transport, id);
   }
-
-  async registerSession(id: string, createdAt: string, autonomyMode: AutonomyMode): Promise<boolean> {
-    const resp = await safeFetchRaw(this.transport, "POST", "/sessions/register", { id, createdAt, autonomyMode });
-    return resp?.ok ?? false;
+  registerSession(id: string, createdAt: string, autonomyMode: AutonomyMode): Promise<boolean> {
+    return methods.registerSession(this.transport, id, createdAt, autonomyMode);
   }
-
-  async unregisterSession(id: string): Promise<boolean> {
-    const resp = await safeFetchRaw(this.transport, "DELETE", `/sessions/${encodeURIComponent(id)}`);
-    return (resp?.ok ?? false) || resp?.status === 204;
+  unregisterSession(id: string): Promise<boolean> {
+    return methods.unregisterSession(this.transport, id);
   }
-
-  async queryEvents(opts?: {
+  queryEvents(opts?: {
     type?: string;
     since?: string;
     limit?: number;
   }): Promise<{ events: Array<{ type: string; payload: Record<string, unknown>; timestamp: string }> } | null> {
-    const params = new URLSearchParams();
-    if (opts?.type) params.set("type", opts.type);
-    if (opts?.since) params.set("since", opts.since);
-    if (opts?.limit != null) params.set("limit", String(opts.limit));
-    const qs = params.toString();
-    return this.transport.request("GET", `/api/events${qs ? `?${qs}` : ""}`);
+    return methods.queryEvents(this.transport, opts);
   }
-
   events(): AsyncGenerator<DaemonSseEvent> {
-    return this.transport.events();
+    return methods.events(this.transport);
   }
 }

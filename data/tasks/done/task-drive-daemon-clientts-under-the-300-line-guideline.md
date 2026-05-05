@@ -1,12 +1,12 @@
 ---
 id: task-drive-daemon-clientts-under-the-300-line-guideline
 title: Drive daemon-client.ts under the 300-line guideline as the final shrinkage step
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Drive src/core/server/daemon-client.ts under the 300-line guideline by extracting non-namespace transport methods into a sibling file (or module-owned wrappers) and inlining the trivial HTTP helper functions, finishing the parent KotaClient namespace distribution task.
 created_at: 2026-05-05T08:09:06.754Z
-updated_at: 2026-05-05T08:09:06.754Z
+updated_at: 2026-05-05T08:20:22.578Z
 ---
 
 ## Problem

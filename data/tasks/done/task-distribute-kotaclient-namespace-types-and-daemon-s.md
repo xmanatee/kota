@@ -1,12 +1,12 @@
 ---
 id: task-distribute-kotaclient-namespace-types-and-daemon-s
 title: Distribute KotaClient namespace types and daemon-side wire code into the owning modules
-status: blocked
+status: done
 priority: p1
 area: architecture
 summary: Move KotaClient namespace type declarations and DaemonControlClient wire code from src/core/server/kota-client.ts and src/core/server/daemon-client.ts into the owning modules so the central files become thin protocol surfaces, mirroring the existing module-owned localClient(ctx) factory.
 created_at: 2026-04-25T23:45:34.278Z
-updated_at: 2026-04-25T23:52:25.348Z
+updated_at: 2026-05-05T08:20:21.763Z
 ---
 
 ## Unblock Precondition
