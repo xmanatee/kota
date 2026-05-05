@@ -55,30 +55,10 @@ import type {
 import type { OwnerQuestionsClient } from "#modules/owner-questions/client.js";
 import type { RecallClient } from "#modules/recall/client.js";
 import type { RetractClient } from "#modules/retract/client.js";
+import type { SecretsClient } from "#modules/secrets/client.js";
 import type { SkillsClient } from "#modules/skill-ops/client.js";
 import type { WebClient } from "#modules/web/client.js";
 import type { WebhookClient } from "#modules/webhook/client.js";
-
-/** A masked entry in the secret store (name and source only — never the value). */
-export type SecretListEntry = {
-  name: string;
-  source: string;
-};
-
-export type SecretListResult = {
-  secrets: SecretListEntry[];
-};
-
-/** Storage scope for a writable secret. Mirrors `SecretScope` in core/config/secrets. */
-export type SecretScope = "project" | "global";
-
-/** Result of `secrets.get(name)`. The contract is explicit about absence. */
-export type SecretGetResult = { found: true; value: string } | { found: false };
-
-/** Result of a writable secret operation (`set`, `remove`). */
-export type SecretMutateResult =
-  | { ok: true }
-  | { ok: false; reason: "not_found" | "store_error"; message?: string };
 
 /** A repo-task queue state, mirroring `data/tasks/<state>/`. */
 export type RepoTaskState =
@@ -548,22 +528,6 @@ export interface WorkflowClient {
   abortRun(
     id: string,
   ): Promise<WorkflowAbortRunResult | WorkflowDaemonRequiredResult>;
-}
-
-/**
- * Secret-store operations.
- *
- * `list` returns names plus their resolution source — never the values.
- * `get` returns the resolved value when present, or an explicit `{ found:
- * false }` when absent. Mutation methods (`set`, `remove`) target a
- * specific writable scope; reading respects the provider chain regardless
- * of scope.
- */
-export interface SecretsClient {
-  list(): Promise<SecretListResult>;
-  get(name: string): Promise<SecretGetResult>;
-  set(name: string, value: string, scope: SecretScope): Promise<SecretMutateResult>;
-  remove(name: string, scope: SecretScope): Promise<SecretMutateResult>;
 }
 
 /**

@@ -97,5 +97,11 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       approve: async () => ({ ok: false as const, reason: "not_found" as const }),
       reject: async () => ({ ok: false as const, reason: "not_found" as const }),
     },
+    secrets: {
+      list: async () => ({ secrets: [] }),
+      get: async () => ({ found: false as const }),
+      set: async () => ({ ok: true as const }),
+      remove: async () => ({ ok: false as const, reason: "not_found" as const }),
+    },
   };
 }

@@ -14,11 +14,18 @@
 import { createInterface } from "node:readline";
 import { Command } from "commander";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import { getSecretStore, initSecretStore, type SecretScope } from "#core/config/secrets.js";
+import { getSecretStore, initSecretStore } from "#core/config/secrets.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
-import type { SecretsClient } from "#core/server/kota-client.js";
+import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { readOnlyDaemonEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/index.js";
+import type {
+  SecretGetResult,
+  SecretListResult,
+  SecretMutateResult,
+  SecretScope,
+  SecretsClient,
+} from "./client.js";
 import { secretsRoutes } from "./routes.js";
 
 function ensureLocalStore(ctx: ModuleContext): ReturnType<typeof initSecretStore> {
@@ -227,9 +234,71 @@ const secretsModule: KotaModule = {
     return { secrets: handler };
   },
 
+  daemonClient: (link) => ({ secrets: buildSecretsDaemonHandler(link) }),
+
   onLoad: (ctx) => {
     initSecretStore(ctx.cwd);
   },
 };
+
+/**
+ * Daemon-side `SecretsClient` backed by the typed `DaemonTransport`. Calls
+ * the same `/api/secrets` and `/api/secrets/:name` HTTP routes the secrets
+ * module registers through `secretsRoutes`. The transport surface owns the
+ * bearer token, base URL, and timeout policy — this factory only encodes
+ * the wire shape.
+ *
+ * `list()` collapses any non-`200` (the typed link returns `null` on a
+ * missing-route or transport error) into `{ secrets: [] }`, matching the
+ * pre-migration central closure's `result?.secrets ?? []`. `get(name)`
+ * collapses `null` (404 or other transport silence) into `{ found: false }`,
+ * matching the prior `silent fallthrough on transport errors` behavior.
+ * `set(name, value, scope)` and `remove(name, scope)` thread `PUT` and
+ * `DELETE` verbs respectively; thrown transport errors collapse into
+ * `{ ok: false, reason: "store_error", message }` with the underlying
+ * error message preserved, while `remove`'s `null` (404) collapses into
+ * `{ ok: false, reason: "not_found" }`. Every per-secret path runs through
+ * `encodeURIComponent(name)`, and the `DELETE` query string runs the
+ * scope through `encodeURIComponent(scope)`, so embedded slashes,
+ * percents, or spaces round-trip safely.
+ */
+function buildSecretsDaemonHandler(link: DaemonTransport): SecretsClient {
+  return {
+    list: async (): Promise<SecretListResult> => {
+      const result = await link.request<SecretListResult>("GET", "/api/secrets");
+      return { secrets: result?.secrets ?? [] };
+    },
+    get: async (name): Promise<SecretGetResult> => {
+      const result = await link.request<{ found: true; value: string }>(
+        "GET",
+        `/api/secrets/${encodeURIComponent(name)}`,
+      );
+      return result ? { found: true, value: result.value } : { found: false };
+    },
+    set: async (name, value, scope): Promise<SecretMutateResult> => {
+      try {
+        await link.requestStrict<{ ok: true }>(
+          "PUT",
+          `/api/secrets/${encodeURIComponent(name)}`,
+          { value, scope },
+        );
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, reason: "store_error", message: (err as Error).message };
+      }
+    },
+    remove: async (name, scope): Promise<SecretMutateResult> => {
+      try {
+        const result = await link.request<{ ok: true }>(
+          "DELETE",
+          `/api/secrets/${encodeURIComponent(name)}?scope=${encodeURIComponent(scope)}`,
+        );
+        return result ? { ok: true } : { ok: false, reason: "not_found" };
+      } catch (err) {
+        return { ok: false, reason: "store_error", message: (err as Error).message };
+      }
+    },
+  };
+}
 
 export default secretsModule;

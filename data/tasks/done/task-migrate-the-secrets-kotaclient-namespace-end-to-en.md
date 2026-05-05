@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-secrets-kotaclient-namespace-end-to-en
 title: Migrate the secrets KotaClient namespace end-to-end through the daemonClient(link) factory hook
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move SecretsClient interface and the SecretListEntry/SecretListResult/SecretScope/SecretGetResult/SecretMutateResult types from src/core/server/kota-client.ts into src/modules/secrets/client.ts; add a daemonClient(link) factory to the secrets module that wires GET /api/secrets, GET/PUT/DELETE /api/secrets/:name through the typed DaemonTransport; remove listSecretsHttp/getSecretHttp/setSecretHttp/removeSecretHttp and the inline secrets handler closure from src/core/server/daemon-client.ts.
 created_at: 2026-05-05T01:18:24.329Z
-updated_at: 2026-05-05T01:18:24.329Z
+updated_at: 2026-05-05T01:37:26.152Z
 ---
 
 ## Problem

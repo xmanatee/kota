@@ -62,9 +62,6 @@ import type {
   RepoTaskSearchResult,
   RepoTaskShowResult,
   RepoTaskState,
-  SecretGetResult,
-  SecretMutateResult,
-  SecretScope,
   SessionsSetAutonomyModeResult,
   VoiceSynthesizeOptions,
   VoiceSynthesizeResult,
@@ -705,83 +702,6 @@ async function reindexMemoryHttp(
   return (await res.json()) as MemoryReindexResult;
 }
 
-async function listSecretsHttp(
-  transport: DaemonTransport,
-): Promise<{ secrets: { name: string; source: string }[] } | null> {
-  try {
-    const res = await fetchWithTimeout(`${transport.baseUrl}/api/secrets`, {
-      headers: transport.authHeaders(),
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as { secrets: { name: string; source: string }[] };
-  } catch {
-    return null;
-  }
-}
-
-async function getSecretHttp(
-  transport: DaemonTransport,
-  name: string,
-): Promise<SecretGetResult> {
-  try {
-    const res = await fetchWithTimeout(
-      `${transport.baseUrl}/api/secrets/${encodeURIComponent(name)}`,
-      { headers: transport.authHeaders() },
-    );
-    if (res.status === 404) return { found: false };
-    if (!res.ok) return { found: false };
-    const body = (await res.json()) as { found: boolean; value?: string };
-    if (body.found && typeof body.value === "string") {
-      return { found: true, value: body.value };
-    }
-    return { found: false };
-  } catch {
-    return { found: false };
-  }
-}
-
-async function setSecretHttp(
-  transport: DaemonTransport,
-  name: string,
-  value: string,
-  scope: SecretScope,
-): Promise<SecretMutateResult> {
-  try {
-    const res = await fetchWithTimeout(
-      `${transport.baseUrl}/api/secrets/${encodeURIComponent(name)}`,
-      {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", ...transport.authHeaders() },
-        body: JSON.stringify({ value, scope }),
-      },
-    );
-    if (res.ok) return { ok: true };
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    return { ok: false, reason: "store_error", message: body.error ?? `HTTP ${res.status}` };
-  } catch (err) {
-    return { ok: false, reason: "store_error", message: (err as Error).message };
-  }
-}
-
-async function removeSecretHttp(
-  transport: DaemonTransport,
-  name: string,
-  scope: SecretScope,
-): Promise<SecretMutateResult> {
-  try {
-    const res = await fetchWithTimeout(
-      `${transport.baseUrl}/api/secrets/${encodeURIComponent(name)}?scope=${encodeURIComponent(scope)}`,
-      { method: "DELETE", headers: transport.authHeaders() },
-    );
-    if (res.status === 404) return { ok: false, reason: "not_found" };
-    if (res.ok) return { ok: true };
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    return { ok: false, reason: "store_error", message: body.error ?? `HTTP ${res.status}` };
-  } catch (err) {
-    return { ok: false, reason: "store_error", message: (err as Error).message };
-  }
-}
-
 async function showTaskHttp(
   transport: DaemonTransport,
   id: string,
@@ -1266,15 +1186,6 @@ export function buildCoreStubDaemonClientHandlers(
           ...(result.runId !== undefined && { runId: result.runId }),
         };
       },
-    },
-    secrets: {
-      list: async () => {
-        const result = await listSecretsHttp(transport);
-        return { secrets: result?.secrets ?? [] };
-      },
-      get: async (name) => getSecretHttp(transport, name),
-      set: async (name, value, scope) => setSecretHttp(transport, name, value, scope),
-      remove: async (name, scope) => removeSecretHttp(transport, name, scope),
     },
     tasks: {
       list: async (states) => {
