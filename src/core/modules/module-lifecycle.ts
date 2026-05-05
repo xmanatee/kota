@@ -1,34 +1,35 @@
-import type { AgentDef, SkillDef } from "#core/agents/agent-types.js";
-import type { ChannelDef } from "#core/channels/channel.js";
+import { unregisterConfigSlicesForOwner } from "#core/config/config-slice.js";
+import { getModuleEventRegistry } from "#core/events/module-event.js";
 import { removeCleanupHooks, resetCleanupHooks } from "#core/loop/cleanup-hooks.js";
 import { resetDynamicStateProviders } from "#core/loop/dynamic-state.js";
 import { removePreSendHooks, resetPreSendHooks } from "#core/loop/pre-send-hooks.js";
 import { deregisterModuleTools } from "#core/tools/index.js";
 import { getToolMiddleware } from "#core/tools/tool-middleware.js";
-import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
-import type { ModuleStorage } from "./module-storage.js";
+import type { LoaderState } from "./module-loader-state.js";
 import type { KotaModule } from "./module-types.js";
 import { getProviderRegistry } from "./provider-registry.js";
 
-export interface LifecycleState {
-  modules: KotaModule[];
-  moduleStorages: Map<string, ModuleStorage>;
-  moduleToolCounts: Map<string, number>;
-  moduleRegistry: Map<string, KotaModule>;
-  moduleWorkflowDefs: Map<string, readonly RegisteredWorkflowDefinitionInput[]>;
-  moduleChannelDefs: Map<string, readonly ChannelDef[]>;
-  moduleSkillDefs: Map<string, readonly SkillDef[]>;
-  moduleAgentDefs: Map<string, readonly AgentDef[]>;
+export interface ModuleLoadFailure {
+  message: string;
+  timestamp: string;
+}
+
+export interface LifecycleEnv {
+  resetBus: () => void;
   verbose: boolean;
 }
 
-export function getModuleDependents(moduleName: string, modules: KotaModule[]): string[] {
+export function getModuleDependents(moduleName: string, modules: readonly KotaModule[]): string[] {
   return modules
     .filter((m) => m.dependencies?.includes(moduleName))
     .map((m) => m.name);
 }
 
-export async function unloadModule(moduleName: string, state: LifecycleState): Promise<boolean> {
+export async function unloadModule(
+  moduleName: string,
+  state: LoaderState,
+  env: LifecycleEnv,
+): Promise<boolean> {
   const idx = state.modules.findIndex((m) => m.name === moduleName);
   if (idx < 0) return false;
 
@@ -62,11 +63,16 @@ export async function unloadModule(moduleName: string, state: LifecycleState): P
   removeCleanupHooks(moduleName);
   removePreSendHooks(moduleName);
 
-  if (state.verbose) console.error(`[kota] Module "${moduleName}" unloaded`);
+  cleanupLoaderState(moduleName, state);
+
+  if (env.verbose) console.error(`[kota] Module "${moduleName}" unloaded`);
   return true;
 }
 
-export async function unloadAllModules(state: LifecycleState): Promise<void> {
+export async function unloadAllModules(state: LoaderState, env: LifecycleEnv): Promise<void> {
+  const owners = [...new Set(state.registeredConfigKeys.values())];
+  const eventOwners = state.modules.map((m) => m.name);
+
   for (const mod of [...state.modules].reverse()) {
     if (mod.onUnload) {
       try {
@@ -94,4 +100,66 @@ export async function unloadAllModules(state: LifecycleState): Promise<void> {
   resetCleanupHooks();
   resetDynamicStateProviders();
   resetPreSendHooks();
+
+  for (const owner of owners) unregisterConfigSlicesForOwner(owner);
+  const registry = getModuleEventRegistry();
+  if (registry) {
+    for (const owner of eventOwners) registry.unregisterModule(owner);
+  }
+  state.registeredConfigKeys.clear();
+  state.contributedWorkflows.splice(0);
+  state.contributedChannels.splice(0);
+  state.skillContentsByName.clear();
+  state.skillDefsByName.clear();
+  state.moduleRoutes.clear();
+  state.moduleCommands.clear();
+  state.moduleControlRoutes.clear();
+  state.moduleRouteErrors.clear();
+  state.moduleCommandErrors.clear();
+  state.moduleControlRouteErrors.clear();
+  state.moduleSources.clear();
+  state.loadFailures.clear();
+  env.resetBus();
+}
+
+function cleanupLoaderState(moduleName: string, state: LoaderState): void {
+  for (const [key, owner] of state.registeredConfigKeys) {
+    if (owner === moduleName) state.registeredConfigKeys.delete(key);
+  }
+  unregisterConfigSlicesForOwner(moduleName);
+  getModuleEventRegistry()?.unregisterModule(moduleName);
+  state.moduleRoutes.delete(moduleName);
+  state.moduleCommands.delete(moduleName);
+  state.moduleControlRoutes.delete(moduleName);
+  state.moduleRouteErrors.delete(moduleName);
+  state.moduleCommandErrors.delete(moduleName);
+  state.moduleControlRouteErrors.delete(moduleName);
+
+  const wfDefs = state.moduleWorkflowDefs.get(moduleName);
+  if (wfDefs) {
+    const wfNames = new Set(wfDefs.map((w) => w.name));
+    for (let i = state.contributedWorkflows.length - 1; i >= 0; i--) {
+      if (wfNames.has(state.contributedWorkflows[i].name)) {
+        state.contributedWorkflows.splice(i, 1);
+      }
+    }
+  }
+
+  const chDefs = state.moduleChannelDefs.get(moduleName);
+  if (chDefs) {
+    const chNames = new Set(chDefs.map((c) => c.name));
+    for (let i = state.contributedChannels.length - 1; i >= 0; i--) {
+      if (chNames.has(state.contributedChannels[i].name)) {
+        state.contributedChannels.splice(i, 1);
+      }
+    }
+  }
+
+  const skillDefs = state.moduleSkillDefs.get(moduleName);
+  if (skillDefs) {
+    for (const skill of skillDefs) {
+      state.skillContentsByName.delete(skill.name);
+      state.skillDefsByName.delete(skill.name);
+    }
+  }
 }

@@ -1,12 +1,12 @@
 ---
 id: task-split-moduleloader-class-into-per-load-phase-handl
 title: Split ModuleLoader class into per-load-phase handler files
-status: ready
+status: done
 priority: p1
 area: core
 summary: Split ModuleLoader (core/modules/module-loader.ts) into per-load-phase sibling files so module-loader.ts drops well under the 300-line guideline
 created_at: 2026-05-05T10:04:07.957Z
-updated_at: 2026-05-05T10:04:07.957Z
+updated_at: 2026-05-05T10:27:28.168Z
 ---
 
 ## Problem

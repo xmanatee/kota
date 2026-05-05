@@ -3,6 +3,34 @@
 This directory owns module discovery, loading, lifecycle, provider registration,
 and foreign-module transports.
 
+## Module Loader Layout
+
+`module-loader.ts` is the orchestrator: it owns the `ModuleLoader` class, the
+public accessor surface, and lifecycle-mode wiring. Each load-time concern
+with cohesive state lives in a sibling file. New concerns land as a phase
+function in the appropriate sibling, not as a fresh inline block in
+`module-loader.ts`.
+
+- `module-loader-state.ts` — the shared `LoaderState` shape every phase reads
+  or mutates.
+- `module-loader-context.ts` — `createLoaderModuleContext` and per-loader
+  tool-call-depth bookkeeping.
+- `module-loader-load-phases.ts` — every load phase as a typed function
+  (duplicate-name guard, dependency precondition, config/event/tool/workflow/
+  channel/command/route registration, `onLoad`, skills, agents). The
+  `runModuleLoadPhases` helper drives the sequence so the orchestrator only
+  owns early checks and final dispatch.
+- `module-loader-clients.ts` — local- and daemon-side `KotaClient` handler
+  collection plus the runtime `assembleDaemonClientHandlers(transport)`
+  builder.
+- `module-loader-bootstrap.ts` — multi-module orchestrators outside a single
+  `load()`: `loadAllModules`, `reloadModule`, `reimportModule`, provider
+  activation.
+- `module-loader-summaries.ts` — read-only `getModuleSummaries` and
+  `formatSkillsPrompt` derivations.
+- `module-lifecycle.ts` — the unload-side counterpart and paired state
+  cleanup.
+
 ## Module Context Surfaces
 
 The runtime hands every module hook the same physical context object, but the
@@ -26,13 +54,7 @@ Lifecycle registration belongs in `onLoad`. A factory hook that reaches for
 `registerProvider` is doing something the protocol forbids — providers may
 already be activated by the time a route handler runs, and a contribution
 factory's idempotency story is much weaker than the lifecycle's. The capability
-boundary is enforced at compile time by
-`module-context-capabilities.test.ts`. The narrower contribution surface is
-also composed from smaller capability types (`ModuleBaseContext`,
-`ModuleInspectionContext`, `ToolInvocationContext`, `ModuleEventContext`,
-`ProviderLookupContext`, `ModuleSessionContext`, `ModuleClientContext`) so a
-future refinement can hand a hook an even narrower view without disturbing
-the public `ModuleContext` shape.
+boundary is enforced at compile time by `module-context-capabilities.test.ts`.
 
 - Keep modules as the single contribution boundary for tools, workflows,
   channels, providers, agents, and related runtime services.
@@ -91,31 +113,16 @@ between cheap CLI subcommand registration and a fully-driven module runtime.
   `loadRuntimeModules` for all daemon, MCP, eval-harness, and similar paths.
   All accessors are safe in this mode.
 
-The runtime-only guard exists because the 2026-04-28 daemon regression read
-route contributions from a `"commands"` snapshot whose `onLoad` hooks had
-been intentionally skipped. The shipped binary advertised `/api/knowledge`,
-`/api/memory`, `/api/history`, `/recall`, and `/answer` — all returning 500
-with "provider not initialized" — while `/status` looked healthy. The typed
-boundary now fails at the accessor instead of at request time, so the same
-partial context cannot silently ship again. Static-contribution accessors
-stay safe in commands mode because they are populated from module
-definitions during `load()` regardless of mode, which is what the CLI
-relies on for `kota workflow validate`, `kota workflow exec`, the daemon's
-own `reloadConfig` diff, and similar inspection paths.
+The runtime-only guard prevents a partial-context bug class: a daemon that
+reads route contributions from a `"commands"` snapshot whose `onLoad` hooks
+were skipped will advertise routes whose providers are uninitialized. The
+typed boundary fails at the accessor instead of at request time. Static
+contributions stay safe in commands mode because they are populated from
+module definitions during `load()` regardless of mode — which is what
+`kota workflow validate`, `kota workflow exec`, and the daemon's
+`reloadConfig` diff rely on.
 
 Tests, helpers, and runtime hosts must declare which mode they exercise:
-
-- A test that wants commands-only fixtures uses `mode: "commands"`. It may
-  read static contributions, but consuming `getRoutes()`,
-  `getContributedControlRoutes()`, or `probeHealthChecks()` is the
-  partial-context bug class and the loader will throw.
-- A test that wants runtime fixtures uses `mode: "runtime"` (or
-  `loadRuntimeModules`) and may read every accessor.
-
-The regression fixture lives at the loader test layer
-(`module-loader.test.ts`) and at the daemon integration layer
-(`daemon-runtime-load.integration.test.ts`). Together they prove that a
-`"commands"` loader cannot hand back a runtime-dependent contribution
-(routes/control-routes/health-checks) under any path, that the same loader
-still exposes static contributions cleanly, and that a runtime-mode
-loader's contributions wire up correctly inside a real `Daemon`.
+commands-mode callers may read static contributions but not `getRoutes()`,
+`getContributedControlRoutes()`, or `probeHealthChecks()`; runtime-mode
+callers may read every accessor.
