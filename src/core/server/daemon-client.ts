@@ -44,12 +44,6 @@ import type {
   KnowledgeSearchResult,
   KnowledgeShowResult,
   KotaClient,
-  MemoryAddResult,
-  MemoryDeleteResult,
-  MemoryListEntry,
-  MemoryReindexResult,
-  MemorySearchFilter,
-  MemorySearchResult,
   RepoTaskCaptureResult,
   RepoTaskCreateOptions,
   RepoTaskCreateResult,
@@ -629,79 +623,6 @@ async function searchHistoryHttp(
   return (await res.json()) as HistorySearchResult;
 }
 
-async function addMemoryHttp(
-  transport: DaemonTransport,
-  content: string,
-  tags: string[],
-): Promise<MemoryAddResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/api/memory`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...transport.authHeaders() },
-    body: JSON.stringify({ content, tags }),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  const body = (await res.json()) as { id: string };
-  return { id: body.id };
-}
-
-async function deleteMemoryHttp(
-  transport: DaemonTransport,
-  id: string,
-): Promise<MemoryDeleteResult> {
-  const res = await fetchWithTimeout(
-    `${transport.baseUrl}/api/memory/${encodeURIComponent(id)}`,
-    { method: "DELETE", headers: transport.authHeaders() },
-  );
-  if (res.status === 404) return { ok: false, reason: "not_found" };
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return { ok: true };
-}
-
-async function searchMemoryHttp(
-  transport: DaemonTransport,
-  query: string,
-  filter?: MemorySearchFilter,
-): Promise<MemorySearchResult> {
-  const params = new URLSearchParams();
-  params.set("q", query);
-  if (filter?.tag) params.set("tag", filter.tag);
-  if (filter?.since) params.set("since", filter.since);
-  if (filter?.semantic) params.set("semantic", "true");
-  if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-  const res = await fetchWithTimeout(
-    `${transport.baseUrl}/api/memory/search?${params.toString()}`,
-    { headers: transport.authHeaders() },
-  );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  const body = (await res.json()) as
-    | { ok: true; entries: MemoryListEntry[] }
-    | { ok: false; reason: "semantic_unavailable" };
-  return body;
-}
-
-async function reindexMemoryHttp(
-  transport: DaemonTransport,
-): Promise<MemoryReindexResult> {
-  const res = await fetchWithTimeout(`${transport.baseUrl}/api/memory/reindex`, {
-    method: "POST",
-    headers: transport.authHeaders(),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return (await res.json()) as MemoryReindexResult;
-}
-
 async function showTaskHttp(
   transport: DaemonTransport,
   id: string,
@@ -880,20 +801,6 @@ async function listTasksHttp(
       counts: Record<string, number>;
       tasks: Record<string, { id: string; title: string; priority: string; area: string; summary: string; body: string }[]>;
     };
-  } catch {
-    return null;
-  }
-}
-
-async function listMemoryHttp(
-  transport: DaemonTransport,
-): Promise<{ entries: { id: string; tags: string[]; created: string; excerpt: string }[] } | null> {
-  try {
-    const res = await fetchWithTimeout(`${transport.baseUrl}/api/memory`, {
-      headers: transport.authHeaders(),
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as { entries: { id: string; tags: string[]; created: string; excerpt: string }[] };
   } catch {
     return null;
   }
@@ -1217,23 +1124,6 @@ export function buildCoreStubDaemonClientHandlers(
       gc: async (options) => gcTasksHttp(transport, options ?? {}),
       search: async (query, filter) => searchTasksHttp(transport, query, filter),
       reindex: async () => reindexTasksHttp(transport),
-    },
-    memory: {
-      list: async (limit) => {
-        const result = await listMemoryHttp(transport);
-        const slice = result ? result.entries.slice(0, limit ?? Number.POSITIVE_INFINITY) : [];
-        return {
-          entries: slice.map((entry) => ({
-            id: entry.id,
-            created: entry.created,
-            content: entry.excerpt,
-          })),
-        };
-      },
-      add: async (content, tags) => addMemoryHttp(transport, content, tags ?? []),
-      delete: async (id) => deleteMemoryHttp(transport, id),
-      search: async (query, filter) => searchMemoryHttp(transport, query, filter),
-      reindex: async () => reindexMemoryHttp(transport),
     },
     history: {
       list: async (filter) => historyListHttp(transport, filter),

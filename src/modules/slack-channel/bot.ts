@@ -14,12 +14,12 @@ import { NullTransport, ProxyTransport } from "#core/loop/transport.js";
 import type {
   HistoryClient,
   KnowledgeClient,
-  MemoryClient,
   RepoTasksClient,
 } from "#core/server/kota-client.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { AnswerClient } from "#modules/answer/client.js";
 import type { CaptureClient } from "#modules/capture/client.js";
+import type { MemoryClient } from "#modules/memory/client.js";
 import type { RecallClient } from "#modules/recall/client.js";
 import type { RetractClient } from "#modules/retract/client.js";
 import {

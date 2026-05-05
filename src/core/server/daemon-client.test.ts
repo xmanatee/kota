@@ -43,6 +43,7 @@ const STUB_OMITTED_NAMESPACES: ReadonlySet<string> = new Set<string>([
   "webhook",
   "approvals",
   "secrets",
+  "memory",
 ]);
 
 function makeFakeTransport(): DaemonTransport {
@@ -186,6 +187,16 @@ function makeStubSecrets(): DaemonClientHandlers["secrets"] {
   };
 }
 
+function makeStubMemory(): DaemonClientHandlers["memory"] {
+  return {
+    list: async () => ({ entries: [] }),
+    add: async () => ({ id: "stub" }),
+    delete: async () => ({ ok: true }),
+    search: async () => ({ ok: true, entries: [] }),
+    reindex: async () => ({ indexed: 0, failed: 0 }),
+  };
+}
+
 describe("assembleDaemonClientHandlers", () => {
   const transport = makeFakeTransport();
 
@@ -222,6 +233,7 @@ describe("assembleDaemonClientHandlers", () => {
       webhook: makeStubWebhook(),
       approvals: makeStubApprovals(),
       secrets: makeStubSecrets(),
+      memory: makeStubMemory(),
     });
     for (const name of KOTA_CLIENT_NAMESPACES) {
       expect(handlers[name], `assembled client must cover "${name}"`).toBeDefined();
@@ -230,11 +242,14 @@ describe("assembleDaemonClientHandlers", () => {
 
   it("overrides the stub when a module contributes the same namespace", () => {
     const stub = buildCoreStubDaemonClientHandlers(transport);
-    const customMemory: DaemonClientHandlers["memory"] = {
-      list: async () => ({ entries: [] }),
-      add: async () => ({ id: "mod" }),
-      delete: async () => ({ ok: true }),
-      search: async () => ({ ok: true, entries: [] }),
+    const customTasks: DaemonClientHandlers["tasks"] = {
+      list: async () => ({ tasks: [] }),
+      show: async () => ({ found: false }),
+      move: async () => ({ ok: false, reason: "not_found" }),
+      create: async () => ({ ok: true, id: "mod", path: "mod" }),
+      capture: async () => ({ ok: true, id: "mod", path: "mod" }),
+      gc: async () => ({ archived: [], deleted: [] }),
+      search: async () => ({ ok: true, tasks: [] }),
       reindex: async () => ({ indexed: 0, failed: 0 }),
     };
     const merged = assembleDaemonClientHandlers(transport, {
@@ -255,15 +270,16 @@ describe("assembleDaemonClientHandlers", () => {
       webhook: makeStubWebhook(),
       approvals: makeStubApprovals(),
       secrets: makeStubSecrets(),
-      memory: customMemory,
+      memory: makeStubMemory(),
+      tasks: customTasks,
     });
-    expect(merged.memory).toBe(customMemory);
-    expect(merged.memory).not.toBe(stub.memory);
+    expect(merged.tasks).toBe(customTasks);
+    expect(merged.tasks).not.toBe(stub.tasks);
   });
 
   it("throws naming each migrated namespace when no module contributes it", () => {
     expect(() => assembleDaemonClientHandlers(transport)).toThrow(
-      /missing daemon handler\(s\) for: approvals, secrets, ownerQuestions, modules, agents, skills, harnessParity, webhook, web, mcpServer, audit, modulesAdmin, doctor, recall, answer, capture, retract/,
+      /missing daemon handler\(s\) for: approvals, secrets, memory, ownerQuestions, modules, agents, skills, harnessParity, webhook, web, mcpServer, audit, modulesAdmin, doctor, recall, answer, capture, retract/,
     );
   });
 });

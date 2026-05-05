@@ -2,7 +2,6 @@ import { join } from "node:path";
 import type {
   HistoryClient,
   KnowledgeClient,
-  MemoryClient,
   RepoTasksClient,
 } from "#core/server/kota-client.js";
 import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
@@ -23,6 +22,7 @@ import type {
 import { renderCaptureReplyPlain } from "#modules/capture/render.js";
 import { renderHistorySearchPlain } from "#modules/history/render.js";
 import { renderKnowledgeSearchPlain } from "#modules/knowledge/render.js";
+import type { MemoryClient } from "#modules/memory/client.js";
 import { renderMemorySearchPlain } from "#modules/memory/render.js";
 import type { RecallClient } from "#modules/recall/client.js";
 import { renderRecallHitsPlain } from "#modules/recall/render.js";

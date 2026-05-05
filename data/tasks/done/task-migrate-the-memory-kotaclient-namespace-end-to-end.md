@@ -1,12 +1,12 @@
 ---
 id: task-migrate-the-memory-kotaclient-namespace-end-to-end
 title: Migrate the memory KotaClient namespace end-to-end through the daemonClient(link) factory hook
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Move MemoryClient interface and the MemoryListEntry/MemoryListResult/MemoryAddResult/MemoryDeleteResult/MemorySearchFilter/MemorySearchResult/MemoryReindexResult types from src/core/server/kota-client.ts into src/modules/memory/client.ts; add a daemonClient(link) factory to the memory module that wires GET /api/memory, POST /api/memory, DELETE /api/memory/:id, GET /api/memory/search, POST /api/memory/reindex through the typed DaemonTransport; remove listMemoryHttp/addMemoryHttp/deleteMemoryHttp/searchMemoryHttp/reindexMemoryHttp and the inline memory handler closure (with its excerpt-to-content shape transformation) from src/core/server/daemon-client.ts.
 created_at: 2026-05-05T01:54:29.391Z
-updated_at: 2026-05-05T01:54:29.391Z
+updated_at: 2026-05-05T02:07:23.408Z
 ---
 
 ## Problem

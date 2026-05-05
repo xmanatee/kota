@@ -1,4 +1,4 @@
-import type { MemoryListEntry } from "#core/server/kota-client.js";
+import type { MemoryListEntry } from "./client.js";
 
 function formatDate(iso: string): string {
 	return iso.slice(0, 16).replace("T", " ");

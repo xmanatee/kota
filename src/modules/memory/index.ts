@@ -17,10 +17,18 @@ import {
   getMemoryProvider,
   MEMORY_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
-import type { MemoryClient } from "#core/server/kota-client.js";
+import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { readOnlyDaemonEffect } from "#core/tools/effect.js";
 import { createMemoryReadinessSource } from "./capability-readiness.js";
 import { registerMemoryCommands } from "./cli.js";
+import type {
+  MemoryAddResult,
+  MemoryClient,
+  MemoryDeleteResult,
+  MemoryListResult,
+  MemoryReindexResult,
+  MemorySearchResult,
+} from "./client.js";
 import { memoryTool, runMemory } from "./memory.js";
 import { memoryRoutes } from "./routes.js";
 import { getMemoryStore } from "./store.js";
@@ -96,6 +104,8 @@ const memoryModule: KotaModule = {
     return { memory: handler };
   },
 
+  daemonClient: (link) => ({ memory: buildMemoryDaemonHandler(link) }),
+
   onLoad: (ctx: ModuleRuntimeContext) => {
     const store = getMemoryStore();
     ctx.registerProvider(MEMORY_PROVIDER_TOKEN, store);
@@ -113,5 +123,84 @@ const memoryModule: KotaModule = {
 
   routes: () => memoryRoutes(),
 };
+
+/**
+ * Daemon-side `MemoryClient` backed by the typed `DaemonTransport`. Calls
+ * the same `/api/memory` and `/api/memory/:id` HTTP routes the memory
+ * module registers through `memoryRoutes`. The transport surface owns the
+ * bearer token, base URL, and timeout policy — this factory only encodes
+ * the wire shape.
+ *
+ * `list(limit)` issues `GET /api/memory` through `requestStrict<T>`, then
+ * collapses the daemon-wire `{ id, tags, created, excerpt }[]` entries
+ * into the `MemoryListResult` shape by mapping `excerpt → content`,
+ * dropping `tags`, and slicing by `limit ?? Number.POSITIVE_INFINITY` —
+ * preserving the central closure's prior behavior byte-for-byte.
+ *
+ * `add(content, tags)` issues `POST /api/memory` with body `{ content,
+ * tags: tags ?? [] }` through `requestStrict<T>` and returns `{ id }`.
+ *
+ * `delete(id)` issues `DELETE /api/memory/:id` through `request<T>`,
+ * collapsing a `null` (404 or transport silence) into `{ ok: false,
+ * reason: "not_found" }` and a non-null result into `{ ok: true }`.
+ * The id runs through `encodeURIComponent` so embedded slashes,
+ * percents, or spaces round-trip safely.
+ *
+ * `search(query, filter)` builds the same `URLSearchParams` shape the
+ * pre-migration `searchMemoryHttp` built (`q`, optional `tag`, `since`,
+ * `semantic=true`, `limit`) and issues `GET /api/memory/search?...`
+ * through `requestStrict<T>`. The daemon route emits the discriminated
+ * union directly; no additional collapse is needed.
+ *
+ * `reindex()` issues `POST /api/memory/reindex` through `requestStrict<T>`
+ * and returns the provider's `ReindexResult` verbatim.
+ */
+function buildMemoryDaemonHandler(link: DaemonTransport): MemoryClient {
+  return {
+    list: async (limit): Promise<MemoryListResult> => {
+      const result = await link.requestStrict<{
+        entries: { id: string; tags: string[]; created: string; excerpt: string }[];
+      }>("GET", "/api/memory");
+      const slice = result.entries.slice(0, limit ?? Number.POSITIVE_INFINITY);
+      return {
+        entries: slice.map((entry) => ({
+          id: entry.id,
+          created: entry.created,
+          content: entry.excerpt,
+        })),
+      };
+    },
+    add: async (content, tags): Promise<MemoryAddResult> => {
+      const result = await link.requestStrict<{ id: string }>(
+        "POST",
+        "/api/memory",
+        { content, tags: tags ?? [] },
+      );
+      return { id: result.id };
+    },
+    delete: async (id): Promise<MemoryDeleteResult> => {
+      const result = await link.request<{ deleted: string }>(
+        "DELETE",
+        `/api/memory/${encodeURIComponent(id)}`,
+      );
+      return result ? { ok: true } : { ok: false, reason: "not_found" };
+    },
+    search: async (query, filter): Promise<MemorySearchResult> => {
+      const params = new URLSearchParams();
+      params.set("q", query);
+      if (filter?.tag) params.set("tag", filter.tag);
+      if (filter?.since) params.set("since", filter.since);
+      if (filter?.semantic) params.set("semantic", "true");
+      if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
+      return link.requestStrict<MemorySearchResult>(
+        "GET",
+        `/api/memory/search?${params.toString()}`,
+      );
+    },
+    reindex: async (): Promise<MemoryReindexResult> => {
+      return link.requestStrict<MemoryReindexResult>("POST", "/api/memory/reindex");
+    },
+  };
+}
 
 export default memoryModule;

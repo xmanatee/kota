@@ -48,6 +48,7 @@ import type { DoctorClient } from "#modules/doctor/client.js";
 import type { AuditClient } from "#modules/guardrails-audit/client.js";
 import type { HarnessParityClient } from "#modules/harness-parity/client.js";
 import type { McpServerClient } from "#modules/mcp-server/client.js";
+import type { MemoryClient } from "#modules/memory/client.js";
 import type {
   ModulesAdminClient,
   ModulesClient,
@@ -171,46 +172,6 @@ export type RepoTaskSearchResult =
 
 /** Result of `tasks.reindex`. Mirrors the provider's `ReindexResult`. */
 export type RepoTaskReindexResult = ReindexResult;
-
-/** A masked memory entry as the CLI surfaces it. */
-export type MemoryListEntry = {
-  id: string;
-  created: string;
-  content: string;
-};
-
-export type MemoryListResult = {
-  entries: MemoryListEntry[];
-};
-
-/** Result of `memory.add`. */
-export type MemoryAddResult = { id: string };
-
-/** Result of `memory.delete`. */
-export type MemoryDeleteResult =
-  | { ok: true }
-  | { ok: false; reason: "not_found" };
-
-/** Filter for `memory.search`. */
-export type MemorySearchFilter = {
-  tag?: string;
-  since?: string;
-  semantic?: boolean;
-  limit?: number;
-};
-
-/**
- * Result of `memory.search`. Semantic ranking requires an embedding-backed
- * provider; when the caller asks for `semantic: true` and the active provider
- * cannot satisfy that, the contract surfaces an explicit
- * `semantic_unavailable` rather than silently falling back to keyword search.
- */
-export type MemorySearchResult =
-  | { ok: true; entries: MemoryListEntry[] }
-  | { ok: false; reason: "semantic_unavailable" };
-
-/** Result of `memory.reindex`. Mirrors the provider's `ReindexResult`. */
-export type MemoryReindexResult = ReindexResult;
 
 /** Filters accepted by `client.workflow.listRuns`. */
 export type WorkflowRunsListFilter = {
@@ -562,24 +523,6 @@ export interface RepoTasksClient {
   search(query: string, filter?: RepoTaskSearchFilter): Promise<RepoTaskSearchResult>;
   /** Rebuild the semantic index over the repo task queue when the active provider supports it. */
   reindex(): Promise<RepoTaskReindexResult>;
-}
-
-/**
- * Memory-store operations.
- *
- * `list` returns recent entries. `add` writes a new entry and returns its
- * id. `delete` mutates a single entry. `search` runs keyword or semantic
- * matching and surfaces `semantic_unavailable` explicitly when an
- * embedding-backed provider is required but absent. `reindex` rebuilds the
- * semantic index when the provider supports it.
- */
-export interface MemoryClient {
-  /** List recent memory entries, newest first, capped at `limit`. */
-  list(limit?: number): Promise<MemoryListResult>;
-  add(content: string, tags?: string[]): Promise<MemoryAddResult>;
-  delete(id: string): Promise<MemoryDeleteResult>;
-  search(query: string, filter?: MemorySearchFilter): Promise<MemorySearchResult>;
-  reindex(): Promise<MemoryReindexResult>;
 }
 
 /**
