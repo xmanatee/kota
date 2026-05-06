@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
 import {
   adaptExport,
+  detectExportFormat,
   extractJsonSchema,
   fromOpenAI,
   fromSimple,
@@ -895,5 +896,123 @@ describe("fromVercelAI — schema edge cases", () => {
     );
     const limitSchema = (def.tool.input_schema.properties as Record<string, unknown>).limit as Record<string, unknown>;
     expect(limitSchema.default).toBe(10);
+  });
+});
+
+describe("detectExportFormat", () => {
+  it("classifies a native KotaModule shape and yields a typed value", () => {
+    const obj = {
+      name: "native",
+      version: "1.0.0",
+      tools: [
+        {
+          tool: { name: "t", description: "d", input_schema: { type: "object" } },
+          runner: async () => ({ content: "ok" }),
+        },
+      ],
+    };
+    const detected = detectExportFormat(obj);
+    expect(detected?.kind).toBe("kota-module");
+    if (detected?.kind === "kota-module") {
+      // No casts needed: detected.value is typed as KotaModuleShape.
+      const name: string = detected.value.name;
+      expect(name).toBe("native");
+      expect(Array.isArray(detected.value.tools)).toBe(true);
+    }
+  });
+
+  it("classifies an OpenAI function-calling tool and yields a typed value", () => {
+    const obj = {
+      type: "function",
+      function: { name: "calc", description: "Calculate" },
+      run: async () => 42,
+    };
+    const detected = detectExportFormat(obj);
+    expect(detected?.kind).toBe("openai");
+    if (detected?.kind === "openai") {
+      // No casts needed: detected.value is typed as OpenAIFunctionTool.
+      const fnName: string = detected.value.function.name;
+      expect(fnName).toBe("calc");
+    }
+  });
+
+  it("classifies a simple tool shape and yields a typed value", () => {
+    const obj = {
+      name: "hello",
+      description: "Say hello",
+      run: async () => "Hello!",
+    };
+    const detected = detectExportFormat(obj);
+    expect(detected?.kind).toBe("simple");
+    if (detected?.kind === "simple") {
+      // No casts needed: detected.value is typed as SimpleTool.
+      const simpleName: string = detected.value.name;
+      expect(simpleName).toBe("hello");
+      expect(typeof detected.value.run).toBe("function");
+    }
+  });
+
+  it("classifies a single Vercel AI SDK tool and yields a typed value", () => {
+    const obj = {
+      description: "Get weather",
+      parameters: { type: "object", properties: {} },
+      execute: async () => "sunny",
+    };
+    const detected = detectExportFormat(obj);
+    expect(detected?.kind).toBe("vercel-ai");
+    if (detected?.kind === "vercel-ai") {
+      // No casts needed: detected.value is typed as VercelAITool.
+      const exec: VercelAITool["execute"] = detected.value.execute;
+      expect(typeof exec).toBe("function");
+    }
+  });
+
+  it("classifies a map of Vercel AI SDK tools and yields typed entries", () => {
+    const obj = {
+      get_weather: {
+        description: "Get weather",
+        parameters: { type: "object", properties: {} },
+        execute: async () => "sunny",
+      },
+      search: {
+        description: "Search",
+        parameters: { type: "object", properties: {} },
+        execute: async () => "results",
+      },
+    };
+    const detected = detectExportFormat(obj);
+    expect(detected?.kind).toBe("vercel-ai-map");
+    if (detected?.kind === "vercel-ai-map") {
+      // No casts needed: each entry's value is typed as VercelAITool.
+      const names: string[] = detected.entries.map(([k]) => k);
+      expect(names).toEqual(["get_weather", "search"]);
+      const firstExecute: VercelAITool["execute"] = detected.entries[0][1].execute;
+      expect(typeof firstExecute).toBe("function");
+    }
+  });
+
+  it("returns null for unrecognized shapes", () => {
+    expect(detectExportFormat({ foo: "bar" })).toBeNull();
+    expect(detectExportFormat({})).toBeNull();
+  });
+
+  it("does not classify a partial vercel-ai-map (mixed values) as vercel-ai-map", () => {
+    const obj = {
+      ok: { description: "x", parameters: {}, execute: async () => "x" },
+      bad: "not a tool",
+    };
+    expect(detectExportFormat(obj)).toBeNull();
+  });
+
+  it("KotaModule wins over simple-tool when both shapes overlap (no top-level run)", () => {
+    const obj = { name: "hybrid", tools: [] };
+    const detected = detectExportFormat(obj);
+    expect(detected?.kind).toBe("kota-module");
+  });
+
+  it("simple wins over kota-module when a top-level run is present", () => {
+    const obj = { name: "simple", run: async () => "ok", tools: [] };
+    const detected = detectExportFormat(obj);
+    expect(detected?.kind).toBe("simple");
   });
 });

@@ -1,12 +1,12 @@
 ---
 id: task-tighten-coretoolstool-adaptersts-format-detection-
 title: Tighten core/tools/tool-adapters.ts format detection so external-tool adaptation drops as-unknown-as self-casts
-status: ready
+status: done
 priority: p2
 area: core
 summary: Replace boolean format predicates and as-unknown-as casts in core/tools/tool-adapters.ts with a single typed format-detection that returns a discriminated union, so external-tool adaptation no longer threads casts through every branch.
 created_at: 2026-05-06T09:21:13.766Z
-updated_at: 2026-05-06T09:21:13.766Z
+updated_at: 2026-05-06T09:36:33.406Z
 ---
 
 ## Problem

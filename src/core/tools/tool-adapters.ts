@@ -8,10 +8,23 @@
  * - Vercel AI SDK: { description, parameters (Zod or JSON Schema), execute }
  * - Array of simple tools
  * - Native KotaModule (pass-through)
+ *
+ * Format detection happens once at the boundary in `detectExportFormat`
+ * (sibling file). Adapter call sites consume typed values from the
+ * discriminated union directly; the structural-narrowing view of `exported`
+ * stays at the external-input edge where it belongs.
  */
 
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
 import { legacyEffect } from "./effect.js";
+import {
+  detectExportFormat,
+  isOpenAIFormat,
+  isSimpleFormat,
+  isToolDefShape,
+  isVercelAIFormat,
+  type KotaModuleShape,
+} from "./tool-adapter-detection.js";
 import type { OpenAIFunctionTool, SimpleTool, VercelAITool } from "./tool-adapter-types.js";
 import {
   buildInputSchema,
@@ -19,6 +32,11 @@ import {
   normalizeResult,
 } from "./tool-adapters-zod.js";
 
+export {
+  type DetectedExportFormat,
+  detectExportFormat,
+  type KotaModuleShape,
+} from "./tool-adapter-detection.js";
 export type { OpenAIFunctionTool, SimpleTool, VercelAITool } from "./tool-adapter-types.js";
 export { extractJsonSchema, normalizeResult, zodDefToJsonSchema } from "./tool-adapters-zod.js";
 
@@ -110,32 +128,11 @@ export function fromVercelAI(def: VercelAITool, name: string): ToolDef {
   };
 }
 
-// --- Format detection ---
-
-function isKotaModule(obj: Record<string, unknown>): boolean {
-  return typeof obj.name === "string" && (obj.tools === undefined || Array.isArray(obj.tools) || typeof obj.tools === "function");
-}
-
-function isOpenAIFormat(obj: Record<string, unknown>): boolean {
-  return obj.type === "function" && typeof obj.function === "object" && obj.function !== null;
-}
-
-function isSimpleFormat(obj: Record<string, unknown>): boolean {
-  return typeof obj.name === "string" && typeof obj.run === "function";
-}
-
-function isVercelAIFormat(obj: Record<string, unknown>): boolean {
-  return typeof obj.execute === "function" && obj.parameters != null && typeof obj.run !== "function";
-}
-
 /**
  * Auto-detect the format of a module export and convert it to KotaModule.
  *
- * Detection order:
- * 1. Native KotaModule (has name + tools array) → pass-through
- * 2. OpenAI function-calling (has type:"function" + function object) → adapt
- * 3. Simple tool (has name + run function) → adapt
- * 4. Array of tools (each element is simple or OpenAI) → adapt all
+ * Detection order is `detectExportFormat`'s order: kota-module, openai,
+ * simple, vercel-ai, vercel-ai-map. Arrays are handled separately.
  *
  * Throws if the export doesn't match any recognized format.
  */
@@ -149,92 +146,97 @@ export function adaptExport(exported: unknown, fileName: string): KotaModule {
   }
 
   const obj = exported as Record<string, unknown>;
-
-  if (isKotaModule(obj) && typeof obj.run !== "function") {
-    if (Array.isArray(obj.tools) && obj.tools.length > 0) {
-      const first = obj.tools[0] as Record<string, unknown>;
-      if (first.tool && first.runner) {
-        return exported as KotaModule;
-      }
-      const tools = adaptToolArray(obj.tools as Record<string, unknown>[], fileName);
-      return {
-        name: obj.name as string,
-        version: obj.version as string | undefined,
-        tools,
-        onLoad: obj.onLoad as KotaModule["onLoad"],
-        onUnload: obj.onUnload as KotaModule["onUnload"],
-      };
-    }
-    return exported as KotaModule;
-  }
-
-  if (isOpenAIFormat(obj)) {
-    const tool = fromOpenAI(obj as unknown as OpenAIFunctionTool);
-    const name = moduleNameFromFile(fileName);
-    return { name, tools: [tool] };
-  }
-
-  if (isSimpleFormat(obj)) {
-    const tool = fromSimple(obj as unknown as SimpleTool);
-    const name = (obj.name as string) || moduleNameFromFile(fileName);
-    return { name, tools: [tool] };
-  }
-
-  if (isVercelAIFormat(obj)) {
-    const name = moduleNameFromFile(fileName);
-    const tool = fromVercelAI(obj as unknown as VercelAITool, name);
-    return { name, tools: [tool] };
-  }
-
-  const entries = Object.entries(obj);
-  if (entries.length > 0 && entries.every(([, v]) =>
-    v && typeof v === "object" && isVercelAIFormat(v as Record<string, unknown>),
-  )) {
-    const tools = entries.map(([key, val]) =>
-      fromVercelAI(val as unknown as VercelAITool, key),
+  const detected = detectExportFormat(obj);
+  if (!detected) {
+    throw new Error(
+      `${fileName}: unrecognized export format. Expected KotaModule, OpenAI function tool, ` +
+        `simple tool { name, description, run }, Vercel AI SDK tool { execute, parameters }, ` +
+        `or an array of tools.`,
     );
-    return { name: moduleNameFromFile(fileName), tools };
   }
 
-  throw new Error(
-    `${fileName}: unrecognized export format. Expected KotaModule, OpenAI function tool, ` +
-      `simple tool { name, description, run }, Vercel AI SDK tool { execute, parameters }, ` +
-      `or an array of tools.`,
-  );
+  switch (detected.kind) {
+    case "kota-module":
+      return adaptKotaModule(detected.value, fileName);
+    case "openai": {
+      const tool = fromOpenAI(detected.value);
+      return { name: moduleNameFromFile(fileName), tools: [tool] };
+    }
+    case "simple": {
+      const tool = fromSimple(detected.value);
+      return { name: detected.value.name || moduleNameFromFile(fileName), tools: [tool] };
+    }
+    case "vercel-ai": {
+      const name = moduleNameFromFile(fileName);
+      const tool = fromVercelAI(detected.value, name);
+      return { name, tools: [tool] };
+    }
+    case "vercel-ai-map":
+      return {
+        name: moduleNameFromFile(fileName),
+        tools: detected.entries.map(([key, val]) => fromVercelAI(val, key)),
+      };
+  }
 }
 
-function adaptArray(arr: unknown[], fileName: string): KotaModule {
+function adaptKotaModule(mod: KotaModuleShape, fileName: string): KotaModule {
+  if (Array.isArray(mod.tools) && mod.tools.length > 0) {
+    const first = mod.tools[0];
+    if (first && typeof first === "object" && isToolDefShape(first as Record<string, unknown>)) {
+      return mod;
+    }
+    const items = coerceItemsToObjects(mod.tools, fileName);
+    const tools = adaptToolArray(items, fileName);
+    return {
+      name: mod.name,
+      version: mod.version,
+      description: mod.description,
+      tools,
+      onLoad: mod.onLoad,
+      onUnload: mod.onUnload,
+    };
+  }
+  return mod;
+}
+
+function adaptArray(arr: ReadonlyArray<unknown>, fileName: string): KotaModule {
   if (arr.length === 0) {
     throw new Error(`${fileName}: empty tool array`);
   }
-
-  const tools = adaptToolArray(
-    arr.map((item) => {
-      if (!item || typeof item !== "object") {
-        throw new Error(`${fileName}: array items must be objects`);
-      }
-      return item as Record<string, unknown>;
-    }),
-    fileName,
-  );
-
+  const items = coerceItemsToObjects(arr, fileName);
+  const tools = adaptToolArray(items, fileName);
   return { name: moduleNameFromFile(fileName), tools };
 }
 
-function adaptToolArray(items: Record<string, unknown>[], fileName: string): ToolDef[] {
+function coerceItemsToObjects(
+  items: ReadonlyArray<unknown>,
+  fileName: string,
+): Record<string, unknown>[] {
+  return items.map((item) => {
+    if (!item || typeof item !== "object") {
+      throw new Error(`${fileName}: array items must be objects`);
+    }
+    return item as Record<string, unknown>;
+  });
+}
+
+function adaptToolArray(
+  items: ReadonlyArray<Record<string, unknown>>,
+  fileName: string,
+): ToolDef[] {
   const tools: ToolDef[] = [];
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
+    const fallbackName = typeof item.name === "string" ? item.name : `tool_${i}`;
     try {
-      if (item.tool && item.runner) {
-        tools.push(item as unknown as ToolDef);
+      if (isToolDefShape(item)) {
+        tools.push(item);
       } else if (isOpenAIFormat(item)) {
-        tools.push(fromOpenAI(item as unknown as OpenAIFunctionTool));
+        tools.push(fromOpenAI(item));
       } else if (isSimpleFormat(item)) {
-        tools.push(fromSimple(item as unknown as SimpleTool));
+        tools.push(fromSimple(item));
       } else if (isVercelAIFormat(item)) {
-        const name = (item.name as string) || `tool_${i}`;
-        tools.push(fromVercelAI(item as unknown as VercelAITool, name));
+        tools.push(fromVercelAI(item, fallbackName));
       } else {
         console.error(`[kota] ${fileName}: skipping tool at index ${i} (unrecognized format)`);
       }
