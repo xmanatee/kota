@@ -210,6 +210,121 @@ describe("EventBus", () => {
     });
   });
 
+  describe("addEmitMiddleware", () => {
+    it("forwards events to subscribers when middleware calls next()", () => {
+      const bus = new EventBus();
+      const handler = vi.fn();
+      bus.on("runtime.idle", handler);
+
+      const middleware = vi.fn((_envelope, next: () => void) => next());
+      bus.addEmitMiddleware(middleware);
+
+      const payload = { timestamp: "t", idleIntervalMs: 0 };
+      bus.emit("runtime.idle", payload);
+
+      expect(middleware).toHaveBeenCalledOnce();
+      expect(middleware).toHaveBeenCalledWith(
+        { type: "runtime.idle", payload },
+        expect.any(Function),
+      );
+      expect(handler).toHaveBeenCalledOnce();
+    });
+
+    it("suppresses delivery to subscribers (and wildcard) when next() is not called", () => {
+      const bus = new EventBus();
+      const specific = vi.fn();
+      const wildcard = vi.fn();
+      bus.on("runtime.idle", specific);
+      bus.on("*", wildcard);
+
+      bus.addEmitMiddleware(() => {
+        // suppress: do not call next
+      });
+
+      bus.emit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 });
+      expect(specific).not.toHaveBeenCalled();
+      expect(wildcard).not.toHaveBeenCalled();
+    });
+
+    it("invokes middlewares in registration order, allowing earlier ones to suppress later ones", () => {
+      const bus = new EventBus();
+      const handler = vi.fn();
+      bus.on("runtime.idle", handler);
+
+      const order: string[] = [];
+      bus.addEmitMiddleware((_e, _next) => {
+        order.push("first-suppress");
+      });
+      bus.addEmitMiddleware((_e, next) => {
+        order.push("second-should-not-run");
+        next();
+      });
+
+      bus.emit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 });
+
+      expect(order).toEqual(["first-suppress"]);
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it("returns an unsubscribe function that restores pass-through", () => {
+      const bus = new EventBus();
+      const handler = vi.fn();
+      bus.on("runtime.idle", handler);
+
+      const unsub = bus.addEmitMiddleware(() => {
+        // suppress
+      });
+
+      bus.emit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 });
+      expect(handler).not.toHaveBeenCalled();
+
+      unsub();
+      bus.emit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 });
+      expect(handler).toHaveBeenCalledOnce();
+    });
+
+    it("re-entry from inside a middleware starts a fresh chain (no infinite loop)", () => {
+      const bus = new EventBus();
+      const handler = vi.fn();
+      bus.on("runtime.idle", handler);
+
+      let inFlight = false;
+      bus.addEmitMiddleware((_envelope, next) => {
+        if (inFlight) {
+          next();
+          return;
+        }
+        inFlight = true;
+        try {
+          // Re-emit from inside the middleware. The inFlight flag bypasses
+          // suppression on the inner emit, mirroring the gate's release path.
+          bus.emit("runtime.idle", { timestamp: "inner", idleIntervalMs: 0 });
+        } finally {
+          inFlight = false;
+        }
+        // Original emit is suppressed; only the inner re-emit reaches handler.
+      });
+
+      bus.emit("runtime.idle", { timestamp: "outer", idleIntervalMs: 0 });
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(handler).toHaveBeenCalledWith({ timestamp: "inner", idleIntervalMs: 0 });
+    });
+
+    it("clear() removes registered middleware", () => {
+      const bus = new EventBus();
+      const handler = vi.fn();
+      bus.on("runtime.idle", handler);
+      bus.addEmitMiddleware(() => {
+        // suppress
+      });
+
+      bus.clear();
+      bus.on("runtime.idle", handler);
+      bus.emit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 });
+      expect(handler).toHaveBeenCalledOnce();
+    });
+  });
+
   describe("handler errors", () => {
     it("propagates synchronous handler errors out of emit", () => {
       const bus = new EventBus();

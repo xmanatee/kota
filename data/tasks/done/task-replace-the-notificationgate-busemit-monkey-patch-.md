@@ -1,12 +1,12 @@
 ---
 id: task-replace-the-notificationgate-busemit-monkey-patch-
 title: Replace the NotificationGate bus.emit monkey-patch with a native EventBus emit-middleware API
-status: ready
+status: done
 priority: p2
 area: core
 summary: Replace the bus.emit monkey-patch in NotificationGate with a native EventBus emit-middleware API so the two as-unknown-as-EmitField self-casts at the quiet-hours gate disappear.
 created_at: 2026-05-06T08:12:35.063Z
-updated_at: 2026-05-06T08:12:35.063Z
+updated_at: 2026-05-06T08:21:05.452Z
 ---
 
 ## Problem

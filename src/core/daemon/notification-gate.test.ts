@@ -236,7 +236,7 @@ describe("NotificationGate", () => {
     gate.dispose();
   });
 
-  it("dispose restores original emit and discards buffer", () => {
+  it("dispose unregisters the middleware and discards buffer", () => {
     vi.setSystemTime(makeTime(23, 0, 0, 0));
     const config: QuietHoursConfig = { start: "22:00", end: "08:00" };
     const gate = new NotificationGate(bus, config);

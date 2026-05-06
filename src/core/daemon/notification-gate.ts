@@ -2,8 +2,9 @@
  * Notification gate — holds non-critical channel events during quiet hours and
  * releases them as a single batched digest when the window ends.
  *
- * Implemented by patching bus.emit so the gate applies to all emitters without
- * requiring changes to channel modules (Telegram, Slack, webhook).
+ * Implemented as an `EventBus.addEmitMiddleware` consumer so the gate applies
+ * to every emitter without requiring channel modules (Telegram, Slack, webhook)
+ * to opt in.
  *
  * Gated events (held during quiet hours):
  *   workflow.attention.digest
@@ -12,7 +13,7 @@
  *   workflow.failure.alert, module.crash.alert
  */
 
-import type { EventBus } from "#core/events/event-bus.js";
+import type { EmitMiddleware, EventBus } from "#core/events/event-bus.js";
 
 export type QuietHoursConfig = {
   /** Quiet period start in local time, "HH:MM" (24-hour). */
@@ -121,44 +122,41 @@ export function parseQuietHours(q: unknown): ParsedQuietHours {
 
 type HeldEvent = { event: string; payload: Record<string, unknown> };
 
-type EmitFn = (event: string, payload: Record<string, unknown>) => void;
-
-/**
- * Mutable view of EventBus.emit. The gate replaces the public method on the
- * instance to intercept all emitters without changing channel modules. This
- * is the cast surface for that monkey-patch — no other code should narrow to
- * this shape.
- */
-type EmitField = { emit: EmitFn };
-
 /**
  * NotificationGate holds non-critical bus events during quiet hours and
  * releases them as a single batched digest when the window ends.
  *
- * Patches bus.emit so the gate applies to all emitters without changes to
- * channel modules.
+ * Registers an `EmitMiddleware` on the bus so the gate applies to every
+ * emitter without changes to channel modules. The release path re-emits the
+ * batched digest through the same `bus.emit` and uses a local `releasing`
+ * flag to bypass its own gate, so no monkey-patch or "direct dispatch" hatch
+ * is needed.
  */
 export class NotificationGate {
   private buffer: HeldEvent[] = [];
   private timer: ReturnType<typeof setTimeout> | null = null;
-  private originalEmit: EmitFn;
+  private unsubscribeMiddleware: () => void;
   private disposed = false;
+  private releasing = false;
 
   constructor(
     private bus: EventBus,
     private config: QuietHoursConfig,
   ) {
-    const original = bus.emit.bind(bus) as EmitFn;
-    this.originalEmit = original;
-
-    (bus as unknown as EmitField).emit = (event, payload) => {
-      if (!this.disposed && GATED_EVENTS.has(event) && isWithinQuietHours(this.config)) {
-        this.buffer.push({ event, payload });
-        this.scheduleRelease();
+    const middleware: EmitMiddleware = (envelope, next) => {
+      if (
+        this.disposed ||
+        this.releasing ||
+        !GATED_EVENTS.has(envelope.type) ||
+        !isWithinQuietHours(this.config)
+      ) {
+        next();
         return;
       }
-      original(event, payload);
+      this.buffer.push({ event: envelope.type, payload: envelope.payload });
+      this.scheduleRelease();
     };
+    this.unsubscribeMiddleware = bus.addEmitMiddleware(middleware);
   }
 
   private scheduleRelease(): void {
@@ -179,17 +177,22 @@ export class NotificationGate {
     });
     const text = `Quiet hours ended — ${items.length} held notification(s):\n${items.map((i) => `• ${i.detail}`).join("\n")}`;
     this.buffer = [];
-    this.originalEmit("workflow.attention.digest", { items, text });
+    this.releasing = true;
+    try {
+      this.bus.emit("workflow.attention.digest", { items, text });
+    } finally {
+      this.releasing = false;
+    }
   }
 
-  /** Stop the gate and restore the original emit. Buffered events are discarded. */
+  /** Stop the gate and remove its middleware. Buffered events are discarded. */
   dispose(): void {
     this.disposed = true;
     if (this.timer !== null) {
       clearTimeout(this.timer);
       this.timer = null;
     }
-    (this.bus as unknown as EmitField).emit = this.originalEmit;
+    this.unsubscribeMiddleware();
     this.buffer = [];
   }
 }
