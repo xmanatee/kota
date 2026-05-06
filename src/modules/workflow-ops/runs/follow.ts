@@ -92,31 +92,30 @@ async function followWithSse(
 
     async function handleEvent(event: DaemonSseEvent): Promise<void> {
       if (done) return;
-      const p = event.payload as Record<string, unknown>;
-      const eventRunId = p.runId as string | undefined;
 
-      if (event.type === "workflow.started" && !activeRunId) {
-        activeRunId = eventRunId;
-        print(line(plain(`Following run: ${activeRunId}`)));
+      if (event.type === "workflow.started") {
+        if (!activeRunId) {
+          activeRunId = event.payload.runId;
+          print(line(plain(`Following run: ${activeRunId}`)));
+        }
         return;
       }
 
-      if (activeRunId && eventRunId && eventRunId !== activeRunId) return;
-      if (!activeRunId) return;
-
       if (event.type === "workflow.step.completed") {
+        if (!activeRunId || event.payload.runId !== activeRunId) return;
         const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
           join(store.runsDir, activeRunId, "metadata.json"),
         );
         if (metadata) emitPendingStepOutput(store, activeRunId, metadata, emittedSteps, stepOutputOffset);
-        const stepId = p.stepId as string;
-        const status = p.status as string;
-        const dur = typeof p.durationMs === "number" ? formatDuration(p.durationMs) : "";
+        const { stepId, status, durationMs } = event.payload;
+        const dur = formatDuration(durationMs);
         print(line(plain("")));
         print(line(plain(`${statusIcon(status)} Step completed: ${stepId} [${status}] ${dur}`)));
+        return;
       }
 
       if (event.type === "workflow.completed") {
+        if (!activeRunId || event.payload.runId !== activeRunId) return;
         const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
           join(store.runsDir, activeRunId, "metadata.json"),
         );
@@ -124,8 +123,8 @@ async function followWithSse(
           emitPendingStepOutput(store, activeRunId, metadata, emittedSteps, stepOutputOffset);
           printRunSummary(metadata);
         } else {
-          const status = p.status as string;
-          const dur = typeof p.durationMs === "number" ? formatDuration(p.durationMs) : "";
+          const { status, durationMs } = event.payload;
+          const dur = formatDuration(durationMs);
           print(line(plain("")));
           print(line(plain(`Run ${activeRunId}: ${statusIcon(status)} ${status} ${dur}`)));
         }

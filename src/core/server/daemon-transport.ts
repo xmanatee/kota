@@ -22,7 +22,6 @@ import { resolveProjectDir } from "#core/config/project-dir.js";
 import type {
   DaemonControlAddress,
   DaemonSseEvent,
-  DaemonSseEventType,
 } from "#core/daemon/daemon-control.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 
@@ -175,9 +174,9 @@ class HttpDaemonTransport implements DaemonTransport {
           if (eventType && data) {
             try {
               yield {
-                type: eventType as DaemonSseEventType,
-                payload: JSON.parse(data) as Record<string, unknown>,
-              };
+                type: eventType,
+                payload: JSON.parse(data),
+              } as DaemonSseEvent;
             } catch (err) {
               console.warn(
                 "[kota-daemon-transport] Failed to parse daemon SSE event:",

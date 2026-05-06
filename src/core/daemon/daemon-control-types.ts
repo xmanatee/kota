@@ -1,4 +1,5 @@
 import type { ChannelStatus } from "#core/channels/channel.js";
+import type { BusEvents } from "#core/events/event-bus-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ToolCallSummaryEntry, WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState, WorkflowStepSkipReason } from "#core/workflow/run-types.js";
 import type { WorkflowAgentBackoffState } from "#core/workflow/trigger-types.js";
@@ -67,25 +68,41 @@ export type DaemonLiveStatus = DaemonState & {
   channels: ChannelStatus[];
 };
 
-export type DaemonSseEventType =
-  | "workflow.started"
-  | "workflow.completed"
-  | "workflow.step.completed"
-  | "queue.changed"
-  | "approval.changed"
-  | "task.changed"
-  | "session.registered"
-  | "session.unregistered"
-  | "owner.question.asked"
-  | "owner.question.changed"
-  | "owner.question.resolved"
-  | "owner.question.dismissed"
-  | "owner.question.expired";
+/**
+ * Payload for the SSE-only `queue.changed` event. Synthesized at the daemon
+ * handle from the upstream `workflow.started` / `workflow.completed` bus
+ * events; subscribers use it to invalidate operator-facing queue views
+ * without re-reading the workflow runtime state.
+ */
+export type QueueChangedPayload =
+  | { source: "workflow.started"; workflow: string }
+  | {
+      source: "workflow.completed";
+      workflow: string;
+      status: BusEvents["workflow.completed"]["status"];
+    };
 
-export type DaemonSseEvent = {
-  type: DaemonSseEventType;
-  payload: Record<string, unknown>;
-};
+/**
+ * Daemon SSE broadcast events. Each variant carries the typed bus payload
+ * its name implies; consumers narrow on `type` and access `payload` fields
+ * directly without re-validation.
+ */
+export type DaemonSseEvent =
+  | { type: "workflow.started"; payload: BusEvents["workflow.started"] }
+  | { type: "workflow.completed"; payload: BusEvents["workflow.completed"] }
+  | { type: "workflow.step.completed"; payload: BusEvents["workflow.step.completed"] }
+  | { type: "queue.changed"; payload: QueueChangedPayload }
+  | { type: "approval.changed"; payload: BusEvents["approval.changed"] }
+  | { type: "task.changed"; payload: BusEvents["task.changed"] }
+  | { type: "session.registered"; payload: BusEvents["session.registered"] }
+  | { type: "session.unregistered"; payload: BusEvents["session.unregistered"] }
+  | { type: "owner.question.asked"; payload: BusEvents["owner.question.asked"] }
+  | { type: "owner.question.changed"; payload: BusEvents["owner.question.changed"] }
+  | { type: "owner.question.resolved"; payload: BusEvents["owner.question.resolved"] }
+  | { type: "owner.question.dismissed"; payload: BusEvents["owner.question.dismissed"] }
+  | { type: "owner.question.expired"; payload: BusEvents["owner.question.expired"] };
+
+export type DaemonSseEventType = DaemonSseEvent["type"];
 
 export type WorkflowRunSummary = {
   id: string;

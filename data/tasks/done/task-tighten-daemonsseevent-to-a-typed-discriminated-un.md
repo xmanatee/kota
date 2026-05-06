@@ -1,12 +1,12 @@
 ---
 id: task-tighten-daemonsseevent-to-a-typed-discriminated-un
 title: Tighten DaemonSseEvent to a typed discriminated union and remove unknown-cast boundary at daemon-handle SSE wiring
-status: ready
+status: done
 priority: p2
 area: core
 summary: Replace the DaemonSseEvent { type; payload: Record<string, unknown> } shape with a discriminated union over the typed bus payloads, removing the as-unknown casts in daemon-handle and tightening every SSE consumer.
 created_at: 2026-05-06T06:24:53.130Z
-updated_at: 2026-05-06T06:24:53.130Z
+updated_at: 2026-05-06T06:38:45.920Z
 ---
 
 ## Problem

@@ -287,6 +287,7 @@ export type BusEvents = {
   "session.registered": {
     id: string;
     createdAt: string;
+    autonomyMode: AutonomyMode;
   };
   "session.unregistered": {
     id: string;

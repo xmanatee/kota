@@ -163,42 +163,42 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
     subscribeToEvents: (handler) => {
       const stops = [
         bus.on("workflow.started", (p) => {
-          handler({ type: "workflow.started", payload: p as unknown as Record<string, unknown> });
+          handler({ type: "workflow.started", payload: p });
           handler({ type: "queue.changed", payload: { source: "workflow.started", workflow: p.workflow } });
         }),
         bus.on("workflow.completed", (p) => {
-          handler({ type: "workflow.completed", payload: p as unknown as Record<string, unknown> });
+          handler({ type: "workflow.completed", payload: p });
           handler({ type: "queue.changed", payload: { source: "workflow.completed", workflow: p.workflow, status: p.status } });
         }),
         bus.on("workflow.step.completed", (p) =>
-          handler({ type: "workflow.step.completed", payload: p as unknown as Record<string, unknown> }),
+          handler({ type: "workflow.step.completed", payload: p }),
         ),
         bus.on("approval.changed", (p) =>
-          handler({ type: "approval.changed", payload: p as unknown as Record<string, unknown> }),
+          handler({ type: "approval.changed", payload: p }),
         ),
         bus.on("task.changed", (p) =>
-          handler({ type: "task.changed", payload: p as unknown as Record<string, unknown> }),
+          handler({ type: "task.changed", payload: p }),
         ),
         bus.on("session.registered", (p) =>
-          handler({ type: "session.registered", payload: p as unknown as Record<string, unknown> }),
+          handler({ type: "session.registered", payload: p }),
         ),
         bus.on("session.unregistered", (p) =>
-          handler({ type: "session.unregistered", payload: p as unknown as Record<string, unknown> }),
+          handler({ type: "session.unregistered", payload: p }),
         ),
         bus.on("owner.question.asked", (p) =>
-          handler({ type: "owner.question.asked", payload: p as unknown as Record<string, unknown> }),
+          handler({ type: "owner.question.asked", payload: p }),
         ),
         bus.on("owner.question.changed", (p) =>
-          handler({ type: "owner.question.changed", payload: p as unknown as Record<string, unknown> }),
+          handler({ type: "owner.question.changed", payload: p }),
         ),
         bus.on("owner.question.resolved", (p) =>
-          handler({ type: "owner.question.resolved", payload: p as unknown as Record<string, unknown> }),
+          handler({ type: "owner.question.resolved", payload: p }),
         ),
         bus.on("owner.question.dismissed", (p) =>
-          handler({ type: "owner.question.dismissed", payload: p as unknown as Record<string, unknown> }),
+          handler({ type: "owner.question.dismissed", payload: p }),
         ),
         bus.on("owner.question.expired", (p) =>
-          handler({ type: "owner.question.expired", payload: p as unknown as Record<string, unknown> }),
+          handler({ type: "owner.question.expired", payload: p }),
         ),
       ];
       return () => stops.forEach((s) => s());

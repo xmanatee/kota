@@ -6,6 +6,11 @@ import {
   type WorkflowLiveStatus,
   type WorkflowMetricCounts,
 } from "./daemon-control.js";
+import {
+  makeTaskChangedEvent,
+  makeWorkflowCompletedEvent,
+  makeWorkflowStartedEvent,
+} from "./sse-event-fixtures.integration.js";
 
 const TEST_TOKEN = "test-secret-token-abc123";
 
@@ -606,7 +611,7 @@ describe("DaemonControlServer", () => {
       const decoder = new TextDecoder();
 
       // Emit an event after connection is established
-      eventHandler!({ type: "workflow.started", payload: { workflow: "builder", runId: "run-1" } });
+      eventHandler!(makeWorkflowStartedEvent({ workflow: "builder", runId: "run-1" }));
 
       // Read chunks until we have the event
       let received = "";
@@ -878,8 +883,8 @@ describe("DaemonControlServer", () => {
 
     it("returns all buffered events", async () => {
       const emit = pushEvents(handle);
-      emit({ type: "workflow.started", payload: { workflow: "builder" } });
-      emit({ type: "workflow.completed", payload: { workflow: "builder" } });
+      emit(makeWorkflowStartedEvent({ workflow: "builder" }));
+      emit(makeWorkflowCompletedEvent({ workflow: "builder" }));
 
       const res = await fetchWithToken(port, "/api/events");
       const body = await res.json();
@@ -890,9 +895,9 @@ describe("DaemonControlServer", () => {
 
     it("filters by type prefix", async () => {
       const emit = pushEvents(handle);
-      emit({ type: "workflow.started", payload: { workflow: "a" } });
-      emit({ type: "task.changed", payload: { id: "t1" } });
-      emit({ type: "workflow.completed", payload: { workflow: "a" } });
+      emit(makeWorkflowStartedEvent({ workflow: "a" }));
+      emit(makeTaskChangedEvent());
+      emit(makeWorkflowCompletedEvent({ workflow: "a" }));
 
       const res = await fetchWithToken(port, "/api/events?type=workflow");
       const body = await res.json();
@@ -902,10 +907,22 @@ describe("DaemonControlServer", () => {
 
     it("filters by type glob pattern", async () => {
       const emit = pushEvents(handle);
-      emit({ type: "workflow.started", payload: {} });
-      emit({ type: "workflow.completed", payload: {} });
-      emit({ type: "workflow.step.completed", payload: {} });
-      emit({ type: "task.changed", payload: {} });
+      emit(makeWorkflowStartedEvent());
+      emit(makeWorkflowCompletedEvent());
+      emit({
+        type: "workflow.step.completed",
+        payload: {
+          workflow: "builder",
+          runId: "test-run",
+          stepId: "step-1",
+          stepType: "agent",
+          status: "success",
+          durationMs: 0,
+          runDir: "",
+          definitionPath: "",
+        },
+      });
+      emit(makeTaskChangedEvent());
 
       const res = await fetchWithToken(port, "/api/events?type=workflow.*completed");
       const body = await res.json();
@@ -918,13 +935,13 @@ describe("DaemonControlServer", () => {
 
     it("filters by since timestamp", async () => {
       const emit = pushEvents(handle);
-      emit({ type: "workflow.started", payload: {} });
+      emit(makeWorkflowStartedEvent());
 
       await new Promise((r) => setTimeout(r, 50));
       const cutoff = new Date().toISOString();
       await new Promise((r) => setTimeout(r, 50));
 
-      emit({ type: "workflow.completed", payload: {} });
+      emit(makeWorkflowCompletedEvent());
 
       const res = await fetchWithToken(port, `/api/events?since=${encodeURIComponent(cutoff)}`);
       const body = await res.json();
@@ -935,33 +952,33 @@ describe("DaemonControlServer", () => {
     it("limits result count", async () => {
       const emit = pushEvents(handle);
       for (let i = 0; i < 10; i++) {
-        emit({ type: "workflow.started", payload: { i } });
+        emit(makeWorkflowStartedEvent({ runId: `run-${i}` }));
       }
 
       const res = await fetchWithToken(port, "/api/events?limit=3");
       const body = await res.json();
       expect(body.events).toHaveLength(3);
-      expect(body.events[0].payload.i).toBe(7);
+      expect(body.events[0].payload.runId).toBe("run-7");
     });
 
     it("combines type filter and limit", async () => {
       const emit = pushEvents(handle);
       for (let i = 0; i < 5; i++) {
-        emit({ type: "workflow.started", payload: { i } });
-        emit({ type: "task.changed", payload: { i } });
+        emit(makeWorkflowStartedEvent({ runId: `run-${i}` }));
+        emit(makeTaskChangedEvent());
       }
 
       const res = await fetchWithToken(port, "/api/events?type=workflow&limit=2");
       const body = await res.json();
       expect(body.events).toHaveLength(2);
       expect(body.events.every((e: { type: string }) => e.type.startsWith("workflow"))).toBe(true);
-      expect(body.events[0].payload.i).toBe(3);
-      expect(body.events[1].payload.i).toBe(4);
+      expect(body.events[0].payload.runId).toBe("run-3");
+      expect(body.events[1].payload.runId).toBe("run-4");
     });
 
     it("includes timestamp in ISO format", async () => {
       const emit = pushEvents(handle);
-      emit({ type: "workflow.started", payload: {} });
+      emit(makeWorkflowStartedEvent());
 
       const res = await fetchWithToken(port, "/api/events");
       const body = await res.json();
