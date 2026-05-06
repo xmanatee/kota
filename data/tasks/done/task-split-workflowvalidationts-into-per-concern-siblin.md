@@ -1,12 +1,12 @@
 ---
 id: task-split-workflowvalidationts-into-per-concern-siblin
 title: Split workflow/validation.ts into per-concern sibling files
-status: ready
+status: done
 priority: p1
 area: core
 summary: Collapse src/core/workflow/validation.ts (497 lines) into a thin dispatcher plus per-concern sibling files (workflow shape checks, step-id collection, restart-step constraints, trigger self-loop checks, definition assembly) so each file owns one concern, matching the per-concern sibling split pattern that landed for the surrounding daemon and workflow-runtime clusters.
 created_at: 2026-05-06T02:48:48.421Z
-updated_at: 2026-05-06T02:48:48.421Z
+updated_at: 2026-05-06T02:59:19.134Z
 ---
 
 ## Problem

@@ -16,6 +16,23 @@ This directory contains the autonomous workflow runtime, validation, registry, a
   only when the agent cannot cheaply recover the information through normal repo
   context and tools.
 
+## Per-Concern Validation Split
+
+`validation.ts` is a thin orchestrator that delegates each rule family to a
+per-concern sibling: `validation-step-dispatch.ts` (per-step-type fan-out),
+`validation-shape.ts` (definition path, name uniqueness, moduleRoot,
+non-empty triggers/steps, `defaultAutonomyMode`), `validation-step-ids.ts`
+(step-id uniqueness across nested step trees), `validation-restart.ts`
+(restart-step constraints), `validation-trigger-references.ts` (trigger-
+step self-reference plus unknown-workflow and `waitFor: "queued"`
+warnings; complements `validation-trigger.ts` which validates the
+trigger-event shape itself), and `validation-assembly.ts` (per-definition
+`webhookRateLimit`, `notify`, `tags`, validated `triggers` including the
+`workflow.completed` self-loop check, and the `runtime.recovered` ↔
+`recoveryCapable` consistency check). New validation rules belong in the
+matching sibling; do not regrow `validation.ts` past the orchestrator
+boundary.
+
 ## Per-Concern Run-Store Split
 
 Run-store helpers split into per-concern siblings: `run-io.ts` owns the
@@ -109,30 +126,20 @@ read the await output from the resume run's trigger envelope under
 
 ## Typed Code Step Pattern
 
-Use `typedCodeStep<T>` from `types.ts` when a code step's output is consumed by
-downstream steps or `when` predicates. It returns a `TypedCodeStepInput<T>` that
-is assignable to any `WorkflowCodeStepInput` slot and adds two accessors typed
-as `T`:
+Use `typedCodeStep<T>` from `types.ts` when a code step's output is consumed
+by downstream steps or `when` predicates. It adds two accessors typed as
+`T`: `output(ctx)` returns `T | undefined` (use when the caller gates with
+`?.`) and `outputRequired(ctx)` returns `T` and throws if the step was
+skipped or has not yet run.
 
-- `output(ctx)` returns `T | undefined` — `undefined` for skipped or not-yet-run
-  steps. Use when the caller already gates on optionality with `?.`.
-- `outputRequired(ctx)` returns `T` and throws if the step was skipped or has
-  not yet run. Use from sites that gate themselves on the step having
-  succeeded so the type narrows without a manual undefined check.
+A `validate` decoder is required. It runs once after `run()` (catching
+shape drift on fresh runs) and again on every `output(ctx)` access
+(catching persisted/resumed values that no longer match `T`). On rejection
+the runtime throws `WorkflowStepOutputValidationError` with the offending
+step id and surface (`run` vs `persisted`). `expectStructuredOutput` and
+`expectArrayOutput` cover the common cases; supply a custom function for
+anything more involved.
 
-A `validate` decoder is required. It runs once after `run()` (catching shape
-drift in fresh executions) and again on every `output(ctx)` access (catching
-persisted/resumed/manually-loaded values that no longer match `T`). On
-rejection the runtime throws `WorkflowStepOutputValidationError` with the
-offending step id and surface (`run` vs `persisted`).
-
-`expectStructuredOutput` and `expectArrayOutput` cover the common cases
-(object with required keys, array with optional per-item decoder); supply a
-custom function for anything more involved.
-
-Untyped `WorkflowCodeStepInput` (no `validate`, no typed accessor) is still
-valid for steps whose output is scalar or unread — only adopt the typed
-pattern when downstream type safety is needed. The runtime persists the
-post-validate value in `stepOutputs`, so it always matches the declared `T`
-for fresh runs; the on-access re-validation is the rail that catches
-resume-time drift.
+Untyped `WorkflowCodeStepInput` (no `validate`, no typed accessor) is
+still valid for scalar or unread outputs — adopt the typed pattern only
+when downstream type safety is needed.
