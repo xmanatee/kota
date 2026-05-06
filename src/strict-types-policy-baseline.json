@@ -31,7 +31,6 @@
   "src/core/events/module-event.ts": 1,
   "src/core/file-tracking/file-watcher-core.ts": 4,
   "src/core/loop/compaction.ts": 1,
-  "src/core/loop/loop.ts": 4,
   "src/core/loop/message-pruning.ts": 3,
   "src/core/loop/observation-masking.ts": 3,
   "src/core/loop/reflection.ts": 1,

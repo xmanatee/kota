@@ -1,12 +1,12 @@
 ---
 id: task-remove-as-unknown-as-agentloopstate-self-casts-in-
 title: Remove as-unknown-as AgentLoopState self-casts in AgentSession by structurally implementing the loop-state contract
-status: ready
+status: done
 priority: p2
 area: core
 summary: Drop the 4 'as unknown as AgentLoopState' self-casts in core/loop/loop.ts by aligning AgentSession's field declarations with the AgentLoopState interface so the class structurally implements its own internal state contract.
 created_at: 2026-05-06T07:01:52.846Z
-updated_at: 2026-05-06T07:01:52.846Z
+updated_at: 2026-05-06T07:07:42.046Z
 ---
 
 ## Problem

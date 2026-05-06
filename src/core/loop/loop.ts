@@ -54,45 +54,45 @@ export type LoopOptions = {
  * Persistent agent session that maintains context across multiple prompts.
  * Used by both single-shot mode and interactive REPL.
  */
-export class AgentSession {
-  private client!: ModelClient;
-  private context!: Context;
-  private costTracker!: CostTracker;
-  private model!: string;
-  private editorModel!: string;
-  private maxTokens!: number;
-  private effectiveMaxTokens!: number;
-  private verbose!: boolean;
-  private sessionPath?: string;
-  private thinkingConfig?: KotaThinkingConfig;
-  private verifyTracker!: VerifyTracker;
-  private mcpManager: McpManager | null = null;
-  private moduleLoader!: ModuleLoader;
-  private transport!: Transport;
-  private defaultTransportProxy: ProxyTransport | undefined;
-  private showCost!: boolean;
-  private sigintHandler!: () => void;
-  private closed = false;
-  private initialized = false;
-  private initPromise!: Promise<void>;
-  private projectContext!: string;
-  private instructionContext!: string;
-  private conversationId: string | null = null;
-  private resumeConversationId: string | undefined;
-  private historyEnabled!: boolean;
-  private historySource!: "user" | "action";
-  private sessionId!: string;
-  private sessionLabel?: string;
-  private sessionStartTime = 0;
-  private guardrailsConfig!: GuardrailsConfig;
-  private reflectionEnabled!: boolean;
-  private modelTiers?: ModelTiers;
-  private stateMachine!: SessionStateMachine;
-  private channelIdentity?: ChannelUserIdentity;
-  private autonomyMode!: AutonomyMode;
+export class AgentSession implements AgentLoopState {
+  client!: ModelClient;
+  context!: Context;
+  costTracker!: CostTracker;
+  model!: string;
+  editorModel!: string;
+  maxTokens!: number;
+  effectiveMaxTokens!: number;
+  verbose!: boolean;
+  sessionPath: string | undefined;
+  thinkingConfig: KotaThinkingConfig | undefined;
+  verifyTracker!: VerifyTracker;
+  mcpManager: McpManager | null = null;
+  moduleLoader!: ModuleLoader;
+  transport!: Transport;
+  defaultTransportProxy: ProxyTransport | undefined;
+  showCost!: boolean;
+  sigintHandler!: () => void;
+  closed = false;
+  initialized = false;
+  initPromise!: Promise<void>;
+  projectContext!: string;
+  instructionContext!: string;
+  conversationId: string | null = null;
+  resumeConversationId: string | undefined;
+  historyEnabled!: boolean;
+  historySource!: "user" | "action";
+  sessionId!: string;
+  sessionLabel: string | undefined;
+  sessionStartTime = 0;
+  guardrailsConfig!: GuardrailsConfig;
+  reflectionEnabled!: boolean;
+  modelTiers: ModelTiers | undefined;
+  stateMachine!: SessionStateMachine;
+  channelIdentity: ChannelUserIdentity | undefined;
+  autonomyMode!: AutonomyMode;
 
   constructor(options: LoopOptions) {
-    initAgentSession(this as unknown as AgentLoopState, options, (opts) => {
+    initAgentSession(this, options, (opts) => {
       const session = new AgentSession({
         autonomyMode: this.autonomyMode,
         model: opts.model || this.model,
@@ -112,12 +112,12 @@ export class AgentSession {
 
   /** Send a prompt and run the agent loop until the agent stops. */
   async send(prompt: string): Promise<string> {
-    return runSend(this as unknown as AgentLoopState, prompt);
+    return runSend(this, prompt);
   }
 
   /** Save current state to conversation history. Creates the entry lazily on first call with messages. */
   private saveToHistory(): void {
-    saveToHistoryImpl(this as unknown as AgentLoopState);
+    saveToHistoryImpl(this);
   }
 
   getCostSummary(): string { return this.costTracker.getSummary(); }
@@ -147,7 +147,7 @@ export class AgentSession {
   /** Clean up handlers and save final state. */
   close(errored = false): void {
     process.removeListener("SIGINT", this.sigintHandler);
-    runClose(this as unknown as AgentLoopState, errored);
+    runClose(this, errored);
   }
 }
 
