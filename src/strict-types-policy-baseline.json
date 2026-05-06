@@ -13,7 +13,7 @@
   "src/core/daemon/approval-queue.ts": 2,
   "src/core/daemon/client-error.ts": 4,
   "src/core/daemon/config-reload-diff.ts": 6,
-  "src/core/daemon/daemon-control-chat.ts": 6,
+  "src/core/daemon/daemon-chat-handlers.ts": 6,
   "src/core/daemon/daemon-control-sessions.ts": 2,
   "src/core/daemon/daemon-control-types.ts": 5,
   "src/core/daemon/daemon-control-utils.ts": 1,

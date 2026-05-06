@@ -1,12 +1,12 @@
 ---
 id: task-split-daemon-control-chatts-into-per-concern-sibli
 title: Split daemon-control-chat.ts into per-concern sibling files
-status: ready
+status: done
 priority: p1
 area: core
 summary: Collapse src/core/daemon/daemon-control-chat.ts (453 lines) into per-concern sibling files (DaemonChatPool class plus the HTTP body/SSE helpers and HTTP handlers) so each file owns one concern, matching the per-phase split pattern that landed for the surrounding daemon and workflow-runtime clusters.
 created_at: 2026-05-06T02:13:57.761Z
-updated_at: 2026-05-06T02:13:57.761Z
+updated_at: 2026-05-06T02:25:01.059Z
 ---
 
 ## Problem

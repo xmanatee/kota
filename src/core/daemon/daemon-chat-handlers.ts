@@ -1,179 +1,18 @@
 /**
- * Daemon-owned interactive chat sessions.
+ * HTTP handlers for the daemon-owned chat session surface.
  *
- * Provides POST /sessions, POST /sessions/:id/chat, and augments the session
- * list returned by GET /sessions with daemon-owned entries (source: "daemon").
- *
- * Deliberately avoids importing from src/core/server/ to prevent circular deps
- * (server/daemon-client.ts → scheduler/daemon-control.ts).
+ * Owns request body parsing, SSE framing, and the four route handlers
+ * (POST /sessions, PATCH /sessions/:id, POST /sessions/:id/chat,
+ * DELETE /sessions/:id) that wire the pool and bindings store into the
+ * daemon control routes. The pool itself lives in `daemon-chat-pool.ts`.
  */
 
-import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { AgentSession } from "#core/loop/loop.js";
-import { NullTransport, ProxyTransport, type Transport } from "#core/loop/transport.js";
+import { NullTransport } from "#core/loop/transport.js";
 import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
+import type { DaemonChatMakeAgent, DaemonChatPool } from "./daemon-chat-pool.js";
 import { jsonResponse } from "./daemon-control-utils.js";
-
-/** Factory signature for building an AgentSession inside the daemon. */
-export type DaemonChatMakeAgent = (
-  transport: Transport,
-  mode: AutonomyMode,
-  resumeConversation?: string,
-) => AgentSession;
-
-/** An agent session owned by the daemon control server. */
-type DaemonChatSession = {
-  id: string;
-  createdAt: string;
-  conversationId: string;
-  agent: AgentSession;
-  proxy: ProxyTransport;
-  busy: boolean;
-  lastActive: number;
-};
-
-export type DaemonChatListEntry = {
-  id: string;
-  createdAt: string;
-  busy: boolean;
-  lastActive: number;
-  autonomyMode: AutonomyMode;
-  conversationId: string;
-  source: "daemon";
-};
-
-const DEFAULT_MAX_SESSIONS = 10;
-const DEFAULT_TTL_MS = 5 * 60 * 1000; // 5 minutes
-
-export type DaemonChatPoolOptions = {
-  maxSessions?: number;
-  ttlMs?: number;
-};
-
-/** Manages daemon-owned AgentSession instances with idle TTL eviction. */
-export class DaemonChatPool {
-  private sessions = new Map<string, DaemonChatSession>();
-  private readonly maxSessions: number;
-  private readonly ttlMs: number;
-
-  constructor(opts: DaemonChatPoolOptions = {}) {
-    this.maxSessions = opts.maxSessions ?? DEFAULT_MAX_SESSIONS;
-    this.ttlMs = opts.ttlMs ?? DEFAULT_TTL_MS;
-  }
-
-  /**
-   * Create or wake a daemon-owned session.
-   *
-   * When `sessionId` is provided the caller is asking the pool to adopt that
-   * id (wake after a binding lookup). The pool rejects the call if that id
-   * is already live. When absent, a fresh id is generated.
-   */
-  create(
-    makeAgent: DaemonChatMakeAgent,
-    mode: AutonomyMode,
-    conversationId: string,
-    sessionId?: string,
-  ): DaemonChatSession {
-    if (sessionId && this.sessions.has(sessionId)) {
-      throw new Error(`Session ${sessionId} already live`);
-    }
-    if (this.sessions.size >= this.maxSessions) {
-      const evicted = this.evictOldest();
-      if (!evicted) throw new Error("Too many active sessions");
-    }
-    const id = sessionId ?? randomUUID().slice(0, 8);
-    const proxy = new ProxyTransport();
-    const agent = makeAgent(proxy, mode, conversationId);
-    const now = new Date().toISOString();
-    const session: DaemonChatSession = {
-      id,
-      createdAt: now,
-      conversationId,
-      agent,
-      proxy,
-      busy: false,
-      lastActive: Date.now(),
-    };
-    this.sessions.set(id, session);
-    return session;
-  }
-
-  get(id: string): DaemonChatSession | undefined {
-    return this.sessions.get(id);
-  }
-
-  delete(id: string): boolean {
-    const session = this.sessions.get(id);
-    if (!session) return false;
-    session.agent.close();
-    this.sessions.delete(id);
-    return true;
-  }
-
-  list(): DaemonChatListEntry[] {
-    return [...this.sessions.values()].map((s) => ({
-      id: s.id,
-      createdAt: s.createdAt,
-      busy: s.busy,
-      lastActive: s.lastActive,
-      autonomyMode: s.agent.getAutonomyMode(),
-      conversationId: s.conversationId,
-      source: "daemon" as const,
-    }));
-  }
-
-  /**
-   * Change the autonomy mode of a daemon-owned session. Returns false when no
-   * session with that id is owned by the pool, in which case callers should
-   * fall through to the broader session registry (serve-registered rows).
-   */
-  setAutonomyMode(id: string, mode: AutonomyMode): boolean {
-    const session = this.sessions.get(id);
-    if (!session) return false;
-    session.agent.setAutonomyMode(mode);
-    return true;
-  }
-
-  /** Evict sessions idle longer than TTL. Returns count removed. */
-  cleanup(): number {
-    const now = Date.now();
-    let count = 0;
-    for (const [id, session] of this.sessions) {
-      if (!session.busy && now - session.lastActive > this.ttlMs) {
-        session.agent.close();
-        this.sessions.delete(id);
-        count++;
-      }
-    }
-    return count;
-  }
-
-  closeAll(): void {
-    for (const session of this.sessions.values()) {
-      session.agent.close();
-    }
-    this.sessions.clear();
-  }
-
-  get size(): number {
-    return this.sessions.size;
-  }
-
-  private evictOldest(): boolean {
-    let oldest: DaemonChatSession | null = null;
-    for (const s of this.sessions.values()) {
-      if (!s.busy && (!oldest || s.lastActive < oldest.lastActive)) {
-        oldest = s;
-      }
-    }
-    if (!oldest) return false;
-    oldest.agent.close();
-    this.sessions.delete(oldest.id);
-    return true;
-  }
-}
 
 /** Read the HTTP request body as a parsed JSON object (max 1MB). */
 export function readChatBody(req: IncomingMessage): Promise<Record<string, unknown>> {

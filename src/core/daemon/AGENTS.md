@@ -26,11 +26,14 @@ and live runtime state.
 - Process-manager integration and operator CLI behavior belongs in the
   daemon-ops module; the daemon core owns the runtime host itself.
 
-## Lifecycle Phases
+## Per-Concern Sibling Files
 
 `daemon.ts` is a thin orchestrator. Lifecycle-time concerns live in
 `daemon-*.ts` sibling phase files. `runDaemonShutdown` is the single
 teardown body shared by normal stop and failed-start — do not fork it.
+Named subsystems use a shared `<subsystem>-*.ts` prefix, one concern per
+file: `daemon-chat-*` (bindings, pool, handlers) groups chat-session
+lifecycle, distinct from the `daemon-control-*` control-plane wiring.
 
 ## Module Control-Plane Seams
 
@@ -103,11 +106,9 @@ Recoverable surfaces (append-only or file-backed; survive crash):
   survives even when the daemon session that produced it is lost.
 - **Daemon chat session bindings** (`.kota/daemon-chat-bindings.json`) —
   `sessionId → conversationId` map rewritten atomically on create/delete.
-  After a daemon restart, `POST /sessions` with the prior `session_id`
-  (or `conversation_id`) wakes a fresh `AgentSession` seeded from the
-  persisted conversation via `makeAgent(transport, mode, resumeConversation)`.
-  The in-flight turn at crash time is lost, but the client can continue the
-  conversation without losing history.
+  After restart, `POST /sessions` with the prior `session_id` or
+  `conversation_id` wakes a fresh `AgentSession` from history; the
+  in-flight turn is lost.
 - **Serve-registered session registry** — the daemon's registry is
   in-memory and cleared on crash, but the serve process owns the
   authoritative sessions. `DaemonLink` (`core/server/daemon-link.ts`)

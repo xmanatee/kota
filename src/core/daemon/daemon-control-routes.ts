@@ -17,13 +17,12 @@ import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import {
   type DaemonChatConversationResolver,
-  type DaemonChatMakeAgent,
-  type DaemonChatPool,
   deleteDaemonSession,
   handleCreateDaemonSession,
   handleDaemonChat,
   handlePatchDaemonSession,
-} from "./daemon-control-chat.js";
+} from "./daemon-chat-handlers.js";
+import type { DaemonChatMakeAgent, DaemonChatPool } from "./daemon-chat-pool.js";
 import { handleListSessions, handleRegisterSession, handleUnregisterSession } from "./daemon-control-sessions.js";
 import type { DaemonControlHandle, DaemonLiveStatus } from "./daemon-control-types.js";
 import { jsonResponse } from "./daemon-control-utils.js";

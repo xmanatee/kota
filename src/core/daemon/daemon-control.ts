@@ -3,12 +3,12 @@ import type { ControlRouteRegistration, RouteRegistration } from "#core/modules/
 import { findRouteMatch } from "#core/modules/route-matcher.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
+import type { DaemonChatConversationResolver } from "./daemon-chat-handlers.js";
 import {
-  type DaemonChatConversationResolver,
   type DaemonChatMakeAgent,
   DaemonChatPool,
   type DaemonChatPoolOptions,
-} from "./daemon-control-chat.js";
+} from "./daemon-chat-pool.js";
 import { buildBuiltinControlRoutes } from "./daemon-control-routes.js";
 import type { DaemonControlHandle, DaemonSseEvent } from "./daemon-control-types.js";
 import { jsonResponse } from "./daemon-control-utils.js";
