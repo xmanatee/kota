@@ -1,4 +1,4 @@
-import type { CodeStepOutputValidator, WorkflowCodeStepInput } from "#core/workflow/step-input-types.js";
+import type { CodeStepOutputValidator, WorkflowCodeStepInput } from "#core/workflow/step-input-code.js";
 import type { WorkflowCodeStep } from "#core/workflow/step-types.js";
 import {
   expectName,

@@ -1,8 +1,6 @@
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import type {
-  WorkflowNotifyConfig,
-  WorkflowStepInput,
-} from "./step-input-types.js";
+import type { WorkflowNotifyConfig } from "./step-input-base.js";
+import type { WorkflowStepInput } from "./step-input-types.js";
 import type { WorkflowStep } from "./step-types.js";
 import type {
   WorkflowTrigger,

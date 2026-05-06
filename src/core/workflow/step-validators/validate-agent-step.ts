@@ -11,7 +11,7 @@ import type {
   WorkflowStepContext,
   WorkflowValueResolver,
 } from "#core/workflow/run-types.js";
-import type { WorkflowAgentStepInput } from "#core/workflow/step-input-types.js";
+import type { WorkflowAgentStepInput } from "#core/workflow/step-input-base.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import {
   expectName,

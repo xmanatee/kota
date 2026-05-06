@@ -1,6 +1,6 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import { typedCodeStep } from "#core/workflow/step-input-types.js";
+import { typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import { createImproverSemanticCheck } from "#modules/autonomy/improver-semantic-gate.js";

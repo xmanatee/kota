@@ -1,4 +1,4 @@
-import type { WorkflowApprovalStepInput } from "#core/workflow/step-input-types.js";
+import type { WorkflowApprovalStepInput } from "#core/workflow/step-input-control-flow.js";
 import type { WorkflowApprovalStep } from "#core/workflow/step-types.js";
 import {
   expectName,

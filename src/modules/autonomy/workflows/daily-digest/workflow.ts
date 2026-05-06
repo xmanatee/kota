@@ -16,7 +16,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
-import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-types.js";
+import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   type DailyDigestData,

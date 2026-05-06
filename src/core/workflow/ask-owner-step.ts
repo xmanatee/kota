@@ -27,8 +27,8 @@ import type { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { reviewOwnerQuestion } from "#core/daemon/owner-question-review.js";
 import { detectInjection } from "#core/util/injection-detector.js";
-import type { TypedCodeStepInput } from "./step-input-types.js";
-import { expectStructuredOutput, typedCodeStep } from "./step-input-types.js";
+import type { TypedCodeStepInput } from "./step-input-code.js";
+import { expectStructuredOutput, typedCodeStep } from "./step-input-code.js";
 import type { WorkflowAwaitEventStep } from "./step-types.js";
 import type { AwaitEventStepOutput } from "./steps/step-executor-await-event.js";
 

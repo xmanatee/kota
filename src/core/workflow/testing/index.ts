@@ -7,8 +7,16 @@ import type {
   WorkflowStepResult,
   WorkflowStepSkipReason,
 } from "#core/workflow/run-types.js";
-import type { WorkflowBranchStepInput, WorkflowCodeStepInput, WorkflowForeachStepInput, WorkflowParallelGroupInput, WorkflowStepInput } from "#core/workflow/step-input-types.js";
-import { WorkflowStepOutputValidationError } from "#core/workflow/step-input-types.js";
+import {
+  type WorkflowCodeStepInput,
+  WorkflowStepOutputValidationError,
+} from "#core/workflow/step-input-code.js";
+import type {
+  WorkflowBranchStepInput,
+  WorkflowForeachStepInput,
+  WorkflowParallelGroupInput,
+} from "#core/workflow/step-input-control-flow.js";
+import type { WorkflowStepInput } from "#core/workflow/step-input-types.js";
 import { resolveValue } from "#core/workflow/steps/step-executor.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 

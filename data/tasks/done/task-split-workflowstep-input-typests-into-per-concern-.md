@@ -1,12 +1,12 @@
 ---
 id: task-split-workflowstep-input-typests-into-per-concern-
 title: Split workflow/step-input-types.ts into per-concern sibling files
-status: ready
+status: done
 priority: p2
 area: core
 summary: src/core/workflow/step-input-types.ts is 439 lines mixing simple step input shapes, code-step output validators with helpers and an error class, and control-flow/synchronization step input shapes — extract them into per-concern sibling files so each stays focused and the largest non-test file in src/core/workflow/ drops below the recently-completed split tier.
 created_at: 2026-05-06T03:58:11.552Z
-updated_at: 2026-05-06T03:58:11.552Z
+updated_at: 2026-05-06T04:11:36.587Z
 ---
 
 ## Problem

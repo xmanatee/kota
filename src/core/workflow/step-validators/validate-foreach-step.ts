@@ -1,5 +1,7 @@
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import type { WorkflowAgentStepInput, WorkflowCodeStepInput, WorkflowForeachStepInput } from "#core/workflow/step-input-types.js";
+import type { WorkflowAgentStepInput } from "#core/workflow/step-input-base.js";
+import type { WorkflowCodeStepInput } from "#core/workflow/step-input-code.js";
+import type { WorkflowForeachStepInput } from "#core/workflow/step-input-control-flow.js";
 import type { WorkflowAgentStep, WorkflowCodeStep, WorkflowForeachStep } from "#core/workflow/step-types.js";
 import {
   expectName,

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { WorkflowRunStore } from "./run-store.js";
-import { expectArrayOutput, expectStructuredOutput, typedCodeStep, WorkflowStepOutputValidationError } from "./step-input-types.js";
+import { expectArrayOutput, expectStructuredOutput, typedCodeStep, WorkflowStepOutputValidationError } from "./step-input-code.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 

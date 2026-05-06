@@ -10,7 +10,7 @@
 
 import { writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-types.js";
+import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   assessAgainstBaseline,

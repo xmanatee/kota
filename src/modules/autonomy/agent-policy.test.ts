@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { WorkflowAgentStepInput } from "#core/workflow/step-input-types.js";
+import type { WorkflowAgentStepInput } from "#core/workflow/step-input-base.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { AUTONOMY_DISALLOWED_TOOLS } from "./shared.js";
 import builderWorkflow from "./workflows/builder/workflow.js";

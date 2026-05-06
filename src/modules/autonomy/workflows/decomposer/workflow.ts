@@ -5,7 +5,7 @@ import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { askOwnerSteps } from "#core/workflow/ask-owner-step.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { labeledPredicate } from "#core/workflow/run-types.js";
-import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-types.js";
+import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import {
