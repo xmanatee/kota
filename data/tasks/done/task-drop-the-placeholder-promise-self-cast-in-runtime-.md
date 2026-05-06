@@ -1,12 +1,12 @@
 ---
 id: task-drop-the-placeholder-promise-self-cast-in-runtime-
 title: Drop the placeholder Promise self-cast in runtime-dispatch.ts by holding a deferred Promise<WorkflowRunExecutionResult>
-status: ready
+status: done
 priority: p2
 area: core
 summary: Replace the Promise.resolve() as unknown as Promise<WorkflowRunExecutionResult> placeholder in runtime-dispatch.ts with a typed deferred promise so the slot reservation no longer round-trips through unknown.
 created_at: 2026-05-06T08:47:20.683Z
-updated_at: 2026-05-06T08:47:20.683Z
+updated_at: 2026-05-06T08:56:31.477Z
 ---
 
 ## Problem

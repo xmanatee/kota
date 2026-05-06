@@ -174,11 +174,17 @@ export async function runWorkflow(
   // this workflow is present in `activeRuns`, the cap check sees zero active
   // agent runs and a second agent workflow can dispatch past the cap.
   const abortController = new AbortController();
+  let resolveReservation!: (value: WorkflowRunExecutionResult) => void;
+  let rejectReservation!: (reason?: Error) => void;
+  const reservationPromise = new Promise<WorkflowRunExecutionResult>((resolve, reject) => {
+    resolveReservation = resolve;
+    rejectReservation = reject;
+  });
   const reservation: {
     promise: Promise<WorkflowRunExecutionResult>;
     abortController: AbortController;
   } = {
-    promise: Promise.resolve() as unknown as Promise<WorkflowRunExecutionResult>,
+    promise: reservationPromise,
     abortController,
   };
   state.activeRuns.set(definition.name, reservation);
@@ -199,7 +205,7 @@ export async function runWorkflow(
     },
     abortController,
   );
-  reservation.promise = promise;
+  promise.then(resolveReservation, rejectReservation);
 
   try {
     const result = await promise;

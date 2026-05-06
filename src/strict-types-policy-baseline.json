@@ -106,7 +106,7 @@
   "src/core/workflow/run-store-state-schema.ts": 18,
   "src/core/workflow/run-store.ts": 3,
   "src/core/workflow/run-types.ts": 9,
-  "src/core/workflow/runtime-dispatch.ts": 3,
+  "src/core/workflow/runtime-dispatch.ts": 2,
   "src/core/workflow/runtime-events.ts": 1,
   "src/core/workflow/runtime-runs-control.ts": 2,
   "src/core/workflow/runtime.ts": 2,
