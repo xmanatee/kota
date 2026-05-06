@@ -16,6 +16,19 @@ This directory contains the autonomous workflow runtime, validation, registry, a
   only when the agent cannot cheaply recover the information through normal repo
   context and tools.
 
+## Per-Concern Run-Store Split
+
+Run-store helpers split into per-concern siblings: `run-io.ts` owns the
+filesystem/JSON primitives and `formatRunId`,
+`run-store-state-schema.ts` owns the runtime-state type guards and
+`assertWorkflow*` validators, `run-store-legacy-migration.ts` owns the
+pre-`{lastStarted, lastCompletion}` migration (kept isolated so its
+eventual removal does not touch the schema), and `run-store-snapshot.ts`
+owns `STATE_FILE`, `WorkflowSnapshot`, `RepairSummary`,
+`buildWorkflowSnapshot`, and `extractRepairSummary`. New run-store
+behavior belongs in the matching sibling; do not reintroduce a single
+`run-store-helpers.ts` aggregator.
+
 ## Per-Lifecycle-Phase Runtime Split
 
 `runtime.ts` is a thin `WorkflowRuntime` orchestrator that owns a single

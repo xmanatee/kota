@@ -4,8 +4,8 @@ import type { Command } from "commander";
 import type { WorkflowRunDetail } from "#core/daemon/daemon-control.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import type { RepairSummary } from "#core/workflow/run-store-helpers.js";
-import { extractRepairSummary } from "#core/workflow/run-store-helpers.js";
+import type { RepairSummary } from "#core/workflow/run-store-snapshot.js";
+import { extractRepairSummary } from "#core/workflow/run-store-snapshot.js";
 import type { WorkflowRunMetadata, WorkflowStepSkipReason } from "#core/workflow/run-types.js";
 import {
   blank,

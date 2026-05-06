@@ -1,7 +1,7 @@
 import { validatePayloadSchema } from "./payload-validator.js";
 import { getEligibleAtMs } from "./run-executor-utils.js";
+import { formatRunId } from "./run-io.js";
 import type { WorkflowRunStore } from "./run-store.js";
-import { formatRunId } from "./run-store-helpers.js";
 import type { WorkflowQueuedRun } from "./run-types.js";
 import type {
   WorkflowAgentBackoffState,

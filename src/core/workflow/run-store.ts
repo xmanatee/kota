@@ -3,16 +3,17 @@ import { join, relative } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { createActiveRunHandle } from "./active-run-handle.js";
 import {
-  assertWorkflowRuntimeState,
-  buildWorkflowSnapshot,
   ensureDir,
   formatRunId,
-  isPlainObject,
-  migrateLegacyWorkflowState,
-  STATE_FILE,
   writeJsonFile,
   writeStrictJsonFile,
-} from "./run-store-helpers.js";
+} from "./run-io.js";
+import { migrateLegacyWorkflowState } from "./run-store-legacy-migration.js";
+import { buildWorkflowSnapshot, STATE_FILE } from "./run-store-snapshot.js";
+import {
+  assertWorkflowRuntimeState,
+  isPlainObject,
+} from "./run-store-state-schema.js";
 import type {
   WorkflowActiveRun,
   WorkflowQueuedRun,

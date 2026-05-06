@@ -1,4 +1,4 @@
-import { formatRunId } from "./run-store-helpers.js";
+import { formatRunId } from "./run-io.js";
 import { maybeStartNext, type WorkflowRuntimeDispatchState } from "./runtime-dispatch.js";
 import type { WorkflowRunTrigger } from "./types.js";
 

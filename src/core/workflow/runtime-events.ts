@@ -1,6 +1,6 @@
 import type { BusEnvelope } from "#core/events/event-bus.js";
 import { enqueueMatchingWorkflows } from "./run-executor-utils.js";
-import { formatRunId } from "./run-store-helpers.js";
+import { formatRunId } from "./run-io.js";
 import { maybeStartNext, type WorkflowRuntimeDispatchState } from "./runtime-dispatch.js";
 import type { WorkflowDefinition, WorkflowRunTrigger } from "./types.js";
 

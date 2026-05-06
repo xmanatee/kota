@@ -1,12 +1,12 @@
 ---
 id: task-split-workflowrun-store-helpersts-into-per-concern
 title: Split workflow/run-store-helpers.ts into per-concern sibling files
-status: ready
+status: done
 priority: p1
 area: core
 summary: Collapse src/core/workflow/run-store-helpers.ts (527 lines) into per-concern sibling files (state-schema validators, legacy migration, snapshot/summary helpers) so each file owns one concern, matching the per-phase split pattern that landed for the surrounding workflow-runtime cluster.
 created_at: 2026-05-06T01:40:03.132Z
-updated_at: 2026-05-06T01:40:03.132Z
+updated_at: 2026-05-06T01:51:29.244Z
 ---
 
 ## Problem

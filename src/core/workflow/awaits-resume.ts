@@ -34,8 +34,8 @@ import {
   clearAwaitFiles,
   scanSuspensions,
 } from "./awaits-store.js";
+import { formatRunId } from "./run-io.js";
 import type { WorkflowRunStore } from "./run-store.js";
-import { formatRunId } from "./run-store-helpers.js";
 import type { WorkflowQueuedRun } from "./run-types.js";
 import { AWAIT_EVENT_PAYLOADS_KEY } from "./steps/step-executor-await-event.js";
 import type {

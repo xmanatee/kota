@@ -23,8 +23,8 @@ import {
   isWithinDispatchWindow,
   msUntilDispatchWindowOpens,
 } from "#core/workflow/dispatch-window.js";
+import { formatRunId } from "#core/workflow/run-io.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import { formatRunId } from "#core/workflow/run-store-helpers.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import {
   ABORT_SIGNAL_FILE,

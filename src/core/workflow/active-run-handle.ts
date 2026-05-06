@@ -1,7 +1,7 @@
 import { appendFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
-import { safeJsonStringify, writeJsonFile } from "./run-store-helpers.js";
+import { safeJsonStringify, writeJsonFile } from "./run-io.js";
 import type {
   WorkflowRunMetadata,
   WorkflowRunStatus,
