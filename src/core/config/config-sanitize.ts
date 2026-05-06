@@ -17,8 +17,9 @@ import {
 } from "./config-slice.js";
 
 /** Validate and coerce config values for core-owned fields. */
-export function sanitizeCore(raw: Partial<KotaConfig>): Partial<CoreKotaConfig> {
+export function sanitizeCore(raw: unknown): Partial<CoreKotaConfig> {
   const out: Partial<CoreKotaConfig> = {};
+  if (!isPlainObject(raw)) return out;
 
   if (typeof raw.model === "string" && raw.model) out.model = raw.model;
   if (typeof raw.editorModel === "string" && raw.editorModel) out.editorModel = raw.editorModel;
@@ -53,14 +54,14 @@ export function sanitizeCore(raw: Partial<KotaConfig>): Partial<CoreKotaConfig> 
   }
 
   if (isPlainObject(raw.guardrails)) {
-    const parsed = sanitizeGuardrailsConfig(raw.guardrails as Record<string, unknown>);
+    const parsed = sanitizeGuardrailsConfig(raw.guardrails);
     if (parsed) out.guardrails = parsed;
   }
 
   if (isPlainObject(raw.modules)) {
     const modules: Record<string, Record<string, unknown>> = {};
     for (const [name, val] of Object.entries(raw.modules)) {
-      if (isPlainObject(val)) modules[name] = val as Record<string, unknown>;
+      if (isPlainObject(val)) modules[name] = val;
     }
     if (Object.keys(modules).length > 0) out.modules = modules;
   }
@@ -77,18 +78,16 @@ export function sanitizeCore(raw: Partial<KotaConfig>): Partial<CoreKotaConfig> 
 
   if (isPlainObject(raw.runsGc)) {
     const gc: NonNullable<CoreKotaConfig["runsGc"]> = {};
-    const src = raw.runsGc as Record<string, unknown>;
-    if (typeof src.retentionDays === "number" && src.retentionDays > 0) gc.retentionDays = src.retentionDays;
-    if (typeof src.minKeepPerWorkflow === "number" && src.minKeepPerWorkflow >= 0) gc.minKeepPerWorkflow = src.minKeepPerWorkflow;
+    if (typeof raw.runsGc.retentionDays === "number" && raw.runsGc.retentionDays > 0) gc.retentionDays = raw.runsGc.retentionDays;
+    if (typeof raw.runsGc.minKeepPerWorkflow === "number" && raw.runsGc.minKeepPerWorkflow >= 0) gc.minKeepPerWorkflow = raw.runsGc.minKeepPerWorkflow;
     out.runsGc = gc;
   }
 
   if (isPlainObject(raw.modelTiers)) {
     const tiers: ModelTiers = {};
-    const src = raw.modelTiers as Record<string, unknown>;
-    if (typeof src.fast === "string" && src.fast) tiers.fast = src.fast;
-    if (typeof src.balanced === "string" && src.balanced) tiers.balanced = src.balanced;
-    if (typeof src.capable === "string" && src.capable) tiers.capable = src.capable;
+    if (typeof raw.modelTiers.fast === "string" && raw.modelTiers.fast) tiers.fast = raw.modelTiers.fast;
+    if (typeof raw.modelTiers.balanced === "string" && raw.modelTiers.balanced) tiers.balanced = raw.modelTiers.balanced;
+    if (typeof raw.modelTiers.capable === "string" && raw.modelTiers.capable) tiers.capable = raw.modelTiers.capable;
     if (tiers.fast || tiers.balanced || tiers.capable) out.modelTiers = tiers;
   }
 
@@ -101,8 +100,7 @@ export function sanitizeCore(raw: Partial<KotaConfig>): Partial<CoreKotaConfig> 
   }
 
   if (isPlainObject(raw.log)) {
-    const src = raw.log as Record<string, unknown>;
-    if (src.format === "text" || src.format === "json") out.log = { format: src.format };
+    if (raw.log.format === "text" || raw.log.format === "json") out.log = { format: raw.log.format };
   }
 
   sanitizeServe(out, raw.serve);
@@ -121,85 +119,80 @@ export function sanitizeCore(raw: Partial<KotaConfig>): Partial<CoreKotaConfig> 
 }
 
 /** Sanitize: walk core fields, then registered module slices. */
-export function sanitize(raw: Partial<KotaConfig>): Partial<KotaConfig> {
+export function sanitize(raw: unknown): Partial<KotaConfig> {
   const out = sanitizeCore(raw) as Partial<KotaConfig>;
+  if (!isPlainObject(raw)) return out;
   for (const slice of getRegisteredConfigSlices()) {
-    const rawSlice = (raw as Record<string, unknown>)[slice.key];
+    const rawSlice = raw[slice.key];
     if (rawSlice === undefined) continue;
     const sanitized = slice.sanitize(rawSlice);
     if (sanitized !== undefined) {
-      (out as Record<string, unknown>)[slice.key] =
+      (out as Record<string, KotaModuleConfigRegistry[keyof KotaModuleConfigRegistry]>)[slice.key] =
         sanitized as KotaModuleConfigRegistry[keyof KotaModuleConfigRegistry];
     }
   }
   return out;
 }
 
-function isPlainObject(v: unknown): v is Record<string, unknown> {
+export function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-function sanitizeServe(out: Partial<CoreKotaConfig>, src: KotaConfig["serve"]): void {
+function sanitizeServe(out: Partial<CoreKotaConfig>, src: unknown): void {
   if (!isPlainObject(src)) return;
-  const obj = src as Record<string, unknown>;
   const s: NonNullable<CoreKotaConfig["serve"]> = {};
-  if (typeof obj.noAuth === "boolean") s.noAuth = obj.noAuth;
-  if (typeof obj.showCost === "boolean") s.showCost = obj.showCost;
-  if (obj.defaultAutonomyMode !== undefined) {
-    s.defaultAutonomyMode = expectAutonomyMode(obj.defaultAutonomyMode, "config.serve.defaultAutonomyMode");
+  if (typeof src.noAuth === "boolean") s.noAuth = src.noAuth;
+  if (typeof src.showCost === "boolean") s.showCost = src.showCost;
+  if (src.defaultAutonomyMode !== undefined) {
+    s.defaultAutonomyMode = expectAutonomyMode(src.defaultAutonomyMode, "config.serve.defaultAutonomyMode");
   }
   if (Object.keys(s).length > 0) out.serve = s;
 }
 
-function sanitizeCli(out: Partial<CoreKotaConfig>, src: KotaConfig["cli"]): void {
+function sanitizeCli(out: Partial<CoreKotaConfig>, src: unknown): void {
   if (!isPlainObject(src)) return;
-  const obj = src as Record<string, unknown>;
   const c: NonNullable<CoreKotaConfig["cli"]> = {};
-  if (obj.defaultAutonomyMode !== undefined) {
-    c.defaultAutonomyMode = expectAutonomyMode(obj.defaultAutonomyMode, "config.cli.defaultAutonomyMode");
+  if (src.defaultAutonomyMode !== undefined) {
+    c.defaultAutonomyMode = expectAutonomyMode(src.defaultAutonomyMode, "config.cli.defaultAutonomyMode");
   }
   if (Object.keys(c).length > 0) out.cli = c;
 }
 
-function sanitizeDaemon(out: Partial<CoreKotaConfig>, src: KotaConfig["daemon"]): void {
+function sanitizeDaemon(out: Partial<CoreKotaConfig>, src: unknown): void {
   if (!isPlainObject(src)) return;
-  const obj = src as Record<string, unknown>;
   const d: NonNullable<CoreKotaConfig["daemon"]> = {};
-  if (typeof obj.shutdownGracePeriodMs === "number" && obj.shutdownGracePeriodMs >= 0) d.shutdownGracePeriodMs = obj.shutdownGracePeriodMs;
-  if (typeof obj.eventBufferSize === "number" && obj.eventBufferSize > 0) d.eventBufferSize = obj.eventBufferSize;
-  if (typeof obj.sessionIdleTtlMs === "number" && obj.sessionIdleTtlMs > 0) d.sessionIdleTtlMs = obj.sessionIdleTtlMs;
+  if (typeof src.shutdownGracePeriodMs === "number" && src.shutdownGracePeriodMs >= 0) d.shutdownGracePeriodMs = src.shutdownGracePeriodMs;
+  if (typeof src.eventBufferSize === "number" && src.eventBufferSize > 0) d.eventBufferSize = src.eventBufferSize;
+  if (typeof src.sessionIdleTtlMs === "number" && src.sessionIdleTtlMs > 0) d.sessionIdleTtlMs = src.sessionIdleTtlMs;
   if (Object.keys(d).length > 0) out.daemon = d;
 }
 
-function sanitizeNotifications(out: Partial<CoreKotaConfig>, src: KotaConfig["notifications"]): void {
+function sanitizeNotifications(out: Partial<CoreKotaConfig>, src: unknown): void {
   if (!isPlainObject(src)) return;
-  const obj = src as Record<string, unknown>;
   const n: NonNullable<CoreKotaConfig["notifications"]> = {};
-  if (typeof obj.alertCooldownMs === "number" && obj.alertCooldownMs >= 0) n.alertCooldownMs = obj.alertCooldownMs;
-  if (obj.quietHours !== undefined) {
-    const parsed = parseQuietHours(obj.quietHours);
+  if (typeof src.alertCooldownMs === "number" && src.alertCooldownMs >= 0) n.alertCooldownMs = src.alertCooldownMs;
+  if (src.quietHours !== undefined) {
+    const parsed = parseQuietHours(src.quietHours);
     if (parsed.ok) n.quietHours = parsed.config;
   }
   if (Object.keys(n).length > 0) out.notifications = n;
 }
 
-function sanitizeWorkflow(out: Partial<CoreKotaConfig>, src: KotaConfig["workflow"]): void {
+function sanitizeWorkflow(out: Partial<CoreKotaConfig>, src: unknown): void {
   if (!isPlainObject(src)) return;
-  const obj = src as Record<string, unknown>;
   const w: NonNullable<CoreKotaConfig["workflow"]> = {};
-  if (typeof obj.maxStepOutputBytes === "number" && obj.maxStepOutputBytes > 0) w.maxStepOutputBytes = obj.maxStepOutputBytes;
+  if (typeof src.maxStepOutputBytes === "number" && src.maxStepOutputBytes > 0) w.maxStepOutputBytes = src.maxStepOutputBytes;
   if (Object.keys(w).length > 0) out.workflow = w;
 }
 
 function sanitizeModuleMonitoring(
   out: Partial<CoreKotaConfig>,
-  src: KotaConfig["moduleMonitoring"],
+  src: unknown,
 ): void {
   if (!isPlainObject(src)) return;
-  const obj = src as Record<string, unknown>;
   const mm: NonNullable<CoreKotaConfig["moduleMonitoring"]> = {};
-  if (typeof obj.crashAlertThreshold === "number" && obj.crashAlertThreshold > 0 && Number.isInteger(obj.crashAlertThreshold)) mm.crashAlertThreshold = obj.crashAlertThreshold;
-  if (typeof obj.crashAlertWindowMs === "number" && obj.crashAlertWindowMs > 0) mm.crashAlertWindowMs = obj.crashAlertWindowMs;
+  if (typeof src.crashAlertThreshold === "number" && src.crashAlertThreshold > 0 && Number.isInteger(src.crashAlertThreshold)) mm.crashAlertThreshold = src.crashAlertThreshold;
+  if (typeof src.crashAlertWindowMs === "number" && src.crashAlertWindowMs > 0) mm.crashAlertWindowMs = src.crashAlertWindowMs;
   if (Object.keys(mm).length > 0) out.moduleMonitoring = mm;
 }
 
@@ -215,25 +208,24 @@ function expectAutonomyMode(value: unknown, errorPath: string): AutonomyMode {
 function sanitizeForeignModules(entries: unknown[]): ForeignModuleConfig[] {
   const fexts: ForeignModuleConfig[] = [];
   for (const entry of entries) {
-    if (typeof entry !== "object" || entry === null) continue;
-    const src = entry as Record<string, unknown>;
-    if (src.transport === "http") {
-      if (typeof src.url !== "string" || !src.url) continue;
-      fexts.push({ transport: "http", url: src.url });
+    if (!isPlainObject(entry)) continue;
+    if (entry.transport === "http") {
+      if (typeof entry.url !== "string" || !entry.url) continue;
+      fexts.push({ transport: "http", url: entry.url });
       continue;
     }
-    if (src.transport !== "stdio") continue;
-    if (typeof src.command !== "string" || !src.command) continue;
-    const fext: ForeignModuleConfig = { transport: "stdio", command: src.command };
-    if (Array.isArray(src.args)) fext.args = src.args.filter((a): a is string => typeof a === "string");
-    if (typeof src.env === "object" && src.env !== null && !Array.isArray(src.env)) {
+    if (entry.transport !== "stdio") continue;
+    if (typeof entry.command !== "string" || !entry.command) continue;
+    const fext: ForeignModuleConfig = { transport: "stdio", command: entry.command };
+    if (Array.isArray(entry.args)) fext.args = entry.args.filter((a): a is string => typeof a === "string");
+    if (isPlainObject(entry.env)) {
       const env: Record<string, string> = {};
-      for (const [k, v] of Object.entries(src.env as Record<string, unknown>)) {
+      for (const [k, v] of Object.entries(entry.env)) {
         if (typeof v === "string") env[k] = v;
       }
       if (Object.keys(env).length > 0) fext.env = env;
     }
-    if (typeof src.cwd === "string" && src.cwd) fext.cwd = src.cwd;
+    if (typeof entry.cwd === "string" && entry.cwd) fext.cwd = entry.cwd;
     fexts.push(fext);
   }
   return fexts;

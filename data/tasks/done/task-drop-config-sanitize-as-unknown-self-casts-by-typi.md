@@ -1,12 +1,12 @@
 ---
 id: task-drop-config-sanitize-as-unknown-self-casts-by-typi
 title: Drop config-sanitize as-unknown self-casts by typing raw config input as unknown
-status: ready
+status: done
 priority: p2
 area: core
 summary: Type sanitize/sanitizeCore inputs as unknown so the JSON-parse boundary owns the single Record<string, unknown> view of raw config and the per-section sanitizers stop self-casting back to Record<string, unknown> on every field.
 created_at: 2026-05-06T10:30:15.724Z
-updated_at: 2026-05-06T10:30:15.724Z
+updated_at: 2026-05-06T10:39:27.528Z
 ---
 
 ## Problem

@@ -7,7 +7,7 @@ import type { ForeignModuleConfig } from "../modules/foreign-module.js";
 import type { AutonomyMode } from "../tools/autonomy-mode.js";
 import type { GuardrailsConfig } from "../tools/guardrails.js";
 import { mergeConfigs } from "./config-merge.js";
-import { sanitize } from "./config-sanitize.js";
+import { isPlainObject, sanitize } from "./config-sanitize.js";
 import type { KotaModuleConfigRegistry } from "./config-slice.js";
 
 /**
@@ -151,13 +151,11 @@ const GLOBAL_DIR = join(homedir(), ".kota");
 const PROJECT_DIR = ".kota";
 
 /** Read and parse a JSON config file. Returns null if missing or invalid. */
-function readConfigFile(path: string): Partial<KotaConfig> | null {
+function readConfigFile(path: string): Record<string, unknown> | null {
   if (!existsSync(path)) return null;
   try {
-    const raw = readFileSync(path, "utf-8");
-    const parsed = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
-    return parsed as Partial<KotaConfig>;
+    const parsed: unknown = JSON.parse(readFileSync(path, "utf-8"));
+    return isPlainObject(parsed) ? parsed : null;
   } catch {
     return null;
   }
@@ -206,7 +204,7 @@ export function updateProjectConfig(
 ): void {
   const configDir = join(cwd, PROJECT_DIR);
   const configPath = join(configDir, CONFIG_FILENAME);
-  const existing = readConfigFile(configPath) ?? {};
+  const existing = (readConfigFile(configPath) ?? {}) as Partial<KotaConfig>;
   const updated = update(existing);
   if (!existsSync(configDir)) mkdirSync(configDir, { recursive: true });
   writeFileSync(configPath, `${JSON.stringify(updated, null, 2)}\n`, "utf-8");
