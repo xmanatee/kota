@@ -1,0 +1,358 @@
+/**
+ * Built-in daemon-control routes, expressed in the same
+ * `ControlRouteRegistration` shape that modules use through
+ * `KotaModule.controlRoutes`. The server merges these with contributed entries
+ * into one table; the dispatcher matches once and runs the matched route's
+ * handler. No parallel scope/handler/bypass tables.
+ *
+ * Each handler closure binds the runtime state it needs (the daemon handle,
+ * event ring buffer, SSE client set, daemon chat pool, session bindings) at
+ * registration time, so the dispatcher itself stays free of route-specific
+ * dependencies.
+ */
+
+import type { ServerResponse } from "node:http";
+import type { ControlRouteRegistration } from "#core/modules/module-types.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
+import {
+  type DaemonChatConversationResolver,
+  type DaemonChatMakeAgent,
+  type DaemonChatPool,
+  deleteDaemonSession,
+  handleCreateDaemonSession,
+  handleDaemonChat,
+  handlePatchDaemonSession,
+} from "./daemon-control-chat.js";
+import { handleListSessions, handleRegisterSession, handleUnregisterSession } from "./daemon-control-sessions.js";
+import type { DaemonControlHandle, DaemonLiveStatus } from "./daemon-control-types.js";
+import { jsonResponse } from "./daemon-control-utils.js";
+import {
+  handleAbortWorkflow,
+  handleAbortWorkflowRun,
+  handleCancelWorkflowRun,
+  handleDisableWorkflow,
+  handleEnableWorkflow,
+  handleGetWorkflowDefinitions,
+  handleGetWorkflowRun,
+  handleGetWorkflowStatus,
+  handleListWorkflowRuns,
+  handlePauseWorkflow,
+  handleReloadConfig,
+  handleReloadWorkflow,
+  handleResumeWorkflow,
+  handleTriggerWorkflow,
+} from "./daemon-control-workflow.js";
+import type { EventRingBuffer } from "./event-ring-buffer.js";
+
+/** Inputs the built-in route closures bind at registration time. */
+export type BuiltinControlRouteDeps = {
+  handle: DaemonControlHandle;
+  eventBuffer: EventRingBuffer;
+  sseClients: Set<ServerResponse>;
+  chatPool: DaemonChatPool | null;
+  makeAgent: DaemonChatMakeAgent | null;
+  defaultAutonomyMode: AutonomyMode | undefined;
+  chatBindings: DaemonChatBindingStore | null;
+  conversationResolver: DaemonChatConversationResolver | null;
+};
+
+export function buildBuiltinControlRoutes(deps: BuiltinControlRouteDeps): ControlRouteRegistration[] {
+  const {
+    handle: h,
+    eventBuffer,
+    sseClients,
+    chatPool,
+    makeAgent,
+    defaultAutonomyMode,
+    chatBindings,
+    conversationResolver,
+  } = deps;
+
+  return [
+    {
+      method: "GET",
+      path: "/health",
+      capabilityScope: "read",
+      bypassAuth: true,
+      handler: (_req, res) => {
+        const health = h.getHealthStatus();
+        const state = h.getDaemonLiveState();
+        const uptimeMs = Date.now() - new Date(state.startedAt).getTime();
+        const degraded = health.scheduler === "error" || health.modules === "error";
+        jsonResponse(res, degraded ? 503 : 200, {
+          status: degraded ? "degraded" : "ok",
+          version: "0.1.0",
+          uptimeMs,
+          components: health,
+        });
+      },
+    },
+    {
+      method: "GET",
+      path: "/status",
+      capabilityScope: "read",
+      handler: (_req, res) => {
+        const daemonState = h.getDaemonLiveState();
+        const workflowStatus = h.getWorkflowLiveStatus();
+        const sessions = h.listSessions();
+        const channels = h.listChannelStatuses();
+        const body: DaemonLiveStatus = {
+          ...daemonState,
+          workflow: workflowStatus,
+          sessions,
+          channels,
+        };
+        jsonResponse(res, 200, body);
+      },
+    },
+    {
+      method: "GET",
+      path: "/channels",
+      capabilityScope: "read",
+      handler: (_req, res) => jsonResponse(res, 200, { channels: h.listChannelStatuses() }),
+    },
+    {
+      method: "GET",
+      path: "/capabilities",
+      capabilityScope: "read",
+      handler: (_req, res) => h.probeCapabilityReadiness().then((response) => jsonResponse(res, 200, response)),
+    },
+    {
+      method: "GET",
+      path: "/identity",
+      capabilityScope: "read",
+      handler: (_req, res) => h.getClientIdentity().then((identity) => jsonResponse(res, 200, identity)),
+    },
+    {
+      method: "GET",
+      path: "/events",
+      capabilityScope: "read",
+      handler: (req, res) => {
+        const url = new URL(req.url ?? "/", "http://127.0.0.1");
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        });
+        res.write(":\n\n");
+        const sinceParam = url.searchParams.get("since");
+        if (sinceParam) {
+          const sinceMs = new Date(sinceParam).getTime();
+          if (!Number.isNaN(sinceMs)) {
+            for (const { event } of eventBuffer.query(sinceMs)) {
+              res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`);
+            }
+          }
+        }
+        sseClients.add(res);
+        req.on("close", () => { sseClients.delete(res); });
+      },
+    },
+    {
+      method: "GET",
+      path: "/api/events",
+      capabilityScope: "read",
+      handler: (req, res) => {
+        const url = new URL(req.url ?? "/", "http://127.0.0.1");
+        const sinceParam = url.searchParams.get("since");
+        const limitParam = url.searchParams.get("limit");
+        const typeParam = url.searchParams.get("type");
+        const sinceMs = sinceParam ? new Date(sinceParam).getTime() : undefined;
+        const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+        let entries = eventBuffer.query(
+          sinceMs != null && !Number.isNaN(sinceMs) ? sinceMs : undefined,
+          limit == null || typeParam != null ? undefined : limit,
+        );
+        if (typeParam) {
+          const isGlob = typeParam.includes("*");
+          if (isGlob) {
+            const re = new RegExp(`^${typeParam.replace(/\./g, "\\.").replace(/\*/g, ".*")}$`);
+            entries = entries.filter(({ event }) => re.test(event.type));
+          } else {
+            entries = entries.filter(({ event }) => event.type.startsWith(typeParam));
+          }
+          if (limit != null && entries.length > limit) {
+            entries = entries.slice(entries.length - limit);
+          }
+        }
+        jsonResponse(res, 200, {
+          events: entries.map(({ event, timestamp }) => ({
+            type: event.type,
+            payload: event.payload,
+            timestamp: new Date(timestamp).toISOString(),
+          })),
+        });
+      },
+    },
+    {
+      method: "GET",
+      path: "/workflow/status",
+      capabilityScope: "read",
+      handler: (_req, res) => handleGetWorkflowStatus(h, res),
+    },
+    {
+      method: "GET",
+      path: "/workflow/definitions",
+      capabilityScope: "read",
+      handler: (_req, res) => handleGetWorkflowDefinitions(h, res),
+    },
+    {
+      method: "POST",
+      path: "/workflow/definitions/:name/disable",
+      capabilityScope: "control",
+      handler: (_req, res, params) => handleDisableWorkflow(h, res, params),
+    },
+    {
+      method: "POST",
+      path: "/workflow/definitions/:name/enable",
+      capabilityScope: "control",
+      handler: (_req, res, params) => handleEnableWorkflow(h, res, params),
+    },
+    {
+      method: "GET",
+      path: "/workflow/runs",
+      capabilityScope: "read",
+      handler: (req, res) => {
+        const url = new URL(req.url ?? "/", "http://127.0.0.1");
+        handleListWorkflowRuns(h, res, url);
+      },
+    },
+    {
+      method: "GET",
+      path: "/workflow/runs/:id",
+      capabilityScope: "read",
+      handler: (_req, res, params) => handleGetWorkflowRun(h, res, params),
+    },
+    {
+      method: "DELETE",
+      path: "/workflow/runs/:id",
+      capabilityScope: "control",
+      handler: (_req, res, params) => handleCancelWorkflowRun(h, res, params),
+    },
+    {
+      method: "POST",
+      path: "/workflow/runs/:id/abort",
+      capabilityScope: "control",
+      handler: (_req, res, params) => handleAbortWorkflowRun(h, res, params),
+    },
+    {
+      method: "POST",
+      path: "/workflow/pause",
+      capabilityScope: "control",
+      handler: (_req, res) => handlePauseWorkflow(h, res),
+    },
+    {
+      method: "POST",
+      path: "/workflow/resume",
+      capabilityScope: "control",
+      handler: (_req, res) => handleResumeWorkflow(h, res),
+    },
+    {
+      method: "POST",
+      path: "/workflow/abort",
+      capabilityScope: "control",
+      handler: (_req, res) => handleAbortWorkflow(h, res),
+    },
+    {
+      method: "POST",
+      path: "/workflow/reload",
+      capabilityScope: "control",
+      handler: (_req, res) => handleReloadWorkflow(h, res),
+    },
+    {
+      method: "POST",
+      path: "/reload",
+      capabilityScope: "control",
+      handler: (_req, res) => handleReloadConfig(h, res),
+    },
+    {
+      method: "POST",
+      path: "/workflow/trigger",
+      capabilityScope: "control",
+      handler: (req, res) => handleTriggerWorkflow(h, req, res),
+    },
+    {
+      method: "GET",
+      path: "/sessions",
+      capabilityScope: "read",
+      handler: (_req, res) => {
+        if (chatPool) {
+          const daemonEntries = chatPool.list();
+          const daemonIds = new Set(daemonEntries.map((s) => s.id));
+          const serveSessions = h
+            .listSessions()
+            .filter((s) => !daemonIds.has(s.id))
+            .map((s) => ({ ...s, source: "serve" as const }));
+          jsonResponse(res, 200, { sessions: [...serveSessions, ...daemonEntries] });
+        } else {
+          handleListSessions(h, res);
+        }
+      },
+    },
+    {
+      method: "POST",
+      path: "/sessions",
+      capabilityScope: "control",
+      handler: (req, res) => {
+        if (!chatPool || !makeAgent || !chatBindings || !conversationResolver) {
+          jsonResponse(res, 503, { error: "Daemon chat sessions not available" });
+          return;
+        }
+        return handleCreateDaemonSession(
+          chatPool,
+          chatBindings,
+          req,
+          res,
+          makeAgent,
+          defaultAutonomyMode,
+          conversationResolver,
+        );
+      },
+    },
+    {
+      method: "POST",
+      path: "/sessions/register",
+      capabilityScope: "control",
+      handler: (req, res) => handleRegisterSession(h, req, res),
+    },
+    {
+      method: "POST",
+      path: "/sessions/:id/chat",
+      capabilityScope: "control",
+      handler: (req, res, params) => {
+        if (!chatPool) {
+          jsonResponse(res, 503, { error: "Daemon chat sessions not available" });
+          return;
+        }
+        return handleDaemonChat(chatPool, req, res, params.id);
+      },
+    },
+    {
+      method: "PATCH",
+      path: "/sessions/:id",
+      capabilityScope: "control",
+      handler: (req, res, params) =>
+        handlePatchDaemonSession(
+          chatPool,
+          (id, mode) => h.setSessionAutonomyMode(id, mode),
+          req,
+          res,
+          params.id,
+        ),
+    },
+    {
+      method: "DELETE",
+      path: "/sessions/:id",
+      capabilityScope: "control",
+      handler: (_req, res, params) => {
+        if (chatPool && deleteDaemonSession(chatPool, params.id, chatBindings ?? undefined)) {
+          res.writeHead(204);
+          res.end();
+          return;
+        }
+        handleUnregisterSession(h, res, params);
+      },
+    },
+  ];
+}

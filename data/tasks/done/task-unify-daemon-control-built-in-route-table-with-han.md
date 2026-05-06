@@ -1,12 +1,12 @@
 ---
 id: task-unify-daemon-control-built-in-route-table-with-han
 title: Unify daemon-control built-in route table with handler dispatch into one declarative registry
-status: ready
+status: done
 priority: p2
 area: core
 summary: Replace daemon-control's parallel BUILTIN_ROUTE_SCOPES table + 220-line handleRequest if-chain + bypassAuth/contributed-handlers maps with one declarative built-in-route registry that owns method/path/scope/handler/bypassAuth in one place, removing the multi-source-of-truth seam.
 created_at: 2026-05-06T01:04:33.463Z
-updated_at: 2026-05-06T01:04:33.463Z
+updated_at: 2026-05-06T01:14:55.234Z
 ---
 
 ## Problem
