@@ -2,11 +2,11 @@ import type { Command } from "commander";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import {
-	type LineNode,
+	type ColumnsNode,
+	columns,
 	line,
 	plain,
 	span,
-	stack,
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 
@@ -16,23 +16,21 @@ function formatDate(iso: string): string {
 	return iso.slice(0, 16).replace("T", " ");
 }
 
-export function buildMemoryListLines(rows: MemoryRow[]): LineNode[] {
-	const idWidth = Math.max(...rows.map((e) => e.id.length), 2);
-	const header = line(span(
-		`${"ID".padEnd(idWidth)}  ${"Date".padEnd(16)}  Content`,
-		"muted",
-		true,
-	));
-	const rule = line(span("-".repeat(idWidth + 20 + 40), "muted"));
-	const body: LineNode[] = rows.map((e) => {
-		const snippet = e.content.replace(/\n/g, " ").slice(0, 60);
-		return line(
-			span(e.id.padEnd(idWidth), "accent"),
-			plain(`  ${formatDate(e.created).padEnd(16)}  `),
-			plain(snippet),
-		);
-	});
-	return [header, rule, ...body];
+export function buildMemoryListNode(rows: MemoryRow[]): ColumnsNode {
+	return columns(
+		[
+			{ header: "ID", role: "accent" },
+			{ header: "Date" },
+			{ header: "Content", maxWidth: 80 },
+		],
+		rows.map((e) => ({
+			cells: [
+				{ spans: [{ text: e.id, role: "accent" }] },
+				{ spans: [{ text: formatDate(e.created) }] },
+				{ spans: [{ text: e.content.replace(/\n/g, " ") }] },
+			],
+		})),
+	);
 }
 
 export function registerMemoryCommands(program: Command, ctx: ModuleContext): void {
@@ -52,7 +50,7 @@ export function registerMemoryCommands(program: Command, ctx: ModuleContext): vo
 				print(line(plain("No memory entries.")));
 				return;
 			}
-			print(stack(...buildMemoryListLines(result.entries)));
+			print(buildMemoryListNode(result.entries));
 		});
 
 	memCmd
@@ -79,7 +77,7 @@ export function registerMemoryCommands(program: Command, ctx: ModuleContext): vo
 				print(line(plain("No matching memories.")));
 				return;
 			}
-			print(stack(...buildMemoryListLines(result.entries)));
+			print(buildMemoryListNode(result.entries));
 		});
 
 	memCmd

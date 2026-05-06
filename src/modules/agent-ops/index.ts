@@ -10,13 +10,12 @@ import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import {
+  type ColumnsNode,
+  columns,
   type KVEntry,
   kvBlock,
-  type LineNode,
   line,
   plain,
-  span,
-  stack,
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 import { inspectAgent, listAgents } from "./agent-ops-operations.js";
@@ -46,7 +45,7 @@ function buildAgentCommand(ctx: ModuleContext): Command {
         print(line(plain("No agents available.")));
         return;
       }
-      print(stack(...buildAgentListLines(result.agents)));
+      print(buildAgentListNode(result.agents));
     });
 
   agentCmd
@@ -72,25 +71,23 @@ function buildAgentCommand(ctx: ModuleContext): Command {
   return agentCmd;
 }
 
-export function buildAgentListLines(agents: AgentSummary[]): LineNode[] {
-  const nameWidth = Math.max(...agents.map((agent) => agent.name.length), 4);
-  const modelWidth = Math.max(...agents.map((agent) => agent.model.length), 5);
-  const sourceWidth = Math.max(...agents.map((agent) => agent.source.length), 6);
-  const header = line(span(
-    `${"Name".padEnd(nameWidth)}  ${"Model".padEnd(modelWidth)}  ${"Source".padEnd(sourceWidth)}  Role`,
-    "muted",
-    true,
-  ));
-  const rule = line(span("-".repeat(nameWidth + modelWidth + sourceWidth + 10), "muted"));
-  const rows: LineNode[] = agents.map((agent) => line(
-    span(agent.name.padEnd(nameWidth), "accent"),
-    plain("  "),
-    span(agent.model.padEnd(modelWidth), "info"),
-    plain("  "),
-    span(agent.source.padEnd(sourceWidth), "muted"),
-    plain(`  ${agent.role}`),
-  ));
-  return [header, rule, ...rows];
+export function buildAgentListNode(agents: AgentSummary[]): ColumnsNode {
+  return columns(
+    [
+      { header: "Name", role: "accent" },
+      { header: "Model", role: "info" },
+      { header: "Source", role: "muted" },
+      { header: "Role", maxWidth: 60 },
+    ],
+    agents.map((agent) => ({
+      cells: [
+        { spans: [{ text: agent.name, role: "accent" }] },
+        { spans: [{ text: agent.model, role: "info" }] },
+        { spans: [{ text: agent.source, role: "muted" }] },
+        { spans: [{ text: agent.role }] },
+      ],
+    })),
+  );
 }
 
 export function buildAgentInspectEntries(agent: AgentSummary): KVEntry[] {

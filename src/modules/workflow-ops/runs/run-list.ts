@@ -1,7 +1,16 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import { blank, type LineNode, line, plain, type RenderNode, stack } from "#modules/rendering/primitives.js";
+import {
+  blank,
+  type ColumnsNode,
+  columns,
+  line,
+  plain,
+  type RenderNode,
+  type SemanticRole,
+  stack,
+} from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 import { formatDate, formatDuration, statusIcon } from "../utils.js";
 import type { HistoryStats } from "./workflow-history.js";
@@ -64,7 +73,7 @@ export function registerRunListCommands(wfCmd: Command, ctx: ModuleContext): voi
         print(line(plain("No runs found.")));
         return;
       }
-      print(stack(...buildRunListLines(page)));
+      print(buildRunListNode(page));
     });
 
   wfCmd
@@ -98,40 +107,60 @@ export function registerRunListCommands(wfCmd: Command, ctx: ModuleContext): voi
         : null;
 
       const completedCount = filtered.filter((r) => r.status !== "running").length;
-      print(stack(...buildHistoryLines(wfRows, totals, days, completedCount)));
+      print(buildHistoryNode(wfRows, totals, days, completedCount));
     });
 }
 
-function buildRunListLines(page: RunRow[]): LineNode[] {
-  const idWidth = 42;
-  const wfWidth = 12;
-  const stWidth = 4;
-  const durWidth = 8;
-  const costWidth = 8;
-  const dateWidth = 18;
+function runStatusRole(status: string): SemanticRole {
+  switch (status) {
+    case "success":
+      return "success";
+    case "failed":
+      return "error";
+    case "interrupted":
+      return "warn";
+    case "completed-with-warnings":
+      return "warn";
+    case "running":
+      return "info";
+    default:
+      return "muted";
+  }
+}
 
-  const header = line(plain(
-    `${"ID".padEnd(idWidth)} ${"Workflow".padEnd(wfWidth)} ${"St".padEnd(stWidth)} ${"Duration".padEnd(durWidth)} ${"Cost".padEnd(costWidth)} ${"Started".padEnd(dateWidth)} Trigger`,
-  ));
-  const rule = line(plain("-".repeat(120)));
-
-  const rows: LineNode[] = page.map((r) => {
-    const id = r.id.padEnd(idWidth);
-    const wf = r.workflow.padEnd(wfWidth);
-    const st = statusIcon(r.status).padEnd(stWidth);
-    const dur = (r.durationMs != null ? formatDuration(r.durationMs) : "…").padEnd(durWidth);
-    const cost = (r.totalCostUsd != null ? `$${r.totalCostUsd.toFixed(3)}` : "—").padEnd(costWidth);
-    const started = formatDate(r.startedAt).padEnd(dateWidth);
-    const trigger = r.retryOf
-      ? `retry ← ${r.retryOf}`
-      : r.triggeredByRunId
-      ? `${r.trigger.event} ← ${r.triggeredByRunId}`
-      : r.trigger.event;
-    const tagStr = r.tags && r.tags.length > 0 ? ` [${r.tags.join(",")}]` : "";
-    return line(plain(`${id} ${wf} ${st} ${dur} ${cost} ${started} ${trigger}${tagStr}`));
-  });
-
-  return [header, rule, ...rows];
+export function buildRunListNode(page: RunRow[]): ColumnsNode {
+  return columns(
+    [
+      { header: "ID", role: "accent", maxWidth: 42 },
+      { header: "Workflow", maxWidth: 18 },
+      { header: "St", minWidth: 2 },
+      { header: "Duration", align: "right", minWidth: 6 },
+      { header: "Cost", align: "right", minWidth: 6 },
+      { header: "Started" },
+      { header: "Trigger", maxWidth: 60 },
+    ],
+    page.map((r) => {
+      const dur = r.durationMs != null ? formatDuration(r.durationMs) : "…";
+      const cost = r.totalCostUsd != null ? `$${r.totalCostUsd.toFixed(3)}` : "—";
+      const triggerText = r.retryOf
+        ? `retry ← ${r.retryOf}`
+        : r.triggeredByRunId
+          ? `${r.trigger.event} ← ${r.triggeredByRunId}`
+          : r.trigger.event;
+      const tagSuffix = r.tags && r.tags.length > 0 ? ` [${r.tags.join(",")}]` : "";
+      return {
+        cells: [
+          { spans: [{ text: r.id, role: "accent" }] },
+          { spans: [{ text: r.workflow }] },
+          { spans: [{ text: statusIcon(r.status), role: runStatusRole(r.status) }] },
+          { spans: [{ text: dur }] },
+          { spans: [{ text: cost, role: "muted" }] },
+          { spans: [{ text: formatDate(r.startedAt), role: "muted" }] },
+          { spans: [{ text: `${triggerText}${tagSuffix}` }] },
+        ],
+      };
+    }),
+  );
 }
 
 export type HistoryTotals = {
@@ -175,37 +204,78 @@ export function computeHistoryTotals(
   return { ...acc, successRate, avgCostUsd, avgDurationMs, p95DurationMs };
 }
 
-export function buildHistoryLines(
+export function buildHistoryNode(
   wfRows: Array<{ name: string; stats: HistoryStats }>,
   totals: HistoryTotals | null,
   days: number,
   completedCount: number,
-): RenderNode[] {
-  const nameWidth = Math.max(...wfRows.map((r) => r.name.length), 8);
-  const headerStr = `${"Workflow".padEnd(nameWidth)}  ${"Runs".padStart(5)}  ${"OK".padStart(4)}  ${"Fail".padStart(4)}  ${"Int".padStart(3)}  ${"Rate".padStart(6)}  ${"TotalCost".padStart(10)}  ${"AvgCost".padStart(8)}  ${"AvgDur".padStart(8)}  ${"P95Dur".padStart(8)}`;
-  const lines: RenderNode[] = [
-    line(plain(headerStr)),
-    line(plain("-".repeat(headerStr.length))),
+): RenderNode {
+  const headerSpecs = [
+    { header: "Workflow", role: "accent" as const, minWidth: 8 },
+    { header: "Runs", align: "right" as const, minWidth: 4 },
+    { header: "OK", align: "right" as const, minWidth: 3 },
+    { header: "Fail", align: "right" as const, minWidth: 4 },
+    { header: "Int", align: "right" as const, minWidth: 3 },
+    { header: "Rate", align: "right" as const, minWidth: 5 },
+    { header: "TotalCost", align: "right" as const, minWidth: 8 },
+    { header: "AvgCost", align: "right" as const, minWidth: 7 },
+    { header: "AvgDur", align: "right" as const, minWidth: 6 },
+    { header: "P95Dur", align: "right" as const, minWidth: 6 },
   ];
 
-  for (const { name, stats: s } of wfRows) {
+  const dataRows = wfRows.map(({ name, stats: s }) => {
     const avgDur = s.avgDurationMs != null ? formatDuration(Math.round(s.avgDurationMs)) : "—";
     const p95Dur = s.p95DurationMs != null ? formatDuration(s.p95DurationMs) : "—";
-    lines.push(line(plain(
-      `${name.padEnd(nameWidth)}  ${String(s.total).padStart(5)}  ${String(s.successes).padStart(4)}  ${String(s.failures).padStart(4)}  ${String(s.interrupted).padStart(3)}  ${`${s.successRate.toFixed(1)}%`.padStart(6)}  ${`$${s.totalCostUsd.toFixed(3)}`.padStart(10)}  ${`$${s.avgCostUsd.toFixed(3)}`.padStart(8)}  ${avgDur.padStart(8)}  ${p95Dur.padStart(8)}`,
-    )));
-  }
+    return {
+      cells: [
+        { spans: [{ text: name, role: "accent" as SemanticRole }] },
+        { spans: [{ text: String(s.total) }] },
+        { spans: [{ text: String(s.successes), role: "success" as SemanticRole }] },
+        {
+          spans: [
+            { text: String(s.failures), role: (s.failures > 0 ? "error" : "muted") as SemanticRole },
+          ],
+        },
+        { spans: [{ text: String(s.interrupted), role: "warn" as SemanticRole }] },
+        { spans: [{ text: `${s.successRate.toFixed(1)}%` }] },
+        { spans: [{ text: `$${s.totalCostUsd.toFixed(3)}`, role: "muted" as SemanticRole }] },
+        { spans: [{ text: `$${s.avgCostUsd.toFixed(3)}`, role: "muted" as SemanticRole }] },
+        { spans: [{ text: avgDur }] },
+        { spans: [{ text: p95Dur }] },
+      ],
+    };
+  });
 
+  const tableRows = [...dataRows];
   if (totals) {
     const avgDur = totals.avgDurationMs != null ? formatDuration(Math.round(totals.avgDurationMs)) : "—";
     const p95Dur = totals.p95DurationMs != null ? formatDuration(totals.p95DurationMs) : "—";
-    lines.push(line(plain("-".repeat(headerStr.length))));
-    lines.push(line(plain(
-      `${"TOTAL".padEnd(nameWidth)}  ${String(totals.total).padStart(5)}  ${String(totals.successes).padStart(4)}  ${String(totals.failures).padStart(4)}  ${String(totals.interrupted).padStart(3)}  ${`${totals.successRate.toFixed(1)}%`.padStart(6)}  ${`$${totals.totalCostUsd.toFixed(3)}`.padStart(10)}  ${`$${totals.avgCostUsd.toFixed(3)}`.padStart(8)}  ${avgDur.padStart(8)}  ${p95Dur.padStart(8)}`,
-    )));
+    tableRows.push({
+      cells: [
+        { spans: [{ text: "TOTAL", role: "accent" as SemanticRole }] },
+        { spans: [{ text: String(totals.total) }] },
+        { spans: [{ text: String(totals.successes), role: "success" as SemanticRole }] },
+        {
+          spans: [
+            {
+              text: String(totals.failures),
+              role: (totals.failures > 0 ? "error" : "muted") as SemanticRole,
+            },
+          ],
+        },
+        { spans: [{ text: String(totals.interrupted), role: "warn" as SemanticRole }] },
+        { spans: [{ text: `${totals.successRate.toFixed(1)}%` }] },
+        { spans: [{ text: `$${totals.totalCostUsd.toFixed(3)}`, role: "muted" as SemanticRole }] },
+        { spans: [{ text: `$${totals.avgCostUsd.toFixed(3)}`, role: "muted" as SemanticRole }] },
+        { spans: [{ text: avgDur }] },
+        { spans: [{ text: p95Dur }] },
+      ],
+    });
   }
 
-  lines.push(blank());
-  lines.push(line(plain(`(${days}-day window, ${completedCount} completed runs)`)));
-  return lines;
+  return stack(
+    columns(headerSpecs, tableRows),
+    blank(),
+    line(plain(`(${days}-day window, ${completedCount} completed runs)`)),
+  );
 }

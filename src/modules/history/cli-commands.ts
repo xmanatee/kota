@@ -3,17 +3,18 @@ import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.
 import { loadConfig } from "#core/config/config.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
+import type { ConversationRecord } from "#core/modules/provider-types.js";
 import { getActiveKotaClient } from "#core/server/client-holder.js";
 import type { KotaClient } from "#core/server/kota-client.js";
 import { confirmAction } from "#core/util/confirm.js";
+import type { ColumnsNode } from "#modules/rendering/primitives.js";
 import {
   blank,
+  columns,
   kvBlock,
-  type LineNode,
   line,
   plain,
   span,
-  stack,
 } from "#modules/rendering/primitives.js";
 import { print, TerminalTransport } from "#modules/rendering/transport.js";
 import { interactiveMode, parseIntOption, resolveConversationId } from "./cli.js";
@@ -49,24 +50,7 @@ export function registerHistoryCommands(program: Command) {
         return;
       }
 
-      const header: LineNode = line(span(
-        `${"ID".padEnd(17)} ${"Updated".padEnd(22)} ${"Msgs".padEnd(6)} Title`,
-        "muted",
-        true,
-      ));
-      const rule: LineNode = line(span("-".repeat(80), "muted"));
-      const rows: LineNode[] = conversations.map((c) => {
-        const updated = new Date(c.updatedAt).toLocaleString("en-US", {
-          month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
-        });
-        return line(
-          span(c.id.padEnd(17), "accent"),
-          plain(` ${updated.padEnd(22)} `),
-          span(String(c.messageCount).padEnd(6), "muted"),
-          plain(` ${c.title}`),
-        );
-      });
-      print(stack(header, rule, ...rows));
+      print(buildHistoryListNode(conversations));
     });
 
   historyCmd
@@ -275,4 +259,31 @@ export function registerHistoryCommands(program: Command) {
       }
       print(line(span(`Deleted ${count} conversation(s).`, "success")));
     });
+}
+
+export function buildHistoryListNode(conversations: ConversationRecord[]): ColumnsNode {
+  return columns(
+    [
+      { header: "ID", role: "accent" },
+      { header: "Updated" },
+      { header: "Msgs", align: "right", role: "muted", minWidth: 4 },
+      { header: "Title", maxWidth: 60 },
+    ],
+    conversations.map((c) => {
+      const updated = new Date(c.updatedAt).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      return {
+        cells: [
+          { spans: [{ text: c.id, role: "accent" }] },
+          { spans: [{ text: updated }] },
+          { spans: [{ text: String(c.messageCount), role: "muted" }] },
+          { spans: [{ text: c.title }] },
+        ],
+      };
+    }),
+  );
 }

@@ -6,6 +6,8 @@ import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import {
   blank,
+  type ColumnsNode,
+  columns,
   kvBlock,
   type LineNode,
   line,
@@ -19,6 +21,7 @@ import { inspectModule } from "./admin-operations.js";
 import type {
   ModuleInspectEntry,
   ModuleInspectResult,
+  ModuleListEntry,
   ModuleReloadResult,
   ModulesAdminClient,
   ModulesClient,
@@ -38,6 +41,35 @@ function healthRole(status: string): "success" | "warn" | "error" | "muted" {
     default:
       return "muted";
   }
+}
+
+export function buildModuleListNode(modules: ModuleListEntry[]): ColumnsNode {
+  return columns(
+    [
+      { header: "Name", role: "accent" },
+      { header: "Ver", role: "muted", minWidth: 3 },
+      { header: "Tools", align: "right", minWidth: 5 },
+      { header: "Wf", align: "right", minWidth: 2 },
+      { header: "Cmd", align: "right", minWidth: 3 },
+      { header: "Ch", align: "right", minWidth: 2 },
+      { header: "Sk", align: "right", minWidth: 2 },
+      { header: "Ag", align: "right", minWidth: 2 },
+      { header: "Description", role: "muted", maxWidth: 60 },
+    ],
+    modules.map((s) => ({
+      cells: [
+        { spans: [{ text: s.name, role: "accent" }] },
+        { spans: [{ text: s.version ?? "", role: "muted" }] },
+        { spans: [{ text: String(s.toolCount) }] },
+        { spans: [{ text: String(s.workflowCount) }] },
+        { spans: [{ text: String(s.commandCount) }] },
+        { spans: [{ text: String(s.channelCount) }] },
+        { spans: [{ text: String(s.skillCount) }] },
+        { spans: [{ text: String(s.agentCount) }] },
+        { spans: [{ text: s.description ?? "", role: "muted" }] },
+      ],
+    })),
+  );
 }
 
 function buildSection(label: string, items: string[]): RenderNode | null {
@@ -73,30 +105,8 @@ function buildModuleCommand(ctx: ModuleContext): Command {
         print(line(plain("No modules loaded.")));
         return;
       }
-      const nameWidth = Math.max(...result.modules.map((s) => s.name.length), 4);
-      const headerLabel =
-        `${"Name".padEnd(nameWidth)}  ${"Ver".padEnd(7)}  ${"Tools".padStart(5)}  ${"Wf".padStart(3)}  ${"Cmd".padStart(3)}  ${"Ch".padStart(3)}  ${"Sk".padStart(3)}  ${"Ag".padStart(3)}  Description`;
-      const header = line(span(headerLabel, "muted", true));
-      const rule = line(span("-".repeat(headerLabel.length + 8), "muted"));
-      const rows: LineNode[] = result.modules.map((s) => {
-        const ver = (s.version ?? "").padEnd(7);
-        const tools = String(s.toolCount).padStart(5);
-        const wf = String(s.workflowCount).padStart(3);
-        const cmd = String(s.commandCount).padStart(3);
-        const ch = String(s.channelCount).padStart(3);
-        const sk = String(s.skillCount).padStart(3);
-        const ag = String(s.agentCount).padStart(3);
-        const desc = s.description ?? "";
-        return line(
-          span(s.name.padEnd(nameWidth), "accent"),
-          plain(`  ${ver}  ${tools}  ${wf}  ${cmd}  ${ch}  ${sk}  ${ag}  `),
-          span(desc, "muted"),
-        );
-      });
       print(stack(
-        header,
-        rule,
-        ...rows,
+        buildModuleListNode(result.modules),
         blank(),
         line(
           span(String(result.modules.length), "accent"),

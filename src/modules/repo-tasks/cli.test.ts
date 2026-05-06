@@ -4,7 +4,10 @@ import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { listTasksForStates, registerTaskCommands } from "./cli.js";
+import { renderContext } from "#modules/rendering/render.js";
+import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME } from "#modules/rendering/theme.js";
+import { renderToString } from "#modules/rendering/transport.js";
+import { buildTaskListNode, listTasksForStates, registerTaskCommands } from "./cli.js";
 import type {
   RepoTaskCreateOptions,
   RepoTaskGcOptions,
@@ -636,5 +639,65 @@ describe("kota task reindex", () => {
     } finally {
       exitSpy.mockRestore();
     }
+  });
+});
+
+describe("buildTaskListNode", () => {
+  const SAMPLE = [
+    {
+      id: "task-alpha",
+      priority: "p0",
+      state: "ready" as const,
+      title: "Stabilize the dispatcher loop after the merge",
+    },
+    {
+      id: "task-beta-with-an-extremely-long-title",
+      priority: "p2",
+      state: "doing" as const,
+      title:
+        "A very long task title that should wrap or truncate cleanly under a narrow terminal width without overflowing into the next column or tearing the alignment of the table.",
+    },
+    {
+      id: "task-gamma",
+      priority: "p3",
+      state: "blocked" as const,
+      title: "Awaiting operator capture",
+    },
+  ];
+
+  for (const { name, theme } of [
+    { name: "default", theme: DEFAULT_THEME },
+    { name: "ascii", theme: ASCII_THEME },
+    { name: "no-color", theme: NO_COLOR_THEME },
+  ]) {
+    it(`renders the ${name} theme without overflowing a wide terminal`, () => {
+      const out = renderToString(
+        buildTaskListNode(SAMPLE),
+        renderContext({ theme, width: 120 }),
+      );
+      expect(out).toContain("task-alpha");
+      expect(out).toContain("Stabilize the dispatcher loop");
+      expect(out).toContain("p0");
+      expect(out).toContain("ready");
+    });
+
+    it(`compresses Title cleanly under a narrow width in ${name} theme`, () => {
+      const out = renderToString(
+        buildTaskListNode(SAMPLE),
+        renderContext({ theme, width: 60 }),
+      );
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape stripping for width measurement
+      const stripAnsi = (s: string): string => s.replace(/\x1b\[[0-9;]*m/g, "");
+      for (const raw of out.split("\n")) {
+        expect(stripAnsi(raw).length).toBeLessThanOrEqual(60);
+      }
+    });
+  }
+
+  it("declares ID/Pri/State/Title columns with Title carrying maxWidth", () => {
+    const node = buildTaskListNode(SAMPLE);
+    expect(node.columns.map((c) => c.header)).toEqual(["ID", "Pri", "State", "Title"]);
+    const titleSpec = node.columns.find((c) => c.header === "Title")!;
+    expect(titleSpec.maxWidth).toBeDefined();
   });
 });

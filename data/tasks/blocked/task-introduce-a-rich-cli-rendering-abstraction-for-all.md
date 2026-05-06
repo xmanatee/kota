@@ -204,3 +204,16 @@ Phase 3 — peer-CLI capture (operator-facilitated, blocks the task):
   `src/modules/daemon-ops/index.test.ts`. Phase 3's peer-CLI capture
   remains the open precondition; the autonomous lift no longer waits on
   it.
+- 2026-05-06:
+  `task-re-route-phase-2-terminal-surfaces-onto-the-elevat` landed the
+  surface-migration half of the same reinforcement: `repo-tasks task
+  list`, `workflow-ops run show --chain`, `run list`, `run cost`,
+  `run stats`, `run diff`, `history list`, and the `memory` /
+  `knowledge` / `skill-ops` / `agent-ops` / `module-manager` listings
+  now emit `ColumnsNode` / `GroupNode` / `StackNode` via typed
+  `buildXNode(...)` helpers. Width-adaptation is observable in
+  `.kota/runs/2026-05-06T05-49-17-026Z-builder-twx8mk/scenarios/`
+  (paired before/after captures at 60 and 120 cols), and each migrated
+  surface gained a `renderToString` test exercising all three themes
+  (`default`, `ascii`, `no-color`). Phase 3's peer-CLI capture remains
+  the open precondition.

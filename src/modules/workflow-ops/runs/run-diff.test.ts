@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { renderContext } from "#modules/rendering/render.js";
+import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import { buildRunDiff, formatRunDiff } from "./run-diff.js";
 
-function renderDiff(a: WorkflowRunMetadata, b: WorkflowRunMetadata): string {
-  return renderToString(formatRunDiff(a, b));
+function renderDiff(a: WorkflowRunMetadata, b: WorkflowRunMetadata, width = 80): string {
+  return renderToString(formatRunDiff(a, b), renderContext({ theme: NO_COLOR_THEME, width }));
 }
 
 function makeRun(

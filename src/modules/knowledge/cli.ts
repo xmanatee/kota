@@ -5,12 +5,13 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import type { KnowledgeEntry } from "#core/modules/provider-types.js";
 import {
 	blank,
+	type ColumnsNode,
+	columns,
 	kvBlock,
-	type LineNode,
 	line,
 	plain,
+	type SemanticRole,
 	span,
-	stack,
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 
@@ -28,7 +29,7 @@ type KnowledgeRow = {
 	updated: string;
 };
 
-function statusRole(status: string): "success" | "warn" | "muted" | "info" {
+function statusRole(status: string): SemanticRole {
 	switch (status) {
 		case "active":
 			return "success";
@@ -41,39 +42,42 @@ function statusRole(status: string): "success" | "warn" | "muted" | "info" {
 	}
 }
 
-export function buildKnowledgeListLines(entries: KnowledgeRow[]): LineNode[] {
-	const idWidth = Math.max(...entries.map((e) => e.id.length), 2);
-	const typeWidth = Math.max(...entries.map((e) => e.type.length), 4);
-	const statusWidth = Math.max(...entries.map((e) => e.status.length), 6);
-	const header = line(span(
-		`${"ID".padEnd(idWidth)}  ${"Type".padEnd(typeWidth)}  ${"Status".padEnd(statusWidth)}  ${"Updated".padEnd(16)}  Title`,
-		"muted",
-		true,
-	));
-	const rule = line(span("-".repeat(idWidth + typeWidth + statusWidth + 22 + 30), "muted"));
-	const rows: LineNode[] = entries.map((e) => line(
-		span(e.id.padEnd(idWidth), "accent"),
-		plain(`  ${e.type.padEnd(typeWidth)}  `),
-		span(e.status.padEnd(statusWidth), statusRole(e.status)),
-		plain(`  ${formatDate(e.updated).padEnd(16)}  ${e.title}`),
-	));
-	return [header, rule, ...rows];
+export function buildKnowledgeListNode(entries: KnowledgeRow[]): ColumnsNode {
+	return columns(
+		[
+			{ header: "ID", role: "accent" },
+			{ header: "Type" },
+			{ header: "Status", minWidth: 6 },
+			{ header: "Updated" },
+			{ header: "Title", maxWidth: 60 },
+		],
+		entries.map((e) => ({
+			cells: [
+				{ spans: [{ text: e.id, role: "accent" }] },
+				{ spans: [{ text: e.type }] },
+				{ spans: [{ text: e.status, role: statusRole(e.status) }] },
+				{ spans: [{ text: formatDate(e.updated), role: "muted" }] },
+				{ spans: [{ text: e.title }] },
+			],
+		})),
+	);
 }
 
-export function buildKnowledgeSearchLines(entries: KnowledgeRow[]): LineNode[] {
-	const idWidth = Math.max(...entries.map((e) => e.id.length), 2);
-	const typeWidth = Math.max(...entries.map((e) => e.type.length), 4);
-	const header = line(span(
-		`${"ID".padEnd(idWidth)}  ${"Type".padEnd(typeWidth)}  Title`,
-		"muted",
-		true,
-	));
-	const rule = line(span("-".repeat(idWidth + typeWidth + 6 + 30), "muted"));
-	const rows: LineNode[] = entries.map((e) => line(
-		span(e.id.padEnd(idWidth), "accent"),
-		plain(`  ${e.type.padEnd(typeWidth)}  ${e.title}`),
-	));
-	return [header, rule, ...rows];
+export function buildKnowledgeSearchNode(entries: KnowledgeRow[]): ColumnsNode {
+	return columns(
+		[
+			{ header: "ID", role: "accent" },
+			{ header: "Type" },
+			{ header: "Title", maxWidth: 80 },
+		],
+		entries.map((e) => ({
+			cells: [
+				{ spans: [{ text: e.id, role: "accent" }] },
+				{ spans: [{ text: e.type }] },
+				{ spans: [{ text: e.title }] },
+			],
+		})),
+	);
 }
 
 function toRow(entry: KnowledgeEntry): KnowledgeRow {
@@ -129,7 +133,7 @@ export function registerKnowledgeCommands(
 				print(line(plain("No knowledge entries.")));
 				return;
 			}
-			print(stack(...buildKnowledgeListLines(entries.map(toRow))));
+			print(buildKnowledgeListNode(entries.map(toRow)));
 		});
 
 	kCmd
@@ -158,7 +162,7 @@ export function registerKnowledgeCommands(
 				print(line(plain("No matching knowledge entries.")));
 				return;
 			}
-			print(stack(...buildKnowledgeSearchLines(result.entries.map(toRow))));
+			print(buildKnowledgeSearchNode(result.entries.map(toRow)));
 		});
 
 	kCmd

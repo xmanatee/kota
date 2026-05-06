@@ -5,10 +5,12 @@ import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata, WorkflowStepResult } from "#core/workflow/run-types.js";
 import {
-  type LineNode,
+  blank,
+  columns,
   line,
   plain,
   type RenderNode,
+  type SemanticRole,
   span,
   stack,
 } from "#modules/rendering/primitives.js";
@@ -67,10 +69,6 @@ export function buildRunDiff(a: WorkflowRunMetadata, b: WorkflowRunMetadata): St
   return diffs;
 }
 
-function pad(s: string, width: number): string {
-  return s.length >= width ? s.slice(0, width) : s + " ".repeat(width - s.length);
-}
-
 function fmtStatus(status: string | null): string {
   return status === null ? "N/A" : statusIcon(status);
 }
@@ -86,57 +84,74 @@ function fmtCost(cost: number | null): string {
   return cost === null ? "—" : `$${cost.toFixed(3)}`;
 }
 
-export function buildRunDiffLines(a: WorkflowRunMetadata, b: WorkflowRunMetadata): LineNode[] {
+function deltaRole(a: number | null, b: number | null): SemanticRole {
+  if (a === null || b === null) return "muted";
+  const delta = b - a;
+  if (delta === 0) return "muted";
+  return delta > 0 ? "warn" : "success";
+}
+
+export function formatRunDiff(a: WorkflowRunMetadata, b: WorkflowRunMetadata): RenderNode {
   const diffs = buildRunDiff(a, b);
   const hasCost = diffs.some((d) => d.costA !== null || d.costB !== null);
 
-  const COL = { step: 20, status: 7, dur: 10, delta: 11, cost: 9, cdelta: 10 };
+  const baseSpecs: Array<{
+    header: string;
+    align?: "left" | "right";
+    minWidth?: number;
+    maxWidth?: number;
+    role?: SemanticRole;
+  }> = [
+    { header: "Step", role: "accent", maxWidth: 24 },
+    { header: "Status", minWidth: 5 },
+    { header: "A Dur", align: "right", minWidth: 6 },
+    { header: "B Dur", align: "right", minWidth: 6 },
+    { header: "Δ Dur", align: "right", minWidth: 6 },
+  ];
+  if (hasCost) {
+    baseSpecs.push(
+      { header: "A Cost", align: "right", minWidth: 7 },
+      { header: "B Cost", align: "right", minWidth: 7 },
+      { header: "Δ Cost", align: "right", minWidth: 7 },
+    );
+  }
 
-  const headerText = [
-    pad("Step", COL.step),
-    pad("Status", COL.status),
-    pad("A Dur", COL.dur),
-    pad("B Dur", COL.dur),
-    pad("Δ Dur", COL.delta),
-    ...(hasCost ? [pad("A Cost", COL.cost), pad("B Cost", COL.cost), pad("Δ Cost", COL.cdelta)] : []),
-  ].join(" ").trimEnd();
-
-  const sep = "-".repeat(headerText.length);
-
-  const rows: LineNode[] = diffs.map((d) => {
-    const stepLabel = d.id.length > COL.step ? `${d.id.slice(0, COL.step - 1)}…` : d.id;
+  const rows = diffs.map((d) => {
     const statusStr = `${fmtStatus(d.statusA)}→${fmtStatus(d.statusB)}`;
     const durA = d.durMsA === null ? "N/A" : formatDuration(d.durMsA);
     const durB = d.durMsB === null ? "N/A" : formatDuration(d.durMsB);
     const durDelta = fmtDelta(d.durMsA, d.durMsB, (n) => formatDuration(Math.abs(n)));
 
-    const cols = [
-      pad(stepLabel, COL.step),
-      pad(statusStr, COL.status),
-      pad(durA, COL.dur),
-      pad(durB, COL.dur),
-      pad(durDelta, COL.delta),
-      ...(hasCost ? [
-        pad(fmtCost(d.costA), COL.cost),
-        pad(fmtCost(d.costB), COL.cost),
-        pad(fmtDelta(d.costA, d.costB, (n) => `$${Math.abs(n).toFixed(3)}`), COL.cdelta),
-      ] : []),
+    const cells: Array<{ spans: Array<{ text: string; role?: SemanticRole }> }> = [
+      { spans: [{ text: d.id, role: "accent" }] },
+      { spans: [{ text: statusStr }] },
+      { spans: [{ text: durA }] },
+      { spans: [{ text: durB }] },
+      { spans: [{ text: durDelta, role: deltaRole(d.durMsA, d.durMsB) }] },
     ];
-    return line(plain(cols.join(" ").trimEnd()));
+    if (hasCost) {
+      cells.push(
+        { spans: [{ text: fmtCost(d.costA), role: "muted" }] },
+        { spans: [{ text: fmtCost(d.costB), role: "muted" }] },
+        {
+          spans: [
+            {
+              text: fmtDelta(d.costA, d.costB, (n) => `$${Math.abs(n).toFixed(3)}`),
+              role: deltaRole(d.costA, d.costB),
+            },
+          ],
+        },
+      );
+    }
+    return { cells };
   });
 
-  return [
-    line(plain(`Run A: ${a.id}  (${a.workflow})`)),
-    line(plain(`Run B: ${b.id}  (${b.workflow})`)),
-    line(plain("")),
-    line(plain(headerText)),
-    line(plain(sep)),
-    ...rows,
-  ];
-}
-
-export function formatRunDiff(a: WorkflowRunMetadata, b: WorkflowRunMetadata): RenderNode {
-  return stack(...buildRunDiffLines(a, b));
+  return stack(
+    line(plain("Run A: "), { text: a.id, role: "accent" }, plain(`  (${a.workflow})`)),
+    line(plain("Run B: "), { text: b.id, role: "accent" }, plain(`  (${b.workflow})`)),
+    blank(),
+    columns(baseSpecs, rows),
+  );
 }
 
 function resolveRunId(store: WorkflowRunStore, runId: string): string {

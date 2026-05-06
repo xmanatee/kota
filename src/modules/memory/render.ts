@@ -8,7 +8,7 @@ function formatDate(iso: string): string {
  * Plain-text rendering of memory search results — one line per entry showing
  * id, created date, and a short content snippet. Used by surfaces (Telegram)
  * that cannot consume the structured rendering primitives `cli.ts` uses for
- * the terminal. Mirrors the column shape of `buildMemoryListLines` so the
+ * the terminal. Mirrors the column shape of `buildMemoryListNode` so the
  * operator sees the same id/date/content ordering across surfaces.
  */
 export function renderMemorySearchPlain(entries: MemoryListEntry[]): string {

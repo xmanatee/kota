@@ -1,6 +1,16 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { blank, type LineNode, line, plain, stack } from "#modules/rendering/primitives.js";
+import {
+  blank,
+  type ColumnsNode,
+  columns,
+  group,
+  line,
+  plain,
+  type RenderNode,
+  type SemanticRole,
+  stack,
+} from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 import { formatDate } from "../utils.js";
 
@@ -45,35 +55,68 @@ export function computeWorkflowCostRows(runs: RunCostEntry[]): WorkflowCostRow[]
     .sort((a, b) => b.totalCostUsd - a.totalCostUsd);
 }
 
-export function buildSummaryTableLines(rows: WorkflowCostRow[]): LineNode[] {
-  if (rows.length === 0) return [];
-  const nameWidth = Math.max(...rows.map((r) => r.workflow.length), 8);
-  const header =
-    `${"Workflow".padEnd(nameWidth)}  ${"Total".padStart(10)}  ${"Runs".padStart(5)}  ${"Avg/run".padStart(9)}  ${"Max run".padStart(9)}`;
-  const lines: LineNode[] = [
-    line(plain(header)),
-    line(plain("-".repeat(header.length))),
-  ];
-  for (const row of rows) {
-    const name = row.workflow.padEnd(nameWidth);
-    const total = `$${row.totalCostUsd.toFixed(4)}`.padStart(10);
-    const count = String(row.runs).padStart(5);
-    const avg = `$${row.averageCostUsd.toFixed(4)}`.padStart(9);
-    const max = `$${row.maxRunCostUsd.toFixed(4)}`.padStart(9);
-    lines.push(line(plain(`${name}  ${total}  ${count}  ${avg}  ${max}`)));
+function runStatusRole(status: string): SemanticRole {
+  switch (status) {
+    case "success":
+      return "success";
+    case "failed":
+      return "error";
+    case "interrupted":
+      return "warn";
+    case "completed-with-warnings":
+      return "warn";
+    case "running":
+      return "info";
+    default:
+      return "muted";
   }
-  return lines;
 }
 
-export function buildRunBreakdownLines(runs: RunCostEntry[]): LineNode[] {
+export function buildSummaryTableNode(rows: WorkflowCostRow[]): ColumnsNode | null {
+  if (rows.length === 0) return null;
+  return columns(
+    [
+      { header: "Workflow", role: "accent", minWidth: 8 },
+      { header: "Total", align: "right", minWidth: 8 },
+      { header: "Runs", align: "right", minWidth: 4 },
+      { header: "Avg/run", align: "right", minWidth: 8 },
+      { header: "Max run", align: "right", minWidth: 8 },
+    ],
+    rows.map((row) => ({
+      cells: [
+        { spans: [{ text: row.workflow, role: "accent" as SemanticRole }] },
+        { spans: [{ text: `$${row.totalCostUsd.toFixed(4)}`, role: "muted" as SemanticRole }] },
+        { spans: [{ text: String(row.runs) }] },
+        { spans: [{ text: `$${row.averageCostUsd.toFixed(4)}`, role: "muted" as SemanticRole }] },
+        { spans: [{ text: `$${row.maxRunCostUsd.toFixed(4)}`, role: "muted" as SemanticRole }] },
+      ],
+    })),
+  );
+}
+
+export function buildRunBreakdownNode(runs: RunCostEntry[]): RenderNode {
   const finished = runs.filter((r) => r.status !== "running");
-  if (finished.length === 0) return [line(plain("  (no completed runs)"))];
+  if (finished.length === 0) return line(plain("  (no completed runs)"));
   const sorted = [...finished].sort((a, b) => (b.totalCostUsd ?? 0) - (a.totalCostUsd ?? 0));
-  return sorted.map((run) => {
-    const cost = run.totalCostUsd != null ? `$${run.totalCostUsd.toFixed(4)}` : "—";
-    const when = formatDate(run.startedAt);
-    return line(plain(`  ${run.id}  ${cost.padStart(9)}  ${when}  ${run.status}`));
-  });
+  return columns(
+    [
+      { header: "Run", role: "accent" },
+      { header: "Cost", align: "right", minWidth: 8 },
+      { header: "Started" },
+      { header: "Status" },
+    ],
+    sorted.map((run) => {
+      const cost = run.totalCostUsd != null ? `$${run.totalCostUsd.toFixed(4)}` : "—";
+      return {
+        cells: [
+          { spans: [{ text: run.id, role: "accent" as SemanticRole }] },
+          { spans: [{ text: cost, role: "muted" as SemanticRole }] },
+          { spans: [{ text: formatDate(run.startedAt), role: "muted" as SemanticRole }] },
+          { spans: [{ text: run.status, role: runStatusRole(run.status) }] },
+        ],
+      };
+    }),
+  );
 }
 
 export function registerCostCommand(wfCmd: Command, ctx: ModuleContext): void {
@@ -118,17 +161,26 @@ export function registerCostCommand(wfCmd: Command, ctx: ModuleContext): void {
         return;
       }
 
-      const children: LineNode[] = [
-        line(plain(`Last ${days} day${days === 1 ? "" : "s"} — $${grandTotal.toFixed(4)} total across ${finished.length} run${finished.length === 1 ? "" : "s"}`)),
-      ];
-      print(stack(...children, blank(), ...buildSummaryTableLines(rows)));
+      const summary = line(
+        plain(`Last ${days} day${days === 1 ? "" : "s"} — `),
+        { text: `$${grandTotal.toFixed(4)}`, role: "accent" },
+        plain(
+          ` total across ${finished.length} run${finished.length === 1 ? "" : "s"}`,
+        ),
+      );
+      const summaryTable = buildSummaryTableNode(rows);
+      const blocks: RenderNode[] = [summary, blank()];
+      if (summaryTable) blocks.push(summaryTable);
+      print(stack(...blocks));
 
       if (opts.workflow) {
-        print(stack(
-          blank(),
-          line(plain(`Per-run breakdown — ${opts.workflow}:`)),
-          ...buildRunBreakdownLines(runs),
-        ));
+        print(
+          group(
+            `Per-run breakdown — ${opts.workflow}`,
+            buildRunBreakdownNode(runs),
+            "info",
+          ),
+        );
       }
     });
 }

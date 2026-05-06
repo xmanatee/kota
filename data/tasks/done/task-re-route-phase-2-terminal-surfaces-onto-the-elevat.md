@@ -1,12 +1,12 @@
 ---
 id: task-re-route-phase-2-terminal-surfaces-onto-the-elevat
 title: Re-route Phase 2 terminal surfaces onto the elevated rendering primitive vocabulary
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Migrate hand-rolled LineNode-padding tables and section soup across Phase 2 terminal surfaces (repo-tasks list, workflow-ops run-show chain tree, run-list/run-stats/run-cost, history list/show, memory/knowledge/skill-ops listings) onto the elevated columns/group/dashboard/sectionRule/prose primitives so width-adaptation and role-aware visual hierarchy land outside formatDaemonStatus.
 created_at: 2026-05-06T05:46:53.412Z
-updated_at: 2026-05-06T05:46:53.412Z
+updated_at: 2026-05-06T06:17:42.393Z
 ---
 
 ## Problem

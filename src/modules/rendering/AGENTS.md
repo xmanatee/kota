@@ -82,15 +82,29 @@ finalize for an interactive TTY.
 
 When migrating a surface:
 
-1. Build a `RenderNode` from the surface's typed data (a function whose
-   only inputs are domain values and whose only output is a node).
+1. Build a `RenderNode` from the surface's typed data with a pure
+   `buildXNode(...)` helper whose only inputs are domain values and
+   whose only output is a node. Tabular surfaces return a `ColumnsNode`
+   with explicit `ColumnSpec[]`; nested or hierarchical surfaces return
+   a `GroupNode` whose body is a recursive node; section blocks return
+   a `StackNode` with `sectionRule`/`group` children.
 2. Surface the node through `print` for CLI entry points, or through
    `renderToString` when another string consumer reads the result.
 3. Delete any local padding, ANSI, or width code the surface no longer
-   needs. Do not keep both paths.
-4. If a test asserted specific whitespace, loosen it to match the
-   primitive — alignment invariants belong in the renderer's unit tests,
-   not in downstream output checks.
+   needs. Do not keep both paths — drop the old `buildXLines` /
+   `LineNode[]` shape in the same change.
+4. Tests assert via `renderToString` against the typed node, not by
+   capturing stdout or asserting line-array shape. Cover all three
+   themes (`default`, `ascii`, `no-color`) plus a wide and a narrow
+   width when the surface has user-visible width adaptation.
+5. Columns whose text can run long (`Title`, `summary`, `path`,
+   `Description`) declare a `maxWidth` so they truncate cleanly under a
+   narrow terminal instead of overflowing. Role-aware coloring stays
+   on the cell `TextSpan`'s `role` (or the `ColumnSpec.role` fallback);
+   no surface paints ANSI directly.
+6. Machine-parseable output paths (JSON, JSONL, bare-id stdout) stay
+   on their existing typed I/O — the migration is for human-facing
+   rendered output only.
 
 Do not introduce a second rendering DSL, a parallel theme object, or a
 per-surface color palette. All of those go here.

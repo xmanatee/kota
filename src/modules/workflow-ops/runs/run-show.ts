@@ -9,11 +9,15 @@ import { extractRepairSummary } from "#core/workflow/run-store-snapshot.js";
 import type { WorkflowRunMetadata, WorkflowStepSkipReason } from "#core/workflow/run-types.js";
 import {
   blank,
+  group,
   json,
+  type KVEntry,
+  kvBlock,
   type LineNode,
   line,
   plain,
   type RenderNode,
+  type SemanticRole,
   span,
   stack,
   type TextSpan,
@@ -101,75 +105,100 @@ async function buildChainTree(
   return node;
 }
 
-export function buildChainLines(
-  node: ChainNode,
-  currentId: string,
-  prefix: string,
-  isLast: boolean,
-  isRoot: boolean,
-): LineNode[] {
-  const connector = isRoot ? "" : isLast ? "└─ " : "├─ ";
+function chainNodeRole(status: string): SemanticRole {
+  switch (status) {
+    case "success":
+      return "success";
+    case "failed":
+      return "error";
+    case "interrupted":
+      return "warn";
+    case "completed-with-warnings":
+      return "warn";
+    case "running":
+      return "info";
+    default:
+      return "muted";
+  }
+}
+
+function chainRowLabel(node: ChainNode, currentId: string, connector: string): string {
   const dur = node.durationMs != null ? ` (${formatDuration(node.durationMs)})` : "";
   const marker = node.id === currentId ? " ← current" : "";
   const icon = statusIcon(node.status);
-  const lines: LineNode[] = [
-    line(plain(`${prefix}${connector}${icon} ${node.workflow}/${node.id}${dur}${marker}`)),
-  ];
-  const childPrefix = isRoot ? prefix : prefix + (isLast ? "   " : "│  ");
-  for (let i = 0; i < node.children.length; i++) {
-    lines.push(
-      ...buildChainLines(
-        node.children[i]!,
-        currentId,
-        childPrefix,
-        i === node.children.length - 1,
-        false,
-      ),
-    );
-  }
-  return lines;
+  return `${connector}${icon} ${node.workflow}/${node.id}${dur}${marker}`;
 }
 
-export function printChainTree(
+function buildChainChildEntry(
   node: ChainNode,
   currentId: string,
-  prefix: string,
   isLast: boolean,
-  isRoot: boolean,
-): void {
-  print(stack(...buildChainLines(node, currentId, prefix, isLast, isRoot)));
+): RenderNode {
+  const connector = isLast ? "└─ " : "├─ ";
+  const label = chainRowLabel(node, currentId, connector);
+  if (node.children.length === 0) return line(plain(label));
+  return group(
+    label,
+    stack(
+      ...node.children.map((c, i) =>
+        buildChainChildEntry(c, currentId, i === node.children.length - 1),
+      ),
+    ),
+    chainNodeRole(node.status),
+  );
 }
 
-function labeledKVLine(label: string, value: string, labelWidth: number): LineNode {
-  return line(plain(`${`${label}:`.padEnd(labelWidth)} ${value}`));
+export function buildChainNode(node: ChainNode, currentId: string): RenderNode {
+  const rootLabel = chainRowLabel(node, currentId, "");
+  if (node.children.length === 0) return line(plain(rootLabel));
+  return group(
+    rootLabel,
+    stack(
+      ...node.children.map((c, i) =>
+        buildChainChildEntry(c, currentId, i === node.children.length - 1),
+      ),
+    ),
+    chainNodeRole(node.status),
+  );
+}
+
+export function printChainTree(node: ChainNode, currentId: string): void {
+  print(buildChainNode(node, currentId));
 }
 
 function buildRunHeader(metadata: WorkflowRunMetadata, showPayload: boolean): RenderNode {
-  const labelWidth = 9;
-  const lines: LineNode[] = [
-    line(plain(`Run:      ${metadata.id}`)),
-    line(plain(`Workflow: ${metadata.workflow}`)),
-    line(plain("Status:   "), plain(`${statusIcon(metadata.status)} ${metadata.status}`)),
+  const entries: KVEntry[] = [
+    { label: "Run", value: metadata.id, role: "accent" },
+    { label: "Workflow", value: metadata.workflow },
+    {
+      label: "Status",
+      value: `${statusIcon(metadata.status)} ${metadata.status}`,
+      role: chainNodeRole(metadata.status),
+    },
   ];
-  if (metadata.retryOf) lines.push(line(plain(`Retry of: ${metadata.retryOf}`)));
+  if (metadata.retryOf) entries.push({ label: "Retry of", value: metadata.retryOf, role: "muted" });
   if (metadata.resumedFromRunId) {
-    lines.push(labeledKVLine("Resumed from", metadata.resumedFromRunId, labelWidth));
+    entries.push({ label: "Resumed from", value: metadata.resumedFromRunId, role: "muted" });
   }
-  lines.push(line(plain(`Trigger:  ${metadata.trigger.event}`)));
+  entries.push({ label: "Trigger", value: metadata.trigger.event });
   if (metadata.tags && metadata.tags.length > 0) {
-    lines.push(line(plain(`Tags:     ${metadata.tags.join(", ")}`)));
+    entries.push({ label: "Tags", value: metadata.tags.join(", "), role: "muted" });
   }
-  lines.push(line(plain(`Started:  ${new Date(metadata.startedAt).toLocaleString()}`)));
+  entries.push({ label: "Started", value: new Date(metadata.startedAt).toLocaleString(), role: "muted" });
   if (metadata.completedAt) {
-    lines.push(line(plain(`Finished: ${new Date(metadata.completedAt).toLocaleString()}`)));
+    entries.push({ label: "Finished", value: new Date(metadata.completedAt).toLocaleString(), role: "muted" });
   }
   if (metadata.durationMs != null) {
-    lines.push(line(plain(`Duration: ${formatDuration(metadata.durationMs)}`)));
+    entries.push({ label: "Duration", value: formatDuration(metadata.durationMs) });
   }
   if (metadata.totalCostUsd != null) {
-    lines.push(line(plain(`Cost:     $${metadata.totalCostUsd.toFixed(4)}`)));
+    entries.push({
+      label: "Cost",
+      value: `$${metadata.totalCostUsd.toFixed(4)}`,
+      role: "muted",
+    });
   }
-  const nodes: RenderNode[] = [...lines];
+  const nodes: RenderNode[] = [kvBlock(entries)];
   if (
     showPayload &&
     metadata.trigger.payload &&
@@ -386,7 +415,7 @@ export function registerRunShowCommand(wfCmd: Command, ctx: ModuleContext): void
           print(line(...errorSpans(`Could not load chain for run "${resolvedId}".`)));
           process.exit(1);
         }
-        printChainTree(tree, resolvedId, "", true, true);
+        printChainTree(tree, resolvedId);
         return;
       }
 

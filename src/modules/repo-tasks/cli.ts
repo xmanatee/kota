@@ -5,9 +5,12 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import {
 	blank,
+	type ColumnsNode,
+	columns,
 	type LineNode,
 	line,
 	plain,
+	type SemanticRole,
 	span,
 	stack,
 } from "#modules/rendering/primitives.js";
@@ -114,7 +117,7 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 				return;
 			}
 
-			print(stack(...buildTaskListLines(result.tasks)));
+			print(buildTaskListNode(result.tasks));
 		});
 
 	taskCmd
@@ -343,29 +346,28 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 		});
 }
 
-export function buildTaskListLines(
+export function buildTaskListNode(
 	tasks: { id: string; priority: string; state: RepoTaskState; title: string }[],
-): LineNode[] {
-	const idWidth = Math.max(...tasks.map((t) => t.id.length), 4);
-	const prioWidth = 4;
-	const stateWidth = Math.max(...tasks.map((t) => t.state.length), 5);
-	const header = line(span(
-		`${"ID".padEnd(idWidth)}  ${"Pri".padEnd(prioWidth)}  ${"State".padEnd(stateWidth)}  Title`,
-		"muted",
-		true,
-	));
-	const rule = line(span("-".repeat(idWidth + prioWidth + stateWidth + 12), "muted"));
-	const rows: LineNode[] = tasks.map((t) => line(
-		plain(`${t.id.padEnd(idWidth)}  `),
-		span(t.priority.padEnd(prioWidth), priorityRole(t.priority)),
-		plain("  "),
-		span(t.state.padEnd(stateWidth), stateRole(t.state)),
-		plain(`  ${t.title}`),
-	));
-	return [header, rule, ...rows];
+): ColumnsNode {
+	return columns(
+		[
+			{ header: "ID", role: "accent" },
+			{ header: "Pri", minWidth: 3 },
+			{ header: "State", minWidth: 5 },
+			{ header: "Title", maxWidth: 60 },
+		],
+		tasks.map((t) => ({
+			cells: [
+				{ spans: [{ text: t.id, role: "accent" }] },
+				{ spans: [{ text: t.priority, role: priorityRole(t.priority) }] },
+				{ spans: [{ text: t.state, role: stateRole(t.state) }] },
+				{ spans: [{ text: t.title }] },
+			],
+		})),
+	);
 }
 
-function priorityRole(priority: string): "error" | "warn" | "info" | "muted" {
+function priorityRole(priority: string): SemanticRole {
 	switch (priority) {
 		case "p0":
 			return "error";
@@ -378,7 +380,7 @@ function priorityRole(priority: string): "error" | "warn" | "info" | "muted" {
 	}
 }
 
-function stateRole(state: RepoTaskState): "success" | "warn" | "accent" | "muted" {
+function stateRole(state: RepoTaskState): SemanticRole {
 	switch (state) {
 		case "doing":
 			return "accent";

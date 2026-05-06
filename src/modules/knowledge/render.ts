@@ -4,7 +4,7 @@ import type { KnowledgeEntry } from "#core/modules/provider-types.js";
  * Plain-text rendering of knowledge search results — one line per entry
  * showing id, type, status, and title. Used by surfaces (Telegram) that
  * cannot consume the structured rendering primitives `cli.ts` uses for
- * the terminal. Mirrors the column shape of `buildKnowledgeSearchLines`
+ * the terminal. Mirrors the column shape of `buildKnowledgeSearchNode`
  * so the operator sees the same id/type ordering across surfaces.
  */
 export function renderKnowledgeSearchPlain(entries: KnowledgeEntry[]): string {

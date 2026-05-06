@@ -10,11 +10,11 @@ import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import {
-  type LineNode,
+  type ColumnsNode,
+  columns,
   line,
   plain,
   span,
-  stack,
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 import type {
@@ -45,7 +45,7 @@ function buildSkillCommand(ctx: ModuleContext): Command {
         print(line(plain("No skills registered.")));
         return;
       }
-      print(stack(...buildSkillListLines(result.skills)));
+      print(buildSkillListNode(result.skills));
     });
 
   skillCmd
@@ -72,22 +72,21 @@ function buildSkillCommand(ctx: ModuleContext): Command {
   return skillCmd;
 }
 
-export function buildSkillListLines(skills: SkillSummary[]): LineNode[] {
-  const nameWidth = Math.max(...skills.map((s) => s.name.length), 4);
-  const srcWidth = Math.max(...skills.map((s) => s.source.length), 6);
-  const header = line(span(
-    `${"Name".padEnd(nameWidth)}  ${"Source".padEnd(srcWidth)}  Description`,
-    "muted",
-    true,
-  ));
-  const rule = line(span("-".repeat(nameWidth + srcWidth + 16), "muted"));
-  const rows: LineNode[] = skills.map((s) => line(
-    span(s.name.padEnd(nameWidth), "accent"),
-    plain("  "),
-    span(s.source.padEnd(srcWidth), "info"),
-    plain(`  ${s.description ?? ""}`),
-  ));
-  return [header, rule, ...rows];
+export function buildSkillListNode(skills: SkillSummary[]): ColumnsNode {
+  return columns(
+    [
+      { header: "Name", role: "accent" },
+      { header: "Source", role: "info" },
+      { header: "Description", maxWidth: 80 },
+    ],
+    skills.map((s) => ({
+      cells: [
+        { spans: [{ text: s.name, role: "accent" }] },
+        { spans: [{ text: s.source, role: "info" }] },
+        { spans: [{ text: s.description ?? "" }] },
+      ],
+    })),
+  );
 }
 
 const skillsModule: KotaModule = {

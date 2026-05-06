@@ -1,6 +1,14 @@
 import type { Command } from "commander";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import { type LineNode, line, plain, stack } from "#modules/rendering/primitives.js";
+import {
+  blank,
+  columns,
+  line,
+  plain,
+  type RenderNode,
+  type SemanticRole,
+  stack,
+} from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 import { formatDuration } from "../utils.js";
 import { computeHistoryStats, loadRunsInWindow } from "./workflow-history.js";
@@ -36,25 +44,42 @@ export function computeStatsRows(
   });
 }
 
-export function buildStatsLines(rows: StatsRow[], days: number): LineNode[] {
-  const nameWidth = Math.max(...rows.map((r) => r.workflow.length), 8);
-  const header =
-    `${"Workflow".padEnd(nameWidth)}  ${"Runs".padStart(5)}  ${"Success".padStart(7)}  ${"Failed".padStart(6)}  ${"Avg Duration".padStart(12)}  ${"Total Cost".padStart(10)}`;
-  const lines: LineNode[] = [
-    line(plain(header)),
-    line(plain("-".repeat(header.length))),
-  ];
-
-  for (const row of rows) {
-    const avgDur = row.avgDurationMs != null ? formatDuration(Math.round(row.avgDurationMs)) : "—";
-    lines.push(line(plain(
-      `${row.workflow.padEnd(nameWidth)}  ${String(row.runs).padStart(5)}  ${String(row.successes).padStart(7)}  ${String(row.failures).padStart(6)}  ${avgDur.padStart(12)}  ${`$${row.totalCostUsd.toFixed(3)}`.padStart(10)}`,
-    )));
-  }
-
-  lines.push(line(plain("")));
-  lines.push(line(plain(`(${days}-day window)`)));
-  return lines;
+export function buildStatsNode(rows: StatsRow[], days: number): RenderNode {
+  return stack(
+    columns(
+      [
+        { header: "Workflow", role: "accent", minWidth: 8 },
+        { header: "Runs", align: "right", minWidth: 4 },
+        { header: "Success", align: "right", minWidth: 7 },
+        { header: "Failed", align: "right", minWidth: 6 },
+        { header: "Avg Duration", align: "right", minWidth: 8 },
+        { header: "Total Cost", align: "right", minWidth: 8 },
+      ],
+      rows.map((row) => {
+        const avgDur =
+          row.avgDurationMs != null ? formatDuration(Math.round(row.avgDurationMs)) : "—";
+        return {
+          cells: [
+            { spans: [{ text: row.workflow, role: "accent" as SemanticRole }] },
+            { spans: [{ text: String(row.runs) }] },
+            { spans: [{ text: String(row.successes), role: "success" as SemanticRole }] },
+            {
+              spans: [
+                {
+                  text: String(row.failures),
+                  role: (row.failures > 0 ? "error" : "muted") as SemanticRole,
+                },
+              ],
+            },
+            { spans: [{ text: avgDur }] },
+            { spans: [{ text: `$${row.totalCostUsd.toFixed(3)}`, role: "muted" as SemanticRole }] },
+          ],
+        };
+      }),
+    ),
+    blank(),
+    line(plain(`(${days}-day window)`)),
+  );
 }
 
 export function registerStatsCommand(wfCmd: Command): void {
@@ -81,6 +106,6 @@ export function registerStatsCommand(wfCmd: Command): void {
         return;
       }
 
-      print(stack(...buildStatsLines(rows, days)));
+      print(buildStatsNode(rows, days));
     });
 }
