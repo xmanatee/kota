@@ -8,7 +8,8 @@ import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { getSecretStore } from "#core/config/secrets.js";
 import type { EventBus } from "#core/events/event-bus.js";
-import type { ModuleEventDef } from "#core/events/module-event.js";
+import type { BusEnvelope, BusEvents } from "#core/events/event-bus-types.js";
+import type { ModuleEventDef, ModuleEventPayload } from "#core/events/module-event.js";
 import { registerCleanupHook } from "#core/loop/cleanup-hooks.js";
 import { registerDynamicStateProvider } from "#core/loop/dynamic-state.js";
 import { registerPreSendHook as registerPreSendHookImpl } from "#core/loop/pre-send-hooks.js";
@@ -58,47 +59,64 @@ function getOrCreateStorage(
   return storage;
 }
 
-function isModuleEventDef(value: unknown): value is ModuleEventDef {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as { name?: unknown }).name === "string" &&
-    Array.isArray((value as { fields?: unknown }).fields)
-  );
+/**
+ * Typed implementation of `ModuleEventProxy`. Mirrors `EventBus`'s overloaded
+ * shape so the value structurally satisfies the public interface without
+ * round-tripping through `unknown`. Each public method declares the same
+ * overloads `ModuleEventProxy` does, with a single combined implementation
+ * signature that mirrors `EventBus`.
+ */
+class ModuleEventProxyImpl implements ModuleEventProxy {
+  constructor(private readonly getBus: () => EventBus | null) {}
+
+  emit<K extends keyof BusEvents>(event: K, payload: BusEvents[K]): void;
+  emit<E extends ModuleEventDef>(event: E, payload: ModuleEventPayload<E>): void;
+  emit(event: string | ModuleEventDef, payload: Record<string, unknown>): void {
+    const bus = this.getBus();
+    if (!bus) return;
+    const name = typeof event === "string" ? event : event.name;
+    bus.emit(name, payload);
+  }
+
+  subscribe<K extends keyof BusEvents>(
+    event: K,
+    handler: (payload: BusEvents[K]) => void,
+  ): () => void;
+  subscribe<E extends ModuleEventDef>(
+    event: E,
+    handler: (payload: ModuleEventPayload<E>) => void,
+  ): () => void;
+  subscribe(event: "*", handler: (envelope: BusEnvelope) => void): () => void;
+  subscribe(
+    event: string | ModuleEventDef,
+    handler: (payload: never) => void,
+  ): () => void {
+    const bus = this.getBus();
+    if (!bus) return () => {};
+    const name = typeof event === "string" ? event : event.name;
+    return bus.on(name, handler as never);
+  }
+
+  emitExternal(event: string, payload: Record<string, unknown>): void {
+    this.getBus()?.emit(event, payload);
+  }
+
+  subscribeExternal(
+    event: string,
+    handler: (payload: Record<string, unknown>) => void,
+  ): () => void {
+    const bus = this.getBus();
+    if (!bus) return () => {};
+    return bus.on(event, handler as never);
+  }
+
+  listenerCount(event?: string): number {
+    return this.getBus()?.listenerCount(event) ?? 0;
+  }
 }
 
-function createEventProxy(
-  getBus: () => EventBus | null,
-): ModuleEventProxy {
-  const proxy = {
-    emit: (event: unknown, payload: Record<string, unknown>): void => {
-      const bus = getBus();
-      if (!bus) return;
-      const name = isModuleEventDef(event) ? event.name : (event as string);
-      bus.emit(name, payload);
-    },
-    subscribe: (event: unknown, handler: (payload: never) => void): () => void => {
-      const bus = getBus();
-      if (!bus) return () => {};
-      const name = isModuleEventDef(event) ? event.name : (event as string);
-      return bus.on(name, handler as never);
-    },
-    emitExternal: (event: string, payload: Record<string, unknown>): void => {
-      getBus()?.emit(event, payload);
-    },
-    subscribeExternal: (
-      event: string,
-      handler: (payload: Record<string, unknown>) => void,
-    ): () => void => {
-      const bus = getBus();
-      if (!bus) return () => {};
-      return bus.on(event, handler as never);
-    },
-    listenerCount: (event?: string): number => {
-      return getBus()?.listenerCount(event) ?? 0;
-    },
-  };
-  return proxy as unknown as ModuleEventProxy;
+function createEventProxy(getBus: () => EventBus | null): ModuleEventProxy {
+  return new ModuleEventProxyImpl(getBus);
 }
 
 export function createModuleContext(params: ModuleContextParams, moduleName?: string): ModuleRuntimeContext {

@@ -1,12 +1,12 @@
 ---
 id: task-remove-as-unknown-as-moduleeventproxy-self-cast-in
 title: Remove as-unknown-as ModuleEventProxy self-cast in createEventProxy by typing the proxy with overloaded function signatures
-status: ready
+status: done
 priority: p2
 area: core
 summary: Tighten createEventProxy in core/modules/module-context.ts so it structurally satisfies ModuleEventProxy without an as-unknown cast, dropping the canonical strict-types-policy violation at the module event-proxy boundary.
 created_at: 2026-05-06T07:37:09.023Z
-updated_at: 2026-05-06T07:37:09.023Z
+updated_at: 2026-05-06T07:44:04.434Z
 ---
 
 ## Problem

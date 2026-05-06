@@ -49,7 +49,7 @@
   "src/core/model/streaming.ts": 1,
   "src/core/modules/foreign-module-loader.ts": 5,
   "src/core/modules/foreign-module.ts": 2,
-  "src/core/modules/module-context.ts": 15,
+  "src/core/modules/module-context.ts": 9,
   "src/core/modules/module-discovery.ts": 2,
   "src/core/modules/module-log.ts": 2,
   "src/core/modules/module-storage.ts": 1,
