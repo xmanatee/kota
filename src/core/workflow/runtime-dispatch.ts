@@ -1,6 +1,5 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
@@ -12,13 +11,16 @@ import { formatRunId } from "./run-io.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowRunExecutionResult } from "./run-types.js";
 import type { WorkflowRuntimeConfig } from "./runtime-config.js";
+import { canDispatchDefinition } from "./runtime-dispatch-concurrency.js";
+import { loadDefinitions } from "./runtime-dispatch-definitions.js";
+import { handleDirtyCompletion } from "./runtime-dispatch-dirty-recovery.js";
 import { checkAbortSignal, checkReloadSignal, PAUSE_SIGNAL_FILE } from "./runtime-signals.js";
 import type { ScheduleTriggerManager } from "./schedule-triggers.js";
-import type { WorkflowStep } from "./step-types.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
-import { validateWorkflowDefinitions } from "./validation.js";
 import type { WorkflowQueueManager } from "./workflow-queue.js";
+
+export { loadDefinitions, resolveDefinitions } from "./runtime-dispatch-definitions.js";
 
 export interface WorkflowRuntimeDispatchState {
   projectDir: string;
@@ -45,157 +47,6 @@ export interface WorkflowRuntimeDispatchState {
   resolveAgentDef?: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   log(message: string): void;
-}
-
-export function compileDefinitions(
-  state: Pick<WorkflowRuntimeDispatchState, "workflowInputs" | "projectDir" | "config">,
-): WorkflowDefinition[] {
-  return validateWorkflowDefinitions(state.workflowInputs ?? [], state.projectDir, {
-    defaultAgentHarness: state.config?.defaultAgentHarness,
-  });
-}
-
-function assertRegisteredHarnessesInSteps(steps: readonly WorkflowStep[]): void {
-  for (const step of steps) {
-    if (step.type === "agent") {
-      resolveAgentHarness(step.harness);
-      continue;
-    }
-    if (step.type === "parallel" || step.type === "foreach") {
-      assertRegisteredHarnessesInSteps(step.steps);
-      continue;
-    }
-    if (step.type === "branch") {
-      assertRegisteredHarnessesInSteps(step.ifTrue);
-      assertRegisteredHarnessesInSteps(step.ifFalse);
-    }
-  }
-}
-
-export function resolveDefinitions(
-  state: Pick<WorkflowRuntimeDispatchState, "workflowInputs" | "projectDir" | "config">,
-): WorkflowDefinition[] {
-  const definitions = compileDefinitions(state);
-  for (const definition of definitions) {
-    assertRegisteredHarnessesInSteps(definition.steps);
-  }
-  return definitions;
-}
-
-/**
- * Returns the concurrency group for a workflow definition.
- * Named groups serialize within themselves (cap 1).
- * Unnamed workflows fall into "agent" or "code" based on step types.
- */
-function getConcurrencyGroup(definition: WorkflowDefinition): string {
-  if (definition.concurrencyGroup) return definition.concurrencyGroup;
-  return workflowUsesAgent(definition) ? "agent" : "code";
-}
-
-function activeCountForGroup(state: WorkflowRuntimeDispatchState, group: string): number {
-  let count = 0;
-  for (const workflowName of state.activeRuns.keys()) {
-    const def = state.definitions.find((d) => d.name === workflowName);
-    if (def && getConcurrencyGroup(def) === group) count++;
-  }
-  return count;
-}
-
-function canDispatchDefinition(
-  state: WorkflowRuntimeDispatchState,
-  definition: WorkflowDefinition,
-): boolean {
-  const group = getConcurrencyGroup(definition);
-  let limit: number;
-  if (group === "agent") {
-    limit = state.agentConcurrency;
-  } else if (group === "code") {
-    limit = state.codeConcurrency;
-  } else {
-    limit = 1;
-  }
-  return activeCountForGroup(state, group) < limit;
-}
-
-function handleDirtyCompletion(
-  state: WorkflowRuntimeDispatchState,
-  definition: WorkflowDefinition,
-  metadata: WorkflowRunExecutionResult["metadata"],
-  preRunFingerprint: string,
-): void {
-  const worktree = getRepoWorktreeStatus(state.projectDir);
-  if (!worktree.available) return;
-
-  if (!worktree.trackedDirty) {
-    if (state.store.getRecovery()) {
-      state.store.setRecovery(null);
-    }
-    return;
-  }
-
-  const existing = state.store.getRecovery();
-
-  if (worktree.fingerprint === preRunFingerprint) {
-    if (existing) {
-      state.store.setRecovery({
-        ...existing,
-        retryAttemptedBy: [
-          ...existing.retryAttemptedBy,
-          { workflow: definition.name, runId: metadata.id, attemptedAt: new Date().toISOString() },
-        ],
-        updatedAt: new Date().toISOString(),
-      });
-    }
-    state.log(
-      `Worktree still dirty after "${definition.name}" but fingerprint unchanged — not attributing: ${worktree.summary}`,
-    );
-    return;
-  }
-
-  state.wfQueue.setRuns([]);
-  state.wfQueue.persist();
-  if (existing && existing.attempts >= 1) {
-    state.store.setRecovery({
-      ...existing,
-      worktreeFingerprint: worktree.fingerprint,
-      worktreeSummary: worktree.summary,
-      retryAttemptedBy: [
-        ...existing.retryAttemptedBy,
-        { workflow: definition.name, runId: metadata.id, attemptedAt: new Date().toISOString() },
-      ],
-      updatedAt: new Date().toISOString(),
-    });
-    state.dispatchPaused = true;
-    state.log(
-      `Recovery already attempted for dirty worktree left by "${existing.sourceWorkflow}" (${existing.sourceRunId}). Dispatch paused: ${worktree.summary}`,
-    );
-    return;
-  }
-
-  state.store.setRecovery({
-    sourceRunId: metadata.id,
-    sourceWorkflow: definition.name,
-    worktreeFingerprint: worktree.fingerprint,
-    worktreeSummary: worktree.summary,
-    attempts: existing?.attempts ?? 0,
-    retryAttemptedBy: existing?.retryAttemptedBy ?? [],
-    updatedAt: new Date().toISOString(),
-  });
-  state.dispatchPaused = true;
-  state.log(
-    `Workflow "${definition.name}" completed with uncommitted changes. Restarting for recovery: ${worktree.summary}`,
-  );
-  state.runtimeConfig.bus.emit("runtime.restart_requested", {
-    reason: `workflow "${definition.name}" completed with dirty worktree`,
-    workflow: definition.name,
-    runId: metadata.id,
-  });
-}
-
-export function loadDefinitions(state: WorkflowRuntimeDispatchState): WorkflowDefinition[] {
-  const validated = resolveDefinitions(state);
-  state.store.setDefinitionsLoadedAt(new Date().toISOString());
-  return validated;
 }
 
 export function emitIdleEvent(state: WorkflowRuntimeDispatchState): void {

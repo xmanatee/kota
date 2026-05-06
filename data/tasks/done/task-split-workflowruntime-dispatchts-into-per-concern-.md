@@ -1,12 +1,12 @@
 ---
 id: task-split-workflowruntime-dispatchts-into-per-concern-
 title: Split workflow/runtime-dispatch.ts into per-concern sibling files
-status: ready
+status: done
 priority: p2
 area: core
 summary: Split src/core/workflow/runtime-dispatch.ts (371 lines) into per-concern siblings: runtime-dispatch-definitions.ts, runtime-dispatch-concurrency.ts, runtime-dispatch-dirty-recovery.ts; runtime-dispatch.ts retains the dispatch loop and triggerWorkflow plumbing.
 created_at: 2026-05-06T04:32:09.754Z
-updated_at: 2026-05-06T04:32:09.754Z
+updated_at: 2026-05-06T04:39:00.486Z
 ---
 
 ## Problem
