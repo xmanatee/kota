@@ -1,5 +1,6 @@
 import type { WriteStream } from "node:tty";
-import type { RenderNode } from "./primitives.js";
+import { spinner } from "./primitive-ctors.js";
+import type { RenderNode, StatusKind } from "./primitives.js";
 import { type RenderContext, render, renderContext } from "./render.js";
 import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME, type Theme } from "./theme.js";
 
@@ -44,7 +45,7 @@ function asTransportStream(stream: WriteStream | TransportStream): TransportStre
 }
 
 export class TerminalTransport {
-  private readonly stream: TransportStream;
+  readonly stream: TransportStream;
   private readonly themeOverride: Theme | undefined;
   private readonly widthOverride: number | undefined;
 
@@ -105,4 +106,112 @@ export function print(node: RenderNode): void {
 export function renderToString(node: RenderNode, ctx?: Partial<RenderContext>): string {
   if (ctx) return render(node, ctx);
   return render(node, getTerminalTransport().context());
+}
+
+/**
+ * Spinner transport. Animation is owned by the transport rather than
+ * by the render-tree primitives — the pure renderer stays pure and
+ * emits a single static frame for non-TTY consumers (CI logs, piped
+ * output) so transcripts remain machine-parseable. On a real TTY the
+ * spinner re-renders in place, advancing through the spinner frames
+ * declared by the active theme's layout helper.
+ */
+export type SpinnerHandle = {
+  update(label: string): void;
+  succeed(label?: string): void;
+  fail(label?: string): void;
+  warn(label?: string): void;
+  stop(): void;
+};
+
+const SPINNER_TICK_MS = 80;
+
+export function startSpinner(
+  label: string,
+  opts: { transport?: TerminalTransport; intervalMs?: number } = {},
+): SpinnerHandle {
+  const transport = opts.transport ?? getTerminalTransport();
+  const interval = Math.max(20, opts.intervalMs ?? SPINNER_TICK_MS);
+  const stream = transport.stream;
+  const interactive = stream.isTTY === true;
+  let currentLabel = label;
+  let stopped = false;
+
+  const writeStatic = (status?: StatusKind) => {
+    transport.write(spinner(currentLabel, status ? { status } : undefined));
+  };
+
+  if (!interactive) {
+    writeStatic();
+    return {
+      update(next) {
+        currentLabel = next;
+      },
+      succeed(next) {
+        if (next !== undefined) currentLabel = next;
+        if (stopped) return;
+        stopped = true;
+        writeStatic("success");
+      },
+      fail(next) {
+        if (next !== undefined) currentLabel = next;
+        if (stopped) return;
+        stopped = true;
+        writeStatic("error");
+      },
+      warn(next) {
+        if (next !== undefined) currentLabel = next;
+        if (stopped) return;
+        stopped = true;
+        writeStatic("warn");
+      },
+      stop() {
+        stopped = true;
+      },
+    };
+  }
+
+  let tick = 0;
+  const ctx = transport.context();
+  const writeFrame = () => {
+    const node = spinner(currentLabel, { tick });
+    const rendered = render(node, ctx);
+    stream.write(`\r[2K${rendered}`);
+    tick += 1;
+  };
+  writeFrame();
+  const handle = setInterval(writeFrame, interval);
+
+  const finalize = (status: StatusKind) => {
+    if (stopped) return;
+    stopped = true;
+    clearInterval(handle);
+    const node = spinner(currentLabel, { status });
+    const rendered = render(node, ctx);
+    stream.write(`\r[2K${rendered}\n`);
+  };
+
+  return {
+    update(next) {
+      currentLabel = next;
+    },
+    succeed(next) {
+      if (next !== undefined) currentLabel = next;
+      finalize("success");
+    },
+    fail(next) {
+      if (next !== undefined) currentLabel = next;
+      finalize("error");
+    },
+    warn(next) {
+      if (next !== undefined) currentLabel = next;
+      finalize("warn");
+    },
+    stop() {
+      if (stopped) return;
+      stopped = true;
+      clearInterval(handle);
+      stream.write(`\r[2K`);
+    },
+  };
 }

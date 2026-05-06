@@ -215,7 +215,8 @@ describe("formatDaemonStatus", () => {
       },
     });
     const output = formatDaemonStatus(status, false);
-    expect(output).toContain("Active runs:");
+    expect(output).toMatch(/Activity\s+-+/);
+    expect(output).toMatch(/^\s*Active\s+Duration\s+Run/m);
     expect(output).toContain("builder");
     expect(output).toContain("2m 0s");
   });
@@ -258,10 +259,10 @@ describe("formatDaemonStatus", () => {
       },
     });
     const output = formatDaemonStatus(status, false);
-    expect(output).toContain("Pending runs:");
-    expect(output).toContain("+3 more");
+    expect(output).toMatch(/Pending\s+\(\+3 more\)/);
     expect(output).toContain("workflow-0");
     expect(output).not.toContain("workflow-7");
+    expect(output).toContain("0 active · 8 pending");
   });
 
   it("shows managed status", () => {
@@ -303,5 +304,66 @@ describe("formatDaemonStatus", () => {
     });
     const output = formatDaemonStatus(status, false);
     expect(output).toMatch(/Paused:\s+yes/);
+  });
+
+  it("renders state and activity as visually separated dashboard sections", () => {
+    const status = makeLiveStatus({
+      startedAt: "2026-01-01T00:00:00Z",
+      workflow: {
+        activeRuns: [
+          { runId: "2026-04-15T13-13-57-840Z-builder-i8tz5a", workflow: "builder", startedAt: "2026-01-01T00:55:00Z" },
+        ],
+        pendingRuns: [
+          { workflowName: "explorer", trigger: { event: "test", payload: {} }, enqueuedAtMs: Date.now(), notBeforeMs: 0, runId: "2026-04-15T14-00-00-000Z-explorer-abc123" },
+        ],
+        queueLength: 1,
+        completedRuns: 4,
+        totalCostUsd: 0.42,
+        paused: false,
+        agentConcurrency: 1,
+        codeConcurrency: 4,
+        workflows: {},
+      },
+    });
+    const output = formatDaemonStatus(status, false);
+    const lines = output.split("\n");
+    const stateLine = lines.findIndex((l) => /^State\s/.test(l));
+    const activityLine = lines.findIndex((l) => /^Activity\s/.test(l));
+    expect(stateLine).toBeGreaterThanOrEqual(0);
+    expect(activityLine).toBeGreaterThan(stateLine);
+    expect(lines[activityLine - 1]).toBe("");
+    expect(lines[activityLine - 2]).toBe("");
+
+    const stateOccurrences = lines.filter((l) => /^State\s/.test(l)).length;
+    const activityOccurrences = lines.filter((l) => /^Activity\s/.test(l)).length;
+    expect(stateOccurrences).toBe(1);
+    expect(activityOccurrences).toBe(1);
+
+    expect(output).not.toMatch(/Work\s*$/m);
+    expect(output).not.toMatch(/Cost.*Defs/);
+    expect(output).toMatch(/^\s+Cost:\s+\$0\.42 total/m);
+    expect(output).toContain("1 active · 1 pending · 4 completed");
+  });
+
+  it("surfaces a paused notice section above state when scheduler is paused", () => {
+    const status = makeLiveStatus({
+      workflow: {
+        activeRuns: [],
+        pendingRuns: [],
+        queueLength: 0,
+        completedRuns: 0,
+        paused: true,
+        agentConcurrency: 1,
+        codeConcurrency: 4,
+        workflows: {},
+      },
+    });
+    const output = formatDaemonStatus(status, false);
+    const lines = output.split("\n");
+    const noticeIdx = lines.findIndex((l) => /^Notice\s/.test(l));
+    const stateIdx = lines.findIndex((l) => /^State\s/.test(l));
+    expect(noticeIdx).toBeGreaterThanOrEqual(0);
+    expect(stateIdx).toBeGreaterThan(noticeIdx);
+    expect(output).toContain("workflow scheduler paused");
   });
 });

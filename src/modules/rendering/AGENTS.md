@@ -25,12 +25,20 @@ to show; the renderer decides how the current theme, width, and TTY
 state paint it. New primitives extend the union rather than smuggling
 raw strings through an escape hatch.
 
-Today's primitives cover lines and text spans, headings, separators,
-section rules (width-filling labeled rule for section boundaries),
-blanks, stacks, key/value blocks, status banners, lists, panels, tool
-calls, agent messages, diffs, and JSON. A surface that cannot be modeled
-with the current vocabulary adds the missing primitive here — it does
-not reach around the module with a raw `console.log`.
+Today's primitives cover three categories. **Text-flow:** lines, text
+spans, headings, separators, section rules, blanks, stacks, and
+width-aware wrapped prose. **Structured blocks:** key/value blocks,
+status banners, lists, panels, tool calls, agent messages, diffs, JSON,
+aligned multi-column tables, and role-aware groups. **Live state:**
+sectioned dashboards that visually separate state from activity, plus
+spinner and progress primitives. A surface that cannot be modeled with
+the current vocabulary adds the missing primitive here — it does not
+reach around the module with a raw `console.log`.
+
+Layout-heavy primitives keep their fitting math (column distribution,
+prose word-wrap, spinner/progress frames) in `layout.ts` so the type
+file stays focused on the discriminated union and the helpers stay
+pure-and-unit-testable on their own.
 
 Surfaces that emit structured output (JSON streams, machine-parseable
 payloads) do not render through this module. Those stay on their own
@@ -63,6 +71,12 @@ same shape; never branch on theme name at a call site.
 write. Unit tests assert the rendered tree without touching a real TTY,
 and surfaces that still depend on string return values continue to work
 while migration is in flight.
+
+Animation lives in the transport, not in render-tree primitives. The
+spinner primitive's pure render emits a single static frame so non-TTY
+consumers (CI logs, piped output) stay machine-parseable; the
+transport's `startSpinner` owns the redraw loop and final-frame
+finalize for an interactive TTY.
 
 ## Migration Pattern
 

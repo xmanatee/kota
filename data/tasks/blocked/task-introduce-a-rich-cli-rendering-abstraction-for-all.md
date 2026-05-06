@@ -187,3 +187,20 @@ Phase 3 — peer-CLI capture (operator-facilitated, blocks the task):
   task stays in `blocked`. Unblock by either capturing the comparison
   on operator hardware or by narrowing Done-When to drop the
   comparison requirement.
+
+## Status
+
+- 2026-05-06: `task-elevate-the-rendering-modules-primitives-to-addres`
+  landed the primitive-vocabulary lift the owner's 2026-04-25
+  reinforcement called for: aligned multi-column tables, role-aware
+  groups with width-aware indent, width-aware wrapped prose, sectioned
+  dashboards (state distinct from activity), and a spinner / progress
+  pair where animation lives in the transport and the pure render path
+  emits a single static frame for non-TTY consumers. `formatDaemonStatus`
+  is rebuilt against the new primitives — the regression case named in
+  `## Acceptance Evidence` (no repeated full blocks, no blank `Work`
+  section, no merged cost/defs cells, clear separation between state and
+  activity) is now asserted by
+  `src/modules/daemon-ops/index.test.ts`. Phase 3's peer-CLI capture
+  remains the open precondition; the autonomous lift no longer waits on
+  it.

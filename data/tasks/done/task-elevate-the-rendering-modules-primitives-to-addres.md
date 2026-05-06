@@ -1,12 +1,12 @@
 ---
 id: task-elevate-the-rendering-modules-primitives-to-addres
 title: Elevate the rendering module's primitives to address the owner's still-poor CLI perception
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Strengthen the rendering module's primitive vocabulary to address the owner's 2026-04-25 'CLI still feels poor' reinforcement: add richer panels, dividers, structured columns, role-aware visual hierarchy beyond what Phase 2 migrated surfaces routed through.
 created_at: 2026-05-06T05:12:41.960Z
-updated_at: 2026-05-06T05:12:41.960Z
+updated_at: 2026-05-06T05:35:34.951Z
 ---
 
 ## Problem

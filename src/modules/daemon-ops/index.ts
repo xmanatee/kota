@@ -11,13 +11,16 @@ import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { LogFormat } from "#core/util/log-format.js";
 import {
-  blank,
-  heading,
+  type ColumnRow,
+  columns,
+  dashboard,
   type KVEntry,
   kvBlock,
-  list,
+  line,
+  plain,
   type RenderNode,
-  stack,
+  span,
+  statusBanner,
 } from "#modules/rendering/primitives.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
@@ -130,13 +133,12 @@ export function buildDaemonStatusNode(
   const started = status.startedAt ? formatTimeAgo(status.startedAt) : "unknown";
   const wf = status.workflow;
 
-  const headerEntries: KVEntry[] = [
+  const stateEntries: KVEntry[] = [
     {
       label: "Status",
       value: `running  (pid ${status.pid}, up ${uptime}, started ${started})`,
       role: "success",
     },
-    { label: "Active", value: `${wf.activeRuns.length} run(s), ${wf.pendingRuns.length} pending` },
     { label: "Sessions", value: `${status.sessions.length} interactive` },
     { label: "Paused", value: wf.paused ? "yes" : "no", role: wf.paused ? "warn" : "muted" },
     {
@@ -145,47 +147,77 @@ export function buildDaemonStatusNode(
       role: managed ? "info" : "muted",
     },
   ];
-
   if (wf.totalCostUsd != null && wf.totalCostUsd > 0) {
-    headerEntries.push({ label: "Cost", value: `$${wf.totalCostUsd.toFixed(2)} total` });
+    stateEntries.push({ label: "Cost", value: `$${wf.totalCostUsd.toFixed(2)} total` });
   }
 
-  const children: RenderNode[] = [kvBlock(headerEntries)];
+  const activitySummary = `${wf.activeRuns.length} active · ${wf.pendingRuns.length} pending · ${wf.completedRuns} completed`;
+  const activityChildren: RenderNode[] = [
+    line(span(activitySummary, "muted")),
+  ];
 
   if (wf.activeRuns.length > 0) {
-    children.push(blank());
-    children.push(heading("Active runs:", 2));
-    children.push(
-      list(
-        wf.activeRuns.map((run) => ({
-          spans: [
-            { text: run.workflow.padEnd(20) },
-            { text: ` ${formatDuration(run.startedAt).padEnd(10)} `, role: "muted" },
-            { text: abbreviateRunId(run.runId), role: "muted" },
-          ],
-        })),
+    const rows: ColumnRow[] = wf.activeRuns.map((run) => ({
+      cells: [
+        { spans: [span(run.workflow, "tool", true)] },
+        { spans: [plain(formatDuration(run.startedAt))] },
+        { spans: [span(abbreviateRunId(run.runId), "muted")] },
+      ],
+    }));
+    activityChildren.push(
+      columns(
+        [
+          { header: "Active", role: "tool", headerRole: "muted", minWidth: 12 },
+          { header: "Duration", align: "right", minWidth: 9 },
+          { header: "Run", role: "muted", minWidth: 7 },
+        ],
+        rows,
       ),
     );
   }
 
   if (wf.pendingRuns.length > 0) {
-    children.push(blank());
     const shown = wf.pendingRuns.slice(0, 5);
-    const suffix = wf.pendingRuns.length > 5 ? ` (+${wf.pendingRuns.length - 5} more)` : "";
-    children.push(heading(`Pending runs:${suffix}`, 2));
-    children.push(
-      list(
-        shown.map((run) => ({
-          spans: [
-            { text: run.workflowName.padEnd(20) },
-            { text: ` ${run.runId ? abbreviateRunId(run.runId) : "-"}`, role: "muted" },
-          ],
-        })),
+    const overflow = wf.pendingRuns.length - shown.length;
+    const rows: ColumnRow[] = shown.map((run) => ({
+      cells: [
+        { spans: [plain(run.workflowName)] },
+        { spans: [span(run.runId ? abbreviateRunId(run.runId) : "-", "muted")] },
+      ],
+    }));
+    activityChildren.push(
+      columns(
+        [
+          { header: `Pending${overflow > 0 ? ` (+${overflow} more)` : ""}`, headerRole: "muted", minWidth: 12 },
+          { header: "Run", role: "muted", minWidth: 7 },
+        ],
+        rows,
       ),
     );
   }
 
-  return stack(...children);
+  if (wf.activeRuns.length === 0 && wf.pendingRuns.length === 0) {
+    activityChildren.push(line(span("queue idle — no active or pending runs", "muted")));
+  }
+
+  const sections: { title: string; role: "info" | "accent"; body: RenderNode }[] = [
+    { title: "State", role: "info", body: kvBlock(stateEntries) },
+    {
+      title: "Activity",
+      role: "accent",
+      body: activityChildren.length === 1
+        ? activityChildren[0]!
+        : { kind: "stack", children: activityChildren },
+    },
+  ];
+  if (wf.paused) {
+    sections.unshift({
+      title: "Notice",
+      role: "accent",
+      body: statusBanner("warn", "workflow scheduler paused", "no new runs are being dispatched"),
+    });
+  }
+  return dashboard(sections);
 }
 
 export function formatDaemonStatus(status: DaemonLiveStatus, managed: boolean): string {

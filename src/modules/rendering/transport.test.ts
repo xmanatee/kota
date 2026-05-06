@@ -1,10 +1,11 @@
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { line, plain, span } from "./primitives.js";
 import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME } from "./theme.js";
 import {
   getTerminalTransport,
   renderToString,
   setTerminalTransport,
+  startSpinner,
   TerminalTransport,
   type TransportStream,
 } from "./transport.js";
@@ -100,5 +101,52 @@ describe("TerminalTransport", () => {
     setTerminalTransport(new TerminalTransport({ stream }));
     const rendered = renderToString(line(span("ok", "success")));
     expect(rendered).toBe("ok");
+  });
+});
+
+describe("startSpinner", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    setTerminalTransport(null);
+  });
+
+  test("emits a single static frame on a non-tty stream", () => {
+    const stream = bufferStream({ isTTY: false });
+    const transport = new TerminalTransport({ stream });
+    const handle = startSpinner("loading", { transport });
+    expect(stream.chunks).toHaveLength(1);
+    expect(stream.chunks[0]).toContain("loading");
+    handle.succeed("done");
+    const last = stream.chunks.at(-1)!;
+    expect(last).toContain("done");
+    expect(last).toContain("✓");
+  });
+
+  test("does not emit any redraw chunks between updates on a non-tty stream", () => {
+    const stream = bufferStream({ isTTY: false });
+    const transport = new TerminalTransport({ stream });
+    const handle = startSpinner("loading", { transport });
+    handle.update("step 2");
+    handle.update("step 3");
+    expect(stream.chunks).toHaveLength(1);
+    handle.succeed();
+    expect(stream.chunks).toHaveLength(2);
+    expect(stream.chunks[1]).toContain("step 3");
+  });
+
+  test("redraws frames on an interactive tty and finalizes with the success icon", () => {
+    vi.useFakeTimers();
+    const stream = bufferStream({ isTTY: true, columns: 80 });
+    const transport = new TerminalTransport({ stream });
+    const handle = startSpinner("loading", { transport, intervalMs: 25 });
+    expect(stream.chunks.length).toBe(1);
+    expect(stream.chunks[0]).toContain("\r");
+    expect(stream.chunks[0]).toContain("loading");
+    vi.advanceTimersByTime(75);
+    expect(stream.chunks.length).toBeGreaterThan(2);
+    handle.succeed("done");
+    const last = stream.chunks.at(-1)!;
+    expect(last).toContain("done");
+    expect(last.endsWith("\n")).toBe(true);
   });
 });
