@@ -1,12 +1,12 @@
 ---
 id: task-drop-config-operations-as-unknown-self-casts-via-t
 title: Drop config-operations as-unknown self-casts via typed dot-path traversal helper
-status: ready
+status: done
 priority: p2
 area: modules
 summary: Replace the three as-unknown-as-Record self-casts in src/modules/config/config-operations.ts with a typed dot-path traversal helper so the production file no longer self-casts loaded KotaConfig values to arbitrary records.
 created_at: 2026-05-06T09:55:42.465Z
-updated_at: 2026-05-06T09:55:42.465Z
+updated_at: 2026-05-06T10:02:25.013Z
 ---
 
 ## Problem

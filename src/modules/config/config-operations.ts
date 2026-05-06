@@ -18,6 +18,11 @@ import type {
   ConfigSetResult,
   ConfigValidateResult,
 } from "./client.js";
+import {
+  asResolvedConfigView,
+  getConfigPath,
+  setConfigPath,
+} from "./config-paths.js";
 
 function readRawKeys(path: string): string[] | null {
   if (!existsSync(path)) return null;
@@ -60,21 +65,12 @@ export function validateConfig(
   return {
     sources,
     warnings,
-    resolved: resolved as unknown as Record<string, unknown>,
+    resolved: asResolvedConfigView(resolved),
   };
 }
 
 export function getConfigValue(projectDir: string, key: string): ConfigGetResult {
-  const resolved = loadConfig(projectDir) as unknown as Record<string, unknown>;
-  const parts = key.split(".");
-  let current: unknown = resolved;
-  for (const part of parts) {
-    if (current === null || typeof current !== "object" || !(part in (current as Record<string, unknown>))) {
-      return { found: false, reason: "not_found" };
-    }
-    current = (current as Record<string, unknown>)[part];
-  }
-  return { found: true, value: current };
+  return getConfigPath(loadConfig(projectDir), key.split("."));
 }
 
 function parseRawValue(rawValue: string): unknown {
@@ -92,20 +88,10 @@ export function setConfigValue(
   rawValue: string,
 ): ConfigSetResult {
   const parsed = parseRawValue(rawValue);
-  const parts = key.split(".");
+  const parts = key.split(".") as [string, ...string[]];
   const topKey = parts[0];
 
-  updateProjectConfig(projectDir, (raw) => {
-    if (parts.length === 1) {
-      return { ...raw, [parts[0]]: parsed } as typeof raw;
-    }
-    const existing = (raw as unknown as Record<string, unknown>)[parts[0]];
-    const nested = existing && typeof existing === "object" && !Array.isArray(existing)
-      ? { ...(existing as Record<string, unknown>) }
-      : {};
-    nested[parts[1]] = parsed;
-    return { ...raw, [parts[0]]: nested } as typeof raw;
-  });
+  updateProjectConfig(projectDir, (raw) => setConfigPath(raw, parts, parsed));
 
   return {
     ok: true,
