@@ -1,12 +1,12 @@
 ---
 id: task-split-step-executor-agent-into-per-phase-sibling-f
 title: Split step-executor-agent into per-phase sibling files
-status: ready
+status: done
 priority: p1
 area: core
 summary: Split src/core/workflow/steps/step-executor-agent.ts (603 lines) into per-phase sibling files (prompt build, tool scoping, telemetry, JSON extraction) so the orchestrator drops well under the 300-line guideline
 created_at: 2026-05-05T23:53:05.179Z
-updated_at: 2026-05-05T23:53:05.179Z
+updated_at: 2026-05-06T00:07:01.408Z
 ---
 
 ## Problem

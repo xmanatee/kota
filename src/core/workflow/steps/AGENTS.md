@@ -14,6 +14,28 @@ context construction.
 New step types add a new strategy file here and a dispatch case in
 `step-executor.ts`.
 
+## Per-Phase Files Inside `step-executor-agent.ts`
+
+The agent step internals split by phase, not by step kind. The orchestrator
+(`step-executor-agent.ts`) owns run-attempt orchestration and the whole-step
+writeScope contract; everything else is a phase file:
+
+- `step-executor-agent-prompt.ts` — prompt build (trigger header,
+  exposed-step-output block, ask-owner sentence, JSON-output trailer).
+- `step-executor-agent-telemetry.ts` — tool-telemetry tracker and the
+  `<runDir>/steps/<stepId>.tool-telemetry.json` artifact.
+- `step-executor-agent-tool-scope.ts` — autonomy-mode → allowed/disallowed
+  tool decisions (autonomous, supervised, passive).
+- `step-executor-agent-json.ts` — fenced-block extraction,
+  `JsonSchemaValidationError`, and `outputSchema` validation.
+
+New agent-step internals land as a new phase file here, dispatched from the
+orchestrator. The orchestrator keeps the `runAgentHarness` call, the
+`AgentStepRuntimeError` classification of `isError` results, the retry loop
+with the classifier-driven `shouldRetry` predicate, and the pre/post
+`writeScope` enforcement pipeline. Helpers that exist solely to support a
+single phase live in that phase file, not in the orchestrator.
+
 ## Per-Run Emitted-Events Log
 
 `createStepContext` wraps `ctx.emit` so every emission a step makes appends

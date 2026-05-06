@@ -20,11 +20,11 @@ import { WorkflowStepOutputValidationError } from "../types.js";
 import type { AgentStepConfig, AgentStepResult, WorkflowStepOutput } from "./step-executor-agent.js";
 import {
   AgentStepRuntimeError,
-  buildAgentPrompt,
   DEFAULT_AGENT_STEP_RETRY,
   executeAgentStep,
   withRetry,
 } from "./step-executor-agent.js";
+import { buildAgentPrompt } from "./step-executor-agent-prompt.js";
 import { executeApprovalStep } from "./step-executor-approval.js";
 import { executeAwaitEventStep } from "./step-executor-await-event.js";
 import { executeTriggerStep } from "./step-executor-trigger.js";

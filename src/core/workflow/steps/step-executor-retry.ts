@@ -229,3 +229,26 @@ export function classifyAgentRuntimeFailure(
 
   return null;
 }
+
+/**
+ * Classify an unknown thrown error against the structured-signal classifier.
+ * Pulls `status`, system `code`, error name, and message off the error before
+ * delegating to {@link classifyAgentRuntimeFailure}. Returns null for
+ * unclassified errors (the caller surfaces them as hard failures).
+ */
+export function classifyThrownAgentError(
+  error: unknown,
+): AgentFailureClassification | null {
+  const detail = error instanceof Error ? error.message : String(error);
+  const sysError = error as NodeJS.ErrnoException;
+  const errorWithStatus = error as { status?: number };
+  return classifyAgentRuntimeFailure({
+    message: detail,
+    status:
+      typeof errorWithStatus.status === "number"
+        ? errorWithStatus.status
+        : undefined,
+    code: typeof sysError.code === "string" ? sysError.code : undefined,
+    errorName: error instanceof Error ? error.name : undefined,
+  });
+}

@@ -1,18 +1,15 @@
-import { readFileSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
-import type { KotaAgentMessage } from "#core/agent-harness/index.js";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 import {
   createWorkflowAgentGuards,
+  type KotaAgentMessage,
   resolveAgentHarness,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
-import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { ToolTelemetry } from "#core/tools/tool-telemetry.js";
-import { validatePayloadSchema } from "../payload-validator.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
 import type {
   WorkflowAgentStep,
@@ -27,8 +24,19 @@ import {
   writeWriteScopeViolationArtifact,
 } from "./agent-write-scope.js";
 import {
+  extractJsonOutput,
+  JsonSchemaValidationError,
+} from "./step-executor-agent-json.js";
+import { buildAgentPrompt } from "./step-executor-agent-prompt.js";
+import {
+  makeToolTelemetryTracker,
+  writeToolTelemetryArtifact,
+} from "./step-executor-agent-telemetry.js";
+import { resolveAgentToolScope } from "./step-executor-agent-tool-scope.js";
+import {
   AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
+  classifyThrownAgentError,
   DEFAULT_AGENT_STEP_RETRY,
   withRetry,
 } from "./step-executor-retry.js";
@@ -37,19 +45,8 @@ export type WorkflowStepOutput =
   | ToolResult
   | { content: string; sessionId?: string; turns?: number; totalCostUsd?: number; inputTokens?: number; outputTokens?: number; subtype?: string }
   | Record<string, unknown>
-  | string
-  | number
-  | boolean
-  | null
-  | undefined;
+  | string | number | boolean | null | undefined;
 
-/**
- * Wrapper returned by agent-step execution. `output` is the caller-visible
- * step output (unchanged contract); `harness` and `model` are the resolved
- * runtime identifiers threaded out so the run executor can promote them onto
- * the top-level `WorkflowStepResult`. Agent steps are the only step type
- * with these fields — non-agent steps return `WorkflowStepOutput` directly.
- */
 export type AgentStepResult = {
   output: WorkflowStepOutput;
   harness: string;
@@ -72,260 +69,17 @@ export {
   withRetry,
 };
 
-export function resolveAgentModel(
-  step: WorkflowAgentStep,
-  agentConfig: AgentStepConfig,
-): string {
-  return (
-    (step.agentName ? agentConfig.config?.agentModels?.[step.agentName] : undefined) ??
-    step.model
-  );
+export function resolveAgentModel(step: WorkflowAgentStep, agentConfig: AgentStepConfig): string {
+  return (step.agentName ? agentConfig.config?.agentModels?.[step.agentName] : undefined) ?? step.model;
 }
 
-/**
- * Pick the startDir for system-prompt context discovery. When the module's
- * prompt directory lives inside the project, we walk from there so
- * closer-scoped `.kota.md`, `AGENTS.md`, and `CLAUDE.md` files win. When the
- * module lives outside the project (e.g. KOTA running against an external
- * project), the module's tree has nothing relevant to say about the project,
- * so discovery starts from the project root instead.
- */
-export function resolvePromptContextStartDir(
-  promptDir: string,
-  projectDir: string,
-): string {
+// Walk closer-scoped `.kota.md`/`AGENTS.md`/`CLAUDE.md` from the prompt
+// directory when it lives under the project; otherwise fall back to the
+// project root so external module guidance does not leak into discovery.
+export function resolvePromptContextStartDir(promptDir: string, projectDir: string): string {
   const rel = relative(projectDir, promptDir);
-  if (rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))) {
-    return promptDir;
-  }
+  if (rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))) return promptDir;
   return projectDir;
-}
-
-function shouldExposeOutput(output: unknown): boolean {
-  if (output === undefined) return false;
-  if (
-    output &&
-    typeof output === "object" &&
-    !Array.isArray(output) &&
-    "skipped" in output
-  ) {
-    return false;
-  }
-  return true;
-}
-
-function getExposedStepOutputs(
-  definition: WorkflowDefinition,
-  priorStepOutputs: Record<string, unknown>,
-): Array<[string, unknown]> {
-  return definition.steps
-    .filter((candidate) => "exposeOutputToAgent" in candidate && candidate.exposeOutputToAgent)
-    .map((candidate) => [candidate.id, priorStepOutputs[candidate.id]] as [string, unknown])
-    .filter(([, output]) => shouldExposeOutput(output));
-}
-
-export function buildAgentPrompt(
-  definition: WorkflowDefinition,
-  step: WorkflowAgentStep,
-  metadata: WorkflowRunMetadata,
-  trigger: WorkflowRunTrigger,
-  projectDir: string,
-  priorStepOutputs: Record<string, unknown>,
-  askOwnerToolName: string | null,
-): { systemPromptAppend: string; prompt: string } {
-  const promptBody = readFileSync(
-    resolve(step.moduleRoot, step.promptPath),
-    "utf-8",
-  );
-  const triggerPayloadKeys = Object.keys(trigger.payload);
-  const exposedOutputs = getExposedStepOutputs(definition, priorStepOutputs);
-  const lines = [
-    "Execute one KOTA workflow step in this repository.",
-    `Workflow: ${definition.name}`,
-    `Step: ${step.id}`,
-    `Run ID: ${metadata.id}`,
-    `Run directory: ${metadata.runDir}`,
-    `Workflow definition: ${metadata.definitionPath}`,
-    `Prompt file: ${step.promptPath}`,
-    `Project root: ${projectDir}`,
-    `Trigger event: ${trigger.event}`,
-    "Only runtime-only workflow facts are injected here. Discover repository context yourself.",
-  ];
-  if (triggerPayloadKeys.length > 0) {
-    lines.push(
-      "",
-      "Trigger payload:",
-      "```json",
-      JSON.stringify(trigger.payload, null, 2),
-      "```",
-    );
-  }
-  if (exposedOutputs.length > 0) {
-    lines.push("", "Exposed step outputs:");
-    for (const [id, output] of exposedOutputs) {
-      lines.push(`<step id="${id}">`, JSON.stringify(output, null, 2), "</step>");
-    }
-  }
-
-  lines.push(
-    "",
-    "There is intentionally no fixed checklist here. Decide what to inspect, what to ignore, and how deep to go.",
-    "Use the workflow instructions in your system prompt.",
-    "Work directly instead of narrating intent.",
-    'Do not emit progress filler such as "Let me..." or "I will...".',
-  );
-  if (askOwnerToolName !== null) {
-    lines.push(
-      `For high-stakes decisions that are unsafe to resolve alone, use ${askOwnerToolName}.`,
-    );
-  }
-  lines.push(
-    "If you leave a textual summary, keep it brief and factual.",
-    "Write any run-specific artifacts under the run directory when useful.",
-    "Finish this step fully, then stop.",
-  );
-  if (step.outputFormat === "json") {
-    lines.push("", "End your final response with a fenced JSON block containing your structured output.");
-  }
-  return {
-    systemPromptAppend: promptBody,
-    prompt: lines.join("\n"),
-  };
-}
-
-function makeToolTelemetryTracker(
-  telemetry: ToolTelemetry,
-  onMessage: (message: KotaAgentMessage) => void,
-): (message: KotaAgentMessage) => void {
-  const pending = new Map<string, { name: string; startMs: number }>();
-  return (message: KotaAgentMessage) => {
-    onMessage(message);
-    if (message.type === "tool_call") {
-      pending.set(message.toolUseId, {
-        name: message.toolName,
-        startMs: Date.now(),
-      });
-      return;
-    }
-    if (message.type === "tool_result") {
-      const entry = pending.get(message.toolUseId);
-      if (!entry) return;
-      const durationMs = Date.now() - entry.startMs;
-      const errorMsg = message.isError
-        ? (typeof message.content === "string"
-            ? message.content
-            : JSON.stringify(message.content)
-          ).slice(0, 200)
-        : undefined;
-      telemetry.record(entry.name, durationMs, !message.isError, errorMsg);
-      pending.delete(message.toolUseId);
-    }
-  };
-}
-
-function writeToolTelemetryArtifact(
-  stepId: string,
-  metadata: WorkflowRunMetadata,
-  projectDir: string,
-  telemetry: ToolTelemetry,
-): void {
-  if (telemetry.getTotalCalls() === 0) return;
-  const tools: Record<string, Record<string, unknown>> = {};
-  for (const [name, s] of telemetry.getStats()) {
-    const avgMs = s.calls > 0 ? Math.round(s.totalMs / s.calls) : 0;
-    const entry: Record<string, unknown> = {
-      calls: s.calls,
-      successes: s.successes,
-      failures: s.failures,
-      totalMs: s.totalMs,
-      avgMs,
-    };
-    if (s.lastError !== undefined) entry.lastError = s.lastError;
-    tools[name] = entry;
-  }
-  const payload = { summary: telemetry.getSummary(), tools };
-  const filePath = join(resolve(projectDir, metadata.runDir), "steps", `${stepId}.tool-telemetry.json`);
-  writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf-8");
-}
-
-function includeAskOwnerTool(
-  allowedTools: string[] | undefined,
-  askOwnerToolName: string | null,
-): string[] | undefined {
-  if (!allowedTools) return undefined;
-  if (askOwnerToolName === null) return allowedTools;
-  if (allowedTools.includes(askOwnerToolName)) return allowedTools;
-  return [...allowedTools, askOwnerToolName];
-}
-
-function excludeAskOwnerTool(
-  disallowedTools: string[] | undefined,
-  askOwnerToolName: string | null,
-): string[] | undefined {
-  if (!disallowedTools || askOwnerToolName === null) return disallowedTools;
-  return disallowedTools.filter((tool) => tool !== askOwnerToolName);
-}
-
-const PASSIVE_ALLOWED_TOOLS = [
-  "Read",
-  "LS",
-  "Grep",
-  "Glob",
-  "NotebookRead",
-  "WebFetch",
-  "WebSearch",
-  "TodoRead",
-  "ListMcpResourcesTool",
-  "ReadMcpResourceTool",
-] as const;
-
-const PASSIVE_ALLOWED_TOOL_SET = new Set<string>(PASSIVE_ALLOWED_TOOLS);
-
-function resolvePassiveAllowedTools(
-  allowedTools: string[] | undefined,
-  disallowedTools: string[] | undefined,
-  askOwnerToolName: string | null,
-): string[] {
-  const requested = allowedTools ?? [...PASSIVE_ALLOWED_TOOLS];
-  const unsafe = requested.filter(
-    (tool) => tool !== askOwnerToolName && !PASSIVE_ALLOWED_TOOL_SET.has(tool),
-  );
-  if (unsafe.length > 0) {
-    throw new Error(
-      `Passive agent steps may only allow read-only tools; disallowed here: ${unsafe.join(", ")}`,
-    );
-  }
-  const disallowed = new Set(excludeAskOwnerTool(disallowedTools, askOwnerToolName) ?? []);
-  return includeAskOwnerTool(
-    requested.filter((tool) => !disallowed.has(tool)),
-    askOwnerToolName,
-  ) as string[];
-}
-
-function resolveAgentToolScope(
-  mode: AutonomyMode,
-  allowedTools: string[] | undefined,
-  disallowedTools: string[] | undefined,
-  askOwnerToolName: string | null,
-): {
-  allowedTools: string[] | undefined;
-  disallowedTools: string[] | undefined;
-} {
-  if (mode === "autonomous") {
-    return {
-      allowedTools: includeAskOwnerTool(allowedTools, askOwnerToolName),
-      disallowedTools: excludeAskOwnerTool(disallowedTools, askOwnerToolName),
-    };
-  }
-  if (mode === "supervised") {
-    throw new Error(
-      "Workflow agent steps cannot use supervised autonomyMode because tool calls cannot be routed through KOTA approvals",
-    );
-  }
-  return {
-    allowedTools: resolvePassiveAllowedTools(allowedTools, disallowedTools, askOwnerToolName),
-    disallowedTools: undefined,
-  };
 }
 
 export async function executeAgentStep(
@@ -354,15 +108,12 @@ export async function executeAgentStep(
   const promptDir = dirname(resolve(step.moduleRoot, step.promptPath));
   const contextStartDir = resolvePromptContextStartDir(promptDir, agentConfig.projectDir);
 
-  const agentDef =
-    step.agentName && agentConfig.resolveAgentDef
-      ? agentConfig.resolveAgentDef(step.agentName)
-      : undefined;
-
-  let skillsPrompt: string | undefined;
-  if (agentDef?.skills && agentConfig.resolveSkillsPrompt) {
-    skillsPrompt = agentConfig.resolveSkillsPrompt(agentDef.skills, step.agentName);
-  }
+  const agentDef = step.agentName && agentConfig.resolveAgentDef
+    ? agentConfig.resolveAgentDef(step.agentName)
+    : undefined;
+  const skillsPrompt = agentDef?.skills && agentConfig.resolveSkillsPrompt
+    ? agentConfig.resolveSkillsPrompt(agentDef.skills, step.agentName)
+    : undefined;
 
   const systemPrompt = buildKotaSystemPrompt(
     agentConfig.config,
@@ -373,11 +124,8 @@ export async function executeAgentStep(
   );
   writeInputs(systemPrompt, agentPrompt.prompt);
 
-  // Tool telemetry and caller-facing message capture hang off `onMessage`,
-  // which only claude-agent-sdk-style adapters can emit. Harnesses that do
-  // not stream AgentMessage frames (openai-tools, thin) reject `onMessage` at
-  // the boundary, so we branch on the adapter-declared capability rather
-  // than the adapter name.
+  // Telemetry tracking and caller message capture both ride `onMessage`,
+  // which only stream-capable harnesses emit; non-stream harnesses reject it.
   const stepTelemetry = new ToolTelemetry();
   const trackedMessage = resolvedHarness.emitsAgentMessageStream
     ? makeToolTelemetryTracker(stepTelemetry, appendMessage)
@@ -385,14 +133,9 @@ export async function executeAgentStep(
 
   let lastSchemaError: string | undefined;
 
-  // Snapshot mutated paths before the agent runs so the post-step writeScope
-  // attribution can exclude paths a prior or concurrent step mutated. Without
-  // this snapshot, a whole-repo `git diff HEAD` at the end of the step would
-  // blame this step for every dirty path in the worktree, including writes
-  // another workflow made.
-  const preStepMutatedPaths = agentDef && step.agentName
-    ? listWorkflowMutatedPaths(agentConfig.projectDir)
-    : undefined;
+  // Snapshot before run so post-step writeScope diff excludes paths another
+  // step or pre-existing dirt mutated.
+  const preStepMutatedPaths = agentDef && step.agentName ? listWorkflowMutatedPaths(agentConfig.projectDir) : undefined;
 
   const runAttempt = async (): Promise<WorkflowStepOutput> => {
     const prompt = lastSchemaError
@@ -409,46 +152,26 @@ export async function executeAgentStep(
       const result = await runAgentHarness(
         resolvedHarness,
         {
-          prompt,
-          model: resolvedModel,
-          cwd: agentConfig.projectDir,
-          systemPrompt,
-          maxTurns: step.maxTurns,
-          effort: step.effort,
-          thinkingEnabled: step.thinkingEnabled,
-          thinkingBudget: step.thinkingBudget,
-          allowedTools: toolScope.allowedTools,
-          disallowedTools: toolScope.disallowedTools,
-          askOwner:
-            resolvedHarness.askOwnerToolName !== null
-              ? {
-                  source: `workflow:${metadata.workflow}/${metadata.id}/${step.id}`,
-                }
-              : undefined,
-          autonomyMode: step.autonomyMode,
-          harnessOverrides,
-          abortController,
+          prompt, model: resolvedModel, cwd: agentConfig.projectDir, systemPrompt,
+          maxTurns: step.maxTurns, effort: step.effort,
+          thinkingEnabled: step.thinkingEnabled, thinkingBudget: step.thinkingBudget,
+          allowedTools: toolScope.allowedTools, disallowedTools: toolScope.disallowedTools,
+          askOwner: resolvedHarness.askOwnerToolName !== null
+            ? { source: `workflow:${metadata.workflow}/${metadata.id}/${step.id}` }
+            : undefined,
+          autonomyMode: step.autonomyMode, harnessOverrides, abortController,
           ...(trackedMessage !== undefined ? { onMessage: trackedMessage } : {}),
           canUseTool: createWorkflowAgentGuards(),
         },
-        {
-          write: () => true,
-        },
+        { write: () => true },
       );
       if (result.isError) {
         const reason = result.subtype ?? "error";
         const detail = result.text.trim() || "Agent step returned an error result";
-        const classified = classifyAgentRuntimeFailure({
-          message: detail,
-          subtype: result.subtype,
-        });
+        const classified = classifyAgentRuntimeFailure({ message: detail, subtype: result.subtype });
+        // SDK has exhausted retries on isError; mark non-retryable so
+        // AgentBackoffManager applies a provider-kind delay instead of re-spawning.
         if (classified) {
-          // SDK-returned isError means SDK already exhausted its internal retry
-          // budget. A fresh step-level retry spawns a new session from scratch
-          // (discarding the current session's in-memory progress) and the same
-          // provider is still saturated, so it fails the same way. Fall through
-          // to AgentBackoffManager instead, which applies a provider-kind delay
-          // sized for the outage (5+ min) before dispatching the next run.
           throw new AgentStepRuntimeError(
             `Agent step "${step.id}" failed (${reason}): ${detail}`,
             classified.kind,
@@ -461,20 +184,14 @@ export async function executeAgentStep(
         try {
           return extractJsonOutput(step.id, result.text, step.outputSchema) as WorkflowStepOutput;
         } catch (err) {
-          if (err instanceof JsonSchemaValidationError) {
-            lastSchemaError = err.validationDetail;
-          }
+          if (err instanceof JsonSchemaValidationError) lastSchemaError = err.validationDetail;
           throw err;
         }
       }
       return {
-        content: result.text,
-        sessionId: result.sessionId,
-        turns: result.turns,
-        totalCostUsd: result.totalCostUsd,
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        subtype: result.subtype,
+        content: result.text, sessionId: result.sessionId, turns: result.turns,
+        totalCostUsd: result.totalCostUsd, inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens, subtype: result.subtype,
       };
     } catch (error) {
       if (
@@ -482,29 +199,15 @@ export async function executeAgentStep(
         error instanceof JsonSchemaValidationError ||
         (error instanceof Error && error.name === "AbortError") ||
         abortController.signal.aborted
-      ) {
-        throw error;
-      }
+      ) throw error;
+      const classified = classifyThrownAgentError(error);
+      if (!classified) throw error;
       const detail = error instanceof Error ? error.message : String(error);
-      const sysError = error as NodeJS.ErrnoException;
-      const errorWithStatus = error as { status?: number };
-      const classified = classifyAgentRuntimeFailure({
-        message: detail,
-        status:
-          typeof errorWithStatus.status === "number"
-            ? errorWithStatus.status
-            : undefined,
-        code: typeof sysError.code === "string" ? sysError.code : undefined,
-        errorName: error instanceof Error ? error.name : undefined,
-      });
-      if (classified) {
-        throw new AgentStepRuntimeError(
-          `Agent step "${step.id}" failed: ${detail}`,
-          classified.kind,
-          classified.retryable,
-        );
-      }
-      throw error;
+      throw new AgentStepRuntimeError(
+        `Agent step "${step.id}" failed: ${detail}`,
+        classified.kind,
+        classified.retryable,
+      );
     }
   };
 
@@ -512,10 +215,8 @@ export async function executeAgentStep(
   const output = await withRetry(runAttempt, retry, {
     log: agentConfig.log,
     abortSignal: abortController.signal,
-    // Only consume retry attempts for failures we can confidently classify
-    // as transient (provider / JSON schema). Unclassified errors — max turns,
-    // agent logic mistakes, malformed tool calls — fail hard on the first
-    // attempt so we do not burn budget on deterministic failures.
+    // Only consume retry attempts for classified-transient failures. Max-turn,
+    // logic, and malformed-tool errors fail hard on the first attempt.
     shouldRetry: (err) =>
       err instanceof JsonSchemaValidationError ||
       (err instanceof AgentStepRuntimeError && err.retryable),
@@ -525,79 +226,24 @@ export async function executeAgentStep(
     writeToolTelemetryArtifact(step.id, metadata, agentConfig.projectDir, stepTelemetry);
   }
 
-  // Enforce declared writeScope against every path this step would commit
-  // (tracked mutations plus untracked files the staging step would sweep in).
-  // Fails the step when the agent wrote outside its role. Attribution is
-  // scoped to paths newly mutated during this step so another concurrent or
-  // prior step cannot contaminate the blame list.
+  // Whole-step writeScope contract: pre/post diff so concurrent or prior-step
+  // writes do not contaminate attribution; out-of-scope writes fail the step.
   if (agentDef && step.agentName && preStepMutatedPaths !== undefined) {
-    const postStepMutatedPaths = listWorkflowMutatedPaths(agentConfig.projectDir);
-    const stepMutatedPaths = diffMutatedPaths(
-      preStepMutatedPaths,
-      postStepMutatedPaths,
-    );
     const violations = findWriteScopeViolations(
-      stepMutatedPaths,
+      diffMutatedPaths(preStepMutatedPaths, listWorkflowMutatedPaths(agentConfig.projectDir)),
       agentDef.writeScope,
     );
     if (violations.length > 0) {
-      writeWriteScopeViolationArtifact({
+      const violationCtx = {
         stepId: step.id,
         agentName: step.agentName,
         scope: agentDef.writeScope,
         violations,
-        metadata,
-        projectDir: agentConfig.projectDir,
-      });
-      throw new AgentWriteScopeViolationError({
-        stepId: step.id,
-        agentName: step.agentName,
-        scope: agentDef.writeScope,
-        violations,
-      });
+      };
+      writeWriteScopeViolationArtifact({ ...violationCtx, metadata, projectDir: agentConfig.projectDir });
+      throw new AgentWriteScopeViolationError(violationCtx);
     }
   }
 
   return { output, harness: resolvedHarness.name, model: resolvedModel };
-}
-
-export class JsonSchemaValidationError extends Error {
-  constructor(
-    message: string,
-    readonly validationDetail: string,
-  ) {
-    super(message);
-    this.name = "JsonSchemaValidationError";
-  }
-}
-
-function extractJsonOutput(
-  stepId: string,
-  text: string,
-  outputSchema: Record<string, unknown> | undefined,
-): unknown {
-  const match = text.match(/```(?:json)?\s*\n([\s\S]*?)\n```\s*$/);
-  if (!match) {
-    throw new Error(
-      `Agent step "${stepId}" outputFormat is "json" but no fenced JSON block was found in the response`,
-    );
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(match[1]);
-  } catch {
-    throw new Error(
-      `Agent step "${stepId}" outputFormat is "json" but the fenced block contains invalid JSON`,
-    );
-  }
-  if (outputSchema !== undefined) {
-    const validationError = validatePayloadSchema(outputSchema, parsed as Record<string, unknown>);
-    if (validationError) {
-      throw new JsonSchemaValidationError(
-        `Agent step "${stepId}" output failed schema validation: ${validationError}`,
-        validationError,
-      );
-    }
-  }
-  return parsed;
 }
