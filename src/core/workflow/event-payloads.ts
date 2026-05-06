@@ -1,7 +1,9 @@
 import type { BusEvents } from "#core/events/event-bus.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowRunMetadata, WorkflowRunStatus, WorkflowStepResult } from "./run-types.js";
-import type { WorkflowAgentBackoffKind, WorkflowDefinition, WorkflowStep } from "./types.js";
+import type { WorkflowStep } from "./step-types.js";
+import type { WorkflowAgentBackoffKind } from "./trigger-types.js";
+import type { WorkflowDefinition } from "./types.js";
 
 /**
  * Resolve the autonomy posture that should be attached to a step-level bus

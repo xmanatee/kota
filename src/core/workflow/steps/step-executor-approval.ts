@@ -1,7 +1,7 @@
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import type { WorkflowStepContext } from "../run-types.js";
-import type { WorkflowApprovalStep } from "../types.js";
+import type { WorkflowApprovalStep } from "../step-types.js";
 import type { WorkflowStepOutput } from "./step-executor-agent.js";
 
 const POLL_INTERVAL_MS = 2000;

@@ -1,12 +1,12 @@
 ---
 id: task-split-workflowtypests-into-per-concern-sibling-fil
 title: Split workflow/types.ts into per-concern sibling files
-status: ready
+status: done
 priority: p2
 area: core
 summary: src/core/workflow/types.ts is 795 lines mixing trigger/retry types, step input types, resolved step types, and workflow definition types — extract them into per-concern sibling files so each stays focused and under the file-size guideline.
 created_at: 2026-05-06T03:22:52.025Z
-updated_at: 2026-05-06T03:22:52.025Z
+updated_at: 2026-05-06T03:33:39.124Z
 ---
 
 ## Problem

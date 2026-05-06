@@ -10,7 +10,7 @@ import type {
   WorkflowRuntimeState,
   WorkflowStepSkipReason,
 } from "./run-types.js";
-import type { WorkflowAgentBackoffState, WorkflowRunTrigger } from "./types.js";
+import type { WorkflowAgentBackoffState, WorkflowRunTrigger } from "./trigger-types.js";
 
 function fail(path: string, message: string): never {
   throw new JsonFileError(path, "parse", message);

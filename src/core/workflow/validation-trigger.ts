@@ -1,7 +1,7 @@
 import { matchesGlob } from "node:path";
 import { getModuleEventRegistry } from "#core/events/module-event.js";
 import { validateCronExpr, validateTimezone } from "./cron.js";
-import type { WorkflowTrigger, WorkflowTriggerInput } from "./types.js";
+import type { WorkflowTrigger, WorkflowTriggerInput } from "./trigger-types.js";
 import {
   expectNonEmptyString,
   expectOptionalInteger,

@@ -1,12 +1,6 @@
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import type {
-  WorkflowAgentStep,
-  WorkflowAgentStepInput,
-  WorkflowCodeStep,
-  WorkflowCodeStepInput,
-  WorkflowForeachStep,
-  WorkflowForeachStepInput,
-} from "#core/workflow/types.js";
+import type { WorkflowAgentStepInput, WorkflowCodeStepInput, WorkflowForeachStepInput } from "#core/workflow/step-input-types.js";
+import type { WorkflowAgentStep, WorkflowCodeStep, WorkflowForeachStep } from "#core/workflow/step-types.js";
 import {
   expectName,
   expectNonEmptyString,

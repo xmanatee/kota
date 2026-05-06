@@ -1,11 +1,8 @@
 import { getNextCronTime } from "./cron.js";
 import { type DispatchWindow, isWithinDispatchWindow, msUntilDispatchWindowOpens } from "./dispatch-window.js";
 import type { WorkflowRunStore } from "./run-store.js";
-import type {
-  WorkflowDefinition,
-  WorkflowRunTrigger,
-  WorkflowTrigger,
-} from "./types.js";
+import type { WorkflowRunTrigger, WorkflowTrigger } from "./trigger-types.js";
+import type { WorkflowDefinition } from "./types.js";
 
 export class ScheduleTriggerManager {
   private readonly timers: Map<

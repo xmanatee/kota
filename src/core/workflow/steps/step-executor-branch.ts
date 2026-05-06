@@ -3,13 +3,9 @@ import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
 import { buildStepCompletedPayload, buildStepStartedPayload, resolveStepAutonomyMode } from "../event-payloads.js";
 import { buildSkippedResult, executeWorkflowStep, type StepAccumulators } from "../run-executor-step.js";
 import type { WorkflowStepContext, WorkflowStepResult, WorkflowStepSkipReason } from "../run-types.js";
-import type {
-  WorkflowBranchStep,
-  WorkflowDefinition,
-  WorkflowForeachStep,
-  WorkflowRunTrigger,
-  WorkflowStep,
-} from "../types.js";
+import type { WorkflowBranchStep, WorkflowForeachStep, WorkflowStep } from "../step-types.js";
+import type { WorkflowRunTrigger } from "../trigger-types.js";
+import type { WorkflowDefinition } from "../types.js";
 import { evaluateStepRunDecision } from "./step-executor.js";
 import type { AgentStepConfig } from "./step-executor-agent.js";
 import { executeForeachStepGroup, type ForeachGroupResult } from "./step-executor-foreach.js";

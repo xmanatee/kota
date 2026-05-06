@@ -31,10 +31,8 @@ import {
   PAUSE_SIGNAL_FILE,
   RELOAD_SIGNAL_FILE,
 } from "#core/workflow/runtime.js";
-import type {
-  RegisteredWorkflowDefinitionInput,
-  WorkflowRunTrigger,
-} from "#core/workflow/types.js";
+import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
+import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { buildTriggerHttpPayload, type WorkflowClient } from "./client.js";
 import { registerDefinitionLogCommand } from "./definitions/definition-log.js";
 import { registerDefinitionsCommand } from "./definitions/definitions.js";

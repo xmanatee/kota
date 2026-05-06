@@ -5,7 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { executeWorkflowRun } from "../run-executor.js";
 import { WorkflowRunStore } from "../run-store.js";
-import type { WorkflowDefinition, WorkflowForeachStepInput, WorkflowRunTrigger } from "../types.js";
+import type { WorkflowForeachStepInput } from "../step-input-types.js";
+import type { WorkflowRunTrigger } from "../trigger-types.js";
+import type { WorkflowDefinition } from "../types.js";
 import { validateWorkflowDefinitions } from "../validation.js";
 
 function makeRetryTrigger(retryOf: string): WorkflowRunTrigger {

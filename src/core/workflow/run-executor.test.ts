@@ -6,7 +6,8 @@ import { EventBus } from "#core/events/event-bus.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { DEFAULT_STEP_TIMEOUT_MS } from "./run-executor-step.js";
 import { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowDefinition, WorkflowRunTrigger } from "./types.js";
+import type { WorkflowRunTrigger } from "./trigger-types.js";
+import type { WorkflowDefinition } from "./types.js";
 
 function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
   return {

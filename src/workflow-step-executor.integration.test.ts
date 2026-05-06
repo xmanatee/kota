@@ -7,6 +7,8 @@ import type {
   WorkflowRunMetadata,
   WorkflowStepContext,
 } from "#core/workflow/run-types.js";
+import type { WorkflowNotifyConfig } from "#core/workflow/step-input-types.js";
+import type { WorkflowAgentStep, WorkflowEmitStep, WorkflowToolStep } from "#core/workflow/step-types.js";
 import type { AgentStepConfig } from "#core/workflow/steps/step-executor.js";
 import {
   buildAgentPrompt,
@@ -21,14 +23,8 @@ import {
   AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
 } from "#core/workflow/steps/step-executor-retry.js";
-import type {
-  WorkflowAgentStep,
-  WorkflowDefinition,
-  WorkflowEmitStep,
-  WorkflowNotifyConfig,
-  WorkflowRunTrigger,
-  WorkflowToolStep,
-} from "#core/workflow/types.js";
+import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
+import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import {
   KOTA_OWNER_QUESTIONS_MCP_SERVER,

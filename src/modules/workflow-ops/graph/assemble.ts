@@ -5,11 +5,9 @@
  * a graph out. This makes it testable and reusable by any consumer.
  */
 
-import type {
-  RegisteredWorkflowDefinitionInput,
-  WorkflowStepInput,
-  WorkflowTriggerInput,
-} from "#core/workflow/types.js";
+import type { WorkflowStepInput } from "#core/workflow/step-input-types.js";
+import type { WorkflowTriggerInput } from "#core/workflow/trigger-types.js";
+import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import type {
   EventNode,
   StepSummary,

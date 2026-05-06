@@ -4,13 +4,9 @@ import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
 import { buildStepCompletedPayload, buildStepStartedPayload, resolveStepAutonomyMode } from "../event-payloads.js";
 import { applyOutputSizeLimit, DEFAULT_STEP_TIMEOUT_MS } from "../run-executor-step.js";
 import type { WorkflowRunWarning, WorkflowStepContext, WorkflowStepResult, WorkflowStepSkipReason } from "../run-types.js";
-import type {
-  WorkflowAgentStep,
-  WorkflowCodeStep,
-  WorkflowDefinition,
-  WorkflowForeachStep,
-  WorkflowRunTrigger,
-} from "../types.js";
+import type { WorkflowAgentStep, WorkflowCodeStep, WorkflowForeachStep } from "../step-types.js";
+import type { WorkflowRunTrigger } from "../trigger-types.js";
+import type { WorkflowDefinition } from "../types.js";
 import { evaluateStepRunDecision, executeCodeStep, resolveValue } from "./step-executor.js";
 import type { AgentStepConfig, AgentStepResult } from "./step-executor-agent.js";
 import { executeAgentStep } from "./step-executor-agent.js";

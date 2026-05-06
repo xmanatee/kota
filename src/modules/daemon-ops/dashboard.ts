@@ -1,6 +1,6 @@
 import { clearScreenDown, cursorTo } from "node:readline";
 import type { WorkflowQueuedRun, WorkflowRunStatus } from "#core/workflow/run-types.js";
-import type { WorkflowAgentBackoffState } from "#core/workflow/types.js";
+import type { WorkflowAgentBackoffState } from "#core/workflow/trigger-types.js";
 import {
 	blank,
 	type LineNode,

@@ -1,11 +1,6 @@
 import type { ToolResult } from "#core/tools/index.js";
-import type {
-  WorkflowAgentBackoffSignal,
-  WorkflowAgentBackoffState,
-  WorkflowAgentStep,
-  WorkflowRunTrigger,
-  WorkflowStep,
-} from "./types.js";
+import type { WorkflowAgentStep, WorkflowStep } from "./step-types.js";
+import type { WorkflowAgentBackoffSignal, WorkflowAgentBackoffState, WorkflowRunTrigger } from "./trigger-types.js";
 
 export type WorkflowRunStatus =
   | "success"

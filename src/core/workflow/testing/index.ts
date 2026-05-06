@@ -7,16 +7,10 @@ import type {
   WorkflowStepResult,
   WorkflowStepSkipReason,
 } from "#core/workflow/run-types.js";
+import type { WorkflowBranchStepInput, WorkflowCodeStepInput, WorkflowForeachStepInput, WorkflowParallelGroupInput, WorkflowStepInput } from "#core/workflow/step-input-types.js";
+import { WorkflowStepOutputValidationError } from "#core/workflow/step-input-types.js";
 import { resolveValue } from "#core/workflow/steps/step-executor.js";
-import type {
-  WorkflowBranchStepInput,
-  WorkflowCodeStepInput,
-  WorkflowDefinitionInput,
-  WorkflowForeachStepInput,
-  WorkflowParallelGroupInput,
-  WorkflowStepInput,
-} from "#core/workflow/types.js";
-import { WorkflowStepOutputValidationError } from "#core/workflow/types.js";
+import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 
 export type HarnessStepResult = {
   id: string;

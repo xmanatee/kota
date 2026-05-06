@@ -19,8 +19,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
+import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { expectStructuredOutput, typedCodeStep } from "#core/workflow/types.js";
 import {
   applyCalibrationRepair,
   type CalibrationRepairApplied,

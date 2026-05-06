@@ -1,6 +1,8 @@
 import { matchesFilter } from "#core/workflow/run-executor-utils.js";
 import type { WorkflowPredicate, WorkflowStepContext } from "#core/workflow/run-types.js";
-import type { WorkflowDefinition, WorkflowStep, WorkflowTrigger } from "#core/workflow/types.js";
+import type { WorkflowStep } from "#core/workflow/step-types.js";
+import type { WorkflowTrigger } from "#core/workflow/trigger-types.js";
+import type { WorkflowDefinition } from "#core/workflow/types.js";
 
 export type DryRunWhenResult = "runs" | "skipped" | "error" | "no-condition";
 

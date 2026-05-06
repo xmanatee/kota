@@ -3,11 +3,8 @@ import { getEligibleAtMs } from "./run-executor-utils.js";
 import { formatRunId } from "./run-io.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowQueuedRun } from "./run-types.js";
-import type {
-  WorkflowAgentBackoffState,
-  WorkflowDefinition,
-  WorkflowRunTrigger,
-} from "./types.js";
+import type { WorkflowAgentBackoffState, WorkflowRunTrigger } from "./trigger-types.js";
+import type { WorkflowDefinition } from "./types.js";
 
 export type WorkflowQueueManagerConfig = {
   store: WorkflowRunStore;

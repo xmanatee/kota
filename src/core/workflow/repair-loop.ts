@@ -8,6 +8,7 @@ import {
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
 import type { WorkflowRepairCheck, WorkflowStepContext } from "./run-types.js";
+import type { WorkflowAgentStep } from "./step-types.js";
 import type { AgentStepConfig, AgentStepResult } from "./steps/step-executor-agent.js";
 import {
   resolveAgentModel,
@@ -17,7 +18,6 @@ import {
   AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
 } from "./steps/step-executor-retry.js";
-import type { WorkflowAgentStep } from "./types.js";
 
 export type RepairCheckResult = {
   id: string;

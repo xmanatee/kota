@@ -13,10 +13,7 @@ import { EventBus } from "#core/events/event-bus.js";
 import { discoverModules } from "#core/modules/module-discovery.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
-import type {
-  RegisteredWorkflowDefinitionInput,
-  WorkflowDefinitionInput,
-} from "#core/workflow/types.js";
+import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   validateWorkflowDefinitions,
   WorkflowDefinitionError,

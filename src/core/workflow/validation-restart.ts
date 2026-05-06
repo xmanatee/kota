@@ -1,4 +1,4 @@
-import type { WorkflowRestartStep, WorkflowStep } from "./types.js";
+import type { WorkflowRestartStep, WorkflowStep } from "./step-types.js";
 import { WorkflowDefinitionError } from "./validation-primitives.js";
 
 /**

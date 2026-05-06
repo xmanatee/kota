@@ -1,8 +1,5 @@
-import type {
-  RegisteredWorkflowDefinitionInput,
-  WorkflowStep,
-  WorkflowTriggerStep,
-} from "./types.js";
+import type { WorkflowStep, WorkflowTriggerStep } from "./step-types.js";
+import type { RegisteredWorkflowDefinitionInput } from "./types.js";
 import { WorkflowDefinitionError } from "./validation-primitives.js";
 
 /**

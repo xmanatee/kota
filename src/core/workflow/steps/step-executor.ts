@@ -3,20 +3,11 @@ import type { EventBus } from "#core/events/event-bus.js";
 import type { RepairCheckResult, RepairIteration } from "../repair-loop.js";
 import { buildRepairPrompt, runAgentRepairLoop } from "../repair-loop.js";
 import type { WorkflowRunMetadata, WorkflowStepContext, WorkflowStepSkipReason } from "../run-types.js";
-import type {
-  WorkflowApprovalStep,
-  WorkflowAwaitEventStep,
-  WorkflowCodeStep,
-  WorkflowDefinition,
-  WorkflowEmitStep,
-  WorkflowNotifyConfig,
-  WorkflowRestartStep,
-  WorkflowRunTrigger,
-  WorkflowStep,
-  WorkflowToolStep,
-  WorkflowTriggerStep,
-} from "../types.js";
-import { WorkflowStepOutputValidationError } from "../types.js";
+import type { WorkflowNotifyConfig } from "../step-input-types.js";
+import { WorkflowStepOutputValidationError } from "../step-input-types.js";
+import type { WorkflowApprovalStep, WorkflowAwaitEventStep, WorkflowCodeStep, WorkflowEmitStep, WorkflowRestartStep, WorkflowStep, WorkflowToolStep, WorkflowTriggerStep } from "../step-types.js";
+import type { WorkflowRunTrigger } from "../trigger-types.js";
+import type { WorkflowDefinition } from "../types.js";
 import type { AgentStepConfig, AgentStepResult, WorkflowStepOutput } from "./step-executor-agent.js";
 import {
   AgentStepRuntimeError,

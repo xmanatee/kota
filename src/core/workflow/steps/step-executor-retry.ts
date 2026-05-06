@@ -1,7 +1,4 @@
-import type {
-  WorkflowAgentBackoffKind,
-  WorkflowRetryConfig,
-} from "../types.js";
+import type { WorkflowAgentBackoffKind, WorkflowRetryConfig } from "../trigger-types.js";
 
 /**
  * Runtime default retry applied to every agent step unless the step

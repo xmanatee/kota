@@ -9,10 +9,8 @@ import {
   PAUSE_SIGNAL_FILE,
   RELOAD_SIGNAL_FILE,
 } from "#core/workflow/runtime.js";
-import type {
-  RegisteredWorkflowDefinitionInput,
-  WorkflowRunTrigger,
-} from "#core/workflow/types.js";
+import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
+import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import type { WorkflowClient } from "./client.js";
 import workflowOpsModule from "./index.js";
 

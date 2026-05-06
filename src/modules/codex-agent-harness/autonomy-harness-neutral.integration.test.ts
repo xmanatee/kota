@@ -14,10 +14,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import type {
-  WorkflowAgentStep,
-  WorkflowDefinition,
-} from "#core/workflow/types.js";
+import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
+import type { WorkflowDefinition } from "#core/workflow/types.js";
 
 type CapturedAgent = {
   name: string;

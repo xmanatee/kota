@@ -5,11 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import type {
-  WorkflowAgentStep,
-  WorkflowDefinition,
-  WorkflowRunTrigger,
-} from "#core/workflow/types.js";
+import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
+import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
+import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {

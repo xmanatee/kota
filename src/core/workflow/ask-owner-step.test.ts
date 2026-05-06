@@ -29,7 +29,8 @@ import { installAwaitResumers } from "./awaits-resume.js";
 import { type AwaitDelivery, readSuspension } from "./awaits-store.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowDefinition, WorkflowRunTrigger } from "./types.js";
+import type { WorkflowRunTrigger } from "./trigger-types.js";
+import type { WorkflowDefinition } from "./types.js";
 
 const TRIGGER: WorkflowRunTrigger = { event: "manual", payload: {} };
 

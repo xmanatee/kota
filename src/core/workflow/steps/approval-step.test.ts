@@ -3,8 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApprovalQueue, resetApprovalQueue } from "#core/daemon/approval-queue.js";
+import type { WorkflowApprovalStepInput } from "../step-input-types.js";
 import { WorkflowTestHarness } from "../testing/index.js";
-import type { WorkflowApprovalStepInput, WorkflowDefinitionInput } from "../types.js";
+import type { WorkflowDefinitionInput } from "../types.js";
 import { executeApprovalStep } from "./step-executor-approval.js";
 
 const { mockTryEmit } = vi.hoisted(() => ({ mockTryEmit: vi.fn() }));

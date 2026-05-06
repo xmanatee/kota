@@ -14,12 +14,9 @@ import type { WorkflowRunExecutionResult } from "./run-types.js";
 import type { WorkflowRuntimeConfig } from "./runtime-config.js";
 import { checkAbortSignal, checkReloadSignal, PAUSE_SIGNAL_FILE } from "./runtime-signals.js";
 import type { ScheduleTriggerManager } from "./schedule-triggers.js";
-import type {
-  RegisteredWorkflowDefinitionInput,
-  WorkflowDefinition,
-  WorkflowRunTrigger,
-  WorkflowStep,
-} from "./types.js";
+import type { WorkflowStep } from "./step-types.js";
+import type { WorkflowRunTrigger } from "./trigger-types.js";
+import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
 import { validateWorkflowDefinitions } from "./validation.js";
 import type { WorkflowQueueManager } from "./workflow-queue.js";
 

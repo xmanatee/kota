@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { BusEnvelope } from "#core/events/event-bus.js";
 import { enqueueMatchingWorkflows } from "./run-executor-utils.js";
 import { safeJsonStringify } from "./run-io.js";
-import type { WorkflowDefinition, WorkflowRunTrigger } from "./types.js";
+import type { WorkflowRunTrigger } from "./trigger-types.js";
+import type { WorkflowDefinition } from "./types.js";
 import { registerWorkflowDefinition, validateWorkflowDefinitions } from "./validation.js";
 
 function workflow(name: string): WorkflowDefinition {

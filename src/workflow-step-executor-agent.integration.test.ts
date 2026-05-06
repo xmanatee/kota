@@ -40,10 +40,11 @@ vi.mock("#core/loop/system-prompt.js", () => ({
 import "#modules/claude-agent-harness/index.js";
 
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import { AgentWriteScopeViolationError } from "#core/workflow/steps/agent-write-scope.js";
 import { executeAgentStep } from "#core/workflow/steps/step-executor-agent.js";
 import { AgentStepRuntimeError } from "#core/workflow/steps/step-executor-retry.js";
-import type { WorkflowAgentStep, WorkflowDefinition } from "#core/workflow/types.js";
+import type { WorkflowDefinition } from "#core/workflow/types.js";
 
 function makeDefinition(name = "test-workflow"): WorkflowDefinition {
   return {

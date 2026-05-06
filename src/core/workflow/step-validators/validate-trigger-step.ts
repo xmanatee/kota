@@ -1,4 +1,5 @@
-import type { WorkflowTriggerStep, WorkflowTriggerStepInput } from "#core/workflow/types.js";
+import type { WorkflowTriggerStepInput } from "#core/workflow/step-input-types.js";
+import type { WorkflowTriggerStep } from "#core/workflow/step-types.js";
 import {
   expectName,
   expectNonEmptyString,

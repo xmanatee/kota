@@ -1,6 +1,7 @@
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { readRepairIterations } from "./repair-iteration-output.js";
-import type { WorkflowDefinition, WorkflowStep } from "./types.js";
+import type { WorkflowStep } from "./step-types.js";
+import type { WorkflowDefinition } from "./types.js";
 
 export const STATE_FILE = "workflow-state.json";
 

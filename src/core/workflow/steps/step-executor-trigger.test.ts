@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { WorkflowStepContext } from "../run-types.js";
-import type { WorkflowTriggerStep } from "../types.js";
+import type { WorkflowTriggerStep } from "../step-types.js";
 import { executeTriggerStep } from "./step-executor-trigger.js";
 
 function makeContext(

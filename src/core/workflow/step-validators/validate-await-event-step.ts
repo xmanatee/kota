@@ -1,7 +1,5 @@
-import type {
-  WorkflowAwaitEventStep,
-  WorkflowAwaitEventStepInput,
-} from "#core/workflow/types.js";
+import type { WorkflowAwaitEventStepInput } from "#core/workflow/step-input-types.js";
+import type { WorkflowAwaitEventStep } from "#core/workflow/step-types.js";
 import {
   expectName,
   expectNonEmptyString,

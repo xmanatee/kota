@@ -7,7 +7,8 @@ import { executeWorkflowRun } from "./run-executor.js";
 import { findResumeFromIndex } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowRunMetadata, WorkflowStepResult } from "./run-types.js";
-import type { WorkflowDefinition, WorkflowRunTrigger } from "./types.js";
+import type { WorkflowRunTrigger } from "./trigger-types.js";
+import type { WorkflowDefinition } from "./types.js";
 
 function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
   return {

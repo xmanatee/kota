@@ -3,7 +3,7 @@ import { EventBus } from "#core/events/event-bus.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import type { WorkflowRunTrigger } from "#core/workflow/types.js";
+import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
 
 /**

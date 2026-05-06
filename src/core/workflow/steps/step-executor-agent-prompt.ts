@@ -1,11 +1,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { WorkflowRunMetadata } from "../run-types.js";
-import type {
-  WorkflowAgentStep,
-  WorkflowDefinition,
-  WorkflowRunTrigger,
-} from "../types.js";
+import type { WorkflowAgentStep } from "../step-types.js";
+import type { WorkflowRunTrigger } from "../trigger-types.js";
+import type { WorkflowDefinition } from "../types.js";
 
 function shouldExposeOutput(output: unknown): boolean {
   if (output === undefined) return false;

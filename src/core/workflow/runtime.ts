@@ -39,10 +39,7 @@ import {
   RELOAD_SIGNAL_FILE,
 } from "./runtime-signals.js";
 import { ScheduleTriggerManager } from "./schedule-triggers.js";
-import type {
-  RegisteredWorkflowDefinitionInput,
-  WorkflowDefinition,
-} from "./types.js";
+import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
 import { WorkflowDefinitionError } from "./validation.js";
 import { WatchTriggerManager } from "./watch-triggers.js";
 import { WorkflowQueueManager } from "./workflow-queue.js";

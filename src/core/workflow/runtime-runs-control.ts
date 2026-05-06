@@ -1,6 +1,6 @@
 import { formatRunId } from "./run-io.js";
 import { maybeStartNext, type WorkflowRuntimeDispatchState } from "./runtime-dispatch.js";
-import type { WorkflowRunTrigger } from "./types.js";
+import type { WorkflowRunTrigger } from "./trigger-types.js";
 
 
 export type WorkflowRuntimeRunsControlState = WorkflowRuntimeDispatchState;

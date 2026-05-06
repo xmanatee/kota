@@ -1,7 +1,4 @@
-import type {
-  RegisteredWorkflowDefinitionInput,
-  WorkflowDefinition,
-} from "./types.js";
+import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
 import { assembleWorkflowDefinition } from "./validation-assembly.js";
 import type { WorkflowValidationOptions } from "./validation-primitives.js";
 import { validateRestartConstraints } from "./validation-restart.js";

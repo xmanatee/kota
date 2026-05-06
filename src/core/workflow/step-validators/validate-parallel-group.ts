@@ -1,10 +1,6 @@
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import type {
-  WorkflowAgentStep,
-  WorkflowCodeStep,
-  WorkflowParallelGroup,
-  WorkflowParallelGroupInput,
-} from "#core/workflow/types.js";
+import type { WorkflowParallelGroupInput } from "#core/workflow/step-input-types.js";
+import type { WorkflowAgentStep, WorkflowCodeStep, WorkflowParallelGroup } from "#core/workflow/step-types.js";
 import {
   expectName,
   expectOptionalBoolean,

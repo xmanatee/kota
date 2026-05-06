@@ -5,18 +5,15 @@ import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import { buildStepCompletedPayload, resolveStepAutonomyMode } from "./event-payloads.js";
 import type { ToolCallSummaryEntry, WorkflowRunMetadata, WorkflowRunWarning, WorkflowStepContext, WorkflowStepResult, WorkflowStepSkipReason } from "./run-types.js";
+import type { WorkflowStep } from "./step-types.js";
 import {
   type AgentStepConfig,
   type AgentStepResult,
   AgentStepRuntimeError,
   executeStep,
 } from "./steps/step-executor.js";
-import type {
-  WorkflowAgentBackoffSignal,
-  WorkflowDefinition,
-  WorkflowRunTrigger,
-  WorkflowStep,
-} from "./types.js";
+import type { WorkflowAgentBackoffSignal, WorkflowRunTrigger } from "./trigger-types.js";
+import type { WorkflowDefinition } from "./types.js";
 
 /** Default step timeout when no timeoutMs is specified on the step definition. */
 export const DEFAULT_STEP_TIMEOUT_MS = 3 * 60 * 60 * 1000;

@@ -1,6 +1,6 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
+import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { expectStructuredOutput, typedCodeStep } from "#core/workflow/types.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,

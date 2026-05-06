@@ -5,10 +5,7 @@ import {
   resolveDefinitions,
   type WorkflowRuntimeDispatchState,
 } from "./runtime-dispatch.js";
-import type {
-  RegisteredWorkflowDefinitionInput,
-  WorkflowDefinition,
-} from "./types.js";
+import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
 import type { WatchTriggerManager } from "./watch-triggers.js";
 
 export interface WorkflowRuntimeDefinitionsState extends WorkflowRuntimeDispatchState {

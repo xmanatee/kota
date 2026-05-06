@@ -8,7 +8,7 @@ import {
   writeSuspension,
 } from "../awaits-store.js";
 import type { WorkflowStepContext } from "../run-types.js";
-import type { WorkflowAwaitEventStep } from "../types.js";
+import type { WorkflowAwaitEventStep } from "../step-types.js";
 import { resolveValue } from "./step-executor.js";
 import type { WorkflowStepOutput } from "./step-executor-agent.js";
 

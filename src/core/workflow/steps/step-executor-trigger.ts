@@ -1,5 +1,5 @@
 import type { WorkflowStepContext } from "../run-types.js";
-import type { WorkflowTriggerStep } from "../types.js";
+import type { WorkflowTriggerStep } from "../step-types.js";
 import { resolveValue } from "./step-executor.js";
 
 export type TriggerStepOutput = {

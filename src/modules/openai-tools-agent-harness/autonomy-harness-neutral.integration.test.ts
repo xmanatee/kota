@@ -17,7 +17,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KotaModelResponse } from "#core/agent-harness/message-protocol.js";
 import { registerModelClientFactory } from "#core/model/model-client.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import type { WorkflowAgentStep, WorkflowDefinition } from "#core/workflow/types.js";
+import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
+import type { WorkflowDefinition } from "#core/workflow/types.js";
 
 // Silence git shell-outs inside the critic: the temp project directories used
 // here are not git repos, but the critic unconditionally shells out to

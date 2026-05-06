@@ -1,6 +1,6 @@
 import type { BusEvents, EventBus } from "#core/events/event-bus.js";
 import { subscribeWorkflowFailureAlert } from "#core/workflow/failure-alert.js";
-import type { WorkflowNotifyConfig } from "#core/workflow/types.js";
+import type { WorkflowNotifyConfig } from "#core/workflow/step-input-types.js";
 import { getApprovalQueue } from "./approval-queue.js";
 import { type ModuleCrashAlertOptions, subscribeModuleCrashAlert } from "./module-crash-alert.js";
 import { getOwnerQuestionQueue } from "./owner-question-queue.js";

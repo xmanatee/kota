@@ -1,14 +1,6 @@
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import type {
-  WorkflowApprovalStepInput,
-  WorkflowAwaitEventStepInput,
-  WorkflowBranchStepInput,
-  WorkflowForeachStepInput,
-  WorkflowParallelGroupInput,
-  WorkflowStep,
-  WorkflowStepInput,
-  WorkflowTriggerStepInput,
-} from "./types.js";
+import type { WorkflowApprovalStepInput, WorkflowAwaitEventStepInput, WorkflowBranchStepInput, WorkflowForeachStepInput, WorkflowParallelGroupInput, WorkflowStepInput, WorkflowTriggerStepInput } from "./step-input-types.js";
+import type { WorkflowStep } from "./step-types.js";
 import {
   WorkflowDefinitionError,
   type WorkflowValidationOptions,

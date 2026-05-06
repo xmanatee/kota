@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { WorkflowBranchStepInput } from "../step-input-types.js";
 import { WorkflowTestHarness } from "../testing/index.js";
-import type { WorkflowBranchStepInput, WorkflowDefinitionInput } from "../types.js";
+import type { WorkflowDefinitionInput } from "../types.js";
 import { validateWorkflowDefinitions } from "../validation.js";
 
 function makeWorkflow(steps: WorkflowDefinitionInput["steps"]): WorkflowDefinitionInput {

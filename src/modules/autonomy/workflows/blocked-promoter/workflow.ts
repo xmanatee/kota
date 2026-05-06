@@ -3,12 +3,8 @@ import { join } from "node:path";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { askOwnerSteps } from "#core/workflow/ask-owner-step.js";
 import { labeledPredicate } from "#core/workflow/run-types.js";
+import { expectArrayOutput, expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import {
-  expectArrayOutput,
-  expectStructuredOutput,
-  typedCodeStep,
-} from "#core/workflow/types.js";
 import { checkCommitStageable, commitWorkflowChanges } from "#modules/autonomy/commit.js";
 import {
   onNormalTrigger,

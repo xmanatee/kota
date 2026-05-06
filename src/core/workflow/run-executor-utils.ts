@@ -6,12 +6,8 @@ import type {
   WorkflowRuntimeState,
   WorkflowStepResult,
 } from "./run-types.js";
-import type {
-  WorkflowDefinition,
-  WorkflowFilterValue,
-  WorkflowRunTrigger,
-  WorkflowTrigger,
-} from "./types.js";
+import type { WorkflowFilterValue, WorkflowRunTrigger, WorkflowTrigger } from "./trigger-types.js";
+import type { WorkflowDefinition } from "./types.js";
 
 export function matchesFilter(
   filter: Record<string, WorkflowFilterValue> | undefined,

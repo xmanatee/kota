@@ -5,10 +5,7 @@ import {
   importModuleExports,
   listModuleDirectories,
 } from "#core/modules/runtime-module-discovery.js";
-import type {
-  RegisteredWorkflowDefinitionInput,
-  WorkflowDefinitionInput,
-} from "#core/workflow/types.js";
+import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { buildReportCommand } from "./report/report-cli.js";
 import { buildAttentionCommand } from "./workflows/attention-digest/attention-cli.js";
 import { attentionRoutes } from "./workflows/attention-digest/attention-route.js";

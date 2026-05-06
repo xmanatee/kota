@@ -21,11 +21,8 @@ import type {
   WorkflowRunMetadata,
   WorkflowRuntimeState,
 } from "./run-types.js";
-import type {
-  WorkflowAgentBackoffState,
-  WorkflowDefinition,
-  WorkflowRunTrigger,
-} from "./types.js";
+import type { WorkflowAgentBackoffState, WorkflowRunTrigger } from "./trigger-types.js";
+import type { WorkflowDefinition } from "./types.js";
 
 export type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 

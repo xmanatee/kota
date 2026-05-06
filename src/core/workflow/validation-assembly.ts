@@ -1,10 +1,7 @@
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { matchesFilter } from "./run-executor-utils.js";
-import type {
-  RegisteredWorkflowDefinitionInput,
-  WorkflowDefinition,
-  WorkflowStep,
-} from "./types.js";
+import type { WorkflowStep } from "./step-types.js";
+import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
 import {
   expectOptionalBoolean,
   expectOptionalInteger,

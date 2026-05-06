@@ -1,7 +1,7 @@
 import type { ChannelStatus } from "#core/channels/channel.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ToolCallSummaryEntry, WorkflowActiveRun, WorkflowQueuedRun, WorkflowRuntimeState, WorkflowStepSkipReason } from "#core/workflow/run-types.js";
-import type { WorkflowAgentBackoffState } from "#core/workflow/types.js";
+import type { WorkflowAgentBackoffState } from "#core/workflow/trigger-types.js";
 import type { CapabilityReadinessResponse } from "./capability-readiness.js";
 import type { ClientIdentity } from "./client-identity.js";
 import type { DaemonState } from "./daemon-state.js";

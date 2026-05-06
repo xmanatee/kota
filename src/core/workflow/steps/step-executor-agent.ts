@@ -11,11 +11,9 @@ import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
 import type { ToolResult } from "#core/tools/index.js";
 import { ToolTelemetry } from "#core/tools/tool-telemetry.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
-import type {
-  WorkflowAgentStep,
-  WorkflowDefinition,
-  WorkflowRunTrigger,
-} from "../types.js";
+import type { WorkflowAgentStep } from "../step-types.js";
+import type { WorkflowRunTrigger } from "../trigger-types.js";
+import type { WorkflowDefinition } from "../types.js";
 import {
   AgentWriteScopeViolationError,
   diffMutatedPaths,

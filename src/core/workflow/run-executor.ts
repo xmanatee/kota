@@ -12,6 +12,7 @@ import { buildSkippedResult, DEFAULT_STEP_TIMEOUT_MS, executeWorkflowStep } from
 import { buildResumeInitialState, buildRetryInitialState } from "./run-executor-utils.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowRunWarning, WorkflowStepResult } from "./run-types.js";
+import type { WorkflowBranchStep, WorkflowForeachStep } from "./step-types.js";
 import { createStepContext } from "./steps/step-context.js";
 import {
   type AgentStepConfig,
@@ -21,7 +22,8 @@ import {
 import { type BranchGroupResult, executeBranchStepGroup } from "./steps/step-executor-branch.js";
 import { executeForeachStepGroup, type ForeachGroupResult } from "./steps/step-executor-foreach.js";
 import { executeParallelStepGroup, type ParallelAgentDeps } from "./steps/step-executor-parallel.js";
-import type { WorkflowBranchStep, WorkflowDefinition, WorkflowForeachStep, WorkflowRunTrigger } from "./types.js";
+import type { WorkflowRunTrigger } from "./trigger-types.js";
+import type { WorkflowDefinition } from "./types.js";
 
 export type RunExecutorDeps = {
   projectDir: string;

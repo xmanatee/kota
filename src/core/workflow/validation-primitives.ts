@@ -1,5 +1,5 @@
 import { isAbsolute } from "node:path";
-import type { WorkflowFilterValue } from "./types.js";
+import type { WorkflowFilterValue } from "./trigger-types.js";
 
 export class WorkflowDefinitionError extends Error {
   constructor(message: string, readonly definitionPath: string) {

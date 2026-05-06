@@ -37,12 +37,9 @@ import {
 import { formatRunId } from "./run-io.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowQueuedRun } from "./run-types.js";
+import type { WorkflowAwaitEventStep, WorkflowStep } from "./step-types.js";
 import { AWAIT_EVENT_PAYLOADS_KEY } from "./steps/step-executor-await-event.js";
-import type {
-  WorkflowAwaitEventStep,
-  WorkflowDefinition,
-  WorkflowStep,
-} from "./types.js";
+import type { WorkflowDefinition } from "./types.js";
 
 export type InstallAwaitResumersDeps = {
   bus: EventBus;

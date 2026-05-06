@@ -1,4 +1,5 @@
-import type { WorkflowRestartStep, WorkflowRestartStepInput } from "#core/workflow/types.js";
+import type { WorkflowRestartStepInput } from "#core/workflow/step-input-types.js";
+import type { WorkflowRestartStep } from "#core/workflow/step-types.js";
 import {
   expectName,
   expectOptionalBoolean,

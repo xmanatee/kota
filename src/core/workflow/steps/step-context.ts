@@ -8,7 +8,7 @@ import type {
   WorkflowStepContext,
   WorkflowStepResult,
 } from "../run-types.js";
-import type { WorkflowRunTrigger } from "../types.js";
+import type { WorkflowRunTrigger } from "../trigger-types.js";
 
 /**
  * Per-run append-only log of events a step emitted via `ctx.emit`. The

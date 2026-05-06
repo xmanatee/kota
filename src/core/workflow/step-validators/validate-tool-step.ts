@@ -1,4 +1,5 @@
-import type { WorkflowToolStep, WorkflowToolStepInput } from "#core/workflow/types.js";
+import type { WorkflowToolStepInput } from "#core/workflow/step-input-types.js";
+import type { WorkflowToolStep } from "#core/workflow/step-types.js";
 import {
   expectName,
   expectNonEmptyString,
