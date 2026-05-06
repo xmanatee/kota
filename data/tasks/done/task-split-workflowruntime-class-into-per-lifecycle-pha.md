@@ -1,12 +1,12 @@
 ---
 id: task-split-workflowruntime-class-into-per-lifecycle-pha
 title: Split WorkflowRuntime class into per-lifecycle-phase sibling files
-status: ready
+status: done
 priority: p1
 area: core
 summary: Collapse src/core/workflow/runtime.ts (591 lines) WorkflowRuntime class into a thin orchestrator that delegates each lifecycle phase (start/stop, definition management, run lifecycle/control, event handling, recovery) to dedicated sibling files, matching the recent Daemon-class per-lifecycle-phase split.
 created_at: 2026-05-06T00:28:03.691Z
-updated_at: 2026-05-06T00:28:03.691Z
+updated_at: 2026-05-06T00:45:00.275Z
 ---
 
 ## Problem

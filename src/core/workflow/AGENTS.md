@@ -16,21 +16,17 @@ This directory contains the autonomous workflow runtime, validation, registry, a
   only when the agent cannot cheaply recover the information through normal repo
   context and tools.
 
-## Internal Subdomains
+## Per-Lifecycle-Phase Runtime Split
 
-- `steps/` — step execution strategies and step context construction.
-- `step-validators/` — per-step-type definition validation.
-- `testing/` — `WorkflowTestHarness` for unit-testing workflow definitions.
-- Runtime orchestration: `runtime.ts`, `runtime-dispatch.ts`,
-  `runtime-config.ts`, `runtime-signals.ts`.
-- Run lifecycle: `run-executor*.ts`, `run-store*.ts`, `run-io.ts`,
-  `run-types.ts`, `active-run-handle.ts`.
-- Definition validation: `validation*.ts`, `payload-validator.ts`.
-- Scheduling: `cron.ts`, `dispatch-window.ts`, `schedule-triggers.ts`,
-  `watch-triggers.ts`.
-- Repair and resilience: `repair-loop.ts`, `agent-backoff.ts`,
-  `failure-alert.ts`.
-- Shared types and events: `types.ts`, `event-payloads.ts`.
+`runtime.ts` is a thin `WorkflowRuntime` orchestrator that owns a single
+`WorkflowRuntimeContext` and delegates each lifecycle phase to a sibling
+file (lifecycle, definitions, runs control, events, recovery, dispatch).
+The orchestrator keeps construction, the shared context container, and
+forwarding methods only. All non-trivial lifecycle logic lives in the
+per-phase sibling files. Each phase declares its own input interface
+extending the dispatch state, so helpers can call across phases without
+per-call type assertions. New runtime behavior belongs in the matching
+phase file; do not grow `runtime.ts` past the orchestrator boundary.
 
 ## Pausable Await-Event Steps
 
@@ -40,18 +36,16 @@ suspension survives a daemon restart:
 
 - The step writes a suspension record at
   `.kota/runs/<run-id>/awaits/<step-id>.json` before it begins waiting and
-  subscribes to the bus through `EventBus.on`. There is no separate event
-  router.
+  subscribes through `EventBus.on`. There is no separate event router.
 - On match (live), the executor writes a sibling
-  `<step-id>.delivered.json`, then resolves with the captured event payload
-  and removes both files. Suspension cleanup is durable across the resolve
+  `<step-id>.delivered.json`, then resolves with the captured payload and
+  removes both files. Suspension cleanup is durable across the resolve
   boundary so a crash mid-record can still recover.
 - On daemon startup, `installAwaitResumers` scans every persisted
   suspension. For each it either queues a resume run immediately (delivery
   sibling present, or the deadline already passed during the gap) or
   registers a fresh one-shot bus listener plus a deadline race. The first
-  match (or timeout) tears down the other, queues a resume, and lets
-  `maybeStartNext` dispatch it through the existing run-resume path.
+  match (or timeout) tears down the other and queues a resume.
 - Resume runs carry the captured payloads under
   `trigger.payload.awaitEventPayloads[stepId]`. The await-event executor
   short-circuits when that key is present, so the workflow continues with
@@ -61,15 +55,14 @@ suspension survives a daemon restart:
 Replay safety lives in the executor's `settled` flag and the resume
 listener's `fired` flag — duplicate deliveries with the same id are dropped
 on the receive side. Persisted-await files referencing a missing workflow
-or missing step are removed and logged so a stale recovery candidate is
-visible to operators rather than silently retried.
+or step are removed and logged so a stale candidate is visible to
+operators rather than silently retried.
 
 Await-event steps bypass the default step hang rail
 (`DEFAULT_STEP_TIMEOUT_MS`) when no explicit `timeoutMs` is set, because
 operator-loop waits can legitimately exceed it. The protocol-level
 deadline is `awaitTimeoutMs`, which produces the typed timeout output;
-`timeoutMs` (when explicitly set) still applies as a hard hang rail that
-fails the step.
+`timeoutMs` (when explicitly set) still applies as a hard hang rail.
 
 External producers can deliver an event during a daemon-down gap by
 writing the delivery sibling directly. The on-disk shape is
@@ -83,20 +76,11 @@ deadline.
 await-event primitive into a three-step recipe — `ask`, `wait`,
 `consume` — that escalates a high-stakes decision to the repo owner
 without holding the agent's tool loop open. Workflows splice the
-returned steps into their definition:
-
-```ts
-const owner = askOwnerSteps({
-  idPrefix: "ask",
-  input: { context, question, reason },
-  awaitTimeoutMs: 15 * 60 * 1000,
-});
-return { ..., steps: [owner.ask, owner.wait, owner.consume, /* downstream */] };
-```
+returned steps into their definition.
 
 - `ask` enqueues the question on `OwnerQuestionQueue`. Notification
-  modules (`telegram`, `slack`, `webhook`, `email`) already subscribe to
-  `owner.question.asked` and forward the question to operators.
+  modules already subscribe to `owner.question.asked` and forward the
+  question to operators.
 - `wait` is an `await-event` step on `owner.question.resolved` matched
   by `id`. The suspension persists to disk so a daemon restart mid-wait
   resumes the run via `installAwaitResumers`.
@@ -118,9 +102,9 @@ is assignable to any `WorkflowCodeStepInput` slot and adds two accessors typed
 as `T`:
 
 - `output(ctx)` returns `T | undefined` — `undefined` for skipped or not-yet-run
-  steps. Use it when the caller already gates on optionality with `?.`.
+  steps. Use when the caller already gates on optionality with `?.`.
 - `outputRequired(ctx)` returns `T` and throws if the step was skipped or has
-  not yet run. Use it from sites that gate themselves on the step having
+  not yet run. Use from sites that gate themselves on the step having
   succeeded so the type narrows without a manual undefined check.
 
 A `validate` decoder is required. It runs once after `run()` (catching shape
@@ -129,30 +113,13 @@ persisted/resumed/manually-loaded values that no longer match `T`). On
 rejection the runtime throws `WorkflowStepOutputValidationError` with the
 offending step id and surface (`run` vs `persisted`).
 
-```ts
-import {
-  expectStructuredOutput,
-  typedCodeStep,
-} from "../workflow/types.js";
-
-const myStep = typedCodeStep<MyOutputType>({
-  id: "my-step",
-  type: "code",
-  validate: (raw) => expectStructuredOutput<MyOutputType>(raw, ["someField"]),
-  run: (): MyOutputType => ({ ... }),
-});
-
-// Use myStep directly in the steps array.
-when: (ctx) => myStep.outputRequired(ctx).someField > 0,
-```
-
-The validator decodes the persisted raw value into `T`. `expectStructuredOutput`
-and `expectArrayOutput` cover the common cases (object with required keys,
-array with optional per-item decoder); supply a custom function for anything
-more involved.
+`expectStructuredOutput` and `expectArrayOutput` cover the common cases
+(object with required keys, array with optional per-item decoder); supply a
+custom function for anything more involved.
 
 Untyped `WorkflowCodeStepInput` (no `validate`, no typed accessor) is still
-valid for steps whose output is scalar or unread — only adopt this pattern when
-downstream type safety is needed. The runtime persists the post-validate value
-in `stepOutputs`, so it always matches the declared `T` for fresh runs; the
-on-access re-validation is the rail that catches resume-time drift.
+valid for steps whose output is scalar or unread — only adopt the typed
+pattern when downstream type safety is needed. The runtime persists the
+post-validate value in `stepOutputs`, so it always matches the declared `T`
+for fresh runs; the on-access re-validation is the rail that catches
+resume-time drift.
