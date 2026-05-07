@@ -4,15 +4,15 @@ title: Consolidate recall surfaces across clients
 status: blocked
 priority: p2
 area: client
-summary: Review the recall surface family across telegram, macos, mobile, daemon for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
+summary: Review the recall surface family across macos, mobile, telegram, web for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-02T22:29:15.356Z
+updated_at: 2026-05-07T00:00:00.000Z
 ---
 
 ## Problem
 
 The `recall` capability shipped across 4 client surfaces
-(daemon, macos, mobile, telegram) without a holistic check on whether the surface family stayed coherent.
+(macos, mobile, telegram, web) without a holistic check on whether the surface family stayed coherent.
 Per-surface tests passed, but coherence questions only make sense across the batch:
 operator workflow fit, cross-client contract consistency, duplicated route/error/rendering
 logic, provider readiness, runtime evidence, and accepted critic trade-offs.
@@ -23,22 +23,19 @@ Capability: `recall`
 
 Surfaces shipped:
 
-- daemon
 - macos
 - mobile
 - telegram
+- web
 
 Recently closed fan-out tasks in this batch:
 
 - task-add-telegram-recall-command-exposing-the-unified-c (telegram, closed 2026-04-27T07:55:05.506Z) — Add Telegram /recall command exposing the unified cross-store recall seam
+- task-add-web-recallpanel-consuming-recall-daemon-route (web, closed 2026-04-27T08:26:01.466Z) — Add web RecallPanel consuming /recall daemon route
 - task-add-macos-daemonclientrecall-with-discriminated-re (macos, closed 2026-04-27T08:55:07.157Z) — Add macOS DaemonClient.recall with discriminated RecallSearchResponse types and unit tests
-- task-add-macos-daemonclientrecall-with-discriminated-re (mobile, closed 2026-04-27T08:55:07.157Z) — Add macOS DaemonClient.recall with discriminated RecallSearchResponse types and unit tests
-- task-add-macos-daemonclientrecall-with-discriminated-re (daemon, closed 2026-04-27T08:55:07.157Z) — Add macOS DaemonClient.recall with discriminated RecallSearchResponse types and unit tests
 - task-add-macos-menu-bar-recallview-consuming-daemonclie (macos, closed 2026-04-27T09:32:22.259Z) — Add macOS menu-bar RecallView consuming DaemonClient.recall
-- task-add-mobile-recallscreen-consuming-a-new-daemonclie (macos, closed 2026-04-27T10:14:02.308Z) — Add mobile RecallScreen consuming a new DaemonClient.recall
 - task-add-mobile-recallscreen-consuming-a-new-daemonclie (mobile, closed 2026-04-27T10:14:02.308Z) — Add mobile RecallScreen consuming a new DaemonClient.recall
-- task-add-mobile-recallscreen-consuming-a-new-daemonclie (telegram, closed 2026-04-27T10:14:02.308Z) — Add mobile RecallScreen consuming a new DaemonClient.recall
-- task-add-mobile-recallscreen-consuming-a-new-daemonclie (daemon, closed 2026-04-27T10:14:02.308Z) — Add mobile RecallScreen consuming a new DaemonClient.recall
+- task-update-macos-and-mobile-recall-empty-state-copy-to (macos, closed 2026-05-02T22:39:54.079Z) — Update macOS and mobile recall empty-state copy to include the answer source
 
 ## Desired Outcome
 
@@ -87,7 +84,7 @@ or has follow-up tasks opened for each gap. Concretely, the review produces:
 
 Auto-seeded by the fan-out-consolidator workflow after the `recall` capability
 landed across 4 client surfaces between 2026-04-27T07:55:05.506Z
-and 2026-04-27T10:14:02.308Z. The 2026-04-28 broad daemon review found that fan-out batches
+and 2026-05-02T22:39:54.079Z. The 2026-04-28 broad daemon review found that fan-out batches
 without a holistic consolidation pass left an overloaded operator surface despite green
 per-surface tests. This task is the autonomy queue's recurring corrective pass.
 

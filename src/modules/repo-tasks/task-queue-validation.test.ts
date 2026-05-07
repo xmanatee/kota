@@ -320,6 +320,143 @@ Owner or research source asks for this because it changes a meaningful operator 
     expect(result.findings.some((f) => f.code === "strategic-task-missing-initiative")).toBe(true);
   });
 
+  it("rejects generated fan-out consolidation tasks that count one closed task as multiple surfaces", () => {
+    const dir = join(projectDir, REPO_TASKS_DIR, "blocked");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "task-fan-out-consolidation-answer.md"),
+      `---
+id: task-fan-out-consolidation-answer
+title: Consolidate answer surfaces across clients
+status: blocked
+priority: p2
+area: client
+summary: Bad generated consolidation task.
+created_at: 2026-03-28T00:00:00Z
+updated_at: 2026-03-28T00:00:00Z
+---
+
+## Problem
+
+Problem.
+
+## Multi-client fan-out batch
+
+Capability: \`answer\`
+
+Surfaces shipped:
+
+- macos
+- mobile
+
+Recently closed fan-out tasks in this batch:
+
+- task-add-mobile-answerscreen (macos, closed 2026-03-28T00:00:00Z) — Add mobile AnswerScreen
+- task-add-mobile-answerscreen (mobile, closed 2026-03-28T00:00:00Z) — Add mobile AnswerScreen
+
+## Desired Outcome
+
+Outcome with screenshots.
+
+## Constraints
+
+Constraints.
+
+## Done When
+
+- Screenshot proves the rendered state.
+
+## Source / Intent
+
+Owner or research source asks for this because it changes a meaningful operator or architecture outcome.
+
+## Initiative
+
+Strategic quality initiative that groups this task with a larger product or architecture outcome.
+
+## Acceptance Evidence
+
+- Screenshot under \`.kota/runs/<run-id>/\`.
+
+## Unblock Precondition
+
+\`\`\`
+kind: operator-capture
+path: .kota/runs/fan-out-screens-*
+description: capture rendered surfaces
+\`\`\`
+`,
+    );
+    execSync("git add data && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "fan-out-consolidation-duplicate-task-rows")).toBe(true);
+  });
+
+  it("warns when a blocked task ages without a fresh action marker", () => {
+    const dir = join(projectDir, REPO_TASKS_DIR, "blocked");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "task-old-blocker.md"),
+      `---
+id: task-old-blocker
+title: Old blocker
+status: blocked
+priority: p2
+area: architecture
+summary: Old blocked task.
+created_at: 2026-03-28T00:00:00Z
+updated_at: 2026-03-28T00:00:00Z
+---
+
+## Problem
+
+Problem.
+
+## Desired Outcome
+
+Outcome.
+
+## Constraints
+
+Constraints.
+
+## Done When
+
+- Done.
+
+## Source / Intent
+
+Owner or research source asks for this because it changes a meaningful operator or architecture outcome.
+
+## Initiative
+
+Strategic quality initiative that groups this task with a larger product or architecture outcome.
+
+## Acceptance Evidence
+
+- Validation command or artifact proves the outcome.
+
+## Unblock Precondition
+
+\`\`\`
+kind: task-done
+ref: task-missing-enabler
+\`\`\`
+`,
+    );
+    execSync("git add data && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir, { staleBlockedDays: 1 });
+    expect(result.findings.some((f) => f.code === "blocked-task-stale")).toBe(true);
+  });
+
   it("does not accept task-create scaffold placeholders as completed quality sections", () => {
     const dir = join(projectDir, REPO_TASKS_DIR, "ready");
     mkdirSync(dir, { recursive: true });

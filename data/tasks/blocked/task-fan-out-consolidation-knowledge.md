@@ -4,15 +4,15 @@ title: Consolidate knowledge surfaces across clients
 status: blocked
 priority: p2
 area: client
-summary: Review the knowledge surface family across telegram, macos, daemon, mobile, cli for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
+summary: Review the knowledge surface family across macos, mobile, telegram, web for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-02T23:58:26.507Z
+updated_at: 2026-05-07T00:00:00.000Z
 ---
 
 ## Problem
 
-The `knowledge` capability shipped across 5 client surfaces
-(cli, daemon, macos, mobile, telegram) without a holistic check on whether the surface family stayed coherent.
+The `knowledge` capability shipped across 4 client surfaces
+(macos, mobile, telegram, web) without a holistic check on whether the surface family stayed coherent.
 Per-surface tests passed, but coherence questions only make sense across the batch:
 operator workflow fit, cross-client contract consistency, duplicated route/error/rendering
 logic, provider readiness, runtime evidence, and accepted critic trade-offs.
@@ -23,29 +23,17 @@ Capability: `knowledge`
 
 Surfaces shipped:
 
-- cli
-- daemon
 - macos
 - mobile
 - telegram
+- web
 
 Recently closed fan-out tasks in this batch:
 
 - task-add-a-telegram-knowledge-command-for-ad-hoc-semant (telegram, closed 2026-04-26T09:54:48.328Z) — Add a Telegram /knowledge command for ad-hoc semantic knowledge search
-- task-add-macos-daemonclientsearchknowledge-with-discrim (macos, closed 2026-04-26T23:49:47.243Z) — Add macOS DaemonClient.searchKnowledge with discriminated KnowledgeSearchResponse types and unit tests
-- task-add-macos-daemonclientsearchknowledge-with-discrim (daemon, closed 2026-04-26T23:49:47.243Z) — Add macOS DaemonClient.searchKnowledge with discriminated KnowledgeSearchResponse types and unit tests
 - task-add-macos-menu-bar-knowledgeview-consuming-daemonc (macos, closed 2026-04-26T23:57:32.119Z) — Add macOS menu-bar KnowledgeView consuming DaemonClient.searchKnowledge
-- task-add-macos-menu-bar-knowledgeview-consuming-daemonc (daemon, closed 2026-04-26T23:57:32.119Z) — Add macOS menu-bar KnowledgeView consuming DaemonClient.searchKnowledge
-- task-add-mobile-knowledgescreen-consuming-searchknowled (macos, closed 2026-04-27T00:16:06.320Z) — Add mobile KnowledgeScreen consuming searchKnowledge
 - task-add-mobile-knowledgescreen-consuming-searchknowled (mobile, closed 2026-04-27T00:16:06.320Z) — Add mobile KnowledgeScreen consuming searchKnowledge
-- task-add-mobile-knowledgescreen-consuming-searchknowled (telegram, closed 2026-04-27T00:16:06.320Z) — Add mobile KnowledgeScreen consuming searchKnowledge
-- task-add-mobile-knowledgescreen-consuming-searchknowled (cli, closed 2026-04-27T00:16:06.320Z) — Add mobile KnowledgeScreen consuming searchKnowledge
-- task-add-mobile-knowledgescreen-consuming-searchknowled (daemon, closed 2026-04-27T00:16:06.320Z) — Add mobile KnowledgeScreen consuming searchKnowledge
-- task-add-a-telegram-memory-command-for-ad-hoc-semantic- (macos, closed 2026-04-27T00:51:53.539Z) — Add a Telegram /memory command for ad-hoc semantic memory search
-- task-add-a-telegram-memory-command-for-ad-hoc-semantic- (mobile, closed 2026-04-27T00:51:53.539Z) — Add a Telegram /memory command for ad-hoc semantic memory search
-- task-add-a-telegram-memory-command-for-ad-hoc-semantic- (telegram, closed 2026-04-27T00:51:53.539Z) — Add a Telegram /memory command for ad-hoc semantic memory search
-- task-add-a-telegram-memory-command-for-ad-hoc-semantic- (cli, closed 2026-04-27T00:51:53.539Z) — Add a Telegram /memory command for ad-hoc semantic memory search
-- task-add-a-telegram-memory-command-for-ad-hoc-semantic- (daemon, closed 2026-04-27T00:51:53.539Z) — Add a Telegram /memory command for ad-hoc semantic memory search
+- task-replace-web-knowledgepanel-stale-shape-with-cross- (web, closed 2026-05-03T03:51:23.298Z) — Replace web KnowledgePanel stale shape with cross-store knowledge contract
 
 ## Desired Outcome
 
@@ -93,8 +81,8 @@ or has follow-up tasks opened for each gap. Concretely, the review produces:
 ## Source / Intent
 
 Auto-seeded by the fan-out-consolidator workflow after the `knowledge` capability
-landed across 5 client surfaces between 2026-04-26T09:54:48.328Z
-and 2026-04-27T00:51:53.539Z. The 2026-04-28 broad daemon review found that fan-out batches
+landed across 4 client surfaces between 2026-04-26T09:54:48.328Z
+and 2026-05-03T03:51:23.298Z. The 2026-04-28 broad daemon review found that fan-out batches
 without a holistic consolidation pass left an overloaded operator surface despite green
 per-surface tests. This task is the autonomy queue's recurring corrective pass.
 
@@ -155,32 +143,20 @@ Recorded under
 - `verdict.md` — written verdict for each of the 8 consolidation
   dimensions.
 
-Follow-ups filed (or named) in this change:
+Follow-ups and prior gaps:
 
-- `data/tasks/backlog/task-replace-web-knowledgepanel-stale-shape-with-cross-.md`
-  (new in this run, `area: client`, `priority: p3`) — the legacy web
-  sidebar `KnowledgePanel` consumes `GET /api/knowledge` (the list
-  endpoint) with a stale local `KnowledgeEntry` shape
-  (`{ id, title, category, content, createdAt }`) that disagrees with
-  the daemon's actual `KnowledgeEntry` contract on every field but
-  `id` and `title`. The follow-up rewrites the panel to consume the
-  shared `GET /api/knowledge/search` seam with the four-field
-  cross-client projection, removing the silent runtime drift where
-  `e.category` is undefined against any real daemon response.
-- `task-share-or-conformance-test-daemon-wire-contracts-ac`
-  (already filed, `doing/`, p1 architecture) — named for traceability
-  because mobile `parseKnowledgeEntry` and macOS `KnowledgeEntry`
-  Codable are the same kind of cross-package decoder mirrors that
-  umbrella covers.
+- `task-replace-web-knowledgepanel-stale-shape-with-cross-` is now done.
+  The embedded web `KnowledgePanel` consumes the shared
+  `GET /api/knowledge/search` seam and renders the same four-field line
+  projection as the other operator pull-surfaces.
+- `task-share-or-conformance-test-daemon-wire-contracts-ac` is also done;
+  the cross-client conformance fixture and decoder mirrors now cover this
+  class of daemon wire-contract drift.
 
 The knowledge module's `src/modules/knowledge/AGENTS.md`
-"Operator pull-surfaces" line is updated in this change to enumerate
-Telegram `/knowledge`, terminal `kota knowledge search`, mobile
-`KnowledgeScreen`, and macOS `KnowledgeView`, plus a note naming the
-legacy web `KnowledgePanel` and the follow-up task that retires it.
-The mobile `KnowledgeScreen` shipped during this fan-out batch
-(`48674b03`, 2026-04-27) and was missing from the inventory; the
-web `KnowledgePanel` was wrongly listed as a search-seam consumer.
+"Operator pull-surfaces" line now includes Telegram `/knowledge`,
+terminal `kota knowledge search`, mobile `KnowledgeScreen`, macOS
+`KnowledgeView`, and the embedded web sidebar `KnowledgePanel`.
 
 The macOS `KnowledgeView` and mobile `KnowledgeScreen` fan-out
 commits were spot-checked for accepted critic warnings; neither
@@ -196,5 +172,5 @@ builder cannot capture headlessly.
 ```
 kind: operator-capture
 path: .kota/runs/knowledge-consolidation-screens-*
-description: live operator-captured screenshots/screencasts for the live knowledge-search visual surfaces — telegram (`/knowledge` against an empty store rendering `No matching knowledge entries.`, `/knowledge` against an embedding-backed populated store rendering the shared `id  type  status  title` line shape, `/knowledge` against the default file-based provider rendering the typed `Semantic knowledge search requires an embedding-backed knowledge provider.` body, and the `Usage: /knowledge <query>` hint for empty/whitespace input), mobile (`KnowledgeScreen` covering loading via the RefreshControl, populated list with the shared line shape, empty list with the `No matching knowledge entries.` label, the typed `semantic_unavailable` orange banner, error retry, offline banner, the `Type a query and tap Search to query knowledge.` empty-query hint, and the cleared-on-reset state), and macOS (`KnowledgeView` covering the loading spinner with `Searching…` caption, populated body via the shared `renderKnowledgeSearchPlain` helper, the muted `No matching knowledge entries.` body, the orange `Semantic knowledge search requires an embedding-backed knowledge provider.` caption, the red `KnowledgeErrorView` with the Retry button, the `Type a query to search knowledge.` empty-query hint, and the `Press return to search.` after-query-but-before-submit hint). CLI is excluded from this precondition because the headless transcript at `.kota/runs/2026-05-02T23-48-49-379Z-builder-xqo3ac/knowledge-consolidation/cli-transcript.txt` already covers every CLI arm. Daemon is excluded because the runtime probe at `.kota/runs/2026-05-02T23-48-49-379Z-builder-xqo3ac/knowledge-consolidation/contract-probe.json` covers every wire envelope. Web is excluded because the legacy `KnowledgePanel` is not yet a search-seam consumer; visual evidence for the web surface lands with the follow-up task `task-replace-web-knowledgepanel-stale-shape-with-cross-`. Operator runs each visual client against a daemon (with both an empty default-provider store and an embedding-backed populated store) and commits the rendered artifacts under .kota/runs/knowledge-consolidation-screens-<stamp>/{telegram,mobile,macos}/.
+description: live operator-captured screenshots/screencasts for the live knowledge-search visual surfaces — telegram (`/knowledge` against an empty store rendering `No matching knowledge entries.`, `/knowledge` against an embedding-backed populated store rendering the shared `id  type  status  title` line shape, `/knowledge` against the default file-based provider rendering the typed `Semantic knowledge search requires an embedding-backed knowledge provider.` body, and the `Usage: /knowledge <query>` hint for empty/whitespace input), mobile (`KnowledgeScreen` covering loading via the RefreshControl, populated list with the shared line shape, empty list with the `No matching knowledge entries.` label, the typed `semantic_unavailable` orange banner, error retry, offline banner, the `Type a query and tap Search to query knowledge.` empty-query hint, and the cleared-on-reset state), macOS (`KnowledgeView` covering the loading spinner with `Searching...` caption, populated body via the shared `renderKnowledgeSearchPlain` helper, the muted `No matching knowledge entries.` body, the orange `Semantic knowledge search requires an embedding-backed knowledge provider.` caption, the red `KnowledgeErrorView` with the Retry button, the `Type a query to search knowledge.` empty-query hint, and the `Press return to search.` after-query-but-before-submit hint), and web (`KnowledgePanel` covering populated semantic results, empty results, semantic-unavailable caption, and retry/error state through the shared `/api/knowledge/search` seam). CLI is excluded from this precondition because the headless transcript at `.kota/runs/2026-05-02T23-48-49-379Z-builder-xqo3ac/knowledge-consolidation/cli-transcript.txt` already covers every CLI arm. Daemon is excluded because the runtime probe at `.kota/runs/2026-05-02T23-48-49-379Z-builder-xqo3ac/knowledge-consolidation/contract-probe.json` covers every wire envelope. Operator runs each visual client against a daemon (with both an empty default-provider store and an embedding-backed populated store) and commits the rendered artifacts under .kota/runs/knowledge-consolidation-screens-<stamp>/{telegram,mobile,macos,web}/.
 ```

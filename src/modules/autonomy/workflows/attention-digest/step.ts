@@ -218,9 +218,10 @@ function blockedAttentionItems(projectDir: string): AttentionItem[] {
     });
   }
 
-  // Operator-gated preconditions (owner-decision, operator-capture) cannot
-  // auto-promote, so an aged one needs operator attention rather than another
-  // autonomy retry. Surface them explicitly past the longer aging threshold.
+  // Operator-gated preconditions need operator action rather than another
+  // autonomy retry. owner-decision needs an answer; operator-capture promotes
+  // only after the named evidence path exists. Surface both explicitly past
+  // the longer aging threshold.
   for (const { record, ageDays } of operatorGatedAged) {
     items.push({
       label: "Operator-gated blocker aged",

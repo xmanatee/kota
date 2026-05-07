@@ -75,3 +75,21 @@ do not change visible behavior remain exempt; pick a non-client area
   The move command owns lifecycle metadata and file movement.
 - Before finishing, ensure task validation would pass: unique ids, tracked task
   files, no stale deletes, and matching status/directories.
+
+## Blocked Tasks
+
+Every task in `data/tasks/blocked/` must declare exactly one `## Unblock
+Precondition` using the typed vocabulary enforced by the validator:
+
+- `task-done` — promote when the referenced enabler task is in `done/`.
+- `capability-installed` — promote when the deterministic local capability
+  probe is satisfied (`playwright` or `storageState:<path>`).
+- `owner-decision` — re-ask through blocked-promoter on the 14-day cadence and
+  promote only after the workflow writes a resolved marker.
+- `operator-capture` — promote when the named evidence path exists; until then,
+  blocked-promoter refreshes an instruction marker on the 14-day cadence.
+
+Do not use `blocked/` as a parking lot. If a blocked task has been reviewed,
+move/drop/rescope it or refresh the exact action marker. Queue validation emits
+`blocked-task-stale` when a blocked task ages past the stale threshold without
+a fresh owner ask or operator-capture instruction marker.

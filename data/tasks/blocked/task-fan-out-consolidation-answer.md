@@ -4,15 +4,15 @@ title: Consolidate answer surfaces across clients
 status: blocked
 priority: p2
 area: client
-summary: Review the answer surface family across macos, mobile, telegram, web, daemon, cli, slack for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
+summary: Review the answer surface family across macos, mobile, slack, telegram, web for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-02T22:11:26.069Z
+updated_at: 2026-05-07T00:00:00.000Z
 ---
 
 ## Problem
 
-The `answer` capability shipped across 7 client surfaces
-(cli, daemon, macos, mobile, slack, telegram, web) without a holistic check on whether the surface family stayed coherent.
+The `answer` capability shipped across 5 client surfaces
+(macos, mobile, slack, telegram, web) without a holistic check on whether the surface family stayed coherent.
 Per-surface tests passed, but coherence questions only make sense across the batch:
 operator workflow fit, cross-client contract consistency, duplicated route/error/rendering
 logic, provider readiness, runtime evidence, and accepted critic trade-offs.
@@ -23,8 +23,6 @@ Capability: `answer`
 
 Surfaces shipped:
 
-- cli
-- daemon
 - macos
 - mobile
 - slack
@@ -33,38 +31,16 @@ Surfaces shipped:
 
 Recently closed fan-out tasks in this batch:
 
-- task-add-telegram-answer-command-consuming-the-cited-an (macos, closed 2026-04-27T11:23:15.264Z) — Add Telegram /answer command consuming the cited-answer seam
-- task-add-telegram-answer-command-consuming-the-cited-an (mobile, closed 2026-04-27T11:23:15.264Z) — Add Telegram /answer command consuming the cited-answer seam
 - task-add-telegram-answer-command-consuming-the-cited-an (telegram, closed 2026-04-27T11:23:15.264Z) — Add Telegram /answer command consuming the cited-answer seam
-- task-add-web-answerpanel-consuming-the-cited-answer-sea (macos, closed 2026-04-27T11:52:44.955Z) — Add web AnswerPanel consuming the cited-answer seam
-- task-add-web-answerpanel-consuming-the-cited-answer-sea (mobile, closed 2026-04-27T11:52:44.955Z) — Add web AnswerPanel consuming the cited-answer seam
 - task-add-web-answerpanel-consuming-the-cited-answer-sea (web, closed 2026-04-27T11:52:44.955Z) — Add web AnswerPanel consuming the cited-answer seam
-- task-add-web-answerpanel-consuming-the-cited-answer-sea (telegram, closed 2026-04-27T11:52:44.955Z) — Add web AnswerPanel consuming the cited-answer seam
 - task-add-macos-daemonclientanswer-with-discriminated-an (macos, closed 2026-04-27T12:23:48.103Z) — Add macOS DaemonClient.answer with discriminated AnswerResult types and unit tests
-- task-add-macos-daemonclientanswer-with-discriminated-an (mobile, closed 2026-04-27T12:23:48.103Z) — Add macOS DaemonClient.answer with discriminated AnswerResult types and unit tests
-- task-add-macos-daemonclientanswer-with-discriminated-an (daemon, closed 2026-04-27T12:23:48.103Z) — Add macOS DaemonClient.answer with discriminated AnswerResult types and unit tests
 - task-add-macos-menu-bar-answerview-consuming-daemonclie (macos, closed 2026-04-27T14:03:29.452Z) — Add macOS menu-bar AnswerView consuming DaemonClient.answer
-- task-add-macos-menu-bar-answerview-consuming-daemonclie (mobile, closed 2026-04-27T14:03:29.452Z) — Add macOS menu-bar AnswerView consuming DaemonClient.answer
-- task-add-mobile-answerscreen-consuming-daemonclientansw (macos, closed 2026-04-27T14:39:21.697Z) — Add mobile AnswerScreen consuming DaemonClient.answer
 - task-add-mobile-answerscreen-consuming-daemonclientansw (mobile, closed 2026-04-27T14:39:21.697Z) — Add mobile AnswerScreen consuming DaemonClient.answer
-- task-add-mobile-answerscreen-consuming-daemonclientansw (telegram, closed 2026-04-27T14:39:21.697Z) — Add mobile AnswerScreen consuming DaemonClient.answer
-- task-add-mobile-answerscreen-consuming-daemonclientansw (cli, closed 2026-04-27T14:39:21.697Z) — Add mobile AnswerScreen consuming DaemonClient.answer
-- task-add-mobile-answerscreen-consuming-daemonclientansw (daemon, closed 2026-04-27T14:39:21.697Z) — Add mobile AnswerScreen consuming DaemonClient.answer
-- task-add-telegram-answer-log-and-answer-show-commands-c (macos, closed 2026-04-28T01:05:42.155Z) — Add Telegram /answer-log and /answer-show commands consuming the answer-history seam
-- task-add-telegram-answer-log-and-answer-show-commands-c (mobile, closed 2026-04-28T01:05:42.155Z) — Add Telegram /answer-log and /answer-show commands consuming the answer-history seam
 - task-add-telegram-answer-log-and-answer-show-commands-c (telegram, closed 2026-04-28T01:05:42.155Z) — Add Telegram /answer-log and /answer-show commands consuming the answer-history seam
-- task-add-web-answerhistorypanel-consuming-the-answer-hi (macos, closed 2026-04-28T02:05:23.137Z) — Add web AnswerHistoryPanel consuming the answer-history seam
-- task-add-web-answerhistorypanel-consuming-the-answer-hi (mobile, closed 2026-04-28T02:05:23.137Z) — Add web AnswerHistoryPanel consuming the answer-history seam
 - task-add-web-answerhistorypanel-consuming-the-answer-hi (web, closed 2026-04-28T02:05:23.137Z) — Add web AnswerHistoryPanel consuming the answer-history seam
-- task-add-web-answerhistorypanel-consuming-the-answer-hi (telegram, closed 2026-04-28T02:05:23.137Z) — Add web AnswerHistoryPanel consuming the answer-history seam
-- task-extend-slack-channel-slash-command-parity-to-answe (telegram, closed 2026-04-28T06:54:11.990Z) — Extend Slack-channel slash-command parity to /answer-log and /answer-show closing the answer-history surface gap
 - task-extend-slack-channel-slash-command-parity-to-answe (slack, closed 2026-04-28T06:54:11.990Z) — Extend Slack-channel slash-command parity to /answer-log and /answer-show closing the answer-history surface gap
-- task-add-mobile-answerhistoryscreen-consuming-daemoncli (macos, closed 2026-04-28T08:50:33.116Z) — Add mobile AnswerHistoryScreen consuming DaemonClient answer-log and answer-show
 - task-add-mobile-answerhistoryscreen-consuming-daemoncli (mobile, closed 2026-04-28T08:50:33.116Z) — Add mobile AnswerHistoryScreen consuming DaemonClient answer-log and answer-show
-- task-add-mobile-answerhistoryscreen-consuming-daemoncli (telegram, closed 2026-04-28T08:50:33.116Z) — Add mobile AnswerHistoryScreen consuming DaemonClient answer-log and answer-show
-- task-add-mobile-answerhistoryscreen-consuming-daemoncli (slack, closed 2026-04-28T08:50:33.116Z) — Add mobile AnswerHistoryScreen consuming DaemonClient answer-log and answer-show
-- task-add-mobile-answerhistoryscreen-consuming-daemoncli (cli, closed 2026-04-28T08:50:33.116Z) — Add mobile AnswerHistoryScreen consuming DaemonClient answer-log and answer-show
-- task-add-mobile-answerhistoryscreen-consuming-daemoncli (daemon, closed 2026-04-28T08:50:33.116Z) — Add mobile AnswerHistoryScreen consuming DaemonClient answer-log and answer-show
+- task-add-macos-daemonclientanswerloganswershow-and-answ (macos, closed 2026-05-03T03:25:42.072Z) — Add macOS DaemonClient.answerLog/answerShow and AnswerHistoryView consuming the persisted answer-history routes
 
 ## Desired Outcome
 
@@ -112,8 +88,8 @@ or has follow-up tasks opened for each gap. Concretely, the review produces:
 ## Source / Intent
 
 Auto-seeded by the fan-out-consolidator workflow after the `answer` capability
-landed across 7 client surfaces between 2026-04-27T11:23:15.264Z
-and 2026-04-28T08:50:33.116Z. The 2026-04-28 broad daemon review found that fan-out batches
+landed across 5 client surfaces between 2026-04-27T11:23:15.264Z
+and 2026-05-03T03:25:42.072Z. The 2026-04-28 broad daemon review found that fan-out batches
 without a holistic consolidation pass left an overloaded operator surface despite green
 per-surface tests. This task is the autonomy queue's recurring corrective pass.
 

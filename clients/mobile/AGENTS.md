@@ -1,6 +1,9 @@
 # Mobile Client
 
-React Native mobile client for the KOTA daemon.
+React Native mobile client for the KOTA daemon. This client owns shared
+cross-platform mobile behavior and Android parity. Native iOS behavior is owned
+by `clients/apple/` unless a future architecture decision explicitly retires or
+rescopes that Swift shell.
 
 - All state comes from the daemon control API — no `.kota/` file parsing.
 - Authentication secrets belong in the OS secure store.
@@ -10,6 +13,10 @@ React Native mobile client for the KOTA daemon.
   polling only where the platform requires it.
 - Setup flows may read operator-provided daemon connection details, but parsing
   and persistence belong in shared mobile helpers.
+- Do not add iOS-only daemon-contract behavior here. If a mobile feature needs
+  iOS-specific native affordances, either route it through the shared daemon
+  contract so `clients/apple/` can consume the same surface, or file a client
+  ownership task before implementation.
 
 ## Daemon Contract Layout
 

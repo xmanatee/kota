@@ -6,7 +6,7 @@ priority: p2
 area: architecture
 summary: Give autonomy a reliable path to read auth-walled or JS-gated sources (X/Twitter, openai.com/index, etc.) via authenticated browser automation plus a scoped X-post capture tool, so 'inaccessible source' tasks do not stay blocked indefinitely.
 created_at: 2026-04-22T16:47:00.746Z
-updated_at: 2026-04-22T17:53:08.203Z
+updated_at: 2026-05-07T12:27:35.000Z
 ---
 
 ## Problem
@@ -78,8 +78,9 @@ inaccessible retain honest blocked status.
 ## Unblock Precondition
 
 ```
-kind: capability-installed
-probe: playwright
+kind: operator-capture
+path: .kota/runs/auth-walled-source-access-live
+description: live authenticated-browser source-access artifact — operator installs Playwright in the target environment, provisions modules.browser.storageStatePath for an authenticated profile, runs rendered_article_read against the OpenAI post and x_post_read against at least one listed X post, and stores the redacted transcript plus capability report under .kota/runs/auth-walled-source-access-live/
 ```
 
 ## Source / Intent
@@ -141,12 +142,16 @@ Mechanism landed in this repo:
 
 ### Remaining operator steps
 
-- Install Playwright as a peer (`pnpm add playwright`) in the target
-  environment. Until installed, rendered-browser tools fail fast with the
-  existing "Playwright is not installed" error.
-- Provision an authenticated X profile (run once with
-  `persistProfile: true`, log in interactively, then pin the file path).
-- Once both are in place, the research-retry workflow picks up the two
-  named research tasks on the next autonomy cycle and disposes the six
-  remaining auth-walled / gated URLs. This task can move to `done` after
-  a live-run artifact records the end-to-end flow.
+- Install Playwright as a peer in the target environment. Until installed,
+  rendered-browser tools fail fast with the existing "Playwright is not
+  installed" error.
+- Provision an authenticated X profile (run once with `persistProfile: true`,
+  log in interactively, then pin the file path).
+- Capture `.kota/runs/auth-walled-source-access-live/` containing the redacted
+  capability report plus one successful `rendered_article_read` against the
+  OpenAI post and one successful `x_post_read` against the listed X-post set.
+- Once that capture exists, blocked-promoter can promote this task for final
+  verification; after it moves to `done`, the two dependent research tasks
+  unblock through their `task-done` preconditions.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-05-07T12:27:35.000Z -->

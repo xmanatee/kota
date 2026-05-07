@@ -6,7 +6,7 @@ priority: p2
 area: architecture
 summary: Produce a run-dir artifact that shows KOTA completing a representative coding task end-to-end under each registered agent harness, recording any capability gap vs running the harness directly.
 created_at: 2026-04-22T20:27:49.498Z
-updated_at: 2026-04-22T21:19:48.379Z
+updated_at: 2026-05-07T12:27:35.000Z
 ---
 
 ## Problem
@@ -130,3 +130,14 @@ Phase 2 — operator-facilitated live capture (blocks the task):
   declared contract and does not block "coding-agent parity" — it
   delineates which registered harnesses are coding-capable rather than
   text-only.
+
+## Status (2026-05-07 blocker audit)
+
+The block is still real and operator-gated: the infrastructure is shipped, but
+the remaining evidence consumes live harness credentials and nested agent
+execution. Autonomy should not fake this with a local dry run. The current
+unblock action is exactly the `kota harness-parity run` capture described in
+the precondition; if it is not captured, blocked-promoter should re-instruct it
+after the 14-day operator-capture cadence rather than letting it disappear.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-05-07T12:27:35.000Z -->

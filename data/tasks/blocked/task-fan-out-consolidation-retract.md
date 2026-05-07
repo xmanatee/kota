@@ -4,15 +4,15 @@ title: Consolidate retract surfaces across clients
 status: blocked
 priority: p2
 area: client
-summary: Review the retract surface family across telegram, macos, mobile, web, daemon, cli, slack for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
+summary: Review the retract surface family across macos, mobile, slack, telegram, web for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-03T00:46:48.615Z
+updated_at: 2026-05-07T00:00:00.000Z
 ---
 
 ## Problem
 
-The `retract` capability shipped across 7 client surfaces
-(cli, daemon, macos, mobile, slack, telegram, web) without a holistic check on whether the surface family stayed coherent.
+The `retract` capability shipped across 5 client surfaces
+(macos, mobile, slack, telegram, web) without a holistic check on whether the surface family stayed coherent.
 Per-surface tests passed, but coherence questions only make sense across the batch:
 operator workflow fit, cross-client contract consistency, duplicated route/error/rendering
 logic, provider readiness, runtime evidence, and accepted critic trade-offs.
@@ -23,8 +23,6 @@ Capability: `retract`
 
 Surfaces shipped:
 
-- cli
-- daemon
 - macos
 - mobile
 - slack
@@ -34,20 +32,10 @@ Surfaces shipped:
 Recently closed fan-out tasks in this batch:
 
 - task-add-telegram-retract-command-consuming-the-cross-s (telegram, closed 2026-04-28T11:11:36.190Z) — Add Telegram /retract command consuming the cross-store retract seam
-- task-add-web-retractpanel-consuming-the-cross-store-ret (macos, closed 2026-04-28T11:38:21.473Z) — Add web RetractPanel consuming the cross-store retract seam
-- task-add-web-retractpanel-consuming-the-cross-store-ret (mobile, closed 2026-04-28T11:38:21.473Z) — Add web RetractPanel consuming the cross-store retract seam
 - task-add-web-retractpanel-consuming-the-cross-store-ret (web, closed 2026-04-28T11:38:21.473Z) — Add web RetractPanel consuming the cross-store retract seam
-- task-add-web-retractpanel-consuming-the-cross-store-ret (telegram, closed 2026-04-28T11:38:21.473Z) — Add web RetractPanel consuming the cross-store retract seam
 - task-add-macos-daemonclientretract-with-discriminated-r (macos, closed 2026-04-28T12:10:57.748Z) — Add macOS DaemonClient.retract with discriminated RetractResult types and unit tests
-- task-add-macos-daemonclientretract-with-discriminated-r (mobile, closed 2026-04-28T12:10:57.748Z) — Add macOS DaemonClient.retract with discriminated RetractResult types and unit tests
-- task-add-macos-daemonclientretract-with-discriminated-r (daemon, closed 2026-04-28T12:10:57.748Z) — Add macOS DaemonClient.retract with discriminated RetractResult types and unit tests
 - task-add-macos-menu-bar-retractview-consuming-daemoncli (macos, closed 2026-04-28T13:11:10.301Z) — Add macOS menu-bar RetractView consuming DaemonClient.retract
-- task-add-macos-menu-bar-retractview-consuming-daemoncli (mobile, closed 2026-04-28T13:11:10.301Z) — Add macOS menu-bar RetractView consuming DaemonClient.retract
-- task-add-mobile-retractscreen-consuming-a-new-daemoncli (macos, closed 2026-04-28T13:48:04.453Z) — Add mobile RetractScreen consuming a new DaemonClient.retract
 - task-add-mobile-retractscreen-consuming-a-new-daemoncli (mobile, closed 2026-04-28T13:48:04.453Z) — Add mobile RetractScreen consuming a new DaemonClient.retract
-- task-add-mobile-retractscreen-consuming-a-new-daemoncli (telegram, closed 2026-04-28T13:48:04.453Z) — Add mobile RetractScreen consuming a new DaemonClient.retract
-- task-add-mobile-retractscreen-consuming-a-new-daemoncli (cli, closed 2026-04-28T13:48:04.453Z) — Add mobile RetractScreen consuming a new DaemonClient.retract
-- task-extend-slack-channel-slash-command-parity-to-retra (telegram, closed 2026-04-28T14:19:31.354Z) — Extend Slack-channel slash-command parity to /retract-<store> closing the chat-channel parity gap
 - task-extend-slack-channel-slash-command-parity-to-retra (slack, closed 2026-04-28T14:19:31.354Z) — Extend Slack-channel slash-command parity to /retract-<store> closing the chat-channel parity gap
 
 ## Desired Outcome
@@ -96,7 +84,7 @@ or has follow-up tasks opened for each gap. Concretely, the review produces:
 ## Source / Intent
 
 Auto-seeded by the fan-out-consolidator workflow after the `retract` capability
-landed across 7 client surfaces between 2026-04-28T11:11:36.190Z
+landed across 5 client surfaces between 2026-04-28T11:11:36.190Z
 and 2026-04-28T14:19:31.354Z. The 2026-04-28 broad daemon review found that fan-out batches
 without a holistic consolidation pass left an overloaded operator surface despite green
 per-surface tests. This task is the autonomy queue's recurring corrective pass.
@@ -168,7 +156,7 @@ posture (same shape the capture / digest reviews surfaced):
 (a TypeScript type assertion, not a runtime decoder), while
 `clients/mobile/src/daemon/retract.ts:138-143` runs
 `parseRetractResult` and
-`clients/macos/Sources/KotaMenuBar/Daemon/RetractRoutes.swift:25`
+`clients/apple/Sources/KotaShared/Daemon/RetractRoutes.swift:25`
 strict-decodes via Swift `Codable`. The existing follow-up
 `task-fold-conformance-decoders-into-web-client-runtime-` (already
 in `backlog/`, `area: client`, `priority: p3`) explicitly lists

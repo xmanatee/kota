@@ -1,12 +1,12 @@
 ---
 id: task-fan-out-consolidation-task
 title: Consolidate task surfaces across clients
-status: blocked
+status: dropped
 priority: p2
 area: client
 summary: Review the task surface family across macos, mobile, telegram, cli, daemon for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-02T23:13:00.770Z
+updated_at: 2026-05-07T00:00:00.000Z
 ---
 
 ## Problem
@@ -104,6 +104,14 @@ fan-out batch, and the review's output is operator-actionable follow-up tasks.
   stating no follow-up was needed and why.
 - Updated scoped `AGENTS.md` lines reflecting any convention adjustments arising from
   the review.
+
+## Dropped Reason
+
+Dropped during the 2026-05-07 corrective pass. The task-search consolidation
+was seeded from repeated surface markers on a single mobile task rather than
+from a distinct multi-surface fan-out batch. Any real task-search client gap
+should be filed as a normal follow-up with concrete evidence requirements,
+not held open as a generated consolidation blocker.
 
 ## Headless Review (completed)
 

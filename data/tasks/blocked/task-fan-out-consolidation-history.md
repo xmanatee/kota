@@ -4,9 +4,9 @@ title: Consolidate history surfaces across clients
 status: blocked
 priority: p2
 area: client
-summary: Review the history surface family across daemon, telegram, macos, mobile, cli for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
+summary: Review the history surface family across cli, daemon, macos, mobile, telegram for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-02T23:43:14.397Z
+updated_at: 2026-05-07T00:00:00.000Z
 ---
 
 ## Problem
@@ -32,17 +32,10 @@ Surfaces shipped:
 Recently closed fan-out tasks in this batch:
 
 - task-add-daemon-http-apihistorysearch-semantic-search-r (daemon, closed 2026-04-27T03:11:47.189Z) — Add daemon HTTP /api/history/search semantic search route consuming HistoryProvider.semanticSearch
+- task-add-kota-history-search-cli-semantic-search-subcom (cli, closed 2026-04-27T03:23:35.062Z) — Add kota history search CLI semantic search subcommand consuming /api/history/search
 - task-add-telegram-history-command-exposing-on-demand-se (telegram, closed 2026-04-27T03:32:03.943Z) — Add Telegram /history command exposing on-demand semantic conversation search
-- task-add-telegram-history-command-exposing-on-demand-se (daemon, closed 2026-04-27T03:32:03.943Z) — Add Telegram /history command exposing on-demand semantic conversation search
-- task-add-macos-daemonclientsearchhistory-with-discrimin (macos, closed 2026-04-27T03:42:34.602Z) — Add macOS DaemonClient.searchHistory with discriminated HistorySearchResponse types and unit tests
-- task-add-macos-daemonclientsearchhistory-with-discrimin (daemon, closed 2026-04-27T03:42:34.602Z) — Add macOS DaemonClient.searchHistory with discriminated HistorySearchResponse types and unit tests
 - task-add-macos-menu-bar-historyview-consuming-daemoncli (macos, closed 2026-04-27T04:18:18.854Z) — Add macOS menu-bar HistoryView consuming DaemonClient.searchHistory
-- task-add-macos-menu-bar-historyview-consuming-daemoncli (daemon, closed 2026-04-27T04:18:18.854Z) — Add macOS menu-bar HistoryView consuming DaemonClient.searchHistory
-- task-add-mobile-historyscreen-consuming-searchhistory (macos, closed 2026-04-27T04:56:04.668Z) — Add mobile HistoryScreen consuming searchHistory
 - task-add-mobile-historyscreen-consuming-searchhistory (mobile, closed 2026-04-27T04:56:04.668Z) — Add mobile HistoryScreen consuming searchHistory
-- task-add-mobile-historyscreen-consuming-searchhistory (telegram, closed 2026-04-27T04:56:04.668Z) — Add mobile HistoryScreen consuming searchHistory
-- task-add-mobile-historyscreen-consuming-searchhistory (cli, closed 2026-04-27T04:56:04.668Z) — Add mobile HistoryScreen consuming searchHistory
-- task-add-mobile-historyscreen-consuming-searchhistory (daemon, closed 2026-04-27T04:56:04.668Z) — Add mobile HistoryScreen consuming searchHistory
 
 ## Desired Outcome
 

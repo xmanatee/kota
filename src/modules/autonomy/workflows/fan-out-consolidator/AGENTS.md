@@ -7,6 +7,8 @@ seeds one consolidation review task per new batch in `ready/`.
   is no agent step here — the seeded task is the actionable artifact and a
   builder run picks it up next.
 - Idempotent by capability key: re-detection of the same batch is a noop.
+- Counts one primary surface per closed task. Shared-seam wording in a
+  title or summary must not inflate a task into several surfaces.
 - Detection logic and task body live in `#modules/autonomy/fan-out-consolidation.js`
   so the proposer is testable as pure code.
 - The seeded task is `area: client` so the rendered-evidence validator gate

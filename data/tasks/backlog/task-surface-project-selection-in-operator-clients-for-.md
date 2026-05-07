@@ -1,12 +1,12 @@
 ---
 id: task-surface-project-selection-in-operator-clients-for-
 title: Surface project selection in operator clients for multi-project supervision
-status: blocked
+status: backlog
 priority: p2
 area: architecture
 summary: Once the daemon can manage multiple project roots, native/web/CLI clients need a first-class project selector and per-project view so operators can supervise more than one repo at a time
 created_at: 2026-04-18T00:40:56.393Z
-updated_at: 2026-04-18T02:44:19.138Z
+updated_at: 2026-05-07T12:27:35.000Z
 ---
 
 ## Problem
@@ -35,15 +35,15 @@ The in-progress `task-enable-kota-to-operate-on-external-projects` work is makin
 - Tests cover the project-switch control path and the per-project filtering of sessions/runs.
 - Docs in the relevant client and daemon-ops `AGENTS.md` describe the model at the conventions level, not as a catalog of endpoints.
 
-## Unblock Precondition
+## Decision
 
-```
-kind: owner-decision
-slot: multi-project-runtime-shape
-question: Should multi-project supervision use Variant A (one daemon hosts many project runtimes), Variant B (one daemon per project, client-side registry), or the Hybrid (daemon-owned registry, one active project)?
-context: See the ## Proposal section of this task for the trade-offs. Owner was first asked 2026-04-18 and timed out; the askOwnerSteps recipe is now restart-safe so this re-ask is durable. Recommended: variant-a. Rationale: this task's Constraints section already requires "multi-project state in the daemon, not duplicated in each client", and the architecture doc favors one daemon control protocol over per-client side channels. Variant B would carry a multi-daemon façade across all four operator client surfaces (CLI, web, macOS, mobile); Hybrid is an intermediate step that does not deliver simultaneous supervision and would still need to migrate to A or B later.
-proposed_answers: variant-a, variant-b, hybrid, unblock
-```
+2026-05-07: resolved to Variant A — one daemon hosts project-scoped
+runtimes. This matches the task's original constraints ("multi-project
+state in the daemon, not duplicated in each client") and the architecture
+standard that clients use one daemon control protocol rather than platform-
+specific side channels. Variant B would push a multi-daemon registry and
+fan-in facade into every client; Hybrid would add an intermediate active-
+project switch that still cannot supervise multiple projects at once.
 
 ## Source / Intent
 
@@ -67,18 +67,19 @@ runs, questions, and approvals must always be attributable to one project.
 - CLI daemon-mode and web-client views show the active project and expose the
   same project-selection model.
 
-## Blocker
+## Current Position
 
-This task is blocked until the owner picks the multi-project runtime shape.
-The owner was asked on 2026-04-18 and timed out; re-asking once the proposal
-below is visible is the remaining step.
-
-Unblock by: owner picks Variant A or B below, then this task splits into at
-least the three follow-ups sketched under "Follow-up decomposition":
+The decision block is cleared. Resume by decomposing this backlog task into
+the follow-ups sketched under "Follow-up decomposition":
 (a) daemon-side project identity and attribution;
 (b) CLI daemon-mode selector and project-scoped views;
 (c) web client selector and project-scoped views. Native macOS and mobile
-parity land as their own follow-ups.
+parity land as their own follow-ups after the shared daemon contract exists.
+
+The first queue action is
+`task-decompose-variant-a-multi-project-supervision-int` in `ready/`; it owns
+turning this parent into concrete daemon/CLI/web/native follow-up tasks before
+any broad implementation run starts.
 
 ## Proposal
 
@@ -179,5 +180,3 @@ if operator demand for simultaneous views is unclear.
 - **(c) Web client selector.** Project-scoped routes and SSE subscription
   scoping in the web dashboard. Native macOS and mobile parity follows as
   their own tasks.
-
-<!-- blocked-promoter-asked: slot=multi-project-runtime-shape last_asked_at=2026-04-25T04:16:28.494Z -->

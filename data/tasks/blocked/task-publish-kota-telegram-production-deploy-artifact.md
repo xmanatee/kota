@@ -6,7 +6,7 @@ priority: p3
 area: ops
 summary: Publish a reproducible systemd/docker deploy artifact for KOTA-as-Telegram-personal-assistant so operators can stand one up without assembling services by hand.
 created_at: 2026-04-22T04:52:53.604Z
-updated_at: 2026-04-22T17:27:54.865Z
+updated_at: 2026-05-07T12:27:35.000Z
 ---
 
 ## Problem
@@ -95,3 +95,13 @@ the operator's reproducible post-install check; once an operator runs
 `install.sh` against a real bot token and captures the `smoke-test.sh`
 output under `.kota/runs/`, the last Done-When item resolves and the
 task can move to `done`.
+
+## Status (2026-05-07 blocker audit)
+
+The repository artifact is already present. The remaining block is the live
+staging-bot launch proof, which requires real credentials and host-level
+supervisor setup. This task should not keep spawning autonomous deploy-artifact
+work; blocked-promoter should re-instruct the capture after the 14-day cadence
+until `.kota/runs/telegram-deploy-staging/` exists.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-05-07T12:27:35.000Z -->

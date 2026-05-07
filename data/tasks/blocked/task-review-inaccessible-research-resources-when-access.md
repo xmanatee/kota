@@ -6,7 +6,7 @@ priority: p3
 area: research
 summary: Grouped follow-up for 9 research URLs that were captured but never read due to auth walls or fetch failures
 created_at: 2026-04-14T00:29:07.947Z
-updated_at: 2026-04-23T00:00:00.000Z
+updated_at: 2026-05-07T12:27:35.000Z
 ---
 
 ## Problem
@@ -111,3 +111,11 @@ already shipped under `task-enable-autonomous-access-to-auth-walled-sources-so`.
 This task stays `blocked` pending (a) Playwright install and
 (b) operator-configured browser profile; every research-retry run will
 re-confirm the six posts as auth-walled until both are in place.
+
+## Status (2026-05-07 blocker audit)
+
+The dependency is still real. The enabler's precondition was tightened from
+"Playwright is installed" to a live authenticated-browser capture because
+Playwright alone would not make the six X/Twitter posts readable. This task
+therefore remains blocked on the enabler reaching `done/`, not on another
+autonomous retry against the same auth wall.

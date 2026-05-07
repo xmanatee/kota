@@ -1,12 +1,12 @@
 ---
 id: task-fan-out-consolidation-answers
 title: Consolidate answers surfaces across clients
-status: blocked
+status: dropped
 priority: p2
 area: client
 summary: Review the answers surface family across macos, mobile, telegram, daemon for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-02T23:28:00.791Z
+updated_at: 2026-05-07T00:00:00.000Z
 ---
 
 ## Problem
@@ -102,6 +102,15 @@ fan-out batch, and the review's output is operator-actionable follow-up tasks.
   stating no follow-up was needed and why.
 - Updated scoped `AGENTS.md` lines reflecting any convention adjustments arising from
   the review.
+
+## Dropped Reason
+
+Dropped during the 2026-05-07 corrective pass. This task was seeded by the
+old fan-out detector from one backend/integration-shaped answer-history task,
+not from a distinct multi-surface fan-out batch. The real answer-family
+consolidation remains in `task-fan-out-consolidation-answer`; keeping this
+separate `answers` task would duplicate queue pressure and preserve the bad
+detector output.
 
 ## Headless Review (completed)
 

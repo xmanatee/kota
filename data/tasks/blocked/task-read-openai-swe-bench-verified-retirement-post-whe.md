@@ -6,7 +6,7 @@ priority: p3
 area: research
 summary: Read OpenAI's SWE-bench Verified retirement post and record a KOTA decision — currently blocked because openai.com/index/* returns HTTP 403 to non-browser fetch and there is no public mirror
 created_at: 2026-04-20T20:18:43.712Z
-updated_at: 2026-04-20T20:18:43.712Z
+updated_at: 2026-05-07T12:27:35.000Z
 ---
 
 ## Problem
@@ -99,3 +99,11 @@ is the intended unblock path, but requires Playwright to be installed as a
 peer (`pnpm add playwright`) in the operator's environment. The research-retry
 autonomy workflow will re-attempt this URL once the browser module runs with a
 configured environment; until then this task stays `blocked`.
+
+## Status (2026-05-07 blocker audit)
+
+The dependency is still real. The enabler's precondition now requires a live
+authenticated/rendered-browser source-access capture, not merely the Playwright
+package resolving. This task stays blocked on that enabler reaching `done/`;
+once it does, the post should be read through `rendered_article_read` and
+distilled into `src/modules/autonomy/AGENTS.md`.

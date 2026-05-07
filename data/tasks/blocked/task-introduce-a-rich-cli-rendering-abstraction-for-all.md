@@ -6,7 +6,7 @@ priority: p2
 area: modules
 summary: Replace ad-hoc console printing with a dedicated rendering layer (library or module) used by daemon mode, CLI mode, and every surface, inspired by gemini-cli / codex / pi / opencode.
 created_at: 2026-04-22T16:46:53.748Z
-updated_at: 2026-04-25T12:07:36.046Z
+updated_at: 2026-05-07T12:27:35.000Z
 ---
 
 ## Problem
@@ -187,6 +187,17 @@ Phase 3 — peer-CLI capture (operator-facilitated, blocks the task):
   task stays in `blocked`. Unblock by either capturing the comparison
   on operator hardware or by narrowing Done-When to drop the
   comparison requirement.
+
+## Status (2026-05-07 blocker audit)
+
+The remaining block is still real but now narrow: KOTA's own rendering module,
+migrations, and regression checks have landed; only the peer-CLI comparison
+artifact remains. The task should not receive more autonomous implementation
+work until `.kota/runs/peer-cli-comparison/` is captured or the Done-When bar is
+explicitly changed in a new task. blocked-promoter should re-instruct this
+operator capture after the 14-day cadence if the artifact remains absent.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-05-07T12:27:35.000Z -->
 
 ## Status
 

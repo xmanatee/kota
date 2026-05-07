@@ -11,8 +11,9 @@ import { getRepoTaskStateDir } from "./repo-tasks-domain.js";
  * workflow reads the parsed precondition each cycle: deterministic kinds
  * auto-promote the task back to `backlog/` (or `ready/` for p0/p1) when the
  * condition is satisfied; `owner-decision` gets re-asked through the
- * `askOwnerSteps` recipe on a 14-day cadence; `operator-capture` cannot
- * auto-promote but its aging is surfaced through `attention-digest`.
+ * `askOwnerSteps` recipe on a 14-day cadence; `operator-capture` promotes
+ * only after its named evidence path exists, and its aging is surfaced through
+ * `attention-digest` while the evidence is absent.
  *
  * The vocabulary is intentionally small. The parser rejects unknown kinds and
  * malformed values at frontmatter-load time; there is no permissive coercion.
@@ -396,11 +397,11 @@ export type EvaluationContext = {
  * Evaluate whether a precondition is satisfied right now against repo state.
  *
  * The result is the input the `blocked-promoter` workflow uses to decide
- * whether to auto-promote the task. `owner-decision` and `operator-capture`
- * never auto-resolve from probe data alone — `owner-decision` requires a
- * matching `<!-- blocked-promoter-resolved -->` marker in the body (written
- * by the workflow when the operator approves), and `operator-capture`
- * requires the named path to exist.
+ * whether to auto-promote the task. `owner-decision` never auto-resolves from
+ * probe data alone: it requires a matching
+ * `<!-- blocked-promoter-resolved -->` marker in the body (written by the
+ * workflow when the operator approves). `operator-capture` promotes only when
+ * the named path exists.
  */
 export function evaluateBlockedPrecondition(
   precondition: BlockedPrecondition,

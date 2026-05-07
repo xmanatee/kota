@@ -4,9 +4,9 @@ title: Consolidate attention surfaces across clients
 status: blocked
 priority: p2
 area: client
-summary: Review the attention surface family across telegram, cli, daemon, web, macos, mobile, slack for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
+summary: Review the attention surface family across cli, daemon, macos, mobile, slack, telegram, web for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-02T23:00:10.219Z
+updated_at: 2026-05-07T00:00:00.000Z
 ---
 
 ## Problem
@@ -34,27 +34,13 @@ Surfaces shipped:
 Recently closed fan-out tasks in this batch:
 
 - task-add-telegram-attention-command-exposing-on-demand- (telegram, closed 2026-04-26T06:56:23.671Z) — Add Telegram /attention command exposing on-demand attention digest
-- task-add-kota-attention-cli-command-consuming-the-on-de (telegram, closed 2026-04-26T07:28:07.048Z) — Add kota attention CLI command consuming the on-demand attention seam
 - task-add-kota-attention-cli-command-consuming-the-on-de (cli, closed 2026-04-26T07:28:07.048Z) — Add kota attention CLI command consuming the on-demand attention seam
-- task-add-daemon-http-attention-endpoint-consuming-the-o (telegram, closed 2026-04-26T08:00:36.788Z) — Add daemon HTTP attention endpoint consuming the on-demand attention seam
-- task-add-daemon-http-attention-endpoint-consuming-the-o (cli, closed 2026-04-26T08:00:36.788Z) — Add daemon HTTP attention endpoint consuming the on-demand attention seam
 - task-add-daemon-http-attention-endpoint-consuming-the-o (daemon, closed 2026-04-26T08:00:36.788Z) — Add daemon HTTP attention endpoint consuming the on-demand attention seam
 - task-add-web-client-attention-panel-consuming-apiattent (web, closed 2026-04-26T08:34:11.041Z) — Add web client attention panel consuming /api/attention
-- task-add-web-client-attention-panel-consuming-apiattent (telegram, closed 2026-04-26T08:34:11.041Z) — Add web client attention panel consuming /api/attention
-- task-add-web-client-attention-panel-consuming-apiattent (cli, closed 2026-04-26T08:34:11.041Z) — Add web client attention panel consuming /api/attention
-- task-add-web-client-attention-panel-consuming-apiattent (daemon, closed 2026-04-26T08:34:11.041Z) — Add web client attention panel consuming /api/attention
 - task-add-macos-menu-bar-attentionview-consuming-apiatte (macos, closed 2026-04-26T09:12:07.628Z) — Add macOS menu bar AttentionView consuming /api/attention
-- task-add-macos-menu-bar-attentionview-consuming-apiatte (web, closed 2026-04-26T09:12:07.628Z) — Add macOS menu bar AttentionView consuming /api/attention
-- task-add-macos-menu-bar-attentionview-consuming-apiatte (telegram, closed 2026-04-26T09:12:07.628Z) — Add macOS menu bar AttentionView consuming /api/attention
-- task-add-macos-menu-bar-attentionview-consuming-apiatte (cli, closed 2026-04-26T09:12:07.628Z) — Add macOS menu bar AttentionView consuming /api/attention
-- task-add-macos-menu-bar-attentionview-consuming-apiatte (daemon, closed 2026-04-26T09:12:07.628Z) — Add macOS menu bar AttentionView consuming /api/attention
 - task-add-mobile-attentionscreen-consuming-apiattention (mobile, closed 2026-04-26T09:23:41.770Z) — Add mobile AttentionScreen consuming /api/attention
-- task-add-mobile-attentionscreen-consuming-apiattention (web, closed 2026-04-26T09:23:41.770Z) — Add mobile AttentionScreen consuming /api/attention
-- task-add-mobile-attentionscreen-consuming-apiattention (telegram, closed 2026-04-26T09:23:41.770Z) — Add mobile AttentionScreen consuming /api/attention
-- task-add-mobile-attentionscreen-consuming-apiattention (cli, closed 2026-04-26T09:23:41.770Z) — Add mobile AttentionScreen consuming /api/attention
-- task-add-mobile-attentionscreen-consuming-apiattention (daemon, closed 2026-04-26T09:23:41.770Z) — Add mobile AttentionScreen consuming /api/attention
-- task-extend-slack-channel-slash-command-parity-to-memor (telegram, closed 2026-04-28T06:35:11.657Z) — Extend Slack-channel slash-command parity to /memory /knowledge /history /tasks /attention and /digest matching the Telegram surface
 - task-extend-slack-channel-slash-command-parity-to-memor (slack, closed 2026-04-28T06:35:11.657Z) — Extend Slack-channel slash-command parity to /memory /knowledge /history /tasks /attention and /digest matching the Telegram surface
+- task-fold-conformance-decoders-into-mobile-digest-and-a (mobile, closed 2026-05-03T06:59:54.361Z) — Fold conformance decoders into mobile digest and attention runtime paths
 
 ## Desired Outcome
 
@@ -103,7 +89,7 @@ or has follow-up tasks opened for each gap. Concretely, the review produces:
 
 Auto-seeded by the fan-out-consolidator workflow after the `attention` capability
 landed across 7 client surfaces between 2026-04-26T06:56:23.671Z
-and 2026-04-28T06:35:11.657Z. The 2026-04-28 broad daemon review found that fan-out batches
+and 2026-05-03T06:59:54.361Z. The 2026-04-28 broad daemon review found that fan-out batches
 without a holistic consolidation pass left an overloaded operator surface despite green
 per-surface tests. This task is the autonomy queue's recurring corrective pass.
 

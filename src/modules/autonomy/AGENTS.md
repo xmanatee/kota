@@ -120,9 +120,10 @@ be exposed to autonomy agents.
 
 `fan-out-consolidator` deterministically seeds one consolidation review
 task per completed multi-client fan-out batch. Detection + body live in
-`fan-out-consolidation.ts`; idempotent by capability key. Seeded task is
-`area: client` so the rendered-evidence gate rejects clearing it with
-prose-only test logs.
+`fan-out-consolidation.ts`; idempotent by capability key and counts at
+most one primary surface per closed task. Seeded task is `area: client`
+so the rendered-evidence gate rejects clearing it with prose-only test
+logs.
 
 ## Empty-Queue Loop Shape
 

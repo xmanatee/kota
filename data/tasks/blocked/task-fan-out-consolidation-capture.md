@@ -4,15 +4,15 @@ title: Consolidate capture surfaces across clients
 status: blocked
 priority: p2
 area: client
-summary: Review the capture surface family across macos, mobile, telegram, web, daemon, slack for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
+summary: Review the capture surface family across macos, mobile, slack, telegram, web for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-03T00:16:29.830Z
+updated_at: 2026-05-07T00:00:00.000Z
 ---
 
 ## Problem
 
-The `capture` capability shipped across 6 client surfaces
-(daemon, macos, mobile, slack, telegram, web) without a holistic check on whether the surface family stayed coherent.
+The `capture` capability shipped across 5 client surfaces
+(macos, mobile, slack, telegram, web) without a holistic check on whether the surface family stayed coherent.
 Per-surface tests passed, but coherence questions only make sense across the batch:
 operator workflow fit, cross-client contract consistency, duplicated route/error/rendering
 logic, provider readiness, runtime evidence, and accepted critic trade-offs.
@@ -23,7 +23,6 @@ Capability: `capture`
 
 Surfaces shipped:
 
-- daemon
 - macos
 - mobile
 - slack
@@ -32,28 +31,12 @@ Surfaces shipped:
 
 Recently closed fan-out tasks in this batch:
 
-- task-add-telegram-capture-command-consuming-the-cross-s (macos, closed 2026-04-28T03:59:14.491Z) — Add Telegram /capture command consuming the cross-store capture seam
-- task-add-telegram-capture-command-consuming-the-cross-s (mobile, closed 2026-04-28T03:59:14.491Z) — Add Telegram /capture command consuming the cross-store capture seam
 - task-add-telegram-capture-command-consuming-the-cross-s (telegram, closed 2026-04-28T03:59:14.491Z) — Add Telegram /capture command consuming the cross-store capture seam
-- task-add-web-capturepanel-consuming-the-cross-store-cap (macos, closed 2026-04-28T04:27:26.705Z) — Add web CapturePanel consuming the cross-store capture seam
-- task-add-web-capturepanel-consuming-the-cross-store-cap (mobile, closed 2026-04-28T04:27:26.705Z) — Add web CapturePanel consuming the cross-store capture seam
 - task-add-web-capturepanel-consuming-the-cross-store-cap (web, closed 2026-04-28T04:27:26.705Z) — Add web CapturePanel consuming the cross-store capture seam
-- task-add-web-capturepanel-consuming-the-cross-store-cap (telegram, closed 2026-04-28T04:27:26.705Z) — Add web CapturePanel consuming the cross-store capture seam
 - task-add-macos-daemonclientcapture-with-discriminated-c (macos, closed 2026-04-28T04:57:41.294Z) — Add macOS DaemonClient.capture with discriminated CaptureResult types and unit tests
-- task-add-macos-daemonclientcapture-with-discriminated-c (mobile, closed 2026-04-28T04:57:41.294Z) — Add macOS DaemonClient.capture with discriminated CaptureResult types and unit tests
-- task-add-macos-daemonclientcapture-with-discriminated-c (daemon, closed 2026-04-28T04:57:41.294Z) — Add macOS DaemonClient.capture with discriminated CaptureResult types and unit tests
-- task-add-mobile-capturescreen-consuming-a-new-daemoncli (macos, closed 2026-04-28T05:44:43.151Z) — Add mobile CaptureScreen consuming a new DaemonClient.capture
 - task-add-mobile-capturescreen-consuming-a-new-daemoncli (mobile, closed 2026-04-28T05:44:43.151Z) — Add mobile CaptureScreen consuming a new DaemonClient.capture
-- task-add-mobile-capturescreen-consuming-a-new-daemoncli (telegram, closed 2026-04-28T05:44:43.151Z) — Add mobile CaptureScreen consuming a new DaemonClient.capture
-- task-add-mobile-capturescreen-consuming-a-new-daemoncli (daemon, closed 2026-04-28T05:44:43.151Z) — Add mobile CaptureScreen consuming a new DaemonClient.capture
-- task-add-slack-channel-recall-answer-and-capture-comman (telegram, closed 2026-04-28T05:55:55.091Z) — Add Slack-channel /recall, /answer, and /capture commands consuming the cross-store seams
 - task-add-slack-channel-recall-answer-and-capture-comman (slack, closed 2026-04-28T05:55:55.091Z) — Add Slack-channel /recall, /answer, and /capture commands consuming the cross-store seams
 - task-add-macos-menu-bar-captureview-consuming-daemoncli (macos, closed 2026-04-28T06:03:47.017Z) — Add macOS menu-bar CaptureView consuming DaemonClient.capture
-- task-add-capture-pipeline-integration-test-boots-daemon (macos, closed 2026-04-28T06:19:38.996Z) — Add capture pipeline integration test boots daemon over seeded contributors covers POST /capture and POST /api/capture for every CaptureRecord arm classifier ambiguous fallback and contributor failure
-- task-add-capture-pipeline-integration-test-boots-daemon (mobile, closed 2026-04-28T06:19:38.996Z) — Add capture pipeline integration test boots daemon over seeded contributors covers POST /capture and POST /api/capture for every CaptureRecord arm classifier ambiguous fallback and contributor failure
-- task-add-capture-pipeline-integration-test-boots-daemon (telegram, closed 2026-04-28T06:19:38.996Z) — Add capture pipeline integration test boots daemon over seeded contributors covers POST /capture and POST /api/capture for every CaptureRecord arm classifier ambiguous fallback and contributor failure
-- task-add-capture-pipeline-integration-test-boots-daemon (slack, closed 2026-04-28T06:19:38.996Z) — Add capture pipeline integration test boots daemon over seeded contributors covers POST /capture and POST /api/capture for every CaptureRecord arm classifier ambiguous fallback and contributor failure
-- task-add-capture-pipeline-integration-test-boots-daemon (daemon, closed 2026-04-28T06:19:38.996Z) — Add capture pipeline integration test boots daemon over seeded contributors covers POST /capture and POST /api/capture for every CaptureRecord arm classifier ambiguous fallback and contributor failure
 
 ## Desired Outcome
 
@@ -101,8 +84,8 @@ or has follow-up tasks opened for each gap. Concretely, the review produces:
 ## Source / Intent
 
 Auto-seeded by the fan-out-consolidator workflow after the `capture` capability
-landed across 6 client surfaces between 2026-04-28T03:59:14.491Z
-and 2026-04-28T06:19:38.996Z. The 2026-04-28 broad daemon review found that fan-out batches
+landed across 5 client surfaces between 2026-04-28T03:59:14.491Z
+and 2026-04-28T06:03:47.017Z. The 2026-04-28 broad daemon review found that fan-out batches
 without a holistic consolidation pass left an overloaded operator surface despite green
 per-surface tests. This task is the autonomy queue's recurring corrective pass.
 

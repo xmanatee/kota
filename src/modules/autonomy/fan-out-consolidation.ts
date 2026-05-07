@@ -58,29 +58,31 @@ export const FAN_OUT_SURFACES = [
 
 export type FanOutSurface = (typeof FAN_OUT_SURFACES)[number];
 
-const SURFACE_PATTERNS: { surface: FanOutSurface; pattern: RegExp }[] = [
+const PRIMARY_SURFACE_PATTERNS: { surface: FanOutSurface; pattern: RegExp }[] = [
+  { surface: "slack", pattern: /\bslack(?:[- ]?channel)?\b/i },
+  { surface: "telegram", pattern: /\btelegram\b/i },
   { surface: "macos", pattern: /\b(?:macos|menu[\s-]?bar|swiftui)\b/i },
   { surface: "ios", pattern: /\b(?:ios|iphone|ipad)\b/i },
-  { surface: "mobile", pattern: /\b(?:mobile|react native|expo|[A-Z][a-z]+Screen)\b/ },
-  { surface: "web", pattern: /\b(?:web (?:ui|panel|dashboard|client|app)|webpanel|[A-Z][a-z]+Panel)\b/ },
-  { surface: "telegram", pattern: /\btelegram\b/i },
-  { surface: "slack", pattern: /\bslack\b/i },
+  { surface: "mobile", pattern: /\b(?:mobile|react native|expo|[A-Z][a-z]+(?:[A-Z][a-z]+)?Screen)\b/ },
+  { surface: "web", pattern: /\b(?:web (?:ui|panel|dashboard|client|app)|webpanel|[A-Z][a-z]+(?:[A-Z][a-z]+)?Panel)\b/ },
   { surface: "cli", pattern: /\b(?:cli|kota [a-z][\w-]*\s+(?:command|subcommand))\b/i },
-  { surface: "daemon", pattern: /\b(?:daemon|http endpoint|\/api\/[a-z][\w-]*)\b/i },
+  { surface: "daemon", pattern: /\b(?:daemon http|http endpoint|\/api\/[a-z][\w-]*)\b/i },
 ];
 
 /**
- * A surface marker can fire on a task touching multiple client surfaces, but
- * we only count a surface once per task to avoid inflating coverage. Returns
- * the set of surfaces present in the title/summary.
+ * A completed fan-out task represents one shipped surface. Its title or
+ * summary may mention peer surfaces through shared seams (`DaemonClient.*`,
+ * `/api/*`, "cross-store", copied Done When text), but those mentions are
+ * context, not additional shipped surfaces. Counting every marker inflated
+ * batches and produced bogus consolidation records, so the detector now
+ * assigns at most one primary surface per task.
  */
-function detectSurfaces(title: string, summary: string): Set<FanOutSurface> {
-  const text = `${title}\n${summary}`;
-  const result = new Set<FanOutSurface>();
-  for (const { surface, pattern } of SURFACE_PATTERNS) {
-    if (pattern.test(text)) result.add(surface);
+export function detectPrimarySurface(title: string, summary: string): FanOutSurface | null {
+  const text = title.trim().length > 0 ? title : summary;
+  for (const { surface, pattern } of PRIMARY_SURFACE_PATTERNS) {
+    if (pattern.test(text)) return surface;
   }
-  return result;
+  return null;
 }
 
 /**
@@ -98,7 +100,12 @@ function detectSurfaces(title: string, summary: string): Set<FanOutSurface> {
  * grouped into a fan-out batch.
  */
 export function extractCapabilityKey(title: string, summary: string): string | null {
-  const text = `${title}\n${summary}`;
+  const titleCapability = extractCapabilityCandidate(title);
+  if (titleCapability) return titleCapability;
+  return extractCapabilityCandidate(summary);
+}
+
+function extractCapabilityCandidate(text: string): string | null {
   const candidates: string[] = [];
 
   for (const match of text.matchAll(/(?<![A-Za-z])\/([a-z][a-z0-9]*)(?:[-_/<\s.]|$)/gi)) {
@@ -224,23 +231,21 @@ export function detectFanOutBatches(
     });
     if (classification !== "fan-out") continue;
 
-    const surfaces = detectSurfaces(record.title, record.summary);
-    if (surfaces.size === 0) continue;
+    const surface = detectPrimarySurface(record.title, record.summary);
+    if (!surface) continue;
 
     const capability = extractCapabilityKey(record.title, record.summary);
     if (!capability) continue;
 
-    for (const surface of surfaces) {
-      const list = grouped.get(capability) ?? [];
-      list.push({
-        capability,
-        surface,
-        taskId: record.id,
-        title: record.title,
-        closedAt: record.updatedAt,
-      });
-      grouped.set(capability, list);
-    }
+    const list = grouped.get(capability) ?? [];
+    list.push({
+      capability,
+      surface,
+      taskId: record.id,
+      title: record.title,
+      closedAt: record.updatedAt,
+    });
+    grouped.set(capability, list);
   }
 
   const batches: FanOutBatch[] = [];

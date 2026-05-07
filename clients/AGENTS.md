@@ -2,7 +2,7 @@
 
 This directory contains native client apps that connect to the KOTA daemon control API.
 
-- Each client lives in its own subdirectory (e.g. `macos/`, `ios/`, `mobile/`).
+- Each client lives in its own subdirectory (currently `web/`, `apple/`, and `mobile/`).
 - Clients are thin: all live state comes from the daemon HTTP+JSON API and SSE
   event stream. No client parses `.kota/` files or starts its own KOTA runtime.
 - Authentication and daemon discovery must go through the client wrapper for
@@ -17,7 +17,11 @@ This directory contains native client apps that connect to the KOTA daemon contr
   Swift sources (daemon transport, `AppState`, SwiftUI views) through
   a single Swift package with three targets (`KotaShared`,
   `KotaMenuBar`, `KotaiOS`).
-- `mobile/` — React Native mobile client.
+- `mobile/` — React Native cross-platform mobile client. Android phone parity
+  is its primary reason to exist while `apple/` owns native iOS. If a future
+  decision makes React Native the canonical iOS app, that decision must first
+  retire or rescope the native iOS shell so the repo does not keep two
+  independent iOS product surfaces.
 
 ## Adding a New Client
 
@@ -82,18 +86,18 @@ The contract conformance gate has three pieces:
 Add a contract surface only after extending all three pieces in the
 same change.
 
-## Contract Migration Matrix
+Open client-contract gaps belong in `data/tasks/`, not in a durable
+migration matrix. This file records the steady-state contract only.
 
-| Client    | Identity           | Capabilities       | Dashboard URL           | Workflow definitions      | Error envelope          |
-|-----------|--------------------|--------------------|-------------------------|---------------------------|-------------------------|
-| daemon (`/health`, etc.) | source of truth | source of truth | source of truth | source of truth | source of truth |
-| CLI (`KotaClient`) | inferred via `DaemonControlClient.getIdentity()` | `getCapabilities()` (added) | n/a (no UI) | `getWorkflowDefinitions` | `parseDaemonClientErrorBody` (added) |
-| web       | `api.getIdentity()` (added) | `api.getCapabilities()` (added) | n/a (is dashboard) | `api.getWorkflowDefinitions()` | typed via shared error body type |
-| macOS     | `DaemonClient.fetchIdentity()` (added) | `DaemonClient.fetchCapabilities()` (added) | derived from `identity.dashboard.path` (no more `localhost:3000`) | `DaemonClient.fetchWorkflowDefinitions()` driving the trigger picker | `decodeDaemonErrorBody` (mirrors typed shape) |
-| mobile (RN) | TBD — to consume `/identity` | TBD — to consume `/capabilities` | TBD — should use identity payload | TBD — picker not yet adopted | TBD — uses `daemonClient` typed errors |
-| Telegram channel | TBD — channel does not currently fetch identity | TBD — graceful-degradation paths exist per route but no central readiness consumption | n/a | n/a (channel does not trigger workflows directly) | inherits daemon route error envelope |
-| Slack channel | TBD | TBD | n/a | n/a | inherits daemon route error envelope |
+## Platform Ownership
 
-The autonomous contract-promoter task is responsible for sweeping
-"TBD" entries into the contract as additional client capacity comes
-online.
+The steady state is one daemon protocol, multiple thin clients, and no duplicate
+runtime ownership:
+
+- `apple/` owns native macOS and native iOS behavior, including platform
+  affordances that require AppKit/UIKit or SwiftUI-native shells.
+- `mobile/` owns React Native shared mobile behavior and Android parity. It may
+  share daemon-contract fixtures with other clients, but it must not add an
+  iOS-only feature that bypasses or disagrees with `apple/`.
+- Shared behavior belongs in the daemon contract or conformance fixtures, not in
+  copy-pasted screen logic between `apple/` and `mobile/`.

@@ -14,6 +14,7 @@ import {
   buildConsolidationTaskFile,
   consolidationTaskIdForCapability,
   detectFanOutBatches,
+  detectPrimarySurface,
   extractCapabilityKey,
   type FanOutBatch,
   proposeConsolidationActions,
@@ -121,6 +122,15 @@ describe("extractCapabilityKey", () => {
       ),
     ).toBeNull();
   });
+
+  it("does not let summary context override the capability named in the title", () => {
+    expect(
+      extractCapabilityKey(
+        "Add a Telegram /memory command for ad-hoc semantic memory search",
+        "Mirror the /knowledge command for the memory store.",
+      ),
+    ).toBe("memory");
+  });
 });
 
 describe("detectFanOutBatches", () => {
@@ -135,6 +145,32 @@ describe("detectFanOutBatches", () => {
     expect(distinctSurfaces.has("web")).toBe(true);
     expect(distinctSurfaces.has("macos")).toBe(true);
     expect(distinctSurfaces.has("mobile")).toBe(true);
+  });
+
+  it("counts one primary surface per task instead of every contextual surface mention", () => {
+    const batches = detectFanOutBatches(RETRACT_FAN_OUT_RECORDS, { nowMs: NOW });
+    const batch = batches[0]!;
+    const taskIds = batch.surfaces.map((entry) => entry.taskId);
+
+    expect(taskIds).toHaveLength(new Set(taskIds).size);
+    expect(batch.surfaces.find((entry) => entry.taskId === "task-macos-daemon-client-retract")?.surface)
+      .toBe("macos");
+    expect(batch.surfaces.find((entry) => entry.taskId === "task-mobile-retract-screen")?.surface)
+      .toBe("mobile");
+  });
+
+  it("does not turn backend/integration coverage into a synthetic multi-surface batch", () => {
+    const records: RepoTaskFullRecord[] = [
+      mkRecord({
+        id: "task-add-recall-plus-cited-answer-plus-answer-history-e",
+        title: "Add recall plus cited-answer plus answer-history end-to-end integration test",
+        area: "client",
+        summary: "Exercise the daemon routes and persisted answer-history contract.",
+        updatedAt: new Date(NOW - 1 * DAY).toISOString(),
+      }),
+    ];
+
+    expect(detectFanOutBatches(records, { nowMs: NOW })).toHaveLength(0);
   });
 
   it("does not fire on unrelated single-surface tasks", () => {
@@ -180,6 +216,38 @@ describe("detectFanOutBatches", () => {
   it("does not fire on tasks still open", () => {
     const stillOpen = RETRACT_FAN_OUT_RECORDS.map((r) => mkRecord({ ...r, state: "ready" }));
     expect(detectFanOutBatches(stillOpen, { nowMs: NOW })).toHaveLength(0);
+  });
+});
+
+describe("detectPrimarySurface", () => {
+  it("prefers the owning client surface over daemon-context wording", () => {
+    expect(
+      detectPrimarySurface(
+        "Add macOS DaemonClient.answer with discriminated AnswerResult types",
+        "Extend the macOS DaemonClient to call /answer.",
+      ),
+    ).toBe("macos");
+    expect(
+      detectPrimarySurface(
+        "Add mobile AnswerScreen consuming DaemonClient.answer",
+        "Uses the same daemon route the CLI and web clients consume.",
+      ),
+    ).toBe("mobile");
+    expect(
+      detectPrimarySurface(
+        "Add web AnswerHistoryPanel consuming the answer-history seam",
+        "Mentions macOS and mobile adoption in the summary.",
+      ),
+    ).toBe("web");
+  });
+
+  it("recognizes daemon-only route work without assigning client surfaces", () => {
+    expect(
+      detectPrimarySurface(
+        "Add daemon HTTP endpoint for cross-store recall",
+        "Expose /api/recall with a typed envelope.",
+      ),
+    ).toBe("daemon");
   });
 });
 

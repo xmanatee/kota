@@ -4,15 +4,15 @@ title: Consolidate memory surfaces across clients
 status: blocked
 priority: p2
 area: client
-summary: Review the memory surface family across macos, daemon, mobile, telegram for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
+summary: Review the memory surface family across macos, mobile, telegram for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-02T21:54:36.307Z
+updated_at: 2026-05-07T00:00:00.000Z
 ---
 
 ## Problem
 
-The `memory` capability shipped across 4 client surfaces
-(daemon, macos, mobile, telegram) without a holistic check on whether the surface family stayed coherent.
+The `memory` capability shipped across 3 client surfaces
+(macos, mobile, telegram) without a holistic check on whether the surface family stayed coherent.
 Per-surface tests passed, but coherence questions only make sense across the batch:
 operator workflow fit, cross-client contract consistency, duplicated route/error/rendering
 logic, provider readiness, runtime evidence, and accepted critic trade-offs.
@@ -23,21 +23,15 @@ Capability: `memory`
 
 Surfaces shipped:
 
-- daemon
 - macos
 - mobile
 - telegram
 
 Recently closed fan-out tasks in this batch:
 
-- task-add-macos-daemonclientsearchmemory-with-discrimina (macos, closed 2026-04-27T01:22:23.567Z) — Add macOS DaemonClient.searchMemory with discriminated MemorySearchResponse types and unit tests
-- task-add-macos-daemonclientsearchmemory-with-discrimina (daemon, closed 2026-04-27T01:22:23.567Z) — Add macOS DaemonClient.searchMemory with discriminated MemorySearchResponse types and unit tests
+- task-add-a-telegram-memory-command-for-ad-hoc-semantic- (telegram, closed 2026-04-27T00:51:53.539Z) — Add a Telegram /memory command for ad-hoc semantic memory search
 - task-add-macos-menu-bar-memoryview-consuming-daemonclie (macos, closed 2026-04-27T01:56:58.607Z) — Add macOS menu-bar MemoryView consuming DaemonClient.searchMemory
-- task-add-macos-menu-bar-memoryview-consuming-daemonclie (daemon, closed 2026-04-27T01:56:58.607Z) — Add macOS menu-bar MemoryView consuming DaemonClient.searchMemory
-- task-add-mobile-memoryscreen-consuming-searchmemory (macos, closed 2026-04-27T02:33:01.403Z) — Add mobile MemoryScreen consuming searchMemory
 - task-add-mobile-memoryscreen-consuming-searchmemory (mobile, closed 2026-04-27T02:33:01.403Z) — Add mobile MemoryScreen consuming searchMemory
-- task-add-mobile-memoryscreen-consuming-searchmemory (telegram, closed 2026-04-27T02:33:01.403Z) — Add mobile MemoryScreen consuming searchMemory
-- task-add-mobile-memoryscreen-consuming-searchmemory (daemon, closed 2026-04-27T02:33:01.403Z) — Add mobile MemoryScreen consuming searchMemory
 
 ## Desired Outcome
 
@@ -85,7 +79,7 @@ or has follow-up tasks opened for each gap. Concretely, the review produces:
 ## Source / Intent
 
 Auto-seeded by the fan-out-consolidator workflow after the `memory` capability
-landed across 4 client surfaces between 2026-04-27T01:22:23.567Z
+landed across 3 client surfaces between 2026-04-27T00:51:53.539Z
 and 2026-04-27T02:33:01.403Z. The 2026-04-28 broad daemon review found that fan-out batches
 without a holistic consolidation pass left an overloaded operator surface despite green
 per-surface tests. This task is the autonomy queue's recurring corrective pass.

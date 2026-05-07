@@ -1,12 +1,12 @@
 ---
 id: task-fan-out-consolidation-voice
 title: Consolidate voice surfaces across clients
-status: blocked
+status: dropped
 priority: p2
 area: client
 summary: Review the voice surface family across macos, mobile, web, cli for IA, contract consistency, duplicated rendering, runtime evidence, and accepted critic warnings now that the multi-client fan-out has shipped.
 created_at: 2026-05-02T21:31:53.684Z
-updated_at: 2026-05-02T21:42:13.586Z
+updated_at: 2026-05-07T00:00:00.000Z
 ---
 
 ## Problem
@@ -102,6 +102,14 @@ fan-out batch, and the review's output is operator-actionable follow-up tasks.
   stating no follow-up was needed and why.
 - Updated scoped `AGENTS.md` lines reflecting any convention adjustments arising from
   the review.
+
+## Dropped Reason
+
+Dropped during the 2026-05-07 corrective pass. This consolidation task came
+from one broad voice task that named several clients in a single title, not
+from a series of independently closed fan-out tasks. The corrected detector
+assigns one primary surface per done task, so this shape no longer qualifies
+for generated consolidation.
 
 ## Headless Review (completed)
 

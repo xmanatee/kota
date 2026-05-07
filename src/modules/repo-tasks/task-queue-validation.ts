@@ -6,7 +6,11 @@ import {
   ROOT_ENTRYPOINT_SOURCES,
 } from "#core/root-layout.js";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
-import { parseBlockedPrecondition } from "./blocked-precondition.js";
+import {
+  parseBlockedPrecondition,
+  readOperatorCaptureInstructedMarker,
+  readOwnerAskMarkers,
+} from "./blocked-precondition.js";
 import {
   getRepoTaskStateDir,
   REPO_TASK_STATES,
@@ -38,6 +42,7 @@ export type TaskQueueValidationOptions = {
   recommendedMinReady?: number;
   recommendedMinBacklog?: number;
   maxDoing?: number;
+  staleBlockedDays?: number;
 };
 
 export type TaskFileEntry = {
@@ -98,6 +103,10 @@ const ACTIVE_REQUIRED_SECTIONS = [
 const STRATEGIC_REQUIRED_SECTIONS = [
   "## Initiative",
 ] as const;
+
+const FAN_OUT_CONSOLIDATION_TASK_PREFIX = "task-fan-out-consolidation-";
+const DEFAULT_STALE_BLOCKED_DAYS = 14;
+const BLOCKED_ACTION_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
 
 const ACTIVE_QUALITY_SECTION_HEADINGS = [
   "Source / Intent",
@@ -261,6 +270,48 @@ function hasAcceptanceEvidence(raw: string): boolean {
     return false;
   }
   return /(?:^|\n)\s*-\s+\S/.test(section) || /\b(?:transcript|screenshot|fixture|test|command|artifact|validation|demo|snapshot)\b/i.test(section);
+}
+
+function listDuplicateFanOutConsolidationRows(raw: string): string[] {
+  const section = extractSection(raw, "Multi-client fan-out batch");
+  if (!section) return [];
+  const taskIds = [...section.matchAll(/^- (task-[^\s]+) \([^)]+\) — .+$/gm)]
+    .map((match) => match[1] ?? "");
+  const counts = new Map<string, number>();
+  for (const taskId of taskIds) counts.set(taskId, (counts.get(taskId) ?? 0) + 1);
+  return [...counts.entries()]
+    .filter(([, count]) => count > 1)
+    .map(([taskId]) => taskId)
+    .sort();
+}
+
+function blockedTaskAgeDays(updatedAt: unknown, nowMs: number): number | null {
+  const ms = Date.parse(String(updatedAt ?? ""));
+  if (Number.isNaN(ms)) return null;
+  return Math.floor((nowMs - ms) / (24 * 60 * 60 * 1000));
+}
+
+function hasFreshBlockedActionMarker(
+  entry: TaskFileEntry,
+  parsed: ReturnType<typeof parseBlockedPrecondition>,
+  nowMs: number,
+): boolean {
+  if (!parsed.ok) return false;
+  const precondition = parsed.precondition;
+  if (precondition.kind === "owner-decision") {
+    return readOwnerAskMarkers(entry.raw).some((marker) => {
+      if (marker.slot !== precondition.slot) return false;
+      const ms = Date.parse(marker.lastAskedAt);
+      return !Number.isNaN(ms) && nowMs - ms < BLOCKED_ACTION_COOLDOWN_MS;
+    });
+  }
+  if (precondition.kind === "operator-capture") {
+    const marker = readOperatorCaptureInstructedMarker(entry.raw);
+    if (!marker) return false;
+    const ms = Date.parse(marker.lastInstructedAt);
+    return !Number.isNaN(ms) && nowMs - ms < BLOCKED_ACTION_COOLDOWN_MS;
+  }
+  return false;
 }
 
 /**
@@ -537,6 +588,20 @@ export function validateTaskQueue(
         });
       }
 
+      if (entry.taskId.startsWith(FAN_OUT_CONSOLIDATION_TASK_PREFIX)) {
+        const duplicateRows = listDuplicateFanOutConsolidationRows(entry.raw);
+        if (duplicateRows.length > 0) {
+          findings.push({
+            code: "fan-out-consolidation-duplicate-task-rows",
+            severity: "error",
+            message: `${entry.path} lists the same closed task more than once in its fan-out batch: ` +
+              `${duplicateRows.join(", ")}. The consolidator must assign one primary surface per closed task; ` +
+              `refresh the generated batch metadata or drop the invalid consolidation task.`,
+            paths: [entry.path],
+          });
+        }
+      }
+
       const area = readTaskArea(entry);
       if (
         area !== null &&
@@ -596,6 +661,23 @@ export function validateTaskQueue(
           message,
           paths: [entry.path],
         });
+      } else {
+        const nowMs = Date.now();
+        const ageDays = blockedTaskAgeDays(attrs.updated_at, nowMs);
+        const staleAfterDays = options.staleBlockedDays ?? DEFAULT_STALE_BLOCKED_DAYS;
+        if (
+          ageDays !== null &&
+          ageDays >= staleAfterDays &&
+          !hasFreshBlockedActionMarker(entry, parsed, nowMs)
+        ) {
+          findings.push({
+            code: "blocked-task-stale",
+            severity: "warning",
+            message: `${entry.path} has been blocked for ${ageDays} days without a fresh owner ask or operator-capture instruction marker. ` +
+              `Fix: satisfy the precondition, move/drop/rescope the task, or let blocked-promoter refresh the applicable action marker.`,
+            paths: [entry.path],
+          });
+        }
       }
     }
 
