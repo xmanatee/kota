@@ -14,5 +14,6 @@ export function getValidatedWorkflowDefinitions(
 ): WorkflowDefinition[] {
   return validateWorkflowDefinitions(getWorkflowDefinitions(ctx), projectDir, {
     defaultAgentHarness: ctx.config.defaultAgentHarness,
+    modelTiers: ctx.config.modelTiers,
   });
 }

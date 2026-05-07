@@ -1,4 +1,5 @@
 import { isAbsolute } from "node:path";
+import type { ModelTiers } from "../model/model-router.js";
 import type { WorkflowFilterValue } from "./trigger-types.js";
 
 export class WorkflowDefinitionError extends Error {
@@ -15,6 +16,12 @@ export type WorkflowValidationOptions = {
    * is no implicit default harness in code.
    */
   defaultAgentHarness?: string;
+  /**
+   * Per-tier model id mapping consulted when an agent step declares
+   * `tier` instead of a literal `model`. Falls back to
+   * `DEFAULT_MODEL_TIERS` when a tier is unset here.
+   */
+  modelTiers?: ModelTiers;
 };
 
 export function isPlainObject(value: unknown): value is Record<string, unknown> {

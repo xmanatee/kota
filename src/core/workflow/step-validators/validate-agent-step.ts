@@ -1,10 +1,18 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import {
+  hasAgentHarness,
   listAgentHarnessNames,
   resolveAgentHarness,
 } from "#core/agent-harness/registry.js";
-import type { AgentHarnessStepOverrides } from "#core/agent-harness/types.js";
+import type {
+  AgentHarness,
+  AgentHarnessStepOverrides,
+} from "#core/agent-harness/types.js";
+import {
+  type ModelTier,
+  resolveModelForTier,
+} from "#core/model/model-router.js";
 import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
   WorkflowRepairLoopConfig,
@@ -28,11 +36,8 @@ import {
   type WorkflowValidationOptions,
 } from "#core/workflow/validation-primitives.js";
 
-export const VALID_MODEL_IDS = new Set([
-  "claude-opus-4-7",
-  "claude-sonnet-4-6",
-  "claude-haiku-4-5-20251001",
-]);
+const VALID_MODEL_TIERS: readonly ModelTier[] = ["fast", "balanced", "capable"];
+
 export const VALID_EFFORT_LEVELS = new Set([
   "low",
   "medium",
@@ -164,14 +169,6 @@ export function validateAgentStep(
     );
   }
 
-  const model = expectNonEmptyString(step.model, `${stepLabel}.model`, definitionPath);
-  if (!VALID_MODEL_IDS.has(model)) {
-    throw new WorkflowDefinitionError(
-      `${stepLabel}.model: unknown model "${model}"`,
-      definitionPath,
-    );
-  }
-
   const effort = expectNonEmptyString(step.effort, `${stepLabel}.effort`, definitionPath);
   if (!VALID_EFFORT_LEVELS.has(effort)) {
     throw new WorkflowDefinitionError(
@@ -206,17 +203,26 @@ export function validateAgentStep(
     `${stepLabel}.harness`,
     definitionPath,
   );
-  const harness = declaredHarness ?? options.defaultAgentHarness;
-  if (!harness) {
+  const harnessName = declaredHarness ?? options.defaultAgentHarness;
+  if (!harnessName) {
     throw new WorkflowDefinitionError(
       `${stepLabel}.harness is required — set harness on the step or configure KotaConfig.defaultAgentHarness`,
       definitionPath,
     );
   }
 
+  const { model, tier } = resolveStepModel({
+    rawModel: step.model,
+    rawTier: step.tier,
+    harnessName,
+    stepLabel,
+    definitionPath,
+    modelTiers: options.modelTiers,
+  });
+
   const harnessOptions = validateHarnessOptions(
     step.harnessOptions,
-    harness,
+    harnessName,
     stepLabel,
     definitionPath,
   );
@@ -225,10 +231,11 @@ export function validateAgentStep(
     id: expectName(step.id, `${stepLabel}.id`, definitionPath),
     type: "agent",
     agentName,
-    harness,
+    harness: harnessName,
     promptPath,
     moduleRoot,
     model,
+    ...(tier !== undefined ? { tier } : {}),
     effort: effort as WorkflowAgentStep["effort"],
     timeoutMs: expectOptionalInteger(
       step.timeoutMs,
@@ -403,4 +410,93 @@ function validateOutputSchema(
     );
   }
   return value as Record<string, unknown>;
+}
+
+/**
+ * Resolve the step's `model` and optional `tier` fields into the runtime
+ * model id and the preserved tier. Exactly one of `model` and `tier` must
+ * be declared (a typed discriminated union, not optional fields admitting
+ * illegal combinations). When `tier` is set, the validator looks the tier
+ * up in `options.modelTiers` (falling back to `DEFAULT_MODEL_TIERS` for
+ * tiers the operator did not override). When `model` is set, the active
+ * harness's optional `validateModelId` gate is the only central catalog
+ * check — adapters that do not declare one accept any non-empty string.
+ */
+function resolveStepModel(args: {
+  rawModel: unknown;
+  rawTier: unknown;
+  harnessName: string;
+  stepLabel: string;
+  definitionPath: string;
+  modelTiers: WorkflowValidationOptions["modelTiers"];
+}): { model: string; tier: ModelTier | undefined } {
+  const { rawModel, rawTier, harnessName, stepLabel, definitionPath, modelTiers } = args;
+  const hasModel = rawModel !== undefined;
+  const hasTier = rawTier !== undefined;
+  if (hasModel && hasTier) {
+    throw new WorkflowDefinitionError(
+      `${stepLabel} declares both "model" and "tier" — pick one (use "tier" for harness-portable steps, "model" for an explicit provider id)`,
+      definitionPath,
+    );
+  }
+  if (!hasModel && !hasTier) {
+    throw new WorkflowDefinitionError(
+      `${stepLabel} must declare either "model" (explicit provider id) or "tier" ("fast" | "balanced" | "capable")`,
+      definitionPath,
+    );
+  }
+
+  if (hasTier) {
+    const tier = expectNonEmptyString(rawTier, `${stepLabel}.tier`, definitionPath);
+    if (!VALID_MODEL_TIERS.includes(tier as ModelTier)) {
+      throw new WorkflowDefinitionError(
+        `${stepLabel}.tier must be one of ${VALID_MODEL_TIERS.join(", ")}`,
+        definitionPath,
+      );
+    }
+    const resolvedTier = tier as ModelTier;
+    const model = resolveModelForTier(resolvedTier, modelTiers);
+    if (!model) {
+      throw new WorkflowDefinitionError(
+        `${stepLabel}.tier "${resolvedTier}" did not resolve to a non-empty model id (configure config.modelTiers.${resolvedTier})`,
+        definitionPath,
+      );
+    }
+    runHarnessValidateModelId(harnessName, model, stepLabel, definitionPath);
+    return { model, tier: resolvedTier };
+  }
+
+  const model = expectNonEmptyString(rawModel, `${stepLabel}.model`, definitionPath);
+  runHarnessValidateModelId(harnessName, model, stepLabel, definitionPath);
+  return { model, tier: undefined };
+}
+
+function runHarnessValidateModelId(
+  harnessName: string,
+  modelId: string,
+  stepLabel: string,
+  definitionPath: string,
+): void {
+  // No central allowlist in core — only the resolved harness can authoritatively
+  // gate its own model catalog. When the harness is not yet registered (e.g.
+  // queue validation runs before a harness module loads), skip the gate so the
+  // step still validates structurally; the runtime resolver throws if the
+  // harness is genuinely missing at dispatch time.
+  if (!hasAgentHarness(harnessName)) return;
+  let harness: AgentHarness;
+  try {
+    harness = resolveAgentHarness(harnessName);
+  } catch {
+    return;
+  }
+  if (!harness.validateModelId) return;
+  try {
+    harness.validateModelId(modelId);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new WorkflowDefinitionError(
+      `${stepLabel}.model rejected by harness "${harnessName}": ${detail}`,
+      definitionPath,
+    );
+  }
 }

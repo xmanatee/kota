@@ -271,6 +271,18 @@ export type AgentHarness = {
   readonly validateStepOptions?: (
     raw: unknown,
   ) => AgentHarnessStepOverrides;
+  /**
+   * Optional model-id catalog gate. When declared, the workflow validator
+   * calls this with the step's resolved model string and the adapter throws
+   * with a field-path message when the id is not one this harness can serve.
+   * Adapters that genuinely accept any non-empty string (codex, gemini,
+   * thin) leave this unset so the wire layer rejects unknown ids at call
+   * time.
+   *
+   * The validator wraps the throw with step-label context before surfacing a
+   * `WorkflowDefinitionError`. Returning normally signals acceptance.
+   */
+  readonly validateModelId?: (modelId: string) => void;
   run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

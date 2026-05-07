@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import type { ModelTiers } from "#core/model/model-router.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "#core/workflow/validation.js";
@@ -15,6 +16,7 @@ type ValidateDefinitionsOptions = {
   workflow?: string;
   projectDir?: string;
   defaultAgentHarness?: string;
+  modelTiers?: ModelTiers;
 };
 
 export function validateDefinitions(
@@ -36,7 +38,10 @@ export function validateDefinitions(
       validateWorkflowDefinitions(
         [def],
         options.projectDir,
-        { defaultAgentHarness: options.defaultAgentHarness },
+        {
+          defaultAgentHarness: options.defaultAgentHarness,
+          modelTiers: options.modelTiers,
+        },
       );
       return { name: def.name, valid: true, scope: "definition" as const };
     } catch (err) {
@@ -56,7 +61,10 @@ export function validateDefinitions(
       validateWorkflowDefinitions(
         allDefs,
         options.projectDir,
-        { defaultAgentHarness: options.defaultAgentHarness },
+        {
+          defaultAgentHarness: options.defaultAgentHarness,
+          modelTiers: options.modelTiers,
+        },
       );
     } catch (err) {
       if (definitionResults.every((result) => result.valid)) {
@@ -90,6 +98,7 @@ export function registerValidateCommand(
           workflow: opts.workflow,
           projectDir: ctx.cwd,
           defaultAgentHarness: ctx.config.defaultAgentHarness,
+          modelTiers: ctx.config.modelTiers,
         });
       } catch (err) {
         console.error(String(err instanceof Error ? err.message : err));

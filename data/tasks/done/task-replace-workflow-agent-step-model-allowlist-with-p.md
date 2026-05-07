@@ -1,12 +1,12 @@
 ---
 id: task-replace-workflow-agent-step-model-allowlist-with-p
 title: Replace workflow agent step model allowlist with preset-derived validation
-status: ready
+status: done
 priority: p1
 area: core
 summary: Replace VALID_MODEL_IDS allowlist in validate-agent-step.ts with a preset/harness-derived predicate so codex/gemini workflow agent steps validate cleanly.
 created_at: 2026-05-07T23:32:29.217Z
-updated_at: 2026-05-07T23:32:29.217Z
+updated_at: 2026-05-07T23:52:27.853Z
 ---
 
 ## Problem

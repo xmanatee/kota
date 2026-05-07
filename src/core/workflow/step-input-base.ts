@@ -1,3 +1,4 @@
+import type { ModelTier } from "#core/model/model-router.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
   WorkflowPredicate,
@@ -50,7 +51,21 @@ export type WorkflowAgentStepInput = WorkflowBaseStep & {
    * no hidden fallback to `claude-agent-sdk`.
    */
   harness?: string;
-  model: string;
+  /**
+   * Concrete model id the harness should run. Mutually exclusive with `tier`
+   * — the validator throws when both or neither is declared. Use this only
+   * when the workflow genuinely needs a specific provider id; prefer `tier`
+   * for harness-portable steps.
+   */
+  model?: string;
+  /**
+   * Neutral capability tier resolved through the active config's
+   * `modelTiers` map at validation time. Mutually exclusive with `model`.
+   * Survives a harness/preset swap without per-step edits — the resolved
+   * model id depends on `KotaConfig.modelTiers` (or the shipped default
+   * tier-to-model mapping for the configured preset).
+   */
+  tier?: ModelTier;
   /**
    * How hard the model should think on each step. Required — KOTA workflows
    * optimize for quality, so every agent step must declare its effort level

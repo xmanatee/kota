@@ -9,6 +9,7 @@ export function compileDefinitions(
 ): WorkflowDefinition[] {
   return validateWorkflowDefinitions(state.workflowInputs ?? [], state.projectDir, {
     defaultAgentHarness: state.config?.defaultAgentHarness,
+    modelTiers: state.config?.modelTiers,
   });
 }
 

@@ -47,7 +47,17 @@ export const AUTONOMY_AGENT_HARNESS = "claude-agent-sdk";
 // Every autonomy workflow agent and autonomy-internal judge (critic,
 // semantic gate) spreads this default; a workflow that genuinely needs to
 // diverge overrides the individual field after the spread.
-export const AUTONOMY_AGENT_DEFAULTS: Pick<AgentDef, "model" | "effort"> = {
+//
+// `tier` is what autonomy workflow agent steps consume — declaring `tier:
+// "capable"` keeps the step harness-portable (codex/gemini/claude all
+// resolve their own capable model through `KotaConfig.modelTiers`).
+// `model` is kept as the literal id used by the `AgentDef` shape (which
+// requires a concrete model string today) and by autonomy-internal judges
+// that pin a specific provider model.
+export const AUTONOMY_AGENT_DEFAULTS: Pick<AgentDef, "model" | "effort"> & {
+  tier: "capable";
+} = {
+  tier: "capable",
   model: "claude-opus-4-7",
   effort: "xhigh",
 };

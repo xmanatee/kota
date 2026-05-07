@@ -187,7 +187,7 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
       agentName: agent.name,
       promptPath: agent.promptPath,
       harness: AUTONOMY_AGENT_HARNESS,
-      model: agent.model,
+      tier: AUTONOMY_AGENT_DEFAULTS.tier,
       effort: agent.effort,
       disallowedTools: AUTONOMY_DISALLOWED_TOOLS,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,

@@ -9,11 +9,18 @@ import {
   WorkflowDefinitionError,
   type WorkflowValidationOptions,
 } from "#core/workflow/validation.js";
-import { VALID_MODEL_IDS } from "#core/workflow/validation-steps.js";
 import autonomyModule from "#modules/autonomy/index.js";
+import {
+  CLAUDE_AGENT_HARNESS_NAME,
+  CLAUDE_AGENT_SDK_KNOWN_MODELS,
+} from "#modules/claude-agent-harness/adapter.js";
 // Side-effect import: registers the claude-agent-sdk harness so the step
 // validator can resolve it when a test exercises `harnessOptions`.
 import "#modules/claude-agent-harness/index.js";
+// Side-effect imports: register codex and gemini harnesses so per-harness
+// validateModelId tests can verify those adapters accept arbitrary ids.
+import "#modules/codex-agent-harness/index.js";
+import "#modules/gemini-agent-harness/index.js";
 import {
   defineModuleEvent,
   initModuleEventRegistry,
@@ -544,7 +551,7 @@ describe("workflow validation", () => {
     ).toThrow('restart step "request-restart" must be the final step');
   });
 
-  it("rejects unknown model IDs in agent steps", () => {
+  it("rejects an unknown model id when the resolved harness declares a catalog", () => {
     writeFileSync(
       join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
@@ -562,23 +569,26 @@ describe("workflow validation", () => {
                 type: "agent",
                 promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
                 model: "gpt-4-turbo",
-              effort: "xhigh",
+                effort: "xhigh",
+                autonomyMode: "autonomous",
               },
             ],
           }),
         ],
         projectDir,
       ),
-    ).toThrow('steps[0].model: unknown model "gpt-4-turbo"');
+    ).toThrow(
+      /steps\[0\].model rejected by harness "claude-agent-sdk": unknown model "gpt-4-turbo"/,
+    );
   });
 
-  it("accepts known model IDs in agent steps", () => {
+  it("accepts every model id the active harness declares in its catalog", () => {
     writeFileSync(
       join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
-    for (const model of VALID_MODEL_IDS) {
+    for (const model of CLAUDE_AGENT_SDK_KNOWN_MODELS) {
       expect(() =>
         validateWorkflowDefinitions(
           [
@@ -590,6 +600,7 @@ describe("workflow validation", () => {
                   id: "build",
                   type: "agent",
                   promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                  harness: CLAUDE_AGENT_HARNESS_NAME,
                   model,
                   effort: "xhigh" as const,
                   autonomyMode: "autonomous",
@@ -601,6 +612,220 @@ describe("workflow validation", () => {
         ),
       ).not.toThrow();
     }
+  });
+
+  it("accepts a non-claude model id when the resolved harness declares no catalog (codex)", () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "build",
+                type: "agent",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                harness: "codex",
+                model: "gpt-5-codex",
+                effort: "xhigh",
+                autonomyMode: "autonomous",
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).not.toThrow();
+  });
+
+  it("accepts a non-claude model id when the resolved harness declares no catalog (gemini)", () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "build",
+                type: "agent",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                harness: "gemini",
+                model: "gemini-2.5-pro",
+                effort: "xhigh",
+                autonomyMode: "autonomous",
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).not.toThrow();
+  });
+
+  it("resolves a tier through config.modelTiers and stores the model on the validated step", () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    const definitions = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+              tier: "capable",
+              effort: "xhigh",
+              autonomyMode: "autonomous",
+            },
+          ],
+        }),
+      ],
+      projectDir,
+    );
+
+    const step = definitions[0]?.steps[0];
+    expect(step && "tier" in step ? step.tier : undefined).toBe("capable");
+    expect(step && "model" in step ? step.model : undefined).toBe("claude-opus-4-7");
+  });
+
+  it("resolves a tier through caller-supplied modelTiers when the operator overrides the shipped default", () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    const definitions = validateWorkflowDefinitionsCore(
+      [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+              harness: "codex",
+              tier: "capable",
+              effort: "xhigh",
+              autonomyMode: "autonomous",
+            },
+          ],
+        }),
+      ],
+      projectDir,
+      {
+        defaultAgentHarness: "claude-agent-sdk",
+        modelTiers: { capable: "gpt-5-codex" },
+      },
+    );
+
+    const step = definitions[0]?.steps[0];
+    expect(step && "tier" in step ? step.tier : undefined).toBe("capable");
+    expect(step && "model" in step ? step.model : undefined).toBe("gpt-5-codex");
+  });
+
+  it("rejects an agent step that declares both model and tier", () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "build",
+                type: "agent",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                model: "claude-opus-4-7",
+                tier: "capable",
+                effort: "xhigh",
+                autonomyMode: "autonomous",
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(/declares both "model" and "tier"/);
+  });
+
+  it("rejects an agent step that declares neither model nor tier", () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "build",
+                type: "agent",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                effort: "xhigh",
+                autonomyMode: "autonomous",
+              } as never,
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(/must declare either "model" .*or "tier"/);
+  });
+
+  it("rejects an unknown tier value", () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition("test/builder.ts", {
+            name: "builder",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [
+              {
+                id: "build",
+                type: "agent",
+                promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                tier: "ludicrous" as never,
+                effort: "xhigh",
+                autonomyMode: "autonomous",
+              },
+            ],
+          }),
+        ],
+        projectDir,
+      ),
+    ).toThrow(/tier must be one of fast, balanced, capable/);
   });
 
   it("rejects invalid autonomyMode in agent steps", () => {
@@ -800,7 +1025,7 @@ describe("workflow validation", () => {
     ).toThrow("defaultAutonomyMode must be one of passive, supervised, autonomous");
   });
 
-  it("rejects agent steps without a model field", () => {
+  it("rejects agent steps without a model or tier field", () => {
     writeFileSync(
       join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
@@ -817,13 +1042,15 @@ describe("workflow validation", () => {
                 id: "build",
                 type: "agent",
                 promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+                effort: "xhigh",
+                autonomyMode: "autonomous",
               } as any,
             ],
           }),
         ],
         projectDir,
       ),
-    ).toThrow("steps[0].model");
+    ).toThrow(/steps\[0\] must declare either "model" .*or "tier"/);
   });
 
   it("exposes the expected autonomy workflows without pinning the full set", async () => {

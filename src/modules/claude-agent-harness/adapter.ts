@@ -23,6 +23,28 @@ import type { SDKSystemPrompt } from "./sdk-types.js";
 
 export const CLAUDE_AGENT_HARNESS_NAME = "claude-agent-sdk";
 
+/**
+ * Canonical model ids the claude-agent-sdk adapter knows it can serve. The
+ * workflow validator gates step `model` strings through this catalog when
+ * the active harness is claude. Non-claude harnesses (codex, gemini, thin)
+ * do not declare a `validateModelId` and accept any non-empty string,
+ * letting their wire layer reject unknown ids.
+ */
+export const CLAUDE_AGENT_SDK_KNOWN_MODELS: readonly string[] = [
+  "claude-opus-4-7",
+  "claude-sonnet-4-6",
+  "claude-haiku-4-5-20251001",
+];
+
+function validateClaudeSdkModelId(modelId: string): void {
+  if (!CLAUDE_AGENT_SDK_KNOWN_MODELS.includes(modelId)) {
+    throw new Error(
+      `unknown model "${modelId}" for harness "${CLAUDE_AGENT_HARNESS_NAME}" ` +
+        `(known: ${CLAUDE_AGENT_SDK_KNOWN_MODELS.join(", ")})`,
+    );
+  }
+}
+
 const VALID_CLAUDE_SDK_PERMISSION_MODES: readonly ClaudeAgentSdkPermissionMode[] = [
   "default",
   "acceptEdits",
@@ -178,6 +200,7 @@ export const claudeAgentHarness: AgentHarness = {
   askOwnerToolName: KOTA_OWNER_QUESTIONS_MCP_TOOL,
   emitsAgentMessageStream: true,
   validateStepOptions: validateClaudeSdkStepOptions,
+  validateModelId: validateClaudeSdkModelId,
   async run(
     options: AgentHarnessRunOptions,
     writer?: AgentHarnessWriter,

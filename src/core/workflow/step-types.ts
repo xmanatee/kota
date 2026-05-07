@@ -1,4 +1,5 @@
 import type { AgentHarnessStepOverrides } from "#core/agent-harness/types.js";
+import type { ModelTier } from "#core/model/model-router.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
   WorkflowPredicate,
@@ -36,7 +37,21 @@ export type WorkflowAgentStep = WorkflowBaseStep & {
    * against an external project.
    */
   moduleRoot: string;
+  /**
+   * Concrete model id used when the step is dispatched. Always populated by
+   * the validator: when the input declared `tier`, the validator resolves
+   * the tier through `KotaConfig.modelTiers` (or the shipped default
+   * mapping) and stores the result here. When the input declared `model`,
+   * the validator stores it verbatim after the harness's optional
+   * `validateModelId` gate.
+   */
   model: string;
+  /**
+   * The neutral tier the input declared, preserved for telemetry and for
+   * future re-resolution when the active preset changes. Unset when the
+   * step input declared `model` directly.
+   */
+  tier?: ModelTier;
   effort: "low" | "medium" | "high" | "xhigh" | "max";
   maxTurns?: number;
   thinkingEnabled?: boolean;

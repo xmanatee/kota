@@ -1,4 +1,4 @@
-export { VALID_MODEL_IDS, validateAgentStep } from "./validate-agent-step.js";
+export { validateAgentStep } from "./validate-agent-step.js";
 export { validateApprovalStep } from "./validate-approval-step.js";
 export { validateAwaitEventStep } from "./validate-await-event-step.js";
 export { validateBranchStep } from "./validate-branch-step.js";
