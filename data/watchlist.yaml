@@ -212,3 +212,9 @@ resources:
       fingerprint: sha256:8f0080bad00e5ff8f850d84d55e5ba4b
       summary: "GitNexus is a code knowledge-graph + MCP server (16 tools — query/context/impact/detect_changes/rename/cypher plus group-scope multi-repo tools) for AI coding agents (Claude Code, Cursor, Codex, Windsurf, OpenCode). Integrates as an external MCP-tools provider, not a peer agent runtime; impact/blast-radius and rename tools could augment KOTA's pr-reviewer/critic flows if operators install it. PolyForm Noncommercial; commercial use via Akon Labs SaaS."
       last_seen_at: "2026-05-03T04:04:20.334Z"
+  - url: https://github.com/vercel-labs/open-agents
+    added: "2026-05-07"
+    notes: "Vercel Labs Open Agents is the open-source reference implementation behind open-agents.dev — a TypeScript Next.js + Vercel Workflows + Sandbox stack that runs coding agents 'infinitely in the cloud' with the agent running outside the sandbox. Direct peer to KOTA's daemon + workflow + session model and a comparison point for the events/hooks vs. workflows debate. Snapshot and distill on the next explorer cycle."
+  - url: https://vercel.com/docs/workflow
+    added: "2026-05-07"
+    notes: "Vercel Workflow SDK docs — durable, resumable orchestration with checkpointing. Peer to KOTA's workflow runtime; useful comparison for workflow durability and resume semantics. Snapshot and distill on the next explorer cycle."
