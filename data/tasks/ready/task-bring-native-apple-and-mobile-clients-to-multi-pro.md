@@ -1,12 +1,12 @@
 ---
 id: task-bring-native-apple-and-mobile-clients-to-multi-pro
 title: Bring native apple and mobile clients to multi-project selector parity
-status: blocked
+status: ready
 priority: p3
 area: client
 summary: Bring the apple (macOS + iOS) and mobile (React Native + Android) clients to project-selector parity once the daemon hosts multiple project runtimes and CLI/web have proven the contract.
 created_at: 2026-05-08T00:01:21.756Z
-updated_at: 2026-05-08T00:01:21.756Z
+updated_at: 2026-05-08T05:02:20.674Z
 ---
 
 ## Problem
