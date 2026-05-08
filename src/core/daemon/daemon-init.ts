@@ -31,6 +31,7 @@ import {
   type WorkflowMetricsSource,
 } from "./metrics-source-provider.js";
 import type { NotificationGate } from "./notification-gate.js";
+import type { ProjectRegistry } from "./project-registry.js";
 
 /**
  * Per-instance lifecycle context for one running daemon.
@@ -56,6 +57,7 @@ export type DaemonRuntimeContext = {
   readonly token: string;
   readonly state: DaemonState;
   readonly sessions: Map<string, InteractiveSession>;
+  readonly projectRegistry: ProjectRegistry;
 
   // Mutable lifecycle state owned by startup/shutdown phases.
   notificationGate: NotificationGate | null;
@@ -84,6 +86,7 @@ export type BuildDaemonInitParams = {
   log: (message: string) => void;
   state: DaemonState;
   token: string;
+  projectRegistry: ProjectRegistry;
 };
 
 /**
@@ -94,7 +97,18 @@ export type BuildDaemonInitParams = {
  * during `runDaemonStartup`.
  */
 export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeContext {
-  const { config, projectDir, stateDir, bus, runStore, logger, log, state, token } = params;
+  const {
+    config,
+    projectDir,
+    stateDir,
+    bus,
+    runStore,
+    logger,
+    log,
+    state,
+    token,
+    projectRegistry,
+  } = params;
   const sessions = new Map<string, InteractiveSession>();
 
   // Closures inside the handle and provider seams reference `ctx` — they
@@ -216,6 +230,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     token,
     state,
     sessions,
+    projectRegistry,
     notificationGate: null,
     unsubscribe: null,
     sessionSweepTimer: null,

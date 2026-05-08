@@ -76,25 +76,52 @@ single oversized implementation block.
 
 ### Follow-up tasks (sequenced)
 
-1. **Daemon foundation** — `task-add-daemon-project-registry-and-projectid-attribut`
-   (`ready/`). Project registry primitive, per-project runtime bundle,
-   `projectId` scope on every store/event/control-API payload, typed
-   invariant test for singleton bindings.
-2. **CLI daemon-mode selector** — `task-add-cli-daemon-mode-project-selector-and-project-s`
-   (`blocked/`, unblocks when (1) is in `done/`). `kota project ls`/`use`
-   plus `--project` filter on `kota status`, `kota session`, and
-   `kota events`.
-3. **Web client selector** — `task-add-web-client-project-selector-and-project-scoped`
-   (`blocked/`, unblocks when (1) is in `done/`). Project-scoped routes,
-   header selector, query-key + SSE scoping, Playwright integration test.
-4. **Native parity (apple + mobile)** — `task-bring-native-apple-and-mobile-clients-to-multi-pro`
-   (`blocked/`, unblocks when (3) is in `done/`). Single task per
-   `clients/AGENTS.md` (apple owns macOS+iOS, mobile owns Android +
-   shared React Native); contract conformance gate updated in lockstep.
+The daemon foundation work is itself decomposed into four sub-slices
+because a single "daemon foundation" task spanned 9 store conversions,
+the entire event-bus payload shape, every control-API route, and a full
+two-project integration test — too large for one builder run with honest
+end-to-end fulfillment.
 
-(1) and (2) prove the daemon and CLI contract; (3) lands the web
-selector; (4) brings native shells to parity once the contract is
-stable. No simultaneous implementation runs across surfaces.
+1. **Daemon registry primitive + DaemonConfig multi-project plumbing** —
+   `task-add-daemon-project-registry-and-projectid-attribut` (in
+   progress / done after this run). Typed `ProjectRegistry`, derived
+   stable `projectId`, `DaemonConfig.projects` shape, runtime context
+   exposes the registry. No store/event/route changes yet.
+2. **Per-project ProjectRuntime bundle factory + singleton-binding
+   invariant test** —
+   `task-add-per-project-projectruntime-bundle-factory-and-`. Convert
+   workflow runtime, run store, task store, scheduler, module-log store,
+   notification gate, approval queue, owner-question queue, and
+   push-token store to per-project bundles; add a typed invariant test
+   that rejects new singleton store bindings.
+3. **`projectId` on every event-bus payload** —
+   `task-add-projectid-to-every-event-bus-payload`. Typed envelope (or
+   field) on every project-scoped event; cross-project events declare a
+   distinct typed shape.
+4. **`projectId` on every control-API route + decoder updates** —
+   `task-thread-projectid-through-control-api-routes-and-up`. Threads
+   `projectId` through every control-API route, exposes the
+   `ProjectRegistryProjection` on identity, updates the shared
+   conformance fixture + TS + Swift decoders in lockstep.
+5. **Multi-project daemon isolation integration test** —
+   `task-add-multi-project-daemon-isolation-integration-tes`. Boots one
+   daemon with two projects; asserts events, runs, sessions, owner
+   questions, and approvals never cross `projectId`.
+
+Operator-surface follow-ups remain sequenced behind the daemon
+foundation:
+
+- **CLI daemon-mode selector** —
+  `task-add-cli-daemon-mode-project-selector-and-project-s` (`blocked/`,
+  unblocks when (4) is in `done/`).
+- **Web client selector** —
+  `task-add-web-client-project-selector-and-project-scoped` (`blocked/`,
+  unblocks when (4) is in `done/`).
+- **Native parity (apple + mobile)** —
+  `task-bring-native-apple-and-mobile-clients-to-multi-pro` (`blocked/`,
+  unblocks when web-client (above) is in `done/`).
+
+No simultaneous implementation runs across surfaces.
 
 ## Proposal
 

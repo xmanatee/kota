@@ -75,11 +75,11 @@ shape. Clients join `dashboard.path` onto the daemon base URL when
 
 ## Multi-Project Runtime Shape
 
-The daemon is single-project today. Once KOTA targets more than one project,
-the owner must pick between two materially different runtime shapes. The
-side-by-side variant comparison, migration shape, and follow-up decomposition
-live in the pending task body at
-`data/tasks/blocked/task-surface-project-selection-in-operator-clients-for-.md`.
+Single-project today; Variant A is the resolved shape — one daemon hosts
+project-scoped runtimes. `ProjectRegistry` (`project-registry.ts`) names
+every configured project. `DaemonConfig.projects` accepts a list;
+`projectDir` is the single-project shorthand. Per-project runtime bundles,
+event-payload `projectId`, and route scoping are follow-up slices on it.
 
 ## Recoverability
 

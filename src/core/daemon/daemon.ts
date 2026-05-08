@@ -15,6 +15,11 @@ import { runDaemonShutdown } from "./daemon-shutdown.js";
 import { runDaemonStartup } from "./daemon-startup.js";
 import type { DaemonState } from "./daemon-state.js";
 import { loadDaemonStateFromDisk, saveDaemonStateToDisk } from "./daemon-state-persistence.js";
+import {
+  type ConfiguredProjectInput,
+  ProjectRegistry,
+  resolveConfiguredProjects,
+} from "./project-registry.js";
 import { initScheduler } from "./scheduler.js";
 import { initTaskStore } from "./task-store.js";
 
@@ -22,7 +27,25 @@ export type { DaemonControlAddress } from "./daemon-control.js";
 export type { DaemonState } from "./daemon-state.js";
 
 export type DaemonConfig = {
+  /**
+   * Single-project shorthand. When `projects` is set, that array is
+   * authoritative and `projectDir` is ignored. When neither is set,
+   * defaults to `process.cwd()`.
+   */
   projectDir?: string;
+  /**
+   * Multi-project configuration. The first entry becomes the registry's
+   * default project. Operators that supervise more than one project from a
+   * single daemon set this; KOTA-on-itself can leave it unset and let the
+   * `projectDir` shorthand drive a single-project registry.
+   *
+   * The per-project runtime bundle (workflow runtime, run store, task store,
+   * scheduler, module-log store, notification gate, approval queue,
+   * owner-question queue, push-token store) is wired in a follow-up slice;
+   * today the daemon still constructs one global runtime against the
+   * registry's default project.
+   */
+  projects?: readonly ConfiguredProjectInput[];
   model?: string;
   verbose?: boolean;
   config?: KotaConfig;
@@ -81,8 +104,20 @@ export class Daemon {
   constructor(config: DaemonConfig) {
     const logger = new DaemonLogger(config.logFormat);
     const log = (message: string) => logger.line(message);
-    const projectDir = config.projectDir ?? process.cwd();
-    const stateDir = config.stateDir ?? join(projectDir, ".kota");
+    const configuredProjects = resolveConfiguredProjects({
+      projects: config.projects,
+      projectDir: config.projectDir,
+      fallbackProjectDir: process.cwd(),
+    });
+    const stateDir =
+      config.stateDir ?? join(configuredProjects[0]!.projectDir, ".kota");
+
+    const projectRegistry = new ProjectRegistry({
+      stateDir,
+      projects: configuredProjects,
+    });
+    const defaultProject = projectRegistry.getDefault();
+    const projectDir = defaultProject.projectDir;
 
     const loaded = loadDaemonStateFromDisk(stateDir);
     const state: DaemonState = loaded ?? {
@@ -110,6 +145,7 @@ export class Daemon {
       log,
       state,
       token,
+      projectRegistry,
     });
   }
 
