@@ -1,5 +1,6 @@
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import type { EventBus } from "#core/events/event-bus.js";
+import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
 import { buildStepCompletedPayload, buildStepStartedPayload, resolveStepAutonomyMode } from "../event-payloads.js";
 import { applyOutputSizeLimit, DEFAULT_STEP_TIMEOUT_MS } from "../run-executor-step.js";
@@ -43,6 +44,7 @@ type ForeachAgentDeps = {
 type ForeachRunDeps = ForeachAgentDeps & {
   acc: ForeachStepAccumulators;
   bus: EventBus;
+  pbus: ProjectScopedEventBus;
   log: (message: string) => void;
   /** Preserved item results from a prior run, used by retryFailedItems partial-resume. */
   priorItemResults?: ForeachItemResult[];
@@ -72,7 +74,7 @@ async function executeInnerStep(
     return skipped;
   }
 
-  deps.bus.emit(
+  deps.pbus.emit(
     "workflow.step.started",
     buildStepStartedPayload(deps.run.metadata, innerStep, deps.definition.defaultAutonomyMode),
   );
@@ -145,7 +147,7 @@ async function executeInnerStep(
     deps.acc.stepOutputsById[innerStep.id] = limitedOutput;
     deps.acc.stepResultsById[innerStep.id] = completed;
     deps.acc.stepOutputs.push(limitedOutput);
-    deps.bus.emit(
+    deps.pbus.emit(
       "workflow.step.completed",
       buildStepCompletedPayload(
         deps.run.metadata,
@@ -170,7 +172,7 @@ async function executeInnerStep(
       ...(innerStep.continueOnFailure ? { continueOnFailure: true } : {}),
     };
     deps.acc.stepResultsById[innerStep.id] = failed;
-    deps.bus.emit(
+    deps.pbus.emit(
       "workflow.step.completed",
       buildStepCompletedPayload(
         deps.run.metadata,
@@ -210,7 +212,7 @@ export async function executeForeachStepGroup(
       error: `foreach items resolution error: ${error.message}`,
       ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
     };
-    deps.bus.emit(
+    deps.pbus.emit(
       "workflow.step.completed",
       buildStepCompletedPayload(
         deps.run.metadata,
@@ -256,7 +258,7 @@ export async function executeForeachStepGroup(
       };
       deps.acc.stepOutputsById[innerStep.id] = { skipped: true };
       deps.acc.stepResultsById[innerStep.id] = skipped;
-      deps.bus.emit(
+      deps.pbus.emit(
         "workflow.step.completed",
         buildStepCompletedPayload(
           deps.run.metadata,

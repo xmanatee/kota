@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { tryEmit } from "#core/events/event-bus.js";
+import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { projectHash } from "./schedule-parser.js";
 import type { Task, TaskFileData, TaskPriority, TaskStatus } from "./task-store-types.js";
 
@@ -15,9 +15,15 @@ export class TaskStore {
   private filePath: string | null;
   private project: string;
   private loaded = false;
+  private pbus: ProjectScopedEventBus | null;
 
-  constructor(projectDir?: string, storageDir?: string | null) {
+  constructor(
+    projectDir?: string,
+    storageDir?: string | null,
+    pbus?: ProjectScopedEventBus | null,
+  ) {
     this.project = projectDir || process.cwd();
+    this.pbus = pbus ?? null;
     if (storageDir === null) {
       // In-memory mode (no persistence)
       this.filePath = null;
@@ -64,10 +70,11 @@ export class TaskStore {
   }
 
   private emitChanged(): void {
+    if (!this.pbus) return;
     const pending = this.tasks.filter(t => t.status === "pending").length;
     const in_progress = this.tasks.filter(t => t.status === "in_progress").length;
     const done = this.tasks.filter(t => t.status === "done").length;
-    tryEmit("task.changed", { counts: { pending, in_progress, done } });
+    this.pbus.emit("task.changed", { counts: { pending, in_progress, done } });
   }
 
   private persist(): void {

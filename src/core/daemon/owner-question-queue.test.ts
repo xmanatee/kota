@@ -1,18 +1,24 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { EventBus } from "#core/events/event-bus.js";
+import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import {
   getOwnerQuestionQueue,
   OwnerQuestionQueue,
   resetOwnerQuestionQueue,
 } from "./owner-question-queue.js";
 
-const tryEmitMock = vi.hoisted(() => vi.fn());
-vi.mock("#core/events/event-bus.js", () => ({
-  tryEmit: tryEmitMock,
-  getEventBus: () => null,
-}));
+let received: Array<{ event: string; payload: Record<string, unknown> }> = [];
+function makeQueue(dir: string): OwnerQuestionQueue {
+  const bus = new EventBus();
+  received = [];
+  bus.on("*", (envelope) => {
+    received.push({ event: envelope.type, payload: envelope.payload as Record<string, unknown> });
+  });
+  return new OwnerQuestionQueue(dir, new ProjectScopedEventBus(bus, "test-project"));
+}
 
 function validEnqueue(overrides: Partial<Parameters<OwnerQuestionQueue["enqueue"]>[0]> = {}) {
   return {
@@ -30,8 +36,7 @@ describe("OwnerQuestionQueue", () => {
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "owner-question-test-"));
-    queue = new OwnerQuestionQueue(dir);
-    tryEmitMock.mockClear();
+    queue = makeQueue(dir);
   });
 
   afterEach(() => {
@@ -186,36 +191,36 @@ describe("OwnerQuestionQueue", () => {
   describe("events", () => {
     it("emits owner.question.asked on enqueue", () => {
       const item = queue.enqueue(validEnqueue());
-      const asked = tryEmitMock.mock.calls.filter(([e]) => e === "owner.question.asked");
+      const asked = received.filter(({ event }) => event === "owner.question.asked");
       expect(asked).toHaveLength(1);
-      expect(asked[0][1]).toMatchObject({ id: item.id, source: "session-42" });
+      expect(asked[0]?.payload).toMatchObject({ projectId: "test-project", id: item.id, source: "session-42" });
     });
 
     it("emits owner.question.changed on enqueue and resolution", () => {
       const item = queue.enqueue(validEnqueue());
-      tryEmitMock.mockClear();
+      received.length = 0;
       queue.answer(item.id, "yes");
-      const changed = tryEmitMock.mock.calls.filter(([e]) => e === "owner.question.changed");
+      const changed = received.filter(({ event }) => event === "owner.question.changed");
       expect(changed).toHaveLength(1);
-      expect(changed[0][1]).toEqual({ id: item.id, pendingCount: 0 });
+      expect(changed[0]?.payload).toEqual({ projectId: "test-project", id: item.id, pendingCount: 0 });
     });
 
     it("emits owner.question.resolved with answered=true on answer", () => {
       const item = queue.enqueue(validEnqueue());
-      tryEmitMock.mockClear();
+      received.length = 0;
       queue.answer(item.id, "yes");
-      const resolved = tryEmitMock.mock.calls.filter(([e]) => e === "owner.question.resolved");
+      const resolved = received.filter(({ event }) => event === "owner.question.resolved");
       expect(resolved).toHaveLength(1);
-      expect(resolved[0][1]).toMatchObject({ id: item.id, answered: true, answer: "yes" });
+      expect(resolved[0]?.payload).toMatchObject({ projectId: "test-project", id: item.id, answered: true, answer: "yes" });
     });
 
     it("emits owner.question.dismissed on dismiss", () => {
       const item = queue.enqueue(validEnqueue());
-      tryEmitMock.mockClear();
+      received.length = 0;
       queue.dismiss(item.id, "no longer needed");
-      const dismissed = tryEmitMock.mock.calls.filter(([e]) => e === "owner.question.dismissed");
+      const dismissed = received.filter(({ event }) => event === "owner.question.dismissed");
       expect(dismissed).toHaveLength(1);
-      expect(dismissed[0][1]).toEqual({ id: item.id, reason: "no longer needed" });
+      expect(dismissed[0]?.payload).toEqual({ projectId: "test-project", id: item.id, reason: "no longer needed" });
     });
 
     it("emits owner.question.expired on expireStale", () => {
@@ -223,11 +228,11 @@ describe("OwnerQuestionQueue", () => {
       const stored = queue.get(item.id)!;
       stored.createdAt = new Date(Date.now() - 2000).toISOString();
       writeFileSync(join(dir, `${item.id}.json`), JSON.stringify(stored, null, 2));
-      tryEmitMock.mockClear();
+      received.length = 0;
       queue.expireStale();
-      const expired = tryEmitMock.mock.calls.filter(([e]) => e === "owner.question.expired");
+      const expired = received.filter(({ event }) => event === "owner.question.expired");
       expect(expired).toHaveLength(1);
-      expect(expired[0][1]).toEqual({ id: item.id, defaultResolution: "dismiss" });
+      expect(expired[0]?.payload).toEqual({ projectId: "test-project", id: item.id, defaultResolution: "dismiss" });
     });
   });
 });

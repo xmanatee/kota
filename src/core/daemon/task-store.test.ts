@@ -1,15 +1,11 @@
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { EventBus } from "#core/events/event-bus.js";
+import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { projectHash } from "./schedule-parser.js";
 import { getTaskStore, initTaskStore, resetTaskStore, TaskStore } from "./task-store.js";
-
-const tryEmitMock = vi.hoisted(() => vi.fn());
-vi.mock("#core/events/event-bus.js", () => ({
-  tryEmit: tryEmitMock,
-  getEventBus: () => null,
-}));
 
 const testDir = mkdtempSync(join(tmpdir(), "kota-task-test-"));
 
@@ -407,52 +403,59 @@ describe("singleton management", () => {
 
 describe("task.changed events", () => {
   let store: TaskStore;
+  let bus: EventBus;
+  let received: Array<{ event: string; payload: Record<string, unknown> }>;
 
   beforeEach(() => {
-    store = new TaskStore("/test/project", null);
-    tryEmitMock.mockClear();
+    bus = new EventBus();
+    received = [];
+    bus.on("*", (envelope) => {
+      received.push({ event: envelope.type, payload: envelope.payload as Record<string, unknown> });
+    });
+    const pbus = new ProjectScopedEventBus(bus, "test-project");
+    store = new TaskStore("/test/project", null, pbus);
   });
 
   it("emits task.changed on add with current counts", () => {
     store.add("Task 1");
-    const calls = tryEmitMock.mock.calls.filter(([e]) => e === "task.changed");
+    const calls = received.filter(({ event }) => event === "task.changed");
     expect(calls).toHaveLength(1);
-    expect(calls[0][1]).toEqual({ counts: { pending: 1, in_progress: 0, done: 0 } });
+    expect(calls[0]?.payload).toEqual({ projectId: "test-project", counts: { pending: 1, in_progress: 0, done: 0 } });
   });
 
   it("emits task.changed on update with updated counts", () => {
     store.add("Task 1");
-    tryEmitMock.mockClear();
+    received.length = 0;
     store.update(1, { status: "in_progress" });
-    const calls = tryEmitMock.mock.calls.filter(([e]) => e === "task.changed");
+    const calls = received.filter(({ event }) => event === "task.changed");
     expect(calls).toHaveLength(1);
-    expect(calls[0][1]).toEqual({ counts: { pending: 0, in_progress: 1, done: 0 } });
+    expect(calls[0]?.payload).toEqual({ projectId: "test-project", counts: { pending: 0, in_progress: 1, done: 0 } });
   });
 
   it("emits task.changed on clear with zero counts", () => {
     store.add("Task 1");
-    tryEmitMock.mockClear();
+    received.length = 0;
     store.clear();
-    const calls = tryEmitMock.mock.calls.filter(([e]) => e === "task.changed");
+    const calls = received.filter(({ event }) => event === "task.changed");
     expect(calls).toHaveLength(1);
-    expect(calls[0][1]).toEqual({ counts: { pending: 0, in_progress: 0, done: 0 } });
+    expect(calls[0]?.payload).toEqual({ projectId: "test-project", counts: { pending: 0, in_progress: 0, done: 0 } });
   });
 
   it("emits task.changed on archiveCompleted when tasks are removed", () => {
     store.add("Task 1");
     store.update(1, { status: "done" });
-    tryEmitMock.mockClear();
+    received.length = 0;
     store.archiveCompleted();
-    const calls = tryEmitMock.mock.calls.filter(([e]) => e === "task.changed");
+    const calls = received.filter(({ event }) => event === "task.changed");
     expect(calls).toHaveLength(1);
-    expect(calls[0][1]).toEqual({ counts: { pending: 0, in_progress: 0, done: 0 } });
+    expect(calls[0]?.payload).toEqual({ projectId: "test-project", counts: { pending: 0, in_progress: 0, done: 0 } });
   });
 
   it("does not emit task.changed on archiveCompleted when nothing to archive", () => {
     store.add("Active");
-    tryEmitMock.mockClear();
+    received.length = 0;
     store.archiveCompleted();
-    const calls = tryEmitMock.mock.calls.filter(([e]) => e === "task.changed");
+    const calls = received.filter(({ event }) => event === "task.changed");
     expect(calls).toHaveLength(0);
   });
 });

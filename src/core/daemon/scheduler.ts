@@ -12,7 +12,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { EventBus } from "#core/events/event-bus.js";
-import { tryEmit } from "#core/events/event-bus.js";
+import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import {
   getPendingSummary,
   matchesFilter,
@@ -31,9 +31,15 @@ export class Scheduler {
   private loaded = false;
   private timer: ReturnType<typeof setInterval> | null = null;
   private busUnsub: (() => void) | null = null;
+  private pbus: ProjectScopedEventBus | null;
 
-  constructor(projectDir?: string, storageDir?: string | null) {
+  constructor(
+    projectDir?: string,
+    storageDir?: string | null,
+    pbus?: ProjectScopedEventBus | null,
+  ) {
     this.project = projectDir || process.cwd();
+    this.pbus = pbus ?? null;
     if (storageDir === null) {
       this.filePath = null;
       this.loaded = true;
@@ -150,10 +156,12 @@ export class Scheduler {
       item.firedAt = ref.toISOString();
     }
     this.persist();
-    tryEmit("schedule.fire", {
-      itemId: item.id,
-      description: item.description,
-    });
+    if (this.pbus) {
+      this.pbus.emit("schedule.fire", {
+        itemId: item.id,
+        description: item.description,
+      });
+    }
     return item;
   }
 

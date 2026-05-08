@@ -142,6 +142,7 @@ describe("executeWorkflowStep — costUsd capture", () => {
   };
 
   const bus = { emit: vi.fn() } as any;
+  const pbus = { emit: bus.emit, getProjectId: () => "test-project" } as any;
   const log = vi.fn();
   const agentConfig = { config: {}, log, projectDir: "/tmp" } as any;
 
@@ -157,7 +158,7 @@ describe("executeWorkflowStep — costUsd capture", () => {
     const acc = makeAcc();
     const result = await executeWorkflowStep(
       definition as any, step as any, run, trigger, context as any,
-      new AbortController(), agentConfig, acc, { bus, log }, Date.now(),
+      new AbortController(), agentConfig, acc, { bus, pbus, log }, Date.now(),
     );
 
     expect(result.completed.costUsd).toBe(0.42);
@@ -175,7 +176,7 @@ describe("executeWorkflowStep — costUsd capture", () => {
     const acc = makeAcc();
     const result = await executeWorkflowStep(
       definition as any, step as any, run, trigger, context as any,
-      new AbortController(), agentConfig, acc, { bus, log }, Date.now(),
+      new AbortController(), agentConfig, acc, { bus, pbus, log }, Date.now(),
     );
 
     expect(result.completed.costUsd).toBeUndefined();
@@ -191,7 +192,7 @@ describe("executeWorkflowStep — costUsd capture", () => {
     const acc = makeAcc();
     const result = await executeWorkflowStep(
       definition as any, step as any, run, trigger, context as any,
-      new AbortController(), agentConfig, acc, { bus, log }, Date.now(),
+      new AbortController(), agentConfig, acc, { bus, pbus, log }, Date.now(),
     );
 
     expect(result.completed.costUsd).toBeUndefined();

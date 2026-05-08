@@ -1,6 +1,8 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
+import { deriveProjectId } from "#core/daemon/project-registry.js";
 import type { EventBus } from "#core/events/event-bus.js";
+import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import {
   buildStepCompletedPayload,
   buildStepStartedPayload,
@@ -28,6 +30,14 @@ import type { WorkflowDefinition } from "./types.js";
 export type RunExecutorDeps = {
   projectDir: string;
   bus: EventBus;
+  /**
+   * Per-project view over {@link bus}. The executor emits every workflow-
+   * lifecycle event through this wrapper so subscribers can attribute the
+   * emitting project without inferring scope from paths. When omitted, the
+   * executor builds the wrapper from `deriveProjectId(projectDir)` so a
+   * standalone run is still attributed to its own project.
+   */
+  pbus?: ProjectScopedEventBus;
   store: WorkflowRunStore;
   model?: string;
   config?: KotaConfig;
@@ -49,9 +59,20 @@ export type RunExecutorDeps = {
 export function executeWorkflowRun(
   definition: WorkflowDefinition,
   trigger: WorkflowRunTrigger,
-  deps: RunExecutorDeps,
+  inputDeps: RunExecutorDeps,
   abortController: AbortController = new AbortController(),
 ): { promise: Promise<WorkflowRunExecutionResult>; abortController: AbortController } {
+  // Resolve `pbus` once: callers from the daemon path supply the
+  // per-project wrapper directly; standalone callers (CLI exec, focused
+  // tests) get a wrapper bound to their own `projectDir`. Either way the
+  // run is attributed to the project producing it, never the registry's
+  // default.
+  const deps: RunExecutorDeps & { pbus: ProjectScopedEventBus } = {
+    ...inputDeps,
+    pbus:
+      inputDeps.pbus ??
+      new ProjectScopedEventBus(inputDeps.bus, deriveProjectId(inputDeps.projectDir)),
+  };
   const run = deps.store.createRun(definition, trigger);
   const startedAt = Date.now();
 
@@ -64,7 +85,7 @@ export function executeWorkflowRun(
     }, definition.runTimeoutMs);
   }
 
-  deps.bus.emit(
+  deps.pbus.emit(
     "workflow.started",
     buildWorkflowStartedPayload(run.metadata, definition),
   );
@@ -75,7 +96,7 @@ export function executeWorkflowRun(
     const retryOfId = typeof trigger.payload.retryOf === "string" ? trigger.payload.retryOf : undefined;
     const resumedFromRunId = typeof trigger.payload.resumedFromRunId === "string" ? trigger.payload.resumedFromRunId : undefined;
     const resumeFromStep = typeof trigger.payload.resumeFromStep === "string" ? trigger.payload.resumeFromStep : undefined;
-    const stepDeps = { bus: deps.bus, log: deps.log };
+    const stepDeps = { bus: deps.bus, pbus: deps.pbus, log: deps.log };
 
     try {
       const retryState = resumedFromRunId && resumeFromStep
@@ -122,7 +143,7 @@ export function executeWorkflowRun(
             stepStartedAt,
             acc,
             (r) => run.recordStep(r),
-            deps.bus,
+            deps.pbus,
             run.metadata,
             definition.defaultAutonomyMode,
             runDecision.skipReason,
@@ -130,7 +151,7 @@ export function executeWorkflowRun(
           continue;
         }
 
-        deps.bus.emit(
+        deps.pbus.emit(
           "workflow.step.started",
           buildStepStartedPayload(run.metadata, step, definition.defaultAutonomyMode),
         );
@@ -156,7 +177,7 @@ export function executeWorkflowRun(
           }
           stepOutputs.push(groupResult.output);
           previousOutput = groupResult.output;
-          deps.bus.emit(
+          deps.pbus.emit(
             "workflow.step.completed",
             buildStepCompletedPayload(run.metadata, groupResult, definition.defaultAutonomyMode),
           );
@@ -197,6 +218,7 @@ export function executeWorkflowRun(
               agentConfig,
               acc,
               bus: deps.bus,
+              pbus: deps.pbus,
               log: deps.log,
             };
             const getContext = () => createStepContext(
@@ -221,7 +243,7 @@ export function executeWorkflowRun(
             run.recordStep(failed);
             stepOutputsById[step.id] = undefined;
             stepResultsById[step.id] = failed;
-            deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, failed, definition.defaultAutonomyMode));
+            deps.pbus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, failed, definition.defaultAutonomyMode));
             deps.log(`Failed step "${step.id}" (branch) in workflow "${definition.name}": ${error.message}`);
             if (step.continueOnFailure) { hadWarnings = true; continue; }
             throw error;
@@ -235,7 +257,7 @@ export function executeWorkflowRun(
           stepResultsById[step.id] = branchResult;
           stepOutputs.push(branchResult.output);
           previousOutput = branchResult.output;
-          deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, branchResult, definition.defaultAutonomyMode));
+          deps.pbus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, branchResult, definition.defaultAutonomyMode));
           deps.log(`Completed step "${step.id}" (branch) in workflow "${definition.name}" [${branchResult.durationMs}ms]`);
           if (branchFailed) {
             if (step.continueOnFailure) { hadWarnings = true; continue; }
@@ -277,6 +299,7 @@ export function executeWorkflowRun(
               agentConfig,
               acc,
               bus: deps.bus,
+              pbus: deps.pbus,
               log: deps.log,
               priorItemResults,
             };
@@ -303,7 +326,7 @@ export function executeWorkflowRun(
             run.recordStep(failed);
             stepOutputsById[step.id] = undefined;
             stepResultsById[step.id] = failed;
-            deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, failed, definition.defaultAutonomyMode));
+            deps.pbus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, failed, definition.defaultAutonomyMode));
             deps.log(`Failed step "${step.id}" (foreach) in workflow "${definition.name}": ${error.message}`);
             if (step.continueOnFailure) { hadWarnings = true; continue; }
             throw error;
@@ -317,7 +340,7 @@ export function executeWorkflowRun(
           stepResultsById[step.id] = groupResult;
           stepOutputs.push(groupResult.output);
           previousOutput = groupResult.output;
-          deps.bus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, groupResult, definition.defaultAutonomyMode));
+          deps.pbus.emit("workflow.step.completed", buildStepCompletedPayload(run.metadata, groupResult, definition.defaultAutonomyMode));
           deps.log(`Completed step "${step.id}" (foreach) in workflow "${definition.name}" [${groupResult.durationMs}ms]`);
           if (groupFailed) {
             if (step.continueOnFailure) { hadWarnings = true; continue; }
@@ -355,7 +378,7 @@ export function executeWorkflowRun(
         durationMs: Date.now() - startedAt,
         ...(outputWarnings.length > 0 ? { warnings: outputWarnings } : {}),
       });
-      deps.bus.emit(
+      deps.pbus.emit(
         "workflow.completed",
         buildWorkflowCompletedPayload(completed, finalStatus, definition.tags, undefined, definition.defaultAutonomyMode),
       );
@@ -381,7 +404,7 @@ export function executeWorkflowRun(
         durationMs: Date.now() - startedAt,
         error: err.message,
       });
-      deps.bus.emit(
+      deps.pbus.emit(
         "workflow.completed",
         buildWorkflowCompletedPayload(completed, status, definition.tags, agentBackoff?.kind, definition.defaultAutonomyMode),
       );

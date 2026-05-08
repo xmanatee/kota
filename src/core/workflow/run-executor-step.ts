@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { EventBus } from "#core/events/event-bus.js";
+import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import { buildStepCompletedPayload, resolveStepAutonomyMode } from "./event-payloads.js";
@@ -68,8 +69,14 @@ export type StepAccumulators = {
   warnings: WorkflowRunWarning[];
 };
 
+/**
+ * Step-executor deps. `pbus` is required because every step-level lifecycle
+ * emit (`workflow.step.*`) flows through it; the run-executor builds it
+ * once per run.
+ */
 type StepDeps = {
   bus: EventBus;
+  pbus: ProjectScopedEventBus;
   log: (message: string) => void;
 };
 
@@ -80,7 +87,7 @@ export function buildSkippedResult(
   stepStartedAt: number,
   acc: StepAccumulators,
   recordStep: (result: WorkflowStepResult) => void,
-  bus: EventBus,
+  pbus: ProjectScopedEventBus,
   runMetadata: WorkflowRunMetadata,
   defaultAutonomyMode: AutonomyMode | undefined,
   skipReason: WorkflowStepSkipReason,
@@ -150,7 +157,7 @@ export function buildSkippedResult(
       };
     }
   }
-  bus.emit(
+  pbus.emit(
     "workflow.step.completed",
     buildStepCompletedPayload(
       runMetadata,
@@ -289,7 +296,7 @@ export async function executeWorkflowStep(
     acc.stepResultsById[step.id] = completed;
     acc.stepOutputs.push(output);
 
-    deps.bus.emit(
+    deps.pbus.emit(
       "workflow.step.completed",
       buildStepCompletedPayload(
         run.metadata,
@@ -335,7 +342,7 @@ export async function executeWorkflowStep(
     };
     run.recordStep(failed);
     acc.stepResultsById[step.id] = failed;
-    deps.bus.emit(
+    deps.pbus.emit(
       "workflow.step.completed",
       buildStepCompletedPayload(
         run.metadata,

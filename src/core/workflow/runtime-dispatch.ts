@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
+import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { AgentBackoffManager } from "./agent-backoff.js";
 import { isWithinDispatchWindow } from "./dispatch-window.js";
@@ -31,6 +32,7 @@ export interface WorkflowRuntimeDispatchState {
   wfQueue: WorkflowQueueManager;
   definitions: WorkflowDefinition[];
   scheduleTriggers: ScheduleTriggerManager;
+  pbus: ProjectScopedEventBus;
   activeRuns: Map<
     string,
     { promise: Promise<WorkflowRunExecutionResult>; abortController: AbortController }
@@ -67,7 +69,7 @@ export function emitIdleEvent(state: WorkflowRuntimeDispatchState): void {
   if (state.stopping || state.activeRuns.size > 0 || idleTriggerAlreadyQueued) return;
   const dispatchWindow = state.config?.scheduler?.dispatchWindow;
   if (dispatchWindow && !isWithinDispatchWindow(dispatchWindow)) return;
-  state.runtimeConfig.bus.emit("runtime.idle", {
+  state.pbus.emit("runtime.idle", {
     timestamp: new Date().toISOString(),
     idleIntervalMs: state.idleIntervalMs,
   });
@@ -194,6 +196,7 @@ export async function runWorkflow(
     {
       projectDir: state.projectDir,
       bus: state.runtimeConfig.bus,
+      pbus: state.pbus,
       store: state.store,
       model: state.model,
       config: state.config,

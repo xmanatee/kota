@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
+import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import {
   isWithinQuietHours,
   msUntilQuietHoursEnd,
@@ -115,11 +116,13 @@ describe("parseQuietHours", () => {
 
 describe("NotificationGate", () => {
   let bus: EventBus;
+  let pbus: ProjectScopedEventBus;
   let received: Array<{ event: string; payload: Record<string, unknown> }>;
 
   beforeEach(() => {
     vi.useFakeTimers();
     bus = new EventBus();
+    pbus = new ProjectScopedEventBus(bus, "test-project");
     received = [];
     bus.on("workflow.attention.digest", (p) => received.push({ event: "workflow.attention.digest", payload: p }));
     bus.on("workflow.failure.alert", (p) => received.push({ event: "workflow.failure.alert", payload: p }));
@@ -133,9 +136,9 @@ describe("NotificationGate", () => {
     // 12:00 — outside 22:00–08:00 quiet hours
     vi.setSystemTime(makeTime(12, 0, 0, 0));
     const config: QuietHoursConfig = { start: "22:00", end: "08:00" };
-    const gate = new NotificationGate(bus, config);
+    const gate = new NotificationGate(pbus, config);
 
-    bus.emit("workflow.attention.digest", { items: [], text: "hello" });
+    pbus.emit("workflow.attention.digest", { items: [], text: "hello" });
     expect(received).toHaveLength(1);
     expect(received[0]?.event).toBe("workflow.attention.digest");
 
@@ -146,9 +149,9 @@ describe("NotificationGate", () => {
     // 23:00 — inside 22:00–08:00 quiet hours
     vi.setSystemTime(makeTime(23, 0, 0, 0));
     const config: QuietHoursConfig = { start: "22:00", end: "08:00" };
-    const gate = new NotificationGate(bus, config);
+    const gate = new NotificationGate(pbus, config);
 
-    bus.emit("workflow.attention.digest", { items: [], text: "held" });
+    pbus.emit("workflow.attention.digest", { items: [], text: "held" });
     expect(received).toHaveLength(0);
 
     gate.dispose();
@@ -160,9 +163,9 @@ describe("NotificationGate", () => {
     bus.on("workflow.daily.digest", (p) =>
       received.push({ event: "workflow.daily.digest", payload: p }),
     );
-    const gate = new NotificationGate(bus, config);
+    const gate = new NotificationGate(pbus, config);
 
-    bus.emit("workflow.daily.digest", {
+    pbus.emit("workflow.daily.digest", {
       windowStartedAt: "x",
       windowEndedAt: "y",
       text: "Daily digest body",
@@ -185,10 +188,10 @@ describe("NotificationGate", () => {
     // 23:00 — 9 hours until 08:00
     vi.setSystemTime(makeTime(23, 0, 0, 0));
     const config: QuietHoursConfig = { start: "22:00", end: "08:00" };
-    const gate = new NotificationGate(bus, config);
+    const gate = new NotificationGate(pbus, config);
 
-    bus.emit("workflow.attention.digest", { items: [{ label: "a", detail: "first" }], text: "first" });
-    bus.emit("workflow.attention.digest", { items: [{ label: "b", detail: "second" }], text: "second" });
+    pbus.emit("workflow.attention.digest", { items: [{ label: "a", detail: "first" }], text: "first" });
+    pbus.emit("workflow.attention.digest", { items: [{ label: "b", detail: "second" }], text: "second" });
     expect(received).toHaveLength(0);
 
     // Advance past end of quiet hours (9 hours)
@@ -206,9 +209,9 @@ describe("NotificationGate", () => {
   it("passes critical events through during quiet hours (allowCritical default)", () => {
     vi.setSystemTime(makeTime(23, 0, 0, 0));
     const config: QuietHoursConfig = { start: "22:00", end: "08:00" };
-    const gate = new NotificationGate(bus, config);
+    const gate = new NotificationGate(pbus, config);
 
-    bus.emit("workflow.failure.alert", {
+    pbus.emit("workflow.failure.alert", {
       workflow: "builder",
       runId: "abc",
       status: "failed",
@@ -225,11 +228,11 @@ describe("NotificationGate", () => {
   it("does not schedule a second timer for additional held events", () => {
     vi.setSystemTime(makeTime(23, 0, 0, 0));
     const config: QuietHoursConfig = { start: "22:00", end: "08:00" };
-    const gate = new NotificationGate(bus, config);
+    const gate = new NotificationGate(pbus, config);
 
     const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
-    bus.emit("workflow.attention.digest", { items: [], text: "first" });
-    bus.emit("workflow.attention.digest", { items: [], text: "second" });
+    pbus.emit("workflow.attention.digest", { items: [], text: "first" });
+    pbus.emit("workflow.attention.digest", { items: [], text: "second" });
     // Only one timer should be set
     expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
 
@@ -239,15 +242,15 @@ describe("NotificationGate", () => {
   it("dispose unregisters the middleware and discards buffer", () => {
     vi.setSystemTime(makeTime(23, 0, 0, 0));
     const config: QuietHoursConfig = { start: "22:00", end: "08:00" };
-    const gate = new NotificationGate(bus, config);
+    const gate = new NotificationGate(pbus, config);
 
-    bus.emit("workflow.attention.digest", { items: [], text: "held" });
+    pbus.emit("workflow.attention.digest", { items: [], text: "held" });
     expect(received).toHaveLength(0);
 
     gate.dispose();
 
     // After dispose, emit goes through directly
-    bus.emit("workflow.attention.digest", { items: [], text: "after dispose" });
+    pbus.emit("workflow.attention.digest", { items: [], text: "after dispose" });
     expect(received).toHaveLength(1);
 
     // Timer should not fire buffered events after dispose
@@ -259,9 +262,9 @@ describe("NotificationGate", () => {
     // 08:00 exactly — this is the end of quiet hours, should be OUTSIDE
     vi.setSystemTime(makeTime(8, 0, 0, 0));
     const config: QuietHoursConfig = { start: "22:00", end: "08:00" };
-    const gate = new NotificationGate(bus, config);
+    const gate = new NotificationGate(pbus, config);
 
-    bus.emit("workflow.attention.digest", { items: [], text: "at boundary" });
+    pbus.emit("workflow.attention.digest", { items: [], text: "at boundary" });
     expect(received).toHaveLength(1); // passed through, not held
 
     gate.dispose();

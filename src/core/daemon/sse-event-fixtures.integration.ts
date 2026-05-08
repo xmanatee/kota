@@ -11,6 +11,7 @@ import type { DaemonSseEvent } from "./daemon-control-types.js";
 
 const DEFAULT_RUN_ID = "test-run";
 const DEFAULT_TIMESTAMP = "2026-01-01T00:00:00.000Z";
+const DEFAULT_PROJECT_ID = "test-project";
 
 export function makeWorkflowStartedEvent(
   overrides: Partial<BusEvents["workflow.started"]> = {},
@@ -18,6 +19,7 @@ export function makeWorkflowStartedEvent(
   return {
     type: "workflow.started",
     payload: {
+      projectId: DEFAULT_PROJECT_ID,
       workflow: "builder",
       runId: DEFAULT_RUN_ID,
       triggerEvent: "test",
@@ -35,6 +37,7 @@ export function makeWorkflowCompletedEvent(
   return {
     type: "workflow.completed",
     payload: {
+      projectId: DEFAULT_PROJECT_ID,
       workflow: "builder",
       runId: DEFAULT_RUN_ID,
       status: "success",
@@ -54,6 +57,7 @@ export function makeWorkflowStepCompletedEvent(
   return {
     type: "workflow.step.completed",
     payload: {
+      projectId: DEFAULT_PROJECT_ID,
       workflow: "builder",
       runId: DEFAULT_RUN_ID,
       stepId: "step-1",
@@ -73,6 +77,7 @@ export function makeTaskChangedEvent(
   return {
     type: "task.changed",
     payload: {
+      projectId: DEFAULT_PROJECT_ID,
       counts: { pending: 0, in_progress: 0, done: 0 },
       ...overrides,
     },

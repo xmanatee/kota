@@ -1,12 +1,12 @@
 ---
 id: task-thread-projectid-through-core-daemon-event-emits
 title: Thread projectId through core daemon event emits
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Migrate core daemon, workflow runtime, and daemon-owned event emitters onto the typed project-scoped event primitive.
 created_at: 2026-05-08T16:30:00.000Z
-updated_at: 2026-05-08T16:53:21.557Z
+updated_at: 2026-05-08T17:35:05.558Z
 ---
 
 ## Problem

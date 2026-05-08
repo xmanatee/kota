@@ -8,8 +8,7 @@ import { WorkflowTestHarness } from "../testing/index.js";
 import type { WorkflowDefinitionInput } from "../types.js";
 import { executeApprovalStep } from "./step-executor-approval.js";
 
-const { mockTryEmit } = vi.hoisted(() => ({ mockTryEmit: vi.fn() }));
-vi.mock("#core/events/event-bus.js", () => ({ tryEmit: mockTryEmit }));
+const { mockEmit } = vi.hoisted(() => ({ mockEmit: vi.fn() }));
 
 let testQueue: ApprovalQueue;
 vi.mock("#core/daemon/approval-queue.js", async (importOriginal) => {
@@ -22,7 +21,7 @@ let tmpDir: string;
 beforeEach(() => {
   tmpDir = mkdtempSync(join(tmpdir(), "approval-step-test-"));
   testQueue = new ApprovalQueue(tmpDir);
-  mockTryEmit.mockClear();
+  mockEmit.mockClear();
 });
 
 afterEach(() => {
@@ -40,7 +39,7 @@ function makeContext() {
     stepResults: {},
     stepOutputList: [],
     runTool: () => Promise.reject(new Error("not used")),
-    emit: () => {},
+    emit: mockEmit,
     requestRestart: () => {},
     readPrompt: () => "",
     readRuntimeState: () => ({ completedRuns: 0, pendingRuns: [], workflows: {} }),
@@ -210,7 +209,7 @@ describe("executeApprovalStep – workflow.approval.expired event", () => {
 
     await expect(stepPromise).rejects.toThrow(/expired/);
 
-    const expiredCalls = mockTryEmit.mock.calls.filter(([event]) => event === "workflow.approval.expired");
+    const expiredCalls = mockEmit.mock.calls.filter(([event]) => event === "workflow.approval.expired");
     expect(expiredCalls).toHaveLength(1);
     expect(expiredCalls[0][1]).toMatchObject({
       workflowName: "test-wf",
@@ -233,7 +232,7 @@ describe("executeApprovalStep – workflow.approval.expired event", () => {
     const output = await stepPromise;
     expect((output as { approved: boolean }).approved).toBe(true);
 
-    const expiredCalls = mockTryEmit.mock.calls.filter(([event]) => event === "workflow.approval.expired");
+    const expiredCalls = mockEmit.mock.calls.filter(([event]) => event === "workflow.approval.expired");
     expect(expiredCalls).toHaveLength(1);
     expect(expiredCalls[0][1]).toMatchObject({
       workflowName: "test-wf",
@@ -255,7 +254,7 @@ describe("executeApprovalStep – workflow.approval.expired event", () => {
 
     await stepPromise;
 
-    const expiredCalls = mockTryEmit.mock.calls.filter(([event]) => event === "workflow.approval.expired");
+    const expiredCalls = mockEmit.mock.calls.filter(([event]) => event === "workflow.approval.expired");
     expect(expiredCalls).toHaveLength(0);
   });
 
@@ -271,7 +270,7 @@ describe("executeApprovalStep – workflow.approval.expired event", () => {
 
     await expect(stepPromise).rejects.toThrow(/rejected/);
 
-    const expiredCalls = mockTryEmit.mock.calls.filter(([event]) => event === "workflow.approval.expired");
+    const expiredCalls = mockEmit.mock.calls.filter(([event]) => event === "workflow.approval.expired");
     expect(expiredCalls).toHaveLength(0);
   });
 });

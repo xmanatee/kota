@@ -1,20 +1,36 @@
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowStepSkipReason } from "#core/workflow/run-types.js";
+import type { ProjectId } from "./project-scope.js";
 
-/** Known event payloads. Extend this map to add new typed events. */
+/**
+ * Known event payloads. Extend this map to add new typed events.
+ *
+ * Project-scoped event payloads carry a required `projectId` field — every
+ * event a project-bound subsystem emits (workflow runtime, run store,
+ * scheduler, task store, approval/owner-question queues, notification gate,
+ * queue-shape) is attributed to exactly one project.
+ *
+ * Daemon-wide events (module loader, model provider failover) intentionally
+ * omit `projectId`. Cross-process session register/unregister and
+ * tool-call-level guardrail events stay daemon-default until session
+ * projectId attribution lands; their wire shape is owned by other slices.
+ */
 export type BusEvents = {
   "runtime.idle": {
+    projectId: ProjectId;
     timestamp: string;
     idleIntervalMs: number;
   };
   "runtime.restart_requested": {
+    projectId: ProjectId;
     reason?: string;
     workflow?: string;
     runId?: string;
     requires?: string[];
   };
   "autonomy.queue.available": {
+    projectId: ProjectId;
     pullableCount: number;
     actionableCount: number;
     counts: {
@@ -27,9 +43,11 @@ export type BusEvents = {
     };
   };
   "autonomy.inbox.available": {
+    projectId: ProjectId;
     inboxCount: number;
   };
   "autonomy.queue.empty": {
+    projectId: ProjectId;
     counts: {
       backlog: number;
       ready: number;
@@ -40,6 +58,7 @@ export type BusEvents = {
     };
   };
   "autonomy.queue.thin": {
+    projectId: ProjectId;
     pullableCount: number;
     counts: {
       backlog: number;
@@ -51,6 +70,7 @@ export type BusEvents = {
     };
   };
   "workflow.started": {
+    projectId: ProjectId;
     workflow: string;
     runId: string;
     triggerEvent: string;
@@ -66,6 +86,7 @@ export type BusEvents = {
     autonomyMode?: AutonomyMode;
   };
   "workflow.completed": {
+    projectId: ProjectId;
     workflow: string;
     runId: string;
     status: "success" | "failed" | "interrupted" | "completed-with-warnings";
@@ -85,6 +106,7 @@ export type BusEvents = {
     autonomyMode?: AutonomyMode;
   };
   "workflow.step.started": {
+    projectId: ProjectId;
     workflow: string;
     runId: string;
     stepId: string;
@@ -101,6 +123,7 @@ export type BusEvents = {
     autonomyMode?: AutonomyMode;
   };
   "workflow.step.completed": {
+    projectId: ProjectId;
     workflow: string;
     runId: string;
     stepId: string;
@@ -138,6 +161,7 @@ export type BusEvents = {
     to: AutonomyMode;
   };
   "schedule.fire": {
+    projectId: ProjectId;
     itemId: number;
     description: string;
   };
@@ -173,6 +197,7 @@ export type BusEvents = {
     reason: string;
   };
   "approval.requested": {
+    projectId: ProjectId;
     id: string;
     tool: string;
     risk: string;
@@ -180,12 +205,14 @@ export type BusEvents = {
     source: string;
   };
   "approval.resolved": {
+    projectId: ProjectId;
     id: string;
     tool: string;
     approved: boolean;
     reason: string;
   };
   "workflow.failure.alert": {
+    projectId: ProjectId;
     workflow: string;
     runId: string;
     status: "failed" | "interrupted";
@@ -194,6 +221,7 @@ export type BusEvents = {
     text: string;
   };
   "workflow.interrupted.alert": {
+    projectId: ProjectId;
     workflow: string;
     runId: string;
     durationMs: number;
@@ -201,6 +229,7 @@ export type BusEvents = {
     text: string;
   };
   "workflow.attention.digest": {
+    projectId: ProjectId;
     items: { label: string; detail: string }[];
     text: string;
   };
@@ -214,6 +243,7 @@ export type BusEvents = {
    * `payload.text` as the human-readable body.
    */
   "workflow.daily.digest": {
+    projectId: ProjectId;
     /** ISO timestamp at the start of the window covered. */
     windowStartedAt: string;
     /** ISO timestamp at the end of the window covered. */
@@ -224,6 +254,7 @@ export type BusEvents = {
     quiet: boolean;
   };
   "workflow.build.committed": {
+    projectId: ProjectId;
     runId: string;
     taskId: string | null;
     commitMessage: string;
@@ -231,15 +262,18 @@ export type BusEvents = {
     durationMs: number | null;
   };
   "approval.expired": {
+    projectId: ProjectId;
     id: string;
     tool: string;
   };
   "workflow.approval.timeout": {
+    projectId: ProjectId;
     id: string;
     tool: string;
     defaultResolution: "deny" | "approve";
   };
   "workflow.approval.expired": {
+    projectId: ProjectId;
     workflowName: string;
     runId: string;
     stepId: string;
@@ -255,33 +289,40 @@ export type BusEvents = {
     session?: string;
   };
   "approval.changed": {
+    projectId: ProjectId;
     id: string;
     pendingCount: number;
   };
   "owner.question.asked": {
+    projectId: ProjectId;
     id: string;
     question: string;
     reason: string;
     source: string;
   };
   "owner.question.resolved": {
+    projectId: ProjectId;
     id: string;
     answered: boolean;
     answer: string;
   };
   "owner.question.dismissed": {
+    projectId: ProjectId;
     id: string;
     reason: string;
   };
   "owner.question.expired": {
+    projectId: ProjectId;
     id: string;
     defaultResolution: "dismiss" | "answer";
   };
   "owner.question.changed": {
+    projectId: ProjectId;
     id: string;
     pendingCount: number;
   };
   "task.changed": {
+    projectId: ProjectId;
     counts: { pending: number; in_progress: number; done: number };
   };
   "session.registered": {
@@ -323,6 +364,7 @@ export type BusEvents = {
    * against fixed outcomes; this event catches evaluator drift on live runs.
    */
   "evaluator-calibration.regression.detected": {
+    projectId: ProjectId;
     windowStartMs: number;
     windowEndMs: number;
     totalRuns: number;
@@ -356,6 +398,7 @@ export type BusEvents = {
    * host-class, noise band, drop, and a typed reason string from the gate).
    */
   "eval-harness.regression.detected": {
+    projectId: ProjectId;
     baseline: {
       fixtureCount: number;
       repeatCount: number;
@@ -375,6 +418,21 @@ export type BusEvents = {
     reason: string;
   };
 };
+
+/**
+ * Set of {@link BusEvents} keys whose payload carries a `projectId` field —
+ * the typed registry of project-scoped event names. Workflow runtime, daemon
+ * stores, queue-shape emitters, etc. emit only these names through the
+ * project-scoped wrapper. Daemon-wide names (`module.*`, `model.*`,
+ * `session.*` for now) are intentionally excluded.
+ */
+export type ProjectScopedBusEventName = {
+  [K in keyof BusEvents]: BusEvents[K] extends { projectId: ProjectId } ? K : never;
+}[keyof BusEvents];
+
+/** Payload of a project-scoped BusEvents entry minus the injected `projectId`. */
+export type ProjectScopedBusEventPayload<K extends ProjectScopedBusEventName> =
+  Omit<BusEvents[K], "projectId">;
 
 /** An event as seen by wildcard listeners: type + payload. */
 export type BusEnvelope<K extends string = string> = {

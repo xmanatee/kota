@@ -81,6 +81,7 @@ export function subscribeWorkflowFailureAlert(
     );
 
     bus.emit("workflow.failure.alert", {
+      projectId: payload.projectId,
       workflow: payload.workflow,
       runId: payload.runId,
       status: payload.status,

@@ -1,6 +1,7 @@
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { EventBus } from "#core/events/event-bus.js";
+import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { executeTool } from "#core/tools/index.js";
 import type { WorkflowRunStore } from "../run-store.js";
 import type {
@@ -44,6 +45,7 @@ export function createStepContext(
   deps: {
     projectDir: string;
     bus: EventBus;
+    pbus: ProjectScopedEventBus;
     store: WorkflowRunStore;
     triggerWorkflow?: (
       workflowName: string,
@@ -76,8 +78,16 @@ export function createStepContext(
       return result;
     },
     emit: (event, payload) => {
-      recordEmittedEvent(runDirPath, event, payload);
-      deps.bus.emit(event, payload);
+      // Inject projectId for project-scoped events. Step authors emit
+      // application events (queue-shape, autonomy state) without knowing
+      // the runtime's projectId; the wrapper attaches it. Daemon-wide
+      // event subscribers ignore the extra field.
+      const augmented =
+        "projectId" in payload && typeof payload.projectId === "string"
+          ? payload
+          : { ...payload, projectId: deps.pbus.getProjectId() };
+      recordEmittedEvent(runDirPath, event, augmented);
+      deps.pbus.emitDynamic(event, augmented);
     },
     requestRestart: (reason) => {
       const payload = {
@@ -86,7 +96,7 @@ export function createStepContext(
         runId: metadata.id,
       };
       recordEmittedEvent(runDirPath, "runtime.restart_requested", payload);
-      deps.bus.emit("runtime.restart_requested", payload);
+      deps.pbus.emit("runtime.restart_requested", payload);
     },
     readPrompt: (promptPath) => {
       return readFileSync(resolve(deps.projectDir, promptPath), "utf-8");

@@ -47,7 +47,7 @@ export function startRuntime(state: WorkflowRuntimeLifecycleState): void {
     const reason = "Interrupted: daemon restarted while run was in progress.";
     for (const run of interrupted) {
       const text = `Workflow interrupted: *${run.workflow}*\nRun: \`${run.id}\`\nReason: ${reason}`;
-      state.runtimeConfig.bus.emit("workflow.interrupted.alert", {
+      state.pbus.emit("workflow.interrupted.alert", {
         workflow: run.workflow,
         runId: run.id,
         durationMs: run.durationMs ?? 0,
@@ -68,7 +68,11 @@ export function startRuntime(state: WorkflowRuntimeLifecycleState): void {
     );
   }
 
-  state.stopBus = state.runtimeConfig.bus.on("*", (envelope) => {
+  // Filtered wildcard so each per-project workflow runtime only handles its
+  // own events (and daemon-wide events that have no `projectId`). Without
+  // this filter, project A's `workflow.completed` would queue any
+  // `workflow.completed`-triggered workflow in project B too.
+  state.stopBus = state.pbus.onAny((envelope) => {
     handleRuntimeEvent(state, envelope);
   });
 

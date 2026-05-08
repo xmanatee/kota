@@ -960,6 +960,7 @@ describe("DaemonControlServer", () => {
       emit({
         type: "workflow.step.completed",
         payload: {
+          projectId: "test-project",
           workflow: "builder",
           runId: "test-run",
           stepId: "step-1",

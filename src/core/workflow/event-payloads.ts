@@ -1,4 +1,4 @@
-import type { BusEvents } from "#core/events/event-bus.js";
+import type { ProjectScopedBusEventPayload } from "#core/events/event-bus-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowRunMetadata, WorkflowRunStatus, WorkflowStepResult } from "./run-types.js";
 import type { WorkflowStep } from "./step-types.js";
@@ -23,7 +23,7 @@ export function buildStepStartedPayload(
   metadata: WorkflowRunMetadata,
   step: WorkflowStep,
   defaultAutonomyMode: AutonomyMode | undefined,
-): BusEvents["workflow.step.started"] {
+): ProjectScopedBusEventPayload<"workflow.step.started"> {
   const autonomyMode = resolveStepAutonomyMode(step, defaultAutonomyMode);
   return {
     workflow: metadata.workflow,
@@ -41,7 +41,7 @@ export function buildStepCompletedPayload(
   metadata: WorkflowRunMetadata,
   result: WorkflowStepResult,
   autonomyMode: AutonomyMode | undefined,
-): BusEvents["workflow.step.completed"] {
+): ProjectScopedBusEventPayload<"workflow.step.completed"> {
   return {
     workflow: metadata.workflow,
     runId: metadata.id,
@@ -60,7 +60,7 @@ export function buildStepCompletedPayload(
 export function buildWorkflowStartedPayload(
   metadata: WorkflowRunMetadata,
   definition: Pick<WorkflowDefinition, "defaultAutonomyMode">,
-): BusEvents["workflow.started"] {
+): ProjectScopedBusEventPayload<"workflow.started"> {
   return {
     workflow: metadata.workflow,
     runId: metadata.id,
@@ -80,7 +80,7 @@ export function buildWorkflowCompletedPayload(
   tags: readonly string[] = [],
   failureKind?: WorkflowAgentBackoffKind,
   autonomyMode?: AutonomyMode,
-): BusEvents["workflow.completed"] {
+): ProjectScopedBusEventPayload<"workflow.completed"> {
   return {
     workflow: metadata.workflow,
     runId: metadata.id,

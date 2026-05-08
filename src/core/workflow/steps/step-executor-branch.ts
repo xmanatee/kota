@@ -1,4 +1,5 @@
 import type { EventBus } from "#core/events/event-bus.js";
+import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
 import { buildStepCompletedPayload, buildStepStartedPayload, resolveStepAutonomyMode } from "../event-payloads.js";
 import { buildSkippedResult, executeWorkflowStep, type StepAccumulators } from "../run-executor-step.js";
@@ -19,6 +20,7 @@ type BranchRunDeps = {
   agentConfig: AgentStepConfig;
   acc: StepAccumulators;
   bus: EventBus;
+  pbus: ProjectScopedEventBus;
   log: (message: string) => void;
 };
 
@@ -48,7 +50,7 @@ async function executeArmSteps(
         stepStartedAt,
         deps.acc,
         (r) => deps.run.recordStep(r),
-        deps.bus,
+        deps.pbus,
         deps.run.metadata,
         deps.definition.defaultAutonomyMode,
         runDecision.skipReason,
@@ -56,7 +58,7 @@ async function executeArmSteps(
       continue;
     }
 
-    deps.bus.emit(
+    deps.pbus.emit(
       "workflow.step.started",
       buildStepStartedPayload(deps.run.metadata, armStep, deps.definition.defaultAutonomyMode),
     );
@@ -81,7 +83,7 @@ async function executeArmSteps(
           child.status === "success" ? child.output : { skipped: true };
       }
       deps.acc.stepOutputs.push(groupResult.output);
-      deps.bus.emit(
+      deps.pbus.emit(
         "workflow.step.completed",
         buildStepCompletedPayload(
           deps.run.metadata,
@@ -108,7 +110,7 @@ async function executeArmSteps(
       deps.acc.stepOutputsById[armStep.id] = nestedResult.branchResult.output;
       deps.acc.stepResultsById[armStep.id] = nestedResult.branchResult;
       deps.acc.stepOutputs.push(nestedResult.branchResult.output);
-      deps.bus.emit(
+      deps.pbus.emit(
         "workflow.step.completed",
         buildStepCompletedPayload(
           deps.run.metadata,
@@ -133,6 +135,7 @@ async function executeArmSteps(
         agentConfig: deps.agentConfig,
         acc: deps.acc,
         bus: deps.bus,
+        pbus: deps.pbus,
         log: deps.log,
       };
       const { groupResult, hadNewWarnings: foreachHadWarnings, groupFailed, thrownError }: ForeachGroupResult =
@@ -141,7 +144,7 @@ async function executeArmSteps(
       deps.acc.stepOutputsById[armStep.id] = groupResult.output;
       deps.acc.stepResultsById[armStep.id] = groupResult;
       deps.acc.stepOutputs.push(groupResult.output);
-      deps.bus.emit(
+      deps.pbus.emit(
         "workflow.step.completed",
         buildStepCompletedPayload(
           deps.run.metadata,
@@ -157,7 +160,7 @@ async function executeArmSteps(
       continue;
     }
 
-    const stepDeps = { bus: deps.bus, log: deps.log };
+    const stepDeps = { bus: deps.bus, pbus: deps.pbus, log: deps.log };
     const { completed, thrownError } = await executeWorkflowStep(
       deps.definition, armStep, deps.run, deps.trigger, context,
       deps.runAbortController, deps.agentConfig, deps.acc, stepDeps, stepStartedAt,
@@ -196,7 +199,7 @@ export async function executeBranchStepGroup(
       error: `Branch condition error: ${error.message}`,
       ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
     };
-    deps.bus.emit(
+    deps.pbus.emit(
       "workflow.step.completed",
       buildStepCompletedPayload(
         deps.run.metadata,

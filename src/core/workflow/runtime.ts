@@ -1,5 +1,7 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
+import { deriveProjectId } from "#core/daemon/project-registry.js";
+import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { AgentBackoffManager } from "./agent-backoff.js";
 import { workflowUsesAgent } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
@@ -66,6 +68,13 @@ export interface WorkflowRuntimeContext {
   readonly agentConcurrency: number;
   readonly codeConcurrency: number;
   readonly runtimeConfig: WorkflowRuntimeConfig;
+  /**
+   * Per-project view over the runtime's underlying bus. Every project-scoped
+   * lifecycle event (`workflow.started`, `workflow.completed`, queue-shape,
+   * runtime control) flows through this wrapper so subscribers can attribute
+   * the emit without inferring scope from paths.
+   */
+  readonly pbus: ProjectScopedEventBus;
   readonly model?: string;
   readonly idleIntervalMs: number;
   readonly resolveAgentDef?: (name: string) => AgentDef | undefined;
@@ -148,6 +157,10 @@ export class WorkflowRuntime {
       log,
     );
 
+    const pbus =
+      runtimeConfig.pbus ??
+      new ProjectScopedEventBus(runtimeConfig.bus, deriveProjectId(projectDir));
+
     ctx = {
       projectDir,
       config: runtimeConfig.config,
@@ -159,6 +172,7 @@ export class WorkflowRuntime {
       agentConcurrency: runtimeConfig.agentConcurrency ?? 1,
       codeConcurrency: runtimeConfig.codeConcurrency ?? 4,
       runtimeConfig,
+      pbus,
       model: runtimeConfig.model,
       idleIntervalMs: runtimeConfig.idleIntervalMs ?? 30_000,
       resolveAgentDef: runtimeConfig.resolveAgentDef,

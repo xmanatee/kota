@@ -10,7 +10,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tryEmit } from "#core/events/event-bus.js";
+import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import type { RiskLevel } from "#core/tools/guardrails.js";
 
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired";
@@ -38,8 +38,11 @@ export type PendingApproval = {
 let _enqueueSeq = 0;
 
 export class ApprovalQueue {
-	constructor(private dir: string) {
+	private pbus: ProjectScopedEventBus | null;
+
+	constructor(private dir: string, pbus?: ProjectScopedEventBus | null) {
 		if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+		this.pbus = pbus ?? null;
 	}
 
 	enqueue(
@@ -67,8 +70,10 @@ export class ApprovalQueue {
 			...(defaultResolution !== undefined && { defaultResolution }),
 		};
 		writeFileSync(join(this.dir, `${item.id}.json`), JSON.stringify(item, null, 2));
-		tryEmit("approval.requested", { id: item.id, tool, risk, reason, source: source ?? "" });
-		tryEmit("approval.changed", { id: item.id, pendingCount: this.count("pending") });
+		if (this.pbus) {
+			this.pbus.emit("approval.requested", { id: item.id, tool, risk, reason, source: source ?? "" });
+			this.pbus.emit("approval.changed", { id: item.id, pendingCount: this.count("pending") });
+		}
 		return item;
 	}
 
@@ -95,8 +100,10 @@ export class ApprovalQueue {
 		if (note) item.approvalNote = note;
 		if (resolutionSource) item.resolutionSource = resolutionSource;
 		writeFileSync(join(this.dir, `${id}.json`), JSON.stringify(item, null, 2));
-		tryEmit("approval.resolved", { id, tool: item.tool, approved: true, reason: "" });
-		tryEmit("approval.changed", { id, pendingCount: this.count("pending") });
+		if (this.pbus) {
+			this.pbus.emit("approval.resolved", { id, tool: item.tool, approved: true, reason: "" });
+			this.pbus.emit("approval.changed", { id, pendingCount: this.count("pending") });
+		}
 		return item;
 	}
 
@@ -108,8 +115,10 @@ export class ApprovalQueue {
 		item.rejectionReason = reason;
 		if (resolutionSource) item.resolutionSource = resolutionSource;
 		writeFileSync(join(this.dir, `${id}.json`), JSON.stringify(item, null, 2));
-		tryEmit("approval.resolved", { id, tool: item.tool, approved: false, reason: reason ?? "" });
-		tryEmit("approval.changed", { id, pendingCount: this.count("pending") });
+		if (this.pbus) {
+			this.pbus.emit("approval.resolved", { id, tool: item.tool, approved: false, reason: reason ?? "" });
+			this.pbus.emit("approval.changed", { id, pendingCount: this.count("pending") });
+		}
 		return item;
 	}
 
@@ -130,10 +139,12 @@ export class ApprovalQueue {
 				item.rejectionReason = "expired";
 			}
 			writeFileSync(join(this.dir, `${item.id}.json`), JSON.stringify(item, null, 2));
-			tryEmit("workflow.approval.timeout", { id: item.id, tool: item.tool, defaultResolution: resolution });
-			tryEmit("approval.expired", { id: item.id, tool: item.tool });
-			tryEmit("approval.resolved", { id: item.id, tool: item.tool, approved: resolution === "approve", reason: "expired" });
-			tryEmit("approval.changed", { id: item.id, pendingCount: this.count("pending") });
+			if (this.pbus) {
+				this.pbus.emit("workflow.approval.timeout", { id: item.id, tool: item.tool, defaultResolution: resolution });
+				this.pbus.emit("approval.expired", { id: item.id, tool: item.tool });
+				this.pbus.emit("approval.resolved", { id: item.id, tool: item.tool, approved: resolution === "approve", reason: "expired" });
+				this.pbus.emit("approval.changed", { id: item.id, pendingCount: this.count("pending") });
+			}
 			expired.push(item);
 		}
 		return expired;

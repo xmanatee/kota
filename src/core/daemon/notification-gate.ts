@@ -14,6 +14,7 @@
  */
 
 import type { EmitMiddleware, EventBus } from "#core/events/event-bus.js";
+import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 
 export type QuietHoursConfig = {
   /** Quiet period start in local time, "HH:MM" (24-hour). */
@@ -138,11 +139,14 @@ export class NotificationGate {
   private unsubscribeMiddleware: () => void;
   private disposed = false;
   private releasing = false;
+  private pbus: ProjectScopedEventBus;
 
   constructor(
-    private bus: EventBus,
+    pbus: ProjectScopedEventBus,
     private config: QuietHoursConfig,
   ) {
+    this.pbus = pbus;
+    const bus = pbus.getUnderlying();
     const middleware: EmitMiddleware = (envelope, next) => {
       if (
         this.disposed ||
@@ -153,10 +157,23 @@ export class NotificationGate {
         next();
         return;
       }
+      // Only buffer events that belong to this gate's project. Multi-project
+      // daemons wire one gate per project; cross-project payloads should
+      // pass through to other gates and subscribers.
+      const payload = envelope.payload as { projectId?: string };
+      if (payload.projectId !== pbus.getProjectId()) {
+        next();
+        return;
+      }
       this.buffer.push({ event: envelope.type, payload: envelope.payload });
       this.scheduleRelease();
     };
     this.unsubscribeMiddleware = bus.addEmitMiddleware(middleware);
+  }
+
+  /** The underlying shared bus this gate observes. */
+  getBus(): EventBus {
+    return this.pbus.getUnderlying();
   }
 
   private scheduleRelease(): void {
@@ -179,7 +196,7 @@ export class NotificationGate {
     this.buffer = [];
     this.releasing = true;
     try {
-      this.bus.emit("workflow.attention.digest", { items, text });
+      this.pbus.emit("workflow.attention.digest", { items, text });
     } finally {
       this.releasing = false;
     }

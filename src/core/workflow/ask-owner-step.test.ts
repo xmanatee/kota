@@ -24,6 +24,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { EventBus, getEventBus, initEventBus, resetEventBus } from "#core/events/event-bus.js";
+import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { type AwaitedOwnerOutcome, askOwnerSteps } from "./ask-owner-step.js";
 import { installAwaitResumers } from "./awaits-resume.js";
 import { type AwaitDelivery, readSuspension } from "./awaits-store.js";
@@ -68,13 +69,16 @@ describe("askOwnerSteps", () => {
   let store: WorkflowRunStore;
   const log = vi.fn();
 
+  let pbus: ProjectScopedEventBus;
+
   beforeEach(() => {
     projectDir = mkdtempSync(join(tmpdir(), "ask-owner-step-"));
     queueDir = mkdtempSync(join(tmpdir(), "ask-owner-queue-"));
-    queue = new OwnerQuestionQueue(queueDir);
     store = new WorkflowRunStore(projectDir);
     resetEventBus();
     bus = initEventBus();
+    pbus = new ProjectScopedEventBus(bus, "test-project");
+    queue = new OwnerQuestionQueue(queueDir, pbus);
     log.mockReset();
   });
 

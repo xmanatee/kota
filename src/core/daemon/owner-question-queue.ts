@@ -14,7 +14,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tryEmit } from "#core/events/event-bus.js";
+import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 
 export type OwnerQuestionStatus = "pending" | "answered" | "dismissed" | "expired";
 
@@ -51,8 +51,11 @@ export type PendingOwnerQuestion = {
 let _enqueueSeq = 0;
 
 export class OwnerQuestionQueue {
-  constructor(private dir: string) {
+  private pbus: ProjectScopedEventBus | null;
+
+  constructor(private dir: string, pbus?: ProjectScopedEventBus | null) {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    this.pbus = pbus ?? null;
   }
 
   enqueue(input: OwnerQuestionEnqueueInput): PendingOwnerQuestion {
@@ -71,13 +74,15 @@ export class OwnerQuestionQueue {
       ...(input.defaultAnswer !== undefined && { defaultAnswer: input.defaultAnswer }),
     };
     this.write(item);
-    tryEmit("owner.question.asked", {
-      id: item.id,
-      question: item.question,
-      reason: item.reason,
-      source: item.source,
-    });
-    tryEmit("owner.question.changed", { id: item.id, pendingCount: this.count("pending") });
+    if (this.pbus) {
+      this.pbus.emit("owner.question.asked", {
+        id: item.id,
+        question: item.question,
+        reason: item.reason,
+        source: item.source,
+      });
+      this.pbus.emit("owner.question.changed", { id: item.id, pendingCount: this.count("pending") });
+    }
     return item;
   }
 
@@ -104,8 +109,10 @@ export class OwnerQuestionQueue {
     item.answer = answer;
     if (resolutionSource) item.resolutionSource = resolutionSource;
     this.write(item);
-    tryEmit("owner.question.resolved", { id, answered: true, answer });
-    tryEmit("owner.question.changed", { id, pendingCount: this.count("pending") });
+    if (this.pbus) {
+      this.pbus.emit("owner.question.resolved", { id, answered: true, answer });
+      this.pbus.emit("owner.question.changed", { id, pendingCount: this.count("pending") });
+    }
     return item;
   }
 
@@ -117,9 +124,11 @@ export class OwnerQuestionQueue {
     if (reason) item.dismissalReason = reason;
     if (resolutionSource) item.resolutionSource = resolutionSource;
     this.write(item);
-    tryEmit("owner.question.resolved", { id, answered: false, answer: "" });
-    tryEmit("owner.question.dismissed", { id, reason: reason ?? "" });
-    tryEmit("owner.question.changed", { id, pendingCount: this.count("pending") });
+    if (this.pbus) {
+      this.pbus.emit("owner.question.resolved", { id, answered: false, answer: "" });
+      this.pbus.emit("owner.question.dismissed", { id, reason: reason ?? "" });
+      this.pbus.emit("owner.question.changed", { id, pendingCount: this.count("pending") });
+    }
     return item;
   }
 
@@ -137,13 +146,15 @@ export class OwnerQuestionQueue {
       item.dismissalReason = "expired";
     }
     this.write(item);
-    tryEmit("owner.question.expired", { id: item.id, defaultResolution: resolution });
-    tryEmit("owner.question.resolved", {
-      id: item.id,
-      answered: resolution === "answer",
-      answer: item.answer ?? "",
-    });
-    tryEmit("owner.question.changed", { id: item.id, pendingCount: this.count("pending") });
+    if (this.pbus) {
+      this.pbus.emit("owner.question.expired", { id: item.id, defaultResolution: resolution });
+      this.pbus.emit("owner.question.resolved", {
+        id: item.id,
+        answered: resolution === "answer",
+        answer: item.answer ?? "",
+      });
+      this.pbus.emit("owner.question.changed", { id: item.id, pendingCount: this.count("pending") });
+    }
     return item;
   }
 
@@ -165,13 +176,15 @@ export class OwnerQuestionQueue {
         item.dismissalReason = "expired";
       }
       this.write(item);
-      tryEmit("owner.question.expired", { id: item.id, defaultResolution: resolution });
-      tryEmit("owner.question.resolved", {
-        id: item.id,
-        answered: resolution === "answer",
-        answer: item.answer ?? "",
-      });
-      tryEmit("owner.question.changed", { id: item.id, pendingCount: this.count("pending") });
+      if (this.pbus) {
+        this.pbus.emit("owner.question.expired", { id: item.id, defaultResolution: resolution });
+        this.pbus.emit("owner.question.resolved", {
+          id: item.id,
+          answered: resolution === "answer",
+          answer: item.answer ?? "",
+        });
+        this.pbus.emit("owner.question.changed", { id: item.id, pendingCount: this.count("pending") });
+      }
       expired.push(item);
     }
     return expired;

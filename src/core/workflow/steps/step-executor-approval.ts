@@ -1,5 +1,4 @@
 import { getApprovalQueue } from "#core/daemon/approval-queue.js";
-import { tryEmit } from "#core/events/event-bus.js";
 import type { WorkflowStepContext } from "../run-types.js";
 import type { WorkflowApprovalStep } from "../step-types.js";
 import type { WorkflowStepOutput } from "./step-executor-agent.js";
@@ -60,7 +59,7 @@ export async function executeApprovalStep(
         resolved = true;
         if (current.resolutionSource === "timeout") {
           const text = `Approval auto-approved: workflow "${context.workflow.name}" step "${step.id}"${step.reason ? ` — ${step.reason}` : ""}`;
-          tryEmit("workflow.approval.expired", {
+          context.emit("workflow.approval.expired", {
             workflowName: context.workflow.name,
             runId: context.workflow.runId,
             stepId: step.id,
@@ -82,7 +81,7 @@ export async function executeApprovalStep(
         resolved = true;
         if (current.resolutionSource === "timeout") {
           const text = `Approval auto-denied: workflow "${context.workflow.name}" step "${step.id}"${step.reason ? ` — ${step.reason}` : ""}`;
-          tryEmit("workflow.approval.expired", {
+          context.emit("workflow.approval.expired", {
             workflowName: context.workflow.name,
             runId: context.workflow.runId,
             stepId: step.id,

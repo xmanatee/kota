@@ -20,6 +20,13 @@
  */
 
 import type { EventBus } from "./event-bus.js";
+import type {
+  BusEnvelope,
+  BusEventHandler,
+  BusEvents,
+  ProjectScopedBusEventName,
+  ProjectScopedBusEventPayload,
+} from "./event-bus-types.js";
 import {
   defineModuleEvent,
   type ModuleEventDef,
@@ -111,11 +118,31 @@ export class ProjectScopedEventBus {
     return this.bus;
   }
 
-  /** Emit a project-scoped event with `projectId` injected automatically. */
+  /** Emit a project-scoped module-declared event with projectId injected. */
   emit<TPayload extends Payload>(
     event: ProjectScopedModuleEventDef<TPayload>,
     payload: TPayload,
+  ): void;
+  /**
+   * Emit a project-scoped {@link BusEvents} entry. The wrapper injects this
+   * view's `projectId` so callers do not have to thread it through every
+   * call site. Only `BusEvents` keys whose static payload carries
+   * `projectId` are accepted — daemon-wide events have to go through the
+   * raw bus.
+   */
+  emit<K extends ProjectScopedBusEventName>(
+    event: K,
+    payload: ProjectScopedBusEventPayload<K>,
+  ): void;
+  emit(
+    event: ProjectScopedModuleEventDef | ProjectScopedBusEventName,
+    payload: Payload,
   ): void {
+    if (typeof event === "string") {
+      const fullPayload = { ...payload, projectId: this.projectId } as BusEvents[ProjectScopedBusEventName];
+      this.bus.emit(event, fullPayload);
+      return;
+    }
     this.bus.emit(event, { ...payload, projectId: this.projectId });
   }
 
@@ -126,10 +153,56 @@ export class ProjectScopedEventBus {
   on<E extends ProjectScopedModuleEventDef>(
     event: E,
     handler: (payload: ModuleEventPayload<E>) => void,
+  ): () => void;
+  on<K extends ProjectScopedBusEventName>(
+    event: K,
+    handler: (payload: BusEvents[K]) => void,
+  ): () => void;
+  on(
+    event: ProjectScopedModuleEventDef | ProjectScopedBusEventName,
+    handler: (payload: Payload) => void,
   ): () => void {
+    if (typeof event === "string") {
+      return this.bus.on(event, (payload: BusEvents[ProjectScopedBusEventName]) => {
+        if (payload.projectId !== this.projectId) return;
+        (handler as BusEventHandler<BusEvents[ProjectScopedBusEventName]>)(payload);
+      });
+    }
     return this.bus.on(event, (payload) => {
       if ((payload as ProjectScopedPayload).projectId !== this.projectId) return;
       handler(payload);
     });
+  }
+
+  /**
+   * Wildcard subscriber filtered to this view's project. Daemon-wide events
+   * (no `projectId` on payload) are delivered to every view; project-scoped
+   * events are delivered only to the matching view. Per-project workflow
+   * runtimes use this to subscribe to events without seeing other projects'
+   * traffic.
+   */
+  onAny(handler: (envelope: BusEnvelope) => void): () => void {
+    return this.bus.on("*", (envelope) => {
+      const payload = envelope.payload as { projectId?: ProjectId };
+      if (payload && typeof payload.projectId === "string" && payload.projectId !== this.projectId) {
+        return;
+      }
+      handler(envelope);
+    });
+  }
+
+  /**
+   * Untyped emit path used by step-author surfaces (workflow `ctx.emit`)
+   * where the event name is dynamic. Always injects `projectId` for
+   * project-scoped events; preserves an existing `projectId` if a caller
+   * supplied one. Daemon-wide event subscribers tolerate the extraneous
+   * field; project-scoped event subscribers see the runtime's own id.
+   */
+  emitDynamic(event: string, payload: Record<string, unknown>): void {
+    const augmented =
+      "projectId" in payload && typeof payload.projectId === "string"
+        ? payload
+        : { ...payload, projectId: this.projectId };
+    this.bus.emit(event, augmented);
   }
 }

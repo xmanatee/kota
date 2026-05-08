@@ -1,14 +1,10 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { EventBus } from "#core/events/event-bus.js";
+import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "./approval-queue.js";
-
-const tryEmitMock = vi.hoisted(() => vi.fn());
-vi.mock("#core/events/event-bus.js", () => ({
-	tryEmit: tryEmitMock,
-	getEventBus: () => null,
-}));
 
 describe("ApprovalQueue", () => {
 	let dir: string;
@@ -247,11 +243,17 @@ describe("ApprovalQueue", () => {
 describe("approval.changed events", () => {
 	let dir: string;
 	let queue: ApprovalQueue;
+	let received: Array<{ event: string; payload: Record<string, unknown> }>;
 
 	beforeEach(() => {
 		dir = mkdtempSync(join(tmpdir(), "approval-event-test-"));
-		queue = new ApprovalQueue(dir);
-		tryEmitMock.mockClear();
+		const bus = new EventBus();
+		received = [];
+		bus.on("*", (envelope) => {
+			received.push({ event: envelope.type, payload: envelope.payload as Record<string, unknown> });
+		});
+		const pbus = new ProjectScopedEventBus(bus, "test-project");
+		queue = new ApprovalQueue(dir, pbus);
 	});
 
 	afterEach(() => {
@@ -260,30 +262,30 @@ describe("approval.changed events", () => {
 
 	it("emits approval.changed on enqueue with pending count and id", () => {
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
-		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "approval.changed");
+		const calls = received.filter(({ event }) => event === "approval.changed").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
-		expect(calls[0][1]).toEqual({ id: item.id, pendingCount: 1 });
+		expect(calls[0][1]).toEqual({ projectId: "test-project", id: item.id, pendingCount: 1 });
 	});
 
 	it("emits approval.changed on approve with decremented pending count", () => {
 		queue.enqueue("shell", { command: "a" }, "dangerous", "r");
 		const item2 = queue.enqueue("git", { command: "b" }, "dangerous", "r");
-		tryEmitMock.mockClear();
+		received.length = 0;
 
 		queue.approve(item2.id);
-		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "approval.changed");
+		const calls = received.filter(({ event }) => event === "approval.changed").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
-		expect(calls[0][1]).toEqual({ id: item2.id, pendingCount: 1 });
+		expect(calls[0][1]).toEqual({ projectId: "test-project", id: item2.id, pendingCount: 1 });
 	});
 
 	it("emits approval.changed on reject with decremented pending count", () => {
 		const item = queue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
-		tryEmitMock.mockClear();
+		received.length = 0;
 
 		queue.reject(item.id, "too risky");
-		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "approval.changed");
+		const calls = received.filter(({ event }) => event === "approval.changed").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
-		expect(calls[0][1]).toEqual({ id: item.id, pendingCount: 0 });
+		expect(calls[0][1]).toEqual({ projectId: "test-project", id: item.id, pendingCount: 0 });
 	});
 
 	it("emits approval.changed on expireStale", () => {
@@ -291,12 +293,12 @@ describe("approval.changed events", () => {
 		const stored = queue.get(item.id)!;
 		stored.createdAt = new Date(Date.now() - 5000).toISOString();
 		writeFileSync(join(dir, `${item.id}.json`), JSON.stringify(stored, null, 2));
-		tryEmitMock.mockClear();
+		received.length = 0;
 
 		queue.expireStale(1000);
-		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "approval.changed");
+		const calls = received.filter(({ event }) => event === "approval.changed").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
-		expect(calls[0][1]).toEqual({ id: item.id, pendingCount: 0 });
+		expect(calls[0][1]).toEqual({ projectId: "test-project", id: item.id, pendingCount: 0 });
 	});
 
 	it("emits approval.expired on expireStale", () => {
@@ -304,12 +306,12 @@ describe("approval.changed events", () => {
 		const stored = queue.get(item.id)!;
 		stored.createdAt = new Date(Date.now() - 5000).toISOString();
 		writeFileSync(join(dir, `${item.id}.json`), JSON.stringify(stored, null, 2));
-		tryEmitMock.mockClear();
+		received.length = 0;
 
 		queue.expireStale(1000);
-		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "approval.expired");
+		const calls = received.filter(({ event }) => event === "approval.expired").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
-		expect(calls[0][1]).toEqual({ id: item.id, tool: item.tool });
+		expect(calls[0][1]).toEqual({ projectId: "test-project", id: item.id, tool: item.tool });
 	});
 
 	it("emits approval.expired for item with per-item timeoutMs", () => {
@@ -317,12 +319,12 @@ describe("approval.changed events", () => {
 		const stored = queue.get(item.id)!;
 		stored.createdAt = new Date(Date.now() - 2000).toISOString();
 		writeFileSync(join(dir, `${item.id}.json`), JSON.stringify(stored, null, 2));
-		tryEmitMock.mockClear();
+		received.length = 0;
 
 		queue.expireStale();
-		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "approval.expired");
+		const calls = received.filter(({ event }) => event === "approval.expired").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
-		expect(calls[0][1]).toEqual({ id: item.id, tool: item.tool });
+		expect(calls[0][1]).toEqual({ projectId: "test-project", id: item.id, tool: item.tool });
 	});
 
 	it("emits workflow.approval.timeout on expireStale (auto-deny)", () => {
@@ -330,12 +332,12 @@ describe("approval.changed events", () => {
 		const stored = queue.get(item.id)!;
 		stored.createdAt = new Date(Date.now() - 2000).toISOString();
 		writeFileSync(join(dir, `${item.id}.json`), JSON.stringify(stored, null, 2));
-		tryEmitMock.mockClear();
+		received.length = 0;
 
 		queue.expireStale();
-		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "workflow.approval.timeout");
+		const calls = received.filter(({ event }) => event === "workflow.approval.timeout").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
-		expect(calls[0][1]).toEqual({ id: item.id, tool: item.tool, defaultResolution: "deny" });
+		expect(calls[0][1]).toEqual({ projectId: "test-project", id: item.id, tool: item.tool, defaultResolution: "deny" });
 	});
 
 	it("emits workflow.approval.timeout on expireStale (auto-approve)", () => {
@@ -343,12 +345,12 @@ describe("approval.changed events", () => {
 		const stored = queue.get(item.id)!;
 		stored.createdAt = new Date(Date.now() - 2000).toISOString();
 		writeFileSync(join(dir, `${item.id}.json`), JSON.stringify(stored, null, 2));
-		tryEmitMock.mockClear();
+		received.length = 0;
 
 		queue.expireStale();
-		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "workflow.approval.timeout");
+		const calls = received.filter(({ event }) => event === "workflow.approval.timeout").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
-		expect(calls[0][1]).toEqual({ id: item.id, tool: item.tool, defaultResolution: "approve" });
+		expect(calls[0][1]).toEqual({ projectId: "test-project", id: item.id, tool: item.tool, defaultResolution: "approve" });
 	});
 
 	it("emits approval.resolved with approved=true for auto-approve timeout", () => {
@@ -356,10 +358,10 @@ describe("approval.changed events", () => {
 		const stored = queue.get(item.id)!;
 		stored.createdAt = new Date(Date.now() - 2000).toISOString();
 		writeFileSync(join(dir, `${item.id}.json`), JSON.stringify(stored, null, 2));
-		tryEmitMock.mockClear();
+		received.length = 0;
 
 		queue.expireStale();
-		const calls = tryEmitMock.mock.calls.filter(([e]) => e === "approval.resolved");
+		const calls = received.filter(({ event }) => event === "approval.resolved").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
 		expect(calls[0][1]).toMatchObject({ approved: true });
 	});

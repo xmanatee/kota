@@ -26,6 +26,7 @@ import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
+import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { ModuleLogStore, setModuleLogStoreInstance } from "#core/modules/module-log.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
@@ -49,14 +50,21 @@ import { setTaskStoreInstance, TaskStore } from "./task-store.js";
  * in-memory state cannot leak across projects because the bundle holds one
  * dedicated instance per registered project root.
  *
+ * `pbus` is the {@link ProjectScopedEventBus} every project-scoped emitter
+ * inside this bundle uses (TaskStore, Scheduler, ApprovalQueue,
+ * OwnerQuestionQueue, NotificationGate, WorkflowRuntime). It wraps the
+ * shared daemon bus and injects the project's stable `projectId` on every
+ * emit so cross-project subscribers can filter without inferring from
+ * paths.
+ *
  * `notificationGate` is genuinely optional — quiet-hours is a daemon-level
- * config, and only the default project's bundle wires the gate today (the
- * shared event bus carries no `projectId` until slice 3). Non-default
- * bundles leave the slot at `null` to preserve the strict typed contract;
- * `null` is the actual domain state, not a fall-through to a global.
+ * config; non-default bundles leave the slot at `null` because each
+ * project would otherwise need its own quiet-hours config. `null` is the
+ * actual domain state, not a fall-through to a global.
  */
 export type ProjectRuntime = {
   readonly project: ConfiguredProject;
+  readonly pbus: ProjectScopedEventBus;
   readonly runStore: WorkflowRunStore;
   readonly taskStore: TaskStore;
   readonly scheduler: Scheduler;
@@ -99,18 +107,21 @@ export function createProjectRuntime(
   opts: ProjectRuntimeFactoryOptions,
 ): ProjectRuntime {
   const projectDir = opts.project.projectDir;
+  const pbus = new ProjectScopedEventBus(opts.bus, opts.project.projectId);
 
   const runStore = new WorkflowRunStore(projectDir);
-  const taskStore = new TaskStore(projectDir);
-  const scheduler = new Scheduler(projectDir);
+  const taskStore = new TaskStore(projectDir, undefined, pbus);
+  const scheduler = new Scheduler(projectDir, undefined, pbus);
   const moduleLogStore = new ModuleLogStore(projectDir);
-  const approvalQueue = new ApprovalQueue(join(projectDir, ".kota", "approvals"));
+  const approvalQueue = new ApprovalQueue(join(projectDir, ".kota", "approvals"), pbus);
   const ownerQuestionQueue = new OwnerQuestionQueue(
     join(projectDir, ".kota", "owner-questions"),
+    pbus,
   );
 
   const workflowRuntime = new WorkflowRuntime({
     bus: opts.bus,
+    pbus,
     projectDir,
     runStore,
     config: opts.config,
@@ -134,11 +145,12 @@ export function createProjectRuntime(
 
   const notificationGate =
     opts.installSingletons && opts.quietHours
-      ? new NotificationGate(opts.bus, opts.quietHours)
+      ? new NotificationGate(pbus, opts.quietHours)
       : null;
 
   return {
     project: opts.project,
+    pbus,
     runStore,
     taskStore,
     scheduler,

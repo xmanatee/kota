@@ -506,7 +506,7 @@ describe("Event-Based Triggers", () => {
       fired.push(...items.map((i) => i.description));
     });
 
-    bus.emit("schedule.fire", { itemId: 1, description: "test" });
+    bus.emit("schedule.fire", { projectId: "test-project", itemId: 1, description: "test" });
     expect(fired).toHaveLength(0);
   });
 

@@ -10,6 +10,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApprovalQueue } from "./core/daemon/approval-queue.js";
 import { getEventBus, initEventBus, resetEventBus } from "./core/events/event-bus.js";
+import { ProjectScopedEventBus } from "./core/events/project-scope.js";
+
+const TEST_PROJECT_ID = "test-project";
 
 describe("approval expiry × event bus integration", () => {
 	let dir: string;
@@ -18,8 +21,9 @@ describe("approval expiry × event bus integration", () => {
 	beforeEach(() => {
 		dir = mkdtempSync(join(tmpdir(), "approval-expiry-integration-"));
 		resetEventBus();
-		initEventBus();
-		queue = new ApprovalQueue(dir);
+		const bus = initEventBus();
+		const pbus = new ProjectScopedEventBus(bus, TEST_PROJECT_ID);
+		queue = new ApprovalQueue(dir, pbus);
 	});
 
 	afterEach(() => {
@@ -44,7 +48,7 @@ describe("approval expiry × event bus integration", () => {
 		queue.expireStale(1000);
 
 		expect(received).toHaveLength(1);
-		expect(received[0]).toEqual({ id: item.id, tool: item.tool });
+		expect(received[0]).toEqual({ projectId: TEST_PROJECT_ID, id: item.id, tool: item.tool });
 	});
 
 	it("emits approval.expired on the bus when per-item timeoutMs expires", () => {
@@ -59,7 +63,7 @@ describe("approval expiry × event bus integration", () => {
 		queue.expireStale();
 
 		expect(received).toHaveLength(1);
-		expect(received[0]).toEqual({ id: item.id, tool: item.tool });
+		expect(received[0]).toEqual({ projectId: TEST_PROJECT_ID, id: item.id, tool: item.tool });
 	});
 
 	it("does not emit approval.expired for items within TTL", () => {
@@ -86,7 +90,12 @@ describe("approval expiry × event bus integration", () => {
 		queue.expireStale(1000);
 
 		expect(received).toHaveLength(1);
-		expect(received[0]).toEqual({ id: item.id, tool: item.tool, defaultResolution: "deny" });
+		expect(received[0]).toEqual({
+			projectId: TEST_PROJECT_ID,
+			id: item.id,
+			tool: item.tool,
+			defaultResolution: "deny",
+		});
 	});
 
 	it("emits workflow.approval.timeout on the bus for auto-approve", () => {
@@ -100,7 +109,12 @@ describe("approval expiry × event bus integration", () => {
 		queue.expireStale();
 
 		expect(received).toHaveLength(1);
-		expect(received[0]).toEqual({ id: item.id, tool: item.tool, defaultResolution: "approve" });
+		expect(received[0]).toEqual({
+			projectId: TEST_PROJECT_ID,
+			id: item.id,
+			tool: item.tool,
+			defaultResolution: "approve",
+		});
 	});
 
 	it("auto-approve path sets status to approved", () => {

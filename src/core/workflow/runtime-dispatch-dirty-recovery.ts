@@ -71,7 +71,7 @@ export function handleDirtyCompletion(
   state.log(
     `Workflow "${definition.name}" completed with uncommitted changes. Restarting for recovery: ${worktree.summary}`,
   );
-  state.runtimeConfig.bus.emit("runtime.restart_requested", {
+  state.pbus.emit("runtime.restart_requested", {
     reason: `workflow "${definition.name}" completed with dirty worktree`,
     workflow: definition.name,
     runId: metadata.id,

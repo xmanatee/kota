@@ -1,5 +1,7 @@
 import type { Command } from "commander";
+import { deriveProjectId } from "#core/daemon/project-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
+import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
@@ -59,6 +61,7 @@ export function registerExecCommand(
       }
 
       const bus = new EventBus();
+      const pbus = new ProjectScopedEventBus(bus, deriveProjectId(ctx.cwd));
       const store = new WorkflowRunStore(ctx.cwd);
       const trigger: WorkflowRunTrigger = {
         event: opts.event,
@@ -71,6 +74,7 @@ export function registerExecCommand(
       const { promise } = executeWorkflowRun(definition, trigger, {
         projectDir: ctx.cwd,
         bus,
+        pbus,
         store,
         config: ctx.config,
         log: (msg) => console.error(msg),

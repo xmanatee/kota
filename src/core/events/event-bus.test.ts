@@ -376,7 +376,7 @@ describe("singleton lifecycle", () => {
 describe("tryEmit", () => {
   it("is a no-op when bus is not initialized", () => {
     expect(() =>
-      tryEmit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 }),
+      tryEmit("runtime.idle", { projectId: "test-project", timestamp: "t", idleIntervalMs: 0 }),
     ).not.toThrow();
   });
 
@@ -385,7 +385,7 @@ describe("tryEmit", () => {
     const handler = vi.fn();
     bus.on("runtime.idle", handler);
 
-    tryEmit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 });
+    tryEmit("runtime.idle", { projectId: "test-project", timestamp: "t", idleIntervalMs: 0 });
     expect(handler).toHaveBeenCalledOnce();
   });
 });

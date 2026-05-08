@@ -1,11 +1,20 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
+import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type { RegisteredWorkflowDefinitionInput } from "./types.js";
 
 export type WorkflowRuntimeConfig = {
   bus: EventBus;
+  /**
+   * Per-project view over {@link bus}. The runtime emits every project-scoped
+   * lifecycle event through this wrapper so the resulting payload carries
+   * the runtime's own `projectId` without callers having to thread it
+   * through. Required when the runtime emits real events (the daemon path);
+   * tests that build a standalone runtime without project scope may omit it.
+   */
+  pbus?: ProjectScopedEventBus;
   projectDir?: string;
   /**
    * Pre-built run store. Supplied by the per-project runtime bundle so the
