@@ -1,12 +1,12 @@
 ---
 id: task-surface-project-selection-in-operator-clients-for-
 title: Surface project selection in operator clients for multi-project supervision
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Once the daemon can manage multiple project roots, native/web/CLI clients need a first-class project selector and per-project view so operators can supervise more than one repo at a time
 created_at: 2026-04-18T00:40:56.393Z
-updated_at: 2026-05-08T16:30:00.000Z
+updated_at: 2026-05-08T20:28:37.834Z
 anchor: true
 ---
 

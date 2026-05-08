@@ -1,12 +1,12 @@
 ---
 id: task-add-projectid-to-every-event-bus-payload
 title: Add projectId to every event-bus payload
-status: backlog
+status: done
 priority: p2
 area: architecture
 summary: Add a typed projectId field (or envelope) to every daemon-emitted bus event payload so downstream consumers can route, scope, and persist by project.
 created_at: 2026-05-08T00:57:06.459Z
-updated_at: 2026-05-08T16:30:00.000Z
+updated_at: 2026-05-08T20:28:34.965Z
 anchor: true
 ---
 
