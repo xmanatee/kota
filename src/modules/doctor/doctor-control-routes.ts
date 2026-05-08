@@ -24,7 +24,11 @@ export function doctorControlRoutes(ctx: ModuleContext): ControlRouteRegistratio
         try {
           const url = new URL(req.url ?? "/", "http://localhost");
           const skipConnectivity = url.searchParams.get("skipConnectivity") === "true";
-          const checks = await runDoctorChecks(ctx.cwd, { skipConnectivity });
+          const preset = url.searchParams.get("preset") ?? undefined;
+          const opts: { skipConnectivity?: boolean; preset?: string } = {};
+          if (skipConnectivity) opts.skipConnectivity = true;
+          if (preset) opts.preset = preset;
+          const checks = await runDoctorChecks(ctx.cwd, opts);
           jsonResponse(res, 200, { checks });
         } catch (err) {
           jsonResponse(res, 500, { error: (err as Error).message });

@@ -1,5 +1,6 @@
 import { isAbsolute } from "node:path";
 import type { ModelTiers } from "../model/model-router.js";
+import type { Preset } from "../model/preset.js";
 import type { WorkflowFilterValue } from "./trigger-types.js";
 
 export class WorkflowDefinitionError extends Error {
@@ -17,9 +18,18 @@ export type WorkflowValidationOptions = {
    */
   defaultAgentHarness?: string;
   /**
-   * Per-tier model id mapping consulted when an agent step declares
-   * `tier` instead of a literal `model`. Falls back to
-   * `DEFAULT_MODEL_TIERS` when a tier is unset here.
+   * Active preset bundle. Supplies the per-tier baseline that operator
+   * `modelTiers` overrides extend. When unset, the validator falls back to
+   * the shipped `DEFAULT_MODEL_TIERS` (claude). Pass the resolved preset to
+   * make tier resolution honor the active preset's tiers without per-step
+   * edits.
+   */
+  preset?: Preset;
+  /**
+   * Per-tier model id overrides consulted when an agent step declares
+   * `tier` instead of a literal `model`. When `preset` is set these
+   * overrides win on a per-tier basis; otherwise they extend the shipped
+   * default tier mapping.
    */
   modelTiers?: ModelTiers;
 };

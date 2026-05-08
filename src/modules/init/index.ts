@@ -11,7 +11,14 @@ import {
 const KOTA_CONFIG_TEMPLATE = `import type { KotaConfig } from "kota/module";
 
 const config: KotaConfig = {
-  // Model selection (default: claude-sonnet-4-6)
+  // Active preset bundle (claude | codex | gemini). Selects harness, default
+  // model, fast/balanced/capable tier mapping, default reasoning effort, and
+  // required env vars together. Override per-run with \`--preset <id>\` or
+  // \`KOTA_PRESET=<id>\`. Defaults to "claude" when unset.
+  // defaultPreset: "claude",
+
+  // Optional explicit override for the active preset's defaultModel. Most
+  // operators leave this unset and let the preset drive.
   // model: "claude-sonnet-4-6",
 
   // Modules — uncomment and configure the ones you need.

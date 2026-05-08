@@ -24,6 +24,11 @@ import type {
   WorkflowDefinitionSummary,
 } from "#core/daemon/daemon-control.js";
 import { createModelClient } from "#core/model/model-client.js";
+import {
+  checkPresetAuth,
+  PRESET_ENV_VAR,
+  resolvePreset,
+} from "#core/model/preset.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
@@ -213,8 +218,13 @@ async function checkWorkflowDefinitions(projectDir: string): Promise<CheckResult
     const config = loadConfig(projectDir);
     const loader = await loadModuleMetadata(config, projectDir, false);
     const defs = loader.getContributedWorkflows();
+    const { preset } = resolvePreset({
+      env: process.env[PRESET_ENV_VAR],
+      config: config.defaultPreset,
+    });
     const validated = validateWorkflowDefinitions(defs, projectDir, {
       defaultAgentHarness: config.defaultAgentHarness,
+      preset,
       modelTiers: config.modelTiers,
     });
     return pass("Workflows: discoverable definitions", `${validated.length} valid`);
@@ -295,9 +305,47 @@ export async function checkProviderConnectivity(projectDir: string): Promise<Che
   }
 }
 
+/**
+ * Preflight the active preset's required env vars. Reports `pass` when at
+ * least one alternate is set, `fail` (with a single line naming the missing
+ * vars and the preset id) when none are. Reports `fail` when the requested
+ * preset is unknown — silent fallback to a default preset would defeat the
+ * preflight.
+ */
+function checkPresetAuthEnv(
+  projectDir: string,
+  requestedPresetId: string | undefined,
+): CheckResult[] {
+  const config = loadConfig(projectDir);
+  let resolution: ReturnType<typeof resolvePreset>;
+  try {
+    resolution = resolvePreset({
+      flag: requestedPresetId,
+      env: process.env[PRESET_ENV_VAR],
+      config: config.defaultPreset,
+    });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    return [fail("Preset", detail)];
+  }
+  const { preset, source } = resolution;
+  const sourceLabel = source === "default" ? "shipped default" : source;
+  const sourceDetail = `source: ${sourceLabel}, harness: ${preset.harness}, defaultModel: ${preset.defaultModel}`;
+  const auth = checkPresetAuth(preset);
+  if (auth.missing.length === 0) {
+    return [pass(`Preset: ${preset.id}`, `authEnv set (${sourceDetail})`)];
+  }
+  return [
+    fail(
+      `Preset: ${preset.id}`,
+      `${preset.authEnv.join(" or ")}: missing — export one of (${sourceDetail})`,
+    ),
+  ];
+}
+
 export async function runDoctorChecks(
   projectDir: string,
-  opts?: { skipConnectivity?: boolean },
+  opts?: { skipConnectivity?: boolean; preset?: string },
 ): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
 
@@ -364,6 +412,8 @@ export async function runDoctorChecks(
     const extResults = await checkModules(projectDir);
     results.push(...extResults);
   }
+
+  results.push(...checkPresetAuthEnv(projectDir, opts?.preset));
 
   results.push(...checkProvidersConfig(projectDir));
 

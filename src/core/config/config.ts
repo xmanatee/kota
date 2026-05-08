@@ -66,8 +66,23 @@ export type CoreKotaConfig = {
   /**
    * Default agent harness adapter name. Must match a harness registered by a
    * loaded module. No implicit default — KOTA does not silently pick one.
+   *
+   * Operators that ship a preset rarely need to set this directly: the active
+   * preset (`defaultPreset` / `--preset` / `KOTA_PRESET`) carries its own
+   * harness. This field stays for the rare case where a workflow or operator
+   * needs to pin a harness independently of the preset's harness.
    */
   defaultAgentHarness?: string;
+
+  /**
+   * Default preset id for this project. Selects harness + default model +
+   * fast/balanced/capable tier mapping + default reasoning effort + required
+   * env vars together. Resolution priority: `--preset` flag > `KOTA_PRESET`
+   * env > this field > shipped default preset. Must match a shipped preset
+   * id (`claude` | `codex` | `gemini`). When unset, KOTA selects the shipped
+   * default preset (`claude`).
+   */
+  defaultPreset?: string;
 
   /** TTL for pending approval items in milliseconds. Default: 86400000 (24 hours). */
   approvalTtlMs?: number;

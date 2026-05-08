@@ -12,6 +12,13 @@ import { runAgentLoop } from "./core/loop/loop.js";
 import { buildKotaSystemPrompt } from "./core/loop/system-prompt.js";
 import { formatAuthError } from "./core/model/auth-error.js";
 import { createModelClient } from "./core/model/model-client.js";
+import {
+  checkPresetAuth,
+  PRESET_ENV_VAR,
+  type Preset,
+  type PresetResolution,
+  resolvePreset,
+} from "./core/model/preset.js";
 import { discoverModules } from "./core/modules/module-discovery.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import { discoverProjectModules } from "./core/modules/project-discovery.js";
@@ -43,22 +50,75 @@ function stdout(): TerminalTransport {
 const program = new Command();
 
 /**
- * Announce the active harness on the stderr banner before the first turn.
- * Operators need to see which adapter is driving the session — claude-agent-sdk,
- * thin, or the classic ModelClient loop — so switching harnesses via
- * --provider or config.defaultAgentHarness is visible, not silent.
- * Skipped when stderr is not a TTY so scripted pipelines stay quiet.
+ * Announce the active preset/harness on the stderr banner before the first
+ * turn. Operators need to see which preset and adapter are driving the
+ * session — `kota [codex] gpt-5-codex` makes a preset switch visible.
+ * Always emits to stderr so pipe consumers redirect explicitly with
+ * `2>/dev/null` rather than the banner being silently invisible.
  */
-function announceActiveHarness(harness: string, model: string): void {
-  if (!process.stderr.isTTY) return;
+function announceActivePreset(args: {
+  presetId: string;
+  harnessOverride?: string;
+  model: string;
+}): void {
+  const label = args.harnessOverride && args.harnessOverride !== args.presetId
+    ? `${args.presetId}:${args.harnessOverride}`
+    : args.presetId;
   stderr().write(
     line(
       span("kota ", "muted"),
-      span(`[${harness}]`, "accent"),
+      span(`[${label}]`, "accent"),
       span(" ", "muted"),
-      span(model, "info"),
+      span(args.model, "info"),
     ),
   );
+}
+
+/**
+ * Resolve the active preset from CLI flag → KOTA_PRESET env → config.defaultPreset
+ * → shipped default. Throws with a single-line error and exits when an
+ * explicitly named preset is unknown.
+ */
+function resolveActivePreset(
+  flagValue: string | undefined,
+  configValue: string | undefined,
+): PresetResolution & { preset: Preset } {
+  try {
+    return resolvePreset({
+      flag: flagValue,
+      env: process.env[PRESET_ENV_VAR],
+      config: configValue,
+    });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    stderr().write(line(span(detail, "error")));
+    process.exit(1);
+  }
+}
+
+/**
+ * Preflight the preset's required env vars before launching the harness.
+ * When the harness is overridden (e.g. `--harness thin` for a local probe),
+ * skip the preset auth check — the operator picked a different harness whose
+ * auth requirements are not the preset's. Exits 1 with a single-line message
+ * naming the preset and the missing var when none of the alternates are set.
+ */
+function preflightPresetAuth(preset: Preset, harnessName: string): void {
+  if (harnessName !== preset.harness) return;
+  const { missing } = checkPresetAuth(preset);
+  if (missing.length === 0) return;
+  const list = missing.join(" or ");
+  stderr().write(
+    line(
+      span("Error: ", "error"),
+      span(`preset "${preset.id}" requires `, "muted"),
+      span(list, "warn"),
+      span(" — set the env var or run `kota doctor --preset ", "muted"),
+      span(preset.id, "info"),
+      span("` to diagnose.", "muted"),
+    ),
+  );
+  process.exit(1);
 }
 
 function ensureAnthropicApiKey(
@@ -84,7 +144,7 @@ program
   .command("run", { isDefault: true })
   .description("Run KOTA with a prompt")
   .argument("[prompt...]", "The task to perform")
-  .option("-m, --model <model>", "Model (default: claude-sonnet-4-6). Supports provider/model notation: ollama/llama3, openai/gpt-4o")
+  .option("-m, --model <model>", "Model. Defaults to the active preset's defaultModel. Supports provider/model notation: ollama/llama3, openai/gpt-4o")
   .option("--provider <name>", "Model provider: anthropic, openai, ollama, groq, together, lmstudio, agent-sdk (Claude Agent SDK)")
   .option("--base-url <url>", "Base URL for OpenAI-compatible provider (overrides preset)")
   .option("--editor-model <model>", "Model for editor pass and sub-agents (defaults to --model)")
@@ -92,7 +152,8 @@ program
   .option("-v, --verbose", "Show debug output")
   .option("-a, --architect", "Enable Architect/Editor split (two-pass reasoning)")
   .option("-i, --interactive", "Interactive mode (REPL)")
-  .option("--harness <name>", "Agent harness adapter (e.g. claude-agent-sdk, thin). Overrides --provider and config.defaultAgentHarness for this run")
+  .option("--preset <id>", `Preset bundle (claude | codex | gemini). Sets harness, default model, tiers, and authEnv together. Overrides $${PRESET_ENV_VAR} and config.defaultPreset.`)
+  .option("--harness <name>", "Agent harness adapter (e.g. claude-agent-sdk, thin). Overrides the active preset's harness for this run")
   .option("-s, --session <path>", "Session file for persistence/resume")
   .option("-y, --yes", "Skip confirmation prompts for destructive commands")
   .option("-t, --think", "Enable extended thinking for deeper reasoning")
@@ -109,26 +170,30 @@ program
 
     const providerName = opts.provider || config.modelProvider?.type;
     const explicitHarness = opts.harness as string | undefined;
-    if (explicitHarness || providerName === "agent-sdk") {
-      const modelSpec = opts.model || config.model || "claude-sonnet-4-6";
+    const presetResolution = resolveActivePreset(opts.preset, config.defaultPreset);
+
+    // Take the harness path whenever the operator did not name a non-agent-sdk
+    // model provider. The active preset drives harness, default model, and
+    // effort. `--harness` and `config.defaultAgentHarness` still override the
+    // preset's harness when an operator explicitly pins one.
+    const useHarnessPath =
+      Boolean(explicitHarness) ||
+      providerName === "agent-sdk" ||
+      providerName === undefined;
+
+    if (useHarnessPath) {
+      const { preset } = presetResolution;
+      const modelSpec = opts.model || config.model || preset.defaultModel;
       const { model } = parseModelString(modelSpec);
       let prompt = promptWords.join(" ");
       prompt = expandAlias(prompt, config.aliases);
-      // Operators pick the adapter explicitly via --harness or from
-      // config.defaultAgentHarness. No silent pin: if neither is set, fail
-      // loudly via the registry rather than quietly resolving to claude.
-      const harnessName = explicitHarness ?? config.defaultAgentHarness;
-      if (!harnessName) {
-        stderr().write(
-          line(
-            span(
-              "No agent harness configured: set --harness <name> or config.defaultAgentHarness. No implicit default.",
-              "error",
-            ),
-          ),
-        );
-        process.exit(1);
-      }
+      const harnessName = explicitHarness ?? config.defaultAgentHarness ?? preset.harness;
+      announceActivePreset({
+        presetId: preset.id,
+        harnessOverride: harnessName !== preset.harness ? harnessName : undefined,
+        model,
+      });
+      preflightPresetAuth(preset, harnessName);
       const harness = resolveAgentHarness(harnessName);
       const systemPrompt = buildKotaSystemPrompt(
         config,
@@ -138,11 +203,10 @@ program
       );
       const runOverrides = {
         verbose: opts.verbose || config.verbose || false,
-        effort: "xhigh" as const,
+        effort: preset.defaultEffort,
         systemPrompt,
       };
       if (opts.interactive || !prompt) {
-        announceActiveHarness(harnessName, model);
         await runHarnessRepl({
           harness,
           model,
@@ -152,7 +216,6 @@ program
         return;
       }
       prompt = expandUserPromptReferences(prompt, process.cwd()).text;
-      announceActiveHarness(harnessName, model);
       const result = await runAgentHarness(harness, {
         prompt,
         model,
@@ -164,7 +227,8 @@ program
       return;
     }
 
-    const modelSpec = opts.model || config.model || "claude-sonnet-4-6";
+    const { preset: classicPreset } = presetResolution;
+    const modelSpec = opts.model || config.model || classicPreset.defaultModel;
     ensureAnthropicApiKey(providerName, modelSpec, config.modelProvider?.apiKey);
     const resolved = createModelClient({
       model: modelSpec,
@@ -222,11 +286,11 @@ program
     prompt = expandAlias(prompt, config.aliases);
 
     if (opts.interactive || !prompt) {
-      announceActiveHarness("classic-loop", model);
+      announceActivePreset({ presetId: "classic-loop", model });
       await interactiveMode(options, config);
     } else {
       prompt = expandUserPromptReferences(prompt, process.cwd()).text;
-      announceActiveHarness("classic-loop", model);
+      announceActivePreset({ presetId: "classic-loop", model });
       await runAgentLoop(prompt, options);
     }
   });
@@ -244,29 +308,31 @@ async function checkPipeMode() {
     if (piped) {
       const config = loadConfig();
 
-      if (config.modelProvider?.type === "agent-sdk") {
-        const modelSpec = config.model || "claude-sonnet-4-6";
+      const presetResolution = resolveActivePreset(undefined, config.defaultPreset);
+      const { preset } = presetResolution;
+
+      // The harness path runs whenever no non-agent-sdk model provider is named.
+      // The active preset drives harness, default model, and effort; explicit
+      // `config.defaultAgentHarness` still wins when the operator pinned one.
+      const provider = config.modelProvider?.type;
+      const useHarnessPath = provider === undefined || provider === "agent-sdk";
+      if (useHarnessPath) {
+        const modelSpec = config.model || preset.defaultModel;
         const { model } = parseModelString(modelSpec);
-        const harnessName = config.defaultAgentHarness;
-        if (!harnessName) {
-          stderr().write(
-            line(
-              span(
-                'No agent harness configured: set config.defaultAgentHarness when modelProvider.type is "agent-sdk". No implicit default.',
-                "error",
-              ),
-            ),
-          );
-          process.exit(1);
-        }
-        announceActiveHarness(harnessName, model);
+        const harnessName = config.defaultAgentHarness ?? preset.harness;
+        preflightPresetAuth(preset, harnessName);
+        announceActivePreset({
+          presetId: preset.id,
+          harnessOverride: harnessName !== preset.harness ? harnessName : undefined,
+          model,
+        });
         const harness = resolveAgentHarness(harnessName);
         const result = await runAgentHarness(harness, {
           prompt: expandUserPromptReferences(piped, process.cwd()).text,
           model,
           verbose: config.verbose,
           cwd: process.cwd(),
-          effort: "xhigh",
+          effort: preset.defaultEffort,
           systemPrompt: buildKotaSystemPrompt(
             config,
             undefined,

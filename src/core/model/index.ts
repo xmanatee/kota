@@ -34,6 +34,25 @@ export {
 	routeModel,
 } from "./model-router.js";
 export {
+	checkPresetAuth,
+	getPreset,
+	hasPreset,
+	listShippedPresetIds,
+	listShippedPresets,
+	mergePresetTiers,
+	PRESET_ENV_VAR,
+	type Preset,
+	type PresetAuthCheck,
+	type PresetId,
+	type PresetResolution,
+	type PresetResolutionInput,
+	type PresetSource,
+	type PresetTiers,
+	resolvePreset,
+	resolvePresetTierModel,
+	SHIPPED_DEFAULT_PRESET_ID,
+} from "./preset.js";
+export {
 	isRetryable,
 	type StreamConfig,
 	streamMessage,

@@ -27,6 +27,7 @@ export const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set<keyof KotaConfig>(
   "modelTiers",
   "agentModels",
   "defaultAgentHarness",
+  "defaultPreset",
   "approvalTtlMs",
   "runsGc",
   "serve",

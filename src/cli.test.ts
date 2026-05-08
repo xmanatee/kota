@@ -86,17 +86,19 @@ describe("cli", () => {
     expect(out).toContain("--harness");
   });
 
-  it("default model is claude-sonnet-4-6", () => {
+  it("default model is the active preset's defaultModel", () => {
     const out = run("run", "--help");
-    expect(out).toContain("claude-sonnet-4-6");
+    expect(out).toContain("active preset");
+    expect(out).toMatch(/--preset/);
   });
 });
 
 describe("API key validation", () => {
-  it("exits with clear message when ANTHROPIC_API_KEY is unset", () => {
+  it("exits with clear message when ANTHROPIC_API_KEY is unset (claude preset preflight)", () => {
     const { stderr, exitCode } = runExpectFail("run", "hello");
     expect(exitCode).toBe(1);
     expect(stderr).toContain("ANTHROPIC_API_KEY");
+    expect(stderr).toMatch(/preset "claude"/);
   });
 
   it("does not require API key for help commands", () => {
@@ -200,20 +202,29 @@ describe("parseIntOption", () => {
   });
 });
 
-describe("agent-harness resolution", () => {
-  // The CLI's harness branch (explicit --harness or --provider=agent-sdk /
-  // config.modelProvider.type=agent-sdk) must not silently pin to
-  // claude-agent-sdk when `config.defaultAgentHarness` is unset. These tests
-  // prove the loud-failure contract promised by `KotaConfig.defaultAgentHarness`
-  // and `src/core/agent-harness/AGENTS.md`.
-  it("fails loudly when --provider=agent-sdk is used without a configured harness", () => {
+describe("preset resolution", () => {
+  // The active preset (`--preset` flag, `KOTA_PRESET` env, `config.defaultPreset`,
+  // shipped default) decides harness + default model + tier mapping. An unknown
+  // preset must fail loudly rather than silently falling back to claude.
+  it("rejects an unknown --preset id", () => {
     const { stderr, exitCode } = runFull(
-      ["run", "--provider", "agent-sdk", "hello"],
+      ["run", "--preset", "nope", "hello"],
       { env: { ANTHROPIC_API_KEY: "sk-ant-test", HOME: "/tmp/kota-test-no-config" } },
     );
     expect(exitCode).toBe(1);
-    expect(stderr).toMatch(/No agent harness configured/);
-    expect(stderr).toMatch(/defaultAgentHarness/);
+    expect(stderr).toMatch(/Unknown preset "nope"/);
+  });
+
+  it("rejects an unknown KOTA_PRESET env value", () => {
+    const { stderr, exitCode } = runFull(["run", "hello"], {
+      env: {
+        ANTHROPIC_API_KEY: "sk-ant-test",
+        HOME: "/tmp/kota-test-no-config",
+        KOTA_PRESET: "wat",
+      },
+    });
+    expect(exitCode).toBe(1);
+    expect(stderr).toMatch(/Unknown preset "wat"/);
   });
 });
 

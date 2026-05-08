@@ -741,6 +741,84 @@ describe("workflow validation", () => {
     expect(step && "model" in step ? step.model : undefined).toBe("gpt-5-codex");
   });
 
+  it("resolves a tier through the active preset's tiers when no operator override is given", async () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    const { getPreset } = await import("#core/model/preset.js");
+    const codex = getPreset("codex");
+
+    const definitions = validateWorkflowDefinitionsCore(
+      [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+              harness: "codex",
+              tier: "capable",
+              effort: "xhigh",
+              autonomyMode: "autonomous",
+            },
+          ],
+        }),
+      ],
+      projectDir,
+      {
+        defaultAgentHarness: "codex",
+        preset: codex,
+      },
+    );
+
+    const step = definitions[0]?.steps[0];
+    expect(step && "tier" in step ? step.tier : undefined).toBe("capable");
+    expect(step && "model" in step ? step.model : undefined).toBe(codex.tiers.capable);
+  });
+
+  it("operator modelTiers wins per-tier over the active preset's tiers", async () => {
+    writeFileSync(
+      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      "Build.\n",
+    );
+
+    const { getPreset } = await import("#core/model/preset.js");
+    const codex = getPreset("codex");
+
+    const definitions = validateWorkflowDefinitionsCore(
+      [
+        registerWorkflowDefinition("test/builder.ts", {
+          name: "builder",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "build",
+              type: "agent",
+              promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
+              harness: "codex",
+              tier: "capable",
+              effort: "xhigh",
+              autonomyMode: "autonomous",
+            },
+          ],
+        }),
+      ],
+      projectDir,
+      {
+        defaultAgentHarness: "codex",
+        preset: codex,
+        modelTiers: { capable: "gpt-5-frontier-override" },
+      },
+    );
+
+    const step = definitions[0]?.steps[0];
+    expect(step && "model" in step ? step.model : undefined).toBe("gpt-5-frontier-override");
+  });
+
   it("rejects an agent step that declares both model and tier", () => {
     writeFileSync(
       join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),

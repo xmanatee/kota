@@ -9,10 +9,8 @@ import type {
   AgentHarness,
   AgentHarnessStepOverrides,
 } from "#core/agent-harness/types.js";
-import {
-  type ModelTier,
-  resolveModelForTier,
-} from "#core/model/model-router.js";
+import { DEFAULT_MODEL_TIERS, type ModelTier } from "#core/model/model-router.js";
+import { mergePresetTiers, type Preset } from "#core/model/preset.js";
 import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
   WorkflowRepairLoopConfig,
@@ -217,6 +215,7 @@ export function validateAgentStep(
     harnessName,
     stepLabel,
     definitionPath,
+    preset: options.preset,
     modelTiers: options.modelTiers,
   });
 
@@ -416,11 +415,13 @@ function validateOutputSchema(
  * Resolve the step's `model` and optional `tier` fields into the runtime
  * model id and the preserved tier. Exactly one of `model` and `tier` must
  * be declared (a typed discriminated union, not optional fields admitting
- * illegal combinations). When `tier` is set, the validator looks the tier
- * up in `options.modelTiers` (falling back to `DEFAULT_MODEL_TIERS` for
- * tiers the operator did not override). When `model` is set, the active
- * harness's optional `validateModelId` gate is the only central catalog
- * check — adapters that do not declare one accept any non-empty string.
+ * illegal combinations). When `tier` is set, the validator resolves the
+ * tier through the active preset's `tiers` (with operator `modelTiers`
+ * overriding per-tier). When no preset is supplied, falls back to
+ * `DEFAULT_MODEL_TIERS` for tiers the operator did not override. When
+ * `model` is set, the active harness's optional `validateModelId` gate is
+ * the only central catalog check — adapters that do not declare one accept
+ * any non-empty string.
  */
 function resolveStepModel(args: {
   rawModel: unknown;
@@ -428,9 +429,10 @@ function resolveStepModel(args: {
   harnessName: string;
   stepLabel: string;
   definitionPath: string;
+  preset: Preset | undefined;
   modelTiers: WorkflowValidationOptions["modelTiers"];
 }): { model: string; tier: ModelTier | undefined } {
-  const { rawModel, rawTier, harnessName, stepLabel, definitionPath, modelTiers } = args;
+  const { rawModel, rawTier, harnessName, stepLabel, definitionPath, preset, modelTiers } = args;
   const hasModel = rawModel !== undefined;
   const hasTier = rawTier !== undefined;
   if (hasModel && hasTier) {
@@ -455,7 +457,10 @@ function resolveStepModel(args: {
       );
     }
     const resolvedTier = tier as ModelTier;
-    const model = resolveModelForTier(resolvedTier, modelTiers);
+    const tiers = preset
+      ? mergePresetTiers(preset, modelTiers)
+      : { ...DEFAULT_MODEL_TIERS, ...modelTiers };
+    const model = tiers[resolvedTier];
     if (!model) {
       throw new WorkflowDefinitionError(
         `${stepLabel}.tier "${resolvedTier}" did not resolve to a non-empty model id (configure config.modelTiers.${resolvedTier})`,

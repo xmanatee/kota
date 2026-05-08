@@ -1,12 +1,12 @@
 ---
 id: task-introduce-harness-preset-abstraction
 title: Introduce harness preset abstraction
-status: ready
+status: done
 priority: p1
 area: architecture
 summary: Introduce a Preset abstraction so changing one switch flips harness, default model, fast/balanced/capable tiers, and default effort coherently across CLI, daemon, and autonomy.
 created_at: 2026-05-07T23:33:16.214Z
-updated_at: 2026-05-07T23:33:16.214Z
+updated_at: 2026-05-08T00:28:14.672Z
 ---
 
 ## Problem

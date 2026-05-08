@@ -383,3 +383,69 @@ describe("kota doctor — provider connectivity check", () => {
     expect(conn?.detail).toContain("Skipped");
   });
 });
+
+describe("kota doctor --preset preflight", () => {
+  let projectDir: string;
+  const ORIGINAL_ENV = { ...process.env };
+
+  beforeEach(() => {
+    projectDir = makeTmpDir();
+    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    delete process.env.GOOGLE_API_KEY;
+    delete process.env.KOTA_PRESET;
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+    process.env = { ...ORIGINAL_ENV };
+    vi.restoreAllMocks();
+  });
+
+  it("fails with a single line naming OPENAI_API_KEY for codex preset when missing", async () => {
+    const results = await runDoctorChecks(projectDir, { preset: "codex", skipConnectivity: true });
+    const presetRow = results.find((r) => r.label === "Preset: codex");
+    expect(presetRow?.status).toBe("fail");
+    expect(presetRow?.detail).toContain("OPENAI_API_KEY");
+    expect(presetRow?.detail).toContain("missing");
+  });
+
+  it("fails for gemini preset when neither GEMINI_API_KEY nor GOOGLE_API_KEY is set", async () => {
+    const results = await runDoctorChecks(projectDir, { preset: "gemini", skipConnectivity: true });
+    const presetRow = results.find((r) => r.label === "Preset: gemini");
+    expect(presetRow?.status).toBe("fail");
+    expect(presetRow?.detail).toMatch(/GEMINI_API_KEY.*GOOGLE_API_KEY/);
+  });
+
+  it("passes for codex preset when OPENAI_API_KEY is set", async () => {
+    process.env.OPENAI_API_KEY = "sk-test";
+    const results = await runDoctorChecks(projectDir, { preset: "codex", skipConnectivity: true });
+    const presetRow = results.find((r) => r.label === "Preset: codex");
+    expect(presetRow?.status).toBe("pass");
+    expect(presetRow?.detail).toContain("authEnv set");
+  });
+
+  it("passes for gemini preset when GOOGLE_API_KEY is set (alternate auth)", async () => {
+    process.env.GOOGLE_API_KEY = "test";
+    const results = await runDoctorChecks(projectDir, { preset: "gemini", skipConnectivity: true });
+    const presetRow = results.find((r) => r.label === "Preset: gemini");
+    expect(presetRow?.status).toBe("pass");
+  });
+
+  it("falls back to the shipped default (claude) when no preset is requested", async () => {
+    const results = await runDoctorChecks(projectDir, { skipConnectivity: true });
+    const presetRow = results.find((r) => r.label.startsWith("Preset:"));
+    expect(presetRow).toBeDefined();
+    expect(presetRow?.label).toBe("Preset: claude");
+    expect(presetRow?.detail).toContain("source: shipped default");
+  });
+
+  it("fails for an unknown preset id rather than silently falling through", async () => {
+    const results = await runDoctorChecks(projectDir, { preset: "nope", skipConnectivity: true });
+    const presetRow = results.find((r) => r.label === "Preset");
+    expect(presetRow?.status).toBe("fail");
+    expect(presetRow?.detail).toContain("Unknown preset");
+  });
+});

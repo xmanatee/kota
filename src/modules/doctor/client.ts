@@ -25,6 +25,14 @@ export type DoctorRepairResult = {
 
 export type DoctorRunOptions = {
   skipConnectivity?: boolean;
+  /**
+   * Preset id to preflight (`claude` | `codex` | `gemini` | …). When set,
+   * `kota doctor` checks the preset's `authEnv` requirements and reports a
+   * `fail` row naming the missing env var. Defaults to the active preset
+   * resolved through `--preset` / `$KOTA_PRESET` / `config.defaultPreset` /
+   * shipped default.
+   */
+  preset?: string;
 };
 
 export type DoctorRunResult = {

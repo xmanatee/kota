@@ -32,6 +32,9 @@ export function sanitizeCore(raw: unknown): Partial<CoreKotaConfig> {
   if (typeof raw.defaultAgentHarness === "string" && raw.defaultAgentHarness) {
     out.defaultAgentHarness = raw.defaultAgentHarness;
   }
+  if (typeof raw.defaultPreset === "string" && raw.defaultPreset) {
+    out.defaultPreset = raw.defaultPreset;
+  }
 
   if (Array.isArray(raw.autoEnable)) {
     const valid = raw.autoEnable.filter((g): g is string => typeof g === "string" && g.length > 0);

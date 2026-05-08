@@ -76,9 +76,11 @@ function buildDoctorCommand(ctx: ModuleContext): Command {
     .option("--json", "Output results as JSON")
     .option("--fix", "Apply safe automatic repairs for fixable issues")
     .option("--skip-connectivity", "Skip provider API connectivity probes (for offline environments)")
-    .action(async (opts: { json?: boolean; fix?: boolean; skipConnectivity?: boolean }) => {
-      const runOptions: { skipConnectivity?: boolean } = {};
+    .option("--preset <id>", "Preflight a named preset's authEnv (overrides $KOTA_PRESET and config.defaultPreset)")
+    .action(async (opts: { json?: boolean; fix?: boolean; skipConnectivity?: boolean; preset?: string }) => {
+      const runOptions: { skipConnectivity?: boolean; preset?: string } = {};
       if (opts.skipConnectivity) runOptions.skipConnectivity = true;
+      if (opts.preset) runOptions.preset = opts.preset;
       const runResult = await ctx.client.doctor.run(runOptions);
       const results = runResult.checks;
       const repairs = opts.fix ? (await ctx.client.doctor.fix()).repairs : [];
@@ -124,6 +126,7 @@ function buildDoctorDaemonHandler(link: DaemonTransport): DoctorClient {
     run: async (options?: DoctorRunOptions): Promise<DoctorRunResult> => {
       const params = new URLSearchParams();
       if (options?.skipConnectivity) params.set("skipConnectivity", "true");
+      if (options?.preset) params.set("preset", options.preset);
       const query = params.toString() ? `?${params.toString()}` : "";
       return link.requestStrict<DoctorRunResult>("GET", `/doctor/run${query}`);
     },
@@ -142,8 +145,9 @@ const doctorModule: KotaModule = {
   localClient: (ctx) => {
     const doctor: DoctorClient = {
       async run(options) {
-        const checkOpts: { skipConnectivity?: boolean } = {};
+        const checkOpts: { skipConnectivity?: boolean; preset?: string } = {};
         if (options?.skipConnectivity) checkOpts.skipConnectivity = true;
+        if (options?.preset) checkOpts.preset = options.preset;
         const checks = await runDoctorChecks(ctx.cwd, checkOpts);
         return { checks };
       },

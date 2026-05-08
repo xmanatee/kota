@@ -1,6 +1,19 @@
 # Model
 
-This directory contains the `ModelClient` interface, registry, adaptive model routing, and streaming behavior.
+This directory contains the `ModelClient` interface, registry, adaptive model
+routing, the `Preset` abstraction, and streaming behavior.
 
-- Implementations (Anthropic SDK, OpenAI-compatible) live in `src/modules/model-clients/`.
-- Avoid adding provider-specific implementation here; extend the registry through the module instead.
+- Implementations (Anthropic SDK, OpenAI-compatible) live in
+  `src/modules/model-clients/`.
+- Avoid adding provider-specific implementation here; extend the registry
+  through the module instead.
+- `preset.ts` is the single shipped registry of `(harness, defaultModel,
+  tiers, defaultEffort, authEnv)` bundles. New model ids land here when a
+  vendor releases a tier; do not duplicate the mapping at consumer sites.
+- Resolution priority: `--preset` flag > `KOTA_PRESET` env > `config.defaultPreset`
+  > shipped default. An explicitly named preset that does not exist throws
+  loudly instead of falling through.
+- `DEFAULT_MODEL_TIERS` in `model-router.ts` is the claude preset's tiers
+  surfaced for legacy callers; consumers should query the active preset via
+  `mergePresetTiers(preset, overrides)` instead of importing the constant
+  directly.

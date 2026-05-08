@@ -1,4 +1,5 @@
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
+import { resolvePreset } from "#core/model/preset.js";
 import type { WorkflowRuntimeDispatchState } from "./runtime-dispatch.js";
 import type { WorkflowStep } from "./step-types.js";
 import type { WorkflowDefinition } from "./types.js";
@@ -7,8 +8,13 @@ import { validateWorkflowDefinitions } from "./validation.js";
 export function compileDefinitions(
   state: Pick<WorkflowRuntimeDispatchState, "workflowInputs" | "projectDir" | "config">,
 ): WorkflowDefinition[] {
+  const { preset } = resolvePreset({
+    env: process.env.KOTA_PRESET,
+    config: state.config?.defaultPreset,
+  });
   return validateWorkflowDefinitions(state.workflowInputs ?? [], state.projectDir, {
     defaultAgentHarness: state.config?.defaultAgentHarness,
+    preset,
     modelTiers: state.config?.modelTiers,
   });
 }

@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import type { ModelTiers } from "#core/model/model-router.js";
+import { PRESET_ENV_VAR, type Preset, resolvePreset } from "#core/model/preset.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "#core/workflow/validation.js";
@@ -16,6 +17,7 @@ type ValidateDefinitionsOptions = {
   workflow?: string;
   projectDir?: string;
   defaultAgentHarness?: string;
+  preset?: Preset;
   modelTiers?: ModelTiers;
 };
 
@@ -40,6 +42,7 @@ export function validateDefinitions(
         options.projectDir,
         {
           defaultAgentHarness: options.defaultAgentHarness,
+          preset: options.preset,
           modelTiers: options.modelTiers,
         },
       );
@@ -63,6 +66,7 @@ export function validateDefinitions(
         options.projectDir,
         {
           defaultAgentHarness: options.defaultAgentHarness,
+          preset: options.preset,
           modelTiers: options.modelTiers,
         },
       );
@@ -94,10 +98,15 @@ export function registerValidateCommand(
     .action((opts: { workflow?: string; json?: boolean }) => {
       let results: ValidationResult[];
       try {
+        const { preset } = resolvePreset({
+          env: process.env[PRESET_ENV_VAR],
+          config: ctx.config.defaultPreset,
+        });
         results = validateDefinitions(getWorkflowDefinitions(ctx), {
           workflow: opts.workflow,
           projectDir: ctx.cwd,
           defaultAgentHarness: ctx.config.defaultAgentHarness,
+          preset,
           modelTiers: ctx.config.modelTiers,
         });
       } catch (err) {
