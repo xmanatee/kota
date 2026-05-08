@@ -51,8 +51,11 @@ evaluator drift. Failure signal: `verdict==="fail"` or
 escalation needs later overlap also failing. Drifts commit one path:
 create/recreate/promote `task-evaluator-calibration-drift-repair` in
 `ready/`; regression bridges to attention digest. Critic blocks weak
-rendered evidence, placeholder tests, untracked compat shims,
-baseline-only ratchets, required-source dishonesty.
+rendered evidence (including preflight-failure artifacts), placeholder
+tests, untracked compat shims, baseline-only ratchets (including
+hedged "if inadvertent" regressions), required-source dishonesty,
+untracked Done-When non-fulfillment, and runtime defects masked by
+missing test coverage.
 
 ## External Pattern Decisions
 
@@ -108,43 +111,38 @@ test enforces 1:1 match.
 
 ## Operator Reports
 
-`kota report` (`src/modules/autonomy/report/`) prints the operator
-balance/quality report; strategic/fan-out heuristic lives in
-`task-classification.classifyTaskShape` and inspects area + title +
-summary so surface-parity work filed under `architecture` / `modules`
-(macOS picker, web-UI form, Telegram command) classifies as fan-out.
-Per no-cost-bias-in-autonomy this output is operator-only and must not
-be exposed to autonomy agents.
+`kota report` prints the operator balance/quality report. The
+strategic/fan-out heuristic in `task-classification.classifyTaskShape`
+inspects area + title + summary so surface-parity work filed under
+`architecture` / `modules` (macOS picker, web-UI form, Telegram
+command) classifies as fan-out. Per no-cost-bias-in-autonomy this
+output is operator-only and must not reach autonomy agents.
 
 ## Multi-Client Fan-Out Consolidation
 
-`fan-out-consolidator` deterministically seeds one consolidation review
-task per completed multi-client fan-out batch. Detection + body live in
-`fan-out-consolidation.ts`; idempotent by capability key and counts at
-most one primary surface per closed task. Seeded task is `area: client`
-so the rendered-evidence gate rejects clearing it with prose-only test
-logs.
+`fan-out-consolidator` seeds one `area: client` consolidation review
+task per completed multi-client fan-out batch (idempotent by capability
+key, ≤1 primary surface per closed task). The `area: client` tag
+forces the rendered-evidence gate to reject prose-only test logs.
+Detection + body live in `fan-out-consolidation.ts`.
 
 ## Empty-Queue Loop Shape
 
 Deliberate workflow gating, not emergent dispatcher → explorer →
 builder thrash:
 
-- **Builder gates on `autonomy.queue.available`** (actionable=
-  ready+doing>0). Never fires on `runtime.idle`, never auto-consumes
-  backlog.
+- **Builder gates on `autonomy.queue.available`** (ready+doing>0).
+  Never fires on `runtime.idle`, never auto-consumes backlog.
 - **`backlog-promoter` records `promotion-rationale.json`** before
-  builder resumes. Runs on `autonomy.queue.needs-promotion`, promotes
-  one or two backlog tasks ranked by priority → strategic-area →
-  oldest `updated_at`.
+  builder resumes. On `autonomy.queue.needs-promotion`, promotes 1–2
+  backlog tasks by priority → strategic-area → oldest `updated_at`.
 - **`explorer` repair-loop rejects commits without
   `exploration-rationale.json`** naming the decision (promote |
   decompose | create-task | noop | watchlist-only). `create-task`
   must consider every strategic-area blocked task by id.
-- **Cooldowns over caps.** Explorer 30-minute refresh; builder rate-
-  limited only by repair checks and task availability. No daily spend
-  caps.
-- **Honesty over speculation.** Inaccessible sources still block
+- **Cooldowns over caps.** Explorer 30-minute refresh; builder paced
+  by repair checks and task availability. No daily spend caps.
+- **Honesty over speculation.** Inaccessible sources block
   (`done-task-inaccessible-source`); no synthesis from unread content.
 
 ## Agent Judge Runtime Contract

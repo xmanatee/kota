@@ -217,6 +217,48 @@ describe("createCriticCheck", () => {
     expect(systemPrompt).toContain("name the trace");
   });
 
+  it("names the calibration-drift critical classes the live monitor flagged", async () => {
+    const dir = makeTmpDir();
+    const doingDir = join(dir, "data/tasks/doing");
+    mkdirSync(doingDir, { recursive: true });
+    writeFileSync(join(doingDir, "task-drift.md"), "---\ntitle: Drift\n---\nDrift.");
+    const runDir = join(dir, ".kota/runs/test-run");
+    mkdirSync(runDir, { recursive: true });
+    setApiResponse({
+      verdict: "pass",
+      critical_issues: [],
+      warnings: [],
+      summary: "ok",
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
+
+    const options = getOptionsArg(mockRunAgentHarness.mock.calls[0]);
+    const systemPrompt = options.systemPrompt as string;
+
+    // Done-When non-fulfillment without trace was being accepted as a
+    // warning ("not implemented in this change... not traced to a follow-up
+    // task"). The class must be explicit so it stops being a hedged warning.
+    expect(systemPrompt).toContain("Done-When item not implemented and not traced");
+    expect(systemPrompt).toContain("not traced to a follow-up");
+
+    // Runtime defect masked by missing test coverage was being accepted as
+    // a warning ("tests only check X, so this defect passes mechanically").
+    // The class must be explicit so the critic fails such runs.
+    expect(systemPrompt).toContain("Runtime defect masked by missing test coverage");
+    expect(systemPrompt).toContain("passes mechanically");
+
+    // The baseline class must call out the "unrelated entry / if inadvertent"
+    // hedging pattern observed in builder-xlclds. The presence of any
+    // baseline addition outside scope is itself the regression.
+    expect(systemPrompt).toContain("if this is inadvertent regeneration");
+
+    // Weak rendered evidence must cover the "artifact exists but only shows
+    // a preflight failure" pattern observed in builder-p0coae.
+    expect(systemPrompt).toContain("preflight failure");
+  });
+
   it("gives the critic optional run-trace affordances without requiring a fixed evidence file", async () => {
     const dir = makeTmpDir();
     const doingDir = join(dir, "data/tasks/doing");

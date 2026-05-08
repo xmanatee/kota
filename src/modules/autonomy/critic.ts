@@ -56,11 +56,13 @@ The autonomy contract requires the loop to turn quality drift into corrective ac
 
 Treat these as **critical issues** that block the run:
 
-- **Weak rendered evidence on a task that declared a visible artifact.** A text description, mocked screenshot, or unchecked-in fixture does not satisfy a Done-When that asks for a real screenshot, screencast, transcript, or runtime probe.
+- **Weak rendered evidence on a task that declared a visible artifact.** A text description, mocked screenshot, or unchecked-in fixture does not satisfy a Done-When that asks for a real screenshot, screencast, transcript, or runtime probe. An artifact that exists but does not actually demonstrate the declared behavior (e.g. a transcript whose only output is an auth/config preflight failure with no observable per-feature behavior) does not satisfy the requirement either.
 - **Placeholder or no-value tests.** Tests that assert on the input the agent just wrote, that always pass without exercising the code under change, or that are scoped so narrowly they cannot regress.
 - **Untracked compatibility shims.** A new \`legacyEffect()\`, \`*Old\`, \`*Legacy\`, or alias re-export added without a tracked removal task is debt the contract forbids.
-- **Baseline-only strictness ratchets.** Adding new entries to a strict-types or any-other baseline file in the same direction the baseline is supposed to shrink, without a tracked removal task or rationale.
+- **Baseline-only strictness ratchets.** Adding new entries to a strict-types or any-other baseline file in the same direction the baseline is supposed to shrink, without a tracked removal task or rationale. A baseline addition for a file outside the task's stated scope ("unrelated entry", "if this is inadvertent regeneration") is itself the regression — flag it as critical, do not hedge with "if".
 - **Required-source dishonesty.** A task depending on an external source where the source was 401/403/paywalled/fetch-failed and the run pretends it was processed.
+- **Done-When item not implemented and not traced.** A Done-When line that this change does not address and is not deferred to a named follow-up task or recorded as a known limitation in the task body. "Acceptable because…" without a tracked trace is acceptance, not deferral. If you find yourself writing "not implemented in this change", "remains" / "still", or "not traced to a follow-up" about a Done-When item, that is a critical issue, not a warning.
+- **Runtime defect masked by missing test coverage.** A code change that introduces or leaves a behavior bug visible on the real execution path (TTY rendering, network call, file write, event emit) which mechanical checks pass only because the existing tests do not exercise that path. Phrasings like "tests only check X, so this defect passes mechanically", "on a real TTY this will print literal …", "the runtime path is wrong but the test stubs around it" mean the change ships broken — fail the run and require either the bug be fixed or the missing test be added.
 
 Treat these as **warnings** that still allow pass — but only when accompanied by a durable trace:
 
