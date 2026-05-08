@@ -1,12 +1,12 @@
 ---
 id: task-thread-projectid-through-telegram-channel-commands
 title: Thread projectId through Telegram channel commands and session routing
-status: backlog
+status: ready
 priority: p2
 area: architecture
 summary: Make telegram-status and telegram-interactive channels project-aware so operators on a multi-project daemon can target a specific project per message rather than the daemon's default
 created_at: 2026-05-08T20:28:46.713Z
-updated_at: 2026-05-08T20:28:46.713Z
+updated_at: 2026-05-08T20:30:44.790Z
 ---
 
 ## Problem
