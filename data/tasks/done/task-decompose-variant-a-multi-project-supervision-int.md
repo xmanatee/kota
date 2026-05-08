@@ -1,12 +1,12 @@
 ---
 id: task-decompose-variant-a-multi-project-supervision-int
 title: Decompose Variant A multi-project supervision into implementation slices
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Turn the resolved Variant A multi-project supervision decision into a small set of concrete daemon, CLI, web, and native follow-up tasks so the unblocked parent does not return to the queue as one oversized implementation block.
 created_at: 2026-05-07T12:27:35.000Z
-updated_at: 2026-05-07T12:27:35.000Z
+updated_at: 2026-05-08T00:03:49.997Z
 ---
 
 ## Problem

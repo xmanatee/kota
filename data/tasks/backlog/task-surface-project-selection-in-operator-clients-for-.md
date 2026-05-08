@@ -6,7 +6,7 @@ priority: p2
 area: architecture
 summary: Once the daemon can manage multiple project roots, native/web/CLI clients need a first-class project selector and per-project view so operators can supervise more than one repo at a time
 created_at: 2026-04-18T00:40:56.393Z
-updated_at: 2026-05-07T12:27:35.000Z
+updated_at: 2026-05-08T00:02:00.000Z
 ---
 
 ## Problem
@@ -69,17 +69,32 @@ runs, questions, and approvals must always be attributable to one project.
 
 ## Current Position
 
-The decision block is cleared. Resume by decomposing this backlog task into
-the follow-ups sketched under "Follow-up decomposition":
-(a) daemon-side project identity and attribution;
-(b) CLI daemon-mode selector and project-scoped views;
-(c) web client selector and project-scoped views. Native macOS and mobile
-parity land as their own follow-ups after the shared daemon contract exists.
+The decision block is cleared and decomposition is complete. The
+implementation lives across four sequenced follow-up tasks; this parent task
+remains the strategic backlog anchor and does not return to the queue as a
+single oversized implementation block.
 
-The first queue action is
-`task-decompose-variant-a-multi-project-supervision-int` in `ready/`; it owns
-turning this parent into concrete daemon/CLI/web/native follow-up tasks before
-any broad implementation run starts.
+### Follow-up tasks (sequenced)
+
+1. **Daemon foundation** — `task-add-daemon-project-registry-and-projectid-attribut`
+   (`ready/`). Project registry primitive, per-project runtime bundle,
+   `projectId` scope on every store/event/control-API payload, typed
+   invariant test for singleton bindings.
+2. **CLI daemon-mode selector** — `task-add-cli-daemon-mode-project-selector-and-project-s`
+   (`blocked/`, unblocks when (1) is in `done/`). `kota project ls`/`use`
+   plus `--project` filter on `kota status`, `kota session`, and
+   `kota events`.
+3. **Web client selector** — `task-add-web-client-project-selector-and-project-scoped`
+   (`blocked/`, unblocks when (1) is in `done/`). Project-scoped routes,
+   header selector, query-key + SSE scoping, Playwright integration test.
+4. **Native parity (apple + mobile)** — `task-bring-native-apple-and-mobile-clients-to-multi-pro`
+   (`blocked/`, unblocks when (3) is in `done/`). Single task per
+   `clients/AGENTS.md` (apple owns macOS+iOS, mobile owns Android +
+   shared React Native); contract conformance gate updated in lockstep.
+
+(1) and (2) prove the daemon and CLI contract; (3) lands the web
+selector; (4) brings native shells to parity once the contract is
+stable. No simultaneous implementation runs across surfaces.
 
 ## Proposal
 
