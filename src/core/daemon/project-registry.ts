@@ -17,6 +17,7 @@
  */
 
 import { join, resolve } from "node:path";
+import type { ProjectId } from "#core/events/project-scope.js";
 import {
   JsonFileError,
   readOptionalJsonFile,
@@ -25,12 +26,13 @@ import {
 import { projectHash } from "./schedule-parser.js";
 
 /**
- * Stable opaque project identity. Derived deterministically from the
- * resolved absolute project root via {@link deriveProjectId}, so the same
- * project root always produces the same id across daemon restarts and
- * across operator machines that point at the same canonical path.
+ * Stable opaque project identity. The type alias lives in
+ * `#core/events/project-scope.js` so foundational subsystems can scope
+ * events without depending on the daemon tree; this module owns the
+ * deterministic runtime derivation ({@link deriveProjectId}) and the
+ * file-backed registry that persists configured projects.
  */
-export type ProjectId = string;
+export type { ProjectId };
 
 /**
  * Operator-supplied input for one configured project.

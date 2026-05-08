@@ -70,21 +70,21 @@ primitives, and revisit live in `external-pattern-decisions.ts`; the
 test enforces 1:1 match.
 
 - **Workflow DSLs (crewAI Flows, LangGraph Pregel).** Reject.
-- **Vercel AI SDK split.** Adopt — `daemon` + `client`.
-- **Typed multi-agent handoffs (OpenHands, AutoGen).** Adopt — bus + `trigger` steps.
+- **Vercel AI SDK split.** Adopt.
+- **Typed multi-agent handoffs (OpenHands, AutoGen).** Adopt.
 - **Labeled memory blocks (Letta) / runtime skill stores (Hermes).** Reject.
 - **Verbal self-reflection / strategy banks (Reflexion, ReasoningBank).** Reject.
-- **Routines / scheduled agents.** Already the `workflow` trigger.
-- **Multi-agent coordination patterns.** Map to builder/critic + bus + stores.
-- **Parallel-agent desktop UIs.** Client-surface — new clients use daemon API.
+- **Routines / scheduled agents.** Already `workflow` trigger.
+- **Multi-agent coordination patterns.** Map to builder/critic.
+- **Parallel-agent desktop UIs.** Client-surface.
 - **Managed Agents / brain-hands decoupling.** Reject.
 - **Claude Code auto mode + sandboxing.** Read.
 - **Harness design for long-running apps.** Read.
-- **Multi-Claude parallel builds.** Reject — one-task-WIP.
-- **Claude Code 1M context + session management.** Reject — reset-over-compact.
+- **Multi-Claude parallel builds.** Reject.
+- **Claude Code 1M context + session management.** Reject.
 - **Production MCP agent integration.** Read.
 - **AGI capability scoring / behavioral-disposition alignment.** Reject.
-- **Microsoft Agent Framework (AutoGen successor).** Reject — graph-DSL.
+- **Microsoft Agent Framework (AutoGen successor).** Reject.
 - **Harness-as-shell (inference.sh).** Read.
 
 ## Prompt Hierarchy And Harness Posture

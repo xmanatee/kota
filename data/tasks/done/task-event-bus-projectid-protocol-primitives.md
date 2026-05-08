@@ -1,12 +1,12 @@
 ---
 id: task-event-bus-projectid-protocol-primitives
 title: Add event-bus projectId protocol primitives
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Establish the typed event-bus project scope primitive and a focused two-project isolation test before sweeping every emitter.
 created_at: 2026-05-08T16:30:00.000Z
-updated_at: 2026-05-08T16:30:00.000Z
+updated_at: 2026-05-08T16:42:08.107Z
 ---
 
 ## Problem
