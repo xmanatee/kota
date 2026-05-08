@@ -1,12 +1,12 @@
 ---
 id: task-add-cross-preset-runtime-parity-gate
 title: Add cross-preset runtime parity gate
-status: backlog
+status: ready
 priority: p2
 area: architecture
 summary: Add a single test target that boots the daemon under each shipped preset and runs an operator-shaped scenario (boot, single-turn, tool-use, capture, workflow agent step, autonomy turn) so cross-preset parity is verifiable, not nominal.
 created_at: 2026-05-07T23:36:27.797Z
-updated_at: 2026-05-07T23:36:27.797Z
+updated_at: 2026-05-08T01:08:00.514Z
 ---
 
 ## Problem
