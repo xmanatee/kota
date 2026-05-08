@@ -52,11 +52,14 @@ escalation needs later overlap also failing. Each artifact records
 the critic prompt hash; aggregation counts only matching-hash runs,
 so prompt edits reset the window. Drift commits one path: create/
 recreate/promote `task-evaluator-calibration-drift-repair` in
-`ready/`; regression bridges to attention digest. Critic blocks weak
-rendered evidence (preflight-only), placeholder tests, untracked
-compat shims, baseline ratchets (hedged "if inadvertent"), required-
-source dishonesty, untracked Done-When non-fulfillment, and runtime
-defects masked by missing test coverage.
+`ready/`; regression bridges to attention digest. Recreate noops when
+the prior repair commit is newer than the latest calibration artifact:
+the daemon hasn't loaded the post-fix dist, so let fresh evidence
+accrue before re-opening. Critic blocks weak rendered evidence
+(preflight-only), placeholder tests, untracked compat shims, baseline
+ratchets (hedged "if inadvertent"), required-source dishonesty,
+untracked Done-When non-fulfillment, and runtime defects masked by
+missing test coverage.
 
 ## External Pattern Decisions
 
@@ -98,8 +101,8 @@ test enforces 1:1 match.
   files enforce this; no clarification loops or fixed reasoning caps.
 - **Tool-design hygiene.** High bar for new tools; prefer discoverable
   surfaces (read, grep, scoped `AGENTS.md`, prompt state).
-- **`ask_owner` from autonomous workflows uses `askOwnerSteps`**
-  (`#core/workflow/ask-owner-step.js`): ask → await-event → consume,
+- **`ask_owner` in autonomous workflows uses `askOwnerSteps`**
+  (`#core/workflow/ask-owner-step.js`): ask → await → consume,
   daemon-restart-safe. Gate on real prior-step output, 10 min budget,
   consume every `AwaitedOwnerOutcome` kind. Do not import
   `#core/tools/ask-owner.js` from an autonomy workflow.
@@ -107,25 +110,22 @@ test enforces 1:1 match.
 ## Scoped Contracts
 
 - `src/modules/injection-defense/AGENTS.md` — content-ingest screening.
-- `src/modules/autonomy/workflows/builder/AGENTS.md` — critic runtime-probe
-  protocol for non-artifact outcomes.
+- `workflows/builder/AGENTS.md` — critic runtime-probe protocol.
 
 ## Operator Reports
 
-`kota report` prints the operator balance/quality report. The
-strategic/fan-out heuristic in `task-classification.classifyTaskShape`
-inspects area + title + summary so surface-parity work filed under
-`architecture`/`modules` classifies as fan-out. Per
-no-cost-bias-in-autonomy, this output is operator-only and must not
-reach autonomy agents.
+`kota report` prints the operator balance/quality report.
+`task-classification.classifyTaskShape` inspects area + title + summary
+so surface-parity work under `architecture`/`modules` classifies as
+fan-out. Per no-cost-bias-in-autonomy, this output is operator-only and
+must not reach autonomy agents.
 
 ## Multi-Client Fan-Out Consolidation
 
-`fan-out-consolidator` seeds one `area: client` consolidation review
-task per completed multi-client fan-out batch (idempotent by capability
-key, ≤1 primary surface per closed task). The `area: client` tag
-forces the rendered-evidence gate to reject prose-only test logs.
-Detection + body live in `fan-out-consolidation.ts`.
+`fan-out-consolidator` seeds one `area: client` review task per closed
+multi-client fan-out batch (idempotent by capability key, ≤1 primary
+surface per closed task). `area: client` forces rendered-evidence
+gating. Detection + body in `fan-out-consolidation.ts`.
 
 ## Empty-Queue Loop Shape
 
@@ -142,7 +142,7 @@ builder thrash:
   decompose | create-task | noop | watchlist-only). `create-task`
   must consider every strategic-area blocked task by id.
 - **Cooldowns over caps.** Explorer 30-minute refresh; builder paced
-  by repair checks and task availability. No daily spend caps.
+  by repair checks and task availability.
 - **Honesty over speculation.** Inaccessible sources block
   (`done-task-inaccessible-source`); no synthesis from unread content.
 
@@ -151,6 +151,6 @@ builder thrash:
 The shared agent-step retry classifier (see
 `src/core/workflow/steps/AGENTS.md`) governs autonomy judges. Judge-
 backed repair checks (critic, improver semantic gate) catch runaway
-turn/token throws and return a warning — editing code cannot shrink
-a judge's budget — while the primitive still throws. Unclassified SDK
-failures reject the check.
+turn/token throws and warn — editing code cannot shrink a judge's
+budget — while the primitive still throws. Unclassified SDK failures
+reject the check.

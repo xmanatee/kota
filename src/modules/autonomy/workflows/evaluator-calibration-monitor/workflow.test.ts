@@ -319,7 +319,7 @@ describe("evaluator-calibration-monitor workflow", () => {
     expect(readFileSync(existingPath, "utf-8")).toBe(existingBody);
   });
 
-  it("recreates the repair task when a previous one is in done/", async () => {
+  it("recreates the repair task when a previous one is in done/ and post-fix calibration evidence has accrued", async () => {
     const doneDir = join(projectDir, "data", "tasks", "done");
     const donePath = join(doneDir, `${CALIBRATION_REPAIR_TASK_ID}.md`);
     writeFileSync(
@@ -352,6 +352,13 @@ describe("evaluator-calibration-monitor workflow", () => {
       verdict: "fail",
       sourceFilesChanged: ["src/core/a.ts"],
     });
+    // The recreate-loop guard requires at least one calibration artifact whose
+    // completedAt is later than the done-state task's last commit. Simulate a
+    // post-fix builder run accruing here.
+    seedCalibration(runsDir, "run-post-fix", new Date(now.getTime() + 60_000).toISOString(), {
+      verdict: "pass",
+      sourceFilesChanged: ["src/core/unrelated.ts"],
+    });
 
     const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
       projectDir,
@@ -370,6 +377,63 @@ describe("evaluator-calibration-monitor workflow", () => {
         join(projectDir, "data", "tasks", "ready", `${CALIBRATION_REPAIR_TASK_ID}.md`),
       ),
     ).toBe(true);
+  });
+
+  it("noops the recreate when the previous repair task was just closed and no post-fix calibration artifact exists", async () => {
+    const now = new Date();
+    const hour = 60 * 60 * 1000;
+    // Seed pre-fix calibration evidence first so the gate fires.
+    seedCalibration(runsDir, "run-older", new Date(now.getTime() - 5 * hour).toISOString(), {
+      verdict: "pass",
+      sourceFilesChanged: ["src/core/a.ts"],
+    });
+    seedCalibration(runsDir, "run-newer", new Date(now.getTime() - 1 * hour).toISOString(), {
+      verdict: "fail",
+      sourceFilesChanged: ["src/core/a.ts"],
+    });
+
+    // Then close the previous repair task to done/. Its commit is later than
+    // every artifact above — no post-fix builder run has written calibration
+    // evidence yet.
+    const doneDir = join(projectDir, "data", "tasks", "done");
+    const donePath = join(doneDir, `${CALIBRATION_REPAIR_TASK_ID}.md`);
+    writeFileSync(
+      donePath,
+      [
+        "---",
+        `id: ${CALIBRATION_REPAIR_TASK_ID}`,
+        "title: Old repair",
+        "status: done",
+        "priority: p1",
+        "area: autonomy",
+        "summary: previous closure",
+        "created_at: 2026-04-01T00:00:00.000Z",
+        "updated_at: 2026-04-01T00:00:00.000Z",
+        "---",
+        "",
+        "old body",
+        "",
+      ].join("\n"),
+    );
+    commitInitial(projectDir);
+
+    const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
+      projectDir,
+      trigger: buildTrigger,
+    });
+    const result = await harness.run();
+    expect(result.status).toBe("success");
+    const regression = result.emitted.filter(
+      (e) => e.event === "evaluator-calibration.regression.detected",
+    );
+    expect(regression).toHaveLength(1);
+    expect(regression[0].payload.repairAction).toBe("noop");
+    expect(existsSync(donePath)).toBe(true);
+    expect(
+      existsSync(
+        join(projectDir, "data", "tasks", "ready", `${CALIBRATION_REPAIR_TASK_ID}.md`),
+      ),
+    ).toBe(false);
   });
 
   it("escalates pass-with-warnings drift on overlapping files into the same corrective path", async () => {

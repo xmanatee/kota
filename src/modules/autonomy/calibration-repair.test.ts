@@ -9,7 +9,10 @@ import {
   type CalibrationRepairContext,
   proposeCalibrationRepair,
 } from "./calibration-repair.js";
-import type { EvaluatorCalibrationAggregate } from "./evaluator-calibration.js";
+import {
+  EVALUATOR_CALIBRATION_ARTIFACT,
+  type EvaluatorCalibrationAggregate,
+} from "./evaluator-calibration.js";
 
 function makeAggregate(): EvaluatorCalibrationAggregate {
   return {
@@ -50,6 +53,34 @@ function makeProjectDir(): string {
     cwd: dir,
   });
   return dir;
+}
+
+function seedCalibrationArtifact(
+  projectDir: string,
+  runId: string,
+  completedAtIso: string,
+): void {
+  const runDir = join(projectDir, ".kota", "runs", runId);
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(
+    join(runDir, EVALUATOR_CALIBRATION_ARTIFACT),
+    JSON.stringify({
+      runId,
+      workflow: "builder",
+      completedAt: completedAtIso,
+      verdict: "pass",
+      warningCount: 0,
+      criticalIssueCount: 0,
+      repairIterations: 1,
+      finalIterationFailures: [],
+      criticFailureCount: 0,
+      terminalRunStatus: "success",
+      taskId: null,
+      taskFinalState: null,
+      sourceFilesChanged: [],
+      criticPromptHash: "deadbeefcafe",
+    }),
+  );
 }
 
 function seedTask(projectDir: string, state: string): string {
@@ -126,20 +157,49 @@ describe("proposeCalibrationRepair", () => {
     expect(proposal.target).toBe("ready");
   });
 
-  it("proposes recreate when a previous repair task closed in done/", () => {
+  it("proposes recreate when a previous repair task closed in done/ and post-fix calibration evidence has accrued", () => {
     seedTask(projectDir, "done");
+    seedCalibrationArtifact(
+      projectDir,
+      "post-fix-builder-run",
+      new Date(Date.now() + 60_000).toISOString(),
+    );
     const proposal = proposeCalibrationRepair(makeContext(projectDir));
     expect(proposal.action).toBe("recreate");
     if (proposal.action !== "recreate") return;
     expect(proposal.previousState).toBe("done");
   });
 
-  it("proposes recreate when a previous repair task closed in dropped/", () => {
+  it("proposes recreate when a previous repair task closed in dropped/ and post-fix calibration evidence has accrued", () => {
     seedTask(projectDir, "dropped");
+    seedCalibrationArtifact(
+      projectDir,
+      "post-fix-builder-run",
+      new Date(Date.now() + 60_000).toISOString(),
+    );
     const proposal = proposeCalibrationRepair(makeContext(projectDir));
     expect(proposal.action).toBe("recreate");
     if (proposal.action !== "recreate") return;
     expect(proposal.previousState).toBe("dropped");
+  });
+
+  it("proposes noop when the previous repair task was just closed and no post-fix calibration artifact has been written yet", () => {
+    seedCalibrationArtifact(projectDir, "pre-fix-run", "2026-04-18T00:00:00.000Z");
+    seedTask(projectDir, "done");
+    const proposal = proposeCalibrationRepair(makeContext(projectDir));
+    expect(proposal.action).toBe("noop");
+    if (proposal.action !== "noop") return;
+    expect(proposal.existingState).toBe("done");
+    expect(proposal.reason).toContain("more recent than the latest calibration artifact");
+    expect(proposal.reason).toContain("pre-fix data");
+  });
+
+  it("proposes recreate when no calibration artifacts exist yet (first-ever monitor run)", () => {
+    seedTask(projectDir, "done");
+    const proposal = proposeCalibrationRepair(makeContext(projectDir));
+    expect(proposal.action).toBe("recreate");
+    if (proposal.action !== "recreate") return;
+    expect(proposal.previousState).toBe("done");
   });
 });
 
@@ -176,8 +236,13 @@ describe("applyCalibrationRepair", () => {
     expect(content).toContain("Pass-with-warnings follow-up rate");
   });
 
-  it("recreates the task in ready/ when the previous one is in done/", () => {
+  it("recreates the task in ready/ when the previous one is in done/ and post-fix evidence has accrued", () => {
     const seededPath = seedTask(projectDir, "done");
+    seedCalibrationArtifact(
+      projectDir,
+      "post-fix-builder-run",
+      new Date(Date.now() + 60_000).toISOString(),
+    );
     const ctx = makeContext(projectDir);
     const proposal = proposeCalibrationRepair(ctx);
     const applied = applyCalibrationRepair(proposal, ctx);

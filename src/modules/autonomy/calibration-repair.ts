@@ -23,9 +23,10 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
+import { readOptionalJsonFile } from "#core/util/json-file.js";
 import {
   getRepoTaskStateDir,
   getRepoTasksDir,
@@ -34,9 +35,11 @@ import {
   REPO_TASK_STATES,
   type RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
-import type {
-  CalibrationDriftKind,
-  EvaluatorCalibrationAggregate,
+import {
+  type CalibrationDriftKind,
+  EVALUATOR_CALIBRATION_ARTIFACT,
+  type EvaluatorCalibrationAggregate,
+  type EvaluatorCalibrationArtifact,
 } from "./evaluator-calibration.js";
 
 export const CALIBRATION_REPAIR_TASK_ID = "task-evaluator-calibration-drift-repair";
@@ -94,6 +97,55 @@ function findExistingRepairTaskState(projectDir: string): RepoTaskState | null {
 }
 
 /**
+ * Most recent calibration artifact's `completedAt` across the entire runs
+ * directory, in epoch ms. Returns null when no artifact has been written or
+ * when none parses cleanly. Walks the directory in reverse-sorted order so the
+ * first artifact found is the newest; the directory naming convention prefixes
+ * timestamps so lexical sort matches chronological sort. The full set is
+ * relevant rather than just the gate's window because the staleness check
+ * compares against task-file commits which are not window-scoped.
+ */
+function lastCalibrationArtifactCompletedAtMs(projectDir: string): number | null {
+  const runsDir = join(projectDir, ".kota", "runs");
+  if (!existsSync(runsDir)) return null;
+  const entries = readdirSync(runsDir).sort().reverse();
+  for (const entry of entries) {
+    const path = join(runsDir, entry, EVALUATOR_CALIBRATION_ARTIFACT);
+    let parsed: EvaluatorCalibrationArtifact | null;
+    try {
+      parsed = readOptionalJsonFile<EvaluatorCalibrationArtifact>(path);
+    } catch {
+      continue;
+    }
+    if (!parsed) continue;
+    if (typeof parsed.completedAt !== "string") continue;
+    const ms = Date.parse(parsed.completedAt);
+    if (Number.isFinite(ms)) return ms;
+  }
+  return null;
+}
+
+/**
+ * Last commit timestamp (committer date) for a path in the repo, in epoch ms.
+ * Returns null when the file has no git history yet (e.g. the test sandbox
+ * staged it but has not committed it).
+ */
+function lastCommitMsForPath(projectDir: string, absolutePath: string): number | null {
+  let raw: string;
+  try {
+    raw = execFileSync("git", ["log", "-1", "--format=%cI", "--", absolutePath], {
+      cwd: projectDir,
+      encoding: "utf-8",
+    }).trim();
+  } catch {
+    return null;
+  }
+  if (!raw) return null;
+  const ms = Date.parse(raw);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/**
  * Decide what to do about the calibration repair task. Pure: reads disk to
  * find the current state, but does not mutate.
  */
@@ -116,6 +168,33 @@ export function proposeCalibrationRepair(
     };
   }
   if (existing && RECREATE_STATES.has(existing)) {
+    // Defend against the recreate-loop that fires once per prompt update: a
+    // builder closes the previous repair task to done/ when the fix lands; the
+    // monitor that runs on `workflow.build.committed` from the same commit may
+    // still hold the pre-fix module imports because the daemon restart has not
+    // completed yet. Under those stale imports the gate aggregation skips the
+    // post-ea9bda71 hash filter and re-fires on pre-fix verdicts. When the
+    // done-task's most recent commit is later than the most recent calibration
+    // artifact on disk, no post-fix builder run has written calibration data
+    // yet, so the gate is firing on data that pre-dates the fix. Return noop
+    // and wait for fresh evidence.
+    const previousTaskPath = join(
+      getRepoTaskStateDir(ctx.projectDir, existing),
+      `${CALIBRATION_REPAIR_TASK_ID}.md`,
+    );
+    const closedAtMs = lastCommitMsForPath(ctx.projectDir, previousTaskPath);
+    const lastArtifactMs = lastCalibrationArtifactCompletedAtMs(ctx.projectDir);
+    if (closedAtMs !== null && lastArtifactMs !== null && closedAtMs > lastArtifactMs) {
+      return {
+        action: "noop",
+        reason:
+          `${CALIBRATION_REPAIR_TASK_ID} closed at ${new Date(closedAtMs).toISOString()} ` +
+          `is more recent than the latest calibration artifact at ${new Date(lastArtifactMs).toISOString()}; ` +
+          `gate is firing on pre-fix data and no post-fix builder run has written calibration evidence yet — ` +
+          `let fresh artifacts accrue under the running critic prompt before re-opening the repair task.`,
+        existingState: existing,
+      };
+    }
     return {
       action: "recreate",
       taskId: CALIBRATION_REPAIR_TASK_ID,
