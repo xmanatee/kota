@@ -65,16 +65,28 @@ export class DaemonClient {
     return core.getHealth(this.http);
   }
 
-  getStatus(): Promise<DaemonStatus> {
-    return core.getStatus(this.http);
+  getIdentity(): Promise<core.ClientIdentity> {
+    return core.getIdentity(this.http);
   }
 
-  getRuns(workflow?: string, limit = 20): Promise<{ runs: RunSummary[] }> {
-    return core.getRuns(this.http, workflow, limit);
+  getProjects(): Promise<import('./daemon/conformance/decoders').ProjectRegistryProjection> {
+    return core.getProjects(this.http);
   }
 
-  getRunDetail(id: string): Promise<RunDetail> {
-    return core.getRunDetail(this.http, id);
+  getStatus(projectId?: string): Promise<DaemonStatus> {
+    return core.getStatus(this.http, projectId);
+  }
+
+  getRuns(
+    workflow?: string,
+    limit = 20,
+    projectId?: string,
+  ): Promise<{ runs: RunSummary[] }> {
+    return core.getRuns(this.http, workflow, limit, projectId);
+  }
+
+  getRunDetail(id: string, projectId?: string): Promise<RunDetail> {
+    return core.getRunDetail(this.http, id, projectId);
   }
 
   getApprovals(): Promise<{ approvals: Approval[] }> {
@@ -168,33 +180,35 @@ export class DaemonClient {
     return push.registerPushToken(this.http, deviceId, token);
   }
 
-  pauseDispatch(): Promise<{ ok: boolean; paused: boolean }> {
-    return core.pauseDispatch(this.http);
+  pauseDispatch(projectId?: string): Promise<{ ok: boolean; paused: boolean }> {
+    return core.pauseDispatch(this.http, projectId);
   }
 
-  resumeDispatch(): Promise<{ ok: boolean; paused: boolean }> {
-    return core.resumeDispatch(this.http);
+  resumeDispatch(projectId?: string): Promise<{ ok: boolean; paused: boolean }> {
+    return core.resumeDispatch(this.http, projectId);
   }
 
-  getSessions(): Promise<{ sessions: InteractiveSession[] }> {
-    return sessions.getSessions(this.http);
+  getSessions(projectId?: string): Promise<{ sessions: InteractiveSession[] }> {
+    return sessions.getSessions(this.http, projectId);
   }
 
   createSession(
     autonomyMode?: AutonomyMode,
+    projectId?: string,
   ): Promise<{ session_id: string; autonomy_mode?: AutonomyMode }> {
-    return sessions.createSession(this.http, autonomyMode);
+    return sessions.createSession(this.http, autonomyMode, projectId);
   }
 
   setSessionAutonomyMode(
     id: string,
     mode: AutonomyMode,
+    projectId?: string,
   ): Promise<SetAutonomyModeResponse> {
-    return sessions.setSessionAutonomyMode(this.http, id, mode);
+    return sessions.setSessionAutonomyMode(this.http, id, mode, projectId);
   }
 
-  deleteSession(id: string): Promise<void> {
-    return sessions.deleteSession(this.http, id);
+  deleteSession(id: string, projectId?: string): Promise<void> {
+    return sessions.deleteSession(this.http, id, projectId);
   }
 
   voiceTranscribe(input: {

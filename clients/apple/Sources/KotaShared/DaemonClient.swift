@@ -126,6 +126,21 @@ public final class DaemonClient {
     private(set) var connection: DaemonConnection?
     let decoder = JSONDecoder()
 
+    /// Append `projectId=<id>` to a path. Used by every project-scoped
+    /// daemon route — the daemon's `resolveProjectIdParam` reads this
+    /// query parameter and rejects unknown ids with a typed
+    /// `UnknownProjectError` body. Pass `nil` (or omit) to call the
+    /// route without scoping; the daemon resolves the registry's default.
+    static func withProject(_ path: String, projectId: String?) -> String {
+        guard let id = projectId, !id.isEmpty,
+              let encoded = id.addingPercentEncoding(
+                withAllowedCharacters: .urlQueryAllowed
+              )
+        else { return path }
+        let separator = path.contains("?") ? "&" : "?"
+        return "\(path)\(separator)projectId=\(encoded)"
+    }
+
     func refreshConnection(projectDir: URL) -> Bool {
         let controlPath = projectDir
             .appendingPathComponent(".kota")
@@ -146,8 +161,8 @@ public final class DaemonClient {
         connection = DaemonConnection(baseURL: url, token: token)
     }
 
-    func fetchStatus() async throws -> DaemonStatusResponse {
-        try await get("/status")
+    func fetchStatus(projectId: String? = nil) async throws -> DaemonStatusResponse {
+        try await get(Self.withProject("/status", projectId: projectId))
     }
 
     /// `GET /identity` — typed thin-client identity payload. Returns the
@@ -156,6 +171,14 @@ public final class DaemonClient {
     /// `ClientIdentity` contract one-to-one.
     func fetchIdentity() async throws -> ClientIdentity {
         try await get("/identity")
+    }
+
+    /// `GET /projects` — typed cross-project registry projection.
+    /// Identical to `identity.projects`; exposed as its own route so
+    /// clients that only need the registry shape don't have to fetch
+    /// the full identity payload.
+    func fetchProjects() async throws -> ProjectRegistryProjection {
+        try await get("/projects")
     }
 
     /// `GET /capabilities` — typed capability readiness payload. Each
@@ -169,25 +192,25 @@ public final class DaemonClient {
     /// `GET /workflow/definitions` — typed workflow definition catalog.
     /// Drives the workflow picker so the UI never asks the operator to
     /// type a free-text workflow name.
-    func fetchWorkflowDefinitions() async throws -> WorkflowDefinitionsResponse {
-        try await get("/workflow/definitions")
+    func fetchWorkflowDefinitions(projectId: String? = nil) async throws -> WorkflowDefinitionsResponse {
+        try await get(Self.withProject("/workflow/definitions", projectId: projectId))
     }
 
-    func fetchRecentRuns(limit: Int = 10) async throws -> RunHistoryResponse {
-        try await get("/workflow/runs?limit=\(limit)")
+    func fetchRecentRuns(limit: Int = 10, projectId: String? = nil) async throws -> RunHistoryResponse {
+        try await get(Self.withProject("/workflow/runs?limit=\(limit)", projectId: projectId))
     }
 
-    func fetchRunDetail(runId: String) async throws -> RunDetail {
-        try await get("/workflow/runs/\(runId)")
+    func fetchRunDetail(runId: String, projectId: String? = nil) async throws -> RunDetail {
+        try await get(Self.withProject("/workflow/runs/\(runId)", projectId: projectId))
     }
 
     /// `POST /workflow/trigger` — enqueue a manual workflow run. The
     /// daemon expects `{ name, payload? }`; the macOS surface forwards
     /// the picker's selected definition name and the operator-supplied
     /// JSON payload (validated up-front in `TriggerRequest.wireBody`).
-    func triggerWorkflow(name: String, payload: Data? = nil) async throws -> TriggerResponse {
+    func triggerWorkflow(name: String, payload: Data? = nil, projectId: String? = nil) async throws -> TriggerResponse {
         let body = try TriggerRequest(name: name, payload: payload).wireBody()
-        return try await post("/workflow/trigger", body: body)
+        return try await post(Self.withProject("/workflow/trigger", projectId: projectId), body: body)
     }
 
     func fetchSlashCommands() async throws -> SlashCommandsResponse {

@@ -264,6 +264,104 @@ final class AppStateTests: XCTestCase {
         XCTAssertFalse(state.isLoadingAnswerShow)
     }
 
+    // MARK: - Active project selection
+
+    func testReconcileActiveProjectIdSeedsDefaultThenPreservesValidSelection() {
+        let state = makeState(notifications: RecordingNotifications())
+        let projection = ProjectRegistryProjection(
+            defaultProjectId: "p-default",
+            projects: [
+                ConfiguredProjectEntry(projectId: "p-default", projectDir: "/tmp/kota", displayName: "kota"),
+                ConfiguredProjectEntry(projectId: "p-other", projectDir: "/tmp/other", displayName: "other"),
+            ]
+        )
+        XCTAssertNil(state.activeProjectId)
+        state.reconcileActiveProjectId(with: projection)
+        XCTAssertEqual(state.activeProjectId, "p-default")
+
+        // A subsequent reconcile with the same registry preserves the
+        // current selection — the operator has not changed projects.
+        state.reconcileActiveProjectId(with: projection)
+        XCTAssertEqual(state.activeProjectId, "p-default")
+    }
+
+    func testReconcileActiveProjectIdResetsWhenSelectionDropsOutOfRegistry() {
+        let state = makeState(notifications: RecordingNotifications())
+        state.identity = ClientIdentity(
+            projectName: "kota",
+            projectDir: "/tmp/kota",
+            projects: ProjectRegistryProjection(
+                defaultProjectId: "p-default",
+                projects: [
+                    ConfiguredProjectEntry(projectId: "p-default", projectDir: "/tmp/kota", displayName: "kota"),
+                    ConfiguredProjectEntry(projectId: "p-other", projectDir: "/tmp/other", displayName: "other"),
+                ]
+            ),
+            daemonVersion: "0.1.0",
+            pid: 1,
+            startedAt: "t",
+            dashboard: .available(path: "/")
+        )
+        state.setActiveProjectId("p-other")
+        XCTAssertEqual(state.activeProjectId, "p-other")
+
+        // After a config reload the registry no longer carries `p-other`.
+        // The selection must collapse back to the registry's default
+        // rather than render daemon rows belonging to a now-unknown id.
+        let shrunken = ProjectRegistryProjection(
+            defaultProjectId: "p-default",
+            projects: [
+                ConfiguredProjectEntry(projectId: "p-default", projectDir: "/tmp/kota", displayName: "kota"),
+            ]
+        )
+        state.reconcileActiveProjectId(with: shrunken)
+        XCTAssertEqual(state.activeProjectId, "p-default")
+    }
+
+    func testSetActiveProjectIdClearsProjectScopedStateImmediately() {
+        let state = makeState(notifications: RecordingNotifications())
+        state.identity = ClientIdentity(
+            projectName: "kota",
+            projectDir: "/tmp/kota",
+            projects: ProjectRegistryProjection(
+                defaultProjectId: "p-default",
+                projects: [
+                    ConfiguredProjectEntry(projectId: "p-default", projectDir: "/tmp/kota", displayName: "kota"),
+                    ConfiguredProjectEntry(projectId: "p-other", projectDir: "/tmp/other", displayName: "other"),
+                ]
+            ),
+            daemonVersion: "0.1.0",
+            pid: 1,
+            startedAt: "t",
+            dashboard: .available(path: "/")
+        )
+        state.reconcileActiveProjectId(with: state.identity!.projects)
+        XCTAssertEqual(state.activeProjectId, "p-default")
+        state.activeRuns = [ActiveRun(runId: "r1", workflow: "builder", startedAt: "t")]
+        state.recentRuns = [RunSummary(id: "r0", workflow: "builder", status: "success", startedAt: "t", durationMs: 1)]
+
+        state.setActiveProjectId("p-other")
+        XCTAssertEqual(state.activeProjectId, "p-other")
+        XCTAssertTrue(state.activeRuns.isEmpty)
+        XCTAssertTrue(state.recentRuns.isEmpty)
+    }
+
+    // MARK: - Project-scoped URL builder
+
+    func testWithProjectAppendsQueryParam() {
+        XCTAssertEqual(DaemonClient.withProject("/status", projectId: "p-1"), "/status?projectId=p-1")
+        XCTAssertEqual(
+            DaemonClient.withProject("/workflow/runs?limit=10", projectId: "p-1"),
+            "/workflow/runs?limit=10&projectId=p-1"
+        )
+        XCTAssertEqual(DaemonClient.withProject("/status", projectId: nil), "/status")
+        XCTAssertEqual(DaemonClient.withProject("/status", projectId: ""), "/status")
+        XCTAssertEqual(
+            DaemonClient.withProject("/sessions", projectId: "p with spaces"),
+            "/sessions?projectId=p%20with%20spaces"
+        )
+    }
+
     // MARK: - Notification fan-out across attention surfaces
 
     func testCheckForNotificationsEmitsOnlyForNewlySeenAttention() {

@@ -1,3 +1,4 @@
+import type { ClientIdentity } from '../daemon/core';
 import type {
   AnswerHistoryEntry,
   AnswerHistoryRecord,
@@ -34,6 +35,15 @@ export interface DaemonState {
   settingsLoaded: boolean;
   online: boolean;
   sseConnected: boolean;
+  identity: ClientIdentity | null;
+  /**
+   * The currently active projectId. `null` until identity has resolved
+   * the registry's default. Switches the project-scoped daemon routes
+   * (`/status`, `/workflow/runs`, `/sessions`, …) without changing the
+   * single-project KOTA-on-itself experience — the picker hides itself
+   * when the registry has exactly one entry.
+   */
+  activeProjectId: string | null;
   status: DaemonStatus | null;
   runs: RunSummary[];
   approvals: Approval[];
@@ -102,6 +112,9 @@ export type DaemonAction =
   | { type: 'SET_PUSH_ENABLED'; enabled: boolean }
   | { type: 'ONLINE'; online: boolean }
   | { type: 'SSE_STATUS'; connected: boolean }
+  | { type: 'IDENTITY'; identity: ClientIdentity; activeProjectId: string }
+  | { type: 'IDENTITY_CLEARED' }
+  | { type: 'ACTIVE_PROJECT'; projectId: string }
   | { type: 'STATUS'; status: DaemonStatus }
   | { type: 'RUNS'; runs: RunSummary[] }
   | { type: 'APPROVALS'; approvals: Approval[] }
@@ -171,6 +184,8 @@ export const initialState: DaemonState = {
   settingsLoaded: false,
   online: false,
   sseConnected: false,
+  identity: null,
+  activeProjectId: null,
   status: null,
   runs: [],
   approvals: [],
@@ -295,6 +310,35 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
       };
     case 'SSE_STATUS':
       return { ...state, sseConnected: action.connected };
+    case 'IDENTITY':
+      return {
+        ...state,
+        identity: action.identity,
+        activeProjectId: action.activeProjectId,
+      };
+    case 'IDENTITY_CLEARED':
+      return {
+        ...state,
+        identity: null,
+        activeProjectId: null,
+      };
+    case 'ACTIVE_PROJECT':
+      if (state.activeProjectId === action.projectId) return state;
+      // Clear project-scoped runtime state on project switch so the next
+      // `fetchAll` repaints the new project's view without bleeding the
+      // previous project's rows. Mirrors the apple `setActiveProjectId`
+      // and the web `ProjectProvider` semantics.
+      return {
+        ...state,
+        activeProjectId: action.projectId,
+        status: null,
+        runs: [],
+        approvals: [],
+        ownerQuestions: [],
+        tasks: null,
+        pendingApprovalCount: 0,
+        pendingOwnerQuestionCount: 0,
+      };
     case 'STATUS':
       return { ...state, status: action.status };
     case 'RUNS':

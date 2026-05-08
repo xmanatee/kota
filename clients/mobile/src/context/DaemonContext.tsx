@@ -33,6 +33,7 @@ interface DaemonContextValue {
   client: DaemonClient | null;
   saveSettings: (url: string, token: string) => Promise<void>;
   setPushNotificationsEnabled: (enabled: boolean) => Promise<void>;
+  setActiveProjectId: (projectId: string) => void;
   refresh: () => void;
   refreshDigest: () => Promise<void>;
   refreshAttention: () => Promise<void>;
@@ -67,6 +68,7 @@ const DaemonContext = createContext<DaemonContextValue>({
   client: null,
   saveSettings: async () => {},
   setPushNotificationsEnabled: async () => {},
+  setActiveProjectId: () => {},
   refresh: () => {},
   refreshDigest: async () => {},
   refreshAttention: async () => {},
@@ -126,13 +128,39 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     pushRegisteredRef.current = false;
   }, [state.daemonUrl, state.token, state.settingsLoaded]);
 
+  // The reducer owns the active projectId; we mirror it through a ref so
+  // the polling loop reads the *latest* selection without re-running on
+  // every change. Both `fetchAll` and the SSE handler dispatch updates
+  // through this ref so a project switch immediately routes new fetches
+  // to the chosen project.
+  const activeProjectIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    activeProjectIdRef.current = state.activeProjectId;
+  }, [state.activeProjectId]);
+
   const fetchAll = useCallback(async () => {
     const client = clientRef.current;
     if (!client) return;
     try {
+      // Resolve identity first so the registry's default projectId seeds
+      // `activeProjectId` before the project-scoped fetches fan out.
+      const identity = await client.getIdentity();
+      const knownIds = new Set(identity.projects.projects.map((p) => p.projectId));
+      const previous = activeProjectIdRef.current;
+      const nextProjectId =
+        previous && knownIds.has(previous)
+          ? previous
+          : identity.projects.defaultProjectId;
+      dispatch({
+        type: 'IDENTITY',
+        identity,
+        activeProjectId: nextProjectId,
+      });
+      activeProjectIdRef.current = nextProjectId;
+
       const [statusRes, runsRes, approvalsRes, tasksRes, ownerQuestionsRes] = await Promise.all([
-        client.getStatus(),
-        client.getRuns(undefined, 30),
+        client.getStatus(nextProjectId),
+        client.getRuns(undefined, 30, nextProjectId),
         client.getApprovals(),
         client.getTasks(),
         client.getOwnerQuestions(),
@@ -204,13 +232,18 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
   const handleSseEvent = useCallback((event: SseEvent) => {
     const client = clientRef.current;
     if (!client) return;
+    const projectId = activeProjectIdRef.current ?? undefined;
 
     switch (event.type) {
       case 'workflow.started':
       case 'workflow.completed':
       case 'queue.changed':
-        void client.getStatus().then((s) => dispatch({ type: 'STATUS', status: s }));
-        void client.getRuns(undefined, 30).then((r) => dispatch({ type: 'RUNS', runs: r.runs }));
+        void client
+          .getStatus(projectId)
+          .then((s) => dispatch({ type: 'STATUS', status: s }));
+        void client
+          .getRuns(undefined, 30, projectId)
+          .then((r) => dispatch({ type: 'RUNS', runs: r.runs }));
         break;
       case 'approval.changed': {
         const count = event.payload.pendingCount;
@@ -254,6 +287,12 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_URL', url });
     dispatch({ type: 'SET_TOKEN', token });
   }, []);
+
+  const setActiveProjectId = useCallback((projectId: string) => {
+    activeProjectIdRef.current = projectId;
+    dispatch({ type: 'ACTIVE_PROJECT', projectId });
+    void fetchAll();
+  }, [fetchAll]);
 
   const setPushNotificationsEnabled = useCallback(async (enabled: boolean) => {
     await SecureStore.setItemAsync(PUSH_ENABLED_KEY, enabled ? 'true' : 'false');
@@ -540,6 +579,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
         client: clientRef.current,
         saveSettings,
         setPushNotificationsEnabled,
+        setActiveProjectId,
         refresh,
         refreshDigest,
         refreshAttention,

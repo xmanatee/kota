@@ -136,6 +136,15 @@ public final class AppState: ObservableObject {
     @Published var capabilities: CapabilityReadinessResponse?
     @Published var workflowDefinitions: [WorkflowDefinitionSummary] = []
 
+    /// Active project id used to scope every project-scoped daemon route
+    /// (`/status`, `/workflow/runs`, `/workflow/trigger`, `/sessions`,
+    /// …). `nil` until the first identity refresh resolves the registry's
+    /// default. Reseeds to `identity.projects.defaultProjectId` if the
+    /// current selection is no longer in the registry, matching the web
+    /// `ProjectProvider` behavior. Operator-driven switches go through
+    /// `setActiveProjectId(_:)`.
+    @Published public private(set) var activeProjectId: String?
+
     /// Operator-facing classification of the current connection. Replaces
     /// the historical "Daemon offline" collapse with a discriminated state
     /// that names which project, base URL, pid, and failure mode the menu
@@ -340,8 +349,31 @@ public final class AppState: ObservableObject {
         identity = nil
         capabilities = nil
         workflowDefinitions = []
+        activeProjectId = nil
         lastIdentityProbe = nil
         clearOnDemandForOffline()
+    }
+
+    /// Switch the active project. Throws if `projectId` is not in the
+    /// current registry — the caller (project selector view) should
+    /// only ever pass a known id, so an unknown id is a programming
+    /// error, not a runtime fallback. Switching clears project-scoped
+    /// runtime state immediately so a stale row can never paint the
+    /// new project's view, then triggers an immediate refresh.
+    public func setActiveProjectId(_ projectId: String) {
+        guard let identity, identity.projects.projects.contains(where: { $0.projectId == projectId }) else {
+            assertionFailure("setActiveProjectId(\(projectId)): not in identity.projects")
+            return
+        }
+        guard projectId != activeProjectId else { return }
+        activeProjectId = projectId
+        activeRuns = []
+        pendingApprovals = []
+        pendingOwnerQuestions = []
+        taskQueue = nil
+        activeSessions = []
+        recentRuns = []
+        Task { await refresh() }
     }
 
     /// Drops any cached on-demand body (digest, attention) when the daemon
@@ -758,8 +790,30 @@ public final class AppState: ObservableObject {
     }
 
     private func fetchAll() async {
+        // Resolve identity + capabilities + projects first so the active
+        // project id is up to date before the project-scoped fetches
+        // fan out. Without this, the very first poll after launch would
+        // send `?projectId=` empty (default project) while the operator
+        // had previously selected a non-default one.
+        let identityResult: Result<ClientIdentity, Error>
+        do { identityResult = .success(try await client.fetchIdentity()) }
+        catch { identityResult = .failure(error) }
+
+        switch identityResult {
+        case .success(let id):
+            identity = id
+            lastIdentityProbe = .ok(id)
+            reconcileActiveProjectId(with: id.projects)
+        case .failure(let error):
+            identity = nil
+            lastIdentityProbe = classifyIdentityFailure(error)
+            activeProjectId = nil
+        }
+
+        let scopedId = activeProjectId
+
         async let statusResult: Result<DaemonStatusResponse, Error> = {
-            do { return .success(try await client.fetchStatus()) }
+            do { return .success(try await client.fetchStatus(projectId: scopedId)) }
             catch { return .failure(error) }
         }()
         async let approvalsResult: Result<ApprovalsResponse, Error> = {
@@ -775,15 +829,11 @@ public final class AppState: ObservableObject {
             catch { return .failure(error) }
         }()
         async let sessionsResult: Result<SessionsResponse, Error> = {
-            do { return .success(try await client.fetchSessions()) }
+            do { return .success(try await client.fetchSessions(projectId: scopedId)) }
             catch { return .failure(error) }
         }()
         async let recentRunsResult: Result<RunHistoryResponse, Error> = {
-            do { return .success(try await client.fetchRecentRuns()) }
-            catch { return .failure(error) }
-        }()
-        async let identityResult: Result<ClientIdentity, Error> = {
-            do { return .success(try await client.fetchIdentity()) }
+            do { return .success(try await client.fetchRecentRuns(projectId: scopedId)) }
             catch { return .failure(error) }
         }()
         async let capabilitiesResult: Result<CapabilityReadinessResponse, Error> = {
@@ -791,21 +841,12 @@ public final class AppState: ObservableObject {
             catch { return .failure(error) }
         }()
         async let definitionsResult: Result<WorkflowDefinitionsResponse, Error> = {
-            do { return .success(try await client.fetchWorkflowDefinitions()) }
+            do { return .success(try await client.fetchWorkflowDefinitions(projectId: scopedId)) }
             catch { return .failure(error) }
         }()
 
         let (sr, ar, oqr, tr, sesr, rrr) = await (statusResult, approvalsResult, ownerQuestionsResult, tasksResult, sessionsResult, recentRunsResult)
-        let (idr, capr, defsr) = await (identityResult, capabilitiesResult, definitionsResult)
-
-        switch idr {
-        case .success(let id):
-            identity = id
-            lastIdentityProbe = .ok(id)
-        case .failure(let error):
-            identity = nil
-            lastIdentityProbe = classifyIdentityFailure(error)
-        }
+        let (capr, defsr) = await (capabilitiesResult, definitionsResult)
         switch capr {
         case .success(let caps): capabilities = caps
         case .failure: capabilities = nil
@@ -939,22 +980,33 @@ public final class AppState: ObservableObject {
     }
 
     func triggerWorkflow(name: String, payload: Data? = nil) async throws {
-        _ = try await client.triggerWorkflow(name: name, payload: payload)
+        _ = try await client.triggerWorkflow(name: name, payload: payload, projectId: activeProjectId)
         await refresh()
     }
 
     func createSession(autonomyMode: AutonomyMode? = nil) async -> String? {
-        return try? await client.createSession(autonomyMode: autonomyMode)
+        return try? await client.createSession(autonomyMode: autonomyMode, projectId: activeProjectId)
     }
 
     func endSession(_ id: String) async {
-        try? await client.deleteSession(id: id)
+        try? await client.deleteSession(id: id, projectId: activeProjectId)
         await refresh()
     }
 
     func setSessionAutonomyMode(id: String, mode: AutonomyMode) async {
-        _ = try? await client.setSessionAutonomyMode(id: id, mode: mode)
+        _ = try? await client.setSessionAutonomyMode(id: id, mode: mode, projectId: activeProjectId)
         await refresh()
+    }
+
+    /// Reseed `activeProjectId` from the latest registry projection.
+    /// Reused by the polling loop and by tests that drive the registry
+    /// directly. Mirrors the web `ProjectProvider` behavior — preserves
+    /// an existing valid selection, falls back to `defaultProjectId`
+    /// when the prior selection is no longer in the registry.
+    func reconcileActiveProjectId(with projection: ProjectRegistryProjection) {
+        let knownIds = Set(projection.projects.map { $0.projectId })
+        if let current = activeProjectId, knownIds.contains(current) { return }
+        activeProjectId = projection.defaultProjectId
     }
 
     public func openDashboard() {

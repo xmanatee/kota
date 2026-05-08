@@ -161,6 +161,79 @@ describe('DaemonClient', () => {
     expect(lastCall()[0]).toBe(`${baseUrl}/workflow/resume`);
   });
 
+  test('project-scoped routes append ?projectId=<id> when provided', async () => {
+    fetchSpy.mockImplementation(async () =>
+      jsonResponse({ runs: [], sessions: [], running: true, pid: 1, startedAt: 't', completedRuns: 0, workflow: {} }),
+    );
+    const c = client();
+    await c.getStatus('p-other');
+    expect(lastCall()[0]).toBe(`${baseUrl}/status?projectId=p-other`);
+
+    await c.getRuns(undefined, 30, 'p-other');
+    expect(lastCall()[0]).toBe(
+      `${baseUrl}/workflow/runs?limit=30&projectId=p-other`,
+    );
+
+    await c.getSessions('p-other');
+    expect(lastCall()[0]).toBe(`${baseUrl}/sessions?projectId=p-other`);
+
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ session_id: 's' }));
+    await c.createSession(undefined, 'p-other');
+    expect(lastCall()[0]).toBe(`${baseUrl}/sessions?projectId=p-other`);
+
+    await c.getRunDetail('run-1', 'p-other');
+    expect(lastCall()[0]).toBe(
+      `${baseUrl}/workflow/runs/run-1?projectId=p-other`,
+    );
+  });
+
+  test('project-scoped routes omit ?projectId= when no id is supplied', async () => {
+    fetchSpy.mockImplementation(async () =>
+      jsonResponse({ running: true, pid: 1, startedAt: 't', completedRuns: 0, workflow: {} }),
+    );
+    await client().getStatus();
+    expect(lastCall()[0]).toBe(`${baseUrl}/status`);
+  });
+
+  test('getIdentity decodes the project registry projection through the conformance parser', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({
+        projectName: 'kota',
+        projectDir: '/tmp/kota',
+        daemonVersion: '0.1.0',
+        pid: 1,
+        startedAt: 't',
+        projects: {
+          defaultProjectId: 'p-default',
+          projects: [
+            { projectId: 'p-default', projectDir: '/tmp/kota', displayName: 'kota' },
+            { projectId: 'p-other', projectDir: '/tmp/other', displayName: 'other' },
+          ],
+        },
+      }),
+    );
+    const id = await client().getIdentity();
+    expect(id.projects.defaultProjectId).toBe('p-default');
+    expect(id.projects.projects.map((p) => p.projectId)).toEqual([
+      'p-default',
+      'p-other',
+    ]);
+  });
+
+  test('getIdentity rejects an empty projects array loudly', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({
+        projectName: 'kota',
+        projectDir: '/tmp/kota',
+        daemonVersion: '0.1.0',
+        pid: 1,
+        startedAt: 't',
+        projects: { defaultProjectId: 'p-x', projects: [] },
+      }),
+    );
+    await expect(client().getIdentity()).rejects.toThrow();
+  });
+
   test('getOwnerQuestions sends GET /owner-questions with bearer token', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({ questions: [] }));
     await client().getOwnerQuestions();

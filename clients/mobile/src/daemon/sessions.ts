@@ -1,6 +1,6 @@
 // Interactive session shapes (creation, autonomy mode, chat stream).
 
-import { daemonRequest, type DaemonHttp } from './http';
+import { daemonRequest, withProject, type DaemonHttp } from './http';
 
 export type AutonomyMode = 'passive' | 'supervised' | 'autonomous';
 
@@ -42,17 +42,22 @@ export interface ChatStreamEvent {
 
 export function getSessions(
   http: DaemonHttp,
+  projectId?: string,
 ): Promise<{ sessions: InteractiveSession[] }> {
-  return daemonRequest<{ sessions: InteractiveSession[] }>(http, '/sessions');
+  return daemonRequest<{ sessions: InteractiveSession[] }>(
+    http,
+    withProject('/sessions', projectId),
+  );
 }
 
 export function createSession(
   http: DaemonHttp,
   autonomyMode?: AutonomyMode,
+  projectId?: string,
 ): Promise<{ session_id: string; autonomy_mode?: AutonomyMode }> {
   return daemonRequest<{ session_id: string; autonomy_mode?: AutonomyMode }>(
     http,
-    '/sessions',
+    withProject('/sessions', projectId),
     {
       method: 'POST',
       body: JSON.stringify(autonomyMode ? { autonomy_mode: autonomyMode } : {}),
@@ -64,10 +69,11 @@ export function setSessionAutonomyMode(
   http: DaemonHttp,
   id: string,
   mode: AutonomyMode,
+  projectId?: string,
 ): Promise<SetAutonomyModeResponse> {
   return daemonRequest<SetAutonomyModeResponse>(
     http,
-    `/sessions/${encodeURIComponent(id)}`,
+    withProject(`/sessions/${encodeURIComponent(id)}`, projectId),
     {
       method: 'PATCH',
       body: JSON.stringify({ autonomy_mode: mode }),
@@ -80,8 +86,9 @@ export function setSessionAutonomyMode(
 export async function deleteSession(
   http: DaemonHttp,
   id: string,
+  projectId?: string,
 ): Promise<void> {
-  const url = `${http.baseUrl}/sessions/${encodeURIComponent(id)}`;
+  const url = `${http.baseUrl}${withProject(`/sessions/${encodeURIComponent(id)}`, projectId)}`;
   const res = await fetch(url, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${http.token}` },

@@ -15,6 +15,7 @@ public struct MenuBarView: View {
             VStack(alignment: .leading, spacing: 0) {
                 // MONITOR: status + active runs
                 StatusHeaderView()
+                ProjectSelectorView()
 
                 if !appState.activeRuns.isEmpty {
                     Divider()
@@ -173,7 +174,7 @@ struct ActiveRunRow: View {
         isLoading = true
         loadError = nil
         do {
-            detail = try await appState.client.fetchRunDetail(runId: run.runId)
+            detail = try await appState.client.fetchRunDetail(runId: run.runId, projectId: appState.activeProjectId)
         } catch {
             loadError = DaemonErrorPresenter.message(for: error)
         }
@@ -403,7 +404,7 @@ struct RecentRunRow: View {
         isLoading = true
         loadError = nil
         do {
-            detail = try await appState.client.fetchRunDetail(runId: run.id)
+            detail = try await appState.client.fetchRunDetail(runId: run.id, projectId: appState.activeProjectId)
         } catch {
             loadError = DaemonErrorPresenter.message(for: error)
         }

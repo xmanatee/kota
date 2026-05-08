@@ -8,6 +8,19 @@ export interface DaemonHttp {
   token: string;
 }
 
+/**
+ * Append `projectId=<id>` to a path. Used by every project-scoped daemon
+ * route — the daemon's `resolveProjectIdParam` reads this query parameter
+ * and rejects unknown ids with a typed `UnknownProjectError` body. Pass
+ * `undefined` (or omit) to call the route without scoping; the daemon
+ * resolves the registry's default.
+ */
+export function withProject(path: string, projectId: string | undefined): string {
+  if (!projectId) return path;
+  const sep = path.includes('?') ? '&' : '?';
+  return `${path}${sep}projectId=${encodeURIComponent(projectId)}`;
+}
+
 export async function daemonRequest<T>(
   http: DaemonHttp,
   path: string,

@@ -42,18 +42,20 @@ export function ChatListScreen({
   const [newSessionMode, setNewSessionMode] =
     useState<AutonomyMode>('supervised');
 
+  const projectId = state.activeProjectId ?? undefined;
+
   const fetchSessions = useCallback(async () => {
     if (!client) return;
     setLoading(true);
     try {
-      const res = await client.getSessions();
+      const res = await client.getSessions(projectId);
       setSessions(res.sessions.filter((s) => s.source === 'daemon'));
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Failed to load sessions.');
     } finally {
       setLoading(false);
     }
-  }, [client]);
+  }, [client, projectId]);
 
   useEffect(() => {
     if (state.online) void fetchSessions();
@@ -63,7 +65,7 @@ export function ChatListScreen({
     if (!client || creating) return;
     setCreating(true);
     try {
-      const res = await client.createSession(newSessionMode);
+      const res = await client.createSession(newSessionMode, projectId);
       await fetchSessions();
       onSessionPress(res.session_id);
     } catch (e) {

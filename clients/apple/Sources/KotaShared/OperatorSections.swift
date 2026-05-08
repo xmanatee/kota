@@ -248,7 +248,7 @@ private struct AttentionFailedRunRow: View {
         isLoading = true
         loadError = nil
         do {
-            detail = try await appState.client.fetchRunDetail(runId: run.id)
+            detail = try await appState.client.fetchRunDetail(runId: run.id, projectId: appState.activeProjectId)
         } catch {
             loadError = DaemonErrorPresenter.message(for: error)
         }

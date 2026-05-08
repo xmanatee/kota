@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { ProjectSelector } from '../components/ProjectSelector';
 import { useDaemon } from '../context/DaemonContext';
 import type { ActiveRun } from '../types';
 
@@ -122,6 +123,8 @@ export function StatusScreen({
           <Text style={styles.warnText}>Live updates unavailable — polling every 10s</Text>
         </View>
       )}
+
+      <ProjectSelector />
 
       <View style={styles.section}>
         <View style={styles.statusRow}>

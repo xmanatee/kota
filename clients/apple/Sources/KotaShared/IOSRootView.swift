@@ -28,6 +28,7 @@ public struct IOSRootView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         StatusHeaderView()
+                        ProjectSelectorView()
                         if !appState.activeRuns.isEmpty {
                             Divider()
                             OperatorSectionHeader(title: "Monitor")

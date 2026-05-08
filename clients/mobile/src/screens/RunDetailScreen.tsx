@@ -47,7 +47,7 @@ function StepRow({ step }: { step: RunStep }) {
 }
 
 export function RunDetailScreen({ runId }: { runId: string }) {
-  const { client } = useDaemon();
+  const { client, state } = useDaemon();
   const [run, setRun] = useState<RunDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +60,7 @@ export function RunDetailScreen({ runId }: { runId: string }) {
     }
     setLoading(true);
     client
-      .getRunDetail(runId)
+      .getRunDetail(runId, state.activeProjectId ?? undefined)
       .then((r) => {
         setRun(r);
         setError(null);
@@ -69,7 +69,7 @@ export function RunDetailScreen({ runId }: { runId: string }) {
         setError(e instanceof Error ? e.message : 'Failed to load run.');
       })
       .finally(() => setLoading(false));
-  }, [client, runId]);
+  }, [client, runId, state.activeProjectId]);
 
   if (loading) {
     return (

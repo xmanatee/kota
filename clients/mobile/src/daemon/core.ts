@@ -2,7 +2,11 @@
 // daemon control API exposes for general lifecycle (`/health`, `/status`,
 // `/workflow/runs`, `/workflow/pause`, `/workflow/resume`).
 
-import { daemonRequest, type DaemonHttp } from './http';
+import {
+  parseProjectRegistryProjection,
+  type ProjectRegistryProjection,
+} from './conformance/decoders';
+import { daemonRequest, withProject, type DaemonHttp } from './http';
 
 export interface HealthResponse {
   status: 'ok' | 'degraded';
@@ -78,45 +82,92 @@ export interface RunDetail extends RunSummary {
   warnings?: Array<{ type: string; message: string }>;
 }
 
+/**
+ * Permissive identity envelope used by the mobile client's project
+ * selector. The strict cross-client conformance decoders (in
+ * `./conformance/decoders.ts`) already validate the projects projection
+ * field-by-field; we only re-parse `projects` here so the picker's
+ * input is typed and rejects an empty / inconsistent registry the same
+ * way the cross-client gate does.
+ */
+export interface ClientIdentity {
+  projectName: string;
+  projectDir: string;
+  projects: ProjectRegistryProjection;
+  daemonVersion: string;
+  pid: number;
+  startedAt: string;
+}
+
 // `/health` is intentionally public (no bearer token) — it's the daemon
 // reachability probe.
 export function getHealth(http: DaemonHttp): Promise<HealthResponse> {
   return fetch(`${http.baseUrl}/health`).then((r) => r.json());
 }
 
-export function getStatus(http: DaemonHttp): Promise<DaemonStatus> {
-  return daemonRequest<DaemonStatus>(http, '/status');
+export async function getIdentity(http: DaemonHttp): Promise<ClientIdentity> {
+  const raw = await daemonRequest<Record<string, unknown>>(http, '/identity');
+  const projects = parseProjectRegistryProjection(raw.projects);
+  return {
+    projectName: String(raw.projectName ?? ''),
+    projectDir: String(raw.projectDir ?? ''),
+    projects,
+    daemonVersion: String(raw.daemonVersion ?? ''),
+    pid: typeof raw.pid === 'number' ? raw.pid : 0,
+    startedAt: String(raw.startedAt ?? ''),
+  };
+}
+
+export async function getProjects(
+  http: DaemonHttp,
+): Promise<ProjectRegistryProjection> {
+  const raw = await daemonRequest<unknown>(http, '/projects');
+  return parseProjectRegistryProjection(raw);
+}
+
+export function getStatus(
+  http: DaemonHttp,
+  projectId?: string,
+): Promise<DaemonStatus> {
+  return daemonRequest<DaemonStatus>(http, withProject('/status', projectId));
 }
 
 export function getRuns(
   http: DaemonHttp,
-  workflow?: string,
-  limit = 20,
+  workflow: string | undefined,
+  limit: number,
+  projectId?: string,
 ): Promise<{ runs: RunSummary[] }> {
   const params = new URLSearchParams();
   if (workflow) params.set('workflow', workflow);
   params.set('limit', String(limit));
   return daemonRequest<{ runs: RunSummary[] }>(
     http,
-    `/workflow/runs?${params}`,
+    withProject(`/workflow/runs?${params}`, projectId),
   );
 }
 
-export function getRunDetail(http: DaemonHttp, id: string): Promise<RunDetail> {
+export function getRunDetail(
+  http: DaemonHttp,
+  id: string,
+  projectId?: string,
+): Promise<RunDetail> {
   return daemonRequest<RunDetail>(
     http,
-    `/workflow/runs/${encodeURIComponent(id)}`,
+    withProject(`/workflow/runs/${encodeURIComponent(id)}`, projectId),
   );
 }
 
 export function pauseDispatch(
   http: DaemonHttp,
+  projectId?: string,
 ): Promise<{ ok: boolean; paused: boolean }> {
-  return daemonRequest(http, '/workflow/pause', { method: 'POST' });
+  return daemonRequest(http, withProject('/workflow/pause', projectId), { method: 'POST' });
 }
 
 export function resumeDispatch(
   http: DaemonHttp,
+  projectId?: string,
 ): Promise<{ ok: boolean; paused: boolean }> {
-  return daemonRequest(http, '/workflow/resume', { method: 'POST' });
+  return daemonRequest(http, withProject('/workflow/resume', projectId), { method: 'POST' });
 }

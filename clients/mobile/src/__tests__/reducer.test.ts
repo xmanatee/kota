@@ -59,6 +59,82 @@ describe('reducer', () => {
     expect(next.pushNotificationsEnabled).toBe(false);
   });
 
+  test('IDENTITY seeds activeProjectId on first refresh and ACTIVE_PROJECT clears project-scoped rows', () => {
+    const seeded = reducer(initialState, {
+      type: 'IDENTITY',
+      identity: {
+        projectName: 'kota',
+        projectDir: '/tmp/kota',
+        daemonVersion: '0.1.0',
+        pid: 1,
+        startedAt: 't',
+        projects: {
+          defaultProjectId: 'p-default',
+          projects: [
+            { projectId: 'p-default', projectDir: '/tmp/kota', displayName: 'kota' },
+            { projectId: 'p-other', projectDir: '/tmp/o', displayName: 'other' },
+          ],
+        },
+      },
+      activeProjectId: 'p-default',
+    });
+    expect(seeded.activeProjectId).toBe('p-default');
+    expect(seeded.identity?.projects.projects).toHaveLength(2);
+
+    const populated: DaemonState = {
+      ...seeded,
+      runs: [
+        {
+          id: 'r1',
+          workflow: 'builder',
+          status: 'success',
+          triggerEvent: 'autonomy.queue.available',
+          startedAt: 't',
+          durationMs: 1,
+        },
+      ],
+      approvals: [makeApproval()],
+      pendingApprovalCount: 1,
+    };
+
+    const switched = reducer(populated, {
+      type: 'ACTIVE_PROJECT',
+      projectId: 'p-other',
+    });
+    expect(switched.activeProjectId).toBe('p-other');
+    expect(switched.runs).toEqual([]);
+    expect(switched.approvals).toEqual([]);
+    expect(switched.pendingApprovalCount).toBe(0);
+
+    // Switching back to the same project is a no-op so React Native does
+    // not bounce the StatusScreen list.
+    const noop = reducer(switched, { type: 'ACTIVE_PROJECT', projectId: 'p-other' });
+    expect(noop).toBe(switched);
+  });
+
+  test('IDENTITY_CLEARED resets identity and activeProjectId together', () => {
+    const seeded = reducer(initialState, {
+      type: 'IDENTITY',
+      identity: {
+        projectName: 'kota',
+        projectDir: '/tmp/kota',
+        daemonVersion: '0.1.0',
+        pid: 1,
+        startedAt: 't',
+        projects: {
+          defaultProjectId: 'p-default',
+          projects: [
+            { projectId: 'p-default', projectDir: '/tmp/kota', displayName: 'kota' },
+          ],
+        },
+      },
+      activeProjectId: 'p-default',
+    });
+    const cleared = reducer(seeded, { type: 'IDENTITY_CLEARED' });
+    expect(cleared.identity).toBeNull();
+    expect(cleared.activeProjectId).toBeNull();
+  });
+
   test('SET_URL and SET_TOKEN update in isolation', () => {
     let s: DaemonState = initialState;
     s = reducer(s, { type: 'SET_URL', url: 'http://x' });
