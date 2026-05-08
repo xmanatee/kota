@@ -111,6 +111,14 @@ export function createMockClient(
 
 // --- Response builders ---
 
+/**
+ * Sentinel model id stamped onto every mock response. Production code must not
+ * read this constant as a default — the negative grep test enforces that no
+ * literal `claude-*`/`gpt-*`/`gemini-*` id leaks into production paths, and a
+ * sentinel keeps the mock untangled from any active preset.
+ */
+export const MOCK_MODEL_ID = "mock-test-model";
+
 let msgCounter = 0;
 
 function nextId(): string {
@@ -135,7 +143,7 @@ export function textResponse(
 	return {
 		id: nextId(),
 		role: "assistant",
-		model: "claude-haiku-4-5-20251001",
+		model: MOCK_MODEL_ID,
 		content: [{ type: "text", text }],
 		stop_reason: "end_turn",
 		stop_sequence: null,
@@ -162,7 +170,7 @@ export function toolUseResponse(
 	return {
 		id: nextId(),
 		role: "assistant",
-		model: "claude-haiku-4-5-20251001",
+		model: MOCK_MODEL_ID,
 		content,
 		stop_reason: "tool_use",
 		stop_sequence: null,
@@ -183,7 +191,7 @@ export function multiToolResponse(
 	return {
 		id: nextId(),
 		role: "assistant",
-		model: "claude-haiku-4-5-20251001",
+		model: MOCK_MODEL_ID,
 		content,
 		stop_reason: "tool_use",
 		stop_sequence: null,

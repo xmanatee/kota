@@ -5,6 +5,7 @@ import { initScheduler } from "#core/daemon/scheduler.js";
 import { initTaskStore } from "#core/daemon/task-store.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import { createModelClient } from "#core/model/model-client.js";
+import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
 import { initModuleLogStore } from "#core/modules/module-log.js";
 import type { CreateSessionOptions, ModuleSession } from "#core/modules/module-types.js";
@@ -39,7 +40,8 @@ export function initAgentSession(
     );
   }
   state.autonomyMode = options.autonomyMode;
-  state.model = options.model || "claude-sonnet-4-6";
+  state.model =
+    options.model || resolveActivePresetFromConfig(options.config).defaultModel;
   state.editorModel = options.editorModel || state.model;
   state.maxTokens = options.maxTokens || 8192;
   state.verbose = options.verbose || false;

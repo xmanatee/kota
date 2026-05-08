@@ -10,6 +10,7 @@
 import { createInterface, type Interface } from "node:readline";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { ModelClient } from "#core/model/model-client.js";
+import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { ToolDef } from "#core/modules/module-types.js";
 import { CompletionHandler } from "./mcp-handlers-completion.js";
 import { ElicitationHandler } from "./mcp-handlers-elicitation.js";
@@ -75,7 +76,9 @@ export class McpServer {
 		const sampling = new SamplingHandler(ctx, {
 			enabled: options.samplingEnabled ?? false,
 			modelClient: options.modelClient ?? null,
-			samplingModel: options.samplingModel ?? "claude-sonnet-4-6",
+			samplingModel:
+				options.samplingModel ??
+				resolveActivePresetFromConfig(undefined).defaultModel,
 			projectDir,
 		});
 		this.initialize = new InitializeHandler(ctx, {

@@ -15,6 +15,7 @@
  */
 import { loadConfig } from "#core/config/config.js";
 import type { ModelClient } from "#core/model/model-client.js";
+import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import type {
   McpServerClient,
@@ -35,7 +36,8 @@ export function localMcpServerClient(): McpServerClient {
       if (samplingEnabled) {
         const { createModelClient } = await import("#core/model/model-client.js");
         modelClient = createModelClient({
-          model: config.model || "claude-sonnet-4-6",
+          model:
+            config.model || resolveActivePresetFromConfig(config).defaultModel,
         }).client;
       }
 

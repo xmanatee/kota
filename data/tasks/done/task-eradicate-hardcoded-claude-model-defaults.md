@@ -1,12 +1,12 @@
 ---
 id: task-eradicate-hardcoded-claude-model-defaults
 title: Eradicate hardcoded claude-* model defaults
-status: ready
+status: done
 priority: p1
 area: core
 summary: Eradicate hardcoded claude-* model defaults across CLI, daemon, delegate config, autonomy fleet, and per-module defaults; route all defaults through the active preset and enforce the absence with a negative grep test.
 created_at: 2026-05-07T23:34:26.525Z
-updated_at: 2026-05-08T01:08:00.491Z
+updated_at: 2026-05-08T01:25:46.414Z
 ---
 
 ## Problem

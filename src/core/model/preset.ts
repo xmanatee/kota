@@ -114,6 +114,34 @@ export function getPreset(id: PresetId): Preset {
   return preset;
 }
 
+/**
+ * Read the preset's shipped default model. Use at every consumer that previously
+ * defaulted to a literal `claude-*` model id; pass the active preset (resolved
+ * via `resolvePreset` or `resolveActivePresetFromConfig`) instead of repeating
+ * the literal.
+ */
+export function resolveDefaultModel(preset: Preset): string {
+  return preset.defaultModel;
+}
+
+/** Read the preset's shipped default reasoning effort. */
+export function resolveDefaultEffort(preset: Preset): AgentEffort {
+  return preset.defaultEffort;
+}
+
+/**
+ * Resolve a tier through a preset, honoring operator tier overrides. Alias for
+ * `resolvePresetTierModel` to give consumers a stable name that mirrors
+ * `resolveDefaultModel` and `resolveDefaultEffort`.
+ */
+export function resolveTierModel(
+  preset: Preset,
+  tier: ModelTier,
+  overrides?: ModelTiers,
+): string {
+  return resolvePresetTierModel(preset, tier, overrides);
+}
+
 export type PresetSource = "flag" | "env" | "config" | "default";
 
 export type PresetResolution = {
@@ -146,6 +174,21 @@ export function resolvePreset(input: PresetResolutionInput): PresetResolution {
     return { preset: getPreset(input.config), source: "config" };
   }
   return { preset: getPreset(SHIPPED_DEFAULT_PRESET_ID), source: "default" };
+}
+
+/**
+ * Resolve the active preset from a loaded config plus the process env. Used by
+ * non-CLI consumers (capture, answer, daemon-init, history) that previously
+ * defaulted to a literal `claude-*` model id when `config.model` was unset.
+ */
+export function resolveActivePresetFromConfig(
+  config: { defaultPreset?: string } | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): Preset {
+  return resolvePreset({
+    env: env[PRESET_ENV_VAR],
+    config: config?.defaultPreset,
+  }).preset;
 }
 
 /** Merge a preset's tier mapping with operator overrides. Operator wins per tier. */

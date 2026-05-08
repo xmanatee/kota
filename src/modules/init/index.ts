@@ -19,7 +19,7 @@ const config: KotaConfig = {
 
   // Optional explicit override for the active preset's defaultModel. Most
   // operators leave this unset and let the preset drive.
-  // model: "claude-sonnet-4-6",
+  // model: "<provider-specific model id>",
 
   // Modules — uncomment and configure the ones you need.
   modules: {

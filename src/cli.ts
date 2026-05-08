@@ -52,9 +52,10 @@ const program = new Command();
 /**
  * Announce the active preset/harness on the stderr banner before the first
  * turn. Operators need to see which preset and adapter are driving the
- * session — `kota [codex] gpt-5-codex` makes a preset switch visible.
- * Always emits to stderr so pipe consumers redirect explicitly with
- * `2>/dev/null` rather than the banner being silently invisible.
+ * session — the banner prints `kota [<preset-id>] <model>` so a preset
+ * switch is visible at a glance. Always emits to stderr so pipe consumers
+ * redirect explicitly with `2>/dev/null` rather than the banner being
+ * silently invisible.
  */
 function announceActivePreset(args: {
   presetId: string;
@@ -144,7 +145,7 @@ program
   .command("run", { isDefault: true })
   .description("Run KOTA with a prompt")
   .argument("[prompt...]", "The task to perform")
-  .option("-m, --model <model>", "Model. Defaults to the active preset's defaultModel. Supports provider/model notation: ollama/llama3, openai/gpt-4o")
+  .option("-m, --model <model>", "Model. Defaults to the active preset's defaultModel. Supports provider/model notation: ollama/<model>, openai/<model>, anthropic/<model>")
   .option("--provider <name>", "Model provider: anthropic, openai, ollama, groq, together, lmstudio, agent-sdk (Claude Agent SDK)")
   .option("--base-url <url>", "Base URL for OpenAI-compatible provider (overrides preset)")
   .option("--editor-model <model>", "Model for editor pass and sub-agents (defaults to --model)")

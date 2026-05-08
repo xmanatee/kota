@@ -34,6 +34,7 @@ function resolveDeps(ctx: ModuleContext): HarnessParityDeps {
   return {
     scenariosRoot: join(moduleDir, "scenarios"),
     defaultOutBaseDir: join(ctx.cwd, ".kota/runs"),
+    config: ctx.config,
   };
 }
 

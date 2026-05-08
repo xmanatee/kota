@@ -2,6 +2,11 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
+import {
+  PRESET_ENV_VAR,
+  resolvePreset,
+  resolveTierModel,
+} from "#core/model/preset.js";
 import type {
   WorkflowPredicate,
   WorkflowRunMetadata,
@@ -43,24 +48,32 @@ export const AUTONOMY_AGENT_HANG_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 // `.kota/config.json`, so their harness stays explicit in code.
 export const AUTONOMY_AGENT_HARNESS = "claude-agent-sdk";
 
+// Tier the autonomy fleet runs at. `tier: "capable"` is what every autonomy
+// workflow agent step consumes; the workflow validator resolves it through
+// the active preset's `tiers.capable`, so codex/gemini/claude all pick their
+// own capable model without per-step edits.
+export const AUTONOMY_AGENT_TIER = "capable" as const;
+
 // Single source of truth for the autonomy fleet's model and effort level.
-// Every autonomy workflow agent and autonomy-internal judge (critic,
-// semantic gate) spreads this default; a workflow that genuinely needs to
-// diverge overrides the individual field after the spread.
-//
-// `tier` is what autonomy workflow agent steps consume — declaring `tier:
-// "capable"` keeps the step harness-portable (codex/gemini/claude all
-// resolve their own capable model through `KotaConfig.modelTiers`).
-// `model` is kept as the literal id used by the `AgentDef` shape (which
-// requires a concrete model string today) and by autonomy-internal judges
-// that pin a specific provider model.
-export const AUTONOMY_AGENT_DEFAULTS: Pick<AgentDef, "model" | "effort"> & {
-  tier: "capable";
-} = {
-  tier: "capable",
-  model: "claude-opus-4-7",
-  effort: "xhigh",
-};
+// `model` and `effort` are resolved at module-load time from the active
+// preset (`KOTA_PRESET` env > shipped default). Every autonomy workflow
+// agent definition spreads this object, and the autonomy-internal judges
+// (critic, semantic gate) consume the same `model`/`effort` so a preset
+// switch flows through every autonomy surface without per-call edits.
+// No literal model id stays in this file — the negative grep test enforces
+// that on every CI run.
+function buildAutonomyAgentDefaults(): Pick<AgentDef, "model" | "effort"> & {
+  tier: typeof AUTONOMY_AGENT_TIER;
+} {
+  const { preset } = resolvePreset({ env: process.env[PRESET_ENV_VAR] });
+  return {
+    tier: AUTONOMY_AGENT_TIER,
+    model: resolveTierModel(preset, AUTONOMY_AGENT_TIER),
+    effort: preset.defaultEffort,
+  };
+}
+
+export const AUTONOMY_AGENT_DEFAULTS = buildAutonomyAgentDefaults();
 
 export type RunSummary = {
   id: string;

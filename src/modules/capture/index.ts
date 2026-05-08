@@ -19,6 +19,7 @@ import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import { createModelClient } from "#core/model/model-client.js";
+import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { KotaModule, ModuleContext, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
   getKnowledgeProvider,
@@ -97,7 +98,8 @@ function createDefaultClassifier(ctx: ModuleContext): CaptureClassifier {
       let resolved: ReturnType<typeof createModelClient>;
       try {
         resolved = createModelClient({
-          model: config.model || "claude-sonnet-4-6",
+          model:
+            config.model || resolveActivePresetFromConfig(config).defaultModel,
           ...(config.modelProvider?.type !== undefined && {
             provider: config.modelProvider.type,
           }),

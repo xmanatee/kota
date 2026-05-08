@@ -25,7 +25,7 @@ const TRACE_TAIL_LIMIT = 32_000;
 const DIFF_TAIL_LIMIT = 200_000;
 
 export type HarnessParityCallOptions = {
-  /** Model identifier the harness should use (e.g. "claude-sonnet-4-6"). */
+  /** Model identifier the harness should use (resolved from the active preset by the caller). */
   model: string;
   /** Optional system prompt to forward to the adapter. */
   systemPrompt?: string;

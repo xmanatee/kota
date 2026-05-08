@@ -9,6 +9,8 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentHarness } from "#core/agent-harness/index.js";
 import { listAgentHarnessNames, resolveAgentHarness } from "#core/agent-harness/index.js";
+import type { KotaConfig } from "#core/config/config.js";
+import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type {
   HarnessParityListResult,
   HarnessParityRunOptions,
@@ -27,9 +29,14 @@ export type HarnessParityDeps = {
   scenariosRoot: string;
   /** Default base directory for paired artifacts when `outDir` is omitted. */
   defaultOutBaseDir: string;
+  /**
+   * Active KOTA config used to resolve the default model from the active
+   * preset when `options.model` is omitted. The CLI / daemon route passes the
+   * loaded config; tests pass a minimal `{}` and rely on the shipped default
+   * preset.
+   */
+  config: KotaConfig;
 };
-
-const DEFAULT_MODEL = "claude-sonnet-4-6";
 
 function buildOutBaseDir(defaultOutBaseDir: string, override?: string): string {
   if (override) return override;
@@ -114,7 +121,8 @@ export async function runHarnessParity(
 
   const outBaseDir = buildOutBaseDir(deps.defaultOutBaseDir, options?.outDir);
   mkdirSync(outBaseDir, { recursive: true });
-  const model = options?.model ?? DEFAULT_MODEL;
+  const model =
+    options?.model ?? resolveActivePresetFromConfig(deps.config).defaultModel;
 
   const summaries: HarnessParityRunResult = {
     ok: true,

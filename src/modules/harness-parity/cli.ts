@@ -67,8 +67,7 @@ export function buildHarnessParityCommand(
     )
     .option(
       "-m, --model <model>",
-      "Model passed to each harness (default: claude-sonnet-4-6)",
-      "claude-sonnet-4-6",
+      "Model passed to each harness. Defaults to the active preset's defaultModel when omitted.",
     )
     .option(
       "--max-turns <n>",
@@ -80,7 +79,7 @@ export function buildHarnessParityCommand(
       async (opts: {
         scenario: string[];
         harness: string[];
-        model: string;
+        model?: string;
         maxTurns?: string;
         out?: string;
         keep?: boolean;
@@ -99,7 +98,7 @@ export function buildHarnessParityCommand(
         const result = await ctx.client.harnessParity.run({
           ...(opts.scenario.length > 0 && { scenarios: opts.scenario }),
           ...(opts.harness.length > 0 && { harnesses: opts.harness }),
-          model: opts.model,
+          ...(opts.model !== undefined && { model: opts.model }),
           ...(maxTurns !== undefined && { maxTurns }),
           ...(opts.out !== undefined && { outDir: opts.out }),
           ...(opts.keep !== undefined && { keepWorkingDir: opts.keep }),

@@ -5,6 +5,7 @@ import { getScheduler, resetScheduler } from "#core/daemon/scheduler.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "#core/loop/loop.js";
 import { formatAuthError } from "#core/model/auth-error.js";
 import { createModelClient } from "#core/model/model-client.js";
+import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import type { ConversationRecord } from "#core/modules/provider-types.js";
 import type { KotaClient } from "#core/server/kota-client.js";
@@ -95,7 +96,9 @@ function handleReplCommand(
     }
     case "/status": {
       const state = session.getState();
-      const model = options.model || "claude-sonnet-4-6";
+      const model =
+        options.model ||
+        resolveActivePresetFromConfig(options.config).defaultModel;
       stderr.write(
         line(
           span("Model: ", "muted"),
@@ -234,7 +237,7 @@ export async function resolveRunContinue(
 export async function runPipeLoop(piped: string): Promise<void> {
   const config = loadConfig();
   const resolved = createModelClient({
-    model: config.model || "claude-sonnet-4-6",
+    model: config.model || resolveActivePresetFromConfig(config).defaultModel,
     provider: config.modelProvider?.type,
     baseUrl: config.modelProvider?.baseUrl,
     apiKey: config.modelProvider?.apiKey,

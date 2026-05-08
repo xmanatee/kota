@@ -98,9 +98,25 @@ export type AnswerHistoryStoreOptions = {
  * Mint a sortable id matching the `.kota/runs/` style — ISO timestamp
  * with `:` and `.` replaced so it is filename-safe, plus a short random
  * suffix to disambiguate two appends in the same millisecond.
+ *
+ * The timestamp portion is clamped to a per-process monotonic floor so two
+ * mints inside the same millisecond still sort in call order — the random
+ * suffix would otherwise decide ordering, and downstream `listAnswers()` /
+ * `searchAnswers()` callers rely on filename order matching call order.
+ * Callers that pass an explicit `now` (e.g. unit tests pinning a fixed
+ * timestamp) opt out of clamping.
  */
-export function mintAnswerHistoryId(now: number = Date.now()): string {
-  const iso = new Date(now).toISOString();
+let lastMintTime = 0;
+export function mintAnswerHistoryId(now?: number): string {
+  let stamp: number;
+  if (now === undefined) {
+    stamp = Date.now();
+    if (stamp <= lastMintTime) stamp = lastMintTime + 1;
+    lastMintTime = stamp;
+  } else {
+    stamp = now;
+  }
+  const iso = new Date(stamp).toISOString();
   const safe = iso.replace(/[:.]/g, "-");
   const suffix = randomBytes(3).toString("hex");
   return `${safe}-${suffix}`;

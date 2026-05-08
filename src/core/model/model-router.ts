@@ -7,6 +7,7 @@
  */
 
 import { routeTask, type TaskType } from "#core/daemon/task-router.js";
+import { getPreset, SHIPPED_DEFAULT_PRESET_ID } from "./preset.js";
 
 export type ModelTier = "fast" | "balanced" | "capable";
 
@@ -16,10 +17,15 @@ export type ModelTiers = {
 	capable?: string;
 };
 
+/**
+ * Shipped-default tier mapping, surfaced from the shipped default preset for
+ * legacy callers that resolve a tier without a preset in hand. Producers
+ * that already hold a `Preset` should use `mergePresetTiers` /
+ * `resolveTierModel` from `./preset.js` instead of importing this constant
+ * directly.
+ */
 export const DEFAULT_MODEL_TIERS: Required<ModelTiers> = {
-	fast: "claude-haiku-4-5-20251001",
-	balanced: "claude-sonnet-4-6",
-	capable: "claude-opus-4-7",
+	...getPreset(SHIPPED_DEFAULT_PRESET_ID).tiers,
 };
 
 /** Base tier for each task type — before complexity adjustments. */

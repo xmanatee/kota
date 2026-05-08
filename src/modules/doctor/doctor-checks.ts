@@ -26,7 +26,9 @@ import type {
 import { createModelClient } from "#core/model/model-client.js";
 import {
   checkPresetAuth,
+  getPreset,
   PRESET_ENV_VAR,
+  resolveActivePresetFromConfig,
   resolvePreset,
 } from "#core/model/preset.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
@@ -266,9 +268,22 @@ function isAuthError(err: unknown): boolean {
   return /API error (401|403)/i.test(msg);
 }
 
+/**
+ * Cheap probe model per shipped preset, derived from the preset registry.
+ * The doctor probe only needs "can we reach the provider at all", so each
+ * entry is the corresponding preset's `tiers.fast` — no literal id baked in
+ * here, and a new shipped preset automatically gains a probe row when its
+ * registry entry lands.
+ *
+ * Keys are *provider types* (the same shape `config.modelProvider?.type`
+ * exposes) rather than preset ids: a provider may underpin multiple presets
+ * (e.g. a future `anthropic-claude-x` preset would still ride the
+ * `anthropic` provider), and the probe lives one layer below preset choice.
+ */
 const PROBE_MODEL: Record<string, string> = {
-  anthropic: "claude-haiku-4-5-20251001",
-  openai: "gpt-4o-mini",
+  anthropic: getPreset("claude").tiers.fast,
+  openai: getPreset("codex").tiers.fast,
+  gemini: getPreset("gemini").tiers.fast,
 };
 
 export async function checkProviderConnectivity(projectDir: string): Promise<CheckResult[]> {
@@ -278,7 +293,8 @@ export async function checkProviderConnectivity(projectDir: string): Promise<Che
   const explicitKey = mpConfig?.apiKey;
   const baseUrl = mpConfig?.baseUrl;
   const apiKey = resolveApiKey(providerType, explicitKey);
-  const model = PROBE_MODEL[providerType] ?? config.model ?? "gpt-4o-mini";
+  const presetDefaultModel = resolveActivePresetFromConfig(config).defaultModel;
+  const model = PROBE_MODEL[providerType] ?? config.model ?? presetDefaultModel;
 
   const label = `Provider connectivity: ${providerType}`;
   const keyDisplay = apiKey ? `${apiKey.slice(0, 8)}...` : "(not set)";

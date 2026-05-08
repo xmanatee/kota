@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { loadConfig } from "#core/config/config.js";
 import { createModelClient } from "#core/model/model-client.js";
+import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import type { ConversationRecord } from "#core/modules/provider-types.js";
 import { getActiveKotaClient } from "#core/server/client-holder.js";
@@ -159,7 +160,10 @@ export function registerHistoryCommands(program: Command) {
       const config = loadConfig();
       const client = getActiveKotaClient();
       const fullId = await resolveConversationId(client, idOrPrefix);
-      const modelSpec = opts.model || config.model || "claude-sonnet-4-6";
+      const modelSpec =
+        opts.model ||
+        config.model ||
+        resolveActivePresetFromConfig(config).defaultModel;
       const resolved = createModelClient({
         model: modelSpec,
         provider: config.modelProvider?.type,

@@ -2,6 +2,7 @@ import type { ChannelAdapter, ChannelStatus } from "#core/channels/channel.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { AgentSession } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
+import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { HealthCheckResult } from "#core/modules/module-types.js";
 import { getHistoryProvider, getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
@@ -146,7 +147,11 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
       }
     },
     createConversation: (_mode: AutonomyMode): string =>
-      getHistoryProvider().create(daemonModel ?? "claude-sonnet-4-6", projectDir, "user"),
+      getHistoryProvider().create(
+        daemonModel ?? resolveActivePresetFromConfig(daemonConfig).defaultModel,
+        projectDir,
+        "user",
+      ),
   };
 
   const handle = buildDaemonHandle({

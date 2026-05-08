@@ -1,9 +1,10 @@
 /**
  * Provider factory — resolves a ModelClient from CLI flags, config, and env vars.
  *
- * Supports provider/model notation (e.g., "ollama/llama3", "openai/gpt-4o")
- * and explicit --provider / --base-url flags. Falls back to Anthropic when
- * no provider is specified.
+ * Supports provider/model notation `<provider>/<model>` (e.g.
+ * `ollama/<model>`, `openai/<model>`, `anthropic/<model>`) and explicit
+ * --provider / --base-url flags. Falls back to Anthropic when no provider is
+ * specified.
  */
 
 import type { KotaConfig } from "#core/config/config.js";

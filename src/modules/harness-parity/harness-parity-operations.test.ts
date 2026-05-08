@@ -30,7 +30,7 @@ describe("harness-parity operations (local handler / daemon-down branch)", () =>
   beforeEach(() => {
     scenariosRoot = mkdtempSync(join(tmpdir(), "kota-parity-ops-scenarios-"));
     outRoot = mkdtempSync(join(tmpdir(), "kota-parity-ops-out-"));
-    deps = { scenariosRoot, defaultOutBaseDir: outRoot };
+    deps = { scenariosRoot, defaultOutBaseDir: outRoot, config: {} };
   });
 
   afterEach(() => {

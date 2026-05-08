@@ -3,6 +3,11 @@ import type { Transport } from "#core/loop/transport.js";
 import type { McpManager } from "#core/mcp/manager.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import type { DelegateBackend, ModelTiers } from "#core/model/model-router.js";
+import {
+  PRESET_ENV_VAR,
+  resolvePreset,
+  resolveTierModel,
+} from "#core/model/preset.js";
 
 export type DelegateMode = "explore" | "execute" | "research";
 
@@ -39,13 +44,27 @@ export type DelegateConfig = {
   harness?: string;
 };
 
-let delegateConfig: DelegateConfig = { model: "claude-opus-4-7" };
+/**
+ * Default delegate config used before `setDelegateConfig` runs (e.g. when a
+ * tool surface accesses the delegate without an active session). The model is
+ * the active preset's `capable` tier, resolved via env + shipped default — no
+ * literal model id baked in. The session-time `setDelegateConfig` call from
+ * `loop-constructor` overwrites this with the operator's resolved
+ * `editorModel`.
+ */
+function buildDefaultDelegateConfig(): DelegateConfig {
+  const { preset } = resolvePreset({ env: process.env[PRESET_ENV_VAR] });
+  return { model: resolveTierModel(preset, "capable") };
+}
+
+let delegateConfig: DelegateConfig | null = null;
 
 export function setDelegateConfig(config: DelegateConfig): void {
   delegateConfig = config;
 }
 
 export function getDelegateConfig(): DelegateConfig {
+  if (!delegateConfig) delegateConfig = buildDefaultDelegateConfig();
   return delegateConfig;
 }
 
