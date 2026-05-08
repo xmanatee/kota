@@ -1,12 +1,12 @@
 ---
 id: task-add-web-client-project-selector-and-project-scoped
 title: Add web client project selector and project-scoped views
-status: backlog
+status: ready
 priority: p2
 area: client
 summary: Add a project selector and project-scoped routes/SSE subscriptions to the web dashboard so the daemon-backed browser UI renders one project at a time once the daemon hosts multiple project runtimes.
 created_at: 2026-05-08T00:00:39.515Z
-updated_at: 2026-05-08T01:08:33.035Z
+updated_at: 2026-05-08T04:24:39.758Z
 ---
 
 ## Problem
