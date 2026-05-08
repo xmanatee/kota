@@ -1,12 +1,12 @@
 ---
 id: task-evaluator-calibration-drift-repair
 title: Repair evaluator calibration drift
-status: done
+status: ready
 priority: p1
 area: autonomy
 summary: Restore the live-run evaluator calibration loop to within threshold by tightening critic guidance, repair-loop checks, or the calibration gate itself.
-created_at: 2026-05-08T01:39:21.959Z
-updated_at: 2026-05-08T01:55:55.115Z
+created_at: 2026-05-08T01:59:47.592Z
+updated_at: 2026-05-08T01:59:47.592Z
 ---
 
 ## Problem
@@ -25,13 +25,13 @@ Decision reason from the monitor:
 
 ## Calibration Snapshot
 
-- Window: 2026-05-01T01:39:21.629Z → 2026-05-08T01:39:21.629Z
-- Total runs in window: 102
-- Pass verdicts: 73
+- Window: 2026-05-01T01:59:47.256Z → 2026-05-08T01:59:47.256Z
+- Total runs in window: 103
+- Pass verdicts: 74
 - Pass-with-warnings verdicts: 27
 - Fail verdicts: 0
 - Absent verdicts: 2
-- Pass-contradiction rate: 2.7% (2 of 73); threshold 25.0%.
+- Pass-contradiction rate: 2.7% (2 of 74); threshold 25.0%.
 - Pass-with-warnings follow-up rate: 77.8% (21 of 27); threshold 75.0%.
 
 ## Desired Outcome
@@ -73,7 +73,7 @@ visible in the run artifact rather than only in attention digests.
 ## Source / Intent
 
 Auto-created by `evaluator-calibration-monitor` after the live calibration
-gate fired at 2026-05-08T01:39:21.959Z. Replaces the previous notification-only
+gate fired at 2026-05-08T01:59:47.592Z. Replaces the previous notification-only
 behavior so calibration drift becomes a deterministic next action in the
 queue rather than a recurring attention item.
 
