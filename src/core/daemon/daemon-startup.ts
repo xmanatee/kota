@@ -5,7 +5,6 @@ import type { DaemonRuntimeContext } from "./daemon-init.js";
 import { acquireInstanceLock, writeControlFile } from "./daemon-instance-lock.js";
 import { saveDaemonStateToDisk } from "./daemon-state-persistence.js";
 import { subscribeDaemon } from "./daemon-subscriptions.js";
-import { NotificationGate } from "./notification-gate.js";
 import { getScheduler, type ScheduledItem } from "./scheduler.js";
 import { sweepExpiredSessions } from "./session-sweep.js";
 
@@ -111,8 +110,7 @@ export async function runDaemonStartup(
   });
 
   const quietHours = ctx.config.config?.notifications?.quietHours;
-  if (quietHours) {
-    ctx.notificationGate = new NotificationGate(ctx.bus, quietHours);
+  if (quietHours && ctx.projectRuntimes.getDefault().notificationGate) {
     ctx.log(`Notification gate active: quiet hours ${quietHours.start}–${quietHours.end}`);
   }
 

@@ -1,11 +1,19 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
+import type { WorkflowRunStore } from "./run-store.js";
 import type { RegisteredWorkflowDefinitionInput } from "./types.js";
 
 export type WorkflowRuntimeConfig = {
   bus: EventBus;
   projectDir?: string;
+  /**
+   * Pre-built run store. Supplied by the per-project runtime bundle so the
+   * daemon shares one instance across the workflow runtime and the
+   * daemon-handle. Tests that build a standalone runtime may omit this and
+   * let the runtime construct its own from `projectDir`.
+   */
+  runStore?: WorkflowRunStore;
   model?: string;
   config?: KotaConfig;
   idleIntervalMs?: number;

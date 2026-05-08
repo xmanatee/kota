@@ -1,12 +1,12 @@
 ---
 id: task-add-per-project-projectruntime-bundle-factory-and-
 title: Add per-project ProjectRuntime bundle factory and singleton-binding invariant test
-status: ready
+status: done
 priority: p2
 area: architecture
 summary: Convert workflow runtime, run store, task store, scheduler, module-log store, notification gate, approval queue, owner-question queue, and push-token store to per-project bundles keyed by ProjectId, with a typed singleton-binding invariant test.
 created_at: 2026-05-08T00:56:56.663Z
-updated_at: 2026-05-08T02:55:25.100Z
+updated_at: 2026-05-08T03:13:14.008Z
 ---
 
 ## Problem

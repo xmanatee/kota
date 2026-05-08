@@ -200,6 +200,16 @@ export function getOwnerQuestionQueue(dir?: string): OwnerQuestionQueue {
   return _queue;
 }
 
+/**
+ * Install a pre-built {@link OwnerQuestionQueue} as the module-level
+ * singleton. Used by the per-project runtime bundle factory to register the
+ * default project's instance without re-binding the queue directory outside
+ * the bundle.
+ */
+export function setOwnerQuestionQueueInstance(queue: OwnerQuestionQueue): void {
+  _queue = queue;
+}
+
 export function resetOwnerQuestionQueue(): void {
   _queue = null;
 }

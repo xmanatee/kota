@@ -4,10 +4,8 @@ import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ChannelDef, ChannelStatus } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { initEventBus } from "#core/events/event-bus.js";
-import { initModuleLogStore } from "#core/modules/module-log.js";
 import type { ControlRouteRegistration, RouteRegistration } from "#core/modules/module-types.js";
 import type { LogFormat } from "#core/util/log-format.js";
-import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { buildDaemonInit, type DaemonRuntimeContext } from "./daemon-init.js";
 import { DaemonLogger } from "./daemon-logger.js";
@@ -20,8 +18,7 @@ import {
   ProjectRegistry,
   resolveConfiguredProjects,
 } from "./project-registry.js";
-import { initScheduler } from "./scheduler.js";
-import { initTaskStore } from "./task-store.js";
+import { ProjectRuntimeRegistry } from "./project-runtime.js";
 
 export type { DaemonControlAddress } from "./daemon-control.js";
 export type { DaemonState } from "./daemon-state.js";
@@ -130,22 +127,31 @@ export class Daemon {
     const token = randomBytes(32).toString("hex");
 
     const bus = initEventBus();
-    const runStore = new WorkflowRunStore(projectDir);
-    initTaskStore(projectDir);
-    initScheduler(projectDir);
-    initModuleLogStore(projectDir);
+
+    const projectRuntimes = ProjectRuntimeRegistry.create({
+      registry: projectRegistry,
+      bus,
+      config: config.config,
+      workflows: config.workflows,
+      model: config.model ?? config.config?.model,
+      idleIntervalMs: config.idleIntervalMs,
+      resolveAgentDef: config.resolveAgentDef,
+      resolveSkillsPrompt: config.resolveSkillsPrompt,
+      onLog: log,
+      quietHours: config.config?.notifications?.quietHours,
+    });
 
     this.ctx = buildDaemonInit({
       config,
       projectDir,
       stateDir,
       bus,
-      runStore,
       logger,
       log,
       state,
       token,
       projectRegistry,
+      projectRuntimes,
     });
   }
 

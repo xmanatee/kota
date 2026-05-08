@@ -168,6 +168,16 @@ export function getApprovalQueue(dir?: string): ApprovalQueue {
 	return _queue;
 }
 
+/**
+ * Install a pre-built {@link ApprovalQueue} as the module-level singleton.
+ * Used by the per-project runtime bundle factory to register the default
+ * project's instance without re-binding the queue directory outside the
+ * bundle.
+ */
+export function setApprovalQueueInstance(queue: ApprovalQueue): void {
+	_queue = queue;
+}
+
 export function resetApprovalQueue(): void {
 	_queue = null;
 }

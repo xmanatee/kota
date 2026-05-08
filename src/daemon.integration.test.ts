@@ -11,10 +11,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   Daemon,
   type DaemonConfig,
-  getScheduler,
-  initScheduler,
   RESTART_EXIT_CODE,
   resetScheduler,
+  Scheduler,
+  setSchedulerInstance,
 } from "#core/daemon/index.js";
 import { resetEventBus } from "#core/events/event-bus.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
@@ -268,11 +268,14 @@ describe("Daemon", () => {
   });
 
   it("handles scheduled notification items when they fire", async () => {
-    initScheduler(projectDir, stateDir);
-    const scheduler = getScheduler();
+    const daemon = makeDaemon({ pollIntervalMs: 100, workflows: [] });
+    // Replace the per-project bundle's scheduler with one pointed at the
+    // test's stateDir so persistence stays inside the temp dir, not in
+    // the user's real ~/.kota.
+    const scheduler = new Scheduler(projectDir, stateDir);
+    setSchedulerInstance(scheduler);
     scheduler.add("Test reminder", new Date(Date.now() - 1000));
 
-    const daemon = makeDaemon({ pollIntervalMs: 100, workflows: [] });
     const startPromise = daemon.start();
     await wait(300);
 

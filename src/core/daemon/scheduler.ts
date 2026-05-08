@@ -260,6 +260,19 @@ export function initScheduler(
   instance = new Scheduler(projectDir, storageDir);
 }
 
+/**
+ * Install a pre-built {@link Scheduler} as the module-level singleton.
+ * Used by the per-project runtime bundle factory to register the default
+ * project's instance without re-binding `projectDir` outside the bundle.
+ */
+export function setSchedulerInstance(scheduler: Scheduler): void {
+  if (instance && instance !== scheduler) {
+    instance.disconnectBus();
+    instance.stopTimer();
+  }
+  instance = scheduler;
+}
+
 export function getScheduler(): Scheduler {
   if (!instance) instance = new Scheduler(undefined, null);
   return instance;

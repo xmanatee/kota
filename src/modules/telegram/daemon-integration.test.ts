@@ -17,9 +17,9 @@ import {
   type DaemonConfig,
 } from "#core/daemon/daemon.js";
 import {
-  getScheduler,
-  initScheduler,
   resetScheduler,
+  Scheduler,
+  setSchedulerInstance,
 } from "#core/daemon/scheduler.js";
 import { resetEventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
@@ -300,11 +300,6 @@ describe("Telegram personal-assistant daemon integration", () => {
       },
     };
 
-    // Pre-schedule a due notification item so the scheduler fires on the poll.
-    initScheduler(projectDir, stateDir);
-    const scheduler = getScheduler();
-    scheduler.add("Test reminder", new Date(Date.now() - 1000));
-
     const daemon = makeDaemon({
       workflows: [
         registerWorkflowDefinition("test/builder.ts", {
@@ -326,6 +321,14 @@ describe("Telegram personal-assistant daemon integration", () => {
       channels: [telegramStatusChannel],
       pollIntervalMs: 100,
     });
+
+    // Replace the per-project bundle's scheduler with one pointed at the
+    // test's stateDir so persistence stays inside the temp dir, then
+    // pre-schedule a due notification item so the scheduler fires on the
+    // first poll.
+    const scheduler = new Scheduler(projectDir, stateDir);
+    setSchedulerInstance(scheduler);
+    scheduler.add("Test reminder", new Date(Date.now() - 1000));
 
     const startPromise = daemon.start();
 

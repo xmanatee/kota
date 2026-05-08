@@ -23,8 +23,10 @@ export class TaskStore {
       this.filePath = null;
       this.loaded = true;
     } else {
+      // Defer dir creation to persist() so constructing a TaskStore — for
+      // example as part of the per-project runtime bundle — does not touch
+      // the filesystem until the project actually writes a task.
       const baseDir = storageDir || join(homedir(), ".kota");
-      if (!existsSync(baseDir)) mkdirSync(baseDir, { recursive: true });
       const hash = projectHash(this.project);
       this.filePath = join(baseDir, `tasks-${hash}.json`);
     }
@@ -259,6 +261,15 @@ let store: TaskStore | undefined;
 /** Initialize the task store for a specific project. Call once at session start. */
 export function initTaskStore(projectDir?: string, storageDir?: string | null): void {
   store = new TaskStore(projectDir, storageDir);
+}
+
+/**
+ * Install a pre-built {@link TaskStore} as the module-level singleton.
+ * Used by the per-project runtime bundle factory to register the default
+ * project's instance without re-binding `projectDir` outside the bundle.
+ */
+export function setTaskStoreInstance(instance: TaskStore): void {
+  store = instance;
 }
 
 /** Get the singleton task store. Auto-creates in-memory if not initialized. */

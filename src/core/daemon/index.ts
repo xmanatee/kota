@@ -33,6 +33,7 @@ export {
 	resetScheduler,
 	type ScheduledItem,
 	Scheduler,
+	setSchedulerInstance,
 } from "./scheduler.js";
 export {
 	formatTaskHint,

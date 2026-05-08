@@ -104,7 +104,7 @@ export class WorkflowRuntime {
 
   constructor(runtimeConfig: WorkflowRuntimeConfig) {
     const projectDir = runtimeConfig.projectDir ?? process.cwd();
-    const store = new WorkflowRunStore(projectDir);
+    const store = runtimeConfig.runStore ?? new WorkflowRunStore(projectDir);
     const onLog = runtimeConfig.onLog;
     const log = (message: string): void => {
       onLog?.(message);

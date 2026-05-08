@@ -7,7 +7,7 @@ import type { HealthCheckResult } from "#core/modules/module-types.js";
 import { getHistoryProvider, getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
-import { WorkflowRuntime } from "#core/workflow/runtime.js";
+import type { WorkflowRuntime } from "#core/workflow/runtime.js";
 import {
   WORKFLOW_DEFINITIONS_PROVIDER_TYPE,
   type WorkflowDefinitionsSource,
@@ -31,8 +31,8 @@ import {
   WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE,
   type WorkflowMetricsSource,
 } from "./metrics-source-provider.js";
-import type { NotificationGate } from "./notification-gate.js";
 import type { ProjectRegistry } from "./project-registry.js";
+import type { ProjectRuntimeRegistry } from "./project-runtime.js";
 
 /**
  * Per-instance lifecycle context for one running daemon.
@@ -59,9 +59,9 @@ export type DaemonRuntimeContext = {
   readonly state: DaemonState;
   readonly sessions: Map<string, InteractiveSession>;
   readonly projectRegistry: ProjectRegistry;
+  readonly projectRuntimes: ProjectRuntimeRegistry;
 
   // Mutable lifecycle state owned by startup/shutdown phases.
-  notificationGate: NotificationGate | null;
   unsubscribe: (() => void) | null;
   sessionSweepTimer: ReturnType<typeof setInterval> | null;
   healthCheckTimer: ReturnType<typeof setInterval> | null;
@@ -82,12 +82,12 @@ export type BuildDaemonInitParams = {
   projectDir: string;
   stateDir: string;
   bus: EventBus;
-  runStore: WorkflowRunStore;
   logger: DaemonLogger;
   log: (message: string) => void;
   state: DaemonState;
   token: string;
   projectRegistry: ProjectRegistry;
+  projectRuntimes: ProjectRuntimeRegistry;
 };
 
 /**
@@ -103,12 +103,12 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     projectDir,
     stateDir,
     bus,
-    runStore,
     logger,
     log,
     state,
     token,
     projectRegistry,
+    projectRuntimes,
   } = params;
   const sessions = new Map<string, InteractiveSession>();
 
@@ -117,19 +117,9 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
   // any of them runs.
   let ctx!: DaemonRuntimeContext;
 
-  const workflows = new WorkflowRuntime({
-    bus,
-    projectDir,
-    model: config.model ?? config.config?.model,
-    config: config.config,
-    idleIntervalMs: config.idleIntervalMs,
-    agentConcurrency: config.config?.scheduler?.agentConcurrency,
-    codeConcurrency: config.config?.scheduler?.codeConcurrency,
-    onLog: log,
-    workflows: config.workflows,
-    resolveAgentDef: config.resolveAgentDef,
-    resolveSkillsPrompt: config.resolveSkillsPrompt,
-  });
+  const defaultBundle = projectRuntimes.getDefault();
+  const workflows = defaultBundle.workflowRuntime;
+  const runStore = defaultBundle.runStore;
 
   const daemonModel = config.model ?? config.config?.model;
   const daemonConfig = config.config;
@@ -236,7 +226,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     state,
     sessions,
     projectRegistry,
-    notificationGate: null,
+    projectRuntimes,
     unsubscribe: null,
     sessionSweepTimer: null,
     healthCheckTimer: null,

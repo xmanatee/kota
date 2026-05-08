@@ -57,8 +57,10 @@ export async function runDaemonShutdown(
   ctx.unsubscribe?.();
   ctx.unsubscribe = null;
 
-  ctx.notificationGate?.dispose();
-  ctx.notificationGate = null;
+  for (const bundle of ctx.projectRuntimes.list()) {
+    bundle.notificationGate?.dispose();
+    bundle.notificationGate = null;
+  }
 
   if (ctx.shutdownHandler) {
     process.removeListener("SIGINT", ctx.shutdownHandler);

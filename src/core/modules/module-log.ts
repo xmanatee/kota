@@ -158,6 +158,15 @@ export function initModuleLogStore(baseDir: string): ModuleLogStore {
 	return _store;
 }
 
+/**
+ * Install a pre-built {@link ModuleLogStore} as the module-level singleton.
+ * Used by the per-project runtime bundle factory to register the default
+ * project's instance without re-binding `baseDir` outside the bundle.
+ */
+export function setModuleLogStoreInstance(store: ModuleLogStore): void {
+	_store = store;
+}
+
 export function getModuleLogStore(): ModuleLogStore | null {
 	return _store;
 }
