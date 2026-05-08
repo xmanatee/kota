@@ -215,6 +215,14 @@ resources:
   - url: https://github.com/vercel-labs/open-agents
     added: "2026-05-07"
     notes: "Vercel Labs Open Agents is the open-source reference implementation behind open-agents.dev — a TypeScript Next.js + Vercel Workflows + Sandbox stack that runs coding agents 'infinitely in the cloud' with the agent running outside the sandbox. Direct peer to KOTA's daemon + workflow + session model and a comparison point for the events/hooks vs. workflows debate. Snapshot and distill on the next explorer cycle."
+    snapshot:
+      fingerprint: sha256:7f518f61cd09822d7949839bdc2502e9
+      summary: "Open Agents is Vercel-Labs' MIT TypeScript reference implementation for background coding agents on Vercel: Next.js web UI + agent package + sandbox abstraction in a bun monorepo, with the agent running outside the sandbox and interacting via tools (brain/hands decoupling) atop the Vercel Workflow SDK; durable multi-step workflows, resumable streams, skills registry, PostgreSQL persistence, branching + auto-commit + PR creation. Pattern overlaps with KOTA's already-rejected 'Managed Agents / brain-hands decoupling' verdict; no new primitive opened."
+      last_seen_at: "2026-05-08T04:29:08.386Z"
   - url: https://vercel.com/docs/workflow
     added: "2026-05-07"
     notes: "Vercel Workflow SDK docs — durable, resumable orchestration with checkpointing. Peer to KOTA's workflow runtime; useful comparison for workflow durability and resume semantics. Snapshot and distill on the next explorer cycle."
+    snapshot:
+      fingerprint: sha256:b7f62ec5b3323245d932105c5fb13359
+      summary: "Vercel Workflows is Vercel's fully-managed durable-execution platform for JS/TS/Python apps and AI agents: plain async functions annotated with `'use workflow'` / `'use step'` directives, executed by Vercel Functions + Vercel Queues with managed persistence; resumable for minutes-to-months, deterministic replays across deploys and crashes, sleep/hooks for waits, streams, skew protection, and built-in observability. Pitched as 'no YAML or state machines'. Pattern verdict: parallel orchestration layer beside KOTA's existing workflow protocol (typed triggers + steps + run records + recoveryCapable + askOwnerSteps), so falls under the already-rejected 'Workflow DSLs' and 'Managed Agents' categories; no new KOTA primitive opened."
+      last_seen_at: "2026-05-08T04:29:08.386Z"
